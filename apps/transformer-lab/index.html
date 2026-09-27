@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Laboratorio Transformer</title>
+<meta name="description" content="Entrenamiento completo de un transformer pequeño, paso a paso: tokens, embeddings, atención, FFN, pérdida, retropropagación y actualización, con cada matriz y sus dimensiones.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@600&display=swap">
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+                     svg: { fontCache: 'global' }, startup: { typeset: false } };
+</script>
+<script async id="MathJax-script" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/viz.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Saltar al contenido</a>
+
+<!-- ============================ CABECERA ============================ -->
+<header class="app-head" id="app-head">
+  <div class="app-head__row">
+    <a class="brand" href="#paso" aria-label="Laboratorio Transformer: ir a Paso a paso">
+      <svg class="brand__mark" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <rect x="1" y="1" width="4" height="4" class="bm bm--d"/>
+        <rect x="1" y="6" width="4" height="4" class="bm bm--a"/><rect x="6" y="6" width="4" height="4" class="bm bm--d"/>
+        <rect x="1" y="11" width="4" height="4" class="bm bm--b"/><rect x="6" y="11" width="4" height="4" class="bm bm--a"/><rect x="11" y="11" width="4" height="4" class="bm bm--d"/>
+        <rect x="1" y="16" width="4" height="3" class="bm bm--a"/><rect x="6" y="16" width="4" height="3" class="bm bm--b"/><rect x="11" y="16" width="4" height="3" class="bm bm--a"/><rect x="16" y="16" width="3" height="3" class="bm bm--d"/>
+      </svg>
+      <span class="brand__name">Laboratorio Transformer</span>
+    </a>
+
+    <nav class="tabs app-tabs" role="tablist" aria-label="Secciones">
+      <a class="tab" role="tab" id="tab-paso" href="#paso" aria-controls="panel-paso" aria-selected="true"><span class="tabs__num">01</span>Paso a paso</a>
+      <a class="tab" role="tab" id="tab-entrenamiento" href="#entrenamiento" aria-controls="panel-entrenamiento" aria-selected="false" tabindex="-1"><span class="tabs__num">02</span>Entrenamiento</a>
+      <a class="tab" role="tab" id="tab-generacion" href="#generacion" aria-controls="panel-generacion" aria-selected="false" tabindex="-1"><span class="tabs__num">03</span>Generación</a>
+      <a class="tab" role="tab" id="tab-datos" href="#datos" aria-controls="panel-datos" aria-selected="false" tabindex="-1"><span class="tabs__num">04</span>Datos y modelo</a>
+    </nav>
+
+    <div class="app-head__status">
+      <div class="hstat" title="Iteraciones de entrenamiento completadas (actualizaciones de los pesos)">
+        <span class="hstat__k">Iteración</span><span class="hstat__v" id="hd-iter">—</span>
+      </div>
+      <div class="hstat hstat--loss" title="Pérdida de la última iteración: la de la frase trazada o la media del minilote">
+        <span class="hstat__k">Pérdida ℒ</span><span class="hstat__v" id="hd-loss">—</span>
+      </div>
+      <button class="btn btn--sm btn--ghost" type="button" id="btn-theme" aria-label="Tema: sistema. Pulsa para cambiar">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor"/></svg>
+        <span id="btn-theme-label">Sistema</span>
+      </button>
+      <button class="btn btn--sm" type="button" id="btn-guide">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M2.5 3.5h3.8A1.7 1.7 0 0 1 8 5.2v8a1.4 1.4 0 0 0-1.4-1.4H2.5zM13.5 3.5H9.7A1.7 1.7 0 0 0 8 5.2v8a1.4 1.4 0 0 1 1.4-1.4h4.1z"/></svg>
+        Guía
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+<!-- ============================ 1 · PASO A PASO ============================ -->
+<section class="tabpanel tabpanel--paso" id="panel-paso" role="tabpanel" aria-labelledby="tab-paso">
+  <div class="welcome" id="welcome" hidden>
+    <p class="welcome__text"><b>Una iteración real de entrenamiento, operación por operación.</b>
+      Recórrela con <span class="kbd">←</span> <span class="kbd">→</span> o con la línea de tiempo de abajo; pasa el cursor por las matrices para ver cada cuenta.</p>
+    <div class="welcome__actions">
+      <button class="btn btn--sm" type="button" id="welcome-guide">Abrir la guía</button>
+      <button class="btn btn--sm btn--ghost btn--icon" type="button" id="welcome-close" aria-label="Cerrar el aviso de bienvenida">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="paso">
+    <aside class="paso__dg" aria-label="Esquema de la arquitectura">
+      <details class="dg-details" id="dg-details" open>
+        <summary class="dg-summary">
+          <span class="eyebrow">Arquitectura</span>
+          <span class="dg-summary__active" id="dg-summary-active"></span>
+        </summary>
+        <div class="dg-scroll" id="dg-scroll"><div class="dg-mount" id="dg-host"></div></div>
+      </details>
+    </aside>
+
+    <div class="paso__main" id="paso-main">
+      <div class="iterbar-slot" id="iterbar-slot"></div>
+      <div class="callout stale-note" id="stale-note" data-phase="update" hidden>
+        <span id="stale-text"></span>
+        <button class="btn btn--sm" type="button" id="stale-retrace">Trazar una iteración con los pesos actuales</button>
+      </div>
+
+      <header class="step-head" id="step-head" data-phase="data">
+        <div class="step-head__top">
+          <span class="chip chip--data" id="step-chip">Datos</span>
+          <span class="step-head__count" id="step-count">Paso 1 / 1</span>
+          <span class="step-head__loc" id="step-loc"></span>
+          <span class="grow"></span>
+          <button class="btn btn--sm" type="button" id="btn-animate" title="Reproduce la operación celda a celda">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor"><path d="M5 3.2v9.6L12.6 8z"/></svg>
+            <span id="btn-animate-label">Animar</span>
+          </button>
+          <button class="btn btn--sm" type="button" id="btn-values" aria-pressed="true" data-phase="forward">Mostrar valores</button>
+        </div>
+        <h2 class="step-head__title" id="step-title">Cargando…</h2>
+        <div class="step-head__formula" id="step-formula" aria-label="Fórmula del paso"></div>
+        <dl class="step-dims">
+          <div class="step-dims__item"><dt>Dimensiones</dt><dd id="step-dimsym"></dd></div>
+          <div class="step-dims__item"><dt>En este modelo</dt><dd id="step-dims"></dd></div>
+          <div class="step-dims__item" id="step-flops-wrap" hidden><dt>Coste</dt><dd id="step-flops"></dd></div>
+        </dl>
+      </header>
+
+      <div class="stage" id="stage" aria-live="off"></div>
+
+      <section class="inspector" id="inspector" aria-label="Inspector de celdas">
+        <div class="inspector__head">
+          <span class="panel__title">Inspector</span>
+          <span class="inspector__hint">pasa el cursor (o el dedo) por una celda del resultado</span>
+        </div>
+        <div class="inspector__body is-empty" id="inspector-body" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <aside class="paso__expl" id="expl-col" aria-label="Explicación del paso">
+      <div class="symstrip" id="symstrip" aria-label="Símbolos y sus valores en este modelo"></div>
+      <div class="seg seg--sm side-tabs" role="tablist" aria-label="Panel lateral" id="side-tabs">
+        <button type="button" role="tab" id="side-tab-expl" aria-selected="true" aria-controls="side-expl">Explicación</button>
+        <button type="button" role="tab" id="side-tab-live" aria-selected="false" aria-controls="side-live" tabindex="-1">Tensores vivos <span class="side-tabs__n" id="live-count">0</span></button>
+      </div>
+      <div class="side-pane" id="side-expl" role="tabpanel" aria-labelledby="side-tab-expl">
+        <div id="expl"></div>
+      </div>
+      <div class="side-pane" id="side-live" role="tabpanel" aria-labelledby="side-tab-live" hidden>
+        <p class="side-note">Todos los tensores calculados hasta este paso, del más reciente al más antiguo. Pulsa uno para ir al paso que lo produjo.</p>
+        <ol class="live" id="live-list" role="list"></ol>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============================ 2 · ENTRENAMIENTO ============================ -->
+<section class="tabpanel" id="panel-entrenamiento" role="tabpanel" aria-labelledby="tab-entrenamiento" hidden>
+  <div class="page">
+    <header class="page-head">
+      <div class="eyebrow">Entrenamiento</div>
+      <h2>Cientos de iteraciones seguidas</h2>
+      <p class="page-head__lead">Cada iteración repite lo que ves en «Paso a paso» (forward, pérdida, backward y actualización), pero sobre un <b>minilote</b> de <span id="tr-b-inline">4</span> frases con los gradientes promediados y sin guardar la traza: por eso va tan rápido.</p>
+    </header>
+
+    <section class="panel train-ctl" aria-label="Controles de entrenamiento">
+      <div class="train-ctl__row">
+        <button class="btn btn--primary" type="button" id="tr-run" aria-pressed="false">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor"><path d="M5 3.2v9.6L12.6 8z"/></svg>
+          <span id="tr-run-label">Entrenar</span>
+        </button>
+        <div class="cluster train-ctl__steps" role="group" aria-label="Entrenar un número fijo de iteraciones">
+          <button class="btn" type="button" data-train="1">+1</button>
+          <button class="btn" type="button" data-train="10">+10</button>
+          <button class="btn" type="button" data-train="100">+100</button>
+        </div>
+        <div class="field field--inline">
+          <span class="field__label" id="tr-speed-lbl">Velocidad</span>
+          <div class="seg seg--sm" id="tr-speed" role="group" aria-labelledby="tr-speed-lbl">
+            <button type="button" data-speed="lenta" aria-pressed="false" title="≈ 15 iteraciones por segundo">Lenta</button>
+            <button type="button" data-speed="media" aria-pressed="true" title="≈ 60 iteraciones por segundo">Media</button>
+            <button type="button" data-speed="maxima" aria-pressed="false" title="Tantas como quepan en cada fotograma">Máxima</button>
+          </div>
+        </div>
+        <span class="grow"></span>
+        <button class="btn" type="button" id="tr-inspect">Inspeccionar esta iteración</button>
+        <span class="reset-wrap">
+          <button class="btn btn--ghost" type="button" id="tr-reset">Reiniciar pesos</button>
+          <span class="reset-confirm" id="tr-reset-confirm" hidden role="group" aria-label="Confirmar reinicio">
+            <span class="small">¿Volver a los pesos iniciales? Se pierde el entrenamiento.</span>
+            <button class="btn btn--sm" type="button" id="tr-reset-yes">Sí, reiniciar</button>
+            <button class="btn btn--sm btn--ghost" type="button" id="tr-reset-no">Cancelar</button>
+          </span>
+        </span>
+      </div>
+      <div class="train-ctl__row train-ctl__row--hp">
+        <label class="field field--inline" for="tr-lr"><span class="field__label">Tasa de aprendizaje η</span>
+          <input class="input input--num" type="number" id="tr-lr" min="0.00001" max="5" step="0.001" inputmode="decimal"></label>
+        <div class="field field--inline">
+          <span class="field__label" id="tr-opt-lbl">Optimizador</span>
+          <div class="seg seg--sm" id="tr-opt" role="group" aria-labelledby="tr-opt-lbl">
+            <button type="button" data-opt="adam" aria-pressed="true">Adam</button>
+            <button type="button" data-opt="sgd" aria-pressed="false">SGD</button>
+          </div>
+        </div>
+        <label class="field field--inline" for="tr-batch"><span class="field__label">Minilote B</span>
+          <input class="input input--num" type="number" id="tr-batch" min="1" max="64" step="1" inputmode="numeric"></label>
+        <span class="field__hint train-ctl__err" id="tr-hp-err" role="status"></span>
+      </div>
+      <div class="stats" id="tr-stats" aria-live="off">
+        <div class="stat"><span class="stat__k">Iteración</span><span class="stat__v" id="st-iter">0</span></div>
+        <div class="stat"><span class="stat__k">Pérdida del último minilote</span><span class="stat__v" id="st-loss">—</span></div>
+        <div class="stat"><span class="stat__k">Pérdida media del corpus</span><span class="stat__v" id="st-mean">—</span></div>
+        <div class="stat"><span class="stat__k">Perplejidad e<sup>ℒ</sup></span><span class="stat__v" id="st-ppl">—</span></div>
+        <div class="stat"><span class="stat__k">Norma del gradiente ‖g‖</span><span class="stat__v" id="st-gn">—</span></div>
+        <div class="stat"><span class="stat__k">Velocidad</span><span class="stat__v" id="st-speed">—</span></div>
+      </div>
+    </section>
+
+    <div class="train-grid">
+      <section class="panel tg-loss">
+        <div class="panel__head">
+          <span class="panel__title">Curva de pérdida</span>
+          <label class="toggle small tg-head-right"><input type="checkbox" id="tr-logy"><span class="toggle__track"></span>escala logarítmica</label>
+        </div>
+        <div class="panel__body">
+          <canvas class="chart-canvas" id="tr-loss" style="height:260px" aria-label="Pérdida por iteración"></canvas>
+          <p class="panel-note">La línea discontinua es \(\ln V\): la pérdida de un modelo que reparte la probabilidad por igual entre los \(V\) tokens. Al empezar, la pérdida está cerca de ese valor.</p>
+        </div>
+      </section>
+      <section class="panel tg-sent">
+        <div class="panel__head"><span class="panel__title">Pérdida por frase</span></div>
+        <div class="panel__body">
+          <div id="tr-sent-bars"></div>
+          <p class="panel-note">Entropía cruzada media de cada frase con los pesos actuales. Algunas continuaciones son ambiguas («el gato» puede seguir con «come» o con «duerme»), así que la pérdida no llega a 0.</p>
+        </div>
+      </section>
+      <section class="panel tg-attn">
+        <div class="panel__head">
+          <span class="panel__title">Atención en vivo</span>
+          <label class="tg-head-right"><span class="sr-only">Frase</span><select class="select select--sm" id="tr-attn-sent" aria-label="Frase para la atención y las predicciones"></select></label>
+        </div>
+        <div class="panel__body">
+          <div class="attn-grid" id="tr-attn"></div>
+          <p class="panel-note">Una matriz \(A_h\) por capa y cabeza: la fila \(i\) dice cuánto mira la posición \(i\) a cada posición anterior \(j \le i\) (cada fila suma 1).</p>
+        </div>
+      </section>
+      <section class="panel tg-pred">
+        <div class="panel__head"><span class="panel__title">Predicciones por posición</span></div>
+        <div class="panel__body">
+          <div class="table-wrap"><table class="table table--compact pred-table" id="tr-pred"></table></div>
+        </div>
+      </section>
+      <section class="panel tg-grad">
+        <div class="panel__head"><span class="panel__title">Norma del gradiente por parámetro</span></div>
+        <div class="panel__body">
+          <div id="tr-grad-bars"></div>
+          <p class="panel-note">\(\|\mathrm{d}\theta\|\) de la última iteración, antes del recorte. Suele dominar \(W_{\text{out}}\), el parámetro más cercano a la pérdida.</p>
+        </div>
+      </section>
+      <section class="panel tg-pca">
+        <div class="panel__head"><span class="panel__title">Embeddings: filas de E proyectadas en 2-D (PCA)</span></div>
+        <div class="panel__body">
+          <canvas class="chart-canvas" id="tr-pca" style="height:300px" aria-label="Proyección PCA de los embeddings"></canvas>
+          <p class="panel-note" id="tr-pca-note">Cada punto es un token. Con el entrenamiento, los tokens que se usan de forma parecida se acercan.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 3 · GENERACIÓN ============================ -->
+<section class="tabpanel" id="panel-generacion" role="tabpanel" aria-labelledby="tab-generacion" hidden>
+  <div class="page">
+    <header class="page-head">
+      <div class="eyebrow">Generación</div>
+      <h2>El modelo escribe, token a token</h2>
+      <p class="page-head__lead">Escribe un comienzo y el modelo lo continúa: en cada paso calcula la distribución del siguiente token, elige uno, lo añade al contexto y vuelve a empezar.</p>
+    </header>
+
+    <div class="gen-top">
+      <section class="panel gen-form" aria-label="Parámetros de generación">
+        <div class="panel__body gen-form__body">
+          <label class="field gen-form__prompt" for="gen-prompt"><span class="field__label">Comienzo (prompt)</span>
+            <input class="input" type="text" id="gen-prompt" value="el gato" autocomplete="off" spellcheck="false"></label>
+          <div class="field">
+            <label class="field__label" for="gen-temp">Temperatura τ = <span class="mono" id="gen-temp-out">1.00</span></label>
+            <input class="range" type="range" id="gen-temp" min="0.1" max="2" step="0.05" value="1">
+          </div>
+          <div class="field">
+            <span class="field__label" id="gen-mode-lbl">Elección del token</span>
+            <div class="seg seg--sm" id="gen-mode" role="group" aria-labelledby="gen-mode-lbl">
+              <button type="button" data-mode="greedy" aria-pressed="true">Voraz (el más probable)</button>
+              <button type="button" data-mode="sample" aria-pressed="false">Muestreo</button>
+            </div>
+          </div>
+          <label class="field" for="gen-max"><span class="field__label">Máx. tokens nuevos</span>
+            <input class="input input--num" type="number" id="gen-max" min="1" max="30" step="1" value="10"></label>
+          <label class="field" for="gen-seed" id="gen-seed-field" hidden><span class="field__label">Semilla del muestreo</span>
+            <input class="input input--num" type="number" id="gen-seed" step="1" value="1"></label>
+          <div class="gen-form__go">
+            <button class="btn btn--primary" type="button" id="gen-run">Generar</button>
+          </div>
+        </div>
+        <p class="gen-vocab small" id="gen-vocab"></p>
+      </section>
+      <aside class="callout gen-note" data-phase="forward">
+        <p><b>En inferencia solo se ejecuta el forward.</b> No hay objetivo, así que no hay pérdida, ni backward, ni actualización: los pesos no cambian al generar.</p>
+        <p>En cada paso se usa solo la <b>última fila</b> de los logits (la de la última posición). La temperatura reescala los logits antes del softmax: \(p_j = \dfrac{e^{z_j/\tau}}{\sum_k e^{z_k/\tau}}\). Con \(\tau &lt; 1\) la distribución se concentra; con \(\tau &gt; 1\) se aplana. El modo voraz elige siempre el token más probable.</p>
+        <p>Si el contexto supera la ventana de <span class="mono" id="gen-maxlen">8</span> tokens, se conservan solo los últimos (ventana deslizante). La generación se detiene al producir «.».</p>
+      </aside>
+    </div>
+
+    <div class="callout gen-error" id="gen-error" data-phase="backward" role="alert" hidden></div>
+    <div class="gen-result" id="gen-result"></div>
+  </div>
+</section>
+
+<!-- ============================ 4 · DATOS Y MODELO ============================ -->
+<section class="tabpanel" id="panel-datos" role="tabpanel" aria-labelledby="tab-datos" hidden>
+  <div class="page">
+    <header class="page-head">
+      <div class="eyebrow">Datos y modelo</div>
+      <h2>Corpus, hiperparámetros y dimensiones</h2>
+      <p class="page-head__lead" id="model-summary"></p>
+    </header>
+
+    <div class="cfg-grid">
+      <section class="panel" aria-labelledby="cfg-corpus-title">
+        <div class="panel__head"><span class="panel__title" id="cfg-corpus-title">Corpus de entrenamiento</span></div>
+        <div class="panel__body stack">
+          <label class="field" for="cfg-corpus"><span class="field__label">Una frase por línea</span>
+            <textarea class="input cfg-corpus" id="cfg-corpus" rows="9" spellcheck="false"></textarea>
+            <span class="field__hint" id="cfg-corpus-hint"></span></label>
+          <div class="field">
+            <span class="field__label" id="cfg-tok-lbl">Tokenizador</span>
+            <div class="seg seg--sm" id="cfg-tok" role="group" aria-labelledby="cfg-tok-lbl">
+              <button type="button" data-tok="word" aria-pressed="true">Palabras</button>
+              <button type="button" data-tok="char" aria-pressed="false">Caracteres</button>
+            </div>
+            <span class="field__hint">Palabras: separa por espacios y aísla la puntuación. Caracteres: cada letra (y el espacio, ␣) es un token.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="cfg-hp-title">
+        <div class="panel__head"><span class="panel__title" id="cfg-hp-title">Hiperparámetros</span></div>
+        <div class="panel__body">
+          <div class="eyebrow cfg-sub">Arquitectura</div>
+          <div class="cfg-fields">
+            <label class="field" data-f="dModel"><span class="field__label">Dimensión del modelo <i>d</i></span><input class="input" type="number" id="cfg-dModel" min="2" max="64" step="1"><span class="field__hint"></span></label>
+            <label class="field" data-f="nHeads"><span class="field__label">Cabezas <i>h</i></span><input class="input" type="number" id="cfg-nHeads" min="1" max="64" step="1"><span class="field__hint"></span></label>
+            <label class="field" data-f="nLayers"><span class="field__label">Capas <i>N</i></span><input class="input" type="number" id="cfg-nLayers" min="1" max="3" step="1"><span class="field__hint"></span></label>
+            <label class="field" data-f="dFF"><span class="field__label">Dimensión FFN <i>d</i><sub>ff</sub></span><input class="input" type="number" id="cfg-dFF" min="1" max="256" step="1"><span class="field__hint"></span></label>
+            <label class="field" data-f="maxLen"><span class="field__label">Ventana de contexto (maxLen)</span><input class="input" type="number" id="cfg-maxLen" min="2" max="32" step="1"><span class="field__hint"></span></label>
+            <label class="field" data-f="activation"><span class="field__label">Activación de la FFN</span><select class="select" id="cfg-activation"><option value="relu">ReLU</option><option value="gelu">GELU (aprox. tanh)</option></select><span class="field__hint"></span></label>
+            <label class="field" data-f="posEnc"><span class="field__label">Codificación posicional</span><select class="select" id="cfg-posEnc"><option value="sinusoidal">Sinusoidal (fija)</option><option value="learned">Aprendida (learned)</option></select><span class="field__hint"></span></label>
+            <label class="field" data-f="seed"><span class="field__label">Semilla aleatoria</span><input class="input" type="number" id="cfg-seed" step="1"><span class="field__hint"></span></label>
+          </div>
+          <div class="eyebrow cfg-sub">Optimización</div>
+          <div class="cfg-fields">
+            <label class="field" data-f="type"><span class="field__label">Optimizador</span><select class="select" id="cfg-type"><option value="adam">Adam</option><option value="sgd">SGD</option></select><span class="field__hint"></span></label>
+            <label class="field" data-f="lr"><span class="field__label">Tasa de aprendizaje η</span><input class="input" type="number" id="cfg-lr" min="0.00001" max="5" step="0.001"><span class="field__hint"></span></label>
+            <label class="field" data-f="batchSize"><span class="field__label">Minilote B (frases)</span><input class="input" type="number" id="cfg-batchSize" min="1" max="64" step="1"><span class="field__hint"></span></label>
+            <label class="field" data-f="clip"><span class="field__label">Recorte de ‖g‖ (0 = sin recorte)</span><input class="input" type="number" id="cfg-clip" min="0" step="0.1"><span class="field__hint"></span></label>
+          </div>
+          <div class="cfg-actions">
+            <button class="btn btn--primary" type="button" id="cfg-apply">Aplicar y reiniciar</button>
+            <button class="btn btn--ghost" type="button" id="cfg-defaults">Valores por defecto</button>
+            <span class="cfg-status" id="cfg-status" role="status"></span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="data-grid">
+      <section class="panel" aria-labelledby="vocab-title">
+        <div class="panel__head"><span class="panel__title" id="vocab-title">Vocabulario</span><span class="badge-shape tg-head-right" id="vocab-size">V = 0</span></div>
+        <div class="panel__body">
+          <ol class="vocab" id="vocab-list" role="list"></ol>
+          <p class="panel-note">El id de cada token es su posición en esta lista (orden de primera aparición en el corpus). El 0 es <code>&lt;s&gt;</code>, el inicio de frase.</p>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="params-title">
+        <div class="panel__head"><span class="panel__title" id="params-title">Inventario de parámetros</span><span class="badge-shape tg-head-right" id="params-total">0</span></div>
+        <div class="panel__body">
+          <div class="table-wrap"><table class="table table--compact params-table" id="params-table"></table></div>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel dimmap" aria-labelledby="dimmap-title">
+      <div class="panel__head dimmap__head">
+        <span class="panel__title" id="dimmap-title">Mapa de dimensiones</span>
+        <span class="small muted" id="dimmap-t"></span>
+        <div class="seg seg--sm tg-head-right" id="dimmap-filter" role="group" aria-label="Filtrar por fase">
+          <button type="button" data-f="all" aria-pressed="true">Todo</button>
+          <button type="button" data-f="forward" aria-pressed="false">Forward</button>
+          <button type="button" data-f="backward" aria-pressed="false">Backward</button>
+          <button type="button" data-f="update" aria-pressed="false">Actualización</button>
+        </div>
+      </div>
+      <div class="panel__body">
+        <p class="panel-note dimmap__note">Cada tensor del forward y del backward, con su forma simbólica y numérica. Un gradiente \(\mathrm{d}X\) tiene siempre la forma de \(X\). Pulsa «paso» para ver dónde se calcula.</p>
+        <div class="table-wrap dimmap__wrap"><table class="table table--compact dimmap-table" id="dimmap-table"></table></div>
+      </div>
+    </section>
+
+    <section class="panel gradcheck" aria-labelledby="gc-title">
+      <div class="panel__head"><span class="panel__title" id="gc-title">Comprobación numérica de gradientes</span></div>
+      <div class="panel__body stack">
+        <p class="panel-note gc-intro">Compara el gradiente del backward (analítico) con una estimación por diferencias centrales: \(\dfrac{\mathcal L(\theta + h) - \mathcal L(\theta - h)}{2h}\), con \(h = 10^{-5}\), en tres entradas de cada parámetro. El error relativo es \(\dfrac{|a - n|}{\max(|a|, |n|)}\); por debajo de \(10^{-6}\) ambos cálculos coinciden.</p>
+        <div class="cluster"><button class="btn btn--primary" type="button" id="gc-run">Comprobar gradientes</button><span class="gc-summary" id="gc-summary" role="status"></span></div>
+        <div class="table-wrap" id="gc-wrap" hidden><table class="table table--compact gc-table" id="gc-table"></table></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================ LÍNEA DE TIEMPO ============================ -->
+<footer class="timeline" id="timeline" aria-label="Línea de tiempo de la iteración">
+  <div class="tl-controls" id="tl-controls">
+    <div class="tl-transport">
+      <button class="btn btn--icon btn--sm" type="button" id="tl-prev" aria-label="Paso anterior (flecha izquierda)">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>
+      </button>
+      <button class="btn btn--icon" type="button" id="tl-play" aria-pressed="false" aria-label="Reproducir (Espacio)" data-phase="forward">
+        <svg class="ic-play" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor"><path d="M5 3.2v9.6L12.6 8z"/></svg>
+        <svg class="ic-pause" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor"><path d="M4.5 3h2.6v10H4.5zM8.9 3h2.6v10H8.9z"/></svg>
+      </button>
+      <button class="btn btn--icon btn--sm" type="button" id="tl-next" aria-label="Paso siguiente (flecha derecha)">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
+      </button>
+      <div class="seg seg--sm" id="tl-speed" role="group" aria-label="Velocidad de reproducción">
+        <button type="button" data-speed="0.5" aria-pressed="false">0.5×</button>
+        <button type="button" data-speed="1" aria-pressed="true">1×</button>
+        <button type="button" data-speed="2" aria-pressed="false">2×</button>
+        <button type="button" data-speed="4" aria-pressed="false">4×</button>
+      </div>
+    </div>
+    <div class="tl-jumps" id="tl-jumps" role="group" aria-label="Saltar al inicio de una fase"></div>
+    <div class="iterbar" id="iterbar">
+      <label class="iterbar__sent" for="sent-select"><span class="sr-only">Frase de la iteración</span>
+        <select class="select select--sm" id="sent-select" title="Frase que se traza (cambiarla traza una iteración nueva con esa frase)"></select></label>
+      <button class="btn btn--sm btn--primary" type="button" id="btn-newiter" title="Traza otra iteración con los pesos ya actualizados">Nueva iteración</button>
+      <span class="iterbar__spark" title="Pérdida de cada iteración (la más reciente a la derecha)">
+        <canvas class="spark" id="spark" width="112" height="26" aria-hidden="true"></canvas>
+        <span class="iterbar__loss" id="iter-loss"></span>
+      </span>
+    </div>
+  </div>
+  <div class="tl-track-wrap">
+    <div class="tl-bands" id="tl-bands" aria-hidden="true"></div>
+    <div class="tl-track" id="tl-track" role="slider" tabindex="0" aria-label="Paso de la iteración" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1">
+      <div class="tl-ticks" id="tl-ticks"></div>
+      <div class="tl-marker" id="tl-marker"></div>
+    </div>
+  </div>
+</footer>
+
+<!-- ============================ DIÁLOGO (guía, derivaciones) ============================ -->
+<div class="modal" id="modal" hidden>
+  <div class="modal__backdrop" data-close></div>
+  <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+    <header class="modal__head">
+      <div class="modal__titles"><div class="eyebrow" id="modal-eyebrow"></div><h2 class="modal__title" id="modal-title"></h2></div>
+      <button class="btn btn--icon btn--ghost" type="button" data-close aria-label="Cerrar">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+    <div class="modal__tabs" id="modal-tabs"></div>
+    <div class="modal__body prose" id="modal-body"></div>
+    <footer class="modal__foot" id="modal-foot"></footer>
+  </div>
+</div>
+
+<script src="js/core/tensor.js"></script>
+<script src="js/core/tokenizer.js"></script>
+<script src="js/core/model.js"></script>
+<script src="js/core/optim.js"></script>
+<script src="js/core/trainer.js"></script>
+<script src="js/content/explain.js"></script>
+<script src="js/ui/math.js"></script>
+<script src="js/ui/heatmap.js"></script>
+<script src="js/ui/opviews.js"></script>
+<script src="js/ui/diagram.js"></script>
+<script src="js/ui/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
