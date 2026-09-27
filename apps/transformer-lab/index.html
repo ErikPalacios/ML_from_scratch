@@ -117,7 +117,8 @@
       <section class="inspector" id="inspector" aria-label="Inspector de celdas">
         <div class="inspector__head">
           <span class="panel__title">Inspector</span>
-          <span class="inspector__hint">pasa el cursor (o el dedo) por una celda del resultado</span>
+          <span class="inspector__hint">pasa el cursor por una celda (o tócala) para ver la cuenta que la produce</span>
+          <button class="btn btn--sm btn--ghost inspector__min" type="button" id="insp-min" aria-pressed="false" aria-controls="inspector-body" hidden>Minimizar</button>
         </div>
         <div class="inspector__body is-empty" id="inspector-body" aria-live="polite"></div>
       </section>
@@ -276,8 +277,8 @@
           <div class="field">
             <span class="field__label" id="gen-mode-lbl">Elección del token</span>
             <div class="seg seg--sm" id="gen-mode" role="group" aria-labelledby="gen-mode-lbl">
-              <button type="button" data-mode="greedy" aria-pressed="true">Voraz (el más probable)</button>
-              <button type="button" data-mode="sample" aria-pressed="false">Muestreo</button>
+              <button type="button" data-mode="greedy" aria-pressed="true" title="Elige siempre el token más probable">Voraz</button>
+              <button type="button" data-mode="sample" aria-pressed="false" title="Sortea el token según sus probabilidades">Muestreo</button>
             </div>
           </div>
           <label class="field" for="gen-max"><span class="field__label">Máx. tokens nuevos</span>
@@ -292,7 +293,7 @@
       </section>
       <aside class="callout gen-note" data-phase="forward">
         <p><b>En inferencia solo se ejecuta el forward.</b> No hay objetivo, así que no hay pérdida, ni backward, ni actualización: los pesos no cambian al generar.</p>
-        <p>En cada paso se usa solo la <b>última fila</b> de los logits (la de la última posición). La temperatura reescala los logits antes del softmax: \(p_j = \dfrac{e^{z_j/\tau}}{\sum_k e^{z_k/\tau}}\). Con \(\tau &lt; 1\) la distribución se concentra; con \(\tau &gt; 1\) se aplana. El modo voraz elige siempre el token más probable.</p>
+        <p>En cada paso se usa solo la <b>última fila</b> de los logits (la de la última posición). La temperatura reescala los logits antes del softmax: \(p_j = \frac{e^{z_j/\tau}}{\sum_k e^{z_k/\tau}}\). Con \(\tau &lt; 1\) la distribución se concentra; con \(\tau &gt; 1\) se aplana. El modo voraz elige siempre el token más probable.</p>
         <p>Si el contexto supera la ventana de <span class="mono" id="gen-maxlen">8</span> tokens, se conservan solo los últimos (ventana deslizante). La generación se detiene al producir «.».</p>
       </aside>
     </div>
@@ -395,7 +396,7 @@
     <section class="panel gradcheck" aria-labelledby="gc-title">
       <div class="panel__head"><span class="panel__title" id="gc-title">Comprobación numérica de gradientes</span></div>
       <div class="panel__body stack">
-        <p class="panel-note gc-intro">Compara el gradiente del backward (analítico) con una estimación por diferencias centrales: \(\dfrac{\mathcal L(\theta + h) - \mathcal L(\theta - h)}{2h}\), con \(h = 10^{-5}\), en tres entradas de cada parámetro. El error relativo es \(\dfrac{|a - n|}{\max(|a|, |n|)}\); por debajo de \(10^{-6}\) ambos cálculos coinciden.</p>
+        <p class="panel-note gc-intro">Compara el gradiente del backward (analítico) con una estimación por diferencias centrales: \(\frac{\mathcal L(\theta + h) - \mathcal L(\theta - h)}{2h}\), con \(h = 10^{-5}\), en tres entradas de cada parámetro. El error relativo es \(\frac{|a - n|}{\max(|a|, |n|)}\); por debajo de \(10^{-6}\) ambos cálculos coinciden.</p>
         <div class="cluster"><button class="btn btn--primary" type="button" id="gc-run">Comprobar gradientes</button><span class="gc-summary" id="gc-summary" role="status"></span></div>
         <div class="table-wrap" id="gc-wrap" hidden><table class="table table--compact gc-table" id="gc-table"></table></div>
       </div>

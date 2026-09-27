@@ -5,9 +5,10 @@
    API
      TL.MathTex.ready                  -> Promise<boolean>  (true: MathJax usable; false: no cargó en 8 s)
      TL.MathTex.isReady()              -> boolean
-     TL.MathTex.render(latex, el, { display = false } = {}) -> el
+     TL.MathTex.render(latex, el, { display = false, lite = false } = {}) -> el
          Síncrono si MathJax está listo; si no, deja un marcador provisional y lo encola.
-         Si MathJax no llega (sin red), muestra el código LaTeX: <code class="tex-fallback">.
+         Si MathJax no llega (sin red), muestra el código LaTeX: <code class="tex-fallback">
+         (con lite: true, una versión unicode aproximada — para nombres cortos como W_Q).
          Las fórmulas en bloque van dentro de <span class="tex-display"> (overflow-x: auto).
      TL.MathTex.typeset(el)            -> Promise   (compone \( … \) y \[ … \] de un subárbol HTML)
      TL.MathTex.toHTML(latex, display) -> string    (SVG en caché o respaldo; útil para plantillas)
@@ -122,18 +123,20 @@
   }
 
   // ---------------------------------------------------------------- render
+  // opts.lite: sin MathJax, mostrar la versión unicode aproximada (para nombres cortos: W_Q → W_Q con subíndice)
   function render(latex, el, opts) {
     if (!el) return el;
     const display = !!(opts && opts.display);
+    const lite = !!(opts && opts.lite);
     latex = String(latex == null ? '' : latex);
     if (mj) {
       pending.delete(el);
       el.innerHTML = convert(latex, display);
     } else if (failed) {
-      el.innerHTML = fallbackHTML(latex, display);
+      el.innerHTML = lite ? pendingHTML(latex, display).replace('tex-pending', 'tex-lite') : fallbackHTML(latex, display);
     } else {
       el.innerHTML = pendingHTML(latex, display);
-      pending.set(el, { latex, display });
+      pending.set(el, { latex, display, lite });
     }
     return el;
   }
@@ -141,7 +144,7 @@
   function flushPending() {
     const jobs = Array.from(pending.entries());
     pending.clear();
-    for (const [el, j] of jobs) render(j.latex, el, { display: j.display });
+    for (const [el, j] of jobs) render(j.latex, el, { display: j.display, lite: j.lite });
   }
 
   // ---------------------------------------------------------------- typeset (HTML con \( \) y \[ \])

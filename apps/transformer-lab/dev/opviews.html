@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vistas de operaciones</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@600&display=swap">
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+                     svg: { fontCache: 'global' }, startup: { typeset: false } };
+</script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/viz.css">
+<style>
+  /* estilos solo de esta galería de desarrollo (no se publican) */
+  .gx { max-width: 1180px; margin: 0 auto; padding: 24px var(--gutter) 45vh; }
+  .gx-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px;
+             padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+  .gx-head p { color: var(--muted); max-width: 66ch; margin-top: 6px; }
+  .gx-ctl { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; min-width: 0; max-width: 100%; }
+  .gx-ctl .field { max-width: 100%; }
+  .gx-head > div { min-width: 0; max-width: 100%; }
+  .gx-stats { margin-top: 10px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .gx-toc { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 12px; }
+  .gx-toc a { font-family: var(--font-mono); font-size: 11px; text-decoration: none; padding: 1px 5px; border-radius: 2px;
+              border: 1px solid var(--rule); color: var(--ink); background: var(--surface); }
+  .gx-toc a[data-phase] { border-color: color-mix(in srgb, var(--ph) 50%, transparent); background: var(--ph-soft); color: var(--ph-ink); }
+  .gx-step { margin-top: 28px; scroll-margin-top: 12px; }
+  .gx-step__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-bottom: 8px; border-bottom: 1px solid var(--rule-strong); }
+  .gx-step__num { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .gx-step__title { font-size: var(--fs-md); font-weight: 600; }
+  .gx-step__time { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .gx-step__formula { margin: 8px 0 4px; font-size: 15px; }
+  .gx-step__dims { font-size: 13px; color: var(--muted); margin-bottom: 12px; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+  .gx-step__panel { padding: 14px; }
+  .gx-step__actions { display: flex; gap: 6px; margin-bottom: 10px; }
+  .gx-insp { position: fixed; right: 16px; bottom: 16px; width: min(460px, calc(100vw - 32px)); max-height: 42vh; overflow: auto;
+             z-index: 50; box-shadow: var(--shadow-pop); }
+  .gx-insp .panel__body { min-height: 60px; }
+  @media (max-width: 600px) {
+    .gx { padding-top: 16px; }
+    .gx-insp { left: 8px; right: 8px; bottom: 8px; width: auto; max-height: 36vh; }
+    .gx-step__panel { padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<main class="gx">
+  <header class="gx-head">
+    <div>
+      <div class="eyebrow">Transformer Lab · desarrollo</div>
+      <h1>Vistas de operaciones</h1>
+      <p>Todos los pasos de una iteración trazada (frase 0), cada uno con su vista <code>TL.OpViews</code>. Pasa el cursor por las celdas: el inspector (abajo a la derecha) muestra la cuenta. Esta página no forma parte de la app publicada.</p>
+    </div>
+    <div class="gx-ctl">
+      <div class="field">
+        <span class="field__label" id="lbl-cfg">Configuración</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-cfg" id="cfg-seg"></div>
+      </div>
+      <div class="field">
+        <span class="field__label" id="lbl-theme">Tema</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-theme" id="theme-seg">
+          <button type="button" role="radio" aria-checked="true" data-theme-set="auto">Sistema</button>
+          <button type="button" role="radio" aria-checked="false" data-theme-set="light">Claro</button>
+          <button type="button" role="radio" aria-checked="false" data-theme-set="dark">Oscuro</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="field__label" id="lbl-vals">Números</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lbl-vals" id="vals-seg">
+          <button type="button" role="radio" aria-checked="true" data-vals="auto">Auto</button>
+          <button type="button" role="radio" aria-checked="false" data-vals="on">Siempre</button>
+          <button type="button" role="radio" aria-checked="false" data-vals="off">Nunca</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="gx-stats" id="stats" aria-live="polite"></div>
+  <nav class="gx-toc" id="toc" aria-label="Pasos"></nav>
+  <div id="steps"></div>
+</main>
+
+<aside class="panel gx-insp" aria-label="Inspector">
+  <div class="panel__head"><span class="panel__title">Inspector</span><span class="small muted" id="insp-src" style="margin-left:auto"></span></div>
+  <div class="panel__body" id="insp" aria-live="polite"><p class="small muted">Pasa el cursor sobre una celda de cualquier matriz.</p></div>
+</aside>
+
+<script src="../js/core/tensor.js"></script>
+<script src="../js/core/tokenizer.js"></script>
+<script src="../js/core/model.js"></script>
+<script src="../js/core/optim.js"></script>
+<script src="../js/core/trainer.js"></script>
+<script src="../js/content/explain.js"></script>
+<script src="../js/ui/math.js"></script>
+<script src="../js/ui/heatmap.js"></script>
+<script src="../js/ui/opviews.js"></script>
+<script src="../js/ui/diagram.js"></script>
+<script src="../js/ui/charts.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const params = new URLSearchParams(location.search);
+  const CONFIGS = {
+    default: { label: 'Por defecto', opts: {} },
+    big: { label: '2 capas · 4 cabezas · GELU · aprendida', opts: { cfg: { nLayers: 2, nHeads: 4, activation: 'gelu', posEnc: 'learned' } } },
+    char: { label: 'Carácter', opts: { tokMode: 'char' } },
+    sgd: { label: 'SGD', opts: { optim: { type: 'sgd' } } },
+  };
+  const PHASE = { data: 'Datos', forward: 'Forward', loss: 'Pérdida', backward: 'Backward', update: 'Actualización' };
+  const CHIP = { data: 'chip--data', forward: 'chip--fwd', loss: 'chip--loss', backward: 'chip--bwd', update: 'chip--upd' };
+  const G = (window.__gallery = { views: [], times: [], inspected: {}, cfgKey: null });
+  let showValues = params.get('vals') === 'on' ? true : params.get('vals') === 'off' ? false : 'auto';
+
+  // --- inspector
+  const inspEl = $('#insp');
+  function onInspectFor(idx) {
+    return (html) => {
+      G.inspected[idx] = html;
+      G.lastInspect = { idx, html };
+      inspEl.innerHTML = html;
+      $('#insp-src').textContent = 'paso ' + (idx + 1);
+      TL.MathTex.typeset(inspEl);
+    };
+  }
+
+  // --- construcción
+  function build(key) {
+    for (const v of G.views) v && v.destroy();
+    G.views = []; G.times = []; G.inspected = {};
+    const conf = CONFIGS[key] || CONFIGS.default;
+    G.cfgKey = key;
+    const s = TL.Trainer.createSession(conf.opts);
+    const tr = TL.Trainer.traceIteration(s, +(params.get('sentence') || 0));
+    G.session = s; G.steps = tr.steps;
+    const host = $('#steps'), toc = $('#toc');
+    host.textContent = ''; toc.textContent = '';
+    const only = params.get('step'), kind = params.get('kind');
+    tr.steps.forEach((step, idx) => {
+      if (only != null && only.split(',').indexOf(String(idx + 1)) < 0 && step.id !== only) return;
+      if (kind && step.kind !== kind) return;
+      const sec = document.createElement('section');
+      sec.className = 'gx-step';
+      sec.id = 'st-' + (idx + 1);
+      sec.dataset.phase = step.phase;
+      const head = document.createElement('div');
+      head.className = 'gx-step__head';
+      head.innerHTML = '<span class="gx-step__num">' + (idx + 1) + ' / ' + tr.steps.length + '</span>' +
+        '<span class="chip ' + CHIP[step.phase] + '">' + PHASE[step.phase] + '</span>' +
+        '<span class="chip chip--plain">' + step.kind + '</span>' +
+        '<span class="gx-step__title"></span><span class="gx-step__time"></span>';
+      head.querySelector('.gx-step__title').textContent = step.title;
+      const panel = document.createElement('div');
+      panel.className = 'panel gx-step__panel';
+      const formula = document.createElement('div');
+      formula.className = 'gx-step__formula';
+      TL.MathTex.render(step.formula, formula, { display: true });
+      const dims = document.createElement('div');
+      dims.className = 'gx-step__dims';
+      TL.MathTex.render(step.dimsSym + '\\quad\\Longrightarrow\\quad ' + step.dims, dims, { display: false });
+      const actions = document.createElement('div');
+      actions.className = 'gx-step__actions';
+      actions.innerHTML = '<button type="button" class="btn btn--sm" data-act="anim">Animar</button>';
+      const box = document.createElement('div');
+      panel.append(formula, dims, actions, box);
+      sec.append(head, panel);
+      host.appendChild(sec);
+      const t0 = performance.now();
+      const view = TL.OpViews.render(step, box, { cfg: s.cfg, tok: s.tok, content: TL.Content, showValues, animateSpeed: 60, steps: tr.steps, onInspect: onInspectFor(idx) });
+      void box.offsetHeight;
+      const ms = performance.now() - t0;
+      G.views[idx] = view; G.times[idx] = ms;
+      head.querySelector('.gx-step__time').textContent = ms.toFixed(1) + ' ms';
+      actions.querySelector('[data-act="anim"]').addEventListener('click', () => view.animate());
+      const a = document.createElement('a');
+      a.href = '#st-' + (idx + 1);
+      a.textContent = idx + 1;
+      a.title = step.title;
+      a.dataset.phase = step.phase;
+      toc.appendChild(a);
+    });
+    const ts = G.times.filter((x) => x != null);
+    const mx = Math.max(...ts), avg = ts.reduce((a, b) => a + b, 0) / ts.length;
+    const worst = G.times.indexOf(mx);
+    $('#stats').textContent = conf.label + ' · ' + tr.steps.length + ' pasos · T = ' + tr.steps[0].aux.inputIds.length + ' · render: media ' + avg.toFixed(1) +
+      ' ms, máx. ' + mx.toFixed(1) + ' ms (paso ' + (worst + 1) + ', ' + (tr.steps[worst] ? tr.steps[worst].kind : '') + ') · ℒ = ' + tr.loss.toFixed(4);
+  }
+
+  // --- controles
+  const cfgSeg = $('#cfg-seg');
+  const initial = CONFIGS[params.get('cfg')] ? params.get('cfg') : 'default';
+  for (const k in CONFIGS) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'radio'); b.dataset.cfg = k; b.textContent = CONFIGS[k].label;
+    b.setAttribute('aria-checked', String(k === initial));
+    cfgSeg.appendChild(b);
+  }
+  cfgSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    for (const x of cfgSeg.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
+    build(b.dataset.cfg);
+  });
+  const themeSeg = $('#theme-seg');
+  function setTheme(v) {
+    if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+    for (const x of themeSeg.querySelectorAll('button')) x.setAttribute('aria-checked', String(x.dataset.themeSet === v));
+  }
+  themeSeg.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setTheme(b.dataset.themeSet); });
+  if (params.get('theme')) setTheme(params.get('theme'));
+  const valsSeg = $('#vals-seg');
+  valsSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    for (const x of valsSeg.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
+    showValues = b.dataset.vals === 'on' ? true : b.dataset.vals === 'off' ? false : 'auto';
+    build(G.cfgKey);
+  });
+  G.build = build;
+  build(initial);
+})();
+</script>
+</body>
+</html>

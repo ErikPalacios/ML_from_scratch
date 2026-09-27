@@ -1,0 +1,391 @@
+/* =============================================================================
+   Transformer Lab — css/viz.css
+   Estilos de las vistas de matrices: fórmulas (TL.MathTex), mapas de calor (TL.Heatmap),
+   vistas de operaciones (TL.OpViews) e inspector. Solo usa tokens y primitivas de css/app.css.
+
+   CLASES
+     Fórmulas:   .tex .tex--display .tex-display (bloque desplazable) .tex-fallback .tex-pending
+     Heatmap:    .hm (.hm--act|param|grad|const|prob|onehot|mask .hm--vals .hm--vert)
+                 .hm__cap .hm__name .hm__shape .hm__sym .hm__tag(--grad|param|const|onehot|mask|mom)
+                 .hm__note .hm__scroll .hm__grid .hm__c(.is-zero .is-ninf .is-pending) .hm__rh .hm__ch
+                 .hm__band (.hm__hl-hl|src|alt|tgt  .hm__mk-tgt|pin  .hm__cols  .hm__frame)
+                 .hm-legend .hm-legend__item .hm-legend__bar(--diverging|--sequential) .hm-legend__sw
+     OpViews:    .ov[data-kind][data-phase] > .ov-flow .ov-body (.ov-line > .ov-line__label + .ov-eq > .ov-term)
+                 .ov-extras (.ov-card) .ov-foot (.ov-legend .ov-note)
+                 .ov-op(--word|--tex) .ov-big .ov-plot .ov-ag (grafo de atención) .ov-top .ov-tokz .ov-seq
+                 .ov-tok .ov-vocab .ov-heads .ov-scatter .ov-gn .ov-gauge
+     Inspector:  .insp > .insp__head(.insp__title .insp__sub) .insp__tex .insp__rows(.insp__row .insp__k .insp__v
+                 | .insp__num) .insp__note
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   0. Colores de cabeza (bandas de división/concatenación) — derivados de los tokens
+   ------------------------------------------------------------------------ */
+:root {
+  --head-1: var(--fwd);
+  --head-2: var(--upd);
+  --head-3: var(--prob-1);
+  --head-4: var(--neg);
+  --head-5: color-mix(in srgb, var(--fwd) 55%, var(--prob-1));
+  --head-6: color-mix(in srgb, var(--upd) 55%, var(--bwd));
+  --head-7: color-mix(in srgb, var(--neg) 55%, var(--fwd));
+  --head-8: var(--data);
+}
+
+/* ---------------------------------------------------------------------------
+   1. FÓRMULAS (TL.MathTex)
+   ------------------------------------------------------------------------ */
+.tex { display: inline; }
+.tex--display, .tex-display {
+  display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden;
+  padding-block: 2px; overscroll-behavior-x: contain;
+}
+.tex-display > mjx-container[display="true"] { margin: 0.35em 0 !important; }
+.tex-fallback {
+  font-family: var(--font-mono); font-size: 0.86em; color: var(--muted);
+  background: var(--surface-2); border: 1px dashed var(--rule-strong); border-radius: var(--r-1);
+  padding: 0 4px; white-space: pre-wrap; word-break: break-word;
+}
+.tex-pending { font-style: italic; color: var(--muted); }
+.tex-lite { font-style: italic; font-family: var(--font-display); }
+.tex-pending sub, .tex-pending sup, .tex-lite sub, .tex-lite sup { font-size: 0.75em; }
+
+/* ---------------------------------------------------------------------------
+   2. MAPA DE CALOR (TL.Heatmap)
+   ------------------------------------------------------------------------ */
+.hm {
+  display: inline-flex; flex-direction: column; gap: 4px;
+  margin: 0; min-width: 0; max-width: 100%; vertical-align: middle;
+}
+.hm__cap {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 3px 5px;
+  width: 0; min-width: 100%;         /* no ensancha la figura: se ajusta al ancho de la rejilla */
+  min-height: 22px; line-height: 1.2;
+}
+.hm__name { font-size: 15px; color: var(--ink); line-height: 1; margin-right: 2px; }
+.hm__name mjx-container { vertical-align: -0.2em; }
+.hm__cap .badge-shape { height: 18px; font-size: 11px; padding: 0 5px; }
+.hm__sym sub { font-size: 0.8em; line-height: 0; }
+.hm__tag {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 5px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.02em;
+  border-radius: var(--r-1); border: 1px solid var(--rule-strong);
+  color: var(--muted); background: var(--surface-2); white-space: nowrap;
+}
+.hm__tag--grad  { color: var(--bwd-ink); background: var(--bwd-soft); border-color: color-mix(in srgb, var(--bwd) 45%, transparent); }
+.hm__tag--grad::before { content: "∂"; margin-right: 3px; font-weight: 600; }
+.hm__tag--param { color: var(--upd-ink); background: var(--upd-soft); border-color: color-mix(in srgb, var(--upd) 45%, transparent); }
+.hm__tag--param::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--upd); margin-right: 4px; }
+.hm__tag--const, .hm__tag--onehot, .hm__tag--mask { color: var(--data-ink); background: var(--data-soft); border-color: color-mix(in srgb, var(--data) 40%, transparent); }
+.hm__tag--mom { color: var(--muted); background: transparent; border-style: dashed; }
+.hm__note { width: 0; min-width: 100%; font-size: var(--fs-xs); color: var(--muted); line-height: 1.3; }
+
+.hm__scroll {
+  /* padding + margen negativo: deja sitio a los contornos de resaltado y al foco sin mover la rejilla */
+  max-width: calc(100% + 8px); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+  padding: 4px; margin: -4px;
+}
+.hm__grid {
+  position: relative; display: grid; width: max-content; gap: 1px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  background: var(--surface);
+  -webkit-tap-highlight-color: transparent;
+}
+.hm__row { display: contents; }
+.hm__corner { min-width: 0; }
+
+/* celdas */
+.hm__c {
+  display: flex; align-items: center; justify-content: center; min-width: 0;
+  font-size: 10px; line-height: 1; letter-spacing: -0.01em;
+  overflow: hidden; white-space: nowrap; cursor: crosshair;
+  background: var(--surface); color: var(--ink);
+}
+.hm:not(.hm--vals) .hm__c { font-size: 0; }
+.hm__c.is-zero { color: var(--muted) !important; }
+.hm--vals .hm__c.is-zero { opacity: 0.8; }
+.hm__c.is-ninf {
+  background:
+    repeating-linear-gradient(135deg, var(--masked) 0 1.5px, transparent 1.5px 5px),
+    var(--surface-2);
+  color: var(--muted);
+}
+.hm--vals .hm__c.is-ninf { font-size: 10px; }
+.hm__c.is-pending { background: var(--surface-2) !important; color: transparent !important; }
+.hm__c.is-pending.is-ninf { background: var(--surface-2) !important; }
+
+/* cabeceras */
+.hm__ch, .hm__rh { color: var(--muted); cursor: default; }
+.hm__ch {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding: 1px 0 3px; font-size: 10px; line-height: 1.05; min-width: 0; overflow: hidden;
+}
+.hm__ch .hm__tok { color: var(--ink); font-size: 10.5px; max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
+.hm__ch .hm__abs { font-size: 8.5px; color: var(--muted); opacity: 0.8; }
+.hm--vert .hm__ch .hm__tok {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  max-height: 64px; text-overflow: ellipsis;
+}
+.hm__rh {
+  display: flex; align-items: center; justify-content: flex-end; gap: 5px;
+  padding: 0 6px 0 2px; font-size: 11px; white-space: nowrap;
+}
+.hm__rh .hm__tok { color: var(--ink); }
+.hm__rh .hm__ix { font-size: 10px; min-width: 1ch; text-align: right; }
+.hm--tiny .hm__ch { font-size: 8.5px; }
+.hm--tiny .hm__ch .hm__abs { display: none; }
+.hm__ch.is-hl, .hm__rh.is-hl { color: var(--ph-ink); background: var(--ph-soft); font-weight: 600; }
+.hm__ch.is-hl .hm__tok, .hm__rh.is-hl .hm__tok { color: var(--ph-ink); }
+
+/* foco de teclado (tabindex itinerante) */
+.hm__c:focus-visible, .hm__rh:focus-visible, .hm__ch:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: -2px; position: relative; z-index: 5; border-radius: 0;
+}
+
+/* bandas (resaltados superpuestos; posicionadas sobre el área de la rejilla) */
+.hm__band { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.hm__frame { inset: -1px; border: 1px solid var(--rule-strong); z-index: 1; }
+.hm--grad .hm__frame { border-color: var(--bwd); border-width: 1.5px; inset: -1.5px; }
+.hm--param .hm__frame { border-color: var(--upd); border-width: 1.5px; inset: -1.5px; }
+.hm__cols {
+  z-index: 1;
+  box-shadow: inset 0 3px 0 var(--band, var(--ink)), inset 0 0 0 1.5px color-mix(in srgb, var(--band, var(--ink)) 70%, transparent);
+}
+.hm__hl-src { box-shadow: inset 0 0 0 2px var(--ph); background: color-mix(in srgb, var(--ph) 9%, transparent); }
+.hm__hl-alt { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.hm__hl-hl  { box-shadow: 0 0 0 1.5px var(--surface), 0 0 0 3.5px var(--ink); z-index: 4; }
+.hm__band--row.hm__hl-hl, .hm__band--col.hm__hl-hl { box-shadow: inset 0 0 0 2px var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.hm__hl-tgt, .hm__mk-tgt { box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 3.5px var(--surface); z-index: 3; }
+.hm__mk-pin { box-shadow: inset 0 0 0 1.5px var(--ink); z-index: 3; }
+.hm--tiny .hm__mk-tgt, .hm--tiny .hm__hl-tgt { box-shadow: inset 0 0 0 1.5px var(--ink); }
+
+/* leyenda de escalas */
+.hm-legend { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs); color: var(--muted); }
+.hm-legend__item { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.hm-legend__bar {
+  flex: none; width: 72px; height: 10px; border-radius: 2px; border: 1px solid var(--rule);
+}
+.hm-legend__bar--diverging { background: linear-gradient(90deg, var(--neg), var(--zero), var(--pos)); }
+.hm-legend__bar--sequential { background: linear-gradient(90deg, var(--prob-0), var(--prob-1)); }
+.hm-legend__sw { flex: none; width: 14px; height: 12px; border: 1px solid var(--rule); }
+.hm-legend__sw.is-ninf { background: repeating-linear-gradient(135deg, var(--masked) 0 1.5px, transparent 1.5px 5px), var(--surface-2); }
+.hm-legend__nums { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.hm-legend__names { min-width: 0; overflow-wrap: anywhere; }
+.hm-legend__item--plain .hm-legend__names { font-style: italic; }
+
+/* ---------------------------------------------------------------------------
+   3. VISTAS DE OPERACIÓN (TL.OpViews)
+   ------------------------------------------------------------------------ */
+.ov { display: flex; flex-direction: column; gap: 14px; min-width: 0; max-width: 100%; }
+
+/* línea de flujo de dimensiones */
+.ov-flow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+  padding: 6px 10px; min-width: 0;
+  border: 1px dashed var(--rule-strong); border-left: 3px solid var(--ph); border-radius: 0 var(--r-2) var(--r-2) 0;
+  background: var(--surface);
+  font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+}
+.ov-flow__eq { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 7px; min-width: 0; }
+.ov-flow__t { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.ov-flow__name { color: var(--ink); font-size: 13.5px; }
+.ov-flow__txt { font-family: var(--font-body); font-size: var(--fs-sm); }
+.ov-flow__shape { color: var(--ph-ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+.ov-flow__shape::before { content: "("; color: var(--muted); font-weight: 400; }
+.ov-flow__shape::after { content: ")"; color: var(--muted); font-weight: 400; }
+.ov-flow__op { color: var(--muted); font-size: 13px; }
+.ov-flow__meta { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+
+/* cuerpo: líneas de ecuación */
+.ov-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ov-line { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ov-line__label {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.04em;
+  color: var(--muted); padding-bottom: 3px; border-bottom: 1px solid var(--rule);
+}
+.ov-eq { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 12px; min-width: 0; }
+.ov-term { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.ov-term > .hm { flex: 0 1 auto; }
+.ov-op {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 14px;
+  font-family: var(--font-body); font-size: 22px; line-height: 1; color: var(--muted);
+}
+.ov-op--dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+.ov-op--tex { font-size: 15px; color: var(--ink); }
+.ov-op--tex mjx-container { margin: 0 !important; }
+.ov-op--word {
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; white-space: nowrap;
+  padding: 4px 7px; border: 1px solid var(--rule-strong); border-radius: var(--r-1);
+  background: var(--surface-2); color: var(--ink);
+}
+
+/* extras */
+.ov-extras { display: flex; flex-wrap: wrap; gap: 14px; min-width: 0; }
+.ov-extras:empty { display: none; }
+.ov-card {
+  flex: 1 1 300px; min-width: 0; max-width: 100%;
+  border: 1px solid var(--rule); border-radius: var(--r-2); background: var(--surface);
+}
+.ov-card--wide { flex-basis: 100%; }
+.ov-card--graph { flex: 0 1 380px; }
+.ov-card--plot { flex: 1 1 360px; }
+.ov-card__title {
+  margin: 0; padding: 7px 12px; border-bottom: 1px solid var(--rule);
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.ov-card__body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ov-card__cap { font-size: var(--fs-xs); color: var(--muted); line-height: 1.45; }
+.ov-formula { font-size: 14px; color: var(--ink); }
+.ov-plot { display: block; width: 100%; height: 180px; }
+
+/* pie: leyenda + notas */
+.ov-foot { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ov-legend { padding-top: 8px; border-top: 1px dashed var(--rule); }
+.ov-note {
+  margin: 0; padding: 7px 12px; max-width: 80ch;
+  border-left: 3px solid var(--ph); background: var(--ph-soft); border-radius: 0 var(--r-2) var(--r-2) 0;
+  font-size: var(--fs-sm); line-height: 1.5; color: var(--ink);
+}
+.ov-note code { font-size: 0.9em; }
+
+/* número grande (pérdida, norma) */
+.ov-big {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 8px 14px; border: 1px solid var(--rule-strong); border-radius: var(--r-2); background: var(--surface);
+}
+.ov-big__tex { font-size: 13px; color: var(--muted); }
+.ov-big__num {
+  font-family: var(--font-mono); font-size: var(--fs-xl); font-weight: 500; line-height: 1.1;
+  font-variant-numeric: tabular-nums; color: var(--ph-ink);
+}
+
+/* grafo de atención */
+.ov-ag { display: block; width: 100%; max-width: 380px; height: auto; font-family: var(--font-mono); overflow: visible; }
+.ov-ag__head { font-size: 10px; fill: var(--muted); letter-spacing: 0.04em; }
+.ov-ag__lab { font-size: 11px; fill: var(--ink); }
+.ov-ag__node { fill: var(--surface); stroke: var(--ink); stroke-width: 1.25; }
+.ov-ag__line { fill: none; stroke: var(--prob-1); stroke-linecap: round; transition: opacity var(--dur) var(--ease); }
+.ov-ag.is-iso .ov-ag__line { opacity: 0.08; }
+.ov-ag.is-iso .ov-ag__line.is-on { opacity: 1; }
+.ov-ag .ov-ag__line.is-hot { stroke: var(--ph); }
+.ov-ag__q { cursor: pointer; outline: none; }
+.ov-ag__q:focus-visible .ov-ag__node { stroke: var(--focus); stroke-width: 3; }
+.ov-ag__q.is-on .ov-ag__node { fill: var(--prob-1); stroke: var(--prob-1); }
+.ov-ag__q.is-on .ov-ag__lab { font-weight: 600; }
+.ov-ag__w { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.ov-ag__w.is-hot { fill: var(--ink); font-weight: 600; }
+
+/* top-3 del softmax de salida */
+.ov-top td { vertical-align: middle; }
+.ov-top__tgt { font-weight: 600; }
+.ov-top__preds { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.ov-top__p { display: inline-grid; grid-template-columns: auto 44px auto; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 12px; }
+.ov-top__tok { min-width: 0; }
+.ov-top__bar { height: 7px; border-radius: 1px; background: linear-gradient(90deg, var(--prob-1) 0 var(--w), var(--surface-2) var(--w) 100%); border: 1px solid var(--rule); }
+.ov-top__num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ov-top__p.is-ok .ov-top__tok { color: var(--ok); font-weight: 600; }
+
+/* tokenización */
+.ov-tokz { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ov-tokz__text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.ov-tokz__quote { font-family: var(--font-mono); font-size: var(--fs-lg); color: var(--ink); overflow-wrap: anywhere; }
+.ov-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; padding: 2px; }
+.ov-seq { display: grid; gap: 6px 6px; align-items: center; width: max-content; }
+.ov-seq__lab { font-family: var(--font-mono); font-size: 11px; color: var(--muted); padding-right: 8px; white-space: nowrap; }
+.ov-seq__ix { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); text-align: center; }
+.ov-seq__arrow { text-align: right; color: var(--ph); font-size: 16px; line-height: 1; padding-right: 2px; }
+.ov-tok {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 4px 8px; min-width: 52px; border: 1px solid var(--rule-strong); border-radius: var(--r-1);
+  background: var(--surface); color: var(--ink); font-family: var(--font-mono); cursor: default;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.ov-tok__t { font-size: 13px; white-space: nowrap; }
+.ov-tok__id { font-size: 10px; color: var(--muted); }
+.ov-tok--in { border-color: var(--ph); }
+.ov-tok--tgt { border-style: dashed; }
+.ov-tok:hover { background: var(--hover); }
+.ov-tok.is-src { background: var(--ph-soft); border-color: var(--ph); }
+.ov-tok.is-hl { background: var(--ph-soft); border-color: var(--ph-ink); box-shadow: 0 0 0 1.5px var(--ph); }
+.ov-tok:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ov-vocab { display: flex; flex-wrap: wrap; gap: 4px; }
+.ov-vtok {
+  display: inline-flex; align-items: baseline; gap: 5px; padding: 1px 6px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+  border: 1px solid var(--rule); border-radius: var(--r-1); background: var(--surface-2);
+}
+.ov-vtok__id { font-size: 10px; }
+.ov-vtok.is-used { color: var(--ph-ink); background: var(--ph-soft); border-color: color-mix(in srgb, var(--ph) 50%, transparent); }
+
+/* cabezas */
+.ov-heads { display: flex; flex-wrap: wrap; gap: 6px; }
+.ov-head {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink);
+  border: 1px solid var(--rule); border-radius: var(--r-1); background: var(--surface);
+}
+.ov-head::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--band); }
+
+/* scatter-add del embedding */
+.ov-scatter { display: flex; flex-direction: column; gap: 4px; }
+.ov-scatter__row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; text-align: left;
+  padding: 3px 8px; border: 1px solid transparent; border-radius: var(--r-1);
+  background: transparent; color: var(--ink); font-family: var(--font-mono); font-size: 12px; cursor: default;
+}
+.ov-scatter__row:hover { background: var(--hover); border-color: var(--rule); }
+.ov-scatter__row:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.ov-scatter__dst { font-weight: 600; min-width: 110px; }
+.ov-scatter__arrow, .ov-scatter__plus { color: var(--muted); }
+.ov-scatter__rep { height: 18px; font-size: 10px; }
+
+/* norma del gradiente */
+.ov-gn { display: flex; flex-wrap: wrap; align-items: stretch; gap: 14px; }
+.ov-gauge { flex: 1 1 280px; display: flex; flex-direction: column; justify-content: center; gap: 8px; min-width: 0; }
+.ov-gauge__track { position: relative; height: 14px; border-radius: 2px; background: var(--surface-2); border: 1px solid var(--rule); margin-top: 16px; }
+.ov-gauge__bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--bwd); border-radius: 1px; }
+.ov-gauge__bar.is-over { background: repeating-linear-gradient(135deg, var(--bwd) 0 4px, color-mix(in srgb, var(--bwd) 70%, var(--surface)) 4px 8px); }
+.ov-gauge__tau { position: absolute; top: -18px; bottom: -3px; width: 0; border-left: 2px solid var(--ink); }
+.ov-gauge__tau > span { position: absolute; top: -1px; left: 4px; font-family: var(--font-mono); font-size: 11px; color: var(--ink); white-space: nowrap; }
+.ov-gauge__txt { font-size: var(--fs-sm); color: var(--ink); line-height: 1.45; }
+.ov-bars { min-width: 0; }
+
+/* animación en curso */
+.ov.is-animating .ov-flow { border-left-style: double; }
+
+/* ---------------------------------------------------------------------------
+   4. INSPECTOR (contenido que genera TL.OpViews; el contenedor lo pone el shell)
+   ------------------------------------------------------------------------ */
+.insp { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: var(--fs-sm); }
+.insp__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.insp__title { font-family: var(--font-mono); font-weight: 600; font-size: 13px; color: var(--ink); }
+.insp__sub { color: var(--muted); font-size: var(--fs-xs); }
+.insp__tex { max-width: 100%; overflow-x: auto; overflow-y: hidden; font-size: 14px; color: var(--ink); }
+.insp__rows { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.insp__row { display: grid; grid-template-columns: minmax(64px, max-content) minmax(0, 1fr); gap: 10px; align-items: baseline; min-width: 0; }
+.insp__k { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; text-align: right; }
+.insp__v, .insp__num {
+  font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink);
+  white-space: nowrap; overflow-x: auto; overscroll-behavior-x: contain; min-width: 0; padding-bottom: 2px;
+}
+.insp__note { margin: 0; font-size: var(--fs-xs); color: var(--muted); line-height: 1.45; }
+
+/* ---------------------------------------------------------------------------
+   5. PANTALLA ESTRECHA Y MOVIMIENTO REDUCIDO
+   ------------------------------------------------------------------------ */
+@media (max-width: 600px) {
+  .ov { gap: 12px; }
+  .ov-flow { font-size: 11.5px; padding: 6px 8px; }
+  .ov-flow__meta { margin-left: 0; }
+  .ov-eq { gap: 10px 8px; }
+  .ov-term { gap: 6px; }
+  .ov-op:not(.ov-op--word):not(.ov-op--tex) { font-size: 19px; }
+  .ov-op--tex { font-size: 14px; }
+  .ov-card__body { padding: 8px 10px; }
+  .ov-scatter__dst { min-width: 0; }
+  .insp__row { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ov-ag__line, .ov-tok { transition: none; }
+}

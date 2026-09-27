@@ -61,7 +61,7 @@
     let ms = String(m);
     return (ms + 'e' + e).replace(/-/g, MINUS);
   }
-  // celda: 3 cifras significativas; enteros tal cual; |x| < 0.01 en notación 1.2e−3
+  // celda: 3 cifras significativas (2 si |x| < 0.01); enteros tal cual; |x| < 0.001 en notación 1.2e−4
   function fmt(x) {
     if (x === -Infinity) return MINUS + '∞';
     if (x === Infinity) return '∞';
@@ -69,9 +69,9 @@
     if (x === 0) return '0';
     const a = Math.abs(x);
     if (Number.isInteger(x) && a < 1e4) return String(x).replace('-', MINUS);
-    if (a < 0.01 || a >= 1e4) return expForm(x, 1);
+    if (a < 0.001 || a >= 1e4) return expForm(x, 1);
     if (a >= 1000) return String(Math.round(x)).replace('-', MINUS);
-    return x.toPrecision(3).replace('-', MINUS);
+    return x.toPrecision(a < 0.01 ? 2 : 3).replace('-', MINUS);
   }
   // inspector: `sig` cifras significativas (por defecto 4)
   function fmtFull(x, sig) {
@@ -251,7 +251,7 @@
       let mx = 1;
       const d = m.d;
       for (let k = 0; k < d.length; k++) { const L = fmt(d[k]).length; if (L > mx) mx = L; }
-      this.valW = Math.ceil(mx * CH_W + 7);
+      this.valW = Math.max(26, Math.ceil(mx * CH_W + 7));
     }
 
     // ---- etiquetas de filas / columnas
@@ -266,7 +266,7 @@
       const L = this.colLabels, ax = this.ref.colAxis;
       if (ax === '1') return '';
       if (L && L[j] != null) return '<span class="hm__tok">' + esc(L[j]) + '</span>';
-      if (ax === 'dk') return '<span class="hm__ix">' + j + '</span><span class="hm__abs">' + (j + this.colOffset) + '</span>';
+      if (ax === 'dk' && this.colOffset > 0) return '<span class="hm__ix">' + j + '</span><span class="hm__abs" title="columna ' + (j + this.colOffset) + ' de la matriz completa">(' + (j + this.colOffset) + ')</span>';
       return '<span class="hm__ix">' + j + '</span>';
     }
     _estRowHeader() {
@@ -283,8 +283,8 @@
     _estColLabel() {
       const L = this.colLabels;
       let mx = 1;
-      if (L) for (let j = 0; j < this.C; j++) if (L[j] != null && String(L[j]).length > mx) mx = String(L[j]).length;
-      else if (!L) mx = String(this.C - 1).length;
+      if (L) { for (let j = 0; j < this.C; j++) if (L[j] != null && String(L[j]).length > mx) mx = String(L[j]).length; }
+      else mx = String(this.C - 1 + this.colOffset).length;
       return Math.ceil(mx * LAB_W + 6);
     }
 
@@ -300,7 +300,7 @@
         const name = doc.createElement('span');
         name.className = 'hm__name';
         const tex = o.name || ref.tex || ref.label || '';
-        if (TL.MathTex) TL.MathTex.render(tex, name); else name.textContent = ref.label || tex;
+        if (TL.MathTex) TL.MathTex.render(tex, name, { lite: true }); else name.textContent = ref.label || tex;
         cap.appendChild(name);
         const b = doc.createElement('span');
         b.className = 'badge-shape hm__shape';
@@ -359,6 +359,9 @@
       this.scrollEl = scroll;
       this.rhW = this._estRowHeader();
       this.colLabW = this._estColLabel();
+      // ancho preferido con números: el de los números, o el de las etiquetas de columna si caben (≤ 66 px)
+      this.prefW = Math.max(this.valW, this.colLabels ? Math.min(this.colLabW, 66) : 0);
+      this._band(2, 2, R + 2, C + 2, 'hm__frame', []);
       if (o.highlightCols) for (const [c0, c1, v] of o.highlightCols) this._band(1, c0 + 2, R + 2, c1 + 2, 'hm__cols', this._marks, v);
       this._bind();
     }
@@ -392,11 +395,9 @@
     }
     reveal(n) {
       const N = this.cells.length;
-      const v = n == null ? Infinity : Math.max(0, n);
-      const prev = this._revealed;
-      this._revealed = v;
-      const a = Math.min(prev, v), b = Math.min(N, Math.max(prev === Infinity ? N : prev, v === Infinity ? N : v));
-      for (let k = a; k < b; k++) this.cells[k].classList.toggle('is-pending', k >= v);
+      const v = n == null ? N : Math.max(0, Math.min(N, n));
+      this._revealed = v >= N ? Infinity : v;
+      for (let k = 0; k < N; k++) this.cells[k].classList.toggle('is-pending', k >= v);
     }
 
     // ---- tamaño
@@ -420,9 +421,16 @@
     sizeFor(avail) {
       const sv = this.opts.showValues;
       const cw = Math.floor((avail - this.rhW - 4) / Math.max(1, this.C));
-      if (sv === true || (sv !== false && cw >= this.valW)) return { w: Math.max(this.valW, Math.min(MAX_W, cw)), h: VAL_H, vals: true };
-      const s = Math.max(MIN_C, Math.min(SQ_MAX, cw));
-      return { w: s, h: s, vals: false };
+      const compact = this.opts.stretch === false;
+      // en modo compacto (vistas), las matrices altas (≥ 12 filas) van solo con color: los números, en el inspector
+      const tall = compact && this.R >= 12;
+      if (sv === true || (sv !== false && !tall && cw >= this.valW)) {
+        if (!compact) return { w: Math.max(this.valW, Math.min(MAX_W, cw)), h: VAL_H, vals: true };
+        return { w: cw >= this.prefW ? this.prefW : this.valW, h: VAL_H, vals: true };
+      }
+      const smax = compact ? (this.R >= 16 ? 16 : 18) : SQ_MAX;
+      const sz = Math.max(MIN_C, Math.min(smax, cw));
+      return { w: sz, h: sz, vals: false };
     }
     fit(avail, force) {
       if (this._destroyed || !(avail > 0)) return this;
@@ -627,7 +635,7 @@
     if (hasMask) {
       const row = doc.createElement('div');
       row.className = 'hm-legend__item';
-      row.innerHTML = '<span class="hm-legend__sw is-ninf" aria-hidden="true"></span><span class="hm-legend__names">rayado = ' + MINUS + '∞ (enmascarado)</span>';
+      row.innerHTML = '<span class="hm-legend__sw is-ninf" aria-hidden="true"></span><span class="hm-legend__names">rayado = ' + MINUS + '∞ (posición enmascarada: el futuro)</span>';
       box.appendChild(row);
     }
     return box;
