@@ -129,7 +129,7 @@
             <span class="kv"><span class="kv__k">T</span><span class="kv__v">5</span></span>
             <span class="kv"><span class="kv__k">d</span><span class="kv__v">8</span></span>
             <span class="kv"><span class="kv__k">h</span><span class="kv__v">2</span></span>
-            <span class="kv"><span class="kv__k">d_k</span><span class="kv__v">4</span></span>
+            <span class="kv"><span class="kv__k">d<sub>k</sub></span><span class="kv__v">4</span></span>
             <span class="kv"><span class="kv__k">V</span><span class="kv__v">13</span></span>
           </div>
         </div></div>
@@ -192,7 +192,7 @@ el perro come carne .</textarea></label>
       <div class="panel"><div class="panel__head"><span class="panel__title">Paneles, notas y tooltip</span></div>
         <div class="panel__body gx-demo">
           <div class="callout" data-phase="forward">Forward: los datos fluyen de arriba abajo; cada bloque transforma una matriz T×d.</div>
-          <div class="callout" data-phase="backward">Backward: el gradiente \(\mathrm{d}X\) tiene siempre la misma forma que X.</div>
+          <div class="callout" data-phase="backward">Backward: el gradiente <i>dX</i> = ∂ℒ/∂X tiene siempre la misma forma que <i>X</i>.</div>
           <div class="panel panel--inset"><div class="panel__body small">Panel <code>.panel--inset</code> sobre superficie.</div></div>
           <div class="cluster">
             <div class="tooltip tooltip--static">
@@ -385,7 +385,7 @@ el perro come carne .</textarea></label>
     const T = 5, d = 8, dk = d / h, dff = 32, V = 13;
     const m = {
       tokens: '1×T · 1×' + T, embed: 'T×d · ' + T + '×' + d, posenc: 'T×d · ' + T + '×' + d,
-      lnf: 'T×d · ' + T + '×' + d, logits: 'T×V · ' + T + '×' + V, softmax_out: 'T×V · ' + T + '×' + V, loss: 'ℒ · 1×1',
+      lnf: 'T×d · ' + T + '×' + d, logits: 'T×V · ' + T + '×' + V, softmax_out: 'T×V · ' + T + '×' + V, loss: 'escalar · 1×1',
     };
     for (let l = 0; l < 3; l++) {
       const P = 'L' + l + '.';
@@ -429,7 +429,7 @@ el perro come carne .</textarea></label>
     { name: 'media móvil', points: ema, colorVar: '--fwd' },
     { name: 'pérdida del lote', points: raw, colorVar: '--fwd', faint: true },
   ];
-  const lossOpts = () => ({ yLabel: 'pérdida ℒ', xLabel: 'iteración', xName: 'iteración', logY: $('#logy').checked, areaIndex: 0 });
+  const lossOpts = () => ({ yLabel: 'pérdida', xLabel: 'iteración', xName: 'iteración', logY: $('#logy').checked, areaIndex: 0 });
   TL.Charts.line($('#c-loss'), lossSeries(), lossOpts());
   $('#logy').addEventListener('change', () => TL.Charts.line($('#c-loss'), lossSeries(), lossOpts()));
 

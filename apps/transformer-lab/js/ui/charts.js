@@ -58,8 +58,7 @@
   function niceTicks(min, max, count) {
     count = Math.max(2, count || 5);
     if (!(max > min)) { const d = Math.abs(min) || 1; min -= d * 0.5; max += d * 0.5; }
-    const range = niceNum(max - min, false);
-    const step = niceNum(range / (count - 1), true);
+    const step = niceNum((max - min) / (count - 1), true);
     const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
     const ticks = [];
     for (let v = lo; v <= hi + step * 0.5; v += step) ticks.push(+v.toFixed(12));
@@ -388,7 +387,7 @@
       const baseY = Math.round(plot.y + plot.h) + 0.5;
       ctx.strokeStyle = th.ruleStrong;
       ctx.beginPath(); ctx.moveTo(plot.x, baseY); ctx.lineTo(plot.x + plot.w, baseY); ctx.stroke();
-      const xt = niceTicks(xmin, xmax, Math.max(2, Math.floor(plot.w / 72)));
+      const xt = niceTicks(xmin, xmax, Math.max(3, Math.floor(plot.w / 60)));
       const intX = all.every((p) => Number.isInteger(p[0]));
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillStyle = th.muted;
@@ -673,7 +672,7 @@
   // BARRAS horizontales (DOM + CSS; etiquetas LaTeX vía TL.MathTex si existe)
   // ---------------------------------------------------------------------------
   const TEX_MAP = {
-    '\\top': 'ᵀ', '\\gamma': 'γ', '\\beta': 'β', '\\alpha': 'α', '\\eta': 'η', '\\theta': 'θ', '\\mu': 'μ',
+    '\\top': 'T', '\\gamma': 'γ', '\\beta': 'β', '\\alpha': 'α', '\\eta': 'η', '\\theta': 'θ', '\\mu': 'μ',
     '\\sigma': 'σ', '\\epsilon': 'ε', '\\varepsilon': 'ε', '\\lambda': 'λ', '\\pi': 'π', '\\cdot': '·', '\\times': '×',
     '\\sqrt': '√', '\\sum': 'Σ', '\\partial': '∂', '\\nabla': '∇', '\\infty': '∞', '\\ell': 'ℓ', '\\to': '→',
     '\\leftarrow': '←', '\\odot': '⊙', '\\oplus': '⊕', '\\prime': '′', '\\ldots': '…', '\\dots': '…', '\\|': '‖',
@@ -684,7 +683,7 @@
     let s = String(tex);
     s = s.replace(/\\mathcal\{L\}/g, 'ℒ');
     s = s.replace(/\\(?:text|mathrm|mathbf|operatorname|mathit|boldsymbol)\{([^{}]*)\}/g, '$1');
-    s = s.replace(/\\(tilde|hat|bar)\{?([A-Za-z])\}?/g, (m, k, c) => c + (k === 'tilde' ? '̃' : k === 'hat' ? '̂' : '̄'));
+    s = s.replace(/\\(tilde|hat|bar)\s*\{?([A-Za-z])\}?/g, (m, k, c) => c + (k === 'tilde' ? '\u0303' : k === 'hat' ? '\u0302' : '\u0304'));
     s = s.replace(/\\[a-zA-Z]+|\\[,;!|]/g, (m) => (m in TEX_MAP ? TEX_MAP[m] : m.slice(1)));
     let out = '';
     for (let i = 0; i < s.length; i++) {

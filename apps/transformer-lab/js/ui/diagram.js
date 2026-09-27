@@ -233,14 +233,15 @@
 
     for (let l = 0; l < N; l++) {
       const P = 'L' + l + '.';
-      const frameTop = prev.bottom + 30;
+      const pfb = prev._frameBottom;
+      const frameTop = pfb ? pfb + 24 : prev.bottom + 30;
       const branchY = frameTop + 12;
       const frame = { layer: l, x: 2.5, y: frameTop, w: W - 5, h: 0, tab: { x: 2.5, y: frameTop - 16, h: 16, text: 'Capa ' + (l + 1) } };
       frames.push(frame);
       const lay = (def) => Object.assign({}, def, { layer: l });
 
       const nLn1 = box(P + 'ln1', frameTop + 24, lay(defs.ln1));
-      edge(prev.block, nLn1.block, 'trunk', [[mid, prev.bottom], [mid, nLn1.top]], { block: prev.block, x: mid + 6, y: prev.bottom + 11, maxX: x1 });
+      edge(prev.block, nLn1.block, 'trunk', [[mid, prev.bottom], [mid, nLn1.top]], { block: prev.block, x: mid + 6, y: pfb ? pfb + 10 : prev.bottom + 11, maxX: x1 });
       const layerIn = prev.block;
 
       const nQkv = box(P + 'qkv', nLn1.bottom + GAP, lay(defs.qkv)); trunk(nLn1, nQkv);
@@ -300,10 +301,11 @@
         if (li === 0) firstLaneOf.push(l);
       }
       const bus2 = laneBottom + 9;
-      const nConcat = box(P + 'concat', laneBottom + 22, lay(defs.concat));
+      const nConcat = box(P + 'concat', laneBottom + 24, lay(defs.concat));
       for (const c of ctxNodes) {
+        // la etiqueta de forma de "contexto" va en el tallo común que entra en concat
         edge(c.n.block, nConcat.block, 'fanin', [[c.ncx, c.n.bottom], [c.ncx, bus2], [mid, bus2], [mid, nConcat.top]],
-          c.li === 0 ? { block: c.n.block, x: c.ncx + 5, y: c.n.bottom + 8.5, maxX: c.lx + laneW - 2 } : null,
+          c.li === 0 ? { block: c.n.block, x: mid + 6, y: bus2 + 7, maxX: x1 } : null,
           { lane: c.li });
       }
 

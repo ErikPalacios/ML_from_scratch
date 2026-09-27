@@ -240,7 +240,7 @@ hr, .divider { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; hei
 
 /* 3.2 Control segmentado ----------------------------------------------------- */
 .seg {
-  display: inline-flex; align-items: stretch; gap: 2px; padding: 2px;
+  display: inline-flex; align-items: stretch; gap: 2px; padding: 2px; width: max-content;
   background: var(--surface-2); border: 1px solid var(--rule); border-radius: 4px;
   max-width: 100%; overflow-x: auto;
 }
@@ -453,7 +453,7 @@ textarea.input, .textarea {
   transition: opacity 90ms linear, transform 90ms var(--ease);
 }
 .tooltip.is-visible { opacity: 1; transform: none; }
-.tooltip--static { position: relative; opacity: 1; transform: none; display: inline-block; pointer-events: auto; }
+.tooltip--static { position: relative; z-index: auto; opacity: 1; transform: none; display: inline-block; pointer-events: auto; }
 .tooltip__title { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-bottom: 3px; }
 .tooltip__row { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
 .tooltip__key { width: 12px; height: 2px; border-radius: 1px; background: var(--c, var(--ink)); flex: none; }
