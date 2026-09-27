@@ -33,7 +33,7 @@
   .gx-dg-scroll { height: 600px; overflow: auto; padding: 14px 8px 8px; }
   .gx-dg-status { font-family: var(--font-mono); font-size: 12px; color: var(--muted); min-height: 18px; }
   .gx-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
-  .gx-charts { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+  .gx-charts { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); align-items: start; }
   .gx-chart-sq { height: 300px; }
   @media (max-width: 600px) { .gx { padding-top: 18px; } .gx-dg-scroll { height: 520px; } }
 </style>
@@ -173,7 +173,7 @@
 el perro come carne .</textarea></label>
         </div></div>
 
-      <div class="panel"><div class="panel__head"><span class="panel__title">Tabla densa</span><span class="badge-shape" style="margin-left:auto">8 filas</span></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">Tabla densa</span><span class="badge-shape" style="margin-left:auto">5 filas</span></div>
         <div class="panel__body">
           <div class="table-wrap">
             <table class="table">
@@ -210,8 +210,8 @@ el perro come carne .</textarea></label>
   <section class="gx-sec" id="diagrama">
     <div class="gx-sec__head"><span class="gx-sec__num">§3</span><h2>Esquema del transformer</h2><p>TL.Diagram · setActive · setShapes</p></div>
     <div class="gx-controls">
-      <button class="btn" type="button" id="dg-prev" aria-label="Paso anterior">◀</button>
-      <button class="btn btn--primary" type="button" id="dg-next">Siguiente paso ▶</button>
+      <button class="btn" type="button" id="dg-prev" aria-label="Paso anterior">←</button>
+      <button class="btn btn--primary" type="button" id="dg-next">Siguiente paso →</button>
       <button class="btn" type="button" id="dg-shapes" aria-pressed="true">Formas</button>
       <button class="btn btn--ghost" type="button" id="dg-clear">Limpiar</button>
       <span class="gx-dg-status" id="dg-status" aria-live="polite"></span>
@@ -294,6 +294,7 @@ el perro come carne .</textarea></label>
   }
   paintSwatches();
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintSwatches);
+  new MutationObserver(paintSwatches).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   // --- primitivas interactivas ---------------------------------------------
   for (const g of document.querySelectorAll('.seg[role="group"]')) {

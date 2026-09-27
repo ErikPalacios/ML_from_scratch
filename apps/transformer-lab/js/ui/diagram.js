@@ -8,6 +8,8 @@
      dg.setActive(null)                                  // limpia
      dg.setShapes({ [blockId]: 'T×d · 5×8' })            // etiquetas de forma en las aristas de salida
      dg.relayout()  dg.destroy()  dg.el (svg)  dg.blocks (ids en orden forward)
+   Teclado: una sola parada de Tab (el bloque activo); ↑/↓ recorren el flujo, ←/→ cambian de
+   cabeza dentro de los carriles, Inicio/Fin, Intro/Espacio → onSelect.
    Colores solo vía clases/tokens CSS (ver sección 4 de css/app.css).
    ========================================================================== */
 (function (root) {
@@ -220,11 +222,11 @@
     const learned = cfg.posEnc === 'learned';
     const nPos = sum('posenc', pcy, defs.posenc, {
       kind: 'posenc', cls: learned ? 'sum param' : 'sum',
-      side: { x: sideX, y: pcy - 15, w: x1 - sideX, h: 30, label: learned ? 'P_{pos}' : 'PE', sub: learned ? 'aprendida' : 'sinusoidal' },
+      side: { x: sideX, y: pcy - 16, w: x1 - sideX, h: 32, label: learned ? 'P_{pos}' : 'PE', sub: learned ? 'aprendida' : 'sinusoidal' },
     });
-    nPos.right = x1; nPos.x = x0; nPos.w = x1 - x0; nPos.y = pcy - 15; nPos.h = 30;
+    nPos.right = x1; nPos.x = x0; nPos.w = x1 - x0; nPos.y = pcy - 16; nPos.h = 32;
     nPos.top = pcy - R; nPos.bottom = pcy + R;
-    edge('embed', 'posenc', 'trunk', [[mid, nEmb.bottom], [mid, nPos.top]], { block: 'embed', x: mid + 6, y: (nEmb.bottom + pcy - 15) / 2, maxX: x1 });
+    edge('embed', 'posenc', 'trunk', [[mid, nEmb.bottom], [mid, nPos.top]], { block: 'embed', x: mid + 6, y: (nEmb.bottom + pcy - 16) / 2, maxX: x1 });
     edge('posenc', 'posenc', 'side', [[sideX, pcy], [mid + R, pcy]]);
 
     let prev = nPos;
@@ -277,8 +279,9 @@
             label: op.label, sub: op.sub(hs), op: op.op, cls: 'op', desc: op.desc, layer: l, lane: li, laneRest: isRest,
           }, { x: lx + 4, w: nodeW, h: nh, kind: wide ? 'box' : 'lane' });
           if (prevN) {
+            // etiqueta en cada carril; renderShapes muestra solo la del carril de la cabeza activa
             edge(prevN.block, n.block, 'lane', [[ncx, prevN.bottom], [ncx, n.top]],
-              li === 0 ? { block: prevN.block, x: ncx + 5, y: (prevN.bottom + n.top) / 2, maxX: lx + laneW - (bypass ? 16 : 2), inLane: true } : null,
+              { block: prevN.block, x: ncx + 5, y: (prevN.bottom + n.top) / 2, maxX: lx + laneW - (bypass ? 16 : 2), inLane: true, layer: l, lane: li },
               { lane: li });
           }
           prevN = n; yy = n.bottom + ngap;
@@ -290,7 +293,7 @@
         // entrada desde la división (Q_h, K_h)
         const fanPts = [[mid, nSplit.bottom], [mid, busY], [ncx, busY], [ncx, laneTop]];
         edge(nSplit.block, P + 'scores', 'fan', fanPts,
-          li === 0 ? { block: nSplit.block, x: ncx + 5, y: (busY + laneTop) / 2 + 0.5, maxX: lx + laneW - (bypass ? 16 : 2) } : null,
+          { block: nSplit.block, x: ncx + 5, y: (busY + laneTop) / 2 + 0.5, maxX: lx + laneW - (bypass ? 16 : 2), layer: l, lane: li },
           { lane: li });
         // V_h entra directamente en A·V
         if (bypass) {
@@ -348,7 +351,7 @@
     let legend = null;
     if (opts.legend !== false) {
       legend = { y: nOpt.bottom + 26 };
-      Htot = legend.y + 5 * 17 + 6;
+      Htot = legend.y + 6 * 17 + 6;
     }
     return { W, H: Htot, N, Hh, L, collapsed, laneW, x0, x1, mid, railL, railR, R, nodes, edges, frames, lanes, notes, legend, blocks };
   }
@@ -393,8 +396,10 @@
     const markerUrl = (k) => 'url(#' + uid + '-a' + (k ? '-' + k : '') + ')';
 
     function build() {
+      const hadFocus = svg.contains(document.activeElement);
+      const keepKey = hadFocus ? state.stopKey : null;
       const w = measureWidth();
-      const W = Math.round(clamp(w || state.W || 280, 240, 360));
+      const W = Math.round(clamp(w || state.W || 280, 240, 400));
       state.W = W;
       const lay = computeLayout(cfg, W, opts);
       state.lay = lay;
@@ -402,7 +407,9 @@
       nodeEls.clear(); laneEls.length = 0;
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + Math.ceil(lay.H));
       svg.setAttribute('width', '100%');
-      svg.style.maxWidth = '100%';
+      // nunca se amplía por encima de su ancho de diseño (texto nítido); se centra
+      svg.style.maxWidth = W + 'px';
+      svg.style.marginInline = 'auto';
       svg.style.aspectRatio = W + ' / ' + Math.ceil(lay.H);
 
       const defs = svgEl('defs', null, svg);
@@ -456,7 +463,7 @@
 
       // notas (V_h, "gradientes")
       for (const n of lay.notes) {
-        const t = svgEl('text', { class: 'dg-edge-note', x: n.x, y: n.y, 'text-anchor': n.anchor || 'start' }, gNotes);
+        const t = svgEl('text', { class: 'dg-edge-note' + (n.lane != null ? ' dg-edge-note--lane' : ''), x: n.x, y: n.y, 'text-anchor': n.anchor || 'start' }, gNotes);
         richText(t, n.text, 10);
       }
 
@@ -464,8 +471,11 @@
       for (const n of lay.nodes) renderNode(n, lay);
 
       if (lay.legend) renderLegend(lay);
-      renderShapes();
       applyActive(false);
+      // una sola parada de tabulación (roving tabindex); se conserva tras reconstruir
+      const stop = (keepKey && nodeByKey(keepKey)) || (state.stopKey && nodeByKey(state.stopKey)) || lay.nodes[0];
+      setTabStop(stop);
+      if (hadFocus && stop) { try { stop.el.focus({ preventScroll: true }); } catch (e) { stop.el.focus(); } }
       fitTexts();
     }
 
@@ -480,7 +490,7 @@
     function renderNode(n, lay) {
       const g = svgEl('g', {
         class: 'dg-node dg-node--' + (n.cls || 'op').split(' ').join(' dg-node--'),
-        'data-block': n.block, tabindex: '0', role: 'button',
+        'data-block': n.block, tabindex: '-1', role: 'button',
       }, gNodes);
       if (n.layer != null) g.setAttribute('data-layer', n.layer);
       if (n.lane != null) g.setAttribute('data-lane', n.lane);
@@ -506,17 +516,17 @@
           svgEl('rect', { class: 'dg-shape', x: s.x, y: s.y, width: s.w, height: s.h, rx: 3 }, g);
           if (/param/.test(n.cls)) svgEl('rect', { class: 'dg-pmark', x: s.x + s.w - 8, y: s.y + 3, width: 5, height: 5 }, g);
           const scx = s.x + s.w / 2;
-          const a = svgEl('text', { class: 'dg-label', x: scx, y: s.y + 12.5, 'text-anchor': 'middle' }, g);
+          const a = svgEl('text', { class: 'dg-label', x: scx, y: s.y + 13, 'text-anchor': 'middle' }, g);
           richText(a, s.label, 12);
-          const b = svgEl('text', { class: 'dg-sub', x: scx, y: s.y + 24.5, 'text-anchor': 'middle' }, g);
+          const b = svgEl('text', { class: 'dg-sub', x: scx, y: s.y + 26.5, 'text-anchor': 'middle' }, g);
           b.textContent = s.sub;
           a.dataset.maxw = b.dataset.maxw = String(s.w - 8);
         } else {
           const lx = n.cx + n.r + 8;
           const maxw = lay.x1 - lx;
-          const t1 = svgEl('text', { class: 'dg-label', x: lx, y: n.cy - 1.5 }, g);
+          const t1 = svgEl('text', { class: 'dg-label', x: lx, y: n.cy - 3 }, g);
           t1.textContent = n.label;
-          const t2 = svgEl('text', { class: 'dg-sub', x: lx, y: n.cy + 10.5 }, g);
+          const t2 = svgEl('text', { class: 'dg-sub', x: lx, y: n.cy + 11 }, g);
           richText(t2, n.sub, 10.5);
           t1.dataset.maxw = t2.dataset.maxw = String(maxw);
         }
@@ -570,9 +580,22 @@
         const p = svgEl('path', { class: 'dg-legend-line dg-legend-line--bwd', d: 'M' + x + ',' + yy + 'H' + (x + 22) }, g);
         p.setAttribute('marker-start', markerUrl('bwd'));
       }, 'backward: gradientes (hacia arriba ↑)');
+      row((yy) => {
+        const p = svgEl('path', { class: 'dg-legend-line dg-legend-line--upd', d: 'M' + x + ',' + yy + 'H' + (x + 22) }, g);
+        p.setAttribute('marker-end', markerUrl('upd'));
+      }, 'actualización: optimizador → parámetros');
     }
 
     // --- etiquetas de forma
+    // carril donde van las etiquetas de una capa: el de la cabeza activa (si es de esa capa), si no el primero
+    function labelLane(layer) {
+      const a = state.active;
+      if (!a || !a.block || layer == null) return 0;
+      const m = a.block.match(/^L(\d+)\./);
+      if (!m || +m[1] !== layer) return 0;
+      const ln = laneOf(a.opts && a.opts.head, state.lay);
+      return ln == null ? 0 : ln;
+    }
     function renderShapes() {
       if (!gShapes) return;
       gShapes.textContent = '';
@@ -581,14 +604,20 @@
       for (const block of Object.keys(map)) {
         const val = map[block];
         if (val == null || val === '') continue;
-        const e = lay.edges.find((ed) => ed.label && ed.label.block === block);
+        const e = lay.edges.find((ed) => ed.label && ed.label.block === block &&
+          (ed.label.lane == null || ed.label.lane === labelLane(ed.label.layer)));
         if (!e) continue;
         const lb = e.label;
         const sh = parseShape(val);
         const avail = lb.maxX - lb.x;
         const fullW = textWidth((sh.sym ? sh.sym + ' · ' : '') + sh.num, 10, true);
         const t = svgEl('text', { x: lb.x, y: lb.y + 3.5, 'data-block': block }, gShapes);
-        if (lb.inLane) t.classList.add('dg-shape-inlane');
+        if (lb.inLane) {
+          t.classList.add('dg-shape-inlane');
+          // sobre un carril activo el halo debe usar el fondo del carril
+          const ln = laneEls.find((q) => q.layer === lb.layer && q.lane === lb.lane);
+          if (ln && ln.el.rect.classList.contains('is-active')) t.classList.add('on-active');
+        }
         let sft = 0;
         if (fullW <= avail || !sh.num || !sh.sym) {
           if (sh.sym) sft = appendRich(t, sh.sym + (sh.num ? ' · ' : ''), 10, 'dg-sym', sft);
@@ -608,13 +637,16 @@
       for (const t of gShapes.querySelectorAll('text')) {
         const hot = !!(a && a.block && t.getAttribute('data-block') === a.block);
         t.classList.toggle('is-hot', hot);
-        if (hot) t.setAttribute('data-phase', normPhase(a.phase)); else t.removeAttribute('data-phase');
+        // data-phase también en etiquetas sobre un carril activo (su halo usa --ph-soft)
+        if (a && a.block && (hot || t.classList.contains('on-active'))) t.setAttribute('data-phase', normPhase(a.phase));
+        else t.removeAttribute('data-phase');
       }
     }
 
     // --- ajuste de textos (cuando las fuentes reales miden distinto)
     function fitTexts() {
       if (!svg.isConnected) return;
+      if (svg.getBoundingClientRect().width > 0) state.fitted = true;
       for (const t of svg.querySelectorAll('text[data-maxw]')) {
         const maxw = parseFloat(t.dataset.maxw);
         if (!(maxw > 0)) continue;
@@ -636,10 +668,11 @@
     }
 
     function clearActive() {
-      for (const g of svg.querySelectorAll('.is-active, .is-target, .is-hot')) {
-        g.classList.remove('is-active', 'is-target', 'is-hot');
+      for (const g of svg.querySelectorAll('.is-active, .is-target, .is-hot, .is-covered')) {
+        g.classList.remove('is-active', 'is-target', 'is-hot', 'is-covered');
         g.removeAttribute('data-phase');
       }
+      for (const g of svg.querySelectorAll('[aria-current]')) g.removeAttribute('aria-current');
       if (gHot) gHot.textContent = '';
       svg.removeAttribute('data-phase');
       for (const ln of laneEls) {
@@ -651,6 +684,7 @@
     }
 
     function hotPath(e, ph, dir) {
+      if (e.el) e.el.classList.add('is-covered');
       const g = svgEl('g', { 'data-phase': ph }, gHot);
       const base = svgEl('path', { class: 'dg-hot-edge' + (dir === 'up' ? ' dg-hot-edge--back' : ''), d: e.d || roundedPath(e.pts, 5) }, g);
       if (dir === 'up') {
@@ -668,9 +702,8 @@
 
     function applyActive(scroll) {
       clearActive();
-      markHotShapes();
       const a = state.active;
-      if (!a || !a.block) return;
+      if (!a || !a.block) { renderShapes(); return; }
       const lay = state.lay;
       const ph = normPhase(a.phase);
       svg.setAttribute('data-phase', ph);
@@ -684,6 +717,7 @@
         if (n.lane != null && lane != null && n.lane !== lane) continue;
         n.el.classList.add('is-active');
         n.el.setAttribute('data-phase', ph);
+        n.el.setAttribute('aria-current', 'step');
         if (!first) first = n;
       }
       // carril y cabecera
@@ -725,6 +759,10 @@
         const tgt = lay.nodes.find((n) => n.block === o.paramBlock && n.lane == null);
         if (tgt) {
           tgt.el.classList.add('is-target');
+          if (tgt.layer != null) {
+            const f = lay.frames.find((fr) => fr.layer === tgt.layer);
+            if (f) f.el.classList.add('is-hot');
+          }
           if (opt && tgt !== opt) {
             const tx = tgt.right, ty = tgt.kind === 'posenc' ? tgt.cy : tgt.cy;
             const pts = [[opt.right, opt.cy], [lay.railR, opt.cy], [lay.railR, ty], [tx, ty]];
@@ -733,6 +771,9 @@
           scrollTarget = tgt;
         }
       }
+      renderShapes();
+      // la parada de tabulación sigue al bloque activo (sin mover el foco)
+      if (first && !svg.contains(document.activeElement)) setTabStop(first);
       if (scroll && scrollTarget) scrollIntoView(scrollTarget);
     }
 
@@ -761,6 +802,39 @@
       } catch (e) { sp.scrollTop = clamp(target, 0, max); }
     }
 
+    // --- teclado: roving tabindex
+    const keyOf = (n) => n.block + '|' + (n.lane == null ? '' : n.lane);
+    function nodeByKey(k) { return state.lay.nodes.find((n) => keyOf(n) === k) || null; }
+    function setTabStop(n) {
+      if (!n || !n.el) return;
+      for (const g of svg.querySelectorAll('.dg-node[tabindex="0"]')) if (g !== n.el) g.setAttribute('tabindex', '-1');
+      n.el.setAttribute('tabindex', '0');
+      state.stopKey = keyOf(n);
+    }
+    const LANE_KEYS = LANE_OPS.map((o) => o.key);
+    const opIdx = (n) => LANE_KEYS.indexOf(n.block.slice(n.block.lastIndexOf('.') + 1));
+    // ↑/↓ siguen el flujo (dentro de un carril, por sus operaciones); ←/→ cambian de cabeza
+    function neighbor(n, key) {
+      const lay = state.lay;
+      const main = lay.nodes.filter((q) => q.lane == null);
+      const laneNode = (layer, lane, k) => lay.nodes.find((q) => q.layer === layer && q.lane === lane && opIdx(q) === k) || null;
+      const byBlock = (b) => lay.nodes.find((q) => q.block === b) || null;
+      if (key === 'Home') return main[0];
+      if (key === 'End') return main[main.length - 1];
+      if (n.lane != null) {
+        const k = opIdx(n);
+        if (key === 'ArrowLeft') return laneNode(n.layer, n.lane - 1, k);
+        if (key === 'ArrowRight') return laneNode(n.layer, n.lane + 1, k);
+        if (key === 'ArrowUp') return k > 0 ? laneNode(n.layer, n.lane, k - 1) : byBlock('L' + n.layer + '.split');
+        if (key === 'ArrowDown') return k < LANE_KEYS.length - 1 ? laneNode(n.layer, n.lane, k + 1) : byBlock('L' + n.layer + '.concat');
+        return null;
+      }
+      const i = main.indexOf(n);
+      if (key === 'ArrowDown') return /\.split$/.test(n.block) ? laneNode(n.layer, labelLane(n.layer), 0) : main[i + 1] || null;
+      if (key === 'ArrowUp') return /\.concat$/.test(n.block) ? laneNode(n.layer, labelLane(n.layer), LANE_KEYS.length - 1) : main[i - 1] || null;
+      return null;
+    }
+
     // --- interacción
     function nodeFromEvent(ev) {
       const g = ev.target && ev.target.closest ? ev.target.closest('.dg-node') : null;
@@ -784,15 +858,19 @@
       if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
         ev.preventDefault();
         select(n);
-      } else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-        const list = state.lay.nodes;
-        const i = list.indexOf(n);
-        const j = clamp(i + (ev.key === 'ArrowDown' ? 1 : -1), 0, list.length - 1);
-        if (j !== i) { ev.preventDefault(); list[j].el.focus(); }
+      } else if (/^(Arrow(Up|Down|Left|Right)|Home|End)$/.test(ev.key)) {
+        const m = neighbor(n, ev.key);
+        if (m && m !== n) { ev.preventDefault(); setTabStop(m); m.el.focus(); }
+        else if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') ev.preventDefault();
       }
+    }
+    function onFocusIn(ev) {
+      const n = nodeFromEvent(ev);
+      if (n) setTabStop(n);
     }
     svg.addEventListener('click', onClick);
     svg.addEventListener('keydown', onKey);
+    svg.addEventListener('focusin', onFocusIn);
 
     // --- tamaño
     let ro = null, raf = 0;
@@ -803,8 +881,9 @@
         if (state.destroyed) return;
         const w = measureWidth();
         if (!w) return;
-        const target = Math.round(clamp(w, 240, 360));
+        const target = Math.round(clamp(w, 240, 400));
         if (Math.abs(target - state.W) >= 16) build();
+        else if (!state.fitted) fitTexts();
       });
     }
     if (typeof ResizeObserver !== 'undefined') {
@@ -835,6 +914,7 @@
         if (raf) cancelAnimationFrame(raf);
         svg.removeEventListener('click', onClick);
         svg.removeEventListener('keydown', onKey);
+        svg.removeEventListener('focusin', onFocusIn);
         svg.remove();
         el.classList.remove('dg-host');
       },

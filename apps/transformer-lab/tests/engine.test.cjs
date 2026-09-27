@@ -773,7 +773,20 @@ const TRACE_CONFIGS = [
   { label: 'h = 1, recorte fuerte', o: { cfg: { nHeads: 1 }, optim: { clip: 0.01 }, pretrain: 3, sentence: 2 } },
   { label: 'modo carácter', o: { tokMode: 'char', cfg: { maxLen: 6 } } },
   { label: 'N = 3', o: { cfg: { nLayers: 3 }, pretrain: 5, sentence: 6 } },
+  // casos límite (revisión)
+  { label: 'T = 1 (frase «hola»)', o: { corpus: 'hola\nel gato come pescado .', sentence: 0 } },
+  { label: 'd_k = 1 (h = d = 4), GELU', o: { cfg: { dModel: 4, nHeads: 4, dFF: 8, activation: 'gelu' }, pretrain: 3 } },
+  { label: 'N = 3, posición aprendida, SGD sin recorte', o: { cfg: { nLayers: 3, posEnc: 'learned' }, optim: { type: 'sgd', clip: 0 }, pretrain: 4, sentence: 4 } },
+  { label: 'frases más largas que maxLen (truncadas) y tokens repetidos', o: { corpus: 'a b a c a b a c a b\nc c c', cfg: { maxLen: 5 }, sentence: 0 } },
+  { label: 'maxLen = 1 (T = 1 en todas las frases)', o: { cfg: { maxLen: 1 }, sentence: 3 } },
+  { label: 'modo carácter con líneas vacías y espacios repetidos', o: { tokMode: 'char', corpus: '\n\n  hola   mundo \n\nab\n', cfg: { maxLen: 8 }, sentence: 0 } },
 ];
+// orden de plantillas para N ∈ {1,2,3} × h ∈ {1,2,4}
+for (const N of [1, 2, 3]) {
+  for (const h of [1, 2, 4]) {
+    TRACE_CONFIGS.push({ label: 'N = ' + N + ', h = ' + h, o: { cfg: { nLayers: N, nHeads: h }, sentence: 1 } });
+  }
+}
 for (const C of TRACE_CONFIGS) {
   test('Traza (contrato §5/§6, recomputación de todas las salidas): ' + C.label, () => {
     const { steps, s } = checkTrace(C.o);
@@ -1078,4 +1091,433 @@ test('Rendimiento: ≥ 200 iteraciones/s sin traza (lote 4) y traza < 50 ms', ()
   const msTrace = Number(process.hrtime.bigint() - t1) / 1e6 / n;
   assert.ok(msTrace < 50, 'traceIteration = ' + msTrace.toFixed(2) + ' ms');
   console.log('# rendimiento: ' + itps.toFixed(0) + ' it/s sin traza (lote 4), traceIteration ' + msTrace.toFixed(2) + ' ms');
+});
+
+// ================================================================== Revisión adversarial (regresiones)
+
+// ---- forward de referencia INDEPENDIENTE (arrays JS, sin TL.Mat ni código del motor) con ganchos:
+// hook(nombre, A) puede devolver una copia modificada de cualquier activación intermedia.
+const R = {
+  toA(M) { const o = []; for (let i = 0; i < M.r; i++) o.push(Array.from(M.d.subarray(i * M.c, (i + 1) * M.c))); return o; },
+  mm: (A, B) => A.map((r) => B[0].map((_, j) => r.reduce((s, a, k) => s + a * B[k][j], 0))),
+  tp: (A) => A[0].map((_, j) => A.map((r) => r[j])),
+  add: (A, B) => A.map((r, i) => r.map((x, j) => x + B[i][j])),
+  addRow: (A, b) => A.map((r) => r.map((x, j) => x + b[0][j])),
+  ln(X, g, b, eps) {
+    return X.map((r) => {
+      const d = r.length, m = r.reduce((a, x) => a + x, 0) / d;
+      const v = r.reduce((a, x) => a + (x - m) ** 2, 0) / d;
+      return r.map((x, j) => g[0][j] * (x - m) / Math.sqrt(v + eps) + b[0][j]);
+    });
+  },
+  softmax: (A) => A.map((r) => {
+    const m = Math.max(...r);
+    const e = r.map((x) => (x === -Infinity ? 0 : Math.exp(x - m)));
+    const s = e.reduce((a, b) => a + b, 0);
+    return e.map((x) => x / s);
+  }),
+};
+function refLoss(model, ids, tg, hook) {
+  const cfg = model.cfg, P = {};
+  for (const n of model.order) P[n] = R.toA(model.params[n]);
+  const T = ids.length, d = cfg.dModel, H = cfg.nHeads, dk = d / H;
+  const hk = hook || ((n, A) => A);
+  let X = hk('Xemb', ids.map((i) => P.E[i].slice()));
+  const pe = [];
+  for (let p = 0; p < T; p++) {
+    const r = [];
+    for (let j = 0; j < d; j++) { const a = p / Math.pow(10000, (j - (j % 2)) / d); r.push(j % 2 ? Math.cos(a) : Math.sin(a)); }
+    pe.push(r);
+  }
+  X = hk('X0', R.add(X, cfg.posEnc === 'learned' ? P.P.slice(0, T) : pe));
+  for (let l = 0; l < cfg.nLayers; l++) {
+    const p = 'L' + l + '.';
+    const Hm = hk('H@' + l, R.ln(X, P[p + 'ln1.g'], P[p + 'ln1.b'], cfg.lnEps));
+    const Q = hk('Q@' + l, R.mm(Hm, P[p + 'Wq'])), K = hk('K@' + l, R.mm(Hm, P[p + 'Wk'])), Vv = hk('V@' + l, R.mm(Hm, P[p + 'Wv']));
+    const Zs = [];
+    for (let h = 0; h < H; h++) {
+      const sl = (A) => A.map((r) => r.slice(h * dk, (h + 1) * dk));
+      const t = '@' + l + '.' + h;
+      const Qh = hk('Qh' + t, sl(Q)), Kh = hk('Kh' + t, sl(K)), Vh = hk('Vh' + t, sl(Vv));
+      const S = hk('S' + t, R.mm(Qh, R.tp(Kh)));
+      const St = hk('St' + t, S.map((r) => r.map((x) => x / Math.sqrt(dk))));
+      const Sh = hk('Sh' + t, St.map((r, i) => r.map((x, j) => (j > i ? x + -Infinity : x))));
+      const A = hk('A' + t, R.softmax(Sh));
+      Zs.push(hk('Zh' + t, R.mm(A, Vh)));
+    }
+    const Z = hk('Z@' + l, Zs[0].map((_, i) => [].concat(...Zs.map((z) => z[i]))));
+    const O = hk('O@' + l, R.mm(Z, P[p + 'Wo']));
+    const Rr = hk('R@' + l, R.add(X, O));
+    const Hp = hk('Hp@' + l, R.ln(Rr, P[p + 'ln2.g'], P[p + 'ln2.b'], cfg.lnEps));
+    const U = hk('U@' + l, R.addRow(R.mm(Hp, P[p + 'W1']), P[p + 'b1']));
+    const G = hk('G@' + l, U.map((r) => r.map(actF[cfg.activation])));
+    const F = hk('F@' + l, R.addRow(R.mm(G, P[p + 'W2']), P[p + 'b2']));
+    X = hk('X' + (l + 1), R.add(Rr, F));
+  }
+  const Hf = hk('Hf', R.ln(X, P['lnf.g'], P['lnf.b'], cfg.lnEps));
+  const lg = hk('logits', R.mm(Hf, P.Wout));
+  let L = 0;
+  lg.forEach((r, t) => {
+    const m = Math.max(...r);
+    L += -(r[tg[t]] - m - Math.log(r.reduce((a, x) => a + Math.exp(x - m), 0)));
+  });
+  return L / T;
+}
+// activación intermedia del gancho → (tpl del paso del backward, clave de salida, capa, cabeza)
+function tracedGradFor(name, N) {
+  if (name === 'logits') return ['bwd.ce', 'dlogits', null, null];
+  if (name === 'Hf') return ['bwd.logits.dX', 'dH_f', null, null];
+  if (name === 'Xemb') return ['bwd.posenc', 'dX_emb', null, null];
+  if (name === 'X0') return ['bwd.res1.merge', 'dX', 0, null];
+  let m = /^X(\d+)$/.exec(name);
+  if (m) return +m[1] === N ? ['bwd.lnf', 'dX', null, null] : ['bwd.res1.merge', 'dX', +m[1], null];
+  m = /^(\w+)@(\d+)(?:\.(\d+))?$/.exec(name);
+  const k = m[1], l = +m[2], h = m[3] === undefined ? null : +m[3], hh = h === null ? 0 : h + 1;
+  const t = {
+    H: ['bwd.attn.dH', 'dH'], Q: ['bwd.attn.split', 'dQ'], K: ['bwd.attn.split', 'dK'], V: ['bwd.attn.split', 'dV'],
+    Qh: ['bwd.attn.scores.dQ', 'dQ_' + hh], Kh: ['bwd.attn.scores.dK', 'dK_' + hh], Vh: ['bwd.attn.context.dV', 'dV_' + hh],
+    S: ['bwd.attn.scale', 'dS_' + hh], St: ['bwd.attn.mask', 'dSt_' + hh], Sh: ['bwd.attn.softmax', 'dSh_' + hh],
+    A: ['bwd.attn.context.dA', 'dA_' + hh], Zh: ['bwd.attn.concat', 'dZ_' + hh], Z: ['bwd.attn.proj.dX', 'dZ'],
+    O: ['bwd.res1', 'dO'], R: ['bwd.res2.merge', 'dR'], Hp: ['bwd.ffn1.dX', 'dHp'], U: ['bwd.act', 'dU'],
+    G: ['bwd.ffn2.dX', 'dG'], F: ['bwd.res2', 'dF'],
+  }[k];
+  return [t[0], t[1], l, k === 'Zh' ? null : h]; // el reparto dZ → dZ_h es un paso de capa (head = null)
+}
+
+const ACT_FD_CONFIGS = [
+  { label: 'por defecto con GELU', o: { cfg: { activation: 'gelu' } }, sentence: 0, pre: 10 },
+  { label: 'N = 2, h = 4, posición aprendida', o: { cfg: { activation: 'gelu', nLayers: 2, nHeads: 4, posEnc: 'learned' } }, sentence: 5, pre: 10 },
+  { label: 'N = 3, h = 1', o: { cfg: { activation: 'gelu', nLayers: 3, nHeads: 1 } }, sentence: 3, pre: 5 },
+  { label: 'd_k = 1 (h = d = 4)', o: { cfg: { activation: 'gelu', dModel: 4, nHeads: 4, dFF: 8 } }, sentence: 1, pre: 5 },
+  { label: 'modo carácter', o: { tokMode: 'char', cfg: { activation: 'gelu', maxLen: 6 } }, sentence: 2, pre: 5 },
+  { label: 'tokens repetidos', o: { corpus: 'a b a a b a', cfg: { activation: 'gelu' } }, sentence: 0, pre: 5 },
+  { label: 'ReLU por defecto (sin traza de quiebres)', o: {}, sentence: 0, pre: 20, relu: true },
+];
+for (const C of ACT_FD_CONFIGS) {
+  test('Diferencias finitas sobre ACTIVACIONES intermedias (forward de referencia independiente): ' + C.label, () => {
+    const s = TL.Trainer.createSession(C.o);
+    TL.Trainer.trainSteps(s, C.pre);
+    let si = C.sentence;
+    if (C.relu) si = s.tok.sentences.findIndex((x) => minAbsPreact(s.model, x.inputIds) >= 1e-4);
+    assert.ok(si >= 0);
+    const sen = s.tok.sentences[si];
+    const N = s.cfg.nLayers;
+    const f = TL.Model.forward(s.model, sen.inputIds, sen.targetIds, { trace: true });
+    const b = TL.Model.backward(s.model, f.cache, { trace: true });
+    // 1) el forward de referencia reproduce la pérdida del motor
+    const L0 = refLoss(s.model, sen.inputIds, sen.targetIds);
+    assert.ok(Math.abs(L0 - f.loss) < 1e-12, 'pérdida de referencia ' + L0 + ' vs motor ' + f.loss);
+    // 2) dℒ/d(activación) por diferencias centrales frente al gradiente TRAZADO de esa activación
+    const names = [];
+    refLoss(s.model, sen.inputIds, sen.targetIds, (n, A) => { names.push(n); return A; });
+    const rng = TL.rng(2024);
+    const eps = 1e-6;
+    let checked = 0, masked = 0;
+    for (const name of names) {
+      const [tpl, key, l, h] = tracedGradFor(name, N);
+      const st = b.steps.find((x) => x.tpl === tpl && (l === null || x.layer === l) && (h === null || x.head === h));
+      assert.ok(st, 'paso ' + tpl + ' para ' + name);
+      const ref = st.outputs.find((r) => r.key === key);
+      assert.ok(ref, 'salida ' + key + ' en ' + st.id);
+      const G = ref.mat;
+      const isScore = /^S[th]?@/.test(name);
+      const cells = [];
+      for (let i = 0; i < G.r; i++) for (let j = 0; j < G.c; j++) if (isScore && j > i) cells.push([i, j]); // todas las enmascaradas
+      for (let n = 0; n < 6; n++) cells.push([Math.floor(rng() * G.r), Math.floor(rng() * G.c)]);
+      for (const [i, j] of cells) {
+        const Lh = (e) => refLoss(s.model, sen.inputIds, sen.targetIds, (nm, A) => {
+          if (nm !== name) return A;
+          const B = A.map((r) => r.slice());
+          B[i][j] += e;
+          return B;
+        });
+        const num = (Lh(eps) - Lh(-eps)) / (2 * eps);
+        const an = G.get(i, j);
+        assert.ok(Math.abs(an - num) <= 1e-8 + 1e-5 * Math.max(Math.abs(an), Math.abs(num)),
+          st.id + ' ' + ref.tex + '[' + i + ',' + j + ']: trazado ' + an + ' vs numérico ' + num);
+        if (isScore && j > i) {
+          assert.ok(Object.is(an, 0), st.id + ': entrada enmascarada [' + i + ',' + j + '] debe ser 0 exacto (es ' + an + ')');
+          masked++;
+        }
+        checked++;
+      }
+    }
+    assert.ok(checked > 100);
+    if (sen.T > 1) assert.ok(masked > 0, 'se comprobaron entradas enmascaradas');
+  });
+}
+
+test('Traza: sin NaN; −∞ solo en M y Ŝ; −0 ausente en los gradientes enmascarados', () => {
+  const cfgs = [{}, { cfg: { nLayers: 2, nHeads: 4, activation: 'gelu', posEnc: 'learned' } }, { tokMode: 'char' },
+    { corpus: 'hola\nla la la la .' }, { cfg: { dModel: 4, nHeads: 4 }, optim: { type: 'sgd', clip: 0 } }];
+  for (const o of cfgs) {
+    const s = TL.Trainer.createSession(o);
+    TL.Trainer.trainSteps(s, 5);
+    for (let si = 0; si < s.tok.sentences.length; si++) {
+      const { steps } = TL.Trainer.traceIteration(s, si);
+      for (const st of steps) {
+        const mats = st.inputs.concat(st.outputs).map((r) => [r.key, r.mat]);
+        for (const k in st.aux) if (st.aux[k] instanceof Mat) mats.push(['aux.' + k, st.aux[k]]);
+        for (const [k, M] of mats) {
+          const infOk = k === 'M' || /^Sh_\d+$/.test(k);
+          for (const x of M.d) {
+            assert.ok(!Number.isNaN(x), st.id + ' ' + k + ' contiene NaN');
+            if (!Number.isFinite(x)) assert.ok(infOk && x === -Infinity, st.id + ' ' + k + ' contiene ' + x);
+          }
+        }
+        if (st.kind === 'grad_softmax' || st.kind === 'grad_mask' || st.tpl === 'bwd.attn.scale') {
+          const O = st.outputs[0].mat;
+          for (let i = 0; i < O.r; i++) for (let j = i + 1; j < O.c; j++) assert.ok(Object.is(O.get(i, j), 0), st.id + ' [' + i + ',' + j + ']');
+        }
+        if (st.kind === 'mask') {
+          const Sh = st.outputs[0].mat;
+          for (let i = 0; i < Sh.r; i++) for (let j = 0; j < Sh.c; j++) assert.equal(Sh.get(i, j) === -Infinity, j > i);
+        }
+        if (st.kind === 'softmax' && st.aux.attention) {
+          const A = st.outputs[0].mat;
+          for (let i = 0; i < A.r; i++) {
+            let sum = 0;
+            for (let j = 0; j < A.c; j++) { sum += A.get(i, j); if (j > i) assert.ok(Object.is(A.get(i, j), 0)); }
+            assert.ok(Math.abs(sum - 1) < 1e-12);
+          }
+        }
+      }
+    }
+  }
+});
+
+test('Embedding: dE suma (scatter-add) las filas de dX_emb de los tokens repetidos', () => {
+  const s = TL.Trainer.createSession({ cfg: { activation: 'gelu' } });
+  TL.Trainer.trainSteps(s, 10);
+  const sen = s.tok.sentences[5]; // «el perro duerme en el jardín .»: «el» aparece dos veces en la entrada
+  const idEl = s.tok.stoi.el;
+  const pos = sen.inputIds.map((id, t) => (id === idEl ? t : -1)).filter((t) => t >= 0);
+  assert.equal(pos.length, 2);
+  const f = TL.Model.forward(s.model, sen.inputIds, sen.targetIds, { trace: true });
+  const b = TL.Model.backward(s.model, f.cache, { trace: true });
+  const st = b.steps.find((x) => x.tpl === 'bwd.embed');
+  const dXe = st.inputs[1].mat, dE = st.outputs[0].mat;
+  const d = s.cfg.dModel;
+  for (let j = 0; j < d; j++) assert.ok(closeNum(dE.get(idEl, j), dXe.get(pos[0], j) + dXe.get(pos[1], j), 1e-15));
+  // filas de tokens ausentes: exactamente 0
+  const present = new Set(sen.inputIds);
+  for (let v = 0; v < dE.r; v++) if (!present.has(v)) for (let j = 0; j < d; j++) assert.ok(Object.is(dE.get(v, j), 0));
+  // y la fila de «el» coincide con diferencias finitas del parámetro E
+  const E = s.model.params.E;
+  for (let j = 0; j < d; j++) {
+    const k = idEl * d + j, old = E.d[k], h = 1e-6;
+    E.d[k] = old + h; const lp = refLoss(s.model, sen.inputIds, sen.targetIds);
+    E.d[k] = old - h; const lm = refLoss(s.model, sen.inputIds, sen.targetIds);
+    E.d[k] = old;
+    const num = (lp - lm) / (2 * h);
+    assert.ok(Math.abs(num - b.grads.E.d[k]) <= 1e-8 + 1e-5 * Math.abs(num), 'dE[el,' + j + ']');
+  }
+});
+
+test('Posición aprendida: gradiente solo en las filas 0..T−1; las demás no se mueven con SGD', () => {
+  const s = TL.Trainer.createSession({ cfg: { posEnc: 'learned', maxLen: 8 }, optim: { type: 'sgd', clip: 0 } });
+  const sen = s.tok.sentences[0]; // T = 5 < maxLen = 8
+  const P0 = s.model.params.P.clone();
+  const f = TL.Model.forward(s.model, sen.inputIds, sen.targetIds, {});
+  const g = TL.Model.backward(s.model, f.cache, {}).grads.P;
+  const d = s.cfg.dModel;
+  const { steps } = TL.Trainer.traceIteration(s, 0);
+  const dX0 = steps.find((x) => x.tpl === 'bwd.posenc').inputs[0].mat;
+  const dPpos = steps.find((x) => x.tpl === 'bwd.posenc').outputs.find((r) => r.key === 'dP_pos').mat;
+  assertClose(dPpos, dX0, 0, 'dP_pos[0:T] = dX⁽⁰⁾');
+  for (let p = 0; p < 8; p++) {
+    for (let j = 0; j < d; j++) {
+      if (p < sen.T) assert.equal(g.get(p, j), dX0.get(p, j));
+      else {
+        assert.ok(Object.is(g.get(p, j), 0), 'fila ' + p + ' sin gradiente');
+        assert.equal(s.model.params.P.get(p, j), P0.get(p, j), 'fila ' + p + ' intacta');
+      }
+    }
+  }
+  const up = steps.find((x) => x.id === 'upd.param.P');
+  assert.equal(up.inputs[1].rowAxis, 'maxLen');
+  assert.deepEqual(up.inputs[1].mat.shape(), [8, d]);
+});
+
+test('Adam: t empieza en 1 (corrección de sesgo en la primera iteración trazada) y el recorte se ve en la traza', () => {
+  const s = TL.Trainer.createSession({ optim: { clip: 0.05 } });
+  const sen = s.tok.sentences[0];
+  const f = TL.Model.forward(s.model, sen.inputIds, sen.targetIds, {});
+  const g = TL.Model.backward(s.model, f.cache, {}).grads;
+  let tot = 0;
+  for (const n of s.model.order) tot += g[n].frob() ** 2;
+  tot = Math.sqrt(tot);
+  const { steps } = TL.Trainer.traceIteration(s, 0);
+  const gn = steps.find((x) => x.kind === 'gradnorm');
+  assert.ok(closeNum(gn.aux.total, tot, 1e-12), 'norma global sin recortar');
+  assert.ok(closeNum(gn.aux.factor, 0.05 / tot, 1e-12));
+  assert.ok(gn.aux.clipped && tot > 0.05);
+  for (const st of steps.filter((x) => x.kind === 'update')) {
+    assert.equal(st.aux.t, 1);
+    assert.ok(closeNum(st.aux.bc1, 0.1, 1e-12) && closeNum(st.aux.bc2, 0.001, 1e-9));
+    assert.ok(st.inputs[1].tex.startsWith('c\\,\\mathrm{d}'));
+    assertClose(st.inputs[1].mat, Mat.scale(g[st.aux.name], gn.aux.factor), 1e-12, st.id + ' g = c·dθ');
+    // en t = 1: m̂ = g_c, v̂ = g_c² ⇒ |Δθ| = η·|g|/(|g| + ε) ≈ η donde g ≠ 0
+    for (let k = 0; k < st.aux.delta.d.length; k++) {
+      const gk = st.inputs[1].mat.d[k];
+      assert.ok(closeNum(st.aux.mhat.d[k], gk, 1e-9));
+      const expect = -0.01 * gk / (Math.abs(gk) + 1e-8);
+      assert.ok(Math.abs(st.aux.delta.d[k] - expect) < 1e-12, st.id + ' Δ');
+    }
+    assert.ok(/1-0\.9\^\{1\}/.test(st.formula) && /1-0\.999\^\{1\}/.test(st.formula), st.formula);
+  }
+  // segunda iteración: t = 2
+  const st2 = TL.Trainer.traceIteration(s, 1).steps.find((x) => x.kind === 'update');
+  assert.equal(st2.aux.t, 2);
+});
+
+test('Generación: temperatura 0 ≈ greedy, semilla reproducible, ventana deslizante y errores en español', () => {
+  const s = TL.Trainer.createSession({});
+  TL.Trainer.trainSteps(s, 300);
+  const g0 = TL.Trainer.generate(s, 'el gato', { temperature: 0, greedy: false, seed: 1 });
+  assert.equal(g0.temperature, 1e-3, 'τ = 0 no debe convertirse en τ = 1');
+  const gg = TL.Trainer.generate(s, 'el gato');
+  assert.deepEqual(g0.tokens, gg.tokens);
+  assert.ok(g0.steps[0].probs[g0.steps[0].chosen] > 0.999);
+  assert.equal(TL.Trainer.generate(s, 'el', { temperature: 'abc' }).temperature, 1);
+  // muestreo: misma semilla ⇒ mismo resultado; la distribución mostrada usa τ
+  const a = TL.Trainer.generate(s, 'el', { greedy: false, temperature: 2, seed: 9, maxNew: 8 });
+  const b = TL.Trainer.generate(s, 'el', { greedy: false, temperature: 2, seed: 9, maxNew: 8 });
+  assert.deepEqual(a.tokens, b.tokens);
+  assert.deepEqual(a.steps.map((x) => Array.from(x.probs)), b.steps.map((x) => Array.from(x.probs)));
+  // ventana deslizante: contexto = últimos maxLen tokens (el <s> sale de la ventana)
+  const prompt = 'el perro duerme en el jardín . el gato';
+  const long = TL.Trainer.generate(s, prompt, { maxNew: 4 });
+  assert.equal(long.ok, true);
+  const all = long.tokens;
+  long.steps.forEach((st, k) => {
+    const upto = all.slice(0, all.length - long.steps.length + k);
+    assert.deepEqual(st.context, upto.slice(-s.cfg.maxLen));
+    assert.equal(st.context.length, s.cfg.maxLen);
+    assert.equal(st.slid, true);
+    assert.deepEqual(st.attn[0][0].shape(), [s.cfg.maxLen, s.cfg.maxLen]);
+  });
+  // desconocidos (singular y plural), sin lanzar excepción
+  const u1 = TL.Trainer.generate(s, 'el unicornio');
+  assert.equal(u1.ok, false);
+  assert.match(u1.error, /^Token desconocido: «unicornio»\. El modelo solo conoce su vocabulario: el, gato,/);
+  // prompt vacío: se parte solo de <s>
+  const e = TL.Trainer.generate(s, '');
+  assert.equal(e.ok, true);
+  assert.deepEqual(e.steps[0].context, ['<s>']);
+  // modo carácter: desconocido en minúsculas y visible
+  const sc = TL.Trainer.createSession({ tokMode: 'char' });
+  const uc = TL.Trainer.generate(sc, 'el Z');
+  assert.equal(uc.ok, false);
+  assert.match(uc.error, /«z».*␣/);
+});
+
+test('Validación: ids de objetivo fuera del vocabulario → error en español', () => {
+  const s = TL.Trainer.createSession({});
+  assert.throws(() => TL.Model.forward(s.model, [0, 1], [1, 99], {}), /objetivo no válido/);
+  assert.throws(() => TL.Model.forward(s.model, [0, 1.5], null, {}), /token no válido/);
+  assert.throws(() => TL.Model.forward(s.model, [0, 1, 2, 3, 4, 5, 6, 7, 8], null, {}), /ventana de contexto/);
+});
+
+test('Tokenizador: líneas vacías, CRLF, frases de un token y marca de truncado', () => {
+  const tok = TL.Tokenizer.build('\r\n  \r\nHola\r\n\r\nel gato come pescado rico hoy .\r\n', 'word', 4);
+  assert.equal(tok.sentences.length, 2);
+  assert.equal(tok.sentences[0].T, 1);
+  assert.deepEqual(tok.sentences[0].inputTokens, ['<s>']);
+  assert.deepEqual(tok.sentences[0].targetTokens, ['hola']);
+  assert.equal(tok.sentences[0].truncated, false);
+  assert.equal(tok.sentences[1].T, 4);
+  assert.equal(tok.sentences[1].truncated, true);
+  assert.ok(tok.vocab.includes('.'), 'el vocabulario incluye tokens de la parte truncada');
+  const s = TL.Trainer.createSession({ corpus: 'hola\nhola mundo' });
+  const tr = TL.Trainer.traceIteration(s, 0);
+  assert.equal(tr.steps[0].dims, '\\text{texto}\\to(1\\times 1)');
+  assert.ok(Number.isFinite(tr.loss));
+});
+
+// Validación ligera de LaTeX sin MathJax: macros conocidas, llaves y \left/\right equilibrados.
+// (La validación completa con MathJax se hizo en Chrome; esto evita regresiones al editar cadenas.)
+const TEX_MACROS = new Set(['mathrm', 'text', 'times', 'cdot', 'to', 'odot', 'frac', 'sqrt', 'tilde', 'hat', 'top', 'quad',
+  'left', 'right', 'begin', 'end', 'le', 'infty', 'mathbb', 'sum', 'log', 'max', 'min', 'mathcal', 'overline', 'gamma', 'beta',
+  'mu', 'sigma', 'varepsilon', 'epsilon', 'eta', 'theta', 'leftarrow', 'mapsto', 'textstyle', 'backslash', 'ell']);
+function lintTex(s, where) {
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '\\') {
+      const m = /^\\([A-Za-z]+|.)/.exec(s.slice(i));
+      assert.ok(m, where + ': barra final en ' + s);
+      const name = m[1];
+      if (/^[A-Za-z]+$/.test(name)) assert.ok(TEX_MACROS.has(name), where + ': macro desconocida \\' + name + ' en ' + s);
+      else assert.ok(',;!: |{}#$%&_^~'.includes(name) || name === '\\', where + ': escape \\' + name + ' en ' + s);
+      i += m[0].length - 1;
+      continue;
+    }
+    if (c === '{') depth++;
+    if (c === '}') { depth--; assert.ok(depth >= 0, where + ': llave de cierre sobrante en ' + s); }
+  }
+  assert.equal(depth, 0, where + ': llaves sin cerrar en ' + s);
+  const count = (re) => (s.match(re) || []).length;
+  assert.equal(count(/\\left\b/g), count(/\\right\b/g), where + ': \\left/\\right en ' + s);
+  assert.equal(count(/\\begin\{/g), count(/\\end\{/g), where + ': \\begin/\\end en ' + s);
+  assert.ok(!/\^\s*\^|_\s*_|[_^]\{\}/.test(s.replace(/\\[_^]/g, '')), where + ': sub/superíndice doble o vacío en ' + s);
+}
+test('LaTeX: todas las fórmulas, dims y nombres son sintácticamente válidos', () => {
+  const cfgs = [{ cfg: { nLayers: 2 } }, { cfg: { nLayers: 3, posEnc: 'learned', activation: 'gelu', nHeads: 4 }, optim: { type: 'sgd' } },
+    { optim: { clip: 0.01 } }, { tokMode: 'char', cfg: { maxLen: 6 } }, { corpus: '¿Qué tal? 50% de_x {a} #1 & $ ~ ^ \\ fin.' }];
+  let n = 0;
+  for (const o of cfgs) {
+    const s = TL.Trainer.createSession(o);
+    const { steps } = TL.Trainer.traceIteration(s, 0);
+    for (const st of steps) {
+      for (const k of ['formula', 'dims', 'dimsSym']) { lintTex(st[k], st.id + '.' + k); n++; }
+      for (const r of st.inputs.concat(st.outputs)) { lintTex(r.tex, st.id + '.' + r.key); n++; }
+      if (st.aux.factorTex) lintTex(st.aux.factorTex, st.id + '.factorTex');
+      if (st.aux.norms) for (const x of st.aux.norms) lintTex(x.tex, st.id + '.norms');
+    }
+    for (const r of TL.Model.shapeTable(s.model, 5)) { lintTex(r.tex, 'shapeTable'); lintTex(r.sym, 'shapeTable.sym'); n += 2; }
+    for (const name of s.model.order) lintTex(s.model.paramMeta[name].tex, 'paramMeta.' + name);
+  }
+  assert.ok(n > 1000);
+  assert.throws(() => lintTex('\\frac{a}{b', 'x'));
+  assert.throws(() => lintTex('\\fracc{a}{b}', 'x'));
+});
+
+test('Mapa de dimensiones: cubre la traza, sin LaTeX en las descripciones, M una sola vez, SGD sin m/v', () => {
+  for (const o of [{}, { cfg: { nLayers: 2, nHeads: 4, posEnc: 'learned' } }]) {
+    const s = TL.Trainer.createSession(o);
+    const sen = s.tok.sentences[0];
+    const rows = TL.Model.shapeTable(s.model, sen.T);
+    const byTex = new Map();
+    for (const r of rows) {
+      assert.ok(!byTex.has(r.tex), 'fila repetida ' + r.tex);
+      byTex.set(r.tex, r);
+      assert.ok(!/[\\^{}]/.test(r.desc), 'descripción con LaTeX: ' + r.desc);
+      assert.ok(['forward', 'backward', 'update'].includes(r.phase));
+    }
+    const { steps } = TL.Trainer.traceIteration(s, 0);
+    for (const st of steps) {
+      if (st.phase === 'update') continue;
+      for (const r of st.inputs.concat(st.outputs)) {
+        const row = byTex.get(r.tex);
+        assert.ok(row, 'la traza usa ' + r.tex + ' (' + st.id + ') y no está en el mapa');
+        assert.deepEqual(row.shape, [r.mat.r, r.mat.c], r.tex);
+      }
+    }
+    const sgd = TL.Model.shapeTable(s.model, sen.T, { optimizer: 'sgd' });
+    assert.ok(sgd.every((r) => r.phase !== 'update') && sgd.length < rows.length);
+    if (s.cfg.nLayers > 1) assert.ok(byTex.has('\\mu_{1}^{[2]}') && byTex.has('\\hat X_{2}^{[1]}'));
+  }
+});
+
+test('Sesión: snapshot/restore conserva también la última norma y el factor de recorte', () => {
+  const s = TL.Trainer.createSession({ optim: { clip: 0.01 } });
+  TL.Trainer.trainSteps(s, 3);
+  const snap = TL.Trainer.snapshot(s);
+  const n0 = s.lastGradNorm, c0 = s.lastClipFactor;
+  assert.ok(n0 > 0 && c0 < 1);
+  TL.Trainer.trainSteps(s, 3);
+  TL.Trainer.restore(s, snap);
+  assert.equal(s.lastGradNorm, n0);
+  assert.equal(s.lastClipFactor, c0);
 });

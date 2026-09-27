@@ -189,7 +189,9 @@
   function generate(s, promptText, opts) {
     opts = opts || {};
     const maxNew = opts.maxNew === undefined ? 10 : Math.max(0, opts.maxNew | 0);
-    const temperature = opts.temperature === undefined ? 1 : Math.max(1e-3, Number(opts.temperature) || 1);
+    // τ ≤ 0 (p. ej. 0) se trata como τ = 0.001 (prácticamente greedy); un valor no numérico, como τ = 1.
+    const tRaw = opts.temperature === undefined || opts.temperature === null || opts.temperature === '' ? 1 : Number(opts.temperature);
+    const temperature = Number.isFinite(tRaw) ? Math.max(1e-3, tRaw) : 1;
     const greedy = opts.greedy === undefined ? true : !!opts.greedy;
     const topK = opts.topK === undefined ? 10 : Math.max(1, opts.topK | 0);
     const rng = TL.rng(opts.seed === undefined || opts.seed === null ? (s.cfg.seed + 7) : (opts.seed | 0));
@@ -307,6 +309,8 @@
       iter: s.iter,
       history: s.history.map((h) => Object.assign({}, h)),
       lastGradNorms: Object.assign({}, s.lastGradNorms),
+      lastGradNorm: s.lastGradNorm,
+      lastClipFactor: s.lastClipFactor,
       rngState: s._rng.getState(),
       perm: s._perm.slice(),
       cursor: s._cursor,
@@ -329,6 +333,8 @@
     s.iter = snap.iter;
     s.history = snap.history.map((h) => Object.assign({}, h));
     s.lastGradNorms = Object.assign({}, snap.lastGradNorms);
+    s.lastGradNorm = snap.lastGradNorm === undefined ? null : snap.lastGradNorm;
+    s.lastClipFactor = snap.lastClipFactor === undefined ? 1 : snap.lastClipFactor;
     s._rng.setState(snap.rngState);
     s._perm = snap.perm.slice();
     s._cursor = snap.cursor;

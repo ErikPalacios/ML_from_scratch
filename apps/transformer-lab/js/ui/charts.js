@@ -40,11 +40,17 @@
     else s = v.toFixed(3);
     return s.replace(/^-/, MINUS).replace('e-', 'e' + MINUS);
   }
+  // etiqueta de marca: decimales según el paso; notación científica para pasos muy grandes o
+  // muy pequeños, con las cifras justas para que dos marcas vecinas nunca se lean igual
   function fmtTick(v, step) {
     if (Math.abs(v) < step * 1e-9) v = 0;
-    const dec = step >= 1 ? 0 : Math.min(8, Math.max(0, -Math.floor(Math.log10(step) + 1e-9)));
     const a = Math.abs(v);
-    if (a !== 0 && (a >= 1e6 || a < 1e-4)) return v.toExponential(0).replace('e+', 'e').replace(/^-/, MINUS);
+    if (step < 1e-4 || step >= 1e5 || a >= 1e6) {
+      if (v === 0) return '0';
+      const d = Math.max(0, Math.min(6, Math.floor(Math.log10(a) + 1e-9) - Math.floor(Math.log10(step) + 1e-9)));
+      return v.toExponential(d).replace('e+', 'e').replace(/^-/, MINUS).replace('e-', 'e' + MINUS);
+    }
+    const dec = step >= 1 ? 0 : Math.min(8, Math.max(0, -Math.floor(Math.log10(step) + 1e-9)));
     return v.toFixed(dec).replace(/^-/, MINUS);
   }
   function niceNum(range, round) {
@@ -56,15 +62,22 @@
     return nf * Math.pow(10, exp);
   }
   function niceTicks(min, max, count) {
-    count = Math.max(2, count || 5);
-    if (!(max > min)) { const d = Math.abs(min) || 1; min -= d * 0.5; max += d * 0.5; }
+    count = Math.max(2, Math.min(50, count || 5));
+    if (!Number.isFinite(min) || !Number.isFinite(max)) { min = 0; max = 1; }
+    if (max < min) { const t = min; min = max; max = t; }
+    // rango nulo o por debajo de la precisión de float64 → se abre alrededor del valor
+    const mag = Math.max(Math.abs(min), Math.abs(max));
+    if (!(max - min > mag * 1e-9)) { const d = mag || 1; min -= d * 0.5; max += d * 0.5; }
     const step = niceNum((max - min) / (count - 1), true);
-    const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+    const i0 = Math.floor(min / step), i1 = Math.ceil(max / step);
     const ticks = [];
-    for (let v = lo; v <= hi + step * 0.5; v += step) ticks.push(+v.toFixed(12));
-    return { ticks, step, lo, hi };
+    // índices enteros (no acumulación v += step): siempre termina
+    for (let i = i0; i <= i1 && ticks.length < 200; i++) ticks.push(+(i * step).toPrecision(12));
+    return { ticks, step, lo: i0 * step, hi: i1 * step };
   }
   function logTicks(min, max) {
+    if (!(min > 0) || !Number.isFinite(min)) min = 1e-12;
+    if (!(max > min) || !Number.isFinite(max)) max = min * 10;
     const a = Math.floor(Math.log10(min)), b = Math.ceil(Math.log10(max));
     const span = b - a;
     const out = [];
@@ -79,6 +92,19 @@
       for (let e = a; e <= b; e++) for (const m of [1, 2, 3, 5]) { const t = m * Math.pow(10, e); if (t >= min && t <= max) ticks.push(t); }
     }
     return ticks.sort((x, y) => x - y);
+  }
+
+  // recorta un texto con '…' para que quepa en maxW (px, con la fuente actual del ctx)
+  function fitText(ctx, s, maxW) {
+    s = String(s == null ? '' : s);
+    if (!s || maxW <= 0) return '';
+    if (ctx.measureText(s).width <= maxW) return s;
+    let lo = 0, hi = s.length;
+    while (lo < hi) {
+      const m = (lo + hi + 1) >> 1;
+      if (ctx.measureText(s.slice(0, m) + '…').width <= maxW) lo = m; else hi = m - 1;
+    }
+    return lo ? s.slice(0, lo).trimEnd() + '…' : '';
   }
 
   // ---------------------------------------------------------------------------
@@ -205,9 +231,14 @@
       this.destroyed = false;
       if (!canvas.classList.contains('chart-canvas')) canvas.classList.add('chart-canvas');
       if (!canvas.hasAttribute('role')) canvas.setAttribute('role', 'img');
+      // explorable con teclado (←/→) salvo que la app decida otra cosa
+      if (!canvas.hasAttribute('tabindex')) canvas.tabIndex = 0;
       this._onMove = (e) => this.onPointer(e);
       this._onLeave = () => { this.hover = null; tip.hide(); this.draw(); };
-      this._onKey = (e) => this.onKey && this.onKey(e);
+      this._onKey = (e) => {
+        if (e.key === 'Escape' && this.hover != null) { this._onLeave(); return; }
+        if (this.onKey) this.onKey(e);
+      };
       this._onBlur = () => { this.hover = null; tip.hide(); this.draw(); };
       canvas.addEventListener('pointermove', this._onMove);
       canvas.addEventListener('pointerdown', this._onMove);
@@ -332,11 +363,13 @@
 
       let xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
       for (const p of all) { if (p[0] < xmin) xmin = p[0]; if (p[0] > xmax) xmax = p[0]; if (p[1] < ymin) ymin = p[1]; if (p[1] > ymax) ymax = p[1]; }
-      if (o.xMin != null) xmin = o.xMin; if (o.xMax != null) xmax = o.xMax;
+      if (Number.isFinite(o.xMin)) xmin = o.xMin; if (Number.isFinite(o.xMax)) xmax = o.xMax;
       if (xmax <= xmin) { xmax = xmin + 1; }
       const includeZero = o.includeZero != null ? o.includeZero : !logY;
-      if (o.yMin != null) ymin = o.yMin; else if (includeZero) ymin = Math.min(0, ymin);
-      if (o.yMax != null) ymax = o.yMax;
+      const okLim = (v) => Number.isFinite(v) && (!logY || v > 0); // en log solo valen límites > 0
+      if (okLim(o.yMin)) ymin = o.yMin; else if (includeZero && !logY) ymin = Math.min(0, ymin);
+      if (okLim(o.yMax)) ymax = o.yMax;
+      if (ymax < ymin) { const t = ymin; ymin = ymax; ymax = t; }
       let yt;
       if (logY) {
         const lmin = Math.log10(ymin), lmax = Math.log10(ymax);
@@ -345,8 +378,8 @@
         yt = logTicks(ymin, ymax);
       } else {
         if (ymax <= ymin) { ymax = ymin + (Math.abs(ymin) || 1); }
-        const nt = niceTicks(ymin, ymax + (o.yMax == null ? (ymax - ymin) * 0.04 : 0), Math.max(3, Math.floor(h / 48)));
-        if (o.yMin == null) ymin = nt.lo; if (o.yMax == null) ymax = nt.hi;
+        const nt = niceTicks(ymin, ymax + (!okLim(o.yMax) ? (ymax - ymin) * 0.04 : 0), Math.max(3, Math.floor(h / 48)));
+        if (!okLim(o.yMin)) ymin = nt.lo; if (!okLim(o.yMax)) ymax = nt.hi;
         yt = nt.ticks.filter((t) => t >= ymin - 1e-12 && t <= ymax + 1e-12);
         this.yStep = nt.step;
       }
@@ -398,33 +431,36 @@
         const x = Math.round(px(t)) + 0.5;
         ctx.strokeStyle = th.ruleStrong;
         ctx.beginPath(); ctx.moveTo(x, baseY); ctx.lineTo(x, baseY + 4); ctx.stroke();
-        const lab = fmtTick(t, xt.step);
+        const lab = fmtTick(t, intX ? Math.max(1, xt.step) : xt.step);
         const lw = ctx.measureText(lab).width;
         if (x - lw / 2 > lastRight + 6 && x + lw / 2 <= w) { ctx.fillText(lab, x, baseY + 6); lastRight = x + lw / 2; }
       }
       if (o.xLabel) {
         ctx.textAlign = 'right'; ctx.font = '400 11px ' + th.body;
-        ctx.fillText(o.xLabel, plot.x + plot.w, baseY + 20);
+        ctx.fillText(fitText(ctx, o.xLabel, plot.w), plot.x + plot.w, baseY + 20);
       }
       // cabecera: etiqueta Y + leyenda
       let hx = 0;
       ctx.textBaseline = 'middle';
       if (o.yLabel) {
         ctx.textAlign = 'left'; ctx.fillStyle = th.muted; ctx.font = '500 11px ' + th.body;
-        ctx.fillText(o.yLabel, 0, 10);
-        hx = ctx.measureText(o.yLabel).width + 16;
+        const yl = fitText(ctx, o.yLabel, showLegend ? w * 0.45 : w);
+        ctx.fillText(yl, 0, 10);
+        hx = ctx.measureText(yl).width + 16;
       }
       if (showLegend) {
         ctx.font = '400 11.5px ' + th.body;
         for (const s of ser) {
-          const lw = ctx.measureText(s.name).width;
-          if (hx + 22 + lw > w) break;
+          if (!s.name) continue;
+          const name = fitText(ctx, s.name, w - hx - 19);
+          if (!name || name.length < Math.min(4, String(s.name).length)) break;
+          const lw = ctx.measureText(name).width;
           ctx.strokeStyle = s.color; ctx.lineWidth = s.faint ? 1.5 : 2; ctx.globalAlpha = s.faint ? 0.55 : 1;
           ctx.setLineDash(s.dashed ? [4, 3] : []);
           ctx.beginPath(); ctx.moveTo(hx, 10.5); ctx.lineTo(hx + 14, 10.5); ctx.stroke();
           ctx.setLineDash([]); ctx.globalAlpha = 1;
           ctx.fillStyle = th.ink; ctx.textAlign = 'left';
-          ctx.fillText(s.name, hx + 19, 10.5);
+          ctx.fillText(name, hx + 19, 10.5);
           hx += 19 + lw + 14;
         }
       }
@@ -533,12 +569,14 @@
       this.showTip(e.clientX, e.clientY);
     }
     onKey(e) {
-      if (!this.geom || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      if (!this.geom || !/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) return;
       const main = this.ser[this.opts.areaIndex || 0] || this.ser[0];
       if (!main.pts.length) return;
       e.preventDefault();
       let k = this.hover == null ? main.pts.length - 1 : nearestIdx(main.pts, this.hover);
-      k = Math.max(0, Math.min(main.pts.length - 1, k + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1)));
+      if (e.key === 'Home') k = 0;
+      else if (e.key === 'End') k = main.pts.length - 1;
+      else k = Math.max(0, Math.min(main.pts.length - 1, k + (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1)));
       this.hover = main.pts[k][0];
       this.draw();
       const r = this.canvas.getBoundingClientRect();
@@ -561,23 +599,44 @@
       xmin -= rx * 0.1; xmax += rx * 0.1; ymin -= ry * 0.1; ymax += ry * 0.1;
       rx = xmax - xmin; ry = ymax - ymin;
       const header = o.yLabel ? 16 : 0;
-      const plot = { x: 34, y: 6 + header, w: w - 34 - 8, h: h - 6 - header - (o.xLabel ? 32 : 20) };
-      if (o.equal !== false) {
+      const plot = { x: 34, y: 6 + header, w: 0, h: Math.max(20, h - 6 - header - (o.xLabel ? 32 : 20)) };
+      ctx.font = '400 10.5px ' + th.mono;
+      // marcas de la rejilla por índice entero (siempre termina)
+      const grid = (a, b, st) => {
+        const out = [];
+        for (let i = Math.ceil(a / st - 1e-9); i * st <= b + st * 1e-9 && out.length < 60; i++) out.push(i * st);
+        return out;
+      };
+      // rangos con aspecto 1:1 para el área de trazado actual
+      const fitRange = () => {
+        plot.w = Math.max(20, w - plot.x - 8);
+        if (o.equal === false) return [xmin, xmax, ymin, ymax];
         const k = Math.min(plot.w / rx, plot.h / ry);
         const cx = (xmin + xmax) / 2, cy = (ymin + ymax) / 2;
-        rx = plot.w / k; ry = plot.h / k;
-        xmin = cx - rx / 2; xmax = cx + rx / 2; ymin = cy - ry / 2; ymax = cy + ry / 2;
+        return [cx - plot.w / k / 2, cx + plot.w / k / 2, cy - plot.h / k / 2, cy + plot.h / k / 2];
+      };
+      // el margen izquierdo se ajusta al ancho real de las etiquetas del eje Y
+      let rng = null, step = 1;
+      for (let pass = 0; pass < 3; pass++) {
+        rng = fitRange();
+        step = niceTicks(Math.min(rng[0], rng[2]), Math.max(rng[1], rng[3]), Math.max(3, Math.floor(Math.max(plot.w, plot.h) / 60))).step;
+        let lw = 0;
+        for (const t of grid(rng[2], rng[3], step)) lw = Math.max(lw, ctx.measureText(fmtTick(t, step)).width);
+        const need = Math.max(26, Math.ceil(lw + 9));
+        if (need === plot.x) break;
+        plot.x = need;
+        rng = null;
       }
+      if (!rng) rng = fitRange();
+      [xmin, xmax, ymin, ymax] = rng;
       const px = (x) => plot.x + ((x - xmin) / (xmax - xmin)) * plot.w;
       const py = (y) => plot.y + plot.h - ((y - ymin) / (ymax - ymin)) * plot.h;
 
       // cuadrícula
-      const step = niceTicks(Math.min(xmin, ymin), Math.max(xmax, ymax), Math.max(3, Math.floor(Math.max(plot.w, plot.h) / 60))).step;
       ctx.lineWidth = 1;
-      ctx.font = '400 10.5px ' + th.mono;
       ctx.fillStyle = th.muted;
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      for (let t = Math.ceil(ymin / step) * step; t <= ymax; t += step) {
+      for (const t of grid(ymin, ymax, step)) {
         const y = Math.round(py(t)) + 0.5;
         ctx.strokeStyle = Math.abs(t) < step * 1e-6 ? th.ruleStrong : rgba(th.rule, 0.6);
         ctx.beginPath(); ctx.moveTo(plot.x, y); ctx.lineTo(plot.x + plot.w, y); ctx.stroke();
@@ -585,18 +644,18 @@
       }
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       let lastRight = -Infinity;
-      for (let t = Math.ceil(xmin / step) * step; t <= xmax; t += step) {
+      for (const t of grid(xmin, xmax, step)) {
         const x = Math.round(px(t)) + 0.5;
         ctx.strokeStyle = Math.abs(t) < step * 1e-6 ? th.ruleStrong : rgba(th.rule, 0.6);
         ctx.beginPath(); ctx.moveTo(x, plot.y); ctx.lineTo(x, plot.y + plot.h); ctx.stroke();
         const lab = fmtTick(t, step), lw = ctx.measureText(lab).width;
-        if (x - lw / 2 > lastRight + 6) { ctx.fillText(lab, x, plot.y + plot.h + 5); lastRight = x + lw / 2; }
+        if (x - lw / 2 > lastRight + 6 && x + lw / 2 <= w) { ctx.fillText(lab, x, plot.y + plot.h + 5); lastRight = x + lw / 2; }
       }
       ctx.strokeStyle = th.rule;
       ctx.strokeRect(plot.x + 0.5, plot.y + 0.5, plot.w - 1, plot.h - 1);
       ctx.font = '500 11px ' + th.body; ctx.fillStyle = th.muted;
-      if (o.xLabel) { ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText(o.xLabel, plot.x + plot.w, plot.y + plot.h + 19); }
-      if (o.yLabel) { ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(o.yLabel, 0, 8); }
+      if (o.xLabel) { ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText(fitText(ctx, o.xLabel, plot.w), plot.x + plot.w, plot.y + plot.h + 19); }
+      if (o.yLabel) { ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(fitText(ctx, o.yLabel, w), 0, 8); }
 
       // puntos
       const R = 4.5;
@@ -653,6 +712,18 @@
       if (!o.ariaLabel) this.canvas.setAttribute('aria-label', 'Gráfico de dispersión con ' + pts.length + ' puntos');
       else this.canvas.setAttribute('aria-label', o.ariaLabel);
     }
+    update(data, opts) {
+      // el índice resaltado deja de tener sentido si cambian los puntos
+      if (!data || !this.data || data.length !== this.data.length) this.hover = null;
+      return super.update(data, opts);
+    }
+    showTip(bi, clientX, clientY) {
+      const q = this.geom.P[bi], f = this.opts.format || fmt;
+      tip.show((t) => {
+        tipTitle(t, String(q.p.label == null ? '' : q.p.label));
+        tipRow(t, q.color, '(' + f(q.p.x) + ', ' + f(q.p.y) + ')', '', true);
+      }, clientX, clientY);
+    }
     onPointer(e) {
       if (!this.geom) return;
       const [x, y] = this.localXY(e);
@@ -660,11 +731,23 @@
       this.geom.P.forEach((q, i) => { const d = (q.x - x) ** 2 + (q.y - y) ** 2; if (d < bd) { bd = d; bi = i; } });
       if (bi < 0) { if (this.hover != null) this._onLeave(); return; }
       if (bi !== this.hover) { this.hover = bi; this.draw(); }
-      const q = this.geom.P[bi], f = this.opts.format || fmt;
-      tip.show((t) => {
-        tipTitle(t, String(q.p.label == null ? '' : q.p.label));
-        tipRow(t, q.color, '(' + f(q.p.x) + ', ' + f(q.p.y) + ')', '', true);
-      }, e.clientX, e.clientY);
+      this.showTip(bi, e.clientX, e.clientY);
+    }
+    // ←/→ recorren los puntos de izquierda a derecha
+    onKey(e) {
+      if (!this.geom || !/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) return;
+      const P = this.geom.P;
+      if (!P.length) return;
+      e.preventDefault();
+      const ord = P.map((q, i) => i).sort((a, b) => P[a].x - P[b].x || P[a].y - P[b].y);
+      let k = this.hover == null ? -1 : ord.indexOf(this.hover);
+      if (e.key === 'Home') k = 0;
+      else if (e.key === 'End') k = ord.length - 1;
+      else k = k < 0 ? 0 : Math.max(0, Math.min(ord.length - 1, k + (e.key === 'ArrowRight' ? 1 : -1)));
+      this.hover = ord[k];
+      this.draw();
+      const r = this.canvas.getBoundingClientRect();
+      this.showTip(this.hover, r.left + this.geom.P[this.hover].x, r.top + this.geom.P[this.hover].y);
     }
   }
 
@@ -706,10 +789,10 @@
     constructor(el, items, opts) {
       this.type = 'bars';
       this.el = el;
-      this.keys = [];
+      this.keys = null; // null → el primer update siempre construye (también el estado vacío)
       this.rows = [];
       el.classList.add('chart-bars');
-      if (!el.hasAttribute('role')) el.setAttribute('role', 'list');
+      this._ownRole = !el.hasAttribute('role');
       this.update(items, opts);
     }
     renderLabel(span, it) {
@@ -740,13 +823,15 @@
       const hasNeg = dmin < 0;
 
       const keys = list.map((it) => it.key != null ? String(it.key) : it.tex ? 'tex:' + it.tex : 'l:' + it.label);
-      const same = keys.length === this.keys.length && keys.every((k, i) => k === this.keys[i]);
+      const same = !!this.keys && keys.length === this.keys.length && keys.every((k, i) => k === this.keys[i]);
       if (!same) {
         this.el.textContent = '';
         this.rows = [];
         if (!list.length) {
           const e = document.createElement('div');
           e.className = 'chart-bars__empty';
+          e.setAttribute('role', 'listitem');
+          e.setAttribute('role', 'note');
           e.textContent = o.emptyText || 'Sin datos todavía';
           this.el.appendChild(e);
         }
@@ -762,20 +847,23 @@
           track.append(zero, bar);
           row.append(lab, track, val);
           this.renderLabel(lab, it);
-          if (typeof o.onSelect === 'function') {
-            row.tabIndex = 0;
-            row.style.cursor = 'pointer';
-            row.addEventListener('click', () => o.onSelect(row._item));
-            row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); o.onSelect(row._item); } });
-          }
+          // siempre se llama al onSelect MÁS RECIENTE (las filas se reutilizan entre llamadas)
+          const fire = () => { const f = this.opts && this.opts.onSelect; if (typeof f === 'function') f(row._item); };
+          row.addEventListener('click', fire);
+          row.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && this.opts && this.opts.onSelect) { e.preventDefault(); fire(); } });
           this.el.appendChild(row);
           this.rows.push({ row, lab, zero, bar, val });
         }
         this.keys = keys;
       }
+      const selectable = typeof o.onSelect === 'function';
+      if (this._ownRole) this.el.setAttribute('role', selectable ? 'group' : 'list');
       list.forEach((it, i) => {
         const r = this.rows[i];
         r.row._item = it;
+        r.row.setAttribute('role', selectable ? 'button' : 'listitem');
+        if (selectable) r.row.tabIndex = 0; else r.row.removeAttribute('tabindex');
+        r.row.classList.toggle('is-selectable', selectable);
         const v = it.value;
         const a = pct(Math.min(0, v)), b = pct(Math.max(0, v));
         r.bar.style.left = a.toFixed(3) + '%';
@@ -796,6 +884,7 @@
     destroy() {
       this.el.textContent = '';
       this.el.classList.remove('chart-bars', 'chart-bars--compact');
+      if (this._ownRole) this.el.removeAttribute('role');
       if (this.el.__tlChart === this) delete this.el.__tlChart;
     }
   }
@@ -836,6 +925,14 @@
       if (mq.addEventListener) mq.addEventListener('change', scheduleRedraw); else if (mq.addListener) mq.addListener(scheduleRedraw);
     } catch (e) { /* sin matchMedia */ }
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(scheduleRedraw).catch(() => {});
+    // cambio de densidad de píxeles (zoom, otra pantalla): el canvas se vuelve a rasterizar
+    let lastDpr = root.devicePixelRatio || 1;
+    try {
+      root.addEventListener('resize', () => {
+        const d = root.devicePixelRatio || 1;
+        if (d !== lastDpr) { lastDpr = d; scheduleRedraw(); }
+      });
+    } catch (e) { /* sin window */ }
   }
 
   TL.Charts = {
