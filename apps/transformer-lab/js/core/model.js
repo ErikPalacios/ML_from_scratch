@@ -35,7 +35,7 @@
 
   function normalizeCfg(cfg) {
     const c = Object.assign({}, DEFAULTS, cfg || {});
-    if (!cfg || cfg.dFF === undefined || cfg.dFF === null) c.dFF = 4 * c.dModel;
+    if (!cfg || cfg.dFF === undefined || cfg.dFF === null || cfg.dFF === '') c.dFF = 4 * Number(c.dModel);
     const int = (k, lo, hi) => {
       const v = Number(c[k]);
       if (!Number.isInteger(v) || v < lo || v > hi) {
@@ -157,17 +157,17 @@
     const sq = (n) => Math.sqrt(n);
     L.push({ name: 'E', r: V, c: d, rowAxis: 'V', colAxis: 'd', std: 1, block: 'embed', tex: 'E', label: 'E',
       desc: 'Tabla de embeddings: fila i = vector de dimensión d del token i del vocabulario.',
-      init: 'Normal 𝒩(0, 1): cada entrada con media 0 y desviación 1.' });
+      init: 'Normal N(0, 1): cada entrada con media 0 y desviación 1.' });
     if (cfg.posEnc === 'learned') {
       L.push({ name: 'P', r: cfg.maxLen, c: d, rowAxis: 'maxLen', colAxis: 'd', std: 0.1, block: 'posenc',
         tex: 'P_{\\text{pos}}', label: 'P_pos',
         desc: 'Codificación posicional aprendida: fila p = vector que se suma al token en la posición p.',
-        init: 'Normal 𝒩(0, 0.1²): valores pequeños para no tapar al embedding al principio.' });
+        init: 'Normal N(0, 0.1²): valores pequeños para no tapar al embedding al principio.' });
     }
     for (let l = 0; l < N; l++) {
       const p = 'L' + l + '.';
       const s = sup(l), u = usup(l), cap = 'Capa ' + (l + 1) + ': ';
-      const wInit = 'Normal 𝒩(0, 1/d): desviación 1/√d = ' + fmt(1 / sq(d)) + ', así H·W conserva una escala ≈ 1.';
+      const wInit = 'Normal N(0, 1/d): desviación 1/√d = ' + fmt(1 / sq(d)) + ', así H·W conserva una escala ≈ 1.';
       L.push({ name: p + 'ln1.g', r: 1, c: d, rowAxis: '1', colAxis: 'd', fill: 1, block: 'L' + l + '.ln1', tex: '\\gamma_1' + s, label: 'γ₁' + u,
         desc: cap + 'ganancia (escala) de LayerNorm 1, una por dimensión.', init: 'Unos: al principio LayerNorm no reescala.' });
       L.push({ name: p + 'ln1.b', r: 1, c: d, rowAxis: '1', colAxis: 'd', fill: 0, block: 'L' + l + '.ln1', tex: '\\beta_1' + s, label: 'β₁' + u,
@@ -190,7 +190,7 @@
         desc: cap + 'sesgo de la primera capa de la FFN (se suma a cada fila: broadcasting).', init: 'Ceros.' });
       L.push({ name: p + 'W2', r: dff, c: d, rowAxis: 'dff', colAxis: 'd', std: 1 / sq(dff), block: 'L' + l + '.ffn2', tex: 'W_2' + s, label: 'W₂' + u,
         desc: cap + 'segunda capa de la FFN: comprime de d_ff de vuelta a d.',
-        init: 'Normal 𝒩(0, 1/d_ff): desviación 1/√d_ff = ' + fmt(1 / sq(dff)) + '.' });
+        init: 'Normal N(0, 1/d_ff): desviación 1/√d_ff = ' + fmt(1 / sq(dff)) + '.' });
       L.push({ name: p + 'b2', r: 1, c: d, rowAxis: '1', colAxis: 'd', fill: 0, block: 'L' + l + '.ffn2', tex: 'b_2' + s, label: 'b₂' + u,
         desc: cap + 'sesgo de la segunda capa de la FFN.', init: 'Ceros.' });
     }
@@ -348,6 +348,10 @@
     const X_ = tr ? makeTrace(model, inputIds) : null;
     const R_ = tr ? X_.ref : null;
     const hasTargets = Array.isArray(targetIds) && targetIds.length > 0;
+    for (let t = 0; t < T; t++) {
+      const id = inputIds[t];
+      if (!(id >= 0 && id < V) || id !== (id | 0)) throw new Error('Id de token no válido en la posición ' + t + ': ' + id + ' (el vocabulario tiene ' + V + ' tokens).');
+    }
     if (hasTargets && targetIds.length !== T) throw new Error('targetIds debe tener la misma longitud que inputIds.');
 
     // ---- embedding: X_emb = onehot(ids)·E (en la práctica: copiar filas de E)
@@ -413,13 +417,12 @@
       const Wq = p[pre + 'Wq'], Wk = p[pre + 'Wk'], Wv = p[pre + 'Wv'];
       const Q = Mat.matmul(Hm, Wq), K = Mat.matmul(Hm, Wk), Vv = Mat.matmul(Hm, Wv);
       if (tr) {
-        const Href = R_('H', n.t('H'), n.u('H'), Hm, 'act', 'T', 'd');
         const qkv = [['q', 'Q', Wq, Q, 'consultas'], ['k', 'K', Wk, K, 'claves'], ['v', 'V', Wv, Vv, 'valores']];
         for (const [s, L, W, out, nom] of qkv) {
           X_.mm({ tpl: 'fwd.attn.' + s, phase: 'forward', block: bl + 'qkv', layer: l,
             title: n.cap + 'Proyección de ' + nom + ' ' + L + ' = H·W_' + L,
             formula: n.t(L) + ' = ' + n.t('H') + '\\,' + n.t('W_' + L) },
-          Href, R_('W_' + L, n.t('W_' + L), n.u('W_' + L), W, 'param', 'd', 'd'), R_(L, n.t(L), n.u(L), out, 'act', 'T', 'd'));
+          R_('H', n.t('H'), n.u('H'), Hm, 'act', 'T', 'd'), R_('W_' + L, n.t('W_' + L), n.u('W_' + L), W, 'param', 'd', 'd'), R_(L, n.t(L), n.u(L), out, 'act', 'T', 'd'));
         }
       }
 
@@ -911,7 +914,7 @@
           const dShRef = () => R_('dSh_' + hh, dshT, n.u('dŜ' + subU(hh)), dSh, 'grad', 'T', 'T');
           const dStRef = () => R_('dSt_' + hh, dstT, n.u('dS̃' + subU(hh)), dSt, 'grad', 'T', 'T');
           const dSRef = () => R_('dS_' + hh, dsT, n.u('dS' + subU(hh)), dS, 'grad', 'T', 'T');
-          X_.mm(Object.assign({ tpl: 'bwd.attn.context.dA', block: bl + 'context', title: hcap + 'Gradiente de los pesos de atención A',
+          X_.mm(Object.assign({ tpl: 'bwd.attn.context.dA', block: bl + 'context', title: hcap + 'Gradiente de los pesos de atención A' + subU(hh),
             formula: dAT + ' = ' + D + zT + '\\,' + n.tT('V_' + hh) }, cmh),
           dZref(), R_('V_' + hh + 'T', n.tT('V_' + hh), n.uT('V' + subU(hh)), Mat.transpose(hd.Vh), 'act', 'dk', 'T'), dARef());
           X_.mm(Object.assign({ tpl: 'bwd.attn.context.dV', block: bl + 'context', title: hcap + 'Gradiente de los valores V' + subU(hh),
@@ -1095,7 +1098,8 @@
     return { total, byName };
   }
 
-  // Mapa de dimensiones: todos los tensores del forward y del backward, con forma simbólica y numérica.
+  // Mapa de dimensiones: CADA tensor del forward y del backward (una fila por tensor), con forma
+  // simbólica (LaTeX) y numérica, agrupado por bloque. Extra: `phase` ('forward'|'backward'|'update').
   function shapeTable(model, T) {
     const cfg = model.cfg;
     const d = cfg.dModel, nH = cfg.nHeads, dk = d / nH, dff = cfg.dFF, V = model.vocab.length, N = cfg.nLayers;
@@ -1104,101 +1108,168 @@
     const SZ = { T, d, d_k: dk, 'd_{ff}': dff, V, 1: 1, 'T_{\\max}': cfg.maxLen };
     const rows = [];
     const D = '\\mathrm{d}';
-    const add = (group, tex, rs, cs, desc) => rows.push({ group, tex, sym: rs + '\\times ' + cs, shape: [SZ[rs], SZ[cs]], desc });
+    let phase = 'forward';
+    const add = (group, tex, rs, cs, desc) => rows.push({ group, tex, sym: rs + '\\times ' + cs, shape: [SZ[rs], SZ[cs]], desc, phase });
     const learned = cfg.posEnc === 'learned';
+    const actName = ACT[cfg.activation].name;
+    const lnStats = (g, which) => {
+      add(g, '\\mu_{' + which + '}', 'T', '1', 'LayerNorm ' + which + ': media de cada fila (una por posición).');
+      add(g, '\\sigma_{' + which + '}', 'T', '1', 'LayerNorm ' + which + ': desviación típica √(var + ε) de cada fila.');
+      add(g, '\\hat X_{' + which + '}', 'T', 'd', 'LayerNorm ' + which + ': filas normalizadas (media 0, varianza 1) antes de γ y β.');
+    };
 
+    // ---------- forward
     add('Datos', '\\mathrm{ids}', '1', 'T', 'Índices de los T tokens de entrada (el primero es <s>).');
-    add('Datos', '\\mathrm{onehot}(\\mathrm{ids})', 'T', 'V', 'Cada fila es un vector one-hot: un 1 en la columna del token.');
-    add('Datos', 'Y', 'T', 'V', 'Objetivos one-hot: el token siguiente de cada posición (la entrada desplazada una posición).');
-    add('Embeddings', 'E', 'V', 'd', 'Parámetro: tabla de embeddings (una fila por token del vocabulario).');
-    add('Embeddings', 'X_{\\text{emb}}', 'T', 'd', 'Embeddings de los tokens de entrada = filas de E seleccionadas.');
+    add('Datos', 'y', '1', 'T', 'Índices de los objetivos: la entrada desplazada una posición.');
+    add('Datos', '\\mathrm{onehot}(\\mathrm{ids})', 'T', 'V', 'Cada fila es un vector one-hot: un 1 en la columna de su token.');
+    add('Embeddings', 'E', 'V', 'd', 'Parámetro: tabla de embeddings (una fila de d números por token del vocabulario).');
+    add('Embeddings', 'X_{\\text{emb}}', 'T', 'd', 'Embeddings de la entrada = filas de E elegidas por los ids.');
     if (learned) {
       add('Embeddings', 'P_{\\text{pos}}', 'T_{\\max}', 'd', 'Parámetro: codificación posicional aprendida (una fila por posición posible).');
-      add('Embeddings', 'P_{\\text{pos}}[0{:}T]', 'T', 'd', 'Las T primeras filas de P_pos, las que usa esta secuencia.');
+      add('Embeddings', 'P_{\\text{pos}}[0{:}T]', 'T', 'd', 'Las T primeras filas de P_pos: las que usa esta secuencia.');
     } else {
       add('Embeddings', 'PE', 'T', 'd', 'Codificación posicional sinusoidal (fija, sin parámetros).');
     }
-    add('Embeddings', 'X^{[0]}', 'T', 'd', 'Entrada a la primera capa: embedding + posición.');
+    add('Embeddings', 'X^{[0]}', 'T', 'd', 'Entrada de la primera capa: embedding + posición.');
 
     for (let l = 0; l < N; l++) {
       const n = layerNames(multi, l);
       const gA = 'Capa ' + (l + 1) + ' · Atención', gF = 'Capa ' + (l + 1) + ' · FFN';
-      add(gA, '\\mu,\\ \\sigma', 'T', '1', 'Media y desviación de cada fila (estadísticos de LayerNorm 1).');
-      add(gA, n.t('\\gamma_1') + ',\\ ' + n.t('\\beta_1'), '1', 'd', 'Parámetros de LayerNorm 1 (ganancia y sesgo).');
+      const sfx = multi ? '^{[' + (l + 1) + ']}' : '';
+      add(gA, n.t('\\gamma_1'), '1', 'd', 'Parámetro: ganancia de LayerNorm 1.');
+      add(gA, n.t('\\beta_1'), '1', 'd', 'Parámetro: sesgo de LayerNorm 1.');
+      lnStats(gA, '1' + sfx);
       add(gA, n.t('H'), 'T', 'd', 'Salida de LayerNorm 1 (entrada de la atención).');
-      add(gA, n.t('W_Q') + ',\\ ' + n.t('W_K') + ',\\ ' + n.t('W_V'), 'd', 'd', 'Parámetros: proyecciones de consultas, claves y valores.');
-      add(gA, n.t('Q') + ',\\ ' + n.t('K') + ',\\ ' + n.t('V'), 'T', 'd', 'Consultas, claves y valores de todas las cabezas juntas.');
-      for (let h = 1; h <= nH; h++) {
-        add(gA, n.t('Q_' + h) + ',\\ ' + n.t('K_' + h) + ',\\ ' + n.t('V_' + h), 'T', 'd_k', 'Cabeza ' + h + ': columnas ' + ((h - 1) * dk) + '…' + (h * dk - 1) + ' de Q, K y V.');
-        add(gA, n.tT('K_' + h), 'd_k', 'T', 'Cabeza ' + h + ': claves traspuestas.');
-        add(gA, n.t('S_' + h) + ',\\ ' + n.t('\\tilde S_' + h) + ',\\ ' + n.t('\\hat S_' + h), 'T', 'T', 'Cabeza ' + h + ': puntuaciones Q·Kᵀ, escaladas por 1/√d_k y con máscara causal.');
-        add(gA, n.t('A_' + h), 'T', 'T', 'Cabeza ' + h + ': pesos de atención (cada fila suma 1).');
-        add(gA, n.t('Z_' + h), 'T', 'd_k', 'Cabeza ' + h + ': contexto = A·V (mezcla ponderada de valores).');
-      }
+      add(gA, n.t('W_Q'), 'd', 'd', 'Parámetro: proyección de consultas.');
+      add(gA, n.t('W_K'), 'd', 'd', 'Parámetro: proyección de claves.');
+      add(gA, n.t('W_V'), 'd', 'd', 'Parámetro: proyección de valores.');
+      add(gA, n.t('Q'), 'T', 'd', 'Consultas de todas las cabezas juntas: H·W_Q.');
+      add(gA, n.t('K'), 'T', 'd', 'Claves de todas las cabezas juntas: H·W_K.');
+      add(gA, n.t('V'), 'T', 'd', 'Valores de todas las cabezas juntas: H·W_V.');
       add(gA, 'M', 'T', 'T', 'Máscara causal: 0 en el pasado y la diagonal, −∞ en el futuro.');
-      add(gA, n.t('Z'), 'T', 'd', 'Contextos de todas las cabezas concatenados.');
+      for (let h = 1; h <= nH; h++) {
+        const cols = 'columnas ' + ((h - 1) * dk) + '…' + (h * dk - 1);
+        const cab = 'Cabeza ' + h + ': ';
+        add(gA, n.t('Q_' + h), 'T', 'd_k', cab + cols + ' de Q.');
+        add(gA, n.t('K_' + h), 'T', 'd_k', cab + cols + ' de K.');
+        add(gA, n.t('V_' + h), 'T', 'd_k', cab + cols + ' de V.');
+        add(gA, n.tT('K_' + h), 'd_k', 'T', cab + 'claves traspuestas (para multiplicar Q·Kᵀ).');
+        add(gA, n.t('S_' + h), 'T', 'T', cab + 'puntuaciones Q·Kᵀ (fila = consulta, columna = clave).');
+        add(gA, n.t('\\tilde S_' + h), 'T', 'T', cab + 'puntuaciones escaladas por 1/√d_k.');
+        add(gA, n.t('\\hat S_' + h), 'T', 'T', cab + 'puntuaciones con la máscara causal (−∞ en el futuro).');
+        add(gA, n.t('A_' + h), 'T', 'T', cab + 'pesos de atención: softmax por filas (cada fila suma 1).');
+        add(gA, n.t('Z_' + h), 'T', 'd_k', cab + 'contexto A·V: mezcla ponderada de los valores.');
+      }
+      add(gA, n.t('Z'), 'T', 'd', 'Contextos de las ' + nH + ' cabezas concatenados.');
       add(gA, n.t('W_O'), 'd', 'd', 'Parámetro: proyección de salida de la atención.');
-      add(gA, n.t('O'), 'T', 'd', 'Salida de la atención.');
+      add(gA, n.t('O'), 'T', 'd', 'Salida de la atención: Z·W_O.');
       add(gA, n.t('R'), 'T', 'd', 'Residual 1: entrada de la capa + salida de la atención.');
-      add(gF, n.t('\\gamma_2') + ',\\ ' + n.t('\\beta_2'), '1', 'd', 'Parámetros de LayerNorm 2.');
+      add(gF, n.t('\\gamma_2'), '1', 'd', 'Parámetro: ganancia de LayerNorm 2.');
+      add(gF, n.t('\\beta_2'), '1', 'd', 'Parámetro: sesgo de LayerNorm 2.');
+      lnStats(gF, '2' + sfx);
       add(gF, n.t("H'"), 'T', 'd', 'Salida de LayerNorm 2 (entrada de la FFN).');
-      add(gF, n.t('W_1'), 'd', 'd_{ff}', 'Parámetro: primera capa de la FFN (expande).');
-      add(gF, n.t('b_1'), '1', 'd_{ff}', 'Parámetro: sesgo de la primera capa (se suma a cada fila).');
-      add(gF, n.t('U'), 'T', 'd_{ff}', 'Preactivación de la FFN.');
-      add(gF, n.t('G'), 'T', 'd_{ff}', 'Activación ' + ACT[cfg.activation].name + '(U).');
-      add(gF, n.t('W_2'), 'd_{ff}', 'd', 'Parámetro: segunda capa de la FFN (comprime).');
+      add(gF, n.t('W_1'), 'd', 'd_{ff}', 'Parámetro: primera capa de la FFN (expande de d a d_ff).');
+      add(gF, n.t('b_1'), '1', 'd_{ff}', 'Parámetro: sesgo de la primera capa (se suma a cada fila: broadcasting).');
+      add(gF, n.t('U'), 'T', 'd_{ff}', 'Preactivación de la FFN: H\'·W₁ + b₁.');
+      add(gF, n.t('G'), 'T', 'd_{ff}', 'Activación ' + actName + '(U).');
+      add(gF, n.t('W_2'), 'd_{ff}', 'd', 'Parámetro: segunda capa de la FFN (comprime de d_ff a d).');
       add(gF, n.t('b_2'), '1', 'd', 'Parámetro: sesgo de la segunda capa.');
-      add(gF, n.t('F'), 'T', 'd', 'Salida de la FFN.');
-      add(gF, xTex(l + 1), 'T', 'd', 'Residual 2: salida de la capa ' + (l + 1) + '.');
+      add(gF, n.t('F'), 'T', 'd', 'Salida de la FFN: G·W₂ + b₂.');
+      add(gF, xTex(l + 1), 'T', 'd', 'Residual 2: salida de la capa ' + (l + 1) + ' (R + F).');
     }
-    add('Salida', '\\gamma_f,\\ \\beta_f', '1', 'd', 'Parámetros de la LayerNorm final.');
+    add('Salida', '\\gamma_f', '1', 'd', 'Parámetro: ganancia de la LayerNorm final.');
+    add('Salida', '\\beta_f', '1', 'd', 'Parámetro: sesgo de la LayerNorm final.');
+    lnStats('Salida', 'f');
     add('Salida', 'H_f', 'T', 'd', 'Salida de la LayerNorm final.');
-    add('Salida', 'W_{\\text{out}}', 'd', 'V', 'Parámetro: proyección al vocabulario.');
+    add('Salida', 'W_{\\text{out}}', 'd', 'V', 'Parámetro: proyección al vocabulario (una columna por token).');
     add('Salida', '\\mathrm{logits}', 'T', 'V', 'Puntuación de cada token del vocabulario en cada posición.');
     add('Salida', 'P', 'T', 'V', 'Probabilidades del siguiente token (cada fila suma 1).');
+    add('Pérdida', 'Y', 'T', 'V', 'Objetivos one-hot: un 1 en la columna del token correcto de cada posición.');
+    add('Pérdida', '\\ell_t', 'T', '1', 'Pérdida de cada posición: −log P[t, y_t].');
     add('Pérdida', '\\mathcal{L}', '1', '1', 'Entropía cruzada media sobre las T posiciones (un escalar).');
 
-    add('Gradientes · Salida', D + '\\,\\mathrm{logits}', 'T', 'V', '(P − Y)/T: gradiente de la pérdida respecto a los logits.');
-    add('Gradientes · Salida', D + 'W_{\\text{out}}', 'd', 'V', 'H_fᵀ · dlogits.');
-    add('Gradientes · Salida', D + 'H_f', 'T', 'd', 'dlogits · W_outᵀ.');
-    add('Gradientes · Salida', D + '\\gamma_f,\\ ' + D + '\\beta_f', '1', 'd', 'Gradientes de los parámetros de la LayerNorm final.');
-    add('Gradientes · Salida', D + xTex(N), 'T', 'd', 'Gradiente que entra por arriba en la última capa.');
+    // ---------- backward
+    phase = 'backward';
+    const gS = 'Gradientes · Salida';
+    add(gS, D + '\\,\\mathrm{logits}', 'T', 'V', '(P − Y)/T: gradiente de la pérdida respecto a los logits.');
+    add(gS, 'H_f^{\\top}', 'd', 'T', 'H_f traspuesta (para dW_out).');
+    add(gS, D + 'W_{\\text{out}}', 'd', 'V', 'H_fᵀ · dlogits.');
+    add(gS, 'W_{\\text{out}}^{\\top}', 'V', 'd', 'W_out traspuesta (para dH_f).');
+    add(gS, D + 'H_f', 'T', 'd', 'dlogits · W_outᵀ.');
+    add(gS, D + '\\gamma_f', '1', 'd', 'Σ_t dH_f ⊙ X̂ (gradiente de la ganancia final).');
+    add(gS, D + '\\beta_f', '1', 'd', 'Σ_t dH_f (gradiente del sesgo final).');
+    add(gS, D + xTex(N), 'T', 'd', 'Gradiente que entra por arriba en la capa ' + N + '.');
     for (let l = N - 1; l >= 0; l--) {
       const n = layerNames(multi, l);
       const gF = 'Gradientes · Capa ' + (l + 1) + ' · FFN', gA = 'Gradientes · Capa ' + (l + 1) + ' · Atención';
-      add(gF, D + n.t('F') + ',\\ ' + D + n.t('R') + '_{\\text{directo}}', 'T', 'd', 'Copias de dX' + supU(l + 1) + ' hacia la FFN y hacia el camino directo.');
+      add(gF, D + n.t('R') + '_{\\text{directo}}', 'T', 'd', 'Copia de dX' + supU(l + 1) + ' por el camino directo del residual 2.');
+      add(gF, D + n.t('F'), 'T', 'd', 'Copia de dX' + supU(l + 1) + ' que entra en la FFN.');
+      add(gF, n.tT('G'), 'd_{ff}', 'T', 'G traspuesta (para dW₂).');
       add(gF, D + n.t('W_2'), 'd_{ff}', 'd', 'Gᵀ · dF.');
-      add(gF, D + n.t('b_2'), '1', 'd', 'Suma de dF sobre las posiciones.');
-      add(gF, D + n.t('G') + ',\\ ' + D + n.t('U'), 'T', 'd_{ff}', 'dF·W₂ᵀ y dG ⊙ f\'(U).');
+      add(gF, D + n.t('b_2'), '1', 'd', 'Σ_t dF: suma de dF sobre las posiciones.');
+      add(gF, n.tT('W_2'), 'd', 'd_{ff}', 'W₂ traspuesta (para dG).');
+      add(gF, D + n.t('G'), 'T', 'd_{ff}', 'dF · W₂ᵀ.');
+      add(gF, ACT[cfg.activation].tex + "'(" + n.t('U') + ')', 'T', 'd_{ff}', 'Derivada de la activación evaluada en U.');
+      add(gF, D + n.t('U'), 'T', 'd_{ff}', 'dG ⊙ f\'(U).');
+      add(gF, n.tT("H'"), 'd', 'T', 'H\' traspuesta (para dW₁).');
       add(gF, D + n.t('W_1'), 'd', 'd_{ff}', "H'ᵀ · dU.");
-      add(gF, D + n.t('b_1'), '1', 'd_{ff}', 'Suma de dU sobre las posiciones.');
+      add(gF, D + n.t('b_1'), '1', 'd_{ff}', 'Σ_t dU: suma de dU sobre las posiciones.');
+      add(gF, n.tT('W_1'), 'd_{ff}', 'd', 'W₁ traspuesta (para dH\').');
       add(gF, D + n.t("H'"), 'T', 'd', 'dU · W₁ᵀ.');
-      add(gF, D + n.t('\\gamma_2') + ',\\ ' + D + n.t('\\beta_2'), '1', 'd', 'Gradientes de LayerNorm 2.');
+      add(gF, D + n.t('\\gamma_2'), '1', 'd', 'Gradiente de la ganancia de LayerNorm 2.');
+      add(gF, D + n.t('\\beta_2'), '1', 'd', 'Gradiente del sesgo de LayerNorm 2.');
+      add(gF, D + n.t('R') + '_{\\text{LN}}', 'T', 'd', 'Gradiente que vuelve a R a través de LayerNorm 2.');
       add(gF, D + n.t('R'), 'T', 'd', 'Suma: camino directo + retropropagación por LayerNorm 2.');
-      add(gA, D + n.t('O') + ',\\ ' + D + xTex(l) + '_{\\text{directo}}', 'T', 'd', 'Copias de dR hacia la atención y hacia el camino directo.');
+      add(gA, D + xTex(l) + '_{\\text{directo}}', 'T', 'd', 'Copia de dR por el camino directo del residual 1.');
+      add(gA, D + n.t('O'), 'T', 'd', 'Copia de dR que entra en la atención.');
+      add(gA, n.tT('Z'), 'd', 'T', 'Z traspuesta (para dW_O).');
       add(gA, D + n.t('W_O'), 'd', 'd', 'Zᵀ · dO.');
+      add(gA, n.tT('W_O'), 'd', 'd', 'W_O traspuesta (para dZ).');
       add(gA, D + n.t('Z'), 'T', 'd', 'dO · W_Oᵀ.');
       for (let h = 1; h <= nH; h++) {
-        add(gA, D + n.t('Z_' + h), 'T', 'd_k', 'Cabeza ' + h + ': columnas de dZ que le corresponden.');
-        add(gA, D + n.t('A_' + h) + ',\\ ' + D + n.t('\\hat S_' + h) + ',\\ ' + D + n.t('\\tilde S_' + h) + ',\\ ' + D + n.t('S_' + h), 'T', 'T',
-          'Cabeza ' + h + ': gradientes de los pesos, del softmax, de la máscara y del escalado.');
-        add(gA, D + n.t('Q_' + h) + ',\\ ' + D + n.t('K_' + h) + ',\\ ' + D + n.t('V_' + h), 'T', 'd_k', 'Cabeza ' + h + ': dS·K, dSᵀ·Q y Aᵀ·dZ.');
+        const cab = 'Cabeza ' + h + ': ';
+        add(gA, D + n.t('Z_' + h), 'T', 'd_k', cab + 'columnas de dZ que le corresponden.');
+        add(gA, n.tT('V_' + h), 'd_k', 'T', cab + 'valores traspuestos (para dA).');
+        add(gA, D + n.t('A_' + h), 'T', 'T', cab + 'dZ · Vᵀ: gradiente de los pesos de atención.');
+        add(gA, n.tT('A_' + h), 'T', 'T', cab + 'pesos traspuestos (para dV).');
+        add(gA, D + n.t('V_' + h), 'T', 'd_k', cab + 'Aᵀ · dZ.');
+        add(gA, D + n.t('\\hat S_' + h), 'T', 'T', cab + 'retropropagación por el softmax: A ⊙ (dA − rowsum(dA ⊙ A)).');
+        add(gA, D + n.t('\\tilde S_' + h), 'T', 'T', cab + 'igual que dŜ con ceros donde la máscara es −∞.');
+        add(gA, D + n.t('S_' + h), 'T', 'T', cab + 'dS̃ / √d_k.');
+        add(gA, D + n.t('Q_' + h), 'T', 'd_k', cab + 'dS · K.');
+        add(gA, D + n.tT('S_' + h), 'T', 'T', cab + 'dS traspuesta (para dK).');
+        add(gA, D + n.t('K_' + h), 'T', 'd_k', cab + 'dSᵀ · Q.');
       }
-      add(gA, D + n.t('Q') + ',\\ ' + D + n.t('K') + ',\\ ' + D + n.t('V'), 'T', 'd', 'Gradientes de las cabezas concatenados.');
-      add(gA, D + n.t('W_Q') + ',\\ ' + D + n.t('W_K') + ',\\ ' + D + n.t('W_V'), 'd', 'd', 'Hᵀ · dQ, Hᵀ · dK, Hᵀ · dV.');
-      add(gA, D + n.t('H') + '_{Q},\\ ' + D + n.t('H') + '_{K},\\ ' + D + n.t('H') + '_{V}', 'T', 'd', 'Contribuciones de las tres ramas a dH.');
+      add(gA, D + n.t('Q'), 'T', 'd', 'Gradientes dQ de las cabezas concatenados.');
+      add(gA, D + n.t('K'), 'T', 'd', 'Gradientes dK de las cabezas concatenados.');
+      add(gA, D + n.t('V'), 'T', 'd', 'Gradientes dV de las cabezas concatenados.');
+      add(gA, n.tT('H'), 'd', 'T', 'H traspuesta (para dW_Q, dW_K, dW_V).');
+      add(gA, D + n.t('W_Q'), 'd', 'd', 'Hᵀ · dQ.');
+      add(gA, D + n.t('W_K'), 'd', 'd', 'Hᵀ · dK.');
+      add(gA, D + n.t('W_V'), 'd', 'd', 'Hᵀ · dV.');
+      add(gA, D + n.t('H') + '_{Q}', 'T', 'd', 'dQ · W_Qᵀ: contribución de la rama Q a dH.');
+      add(gA, D + n.t('H') + '_{K}', 'T', 'd', 'dK · W_Kᵀ: contribución de la rama K a dH.');
+      add(gA, D + n.t('H') + '_{V}', 'T', 'd', 'dV · W_Vᵀ: contribución de la rama V a dH.');
       add(gA, D + n.t('H'), 'T', 'd', 'Suma de las tres contribuciones.');
-      add(gA, D + n.t('\\gamma_1') + ',\\ ' + D + n.t('\\beta_1'), '1', 'd', 'Gradientes de LayerNorm 1.');
+      add(gA, D + n.t('\\gamma_1'), '1', 'd', 'Gradiente de la ganancia de LayerNorm 1.');
+      add(gA, D + n.t('\\beta_1'), '1', 'd', 'Gradiente del sesgo de LayerNorm 1.');
+      add(gA, D + xTex(l) + '_{\\text{LN}}', 'T', 'd', 'Gradiente que vuelve a X' + supU(l) + ' a través de LayerNorm 1.');
       add(gA, D + xTex(l), 'T', 'd', 'Suma: camino directo + retropropagación por LayerNorm 1.');
     }
-    add('Gradientes · Embeddings', D + 'X_{\\text{emb}}', 'T', 'd', 'Igual a dX⁽⁰⁾ (la suma reparte el gradiente sin cambiarlo).');
-    if (learned) add('Gradientes · Embeddings', D + 'P_{\\text{pos}}', 'T_{\\max}', 'd', 'Solo las T primeras filas reciben gradiente (= dX⁽⁰⁾).');
-    add('Gradientes · Embeddings', D + 'E', 'V', 'd', 'onehotᵀ · dX_emb: cada fila de dX_emb se suma a la fila de su token.');
+    const gE = 'Gradientes · Embeddings';
+    add(gE, D + 'X_{\\text{emb}}', 'T', 'd', 'Igual a dX⁽⁰⁾ (una suma reparte el gradiente sin cambiarlo).');
+    if (learned) add(gE, D + 'P_{\\text{pos}}', 'T_{\\max}', 'd', 'Solo las T primeras filas reciben gradiente (= dX⁽⁰⁾); el resto, 0.');
+    add(gE, '\\mathrm{onehot}(\\mathrm{ids})^{\\top}', 'V', 'T', 'One-hot traspuesta (para dE).');
+    add(gE, D + 'E', 'V', 'd', 'onehotᵀ · dX_emb: cada fila de dX_emb se suma a la fila de su token.');
+
+    // ---------- actualización
+    phase = 'update';
+    const inv = { V: 'V', d: 'd', dk: 'd_k', dff: 'd_{ff}', 1: '1', maxLen: 'T_{\\max}', T: 'T' };
     for (const name of model.order) {
       const pm = model.paramMeta[name];
-      const inv = { V: 'V', d: 'd', dk: 'd_k', dff: 'd_{ff}', 1: '1', maxLen: 'T_{\\max}', T: 'T' };
-      add('Optimizador (Adam)', 'm_{' + pm.tex + '},\\ v_{' + pm.tex + '}', inv[pm.rowAxis], inv[pm.colAxis],
-        'Momentos de Adam para ' + pm.label + ': misma forma que el parámetro.');
+      const rs = inv[pm.rowAxis], cs = inv[pm.colAxis];
+      add('Optimizador (Adam)', 'm_{' + pm.tex + '}', rs, cs, 'Primer momento de Adam para ' + pm.label + ' (media móvil del gradiente).');
+      add('Optimizador (Adam)', 'v_{' + pm.tex + '}', rs, cs, 'Segundo momento de Adam para ' + pm.label + ' (media móvil del gradiente al cuadrado).');
     }
     return rows;
   }

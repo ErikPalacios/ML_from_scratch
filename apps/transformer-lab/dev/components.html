@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kit de componentes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@600&display=swap">
+<link rel="stylesheet" href="../css/app.css">
+<style>
+  /* estilos solo de esta galería (no se publican) */
+  .gx { max-width: 1240px; margin: 0 auto; padding: 28px var(--gutter) 80px; }
+  .gx-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px;
+             padding-bottom: 16px; border-bottom: 1px solid var(--ink); }
+  .gx-head p { color: var(--muted); max-width: 62ch; margin-top: 6px; }
+  .gx-sec { margin-top: 44px; }
+  .gx-sec__head { display: flex; align-items: baseline; gap: 12px; padding-bottom: 8px; margin-bottom: 18px;
+                  border-bottom: 1px solid var(--rule-strong); }
+  .gx-sec__num { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--muted); }
+  .gx-sec__head p { margin-left: auto; color: var(--muted); font-size: var(--fs-sm); }
+  .gx-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); align-items: start; }
+  .gx-demo { display: flex; flex-direction: column; gap: 10px; }
+  .gx-demo > .eyebrow { margin-bottom: 2px; }
+  .gx-sw { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .gx-sw__item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .gx-sw__chip { width: 30px; height: 30px; flex: none; border-radius: 3px; border: 1px solid var(--rule); }
+  .gx-sw__txt { min-width: 0; line-height: 1.25; }
+  .gx-sw__txt code { display: block; font-size: 12px; }
+  .gx-sw__txt span { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .gx-type > * + * { margin-top: 6px; }
+  .gx-dgs { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); align-items: start; }
+  .gx-dg-scroll { height: 600px; overflow: auto; padding: 14px 8px 8px; }
+  .gx-dg-status { font-family: var(--font-mono); font-size: 12px; color: var(--muted); min-height: 18px; }
+  .gx-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .gx-charts { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+  .gx-chart-sq { height: 300px; }
+  @media (max-width: 600px) { .gx { padding-top: 18px; } .gx-dg-scroll { height: 520px; } }
+</style>
+</head>
+<body>
+<main class="gx">
+  <header class="gx-head">
+    <div>
+      <div class="eyebrow">Transformer Lab · desarrollo</div>
+      <h1>Kit de componentes</h1>
+      <p>Tokens, primitivas, esquema del transformer y gráficos. Esta página no forma parte de la app publicada: sirve para revisar cada pieza en ambos temas.</p>
+    </div>
+    <div class="field">
+      <span class="field__label" id="lbl-theme">Tema</span>
+      <div class="seg" role="radiogroup" aria-labelledby="lbl-theme" id="theme-seg">
+        <button type="button" role="radio" aria-checked="true" data-theme-set="auto">Sistema</button>
+        <button type="button" role="radio" aria-checked="false" data-theme-set="light">Claro</button>
+        <button type="button" role="radio" aria-checked="false" data-theme-set="dark">Oscuro</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1. TOKENS ----------------------------------------------------------->
+  <section class="gx-sec" id="tokens">
+    <div class="gx-sec__head"><span class="gx-sec__num">§1</span><h2>Tokens</h2><p>Colores leídos en vivo de las variables CSS</p></div>
+    <div class="gx-grid">
+      <div class="panel"><div class="panel__head"><span class="panel__title">Superficies y tinta</span></div>
+        <div class="panel__body gx-sw" data-swatches="--bg --grid --surface --surface-2 --rule --rule-strong --ink --muted --focus"></div></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">Fases</span></div>
+        <div class="panel__body gx-sw" data-swatches="--data --data-soft --fwd --fwd-soft --bwd --bwd-soft --upd --upd-soft"></div></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">Escalas de heatmap</span></div>
+        <div class="panel__body gx-sw" data-swatches="--neg --zero --pos --prob-0 --prob-1 --masked --ok --bad"></div></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">Tipografía</span></div>
+        <div class="panel__body gx-type">
+          <div class="h-display">Atención causal</div>
+          <h2>Retropropagación</h2>
+          <h3>Capa 1 · Cabeza 2</h3>
+          <p>Texto base (15 px, IBM Plex Sans): cada fila de <em>A</em> suma 1.</p>
+          <p class="small muted">Texto pequeño (13 px) para notas y pies.</p>
+          <p class="mono">S = Q·Kᵀ / √d_k → (5×4)·(4×5) = 5×5 · 0.734 −1.205</p>
+          <div class="eyebrow">Rótulo · eyebrow</div>
+        </div></div>
+    </div>
+  </section>
+
+  <!-- 2. PRIMITIVAS ------------------------------------------------------->
+  <section class="gx-sec" id="primitivas">
+    <div class="gx-sec__head"><span class="gx-sec__num">§2</span><h2>Primitivas</h2><p>Clases documentadas al inicio de css/app.css</p></div>
+    <div class="gx-grid">
+      <div class="panel"><div class="panel__head"><span class="panel__title">Botones</span></div>
+        <div class="panel__body gx-demo">
+          <div class="cluster">
+            <button class="btn btn--primary" type="button">Entrenar</button>
+            <button class="btn" type="button">+10 iteraciones</button>
+            <button class="btn btn--ghost" type="button">Reiniciar</button>
+            <button class="btn" type="button" disabled>Desactivado</button>
+          </div>
+          <div class="cluster">
+            <button class="btn btn--icon" type="button" aria-label="Paso anterior"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
+            <button class="btn btn--icon" type="button" aria-label="Reproducir" aria-pressed="false" id="play-btn"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.2v9.6L12.6 8z"/></svg></button>
+            <button class="btn btn--icon" type="button" aria-label="Paso siguiente"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button>
+            <button class="btn btn--sm" type="button">Pequeño</button>
+            <button class="btn btn--sm" type="button" aria-pressed="true" data-phase="forward">Conmutado</button>
+            <button class="btn" type="button">Siguiente <span class="kbd">→</span></button>
+          </div>
+        </div></div>
+
+      <div class="panel"><div class="panel__head"><span class="panel__title">Chips, formas y teclas</span></div>
+        <div class="panel__body gx-demo">
+          <div class="cluster">
+            <span class="chip chip--data">Datos</span>
+            <span class="chip chip--fwd">Forward</span>
+            <span class="chip chip--loss">Pérdida</span>
+            <span class="chip chip--bwd">Backward</span>
+            <span class="chip chip--upd">Actualización</span>
+          </div>
+          <div class="cluster">
+            <span class="chip chip--ok">Correcto</span>
+            <span class="chip chip--bad">Falla</span>
+            <span class="chip chip--plain">Sin punto</span>
+          </div>
+          <div class="cluster">
+            <span class="badge-shape">5×8</span>
+            <span class="badge-shape badge-shape--sym">T×d</span>
+            <span class="badge-shape badge-shape--fwd">5×5</span>
+            <span class="badge-shape badge-shape--bwd">8×13</span>
+            <span class="badge-shape badge-shape--upd">1×32</span>
+          </div>
+          <div class="cluster small">
+            <span class="kbd">←</span><span class="kbd">→</span> paso · <span class="kbd">Espacio</span> reproducir · <span class="kbd">Inicio</span><span class="kbd">Fin</span>
+          </div>
+          <div class="cluster">
+            <span class="kv"><span class="kv__k">T</span><span class="kv__v">5</span></span>
+            <span class="kv"><span class="kv__k">d</span><span class="kv__v">8</span></span>
+            <span class="kv"><span class="kv__k">h</span><span class="kv__v">2</span></span>
+            <span class="kv"><span class="kv__k">d_k</span><span class="kv__v">4</span></span>
+            <span class="kv"><span class="kv__k">V</span><span class="kv__v">13</span></span>
+          </div>
+        </div></div>
+
+      <div class="panel"><div class="panel__head"><span class="panel__title">Control segmentado y pestañas</span></div>
+        <div class="panel__body gx-demo">
+          <div class="seg" role="group" aria-label="Optimizador">
+            <button type="button" aria-pressed="true">Adam</button>
+            <button type="button" aria-pressed="false">SGD</button>
+          </div>
+          <div class="seg seg--sm" role="group" aria-label="Velocidad">
+            <button type="button" aria-pressed="false">0.5×</button>
+            <button type="button" aria-pressed="true">1×</button>
+            <button type="button" aria-pressed="false">2×</button>
+            <button type="button" aria-pressed="false">4×</button>
+          </div>
+          <div class="tabs" role="tablist" aria-label="Secciones">
+            <button role="tab" aria-selected="true" type="button"><span class="tabs__num">01</span>Paso a paso</button>
+            <button role="tab" aria-selected="false" type="button"><span class="tabs__num">02</span>Entrenamiento</button>
+            <button role="tab" aria-selected="false" type="button"><span class="tabs__num">03</span>Generación</button>
+            <button role="tab" aria-selected="false" type="button"><span class="tabs__num">04</span>Datos y modelo</button>
+          </div>
+        </div></div>
+
+      <div class="panel"><div class="panel__head"><span class="panel__title">Formularios</span></div>
+        <div class="panel__body gx-demo">
+          <div class="gx-grid" style="grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px;">
+            <label class="field"><span class="field__label">Tasa de aprendizaje η</span><input class="input" type="number" value="0.01" step="0.001"></label>
+            <label class="field"><span class="field__label">Activación</span>
+              <select class="select"><option>ReLU</option><option>GELU</option></select></label>
+            <label class="field field--error"><span class="field__label">Cabezas h</span><input class="input" type="number" value="3">
+              <span class="field__hint">h debe dividir a d = 8</span></label>
+            <label class="field"><span class="field__label">Frase de entrada</span><input class="input" type="text" placeholder="el gato"></label>
+          </div>
+          <label class="field"><span class="field__label">Temperatura <span class="mono" id="temp-out">1.00</span></span>
+            <input class="range" type="range" min="0.1" max="2" step="0.05" value="1" id="temp"></label>
+          <label class="toggle"><input type="checkbox" checked><span class="toggle__track"></span>Mostrar valores</label>
+          <label class="toggle"><input type="checkbox"><span class="toggle__track"></span>Muestreo (no voraz)</label>
+          <label class="field"><span class="field__label">Corpus</span>
+            <textarea class="input" rows="3">el gato come pescado .
+el perro come carne .</textarea></label>
+        </div></div>
+
+      <div class="panel"><div class="panel__head"><span class="panel__title">Tabla densa</span><span class="badge-shape" style="margin-left:auto">8 filas</span></div>
+        <div class="panel__body">
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Parámetro</th><th>Forma</th><th class="num">#</th><th class="num">‖g‖</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">E</td><td><span class="badge-shape">13×8</span></td><td class="num">104</td><td class="num">0.412</td></tr>
+                <tr><td class="mono">L0.Wq</td><td><span class="badge-shape">8×8</span></td><td class="num">64</td><td class="num">0.087</td></tr>
+                <tr class="is-active" data-phase="update"><td class="mono">L0.Wk</td><td><span class="badge-shape">8×8</span></td><td class="num">64</td><td class="num">0.073</td></tr>
+                <tr><td class="mono">L0.W1</td><td><span class="badge-shape">8×32</span></td><td class="num">256</td><td class="num">0.305</td></tr>
+                <tr><td class="mono">Wout</td><td><span class="badge-shape">8×13</span></td><td class="num">104</td><td class="num">1.126</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div></div>
+
+      <div class="panel"><div class="panel__head"><span class="panel__title">Paneles, notas y tooltip</span></div>
+        <div class="panel__body gx-demo">
+          <div class="callout" data-phase="forward">Forward: los datos fluyen de arriba abajo; cada bloque transforma una matriz T×d.</div>
+          <div class="callout" data-phase="backward">Backward: el gradiente \(\mathrm{d}X\) tiene siempre la misma forma que X.</div>
+          <div class="panel panel--inset"><div class="panel__body small">Panel <code>.panel--inset</code> sobre superficie.</div></div>
+          <div class="cluster">
+            <div class="tooltip tooltip--static">
+              <div class="tooltip__title">iteración 120</div>
+              <div class="tooltip__row"><span class="tooltip__key" style="--c: var(--fwd)"></span><span class="tooltip__val">0.734</span><span class="tooltip__name">pérdida (lote)</span></div>
+              <div class="tooltip__row"><span class="tooltip__key" style="--c: var(--data)"></span><span class="tooltip__val">0.812</span><span class="tooltip__name">media móvil</span></div>
+            </div>
+            <button class="btn btn--sm" type="button" data-tip="Tooltip CSS simple con el atributo data-tip">Pasa el ratón</button>
+          </div>
+        </div></div>
+    </div>
+  </section>
+
+  <!-- 3. DIAGRAMA --------------------------------------------------------->
+  <section class="gx-sec" id="diagrama">
+    <div class="gx-sec__head"><span class="gx-sec__num">§3</span><h2>Esquema del transformer</h2><p>TL.Diagram · setActive · setShapes</p></div>
+    <div class="gx-controls">
+      <button class="btn" type="button" id="dg-prev" aria-label="Paso anterior">◀</button>
+      <button class="btn btn--primary" type="button" id="dg-next">Siguiente paso ▶</button>
+      <button class="btn" type="button" id="dg-shapes" aria-pressed="true">Formas</button>
+      <button class="btn btn--ghost" type="button" id="dg-clear">Limpiar</button>
+      <span class="gx-dg-status" id="dg-status" aria-live="polite"></span>
+    </div>
+    <div class="gx-dgs">
+      <div class="panel"><div class="panel__head"><span class="panel__title">N = 1 · h = 2</span></div>
+        <div class="gx-dg-scroll" id="dg-a"></div></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">N = 2 · h = 4 · GELU</span></div>
+        <div class="gx-dg-scroll" id="dg-b"></div></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">Configurable</span></div>
+        <div class="panel__body" style="padding-bottom:0">
+          <div class="cluster">
+            <label class="field field--inline"><span class="field__label">N</span>
+              <select class="select" id="cfg-n" style="width:64px"><option>1</option><option>2</option><option selected>3</option></select></label>
+            <label class="field field--inline"><span class="field__label">h</span>
+              <select class="select" id="cfg-h" style="width:64px"><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option><option selected>8</option></select></label>
+            <label class="field field--inline"><span class="field__label">ancho</span>
+              <select class="select" id="cfg-w" style="width:84px"><option value="">auto</option><option value="240" selected>240</option><option value="280">280</option><option value="320">320</option></select></label>
+          </div>
+        </div>
+        <div class="gx-dg-scroll" id="dg-c-wrap"><div id="dg-c" style="width:240px; margin:0 auto"></div></div></div>
+    </div>
+    <p class="small muted" id="dg-select-log" style="margin-top:10px">Haz clic (o Tab + Intro) en un bloque para probar <code>onSelect</code>.</p>
+  </section>
+
+  <!-- 4. GRÁFICOS --------------------------------------------------------->
+  <section class="gx-sec" id="graficos">
+    <div class="gx-sec__head"><span class="gx-sec__num">§4</span><h2>Gráficos</h2><p>TL.Charts · canvas HiDPI + barras DOM</p></div>
+    <div class="gx-charts">
+      <div class="panel"><div class="panel__head"><span class="panel__title">Curva de pérdida</span>
+          <label class="toggle small" style="margin-left:auto"><input type="checkbox" id="logy"><span class="toggle__track"></span>escala log</label></div>
+        <div class="panel__body"><canvas id="c-loss" tabindex="0" style="height:240px"></canvas></div></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">Norma del gradiente por parámetro</span>
+          <button class="btn btn--sm" type="button" id="bars-rand" style="margin-left:auto">Actualizar</button></div>
+        <div class="panel__body"><div id="c-bars"></div></div></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">Embeddings (PCA 2-D)</span></div>
+        <div class="panel__body"><canvas id="c-scatter" class="gx-chart-sq"></canvas></div></div>
+      <div class="panel"><div class="panel__head"><span class="panel__title">Valores con signo · top-k</span></div>
+        <div class="panel__body gx-demo">
+          <div id="c-bars-neg"></div>
+          <div class="divider"></div>
+          <div id="c-bars-prob"></div>
+        </div></div>
+    </div>
+  </section>
+</main>
+
+<script src="../js/ui/diagram.js"></script>
+<script src="../js/ui/charts.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+
+  // --- tema -----------------------------------------------------------------
+  const seg = $('#theme-seg');
+  seg.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const v = b.dataset.themeSet;
+    if (v === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', v);
+    for (const x of seg.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
+    paintSwatches();
+  });
+
+  // --- muestras de color ----------------------------------------------------
+  function paintSwatches() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const box of document.querySelectorAll('[data-swatches]')) {
+      box.textContent = '';
+      for (const name of box.dataset.swatches.split(/\s+/)) {
+        const it = document.createElement('div'); it.className = 'gx-sw__item';
+        const c = document.createElement('div'); c.className = 'gx-sw__chip'; c.style.background = 'var(' + name + ')';
+        const t = document.createElement('div'); t.className = 'gx-sw__txt';
+        const code = document.createElement('code'); code.textContent = name;
+        const v = document.createElement('span'); v.textContent = cs.getPropertyValue(name).trim();
+        t.append(code, v); it.append(c, t); box.appendChild(it);
+      }
+    }
+  }
+  paintSwatches();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintSwatches);
+
+  // --- primitivas interactivas ---------------------------------------------
+  for (const g of document.querySelectorAll('.seg[role="group"]')) {
+    g.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      for (const x of g.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+    });
+  }
+  for (const t of document.querySelectorAll('.tabs')) {
+    t.addEventListener('click', (e) => {
+      const b = e.target.closest('[role="tab"]'); if (!b) return;
+      for (const x of t.querySelectorAll('[role="tab"]')) x.setAttribute('aria-selected', String(x === b));
+    });
+  }
+  const temp = $('#temp');
+  const syncRange = () => { const p = (temp.value - temp.min) / (temp.max - temp.min) * 100; temp.style.setProperty('--pct', p + '%'); $('#temp-out').textContent = (+temp.value).toFixed(2); };
+  temp.addEventListener('input', syncRange); syncRange();
+  $('#play-btn').addEventListener('click', (e) => { const b = e.currentTarget; b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); });
+
+  // --- diagramas ------------------------------------------------------------
+  const log = $('#dg-select-log');
+  const onSelect = (id, info) => { log.textContent = 'onSelect → ' + id + (info && info.head != null ? ' · cabeza ' + (info.head + 1) : ''); };
+  const cfgA = { nLayers: 1, nHeads: 2, activation: 'relu', posEnc: 'sinusoidal', dModel: 8 };
+  const cfgB = { nLayers: 2, nHeads: 4, activation: 'gelu', posEnc: 'learned', dModel: 8 };
+  const dgA = TL.Diagram.create($('#dg-a'), cfgA, { onSelect, optimizer: 'adam' });
+  const dgB = TL.Diagram.create($('#dg-b'), cfgB, { onSelect, optimizer: 'sgd' });
+  let dgC = null;
+  function makeC() {
+    if (dgC) dgC.destroy();
+    const w = $('#cfg-w').value;
+    $('#dg-c').style.width = w ? w + 'px' : '';
+    dgC = TL.Diagram.create($('#dg-c'), { nLayers: +$('#cfg-n').value, nHeads: +$('#cfg-h').value, activation: 'relu', posEnc: 'sinusoidal' }, { onSelect });
+    if (shapesOn) dgC.setShapes(shapesFor(+$('#cfg-h').value));
+    applyStep();
+  }
+
+  // guion: forward → pérdida → backward → actualizaciones
+  const PARAM_BLOCKS = ['embed', 'ln1', 'qkv', 'proj', 'ln2', 'ffn1', 'ffn2', 'lnf', 'logits'];
+  function script(nLayers, nHeads) {
+    const s = [['tokens', 'data'], ['embed', 'forward'], ['posenc', 'forward']];
+    const lane = ['scores', 'scale', 'mask', 'softmax', 'context'];
+    const layerF = (l) => {
+      const P = 'L' + l + '.';
+      const out = [[P + 'ln1'], [P + 'qkv'], [P + 'split']];
+      for (let h = 0; h < nHeads; h++) for (const k of lane) out.push([P + k, { head: h }]);
+      out.push([P + 'concat'], [P + 'proj'], [P + 'res1'], [P + 'ln2'], [P + 'ffn1'], [P + 'act'], [P + 'ffn2'], [P + 'res2']);
+      return out;
+    };
+    for (let l = 0; l < nLayers; l++) for (const [b, o] of layerF(l)) s.push([b, 'forward', o]);
+    s.push(['lnf', 'forward'], ['logits', 'forward'], ['softmax_out', 'forward'], ['loss', 'loss']);
+    s.push(['loss', 'backward'], ['softmax_out', 'backward'], ['logits', 'backward'], ['lnf', 'backward']);
+    for (let l = nLayers - 1; l >= 0; l--) {
+      const f = layerF(l).reverse();
+      for (const [b, o] of f) s.push([b, 'backward', o]);
+    }
+    s.push(['posenc', 'backward'], ['embed', 'backward']);
+    for (let l = 0; l < nLayers; l++) {
+      for (const pb of PARAM_BLOCKS) {
+        if (['embed', 'lnf', 'logits'].includes(pb)) { if (l === 0) s.push(['optim', 'update', { paramBlock: pb }]); }
+        else s.push(['optim', 'update', { paramBlock: 'L' + l + '.' + pb }]);
+      }
+    }
+    return s;
+  }
+  const scriptA = script(1, 2), scriptB = script(2, 4);
+  let step = 0;
+  const phaseName = { data: 'datos', forward: 'forward', loss: 'pérdida', backward: 'backward', update: 'actualización' };
+  function applyStep() {
+    const frac = scriptA.length > 1 ? step / (scriptA.length - 1) : 0;
+    const a = scriptA[step];
+    dgA.setActive(a[0], a[1], a[2]);
+    const b = scriptB[Math.round(frac * (scriptB.length - 1))];
+    dgB.setActive(b[0], b[1], b[2]);
+    if (dgC) {
+      const n = +$('#cfg-n').value, h = +$('#cfg-h').value;
+      const sc = script(n, h);
+      const c = sc[Math.round(frac * (sc.length - 1))];
+      dgC.setActive(c[0], c[1], c[2]);
+    }
+    const o = a[2] || {};
+    $('#dg-status').textContent = (step + 1) + '/' + scriptA.length + ' · ' + a[0] + ' · ' + phaseName[a[1]] +
+      (o.head != null ? ' · cabeza ' + (o.head + 1) : '') + (o.paramBlock ? ' · parámetro de ' + o.paramBlock : '');
+  }
+  $('#dg-next').addEventListener('click', () => { step = (step + 1) % scriptA.length; applyStep(); });
+  $('#dg-prev').addEventListener('click', () => { step = (step - 1 + scriptA.length) % scriptA.length; applyStep(); });
+  $('#dg-clear').addEventListener('click', () => { dgA.setActive(null); dgB.setActive(null); dgC && dgC.setActive(null); $('#dg-status').textContent = ''; });
+
+  function shapesFor(h) {
+    const T = 5, d = 8, dk = d / h, dff = 32, V = 13;
+    const m = {
+      tokens: '1×T · 1×' + T, embed: 'T×d · ' + T + '×' + d, posenc: 'T×d · ' + T + '×' + d,
+      lnf: 'T×d · ' + T + '×' + d, logits: 'T×V · ' + T + '×' + V, softmax_out: 'T×V · ' + T + '×' + V, loss: 'ℒ · 1×1',
+    };
+    for (let l = 0; l < 3; l++) {
+      const P = 'L' + l + '.';
+      Object.assign(m, {
+        [P + 'ln1']: 'T×d · ' + T + '×' + d, [P + 'qkv']: '3×(T×d) · 3×(' + T + '×' + d + ')',
+        [P + 'split']: 'T×d_k · ' + T + '×' + (Number.isInteger(dk) ? dk : dk.toFixed(1)),
+        [P + 'scores']: 'T×T · 5×5', [P + 'scale']: 'T×T · 5×5', [P + 'mask']: 'T×T · 5×5', [P + 'softmax']: 'T×T · 5×5',
+        [P + 'context']: 'T×d_k · ' + T + '×' + (Number.isInteger(dk) ? dk : dk.toFixed(1)),
+        [P + 'concat']: 'T×d · 5×8', [P + 'proj']: 'T×d · 5×8', [P + 'res1']: 'T×d · 5×8', [P + 'ln2']: 'T×d · 5×8',
+        [P + 'ffn1']: 'T×d_{ff} · 5×' + dff, [P + 'act']: 'T×d_{ff} · 5×' + dff, [P + 'ffn2']: 'T×d · 5×8', [P + 'res2']: 'T×d · 5×8',
+      });
+    }
+    return m;
+  }
+  let shapesOn = true;
+  function applyShapes() {
+    dgA.setShapes(shapesOn ? shapesFor(2) : {});
+    dgB.setShapes(shapesOn ? shapesFor(4) : {});
+    dgC && dgC.setShapes(shapesOn ? shapesFor(+$('#cfg-h').value) : {});
+  }
+  $('#dg-shapes').addEventListener('click', (e) => { shapesOn = !shapesOn; e.currentTarget.setAttribute('aria-pressed', String(shapesOn)); applyShapes(); });
+  for (const id of ['#cfg-n', '#cfg-h', '#cfg-w']) $(id).addEventListener('change', makeC);
+  applyShapes();
+  makeC();
+  step = 8; applyStep();
+
+  // --- gráficos ---------------------------------------------------------------
+  // pérdida simulada: decaimiento exponencial + ruido (semilla fija)
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const raw = [], ema = [];
+  let m = null;
+  for (let i = 0; i <= 600; i++) {
+    const base = 0.18 + 2.4 * Math.exp(-i / 90) + 0.25 * Math.exp(-i / 12);
+    const y = Math.max(0.05, base * (1 + (rnd() - 0.5) * 0.35));
+    raw.push([i, y]);
+    m = m == null ? y : 0.94 * m + 0.06 * y;
+    ema.push([i, m]);
+  }
+  const lossSeries = () => [
+    { name: 'media móvil', points: ema, colorVar: '--fwd' },
+    { name: 'pérdida del lote', points: raw, colorVar: '--fwd', faint: true },
+  ];
+  const lossOpts = () => ({ yLabel: 'pérdida ℒ', xLabel: 'iteración', xName: 'iteración', logY: $('#logy').checked, areaIndex: 0 });
+  TL.Charts.line($('#c-loss'), lossSeries(), lossOpts());
+  $('#logy').addEventListener('change', () => TL.Charts.line($('#c-loss'), lossSeries(), lossOpts()));
+
+  const params = [
+    ['E', 'E'], ['L0.ln1.g', '\\gamma_1'], ['L0.ln1.b', '\\beta_1'], ['L0.Wq', 'W_Q'], ['L0.Wk', 'W_K'], ['L0.Wv', 'W_V'],
+    ['L0.Wo', 'W_O'], ['L0.W1', 'W_1'], ['L0.b1', 'b_1'], ['L0.W2', 'W_2'], ['L0.b2', 'b_2'], ['lnf.g', '\\gamma_f'], ['Wout', 'W_{\\text{out}}'],
+  ];
+  function gradItems() {
+    return params.map(([name, tex], i) => ({ label: name, tex, value: 0.02 + rnd() * (i === 12 ? 1.2 : 0.5), colorVar: '--bwd', highlight: name === 'Wout' }));
+  }
+  TL.Charts.bars($('#c-bars'), gradItems(), { format: (v) => v.toFixed(3) });
+  $('#bars-rand').addEventListener('click', () => TL.Charts.bars($('#c-bars'), gradItems(), { format: (v) => v.toFixed(3) }));
+
+  TL.Charts.bars($('#c-bars-neg'), [
+    { label: 'gato', value: 2.31 }, { label: 'perro', value: 1.12 }, { label: '.', value: -0.42 },
+    { label: 'come', value: -1.87 }, { label: 'la', value: 0.35 },
+  ].map((x) => ({ ...x, colorVar: x.value < 0 ? '--neg' : '--pos' })), { format: (v) => TL.Charts.fmt(v, 2) });
+
+  TL.Charts.bars($('#c-bars-prob'), [
+    { label: 'come', value: 0.62, highlight: true }, { label: 'duerme', value: 0.21 }, { label: 'bebe', value: 0.09 },
+    { label: 'lee', value: 0.05 }, { label: '.', value: 0.03 },
+  ], { max: 1, colorVar: '--prob-1', format: (v) => (v * 100).toFixed(1) + ' %', compact: true });
+
+  const vocab = ['<s>', 'el', 'gato', 'come', 'pescado', '.', 'perro', 'carne', 'la', 'niña', 'bebe', 'leche', 'niño', 'agua',
+    'duerme', 'en', 'casa', 'jardín', 'lee', 'un', 'libro', 'cuento'];
+  const groups = { gato: 0, perro: 0, niña: 0, niño: 0, come: 1, bebe: 1, duerme: 1, lee: 1, pescado: 2, carne: 2, leche: 2, agua: 2, libro: 2, cuento: 2, casa: 2, jardín: 2 };
+  const centers = [[-1.4, 0.8], [0.2, 1.5], [1.2, -0.6]];
+  const pts = vocab.map((t) => {
+    const g = groups[t];
+    const c = g == null ? [-0.2, -1.2] : centers[g];
+    return { x: c[0] + (rnd() - 0.5) * 1.1, y: c[1] + (rnd() - 0.5) * 0.9, label: t, colorVar: g == null ? '--data' : g === 1 ? '--bwd' : g === 2 ? '--upd' : '--fwd', highlight: t === 'gato' };
+  });
+  TL.Charts.scatter($('#c-scatter'), pts, { xLabel: 'CP 1', yLabel: 'CP 2' });
+})();
+</script>
+</body>
+</html>

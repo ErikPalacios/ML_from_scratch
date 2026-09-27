@@ -1,0 +1,14 @@
+{
+  "name": "transformer-lab",
+  "version": "1.0.0",
+  "description": "Laboratorio interactivo: entrenamiento completo de un transformer paso a paso (forward, pérdida, backward y actualización).",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/",
+    "build": "node build.mjs",
+    "check": "node tools/browser-check.mjs --url index.html"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

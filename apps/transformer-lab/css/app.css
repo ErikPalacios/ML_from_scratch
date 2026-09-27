@@ -474,7 +474,7 @@ textarea.input, .textarea {
 /* ---------------------------------------------------------------------------
    4. DIAGRAMA (TL.Diagram) — SVG; colores solo vía tokens
    ------------------------------------------------------------------------ */
-.dg-host { position: relative; --dg-bg: var(--surface); }
+.dg-host { position: relative; --dg-bg: var(--surface); scrollbar-gutter: stable; }
 .dg-svg {
   display: block; width: 100%; height: auto; overflow: visible;
   font-family: var(--font-body); user-select: none; -webkit-user-select: none;
@@ -484,7 +484,7 @@ textarea.input, .textarea {
 
 /* marcos de capa */
 .dg-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 5 3; transition: stroke var(--dur) var(--ease); }
-.dg-frame.is-hot { stroke: var(--ink); stroke-dasharray: none; }
+.dg-frame-g.is-hot .dg-frame { stroke: var(--ink); stroke-dasharray: none; }
 .dg-tab rect { fill: var(--dg-bg); stroke: var(--rule-strong); stroke-width: 1; }
 .dg-tab text { font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.08em; fill: var(--muted); text-transform: uppercase; }
 .dg-frame-g.is-hot .dg-tab rect { stroke: var(--ink); fill: var(--ink); }

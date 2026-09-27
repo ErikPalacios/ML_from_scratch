@@ -27,6 +27,16 @@
     return { type: o.type, lr: o.lr, beta1: o.beta1, beta2: o.beta2, eps: o.eps, clip: o.clip, t: 0, m: {}, v: {} };
   }
 
+  // Número en LaTeX: 0.9, 0.001, 10^{-8}, 3\\cdot 10^{-5}…
+  function texNum(x) {
+    if (!Number.isFinite(x)) return String(x);
+    if (x === 0) return '0';
+    const a = Math.abs(x);
+    if (a >= 1e-4 && a < 1e5) return String(+x.toPrecision(6));
+    const e = Math.floor(Math.log10(a));
+    const m = +(x / Math.pow(10, e)).toPrecision(4);
+    return (m === 1 ? '' : m === -1 ? '-' : m + '\\cdot ') + '10^{' + e + '}';
+  }
   const fmt = (x, n) => (Number.isFinite(x) ? x.toFixed(n === undefined ? 4 : n) : String(x));
   const AXSYM = { T: 'T', V: 'V', d: 'd', dk: 'd_k', dff: 'd_{ff}', '1': '1', maxLen: 'T_{\\max}' };
 
@@ -111,10 +121,13 @@
     const ref = (key, tx, label, mat, role) => ({ key, tex: tx, label, mat, role, rowAxis: pm.rowAxis, colAxis: pm.colAxis,
       rowLabels: labelsFor(pm.rowAxis), colLabels: labelsFor(pm.colAxis), colOffset: 0 });
     const isAdam = opt.type === 'adam';
-    const dTex = '\\mathrm{d}' + tex;
+    // si hubo recorte, el gradiente usado es c·dθ (otro tensor: otro nombre)
+    const clipped = factor < 1;
+    const dTex = (clipped ? 'c\\,' : '') + '\\mathrm{d}' + tex;
+    const dLab = (clipped ? 'c·d' : 'd') + lab;
     const shapeSym = '(' + AXSYM[pm.rowAxis] + '\\times ' + AXSYM[pm.colAxis] + ')';
     const newTex = (x) => x + '\\ (\\text{nuevo})';
-    const inputs = [ref('theta', tex, lab, before, 'param'), ref('g', dTex, 'd' + lab, g.clone(), 'grad')];
+    const inputs = [ref('theta', tex, lab, before, 'param'), ref('g', dTex, dLab, g.clone(), 'grad')];
     const outputs = [ref('theta_new', newTex(tex), lab + ' (nuevo)', theta.clone(), 'param')];
     const delta = Mat.sub(theta, before);
     const aux = { name, tex, optimizer: opt.type, lr: opt.lr, t: opt.t, beta1: opt.beta1, beta2: opt.beta2, eps: opt.eps,
@@ -125,18 +138,22 @@
       const mT = 'm_{' + tex + '}', vT = 'v_{' + tex + '}';
       const mNew = new Mat(theta.r, theta.c, opt.m[name].slice());
       const vNew = new Mat(theta.r, theta.c, opt.v[name].slice());
-      inputs.push(ref('m', mT, 'm', mBefore, 'grad'), ref('v', vT, 'v', vBefore, 'grad'));
-      outputs.push(ref('m_new', newTex(mT), 'm (nuevo)', mNew, 'grad'), ref('v_new', newTex(vT), 'v (nuevo)', vNew, 'grad'));
+      inputs.push(ref('m', mT, 'm_' + lab, mBefore, 'grad'), ref('v', vT, 'v_' + lab, vBefore, 'grad'));
+      outputs.push(ref('m_new', newTex(mT), 'm_' + lab + ' (nuevo)', mNew, 'grad'), ref('v_new', newTex(vT), 'v_' + lab + ' (nuevo)', vNew, 'grad'));
       const bc1 = 1 - Math.pow(opt.beta1, opt.t), bc2 = 1 - Math.pow(opt.beta2, opt.t);
       aux.mhat = Mat.scale(mNew, 1 / bc1);
       aux.vhat = Mat.scale(vNew, 1 / bc2);
       aux.bc1 = bc1;
       aux.bc2 = bc2;
-      formula = mT + '\\leftarrow \\beta_1 ' + mT + ' + (1-\\beta_1)\\,' + dTex + ',\\quad ' +
-        vT + '\\leftarrow \\beta_2 ' + vT + ' + (1-\\beta_2)\\,(' + dTex + ')^{2},\\quad ' +
-        tex + '\\leftarrow ' + tex + ' - \\eta\\,\\frac{\\hat m}{\\sqrt{\\hat v}+\\epsilon},\\ \\ \\hat m = \\frac{' + mT + '}{1-\\beta_1^{' + opt.t + '}},\\ \\hat v = \\frac{' + vT + '}{1-\\beta_2^{' + opt.t + '}}';
+      // coeficientes numéricos (evita confundir β₁ de Adam con el parámetro β₁ de LayerNorm)
+      const b1 = texNum(opt.beta1), b1c = texNum(1 - opt.beta1), b2 = texNum(opt.beta2), b2c = texNum(1 - opt.beta2);
+      formula = mT + '\\leftarrow ' + b1 + '\\,' + mT + ' + ' + b1c + '\\,' + dTex + ',\\quad ' +
+        vT + '\\leftarrow ' + b2 + '\\,' + vT + ' + ' + b2c + '\\,(' + dTex + ')^{2},\\quad ' +
+        '\\hat m = \\frac{' + mT + '}{1-' + b1 + '^{' + opt.t + '}},\\ \\hat v = \\frac{' + vT + '}{1-' + b2 + '^{' + opt.t + '}},\\quad ' +
+        tex + '\\leftarrow ' + tex + ' - \\eta\\,\\frac{\\hat m}{\\sqrt{\\hat v}+\\epsilon}\\quad (\\eta = ' + texNum(opt.lr) +
+        ',\\ \\epsilon = ' + texNum(opt.eps) + ')';
     } else {
-      formula = tex + '\\leftarrow ' + tex + ' - \\eta\\,' + dTex + ',\\quad \\eta = ' + opt.lr;
+      formula = tex + '\\leftarrow ' + tex + ' - \\eta\\,' + dTex + '\\quad (\\eta = ' + texNum(opt.lr) + ')';
     }
     const dimsSym = shapeSym + '\\to' + shapeSym;
     return {
