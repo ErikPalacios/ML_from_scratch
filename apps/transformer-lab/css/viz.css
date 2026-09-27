@@ -351,6 +351,9 @@
 .ov-gauge__txt { font-size: var(--fs-sm); color: var(--ink); line-height: 1.45; }
 .ov-bars { min-width: 0; }
 
+/* medición de operadores (TL.OpViews): las rejillas no participan en ese reflujo */
+.ov.is-measuring .hm__scroll { display: none; }
+
 /* animación en curso */
 .ov.is-animating .ov-flow { border-left-style: double; }
 
@@ -389,3 +392,10 @@
 @media (prefers-reduced-motion: reduce) {
   .ov-ag__line, .ov-tok { transition: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   6. MAPA DE CALOR EN CANVAS (matrices grandes; ver TL.Heatmap.config.canvasMin)
+   ------------------------------------------------------------------------ */
+.hm__cv { position: absolute; left: 0; top: 0; display: block; max-width: none; cursor: crosshair; }
+.hm__cv:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.hm__band--focus { box-shadow: 0 0 0 2px var(--focus); z-index: 5; }

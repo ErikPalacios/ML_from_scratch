@@ -113,7 +113,8 @@
   const PHASE = { data: 'Datos', forward: 'Forward', loss: 'Pérdida', backward: 'Backward', update: 'Actualización' };
   const CHIP = { data: 'chip--data', forward: 'chip--fwd', loss: 'chip--loss', backward: 'chip--bwd', update: 'chip--upd' };
   const G = (window.__gallery = { views: [], times: [], inspected: {}, cfgKey: null });
-  let showValues = params.get('vals') === 'on' ? true : params.get('vals') === 'off' ? false : 'auto';
+  if (params.get('canvasmin') != null) TL.Heatmap.config.canvasMin = +params.get('canvasmin');
+  let showValues = params.get('vals') === 'on' ? 'always' : params.get('vals') === 'off' ? false : 'auto';
 
   // --- inspector
   const inspEl = $('#insp');
@@ -214,7 +215,7 @@
   valsSeg.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
     for (const x of valsSeg.querySelectorAll('button')) x.setAttribute('aria-checked', String(x === b));
-    showValues = b.dataset.vals === 'on' ? true : b.dataset.vals === 'off' ? false : 'auto';
+    showValues = b.dataset.vals === 'on' ? 'always' : b.dataset.vals === 'off' ? false : 'auto';
     build(G.cfgKey);
   });
   G.build = build;

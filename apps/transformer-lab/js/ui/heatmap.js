@@ -21,7 +21,9 @@
      hm.highlightCell(i, j, cls)  hm.highlightRow(i, cls)  hm.highlightCol(j, cls)  hm.clear()
      hm.mark(i, j, cls) / hm.markRow / hm.markCol / hm.clearMarks()   (marcas persistentes: clear() no las borra)
      hm.update(mat)  hm.reveal(n)  (n primeras celdas visibles, en orden de filas; sin n: todas)
-     hm.fit(anchoDisponible)  hm.focusCell(i, j)  hm.recolor()  hm.destroy()
+     hm.fit(anchoDisponible)  hm.focusCell(i, j)  hm.hover(i, j)  hm.recolor()  hm.destroy()
+     Matrices grandes (> 700 celdas, o opts.canvas = true): las celdas se dibujan en un <canvas>
+     (mismas cabeceras DOM, mismos resaltados y la misma interacción; teclado con un cursor virtual).
    Estáticos
      TL.Heatmap.fmt(x)  (3 cifras significativas, −∞, 1.2e−4)   TL.Heatmap.fmtFull(x, sig=4)
      TL.Heatmap.legend(items)  items: [{ scale, names: string[], note }] → elemento .hm-legend
@@ -44,6 +46,8 @@
   const MAX_W = 54;        // ancho máximo de celda con números
   const MIN_C = 12;        // lado mínimo de celda (solo color)
   const SQ_MAX = 26;       // lado máximo de celda cuadrada (solo color)
+  const CONFIG = { canvasMin: 700 }; // a partir de tantas celdas, se dibujan en un <canvas> (rendimiento)
+  const GAP = 1;           // separación entre celdas (px), igual que el gap de la rejilla CSS
 
   const MINUS = '−';
   const AXSYM = { T: 'T', V: 'V', d: 'd', dk: 'd<sub>k</sub>', dff: 'd<sub>ff</sub>', '1': '1', maxLen: 'T<sub>max</sub>' };
@@ -113,9 +117,11 @@
       neg: g('--neg', '#2F64B5'), zero: g('--zero', '#F8FAFB'), pos: g('--pos', '#C8502A'),
       p0: g('--prob-0', '#F8FAFB'), p1: g('--prob-1', '#4B2E83'), masked: g('--masked', '#9AA6B2'),
       ink: g('--ink', '#15202B'), surface: g('--surface', '#F8FAFB'), surface2: g('--surface-2', '#F1F4F7'),
+      muted: g('--muted', '#5A6774'),
     };
+    theme.mono = (cs && cs.getPropertyValue('--font-mono').trim()) || 'ui-monospace, monospace';
     const lum = (c) => {
-      const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      const f = (v) => LIN[Math.max(0, Math.min(255, Math.round(v)))];
       return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
     };
     theme.lum = lum;
@@ -125,7 +131,11 @@
     theme.surfHex = hex(theme.surface);
     return theme;
   }
-  const hex = (c) => '#' + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  // tabla sRGB → lineal (luminancia relativa, WCAG) para no calcular potencias en cada celda
+  const LIN = new Float64Array(256);
+  for (let v = 0; v < 256; v++) { const x = v / 255; LIN[v] = x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }
+  const HEX2 = Array.from({ length: 256 }, (_, v) => v.toString(16).padStart(2, '0'));
+  const hex = (c) => '#' + HEX2[Math.max(0, Math.min(255, Math.round(c[0])))] + HEX2[Math.max(0, Math.min(255, Math.round(c[1])))] + HEX2[Math.max(0, Math.min(255, Math.round(c[2])))];
   const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
   // color de fondo [r,g,b] de un valor según la escala
@@ -168,6 +178,11 @@
       const mq = root.matchMedia('(prefers-color-scheme: dark)');
       if (mq.addEventListener) mq.addEventListener('change', sched); else if (mq.addListener) mq.addListener(sched);
     } catch (e) { /* nada */ }
+    // los mapas en canvas se redibujan al cargar las fuentes y al cambiar la densidad de píxeles
+    const redrawCanvas = () => { for (const hm of live) if (hm.canvasMode && hm.el.isConnected) hm._draw(); };
+    if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(redrawCanvas).catch(() => {});
+    let dpr = root.devicePixelRatio || 1;
+    try { root.addEventListener('resize', () => { const n = root.devicePixelRatio || 1; if (n !== dpr) { dpr = n; redrawCanvas(); } }); } catch (e) { /* nada */ }
   }
 
   // ajuste automático compartido (un solo ResizeObserver)
@@ -223,8 +238,9 @@
       this.rowOffset = opts.rowOffset || 0;
       this.colOffset = ref.colOffset || 0;
       this._computeScale();
+      this.canvasMode = opts.canvas != null ? !!opts.canvas : this.R * this.C > CONFIG.canvasMin;
       this._build();
-      this.paint();
+      if (this.canvasMode) this.paint();
       live.add(this);
       watchTheme();
       if (opts.cell) this._fixedCell(opts.cell);
@@ -340,19 +356,43 @@
       grid.style.gridTemplateRows = 'auto repeat(' + this.R + ', var(--ch, 24px))';
       const R = this.R, C = this.C;
       const parts = [];
-      parts.push('<div class="hm__row" role="row"><div class="hm__corner" role="columnheader" aria-hidden="true"></div>');
-      for (let j = 0; j < C; j++) parts.push('<div class="hm__ch" role="columnheader" data-j="' + j + '">' + this._colLabel(j) + '</div>');
-      parts.push('</div>');
-      for (let i = 0; i < R; i++) {
-        parts.push('<div class="hm__row" role="row"><div class="hm__rh" role="rowheader" data-i="' + i + '">' + this._rowLabel(i) + '</div>');
-        for (let j = 0; j < C; j++) parts.push('<div class="hm__c" role="gridcell" data-k="' + (i * C + j) + '"></div>');
+      if (this.canvasMode) {
+        // cabeceras DOM con posición explícita; las R×C celdas se dibujan en un único canvas
+        grid.setAttribute('role', 'group');
+        grid.removeAttribute('aria-rowcount'); grid.removeAttribute('aria-colcount');
+        parts.push('<div class="hm__corner" aria-hidden="true" style="grid-area:1/1"></div>');
+        for (let j = 0; j < C; j++) parts.push('<div class="hm__ch" data-j="' + j + '" style="grid-row:1;grid-column:' + (j + 2) + '">' + this._colLabel(j) + '</div>');
+        for (let i = 0; i < R; i++) parts.push('<div class="hm__rh" data-i="' + i + '" style="grid-row:' + (i + 2) + ';grid-column:1">' + this._rowLabel(i) + '</div>');
+        grid.innerHTML = parts.join('');
+        this.cells = [];
+        const cv = doc.createElement('canvas');
+        cv.className = 'hm__cv';
+        cv.style.gridArea = '2 / 2 / ' + (R + 2) + ' / ' + (C + 2);
+        cv.tabIndex = 0;
+        cv.setAttribute('role', 'img');
+        cv.setAttribute('aria-label', (ref.label || ref.key || 'matriz') + ', ' + R + ' por ' + C + '. Usa las flechas para recorrer las celdas.');
+        grid.appendChild(cv);
+        this.canvas = cv;
+        const live = doc.createElement('div');
+        live.className = 'sr-only';
+        live.setAttribute('aria-live', 'polite');
+        fig.appendChild(live);
+        this.liveEl = live;
+      } else {
+        parts.push('<div class="hm__row" role="row"><div class="hm__corner" role="columnheader" aria-hidden="true"></div>');
+        for (let j = 0; j < C; j++) parts.push('<div class="hm__ch" role="columnheader" data-j="' + j + '">' + this._colLabel(j) + '</div>');
         parts.push('</div>');
+        for (let i = 0; i < R; i++) {
+          parts.push('<div class="hm__row" role="row"><div class="hm__rh" role="rowheader" data-i="' + i + '">' + this._rowLabel(i) + '</div>');
+          for (let j = 0; j < C; j++) parts.push(this._cellHTML(i * C + j));
+          parts.push('</div>');
+        }
+        grid.innerHTML = parts.join('');
+        this.cells = Array.from(grid.getElementsByClassName('hm__c'));
+        if (this.cells.length) this.cells[0].tabIndex = 0;
       }
-      grid.innerHTML = parts.join('');
-      this.cells = Array.from(grid.getElementsByClassName('hm__c'));
       this.colHeads = Array.from(grid.getElementsByClassName('hm__ch'));
       this.rowHeads = Array.from(grid.getElementsByClassName('hm__rh'));
-      if (this.cells.length) this.cells[0].tabIndex = 0;
       scroll.appendChild(grid);
       fig.appendChild(scroll);
       this.grid = grid;
@@ -366,7 +406,19 @@
       this._bind();
     }
 
+    // HTML inicial de una celda (colores y texto ya calculados: un solo análisis de HTML, sin reescrituras)
+    _cellHTML(k) {
+      const v = this.mat.d[k], sc = this.scale;
+      let cls = 'hm__c';
+      if (v === -Infinity) cls += ' is-ninf';
+      else if (v === 0) cls += ' is-zero';
+      if (k >= this._revealed) cls += ' is-pending';
+      let st = '';
+      if (v !== -Infinity && sc.type !== 'none') { const rgb = rgbOf(v, sc); st = ' style="background:' + hex(rgb) + ';color:' + textOn(rgb) + '"'; }
+      return '<div class="' + cls + '" role="gridcell" data-k="' + k + '"' + st + '>' + fmt(v) + '</div>';
+    }
     paint() {
+      if (this.canvasMode) { this._draw(); this._stale = false; return; }
       const d = this.mat.d, sc = this.scale, cells = this.cells;
       const noColor = sc.type === 'none';
       for (let k = 0; k < cells.length; k++) {
@@ -394,10 +446,52 @@
       this.paint();
     }
     reveal(n) {
-      const N = this.cells.length;
+      const N = this.R * this.C;
       const v = n == null ? N : Math.max(0, Math.min(N, n));
       this._revealed = v >= N ? Infinity : v;
+      if (this.canvasMode) { this._draw(); return; }
       for (let k = 0; k < N; k++) this.cells[k].classList.toggle('is-pending', k >= v);
+    }
+    // dibujo en canvas (modo de matrices grandes): mismo aspecto que las celdas DOM
+    _draw() {
+      const cv = this.canvas;
+      if (!cv || !this.cellW) return;
+      const R = this.R, C = this.C, cw = this.cellW, ch = this.cellH;
+      const W = C * cw + (C - 1) * GAP, H = R * ch + (R - 1) * GAP;
+      const dpr = root.devicePixelRatio || 1;
+      const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+      if (cv.width !== pw) cv.width = pw;
+      if (cv.height !== ph) cv.height = ph;
+      cv.style.width = W + 'px';
+      cv.style.height = H + 'px';
+      const g = cv.getContext('2d');
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const th = readTheme();
+      g.fillStyle = hex(th.surface);
+      g.fillRect(0, 0, W, H);
+      const d = this.mat.d, sc = this.scale, vals = this.valuesShown, noColor = sc.type === 'none';
+      if (vals) { g.font = '10px ' + th.mono; g.textAlign = 'center'; g.textBaseline = 'middle'; }
+      const s2 = hex(th.surface2), mk = hex(th.masked), mu = hex(th.muted);
+      for (let i = 0; i < R; i++) {
+        const y = i * (ch + GAP);
+        for (let j = 0; j < C; j++) {
+          const k = i * C + j, v = d[k], x = j * (cw + GAP);
+          if (k >= this._revealed) { g.fillStyle = s2; g.fillRect(x, y, cw, ch); continue; }
+          if (v === -Infinity) {
+            g.fillStyle = s2; g.fillRect(x, y, cw, ch);
+            g.save(); g.beginPath(); g.rect(x, y, cw, ch); g.clip();
+            g.strokeStyle = mk; g.lineWidth = 1.5; g.beginPath();
+            for (let o = -ch; o < cw + ch; o += 5) { g.moveTo(x + o, y); g.lineTo(x + o + ch, y + ch); }
+            g.stroke(); g.restore();
+            if (vals) { g.fillStyle = mu; g.fillText(fmt(v), x + cw / 2, y + ch / 2 + 0.5); }
+            continue;
+          }
+          const rgb = noColor ? th.surface : rgbOf(v, sc);
+          g.fillStyle = hex(rgb);
+          g.fillRect(x, y, cw, ch);
+          if (vals) { g.fillStyle = v === 0 ? mu : textOn(rgb); g.fillText(fmt(v), x + cw / 2, y + ch / 2 + 0.5); }
+        }
+      }
     }
 
     // ---- tamaño
@@ -414,6 +508,7 @@
       this.el.classList.toggle('hm--vals', !!vals);
       this.el.classList.toggle('hm--vert', this.colLabW > w + 1 && !!this.colLabels);
       this.el.classList.toggle('hm--tiny', w < 16);
+      if (this.canvasMode) this._draw();
     }
     // ancho natural del mapa con celdas de ancho w
     widthFor(w) { return this.rhW + this.C * w + 4; }
@@ -528,7 +623,21 @@
       if (j === -1) return lab + ', cabecera de la fila ' + (i + this.rowOffset) + rl;
       return lab + ', cabecera de la columna ' + (j + this.colOffset) + cl;
     }
+    // dispara onHover como si el cursor estuviera sobre (i, j) (j = −1: cabecera de fila; i = −1: de columna)
+    hover(i, j) { this._lastHover = null; this._fire(i, j); return this; }
+    // cursor virtual del modo canvas
+    _cvFocus(i, j, announce) {
+      i = Math.max(0, Math.min(this.R - 1, i)); j = Math.max(0, Math.min(this.C - 1, j));
+      this._fi = i; this._fj = j;
+      if (!this._focusBand) { this._focusBand = doc.createElement('div'); this._focusBand.className = 'hm__band hm__band--focus'; this._focusBand.setAttribute('aria-hidden', 'true'); }
+      this._focusBand.style.gridArea = (i + 2) + ' / ' + (j + 2) + ' / ' + (i + 3) + ' / ' + (j + 3);
+      if (!this._focusBand.parentNode) this.grid.appendChild(this._focusBand);
+      if (announce && this.liveEl) this.liveEl.textContent = this._ariaFor(i, j);
+      this._lastHover = null;
+      this._fire(i, j);
+    }
     focusCell(i, j) {
+      if (this.canvasMode) { this.canvas.focus({ preventScroll: true }); this._cvFocus(i, j, true); return; }
       const el = this._elAt(i, j);
       if (!el) return;
       const prev = this._elAt(this._fi, this._fj);
@@ -567,6 +676,7 @@
         if (typeof this.opts.onLeave === 'function') this.opts.onLeave();
       };
       this._onKey = (e) => {
+        if (this.canvasMode) return; // el canvas tiene su propio manejador
         let i = this._fi, j = this._fj;
         const R = this.R, C = this.C;
         switch (e.key) {
@@ -582,6 +692,36 @@
         e.preventDefault();
         this.focusCell(i, j);
       };
+      if (this.canvasMode) {
+        const cv = this.canvas;
+        const at = (e) => {
+          const r = cv.getBoundingClientRect();
+          const j = Math.floor((e.clientX - r.left) / (this.cellW + GAP)), i = Math.floor((e.clientY - r.top) / (this.cellH + GAP));
+          return [Math.max(0, Math.min(this.R - 1, i)), Math.max(0, Math.min(this.C - 1, j))];
+        };
+        this._cvMove = (e) => { const p = at(e); this._fire(p[0], p[1]); };
+        this._cvFocusIn = () => this._cvFocus(this._fi >= 0 ? this._fi : 0, this._fj >= 0 ? this._fj : 0, true);
+        this._cvBlur = () => { if (this._focusBand) this._focusBand.remove(); this._lastHover = null; if (typeof this.opts.onLeave === 'function') this.opts.onLeave(); };
+        this._cvKey = (e) => {
+          let i = this._fi, j = this._fj;
+          switch (e.key) {
+            case 'ArrowRight': j++; break;
+            case 'ArrowLeft': j--; break;
+            case 'ArrowDown': i++; break;
+            case 'ArrowUp': i--; break;
+            case 'Home': if (e.ctrlKey || e.metaKey) i = 0; j = 0; break;
+            case 'End': if (e.ctrlKey || e.metaKey) i = this.R - 1; j = this.C - 1; break;
+            default: return;
+          }
+          e.preventDefault();
+          this._cvFocus(i, j, true);
+        };
+        cv.addEventListener('mousemove', this._cvMove);
+        cv.addEventListener('click', this._cvMove);
+        cv.addEventListener('focus', this._cvFocusIn);
+        cv.addEventListener('blur', this._cvBlur);
+        cv.addEventListener('keydown', this._cvKey);
+      }
       g.addEventListener('mouseover', this._onOver);
       g.addEventListener('click', this._onOver);
       g.addEventListener('mouseleave', this._onLeave);
@@ -602,6 +742,14 @@
       g.removeEventListener('focusin', this._onFocusIn);
       g.removeEventListener('focusout', this._onFocusOut);
       g.removeEventListener('keydown', this._onKey);
+      if (this.canvas) {
+        const cv = this.canvas;
+        cv.removeEventListener('mousemove', this._cvMove);
+        cv.removeEventListener('click', this._cvMove);
+        cv.removeEventListener('focus', this._cvFocusIn);
+        cv.removeEventListener('blur', this._cvBlur);
+        cv.removeEventListener('keydown', this._cvKey);
+      }
       if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
     }
   }
@@ -643,6 +791,7 @@
 
   TL.Heatmap = {
     create: (ref, opts) => new Heatmap(ref, opts),
+    config: CONFIG,
     Heatmap,
     fmt,
     fmtFull,

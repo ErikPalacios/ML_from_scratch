@@ -8,7 +8,9 @@
      const view = TL.OpViews.render(step, containerEl, ctx)
        ctx = { onInspect(html),    // HTML del inspector (título, fórmula \[…\] y cuentas); el shell
                                    //   lo compone con TL.MathTex.typeset
-               showValues,         // true | false | 'auto' (por defecto 'auto')
+               showValues,         // true | 'auto' (por defecto): números donde caben (las matrices
+                                   //   grandes/altas van solo con color); false: solo color;
+                                   //   'always': números en todas las matrices
                animateSpeed,       // ms por celda en las animaciones (por defecto 70)
                cfg, tok,           // config del modelo y tokenizador (PE, activación, objetivos…)
                steps?, targetTokens?,  // opcionales: para mostrar el objetivo en el softmax de salida
@@ -27,7 +29,6 @@
 
   // ------------------------------------------------------------------ utilidades
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const f3 = (x) => TL.Heatmap.fmt(x);
   const f4 = (x, s) => TL.Heatmap.fmtFull(x, s || 4);
   const par = (x) => (x < 0 ? '(' + f4(x) + ')' : f4(x));
   const pct = (x) => (x * 100).toFixed(x >= 0.1 ? 0 : 1) + ' %';
@@ -43,6 +44,8 @@
   const at1 = (tex, i) => '{' + tex + '}[' + i + ']';
   const SUBD = '₀₁₂₃₄₅₆₇₈₉';
   const sub = (n) => String(n).split('').map((c) => SUBD[+c] || c).join('');
+  const SUPD = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+  const sup = (n) => String(n).split('').map((c) => SUPD[+c] || c).join('');
   const cellLab = (ref, i, j) => (ref.label || ref.key) + '[' + i + ', ' + j + ']';
 
   function el(tag, cls, html) {
@@ -65,7 +68,6 @@
     for (const r of list) if (r) { const a = (r.mat || r).maxAbs(); if (a > m) m = a; }
     return m > 0 ? m : 1;
   }
-  const Mat = () => TL.Mat;
   const isAttnRef = (ref) => ref && ref.rowAxis === 'T' && ref.colAxis === 'T';
   const tokQ = (s) => '«' + s + '»';
 
@@ -108,7 +110,6 @@
   const sumStr = (terms) => (terms.length ? terms.join(' + ') : '0');
 
   const MIN_CELL = 12;
-  const reduceMotion = () => { try { return root.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 
   // ------------------------------------------------------------------ mini gráfico en canvas
   const plots = new Set();
@@ -307,7 +308,10 @@
       this.step = step;
       this.ctx = ctx || {};
       this.host = host;
-      this.showValues = this.ctx.showValues === undefined ? 'auto' : this.ctx.showValues;
+      // true / 'auto' → números donde caben (matrices grandes o altas: solo color; valor exacto en el inspector);
+      // false → solo color; 'always' → números en todas (puede obligar a desplazar)
+      const sv = this.ctx.showValues;
+      this.showValues = sv === false ? false : sv === 'always' ? true : 'auto';
       this.speed = Math.max(1, +this.ctx.animateSpeed || 70);
       this.hms = [];
       this.lines = [];
@@ -316,6 +320,7 @@
       this.cleanups = [];
       this.layoutHooks = [];
       this.legendItems = null;
+      this.texEls = []; // notas y rótulos con \( … \) (se componen al montar)
       this.primary = null;
       this.animator = null;
       const r = el('div', 'ov');
@@ -339,7 +344,7 @@
       if (onCell) this.handlers.set(hm, onCell);
       return hm;
     }
-    line(label) { const L = new Line(this, label); this.lines.push(L); this.body.appendChild(L.el); return L; }
+    line(label) { const L = new Line(this, label); this.lines.push(L); this.body.appendChild(L.el); if (label && label.indexOf('\\(') >= 0) this.texEls.push(L.el.firstChild); return L; }
     card(title, cls) {
       const c = el('section', 'ov-card' + (cls ? ' ' + cls : ''));
       if (title) c.appendChild(el('h4', 'ov-card__title', title));
@@ -348,7 +353,7 @@
       this.extras.appendChild(c);
       return b;
     }
-    note(html, cls) { const n = el('p', 'ov-note' + (cls ? ' ' + cls : ''), html); this.foot.appendChild(n); return n; }
+    note(html, cls) { const n = el('p', 'ov-note' + (cls ? ' ' + cls : ''), html); this.foot.appendChild(n); if (html.indexOf('\\(') >= 0) this.texEls.push(n); return n; }
     // línea de flujo de dimensiones: items = refs | strings (operadores) | {text, shape}
     flow(items, meta) {
       const f = this.flowEl;
@@ -429,6 +434,7 @@
     mount() {
       if (!this.legendDisabled) this._buildLegend();
       this.host.appendChild(this.root);
+      if (TL.MathTex) for (const e of this.texEls) TL.MathTex.typeset(e);
       this.layout();
       if (typeof ResizeObserver !== 'undefined') {
         let raf = 0;
@@ -441,10 +447,13 @@
     }
     layout() {
       if (this.destroyed) return;
+      // medir (ancho y operadores) con las rejillas ocultas: el reflujo forzado no maqueta miles de celdas
+      this.root.classList.add('is-measuring');
       const W = Math.floor(this.body.clientWidth);
-      if (!(W > 0) || W === this._lastW) return;
+      if (!(W > 0) || W === this._lastW) { this.root.classList.remove('is-measuring'); return; }
       this._lastW = W;
       const meas = this.lines.map((L) => L.measure());
+      this.root.classList.remove('is-measuring');
       this.lines.forEach((L, k) => L.layout(W, meas[k]));
       for (const f of this.layoutHooks) f(W);
     }
@@ -532,9 +541,9 @@
 
   // ---- matmul (forward y backward; con sesgo opcional)
   const MM_NOTES = {
-    'fwd.attn.q': 'Cada fila de H (un token) se multiplica por la MISMA matriz W: todas las posiciones comparten parámetros.',
-    'fwd.attn.k': 'Cada fila de H (un token) se multiplica por la MISMA matriz W: todas las posiciones comparten parámetros.',
-    'fwd.attn.v': 'Cada fila de H (un token) se multiplica por la MISMA matriz W: todas las posiciones comparten parámetros.',
+    'fwd.attn.q': 'Cada fila de H (un token) se multiplica por <b>la misma</b> matriz W: todas las posiciones comparten parámetros.',
+    'fwd.attn.k': 'Cada fila de H (un token) se multiplica por <b>la misma</b> matriz W: todas las posiciones comparten parámetros.',
+    'fwd.attn.v': 'Cada fila de H (un token) se multiplica por <b>la misma</b> matriz W: todas las posiciones comparten parámetros.',
     'fwd.attn.scores': 'La entrada [i, j] es el producto escalar de la consulta del token i con la clave del token j: mide cuánto «encaja» j con lo que busca i. La matriz ya viene traspuesta (Kᵀ): su columna j es la fila j de K.',
     'fwd.attn.context': 'Cada fila de Z es una media ponderada de las filas de V, con los pesos de la misma fila de A (que suman 1).',
     'fwd.attn.proj': 'W_O mezcla las cabezas concatenadas: cada columna de O combina información de todas las cabezas.',
@@ -1033,7 +1042,7 @@
     const hG = v.hm(G, {}, cellParam), hB = v.hm(Bt, {}, cellParam), hY = v.hm(Y, { maxAbs: shared }, cellY);
     L3.term(hG).term(hB, { tex: '\\odot\\,\\hat X\\;+' }).term(hY, '=');
     v.primary = hY;
-    v.note('LayerNorm trabaja <b>por filas</b>: cada token se normaliza con su propia media y desviación (sobre sus d = ' + d + ' números), sin mirar a los demás tokens. X̂ y ' + esc(Y.label) + ' comparten escala de color.');
+    v.note('LayerNorm trabaja <b>por filas</b>: cada token se normaliza con su propia media y desviación (sobre sus d = ' + d + ' números), sin mirar a los demás tokens. \\(\\hat X\\) y ' + esc(Y.label) + ' comparten escala de color.');
 
     function statRows(i) {
       const xs = []; for (let j = 0; j < d; j++) xs.push(f4(X.mat.get(i, j), 3));
@@ -1075,7 +1084,7 @@
       return insp({ kind: 'layernorm', title: 'Columna ' + j + ': ' + (G.label || 'γ') + '[' + j + '] y ' + (Bt.label || 'β') + '[' + j + ']', sub: 'la misma para las ' + T + ' filas',
         tex: at(Y.tex, ':', j) + ' = ' + at1(G.tex, j) + '\\,' + at('\\hat X', ':', j) + ' + ' + at1(Bt.tex, j),
         rows: [[G.label + '[' + j + ']', '= ' + f4(G.mat.get(0, j))], [Bt.label + '[' + j + ']', '= ' + f4(Bt.mat.get(0, j))]],
-        note: 'γ escala y β desplaza la columna ' + j + ' de X̂ (al empezar γ = 1 y β = 0: este paso deja X̂ igual).' });
+        note: 'γ escala y β desplaza la columna ' + j + ' de \\(\\hat X\\) (al empezar γ = 1 y β = 0: este paso deja \\(\\hat X\\) igual).' });
     }
     v.animator = async function (tok) {
       const hs = [hMu, hSg, hXh, hY];
@@ -1462,7 +1471,7 @@
     const L0 = v.line('0 · Del forward (caché): la entrada normalizada y su desviación');
     const hX = v.hm(X, {}, cellX), hXh = v.hm(xhRef, {}, cellX), hSg = v.hm(sgRef, { caption: 'compact', tag: false }, cellX);
     L0.term(hX).term(hXh, '↦').term(hSg, ',');
-    const L1 = v.line('1 · Atravesar γ (regla de la cadena): dX̂ = dY ⊙ γ');
+    const L1 = v.line('1 · Atravesar γ (regla de la cadena): \\(\\mathrm{d}\\hat X = \\mathrm{d}Y \\odot \\gamma\\)');
     const hdY = v.hm(dY, {}, cellDX), hG = v.hm(G, {}, cellParam), hdXh = v.hm(dxhRef, { tag: false }, cellDX);
     L1.term(hdY).term(hG, '⊙').term(hdXh, '=');
     const L2 = v.line('2 · Atravesar la normalización: restar las medias de cada fila y dividir por √(σ²+ε)');
@@ -1473,7 +1482,7 @@
     const hdG = v.hm(dG, {}, cellParam), hdB = v.hm(dB, {}, cellParam);
     L3.term(hdG, { tex: '\\textstyle\\sum_t \\mathrm{d}Y\\odot\\hat X =' }).term(hdB, { tex: '\\quad\\textstyle\\sum_t \\mathrm{d}Y =' });
     v.primary = hdX;
-    v.note('Las dos medias restadas vienen de que μ y σ dependen de TODA la fila: mover un x cambia la media y la desviación que usan los demás. Por eso dX no es simplemente dX̂ / σ.');
+    v.note('Las dos medias restadas vienen de que μ y σ dependen de <b>toda</b> la fila: mover un x cambia la media y la desviación que usan los demás. Por eso \\(\\mathrm{d}X\\) no es simplemente \\(\\mathrm{d}\\hat X / \\sigma\\).');
     function cellX(hm, i, j) {
       if (i < 0) return null;
       hX.highlightRow(i, 'src'); hSg.highlightCell(i, 0, 'src'); hXh.highlightRow(i, 'src');
@@ -1573,7 +1582,7 @@
     if (chart) v.cleanups.push(() => chart.destroy());
     bars.addEventListener('mouseover', (e) => { const r = e.target.closest && e.target.closest('.chart-bars__row'); if (r && r._item && r._item !== bars._last) { bars._last = r._item; pick(r._item); } });
     body.appendChild(el('p', 'ov-card__cap', '‖g‖² es la suma de los cuadrados de las ' + ax.norms.length + ' normas. Pasa el cursor (o pulsa Intro) sobre una barra para ver su parte.'));
-    v.note('La norma global mide el tamaño de TODO el gradiente como si fuera un único vector de ' + (ax.nParams || '') + ' números. El recorte evita pasos gigantes cuando el gradiente se dispara.');
+    v.note('La norma global mide el tamaño de <b>todo</b> el gradiente como si fuera un único vector de ' + (ax.nParams || '') + ' números. El recorte evita pasos gigantes cuando el gradiente se dispara.');
     v.legendDisabled = true;
     v.animator = async function () {};
   };
@@ -1591,8 +1600,8 @@
     const lr = ax.lr, t = ax.t;
     const thMx = maxAbsOf([th, thN]);
     const MOM = { tag: 'momento', tagRole: 'mom' };
-    if (adam) v.flow([th, ',', g, ',', m0, ',', v0, '→', thN, ',', m1, ',', v1], 'Adam · t = ' + t + ' · η = ' + f4(lr));
-    else v.flow([th, ',', g, '→', thN], 'SGD · η = ' + f4(lr));
+    if (adam) v.flow([th, ',', g, ',', m0, ',', v0, '→', thN, ',', m1, ',', v1], 'Adam · t = ' + t + ' · η = ' + fmtC(lr));
+    else v.flow([th, ',', g, '→', thN], 'SGD · η = ' + fmtC(lr));
     const hs = {};
     const b1 = ax.beta1, b2 = ax.beta2;
     if (adam) {
@@ -1625,7 +1634,7 @@
     const notes = [];
     if (clipped) notes.push('El gradiente usado es c·dθ con c = ' + f4(ax.clipFactor) + ' (recorte por norma global).');
     if (adam) {
-      notes.push('Adam divide cada paso por √v̂: cada número del parámetro tiene su propia tasa de aprendizaje efectiva.' + (t === 1 ? ' En t = 1, m̂ = g y v̂ = g², así que Δθ ≈ −η·signo(g): cada número con gradiente distinto de 0 se mueve ≈ η = ' + f4(lr) + '.' : ''));
+      notes.push('Adam divide cada paso por √v̂: cada número del parámetro tiene su propia tasa de aprendizaje efectiva.' + (t === 1 ? ' En t = 1, m̂ = g y v̂ = g², así que Δθ ≈ −η·signo(g): cada número con gradiente distinto de 0 se mueve ≈ η = ' + fmtC(lr) + '.' : ''));
       if (zeroRows) notes.push(zeroRows + ' filas tienen gradiente 0 (tokens que no están en la frase)' + (t > 1 ? ', pero aun así se mueven: el momento m recuerda gradientes de iteraciones anteriores.' : ': en t = 1 no se mueven.'));
     } else {
       notes.push('SGD: Δθ = −η·g. El paso es proporcional al gradiente: donde el gradiente es grande, el cambio también.');
@@ -1645,12 +1654,12 @@
         const mo = m0.mat.get(i, j), vo = v0.mat.get(i, j), mn = m1.mat.get(i, j), vn = v1.mat.get(i, j), mh = ax.mhat.get(i, j), vh = ax.vhat.get(i, j);
         rows.push(['m', '= ' + b1 + '·' + par(mo) + ' + ' + fmtC(1 - b1) + '·' + par(gv) + ' = ' + f4(mn)]);
         rows.push(['v', '= ' + b2 + '·' + par(vo) + ' + ' + fmtC(1 - b2) + '·' + par(gv) + '² = ' + f4(vn)]);
-        rows.push(['m̂', '= ' + f4(mn) + ' / (1 − ' + b1 + '^' + t + ') = ' + f4(mn) + ' / ' + f4(ax.bc1) + ' = ' + f4(mh)]);
-        rows.push(['v̂', '= ' + f4(vn) + ' / (1 − ' + b2 + '^' + t + ') = ' + f4(vn) + ' / ' + f4(ax.bc2) + ' = ' + f4(vh)]);
-        rows.push(['Δθ', '= −' + f4(lr) + ' · ' + par(mh) + ' / (√' + f4(vh) + ' + ' + f4(ax.eps) + ') = −' + f4(lr) + ' · ' + par(mh) + ' / ' + f4(Math.sqrt(vh) + ax.eps) + ' = ' + f4(dv)]);
+        rows.push(['m̂', '= ' + f4(mn) + ' / (1 − ' + b1 + sup(t) + ') = ' + f4(mn) + ' / ' + f4(ax.bc1) + ' = ' + f4(mh)]);
+        rows.push(['v̂', '= ' + f4(vn) + ' / (1 − ' + b2 + sup(t) + ') = ' + f4(vn) + ' / ' + f4(ax.bc2) + ' = ' + f4(vh)]);
+        rows.push(['Δθ', '= −' + fmtC(lr) + ' · ' + par(mh) + ' / (√' + f4(vh) + ' + ' + f4(ax.eps) + ') = −' + fmtC(lr) + ' · ' + par(mh) + ' / ' + f4(Math.sqrt(vh) + ax.eps) + ' = ' + f4(dv)]);
         tex = '\\theta \\leftarrow \\theta - \\eta\\,\\frac{\\hat m}{\\sqrt{\\hat v}+\\epsilon},\\quad \\hat m = \\frac{m}{1-' + b1 + '^{' + t + '}},\\ \\hat v = \\frac{v}{1-' + b2 + '^{' + t + '}}';
       } else {
-        rows.push(['Δθ', '= −η·g = −' + f4(lr) + ' · ' + par(gv) + ' = ' + f4(dv)]);
+        rows.push(['Δθ', '= −η·g = −' + fmtC(lr) + ' · ' + par(gv) + ' = ' + f4(dv)]);
         tex = '\\theta \\leftarrow \\theta - \\eta\\,g,\\quad \\eta = ' + texNum(lr);
       }
       rows.push(['θ nuevo', '= ' + f4(tv) + ' + ' + par(dv) + ' = ' + f4(tn, 6)]);
