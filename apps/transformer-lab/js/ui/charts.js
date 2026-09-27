@@ -13,7 +13,9 @@
         opts: {colorVar, xLabel, yLabel, equal (true), height, format(v), emptyText, ariaLabel}
    Cada llamada devuelve un objeto {update(data, opts), redraw(), destroy()}; volver a llamar
    sobre el mismo canvas/elemento reutiliza (y actualiza) el gráfico existente.
-   TL.Charts.redrawAll() — redibuja todo (se llama solo al cambiar el tema).
+   TL.Charts.redrawAll() — redibuja todo (se llama solo al cambiar el tema o la densidad de píxeles).
+   Teclado: los canvas reciben tabindex=0 si no lo traen; ←/→ (Mayús = ×10), Inicio/Fin, Esc.
+   Robustez: NaN/±∞ se descartan; rangos nulos o diminutos se abren; logY ignora límites ≤ 0.
    Utilidades: TL.Charts.fmt(v), TL.Charts.niceTicks(min, max, n), TL.Charts.texLite(tex),
                TL.Charts.tip.show(buildFn|string, clientX, clientY) / tip.hide()
    ========================================================================== */

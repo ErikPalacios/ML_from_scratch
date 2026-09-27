@@ -556,34 +556,37 @@
     function renderLegend(lay) {
       const g = svgEl('g', { class: 'dg-legend', 'aria-hidden': 'true' }, svg);
       const x = lay.x0, tx = x + 30;
+      const avail = lay.W - tx - 4;
       let y = lay.legend.y;
+      // text = [largo, corto]: el corto se usa si el largo no cabe (anchos estrechos)
       const row = (draw, text) => {
         draw(y);
         const t = svgEl('text', { x: tx, y: y + 3.8 }, g);
-        t.textContent = text;
+        t.textContent = textWidth(text[0], 10.5, false) <= avail ? text[0] : text[1];
+        t.dataset.maxw = String(avail);
         y += 17;
       };
       row((yy) => {
         svgEl('rect', { class: 'dg-shape', x, y: yy - 6, width: 22, height: 12, rx: 2 }, g);
         svgEl('rect', { class: 'dg-pmark', x: x + 16, y: yy - 4, width: 4, height: 4 }, g);
-      }, 'bloque con parámetros entrenables');
-      row((yy) => svgEl('rect', { class: 'dg-shape', x, y: yy - 6, width: 22, height: 12, rx: 6 }, g), 'operación sin parámetros');
+      }, ['bloque con parámetros entrenables', 'con parámetros entrenables']);
+      row((yy) => svgEl('rect', { class: 'dg-shape', x, y: yy - 6, width: 22, height: 12, rx: 6 }, g), ['operación sin parámetros', 'operación sin parámetros']);
       row((yy) => {
         svgEl('circle', { class: 'dg-shape', cx: x + 11, cy: yy, r: 6 }, g);
         svgEl('path', { class: 'dg-glyph', d: 'M' + (x + 8) + ',' + yy + 'H' + (x + 14) + 'M' + (x + 11) + ',' + (yy - 3) + 'V' + (yy + 3) }, g);
-      }, 'suma · conexión residual (skip)');
+      }, ['suma · conexión residual (skip)', 'suma residual (skip)']);
       row((yy) => {
         const p = svgEl('path', { class: 'dg-legend-line dg-legend-line--fwd', d: 'M' + x + ',' + yy + 'H' + (x + 22) }, g);
         p.setAttribute('marker-end', markerUrl('fwd'));
-      }, 'forward: datos (hacia abajo ↓)');
+      }, ['forward: datos (hacia abajo ↓)', 'forward: datos ↓']);
       row((yy) => {
         const p = svgEl('path', { class: 'dg-legend-line dg-legend-line--bwd', d: 'M' + x + ',' + yy + 'H' + (x + 22) }, g);
         p.setAttribute('marker-start', markerUrl('bwd'));
-      }, 'backward: gradientes (hacia arriba ↑)');
+      }, ['backward: gradientes (hacia arriba ↑)', 'backward: gradientes ↑']);
       row((yy) => {
         const p = svgEl('path', { class: 'dg-legend-line dg-legend-line--upd', d: 'M' + x + ',' + yy + 'H' + (x + 22) }, g);
         p.setAttribute('marker-end', markerUrl('upd'));
-      }, 'actualización: optimizador → parámetros');
+      }, ['actualización: optimizador → parámetros', 'actualización de parámetros']);
     }
 
     // --- etiquetas de forma
