@@ -138,6 +138,8 @@
 }
 .hm__c.is-pending { background: var(--surface-2) !important; color: transparent !important; }
 .hm__c.is-pending.is-ninf { background: var(--surface-2) !important; }
+/* la placa −∞ lleva su propio color: también se oculta mientras la celda espera a la animación */
+.hm__c.is-pending .hm__ninf { visibility: hidden; }
 
 /* cabeceras */
 .hm__ch, .hm__rh { color: var(--muted); cursor: default; }
@@ -286,7 +288,11 @@
   font-size: var(--fs-sm); line-height: 1.5; color: var(--ink);
 }
 .ov-note code { font-size: 0.9em; }
-.ov-note__btn { display: flex; margin-top: 8px; }
+.ov-note__btn { display: flex; margin-top: 8px; max-width: 100%; height: auto; min-height: var(--btn-h); padding-top: 4px; padding-bottom: 4px; white-space: normal; text-align: left; line-height: 1.3; }
+/* entrenando a trozos: el botón muestra el progreso (y cancela con otro clic) */
+.ov-note__btn.is-running { border-color: var(--ink); font-variant-numeric: tabular-nums; cursor: progress; }
+.ov-note--attn:focus { outline: none; }
+.ov-note--attn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* resumen al final de la iteración (último paso) */
 .ov-recap {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 9px 12px;
@@ -426,6 +432,8 @@
 }
 .insp__note { margin: 0; font-size: var(--fs-xs); color: var(--muted); line-height: 1.45; }
 .insp sup { font-size: .75em; line-height: 0; }
+/* superíndice de capa [l] en notas, rótulos y leyendas del escenario (X<sup>[0]</sup>) */
+.ov-note sup, .ov-flow sup, .ov-line__label sup, .ov-card__title sup, .ov-card__cap sup, .hm__note sup, .hm-legend__names sup { font-size: .72em; line-height: 0; }
 
 /* ---------------------------------------------------------------------------
    5. PANTALLA ESTRECHA Y MOVIMIENTO REDUCIDO

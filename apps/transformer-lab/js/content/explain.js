@@ -169,12 +169,12 @@ X0 = X_emb + PE                 # (T, d)`,
     math: [
       R`\mu_t = \frac1d\sum_{j=0}^{d-1} x_{tj},\qquad \sigma_t^2 = \frac1d\sum_{j=0}^{d-1} (x_{tj}-\mu_t)^2`,
       R`\hat x_{tj} = \frac{x_{tj}-\mu_t}{\sqrt{\sigma_t^2+\varepsilon}}`,
-      R`H = \mathrm{LN}_1\big(X^{[l-1]}\big) = \gamma_1\odot\hat X + \beta_1`,
+      R`H = \mathrm{LN}_1\big(X^{[l-1]}\big) = \gamma_1\odot\hat X^{[l-1]} + \beta_1`,
     ],
     shapes: dims(R`(T\times d)\to(T\times d)`,
       R`<code>{T}×{d}</code> → <code>{T}×{d}</code>; \(\mu,\sigma^2\): <code>{T}×1</code>; \(\gamma_1,\beta_1\): <code>1×{d}</code>`,
       R`Las estadísticas se calculan por fila: una media y una varianza por token (vectores \(T\times 1\)) que se difunden a lo ancho de la fila. \(\gamma_1\) y \(\beta_1\) (\(1\times d\)) se difunden a lo alto, a las \(T\) filas.`),
-    details: R`<p><b>Qué significan los números.</b> Tras normalizar, cada fila de \(\hat X\) tiene media 0 y varianza (casi) 1, sea cual sea la escala de la entrada. Con \(\gamma = 1\) y \(\beta = 0\) (sus valores iniciales) la salida es exactamente \(\hat X\); al entrenar, \(\gamma\) amplifica o atenúa cada característica y \(\beta\) la desplaza.</p>
+    details: R`<p><b>Qué significan los números.</b> Tras normalizar, cada fila de \(\hat X^{[l-1]}\) tiene media 0 y varianza (casi) 1, sea cual sea la escala de la entrada. Con \(\gamma = 1\) y \(\beta = 0\) (sus valores iniciales) la salida es exactamente \(\hat X^{[l-1]}\); al entrenar, \(\gamma\) amplifica o atenúa cada característica y \(\beta\) la desplaza.</p>
 <p><b>Por fila, no por columna.</b> A diferencia de BatchNorm, LayerNorm no mezcla tokens ni frases del lote: cada token se normaliza con sus propios \(d\) valores. Por eso funciona igual con una sola frase y durante la generación.</p>
 <p><b>El papel de \(\varepsilon\).</b> Vale \(10^{-5}\) y evita dividir por cero si una fila fuera constante (\(\sigma^2 = 0\)). Hace que la varianza de la salida sea \(\sigma^2/(\sigma^2+\varepsilon)\), un poquito menor que 1. La varianza usa \(1/d\) (versión sesgada), no \(1/(d-1)\).</p>
 <p><b>Pre-LN.</b> En este modelo (como en GPT-2) la normalización se aplica a la entrada de cada subcapa, no al flujo residual: \(X^{[l-1]}\) pasa intacto por el atajo y solo la rama de atención ve la versión normalizada \(H\). Esto hace el entrenamiento más estable en redes profundas.</p>`,
@@ -324,7 +324,7 @@ S_hat = S_tilde + M`,
       R`<code>{T}×{T}</code> → <code>{T}×{T}</code> (cabeza {hd})`,
       R`Se normaliza cada fila por separado. Cálculos auxiliares: el máximo de cada fila (\(T\times 1\)), las exponenciales (\(T\times T\)) y la suma de cada fila (\(T\times 1\)).`),
     details: R`<p><b>Qué significan los números.</b> \((A_h)_{ij}\) es la fracción de atención que el token \(i\) dedica al token \(j\). Cada fila suma 1 y las entradas enmascaradas valen exactamente 0. La primera fila siempre es \([1, 0, \dots, 0]\): el token <code>&lt;s&gt;</code> solo puede mirarse a sí mismo.</p>
-<p><b>Antes y después de entrenar.</b> Al principio los pesos vienen de proyecciones aleatorias: algunas filas ya pueden estar bastante concentradas, pero en tokens que no tienen que ver con la tarea, así que ese reparto todavía no significa nada (sería ≈ \(1/(i+1)\) por posición visible solo si las puntuaciones de la fila \(i\) fueran casi iguales). Tras entrenar, verás filas concentradas con sentido: la fila de «come» debería cargar su peso en «gato» o «perro», que es lo que decide entre «pescado» y «carne». Para verlo, entrena unas 200 iteraciones en «Entrenamiento» y vuelve con «Ver una iteración paso a paso».</p>
+<p><b>Antes y después de entrenar.</b> Al principio los pesos vienen de proyecciones aleatorias: algunas filas ya pueden estar bastante concentradas, pero en tokens que no tienen que ver con la tarea, así que ese reparto todavía no significa nada (sería ≈ \(1/(i+1)\) por posición visible solo si las puntuaciones de la fila \(i\) fueran casi iguales). Al entrenar suelen aparecer filas concentradas con sentido: en «el gato come pescado .», alguna cabeza puede aprender que la fila de «come» cargue su peso en «gato», que es lo que decide entre «pescado» y «carne». No siempre ocurre, ni en todas las frases ni en todas las cabezas: con \(d = {d}\) y {h} cabezas el modelo es diminuto y a menudo se apoya en el artículo («el», «la») o en <code>&lt;s&gt;</code>. Para comprobarlo, entrena unas 200 iteraciones (con el botón de la nota bajo la matriz, o en «Entrenamiento» y volviendo con «Ver una iteración paso a paso»).</p>
 <p><b>Estabilidad numérica.</b> Se resta el máximo de cada fila antes de exponenciar. El resultado no cambia (el factor \(e^{-\max}\) se cancela entre numerador y denominador), pero se evita que \(e^{s}\) se desborde.</p>
 <p><b>Error típico.</b> Normalizar por columnas en vez de por filas: entonces serían las claves, y no las consultas, las que repartirían su presupuesto.</p>`,
     code: `e = np.exp(S_hat - S_hat.max(1, keepdims=True))   # exp(-inf) = 0
@@ -391,7 +391,7 @@ A = e / e.sum(1, keepdims=True)                    # cada fila suma 1`,
     intuition: R`<p>La atención no sustituye la representación del token: le <b>añade</b> una corrección, como una nota al margen. Una buena imagen es el <b>flujo residual</b>: una pizarra compartida de \(d\) números por token que cada subcapa lee (a través de su LayerNorm) y en la que escribe sumando su resultado. Si una subcapa no tiene nada útil que aportar, basta con que su salida sea casi cero y el token sigue tal cual.</p>`,
     math: [
       R`R = X^{[l-1]} + O`,
-      R`\mathbf r_t = \mathbf x_t + \mathbf o_t\qquad (t = 1,\dots,T)`,
+      R`\mathbf r_t = \mathbf x_t + \mathbf o_t\qquad (t = 0,\dots,T-1)`,
     ],
     shapes: dims(R`(T\times d) + (T\times d)\to(T\times d)`,
       R`<code>{T}×{d}</code> + <code>{T}×{d}</code> → <code>{T}×{d}</code>`,
@@ -610,7 +610,7 @@ dlogits /= T                    # (T, V)`,
     details: R`<p><b>Derivación.</b> Como \(\mathrm{logits}_{tj} = \sum_k (H_f)_{tk}(W_{\text{out}})_{kj}\), la derivada respecto de un peso es \((H_f)_{tk}\), y ese peso interviene en todas las posiciones \(t\). Por la regla de la cadena:</p>
 \[(\mathrm dW_{\text{out}})_{kj} = \sum_t (\mathrm d\,\mathrm{logits})_{tj}\,(H_f)_{tk} = \big(H_f^{\top}\,\mathrm d\,\mathrm{logits}\big)_{kj}.\]
 <p><b>El truco de las formas.</b> El resultado debe tener la forma de \(W_{\text{out}}\) (\(d\times V\)). Con \(H_f\) (\(T\times d\)) y \(\mathrm d\,\mathrm{logits}\) (\(T\times V\)), la única combinación que da \(d\times V\) es \(H_f^{\top}\,\mathrm d\,\mathrm{logits}\): hay que contraer el eje \(T\).</p>
-<p><b>Suma de productos exteriores.</b> Si llamamos \(\boldsymbol\delta_t\) a la fila \(t\) de \(\mathrm d\,\mathrm{logits}\), entonces \(\mathrm dW_{\text{out}} = \sum_t \mathbf h_{f,t}^{\top}\boldsymbol\delta_t\): cada posición aporta una matriz de rango 1, y el total tiene rango como mucho \(T\). Por eso más posiciones (y lotes más grandes) dan gradientes más ricos.</p>`,
+<p><b>Suma de productos exteriores.</b> Si llamamos \(\mathbf{\delta}_t\) a la fila \(t\) de \(\mathrm d\,\mathrm{logits}\), entonces \(\mathrm dW_{\text{out}} = \sum_t \mathbf h_{f,t}^{\top}\mathbf{\delta}_t\): cada posición aporta una matriz de rango 1, y el total tiene rango como mucho \(T\). Por eso más posiciones (y lotes más grandes) dan gradientes más ricos.</p>`,
     code: `dWout = Hf.T @ dlogits          # (d, T) @ (T, V) -> (d, V)`,
   };
 
@@ -625,7 +625,7 @@ dlogits /= T                    # (T, V)`,
     shapes: dims(R`(T\times V)\cdot(V\times d)\to(T\times d)`,
       R`<code>{T}×{V}</code> · <code>{V}×{d}</code> → <code>{T}×{d}</code>`,
       R`Se contrae el vocabulario: el gradiente vuelve a tener la forma de \(H_f\).`),
-    details: R`<p><b>Derivación.</b> Fijemos una entrada \((H_f)_{tk}\). Influye en todos los logits de su fila, \(\mathrm{logits}_{tj}\) para \(j = 1,\dots,V\), con derivada \((W_{\text{out}})_{kj}\). Sumando las contribuciones:</p>
+    details: R`<p><b>Derivación.</b> Fijemos una entrada \((H_f)_{tk}\). Influye en todos los logits de su fila, \(\mathrm{logits}_{tj}\) para \(j = 0,\dots,V-1\), con derivada \((W_{\text{out}})_{kj}\). Sumando las contribuciones:</p>
 \[(\mathrm dH_f)_{tk} = \sum_j (\mathrm d\,\mathrm{logits})_{tj}\,(W_{\text{out}})_{kj} = \big(\mathrm d\,\mathrm{logits}\;W_{\text{out}}^{\top}\big)_{tk}.\]
 <p>Comprobación de formas: \((T\times V)(V\times d)\to T\times d\), la forma de \(H_f\).</p>
 <p><b>Sin mezcla entre posiciones.</b> La fila \(t\) de \(\mathrm dH_f\) solo depende de la fila \(t\) de \(\mathrm d\,\mathrm{logits}\): igual que en el forward, esta capa trata cada token por separado. El error de una posición solo llegará a otras al atravesar la atención.</p>
@@ -638,13 +638,13 @@ dlogits /= T                    # (T, V)`,
     summary: 'El gradiente atraviesa la LayerNorm final: se obtienen los gradientes de γ_f y β_f y el gradiente de la salida de la última capa.',
     intuition: R`<p>El gradiente llega a la LayerNorm final y tiene que repartirse entre sus parámetros y su entrada. Para \(\beta_f\) y \(\gamma_f\) es fácil: son un desplazamiento y una escala por columna. Para la entrada hay una sutileza: como cada fila se normaliza con su propia media y varianza, cambiar una entrada cambia también \(\mu\) y \(\sigma^2\). El resultado es que el gradiente pierde las componentes que solo moverían la media o la escala de la fila, porque LayerNorm las anularía de todas formas.</p>`,
     math: [
-      R`\mathrm d\beta_f = \textstyle\sum_{\text{filas}}\mathrm dH_f,\qquad \mathrm d\gamma_f = \sum_{\text{filas}}\mathrm dH_f\odot\hat X`,
-      R`\mathrm d\hat X = \mathrm dH_f\odot\gamma_f`,
-      R`\mathrm dX^{[N]} = r\odot\Big(\mathrm d\hat X - \overline{\mathrm d\hat X} - \hat X\odot\overline{\mathrm d\hat X\odot\hat X}\Big),\qquad r_t = \frac{1}{\sqrt{\sigma_t^2+\varepsilon}}`,
+      R`\mathrm d\beta_f = \textstyle\sum_{\text{filas}}\mathrm dH_f,\qquad \mathrm d\gamma_f = \sum_{\text{filas}}\mathrm dH_f\odot\hat X^{[N]}`,
+      R`\mathrm d\hat X^{[N]} = \mathrm dH_f\odot\gamma_f`,
+      R`\mathrm dX^{[N]} = r\odot\Big(\mathrm d\hat X^{[N]} - \overline{\mathrm d\hat X^{[N]}} - \hat X^{[N]}\odot\overline{\mathrm d\hat X^{[N]}\odot\hat X^{[N]}}\Big),\qquad r_t = \frac{1}{\sqrt{\sigma_t^2+\varepsilon}}`,
     ],
     shapes: dims(R`(T\times d)\to(T\times d),\ \ (1\times d),\ \ (1\times d)`,
       R`\(\mathrm dH_f\): <code>{T}×{d}</code> → \(\mathrm dX^{[N]}\): <code>{T}×{d}</code>; \(\mathrm d\gamma_f,\mathrm d\beta_f\): <code>1×{d}</code>`,
-      R`\(\hat X\) es \(X^{[N]}\) normalizada (guardada en el forward). La barra \(\overline{\,\cdot\,}\) es la media a lo largo de cada fila (sobre las \(d\) columnas); esas medias y \(r\) son vectores \(T\times 1\) que se difunden a lo ancho. Los gradientes de \(\gamma_f\) y \(\beta_f\) suman sobre las \(T\) filas porque esos parámetros se difundieron a todas ellas.`),
+      R`\(\hat X^{[N]}\) es \(X^{[N]}\) normalizada (guardada en el forward). La barra \(\overline{\,\cdot\,}\) es la media a lo largo de cada fila (sobre las \(d\) columnas); esas medias y \(r\) son vectores \(T\times 1\) que se difunden a lo ancho. Los gradientes de \(\gamma_f\) y \(\beta_f\) suman sobre las \(T\) filas porque esos parámetros se difundieron a todas ellas.`),
     details: R`<p><b>Parámetros.</b> Como \(y_{tj} = \gamma_j\hat x_{tj} + \beta_j\) y \(\gamma_j,\beta_j\) se usan en todas las filas: \(\mathrm d\beta_j = \sum_t \mathrm dy_{tj}\) y \(\mathrm d\gamma_j = \sum_t \mathrm dy_{tj}\,\hat x_{tj}\).</p>
 <p><b>Entrada (fila a fila).</b> Con \(r = 1/\sqrt{\sigma^2+\varepsilon}\) y \(\hat x_j = (x_j-\mu)\,r\), usando \(\partial\mu/\partial x_i = 1/d\) y \(\partial\sigma^2/\partial x_i = 2(x_i-\mu)/d\):</p>
 \[\frac{\partial\hat x_j}{\partial x_i} = r\Big(\delta_{ij} - \frac1d - \frac{\hat x_i\,\hat x_j}d\Big)\ \Longrightarrow\ \mathrm dx_i = r\Big(\mathrm d\hat x_i - \overline{\mathrm d\hat x} - \hat x_i\,\overline{\mathrm d\hat x\odot\hat x}\Big).\]
@@ -1196,14 +1196,14 @@ dS_hat = A * (dA - rowdot)                # (T, T)`,
     summary: 'dH atraviesa LN₁: se obtienen dγ₁, dβ₁ y la contribución de la rama de atención al gradiente de la entrada de la capa.',
     intuition: R`<p>Último tramo de la capa: el gradiente \(\mathrm dH\), que resume todo lo que la atención necesita que cambie en su entrada, atraviesa LN₁. Como en LN₂ y LN_f, se obtienen los gradientes de \(\gamma_1\) y \(\beta_1\) y un gradiente para la entrada sin las componentes que solo moverían la media o la escala de cada fila.</p>`,
     math: [
-      R`\mathrm d\beta_1 = \textstyle\sum_{\text{filas}}\mathrm dH,\qquad \mathrm d\gamma_1 = \sum_{\text{filas}}\mathrm dH\odot\hat X`,
-      R`\mathrm d\hat X = \mathrm dH\odot\gamma_1`,
-      R`\mathrm dX^{[l-1]}_{\text{LN}} = r\odot\Big(\mathrm d\hat X - \overline{\mathrm d\hat X} - \hat X\odot\overline{\mathrm d\hat X\odot\hat X}\Big)`,
+      R`\mathrm d\beta_1 = \textstyle\sum_{\text{filas}}\mathrm dH,\qquad \mathrm d\gamma_1 = \sum_{\text{filas}}\mathrm dH\odot\hat X^{[l-1]}`,
+      R`\mathrm d\hat X^{[l-1]} = \mathrm dH\odot\gamma_1`,
+      R`\mathrm dX^{[l-1]}_{\text{LN}} = r\odot\Big(\mathrm d\hat X^{[l-1]} - \overline{\mathrm d\hat X^{[l-1]}} - \hat X^{[l-1]}\odot\overline{\mathrm d\hat X^{[l-1]}\odot\hat X^{[l-1]}}\Big)`,
     ],
     shapes: dims(R`(T\times d)\to(T\times d),\ \ (1\times d),\ \ (1\times d)`,
       R`\(\mathrm dH\): <code>{T}×{d}</code> → \(\mathrm dX^{[l-1]}_{\text{LN}}\): <code>{T}×{d}</code>; \(\mathrm d\gamma_1,\mathrm d\beta_1\): <code>1×{d}</code>`,
-      R`\(\hat X\) es la entrada de la capa normalizada, guardada en el forward.`),
-    details: R`<p><b>Receta en tres líneas.</b> (1) Parámetros: \(\mathrm d\beta_1\) es la suma de las filas de \(\mathrm dH\), y \(\mathrm d\gamma_1\), la de las filas de \(\mathrm dH\odot\hat X\). (2) Atravesar la escala: \(\mathrm d\hat X = \mathrm dH\odot\gamma_1\). (3) Proyectar: restar a cada fila su media y (casi exactamente) su componente en la dirección de \(\hat{\mathbf x}_t\), y multiplicar por \(r_t\).</p>
+      R`\(\hat X^{[l-1]}\) es la entrada de la capa, \(X^{[l-1]}\), normalizada (guardada en el forward): la entrada con gorro, como en la cabecera del paso.`),
+    details: R`<p><b>Receta en tres líneas.</b> (1) Parámetros: \(\mathrm d\beta_1\) es la suma de las filas de \(\mathrm dH\), y \(\mathrm d\gamma_1\), la de las filas de \(\mathrm dH\odot\hat X^{[l-1]}\). (2) Atravesar la escala: \(\mathrm d\hat X^{[l-1]} = \mathrm dH\odot\gamma_1\). (3) Proyectar: restar a cada fila su media y (casi exactamente) su componente en la dirección de \(\hat{\mathbf x}_t\), y multiplicar por \(r_t\).</p>
 <p><b>Interpretar \(\mathrm d\gamma_1\).</b> Una componente negativa de \(\mathrm d\gamma_1\) indica que amplificar esa característica antes de la atención reduciría la pérdida: el modelo querría que pesara más a la hora de formar \(Q\), \(K\) y \(V\).</p>
 <p><b>Qué contiene \(\mathrm dX^{[l-1]}_{\text{LN}}\).</b> Toda la influencia de la subcapa de atención sobre la entrada de la capa, a través de sus tres papeles. En el paso siguiente se sumará al gradiente del atajo.</p>`,
     code: `dxhat = dH * gamma1; dgamma1 = (dH * Xhat).sum(0); dbeta1 = dH.sum(0)
@@ -1304,13 +1304,14 @@ grads = {k: c * g for k, g in grads.items()}`,
       R`cada parámetro conserva su forma; por ejemplo, \(W_Q\): <code>{d}×{d}</code>, \(E\): <code>{V}×{d}</code>, \(W_1\): <code>{d}×{dff}</code>`,
       R`Todas las operaciones son elemento a elemento: cada número del parámetro tiene su propio \(m\), su propio \(v\) y, con Adam, su propio tamaño de paso efectivo.`),
     details: R`<p><b>SGD.</b> \(\theta\leftarrow\theta-\eta\,\mathrm d\theta\) con \(\eta = {lr}\): el paso es proporcional al gradiente. Es simple, pero muy sensible a la escala: los parámetros con gradientes pequeños apenas se mueven.</p>
-<p><b>Adam, término a término.</b> \(m\) es una media móvil del gradiente (el <em>momento</em>): suaviza el ruido y acumula velocidad en direcciones consistentes; con \(\beta_{\text m} = 0.9\) recuerda unas 10 iteraciones. \(v\) es una media móvil del gradiente al cuadrado y estima su magnitud típica; con \(\beta_{\text v} = 0.999\), unas 1000 iteraciones. Como \(m\) y \(v\) empiezan en 0, al principio están sesgados hacia 0; dividir por \(1-\beta^t\) (\(t\) = número de actualizaciones) corrige ese sesgo. El cociente \(\hat m/(\sqrt{\hat v}+\epsilon)\) no tiene unidades: en la primera iteración vale casi exactamente \(\pm 1\), así que cada número se mueve ≈ \(\eta\), sea cual sea el tamaño de su gradiente (salvo los que tienen gradiente exactamente 0, como las filas de \(E\) de tokens que no están en la entrada, que no se mueven). \(\epsilon\) (por defecto \(10^{-8}\)) evita dividir por 0.</p>
-<p><b>Con recorte.</b> Si en el paso anterior se recortó el gradiente, aquí \(\mathrm d\theta\) es ya el gradiente reescalado, \(c\,\mathrm d\theta\).</p>
+<p><b>Adam, término a término.</b> \(m\) es una media móvil del gradiente (el <em>momento</em>): suaviza el ruido y acumula velocidad en direcciones consistentes; con \(\beta_{\text m} = 0.9\) recuerda unas 10 iteraciones. \(v\) es una media móvil del gradiente al cuadrado y estima su magnitud típica; con \(\beta_{\text v} = 0.999\), unas 1000 iteraciones. Como \(m\) y \(v\) empiezan en 0, al principio están sesgados hacia 0; dividir por \(1-\beta_{\text m}^{\,t}\) y por \(1-\beta_{\text v}^{\,t}\) (\(t\) = número de actualizaciones) corrige ese sesgo. El cociente \(\hat m/(\sqrt{\hat v}+\epsilon)\) no tiene unidades: en la primera iteración vale casi exactamente \(\pm 1\), así que cada número se mueve ≈ \(\eta\), sea cual sea el tamaño de su gradiente (salvo los que tienen gradiente exactamente 0, como las filas de \(E\) de tokens que no están en la entrada, que no se mueven). \(\epsilon\) (por defecto \(10^{-8}\)) evita dividir por 0.</p>
+<p><b>Con recorte.</b> Si en el paso de la norma global se recortó el gradiente, en todas estas fórmulas \(\mathrm d\theta\) se sustituye por el gradiente reescalado \(c\,\mathrm d\theta\) (así aparece en la cabecera del paso y en el inspector). La letra \(g\) queda para el vector con <em>todos</em> los gradientes sin recortar, el de \(\|g\|\).</p>
 <p><b>No confundir.</b> Los coeficientes de Adam (\(\beta_{\text m} = 0.9\), \(\beta_{\text v} = 0.999\), que muchos textos llaman \(\beta_1\) y \(\beta_2\)) son hiperparámetros fijos; los \(\beta_1\), \(\beta_2\) y \(\beta_f\) de este modelo son los desplazamientos de las LayerNorm, parámetros que se entrenan (y se actualizan en esta misma fase).</p>
 <p><b>Qué observar.</b> \(\Delta\theta = \theta_{\text{nuevo}}-\theta\) suele ser diminuto. Tras actualizar todos los parámetros, la siguiente iteración verá (normalmente) una pérdida algo menor.</p>`,
-    code: `m = b1 * m + (1 - b1) * g;   v = b2 * v + (1 - b2) * g ** 2
-mhat = m / (1 - b1 ** t);    vhat = v / (1 - b2 ** t)
-theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
+    code: `# dtheta: el gradiente del parámetro (ya multiplicado por c si hubo recorte)
+m = beta_m * m + (1 - beta_m) * dtheta;   v = beta_v * v + (1 - beta_v) * dtheta ** 2
+mhat = m / (1 - beta_m ** t);    vhat = v / (1 - beta_v ** t)
+theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * dtheta`,
   };
 
   // Derivaciones relacionadas con cada paso (ids de «derivations»); campo opcional para la UI.
@@ -1591,7 +1592,7 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
     { term: 'Forward', def: 'Propagación hacia delante: el cálculo de la salida (y de la pérdida) a partir de la entrada.' },
     { term: 'Backward', def: 'Propagación hacia atrás: el cálculo de los gradientes, desde la pérdida hasta cada parámetro.' },
     { term: 'Descenso por gradiente', def: 'Método de optimización que mueve los parámetros un pequeño paso en la dirección contraria al gradiente.' },
-    { term: 'SGD', def: 'Descenso por gradiente estocástico: θ ← θ − η·g, usando el gradiente de un minilote en lugar del de todos los datos.' },
+    { term: 'SGD', def: 'Descenso por gradiente estocástico: θ ← θ − η·dθ, usando el gradiente de un minilote en lugar del de todos los datos.' },
     { term: 'Adam', def: 'Optimizador que combina momento (media de los gradientes recientes) con un paso normalizado por la magnitud típica del gradiente de cada número.' },
     { term: 'Tasa de aprendizaje (η)', def: 'Tamaño del paso de optimización. Si es demasiado grande, la pérdida oscila o diverge; si es demasiado pequeña, se aprende muy despacio.' },
     { term: 'Lote (minilote)', def: 'Grupo de B frases que se procesan juntas en una iteración; sus gradientes se promedian. En «Paso a paso» B = 1; en los frameworks, las activaciones tienen un eje más: (B × T × d).' },

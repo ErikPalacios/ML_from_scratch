@@ -332,8 +332,15 @@
     const changed = S.tab !== id;
     if (!changed && !o.force) return S.tab;
     // al salir de «Entrenamiento» se pausa sin refrescar un panel que se va a ocultar
-    if (changed && S.tab === 'entrenamiento') stopTraining({ noRefresh: true });
-    if (id !== 'paso') stopPlay();
+    if (changed && S.tab === 'entrenamiento') {
+      stopTraining({ noRefresh: true });
+      if (bgJob && bgJob.kind === 'train') bgJob.cancel();
+    }
+    if (id !== 'paso') {
+      stopPlay();
+      // «Entrenar 200 iteraciones y volver» es de «Paso a paso»: al salir se cancela (lo entrenado se conserva)
+      if (bgJob && bgJob.kind === 'return') bgJob.cancel();
+    }
     S.tab = id;
     for (const t of TABS) {
       const tab = $('tab-' + t), panel = $('panel-' + t);
@@ -400,6 +407,7 @@
   function startSession(config) {
     stopTraining({ noRefresh: true });
     stopPlay();
+    if (bgJob) bgJob.cancel();
     const s = TL.Trainer.createSession({ corpus: config.corpus, tokMode: config.tokMode, cfg: config.cfg, optim: config.hp, batchSize: config.batchSize });
     S.s = s;
     S.config = {
@@ -432,6 +440,16 @@
   // ───────────────────────────────────────────────────────────── PASO A PASO
   function traceNew(sentIdx, keepIdx) {
     const s = S.s;
+    if (bgJob && bgJob.kind === 'return') bgJob.cancel();
+    // tras una divergencia no se traza (ni se actualiza) nada más: los parámetros ya no son finitos
+    // y cada iteración nueva solo propagaría NaN. El aviso de «Paso a paso» lo explica.
+    if (s.diverged && S.trace) {
+      $('sent-select').value = String(S.trace.sentenceIndex);
+      updateStale();
+      if (!$('stale-note').hidden) bringIntoBand($('stale-note'), { smooth: true });
+      srSay('El entrenamiento divergió: no se recorren más iteraciones hasta reiniciar los pesos.');
+      return { iter: S.trace.iter, loss: S.trace.loss, sentenceIndex: S.trace.sentenceIndex, steps: S.trace.steps.length, diverged: true };
+    }
     const n = s.tok.sentences.length;
     sentIdx = ((sentIdx | 0) % n + n) % n;
     const r = TL.Trainer.traceIteration(s, sentIdx);
@@ -467,6 +485,8 @@
     const steps = S.trace.steps;
     i = clamp(i | 0, 0, steps.length - 1);
     if (i === S.idx && !(o && o.force)) return stepSummary(i);
+    // ir a otro paso cancela «Entrenar 200 iteraciones y volver» (lo ya entrenado se conserva)
+    if (bgJob && bgJob.kind === 'return' && i !== bgJob.idx) bgJob.cancel();
     const t0 = now();
     const prev = S.idx;
     S.idx = i;
@@ -498,6 +518,42 @@
         el.textContent = 'Paso ' + (i + 1) + ' de ' + S.trace.steps.length + ': ' + st.title + '. Dimensiones: ' + texPlain(st.dims) + '.';
       }
     }, 300);
+  }
+
+  // mensaje para lectores de pantalla (sustituye al anuncio del paso que estuviera pendiente)
+  function srSay(txt) {
+    clearTimeout(srTimer);
+    srTimer = setTimeout(() => { const el = $('sr-step'); if (el) el.textContent = txt; }, 320);
+  }
+  function reducedMotion() {
+    try { return root.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  }
+  // desplaza la página lo justo para que el elemento quede en la franja visible (sin cabecera, línea de
+  // tiempo ni inspector fijos). o.top: si hay que moverse, su borde superior va arriba de la franja;
+  // o.smooth: desplazamiento suave (salvo movimiento reducido); o.focus: además recibe el foco
+  function bringIntoBand(el, o) {
+    o = o || {};
+    if (!el || !el.isConnected) return;
+    const band = visibleBand(), r = el.getBoundingClientRect(), pad = 8;
+    let dy = 0;
+    const inside = r.top >= band.top && r.bottom <= band.bottom;
+    if (!inside) {
+      if (o.top || r.height + 2 * pad > band.bottom - band.top || r.top < band.top) dy = r.top - band.top - pad;
+      else dy = r.bottom - band.bottom + pad;
+    }
+    if (Math.abs(dy) >= 2) {
+      try { root.scrollBy({ top: dy, behavior: o.smooth && !reducedMotion() ? 'smooth' : 'auto' }); } catch (e) { root.scrollBy(0, dy); }
+    }
+    if (o.focus) {
+      if (!el.hasAttribute('tabindex') && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) el.setAttribute('tabindex', '-1');
+      try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    }
+  }
+  // tras cambiar de paso desde dentro del escenario (el botón pulsado desaparece con la vista), el foco
+  // pasa al título del paso nuevo; así el teclado y el lector de pantalla siguen en su sitio
+  function focusStepTitle() {
+    bringIntoBand($('step-head'), { top: true });
+    bringIntoBand($('step-title'), { focus: true });
   }
 
   // --- cabecera del paso
@@ -548,7 +604,8 @@
     b.classList.add('is-empty');
     b.innerHTML = '<p class="insp-empty">Pasa el cursor por cualquier celda de las matrices (o tócala; con el teclado, <span class="kbd">Tab</span> y las flechas). Aquí aparecerá la <b>cuenta exacta</b> que produce ese número, término a término, y en las demás matrices se resaltarán las celdas que intervienen.</p>';
     $('inspector').classList.add('is-empty');
-    $('insp-min').hidden = true;
+    // minimizado, «Mostrar» sigue a mano (si no, la hoja quedaría en una barra sin control)
+    $('insp-min').hidden = !$('inspector').classList.contains('is-collapsed');
     measureInsp();
   }
   // el HTML llega en cada movimiento del cursor: se aplica como mucho una vez por fotograma
@@ -589,7 +646,8 @@
     if (!mqWide.matches) {
       const ins = $('inspector');
       let hgt = ins.getBoundingClientRect().height;
-      if (ins.classList.contains('is-empty') && !ins.classList.contains('is-collapsed')) {
+      // (durante la reproducción la animación no abre el inspector: no hace falta reservar su altura)
+      if (ins.classList.contains('is-empty') && !ins.classList.contains('is-collapsed') && !(S.playing && S.playAnim)) {
         const mh = parseFloat(getComputedStyle($('inspector-body')).maxHeight);
         hgt += (Number.isFinite(mh) ? mh : root.innerHeight * 0.3) + 20;
       }
@@ -597,33 +655,55 @@
     }
     return { top, bottom };
   }
-  // resumen del último paso: pérdida de la misma frase con los pesos recién actualizados
+  // resumen del último paso: pérdida de la misma frase con los pesos recién actualizados y cuántos
+  // números cambiaron de verdad (con gradiente 0 —y, con Adam, sin momento— un número no se mueve)
   function recapFor(i) {
     const t = S.trace, s = S.s;
     if (!t || i !== t.steps.length - 1) return null;
     const sen = s.tok.sentences[t.sentenceIndex];
-    const fresh = t.iter === s.iter && !s.diverged;
+    const fresh = t.iter === s.iter;
+    let changed = 0;
+    for (const st of t.steps) {
+      if (st.kind !== 'update' || !st.aux || !st.aux.delta) continue;
+      const dd = st.aux.delta.d;
+      for (let k = 0; k < dd.length; k++) if (dd[k] !== 0) changed++;
+    }
     return {
-      iter: t.iter, before: t.loss, after: fresh ? TL.Model.loss(s.model, sen.inputIds, sen.targetIds) : null,
-      nParams: TL.Model.countParams(s.model).total,
-      onNew: () => { stopPlay(); traceNew(t.sentenceIndex, 0); try { root.scrollTo(0, 0); } catch (e) { /* nada */ } },
+      iter: t.iter, before: t.loss, after: fresh && !s.diverged ? TL.Model.loss(s.model, sen.inputIds, sen.targetIds) : null,
+      stale: !fresh, diverged: !!s.diverged,
+      nParams: TL.Model.countParams(s.model).total, nChanged: changed, optimizer: t.opt, relu: s.cfg.activation === 'relu',
+      onNew: s.diverged ? null : () => {
+        stopPlay();
+        traceNew(t.sentenceIndex, 0);
+        try { root.scrollTo(0, 0); } catch (e) { /* nada */ }
+        focusStepTitle();
+      },
     };
+  }
+  // último paso: tras animarlo (con «Animar» o en la reproducción) la página está en la salida; se
+  // vuelve al resumen de la iteración, que va arriba de la vista. focusBtn: el foco pasa a «Nueva iteración».
+  function showRecap(focusBtn) {
+    const box = $('stage').querySelector('.ov-recap');
+    if (!box) return;
+    bringIntoBand(box, { top: true, smooth: true });
+    if (focusBtn) {
+      const b = box.querySelector('button');
+      if (b) { try { b.focus({ preventScroll: true }); } catch (e) { b.focus(); } }
+    }
   }
   function makeCtx(st) {
     return {
       cfg: S.s.cfg, tok: S.s.tok, model: S.s.model, content: TL.Content,
-      showValues: VALUES_CTX[S.showValues], onInspect: inspect,
+      showValues: VALUES_CTX[S.showValues],
+      // durante la reproducción, sin columna derecha (< 1200 px), la animación no abre el inspector fijo
+      // al pie: taparía justo la matriz que se está rellenando (el cursor o un toque sí lo abren)
+      onInspect: (html, o) => { if (o && o.anim && S.playing && S.playAnim && !mqWide.matches) return; inspect(html); },
       animateSpeed: Math.round(160 / S.speed),
       values: placeholderValues(st), stepIndex: S.idx, steps: S.trace.steps, iter: S.trace.iter,
       targetTokens: S.s.tok.sentences[S.trace.sentenceIndex].targetTokens.map(S.s.tok.display),
       viewport: visibleBand,
-      goTo: (k) => { stopPlay(); goTo(k); },
-      onTrainAndReturn: (n) => {
-        stopPlay();
-        const i = S.idx;
-        trainN(n);
-        traceNew(S.trace.sentenceIndex, i);
-      },
+      goTo: (k) => { stopPlay(); goTo(k); focusStepTitle(); },
+      onTrainAndReturn: (n) => trainAndReturn(n),
       recap: recapFor(S.idx),
     };
   }
@@ -646,6 +726,7 @@
       stage.textContent = '';
       stage.append(h('p', { class: 'callout', 'data-phase': 'backward', text: 'No se pudo dibujar este paso (' + e.message + ').' }));
     }
+    if (bgJob && bgJob.kind === 'return') syncReturnBtn();
     // gradnorm no tiene animación (su vista no es una ecuación de matrices)
     const canAnim = !!(S.view && st.kind !== 'gradnorm');
     S.canAnim = canAnim;
@@ -666,6 +747,7 @@
       if (tok !== S.animToken) return;
       btn.disabled = !S.canAnim;
       $('btn-animate-label').textContent = 'Animar';
+      if (S.trace && S.idx === S.trace.steps.length - 1) showRecap(false);
     });
   }
   function animateStep() { stopPlay(); runAnim(); }
@@ -847,20 +929,35 @@
     $('tl-speed').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-speed]');
       if (!b) return;
+      const faster = +b.dataset.speed > S.speed;
       S.speed = +b.dataset.speed;
       for (const x of $('tl-speed').querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+      // durante la reproducción el cambio se nota ya: la pausa de lectura en curso se ajusta al nuevo
+      // ritmo y, al acelerar, la animación en curso se completa de golpe (el paso siguiente ya va más rápido)
+      if (S.playing) {
+        if (faster && S.playAnim && S.view && typeof S.view.stop === 'function') S.view.stop();
+        playRetime();
+      }
     });
   }
 
   // --- reproducción automática: una «película» de la iteración. Cada paso se anima (como «Animar»,
   // con la duración acotada y la página desplazada hasta el resultado) y luego se deja un momento
   // para leerlo. «Pausa», las flechas o cualquier salto la detienen.
-  let playTok = 0, playWake = null;
+  let playTok = 0, playWake = null, playTimer = null;
   function playSleep(ms) {
     return new Promise((res) => {
-      const t = setTimeout(() => { playWake = null; res(); }, ms);
-      playWake = () => { clearTimeout(t); playWake = null; res(); };
+      const done = () => { if (playTimer) clearTimeout(playTimer.id); playTimer = null; playWake = null; res(); };
+      playTimer = { t0: now(), id: setTimeout(done, ms), done };
+      playWake = done;
     });
+  }
+  // la velocidad cambió durante la pausa de lectura: lo que queda de ella se ajusta al nuevo ritmo
+  function playRetime() {
+    if (!playTimer) return;
+    const left = Math.max(0, PLAY_BASE_MS / S.speed - (now() - playTimer.t0));
+    clearTimeout(playTimer.id);
+    playTimer.id = setTimeout(playTimer.done, left);
   }
   function togglePlay() { if (S.playing) stopPlay(); else startPlay(); }
   function startPlay() {
@@ -890,7 +987,8 @@
     let first = true; // el paso actual también se anima antes de avanzar
     while (S.playing && tok === playTok) {
       if (!first) {
-        if (S.idx >= S.trace.steps.length - 1) { stopPlay(); return; }
+        // fin de la película: el resumen de la iteración queda a la vista y con el foco en «Nueva iteración»
+        if (S.idx >= S.trace.steps.length - 1) { stopPlay(); showRecap(true); return; }
         next();
       }
       first = false;
@@ -988,6 +1086,8 @@
     S.explKey = key;
     if (host.firstChild !== el) { host.textContent = ''; host.appendChild(el); }
     if (!el._typeset) { el._typeset = true; Tex.typeset(el).then(() => refitFormulas(el)); }
+    // (una explicación guardada en caché puede tener fórmulas provisionales de MathJax: se componen ya)
+    else if (TL.MathTex.upgrade) TL.MathTex.upgrade(el);
     if (changedTpl) {
       for (const col of [$('expl-col'), $('side-expl')]) {
         if (col.scrollHeight > col.clientHeight + 4 && getComputedStyle(col).overflowY !== 'visible') col.scrollTop = 0;
@@ -1140,8 +1240,21 @@
       symIdx = clamp(k, 0, symItems.length - 1);
       symItems.forEach((it, j) => it.classList.toggle('is-focus', j === symIdx));
       strip.setAttribute('aria-activedescendant', symItems[symIdx].id);
+      // con la tira en una fila con desplazamiento (1200–1599 px), el símbolo activo no queda cortado
+      if (strip.scrollWidth > strip.clientWidth + 1) {
+        const it = symItems[symIdx], a = it.getBoundingClientRect(), b = strip.getBoundingClientRect();
+        if (a.left < b.left) strip.scrollLeft -= b.left - a.left + 4;
+        else if (a.right > b.right) strip.scrollLeft += a.right - b.right + 4;
+      }
       if (show) symItems[symIdx]._show(null);
     };
+    // un clic o un toque en un símbolo enfoca la tira: se muestra ESE símbolo (no el último activo)
+    strip.addEventListener('pointerdown', (e) => {
+      const k = symItems.indexOf(e.target.closest ? e.target.closest('.sym') : null);
+      if (k < 0) return;
+      symIdx = k;
+      if (doc.activeElement === strip) pick(k, true);
+    });
     strip.addEventListener('focus', () => pick(symIdx, true));
     strip.addEventListener('blur', () => { for (const it of symItems) it.classList.remove('is-focus'); hideTip(); });
     strip.addEventListener('keydown', (e) => {
@@ -1184,7 +1297,7 @@
       cls = d <= 0 ? 'is-down' : 'is-up';
     }
     el.innerHTML = '';
-    el.append(h('span', { class: 'iterbar__lk', html: '<i class="lsym">L</i> it. ' + t.iter + ' = ' }), h('b', { text: fmt(t.loss, 3) }), h('span', { class: 'iterbar__delta ' + cls, text: delta }));
+    el.append(h('span', { class: 'iterbar__lk', html: '<i class="lsym">L</i> it. ' + t.iter + ' = ' }), h('b', { text: fmtLoss(t.loss, 3) }), h('span', { class: 'iterbar__delta ' + cls, text: delta }));
     el.title = 'Pérdida de la frase recorrida en la iteración ' + t.iter + (delta ? '; entre paréntesis, el cambio respecto a la iteración anterior con la misma frase' : '');
   }
   function cssVar(name) {
@@ -1223,8 +1336,9 @@
     g.fillStyle = cssVar('--fwd');
     g.beginPath(); g.arc(X(pts.length - 1), Y(pts[pts.length - 1]), 2.4, 0, Math.PI * 2); g.fill();
   }
-  // pérdida con NaN visible (una divergencia no debe parecer un número normal)
-  const fmtLoss = (v, n) => (Number.isNaN(v) ? 'NaN' : fmt(v, n));
+  // pérdida con NaN visible (una divergencia no debe parecer un número normal); una pérdida enorme
+  // pero finita (pasos demasiado grandes) en notación científica, no «1e+306»
+  const fmtLoss = (v, n) => (Number.isNaN(v) ? 'NaN' : Math.abs(v) >= 1e6 ? sci(v, 2) : fmt(v, n));
   function updateHeaderStats() {
     const s = S.s;
     $('hd-iter').textContent = fmtInt(s.iter);
@@ -1237,13 +1351,20 @@
     if (!S.trace || !S.s) { note.hidden = true; return; }
     const diff = S.s.iter - S.trace.iter;
     const optChanged = S.trace.lr != null && (S.trace.lr !== S.s.opt.lr || S.trace.opt !== S.s.opt.type);
-    if (diff <= 0 && !optChanged) { note.hidden = true; return; }
+    const div = !!S.s.diverged;
+    const rb = $('stale-retrace');
+    rb.textContent = div ? 'Ir a «Entrenamiento»' : 'Recorrer una iteración nueva con los pesos actuales';
+    if (diff <= 0 && !optChanged && !div) { note.hidden = true; return; }
     let txt = '';
-    if (diff > 0) {
+    if (div) {
+      txt = (diff > 0 ? 'Estás viendo la traza de la iteración ' + S.trace.iter + '. ' : '') +
+        'El entrenamiento divergió en la iteración ' + fmtInt(S.s.iter) + ' (la pérdida o el gradiente dejaron de ser finitos): ya no se recorren ni se actualizan más iteraciones. ' +
+        'Baja η o activa el recorte del gradiente y pulsa «Reiniciar pesos» en «Entrenamiento».';
+    } else if (diff > 0) {
       txt = 'Estás viendo la traza de la iteración ' + S.trace.iter + '; desde entonces el modelo ha entrenado ' +
         fmtInt(diff) + (diff > 1 ? ' iteraciones' : ' iteración') + ' más (va por la ' + fmtInt(S.s.iter) + ').';
     }
-    if (optChanged) {
+    if (optChanged && !div) {
       txt += (txt ? ' ' : '') + 'Esta traza usó ' + OPT_NAME[S.trace.opt] + ' con η = ' + (+S.trace.lr.toPrecision(6)) + '; el optimizador ahora usa ' +
         OPT_NAME[S.s.opt.type] + ' con η = ' + (+S.s.opt.lr.toPrecision(6)) + '.';
     }
@@ -1253,7 +1374,11 @@
   function initIterbar() {
     $('sent-select').addEventListener('change', (e) => { stopPlay(); traceNew(+e.target.value, S.idx); });
     $('btn-newiter').addEventListener('click', () => { stopPlay(); traceNew(S.trace.sentenceIndex, S.idx); });
-    $('stale-retrace').addEventListener('click', () => { stopPlay(); traceNew(S.trace.sentenceIndex, S.idx); });
+    $('stale-retrace').addEventListener('click', () => {
+      stopPlay();
+      if (S.s.diverged) setTab('entrenamiento');
+      else traceNew(S.trace.sentenceIndex, S.idx);
+    });
     syncValuesBtn();
     $('btn-values').addEventListener('click', () => {
       S.showValues = VALUES_ORDER[(VALUES_ORDER.indexOf(S.showValues) + 1) % VALUES_ORDER.length];
@@ -1493,6 +1618,8 @@
     S.datosDirty = true;
     explCache = new Map();
     S.explKey = null;
+    // la descripción de B en la tira de símbolos cita el minilote de «Entrenamiento»
+    if (patch && patch.batchSize !== undefined) renderSymstrip();
     updateStale();
     return true;
   }
@@ -1503,7 +1630,9 @@
   }
   function initTraining() {
     $('tr-run').addEventListener('click', () => (S.training ? stopTraining() : startTraining()));
-    for (const b of doc.querySelectorAll('[data-train]')) b.addEventListener('click', () => { stopTraining(); trainN(+b.dataset.train); });
+    // +1 / +10 / +100: a trozos (la página sigue respondiendo); el botón muestra el progreso y un
+    // segundo clic cancela
+    for (const b of doc.querySelectorAll('[data-train]')) b.addEventListener('click', () => trainButton(b));
     $('tr-speed').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-speed]');
       if (!b) return;
@@ -1528,6 +1657,19 @@
     $('tr-batch').addEventListener('change', (e) => {
       const v = Number(e.target.value);
       if (!Number.isInteger(v) || v < 1 || v > 64) { $('tr-hp-err').textContent = 'El minilote B debe ser un entero entre 1 y 64.'; return; }
+      // el mismo límite de coste que en «Datos y modelo»: una iteración no se puede partir entre
+      // fotogramas, así que con un minilote demasiado grande cada fotograma congelaría la página
+      const c = S.s.cfg;
+      const est = (B) => estimateIterMs({ d: c.dModel, h: c.nHeads, N: c.nLayers, dFF: c.dFF, B, V: S.s.tok.vocab.length, sentences: S.s.tok.sentences });
+      const ms = est(v);
+      if (ms > MAX_ITER_MS) {
+        let bMax = v;
+        while (bMax > 1 && est(bMax) > MAX_ITER_MS) bMax--;
+        $('tr-hp-err').textContent = 'Con B = ' + v + ' este modelo es demasiado pesado para el navegador (≈ ' + fmtInt(ms) + ' ms por iteración; el límite es ' +
+          MAX_ITER_MS + ' ms). Con este modelo, B puede llegar a ' + bMax + '.';
+        e.target.value = String(S.s.batchSize);
+        return;
+      }
       setHyper({ batchSize: v });
     });
     $('tr-opt').addEventListener('click', (e) => {
@@ -1543,6 +1685,7 @@
   }
   function startTraining() {
     if (S.training) return;
+    if (bgJob) bgJob.cancel();
     if (S.s.diverged) { showDiverged(); return; }
     S.training = true;
     $('tr-run').setAttribute('aria-pressed', 'true');
@@ -1598,10 +1741,11 @@
       itsWindow.push([ts, n]);
       while (itsWindow.length > 1 && ts - itsWindow[0][0] > 1000) itsWindow.shift();
       if (S.s.diverged) { stopTraining(); showDiverged(); return; }
-      refreshTraining(false, ts);
+      refreshTraining(false);
     }
     trainRaf = requestAnimationFrame(trainLoop);
   }
+  // síncrono (API de automatización y +1): n iteraciones de golpe
   function trainN(n) {
     if (!S.s.diverged) TL.Trainer.trainSteps(S.s, n);
     refreshTraining(true);
@@ -1610,6 +1754,122 @@
     drawSpark();
     const last = S.s.history[S.s.history.length - 1];
     return { iter: S.s.iter, loss: last ? last.loss : NaN };
+  }
+  // n iteraciones a trozos de ≈ 10 ms por fotograma (al menos una: una iteración no se puede partir):
+  // la página sigue respondiendo, se puede mostrar el progreso y cancelar. Solo hay un trabajo a la vez.
+  // o: { kind: 'train' | 'return', onProgress(done, n) }. Devuelve el trabajo:
+  // { n, done, kind, promise → { done, n, cancelled, diverged }, cancel() }
+  let bgJob = null;
+  function trainChunked(n, o) {
+    o = o || {};
+    if (bgJob) bgJob.cancel();
+    const s = S.s;
+    const job = { n, done: 0, kind: o.kind || 'train', cancelled: false, over: false };
+    let raf = 0, resolve = null;
+    job.promise = new Promise((r) => { resolve = r; });
+    const finish = () => {
+      job.over = true;
+      if (bgJob === job) bgJob = null;
+      cancelAnimationFrame(raf);
+      resolve({ done: job.done, n, cancelled: job.cancelled, diverged: !!s.diverged });
+    };
+    job.cancel = () => { if (job.over) return; job.cancelled = true; finish(); };
+    const frame = () => {
+      raf = 0;
+      if (job.over) return;
+      if (S.s !== s) { job.cancelled = true; finish(); return; } // la sesión cambió (Aplicar, Reiniciar)
+      const t0 = now();
+      while (job.done < n && !s.diverged) {
+        TL.Trainer.trainSteps(s, 1);
+        job.done++;
+        if (now() - t0 > 10) break;
+      }
+      if (o.onProgress) o.onProgress(job.done, n);
+      if (job.done >= n || s.diverged) { finish(); return; }
+      raf = requestAnimationFrame(frame);
+    };
+    bgJob = job;
+    raf = requestAnimationFrame(frame);
+    return job;
+  }
+  function trainButton(b) {
+    const n = +b.dataset.train;
+    if (bgJob && bgJob.btn === b) { bgJob.cancel(); return; }
+    stopTraining();
+    if (bgJob) bgJob.cancel();
+    if (S.s.diverged) { showDiverged(); return; }
+    if (!(n > 1)) { trainN(n); return; }
+    const label = b.textContent;
+    itsWindow = [];
+    let prevK = 0;
+    const job = trainChunked(n, { kind: 'train', onProgress: (k) => {
+      // velocidad (it/s) también mientras avanza a trozos
+      const t = now();
+      itsWindow.push([t, k - prevK]);
+      prevK = k;
+      while (itsWindow.length > 1 && t - itsWindow[0][0] > 1000) itsWindow.shift();
+      b.textContent = k + '/' + n;
+      refreshTraining(false);
+    } });
+    job.btn = b;
+    b.classList.add('is-running');
+    b.setAttribute('aria-busy', 'true');
+    b.title = 'Entrenando ' + n + ' iteraciones: pulsa de nuevo para cancelar';
+    job.promise.then((r) => {
+      b.textContent = label;
+      b.classList.remove('is-running');
+      b.removeAttribute('aria-busy');
+      b.removeAttribute('title');
+      if (S.tab === 'entrenamiento') refreshTraining(true);
+      showDiverged();
+      updateStale();
+      drawSpark();
+      if (r.cancelled && r.done < n) $('tr-hp-err').textContent = 'Cancelado tras ' + r.done + ' de ' + n + ' iteraciones.';
+    });
+  }
+  // «Entrenar 200 iteraciones y volver a este paso» (nota de la atención): a trozos, con el progreso en
+  // el propio botón (un segundo clic cancela; ir a otro paso, también). Al terminar se recorre una
+  // iteración nueva y se vuelve a este paso, con la nota (ya con los pesos entrenados) a la vista.
+  function returnBtn() { return $('stage').querySelector('[data-train-return]'); }
+  function syncReturnBtn() {
+    const b = returnBtn();
+    if (!b) return;
+    if (!b.dataset.label) b.dataset.label = b.textContent;
+    const j = bgJob && bgJob.kind === 'return' ? bgJob : null;
+    if (j) {
+      b.textContent = 'Entrenando… ' + j.done + ' / ' + j.n + ' · pulsa para cancelar';
+      b.setAttribute('aria-busy', 'true');
+      b.classList.add('is-running');
+    } else {
+      b.textContent = b.dataset.label;
+      b.removeAttribute('aria-busy');
+      b.classList.remove('is-running');
+    }
+  }
+  function trainAndReturn(n) {
+    stopPlay();
+    if (bgJob && bgJob.kind === 'return') { bgJob.cancel(); return; } // segundo clic: cancelar
+    if (!S.trace) return;
+    stopTraining({ noRefresh: true });
+    if (S.s.diverged) { updateStale(); bringIntoBand($('stale-note'), { smooth: true }); return; }
+    const i = S.idx, sent = S.trace.sentenceIndex;
+    const job = trainChunked(n, { kind: 'return', onProgress: () => { syncReturnBtn(); updateHeaderStats(); } });
+    job.idx = i;
+    syncReturnBtn();
+    srSay('Entrenando ' + n + ' iteraciones…');
+    job.promise.then((r) => {
+      updateHeaderStats();
+      drawSpark();
+      syncReturnBtn();
+      if (r.cancelled || S.s.diverged) {
+        updateStale();
+        srSay(S.s.diverged ? 'El entrenamiento divergió tras ' + r.done + ' iteraciones.' : 'Entrenamiento cancelado tras ' + r.done + ' iteraciones.');
+        return;
+      }
+      traceNew(sent, i);
+      bringIntoBand($('stage').querySelector('.ov-note--attn'), { focus: true });
+      srSay('Entrenadas ' + r.done + ' iteraciones: ahora ves la iteración ' + S.trace.iter + ', de nuevo en el paso ' + (S.idx + 1) + '.');
+    });
   }
 
   // Curva de pérdida incremental: la media móvil y los puntos (diezmados) se guardan en la sesión y
@@ -1647,9 +1907,10 @@
     ], { xLabel: 'iteración', yLabel: 'pérdida', xName: 'iteración', logY: $('tr-logy').checked, areaIndex: 0, legend: true,
       includeZero: !$('tr-logy').checked, emptyText: 'Pulsa «Entrenar» para empezar', ariaLabel: 'Curva de pérdida por iteración' });
   }
-  function refreshTraining(full, ts) {
+  function refreshTraining(full) {
     if (!S.s) return;
     const s = S.s;
+    showDiverged(); // también si divergió al recorrer una iteración en «Paso a paso»
     updateHeaderStats();
     const last = s.history[s.history.length - 1];
     $('st-iter').textContent = fmtInt(s.iter);
@@ -1708,13 +1969,13 @@
       if (lv.ema !== null) L = lv.ema;
       approx = '≈ ';
     }
-    $('st-mean').textContent = Number.isNaN(L) && ev.fresh ? 'NaN' : approx + fmt(L, 4);
+    $('st-mean').textContent = Number.isNaN(L) && ev.fresh ? 'NaN' : approx + fmtLoss(L, 4);
     $('st-mean').title = ev.complete ? 'Media de las ' + ev.n + ' frases con los pesos actuales' :
       'Estimación (media móvil de los minilotes) mientras se miden las ' + ev.n + ' frases con los pesos actuales';
     // perplejidad e^L: con una pérdida enorme, en forma de potencia (e^690 no cabe en la casilla)
     const ppl = $('st-ppl');
     if (!Number.isFinite(L)) ppl.textContent = Number.isNaN(L) && ev.fresh ? 'NaN' : '—';
-    else if (L > 20) ppl.innerHTML = approx + 'e<sup>' + esc(fmt(L, 1)) + '</sup>';
+    else if (L > 20) ppl.innerHTML = approx + 'e<sup>' + esc(fmtLoss(L, 1)) + '</sup>';
     else ppl.textContent = approx + fmt(Math.exp(L), 2);
     TL.Charts.bars($('tr-sent-bars'), ev.perSentence.map((p, i) => ({ key: 's' + i, label: (i + 1) + '. ' + p.text, value: p.loss, colorVar: '--fwd', highlight: i === S.attnSent })),
       { format: (v) => fmt(v, 3), onSelect: (it) => { S.attnSent = +it.key.slice(1); $('tr-attn-sent').value = String(S.attnSent); refreshTraining(true); }, ariaLabel: 'Pérdida por frase',
@@ -2238,6 +2499,10 @@
     if (S.trace) {
       S.trace.steps.forEach((st, k) => { for (const o of st.outputs) if (!producer.has(o.tex)) producer.set(o.tex, k); });
       S.trace.steps.forEach((st, k) => { for (const o of st.inputs) if (!producer.has(o.tex)) producer.set(o.tex, k); });
+      // la entrada normalizada de una LayerNorm (su entrada con gorro) la calcula el paso de esa LayerNorm
+      S.trace.steps.forEach((st, k) => {
+        if (st.kind === 'layernorm' && st.inputs[0] && !producer.has('\\hat ' + st.inputs[0].tex)) producer.set('\\hat ' + st.inputs[0].tex, k);
+      });
     }
     const tbl = $('dimmap-table');
     tbl.textContent = '';
@@ -2309,6 +2574,8 @@
   // por debajo de 1200 px la barra de la iteración no cabe junto a los controles: iría a una segunda
   // fila de la línea de tiempo (fija), así que pasa al contenido, encima del paso
   const mqNarrow = root.matchMedia ? root.matchMedia('(max-width: 1199.98px)') : { matches: false };
+  // pantallas bajas (móvil en horizontal): cabecera no fija y línea de tiempo compacta (CSS)
+  const mqShort = root.matchMedia ? root.matchMedia('(max-height: 500px)') : { matches: false };
   let dgUserToggled = false;
   function placeResponsive() {
     const bar = $('iterbar');
@@ -2327,7 +2594,8 @@
   function measureChrome() {
     const hd = $('app-head'), tl = $('timeline');
     const rs = doc.documentElement.style;
-    const headH = hd ? hd.offsetHeight : 0;
+    // la cabecera solo tapa contenido cuando es fija (en el móvil y en pantallas bajas no lo es)
+    const headH = hd && getComputedStyle(hd).position === 'sticky' ? hd.offsetHeight : 0;
     rs.setProperty('--head-h', headH + 'px');
     rs.setProperty('--tl-h', (tl && !tl.hidden ? tl.offsetHeight : 0) + 'px');
     measureWelcome();
@@ -2357,7 +2625,7 @@
   function initResponsive() {
     const det = $('dg-details');
     det.querySelector('summary').addEventListener('click', () => { dgUserToggled = true; });
-    for (const mq of [mqMobile, mqWide, mqNarrow]) {
+    for (const mq of [mqMobile, mqWide, mqNarrow, mqShort]) {
       if (mq.addEventListener) mq.addEventListener('change', placeResponsive);
       else if (mq.addListener) mq.addListener(placeResponsive);
     }

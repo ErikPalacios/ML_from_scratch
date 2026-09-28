@@ -213,9 +213,9 @@
     </section>
 
     <div class="callout tr-diverged" id="tr-diverged" data-phase="backward" role="alert" hidden>
-      <b>El entrenamiento divergió.</b> Los pasos fueron tan grandes que la pérdida o el gradiente dejaron de ser números finitos (NaN/∞),
-      o la probabilidad del token correcto cayó a 0 (y −ln p se dispara). El entrenamiento se ha detenido: baja η o activa el recorte del
-      gradiente y pulsa «Reiniciar pesos».
+      <b>El entrenamiento divergió.</b> Los pasos fueron tan grandes que los parámetros se desbocaron y la pérdida o el gradiente dejaron
+      de ser números finitos (NaN/∞). El entrenamiento se ha detenido (tampoco se trazan más iteraciones en «Paso a paso»): baja η o activa
+      el recorte del gradiente y pulsa «Reiniciar pesos».
     </div>
 
     <div class="train-grid">
@@ -239,7 +239,7 @@
           </div>
           <div class="panel__body">
             <div class="attn-grid" id="tr-attn"></div>
-            <p class="panel-note">Una matriz \(A_h\) por capa y cabeza: la fila \(i\) dice cuánto mira la posición \(i\) a cada posición anterior \(j \le i\) (cada fila suma 1). Fíjate en la fila del verbo («come», «bebe»): para acertar la palabra siguiente tiene que mirar al sujeto, y al entrenar alguna cabeza aprende a hacerlo.</p>
+            <p class="panel-note">Una matriz \(A_h\) por capa y cabeza: la fila \(i\) dice cuánto mira la posición \(i\) a cada posición anterior \(j \le i\) (cada fila suma 1). Fíjate en la fila del verbo («come», «bebe»): para acertar la palabra siguiente le sirve mirar al sujeto («gato», «niña»…) o a su artículo. Al entrenar, alguna cabeza puede aprender a hacerlo, aunque no siempre ni en todas las frases (a veces se apoya en «el», «la» o &lt;s&gt;).</p>
           </div>
         </section>
         <section class="panel tg-grad">

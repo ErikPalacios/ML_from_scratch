@@ -68,9 +68,14 @@ referencia `ln V` de un modelo que acierta al azar), la perplejidad, la pérdida
 norma del gradiente de cada parámetro, **los mapas de atención de todas las capas y cabezas**, una
 tabla de predicciones por posición (las 3 más probables) y los embeddings `E` proyectados en 2-D
 con PCA. «Ver una iteración paso a paso» da un paso más con la frase elegida (B = 1) y lo muestra en
-*Paso a paso*. Si el entrenamiento diverge (por ejemplo, SGD con η = 5 y sin recorte), se detiene y
-lo explica. Con corpus grandes, la pérdida media se estima mientras se entrena y se completa al
-pausar: ningún fotograma bloquea la página.
+*Paso a paso*. Si el entrenamiento diverge (la pérdida o el gradiente dejan de ser finitos; por
+ejemplo, SGD con η = 5 y sin recorte), se detiene y lo explica; una pérdida enorme pero finita no se
+considera divergencia (Adam suele recuperarse). Con corpus grandes, la pérdida media se estima
+mientras se entrena y se completa al pausar. Entrenar (también +10, +100 y «Entrenar 200 iteraciones
+y volver a este paso», en *Paso a paso*) avanza a trozos de unos 10 ms por fotograma, con el progreso
+en el botón y cancelable con otro clic: la página sigue respondiendo. Lo único que no se puede partir
+es una iteración, y la validación (también la del minilote B en *Entrenamiento*) rechaza los modelos
+cuya iteración tardaría más de ≈ 0,5 s.
 
 ### 3 · Generación
 Escribe un comienzo («el gato») y el modelo lo continúa token a token: para cada paso verás el
@@ -142,8 +147,14 @@ las pestañas y los temas y, a 390 px de ancho, que ninguna pestaña ni ningún 
 horizontal. También vigila regresiones: que «Animar» y la reproducción dejen a la vista lo que se
 anima (a 1440 y a 1024 px), que el foco del teclado no quede bajo el inspector, que en el móvil la
 cuenta de una celda tocada se vea, que la validación rechace configuraciones que congelarían la
-página, que «Máxima» no arrastre su ritmo entre modelos y que una divergencia se detecte. Devuelve un
-resumen JSON y falla si algo no se cumple.
+página, que «Máxima» no arrastre su ritmo entre modelos y que una divergencia se detecte (y que una
+pérdida enorme pero finita no se tome por divergencia). Además: que todas las fórmulas del contenido se
+compongan a la primera (sin código LaTeX de respaldo ni macros en rojo), que el escenario escriba el
+superíndice de capa como [l], que la salida de LayerNorm se vea entera al animarla, que tras animar el
+último paso (o acabar la reproducción) el resumen de la iteración quede a la vista, que cambiar de
+velocidad se note enseguida, que «Entrenar 200 iteraciones y volver» y «+10» no bloqueen la página con
+un modelo pesado (y se puedan cancelar), que el minilote de *Entrenamiento* respete el límite de coste
+y que a 844×390 quede sitio para el paso. Devuelve un resumen JSON y falla si algo no se cumple.
 
 `tools/browser-check.mjs` abre la página en Chrome sin interfaz, imprime los mensajes de consola,
 evalúa expresiones (`--eval`, `--eval-file`), guarda una captura (`--shot`, `--full`) y termina con

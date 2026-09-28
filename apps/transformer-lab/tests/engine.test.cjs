@@ -1506,7 +1506,17 @@ test('Mapa de dimensiones: cubre la traza, sin LaTeX en las descripciones, M una
     }
     const sgd = TL.Model.shapeTable(s.model, sen.T, { optimizer: 'sgd' });
     assert.ok(sgd.every((r) => r.phase !== 'update') && sgd.length < rows.length);
-    if (s.cfg.nLayers > 1) assert.ok(byTex.has('\\mu_{1}^{[2]}') && byTex.has('\\hat R_{2}^{[1]}'));
+    // la entrada normalizada de cada LayerNorm se llama como en los pasos: su entrada con gorro
+    for (const st of steps) {
+      if (st.kind !== 'layernorm') continue;
+      assert.ok(byTex.has('\\hat ' + st.inputs[0].tex), 'falta \\hat ' + st.inputs[0].tex + ' (' + st.id + ') en el mapa');
+    }
+    // con varias capas, el superíndice de capa va dentro de la raíz (fuera se leería como una potencia)
+    if (s.cfg.nLayers > 1) {
+      assert.ok(byTex.has('\\mu_{1}^{[2]}') && byTex.has('\\hat R^{[1]}') && byTex.has('\\hat X^{[2]}'));
+      assert.ok(byTex.has('\\sqrt{(\\sigma_{1}^{[2]})^2+\\varepsilon}'));
+      assert.ok(!rows.some((r) => /^\\sqrt\{.*\}\^\{\[\d+\]\}$/.test(r.tex)), 'superíndice de capa fuera de una raíz');
+    }
   }
 });
 
@@ -1520,4 +1530,34 @@ test('Sesión: snapshot/restore conserva también la última norma y el factor d
   TL.Trainer.restore(s, snap);
   assert.equal(s.lastGradNorm, n0);
   assert.equal(s.lastClipFactor, c0);
+});
+
+// ------------------------------------------------------------------ Pérdida estable y divergencia
+test('Pérdida estable: p(objetivo) redondeada a 0 da una pérdida finita (logsumexp − z_y); solo NaN/∞ es divergencia', () => {
+  const s = TL.Trainer.createSession({});
+  const sen = s.tok.sentences[0];
+  const V = s.model.vocab.length;
+  const W = s.model.params.Wout;
+  for (let k = 0; k < W.d.length; k++) W.d[k] *= 2000; // logits desbocados (pero finitos)
+  const f = TL.Model.forward(s.model, sen.inputIds, sen.targetIds, { trace: false });
+  let L = 0, under = 0;
+  for (let t = 0; t < sen.T; t++) {
+    const row = f.logits.d.subarray(t * V, (t + 1) * V);
+    let m = -Infinity;
+    for (const x of row) m = Math.max(m, x);
+    let z = 0;
+    for (const x of row) z += Math.exp(x - m);
+    L += m + Math.log(z) - row[sen.targetIds[t]];
+    if (f.probs.d[t * V + sen.targetIds[t]] === 0) under++;
+  }
+  L /= sen.T;
+  assert.ok(under > 0, 'la prueba necesita alguna probabilidad del objetivo redondeada a 0');
+  assert.ok(Number.isFinite(f.loss) && Math.abs(f.loss - L) <= 1e-9 * Math.max(1, Math.abs(L)), 'pérdida ' + f.loss + ' vs ' + L);
+  // una pérdida enorme pero finita no detiene el entrenamiento…
+  TL.Trainer.trainSteps(s, 2);
+  assert.ok(!s.diverged && Number.isFinite(s.history[s.history.length - 1].loss));
+  // …pero unos parámetros no finitos, sí
+  s.model.params.Wout.d[0] = NaN;
+  const r = TL.Trainer.trainSteps(s, 5);
+  assert.ok(s.diverged && r.diverged && r.losses.length === 1);
 });

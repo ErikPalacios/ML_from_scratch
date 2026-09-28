@@ -7,8 +7,8 @@
     "test": "node --test tests/",
     "build": "node build.mjs",
     "check": "node tools/browser-check.mjs --url index.html",
-    "smoke": "node tools/browser-check.mjs --url index.html --wait 3000 --eval-file tools/smoke.js",
-    "smoke:dist": "node build.mjs && node tools/browser-check.mjs --url dist/transformer-lab.html --wait 3000 --eval-file tools/smoke.js"
+    "smoke": "node tools/browser-check.mjs --url index.html --wait 3000 --timeout 240000 --eval-file tools/smoke.js",
+    "smoke:dist": "node build.mjs && node tools/browser-check.mjs --url dist/transformer-lab.html --wait 3000 --timeout 240000 --eval-file tools/smoke.js"
   },
   "engines": {
     "node": ">=20"

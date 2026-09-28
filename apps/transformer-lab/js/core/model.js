@@ -636,16 +636,16 @@
     }
 
     // ---- pérdida: entropía cruzada media
-    let loss = null, lossCapped = false;
+    let loss = null;
     if (hasTargets) {
       const perToken = new Mat(T, 1), pTarget = new Mat(T, 1);
       let s = 0;
       for (let t = 0; t < T; t++) {
         const pt = probs.d[t * V + targetIds[t]];
-        // p < 1e-300 (o NaN): los logits ya no son razonables; la pérdida real sería +∞
-        if (!(pt >= 1e-300)) lossCapped = true;
-        // p = 0 exacto se acota (pérdida finita y grande); p = NaN (parámetros no finitos) sigue siendo NaN
-        const lt = Number.isNaN(pt) ? NaN : -Math.log(Math.max(pt, 1e-300));
+        // −log softmax(z)_y = log Σ_j e^{z_j} − z_y = m + log Σ_j e^{z_j − m} − z_y (m = máximo de la fila):
+        // finita aunque p_y sea tan pequeña que se redondea a 0 (entonces −log p daría +∞ sin serlo).
+        // Solo es NaN/∞ si los logits ya no son finitos (parámetros desbocados).
+        const lt = smo.rowMax.d[t] + Math.log(smo.rowSum.d[t]) - logits.d[t * V + targetIds[t]];
         perToken.d[t] = lt;
         pTarget.d[t] = pt;
         s += lt;
@@ -664,7 +664,7 @@
 
     const cache = { T, inputIds: inputIds.slice(), targetIds: hasTargets ? targetIds.slice() : null,
       Xemb, PE: PEm, X0, layers, lnf, Hf, XN: X, logits, probs, mask: M, factor };
-    return { loss, lossCapped, probs, logits, attn, cache, steps: tr ? X_.steps : [] };
+    return { loss, probs, logits, attn, cache, steps: tr ? X_.steps : [] };
   }
 
   function lnAux(c) {
@@ -1136,13 +1136,17 @@
     const add = (group, tex, rs, cs, desc) => rows.push({ group, tex, sym: rs + '\\times ' + cs, shape: [SZ[rs], SZ[cs]], desc, phase });
     const learned = cfg.posEnc === 'learned';
     const actName = ACT[cfg.activation].name;
-    // sub: '1' | '2' | 'f' ; sup: superíndice LaTeX de capa ('' con una capa) ; name: nombre en texto plano
-    // letter: letra de la entrada de la LayerNorm (X en LN₁ y LN_f, R en LN₂): su versión normalizada
-    // se llama igual con gorro. La fila σ es el divisor √(σ² + ε) (σ² = varianza), como en las fórmulas.
-    const lnStats = (g, sub, sup, name, letter) => {
-      add(g, '\\mu_{' + sub + '}' + sup, 'T', '1', name + ': media de cada fila (una por posición).');
-      add(g, '\\sqrt{\\sigma^2_{' + sub + '}+\\varepsilon}' + sup, 'T', '1', name + ': desviación típica con ε de cada fila, el divisor de la normalización (σ² es la varianza).');
-      add(g, '\\hat ' + (letter || 'X') + '_{' + sub + '}' + sup, 'T', 'd', name + ': filas normalizadas (media 0, varianza ≈ 1) antes de γ y β.');
+    // sub: '1' | '2' | 'f' (qué LayerNorm) ; lay: número de capa (0 = sin superíndice: una sola capa o
+    // LN_f) ; name: nombre en texto plano ; inTex: la entrada de la LayerNorm (X^{[l-1]}, R, X^{[N]}).
+    // La versión normalizada se llama como en los pasos: la entrada con gorro (\hat X^{[0]}, \hat R^{[1]},
+    // \hat X^{[N]}). μ y el divisor √(σ² + ε) (σ² = varianza) llevan el índice de la LayerNorm y, con
+    // varias capas, la capa DENTRO de la raíz (fuera, el superíndice se leería como una potencia).
+    const lnStats = (g, sub, lay, name, inTex) => {
+      const L = lay ? '^{[' + lay + ']}' : '';
+      add(g, '\\mu_{' + sub + '}' + L, 'T', '1', name + ': media de cada fila (una por posición).');
+      add(g, '\\sqrt{' + (lay ? '(\\sigma_{' + sub + '}' + L + ')^2' : '\\sigma^2_{' + sub + '}') + '+\\varepsilon}', 'T', '1',
+        name + ': desviación típica con ε de cada fila, el divisor de la normalización (σ² es la varianza).');
+      add(g, hatOf(inTex), 'T', 'd', name + ': filas normalizadas (media 0, varianza ≈ 1) antes de γ y β.');
     };
 
     // ---------- forward
@@ -1162,11 +1166,11 @@
     for (let l = 0; l < N; l++) {
       const n = layerNames(multi, l);
       const gA = 'Capa ' + (l + 1) + ' · Atención', gF = 'Capa ' + (l + 1) + ' · FFN';
-      const sfx = multi ? '^{[' + (l + 1) + ']}' : '';
+      const lay = multi ? l + 1 : 0;
       add(gA, n.t('\\gamma_1'), '1', 'd', 'Parámetro: ganancia de LayerNorm 1.');
       add(gA, n.t('\\beta_1'), '1', 'd', 'Parámetro: sesgo de LayerNorm 1.');
       const capU = multi ? ' de la capa ' + (l + 1) : '';
-      lnStats(gA, '1', sfx, 'LayerNorm 1' + capU);
+      lnStats(gA, '1', lay, 'LayerNorm 1' + capU, xTex(l));
       add(gA, n.t('H'), 'T', 'd', 'Salida de LayerNorm 1 (entrada de la atención).');
       add(gA, n.t('W_Q'), 'd', 'd', 'Parámetro: proyección de consultas.');
       add(gA, n.t('W_K'), 'd', 'd', 'Parámetro: proyección de claves.');
@@ -1197,7 +1201,7 @@
       add(gA, n.t('R'), 'T', 'd', 'Residual 1: entrada de la capa + salida de la atención.');
       add(gF, n.t('\\gamma_2'), '1', 'd', 'Parámetro: ganancia de LayerNorm 2.');
       add(gF, n.t('\\beta_2'), '1', 'd', 'Parámetro: sesgo de LayerNorm 2.');
-      lnStats(gF, '2', sfx, 'LayerNorm 2' + capU, 'R');
+      lnStats(gF, '2', lay, 'LayerNorm 2' + capU, n.t('R'));
       add(gF, n.t("H'"), 'T', 'd', 'Salida de LayerNorm 2 (entrada de la FFN).');
       add(gF, n.t('W_1'), 'd', 'd_{ff}', 'Parámetro: primera capa de la FFN (expande de d a d_ff).');
       add(gF, n.t('b_1'), '1', 'd_{ff}', 'Parámetro: sesgo de la primera capa (se suma a cada fila: broadcasting).');
@@ -1210,7 +1214,7 @@
     }
     add('Salida', '\\gamma_f', '1', 'd', 'Parámetro: ganancia de la LayerNorm final.');
     add('Salida', '\\beta_f', '1', 'd', 'Parámetro: sesgo de la LayerNorm final.');
-    lnStats('Salida', 'f', '', 'LayerNorm final');
+    lnStats('Salida', 'f', 0, 'LayerNorm final', xTex(N));
     add('Salida', 'H_f', 'T', 'd', 'Salida de la LayerNorm final.');
     add('Salida', 'W_{\\text{out}}', 'd', 'V', 'Parámetro: proyección al vocabulario (una columna por token).');
     add('Salida', '\\mathrm{logits}', 'T', 'V', 'Puntuación de cada token del vocabulario en cada posición.');
@@ -1227,7 +1231,7 @@
     add(gS, D + 'W_{\\text{out}}', 'd', 'V', 'H_fᵀ · dlogits.');
     add(gS, 'W_{\\text{out}}^{\\top}', 'V', 'd', 'W_out traspuesta (para dH_f).');
     add(gS, D + 'H_f', 'T', 'd', 'dlogits · W_outᵀ.');
-    add(gS, D + '\\gamma_f', '1', 'd', 'Σ_t dH_f ⊙ X̂ (gradiente de la ganancia final).');
+    add(gS, D + '\\gamma_f', '1', 'd', 'Σ_t dH_f ⊙ X\u0302' + supU(N) + ' (gradiente de la ganancia final).');
     add(gS, D + '\\beta_f', '1', 'd', 'Σ_t dH_f (gradiente del sesgo final).');
     add(gS, D + xTex(N), 'T', 'd', 'Gradiente que entra por arriba en la capa ' + N + '.');
     for (let l = N - 1; l >= 0; l--) {
@@ -1247,7 +1251,7 @@
       add(gF, D + n.t('b_1'), '1', 'd_{ff}', 'Σ_t dU: suma de dU sobre las posiciones.');
       add(gF, n.tT('W_1'), 'd_{ff}', 'd', 'W₁ traspuesta (para dH\').');
       add(gF, D + n.t("H'"), 'T', 'd', 'dU · W₁ᵀ.');
-      add(gF, D + n.t('\\gamma_2'), '1', 'd', 'Gradiente de la ganancia de LayerNorm 2.');
+      add(gF, D + n.t('\\gamma_2'), '1', 'd', 'Σ_t ' + n.u("dH'") + ' ⊙ ' + n.u('R\u0302') + ': gradiente de la ganancia de LayerNorm 2.');
       add(gF, D + n.t('\\beta_2'), '1', 'd', 'Gradiente del sesgo de LayerNorm 2.');
       add(gF, D + n.t('R') + '_{\\text{LN}}', 'T', 'd', 'Gradiente que vuelve a R a través de LayerNorm 2.');
       add(gF, D + n.t('R'), 'T', 'd', 'Suma: camino directo + retropropagación por LayerNorm 2.');
@@ -1285,7 +1289,7 @@
       add(gA, D + n.t('H') + '_{K}', 'T', 'd', 'dK · W_Kᵀ: contribución de la rama K a dH.');
       add(gA, D + n.t('H') + '_{V}', 'T', 'd', 'dV · W_Vᵀ: contribución de la rama V a dH.');
       add(gA, D + n.t('H'), 'T', 'd', 'Suma de las tres contribuciones.');
-      add(gA, D + n.t('\\gamma_1'), '1', 'd', 'Gradiente de la ganancia de LayerNorm 1.');
+      add(gA, D + n.t('\\gamma_1'), '1', 'd', 'Σ_t ' + n.u('dH') + ' ⊙ X\u0302' + supU(l) + ': gradiente de la ganancia de LayerNorm 1.');
       add(gA, D + n.t('\\beta_1'), '1', 'd', 'Gradiente del sesgo de LayerNorm 1.');
       add(gA, D + xTex(l) + '_{\\text{LN}}', 'T', 'd', 'Gradiente que vuelve a X' + supU(l) + ' a través de LayerNorm 1.');
       add(gA, D + xTex(l), 'T', 'd', 'Suma: camino directo + retropropagación por LayerNorm 1.');

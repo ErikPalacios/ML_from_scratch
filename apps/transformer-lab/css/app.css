@@ -1012,6 +1012,22 @@ main:focus { outline: none; }
   .timeline { padding-top: 6px; }
 }
 
+/* Pantallas bajas (p. ej. un móvil en horizontal, 844×390): la cabecera deja de ser fija, la línea
+   de tiempo se compacta (sin las bandas de fase) y el inspector del pie crece menos; si no, entre las
+   tres piezas fijas apenas quedaban 80 px para el paso */
+@media (max-height: 500px) {
+  .app-head { position: relative; }
+  html { scroll-padding-top: 8px; }
+  .timeline { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)); }
+  .tl-bands, .tl-jumps { display: none; }
+  .tl-track-wrap { margin-top: 4px; }
+  .tl-track { height: 20px; margin-top: 0; }
+  .tl-tick.is-cur { height: 20px; }
+  .inspector__body { max-height: min(24vh, 110px); }
+  .inspector__hint-long { display: none; }
+  .inspector__hint-short { display: inline; }
+}
+
 /* 7.7 Páginas (Entrenamiento, Generación, Datos) ---------------------------------------- */
 .page { max-width: 1480px; margin: 0 auto; padding: 22px var(--gutter) 56px; }
 .page-head { max-width: 86ch; margin-bottom: 16px; }
@@ -1029,6 +1045,7 @@ main:focus { outline: none; }
 .train-ctl__err { flex: 1 1 240px; }
 #tr-run { min-width: 118px; }
 #tr-run.is-running { background: var(--surface); color: var(--ink); border-color: var(--ink); }
+[data-train].is-running { min-width: 64px; border-color: var(--ink); font-variant-numeric: tabular-nums; cursor: progress; }
 #tr-run svg { width: 13px; height: 13px; }
 #tr-run.is-running svg { display: none; }
 .reset-wrap { display: inline-flex; align-items: center; }

@@ -154,7 +154,7 @@
     const H = clamp(Math.round(cfg.nHeads || 1), 1, 8);
     const concatSub = H === 1 ? 'Z = Z_1' : H === 2 ? 'Z_1 ‖ Z_2' : 'Z_1 ‖ … ‖ Z_' + H;
     const act = cfg.activation === 'gelu' ? 'GELU' : 'ReLU';
-    const opt = opts.optimizer === 'sgd' ? 'SGD · θ ← θ − η·g' : opts.optimizer === 'adam' ? 'Adam · m̂, v̂' : 'θ ← θ − η·Δθ';
+    const opt = opts.optimizer === 'sgd' ? 'SGD · θ ← θ − η·dθ' : opts.optimizer === 'adam' ? 'Adam · m̂, v̂' : 'θ ← θ − η·Δθ';
     const learned = cfg.posEnc === 'learned';
     return {
       tokens:      { label: 'Tokens', sub: 'texto → ids', cls: 'io', desc: 'Tokenización: el texto se convierte en ids del vocabulario.' },
@@ -633,7 +633,8 @@
           appendRich(t, sh.num, 10.5, 'dg-num', 0);
         }
         const tt = svgEl('title', null, t);
-        tt.textContent = String(val);
+        // texto plano (el tooltip no compone LaTeX): 'T×d_{ff}' → 'T×d_ff'
+        tt.textContent = String(val).replace(/\\max/g, 'max').replace(/[{}]/g, '');
       }
       markHotShapes();
     }

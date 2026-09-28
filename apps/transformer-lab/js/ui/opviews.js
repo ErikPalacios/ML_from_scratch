@@ -20,11 +20,15 @@
                                    //   línea de tiempo ni inspector fijos); la usa animate() para
                                    //   desplazar la página hasta lo que se anima
                goTo?(k),           // ir al paso k (etiquetas «del forward · paso N»)
-               onTrainAndReturn?(n), // entrenar n iteraciones y volver a este paso (nota de atención)
-               recap?,             // último paso: { iter, before, after, nParams, onNew() }
+               onTrainAndReturn?(n), // entrenar n iteraciones y volver a este paso (nota de atención; el
+                                   //   botón lleva data-train-return: el shell muestra el progreso en él)
+               recap?,             // último paso: { iter, before, after, stale, diverged, nParams, nChanged,
+                                   //   optimizer, relu, onNew()? } (sin onNew: sin botón «Nueva iteración»)
                content? }          // no se usa (la explicación larga la muestra el shell)
      view.animate({ budget?, scroll? }) -> Promise   // animación propia del tipo (barrido del matmul,
-                                   //   softmax por filas…); budget = duración total máxima (ms)
+                                   //   softmax por filas…); budget = duración total máxima (ms): si se
+                                   //   agota, lo que falte se revela de golpe
+     ctx.onInspect(html, { anim })  // anim: true si lo pide la animación (no el cursor ni el teclado)
      view.stop()                   // detiene la animación en curso (deja la matriz completa)
      view.destroy()
      view.el, view.heatmaps        // extra
@@ -39,6 +43,7 @@
 
   // ------------------------------------------------------------------ utilidades
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const now = () => (root.performance && performance.now ? performance.now() : Date.now());
   const f4 = (x, s) => TL.Heatmap.fmtFull(x, s || 4);
   const par = (x) => (x < 0 ? '(' + f4(x) + ')' : f4(x));
   const pct = (x) => (x * 100).toFixed(x >= 0.1 ? 0 : 1) + ' %';
@@ -120,7 +125,7 @@
       }
       h += '</div>';
     }
-    if (o.note) h += '<p class="insp__note">' + o.note + '</p>';
+    if (o.note) h += '<p class="insp__note">' + supBr(o.note) + '</p>';
     return h + '</div>';
   }
   // suma larga con todos los términos: "a + b + … = s"
@@ -231,7 +236,7 @@
     constructor(view, label) {
       this.view = view;
       this.el = el('div', 'ov-line');
-      if (label) this.el.appendChild(el('div', 'ov-line__label', label));
+      if (label) this.el.appendChild(el('div', 'ov-line__label', supBr(label)));
       this.eq = el('div', 'ov-eq');
       this.el.appendChild(this.eq);
       this.hms = [];
@@ -385,7 +390,8 @@
       const o = Object.assign({ fit: false, stretch: false, showValues: this.showValues }, opts || {});
       if (o.tag === undefined) this._cacheTag(ref, o);
       const hm = TL.Heatmap.create(ref, Object.assign(o, {
-        onHover: (i, j, v) => this.hover(hm, i, j, v),
+        // el cursor, un toque o el teclado (no la animación): ctx.onInspect lo sabe por { anim: false }
+        onHover: (i, j, v) => { this._user = true; try { this.hover(hm, i, j, v); } finally { this._user = false; } },
         onLeave: () => {},
       }));
       this.hms.push(hm);
@@ -410,13 +416,14 @@
     line(label) { const L = new Line(this, label); this.lines.push(L); this.body.appendChild(L.el); if (label && label.indexOf('\\(') >= 0) this.texEls.push(L.el.firstChild); return L; }
     card(title, cls) {
       const c = el('section', 'ov-card' + (cls ? ' ' + cls : ''));
-      if (title) c.appendChild(el('h4', 'ov-card__title', title));
+      if (title) c.appendChild(el('h4', 'ov-card__title', supBr(title)));
       const b = el('div', 'ov-card__body');
       c.appendChild(b);
       this.extras.appendChild(c);
       return b;
     }
-    note(html, cls) { const n = el('p', 'ov-note' + (cls ? ' ' + cls : ''), html); this.foot.appendChild(n); if (html.indexOf('\\(') >= 0) this.texEls.push(n); return n; }
+    // (los nombres del motor con superíndice de capa, X⁽⁰⁾, se escriben X<sup>[0]</sup>, como en las fórmulas)
+    note(html, cls) { const n = el('p', 'ov-note' + (cls ? ' ' + cls : ''), supBr(html)); this.foot.appendChild(n); if (html.indexOf('\\(') >= 0) this.texEls.push(n); return n; }
     // línea de flujo de dimensiones: items = refs | strings (operadores) | {text, shape}
     flow(items, meta) {
       const f = this.flowEl;
@@ -430,13 +437,13 @@
           t.appendChild(el('span', 'ov-flow__shape', it.mat.r + '×' + it.mat.c));
         } else {
           if (it.tex) t.appendChild(texSpan(it.tex, 'ov-flow__name', false, true));
-          if (it.text) t.appendChild(el('span', 'ov-flow__name ov-flow__txt', esc(it.text)));
+          if (it.text) t.appendChild(el('span', 'ov-flow__name ov-flow__txt', escS(it.text)));
           if (it.shape) t.appendChild(el('span', 'ov-flow__shape', esc(it.shape)));
         }
         eq.appendChild(t);
       }
       f.appendChild(eq);
-      if (meta) f.appendChild(el('span', 'ov-flow__meta', meta));
+      if (meta) f.appendChild(el('span', 'ov-flow__meta', supBr(meta)));
     }
     // leyenda: grupos de escala (se deducen de los mapas si no se dan)
     legend(items) { this.legendItems = items; }
@@ -475,7 +482,7 @@
       for (const it of items.filter((x) => x.own)) {
         const row = el('div', 'hm-legend__item');
         row.innerHTML = '<span class="hm-legend__bar hm-legend__bar--diverging" aria-hidden="true"></span>' +
-          '<span class="hm-legend__nums">−máx · 0 · +máx</span><span class="hm-legend__names">escala propia de cada matriz: ' + esc(it.names.join(', ')) + '</span>';
+          '<span class="hm-legend__nums">−máx · 0 · +máx</span><span class="hm-legend__names">escala propia de cada matriz: ' + escS(it.names.join(', ')) + '</span>';
         L.insertBefore(row, L.firstChild);
       }
       const idx = el('div', 'hm-legend__item hm-legend__item--plain', '<span class="hm-legend__names">Índices desde 0 · pasa el cursor (o usa las flechas) sobre una celda para ver su cuenta</span>');
@@ -491,7 +498,8 @@
       try { html = fn.call(this, hm, i, j, v === undefined && i >= 0 && j >= 0 ? hm.mat.get(i, j) : v); } catch (e) { html = null; if (root.console) console.warn('OpViews: error en el inspector', e); }
       if (html) this.inspect(html);
     }
-    inspect(html) { if (typeof this.ctx.onInspect === 'function') this.ctx.onInspect(html); }
+    // anim: lo pide la animación (no el usuario); el shell puede no abrir el inspector (reproducción en pantallas estrechas)
+    inspect(html) { if (typeof this.ctx.onInspect === 'function') this.ctx.onInspect(html, { anim: !!this._anim && !this._user }); }
     clearHl() { for (const h of this.hms) h.clear(); for (const f of this.clearHooks) f(); }
     // --- montaje y tamaño
     mount() {
@@ -524,7 +532,8 @@
     // ms por unidad (celda o fila) respetando la duración máxima de la animación en curso
     stepMs(base, n) { return Math.max(12, Math.min(base, this.budget / Math.max(1, n))); }
     // desplaza la página para que se vea lo que se va a animar: toda la operación si cabe en la
-    // franja visible; si no, las matrices que se rellenan (la salida)
+    // franja visible; si no, las matrices que se rellenan; y si tampoco caben, la salida (la matriz
+    // principal) entera, con todo lo que quepa de lo demás encima (nunca la salida bajo la línea de tiempo)
     revealAnim() {
       const targets = (this.animTargets || [this.primary]).filter(Boolean);
       if (!targets.length || !this.root.isConnected || typeof this.ctx.viewport !== 'function') return;
@@ -540,17 +549,30 @@
       let dy;
       if (op.bottom - op.top + 2 * pad <= band) dy = fit(op);
       else if (u.bottom - u.top + 2 * pad <= band) dy = fit(u);
-      else dy = u.top - vp.top - pad;
+      else {
+        const main = targets.indexOf(this.primary) >= 0 ? this.primary : targets[targets.length - 1];
+        const p = main.el.getBoundingClientRect();
+        const lo = p.bottom - vp.bottom + pad, hi = p.top - vp.top - pad; // salida entera: lo ≤ dy ≤ hi
+        dy = lo <= hi ? Math.min(hi, Math.max(lo, u.top - vp.top - pad)) : hi;
+      }
       if (Math.abs(dy) < 2) return;
-      let smooth = true;
-      try { smooth = !root.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* nada */ }
+      // con prisa (reproducción a 2× o 4×) el salto es inmediato: un desplazamiento suave se comería
+      // buena parte de la animación
+      let smooth = this.budget > 1500;
+      try { if (root.matchMedia('(prefers-reduced-motion: reduce)').matches) smooth = false; } catch (e) { /* nada */ }
       try { root.scrollBy({ top: dy, behavior: smooth ? 'smooth' : 'auto' }); } catch (e) { root.scrollBy(0, dy); }
     }
+    // espera entre unidades con plazo: lo que se tarda en dibujar cada unidad (inspector, MathJax…)
+    // cuenta dentro del ritmo; y si se agota la duración máxima (budget), la animación termina y
+    // tok.finish revela de golpe lo que falte
     sleep(tok, ms) {
       return new Promise((res) => {
         if (tok.cancelled) { res(); return; }
-        const t = setTimeout(res, ms);
-        tok.stops.push(() => { clearTimeout(t); res(); });
+        tok.due += ms;
+        const t = now();
+        if (t - tok.t0 >= this.budget) { tok.cancelled = true; res(); return; }
+        const id = setTimeout(res, Math.max(0, tok.t0 + tok.due - t));
+        tok.stops.push(() => { clearTimeout(id); res(); });
       });
     }
     stopAnim() {
@@ -565,7 +587,7 @@
     animate(o) {
       if (this.destroyed) return Promise.resolve();
       this.stopAnim();
-      const tok = { cancelled: false, stops: [] };
+      const tok = { cancelled: false, stops: [], t0: now(), due: 0 };
       this._anim = tok;
       this.budget = o && o.budget > 0 ? o.budget : Infinity;
       this.root.classList.add('is-animating');
@@ -696,7 +718,7 @@
       const body = v.card('Grafo de atención: de quién trae información cada token', 'ov-card--graph');
       graph = attnGraph(A.mat, A.rowLabels || [], A.colLabels || [], (i) => v.hover(hC, i, -1));
       body.appendChild(graph.el);
-      body.appendChild(el('p', 'ov-card__cap', 'Grosor = peso A[i, j]: cuánto del valor de j entra en la fila i de ' + esc(C.label || 'Z') + '. Pasa el cursor por una consulta (o por una fila de ' + esc(C.label || 'Z') + ') para aislarla.'));
+      body.appendChild(el('p', 'ov-card__cap', 'Grosor = peso A[i, j]: cuánto del valor de j entra en la fila i de ' + escS(C.label || 'Z') + '. Pasa el cursor por una consulta (o por una fila de ' + escS(C.label || 'Z') + ') para aislarla.'));
       v.clearHooks.push(() => graph.isolate(null));
       attnNote(v, A.mat, A.rowLabels || [], A.colLabels || []);
     }
@@ -998,8 +1020,10 @@
     };
   }
 
-  // Nota con datos: a quién mira la penúltima posición (en «el gato come pescado .», «come», que
-  // debe predecir «pescado» y para eso necesita al sujeto) y si ese reparto ya significa algo.
+  // Nota con datos: a quién mira la penúltima posición (la que predice la última palabra antes del
+  // punto: en «el gato come pescado .», «come» → «pescado»; en «el gato duerme en la casa .», «la» →
+  // «casa») y si ese reparto ya significa algo. No se da por hecho que esa fila sea un verbo ni que el
+  // entrenamiento enseñe a mirar al sujeto: a veces lo aprende alguna cabeza y a veces no.
   function attnNote(v, A, qLab, kLab) {
     const T = A.r;
     if (T < 2) return;
@@ -1007,20 +1031,29 @@
     const order = Array.from({ length: A.c }, (_, j) => j).filter((j) => A.get(i, j) > 0).sort((a, b) => A.get(i, b) - A.get(i, a)).slice(0, 2);
     const lab = (L, k) => (L[k] != null ? tokH(L[k]) : String(k));
     const parts = order.map((j) => pct(A.get(i, j)) + ' a ' + lab(kLab, j));
+    const tg = Array.isArray(v.ctx.targetTokens) && v.ctx.targetTokens[i] != null ? v.ctx.targetTokens[i] : null;
     const iter = v.ctx.iter;
-    let html = (iter != null ? '<b>Iteración ' + iter + ':</b> ' : '') + 'la fila de ' + lab(qLab, i) + ' (posición ' + i + ') reparte ' + parts.join(' y ') +
+    const cfg = v.ctx.cfg || {};
+    let html = (iter != null ? '<b>Iteración ' + iter + ':</b> ' : '') + 'la fila de ' + lab(qLab, i) + ' (posición ' + i +
+      (tg != null ? ', que debe predecir ' + tokH(tg) : '') + ') reparte ' + parts.join(' y ') +
       (order.length && A.get(i, order[0]) < 0.999 ? ' (y el resto entre las demás visibles)' : '') + '.';
+    const why = ' Para acertar le sirve mirar a los tokens que distinguen esta frase de otras parecidas: en el corpus por defecto, casi siempre el sujeto («gato», «perro», «niña»…) o su artículo, que deciden entre pescado o carne, leche o agua, libro o cuento.';
     const raw = iter != null && iter < 100;
     if (raw) {
-      html += ' Con pesos casi aleatorios, este reparto todavía no significa nada. Entrena unas 200 iteraciones (pestaña «Entrenamiento») y vuelve con «Ver una iteración paso a paso»: con el corpus por defecto, el verbo («come», «bebe») acaba mirando a su sujeto («gato», «perro», «niña»…), que es lo que decide la palabra siguiente.';
+      html += ' Con pesos casi aleatorios, este reparto todavía no significa nada.' + why +
+        ' Al entrenar, alguna cabeza <i>puede</i> aprender a hacerlo, aunque no siempre ni en todas las frases' +
+        (cfg.dModel ? ' (con d = ' + cfg.dModel + ' y ' + cfg.nHeads + (cfg.nHeads === 1 ? ' cabeza' : ' cabezas') + ', el modelo es diminuto y a menudo se apoya en «el», «la» o <code>&lt;s&gt;</code>)' : '') + '.';
     } else {
-      html += ' ¿Mira al token que necesita para predecir el siguiente? Con el corpus por defecto, el verbo («come», «bebe») debería cargar su peso en el sujeto («gato», «perro», «niña»…). Otras cabezas pueden especializarse en otra cosa (la palabra anterior, <code>&lt;s&gt;</code>…).';
+      html += ' ¿Mira a lo que necesita para predecir la palabra siguiente?' + why +
+        ' Puede hacerlo esta cabeza, otra (compáralas en «Entrenamiento» → «Atención en vivo») o ninguna todavía; hay cabezas que se especializan en otra cosa (la palabra anterior, <code>&lt;s&gt;</code>…).';
     }
     const n = v.note(html, 'ov-note--attn');
     if (raw && typeof v.ctx.onTrainAndReturn === 'function') {
       const b = el('button', 'btn btn--sm ov-note__btn');
       b.type = 'button';
+      b.dataset.trainReturn = '200';
       b.textContent = 'Entrenar 200 iteraciones y volver a este paso';
+      b.title = 'Entrena a trozos (la página sigue respondiendo; pulsa otra vez para cancelar), recorre una iteración nueva con la misma frase y vuelve aquí';
       b.addEventListener('click', () => v.ctx.onTrainAndReturn(200));
       n.appendChild(b);
     }
@@ -1181,7 +1214,7 @@
     const s = v.step, ax = s.aux, X = s.inputs[0], G = s.inputs[1], Bt = s.inputs[2], Y = s.outputs[0];
     const T = X.mat.r, d = X.mat.c, eps = ax.eps;
     const XH = hatTex(X.tex), XHL = hatLab(X.label);
-    v.flow([X, '→', { tex: '\\mathrm{LN}', text: '' }, '→', Y], G.label + ', ' + Bt.label + ': 1×' + d + ' (parámetros)');
+    v.flow([X, '→', { tex: '\\mathrm{LN}', text: '' }, '→', Y], escS(G.label) + ', ' + escS(Bt.label) + ': 1×' + d + ' (parámetros)');
     const rl = X.rowLabels;
     const muRef = mkRef({ key: 'mu', tex: '\\mu', label: 'μ', mat: ax.mu, rowAxis: 'T', colAxis: '1', rowLabels: rl });
     const sgRef = mkRef({ key: 'sigma', tex: '\\sqrt{\\sigma^2+\\varepsilon}', label: '√(σ²+ε)', mat: ax.sigma, rowAxis: 'T', colAxis: '1', rowLabels: rl });
@@ -1199,7 +1232,7 @@
     const hG = v.hm(G, {}, cellParam), hB = v.hm(Bt, {}, cellParam), hY = v.hm(Y, { maxAbs: shared }, cellY);
     L3.term(hG).term(hB, { tex: '\\odot\\,' + XH + '\\;+' }).term(hY, '=');
     v.primary = hY;
-    v.note('LayerNorm trabaja <b>por filas</b>: cada token se normaliza con su propia media y desviación (sobre sus d = ' + d + ' números), sin mirar a los demás tokens. \\(' + XH + '\\) y ' + esc(Y.label) + ' comparten escala de color.');
+    v.note('LayerNorm trabaja <b>por filas</b>: cada token se normaliza con su propia media y desviación (sobre sus d = ' + d + ' números), sin mirar a los demás tokens. \\(' + XH + '\\) y \\(' + Y.tex + '\\) comparten escala de color.');
 
     function statRows(i) {
       const xs = []; for (let j = 0; j < d; j++) xs.push(f4(X.mat.get(i, j), 3));
@@ -1288,7 +1321,7 @@
       L.term(hSrc);
       const outs = g.outputs.map((oi, h) => {
         const r = s.outputs[oi];
-        const hm = v.hm(r, { highlightCols: [[0, dk, headVar(h)]], note: 'columnas ' + (h * dk) + '…' + ((h + 1) * dk - 1) + ' de ' + esc(src.label) }, cellOut);
+        const hm = v.hm(r, { highlightCols: [[0, dk, headVar(h)]], note: 'columnas ' + (h * dk) + '…' + ((h + 1) * dk - 1) + ' de ' + escS(src.label) }, cellOut);
         L.term(hm, h ? '‖' : '↦');
         return hm;
       });
@@ -1645,14 +1678,16 @@
     const hdG = v.hm(dG, {}, cellParam), hdB = v.hm(dB, {}, cellParam);
     L3.term(hdG, { tex: '\\textstyle\\sum_t ' + dY.tex + '\\odot ' + XH + ' =' }).term(hdB, { tex: '\\quad\\textstyle\\sum_t ' + dY.tex + ' =' });
     v.primary = hdX;
-    v.note('Las dos medias restadas vienen de que μ y σ dependen de <b>toda</b> la fila: mover un x cambia la media y la desviación que usan los demás. Por eso \\(\\mathrm{d}' + X.tex + '\\) no es simplemente \\(' + DXH + ' / \\sigma\\).');
+    const branch = /_\{\\text\{LN\}\}$/.test(dX.tex);
+    v.note('Las dos medias restadas vienen de que μ y σ² dependen de <b>toda</b> la fila: mover un x cambia la media y la desviación que usan los demás. Por eso \\(' + dX.tex + '\\) no es simplemente \\(' + DXH + '/\\sqrt{\\sigma^2+\\varepsilon}\\).' +
+      (branch ? ' Es solo la rama que atraviesa la LayerNorm: en el paso siguiente se le suma el gradiente que llega por el atajo del residual.' : ''));
     function cellX(hm, i, j) {
       if (i < 0) return null;
       hX.highlightRow(i, 'src'); hSg.highlightCell(i, 0, 'src'); hXh.highlightRow(i, 'src');
       if (j >= 0 && hm !== hSg) { hX.highlightCell(i, j, 'hl'); hXh.highlightCell(i, j, 'hl'); }
       return insp({ kind: 'grad_layernorm', title: 'Fila ' + i + ' en el forward', sub: where(X, i, -1),
         tex: at(XH, i, 'j') + ' = \\frac{' + at(X.tex, i, 'j') + ' - \\mu_{' + i + '}}{\\sqrt{\\sigma^2_{' + i + '}+\\varepsilon}}',
-        rows: [['μ' + sub(i), '= ' + f4(ax.mu.get(i, 0))], ['√(σ²+ε)', '= ' + f4(ax.sigma.get(i, 0))]].concat(j >= 0 && hm !== hSg ? [['x̂', '= (' + f4(X.mat.get(i, j)) + ' − ' + par(ax.mu.get(i, 0)) + ') / ' + f4(ax.sigma.get(i, 0)) + ' = ' + f4(ax.xhat.get(i, j))]] : []) });
+        rows: [['μ' + sub(i), '= ' + f4(ax.mu.get(i, 0))], ['√(σ²+ε)', '= ' + f4(ax.sigma.get(i, 0))]].concat(j >= 0 && hm !== hSg ? [[XHL, '= (' + f4(X.mat.get(i, j)) + ' − ' + par(ax.mu.get(i, 0)) + ') / ' + f4(ax.sigma.get(i, 0)) + ' = ' + f4(ax.xhat.get(i, j))]] : []) });
     }
     function cellDX(hm, i, j) {
       if (i < 0) return null;
@@ -1669,8 +1704,8 @@
       const dy = dY.mat.get(i, j), g = G.mat.get(0, j), dxh = ax.dxhat.get(i, j), xh = ax.xhat.get(i, j), sg = ax.sigma.get(i, 0);
       return insp({ kind: 'grad_layernorm', title: cellLab(dX, i, j), sub: where(dX, i, j),
         tex: at(dX.tex, i, j) + ' = \\frac{1}{\\sqrt{\\sigma^2_{' + i + '}+\\varepsilon}}\\Big(' + at(DXH, i, j) + ' - \\overline{' + DXH + '}_{' + i + '} - ' + at(XH, i, j) + '\\,\\overline{' + DXH + '\\odot ' + XH + '}_{' + i + '}\\Big)',
-        rows: [['dx̂', '= dY · γ = ' + f4(dy) + ' · ' + par(g) + ' = ' + f4(dxh)], ['media(' + DXHL + ')', '= ' + f4(m1.d[i])], ['media(' + DXHL + '⊙' + XHL + ')', '= ' + f4(m2.d[i])], ['x̂', '= ' + f4(xh)],
-          ['dX', '= (' + f4(dxh) + ' − ' + par(m1.d[i]) + ' − ' + par(xh) + '·' + par(m2.d[i]) + ') / ' + f4(sg) + ' = ' + f4(dX.mat.get(i, j), 6)]] });
+        rows: [[DXHL, '= ' + (dY.label || 'dY') + ' · ' + (G.label || 'γ') + ' = ' + f4(dy) + ' · ' + par(g) + ' = ' + f4(dxh)], ['media(' + DXHL + ')', '= ' + f4(m1.d[i])], ['media(' + DXHL + '⊙' + XHL + ')', '= ' + f4(m2.d[i])], [XHL, '= ' + f4(xh)],
+          [dX.label || 'dX', '= (' + f4(dxh) + ' − ' + par(m1.d[i]) + ' − ' + par(xh) + '·' + par(m2.d[i]) + ') / ' + f4(sg) + ' = ' + f4(dX.mat.get(i, j), 6)]] });
     }
     function cellParam(hm, i, j) {
       if (j < 0) return null;
@@ -1781,6 +1816,9 @@
     const base = { rowAxis: th.rowAxis, colAxis: th.colAxis, rowLabels: rl, colLabels: cl };
     const dRef = mkRef(Object.assign({ key: 'delta', tex: '\\Delta ' + ax.tex, label: 'Δ' + (th.label || ''), mat: ax.delta, role: 'act' }, base));
     const clipped = ax.clipFactor < 1;
+    // el gradiente que usa la regla: dθ, o c·dθ si hubo recorte (g queda para el vector de TODOS los
+    // gradientes sin recortar, el del paso de la norma global)
+    const gN = clipped ? 'c·dθ' : 'dθ', gNp = clipped ? '(c·dθ)' : 'dθ';
     const lr = ax.lr, t = ax.t;
     const thMx = maxAbsOf([th, thN]);
     const MOM = { tag: 'momento', tagRole: 'mom' };
@@ -1805,7 +1843,7 @@
       hs.th = v.hm(th, { maxAbs: thMx }, cell); hs.d = v.hm(dRef, {}, cell); hs.thN = v.hm(thN, { maxAbs: thMx }, cell);
       L4.term(hs.th).term(hs.d, '+').term(hs.thN, '=');
     } else {
-      const L1 = v.line('1 · Paso de descenso de gradiente: Δθ = −η · g');
+      const L1 = v.line('1 · Paso de descenso de gradiente: Δθ = −η · ' + gN);
       hs.g = v.hm(g, {}, cell); hs.d = v.hm(dRef, {}, cell);
       L1.term(hs.g, { tex: '-' + texNum(lr) + '\\,\\cdot' }).term(hs.d, '=');
       const L2 = v.line('2 · Nuevo valor: θ ← θ + Δθ');
@@ -1831,7 +1869,7 @@
     if (clipped) notes.push('El gradiente usado es c·dθ con c = ' + f4(ax.clipFactor) + ' (recorte por norma global).');
     if (adam) {
       notes.push('Adam divide cada paso por √v̂: cada número del parámetro tiene su propia tasa de aprendizaje efectiva.' +
-        (t === 1 ? ' Primera actualización: m y v empiezan en 0 (por eso sus matrices de partida están en blanco) y la corrección de sesgo (dividir por 1 − βᵗ) da m̂ = g y v̂ = g²; así Δθ ≈ −η·signo(g): cada número con gradiente distinto de 0 se mueve ≈ η = ' + fmtC(lr) + '.' : ''));
+        (t === 1 ? ' Primera actualización: m y v empiezan en 0 (por eso sus matrices de partida están en blanco) y la corrección de sesgo (dividir por 1 − β<sub>m</sub><sup>t</sup> y por 1 − β<sub>v</sub><sup>t</sup>) da m̂ = ' + gN + ' y v̂ = ' + gNp + '²; así Δθ ≈ −η·signo(' + gN + '): cada número con gradiente distinto de 0 se mueve ≈ η = ' + fmtC(lr) + '.' : ''));
       if (zeroRows) {
         const base = filas(zeroRows) + ' gradiente 0 (tokens que no están en la entrada, ids)';
         if (t === 1 || zeroMoving === 0) notes.push(base + ': m = v = 0 para ' + (zeroRows === 1 ? 'ella' : 'ellas') + ' y no se ' + (zeroRows === 1 ? 'mueve' : 'mueven') + '.');
@@ -1843,7 +1881,7 @@
         else notes.push(base + ', pero aun así se mueven: el momento m recuerda gradientes de iteraciones anteriores.');
       }
     } else {
-      notes.push('SGD: Δθ = −η·g. El paso es proporcional al gradiente: donde el gradiente es grande, el cambio también.');
+      notes.push('SGD: Δθ = −η·' + gN + '. El paso es proporcional al gradiente: donde el gradiente es grande, el cambio también.');
       if (zeroRows) notes.push(filas(zeroRows) + ' gradiente 0 (tokens que no están en la entrada, ids) y no cambian.');
     }
     v.note(notes.join(' '));
@@ -1852,14 +1890,29 @@
     if (rc && Array.isArray(v.ctx.steps) && v.ctx.stepIndex === v.ctx.steps.length - 1) {
       const box = el('div', 'ov-recap');
       box.dataset.phase = 'update';
-      let html = '<b>Fin de la iteración ' + rc.iter + '.</b> Se han actualizado los ' + Number(rc.nParams).toLocaleString('es-ES') + ' números del modelo (todos sus parámetros). ';
-      if (rc.after != null && Number.isFinite(rc.before) && Number.isFinite(rc.after)) {
-        const dl = rc.after - rc.before;
-        html += 'Con los pesos nuevos, la pérdida de esta frase pasa de <b>' + f4(rc.before) + '</b> a <b>' + f4(rc.after) + '</b> (' + (dl <= 0 ? MINUS : '+') + f4(Math.abs(dl), 3) + '). ';
-      } else if (rc.after == null) {
-        html += 'El modelo ha seguido entrenando desde que se recorrió esta iteración, así que sus pesos ya no son los de este paso. ';
+      const nf = (x) => Number(x).toLocaleString('es-ES');
+      let html = '<b>Fin de la iteración ' + rc.iter + '.</b> ';
+      if (rc.nChanged == null || rc.nChanged >= rc.nParams) html += 'Se han actualizado los ' + nf(rc.nParams) + ' números del modelo (todos sus parámetros). ';
+      else {
+        // con gradiente 0 (y, con Adam, sin momento acumulado) un número no se mueve: la regla se
+        // aplica a todos, pero no todos cambian
+        html += 'Se ha aplicado la regla de actualización a los ' + nf(rc.nParams) + ' números del modelo y han cambiado ' + nf(rc.nChanged) + '. Los otros ' +
+          nf(rc.nParams - rc.nChanged) + ' tenían gradiente 0 (p. ej. las filas de E de los tokens que no están en la frase' +
+          (rc.relu ? ' o los pesos de las neuronas ReLU que no se activaron en ninguna posición' : '') + ')' +
+          (rc.optimizer === 'adam' ? ' y, con Adam, tampoco momento acumulado' : '') + ', así que no se mueven. ';
       }
-      html += 'La siguiente iteración parte de estos pesos.';
+      if (rc.diverged && !rc.stale) {
+        html += 'Pero en esta iteración el entrenamiento <b>divergió</b> (la pérdida o el gradiente dejaron de ser finitos): no se recorren más iteraciones hasta que bajes η o actives el recorte y pulses «Reiniciar pesos» en «Entrenamiento».';
+      } else if (rc.stale) {
+        html += 'El modelo ha seguido entrenando desde que se recorrió esta iteración, así que sus pesos ya no son los de este paso' +
+          (rc.diverged ? ' (y después divergió).' : ': la siguiente iteración partirá de los actuales.');
+      } else {
+        if (rc.after != null && Number.isFinite(rc.before) && Number.isFinite(rc.after)) {
+          const dl = rc.after - rc.before;
+          html += 'Con los pesos nuevos, la pérdida de esta frase pasa de <b>' + f4(rc.before) + '</b> a <b>' + f4(rc.after) + '</b> (' + (dl <= 0 ? MINUS : '+') + f4(Math.abs(dl), 3) + '). ';
+        }
+        html += 'La siguiente iteración parte de estos pesos.';
+      }
       box.innerHTML = '<p>' + html + '</p>';
       if (typeof rc.onNew === 'function') {
         const b = el('button', 'btn btn--sm btn--primary');
@@ -1876,8 +1929,8 @@
       for (const k in hs) if (hs[k]) hs[k].highlightCell(i, j, hs[k] === hm ? 'hl' : 'src');
       const gv = g.mat.get(i, j), tv = th.mat.get(i, j), tn = thN.mat.get(i, j), dv = ax.delta.get(i, j);
       const rows = [];
-      if (clipped) rows.push(['g = c·dθ', '= ' + f4(ax.clipFactor) + ' · ' + par(gv / ax.clipFactor) + ' = ' + f4(gv)]);
-      else rows.push(['g', '= ' + f4(gv)]);
+      if (clipped) rows.push(['c·dθ', '= ' + f4(ax.clipFactor) + ' · ' + par(gv / ax.clipFactor) + ' = ' + f4(gv)]);
+      else rows.push(['dθ', '= ' + f4(gv)]);
       let tex;
       if (adam) {
         const mo = m0.mat.get(i, j), vo = v0.mat.get(i, j), mn = m1.mat.get(i, j), vn = v1.mat.get(i, j), mh = ax.mhat.get(i, j), vh = ax.vhat.get(i, j);
@@ -1888,8 +1941,8 @@
         rows.push(['Δθ', '= −' + fmtC(lr) + ' · ' + par(mh) + ' / (√' + f4(vh) + ' + ' + f4(ax.eps) + ') = −' + fmtC(lr) + ' · ' + par(mh) + ' / ' + f4(Math.sqrt(vh) + ax.eps) + ' = ' + f4(dv)]);
         tex = '\\theta \\leftarrow \\theta - \\eta\\,\\frac{\\hat m}{\\sqrt{\\hat v}+\\epsilon},\\quad \\hat m = \\frac{m}{1-' + b1 + '^{' + t + '}},\\ \\hat v = \\frac{v}{1-' + b2 + '^{' + t + '}}';
       } else {
-        rows.push(['Δθ', '= −η·g = −' + fmtC(lr) + ' · ' + par(gv) + ' = ' + f4(dv)]);
-        tex = '\\theta \\leftarrow \\theta - \\eta\\,g,\\quad \\eta = ' + texNum(lr);
+        rows.push(['Δθ', '= −η·' + gN + ' = −' + fmtC(lr) + ' · ' + par(gv) + ' = ' + f4(dv)]);
+        tex = '\\theta \\leftarrow \\theta - \\eta\\,' + (clipped ? 'c\\,' : '') + '\\mathrm{d}\\theta,\\quad \\eta = ' + texNum(lr);
       }
       rows.push(['θ nuevo', '= ' + f4(tv) + ' + ' + par(dv) + ' = ' + f4(tn, 6)]);
       return insp({ kind: 'update', title: (th.label || 'θ') + '[' + i + ', ' + j + ']', sub: where(th, i, j), tex, rows });

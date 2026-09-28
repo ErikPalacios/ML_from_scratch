@@ -58,6 +58,9 @@
   const TAGS = { grad: 'gradiente', param: 'parámetro', const: 'constante', onehot: 'one-hot', mask: 'máscara', fwd: 'del forward' };
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // superíndice de capa del motor ⁽²⁾ → <sup>[2]</sup> (como X^{[2]} en las fórmulas)
+  const SUPN = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+  const supBr = (html) => String(html).replace(/⁽([⁰¹²³⁴⁵⁶⁷⁸⁹]+)⁾/g, (m, n) => '<sup>[' + n.split('').map((c) => SUPN[c]).join('') + ']</sup>');
   const NINF_HTML = '<span class="hm__ninf">' + '−∞' + '</span>';
 
   // ---------------------------------------------------------------- números
@@ -364,7 +367,7 @@
         if (o.note) {
           const n = doc.createElement('div');
           n.className = 'hm__note';
-          n.innerHTML = o.note;
+          n.innerHTML = supBr(o.note);
           fig.appendChild(n);
         }
       }
@@ -839,7 +842,8 @@
       const names = doc.createElement('span');
       names.className = 'hm-legend__names';
       const n = it.names || [];
-      names.textContent = (it.note ? it.note : n.length > 1 ? 'escala compartida: ' : 'escala propia: ') + n.join(', ');
+      // nombres del motor con superíndice de capa (X⁽⁰⁾) → X<sup>[0]</sup>, como en las fórmulas
+      names.innerHTML = esc(it.note ? it.note : n.length > 1 ? 'escala compartida: ' : 'escala propia: ') + supBr(esc(n.join(', ')));
       row.append(bar, nums, names);
       box.appendChild(row);
       if (it.masked) hasMask = true;

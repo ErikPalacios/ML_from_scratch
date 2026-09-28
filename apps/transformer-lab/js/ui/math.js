@@ -13,6 +13,8 @@
      TL.MathTex.typeset(el)            -> Promise   (compone \( … \) y \[ … \] de un subárbol HTML)
      TL.MathTex.toHTML(latex, display) -> string    (SVG en caché o respaldo; útil para plantillas)
      TL.MathTex.clearCache()
+     TL.MathTex.upgrade(el)            -> número de fórmulas provisionales (macros que MathJax carga bajo
+                                          demanda) ya compuestas dentro de el (también si está desconectado)
    Si MathJax llega tarde (tras los 8 s de espera), las fórmulas de respaldo (y las versiones
    unicode «lite») se sustituyen solas por las compuestas y se emite el evento
    'tl:mathjax-ready' en window (la app reconstruye lo que tenga en caché).
@@ -121,8 +123,10 @@
 
   // ---------------------------------------------------------------- conversión con caché
   // (data-tex guarda el LaTeX original: si MathJax llega tarde, se compone en su sitio)
-  function fallbackHTML(latex, display) {
-    const code = '<code class="tex-fallback" title="Fórmula sin componer (MathJax no disponible)" data-tex="' + esc(latex) +
+  // why: 'error' si MathJax está cargado pero no pudo componer esta fórmula (si no, no está disponible)
+  function fallbackHTML(latex, display, why) {
+    const title = why === 'error' ? 'Fórmula sin componer (MathJax no pudo procesarla)' : 'Fórmula sin componer (MathJax no disponible)';
+    const code = '<code class="tex-fallback" title="' + title + '" data-tex="' + esc(latex) +
       '" data-display="' + (display ? 1 : 0) + '">' + esc(latex) + '</code>';
     return display ? '<span class="tex-display">' + code + '</span>' : code;
   }
@@ -136,6 +140,37 @@
     const lite = TL.Charts && TL.Charts.texLite ? TL.Charts.texLite(latex) : esc(latex);
     const s = '<span class="tex-pending">' + lite + '</span>';
     return display ? '<span class="tex-display">' + s + '</span>' : s;
+  }
+
+  // Macros que MathJax carga bajo demanda («autoload», p. ej. \boldsymbol): la primera conversión
+  // lanza un error con e.retry (una promesa). Ese resultado NO se guarda en la caché: se deja un
+  // marcador provisional (versión unicode) y, cuando llega el paquete, se compone en su sitio.
+  const retryTries = new Map(); // clave → intentos (evita un bucle si el paquete nunca llega)
+  function retryHTML(latex, display) {
+    const lite = TL.Charts && TL.Charts.texLite ? TL.Charts.texLite(latex) : esc(latex);
+    const s = '<span class="tex-pending tex-retry" data-tex="' + esc(latex) + '" data-display="' + (display ? 1 : 0) + '">' + lite + '</span>';
+    return display ? '<span class="tex-display">' + s + '</span>' : s;
+  }
+  function waitRetry(p) {
+    Promise.resolve(p).catch(() => {}).then(() => setTimeout(() => {
+      const n = upgradeRetries(doc);
+      if (n) { try { root.dispatchEvent(new Event('tl:mathjax-retry')); } catch (e) { /* nada */ } }
+    }, 0));
+  }
+  // sustituye los marcadores provisionales de un subárbol (conectado o no) por la fórmula compuesta
+  function upgradeRetries(scope) {
+    if (!mj || !scope || typeof scope.querySelectorAll !== 'function') return 0;
+    let n = 0;
+    for (const c of Array.from(scope.querySelectorAll('.tex-retry[data-tex]'))) {
+      const display = c.dataset.display === '1';
+      const wrap = display && c.parentElement && c.parentElement.classList.contains('tex-display') ? c.parentElement : c;
+      if (!wrap.parentNode) continue;
+      const tmp = doc.createElement('span');
+      tmp.innerHTML = convert(c.dataset.tex, display);
+      wrap.replaceWith.apply(wrap, Array.from(tmp.childNodes));
+      n++;
+    }
+    return n;
   }
 
   function ensureGlobalCache() {
@@ -160,8 +195,15 @@
       html = node.outerHTML;
       if (display) html = '<span class="tex-display">' + html + '</span>';
     } catch (e) {
-      html = fallbackHTML(latex, display);
+      const tries = retryTries.get(key) || 0;
+      if (e && e.retry && tries < 5) {
+        retryTries.set(key, tries + 1);
+        waitRetry(e.retry);
+        return retryHTML(latex, display); // provisional: no se guarda en la caché
+      }
+      html = fallbackHTML(latex, display, 'error');
     }
+    retryTries.delete(key);
     cache.set(key, html);
     if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
     return html;
@@ -274,5 +316,5 @@
 
   function clearCache() { cache.clear(); }
 
-  TL.MathTex = { ready, isReady, render, typeset, toHTML, clearCache, _splitMath: splitMath };
+  TL.MathTex = { ready, isReady, render, typeset, toHTML, clearCache, upgrade: upgradeRetries, _splitMath: splitMath };
 })(typeof window !== 'undefined' ? window : globalThis);

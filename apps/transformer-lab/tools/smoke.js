@@ -53,12 +53,42 @@
   ];
 
   // ---- comprobaciones de fórmulas compuestas por MathJax
+  // fórmula rota: error de MathJax, código LaTeX de respaldo, marcador provisional (macro que MathJax
+  // carga bajo demanda, p. ej. \boldsymbol) o macro desconocida (noundefined la dibuja en rojo)
+  const MJ_BAD = '[data-mjx-error], merror, [data-mml-node="merror"], .tex-fallback, .tex-retry, [fill="red"]';
+  const MJ_BAD_RE = /tex-fallback|tex-retry|fill="red"|data-mjx-error|merror/;
   function texOK(el, where, what) {
     if (!check(el && el.innerHTML.trim().length > 0, where, what + ' vacío')) return;
     if (mj) {
       check(el.querySelector('mjx-container'), where, what + ' sin componer');
-      check(!el.querySelector('[data-mjx-error], merror, .tex-fallback'), where, what + ' con error de MathJax');
+      check(!el.querySelector(MJ_BAD), where, what + ' con error de MathJax');
     }
+  }
+  // todas las fórmulas del contenido (explicaciones con sus marcadores rellenos, derivaciones,
+  // recorrido, notación y símbolos) se componen sin error a la primera
+  function contentTex() {
+    const C = TL.Content, bad = [];
+    const vals = { T: 5, d: 8, h: 2, dk: 4, dff: 32, V: 22, N: 1, l: 1, hd: 1, lr: 0.01 };
+    let n = 0;
+    const test = (tex, display, where) => {
+      n++;
+      if (MJ_BAD_RE.test(TL.MathTex.toHTML(tex, display))) bad.push(where + ': ' + String(tex).slice(0, 90));
+    };
+    const scan = (html, where) => {
+      const parts = TL.MathTex._splitMath(String(html || ''));
+      if (!parts) { bad.push(where + ': delimitador LaTeX sin cerrar'); return; }
+      for (const p of parts) if (p.tex !== undefined) test(p.tex, p.display, where);
+    };
+    for (const id in C.steps) {
+      const c = C.steps[id];
+      for (const k of ['title', 'summary', 'intuition', 'shapes', 'details']) if (typeof c[k] === 'string') scan(C.fill(c[k], vals), id + '.' + k);
+      for (const m of c.math || []) test(C.fill(m, vals), true, id + '.math');
+    }
+    for (const id in C.derivations || {}) scan(C.derivations[id].html, 'derivación ' + id);
+    (C.tour || []).forEach((t, k) => scan(t.html, 'recorrido ' + (k + 1)));
+    for (const x of C.notation || []) test(x.tex, false, 'notación');
+    for (const x of C.symbols || []) if (x.tex) test(x.tex, false, 'símbolo ' + x.sym);
+    return { n, bad };
   }
   // texto visible sin el código LaTeX de respaldo (sin MathJax, «\\mathrm{d}» contiene «{d}» y no es un marcador)
   function plainText(el) {
@@ -100,7 +130,9 @@
     if (st.outputs.length) check(stage.querySelectorAll('.hm').length >= 1, W, 'sin mapas de calor');
     const stTxt = plainText(stage);
     check(!/\{(T|d|h|dk|dff|V|N)\}|undefined|NaN/.test(stTxt), W, 'texto sospechoso en el escenario: ' + ((stTxt.match(/.{0,30}(\{(T|d|h|dk|dff|V|N)\}|undefined|NaN).{0,30}/) || [''])[0]));
-    if (mj) check(!stage.querySelector('[data-mjx-error], merror'), W, 'error de MathJax en el escenario');
+    // el superíndice de capa se escribe [l], como en las fórmulas (no ⁽l⁾)
+    check(!/[⁽⁾]/.test(stTxt), W, 'superíndice de capa entre paréntesis en el escenario: ' + ((stTxt.match(/.{0,30}[⁽⁾].{0,10}/) || [''])[0]));
+    if (mj) check(!stage.querySelector(MJ_BAD), W, 'fórmula rota en el escenario');
     // en escritorio ninguna matriz debe necesitar desplazamiento propio (en «auto» se ajustan al ancho)
     if (innerWidth >= 1200) {
       for (const sc of stage.querySelectorAll('.hm__scroll')) {
@@ -118,7 +150,8 @@
       if (mj) {
         const prose = Array.from(ex.querySelectorAll('.prose')).map((p) => p.textContent).join(' ');
         check(!/\\\(|\\\[/.test(prose), W, 'delimitadores LaTeX sin componer en la explicación');
-        check(!ex.querySelector('[data-mjx-error], merror'), W, 'error de MathJax en la explicación');
+        const bad = ex.querySelector(MJ_BAD);
+        check(!bad, W, 'fórmula rota en la explicación: ' + (bad ? (bad.closest('[data-tex]') || bad).getAttribute('data-tex') || bad.textContent.slice(0, 60) : ''));
       }
     }
     // inspector: 2–3 celdas de la salida
@@ -151,7 +184,7 @@
           if (mj) {
             for (const tx of b.querySelectorAll('.insp__tex')) check(tx.querySelector('mjx-container'), where, 'la fórmula del inspector no se compuso');
             check(!/\\\(|\\\[/.test(b.textContent), where, 'delimitadores LaTeX sin componer en el inspector');
-            check(!b.querySelector('[data-mjx-error], merror'), where, 'error de MathJax en el inspector');
+            check(!b.querySelector(MJ_BAD), where, 'fórmula rota en el inspector');
           }
         }
       }
@@ -160,6 +193,7 @@
     const host = $('dg-host');
     check(host.querySelector('.dg-node.is-active'), W, 'ningún bloque activo en el diagrama');
     check(host.querySelectorAll('.dg-shapes text').length >= 8, W, 'faltan etiquetas de forma en el diagrama');
+    if (i === 0) check(!Array.from(host.querySelectorAll('.dg-shapes title')).some((t) => /[{}\\]/.test(t.textContent)), W, 'tooltip de forma con LaTeX sin componer');
     // línea de tiempo
     const cur = $('tl-ticks').querySelectorAll('.tl-tick.is-cur');
     check(cur.length === 1 && Array.prototype.indexOf.call($('tl-ticks').children, cur[0]) === i, W, 'la línea de tiempo no marca el paso');
@@ -225,6 +259,15 @@
     const fits = bottom - top <= b.bottom - b.top;
     check(fits ? top >= b.top - 2 && bottom <= b.bottom + 2 : top < b.bottom && bottom > b.top, where + ' · ' + id,
       'lo que se anima (' + Math.round(top) + '…' + Math.round(bottom) + ' px) queda fuera de la franja visible (' + Math.round(b.top) + '…' + Math.round(b.bottom) + ' px)');
+    // la salida que se rellena se ve entera si cabe (antes, con LayerNorm, quedaba bajo la línea de tiempo)
+    const st = B.getStep();
+    for (const h of hms.filter((x) => st.outputs.some((o) => o.tex === x.ref.tex))) {
+      const r = h.el.getBoundingClientRect();
+      if (r.height <= b.bottom - b.top - 4) {
+        check(r.top >= b.top - 2 && r.bottom <= b.bottom + 2, where + ' · ' + id, 'la salida ' + h.ref.key + ' (' + Math.round(r.top) + '…' + Math.round(r.bottom) +
+          ' px) no se ve entera en la franja visible (' + Math.round(b.top) + '…' + Math.round(b.bottom) + ' px)');
+      }
+    }
     B.state.view.stop && B.state.view.stop();
   }
   const loadFrame = async (width, height) => {
@@ -242,6 +285,11 @@
   };
 
   const summary = { mathjax: mj, configs: [] };
+  if (mj) {
+    const ct = contentTex();
+    summary.contentTex = ct.n;
+    for (const b of ct.bad.slice(0, 20)) fail('contenido', 'fórmula que no se compone a la primera: ' + b);
+  }
   for (const cf of CONFIGS) {
     summary.configs.push(await runConfig(cf));
     console.log('[smoke] ' + cf.name + ' → ' + JSON.stringify(summary.configs[summary.configs.length - 1]));
@@ -379,7 +427,7 @@
     await frame();
     const wl = $('welcome'); const wlHidden = wl.hidden; wl.hidden = true;
     // «Animar» desplaza la página hasta lo que se anima (antes, el resultado quedaba bajo la línea de tiempo)
-    for (const id of ['fwd.L0.attn.q', 'fwd.L0.attn.h0.softmax', 'loss.ce', 'upd.param.L0.W1']) await animVisible(window, A, id, W);
+    for (const id of ['fwd.L0.attn.q', 'fwd.L0.ln1', 'fwd.L0.attn.h0.softmax', 'loss.ce', 'bwd.lnf', 'upd.param.L0.W1']) await animVisible(window, A, id, W);
     // la reproducción automática anima cada paso y avanza
     A.goToStep(3);
     document.querySelector('#tl-speed [data-speed="4"]').click();
@@ -443,9 +491,142 @@
     // divergencia: se detecta, se detiene y se explica (antes: pérdida «finita» de 690.78 y «sin gradientes»)
     A.applyConfig({ corpus: CONFIGS[0].c.corpus, cfg: { nLayers: 1, nHeads: 2 }, hp: { type: 'sgd', lr: 5, clip: 0 } });
     A.setTab('entrenamiento');
-    const dv = A.train(300);
-    check(dv.diverged && dv.iter < 300 && !$('tr-diverged').hidden, W, 'la divergencia no se detectó (iteración ' + dv.iter + ')');
+    const dv = A.train(600);
+    check(dv.diverged && dv.iter < 600 && !$('tr-diverged').hidden, W, 'la divergencia no se detectó (iteración ' + dv.iter + ')');
     check(!/e\+\d/.test($('st-ppl').textContent), W, 'la perplejidad desborda su casilla: ' + $('st-ppl').textContent);
+    // tras divergir no se recorren (ni actualizan) más iteraciones, y «Paso a paso» lo explica
+    A.setTab('paso');
+    const itD = S.s.iter;
+    const nd = A.newIteration();
+    check(nd.diverged && S.s.iter === itD && !$('stale-note').hidden && /divergió/.test($('stale-text').textContent), W,
+      'con el entrenamiento divergido, «Nueva iteración» siguió actualizando (iteración ' + itD + ' → ' + S.s.iter + ') o no se explicó');
+    // una pérdida enorme pero finita no es divergencia (Adam se recupera): antes se detenía en la iteración 3-4
+    A.applyConfig({ corpus: CONFIGS[0].c.corpus, cfg: { nLayers: 1, nHeads: 2 }, hp: { type: 'adam', lr: 5, clip: 0 } });
+    const ad = A.train(200);
+    check(!ad.diverged && Number.isFinite(ad.loss), W, 'Adam con η = 5 se dio por divergido con pérdida finita (iteración ' + ad.iter + ')');
+    A.applyConfig(CONFIGS[0].c);
+    A.setTab('paso');
+  }
+  // ---- regresiones de la 2.ª revisión (1440 px)
+  {
+    const W = 'regresiones 2';
+    A.applyConfig(CONFIGS[0].c);
+    A.setTab('paso');
+    await frame();
+    const wl = $('welcome'); const wlHidden = wl.hidden; wl.hidden = true;
+    const inBand = (el) => { if (!el) return false; const r = el.getBoundingClientRect(), b = bandOf(window); return r.top >= b.top - 2 && r.bottom <= b.bottom + 2; };
+    const last = S.trace.steps.length - 1;
+    // «Animar» en el último paso: al terminar, el resumen de la iteración vuelve a la vista
+    A.goToStep(last); A.flush(); scrollTo(0, 0);
+    $('btn-animate').click();
+    await sleep(700);
+    S.view.stop();
+    await sleep(1100);
+    const rc = $('stage').querySelector('.ov-recap');
+    check(inBand(rc), W, 'tras animar el último paso, el resumen de la iteración no queda a la vista');
+    check(rc && /han cambiado \d/.test(rc.textContent), W, 'el resumen no distingue los números que no cambiaron: ' + (rc ? rc.textContent.slice(0, 120) : ''));
+    // la reproducción termina con el resumen a la vista y el foco en «Nueva iteración»
+    scrollTo(0, 0);
+    A.goToStep(last - 1);
+    document.querySelector('#tl-speed [data-speed="4"]').click();
+    A.play();
+    let t0 = performance.now();
+    while (S.playing && performance.now() - t0 < 12000) await sleep(80);
+    await sleep(900);
+    const rc2 = $('stage').querySelector('.ov-recap');
+    check(!S.playing && inBand(rc2) && document.activeElement && !!document.activeElement.closest('.ov-recap'), W,
+      'al acabar la reproducción el resumen no está a la vista o el foco no está en «Nueva iteración» (' + (document.activeElement && document.activeElement.tagName) + ')');
+    // cambiar de velocidad durante la reproducción se nota ya (antes: al acabar la animación en curso)
+    document.querySelector('#tl-speed [data-speed="0.5"]').click();
+    A.goToStep(3);
+    A.play();
+    await sleep(800);
+    t0 = performance.now();
+    document.querySelector('#tl-speed [data-speed="4"]').click();
+    while (S.idx === 3 && performance.now() - t0 < 6000) await sleep(20);
+    const adv = performance.now() - t0;
+    A.pause();
+    document.querySelector('#tl-speed [data-speed="1"]').click();
+    check(adv < 1500, W, 'tras pasar de 0.5× a 4×, el paso siguiente tardó ' + Math.round(adv) + ' ms');
+    // las celdas −∞ pendientes de la animación no se ven antes de tiempo
+    A.goToStep(S.trace.steps.findIndex((x) => x.id === 'fwd.L0.attn.h0.mask')); A.flush();
+    const pm = S.view.animate();
+    await sleep(60);
+    const early = Array.from($('stage').querySelectorAll('.hm__c.is-pending .hm__ninf')).filter((e) => getComputedStyle(e).visibility !== 'hidden').length;
+    S.view.stop(); await pm;
+    check(!early, W, early + ' celdas −∞ se ven antes de que la animación llegue a ellas');
+    // la etiqueta «del forward · paso N» lleva a ese paso y deja el foco en su título
+    const tagStep = S.trace.steps.findIndex((x) => x.id === 'bwd.logits.dW');
+    A.goToStep(tagStep); A.flush();
+    const tag = $('stage').querySelector('.hm__tag--btn');
+    if (check(tag, W, 'sin etiqueta «del forward» en ' + S.trace.steps[tagStep].id)) {
+      tag.click();
+      check(S.idx < tagStep && document.activeElement === $('step-title'), W, 'la etiqueta «del forward» no llevó al paso o dejó el foco en ' + document.activeElement.tagName);
+    }
+    // la nota de la atención describe la fila que muestra (en la frase 5, «la» → «casa»; no «el verbo»)
+    A.newIteration(4);
+    A.goToStep(S.trace.steps.findIndex((x) => x.id === 'fwd.L0.attn.h0.softmax')); A.flush();
+    const an = $('stage').querySelector('.ov-note--attn');
+    check(an && /la fila de «la» \(posición 5, que debe predecir «casa»\)/.test(an.textContent), W, 'la nota de la atención no describe la fila que muestra: ' + (an ? an.textContent.slice(0, 120) : ''));
+    // símbolo B: su descripción sigue al minilote de «Entrenamiento»
+    A.setTab('entrenamiento');
+    $('tr-batch').value = '8'; $('tr-batch').dispatchEvent(new Event('change'));
+    const symB = Array.from(document.querySelectorAll('#symstrip .sym')).map((x) => x.getAttribute('aria-label')).find((x) => /^B /.test(x || '')) || '';
+    check(/B = 8 frases/.test(symB), W, 'la descripción de B no se actualizó: ' + symB);
+    // un clic en un símbolo muestra el tooltip de ESE símbolo (antes, el de T)
+    A.setTab('paso');
+    const strip = $('symstrip');
+    const dff = Array.from(strip.querySelectorAll('.sym')).find((x) => /^d_ff/.test(x.getAttribute('aria-label') || ''));
+    if (check(dff, W, 'no está el símbolo d_ff')) {
+      strip.blur();
+      dff.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      strip.focus();
+      await frame();
+      const tip = document.querySelector('.chart-tip');
+      check(tip && /FFN/.test(tip.textContent), W, 'al pulsar d_ff se mostró otro símbolo: ' + (tip ? tip.textContent.slice(0, 60) : '—'));
+      strip.blur();
+    }
+    wl.hidden = wlHidden;
+    A.applyConfig(CONFIGS[0].c);
+  }
+  // ---- un modelo pesado (pero admitido): entrenar no congela la página; el minilote respeta el límite
+  {
+    const W = 'modelo pesado';
+    const lines = (n, words, vocab) => { const o = []; let k = 0; for (let i = 0; i < n; i++) { const w = []; for (let j = 0; j < words; j++) w.push('w' + ((k++) % vocab)); o.push(w.join(' ') + ' .'); } return o.join('\n'); };
+    const hv = A.applyConfig({ corpus: lines(40, 31, 300), cfg: { dModel: 64, nHeads: 16, nLayers: 3, dFF: 256, maxLen: 32 }, batchSize: 4 });
+    if (check(hv.ok, W, 'la configuración pesada se rechazó: ' + JSON.stringify(hv.errors))) {
+      A.setTab('paso');
+      A.goToStep(S.trace.steps.findIndex((x) => x.kind === 'softmax' && x.phase === 'forward')); A.flush();
+      const btn = () => $('stage').querySelector('[data-train-return]');
+      const it0 = S.s.iter, tr0 = S.trace.iter;
+      let gap = 0, lastT = performance.now(), on = true;
+      (function beat() { const t = performance.now(); gap = Math.max(gap, t - lastT); lastT = t; if (on) setTimeout(beat, 16); })();
+      const tc = performance.now();
+      btn().click();
+      const clickMs = performance.now() - tc;
+      await sleep(1000);
+      const lbl = btn() ? btn().textContent : '';
+      btn().click(); // cancelar
+      await sleep(150);
+      on = false;
+      check(clickMs < 100 && gap < 700, W, '«Entrenar 200 iteraciones y volver» bloqueó la página (clic ' + Math.round(clickMs) + ' ms, peor pausa ' + Math.round(gap) + ' ms)');
+      check(/Entrenando…/.test(lbl) && S.s.iter > it0 && S.trace.iter === tr0 && btn() && !/Entrenando/.test(btn().textContent), W,
+        'progreso o cancelación de «Entrenar 200 y volver» incorrectos (' + lbl + '; iteración ' + it0 + ' → ' + S.s.iter + ')');
+      // el minilote de «Entrenamiento» no puede saltarse el límite de coste de «Datos»
+      A.setTab('entrenamiento');
+      $('tr-batch').value = '64'; $('tr-batch').dispatchEvent(new Event('change'));
+      check(S.s.batchSize === 4 && /demasiado pesado/.test($('tr-hp-err').textContent), W, 'B = 64 se aceptó en «Entrenamiento» (B = ' + S.s.batchSize + ')');
+      // +10 a trozos: la página sigue respondiendo y se puede cancelar
+      const p10 = document.querySelector('[data-train="10"]');
+      gap = 0; lastT = performance.now(); on = true;
+      (function beat() { const t = performance.now(); gap = Math.max(gap, t - lastT); lastT = t; if (on) setTimeout(beat, 16); })();
+      p10.click();
+      await sleep(500);
+      p10.click();
+      await sleep(150);
+      on = false;
+      check(gap < 700 && p10.textContent === '+10', W, '«+10» bloqueó la página (' + Math.round(gap) + ' ms) o no se canceló (' + p10.textContent + ')');
+    }
     A.applyConfig(CONFIGS[0].c);
     A.setTab('paso');
   }
@@ -457,7 +638,7 @@
     B.setTab('paso');
     check(d.getElementById('iterbar').parentNode.id === 'iterbar-slot' && d.getElementById('timeline').offsetHeight < 110, W,
       'la línea de tiempo ocupa dos filas (' + d.getElementById('timeline').offsetHeight + ' px)');
-    for (const id of ['fwd.L0.attn.q', 'fwd.L0.attn.h0.scores', 'upd.param.L0.W1']) await animVisible(w, B, id, W);
+    for (const id of ['fwd.L0.attn.q', 'fwd.L0.ln1', 'fwd.L0.attn.h0.scores', 'upd.param.L0.W1']) await animVisible(w, B, id, W);
     // teclado: flechas por la matriz de salida; la celda enfocada no queda tapada
     const si = B.getTrace().steps.findIndex((x) => x.id === 'fwd.L0.attn.h0.softmax');
     B.goToStep(si); B.flush(); w.scrollTo(0, 0);
@@ -536,7 +717,36 @@
       check(!d.getElementById('inspector').classList.contains('is-empty') && ins.top >= 0 && ins.bottom <= tl.top + 1 && ins.top < w.innerHeight - 100, W,
         'tras tocar una celda, el inspector no queda a la vista (' + Math.round(ins.top) + '…' + Math.round(ins.bottom) + ' px; línea de tiempo en ' + Math.round(tl.top) + ')');
     }
+    // minimizado, el inspector conserva «Mostrar» al cambiar de paso (antes quedaba una barra sin control)
+    {
+      const im = d.getElementById('insp-min');
+      if (!d.getElementById('inspector').classList.contains('is-collapsed')) im.click();
+      B.goToStep(B.state.idx + 1); B.flush();
+      await wf();
+      check(d.getElementById('inspector').classList.contains('is-collapsed') && !im.hidden, W, 'con el inspector minimizado, «Mostrar» desaparece al cambiar de paso');
+      im.click();
+    }
     summary.mobile = { width: w.innerWidth, checks: checked + 1 };
+    f.remove();
+  }
+
+  // ---- pantalla baja (844×390, móvil en horizontal): queda sitio para el paso con el inspector abierto
+  {
+    const W = '844×390';
+    const f = await loadFrame(844, 390);
+    const w = f.contentWindow, d = f.contentDocument, B = w.TL.App;
+    B.setTab('paso');
+    B.goToStep(B.getTrace().steps.findIndex((x) => x.id === 'fwd.L0.attn.h0.softmax')); B.flush();
+    const hms = B.state.view.heatmaps;
+    const cell = hms[hms.length - 2].el.querySelectorAll('.hm__c')[0];
+    cell.scrollIntoView({ block: 'center' });
+    await sleep(60);
+    cell.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    B.flush();
+    await new Promise((r) => w.requestAnimationFrame(() => w.requestAnimationFrame(r)));
+    const hd = d.getElementById('app-head').getBoundingClientRect(), ins = d.getElementById('inspector').getBoundingClientRect();
+    const room = ins.top - Math.max(0, hd.bottom);
+    check(room >= 150, W, 'con el inspector abierto solo quedan ' + Math.round(room) + ' px para el paso');
     f.remove();
   }
 

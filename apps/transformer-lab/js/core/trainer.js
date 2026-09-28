@@ -113,7 +113,7 @@
     s.lastGradNorms = u.norms;
     s.lastGradNorm = u.gradNorm;
     s.lastClipFactor = u.clipFactor;
-    if (!Number.isFinite(f.loss) || f.lossCapped || !Number.isFinite(u.gradNorm)) s.diverged = true;
+    if (!Number.isFinite(f.loss) || !Number.isFinite(u.gradNorm)) s.diverged = true;
     return { steps, loss: f.loss, iter: s.iter, sentenceIndex: s.tok.sentences.indexOf(sen), gradNorm: u.gradNorm, clipFactor: u.clipFactor };
   }
 
@@ -133,9 +133,10 @@
   }
 
   // n iteraciones sin traza; cada una con un mini-lote de s.batchSize frases (gradientes promediados).
-  // Si el entrenamiento diverge (pérdida o norma del gradiente no finitas, o una probabilidad del
-  // objetivo por debajo de 1e-300, que haría la pérdida +∞), se marca s.diverged y se
-  // deja de actualizar: seguir solo propagaría NaN (hay que bajar η o activar el recorte y reiniciar).
+  // Si el entrenamiento diverge (pérdida o norma del gradiente no finitas: NaN o ∞), se marca
+  // s.diverged y se deja de actualizar: seguir solo propagaría NaN (hay que bajar η o activar el
+  // recorte y reiniciar). Una pérdida enorme pero finita NO es divergencia: Adam, con pasos acotados,
+  // suele recuperarse de esos picos.
   function trainSteps(s, n) {
     n = Math.max(0, n | 0);
     const model = s.model;
@@ -146,13 +147,12 @@
     for (let it = 0; it < n; it++) {
       if (s.diverged) break;
       for (const name of model.order) acc[name].d.fill(0);
-      let lsum = 0, capped = false;
+      let lsum = 0;
       for (let b = 0; b < B; b++) {
         const sen = s.tok.sentences[nextIndex(s)];
         const f = TL.Model.forward(model, sen.inputIds, sen.targetIds, { trace: false });
         const g = TL.Model.backward(model, f.cache, { trace: false }).grads;
         lsum += f.loss;
-        if (f.lossCapped) capped = true;
         for (const name of model.order) {
           const a = acc[name].d, gd = g[name].d;
           for (let k = 0; k < a.length; k++) a[k] += gd[k];
@@ -171,8 +171,8 @@
       s.lastGradNorm = u.gradNorm;
       s.lastClipFactor = u.clipFactor;
       losses.push(loss);
-      // pérdida o gradiente no finitos, o una probabilidad del objetivo < 1e-300 (logits desbocados)
-      if (!Number.isFinite(loss) || capped || !Number.isFinite(u.gradNorm)) s.diverged = true;
+      // pérdida o gradiente no finitos (NaN o ∞): los parámetros se han desbocado
+      if (!Number.isFinite(loss) || !Number.isFinite(u.gradNorm)) s.diverged = true;
     }
     return { losses, diverged: s.diverged };
   }
