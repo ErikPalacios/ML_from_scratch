@@ -8,6 +8,7 @@ Correr: cd gateway && pytest
 
 import asyncio  # el fake "lento" duerme para provocar el timeout del gateway
 import io  # imágenes de prueba generadas en memoria, sin archivos en el repo
+import re  # /metrics: buscar un par label="valor" sin depender del orden de los labels
 
 import aiohttp  # la excepción de red que lanzaría el cliente real si Triton está caído
 import numpy as np  # logits falsos con un top-1 conocido
@@ -140,6 +141,12 @@ def test_decompression_bomb_is_413(api, size):
     assert post(api, data, ctype="image/png").status_code == 413
 
 
+def test_extreme_aspect_ratio_is_400(api):
+    # 1×4,000 px: menos de 200 bytes y muy por debajo de 40 MP; sin la guardia, ≈ 1.1 GB de RAM al reescalar
+    data = image_bytes("PNG", size=(1, 4000), mode="1")
+    assert post(api, data, ctype="image/png").status_code == 400
+
+
 @pytest.mark.parametrize("data", [b"esto no es una imagen", image_bytes()[:2000]], ids=["basura", "truncada"])
 def test_undecodable_image_is_400(api, data):
     assert post(api, data).status_code == 400
@@ -173,6 +180,21 @@ def test_slow_triton_is_504(api):
     assert "X-Request-ID" in r.headers  # los errores también son trazables
 
 
+# ------------------------------------------------------------------------------ sobrecarga (load shedding)
+def test_overload_is_503_with_retry_after(api, monkeypatch):
+    monkeypatch.setattr(main, "MAX_INFLIGHT", 0)  # simula un pod saturado: se rechaza sin leer el body
+    r = post(api, image_bytes())
+    assert r.status_code == 503 and r.headers["Retry-After"] == "1"
+    assert api.app.state.triton.calls == []  # ni CPU ni GPU gastadas en un request rechazado
+
+
+def test_request_deadline_is_504(api, monkeypatch):
+    monkeypatch.setattr(main, "REQUEST_DEADLINE_S", 0.001)  # presupuesto agotado antes de llegar a Triton
+    r = post(api, image_bytes())
+    assert r.status_code == 504
+    assert api.app.state.triton.calls == []  # no se manda a la GPU un request que el caller ya abandonó
+
+
 # ------------------------------------------------------------------------------ health y métricas
 def test_healthz_does_not_depend_on_triton(api):
     FakeTriton.mode = "down"
@@ -190,12 +212,13 @@ def test_metrics_exposes_contract_names(api):
     r = api.get("/metrics", follow_redirects=False)
     assert r.status_code == 200  # sin redirect 307 a /metrics/ (ver comentario en main.metrics)
     text = r.text
+    # prometheus_client ordena los labels alfabéticamente: se busca el par, no la línea exacta
+    assert re.search(r'classifier_requests_total\{[^}]*status="200"', text)
+    assert re.search(r'classifier_top1_score_bucket\{[^}]*le="0\.3"', text)  # el bucket de ClassifierLowConfidenceSpike
     for name in [
-        'classifier_requests_total{status="200"}',
         "classifier_request_latency_seconds_bucket",
         "classifier_preprocess_seconds_bucket",
         "classifier_inference_seconds_bucket",
-        'classifier_top1_score_bucket{le="0.3"}',  # el bucket que usa ClassifierLowConfidenceSpike
         "classifier_image_bytes_bucket",
     ]:
         assert name in text, name

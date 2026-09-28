@@ -83,6 +83,16 @@
           it.meta ? h('span', { class: 'steps__meta', html: String(it.meta) }) : null),
         it.html ? h('div', { class: 'steps__body', html: String(it.html) }) : null))));
 
+  // Un valor que ya empieza con ≈, ~ o un signo de comparación no lleva "=" delante ("= ≈ 500" se lee mal).
+  const APPROX_START = /^(≈|~|≤|≥|<|>|&lt;|&gt;|&le;|&ge;|&asymp;|&sim;)/;
+  const calcValue = (v) => {
+    const html = String(v == null ? '' : v);
+    const lead = html.replace(/<[^>]*>/g, '').trim();
+    return h('div', { class: 'calc__value' },
+      APPROX_START.test(lead) ? null : h('span', { class: 'calc__eq', 'aria-hidden': 'true' }, '='),
+      h('span', { html }));
+  };
+
   R.calc = (b) => h('figure', { class: 'calc' },
     h('figcaption', { class: 'calc__head' },
       h('span', { class: 'calc__icon', html: icon('approx') }),
@@ -94,7 +104,7 @@
           h('span', { html: String(r.label == null ? '' : r.label) }),
           r.note ? h('span', { class: 'calc__note', html: String(r.note) }) : null),
         h('div', { class: 'calc__expr', html: r.expr == null ? '' : String(r.expr) }),
-        h('div', { class: 'calc__value' }, h('span', { class: 'calc__eq', 'aria-hidden': 'true' }, '='), h('span', { html: String(r.value == null ? '' : r.value) }))))),
+        calcValue(r.value)))),
     b.result ? h('div', { class: 'calc__result' }, h('span', { class: 'calc__result-k' }, 'Resultado'), h('div', { class: 'calc__result-v', html: String(b.result) })) : null);
 
   R.qa = (b) => h('div', { class: 'qa' }, arr(b.items).map((it) =>
@@ -183,6 +193,8 @@
         fb.appendChild(h('div', { class: 'quiz__verdict' }, h('span', { html: icon(right ? 'check' : 'close') }), right ? 'Correcto' : 'No exactamente: la respuesta es ' + String.fromCharCode(65 + (it.answer || 0))));
         if (it.explain) fb.appendChild(h('div', { class: 'quiz__explain', html: String(it.explain) }));
         retry.hidden = false;
+        // Las opciones quedan deshabilitadas: el foco pasa a "Intentar de nuevo" para no perderse en <body>.
+        retry.focus({ preventScroll: true });
       }
       function reset() {
         opts.forEach((btn) => { btn.disabled = false; btn.classList.remove('is-right', 'is-wrong'); btn.removeAttribute('aria-pressed'); });
@@ -225,7 +237,7 @@
     el.querySelectorAll('span.en').forEach((s) => { if (!s.lang) s.lang = 'en'; });
     el.querySelectorAll('a[href^="#"]').forEach((a) => {
       const pid = (a.getAttribute('href') || '').slice(1).split('.')[0];
-      if (!/^[mc]\d\d$/.test(pid) || typeof MSD.getPage !== 'function') return;
+      if (!/^([mc]\d\d|ref-[a-z]+)$/.test(pid) || typeof MSD.getPage !== 'function') return;
       const p = MSD.getPage(pid);
       if (!p || !p.ready) { a.classList.add('is-soon'); if (!a.title) a.title = 'Próximamente: se abre la ficha del tema'; }
     });

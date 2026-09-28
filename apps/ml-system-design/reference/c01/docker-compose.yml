@@ -44,7 +44,7 @@ services:
     restart: unless-stopped  # si el proceso muere, Docker lo levanta (en k8s lo hace el kubelet)
 
   prometheus:
-    image: prom/prometheus:v3.5.0  # tag fijo (nunca latest): v3.5 es la línea LTS
+    image: prom/prometheus:v3.13.3  # tag fijo (nunca latest): 3.13 es la LTS vigente (soporte hasta 2027-07-31); sube de parche dentro de 3.13.x
     ports:
       - "9090:9090"  # UI: http://localhost:9090/alerts muestra las 6 alertas y su estado
     volumes:  # montados en la ruta que usa el CMD por defecto de la imagen: no hace falta `command`

@@ -147,6 +147,35 @@ test('persistencia local: se escribe coalescida y se recupera al recargar', asyn
   assert.strictEqual(env2.store.lastLocation(), '#m01.a');
 });
 
+test('dos pestañas con el mismo localStorage: la escritura de una no borra lo que guardó la otra', async () => {
+  const ls = fakeStorage();
+  const A = makeEnv({ storage: ls });
+  const B = makeEnv({ storage: ls });   // abierta antes de que A guarde nada
+  A.store.startDraft('c01');
+  A.store.updateDraft('c01', { text: 'mi diseño de 45 minutos' });
+  A.store.finishAttempt('c01', { score: { total: 18, max: 24, pct: 75 } });
+  A.store.flush();
+  assert.strictEqual(Object.keys(JSON.parse(ls.getItem('msd.v1')).attempts).length, 1);
+  const kinds = [];
+  B.store.subscribe((k) => kinds.push(k));
+  B.store.setSectionRead('m01', 'framework', true);
+  B.store.flush();
+  const saved = JSON.parse(ls.getItem('msd.v1'));
+  assert.strictEqual(Object.keys(saved.attempts).length, 1, 'el intento de A sigue guardado');
+  assert.strictEqual(saved.progress.sections['m01.framework'].read, true, 'y también lo de B');
+  assert.strictEqual(B.store.listAttempts('c01').length, 1, 'B ve el intento de A');
+  assert.ok(kinds.includes('remote'), 'B avisa que trajo datos de otra pestaña');
+  // Un borrado en una pestaña no resucita desde la otra.
+  const id = A.store.listAttempts('c01')[0].id;
+  A.clock.t += 1000;
+  A.store.deleteAttempt(id);
+  A.store.flush();
+  B.clock.t += 2000;
+  B.store.setSectionRead('m01', 'a', true);
+  B.store.flush();
+  assert.strictEqual(Object.keys(JSON.parse(ls.getItem('msd.v1')).attempts).length, 0);
+});
+
 test('JSON corrupto en localStorage: estado vacío y copia de respaldo', () => {
   const ls = fakeStorage({ 'msd.v1': '{roto' });
   const { store } = makeEnv({ storage: ls });

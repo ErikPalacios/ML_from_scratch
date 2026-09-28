@@ -113,7 +113,7 @@ HTML comment `<!-- contenido: añade aquí los módulos/casos nuevos -->`.
 
 ### 2.2 Tooling (already written — use it)
 ```
-node tools/validate-content.mjs            # validates catalog + all content files (schema, links, template)
+node tools/validate-content.mjs            # validates catalog + the content files index.html loads, in that order (schema, links, template)
 node tools/embed-reference.mjs             # regenerates js/content/reference-files.js from reference/**
 node --test "tests/*.test.cjs"             # validator + embed freshness + store tests (a bare directory fails on Node 24)
 node tools/browser-check.mjs --url index.html [--width 1440 --height 900] [--dark] [--mobile] \
@@ -184,7 +184,8 @@ Semantic mapping used everywhere (diagram, callouts, chips):
    and case (28 cells, grouped 15 | 13), states: `done` (ok), `progress` (accent, partial),
    `ready` (rule-strong outline), `soon` (hatched/dim). Shown on Home and compact in the sidebar.
 2. **Spec strip** on case pages: datasheet-style row of the case's key numbers with units
-   (`QPS pico 500 req/s · p99 ≤ 200 ms · disponibilidad 99.9 % · presupuesto ≈ US$3k/mes`).
+   (`QPS pico 500 req/s · p99 ≤ 200 ms · disponibilidad 99.9 % · presupuesto ≈ US$3k/mes`)
+   (hidden while the practice gate is shown: its numbers are part of the solution).
 3. The practice **timer shows which framework step you should be on** (§7.2).
 
 Layout: ≥ 1200 px → sidebar (fixed, own scroll) | content column (max `--content-max`) | right TOC
@@ -228,6 +229,9 @@ page in the course order, `Esc` closes drawers/popovers.
 ### 4.4 `MSD.store` (js/core/store.js) — state + persistence
 In-memory state object, persisted with a **two-tier backend**:
 1. **Always** `localStorage` key `msd.v1` (wrap every access in try/catch; if it throws, keep memory only).
+   Several tabs share that key: before each write, merge what is stored (same rules as the account
+   merge below; tombstones keep deletions deleted) and merge `storage` events from other tabs, notifying
+   subscribers with `'remote'`, so one tab never overwrites another tab's attempts or progress.
 2. **If running inside a claude.ai Artifact viewer** (`window.claude && typeof window.claude.use === 'function'`):
    `const [db, user] = await Promise.all([claude.use('db'), claude.use('user')])`; if both non-null
    and `uid = await user.id()` is non-null, sync to the viewer's **private** subtree:
@@ -282,7 +286,8 @@ store.backend() / store.onStatus(fn)
 - **inicio** (Home — opens in a realistic working state, never empty): title + one-paragraph purpose;
   uptime strip + "X de 28 completados"; "Continúa donde lo dejaste" (last location, or m01 on first
   visit); "Siguiente recomendado" (first ready & not completed item in course order);
-  practice summary (last attempts with scores; CTA "Practicar c01"); flashcards due today; the
+  practice summary (last attempts with scores; CTA "Practicar <first ready case without a finished
+  attempt>", falling back to the first ready case); flashcards due today; the
   **phase roadmap** from `catalog.roadmap` (Fase 1 ✓ contents; next phases as suggestions the user can
   ask for); a compact "Cómo usar esta app" (study loop: módulo → flashcards → caso en modo práctica →
   rúbrica → solución). Everything derived from real state; first visit shows sensible defaults.
@@ -294,8 +299,10 @@ store.backend() / store.onStatus(fn)
   completado". Right TOC with read ticks; highlight current section on scroll (IntersectionObserver).
 - **Case page** (`cNN`, ready): header (eyebrow "Parte 2 · Caso 01", title, summary, **spec strip**
   from `page.specs`), then the **practice gate**: if the user has no finished attempt for this case
-  and `pref('solutionRevealed')[caseId]` is not set, show the enunciado (section 1 content) and two
-  actions: primary "Practicar primero (45 min)" → `#practica-cNN`; secondary text button
+  and `pref('solutionRevealed')[caseId]` is not set, show ONLY the interviewer prompt (catalog `prompt`) —
+  never the rest of section 1, the spec strip or the progress line (they answer the clarifying questions
+  and contain the estimates) — with `tests` inside a collapsed "Pista: qué evalúa este caso" disclosure,
+  and two actions: primary "Practicar primero (45 min)" → `#practica-cNN`; secondary text button
   "Ver la solución sin practicar" (sets `solutionRevealed`). Otherwise show the 15 template sections
   with a numbered template navigator (1–15; titles from `MSD.CASE_TEMPLATE`), same read ticks, same
   prev/next. Section 15's checklist is interactive and persisted.
@@ -305,13 +312,16 @@ store.backend() / store.onStatus(fn)
   "Este contenido llega en una fase posterior. Pídelo cuando termines lo anterior."
 - **Search**: input at the top of the sidebar; results in a popover/list (keyboard navigable)
   over: page titles/summaries, section titles, glossary terms (en/es), flashcard questions.
-  Uses `MSD.searchIndex()` (§5.6). Enter opens the first result.
+  Uses `MSD.searchIndex()` (§5.6). Enter opens the first result. Flashcards rank below pages, sections
+  and terms (no title bonus, at most 3 results), and cards of a case still behind its practice gate are
+  not shown.
 - **Sidebar footer**: storage status, theme switch (Sistema/Claro/Oscuro — sets/removes
   `data-theme` on `<html>`), "Exportar / Importar progreso" (opens an in-page panel: export shows the
   JSON in a textarea + Copy button; import accepts pasted JSON with an explicit "Importar" button
   and a result message; no `prompt()`).
 Practice/flashcards/glossary/ref pages are rendered by `MSD.Practice`, `MSD.Flashcards`,
-`MSD.Reference` (§7): the router calls `X.render(container, route, ctx)` where
+`MSD.Reference` (§7) — except a `ref-*` sheet with registered sections, which the shell renders like a
+module page (§7.4): the router calls `X.render(container, route, ctx)` where
 `ctx = {store: MSD.store, navigate(hash), renderBlocks(blocks, el, pageCtx)}`.
 
 ## 5. Content format (long-lived contract)
@@ -331,6 +341,8 @@ MSD.CASE_TEMPLATE, MSD.RUBRIC_DIMENSIONS, MSD.FRAMEWORK, MSD.BLOCK_TYPES, MSD.CA
 MSD.MODULE_IDS, MSD.CASE_IDS, MSD.slug(str), MSD.stripHtml(html)
 MSD.catalog() → the catalog object     // NOTE: a function
 MSD.registryProblems() → [string]     // registration errors (show them in a dev banner if non-empty)
+MSD.registeredIds() → [id]            // ids with registered content (validator: unknown ids are typos)
+MSD.sectionOverrides() → ['page.sec'] // addSection calls that replace a section the main file registers
 MSD.files[path] → string              // embedded reference files (generated)
 ```
 Catalog object shape (`js/content/catalog.js` calls `MSD.defineCatalog(...)` once):
@@ -350,12 +362,16 @@ Catalog object shape (`js/content/catalog.js` calls `MSD.defineCatalog(...)` onc
 sidebar), summary (1–2 sentences), topics:[string] (what it will cover), freq:'alta'|'media'|'baja'
 (how often it shows up in MLE system-design interviews), minutes (reading estimate), connects:[ids],
 prompt?:html (cases only: the interviewer's ambiguous prompt, 1–3 sentences), difficulty?:
-'intro'|'media'|'alta' (cases), tests?:[string] (cases: what the case really tests)}`.
+'intro'|'media'|'alta' (cases), tests?:[string] (cases: what the case really tests), facts?:[{topic,
+a:html}] (cases, optional: the interviewer’s answers grouped under neutral topics from M01’s question
+bank; shown collapsed in the practice session)}`.
 
 **Registered module** (`MSD.register`):
 ```js
 { id:'m01', kind:'module',
-  sections:[ {id:'kebab-id', title:'…', titleEn?:'…', priority?:'core'|'extra'|'skip', blocks:[…]} ],
+  sections:[ {id:'kebab-id', title:'…', titleEn?:'…', priority?:'core'|'extra'|'skip',
+              dims?:['aclaracion'|'estimaciones'|'arquitectura'|'tradeoffs'|'monitoreo'|'comunicacion'],
+              blocks:[…]} ],
   flashcards:[ {id:'m01-01', q:'…', a:'html', kind:'concepto'|'numero'|'tradeoff'|'trampa'|'frase'} ],
   glossary:[ {en:'throughput', es:'rendimiento, caudal', def:'html (1–2 sentences)', say?:'English example sentence'} ] }
 ```
@@ -366,8 +382,21 @@ prompt?:html (cases only: the interviewer's ambiguous prompt, 1–3 sentences), 
   rubric:{ aclaracion:[{id,text}], estimaciones:[…], arquitectura:[…], tradeoffs:[…], monitoreo:[…], comunicacion:[…] },
   sections:[ /* exactly the 15 template ids of §6, in any order; the registry sorts them */ ] }
 ```
+`dims` (optional) = rubric dimensions this section trains; the practice result links weak dimensions
+to up to 3 tagged sections of ready modules (fallback: M01).
+
 Section ids for cases are fixed (§6). A case may be split across files: the main file registers
 the page with 14 sections and another file calls `MSD.addSection('c01', {id:'archivos', …})`.
+
+**Registered reference sheet** (`ref-numeros`, `ref-herramientas`, `ref-comandos`):
+`MSD.register({id:'ref-numeros', kind:'special', sections:[…], flashcards?:[{id:'ref-numeros-01',…}], glossary?:[…]})`.
+It is ready when it has ≥ 1 section; there is no catalog `ready` flag. Any other registered id is a
+validator error (a typo such as `m3` would never be shown).
+
+Ids of sections, checklists/items, flashcards and rubric points are persistence keys (store.js:
+`progress.sections['<page>.<section>']`, `checklists['<page>|<list>|<item>']`, `flash.cards[<cardId>]`,
+attempt `rubric[dim].points`). Once shipped they are immutable: change `title`/text, never the id;
+never reuse a deleted id.
 
 ### 5.3 Block types (rendered by `MSD.Blocks.render`)
 Inline HTML is allowed in any `html`/`text`-like field: `<b> <strong> <i> <em> <code> <a href="#…">
@@ -440,7 +469,8 @@ carry the explanations), "Copiar" button per file, optional `note` under the fil
 ### 5.6 Search index
 `MSD.searchIndex()` builds entries from catalog items (title, titleEn, summary, topics), registered
 section titles (href `#page.section`), glossary terms (href `#glosario` + `.` + slug(en)), and
-flashcard questions (href `#flashcards`). The shell filters with a case/diacritic-insensitive match.
+flashcard questions (href `#flashcards.<cardId>`: the flashcards page shows that card first). The shell
+filters with a case/diacritic-insensitive match.
 
 ## 6. Case template (MANDATORY for every case; ids fixed, order fixed)
 | # | id | título | must contain |
@@ -478,7 +508,9 @@ flashcard questions (href `#flashcards`). The shell filters with a case/diacriti
 - `practica` hub: list all 13 cases (ready or not) with prompt excerpt, difficulty, freq, best score,
   "Empezar" / "Continuar borrador" / "Ver intentos". Ready cases say "con solución"; others "solución
   en una fase posterior".
-- `practica-cNN` session: the prompt (large, quoted); countdown **45:00** with Start/Pause/Reset
+- `practica-cNN` session: the prompt (large, quoted), the `tests` hint and, if the case has `facts`,
+  a collapsed "Respuestas del entrevistador" list (one disclosure per topic, to open only when you ask);
+  countdown **45:00** with Start/Pause/Reset
   (elapsed persisted via `store.updateDraft` — survives reload/navigation: compute
   `elapsed = elapsedSec + (running ? (now - resumedAt)/1000 : 0)`); a **framework rail** (7 steps
   with their minute windows) highlighting the current expected step based on elapsed time, with the
@@ -497,7 +529,9 @@ flashcard questions (href `#flashcards`). The shell filters with a case/diacriti
   expand to read the text; delete with an in-page confirm ("¿Borrar? Sí / No" inline).
 
 ### 7.3 Flashcards (`flashcards` page)
-Deck = `MSD.flashcards()`. Filter chips by source page (m01, c01…) and by kind; default "Pendientes
+Deck = `MSD.flashcards()` minus the cards of any case still behind its practice gate (no finished
+attempt and no `solutionRevealed`); show how many are locked. The sidebar badge and Home count the same
+deck. Filter chips by source page (m01, c01…) and by kind; default "Pendientes
 hoy". Card flow: show question → "Mostrar respuesta" (Space) → grade "Otra vez" (1) / "Difícil" (2) /
 "Bien" (3) with the keys shown. Session summary at the end. Stats: per box counts (Leitner 0–4),
 due today. Works with zero due cards ("Todo al día" + option "Repasar todo igual").
@@ -505,8 +539,11 @@ due today. Works with zero due cards ("Todo al día" + option "Repasar todo igua
 ### 7.4 Reference pages
 - `glosario`: searchable table ES–EN (`MSD.glossary()`): English term (mono), Spanish, definition,
   "cómo lo dirías" sentence, source page chips; alphabet jump; each row has id `glosario.<slug(en)>`.
-- `ref-numeros`, `ref-herramientas`, `ref-comandos`: "Próximamente" pages (they are Phase-later content)
-  showing their `topics` from the catalog.
+- `ref-numeros`, `ref-herramientas`, `ref-comandos`: when `MSD.getPage(id).ready` (sections registered,
+  §5.2), the shell renders them like a module page: `<section id="<id>.<sectionId>">` with blocks, read
+  toggles and TOC, eyebrow "Parte 4 · Referencias", no "completado" or prev/next (sheets don't count
+  toward course progress); the sidebar "Próx." pill also follows `getPage(id).ready`. Otherwise
+  `MSD.Reference` shows a "Próximamente" page with the catalog `topics`.
 
 ## 8. Case c01 — shared facts (both c01 agents MUST use exactly these)
 Scenario: second-hand **marketplace**. Sellers upload photos when creating a listing; the service
@@ -547,10 +584,13 @@ trained in PyTorch (25.6 M params, ≈ 4.1 GMACs at 224×224), ~85 % top-1 / ~96
   (string reported back, e.g. `2026-09-01-resnet50-fp16`), `INFER_TIMEOUT_S` (`0.15`), `LABELS_PATH`.
 - Prediction logging: one JSON line per request to stdout (request_id, model_version, top-k ids +
   scores, latency, image sha256 prefix, source) → Fluent Bit → S3 (Parquet via Firehose/Glue) for
-  monitoring and labeling. 1 % of images sampled to a labeling queue.
+  monitoring and labeling. 1 % of requests sampled as REFERENCES (request_id + sha256 ≈ 10 MB/day; the
+  photo stays in the product's storage); only the ≈ 5k/month selected for human labeling or the golden
+  set are copied (no EXIF, restricted bucket with lifecycle).
 - Monthly cost (approx, on-demand): 2 × g4dn.xlarge ≈ US$768; 2 × c6i.xlarge ≈ US$248; EKS control
-  plane ≈ US$73; ALB ≈ US$30–60; logs/metrics/S3 ≈ US$100; **infra ≈ US$1.3k/month**; labeling
-  (≈ 5k images/month by humans) ≈ US$250–500 → **≈ US$1.6–1.8k/month total**, under budget.
+  plane ≈ US$73; ALB ≈ US$500 (LCUs billed by processed bytes: ≈ 2 TB/day of images at ≈ 200 KB);
+  logs/metrics/S3 ≈ US$100; **infra ≈ US$1.75k/month**; labeling (≈ 5k images/month by humans)
+  ≈ US$250–500 → **≈ US$2.0–2.3k/month total**, under budget.
 - Online metric: **category-suggestion acceptance rate** (seller keeps one of the suggested
   categories); guardrails: p99 latency, % listings re-categorized later by moderators, form
   completion time.

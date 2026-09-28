@@ -681,7 +681,7 @@
     function drawText() {
       const f = families();
       nodes.forEach((n) => drawNodeText(n, f));
-      edges.forEach((e) => { if (e.lg) drawEdgeLabel(e, f); });
+      edges.forEach((e) => { if (e.lg) drawEdgeLabel(e, f, W, H); });
     }
     drawText();
 
@@ -1007,7 +1007,7 @@
     }
   }
 
-  function drawEdgeLabel(e, fam) {
+  function drawEdgeLabel(e, fam, W, H) {
     const g = e.lg;
     while (g.firstChild) g.removeChild(g.firstChild);
     const a = labelAnchor(e.pts);
@@ -1015,6 +1015,14 @@
     const size = 12, font = '500 ' + size + 'px ' + fam.body;
     const tw = textWidth(e.label, font, size, false);
     const w = Math.round(tw + 14), hh = 20;
+    // Tramo más corto que la píldora: sacarla del tramo para no tapar la flecha ni los bordes de los nodos.
+    if (a.horiz && a.L < w + 12) { a.y = Math.min(e.A.y, e.B.y) - hh / 2 - 4; }
+    else if (!a.horiz && a.L < hh + 12) { a.x = Math.max(e.A.r, e.B.r) + w / 2 + 4; }
+    // Dentro del lienzo (el viewBox tiene PAD de margen): una píldora en el borde no se recorta.
+    if (W > 0 && H > 0) {
+      a.x = Math.min(Math.max(a.x, w / 2 - PAD), W + PAD - w / 2);
+      a.y = Math.min(Math.max(a.y, hh / 2 - PAD), H + PAD - hh / 2);
+    }
     g.appendChild(s('rect', { class: 'dg-elabel__bg', x: round(a.x - w / 2), y: round(a.y - hh / 2), width: w, height: hh, rx: 10 }));
     g.appendChild(s('text', { class: 'dg-elabel__tx', x: round(a.x), y: round(a.y + size * 0.35), 'text-anchor': 'middle', style: 'font-size:' + size + 'px', text: e.label }));
   }

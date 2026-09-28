@@ -4,6 +4,9 @@
      'glosario'                                  → tabla ES–EN filtrable (sin acentos), salto A–Z,
                                                    cada fila con id "glosario.<slug(en)>"
      'ref-numeros' | 'ref-herramientas' | 'ref-comandos' → "Próximamente" con los temas del catálogo
+       mientras no tengan secciones registradas. Cuando una fase las registra
+       (MSD.register({id:'ref-numeros', kind:'special', sections:[…]})), el router (js/app.js)
+       las pinta como un módulo (secciones, marcas de lectura, TOC) y ya no llega aquí.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -45,7 +48,8 @@
   }
 
   function srcChip(src) {
-    if (!/^[mc]\d\d$/.test(src)) return h('span', { class: 'chip' }, src === 'general' ? 'General' : String(src));
+    if (src === 'general') return h('span', { class: 'chip' }, 'General');
+    if (!/^[mc]\d\d$/.test(src)) return h('a', { class: 'chip', href: '#' + src }, meta(src).short || (FALLBACK[src] || {}).title || String(src));
     const p = safe(() => MSD.getPage(src), null) || {};
     return h('a', { class: 'chip', href: '#' + src, title: p.title || src.toUpperCase() }, h('span', { class: 'chip__id' }, src.toUpperCase()));
   }

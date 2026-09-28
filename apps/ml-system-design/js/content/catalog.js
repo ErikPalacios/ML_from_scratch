@@ -140,7 +140,7 @@
         'TorchServe: qué ofrece y su estado de mantenimiento actual',
         'BentoML: empaquetado y experiencia de desarrollo',
         'Ray Serve: composición de modelos y pipelines en Python',
-        'vLLM y TGI para LLMs: continuous batching y PagedAttention',
+        'vLLM, SGLang y TGI para LLMs: continuous batching y PagedAttention (TGI pasó a modo mantenimiento: por qué hoy se prefieren vLLM o SGLang)',
         'Protocolos: REST vs gRPC, KServe v2',
         'Separar preprocesamiento (CPU) de inferencia (GPU)',
         'Tabla de decisión: cuándo elegir cada servidor',
@@ -158,7 +158,7 @@
         'Export a ONNX y paridad numérica con PyTorch',
         'TensorRT: engines, FP16/INT8 y por qué no son portables entre GPUs',
         'Cuantización: post-training vs quantization-aware training, calibración',
-        'Pruning estructurado vs no estructurado (y por qué rara vez acelera)',
+        'Pruning estructurado vs no estructurado (por qué el no estructurado rara vez acelera en GPU)',
         'Destilación: un modelo estudiante para serving',
         'torch.compile: cuándo ayuda en serving',
         'ONNX Runtime y OpenVINO para inferencia en CPU',
@@ -184,7 +184,7 @@
         'Validación de datos: schemas y expectativas antes de entrenar',
       ],
       freq: 'alta', minutes: 50,
-      connects: ['m02', 'm10', 'm12', 'c04', 'c08', 'c09'],
+      connects: ['m02', 'm10', 'm12', 'c01', 'c04', 'c08', 'c09'],
     },
     {
       id: 'm10', num: 10,
@@ -325,7 +325,7 @@
         'Costo mensual y palancas para reducirlo',
       ],
       freq: 'alta', minutes: 90, difficulty: 'intro',
-      connects: ['m01', 'm03', 'm04', 'm06', 'm07', 'm08', 'm11', 'm12'],
+      connects: ['m01', 'm03', 'm04', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12'],
       tests: [
         'Llevar un modelo de notebook a un servicio con API, SLO y fallback',
         'Estimar el QPS pico y traducirlo a número de GPUs con headroom',
@@ -333,6 +333,25 @@
         'Monitorear el modelo, no solo el servicio, y desplegar versiones sin riesgo',
       ],
       prompt: 'Tenemos un clasificador de imágenes entrenado en PyTorch que funciona bien en un notebook. Queremos exponerlo como un servicio para que la app y otros equipos lo usen. Diseña el sistema.',
+      // Respuestas del entrevistador, agrupadas por temas neutros del banco de preguntas de M01.
+      // Se muestran plegadas en la sesión de práctica (SPEC §5.2, §7.2). Texto = respuestas de
+      // c01 · aclaración, literales: si cambian allá, actualízalas aquí.
+      facts: [
+        { topic: 'Usuarios y quién llama',
+          a: 'El <b>backend de publicación</b> de la app (móvil y web) ya recibe las fotos porque las tiene que guardar para la publicación; ese backend llama a nuestro servicio <b>server-to-server</b>, en la misma región. Además, 2–3 equipos internos (moderación, búsqueda) llamarán la misma API, cada uno con su propia cuota. Síncrono: la sugerencia tiene que aparecer mientras el vendedor sigue llenando el formulario (unos segundos). La clasificación del catálogo existente es otra cosa: un <i>backfill</i> (clasificar de una vez las imágenes ya publicadas), que aparece más abajo en esta lista.' },
+        { topic: 'Entrada y salida',
+          a: 'Fotos de producto tomadas por vendedores. La app móvil reduce a ≤ 1024 px de lado largo antes de subir (≈ 150–250 KB en JPEG); la web puede mandar el archivo original (límite de 10 MB y 40 MP). Formatos: JPEG, PNG y WebP. El <b>top-5 de 500 categorías hoja</b> con su score. La UI las muestra como sugerencias ordenadas; el vendedor elige una o busca otra en el selector manual.' },
+        { topic: 'Escala',
+          a: '<b>10 M imágenes/día</b>: ≈ 2.5 M publicaciones nuevas al día con ≈ 3 fotos cada una, más las llamadas de otros equipos. Una imagen por request. El pico diurno es ≈ 3× el promedio. Sí: ≈ <b>200 M imágenes</b> de publicaciones existentes necesitan categoría sugerida (para búsqueda y moderación). Es un proceso batch, una vez y luego incremental.' },
+        { topic: 'Latencia y disponibilidad',
+          a: '<b>p99 ≤ 200 ms del lado del servidor</b>: desde que el load balancer recibe el request completo hasta que se envía la respuesta. p50 esperado ≈ 30–50 ms. El caller usa un timeout de 300 ms; si vence, la UI muestra el selector manual. <b>99.9 %</b> mensual. Si el servicio falla, el vendedor usa el selector manual de categorías: es un camino <b>no crítico</b> con fallback.' },
+        { topic: 'Modelo actual',
+          a: 'Sí: <b>ResNet-50</b> (25.6 M parámetros, ≈ 4.1 GMACs a 224×224), ≈ 85 % top-1 y ≈ 96 % top-5 en un split held-out. No es nuestro trabajo rediseñarlo.' },
+        { topic: 'Datos y labels',
+          a: 'Tres fuentes: la <b>categoría final</b> que elige el vendedor (abundante pero débil y sesgada), las <b>correcciones de moderadores</b> (más confiables, llegan en días) y un <b>golden set</b> etiquetado por humanos y congelado.' },
+        { topic: 'Restricciones',
+          a: '≈ <b>US$3,000/mes</b> de infraestructura para el servicio. Son fotos de producto, pero pueden incluir personas, casas o documentos, y el EXIF puede traer la ubicación GPS. No copiamos imágenes: logueamos hash y request_id; solo las ≈ 5k/mes que entran a etiquetado o al golden set se copian, sin EXIF, con retención limitada; los logs no llevan PII. Una región (us-east-1 en AWS), la misma del backend de publicación; dos zonas de disponibilidad. Usuarios en Latinoamérica, pero eso afecta al backend de la app, no a nuestra llamada server-to-server.' },
+      ],
     },
     {
       id: 'c02', num: 2,
@@ -496,7 +515,7 @@
       title: 'Sistema de recomendación',
       titleEn: 'Recommendation system',
       short: 'Sistema de recomendación',
-      summary: 'La pregunta de ML System Design más frecuente en la industria: retrieval de candidatos, ranking, features en tiempo real y un A/B test que demuestre que funciona. Aquí el modelo importa menos que el embudo.',
+      summary: 'Una de las preguntas de ML System Design más frecuentes en empresas de producto (feeds, e-commerce, streaming): retrieval de candidatos, ranking, features en tiempo real y un A/B test que demuestre que funciona. Aquí el modelo importa menos que el embudo.',
       topics: [
         'Arquitectura en etapas: candidate generation → ranking → re-ranking',
         'Two-tower para retrieval y búsqueda ANN',
@@ -552,7 +571,7 @@
       topics: [
         '¿API de terceros o modelo propio? Costo, privacidad y control',
         'Cálculo de VRAM: pesos + KV cache por usuario concurrente',
-        'vLLM / TGI / TensorRT-LLM: continuous batching y PagedAttention',
+        'vLLM / SGLang / TensorRT-LLM (y TGI, hoy en modo mantenimiento): continuous batching y PagedAttention',
         'Tensor parallelism y elección de GPU (L4, A100, H100)',
         'Métricas: TTFT, TPOT y throughput en tokens/s',
         'Cuantización (FP8, INT4) y su impacto en calidad',
@@ -694,7 +713,7 @@
       title: 'Herramientas por categoría', titleEn: 'Tools by category', short: 'Herramientas por categoría',
       summary: 'Qué herramienta resuelve qué problema, agrupadas por categoría, con su equivalente gestionado en cada nube y cuándo vale la pena mencionarla.',
       topics: [
-        'Model servers: Triton, TorchServe, BentoML, Ray Serve, KServe, vLLM, TGI',
+        'Model servers: Triton, TorchServe, BentoML, Ray Serve, KServe, vLLM, SGLang, TGI',
         'Orquestación y workflows: Kubernetes, Airflow, Kubeflow, Argo',
         'Datos y features: Spark, Kafka, Flink, Feast, DVC',
         'Experimentos y registro: MLflow, Weights & Biases',

@@ -29,8 +29,11 @@ output [
 ]
 
 # Dynamic batching: junta requests individuales en un batch para usar bien la GPU (1 imagen por
-# llamada deja la T4 casi ociosa). Espera como máximo 2 ms a que lleguen más requests: a 350–500
-# req/s eso forma batches de ~2–8 sin tocar el p99 de 200 ms.
+# llamada deja la T4 casi ociosa). Espera como máximo 2 ms a que lleguen más requests. Con 2 GPUs,
+# cada Triton recibe ≈ 175–250 req/s en el pico (350–500 req/s en total): en 2 ms llegan ≈ 0.35–0.5
+# requests más y el batch promedio queda en ≈ 1–3 (≈ 2–4 si una GPU absorbe los 500 req/s del
+# failover). Cuesta como mucho 2 ms del p99 de 200 ms; el batch crece solo en picos y failover.
+# Mídelo, no lo supongas: rate(nv_inference_count) / rate(nv_inference_exec_count) = batch promedio.
 dynamic_batching {
   max_queue_delay_microseconds: 2000
   # Sin preferred_batch_size a propósito: con un solo perfil de optimización (1–32) Triton arma el

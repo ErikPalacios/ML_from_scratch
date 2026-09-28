@@ -1,7 +1,7 @@
 # Configuración de Prometheus para correr el sistema en local con docker compose (caso c01).
 # En Kubernetes NO se escribe a mano: el Prometheus Operator descubre los pods con
 # ServiceMonitor/PodMonitor (o kubernetes_sd_configs), y en AWS puedes usar Amazon Managed
-# Prometheus. Lo que sí se reutiliza tal cual es alerts.yml.
+# Prometheus. alerts.yml se reutiliza tal cual como spec de un PrometheusRule (ver README).
 
 global:
   scrape_interval: 15s  # cada cuánto lee /metrics: suficiente para alertas de 5–30 min, barato en series

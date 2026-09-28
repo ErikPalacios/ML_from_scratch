@@ -1,4 +1,4 @@
-# Triton en EKS (caso c01): Deployment en nodos GPU T4 + Service interno + PodDisruptionBudget.
+# Triton en EKS (caso c01): Deployment en nodos GPU T4 + Service interno + PodDisruptionBudget + NetworkPolicy.
 # Namespace "classifier" (créalo antes: kubectl create namespace classifier).
 # El número de réplicas lo decide KEDA (k8s/keda-triton.yaml): mínimo 2 (2 AZs, N+1), máximo 4.
 apiVersion: apps/v1
@@ -39,8 +39,12 @@ spec:
           value: present
           effect: NoSchedule
       topologySpreadConstraints:
-        # Una réplica por zona: si cae una AZ, la otra GPU sigue sirviendo (N+1).
+        # Réplicas balanceadas entre zonas (con 2: una por zona). Si cae una AZ, la otra GPU sigue sirviendo (N+1).
         # DoNotSchedule: preferimos un pod Pending (y una alerta) a dos GPUs en la misma AZ.
+        # Ojo: con nodeTaintsPolicy por defecto (Ignore), los nodos NotReady de una AZ caída siguen contando
+        # como dominio con 0 pods: la zona sana no pasa de 1 réplica y KEDA no puede escalar durante la caída.
+        # Aquí es aceptable (1 T4 aguanta el pico de diseño al ≈ 42 %). nodeTaintsPolicy: Honor lo evita, pero
+        # un taint transitorio (nodo arrancando o drenando) puede dejar las dos GPUs en la misma AZ: pruébalo en un game day.
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: DoNotSchedule
@@ -58,7 +62,8 @@ spec:
           type: RuntimeDefault  # filtro de syscalls por defecto del runtime
       containers:
         - name: triton
-          # Tag = versión del modelo (imagen horneada): canary y rollback son cambiar este tag
+          # Tag = versión del modelo (imagen horneada). Rollback de emergencia = volver al tag anterior. Un canary
+          # o un A/B es otra release (Deployment + Service triton-<versión>): este Service nunca debe mezclar dos modelos
           image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-triton:2026-09-01-resnet50-fp16
           ports:
             - name: http  # KServe v2 REST: lo usa el gateway
@@ -129,6 +134,15 @@ metadata:
     app.kubernetes.io/name: triton
 spec:
   type: ClusterIP  # solo dentro del cluster: Triton nunca se expone a internet
+  # Ruteo por zona (c01 · Estimaciones): cada gateway prefiere el Triton de SU zona. Sin esto kube-proxy
+  # reparte entre zonas y ≈ la mitad de los tensores de 602 KB cruzan de AZ: ≈ 90 TB/mes × US$0.02/GB
+  # ≈ US$1,800/mes, más que las dos GPUs. Si en su zona no hay un Triton ready, el tráfico va a la otra
+  # zona (degrada, no se cae). Funciona porque gateway.yaml reparte los gateways entre zonas.
+  # PreferSameZone: Kubernetes ≥ 1.34 (GA en 1.35); en 1.31–1.33 usa PreferClose, su alias anterior
+  # (deprecado desde 1.35). No uses la anotación service.kubernetes.io/topology-mode: Auto: reparte según
+  # la CPU de cada zona y, con 1 endpoint por zona, puede no asignar hints: el tráfico cruza de AZ en
+  # silencio (y si la anotación está puesta, gana ella sobre este campo).
+  trafficDistribution: PreferSameZone
   # kube-proxy balancea por CONEXIÓN (L4). Con HTTP/1.1 y un pool de conexiones por gateway el
   # reparto es razonable. Con gRPC (HTTP/2, una conexión multiplexada) todo el tráfico de un
   # gateway iría a UN solo pod: necesitarías balanceo L7 (service mesh) o client-side.
@@ -157,3 +171,30 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: triton
+---
+# Solo el gateway habla con Triton (8000) y solo Prometheus lee métricas (8002): "Triton nunca expuesto"
+# también dentro del cluster. Requiere un CNI que aplique NetworkPolicy (VPC CNI con
+# enableNetworkPolicy=true, o Calico); sin él, este objeto se acepta y no hace nada.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: triton-ingress
+  namespace: classifier
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: triton  # aplica a los pods de Triton
+  policyTypes: ["Ingress"]  # solo tráfico entrante; lo que no está permitido abajo se descarta
+  ingress:
+    - from:
+        - podSelector:  # sin namespaceSelector = pods del MISMO namespace (classifier)
+            matchLabels:
+              app.kubernetes.io/name: gateway
+      ports:
+        - port: 8000  # HTTP/REST KServe v2: ni gRPC (8001) ni la API de administración de modelos
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring  # label automática del namespace de Prometheus
+      ports:
+        - port: 8002  # métricas nv_*

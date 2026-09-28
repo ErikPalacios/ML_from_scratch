@@ -1,7 +1,10 @@
 /* =============================================================================
    Ronda de Diseño ML — js/ui/flashcards.js
    MSD.Flashcards.render(container, route, ctx) — página 'flashcards' (SPEC §7.3).
-   Mazo = MSD.flashcards(). Repetición espaciada Leitner (5 cajas) en MSD.store:
+   Mazo = MSD.flashcards() menos las tarjetas de un caso listo que sigue tras su compuerta de
+   práctica (son su solución): visibleCards(store) / isLockedSource(store, src) las usa también
+   app.js para los contadores. '#flashcards.<cardId>' (desde la búsqueda) pone esa tarjeta primero.
+   Repetición espaciada Leitner (5 cajas) en MSD.store:
    dueCards / gradeCard / cardState / flashStats. Filtro guardado en pref 'flashFilter'.
    Flujo: pregunta → "Mostrar respuesta" (Espacio) → Otra vez (1) / Difícil (2) / Bien (3).
    ========================================================================== */
@@ -24,8 +27,21 @@
 
   const safe = (fn, dflt) => { try { const v = fn(); return v === undefined ? dflt : v; } catch (e) { return dflt; } };
   const reduced = () => (D.reducedMotion ? D.reducedMotion() : false);
-  const srcLabel = (s) => (/^[mc]\d\d$/.test(s) ? s.toUpperCase() : s === 'general' ? 'General' : String(s));
+  const srcLabel = (s) => (/^[mc]\d\d$/.test(s) ? s.toUpperCase() : s === 'general' ? 'General'
+    : (safe(() => (MSD.catalog().items[s] || {}).short, null) || String(s)));
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+  // Tarjetas de un caso listo cuya solución sigue tras la compuerta de práctica: no se reparten.
+  function isLockedSource(store, src) {
+    if (!/^c\d\d$/.test(String(src))) return false;
+    const p = safe(() => MSD.getPage(src), null);
+    if (!p || !p.ready) return false;
+    if (store.listAttempts(src).length) return false;
+    return !((store.pref('solutionRevealed') || {})[src]);
+  }
+  function visibleCards(store) {
+    return safe(() => MSD.flashcards(), []).filter((c) => c && c.id && !isLockedSource(store, c.source));
+  }
 
   function isTextEntry(el) {
     if (!el || !el.tagName) return false;
@@ -51,7 +67,12 @@
     if (mounted) { mounted.teardown(); mounted = null; }
     const store = (ctx && ctx.store) || MSD.store;
     const LEITNER = Array.isArray(store.LEITNER_DAYS) ? store.LEITNER_DAYS : [0, 1, 3, 7, 16];
-    const deck = safe(() => MSD.flashcards(), []).filter((c) => c && c.id);
+    const all = safe(() => MSD.flashcards(), []).filter((c) => c && c.id);
+    const deck = all.filter((c) => !isLockedSource(store, c.source));
+    const locked = {};
+    all.forEach((c) => { if (isLockedSource(store, c.source)) locked[c.source] = (locked[c.source] || 0) + 1; });
+    // Tarjeta pedida desde la búsqueda (#flashcards.<id>): va primero, solo en la primera sesión.
+    let want = route && route.sectionId ? String(route.sectionId) : null;
     const byId = {};
     deck.forEach((c) => { byId[c.id] = c; });
     const m = safe(() => (MSD.catalog().items || {}).flashcards, null) || {};
@@ -63,6 +84,7 @@
       h('h1', { class: 'phead__title', id: 'page-title', tabindex: '-1' }, m.title || 'Flashcards'),
       h('p', { class: 'phead__en', lang: 'en' }, m.titleEn || 'Flashcards'),
       h('p', { class: 'phead__summary', html: String(m.summary || 'Repaso espaciado (Leitner) de conceptos, números, trade-offs, trampas y frases para decir en inglés.') })));
+    Object.keys(locked).forEach((s) => wrap.appendChild(h('p', { class: 'muted small fc__locked' }, 'Las ' + locked[s] + ' tarjetas de ' + srcLabel(s) + ' se desbloquean cuando practiques el caso o abras su solución (', h('a', { href: '#practica-' + s }, 'practicar ' + srcLabel(s)), ').')));
 
     if (!deck.length) {
       wrap.appendChild(h('div', { class: 'px-empty' },
@@ -118,6 +140,8 @@
         // Todas: las más débiles (caja baja) primero.
         queue = ids.slice().sort((a, b) => store.cardState(a).box - store.cardState(b).box || pos[a] - pos[b]);
       }
+      if (want && byId[want]) queue = [want].concat(queue.filter((id) => id !== want));
+      want = null;
       S = { queue, total: queue.length, finished: 0, counts: { again: 0, hard: 0, good: 0 }, revealed: false, graded: 0 };
     }
 
@@ -157,8 +181,9 @@
               on: { click: () => { if (F.mode !== v) setFilter({ mode: v }, '.fc__seg [data-v="' + v + '"]'); } } },
             t, h('span', { class: 'fchip__n mono' }, String(n)))))));
       const cnt = (pred) => deck.filter(pred).length;
-      filtersEl.appendChild(chipGroup('Fuente', 'source', [['all', 'Todas', deck.length]].concat(sources.map((s) => [s, srcLabel(s), cnt((c) => c.source === s)]))));
-      filtersEl.appendChild(chipGroup('Tipo', 'kind', [['all', 'Todos', null]].concat(kinds.map((k) => [k, KIND_LABEL[k] || k, cnt((c) => c.kind === k)]))));
+      // Cada conteo aplica también la otra faceta activa: el chip promete lo que da al pulsarlo.
+      filtersEl.appendChild(chipGroup('Fuente', 'source', [['all', 'Todas', cnt((c) => F.kind === 'all' || c.kind === F.kind)]].concat(sources.map((s) => [s, srcLabel(s), cnt((c) => c.source === s && (F.kind === 'all' || c.kind === F.kind))]))));
+      filtersEl.appendChild(chipGroup('Tipo', 'kind', [['all', 'Todos', null]].concat(kinds.map((k) => [k, KIND_LABEL[k] || k, cnt((c) => c.kind === k && (F.source === 'all' || c.source === F.source))]))));
     }
 
     // ---------------------------------------------------------------- estadísticas
@@ -222,6 +247,7 @@
       const kindCls = { trampa: 'chip--bad', numero: 'chip--warn', frase: 'chip--frase' }[card.kind] || '';
       const src = /^[mc]\d\d$/.test(card.source)
         ? h('a', { class: 'chip', href: '#' + card.source, title: 'Tarjeta de ' + srcLabel(card.source) }, h('span', { class: 'chip__id' }, srcLabel(card.source)))
+        : card.source !== 'general' ? h('a', { class: 'chip', href: '#' + card.source }, srcLabel(card.source))
         : h('span', { class: 'chip' }, srcLabel(card.source));
       const headEl = h('header', { class: 'fcard__head' },
         h('div', { class: 'fcard__prog' },
@@ -331,5 +357,5 @@
     wrap.appendChild(h('div', { class: 'fc__grid' }, stage, statsEl));
   }
 
-  MSD.Flashcards = { render };
+  MSD.Flashcards = { render, visibleCards, isLockedSource };
 })(typeof window !== 'undefined' ? window : globalThis);

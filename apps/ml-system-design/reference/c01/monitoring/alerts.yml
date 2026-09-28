@@ -12,11 +12,13 @@ groups:
     rules:
       # Fracción de predicciones con score top-1 < 0.3 (el bucket le="0.3" del histograma).
       # Se graba porque avg_over_time(...[7d]) sobre una expresión cruda sería carísimo en cada evaluación.
+      # `> 0` en el denominador: sin tráfico en 30 min no se graba nada. Sin él, 0/0 = NaN quedaría grabado
+      # y avg_over_time(...[7d]) daría NaN durante 7 días: la alerta de abajo nunca dispararía.
       - record: classifier:low_confidence_share:rate30m
         expr: |
           sum(rate(classifier_top1_score_bucket{le="0.3"}[30m]))
             /
-          sum(rate(classifier_top1_score_count[30m]))
+          (sum(rate(classifier_top1_score_count[30m])) > 0)
 
   # ------------------------------------------------------------------ alertas
   - name: classifier-alerts
@@ -36,7 +38,8 @@ groups:
           description: "p99 = {{ $value | humanizeDuration }} (SLO 200 ms). Revisa classifier_preprocess_seconds vs classifier_inference_seconds para saber si es CPU o GPU."
           runbook_url: "https://runbooks.example.com/classifier/high-p99-latency"
 
-      # Errores del servidor > 1 % de los requests. Los 4xx no cuentan: son errores del cliente.
+      # Errores del servidor > 1 % de los requests válidos: los 4xx no cuentan ni en el numerador ni en el
+      # denominador (si no, una ráfaga de 4xx diluye los 5xx).
       # Punto ciego: si TODOS los gateways quedan NotReady, el ALB responde 503 sin llegar al
       # gateway y esta métrica no lo ve. Lo cubren TritonNotReady y el HTTPCode_ELB_5XX_Count del ALB.
       - alert: ClassifierHigh5xxRate
@@ -44,7 +47,7 @@ groups:
           (
             sum(rate(classifier_requests_total{status=~"5.."}[5m]))
               /
-            sum(rate(classifier_requests_total[5m]))
+            sum(rate(classifier_requests_total{status!~"4.."}[5m]))
           ) > 0.01
           and sum(rate(classifier_requests_total[5m])) > 1
         # La segunda condición exige ≥ 1 req/s: con tráfico casi nulo, 1 error de 20 dispararía un page falso

@@ -31,7 +31,8 @@
       <p><b>Objetivo:</b> requisitos funcionales, no funcionales con número, y la cadena de métricas: negocio → online → offline, más guardrails.</p>
       <p><b>En el pizarrón:</b> 2–4 requisitos funcionales; NFR con números (p99, QPS de diseño, disponibilidad, costo, frescura); métricas en tres niveles.</p>
       <ul>
-        <li>Traduce el objetivo de negocio a una métrica ML: "tasa de aceptación de la categoría sugerida" → top-5 accuracy offline.</li>
+        <li><b>Framing ML:</b> qué predice exactamente el modelo (el label y cómo se obtiene), con qué input disponible en el momento de predecir, y qué tipo de tarea es (clasificación, ranking, regresión). En product ML es lo primero que puntúa.</li>
+        <li>Baja el objetivo por la cadena: negocio (tasa de publicaciones completadas) → online (tasa de aceptación de la categoría sugerida) → offline (top-5 accuracy en el golden set).</li>
         <li>Decide qué error duele más (falso positivo vs falso negativo) y dilo: eso fija precision vs recall y el umbral.</li>
         <li>Nombra 1–2 guardrails: la métrica que no puede empeorar aunque la principal mejore (p99, tasa de publicación, quejas).</li>
       </ul>
@@ -61,6 +62,7 @@
         <li>Ofrece 2–3 opciones basadas en tus números y deja elegir. Si te dicen "tú eliges", ve al cuello de botella que más riesgo tiene.</li>
         <li>Cada decisión con su alternativa descartada y la condición en la que cambiarías de opinión.</li>
         <li>Usa números otra vez: batch máximo, espera máxima en cola, latencia por etapa, costo por label.</li>
+        <li>Las fallas del componente que profundizas se dicen aquí, no al final: el cierre solo las resume.</li>
       </ul>
       <p><b>Error típico:</b> profundizar en el backbone porque es tu zona cómoda, o en algo que el entrevistador no pidió.</p>`,
     operar: `
@@ -68,7 +70,7 @@
       <p><b>En el pizarrón:</b> evaluation gate offline (golden set + slices) → shadow → canary 5 % → A/B; métricas de sistema, de modelo y de negocio; 1–2 alertas con umbral; trigger de reentrenamiento.</p>
       <ul>
         <li>Una alerta concreta: métrica, umbral y ventana ("p99 &gt; 200 ms durante 10 min").</li>
-        <li>Rollback: volver a la versión anterior en el registry es cambiar un puntero, no reentrenar.</li>
+        <li>Rollback: la versión anterior sigue en el registry (y, recién promovida, todavía desplegada): volver es cambiar ruteo o redeployar un tag, no reentrenar.</li>
         <li>Reentrenamiento ligado a una señal (drift sostenido, caída de la métrica con labels), no solo a un calendario.</li>
       </ul>
       <p><b>Error típico:</b> "haría un A/B test" sin métrica, sin guardrails ni unidad de aleatorización; "monitorearía el drift" sin decir qué distribución ni contra qué referencia.</p>`,
@@ -114,7 +116,7 @@
   const EX = {
     aclarar: `Pregunto lo que cambia el diseño y fijo supuestos: <b>aviso suave</b>, no bloqueo ("tu foto parece borrosa, ¿quieres tomar otra?"), porque un falso positivo que bloquea cuesta un anuncio. App y web. Mismo marketplace del <a href="#c01">caso 1</a>: ≈ 10 M fotos/día. No hay labels de "borrosa"; hay rechazos de moderación por "foto de mala calidad" como señal débil.`,
     requisitos: `FR: por cada foto, devolver <code>{blurry, score}</code> mientras el vendedor sigue en la pantalla. NFR: p99 ≤ 150 ms server-side; 99.9 % con <b>fail-open</b> (si el servicio falla, se publica sin aviso). Métricas: de negocio, contactos por anuncio; online, % de avisos que terminan en foto re-tomada; offline, precision del aviso a un recall mínimo; guardrails, tasa de publicación y tiempo hasta publicar.`,
-    estimar: `10 M/día → ≈ 116 req/s promedio, ≈ 350 pico, diseño 500. Varianza del Laplaciano sobre la imagen reducida: ${est('≈ 2–5 ms de CPU')} → 500 × 5 ms ≈ 2.5 cores, y reutiliza el decode que el gateway ya hace para clasificar: cabe en el gateway existente con poco CPU extra. Una CNN pequeña en CPU: ${est('≈ 10–30 ms')} → ≈ 10–15 cores; en GPU sería trivial. Conclusión: el baseline no necesita infraestructura nueva.`,
+    estimar: `10 M/día → ≈ 116 req/s promedio, ≈ 350 pico, diseño 500. Varianza del Laplaciano sobre la imagen reducida: ${est('≈ 2–5 ms de CPU')} → 500 × 5 ms ≈ 2.5 cores, y reutiliza el decode que el gateway ya hace para clasificar: cabe en el gateway existente con poco CPU extra. Una CNN pequeña en CPU: ${est('≈ 10–30 ms')} → 500 × 10–30 ms ≈ 5–15 cores; en GPU sería trivial. Conclusión: el baseline no necesita infraestructura nueva.`,
     arquitectura: `Online: app → upload → gateway → función de blur en CPU → respuesta con aviso; log async con score, decisión, versión del umbral y modelo del dispositivo. Offline: logs + si el vendedor re-tomó o ignoró + rechazos de moderación → muestra semanal etiquetada por humanos → recalibrar umbral (y, más adelante, entrenar una CNN).`,
     profundizar: `Elijo el umbral y los labels, porque ahí está el riesgo: la varianza del Laplaciano depende de la resolución (normalizo a un lado fijo antes de medir), del contenido (una pared lisa tiene varianza baja sin estar borrosa → falso positivo) y de la compresión. Golden set de 1–2k fotos con una guía clara ("¿se lee la etiqueta del producto?"). Umbral para precision ≥ 90 %: el aviso solo sale cuando estamos seguros.`,
     operar: `Offline: precision/recall por slice (dispositivo, categoría, luz). Online: A/B por vendedor. Monitoreo: % de fotos marcadas por hora; si salta de ${est('≈ 8 %')} a 30 % tras un release de la app, algo cambió en la compresión → alerta. Más p99 y errores del servicio.`,
@@ -141,7 +143,7 @@
     ],
     nodes: [
       { id: 'config', label: 'Configuración', sub: 'umbrales, flags, versiones', x: 3, y: 5, w: 19, h: 7, kind: 'service',
-        note: 'Umbrales, versión de modelo activa, flags, rutas, parámetros de batching. Sculley et al. advierten que la configuración de un sistema de ML crece hasta ser más grande que el código y que sus errores son igual de graves. En la entrevista: "los umbrales viven en config versionada, no hardcodeados".' },
+        note: 'Umbrales, versión de modelo activa, flags, rutas, parámetros de batching. Sculley et al. advierten que, en un sistema maduro, las líneas de configuración pueden superar con creces a las de código, que cada línea es una oportunidad de error (y esos errores pueden salir caros) y que la configuración debe pasar code review y vivir en el repositorio. En la entrevista: "los umbrales viven en config versionada, no hardcodeados".' },
       { id: 'collection', label: 'Data collection', sub: 'logging, uploads, streams', x: 28, y: 5, w: 19, h: 7, kind: 'job',
         note: 'Cómo entran los datos al sistema: logs del producto, uploads, eventos. Lo que no logueas hoy no lo puedes usar para entrenar ni para evaluar mañana. Detalle en <a href="#m09">M9</a>.' },
       { id: 'featext', label: 'Feature extraction', sub: 'decode, resize, normalize', x: 53, y: 5, w: 19, h: 7, kind: 'job',
@@ -195,9 +197,9 @@
       { id: 'predlogs', label: 'Prediction logs', sub: '1 línea JSON por request', x: 84, y: 5, w: 15, h: 7, kind: 'queue',
         note: 'Una línea por predicción: request_id, versión del modelo, hash del input, top-k con scores, latencia. Se escribe de forma asíncrona para no sumar latencia. Es la materia prima de monitoreo, labeling, reentrenamiento y debugging: sin logs no hay lazo cerrado.' },
       { id: 'featurestore', label: 'Feature store', sub: 'misma def. online/offline', x: 42, y: 19, w: 18, h: 8, kind: 'store',
-        note: 'Guarda features con una sola definición para training (histórico, con point-in-time correctness) y para serving (baja latencia). Cruza los dos carriles a propósito. En CV puro (una imagen → una clase) muchas veces no hace falta: la "feature" es la imagen. Aparece cuando mezclas metadata (precio, historial del vendedor). Detalle en <a href="#m09">M9</a>.' },
+        note: 'Guarda features con una sola definición para training (histórico, con point-in-time correctness: cada ejemplo usa el valor que la feature tenía en el momento de la predicción, no el de hoy, para no filtrar el futuro) y para serving (baja latencia). Cruza los dos carriles a propósito. En CV puro (una imagen → una clase) muchas veces no hace falta: la "feature" es la imagen. Aparece cuando mezclas metadata (precio, historial del vendedor). Detalle en <a href="#m09">M9</a>.' },
       { id: 'registry', label: 'Model registry', sub: 'versiones + linaje', x: 2, y: 33, w: 16, h: 7, kind: 'store',
-        note: 'Catálogo de modelos versionados con su linaje (datos, código, métricas) y su estado (staging, production, archived). Hace posible el rollback: volver a la versión anterior es mover un puntero, no reentrenar. MLflow, SageMaker Model Registry, W&amp;B. Detalle en <a href="#m10">M10</a>.' },
+        note: 'Catálogo de modelos versionados con su linaje (datos, código, métricas) y un alias o estado que dice cuál sirve producción (p. ej. champion/challenger; MLflow reemplazó los stages Staging/Production por aliases desde la versión 2.9). Hace posible el rollback sin reentrenar: la versión anterior sigue registrada y volver es cambiar ruteo o redeployar su tag. MLflow, SageMaker Model Registry, W&amp;B. Detalle en <a href="#m10">M10</a>.' },
       { id: 'evalgate', label: 'Evaluation gate', sub: 'golden set + slices', x: 22, y: 33, w: 16, h: 7, kind: 'job',
         note: 'Compuerta automática: el candidato debe igualar o superar al modelo en producción en el golden set y en los slices críticos (fotos nocturnas, categorías nuevas), y pasar tests de paridad de preprocesamiento y de latencia. Si no pasa, no llega al registry como candidato.' },
       { id: 'training', label: 'Training job', sub: 'GPU efímera, dataset vers.', x: 42, y: 33, w: 18, h: 7, kind: 'job',
@@ -240,14 +242,14 @@
         { nodes: ['client', 'gateway'], edges: ['client>gateway'], text: 'El vendedor sube una foto. La app hace un POST con los bytes de la imagen y espera, con un timeout propio (300 ms en el caso 1).' },
         { nodes: ['gateway', 'inference'], edges: ['gateway>inference'], text: 'El gateway termina TLS, autentica y enruta a una réplica del inference service (o a la versión canary si el request cae en ese porcentaje).' },
         { nodes: ['inference', 'featurestore'], edges: ['inference>featurestore'], text: 'El inference service valida y preprocesa la imagen. Si el modelo usa metadata (historial del vendedor), la lee del online store; en CV puro este paso no existe.' },
-        { nodes: ['inference', 'modelserver'], edges: ['inference>modelserver'], text: 'Manda el tensor al model server, que lo agrupa con otros requests (dynamic batching, espera de ≈ 2 ms) y corre el batch en la GPU.' },
+        { nodes: ['inference', 'modelserver'], edges: ['inference>modelserver'], text: 'Manda el tensor al model server, que lo agrupa con otros requests (dynamic batching: espera como máximo ≈ 2 ms a que lleguen más requests, max_queue_delay; si el batch se llena antes, sale antes) y corre el batch en la GPU.' },
         { nodes: ['inference', 'predlogs'], edges: ['inference>predlogs'], text: 'Postprocesa (top-5, nombres de categoría), responde al cliente y escribe el log de la predicción de forma asíncrona. Si el model server no respondió a tiempo, responde con el fallback.' },
-        { nodes: ['modelserver', 'prom'], edges: ['modelserver>prom'], text: 'Cada componente expone métricas (latencia, errores, cola, GPU) que Prometheus recolecta cada pocos segundos: así sabes si cumples el SLO.' },
+        { nodes: ['modelserver', 'prom'], edges: ['modelserver>prom'], text: 'Cada componente expone métricas (latencia, errores, cola, GPU) que Prometheus recolecta cada 15–30 s (scrape interval típico): así sabes si cumples el SLO.' },
       ] },
       { id: 'reentrenamiento', label: 'Un ciclo de reentrenamiento', steps: [
         { nodes: ['predlogs', 'datalake'], edges: ['predlogs>datalake'], text: 'Los logs llegan al data lake cada pocos minutos (Parquet particionado por fecha).' },
         { nodes: ['datalake', 'drift', 'prom'], edges: ['datalake>drift', 'drift>prom'], text: 'El drift job compara la distribución de inputs y de scores de hoy contra la referencia y publica el resultado como métrica.' },
-        { nodes: ['datalake', 'labeling', 'training'], edges: ['datalake>labeling', 'labeling>training'], text: 'Una muestra de imágenes (≈ 1 % en el caso 1) va a labeling; los labels nuevos se suman al dataset versionado.' },
+        { nodes: ['datalake', 'labeling', 'training'], edges: ['datalake>labeling', 'labeling>training'], text: 'Se muestrea una fracción de los requests (≈ 1 % en el caso 1, guardando referencias, no copias de la imagen) y de esa muestra se eligen las que etiquetan personas (≈ 5k/mes: baja confianza, desacuerdo con el vendedor y una parte aleatoria); solo esas imágenes se copian, y los labels nuevos se suman al dataset versionado.' },
         { nodes: ['drift', 'training', 'featurestore'], edges: ['drift>training', 'featurestore>training'], text: 'Un trigger (drift sostenido, caída de la métrica con labels o el calendario) lanza el training job, que lee datos y features con la misma definición que usa serving.' },
         { nodes: ['training', 'evalgate'], edges: ['training>evalgate'], text: 'El candidato pasa por el evaluation gate: golden set, slices críticos, paridad de preprocesamiento y latencia.' },
         { nodes: ['evalgate', 'registry'], edges: ['evalgate>registry'], text: 'Si pasa, se registra con su linaje. Si no, se queda como experimento y alguien investiga por qué.' },
@@ -270,22 +272,22 @@
         priority: 'core',
         blocks: [
           { t: 'p', html: `En tu notebook hay un <code>model.eval()</code>, un DataLoader con imágenes ya limpias y una métrica: top-1 sobre el split de validación. En producción, esa misma ResNet recibe fotos que nadie limpió, a las 3 a. m., desde un celular con la lente sucia, 350 veces por segundo, y alguien paga cada hora de GPU. La pregunta de una entrevista de ML Engineer no es "¿qué backbone usas?" sino "¿cómo construyes y operas el sistema que rodea al modelo?".` },
-          { t: 'p', html: `En 2015, Sculley et al. (Google) publicaron <i>Hidden Technical Debt in Machine Learning Systems</i> (NeurIPS). Su figura más citada muestra una caja pequeña, "ML code", rodeada de cajas mucho más grandes: configuración, recolección de datos, extracción de features, verificación de datos, gestión de recursos, herramientas de análisis, gestión de procesos, infraestructura de serving y monitoreo. El mensaje no es un porcentaje exacto (la figura es ilustrativa y yo tampoco te voy a inventar uno), sino dónde están el trabajo y el riesgo: la mayoría de las fallas de un sistema de ML en producción no están en el modelo.` },
+          { t: 'p', html: `En 2015, Sculley et al. (Google) publicaron <i>Hidden Technical Debt in Machine Learning Systems</i> (NeurIPS). Su figura más citada muestra una caja pequeña, "ML code", rodeada de cajas mucho más grandes: configuración, recolección de datos, extracción de features, verificación de datos, gestión de recursos, herramientas de análisis, gestión de procesos, infraestructura de serving y monitoreo. El mensaje no es un porcentaje exacto (la figura es ilustrativa y yo tampoco te voy a inventar uno), sino dónde están el trabajo y la complejidad: casi todo el sistema es lo que rodea al modelo. La experiencia operativa apunta en la misma dirección: en una década de outages de uno de los pipelines de ML más grandes de Google, la mayoría no fueron fallas específicas de ML sino del carácter distribuido del sistema (Papasian y Underwood, <a href="https://www.usenix.org/conference/opml20/presentation/papasian" target="_blank" rel="noopener"><i>How ML Breaks</i></a>, USENIX OpML 2020).` },
           { t: 'diagram', id: 'sculley-cajas', title: 'El modelo es la caja chica', caption: 'Inspirado en la figura 1 de Sculley et al. (NeurIPS 2015). Los tamaños no son proporciones medidas: toca cada caja para ver por qué existe.', spec: SCULLEY },
           { t: 'callout', kind: 'why', html: `<p>El entrevistador de ML Engineer asume que sabes entrenar; lo que no sabe es si sabes lo demás. Cada minuto en la caja chica es un minuto sin dar señal en las otras nueve. Tu ventaja (entiendes el modelo a fondo) sirve para decisiones puntuales: qué optimización no rompe la calidad, qué slices pueden fallar, cuándo basta un modelo más simple. No para llenar el pizarrón de capas.</p>` },
           { t: 'h3', text: 'Las cuatro restricciones que el notebook no tiene' },
           { t: 'list', ordered: true, items: [
-            `<b>Latencia y throughput.</b> Además de accuracy, ahora hay un p99 ≤ 200 ms con 500 req/s. Tu YOLO a 1280 px detecta mejor los objetos pequeños que a 640 px, pero procesa 4× más píxeles (1280² / 640² = 4); en video a 30 fps tienes 33 ms por frame para decode, inferencia, NMS y postproceso juntos. Y el batch de 64 con que evaluabas no existe: llega una imagen por request y el batch lo arma el servidor (dynamic batching, <a href="#m03">M3</a>).`,
-            `<b>Costo.</b> Una T4 en AWS (g4dn.xlarge, on-demand) cuesta ${est('≈ US$0.53/h')}: ${est('≈ US$384/mes')} encendida 24/7, y dos réplicas por disponibilidad ≈ US$770/mes antes de CPU, red y logs. Con 5 req/s quizá ni necesitas GPU: un ResNet-50 en CPU con ONNX Runtime tarda ${est('decenas de ms por imagen')} y puede alcanzar. Batch, precisión (FP16/INT8) y autoscaling mueven la factura más que la arquitectura del modelo (<a href="#m04">M4</a>, <a href="#m13">M13</a>).`,
-            `<b>Confiabilidad y disponibilidad.</b> 99.9 % de disponibilidad son ≈ 43 minutos de caída al mes. Si tu único nodo GPU se reinicia por un parche y tarda minutos en bajar la imagen de contenedor y cargar los pesos, te comiste una parte importante de ese margen. De ahí salen N+1 réplicas, health checks, timeouts y un fallback cuando el modelo no responde (<a href="#m15">M15</a>).`,
+            `<b>Latencia y throughput.</b> Además de accuracy, ahora hay un p99 ≤ 200 ms (el 99 % de los requests responde en menos de 200 ms; el promedio esconde la cola lenta, <a href="#m03">M3</a>) con 500 req/s. Tu YOLO a 1280 px detecta mejor los objetos pequeños que a 640 px, pero procesa 4× más píxeles (1280² / 640² = 4); en video a 30 fps llega un frame cada 33 ms: si procesas en serie, decode + inferencia + NMS + postproceso tienen que caber en 33 ms; con un pipeline por etapas basta con que cada etapa procese un frame en menos de 33 ms (throughput), aunque la latencia total sea mayor. Y el batch de 64 con que evaluabas no existe: llega una imagen por request y el batch lo arma el servidor (dynamic batching, <a href="#m03">M3</a>).`,
+            `<b>Costo.</b> Una T4 en AWS (g4dn.xlarge, on-demand) cuesta ${est('≈ US$0.53/h')}: ${est('≈ US$384/mes')} encendida 24/7, y dos réplicas por disponibilidad ${est('≈ US$770/mes')} antes de CPU, red y logs. Con 5 req/s quizá ni necesitas GPU: un ResNet-50 en CPU con ONNX Runtime tarda ${est('decenas de ms por imagen')} y puede alcanzar. Batch, precisión (FP16/INT8) y autoscaling mueven la factura más que la arquitectura del modelo (<a href="#m04">M4</a>, <a href="#m13">M13</a>).`,
+            `<b>Confiabilidad y disponibilidad.</b> 99.9 % de disponibilidad son ≈ 43 minutos de caída al mes. Si tu único nodo GPU se reinicia por un parche y tarda minutos en bajar la imagen de contenedor y cargar los pesos, te comiste una parte importante de ese margen. De ahí salen N+1 réplicas (una más de las que necesita el pico, para que la caída de una no se note), health checks, timeouts y un fallback cuando el modelo no responde (<a href="#m15">M15</a>).`,
             `<b>Cambio en el tiempo.</b> Tu set de validación es una foto del pasado. Salen celulares con otro procesamiento de imagen (HDR, sharpening), cambia la temporada, la app empieza a comprimir más, el negocio agrega 20 categorías. Eso es <b>data drift</b> (cambia la distribución de los inputs) y <b>concept drift</b> (cambia la relación input → label). El modelo no lanza un error: se equivoca con confianza (<a href="#m12">M12</a>).`,
           ] },
           { t: 'p', html: `Hay más (seguridad, privacidad, reproducibilidad, quién es dueño de cada pieza), pero estas cuatro aparecen en todas las entrevistas. Si tu diseño no dice algo concreto sobre cada una, está incompleto.` },
           { t: 'table', caption: 'Notebook vs producción', head: ['Aspecto', 'En tu notebook', 'En producción', 'Qué implica para el diseño'], rows: [
             ['Datos de entrada', 'Dataset curado y fijo, mismo formato siempre', 'Fotos reales: rotadas por EXIF, borrosas, capturas de pantalla, PNG con alfa, 40 MP, archivos corruptos', 'Validación de input, límites de tamaño, preprocesamiento robusto, errores claros (400/413/415)'],
-            ['Métrica', 'Top-1 o mAP en validación', 'p99 de latencia, costo por 1,000 predicciones, métrica de negocio (tasa de aceptación)', 'Métricas en tres niveles: negocio, online, offline; más guardrails'],
+            ['Métrica', 'Top-1 o mAP en validación', 'p99 de latencia, costo por 1,000 predicciones, métrica online (tasa de aceptación) ligada a una de negocio (publicaciones completadas)', 'Métricas en tres niveles: negocio, online, offline; más guardrails'],
             ['Preprocesamiento', 'Transforms de torchvision dentro del DataLoader', 'Reimplementado en un servicio (quizá con OpenCV, quizá en otro lenguaje)', 'Riesgo de training-serving skew; compartir código o meterlo en el modelo (<a href="#m09">M9</a>)'],
-            ['Hardware', 'Tu GPU, batch 64, sin límite de tiempo', 'GPU compartida o CPU, una imagen por request, SLO de latencia', 'Dynamic batching, optimización (FP16/INT8), capacity planning'],
+            ['Hardware', 'Tu GPU, batch 64, sin límite de tiempo', 'GPU compartida o CPU, una imagen por request, SLO de latencia (el objetivo que te comprometes a cumplir, p. ej. p99 ≤ 200 ms)', 'Dynamic batching, optimización (FP16/INT8), capacity planning'],
             ['Fallas', 'Se cae el kernel y vuelves a correr la celda', 'Se cae un nodo a las 3 a. m. con usuarios esperando', 'N+1, health checks, timeouts, fallback, on-call'],
             ['Versionado', '<code>model_final_v2_ahora_si.pt</code>', 'Model registry con linaje: qué datos, qué código, qué métricas', 'Reproducibilidad y rollback en minutos'],
             ['Tiempo', 'El dataset no cambia', 'La distribución cambia; aparecen clases nuevas', 'Monitoreo de drift y reentrenamiento'],
@@ -301,6 +303,7 @@
       // ======================================================== 2
       {
         id: 'ciclo-de-vida',
+        dims: ['arquitectura', 'monitoreo'],
         title: 'El ciclo de vida de ML en producción',
         titleEn: 'The production ML lifecycle',
         priority: 'core',
@@ -309,12 +312,12 @@
           { t: 'steps', items: [
             { title: 'Definir el problema', meta: 'Problem framing', html: `<p>Sugerir el top-5 de 500 categorías mientras el vendedor llena el formulario. Éxito: que acepte una sugerencia. Baseline: sin sugerencia (el selector manual de hoy).</p>` },
             { title: 'Recolectar datos', meta: 'Data collection', html: `<p>Fotos de anuncios ya publicados con su categoría final. Sesgo de entrada: solo ves anuncios que llegaron a publicarse.</p>` },
-            { title: 'Etiquetar', meta: 'Labeling', html: `<p>La categoría que eligió el vendedor es un label implícito y ruidoso; una muestra de ≈ 1 % la revisan personas para medir sin ese sesgo.</p>` },
+            { title: 'Etiquetar', meta: 'Labeling', html: `<p>La categoría que eligió el vendedor es un label implícito, ruidoso y sesgado por la propia sugerencia. Se muestrea ≈ 1 % de los requests (≈ 100k/día; se guarda la referencia, la foto sigue en el storage del producto); de ahí, personas etiquetan ≈ 5k/mes elegidas a propósito (baja confianza, desacuerdo con el vendedor y una parte aleatoria) para medir sin ese sesgo. Solo esas imágenes se copian, sin EXIF.</p>` },
             { title: 'Preprocesar', meta: 'Features / preprocessing', html: `<p>Decode, orientación EXIF, resize, normalización: un solo paquete que usan el training y el gateway.</p>` },
             { title: 'Entrenar', meta: 'Training', html: `<p>Fine-tuning como job reproducible: dataset versionado, código versionado, métricas registradas. Tu zona conocida.</p>` },
-            { title: 'Evaluar offline', meta: 'Offline evaluation', html: `<p>Top-5 en un golden set fijo y por slices (fotos nocturnas, categorías nuevas), contra el modelo en producción.</p>` },
+            { title: 'Evaluar offline', meta: 'Offline evaluation', html: `<p>Top-5 en un golden set fijo (set de evaluación curado y congelado, el mismo para todas las versiones) y por slices (subconjuntos como fotos nocturnas o categorías nuevas), contra el modelo en producción.</p>` },
             { title: 'Empaquetar y exportar', meta: 'Packaging / export', html: `<p>ONNX → engine TensorRT FP16 compilado en el mismo tipo de GPU que sirve, con test de paridad.</p>` },
-            { title: 'Desplegar', meta: 'Deployment', html: `<p>Shadow, canary al 5 %, rollback automático si empeoran latencia, errores o aceptación.</p>` },
+            { title: 'Desplegar', meta: 'Deployment', html: `<p>Shadow (el modelo nuevo recibe una copia del tráfico y su respuesta se descarta), canary 5 % → 25 % → 100 % (primero un 5 % de los requests reales va a la versión nueva) con rollback automático si empeoran latencia, errores o la distribución de predicciones; la tasa de aceptación se valida en el A/B.</p>` },
             { title: 'Servir', meta: 'Serving', html: `<p>Gateway en CPU + Triton en GPU con dynamic batching; 2 GPUs por N+1.</p>` },
             { title: 'Monitorear', meta: 'Monitoring', html: `<p>p99, errores, distribución de scores, tasa de aceptación.</p>` },
             { title: 'Reentrenar', meta: 'Feedback & retraining', html: `<p>Logs y labels nuevos vuelven al dataset; se reentrena cuando el drift o la tasa de aceptación lo piden. Y el ciclo vuelve a empezar.</p>` },
@@ -438,7 +441,7 @@
         blocks: [
           { t: 'h3', text: 'El formato' },
           { t: 'list', items: [
-            `<b>45–60 minutos.</b> En una ronda de 60, descuenta ≈ 5 de presentación y ≈ 5–10 de tus preguntas al final: quedan 40–45 de diseño. Por eso el framework está calibrado a 45.`,
+            `<b>45–60 minutos.</b> En una ronda de 60, descuenta ≈ 5–10 de presentación y ≈ 5–10 de tus preguntas al final: quedan ≈ 40–50 de diseño. Por eso el framework está calibrado a 45.`,
             `<b>Un enunciado ambiguo, a propósito.</b> "Diseña un sistema que sugiera la categoría de un producto a partir de sus fotos." Quieren ver cómo lo acotas.`,
             `<b>Tú conduces.</b> El entrevistador responde, interrumpe con follow-ups y te redirige si te pierdes, pero no te dice qué sigue. Si esperas instrucciones, anota "necesitó guía".`,
             `<b>Pizarrón virtual</b> (Excalidraw, Miro, un doc compartido) o físico. Casi nunca se escribe código; a veces te piden la firma de una API o un pseudo-schema.`,
@@ -486,6 +489,7 @@
       // ======================================================== 6
       {
         id: 'framework',
+        dims: ['comunicacion'],
         title: 'El framework de 7 pasos para 45 minutos',
         titleEn: 'The 7-step framework',
         priority: 'core',
@@ -493,6 +497,11 @@
           { t: 'p', html: `Este es el esqueleto que vas a usar en cada caso del curso, y el que muestra el temporizador del <a href="#practica">modo práctica</a> según el minuto. Las ventanas son una guía, no una ley: si el entrevistador te lleva a otro lado, lo sigues. Sin esa guía, esta distribución cubre las 6 dimensiones de la rúbrica sin quedarte sin tiempo.` },
           { t: 'steps', items: F.map((s) => ({ title: s.title, meta: win(s) + ' · ' + s.en, html: STEP[s.id] || '' })) },
           { t: 'callout', kind: 'why', html: `<p>¿Por qué 12 minutos de deep dive y solo 5 de estimaciones? Porque las estimaciones valen por las decisiones que habilitan, y el deep dive es donde se distingue a un senior de un mid. Y ¿por qué 5 minutos de aclaración si parecen muchos? Porque cada supuesto mal puesto ahí te cuesta 10 minutos de diseño equivocado después.</p>` },
+          { t: 'h3', text: 'Reparto según el sabor' },
+          { t: 'table', head: ['Sabor', 'Reparto de los 45 minutos'], rows: [
+            ['Applied e infra (<a href="#c01">c01</a>, <a href="#c02">c02</a>, <a href="#c03">c03</a>, <a href="#c05">c05</a>, <a href="#c10">c10</a>…)', 'Las 7 ventanas por defecto del temporizador.'],
+            ['Product ML (<a href="#c06">c06</a>, <a href="#c08">c08</a>, <a href="#c09">c09</a>)', '0–5 aclarar · 5–10 framing ML y métricas · 10–13 estimaciones breves · 13–23 datos, labels y features · 23–33 modelo y evaluación offline · 33–40 serving y A/B · 40–45 monitoreo, fallas y cierre.'],
+          ], note: 'El temporizador del modo práctica usa las ventanas por defecto; en un caso de product ML, úsalo como reloj y sigue este reparto.' },
           { t: 'h3', text: 'Cómo organizar el pizarrón' },
           { t: 'table', head: ['Zona', 'Qué va', 'Cuándo la llenas'], rows: [
             ['Arriba a la izquierda: supuestos', 'Escala, latencia, labels, restricciones, cada uno con "asumo"', 'Minutos 0–5; la actualizas si el entrevistador cambia algo'],
@@ -532,7 +541,7 @@
             <li>"Before designing, I'd like to clarify a few things about the use case and the scale."</li>
             <li>"Who consumes the prediction, and what happens if it's wrong or late?"</li>
             <li>"Let me write down the requirements: functional first, then latency, throughput and availability."</li>
-            <li>"The business metric is the acceptance rate; offline I'll use top-5 accuracy as a proxy, with p99 latency as a guardrail."</li>
+            <li>"The business goal is more completed listings. Online, I'll track the suggestion acceptance rate; offline, top-5 accuracy as a proxy; and p99 latency as a guardrail."</li>
             <li>"Let me do a quick back-of-the-envelope estimate. I'll round aggressively; I only care about the order of magnitude."</li>
             <li>"So roughly 500 requests per second at peak. One GPU covers the throughput, but I want two for redundancy."</li>
           </ul>` },
@@ -558,6 +567,7 @@
       // ======================================================== 7
       {
         id: 'preguntas-aclaracion',
+        dims: ['aclaracion'],
         title: 'Preguntas de aclaración que cambian el diseño',
         titleEn: 'Clarifying questions that change the design',
         priority: 'core',
@@ -579,7 +589,7 @@
           ] },
           { t: 'callout', kind: 'trap', title: '15 preguntas sin fijar supuestos', html: `<p>Preguntar no es la señal; convertir las respuestas en supuestos útiles sí lo es. Con 15 preguntas gastas 10 minutos, y a la mitad el entrevistador te va a responder "lo que tú consideres razonable". Peor aún si preguntas cosas que no cambian nada. El entrevistador anota "no supo priorizar".</p>` },
           { t: 'callout', kind: 'senior', html: `<p>El patrón senior: 5–7 preguntas que cambian la arquitectura y después, en voz alta, "voy a asumir X; si no fuera así, cambiaría Y". Por ejemplo: "Voy a asumir que el vendedor espera la sugerencia en la pantalla, así que es síncrono con p99 ≤ 200 ms. Si pudiera esperar un minuto, lo haría con una cola y batches más grandes, que es más barato". Una sola frase demuestra que sabes qué decisión depende de qué supuesto.</p>` },
-          { t: 'callout', kind: 'interview', html: `<ul><li>"I'll assume X. If that's wrong, the main thing that changes is Y."</li><li>"I'll assume there's a person waiting on the screen, so this is a synchronous call with a p99 under 200 ms."</li><li>"Let me pause here: are these assumptions reasonable?"</li></ul>` },
+          { t: 'callout', kind: 'interview', html: `<ul><li>"I'll assume X. If that's wrong, the main thing that changes is Y."</li><li>"I'll assume the seller is waiting for the suggestion while filling out the form, so this is a synchronous call with a p99 under 200 ms."</li><li>"Let me pause here: are these assumptions reasonable?"</li></ul>` },
           { t: 'callout', kind: 'note', title: 'Cuando te dicen "tú decide"', html: `<p>No es evasión: están probando si sabes elegir defaults razonables. Elige, justifícalo en una línea y sigue. Quedarte bloqueado esperando un número "correcto" es peor que elegir uno defendible.</p>` },
         ],
       },
@@ -587,6 +597,7 @@
       // ======================================================== 8
       {
         id: 'estimaciones-express',
+        dims: ['estimaciones'],
         title: 'Estimaciones express: los números que siempre necesitas',
         titleEn: 'Back-of-the-envelope essentials',
         priority: 'core',
@@ -596,7 +607,7 @@
             ['1 día', '86,400 s ≈ 10<sup>5</sup> s', 'Redondear a 10<sup>5</sup> subestima el QPS ≈ 14 %; para el número final usa 86,400'],
             ['1 M requests/día', '≈ 12 req/s promedio', '10<sup>6</sup> / 86,400 ≈ 11.6'],
             ['10 M requests/día', '≈ 116 req/s promedio', 'El tráfico del caso 1'],
-            ['Pico', '≈ 2–5 × el promedio', 'Patrón diurno; eventos especiales (Black Friday) pueden ser más'],
+            ['Pico', est('≈ 2–5 × el promedio'),'Patrón diurno; eventos especiales (Black Friday) pueden ser más'],
             ['1 mes', '≈ 730 h ≈ 2.6 M s', 'Costo mensual = US$/h × 730'],
             ['1 año', '≈ 8,760 h ≈ 3.15 × 10<sup>7</sup> s', 'Truco: π × 10<sup>7</sup> s'],
             ['99.9 % de disponibilidad', '≈ 43 min de caída al mes', '99.99 % ≈ 4.4 min; 99 % ≈ 7.3 h'],
@@ -632,7 +643,7 @@
             { label: 'Por día', expr: '10^7 × 300 B', value: '3 GB/día' },
             { label: 'Por año', expr: '3 GB × 365', value: '1.1 TB/año' },
             { label: 'Si guardaras las imágenes', expr: '10^7 × 200 KB', value: '2 TB/día', note: 'Unas 700 veces el volumen de los logs' },
-          ], result: 'Guardas el <b>100 % de los logs</b> (es barato, y en Parquet comprimido ocupa menos) y solo un <b>hash</b> de la imagen: la foto ya vive en el almacenamiento del producto. A labeling va una muestra de ≈ 1 %.' },
+          ], result: 'Guardas el <b>100 % de los logs</b> (es barato, y en Parquet comprimido ocupa menos) y solo un <b>hash</b> de la imagen: la foto ya vive en el almacenamiento del producto. Aparte muestreas ≈ 1 % de los requests (≈ 100k/día, guardando solo la referencia: ≈ 10 MB/día) y de ahí salen las ≈ 5k/mes que etiquetan personas; solo esas imágenes se copian.' },
           { t: 'p', html: `La versión completa, con VRAM, CPUs del gateway, presupuesto de latencia por componente y costo mensual, está en <a href="#c01.estimaciones">el caso 1</a>.` },
           { t: 'h3', text: 'La fórmula de GPUs' },
           { t: 'p', html: `<code>GPUs = ceil(pico / (capacidad medida × utilización objetivo)) + redundancia</code>` },
@@ -644,9 +655,9 @@
           ] },
           { t: 'h3', text: 'Little\'s law, en una línea' },
           { t: 'calc', title: 'Requests en vuelo', rows: [
-            { label: 'Concurrencia', expr: 'throughput × latencia = 500 req/s × 0.05 s', value: '25 requests en vuelo' },
-            { label: 'Si la latencia sube a 200 ms en un pico', expr: '500 × 0.2', value: '100 requests en vuelo' },
-          ], result: 'Tu servicio tiene que aguantar al menos 25 requests simultáneos (workers, conexiones, lugares en la cola del batcher). Si la latencia se degrada, la concurrencia se multiplica y aparecen colas y timeouts: por eso la latencia y la capacidad no se pueden planear por separado. Se desarrolla en <a href="#m03">M3</a>.' },
+            { label: 'Concurrencia', expr: 'throughput × latencia media = 500 req/s × 0.05 s', value: '25 requests en vuelo' },
+            { label: 'Si la latencia media sube a 200 ms en un pico', expr: '500 × 0.2', value: '100 requests en vuelo' },
+          ], result: 'Tu servicio tiene 25 requests simultáneos en promedio (y más en ráfagas): para eso dimensionas workers, conexiones y lugares en la cola del batcher. Si la latencia se degrada, la concurrencia se multiplica y aparecen colas y timeouts: por eso la latencia y la capacidad no se pueden planear por separado. Se desarrolla en <a href="#m03">M3</a>.' },
           { t: 'callout', kind: 'trap', title: 'Precisión falsa y otros errores de cuentas', html: `<ul><li>"115.74 req/s": los decimales no dan puntos, dan la impresión de que no sabes qué importa.</li><li>No redondear y hacer divisiones largas en voz alta durante 5 minutos.</li><li>Olvidar el pico y diseñar para el promedio.</li><li>Mezclar unidades: bits vs bytes, GB vs GiB, por segundo vs por día.</li></ul>` },
           { t: 'callout', kind: 'senior', html: `<p>Di el número <b>y la decisión</b> que implica. No "500 req/s", sino "≈ 500 req/s de pico, así que una T4 cubre el throughput y corro dos por N+1; no necesito un cluster grande ni un sistema de colas". El número solo es aritmética; el número con la decisión es diseño.</p>` },
           { t: 'callout', kind: 'estimate', html: `<p>Cada número de esta sección es un orden de magnitud. Antes de producción se mide con un load test. En la entrevista basta con decirlo una vez: "I'd validate this capacity number with a load test before committing to it".</p>` },
@@ -656,6 +667,7 @@
       // ======================================================== 9
       {
         id: 'senales',
+        dims: ['tradeoffs'],
         title: 'Señales senior y errores que te hunden',
         titleEn: 'Senior signals and fatal mistakes',
         priority: 'core',
@@ -690,7 +702,7 @@
             `<b>Quedarse sin tiempo antes de las fallas.</b> Antídoto: en el minuto 40 cortas lo que estés haciendo.`,
           ] },
           { t: 'callout', kind: 'trap', title: 'El error del especialista en CV', html: `<p>Es el más probable en tu caso porque es tu zona cómoda: el entrevistador pregunta "¿qué modelo usarías?" y respondes con 10 minutos de EfficientNet vs ConvNeXt vs ViT, augmentations y label smoothing. La pregunta era una transición, no una invitación. Responde en dos frases (modelo probado, por qué basta, qué lo haría cambiar) y ofrece profundizar: "happy to go deeper if you want". Si quiere, te lo va a pedir.</p>` },
-          { t: 'callout', kind: 'senior', html: `<p>Lo que más sube la nota, en una frase: <b>cada decisión con su porqué y su alternativa descartada</b>. "Uso HTTP/REST y no gRPC hacia el model server porque detrás de un balanceador L4 las conexiones HTTP/2 largas de gRPC no se reparten por request; cambiaría si la serialización se volviera el cuello de botella." Toma 10 segundos y alimenta dos dimensiones de la rúbrica a la vez.</p>` },
+          { t: 'callout', kind: 'senior', html: `<p>Lo que más sube la nota, en una frase: <b>cada decisión con su porqué y su alternativa descartada</b>. "Uso HTTP/REST y no gRPC hacia el model server porque detrás de un balanceador L4 las conexiones HTTP/2 largas de gRPC no se reparten por request; cambiaría si la serialización se volviera el cuello de botella." (Por qué: un balanceador L4, como un Service de Kubernetes, reparte <i>conexiones</i>, no requests, y gRPC manda todo por una sola conexión HTTP/2 larga, así que cada cliente queda pegado a un solo pod. Lo ves a fondo en el <a href="#c01.serving">caso 1</a>.) Dicho en la entrevista, toma 10 segundos y alimenta dos dimensiones de la rúbrica a la vez.</p>` },
         ],
       },
 
@@ -751,12 +763,12 @@
           { t: 'h3', text: 'Plan de estudio sugerido (4–6 semanas)' },
           { t: 'table', head: ['Semana', 'Qué', 'Meta al terminar'], rows: [
             ['1', 'Este módulo + <a href="#c01">caso 1</a> completo (primero en modo práctica, después la solución)', 'Recitas el framework y haces las estimaciones del caso 1 sin mirar'],
-            ['2', '<a href="#m02">M2</a>, <a href="#m03">M3</a>, <a href="#m04">M4</a> + practicar <a href="#c02">c02</a> y repetir <a href="#c01">c01</a>', 'Eliges el patrón de inferencia y calculas GPUs y VRAM en voz alta'],
-            ['3', '<a href="#m05">M5</a>–<a href="#m08">M8</a> + <a href="#c03">c03</a>, <a href="#c04">c04</a>', 'Puedes sostener un deep dive de serving de 10 minutos con trade-offs'],
-            ['4', '<a href="#m09">M9</a>–<a href="#m12">M12</a> + <a href="#c05">c05</a>, <a href="#c06">c06</a>', 'Cubres datos, rollout y monitoreo con alertas concretas en cualquier caso'],
-            ['5', '<a href="#m13">M13</a>–<a href="#m15">M15</a> + <a href="#c07">c07</a>, <a href="#c08">c08</a>, <a href="#c09">c09</a>', 'Los clásicos de producto (búsqueda, recomendación, fraude) sin quedarte en blanco'],
-            ['6 (si puedes)', '<a href="#c10">c10</a>–<a href="#c12">c12</a> + repetir los casos con peor puntaje; simulacros con otra persona', 'Tres intentos seguidos por encima de 75 % en la rúbrica'],
-          ], note: 'Sigue el orden de las fases de la app. Si solo tienes 4 semanas, junta la 2 con la 3 y la 4 con la 5, y dentro de cada semana prioriza lo de frecuencia alta.' },
+            ['2', '<a href="#m02">M2</a>, <a href="#m03">M3</a>, <a href="#m04">M4</a> + repetir <a href="#c01">c01</a> con el temporizador', 'Eliges el patrón de inferencia y calculas GPUs y VRAM en voz alta'],
+            ['3', '<a href="#m05">M5</a>–<a href="#m08">M8</a> + <a href="#c02">c02</a>', 'Puedes sostener un deep dive de serving de 10 minutos con trade-offs'],
+            ['4', '<a href="#m09">M9</a>–<a href="#m12">M12</a> + <a href="#c03">c03</a>, <a href="#c04">c04</a>', 'Cubres datos, rollout y monitoreo con alertas concretas en cualquier caso'],
+            ['5', '<a href="#m13">M13</a>–<a href="#m15">M15</a> + <a href="#c05">c05</a>, <a href="#c06">c06</a>', 'Sumas costo, seguridad y LLMs; manejas pipelines con revisión humana'],
+            ['6', '<a href="#c07">c07</a>–<a href="#c09">c09</a> + <a href="#c10">c10</a> y <a href="#c11">c11</a> (<a href="#c12">c12</a> si te alcanza; <a href="#c13">c13</a> solo si aplicas a una empresa de voz)', 'Los clásicos de producto y de LLMs sin quedarte en blanco; tres intentos seguidos por encima de 75 % en la rúbrica'],
+          ], note: 'Sigue el orden de las fases de la app: cada semana usa lo que ya está publicado; los enunciados de fases futuras ya se pueden practicar aunque la solución llegue después. La semana 6 es la más cargada: si puedes, pártela en dos, y ciérrala repitiendo los casos con peor puntaje y con un simulacro con otra persona. Si solo tienes 4 semanas, junta la 2 con la 3 y la 4 con la 5, y no recortes los casos de LLMs (<a href="#c10">c10</a>, <a href="#c11">c11</a>): cada vez más procesos los incluyen.' },
           { t: 'h3', text: 'El ciclo de estudio en esta app' },
           { t: 'steps', items: [
             { title: 'Módulo', meta: 'Leer', html: `<p>Lee y marca cada sección como leída. En la primera pasada, sáltate lo marcado "Sáltate esto".</p>` },
@@ -794,8 +806,8 @@
               explain: 'El skew no lanza excepciones: el modelo recibe inputs distintos a los de training (RGB vs BGR, otro resize) y se equivoca con confianza. Se previene con preprocesamiento compartido y un test de paridad.' },
             { q: 'En una entrevista con sabor de infraestructura (p. ej. "diseña un feature store"), ¿cuánto tiempo le das a labels, métricas y baseline?', options: ['Nada, no es el tema', '≈ 5 minutos', '≈ 20 minutos', 'La mitad de la entrevista'], answer: 1,
               explain: 'Breve pero presente: sin saber para qué se usan los datos y cómo se mide el éxito, la infraestructura no tiene requisitos. Cero es un error; 20 minutos también.' },
-            { q: 'Con 500 req/s y 50 ms de latencia, ¿cuántos requests hay en vuelo según Little\'s law?', options: ['2.5', '10', '25', '250'], answer: 2,
-              explain: '500 × 0.05 = 25. Si la latencia sube a 200 ms, son 100: las colas crecen justo cuando menos margen tienes.' },
+            { q: 'Con 500 req/s y 50 ms de latencia media, ¿cuántos requests hay en vuelo según Little\'s law?', options: ['2.5', '10', '25', '250'], answer: 2,
+              explain: '500 × 0.05 = 25 en promedio. Si la latencia media sube a 200 ms, son 100: las colas crecen justo cuando menos margen tienes.' },
             { q: 'Te dan el enunciado. ¿Cuál es tu primer movimiento?', options: ['Dibujar la arquitectura', 'Elegir el backbone', 'Estimar cuántas GPUs necesitas', 'Preguntar lo que cambia el diseño y fijar supuestos'], answer: 3,
               explain: 'Sin saber volumen, latencia, labels y qué significa éxito, cualquier diagrama o número es una apuesta. Pero con 5–7 preguntas, no 15.' },
             { q: 'El sistema recibe 5 req/s y lo mantiene un equipo de 2 personas. ¿Qué diseño es más defendible?', options: ['Kafka + Kubernetes + feature store', 'Un cluster de Spark', 'Un servicio (p. ej. FastAPI) en 1–2 réplicas, con fallback y logs', 'Entrenamiento online en streaming'], answer: 2,
@@ -825,7 +837,7 @@
     // ---------------------------------------------------------- flashcards
     flashcards: [
       { id: 'm01-01', kind: 'concepto', q: '¿Qué muestra la figura de Sculley et al. (NeurIPS 2015) y qué lección sacas para la entrevista?',
-        a: 'La caja "ML code" es pequeña y está rodeada de infraestructura mucho mayor: datos, features, verificación, recursos, serving, monitoreo, configuración, orquestación. Lección: el trabajo y las fallas están mayormente fuera del modelo; el entrevistador de MLE evalúa esas otras cajas.' },
+        a: 'La caja "ML code" es pequeña y está rodeada de infraestructura mucho mayor: datos, features, verificación, recursos, serving, monitoreo, configuración, orquestación. Lección: el trabajo y la complejidad están mayormente fuera del modelo (y la experiencia operativa muestra que también la mayoría de los outages); el entrevistador de MLE evalúa esas otras cajas.' },
       { id: 'm01-02', kind: 'concepto', q: '¿Cuáles son las cuatro restricciones de producción que tu notebook no tiene?',
         a: 'Latencia y throughput, costo, confiabilidad/disponibilidad y cambio en el tiempo (data y concept drift).' },
       { id: 'm01-03', kind: 'concepto', q: 'Los 7 pasos del framework con sus ventanas de minutos.',
@@ -835,7 +847,7 @@
       { id: 'm01-06', kind: 'numero', q: 'Bytes por parámetro en FP32, FP16 e INT8, y cuánto pesa ResNet-50 en cada uno.', a: '4 / 2 / 1 B → ≈ 102 / 51 / 26 MB (25.6 M params).' },
       { id: 'm01-07', kind: 'numero', q: '¿Cuánto ocupa una imagen 224×224×3 en uint8 y en float32?', a: '≈ 150 KB en uint8 (150,528 valores) y ≈ 602 KB en float32. Un batch de 32 en float32 ≈ 19 MB.' },
       { id: 'm01-08', kind: 'concepto', q: 'Fórmula para el número de GPUs, con el ejemplo del caso 1.', a: '<code>ceil(pico / (capacidad medida × utilización objetivo)) + redundancia</code>. Caso 1: ceil(500 / (1,200 × 0.5)) + 1 = 2 GPUs: una por throughput, otra por N+1.' },
-      { id: 'm01-09', kind: 'numero', q: 'Little\'s law con 500 req/s y 50 ms de latencia.', a: 'Concurrencia = throughput × latencia = 500 × 0.05 = 25 requests en vuelo. Con 200 ms serían 100.' },
+      { id: 'm01-09', kind: 'numero', q: 'Little\'s law con 500 req/s y 50 ms de latencia media.', a: 'Concurrencia promedio = throughput × latencia media = 500 × 0.05 = 25 requests en vuelo. Si la latencia media sube a 200 ms, son 100.' },
       { id: 'm01-10', kind: 'numero', q: '1 mes ≈ ¿cuántas horas? ¿Cuánta caída permite 99.9 % al mes?', a: '≈ 730 h (≈ 2.6 M s). 99.9 % ≈ 43 min de caída al mes; 99.99 % ≈ 4.4 min.' },
       { id: 'm01-11', kind: 'tradeoff', q: '¿Qué pregunta decide entre inferencia online y asíncrona o batch?', a: '¿Alguien espera la predicción antes de continuar? Si sí, online síncrono con fallback. Si no, una cola o un batch: más barato, batches más grandes, fallas que se reintentan.' },
       { id: 'm01-12', kind: 'trampa', q: 'Fuentes típicas de training-serving skew en un pipeline de CV (nombra al menos tres).', a: 'RGB vs BGR (<code>cv2.imread</code> entrega BGR); resize distinto (interpolación, antialias, crop vs deformar el aspect ratio); orientación EXIF (OpenCV la aplica por defecto, PIL no); normalización distinta.' },
@@ -847,7 +859,7 @@
       { id: 'm01-18', kind: 'trampa', q: '¿Qué falta si diseñas solo el camino online?', a: 'El lazo cerrado: logs → datos → labels → training → evaluation gate → registry → deploy, más monitoreo. El entrevistador anota "no closed loop".' },
       { id: 'm01-19', kind: 'tradeoff', q: 'Preguntar vs asumir en los primeros 5 minutos.', a: '5–7 preguntas que cambian la arquitectura y luego supuestos explícitos: "voy a asumir X; si no, cambiaría Y". 15 preguntas sin supuestos es tan malo como ninguna.' },
       { id: 'm01-20', kind: 'concepto', q: 'Inner loop vs outer loop.', a: 'Inner loop: experimentar con el modelo (horas, notebook, métrica offline). Outer loop: el ciclo de vida corriendo solo en producción (días o semanas, pipelines, SLOs, métricas online). La entrevista es principalmente outer loop.' },
-      { id: 'm01-21', kind: 'concepto', q: 'Las métricas en tres niveles, con el caso 1.', a: 'Negocio/online: tasa de aceptación de la categoría sugerida. Offline: top-5 accuracy. Guardrails: p99 de latencia, % de anuncios recategorizados por moderación, tiempo para completar el formulario.' },
+      { id: 'm01-21', kind: 'concepto', q: 'Las métricas en tres niveles, con el caso 1.', a: 'Negocio: tasa de publicaciones completadas (el vendedor termina y publica). Online: tasa de aceptación de la categoría sugerida. Offline: top-5 accuracy en el golden set. Guardrails: p99 de latencia, % de anuncios recategorizados por moderación y tiempo para completar el formulario.' },
       { id: 'm01-22', kind: 'tradeoff', q: 'Detección de fotos borrosas: ¿servidor u on-device primero?', a: 'Servidor primero: la web lo necesita igual, el umbral se itera sin releases y tienes logs. Después mueves la heurística al dispositivo con remote config para ahorrar la ida y vuelta, y el servidor sigue validando.' },
       { id: 'm01-23', kind: 'trampa', q: '"Capacidad medida por GPU": ¿es el throughput máximo absoluto?', a: 'No. Es el throughput máximo que todavía cumple el SLO de latencia, medido con un load test (perf_analyzer, Locust, k6). Y se planifica a ≈ 50–70 % de esa cifra.' },
       { id: 'm01-24', kind: 'trampa', q: '¿Qué hay de malo en decir "115.74 req/s"?', a: 'Precisión falsa: los decimales no dan puntos y consumen tiempo. Redondea (≈ 120), usa el pico y di la decisión que implica.' },
@@ -864,40 +876,50 @@
       { en: 'A/B test', es: 'prueba A/B', def: 'Experimento que reparte usuarios al azar entre la versión actual y la nueva y compara una métrica primaria y guardrails con significancia estadística.', say: 'We would run an A/B test randomized by seller, with listing contacts as the primary metric.' },
       { en: 'active learning', es: 'aprendizaje activo', def: 'Elegir qué ejemplos etiquetar según lo que más ayuda al modelo (baja confianza, desacuerdo, errores) en vez de muestrear al azar.', say: 'We would use active learning to send low-confidence images to the labeling queue.' },
       { en: 'availability', es: 'disponibilidad', def: 'Fracción del tiempo (o de requests) en que el servicio responde correctamente. 99.9 % ≈ 43 min de caída al mes.', say: 'The target is 99.9% availability, so we need at least two replicas in different zones.' },
+      { en: 'availability zone (AZ)', es: 'zona de disponibilidad', def: 'Uno o más data centers aislados dentro de una región de la nube; repartir réplicas en 2+ zonas protege de la caída de una.', say: 'We run one GPU replica per availability zone.' },
       { en: 'back-of-the-envelope estimate', es: 'estimación rápida (en servilleta)', def: 'Cálculo de orden de magnitud con números redondos para tomar decisiones de diseño: QPS, GPUs, almacenamiento, costo.', say: 'Let me do a quick back-of-the-envelope estimate before choosing the hardware.' },
+      { en: 'backfill', es: 'reproceso histórico', def: 'Correr un modelo o pipeline sobre datos que ya existían (p. ej. clasificar las 200 M imágenes ya publicadas) por un camino batch separado del online.', say: 'The backfill runs as a separate batch job on spot instances, never against the online endpoint.' },
       { en: 'baseline', es: 'línea base', def: 'La solución más simple con la que comparas (una heurística, el modelo actual o no usar ML). También sirve de fallback.', say: 'The baseline is a Laplacian-variance threshold; the CNN has to beat it on the same golden set.' },
+      { en: 'batch inference', es: 'inferencia batch (offline)', def: 'Predicciones calculadas por lotes sobre muchos datos, sin un usuario esperando; se guardan para usarlas después. También se le dice offline inference.', say: 'Catalog embeddings are recomputed with batch inference every night.' },
       { en: 'canary release', es: 'despliegue canario', def: 'Enviar un porcentaje pequeño del tráfico (p. ej. 5 %) a la versión nueva y ampliarlo solo si las métricas no empeoran.', say: 'I would start with a 5% canary and roll back automatically if p99 or error rates regress.' },
       { en: 'capacity planning', es: 'planificación de capacidad', def: 'Decidir cuántos recursos (réplicas, GPUs) necesitas para el pico a partir de la capacidad medida y una utilización objetivo.', say: 'For capacity planning I use the measured throughput at our latency SLO, not the theoretical maximum.' },
-      { en: 'cold start', es: 'arranque en frío', def: 'Tiempo que tarda una réplica nueva en estar lista: descargar la imagen, cargar pesos, calentar el modelo. Limita qué tan rápido reacciona el autoscaling.', say: 'Cold starts take about a minute, so we keep one warm replica above the minimum.' },
+      { en: 'cold start', es: 'arranque en frío', def: 'Tiempo desde que el autoscaler decide escalar hasta que la réplica nueva atiende tráfico: provisionar el nodo (con GPU, minutos), descargar la imagen (varios GB con CUDA/Triton), cargar y calentar el modelo y pasar readiness. Por eso el autoscaling no absorbe spikes de segundos.', say: 'A cold start on a new GPU node takes several minutes, so we keep spare warm capacity instead of relying on autoscaling for short spikes.' },
       { en: 'concept drift', es: 'deriva de concepto', def: 'Cambia la relación entre input y label (lo que cuenta como "vintage", una categoría que se divide), aunque los inputs se vean iguales.', say: 'Concept drift shows up in delayed labels, not in the input distribution.' },
       { en: 'data drift', es: 'deriva de datos', def: 'Cambia la distribución de los inputs respecto de la de training: celulares nuevos, temporada, otra compresión en la app.', say: 'We monitor data drift by comparing image statistics and embedding distributions against the training set.' },
       { en: 'data lake', es: 'lago de datos', def: 'Almacenamiento barato y durable (S3, GCS) de datos crudos y procesados, típicamente en Parquet, que alimenta el camino offline.', say: 'Prediction logs land in the data lake as Parquet, partitioned by day.' },
       { en: 'deep dive', es: 'profundización', def: 'La parte de la entrevista en que haces zoom a uno o dos componentes con detalle concreto: batching, labels, features, evaluación.', say: 'Which area would you like me to deep dive into?' },
+      { en: 'delayed labels', es: 'labels retrasados', def: 'Labels que llegan días o semanas después de la predicción; mientras tanto monitoreas con proxies.', say: 'Moderator labels are delayed by days, so we watch proxies in the meantime.' },
       { en: 'dynamic batching', es: 'batching dinámico', def: 'El model server junta requests que llegan en una ventana corta (p. ej. 2 ms) en un solo batch para aprovechar la GPU.', say: 'Dynamic batching with a 2 ms queue delay trades a little latency for much higher GPU throughput.' },
       { en: 'evaluation gate', es: 'compuerta de evaluación', def: 'Paso automático que decide si un modelo candidato puede reemplazar al actual: golden set, slices críticos, paridad y latencia.', say: 'The evaluation gate blocks any candidate that regresses on the night-photo slice.' },
       { en: 'fail-open', es: 'fallar abierto', def: 'Si el componente falla, el sistema sigue sin él en vez de bloquear (publicar sin el aviso de foto borrosa). Lo contrario es fail-closed.', say: 'The blur check fails open: if it times out, the listing is published without a warning.' },
       { en: 'fallback', es: 'respaldo, plan B', def: 'Respuesta alternativa cuando el modelo no responde a tiempo: una heurística, el modelo anterior, o la experiencia sin ML.', say: 'If inference times out, the fallback is the manual category picker.' },
       { en: 'feature store', es: 'almacén de features', def: 'Sistema que guarda features con una sola definición para training (histórico, point-in-time) y serving (baja latencia).', say: 'For pure image classification I would skip the feature store; it becomes useful once we add seller history.' },
       { en: 'feedback loop', es: 'lazo de retroalimentación', def: 'Cuando las predicciones del modelo influyen en los datos con los que se reentrena (solo ves lo que el modelo mostró), sesgándolo.', say: 'To avoid a feedback loop, part of the labeling sample is random, not chosen by the model.' },
-      { en: 'golden set', es: 'set dorado', def: 'Conjunto de evaluación fijo, curado y bien etiquetado, que se usa para comparar versiones del modelo de forma consistente.', say: 'Every candidate is scored on the same golden set of 5,000 images.' },
+      { en: 'golden set', es: 'set dorado', def: 'Conjunto de evaluación fijo, curado y bien etiquetado, que se usa para comparar versiones del modelo de forma consistente.', say: 'Every candidate is scored on the same frozen golden set of about 50,000 images, stratified by category.' },
       { en: 'graceful degradation', es: 'degradación con gracia', def: 'Diseñar el sistema para perder calidad de forma controlada (modelo más simple, fallback, menos features) en vez de caerse.', say: 'Under overload we degrade gracefully by returning cached or fallback predictions.' },
       { en: 'guardrail metric', es: 'métrica guardrail (de protección)', def: 'Métrica que no puede empeorar aunque la principal mejore: latencia, tasa de publicación, quejas.', say: 'p99 latency is a guardrail metric in the experiment.' },
+      { en: 'headroom', es: 'margen de capacidad', def: 'Capacidad que dejas libre para spikes, fallas y el tiempo de reacción del autoscaler: 1 − utilización objetivo.', say: 'Planning at 50% utilization leaves headroom for a zone failure.' },
       { en: 'human-in-the-loop', es: 'humano en el lazo', def: 'Diseño en el que personas revisan o corrigen parte de las predicciones (las dudosas o las caras de equivocar) y esas correcciones vuelven como labels.', say: 'Low-confidence cases go to a human-in-the-loop review queue.' },
       { en: 'inner loop', es: 'ciclo interno', def: 'La iteración de experimentación sobre el modelo: datos, entrenar, evaluar, en horas.', say: 'My experience is mostly in the inner loop; in production I would automate the outer loop.' },
       { en: 'labeling', es: 'etiquetado', def: 'Proceso de obtener labels, con humanos o de forma implícita, con una guía, control de calidad, costo por label y retraso.', say: 'Labeling costs money and takes days, so it is a design constraint, not a detail.' },
-      { en: 'Little\'s law', es: 'ley de Little', def: 'Concurrencia = throughput × latencia. 500 req/s × 0.05 s = 25 requests en vuelo.', say: 'By Little\'s law, at 500 requests per second and 50 ms we have about 25 requests in flight.' },
+      { en: 'Little\'s law', es: 'ley de Little', def: 'Concurrencia promedio = throughput × latencia promedio (L = λ·W), en régimen estable. Usa la latencia media, no el p99: 500 req/s × 0.05 s = 25 requests en vuelo en promedio.', say: 'By Little\'s law, at 500 requests per second and 50 ms average latency we have about 25 requests in flight.' },
       { en: 'ML lifecycle', es: 'ciclo de vida de ML', def: 'Las etapas de un sistema de ML en producción: framing, datos, labels, features, training, evaluación, export, deploy, serving, monitoreo y reentrenamiento.', say: 'Let me walk through the ML lifecycle for this system, from data collection to retraining.' },
-      { en: 'model registry', es: 'registro de modelos', def: 'Catálogo de modelos versionados con linaje (datos, código, métricas) y estado; hace posible el rollback.', say: 'Rolling back is just pointing production to the previous version in the model registry.' },
+      { en: 'model registry', es: 'registro de modelos', def: 'Catálogo de modelos versionados con linaje (datos, código, métricas) y estado; hace posible el rollback.', say: 'Rolling back never means retraining: the previous version is still in the model registry, ready to redeploy.' },
       { en: 'model server', es: 'servidor de modelos', def: 'Proceso especializado en ejecutar modelos (Triton, TorchServe, vLLM) con batching, múltiples instancias y métricas.', say: 'The model server runs on GPU and handles dynamic batching.' },
       { en: 'N+1 redundancy', es: 'redundancia N+1', def: 'Tener una réplica más de las necesarias para el pico, para que la caída de una no rompa el servicio.', say: 'One GPU covers peak throughput; the second one is N+1 redundancy.' },
-      { en: 'offline inference', es: 'inferencia offline (batch)', def: 'Predicciones calculadas por lotes sobre muchos datos, sin un usuario esperando; se guardan para usarlas después.', say: 'Catalog embeddings are computed with offline inference every night.' },
+      { en: 'on-call', es: 'guardia', def: 'La persona del equipo que atiende las alertas urgentes durante su turno, con un runbook.', say: 'Latency alerts page the on-call; model-quality alerts open a ticket.' },
       { en: 'online inference', es: 'inferencia online', def: 'Predicción calculada por request mientras alguien espera la respuesta, con presupuesto de latencia.', say: 'Category suggestion is online inference because the seller is waiting on the form.' },
-      { en: 'outer loop', es: 'ciclo externo', def: 'El ciclo de vida completo corriendo en producción: datos nuevos, reentrenamiento, evaluación, despliegue, monitoreo.', say: 'The outer loop retrains weekly or when drift persists for several days.' },
+      { en: 'outer loop', es: 'ciclo externo', def: 'El ciclo de vida completo corriendo en producción: datos nuevos, reentrenamiento, evaluación, despliegue, monitoreo.', say: 'The outer loop retrains monthly, or earlier when drift persists for several days.' },
       { en: 'p99 latency', es: 'latencia p99', def: 'El valor por debajo del cual cae el 99 % de los requests. Describe la cola (tail latency) que el promedio esconde.', say: 'Our SLO is a p99 latency of 200 ms measured server-side.' },
+      { en: 'page (paging)', es: 'alerta urgente al de guardia', def: 'Notificación que despierta al on-call a cualquier hora. Solo para síntomas que afectan al usuario ahora; lo demás es ticket.', say: 'We only page on user-facing symptoms like p99 and error rate.' },
+      { en: 'point-in-time correctness', es: 'corrección en el tiempo (sin mirar el futuro)', def: 'Al armar el dataset de training, cada feature toma el valor que tenía en el momento de la predicción, no el de hoy; si no, el modelo aprende del futuro (leakage).', say: 'The feature store gives us point-in-time correct training data, so nothing leaks from the future.' },
       { en: 'prediction logging', es: 'registro de predicciones', def: 'Guardar por cada request la versión del modelo, el input (o su hash), el output y la latencia. Alimenta monitoreo, labeling y reentrenamiento.', say: 'Prediction logging is asynchronous so it never adds latency to the request.' },
+      { en: 'proxy metric', es: 'métrica proxy', def: 'Métrica que puedes medir ya y que se mueve con la que te importa pero tarda (p. ej. la distribución de scores en vez de la accuracy con labels).', say: 'Until labels arrive, the low-confidence rate is our proxy metric.' },
       { en: 'QPS', es: 'consultas por segundo', def: 'Queries (requests) per second: la unidad de carga de un servicio. Se estima promedio, pico y pico de diseño.', say: 'We expect around 116 QPS on average and design for 500 QPS at peak.' },
+      { en: 'rate limiting', es: 'límite de tasa', def: 'Cuota de requests por caller y por unidad de tiempo; protege la capacidad compartida de un caller ruidoso.', say: 'Each internal team gets its own rate limit at the API gateway.' },
       { en: 'rollback', es: 'reversión', def: 'Volver a la versión anterior (de modelo o de servicio) cuando la nueva empeora las métricas; idealmente automático y en minutos.', say: 'If the canary regresses, we roll back automatically to the previous model version.' },
-      { en: 'shadow deployment', es: 'despliegue en sombra', def: 'La versión nueva recibe una copia del tráfico real y predice, pero sus respuestas no llegan al usuario. Sirve para comparar sin riesgo.', say: 'We run the new model in shadow mode for a week before any canary.' },
+      { en: 'runbook', es: 'manual de respuesta', def: 'Pasos concretos para quien recibe una alerta: qué mirar primero, cómo mitigar, cuándo escalar.', say: 'Every paging alert links to a runbook.' },
+      { en: 'shadow deployment', es: 'despliegue en sombra', def: 'La versión nueva recibe una copia del tráfico real y predice, pero sus respuestas no llegan al usuario. Sirve para comparar sin riesgo.', say: 'We run the new model in shadow mode for a day or two before the canary.' },
       { en: 'slice', es: 'segmento (de evaluación)', def: 'Subconjunto de datos (fotos nocturnas, un país, una categoría) sobre el que se mide el modelo por separado para no esconder fallas en el promedio.', say: 'The candidate improves overall accuracy but regresses on the low-light slice.' },
       { en: 'SLA', es: 'acuerdo de nivel de servicio', def: 'Compromiso contractual con un cliente sobre un SLO, con consecuencias si se incumple. Suele ser menos estricto que el SLO interno.', say: 'The SLA with the partner team is looser than our internal SLO.' },
       { en: 'SLI', es: 'indicador de nivel de servicio', def: 'La métrica medida: p. ej. la fracción de requests que responden en menos de 200 ms.', say: 'The SLI is the fraction of requests served in under 200 ms.' },

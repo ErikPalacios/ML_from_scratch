@@ -215,7 +215,21 @@
     if (!localAvailable) return;
     const ls = getLS();
     let ok = false;
-    try { if (ls) { ls.setItem(KEY, JSON.stringify(state)); ok = true; } } catch (e) { ok = false; }
+    try {
+      if (ls) {
+        // Otra pestaña pudo escribir desde nuestra última lectura: fusionar antes de sobrescribir
+        // (las lápidas mantienen borrado lo borrado; los timestamps por clave deciden los conflictos).
+        let cur = null;
+        try { const raw = ls.getItem(KEY); if (raw) cur = sanitize(JSON.parse(raw)); } catch (_) { cur = null; }
+        if (cur) {
+          const before = JSON.stringify(state);
+          state = mergeInto(state, cur);
+          if (JSON.stringify(state) !== before) notify('remote');
+        }
+        ls.setItem(KEY, JSON.stringify(state));
+        ok = true;
+      }
+    } catch (e) { ok = false; }
     if (ok !== localWriteOK) { localWriteOK = ok; emitStatus(); }
   }
 
@@ -742,6 +756,19 @@
 
   // ------------------------------------------------------------------ arranque
   loadLocal();
+  // Otra pestaña de la app guardó: se fusiona aquí para que la próxima escritura no pise lo suyo.
+  try {
+    if (typeof root.addEventListener === 'function') {
+      root.addEventListener('storage', (e) => {
+        if (!e || e.key !== KEY || !e.newValue) return;
+        try {
+          const before = JSON.stringify(state);
+          state = mergeInto(state, sanitize(JSON.parse(e.newValue)));
+          if (JSON.stringify(state) !== before) notify('remote');
+        } catch (_) { /* valor ajeno o corrupto: se ignora */ }
+      });
+    }
+  } catch (e) { /* Node */ }
   lastStatus = backend();
   startRemote();
 

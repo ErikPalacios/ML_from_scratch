@@ -4,7 +4,8 @@
    MSD.Code.highlight(text, lang) → [html de cada línea]   (útil para pruebas)
 
    Visor de código con pestañas (una por archivo), números de línea que no se
-   copian, resaltado ligero por lenguaje, botón "Copiar", ajuste de líneas y
+   copian, resaltado ligero por lenguaje, botón "Copiar", ajuste de líneas (pref
+   'codeWrap' de MSD.store, común a todos los bloques; sin store no se recuerda) y
    nota opcional. Los archivos con `src` se leen de MSD.files (generado por
    tools/embed-reference.mjs). El resaltado nunca altera el texto: solo envuelve
    fragmentos en <span>; el texto escapado concatenado es idéntico al original.
@@ -304,7 +305,9 @@
 
     const box = h('div', { class: 'cx__box' });
     fig.appendChild(box);
-    const state = { wrap: false, active: 0 };
+    // "Ajustar" es una preferencia global (pref 'codeWrap'): vale para todos los bloques y visitas.
+    const st = MSD.store;
+    const state = { wrap: !!(st && typeof st.pref === 'function' && st.pref('codeWrap')), active: 0 };
     const wrapBtns = [];
     const tabs = [], panels = [];
 
@@ -410,7 +413,7 @@
           timer = setTimeout(() => { copyBtn.classList.remove('is-done'); copyLabel.textContent = 'Copiar'; status.textContent = ''; }, ok ? 1800 : 6000);
         });
       });
-      const wrapBtn = h('button', { type: 'button', class: 'cx__btn cx__btn--wrap', 'aria-pressed': state.wrap ? 'true' : 'false', title: 'Ajustar las líneas largas al ancho', on: { click: () => setWrap(!state.wrap) } }, [iconWrap(), h('span', { text: 'Ajustar' })]);
+      const wrapBtn = h('button', { type: 'button', class: 'cx__btn cx__btn--wrap', 'aria-pressed': state.wrap ? 'true' : 'false', title: 'Ajustar las líneas largas al ancho', on: { click: () => { const on = !state.wrap; setWrap(on); if (st && typeof st.setPref === 'function') st.setPref('codeWrap', on); document.dispatchEvent(new CustomEvent('msd:codewrap', { detail: on })); } } }, [iconWrap(), h('span', { text: 'Ajustar' })]);
       wrapBtns.push(wrapBtn);
       meta.appendChild(h('div', { class: 'cx__actions' }, [status, wrapBtn, copyBtn]));
       panel.appendChild(meta);
@@ -441,6 +444,13 @@
       return panel;
     }
 
+    setWrap(state.wrap);
+    // Los demás bloques de la página siguen al que cambió; el oyente se retira al desmontarse el bloque.
+    const onWrapAll = (ev) => {
+      if (!fig.isConnected) { document.removeEventListener('msd:codewrap', onWrapAll); return; }
+      if (ev.detail !== state.wrap) setWrap(ev.detail);
+    };
+    document.addEventListener('msd:codewrap', onWrapAll);
     return fig;
   }
 

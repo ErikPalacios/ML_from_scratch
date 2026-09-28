@@ -21,7 +21,7 @@
   const LEVEL_TAG = ['Débil', 'Básico', 'Sólido', 'Senior'];
   const DIFF_LABEL = { intro: 'intro', media: 'media', alta: 'alta' };
   const FREQ_LABEL = { alta: 'alta', media: 'media', baja: 'baja' };
-  // Dimensión débil → sección de M01 que la trabaja (solo se enlaza si existe).
+  // Respaldo si ningún módulo listo etiqueta secciones con `dims`: dimensión débil → sección de M01.
   const M01_FOR_DIM = {
     aclaracion: 'preguntas-aclaracion', estimaciones: 'estimaciones-express', arquitectura: 'ciclo-de-vida',
     tradeoffs: 'senales', monitoreo: 'ciclo-de-vida', comunicacion: 'framework',
@@ -129,7 +129,7 @@
   function fwStrip() {
     const F = fw();
     return h('ol', { class: 'fwstrip', 'aria-label': 'Framework de 7 pasos en 45 minutos' },
-      F.map((s) => h('li', { class: 'fwstrip__seg', style: { flexGrow: String(s.minutes) }, title: s.num + '. ' + s.title + ' — ' + s.en + ' (' + s.from + '–' + s.to + ' min)' },
+      F.map((s) => h('li', { class: 'fwstrip__seg', style: { flexGrow: String(s.minutes) }, title: s.num + '. ' + s.title + (s.en && s.en !== s.title ? ' — ' + s.en : '') + ' (' + s.from + '–' + s.to + ' min)' },
         h('span', { class: 'fwstrip__top' }, h('span', { class: 'fwstrip__n' }, String(s.num)), h('span', { class: 'fwstrip__m' }, h('span', { 'aria-hidden': 'true' }, s.from + '–' + s.to + '′'), h('span', { class: 'sr-only' }, ', minutos ' + s.from + ' a ' + s.to))),
         h('span', { class: 'fwstrip__t' }, s.title))));
   }
@@ -321,10 +321,17 @@
         h('summary', null, h('span', { html: icon('chevron') }), 'Pista: qué evalúa este caso'),
         h('ul', { class: 'b-list' }, p.tests.map((t) => h('li', { html: String(t) }))))
       : null;
+    // Lo que respondería el entrevistador si preguntas (catálogo `facts`): cerrado por tema, para
+    // abrir solo lo que de verdad preguntaste. Sin esto la rúbrica pediría datos que nadie te dio.
+    const facts = Array.isArray(p.facts) && p.facts.length
+      ? h('details', { class: 'sim__hint' },
+        h('summary', null, h('span', { html: icon('chevron') }), 'Respuestas del entrevistador (ábrelas solo cuando las preguntes)'),
+        p.facts.map((f) => h('details', { class: 'sim__fact' }, h('summary', null, String(f.topic)), h('p', { html: String(f.a) }))))
+      : null;
     const promptEl = h('section', { class: 'sim__prompt', 'aria-labelledby': 'sim-prompt-k' },
       h('h2', { class: 'px-k', id: 'sim-prompt-k', tabindex: '-1', dataset: { focus: '' } }, 'El entrevistador dice'),
       h('blockquote', { class: 'prompt-quote sim__quote', html: String(p.prompt || 'Diseña el sistema.') }),
-      tests, notes);
+      tests, facts, notes);
 
     // --- reloj
     E.label = h('span', { class: 'clock__label' }, 'Tiempo restante');
@@ -370,7 +377,7 @@
         h('span', { class: 'rail__mk', 'aria-hidden': 'true' }, h('span', { class: 'rail__n' }, pad2(s.num)), h('span', { class: 'rail__ok', html: icon('check') })),
         h('div', { class: 'rail__body' },
           h('div', { class: 'rail__head' }, h('span', { class: 'rail__title' }, s.title), h('span', { class: 'rail__win mono' }, s.from + '–' + s.to + '′')),
-          h('div', { class: 'rail__en', lang: 'en' }, s.en),
+          s.en && s.en !== s.title ? h('div', { class: 'rail__en', lang: 'en' }, s.en) : null,
           h('div', { class: 'rail__now' }, bar, left),
           sr));
       return { li, bar, left, sr };
@@ -526,7 +533,7 @@
       } else {
         const s = F[st.idx];
         E.stepLine.textContent = 'Paso ' + s.num + '/' + F.length + ' · ' + s.title + ' (' + s.from + '–' + s.to + ' min)';
-        E.stepEn.textContent = s.en;
+        E.stepEn.textContent = s.en && s.en !== s.title ? s.en : '';
       }
       E.banner.hidden = !over;
       // Avisos para lector de pantalla solo en transiciones reales mientras corre.
@@ -541,7 +548,7 @@
     // Inserta los 7 pasos como esquema de texto plano en el cursor (arriba si está vacío).
     function insertSkeleton() {
       const ta = E.ta;
-      const text = F.map((s) => s.num + '. ' + s.title + ' — ' + s.en + ' (' + s.from + '–' + s.to + ' min)\n- ').join('\n\n') + '\n';
+      const text = F.map((s) => s.num + '. ' + s.title + (s.en && s.en !== s.title ? ' — ' + s.en : '') + ' (' + s.from + '–' + s.to + ' min)\n- ').join('\n\n') + '\n';
       const val = ta.value;
       const start = val.trim() ? ta.selectionStart : 0;
       const end = val.trim() ? ta.selectionEnd : val.length;
@@ -794,9 +801,17 @@
     const weak = weakest(a, p);
     const weakEl = weak.length
       ? h('ol', { class: 'weak' }, weak.map((w) => {
-        const secId = M01_FOR_DIM[w.dm.id];
-        const sec = m01Secs.find((s) => s.id === secId);
-        const links = [h('a', { href: sec ? '#m01.' + sec.id : '#m01' }, 'M01 · ' + (sec ? sec.title : 'El mapa y la entrevista'))];
+        // Secciones de módulos listos que declaran `dims` con esta dimensión (orden del curso).
+        const tagged = safe(() => MSD.listPages('module'), []).filter((pg) => pg && pg.ready)
+          .flatMap((pg) => (pg.sections || []).filter((s) => Array.isArray(s.dims) && s.dims.indexOf(w.dm.id) >= 0).map((s) => [pg, s]))
+          .slice(0, 3);
+        let links;
+        if (tagged.length) links = tagged.map(([pg, s]) => h('a', { href: '#' + pg.id + '.' + s.id }, pg.id.toUpperCase() + ' · ' + s.title));
+        else {
+          const secId = M01_FOR_DIM[w.dm.id];
+          const sec = m01Secs.find((s) => s.id === secId);
+          links = [h('a', { href: sec ? '#m01.' + sec.id : '#m01' }, 'M01 · ' + (sec ? sec.title : 'El mapa y la entrevista'))];
+        }
         const caseSec = CASE_SEC_FOR_DIM[w.dm.id];
         if (p.ready && caseSec) {
           const cs = (p.sections || []).find((s) => s.id === caseSec);

@@ -243,9 +243,24 @@
     updateNavMarkers();
   }
 
+  // Tarjetas que se reparten: las de un caso cuya solución sigue tras la compuerta de práctica
+  // no cuentan (sus respuestas son la solución). MSD.Flashcards decide; si no está, misma regla aquí.
+  function lockedCardSource(src) {
+    const F = MSD.Flashcards;
+    if (F && typeof F.isLockedSource === 'function') return !!safe(() => F.isLockedSource(store, src), false);
+    return /^c\d\d$/.test(String(src)) && caseGateState(String(src)).gated;
+  }
+  function visibleCardIds() {
+    const F = MSD.Flashcards;
+    const cards = F && typeof F.visibleCards === 'function'
+      ? safe(() => F.visibleCards(store), null)
+      : safe(() => MSD.flashcards().filter((c) => c && c.id && !lockedCardSource(c.source)), null);
+    return (cards || []).map((c) => c.id);
+  }
+
   function updateNavMarkers() {
     const cur = S.route ? S.route.pageId : null;
-    const cards = safe(() => MSD.flashcards().map((c) => c.id), []);
+    const cards = visibleCardIds();
     const due = cards.length ? store.dueCards(cards).length : 0;
     const drafts = store.listAttempts({ includeDrafts: true }).filter((a) => a.status === 'draft');
     els.nav.querySelectorAll('.nav__item').forEach((a) => {
@@ -267,7 +282,7 @@
       } else if (id === 'practica' && drafts.length) {
         html = '<span class="mk-draft"></span>';
         title += ' — ' + drafts.length + (drafts.length === 1 ? ' borrador abierto' : ' borradores abiertos');
-      } else if (/^ref-/.test(id) && !(m && m.ready === true)) {
+      } else if (/^ref-/.test(id) && !(getPage(id) || {}).ready) {
         html = '<span class="mk-soon">Próx.</span>';
         a.classList.add('is-soon');
         title += ' — próximamente';
@@ -343,7 +358,10 @@
   // ------------------------------------------------------------------ búsqueda
   const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const TYPE_LABEL = { page: 'Página', section: 'Sección', term: 'Término', card: 'Tarjeta' };
-  const TYPE_WEIGHT = { page: 40, section: 30, term: 20, card: 10 };
+  // Las tarjetas no suman bonos por título (sus preguntas son largas y taparían páginas y secciones)
+  // y salen como máximo 3.
+  const TYPE_WEIGHT = { page: 40, section: 30, term: 20, card: 0 };
+  const MAX_CARD_RESULTS = 3;
 
   function ensureIndex() {
     if (S.searchItems) return S.searchItems;
@@ -360,15 +378,20 @@
     if (!tokens.length) return [];
     const out = [];
     for (const e of ensureIndex()) {
+      // Tarjetas de un caso tras su compuerta: no se muestran (en el índice, `text` es la fuente).
+      if (e.type === 'card' && lockedCardSource(e.text)) continue;
       const hay = e.nTitle + ' ' + e.nText;
       if (!tokens.every((t) => hay.indexOf(t) >= 0)) continue;
       let score = TYPE_WEIGHT[e.type] || 0;
-      if (tokens.every((t) => e.nTitle.indexOf(t) >= 0)) score += 25;
-      if (e.nTitle.startsWith(tokens[0]) || e.nTitle.indexOf(' ' + tokens[0]) >= 0) score += 15;
+      if (e.type !== 'card') {
+        if (tokens.every((t) => e.nTitle.indexOf(t) >= 0)) score += 25;
+        if (e.nTitle.startsWith(tokens[0]) || e.nTitle.indexOf(' ' + tokens[0]) >= 0) score += 15;
+      }
       out.push({ e, score });
     }
     out.sort((a, b) => b.score - a.score || a.e.title.length - b.e.title.length);
-    return out.slice(0, 24).map((x) => x.e);
+    let nc = 0;
+    return out.filter((x) => x.e.type !== 'card' || nc++ < MAX_CARD_RESULTS).slice(0, 24).map((x) => x.e);
   }
 
   function renderResults(q) {
@@ -414,6 +437,8 @@
     closeResults();
     els.search.blur();
     if (S.drawerOpen) closeDrawer(false);
+    // Una tarjeta abre #flashcards.<id>: si ya estás en flashcards hay que volver a pintar la sesión.
+    if (e.type === 'card') S.forceRender = true;
     navigate(e.href);
   }
   function focusSearch() {
@@ -686,6 +711,19 @@
     return 'toc';
   }
 
+  // Hoja de la parte 4 (ref-numeros, ref-herramientas, ref-comandos) con secciones registradas: se pinta
+  // como un módulo (secciones, marcas de lectura, TOC), sin "completado" ni anterior/siguiente, porque
+  // no cuenta en el progreso del curso. Sin contenido, MSD.Reference muestra su página Próximamente.
+  function renderSheet(c, p) {
+    const m = Object.assign({}, meta(p.id), p);
+    S.page = { id: p.id, kind: 'sheet', sections: p.sections };
+    c.appendChild(pageHeader(m, { eyebrow: ['Parte 4', 'Referencias'], after: progressLine() }));
+    c.appendChild(pageTocDisclosure(p));
+    p.sections.forEach((s) => c.appendChild(buildSection(p, s, 0)));
+    buildToc(p, false);
+    return 'toc';
+  }
+
   function caseGateState(id) {
     const done = store.listAttempts(id).length > 0;
     const revealed = !!(store.pref('solutionRevealed') || {})[id];
@@ -697,15 +735,17 @@
     const g = caseGateState(p.id);
     S.page = { id: p.id, kind: 'case', sections: g.gated ? [] : p.sections };
     const eyebrow = ['Parte 2', 'Caso ' + pad2(m.num || +p.id.slice(1))];
-    c.appendChild(pageHeader(m, { eyebrow, minutesLabel: ' de lectura', after: h('div', null, specStrip(p.specs), g.gated ? null : progressLine()) }));
-    const enun = p.sections.find((s) => s.id === 'enunciado');
+    // Con la compuerta puesta no se muestra la tira de datos: sus números (pico, hardware, costo) son parte de la solución.
+    c.appendChild(pageHeader(m, { eyebrow, minutesLabel: ' de lectura', after: g.gated ? null : h('div', null, specStrip(p.specs), progressLine()) }));
 
     if (g.gated) {
+      // Solo el enunciado ambiguo del entrevistador (el mismo que muestra el simulador). El resto de la
+      // sección 1 (escenario fijado, lo que anota el entrevistador) responde las preguntas de aclaración.
       const body = h('div', { class: 'gate__body' });
-      if (enun) renderBlocks(enun.blocks, body, { pageId: p.id, sectionId: 'enunciado' });
-      else if (m.prompt) body.appendChild(h('blockquote', { class: 'prompt-quote', html: String(m.prompt) }));
+      body.appendChild(h('blockquote', { class: 'prompt-quote', html: String(m.prompt || 'Diseña el sistema.') }));
       if (Array.isArray(m.tests) && m.tests.length) {
-        body.appendChild(h('div', null, h('p', { class: 'eyebrow', style: { marginBottom: '6px' } }, 'Qué evalúa este caso'),
+        body.appendChild(h('details', { class: 'sim__hint' },
+          h('summary', null, h('span', { html: icon('chevron') }), 'Pista: qué evalúa este caso'),
           h('ul', { class: 'b-list' }, m.tests.map((t) => h('li', { html: String(t) })))));
       }
       if (r.sectionId && r.sectionId !== 'enunciado') {
@@ -714,7 +754,7 @@
           h('span', null, 'La sección «' + (t ? t.title : r.sectionId) + '» es parte de la solución. Practica primero el enunciado, o ábrela sin practicar.')));
       }
       c.appendChild(h('section', { class: 'gate', 'aria-labelledby': 'gate-h' },
-        h('div', { class: 'gate__head', id: 'gate-h' }, h('span', { html: icon('timer') }), 'Enunciado · practica antes de ver la solución'),
+        h('h2', { class: 'gate__head', id: 'gate-h' }, h('span', { html: icon('timer') }), 'Enunciado · practica antes de ver la solución'),
         body,
         h('div', { class: 'gate__actions' },
           h('a', { class: 'btn btn--primary btn--lg', href: '#practica-' + p.id }, h('span', { html: icon('play') }), 'Practicar primero (45 min)'),
@@ -876,15 +916,17 @@
     } else if (!drafts.length) {
       pracBody.push(h('p', { class: 'muted' }, 'Aún no tienes intentos. El primero siempre cuesta: 45 minutos con reloj, sin mirar la solución.'));
     }
-    const firstCase = CASE_IDS.find((id) => { const p = getPage(id); return p && p.ready; }) || 'c01';
+    // El primer caso listo que aún no practicaste (practicar antes de leer la solución).
+    const readyCases = CASE_IDS.filter((id) => (getPage(id) || {}).ready);
+    const firstCase = readyCases.find((id) => !store.listAttempts(id).length) || readyCases[0] || 'c01';
     pracBody.push(h('div', { class: 'modal__row' },
-      h('a', { class: 'btn btn--primary', href: '#practica-' + firstCase }, h('span', { html: icon('play') }), 'Practicar ' + firstCase),
+      h('a', { class: 'btn btn--primary', href: '#practica-' + firstCase }, h('span', { html: icon('play') }), 'Practicar ' + label(firstCase)),
       h('a', { class: 'btn', href: '#practica' }, 'Elegir otro caso'),
       attempts.length ? h('a', { class: 'btn btn--ghost', href: '#historial' }, 'Ver historial') : null));
     c.appendChild(row('Práctica', attempts.length ? attempts.length + (attempts.length === 1 ? ' intento' : ' intentos') : 'simulador de 45 min', pracBody));
 
     // Flashcards
-    const cards = safe(() => MSD.flashcards().map((x) => x.id), []);
+    const cards = visibleCardIds();
     const st = store.flashStats(cards);
     const maxBox = Math.max(1, ...st.boxes);
     c.appendChild(row('Flashcards', 'repetición espaciada', cards.length
@@ -921,7 +963,7 @@
     const how = h('div');
     renderBlocks([{ t: 'steps', items: [
       { title: 'Lee un módulo', meta: '20–40 min', html: 'Empieza por <a href="#m01">M01</a>: el mapa de la entrevista y el framework de 45 minutos. Marca cada sección como leída.' },
-      { title: 'Repasa con flashcards', meta: '5–10 min al día', html: 'Las tarjetas de lo que leíste vuelven según la repetición espaciada (Leitner). Poco y seguido rinde más que mucho de golpe.' },
+      { title: 'Repasa con flashcards', meta: '5–10 min al día', html: 'Las tarjetas vuelven según la repetición espaciada (Leitner); las de un caso se desbloquean cuando lo practicas o abres su solución. Poco y seguido rinde más que mucho de golpe.' },
       { title: 'Practica un caso con reloj', meta: '45 min', html: 'Lee el enunciado y escribe tu diseño siguiendo los 7 pasos; el reloj te indica en qué paso deberías ir.' },
       { title: 'Autoevalúate con la rúbrica', meta: '5 min', html: 'Seis dimensiones con niveles 1–4 y los puntos clave del caso. Sé estricto: es lo que anota el entrevistador.' },
       { title: 'Compara con la solución', meta: '30–60 min', html: 'Recién entonces abre la solución completa y anota qué te faltó; vuelve a los módulos que la rúbrica marca como débiles.' },
@@ -964,6 +1006,7 @@
         else layout = renderSoon(c, id);
       } else if (/^practica(-c\d\d)?$/.test(id) || id === 'historial') layout = delegate(c, 'Practice', r);
       else if (id === 'flashcards') layout = delegate(c, 'Flashcards', r);
+      else if (/^ref-(numeros|herramientas|comandos)$/.test(id) && (getPage(id) || {}).ready) layout = renderSheet(c, getPage(id));
       else if (id === 'glosario' || /^ref-(numeros|herramientas|comandos)$/.test(id)) layout = delegate(c, 'Reference', r, id === 'glosario' ? null : () => renderSoon(c, id));
       else layout = renderNotFound(c, r);
     } catch (e) {
@@ -1011,7 +1054,7 @@
     if (known && r.pageId !== 'inicio') {
       store.markVisited(r.pageId);
       // "Continúa donde lo dejaste" no debe apuntar a una página "Próximamente".
-      const soon = isCourseId(r.pageId) ? !(getPage(r.pageId) || {}).ready : /^ref-/.test(r.pageId) && meta(r.pageId).ready !== true;
+      const soon = (isCourseId(r.pageId) || /^ref-/.test(r.pageId)) && !(getPage(r.pageId) || {}).ready;
       if (!soon) store.setLastLocation(r.hash);
     }
     const scrolled = r.sectionId ? scrollToSection(r, false) : false;
@@ -1060,7 +1103,7 @@
     if (kinds.has('progress')) refreshReadMarks();
     if (kinds.has('remote') || kinds.has('import')) {
       renderFoot();
-      const shellPage = S.route && (S.route.pageId === 'inicio' || isCourseId(S.route.pageId));
+      const shellPage = S.route && (S.route.pageId === 'inicio' || isCourseId(S.route.pageId) || (S.page && S.page.kind === 'sheet'));
       const typing = isTextEntry(document.activeElement) && els.page.contains(document.activeElement);
       if (shellPage && !typing) rerender(false);
     }

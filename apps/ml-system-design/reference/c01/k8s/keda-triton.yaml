@@ -15,8 +15,8 @@ spec:
   minReplicaCount: 2  # nunca menos de 2: una GPU por AZ (N+1), aunque 1 sola cubra el pico
   maxReplicaCount: 4  # techo de costo: 4 × g4dn.xlarge; si no alcanza, TritonQueueTimeHigh avisa
   pollingInterval: 15  # cada 15 s KEDA consulta Prometheus
-  # cooldownPeriod solo aplica al escalar a/desde CERO; con minReplicaCount 2 no se usa. El ritmo de
-  # bajada lo define el behavior del HPA de abajo.
+  # cooldownPeriod solo aplica al bajar de 1 a 0 réplicas (subir desde 0 es inmediato al activarse el
+  # trigger); con minReplicaCount 2 no se usa. El ritmo de bajada lo define el behavior del HPA de abajo.
   cooldownPeriod: 300
   advanced:
     horizontalPodAutoscalerConfig:
@@ -43,6 +43,10 @@ spec:
         # Prometheus del cluster (kube-prometheus-stack). Con Amazon Managed Prometheus se agrega
         # autenticación SigV4 vía TriggerAuthentication.
         serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        # Si la query vuelve vacía (Prometheus no scrapea Triton: falta el ServiceMonitor de
+        # k8s/monitoring.yaml), "false" la vuelve un error visible del scaler (eventos del ScaledObject).
+        # Con el default (true) KEDA la toma como 0 y Triton se queda en 2 réplicas sin que nada avise.
+        ignoreNullValues: "false"
         # Espera media en cola en ms (misma fórmula que la alerta TritonQueueTimeHigh).
         # clamp_min evita 0/0 = NaN sin tráfico; si todo falla (0 éxitos) el valor se dispara y escala.
         query: |

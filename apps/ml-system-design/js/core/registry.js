@@ -233,7 +233,8 @@
       out.push({ type: 'term', id: 'term:' + t.en, title: t.en, text: t.es + ' · ' + stripHtml(t.def), href: '#glosario.' + slug(t.en) });
     }
     for (const c of flashcards()) {
-      out.push({ type: 'card', id: 'card:' + c.id, title: stripHtml(c.q), text: c.source, href: '#flashcards' });
+      // href a la tarjeta: la página de flashcards la muestra primero (text = fuente, sirve para filtrar).
+      out.push({ type: 'card', id: 'card:' + c.id, title: stripHtml(c.q), text: c.source, href: '#flashcards.' + c.id });
     }
     return out;
   }
@@ -244,6 +245,13 @@
     slug, stripHtml,
     catalog: () => catalog,
     registryProblems: () => problems.slice(),
+    // Ids con contenido registrado (register o addSection), existan o no en el catálogo: el validador
+    // los compara con los ids válidos para detectar typos ('m3', 'c2') que la app nunca mostraría.
+    registeredIds: () => Array.from(new Set(Object.keys(registered).concat(Object.keys(extraSections)))),
+    // addSection que pisa una sección que el archivo principal ya registra (permitido por §5.1, casi siempre un error).
+    sectionOverrides: () => Object.keys(extraSections).flatMap((pid) => Object.keys(extraSections[pid])
+      .filter((sid) => registered[pid] && Array.isArray(registered[pid].sections) && registered[pid].sections.some((s) => s && s.id === sid))
+      .map((sid) => pid + '.' + sid)),
     files: MSD.files || {},
   });
 })(typeof window !== 'undefined' ? window : globalThis);

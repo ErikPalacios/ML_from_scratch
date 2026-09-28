@@ -15,7 +15,7 @@ de 300×200 a 6000×4000 px:
   - sin draft mode: diferencia máxima 0.0 (idéntico bit a bit) en todas;
   - draft "agresivo" (pedir 256 px directo al decoder): media hasta 0.12 y máxima hasta 2.2 en
     unidades normalizadas → mismatch real, descartado;
-  - draft conservador (el de abajo: solo si el lado corto es ≥ 1024 px y dejando ≥ 512 px):
+  - draft conservador (el de abajo: solo si el lado corto es > 1024 px y dejando ≥ 512 px):
     media 0.004–0.011, máxima ≤ 0.23 (≈ 0.05 en escala 0–1, solo en bordes finos), y una foto de
     12 MP pasa de ≈ 40 ms a ≈ 18 ms de CPU. Las fotos del app móvil (≤ 1024 px) no lo activan.
 El impacto en top-1 no se midió aquí (no hay modelo entrenado en este repo): como eval usa ESTA
@@ -38,6 +38,7 @@ STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 ALLOWED_FORMATS = ("JPEG", "PNG", "WEBP")
 # Draft mode solo si la imagen reducida sigue siendo ≥ 2× el objetivo (ver docstring y README)
 DRAFT_MIN_SHORT = 2 * RESIZE_SHORT
+MAX_ASPECT = 8  # lado largo ≤ 8× lado corto: más que 1:8 es un banner, no una foto de producto
 
 
 class ImageTooLarge(ValueError):
@@ -54,7 +55,12 @@ def decode(data: bytes, max_pixels: int | None = None) -> Image.Image:
     # por eso comprobamos el límite exacto aquí.
     if max_pixels is not None and width * height > max_pixels:
         raise ImageTooLarge(f"{width}x{height} px excede el límite de {max_pixels} px")
-    if img.format == "JPEG" and min(width, height) >= 2 * DRAFT_MIN_SHORT:
+    if max_pixels is not None and max(width, height) > MAX_ASPECT * min(width, height):
+        # Resize(256) lleva el lado CORTO a 256: una imagen de 1×4,000 px (menos de 200 bytes en PNG)
+        # pasa el límite de 40 MP, pero reescalada queda de 256×1,024,000 px ≈ 1 GB de RAM. Se rechaza
+        # antes de decodificar. Solo en serving (con max_pixels): training y eval no cambian.
+        raise ValueError(f"relación de aspecto {width}x{height} fuera de rango (máx 1:{MAX_ASPECT})")
+    if img.format == "JPEG" and min(width, height) > 2 * DRAFT_MIN_SHORT:
         # Draft mode: el decoder JPEG escala por 1/2, 1/4 o 1/8 al decodificar (IDCT reducida):
         # menos CPU y RAM en fotos grandes. Le pedimos que deje ≥ 512 px de lado corto para que
         # el resize final con antialias haga el resto y el resultado quede casi igual al de

@@ -57,15 +57,17 @@ spec:
             - name: MODEL_NAME
               value: "classifier"
             - name: MODEL_VERSION
-              value: "2026-09-01-resnet50-fp16"  # debe coincidir con el tag de la imagen de Triton
+              value: "2026-09-01-resnet50-fp16"  # = tag de la imagen de Triton de ESTA release; la referencia no lo verifica (en producción, /readyz lo compara con la config del modelo)
             - name: INFER_TIMEOUT_S
               value: "0.15"
             - name: PREPROCESS_CONCURRENCY
-              value: "4"  # decodes en paralelo por pod (≈ 4× la CPU pedida: el resto es espera de I/O)
+              value: "2"  # 2 × ≈ 320 MB (pico medido de un PNG de 40 MP) + ≈ 80 MB de Python ≈ 720 MB < 1Gi. Es CPU pura, no I/O; sin límite de CPU, 2 hilos aprovechan ráfagas
+            - name: MAX_INFLIGHT
+              value: "16"  # load shedding: más requests en vuelo por pod → 503 inmediato; 16 bodies de ≤ 10 MB = 160 MB de RAM
           resources:
             requests:
               cpu: "1"  # base del HPA: 60 % de utilización = 0.6 cores por pod
-              memory: 1Gi  # 4 decodes simultáneos de imágenes grandes + Python + numpy
+              memory: 1Gi  # ≈ 80 MB de Python + 2 decodes de peor caso (≈ 320 MB c/u) + bodies en vuelo; con PREPROCESS_CONCURRENCY=4 sube a 2Gi (4 × 320 MB ya pasa de 1Gi)
             limits:
               memory: 1Gi  # límite = request: si se pasa, OOMKilled claro en vez de afectar al nodo
               # SIN límite de CPU a propósito: con límite, CFS reparte la CPU en ventanas de 100 ms;

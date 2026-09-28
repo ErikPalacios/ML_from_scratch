@@ -125,6 +125,19 @@
       if (p && p.ready) {
         if (p.kind === 'module') ok(id + ': ' + p.sections.length + ' secciones', $$('#page section.sec').length === p.sections.length);
         else ok(id + ': compuerta o solución', !!$('#page .gate') || $$('#page section.sec').length === 15);
+        if (p.kind === 'case' && $('#page .gate')) {
+          // Con el perfil limpio todo caso listo está tras la compuerta: se abre la solución para revisarla
+          // y se restaura la preferencia (el paso 4 prueba la compuerta de c01).
+          const sr = Object.assign({}, store.pref('solutionRevealed') || {});
+          store.setPref('solutionRevealed', Object.assign({}, sr, { [id]: true }));
+          MSD.App.rerender(); await sleep(80);
+          ok(id + ': solución con 15 secciones', $$('#page section.sec').length === 15);
+          ok(id + ': solución sin bloques rotos', broken().length === 0, broken());
+          ok(id + ': diagramas con nodos', $$('#page .dg').every((d) => $$('.dg-node', d).length > 0));
+          checkOverflow('#' + id + ' (solución)');
+          store.setPref('solutionRevealed', sr);
+          MSD.App.rerender(); await sleep(40);
+        }
       } else {
         soon.push(id);
         ok(id + ': página "Próximamente"', !!$('#page .soon-note') && !!$('#page .chip--soon'));
@@ -137,6 +150,11 @@
     for (const id of ['ref-numeros', 'ref-herramientas', 'ref-comandos', 'practica-c05']) {
       await go('#' + id);
       ok(id + ': renderiza', !!byId('page').querySelector('h1'), txt(byId('page')).slice(0, 80));
+      const rp = MSD.getPage(id);
+      if (/^ref-/.test(id) && rp && rp.ready) {
+        ok(id + ': hoja con contenido', !$('#page .soon-note') && $$('#page section.sec').length === rp.sections.length);
+        rp.sections.forEach((s) => ok(id + '.' + s.id + ': ancla', !!byId(id + '.' + s.id)));
+      } else if (/^ref-/.test(id)) ok(id + ': Próximamente', !!$('#page .soon-note'));
       ok(id + ': sin bloques rotos', broken().length === 0, broken());
       checkOverflow('#' + id);
     }
@@ -189,11 +207,13 @@
   // ------------------------------------------------------------------ 4. c01: compuerta, 15 secciones, diagrama, calc, código, checklist
   await step('c01', async () => {
     await go('#c01');
-    ok('c01: spec strip con 4–6 datos', $$('#page .specstrip__item').length >= 4 && $$('#page .specstrip__item').length <= 6, $$('#page .specstrip__item').length);
     const gated = !!$('#page .gate');
     notes.c01Compuerta = gated;
     if (gated) {
+      // La compuerta muestra solo el enunciado ambiguo: ni la tira de datos ni el resto de la sección 1.
+      ok('c01: la compuerta no muestra spec strip ni la solución del enunciado', !$('#page .specstrip') && !!$('#page .gate .prompt-quote') && txt($('#page .gate')).indexOf('T4') < 0);
       ok('c01: la compuerta no muestra la solución', $$('#page section.sec').length === 0);
+      ok('c01: la compuerta tiene un h2', !!$('#page .gate h2.gate__head'));
       ok('c01: botón "Practicar primero"', !!$('#page .gate a[href="#practica-c01"]'));
       const reveal = button('Ver la solución sin practicar', byId('page'));
       ok('c01: botón "Ver la solución sin practicar"', !!reveal);
@@ -201,6 +221,7 @@
       await waitFor(() => $$('#page section.sec').length === 15, 2000);
       ok('c01: preferencia solutionRevealed', !!(store.pref('solutionRevealed') || {}).c01);
     }
+    ok('c01: spec strip con 4–6 datos', $$('#page .specstrip__item').length >= 4 && $$('#page .specstrip__item').length <= 6, $$('#page .specstrip__item').length);
     const ids = $$('#page section.sec').map((s) => s.dataset.sec);
     ok('c01: 15 secciones en el orden de la plantilla', JSON.stringify(ids) === JSON.stringify(MSD.CASE_TEMPLATE.map((t) => t.id)), ids);
     ok('c01: navegador de plantilla 1–15', $$('#page .tnav__item').length === 15);

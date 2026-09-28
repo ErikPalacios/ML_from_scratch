@@ -300,14 +300,16 @@ html:has(.dg.is-expanded) { overflow: hidden; }
 
 /* Pestañas */
 .cx__tabbar { background: var(--surface); box-shadow: inset 0 -1px 0 var(--rule); }
-.cx__tabs { display: flex; overflow-x: auto; scrollbar-width: none; }
-.cx__tabs::-webkit-scrollbar { display: none; }
+/* Las pestañas se envuelven en filas: una tira con scroll oculto escondía la mitad de los archivos. */
+.cx__tabs { display: flex; flex-wrap: wrap; }
 .cx__tab {
   position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px;
   min-height: 40px; padding: 9px 14px 8px; margin: 0;
   font: 500 13px/1.2 var(--font-mono); color: var(--muted);
   background: transparent; border: 0; border-right: 1px solid var(--rule); border-radius: 0; cursor: pointer;
+  max-width: 100%; border-bottom: 1px solid var(--rule);
 }
+.cx__tab-name { min-width: 0; overflow-wrap: anywhere; text-align: left; }
 .cx__tab:hover { color: var(--ink); }
 .cx__tab[aria-selected="true"] { color: var(--ink); background: var(--surface-2); }
 .cx__tab[aria-selected="true"]::before {

@@ -30,9 +30,10 @@ c01/
 ├── monitoring/prometheus.yml    # scrape local de gateway:8080 y triton:8002
 ├── monitoring/alerts.yml        # 1 regla de grabación + 6 alertas del caso
 └── k8s/
-    ├── triton.yaml              # Deployment GPU + Service + PodDisruptionBudget
+    ├── triton.yaml              # Deployment GPU + Service + PodDisruptionBudget + NetworkPolicy
     ├── gateway.yaml             # Deployment + Service + HPA (CPU 60 %) + Ingress ALB
-    └── keda-triton.yaml         # ScaledObject: escala Triton por tiempo en cola
+    ├── keda-triton.yaml         # ScaledObject: escala Triton por tiempo en cola
+    └── monitoring.yaml          # ServiceMonitors: Prometheus scrapea gateway (8080) y Triton (8002)
 ```
 
 `model.plan` (el engine) y `classifier.onnx` **no se versionan** (`.gitignore` ignora `*.plan` y
@@ -72,7 +73,7 @@ docker build -t classifier-triton:2026-09-01-resnet50-fp16 triton/
 cd reference/c01/gateway
 python3.13 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
-pytest            # 21 tests: 200 con top_k, 415, 413 (bytes y píxeles), 400, 422, 503, 504, health, métricas
+pytest            # 24 tests: 200 con top_k, 415, 413 (bytes y píxeles), 400 (incluida la relación de aspecto extrema), 422, 503 (Triton caído y por sobrecarga), 504 (Triton lento y por deadline), health, métricas
 ```
 
 ## Correr todo en local con docker compose (necesita GPU NVIDIA)
@@ -93,12 +94,16 @@ curl -s -H "Content-Type: image/jpeg" --data-binary @foto.jpg "localhost:8080/v1
 
 Prerequisitos del cluster: NVIDIA device plugin, node group de `g4dn.xlarge` con label
 `workload=gpu-t4` y taint `nvidia.com/gpu=present:NoSchedule`, AWS Load Balancer Controller, KEDA,
-Prometheus (kube-prometheus-stack, con kube-state-metrics) y las imágenes en ECR.
+Prometheus (kube-prometheus-stack, con kube-state-metrics), un CNI que aplique NetworkPolicy (VPC CNI
+con `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.34 por
+`trafficDistribution: PreferSameZone` (en 1.31–1.33 cámbialo por `PreferClose`).
 
 ```bash
 kubectl create namespace classifier
 kubectl label namespace classifier elbv2.k8s.aws/pod-readiness-gate-inject=enabled
-kubectl apply -f k8s/triton.yaml -f k8s/keda-triton.yaml -f k8s/gateway.yaml
+kubectl apply -f k8s/triton.yaml -f k8s/keda-triton.yaml -f k8s/gateway.yaml -f k8s/monitoring.yaml
+# Las reglas de monitoring/alerts.yml como PrometheusRule (el Operator no lee archivos de reglas):
+{ printf 'apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: classifier\n  namespace: classifier\n  labels:\n    release: kube-prometheus-stack\nspec:\n'; sed 's/^/  /' monitoring/alerts.yml; } | kubectl apply -f -
 ```
 
 ## Qué se verificó y qué no
@@ -107,8 +112,9 @@ Probado en macOS (Apple Silicon), Python 3.13, sin GPU ni daemon de Docker:
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests del gateway | `pytest` en un venv limpio con `requirements-dev.txt` | 21 passed |
+| Tests del gateway | `pytest` en un venv limpio con `requirements-dev.txt` | 24 passed |
 | Cliente real de Triton | uvicorn + `tritonclient.http.aio` 2.72 contra un servidor KServe v2 falso (binary tensors) | 200 (también 16 requests concurrentes), 415, 413, 400, 503 con `Retry-After`, 504 a los ≈ 150 ms, logs JSON y `/metrics` correctos |
+| Load shedding | mismo montaje, ráfagas concurrentes contra un pod con la config por defecto | 16 fotos de 1024×768 a la vez: 16 × 200 (p50 ≈ 40 ms); 40 a la vez: 14 × 200 y 26 × 503 rápidos (p50 ≈ 7 ms), ninguna pasa de 300 ms |
 | Preprocesamiento vs torchvision 0.29 | 24 imágenes JPEG/PNG/WebP de 300×200 a 6000×4000 | sin draft: diferencia 0.0; con el draft conservador: media 0.004–0.011, máx ≤ 0.23 (normalizado) |
 | Export ONNX (torch 2.14) | `export_onnx.py` con pesos aleatorios | opset 17, batch dinámico, ORT batch 1 y 32: máx \|Δlogit\| ≈ 1e-4 |
 | Trampa del exportador dynamo | `--dynamo` con opset 17 | el archivo sale en opset 18; `verify()` lo detecta y falla |
@@ -116,7 +122,8 @@ Probado en macOS (Apple Silicon), Python 3.13, sin GPU ni daemon de Docker:
 | Gate con `--backend triton` | contra el servidor falso (logits sin relación) | 0 % → exit 1 (el gate bloquea) |
 | `config.pbtxt` | parseado a `ModelConfig` (protobuf de tritonclient 2.72) | OK + asserts de nombres, shapes, batching |
 | `docker-compose.yml` | `docker compose config` (Compose v5.0.2) | OK |
-| Manifests K8s | `kubernetes-validate --strict` contra 1.33 y 1.36 + chequeo de referencias cruzadas | 7 recursos OK |
+| Manifests K8s | `kubernetes-validate --strict` contra 1.34 y 1.36 + chequeo de referencias cruzadas (Service ↔ Deployment, ServiceMonitor ↔ Service, NetworkPolicy ↔ labels y puertos) | 8 recursos OK (el esquema no revisa el valor de `trafficDistribution`: eso lo hace el API server) |
+| CRDs | ServiceMonitor, ScaledObject y el PrometheusRule que genera el comando de arriba contra el `openAPIV3Schema` de prometheus-operator v0.94.1 y KEDA v2.21.0 (jsonschema, campos desconocidos = error) | OK |
 | Alertas | YAML + sintaxis PromQL con `promql-parser` 0.10 + nombres/severidades | OK |
 | Wheels para la imagen | `pip download --only-binary` para cp313 manylinux x86_64 | los 37 paquetes tienen wheel |
 
@@ -127,6 +134,7 @@ Probado en macOS (Apple Silicon), Python 3.13, sin GPU ni daemon de Docker:
   documentación, no de una ejecución.
 - `build_engine.sh` solo pasó `bash -n`: `trtexec` no se ejecutó (sin GPU). Correrlo en una T4.
 - La paridad FP16 de TensorRT y el rendimiento por GPU (perf_analyzer) no se midieron.
-- Las alertas no se evaluaron con `promtool` ni con datos reales; KEDA y el ScaledObject no se
-  validaron contra el CRD; los manifests no se aplicaron a un cluster.
+- Las alertas no se evaluaron con `promtool` ni con datos reales; los CRDs solo se validaron contra su
+  esquema, no contra un API server; los manifests no se aplicaron a un cluster (ni el ruteo por zona
+  ni la NetworkPolicy se probaron con tráfico real).
 - `labels.json` es ilustrativo: en un proyecto real sale del `class_to_idx` del dataset de training.

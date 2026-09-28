@@ -29,14 +29,23 @@ function load(rel) {
 load('js/core/registry.js');
 const contentDir = join(ROOT, 'js', 'content');
 const contentFiles = existsSync(contentDir) ? readdirSync(contentDir).filter((f) => f.endsWith('.js')).sort() : [];
-const ordered = ['catalog.js', 'reference-files.js'].filter((f) => contentFiles.includes(f))
-  .concat(contentFiles.filter((f) => f !== 'catalog.js' && f !== 'reference-files.js'));
 if (!contentFiles.includes('catalog.js')) err('js/content', 'falta catalog.js');
+// index.html es la fuente de verdad: la app solo ve lo que carga, en ese orden (el glosario conserva la primera definición).
+const indexHtml = readFileSync(join(ROOT, 'index.html'), 'utf8');
+const loaded = [...indexHtml.matchAll(/<script\s+src="js\/content\/([^"]+)"><\/script>/g)].map((m) => m[1]);
+const appAt = indexHtml.indexOf('src="js/app.js"');
+for (const f of contentFiles) if (!loaded.includes(f)) err('index.html', 'js/content/' + f + ' existe pero index.html no lo carga: la app no lo verá (README paso 2)');
+for (const f of loaded) {
+  if (!contentFiles.includes(f)) err('index.html', 'carga js/content/' + f + ', que no existe');
+  if (indexHtml.indexOf('src="js/content/' + f + '"') > appAt) err('index.html', f + ' se carga después de js/app.js');
+}
+const ordered = loaded.filter((f) => contentFiles.includes(f));   // mismo orden que la app
 for (const f of ordered) load('js/content/' + f);
 
 const MSD = ctx.MSD;
 if (!MSD || typeof MSD.getPage !== 'function') { console.error('registry.js no definió MSD'); process.exit(1); }
 for (const p of MSD.registryProblems()) err('registry', p);
+for (const x of MSD.sectionOverrides()) warn('registry', 'addSection reemplaza la sección ' + x + ' que el archivo principal ya registra');
 
 const catalog = MSD.catalog();
 const FILES = MSD.files || {};
@@ -201,6 +210,27 @@ function checkCode(where, b) {
   });
 }
 
+// ------------------------------------------------------------------ flashcards y glosario (páginas y catálogo)
+function checkCards(where, cards, prefix) {
+  const seen = new Set();
+  cards.forEach((c, i) => {
+    const w = where + '[' + i + ']';
+    if (!c || !c.id || !c.id.startsWith(prefix)) err(w, 'id debe empezar por "' + prefix + '"');
+    if (!c) return;
+    if (seen.has(c.id)) err(w, 'id repetido'); seen.add(c.id);
+    if (!c.q || !c.a) err(w, 'necesita q y a');
+    if (!['concepto', 'numero', 'tradeoff', 'trampa', 'frase'].includes(c.kind)) err(w, 'kind inválido: ' + c.kind);
+    checkHtml(w, c.q); checkHtml(w, c.a, true);
+  });
+}
+function checkTerms(where, terms) {
+  terms.forEach((t, i) => {
+    const w = where + '[' + i + ']';
+    if (!t || !t.en || !t.es || !t.def) { err(w, 'necesita en, es, def'); if (!t) return; }
+    checkHtml(w, t.def, true); if (t.say && /[<>]/.test(t.say)) err(w, 'say debe ser texto plano');
+  });
+}
+
 // ------------------------------------------------------------------ catálogo
 if (catalog) {
   const items = catalog.items || {};
@@ -225,17 +255,36 @@ if (catalog) {
       if (!it.prompt) err(w, 'caso sin prompt'); else checkHtml(w + '.prompt', it.prompt);
       if (!['intro', 'media', 'alta'].includes(it.difficulty)) err(w, 'difficulty inválido');
       if (!Array.isArray(it.tests) || it.tests.length < 2) err(w, 'tests necesita ≥ 2');
+      // facts (opcional): respuestas del entrevistador por tema, plegadas en la sesión de práctica.
+      if (it.facts !== undefined) {
+        if (!Array.isArray(it.facts) || !it.facts.length) err(w, 'facts debe ser una lista no vacía de {topic, a}');
+        else it.facts.forEach((f, i) => {
+          if (!f || !f.topic || !f.a) { err(w + '.facts[' + i + ']', 'necesita topic y a'); return; }
+          if (/[<>]/.test(f.topic)) err(w + '.facts[' + i + ']', 'topic debe ser texto plano');
+          checkHtml(w + '.facts[' + i + ']', f.a, true);
+        });
+      }
     }
   }
+  checkCards('catalog.flashcards', catalog.flashcards || [], 'gen-');
+  checkTerms('catalog.glossary', catalog.glossary || []);
   if (!Array.isArray(catalog.roadmap) || !catalog.roadmap.length) err('catalog', 'falta roadmap');
   (catalog.roadmap || []).forEach((r, i) => {
     if (!r.title || !['done', 'next', 'later'].includes(r.status) || !Array.isArray(r.items)) err('catalog.roadmap[' + i + ']', 'necesita title, status done|next|later, items[]');
     (r.items || []).forEach((id) => { if (!ALL_IDS.includes(id)) err('catalog.roadmap[' + i + ']', 'id inexistente: ' + id); });
+    // El estado de la fase debe coincidir con lo que de verdad tiene contenido (lo muestran Inicio y Próximamente).
+    // Solo cuentan las páginas con contenido (módulos, casos, hojas ref-*); las demás no tienen "ready".
+    const content = (r.items || []).filter((id) => /^([mc]\d\d|ref-[a-z]+)$/.test(id));
+    const notReady = content.filter((id) => !(MSD.getPage(id) || {}).ready);
+    if (r.status === 'done' && notReady.length) err('catalog.roadmap[' + i + ']', 'fase "done" con ítems sin contenido: ' + notReady.join(', '));
+    if (r.status !== 'done' && content.length && !notReady.length) warn('catalog.roadmap[' + i + ']', 'todos sus ítems ya tienen contenido: márcala "done" (y la siguiente "next")');
   });
 }
 
 // ------------------------------------------------------------------ páginas registradas
-const pages = MSD.listPages().filter((p) => p.sections.length);
+const REGISTRABLE = MSD.courseOrder().concat(['ref-numeros', 'ref-herramientas', 'ref-comandos']);
+for (const id of MSD.registeredIds()) if (!REGISTRABLE.includes(id)) err('registry', 'contenido registrado con id desconocido: ' + id + ' (¿typo? la app nunca lo mostrará)');
+const pages = REGISTRABLE.map(MSD.getPage).filter((p) => p && p.sections.length);
 for (const page of pages) {
   const where = page.id;
   const ids = { sections: new Set(), checklists: new Set(), diagrams: new Set() };
@@ -248,6 +297,7 @@ for (const page of pages) {
     if (ids.sections.has(s.id)) err(sw, 'sección repetida'); ids.sections.add(s.id);
     if (!s.title) err(sw, 'falta title');
     if (s.priority && !['core', 'extra', 'skip'].includes(s.priority)) err(sw, 'priority inválido');
+    if (s.dims !== undefined && (!Array.isArray(s.dims) || s.dims.some((d) => !MSD.RUBRIC_DIMENSIONS.some((x) => x.id === d)))) err(sw, 'dims debe ser una lista de ids de MSD.RUBRIC_DIMENSIONS: ' + JSON.stringify(s.dims));
     if (!Array.isArray(s.blocks) || !s.blocks.length) { err(sw, 'sin bloques'); continue; }
     s.blocks.forEach((b, i) => { total += checkBlock(sw + '[' + i + ':' + (b && b.t) + ']', b, page, ids); blockCount[b && b.t] = (blockCount[b && b.t] || 0) + 1; });
   }
@@ -266,21 +316,21 @@ for (const page of pages) {
     }
   }
   // flashcards y glosario
-  const fseen = new Set();
-  (page.flashcards || []).forEach((c, i) => {
-    const w = where + '.flashcards[' + i + ']';
-    if (!c.id || !c.id.startsWith(page.id + '-')) err(w, 'id debe empezar por "' + page.id + '-"');
-    if (fseen.has(c.id)) err(w, 'id repetido'); fseen.add(c.id);
-    if (!c.q || !c.a) err(w, 'necesita q y a');
-    if (!['concepto', 'numero', 'tradeoff', 'trampa', 'frase'].includes(c.kind)) err(w, 'kind inválido: ' + c.kind);
-    checkHtml(w, c.q); checkHtml(w, c.a, true);
-  });
-  (page.glossary || []).forEach((t, i) => {
-    const w = where + '.glossary[' + i + ']';
-    if (!t.en || !t.es || !t.def) err(w, 'necesita en, es, def');
-    checkHtml(w, t.def, true); if (t.say && /[<>]/.test(t.say)) err(w, 'say debe ser texto plano');
-  });
+  checkCards(where + '.flashcards', page.flashcards || [], page.id + '-');
+  checkTerms(where + '.glossary', page.glossary || []);
   stats[page.id] = { sections: page.sections.length, words: total, blocks: blockCount, flashcards: (page.flashcards || []).length, glossary: (page.glossary || []).length, ready: page.ready };
+}
+
+// ------------------------------------------------------------------ glosario fusionado
+// MSD.glossary() fusiona por en.toLowerCase(); dos grafías con el mismo slug ("KV cache" / "KV-cache")
+// quedan como dos filas con el mismo id "glosario.<slug>" y el enlace solo llega a la primera.
+{
+  const bySlug = new Map();
+  for (const t of MSD.glossary()) {
+    const s = MSD.slug(t.en);
+    if (bySlug.has(s)) err('glosario', 'dos términos con el mismo slug "' + s + '": "' + bySlug.get(s) + '" y "' + t.en + '" (usa una sola grafía)');
+    else bySlug.set(s, t.en);
+  }
 }
 
 // ------------------------------------------------------------------ enlaces internos
@@ -303,7 +353,7 @@ if (asJson) {
   if (!quiet) {
     console.log('[validate] páginas con contenido:');
     for (const [id, s] of Object.entries(stats)) {
-      console.log('  ' + id.padEnd(6) + (s.ready ? 'lista ' : 'parcial') + '  secciones ' + String(s.sections).padStart(2) + '  palabras ≈ ' + String(s.words).padStart(6) +
+      console.log('  ' + id.padEnd(17) + (s.ready ? 'lista ' : 'parcial') + '  secciones ' + String(s.sections).padStart(2) + '  palabras ≈ ' + String(s.words).padStart(6) +
         '  flashcards ' + String(s.flashcards).padStart(3) + '  glosario ' + String(s.glossary).padStart(3) + '  bloques ' + Object.entries(s.blocks).map(([k, v]) => k + ':' + v).join(' '));
     }
     console.log('[validate] archivos embebidos: ' + Object.keys(FILES).length + ' · flashcards totales: ' + MSD.flashcards().length + ' · términos de glosario: ' + MSD.glossary().length);

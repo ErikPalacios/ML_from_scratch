@@ -44,8 +44,10 @@ fuentes del sistema y funciona igual.
 | **3 — Práctica** | **Simulador** de 45 minutos con reloj, framework de 7 pasos que te dice en qué paso deberías ir, autoguardado, rúbrica de 6 dimensiones y resultado con tus puntos débiles; **Historial** de intentos; **Flashcards** con repetición espaciada (Leitner, 5 cajas). | completo |
 | **4 — Referencias** | **Glosario ES–EN** con buscador y frase de ejemplo en inglés; hojas de números, herramientas por categoría y comandos de Docker/kubectl. | glosario completo; las hojas, Próximamente |
 
-Cada caso tiene una **compuerta de práctica**: la solución se muestra después de un intento cronometrado
-(o si eliges verla sin practicar). El ciclo recomendado está en el Inicio: módulo → flashcards →
+Cada caso tiene una **compuerta de práctica**: antes de tu intento cronometrado solo ves el enunciado
+ambiguo del entrevistador; la solución (y sus números) se muestra después (o si eliges verla sin
+practicar). Las flashcards de un caso también se desbloquean entonces, porque sus respuestas son la
+solución. El ciclo recomendado está en el Inicio: módulo → flashcards →
 caso con reloj → rúbrica → solución.
 
 **Atajos de teclado:** `/` busca · `[` y `]` página anterior/siguiente del curso · `Esc` cierra
@@ -66,6 +68,9 @@ está usando:
   lo local: en cada dato gana la versión más reciente. Si la cuenta no responde, sigue en local.
 - **"Sin guardado"**: el navegador no permite almacenamiento (p. ej. algunos modos privados). El
   progreso se pierde al cerrar.
+
+Puedes tener la app abierta en varias pestañas: antes de guardar, cada una fusiona lo que guardaron las
+otras (en cada dato gana lo más reciente), así que ninguna borra el intento o el progreso de otra.
 
 Para moverte entre equipos o hacer un respaldo: **Exportar / importar progreso** (pie de la barra
 lateral). Exportar muestra el JSON para copiarlo; importar lo fusiona con lo que ya tienes, sin borrar
@@ -90,6 +95,7 @@ un caso, con sus 15 secciones).
        id: 'm02', kind: 'module',
        sections: [
          { id: 'online-vs-batch', title: 'Online vs batch', titleEn: 'Online vs batch inference', priority: 'core',
+           dims: ['arquitectura'],
            blocks: [ { t: 'p', html: '…' }, { t: 'callout', kind: 'trap', html: '…' } ] },
        ],
        flashcards: [ { id: 'm02-01', q: '…', a: '…', kind: 'concepto' } ],
@@ -97,6 +103,20 @@ un caso, con sus 15 secciones).
      });
    })(typeof window !== 'undefined' ? window : globalThis);
    ```
+
+   `dims` (opcional) dice qué dimensiones de la rúbrica trabaja la sección; el resultado de la práctica
+   enlaza ahí las dimensiones débiles.
+
+   **Los `id` son claves de tu progreso guardado:** secciones, checklists y sus ítems, flashcards y puntos
+   de rúbrica. Nunca los renombres ni los reutilices en una página ya publicada. Para cambiar un título,
+   cambia `title`. Para quitar una tarjeta o un ítem, bórralo y no reasignes su id. Numera las tarjetas
+   nuevas a continuación de la última (`m01-31`, …).
+
+   **Glosario:** los términos se fusionan por `en` (sin distinguir mayúsculas). Gana el `es`, la `def` y
+   el `say` del primer archivo que carga `index.html`; repetir el término en otra página solo añade el
+   chip de esa página. Para corregir una definición, edítala donde se definió primero. Escribe cada
+   término con la misma grafía que ya tiene (`KV cache`, no `KV-cache`): dos grafías con el mismo slug
+   son un error del validador.
 
    Un **caso** usa `kind: 'case'`, agrega `specs` (4–6 pares para la tira de datos), `rubric` (puntos
    clave por dimensión: `aclaracion`, `estimaciones`, `arquitectura`, `tradeoffs`, `monitoreo`,
@@ -118,6 +138,8 @@ un caso, con sus 15 secciones).
    ```
 
    `build.mjs` incrusta todo lo que `index.html` carga, así que no hay que tocar nada más.
+   `npm run validate` falla si un archivo de `js/content/` no está en `index.html` o está después de
+   `js/app.js`, y carga el contenido en el mismo orden que la app.
 
 3. **Archivos de referencia** (si el caso los tiene): ponlos en `reference/<id>/…` (archivos reales,
    que se puedan ejecutar) y regenera el embebido:
@@ -130,10 +152,13 @@ un caso, con sus 15 secciones).
    `{ t: 'code', files: [ { name: 'app/main.py', lang: 'python', src: 'c02/app/main.py' } ] }`.
 
 4. **Hoja de ruta:** en `catalog.js`, cambia el `status` de la fase (`'done'` / `'next'` / `'later'`).
-   Las hojas de la parte 4 (`ref-numeros`, `ref-herramientas`, `ref-comandos`) se muestran como
-   Próximamente mientras su ítem del catálogo no tenga `ready: true`; además, hoy
-   `js/ui/reference.js` solo pinta su página Próximamente, así que darles contenido requiere también
-   que ese módulo pinte las secciones registradas.
+   El validador falla si marcas `'done'` una fase con ítems sin contenido y avisa si todos sus ítems
+   ya tienen contenido y sigue sin `'done'`.
+   Una hoja de la parte 4 (`ref-numeros`, `ref-herramientas`, `ref-comandos`) se registra igual que un
+   módulo: `MSD.register({ id: 'ref-numeros', kind: 'special', sections: […] })`, con flashcards
+   `ref-numeros-01…` si las hay. Deja de ser Próximamente en cuanto registra al menos una sección; no se
+   toca el catálogo. El shell la pinta como un módulo (secciones, marcas de lectura, índice de la página),
+   sin contar en el progreso del curso.
 
 5. **Verifica:**
 
@@ -143,11 +168,14 @@ un caso, con sus 15 secciones).
    npm run smoke           # recorrido completo en Chrome headless (escritorio, claro)
    npm run smoke:mobile    # 375 × 812, con cajón
    npm run smoke:dark      # tema oscuro
+   npm run smoke:tablet    # 768 × 1024 (barra lateral fija con la columna más angosta)
    npm run smoke:dist      # build + recorrido sobre dist/ml-system-design.html
    ```
 
    La prueba de humo recorre todas las páginas del curso a partir del registro, así que las nuevas
-   quedan cubiertas (título, bloques sin errores, sin scroll horizontal). Mira también la página con
+   quedan cubiertas (título, bloques sin errores, sin scroll horizontal); en cada caso listo también abre
+   la solución sin practicar y revisa sus 15 secciones y diagramas, y en cada hoja de la parte 4 con
+   contenido revisa sus secciones y anclas. Mira también la página con
    tus ojos en claro, oscuro y a 375 px de ancho.
 
 ## Bloques de contenido (referencia corta)
@@ -185,12 +213,12 @@ código).
 
 | comando | qué hace |
 |---|---|
-| `npm run validate` | valida catálogo y contenido (`tools/validate-content.mjs`) |
+| `npm run validate` | valida catálogo y el contenido que carga `index.html` (`tools/validate-content.mjs`) |
 | `npm run embed` | regenera `js/content/reference-files.js` desde `reference/**` |
 | `npm test` | `node --test tests/*.test.cjs`: validador, embebido al día y pruebas del store (en Node 24, `node --test tests/` a secas no arranca: usa el patrón) |
 | `npm run build` | embebe y genera `dist/ml-system-design.html` y `dist/artifact.html` |
 | `npm run check` | abre `index.html` en Chrome headless e informa errores de consola |
-| `npm run smoke` · `smoke:mobile` · `smoke:dark` · `smoke:dist` | prueba de humo en el navegador (`tools/smoke.js`), ver arriba |
+| `npm run smoke` · `smoke:mobile` · `smoke:dark` · `smoke:tablet` · `smoke:dist` | prueba de humo en el navegador (`tools/smoke.js`), ver arriba |
 
 `tools/browser-check.mjs` acepta `--url`, `--width/--height`, `--mobile`, `--dark` o `--light`,
 `--wait`, `--eval "js"`, `--eval-file f.js`, `--shot ruta.png` y `--full`; usa Chrome en
