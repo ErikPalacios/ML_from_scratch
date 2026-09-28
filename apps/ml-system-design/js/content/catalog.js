@@ -747,9 +747,10 @@
   ];
 
   // ------------------------------------------------------------------ hoja de ruta
-  // Orden sugerido: primero lo que se usa en todos los casos (estimar, servir), luego datos y
-  // operación, luego LLMs; los casos se agrupan donde ejercitan lo recién aprendido y los de
-  // menor frecuencia en entrevistas quedan al final.
+  // Fases chicas a propósito: cada una debe caber en una sola sesión de trabajo (≈ 3 módulos, o
+  // ≈ 2 casos, o combinaciones equivalentes; una hoja de referencia cuenta como medio módulo).
+  // Orden: primero lo que se usa en todos los casos (estimar, servir), luego datos y operación,
+  // luego LLMs; cada bloque de casos llega justo después de los módulos que ejercita.
   const roadmap = [
     {
       phase: 1, status: 'done',
@@ -760,44 +761,74 @@
     {
       phase: 2, status: 'next',
       title: 'Fase 2 — El kit de estimaciones',
-      items: ['m02', 'm03', 'm04', 'ref-numeros'],
-      note: 'Patrón de inferencia, latencia/capacidad y hardware son lo que usas en los primeros 15 minutos de cualquier caso; con la hoja de números dejas de estimar a ojo.',
+      items: ['m02', 'm03', 'm04'],
+      note: 'Patrón de inferencia, latencia/capacidad y hardware son lo que usas en los primeros 15 minutos de cualquier caso: con esto dejas de estimar a ojo.',
     },
     {
       phase: 3, status: 'later',
-      title: 'Fase 3 — Del contenedor al serving optimizado',
-      items: ['m05', 'm06', 'm07', 'm08', 'ref-comandos', 'c02'],
-      note: 'Contenedores, orquestación, model servers y optimización forman la columna del serving, y el caso de video multicámara los obliga a trabajar juntos bajo presión de capacidad.',
+      title: 'Fase 3 — Contenedores y orquestación',
+      items: ['m05', 'm06', 'ref-comandos'],
+      note: 'Docker y Kubernetes vistos desde lo que pregunta un entrevistador de MLE (imágenes CUDA, autoscaling por GPU, cold starts), con la hoja de comandos para no memorizar flags.',
     },
     {
       phase: 4, status: 'later',
-      title: 'Fase 4 — Datos, MLOps y operación',
-      items: ['m09', 'm10', 'm11', 'm12', 'c03', 'c04'],
-      note: 'Cubre lo que pasa antes y después del serving (datos, reentrenamiento, despliegue seguro, monitoreo), ejercitado en el edge con una flota de Jetson (c03) y en batch con human in the loop (c04).',
+      title: 'Fase 4 — Servidores de modelos y optimización',
+      items: ['m07', 'm08', 'ref-numeros'],
+      note: 'Cuándo elegir cada model server y cómo ganar latencia con ONNX, TensorRT y cuantización; cierra con la hoja de números que resume M3, M4 y M8.',
     },
     {
       phase: 5, status: 'later',
-      title: 'Fase 5 — Nube, LLMs y seguridad',
-      items: ['m13', 'm14', 'm15', 'ref-herramientas', 'c05', 'c06'],
-      note: 'Cierra la Parte 1 con los módulos transversales y los aplica en dos pipelines multi-modelo con revisión humana: documentos (c05) y moderación con adversarios (c06).',
+      title: 'Fase 5 — Visión en tiempo real: nube y edge',
+      items: ['c02', 'c03'],
+      note: 'Dos casos que aplican M2–M8 a tu terreno: video multicámara (nube vs edge) y una flota de Jetson en planta.',
     },
     {
       phase: 6, status: 'later',
-      title: 'Fase 6 — Los clásicos: búsqueda, recomendación y fraude',
-      items: ['c07', 'c08', 'c09'],
-      note: 'Son los casos más preguntados en empresas grandes y van en secuencia: embeddings + ANN (c07) es la base del retrieval de recomendación (c08), y el fraude (c09) lleva las features a streaming.',
+      title: 'Fase 6 — Datos, features y MLOps',
+      items: ['m09', 'm10', 'm11'],
+      note: 'Lo que pasa antes y alrededor del serving: pipelines, feature store y skew, registry y CI/CD, y cómo desplegar sin romper nada (shadow, canary, A/B).',
     },
     {
       phase: 7, status: 'later',
-      title: 'Fase 7 — LLMs en producción',
-      items: ['c10', 'c11', 'c12'],
-      note: 'Progresión natural sobre M14 y c07: primero servir el modelo (c10), luego darle tus documentos (c11) y al final dejarlo actuar con herramientas (c12).',
+      title: 'Fase 7 — Monitoreo y humano en el loop',
+      items: ['m12', 'c04'],
+      note: 'Drift, alertas y reentrenamiento, aplicados enseguida a un caso batch de segmentación con revisión humana.',
     },
     {
       phase: 8, status: 'later',
-      title: 'Fase 8 — Extra: audio en tiempo real',
-      items: ['c13'],
-      note: 'Speech-to-text aparece poco en entrevistas generales de MLE; déjalo al final salvo que apliques a una empresa de voz o de reuniones.',
+      title: 'Fase 8 — Pipelines multimodelo',
+      items: ['c05', 'c06'],
+      note: 'Documentos/OCR y moderación a gran escala: varios modelos encadenados, colas, costos por etapa y revisión humana donde el modelo duda.',
+    },
+    {
+      phase: 9, status: 'later',
+      title: 'Fase 9 — Nube y seguridad',
+      items: ['m13', 'm15', 'ref-herramientas'],
+      note: 'Equivalencias AWS/GCP/Azure, costos y spot, más seguridad, privacidad y confiabilidad; con la tabla de herramientas por categoría ya tienes el mapa completo.',
+    },
+    {
+      phase: 10, status: 'later',
+      title: 'Fase 10 — Búsqueda y recomendación',
+      items: ['c07', 'c08'],
+      note: 'Los clásicos de empresas grandes y van en secuencia: embeddings + ANN (c07) son la base del retrieval de recomendación (c08).',
+    },
+    {
+      phase: 11, status: 'later',
+      title: 'Fase 11 — Tiempo real con streaming',
+      items: ['c09', 'c13'],
+      note: 'Fraude con features en streaming y speech-to-text en vivo comparten el problema de fondo: decidir con datos que llegan continuamente y un presupuesto de latencia estricto.',
+    },
+    {
+      phase: 12, status: 'later',
+      title: 'Fase 12 — LLMs: el módulo y el serving',
+      items: ['m14', 'c10'],
+      note: 'KV cache, continuous batching, RAG, agentes, evaluación y costo por token; enseguida lo aplicas sirviendo un LLM propio a escala.',
+    },
+    {
+      phase: 13, status: 'later',
+      title: 'Fase 13 — RAG y agentes',
+      items: ['c11', 'c12'],
+      note: 'Sobre M14 y c10: darle al modelo tus documentos con citas (c11) y dejarlo actuar con herramientas, timeouts y guardrails (c12).',
     },
   ];
 
