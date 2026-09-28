@@ -7,7 +7,7 @@
 // MathJax (CDN) y Google Fonts se mantienen como recursos externos.
 // Uso: node build.mjs [--allow-missing]   (con --allow-missing, un archivo local ausente solo avisa)
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -20,7 +20,9 @@ const missing = [];
 
 function readLocal(rel) {
   const p = resolve(ROOT, rel);
-  if (!p.startsWith(ROOT) || !existsSync(p)) {
+  // contención real (no por prefijo de texto: «../transformer-lab-old/x.js» empieza igual que ROOT)
+  const r = relative(ROOT, p);
+  if (r.startsWith('..') || isAbsolute(r) || !existsSync(p)) {
     missing.push(rel);
     return null;
   }

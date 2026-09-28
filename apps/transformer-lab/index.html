@@ -9,8 +9,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@600&display=swap">
 <script>
+  // menú de MathJax sin paradas de tabulación: las fórmulas no son controles (el MathML accesible se conserva)
   window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
-                     svg: { fontCache: 'global' }, startup: { typeset: false } };
+                     svg: { fontCache: 'global' }, startup: { typeset: false },
+                     options: { menuOptions: { settings: { inTabOrder: false } } } };
 </script>
 <script async id="MathJax-script" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
 <link rel="stylesheet" href="css/app.css">
@@ -43,8 +45,8 @@
       <div class="hstat" title="Iteraciones de entrenamiento completadas (actualizaciones de los pesos)">
         <span class="hstat__k">Iteración</span><span class="hstat__v" id="hd-iter">—</span>
       </div>
-      <div class="hstat hstat--loss" title="Pérdida de la última iteración: la de la frase trazada o la media del minilote">
-        <span class="hstat__k">Pérdida ℒ</span><span class="hstat__v" id="hd-loss">—</span>
+      <div class="hstat hstat--loss" title="Pérdida de la última iteración: la de la frase recorrida en «Paso a paso» o la media del minilote">
+        <span class="hstat__k">Pérdida</span><span class="hstat__v" id="hd-loss">—</span>
       </div>
       <button class="btn btn--sm btn--ghost" type="button" id="btn-theme" aria-label="Tema: sistema. Pulsa para cambiar">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor"/></svg>
@@ -64,7 +66,7 @@
 <section class="tabpanel tabpanel--paso" id="panel-paso" role="tabpanel" aria-labelledby="tab-paso">
   <div class="welcome" id="welcome" hidden>
     <p class="welcome__text"><b>Una iteración real de entrenamiento, operación por operación.</b>
-      Recórrela con <span class="kbd">←</span> <span class="kbd">→</span> o con la línea de tiempo de abajo; pasa el cursor por las matrices para ver cada cuenta.</p>
+      Recórrela con <span class="kbd">←</span> <span class="kbd">→</span> o con la línea de tiempo de abajo, o pulsa ▶ (<span class="kbd">Espacio</span>) para verla animada; pasa el cursor por las matrices para ver cada cuenta.</p>
     <div class="welcome__actions">
       <button class="btn btn--sm" type="button" id="welcome-guide">Abrir la guía</button>
       <button class="btn btn--sm btn--ghost btn--icon" type="button" id="welcome-close" aria-label="Cerrar el aviso de bienvenida">
@@ -88,7 +90,7 @@
       <div class="iterbar-slot" id="iterbar-slot"></div>
       <div class="callout stale-note" id="stale-note" data-phase="update" hidden>
         <span id="stale-text"></span>
-        <button class="btn btn--sm" type="button" id="stale-retrace">Trazar una iteración con los pesos actuales</button>
+        <button class="btn btn--sm" type="button" id="stale-retrace">Recorrer una iteración nueva con los pesos actuales</button>
       </div>
 
       <header class="step-head" id="step-head" data-phase="data">
@@ -107,6 +109,7 @@
           </span>
         </div>
         <h2 class="step-head__title" id="step-title">Cargando…</h2>
+        <div class="step-quote no-tex" id="step-quote" hidden></div>
         <div class="step-head__formula" id="step-formula" aria-label="Fórmula del paso"></div>
         <dl class="step-dims">
           <div class="step-dims__item"><dt>Dimensiones</dt><dd id="step-dimsym"></dd></div>
@@ -115,20 +118,21 @@
         </dl>
       </header>
 
+      <div class="sr-only" id="sr-step" role="status"></div>
       <div class="stage" id="stage" aria-live="off"></div>
 
       <section class="inspector" id="inspector" aria-label="Inspector de celdas">
         <div class="inspector__head">
           <span class="panel__title">Inspector</span>
-          <span class="inspector__hint">pasa el cursor por una celda (o tócala) para ver la cuenta que la produce</span>
+          <span class="inspector__hint"><span class="inspector__hint-long">pasa el cursor por una celda (o tócala) para ver la cuenta que la produce</span><span class="inspector__hint-short">toca una celda para ver su cuenta</span></span>
           <button class="btn btn--sm btn--ghost inspector__min" type="button" id="insp-min" aria-pressed="false" aria-controls="inspector-body" hidden>Minimizar</button>
         </div>
-        <div class="inspector__body is-empty" id="inspector-body" aria-live="polite"></div>
+        <div class="inspector__body is-empty" id="inspector-body" aria-live="off"></div>
       </section>
     </div>
 
     <aside class="paso__expl" id="expl-col" aria-label="Explicación del paso">
-      <div class="symstrip" id="symstrip" aria-label="Símbolos y sus valores en este modelo"></div>
+      <div class="symstrip scroll-shadow" id="symstrip" aria-label="Símbolos y sus valores en este modelo"></div>
       <div class="seg seg--sm side-tabs" role="tablist" aria-label="Panel lateral" id="side-tabs">
         <button type="button" role="tab" id="side-tab-expl" aria-selected="true" aria-controls="side-expl">Explicación</button>
         <button type="button" role="tab" id="side-tab-live" aria-selected="false" aria-controls="side-live" tabindex="-1">Tensores vivos <span class="side-tabs__n" id="live-count">0</span></button>
@@ -174,7 +178,7 @@
           </div>
         </div>
         <span class="grow"></span>
-        <button class="btn" type="button" id="tr-inspect">Inspeccionar esta iteración</button>
+        <button class="btn" type="button" id="tr-inspect" title="Da un paso de entrenamiento más con la frase elegida en «Atención en vivo» (B = 1) y lo muestra operación a operación en «Paso a paso»">Ver una iteración paso a paso</button>
         <span class="reset-wrap">
           <button class="btn btn--ghost" type="button" id="tr-reset">Reiniciar pesos</button>
           <span class="reset-confirm" id="tr-reset-confirm" hidden role="group" aria-label="Confirmar reinicio">
@@ -202,60 +206,72 @@
         <div class="stat"><span class="stat__k">Iteración</span><span class="stat__v" id="st-iter">0</span></div>
         <div class="stat"><span class="stat__k">Pérdida del último minilote</span><span class="stat__v" id="st-loss">—</span></div>
         <div class="stat"><span class="stat__k">Pérdida media del corpus</span><span class="stat__v" id="st-mean">—</span></div>
-        <div class="stat"><span class="stat__k">Perplejidad e<sup>ℒ</sup></span><span class="stat__v" id="st-ppl">—</span></div>
+        <div class="stat"><span class="stat__k">Perplejidad e<sup><i class="lsym">L</i></sup></span><span class="stat__v" id="st-ppl">—</span></div>
         <div class="stat"><span class="stat__k">Norma del gradiente ‖g‖</span><span class="stat__v" id="st-gn">—</span></div>
         <div class="stat"><span class="stat__k">Velocidad</span><span class="stat__v" id="st-speed">—</span></div>
       </div>
     </section>
 
+    <div class="callout tr-diverged" id="tr-diverged" data-phase="backward" role="alert" hidden>
+      <b>El entrenamiento divergió.</b> Los pasos fueron tan grandes que la pérdida o el gradiente dejaron de ser números finitos (NaN/∞),
+      o la probabilidad del token correcto cayó a 0 (y −ln p se dispara). El entrenamiento se ha detenido: baja η o activa el recorte del
+      gradiente y pulsa «Reiniciar pesos».
+    </div>
+
     <div class="train-grid">
-      <section class="panel tg-loss">
-        <div class="panel__head">
-          <span class="panel__title">Curva de pérdida</span>
-          <label class="toggle small tg-head-right"><input type="checkbox" id="tr-logy"><span class="toggle__track"></span>escala logarítmica</label>
-        </div>
-        <div class="panel__body">
-          <canvas class="chart-canvas" id="tr-loss" style="height:260px" aria-label="Pérdida por iteración"></canvas>
-          <p class="panel-note">La línea discontinua es \(\ln V\): la pérdida de un modelo que reparte la probabilidad por igual entre los \(V\) tokens. Al empezar, la pérdida está cerca de ese valor.</p>
-        </div>
-      </section>
-      <section class="panel tg-sent">
-        <div class="panel__head"><span class="panel__title">Pérdida por frase</span></div>
-        <div class="panel__body">
-          <div id="tr-sent-bars"></div>
-          <p class="panel-note">Entropía cruzada media de cada frase con los pesos actuales. Algunas continuaciones son ambiguas («el gato» puede seguir con «come» o con «duerme»), así que la pérdida no llega a 0.</p>
-        </div>
-      </section>
-      <section class="panel tg-attn">
-        <div class="panel__head">
-          <span class="panel__title">Atención en vivo</span>
-          <label class="tg-head-right"><span class="sr-only">Frase</span><select class="select select--sm" id="tr-attn-sent" aria-label="Frase para la atención y las predicciones"></select></label>
-        </div>
-        <div class="panel__body">
-          <div class="attn-grid" id="tr-attn"></div>
-          <p class="panel-note">Una matriz \(A_h\) por capa y cabeza: la fila \(i\) dice cuánto mira la posición \(i\) a cada posición anterior \(j \le i\) (cada fila suma 1).</p>
-        </div>
-      </section>
-      <section class="panel tg-pred">
-        <div class="panel__head"><span class="panel__title">Predicciones por posición</span></div>
-        <div class="panel__body">
-          <div class="table-wrap"><table class="table table--compact pred-table" id="tr-pred"></table></div>
-        </div>
-      </section>
-      <section class="panel tg-grad">
-        <div class="panel__head"><span class="panel__title">Norma del gradiente por parámetro</span></div>
-        <div class="panel__body">
-          <div id="tr-grad-bars"></div>
-          <p class="panel-note">\(\|\mathrm{d}\theta\|\) de la última iteración, antes del recorte. Suele dominar \(W_{\text{out}}\), el parámetro más cercano a la pérdida.</p>
-        </div>
-      </section>
-      <section class="panel tg-pca">
-        <div class="panel__head"><span class="panel__title">Embeddings: filas de E proyectadas en 2-D (PCA)</span></div>
-        <div class="panel__body">
-          <canvas class="chart-canvas" id="tr-pca" style="height:300px" aria-label="Proyección PCA de los embeddings"></canvas>
-          <p class="panel-note" id="tr-pca-note">Cada punto es un token. Con el entrenamiento, los tokens que se usan de forma parecida se acercan.</p>
-        </div>
-      </section>
+      <!-- dos columnas independientes (sin huecos entre paneles de distinta altura); en pantallas
+           estrechas se apilan en el orden de «order» -->
+      <div class="train-col">
+        <section class="panel tg-loss">
+          <div class="panel__head">
+            <span class="panel__title">Curva de pérdida</span>
+            <label class="toggle small tg-head-right"><input type="checkbox" id="tr-logy"><span class="toggle__track"></span>escala logarítmica</label>
+          </div>
+          <div class="panel__body">
+            <canvas class="chart-canvas" id="tr-loss" style="height:260px" aria-label="Pérdida por iteración"></canvas>
+            <p class="panel-note">La línea discontinua es \(\ln V\): la pérdida de un modelo que reparte la probabilidad por igual entre los \(V\) tokens. Al empezar, la pérdida está cerca de ese valor.</p>
+          </div>
+        </section>
+        <section class="panel tg-attn">
+          <div class="panel__head">
+            <span class="panel__title">Atención en vivo</span>
+            <label class="tg-head-right"><span class="sr-only">Frase</span><select class="select select--sm" id="tr-attn-sent" aria-label="Frase para la atención y las predicciones"></select></label>
+          </div>
+          <div class="panel__body">
+            <div class="attn-grid" id="tr-attn"></div>
+            <p class="panel-note">Una matriz \(A_h\) por capa y cabeza: la fila \(i\) dice cuánto mira la posición \(i\) a cada posición anterior \(j \le i\) (cada fila suma 1). Fíjate en la fila del verbo («come», «bebe»): para acertar la palabra siguiente tiene que mirar al sujeto, y al entrenar alguna cabeza aprende a hacerlo.</p>
+          </div>
+        </section>
+        <section class="panel tg-grad">
+          <div class="panel__head"><span class="panel__title">Norma del gradiente por parámetro</span></div>
+          <div class="panel__body">
+            <div id="tr-grad-bars"></div>
+            <p class="panel-note">\(\|\mathrm{d}\theta\|\) de la última iteración, antes del recorte. Suele dominar \(W_{\text{out}}\), el parámetro más cercano a la pérdida.</p>
+          </div>
+        </section>
+      </div>
+      <div class="train-col">
+        <section class="panel tg-sent">
+          <div class="panel__head"><span class="panel__title">Pérdida por frase</span></div>
+          <div class="panel__body">
+            <div id="tr-sent-bars"></div>
+            <p class="panel-note">Entropía cruzada media de cada frase con los pesos actuales. Algunas continuaciones son ambiguas («el gato» puede seguir con «come» o con «duerme»), así que la pérdida no llega a 0. Pulsa una frase para verla en «Atención en vivo».</p>
+          </div>
+        </section>
+        <section class="panel tg-pred">
+          <div class="panel__head"><span class="panel__title">Predicciones por posición</span></div>
+          <div class="panel__body">
+            <div class="table-wrap"><table class="table table--compact pred-table" id="tr-pred"></table></div>
+          </div>
+        </section>
+        <section class="panel tg-pca">
+          <div class="panel__head"><span class="panel__title">Embeddings: filas de E proyectadas en 2-D (PCA)</span></div>
+          <div class="panel__body">
+            <canvas class="chart-canvas" id="tr-pca" style="height:300px" aria-label="Proyección PCA de los embeddings"></canvas>
+            <p class="panel-note" id="tr-pca-note">Cada punto es un token. Con el entrenamiento, los tokens que se usan de forma parecida se acercan.</p>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 </section>
@@ -297,8 +313,10 @@
       </section>
       <aside class="callout gen-note" data-phase="forward">
         <p><b>En inferencia solo se ejecuta el forward.</b> No hay objetivo, así que no hay pérdida, ni backward, ni actualización: los pesos no cambian al generar.</p>
-        <p>En cada paso se usa solo la <b>última fila</b> de los logits (la de la última posición). La temperatura reescala los logits antes del softmax: \(p_j = \frac{e^{z_j/\tau}}{\sum_k e^{z_k/\tau}}\). Con \(\tau &lt; 1\) la distribución se concentra; con \(\tau &gt; 1\) se aplana. El modo voraz elige siempre el token más probable.</p>
-        <p>Si el contexto supera la ventana de <span class="mono" id="gen-maxlen">8</span> tokens, se conservan solo los últimos (ventana deslizante). La generación se detiene al producir «.».</p>
+        <p>En cada paso se usa solo la <b>última fila</b> de los logits (la de la última posición). La temperatura \(\tau\) reescala los logits antes del softmax:</p>
+        \[p_j = \frac{e^{z_j/\tau}}{\sum_k e^{z_k/\tau}}\]
+        <p>Con \(\tau &lt; 1\) la distribución se concentra; con \(\tau &gt; 1\) se aplana. El modo voraz elige siempre el token más probable.</p>
+        <p>El contexto \(T\) crece en 1 en cada paso hasta la ventana de <span class="mono" id="gen-maxlen">8</span> tokens (\(T_{\max}\)); después se conservan solo los últimos (ventana deslizante). Aquí se recalcula todo el contexto en cada token; los modelos reales guardan las claves y los valores ya calculados (<em>caché KV</em>). La generación se detiene al producir «.».</p>
       </aside>
     </div>
 
@@ -340,10 +358,10 @@
           <div class="eyebrow cfg-sub">Arquitectura</div>
           <div class="cfg-fields">
             <label class="field" data-f="dModel"><span class="field__label">Dimensión del modelo <i>d</i></span><input class="input" type="number" id="cfg-dModel" min="2" max="64" step="1"><span class="field__hint"></span></label>
-            <label class="field" data-f="nHeads"><span class="field__label">Cabezas <i>h</i></span><input class="input" type="number" id="cfg-nHeads" min="1" max="64" step="1"><span class="field__hint"></span></label>
+            <label class="field" data-f="nHeads"><span class="field__label">Cabezas <i>h</i></span><input class="input" type="number" id="cfg-nHeads" min="1" max="16" step="1"><span class="field__hint"></span></label>
             <label class="field" data-f="nLayers"><span class="field__label">Capas <i>N</i></span><input class="input" type="number" id="cfg-nLayers" min="1" max="3" step="1"><span class="field__hint"></span></label>
             <label class="field" data-f="dFF"><span class="field__label">Dimensión FFN <i>d</i><sub>ff</sub></span><input class="input" type="number" id="cfg-dFF" min="1" max="256" step="1"><span class="field__hint"></span></label>
-            <label class="field" data-f="maxLen"><span class="field__label">Ventana de contexto (maxLen)</span><input class="input" type="number" id="cfg-maxLen" min="2" max="32" step="1"><span class="field__hint"></span></label>
+            <label class="field" data-f="maxLen"><span class="field__label">Ventana de contexto <i>T</i><sub>máx</sub></span><input class="input" type="number" id="cfg-maxLen" min="2" max="32" step="1"><span class="field__hint"></span></label>
             <label class="field" data-f="activation"><span class="field__label">Activación de la FFN</span><select class="select" id="cfg-activation"><option value="relu">ReLU</option><option value="gelu">GELU (aprox. tanh)</option></select><span class="field__hint"></span></label>
             <label class="field" data-f="posEnc"><span class="field__label">Codificación posicional</span><select class="select" id="cfg-posEnc"><option value="sinusoidal">Sinusoidal (fija)</option><option value="learned">Aprendida (learned)</option></select><span class="field__hint"></span></label>
             <label class="field" data-f="seed"><span class="field__label">Semilla aleatoria</span><input class="input" type="number" id="cfg-seed" step="1"><span class="field__hint"></span></label>
@@ -400,7 +418,9 @@
     <section class="panel gradcheck" aria-labelledby="gc-title">
       <div class="panel__head"><span class="panel__title" id="gc-title">Comprobación numérica de gradientes</span></div>
       <div class="panel__body stack">
-        <p class="panel-note gc-intro">Compara el gradiente del backward (analítico) con una estimación por diferencias centrales: \(\frac{\mathcal L(\theta + h) - \mathcal L(\theta - h)}{2h}\), con \(h = 10^{-5}\), en tres entradas de cada parámetro. El error relativo es \(\frac{|a - n|}{\max(|a|, |n|)}\); si queda por debajo de \(10^{-5}\), se da por buena (en la práctica sale del orden de \(10^{-8}\) o menos).</p>
+        <div class="panel-note gc-intro"><p>Compara el gradiente del backward (analítico, \(a\)) con una estimación numérica por diferencias centrales (\(n\)), en tres entradas de cada parámetro, con un paso \(\delta = 10^{-5}\):</p>
+          \[n = \frac{\mathcal L(\theta + \delta) - \mathcal L(\theta - \delta)}{2\delta},\qquad \text{error relativo} = \frac{|a - n|}{\max(|a|, |n|)}\]
+          <p>Si el error queda por debajo de \(10^{-5}\), se da por bueno (en la práctica sale del orden de \(10^{-8}\) o menos).</p></div>
         <div class="cluster"><button class="btn btn--primary" type="button" id="gc-run">Comprobar gradientes</button><span class="gc-summary" id="gc-summary" role="status"></span></div>
         <div class="table-wrap" id="gc-wrap" hidden><table class="table table--compact gc-table" id="gc-table"></table></div>
       </div>
@@ -434,8 +454,8 @@
     <div class="tl-jumps" id="tl-jumps" role="group" aria-label="Saltar al inicio de una fase"></div>
     <div class="iterbar" id="iterbar">
       <label class="iterbar__sent" for="sent-select"><span class="sr-only">Frase de la iteración</span>
-        <select class="select select--sm" id="sent-select" title="Frase que se traza (cambiarla traza una iteración nueva con esa frase)"></select></label>
-      <button class="btn btn--sm btn--primary" type="button" id="btn-newiter" title="Traza otra iteración con los pesos ya actualizados">Nueva iteración</button>
+        <select class="select select--sm" id="sent-select" title="Frase de la iteración (cambiarla recorre una iteración nueva con esa frase)"></select></label>
+      <button class="btn btn--sm btn--primary" type="button" id="btn-newiter" title="Recorre otra iteración con los pesos ya actualizados">Nueva iteración</button>
       <span class="iterbar__spark" title="Pérdida de cada iteración (la más reciente a la derecha)">
         <canvas class="spark" id="spark" width="112" height="26" aria-hidden="true"></canvas>
         <span class="iterbar__loss" id="iter-loss"></span>

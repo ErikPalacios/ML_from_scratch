@@ -76,7 +76,9 @@
         inputs: [],
         outputs: [],
         aux: {
-          norms: order.map((name) => ({ name, tex: model.paramMeta[name].tex, norm: norms[name] })),
+          // label/layer: nombre visible (W_Q⁽²⁾) y capa (0-based) para la interfaz; name es la clave interna
+          norms: order.map((name) => ({ name, tex: model.paramMeta[name].tex, label: model.paramMeta[name].label,
+            layer: model.paramMeta[name].layer === undefined ? null : model.paramMeta[name].layer, norm: norms[name] })),
           total, clip, factor, clipped: factor < 1, nParams,
         },
         flops: null,
@@ -134,6 +136,9 @@
       clipFactor: factor, delta };
     let formula;
     const cap = pm.layer !== null && pm.layer !== undefined ? 'Capa ' + (pm.layer + 1) + ' · ' : '';
+    // γ y β de LayerNorm: se dice de qué son (β₁ de LN 1 no es la β₁ de Adam)
+    const lnm = /(?:^|\.)(ln(\d)|lnf)\.([gb])$/.exec(name);
+    const role = lnm ? ' (' + (lnm[3] === 'g' ? 'escala' : 'desplazamiento') + ' de ' + (lnm[2] ? 'LN ' + lnm[2] : 'la LN final') + ')' : '';
     if (isAdam) {
       const mT = 'm_{' + tex + '}', vT = 'v_{' + tex + '}';
       const mNew = new Mat(theta.r, theta.c, opt.m[name].slice());
@@ -159,7 +164,7 @@
     return {
       id: 'upd.param.' + name, tpl: 'upd.param', phase: 'update', block: 'optim', layer: pm.layer === undefined ? null : pm.layer, head: null,
       kind: 'update',
-      title: cap + 'Actualización de ' + lab + ' (' + (isAdam ? 'Adam' : 'SGD') + ')',
+      title: cap + 'Actualización de ' + lab + role + ' con ' + (isAdam ? 'Adam' : 'SGD'),
       formula,
       dimsSym,
       dims: TL.Model.dimsFromSym(dimsSym, env),

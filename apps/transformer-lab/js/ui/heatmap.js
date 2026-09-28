@@ -12,6 +12,9 @@
         name,            // LaTeX alternativo para el título (por defecto ref.tex)
         note,            // HTML corto bajo el título (p. ej. «columnas 4…7 de Q»)
         tag,             // texto de la etiqueta de rol (false = sin etiqueta)
+        tagRole,         // clase de color de la etiqueta (por defecto, el rol del tensor)
+        onTag,           // si se da, la etiqueta es un botón que llama a onTag() (p. ej. «del forward · paso 12»)
+        tagTitle,        // título (tooltip) de la etiqueta
         highlightCols,   // [[c0, c1, cssVar]] bandas de columnas (colores de cabeza)
         rowLabels, colLabels, rowOffset,   // anulan los de ref (rowOffset: índice absoluto de filas)
         fit,             // false = no se ajusta solo (lo hace quien lo usa llamando a hm.fit(ancho))
@@ -52,9 +55,10 @@
   const MINUS = '−';
   const AXSYM = { T: 'T', V: 'V', d: 'd', dk: 'd<sub>k</sub>', dff: 'd<sub>ff</sub>', '1': '1', maxLen: 'T<sub>max</sub>' };
   const AXNAME = { T: 'posición', V: 'token', d: 'dimensión', dk: 'dimensión', dff: 'neurona', '1': '', maxLen: 'posición' };
-  const TAGS = { grad: 'gradiente', param: 'parámetro', const: 'constante', onehot: 'one-hot', mask: 'máscara' };
+  const TAGS = { grad: 'gradiente', param: 'parámetro', const: 'constante', onehot: 'one-hot', mask: 'máscara', fwd: 'del forward' };
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const NINF_HTML = '<span class="hm__ninf">' + '−∞' + '</span>';
 
   // ---------------------------------------------------------------- números
   function expForm(x, digits) {
@@ -151,12 +155,15 @@
     return t >= 0 ? mix(th.zero, th.pos, t) : mix(th.zero, th.neg, -t);
   }
   function colorOf(v, sc) { return hex(rgbOf(v, sc)); }
-  // texto: tinta o superficie, la que más contraste
+  // texto: tinta o superficie, la que más contraste; si ninguna llega a 4.5:1 (celdas de tono
+  // medio), negro o blanco puros, que siempre lo superan
   function textOn(rgb) {
     const th = readTheme();
     const L = th.lum(rgb);
     const cr = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-    return cr(L, th.inkL) >= cr(L, th.surfL) ? th.inkHex : th.surfHex;
+    const ci = cr(L, th.inkL), cs = cr(L, th.surfL);
+    if (Math.max(ci, cs) >= 4.5) return ci >= cs ? th.inkHex : th.surfHex;
+    return cr(L, 0) >= cr(L, 1) ? '#000000' : '#ffffff';
   }
 
   // ---------------------------------------------------------------- registro (tema)
@@ -218,6 +225,17 @@
 
   // ---------------------------------------------------------------- etiquetas
   function axisSym(ax) { return AXSYM[ax] || esc(ax); }
+
+  // Tras mover el foco con el teclado: el inspector (fijo al pie en pantallas medianas) crece un
+  // fotograma después y puede tapar la celda. Dos fotogramas más tarde se vuelve a asegurar que se
+  // ve (html tiene scroll-padding con la altura del inspector y de la línea de tiempo).
+  function keepInView(el) {
+    if (!el || typeof requestAnimationFrame !== 'function') return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!el.isConnected) return;
+      try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* nada */ }
+    }));
+  }
 
   // ---------------------------------------------------------------- clase
   class Heatmap {
@@ -331,9 +349,15 @@
         }
         const tagText = o.tag !== undefined ? o.tag : TAGS[ref.role];
         if (tagText) {
-          const t = doc.createElement('span');
+          const t = doc.createElement(typeof o.onTag === 'function' ? 'button' : 'span');
           t.className = 'hm__tag hm__tag--' + (o.tagRole || ref.role);
           t.textContent = tagText;
+          if (o.tagTitle) t.title = o.tagTitle;
+          if (typeof o.onTag === 'function') {
+            t.type = 'button';
+            t.classList.add('hm__tag--btn');
+            t.addEventListener('click', (e) => { e.preventDefault(); o.onTag(); });
+          }
           cap.appendChild(t);
         }
         fig.appendChild(cap);
@@ -402,6 +426,17 @@
       // ancho preferido con números: el de los números, o el de las etiquetas de columna si caben (≤ 66 px)
       this.prefW = Math.max(this.valW, this.colLabels ? Math.min(this.colLabW, 66) : 0);
       this._band(2, 2, R + 2, C + 2, 'hm__frame', []);
+      // «todo ceros» (p. ej. los momentos m, v de Adam en la primera iteración)
+      this._allZero = R * C >= 4 && this.mat.maxAbs() === 0;
+      if (this._allZero) {
+        const z = doc.createElement('div');
+        z.className = 'hm__allzero';
+        z.setAttribute('aria-hidden', 'true');
+        z.style.gridArea = '2 / 2 / ' + (R + 2) + ' / ' + (C + 2);
+        z.innerHTML = '<span>todo ceros</span>';
+        grid.appendChild(z);
+        this._zeroNote = z;
+      }
       if (o.highlightCols) { fig.classList.add('hm--cols'); for (const [c0, c1, v] of o.highlightCols) this._band(1, c0 + 2, R + 2, c1 + 2, 'hm__cols', this._marks, v); }
       this._bind();
     }
@@ -415,7 +450,7 @@
       if (k >= this._revealed) cls += ' is-pending';
       let st = '';
       if (v !== -Infinity && sc.type !== 'none') { const rgb = rgbOf(v, sc); st = ' style="background:' + hex(rgb) + ';color:' + textOn(rgb) + '"'; }
-      return '<div class="' + cls + '" role="gridcell" data-k="' + k + '"' + st + '>' + fmt(v) + '</div>';
+      return '<div class="' + cls + '" role="gridcell" data-k="' + k + '"' + st + '>' + (v === -Infinity ? NINF_HTML : fmt(v)) + '</div>';
     }
     paint() {
       if (this.canvasMode) { this._draw(); this._stale = false; return; }
@@ -428,7 +463,7 @@
         else if (v === 0) cls += ' is-zero';
         if (k >= this._revealed) cls += ' is-pending';
         c.className = cls;
-        c.textContent = fmt(v);
+        if (v === -Infinity) c.innerHTML = NINF_HTML; else c.textContent = fmt(v);
         if (v === -Infinity || noColor) { c.style.background = ''; c.style.color = ''; continue; }
         const rgb = rgbOf(v, sc);
         c.style.background = hex(rgb);
@@ -471,7 +506,7 @@
       g.fillRect(0, 0, W, H);
       const d = this.mat.d, sc = this.scale, vals = this.valuesShown, noColor = sc.type === 'none';
       if (vals) { g.font = '10px ' + th.mono; g.textAlign = 'center'; g.textBaseline = 'middle'; }
-      const s2 = hex(th.surface2), mk = hex(th.masked), mu = hex(th.muted);
+      const s2 = hex(th.surface2), mk = hex(th.masked), mu = hex(th.muted), ink = th.inkHex;
       for (let i = 0; i < R; i++) {
         const y = i * (ch + GAP);
         for (let j = 0; j < C; j++) {
@@ -483,7 +518,14 @@
             g.strokeStyle = mk; g.lineWidth = 1.5; g.beginPath();
             for (let o = -ch; o < cw + ch; o += 5) { g.moveTo(x + o, y); g.lineTo(x + o + ch, y + ch); }
             g.stroke(); g.restore();
-            if (vals) { g.fillStyle = mu; g.fillText(fmt(v), x + cw / 2, y + ch / 2 + 0.5); }
+            if (vals) {
+              // placa del color de fondo detrás del texto: el rayado no cruza los glifos
+              g.font = '600 11px ' + th.mono;
+              const tw = g.measureText('−∞').width + 4;
+              g.fillStyle = s2; g.fillRect(x + (cw - tw) / 2, y + ch / 2 - 7, tw, 14);
+              g.fillStyle = ink; g.fillText('−∞', x + cw / 2, y + ch / 2 + 0.5);
+              g.font = '10px ' + th.mono;
+            }
             continue;
           }
           const rgb = noColor ? th.surface : rgbOf(v, sc);
@@ -506,8 +548,26 @@
       this.grid.style.setProperty('--cw', w + 'px');
       this.grid.style.setProperty('--ch', h + 'px');
       this.el.classList.toggle('hm--vals', !!vals);
-      this.el.classList.toggle('hm--vert', this.colLabW > w + 1 && !!this.colLabels);
-      this.el.classList.toggle('hm--tiny', w < 16);
+      // solo se giran las etiquetas de columna que no caben (p. ej. «<s>»); las cortas siguen horizontales
+      let vert = false;
+      const L = this.colLabels;
+      for (let j = 0; j < this.colHeads.length; j++) {
+        const lab = L && L[j] != null ? String(L[j]) : null;
+        const on = !!lab && Math.ceil(lab.length * LAB_W + 6) > w + 1;
+        this.colHeads[j].classList.toggle('is-vert', on);
+        if (on) vert = true;
+      }
+      this.el.classList.toggle('hm--vert', vert);
+      const tiny = w < 16;
+      this.el.classList.toggle('hm--tiny', tiny);
+      // celdas diminutas con índices numéricos: solo se rotula cada 5.ª columna (y la última)
+      if (!L) {
+        const idxW = String(this.C - 1 + this.colOffset).length * 5.8 + 2;
+        const sparse = tiny && idxW > w;
+        for (let j = 0; j < this.colHeads.length; j++) this.colHeads[j].classList.toggle('is-skip', sparse && j % 5 !== 0 && j !== this.C - 1);
+      }
+      // matriz entera de ceros solo con color: sin un rótulo parecería que no se dibujó
+      if (this._allZero) this._zeroNote.hidden = !!vals;
       if (this.canvasMode) this._draw();
     }
     // ancho natural del mapa con celdas de ancho w
@@ -636,6 +696,7 @@
       if (announce && this.liveEl) this.liveEl.textContent = this._ariaFor(i, j);
       this._lastHover = null;
       this._fire(i, j);
+      if (announce) keepInView(this._focusBand);
     }
     focusCell(i, j) {
       if (this.canvasMode) { this.canvas.focus({ preventScroll: true }); this._cvFocus(i, j, true); return; }
@@ -646,6 +707,7 @@
       el.tabIndex = 0;
       this._fi = i; this._fj = j;
       el.focus({ preventScroll: false });
+      keepInView(el);
     }
     _bind() {
       const g = this.grid;
@@ -670,6 +732,7 @@
         e.target.setAttribute('aria-label', this._ariaFor(p[0], p[1]));
         this._lastHover = null;
         this._fire(p[0], p[1]);
+        keepInView(e.target);
       };
       this._onFocusOut = (e) => {
         if (e.relatedTarget && g.contains(e.relatedTarget)) return;

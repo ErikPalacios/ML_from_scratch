@@ -24,7 +24,7 @@
   // ───────────────────────────── Símbolos y notación ─────────────────────────────
   const symbols = [
     { sym: 'T', key: 'T', tex: 'T', name: 'longitud de la secuencia',
-      desc: 'Número de tokens de entrada, es decir, de posiciones que el modelo procesa en paralelo. Cada matriz de activaciones tiene T filas (una por token). Como máximo vale la ventana de contexto (maxLen).' },
+      desc: 'Número de tokens de entrada, es decir, de posiciones que el modelo procesa en paralelo. Cada matriz de activaciones tiene T filas (una por token). Como máximo vale la ventana de contexto, T_máx.' },
     { sym: 'd', key: 'd', tex: 'd', name: 'dimensión del modelo',
       desc: 'Tamaño del vector que representa a cada token a lo largo de toda la red (d_model). Es el «ancho» del flujo residual.' },
     { sym: 'h', key: 'h', tex: 'h', name: 'número de cabezas',
@@ -38,7 +38,9 @@
     { sym: 'N', key: 'N', tex: 'N', name: 'número de capas',
       desc: 'Número de bloques transformer (atención + FFN) apilados.' },
     { sym: 'η', key: 'lr', tex: R`\eta`, name: 'tasa de aprendizaje',
-      desc: 'Tamaño del paso que da el optimizador en cada actualización (learning rate).' },
+      desc: 'Tamaño del paso que da el optimizador en cada actualización (learning rate). Aquí, el η con el que se calculó la iteración que estás viendo.' },
+    { sym: 'B', key: 'B', tex: 'B', name: 'frases por iteración (minilote)',
+      desc: 'En «Paso a paso» se recorre una sola frase (B = 1), por eso las matrices son 2-D (T×d). En «Entrenamiento», cada iteración usa un minilote de B = {batch} frases y promedia sus gradientes; en PyTorch serían tensores (B×T×d).' },
   ];
 
   const notation = [
@@ -70,8 +72,10 @@
       desc: 'P son las probabilidades de salida (T×V); P_pos es la tabla de posiciones aprendida (solo existe si la codificación posicional es la aprendida, learned).' },
     { tex: R`V\ \text{ vs. }\ V_h`,
       desc: 'Como dimensión, V es el tamaño del vocabulario (logits: T×V). Como matriz, V y V_h son los valores de la atención (T×d y T×d_k).' },
+    { tex: R`0,\,1,\,\dots,\,T-1`,
+      desc: 'Filas, columnas y posiciones se cuentan desde 0 (como en NumPy y en los mapas de calor); pasos, capas, cabezas e iteraciones, desde 1.' },
     { tex: R`\gamma,\ \beta`,
-      desc: 'Escala y desplazamiento aprendibles de LayerNorm (1×d). No confundir con β₁ y β₂ de Adam, que son hiperparámetros del optimizador.' },
+      desc: 'Escala y desplazamiento aprendibles de LayerNorm (1×d). Los coeficientes de Adam se escriben β_m y β_v (0.9 y 0.999) para no confundirlos con estos β.' },
     { tex: R`\mathrm dR_{\text{directo}},\ \mathrm dR_{\text{LN}}`,
       desc: 'Las dos contribuciones al gradiente de un tensor que se usó dos veces en una conexión residual: la que llega intacta por el atajo (directo) y la que vuelve a través de la LayerNorm y su subcapa (LN). El gradiente total es su suma. Lo mismo ocurre con la entrada de la capa: dX^[l−1]_directo y dX^[l−1]_LN.' },
     { tex: R`\mathrm dH_Q,\ \mathrm dH_K,\ \mathrm dH_V`,
@@ -108,9 +112,9 @@
     ],
     shapes: dims(R`\text{texto}\ \to\ \mathbf x\in\{0,\dots,V-1\}^T,\ \ \mathbf y\in\{0,\dots,V-1\}^T`,
       R`<b>{T}</b> ids de entrada y <b>{T}</b> ids objetivo; vocabulario de <b>{V}</b> tokens.`,
-      R`Aún no hay matrices de números reales, solo índices enteros. Si la frase tiene más de maxLen + 1 tokens (contando <code>&lt;s&gt;</code>), se recorta.`),
+      R`Aún no hay matrices de números reales, solo índices enteros. Si la frase tiene más de \(T_{\max} + 1\) tokens (contando <code>&lt;s&gt;</code>), se recorta. En PyTorch, con un lote de \(B\) frases rellenadas a la misma longitud, ids sería \((B\times T)\); aquí \(B = 1\) y el eje del lote se omite.`),
     details: R`<p><b>Qué significan los números.</b> El id de un token es solo su posición en la lista del vocabulario, construida en orden de primera aparición en el corpus: con el corpus por defecto, <code>&lt;s&gt;</code> es el 0, «el» el 1, «gato» el 2… Ese número no tiene significado aritmético: «gato» (2) no está «más cerca» de «el» (1) que de «leche». Por eso el paso siguiente no usa el id directamente, sino que lo cambia por un vector aprendible.</p>
-<p><b>Por qué desplazar.</b> Con una frase de \(T\) tokens obtenemos \(T\) ejemplos de entrenamiento a la vez: en la posición \(t\) (contando desde 1) el modelo ve \(w_0,\dots,w_{t-1}\) (la máscara causal se encarga de que no vea nada más) y debe predecir \(w_t\). Esto se llama <em>teacher forcing</em>: durante el entrenamiento siempre se le da el prefijo correcto, no sus propias predicciones.</p>
+<p><b>Por qué desplazar.</b> Con una frase de \(T\) tokens de entrada obtenemos \(T\) ejemplos de entrenamiento a la vez: en la posición \(t\) (contando desde 0, como en los mapas) el modelo ve \(w_0,\dots,w_t\) (la máscara causal se encarga de que no vea nada más) y debe predecir \(y_t = w_{t+1}\). Esto se llama <em>teacher forcing</em>: durante el entrenamiento siempre se le da el prefijo correcto, no sus propias predicciones.</p>
 <p><b>Errores típicos.</b> Olvidar el token de inicio (la primera palabra no tendría contexto del que predecirse), desalinear entrada y objetivo en una posición, o tokenizar de forma distinta al entrenar y al generar (una palabra fuera del vocabulario no tiene id). En modo carácter, cada letra, incluido el espacio (␣), es un token: el vocabulario es pequeño pero las secuencias son más largas.</p>`,
     code: `tokens = separar(texto.lower())           # ['el', 'gato', 'come', 'pescado', '.']
 ids = [BOS] + [stoi[w] for w in tokens]   # BOS = id del token de inicio (0)
@@ -128,7 +132,7 @@ x, y = ids[:-1], ids[1:]                  # entrada / objetivo, T = len(x)`,
     ],
     shapes: dims(R`(T\times V)\cdot(V\times d)\to(T\times d)`,
       R`<code>{T}×{V}</code> · <code>{V}×{d}</code> → <code>{T}×{d}</code>`,
-      R`La dimensión del vocabulario \(V\) se contrae: cada token queda representado por \(d\) números. La tabla \(E\) tiene {V}·{d} parámetros.`),
+      R`La dimensión del vocabulario \(V\) se contrae: cada token queda representado por \(d\) números. La tabla \(E\) tiene {V}·{d} parámetros. En PyTorch, con un lote de \(B\) frases rellenadas a la misma longitud, \(X_{\text{emb}}\) sería \((B\times T\times d)\); aquí \(B = 1\) y el eje del lote se omite.`),
     details: R`<p><b>Por qué un vector y no el id.</b> Un vector de \(d\) componentes puede codificar muchas propiedades a la vez (¿es un animal?, ¿es un verbo?, ¿suele ir tras «la»?) y, sobre todo, es <em>diferenciable</em>: podemos ajustar cada componente con el gradiente. Un id es un índice discreto que no se puede derivar.</p>
 <p><b>Multiplicar o indexar.</b> Matemáticamente es el producto \(\operatorname{onehot}(\mathbf x)\,E\); en la práctica nadie construye la matriz one-hot, sino que se copian filas (<code>E[ids]</code>), muchísimo más barato: \(O(Td)\) en lugar de \(O(TVd)\). La vista muestra la versión con one-hot porque deja claro que es un producto de matrices, y eso explica el gradiente del último paso del backward.</p>
 <p><b>Qué observar.</b> Si un token aparece dos veces en la frase, sus dos filas de \(X_{\text{emb}}\) son idénticas: el embedding no sabe nada de la posición ni del contexto. El orden lo añade el paso siguiente, y el contexto, la atención. La inicialización exacta de \(E\) aparece en el inventario de parámetros de «Datos y modelo».</p>`,
@@ -147,11 +151,11 @@ x, y = ids[:-1], ids[1:]                  # entrada / objetivo, T = len(x)`,
     ],
     shapes: dims(R`(T\times d) + (T\times d)\to(T\times d)`,
       R`<code>{T}×{d}</code> + <code>{T}×{d}</code> → <code>{T}×{d}</code>`,
-      R`Suma elemento a elemento: la forma no cambia. De la tabla de posiciones (maxLen filas) solo se usan las primeras \(T\).`),
+      R`Suma elemento a elemento: la forma no cambia. De la tabla de posiciones (\(T_{\max}\) filas) solo se usan las primeras \(T\).`),
     details: R`<p><b>Cómo leer la tabla sinusoidal.</b> Cada pareja de columnas \((2i, 2i+1)\) es un par (seno, coseno) con frecuencia \(\omega_i = 10000^{-2i/d}\). Las primeras columnas oscilan rápido (cambian mucho entre posiciones vecinas); las últimas, muy despacio. La combinación da a cada posición un vector distinto. Todos los valores están en \([-1,1]\), una escala parecida a la de los embeddings: la suma conserva las dos informaciones sin que una tape a la otra.</p>
 <p><b>Por qué senos y cosenos.</b> Para cualquier desplazamiento \(k\), \(PE_{\text{pos}+k}\) se obtiene de \(PE_{\text{pos}}\) girando cada pareja un ángulo \(k\,\omega_i\): una transformación lineal que no depende de pos. Eso facilita que la atención aprenda relaciones relativas («el token dos posiciones atrás»).</p>
 <p><b>Sumar en vez de concatenar.</b> Sumar mantiene la dimensión \(d\); la red aprende a usar direcciones distintas para «qué palabra» y «dónde está». La posición 0 (el token <code>&lt;s&gt;</code>) recibe \(\sin 0 = 0\) y \(\cos 0 = 1\) alternados.</p>
-<p><b>Aprendida.</b> Si eliges la codificación aprendida (<code>learned</code>), \(P_{\text{pos}}\) es un parámetro de maxLen×d que se entrena como \(E\); no sabe nada de posiciones que nunca vio.</p>`,
+<p><b>Aprendida.</b> Si eliges la codificación aprendida, \(P_{\text{pos}}\) es un parámetro de \(T_{\max}\times d\) que se entrena como \(E\); no sabe nada de posiciones que nunca vio.</p>`,
     code: `pos = np.arange(T)[:, None]; w = 10000.0 ** (-np.arange(0, d, 2) / d)
 PE = np.zeros((T, d)); PE[:, 0::2] = np.sin(pos * w); PE[:, 1::2] = np.cos(pos * w)
 X0 = X_emb + PE                 # (T, d)`,
@@ -163,7 +167,7 @@ X0 = X_emb + PE                 # (T, d)`,
     summary: 'Cada token (cada fila) se normaliza para que sus d valores tengan media 0 y varianza 1, y luego se reescala con γ₁ y se desplaza con β₁.',
     intuition: R`<p>Antes de comparar tokens entre sí conviene ponerlos en una escala común. LayerNorm mira cada fila por separado, le resta su media y la divide por su desviación típica: así ninguna fila entra en la atención con números gigantes o minúsculos. Después, \(\gamma_1\) y \(\beta_1\) (aprendibles) permiten a la red deshacer parte de la normalización si le conviene. Es la misma idea que convertir unas notas en «puntuaciones z», pero aplicada a los \(d\) números de cada token por separado.</p>`,
     math: [
-      R`\mu_t = \frac1d\sum_{j=1}^d x_{tj},\qquad \sigma_t^2 = \frac1d\sum_{j=1}^d (x_{tj}-\mu_t)^2`,
+      R`\mu_t = \frac1d\sum_{j=0}^{d-1} x_{tj},\qquad \sigma_t^2 = \frac1d\sum_{j=0}^{d-1} (x_{tj}-\mu_t)^2`,
       R`\hat x_{tj} = \frac{x_{tj}-\mu_t}{\sqrt{\sigma_t^2+\varepsilon}}`,
       R`H = \mathrm{LN}_1\big(X^{[l-1]}\big) = \gamma_1\odot\hat X + \beta_1`,
     ],
@@ -185,7 +189,7 @@ H = gamma1 * Xhat + beta1       # gamma1, beta1: (1, d) difundidos a las T filas
     intuition: R`<p>En la atención cada token desempeña tres papeles, y para cada uno se crea una versión distinta de su vector. La <b>consulta</b> \(\mathbf q_t\) expresa qué información necesita el token \(t\) para hacer su predicción: un verbo como «come» podría necesitar saber «¿quién es el sujeto?». \(W_Q\) es una matriz aprendida que decide qué combinaciones de características de \(H\) forman esa pregunta.</p>`,
     math: [
       R`Q = H\,W_Q`,
-      R`\mathbf q_t = \mathbf h_t\,W_Q,\qquad Q_{ti} = \sum_{j=1}^d H_{tj}\,(W_Q)_{ji}`,
+      R`\mathbf q_t = \mathbf h_t\,W_Q,\qquad Q_{ti} = \sum_{j=0}^{d-1} H_{tj}\,(W_Q)_{ji}`,
     ],
     shapes: dims(R`(T\times d)\cdot(d\times d)\to(T\times d)`,
       R`<code>{T}×{d}</code> · <code>{d}×{d}</code> → <code>{T}×{d}</code>`,
@@ -257,7 +261,7 @@ H = gamma1 * Xhat + beta1       # gamma1, beta1: (1, d) difundidos a las T filas
     intuition: R`<p>La entrada \((i,j)\) de \(S_h\) responde a la pregunta «¿cuánto le interesa al token \(i\) el token \(j\)?». Se calcula como el producto escalar \(\mathbf q_i\cdot\mathbf k_j\): grande y positivo cuando los dos vectores apuntan en direcciones parecidas, cercano a cero cuando son perpendiculares y negativo cuando se oponen. Es como un buscador: la consulta es lo que escribes y cada clave es la etiqueta de un documento.</p>`,
     math: [
       R`S_h = Q_h\,K_h^{\top}`,
-      R`(S_h)_{ij} = \mathbf q_i\cdot\mathbf k_j = \sum_{m=1}^{d_k}(Q_h)_{im}\,(K_h)_{jm}`,
+      R`(S_h)_{ij} = \mathbf q_i\cdot\mathbf k_j = \sum_{m=0}^{d_k-1}(Q_h)_{im}\,(K_h)_{jm}`,
     ],
     shapes: dims(R`(T\times d_k)\cdot(d_k\times T)\to(T\times T)`,
       R`<code>{T}×{dk}</code> · <code>{dk}×{T}</code> → <code>{T}×{T}</code> (cabeza {hd} de {h}); {T}·{T}·{dk} operaciones de multiplicar y sumar`,
@@ -275,7 +279,7 @@ H = gamma1 * Xhat + beta1       # gamma1, beta1: (1, d) difundidos a las T filas
     intuition: R`<p>Un producto escalar suma \(d_k\) términos, así que cuantas más dimensiones tienen las consultas y las claves, mayores tienden a ser las puntuaciones. Si son muy grandes, el softmax elige casi siempre una sola clave con probabilidad ≈ 1 y deja de aprender (sus derivadas casi se anulan). Dividir por \(\sqrt{d_k}\) es como bajar el volumen a un nivel en el que el softmax sigue siendo sensible a las diferencias.</p>`,
     math: [
       R`\tilde S_h = \frac{S_h}{\sqrt{d_k}}`,
-      R`\operatorname{Var}(\mathbf q\cdot\mathbf k) = \sum_{m=1}^{d_k}\operatorname{Var}(q_mk_m) = d_k\ \ \Longrightarrow\ \ \operatorname{Var}\!\Big(\frac{\mathbf q\cdot\mathbf k}{\sqrt{d_k}}\Big) = 1`,
+      R`\operatorname{Var}(\mathbf q\cdot\mathbf k) = \sum_{m=0}^{d_k-1}\operatorname{Var}(q_mk_m) = d_k\ \ \Longrightarrow\ \ \operatorname{Var}\!\Big(\frac{\mathbf q\cdot\mathbf k}{\sqrt{d_k}}\Big) = 1`,
     ],
     shapes: dims(R`(T\times T)\to(T\times T)`,
       R`<code>{T}×{T}</code> → <code>{T}×{T}</code>, multiplicando cada entrada por \(1/\sqrt{ {dk} }\)`,
@@ -313,14 +317,14 @@ S_hat = S_tilde + M`,
     intuition: R`<p>El softmax hace dos cosas: exponencia (todo pasa a ser positivo y las diferencias se amplifican) y normaliza (cada fila suma 1). La fila \(i\) de \(A_h\) es el <b>presupuesto de atención</b> del token \(i\): el 100 % repartido entre los tokens que puede ver. En los mapas violetas, cuanto más intenso el color de la celda, más atención.</p>`,
     math: [
       R`A_h = \operatorname{softmax}_{\text{fila}}(\hat S_h)`,
-      R`(A_h)_{ij} = \frac{e^{(\hat S_h)_{ij}}}{\sum_{k\le i} e^{(\hat S_h)_{ik}}}\ \text{ si } j\le i,\qquad (A_h)_{ij} = 0\ \text{ si } j > i`,
+      R`(A_h)_{ij} = \begin{cases}\dfrac{e^{(\hat S_h)_{ij}}}{\sum_{k\le i} e^{(\hat S_h)_{ik}}} & j\le i\\[4pt] 0 & j > i\end{cases}`,
       R`\sum_j (A_h)_{ij} = 1,\qquad (A_h)_{ij}\ge 0`,
     ],
     shapes: dims(R`(T\times T)\to(T\times T)`,
       R`<code>{T}×{T}</code> → <code>{T}×{T}</code> (cabeza {hd})`,
       R`Se normaliza cada fila por separado. Cálculos auxiliares: el máximo de cada fila (\(T\times 1\)), las exponenciales (\(T\times T\)) y la suma de cada fila (\(T\times 1\)).`),
     details: R`<p><b>Qué significan los números.</b> \((A_h)_{ij}\) es la fracción de atención que el token \(i\) dedica al token \(j\). Cada fila suma 1 y las entradas enmascaradas valen exactamente 0. La primera fila siempre es \([1, 0, \dots, 0]\): el token <code>&lt;s&gt;</code> solo puede mirarse a sí mismo.</p>
-<p><b>Antes y después de entrenar.</b> Al principio las puntuaciones se parecen y cada fila es casi uniforme: el token en la posición \(t\) (contando desde 1) reparte aproximadamente \(1/t\) a cada una de sus \(t\) posiciones visibles. Tras entrenar, verás filas concentradas: la fila de «come» debería cargar su peso en «gato» o «perro», que es lo que decide entre «pescado» y «carne».</p>
+<p><b>Antes y después de entrenar.</b> Al principio los pesos vienen de proyecciones aleatorias: algunas filas ya pueden estar bastante concentradas, pero en tokens que no tienen que ver con la tarea, así que ese reparto todavía no significa nada (sería ≈ \(1/(i+1)\) por posición visible solo si las puntuaciones de la fila \(i\) fueran casi iguales). Tras entrenar, verás filas concentradas con sentido: la fila de «come» debería cargar su peso en «gato» o «perro», que es lo que decide entre «pescado» y «carne». Para verlo, entrena unas 200 iteraciones en «Entrenamiento» y vuelve con «Ver una iteración paso a paso».</p>
 <p><b>Estabilidad numérica.</b> Se resta el máximo de cada fila antes de exponenciar. El resultado no cambia (el factor \(e^{-\max}\) se cancela entre numerador y denominador), pero se evita que \(e^{s}\) se desborde.</p>
 <p><b>Error típico.</b> Normalizar por columnas en vez de por filas: entonces serían las claves, y no las consultas, las que repartirían su presupuesto.</p>`,
     code: `e = np.exp(S_hat - S_hat.max(1, keepdims=True))   # exp(-inf) = 0
@@ -405,7 +409,7 @@ A = e / e.sum(1, keepdims=True)                    # cada fila suma 1`,
     summary: 'Cada fila de R se normaliza antes de pasar a la red feed-forward, con sus propios parámetros γ₂ y β₂.',
     intuition: R`<p>Es la misma operación que LayerNorm 1, ahora sobre \(R\), que ya contiene el contexto aportado por la atención. La FFN recibe así cada token en una escala controlada. El flujo residual \(R\) no se modifica: la versión normalizada \(H'\) solo alimenta a la FFN.</p>`,
     math: [
-      R`\mu_t = \frac1d\sum_{j=1}^d R_{tj},\qquad \sigma_t^2 = \frac1d\sum_{j=1}^d (R_{tj}-\mu_t)^2`,
+      R`\mu_t = \frac1d\sum_{j=0}^{d-1} R_{tj},\qquad \sigma_t^2 = \frac1d\sum_{j=0}^{d-1} (R_{tj}-\mu_t)^2`,
       R`H' = \mathrm{LN}_2(R) = \gamma_2\odot\frac{R-\mu}{\sqrt{\sigma^2+\varepsilon}} + \beta_2`,
     ],
     shapes: dims(R`(T\times d)\to(T\times d)`,
@@ -425,7 +429,7 @@ H2 = gamma2 * (R - mu) / np.sqrt(var + eps) + beta2   # H' (T, d)`,
     intuition: R`<p>Si la atención es el momento de <b>reunir información</b> de otros tokens, la FFN es el momento de <b>procesarla</b>, token a token. Esta primera capa lineal expande cada vector de \(d\) a \(d_{\text{ff}}\) dimensiones: cada columna de \(W_1\) actúa como un detector de un patrón («¿el sujeto es un gato y el verbo es comer?») y \(b_1\) fija su umbral. Más dimensiones significan sitio para más detectores distintos.</p>`,
     math: [
       R`U = H'\,W_1 + \mathbf 1\,b_1`,
-      R`U_{tk} = \sum_{j=1}^d H'_{tj}\,(W_1)_{jk} + (b_1)_k`,
+      R`U_{tk} = \sum_{j=0}^{d-1} H'_{tj}\,(W_1)_{jk} + (b_1)_k`,
     ],
     shapes: dims(R`(T\times d)\cdot(d\times d_{\text{ff}}) + (1\times d_{\text{ff}})\to(T\times d_{\text{ff}})`,
       R`<code>{T}×{d}</code> · <code>{d}×{dff}</code> + <code>1×{dff}</code> → <code>{T}×{dff}</code>`,
@@ -444,7 +448,7 @@ H2 = gamma2 * (R - mu) / np.sqrt(var + eps) + beta2   # H' (T, d)`,
     math: [
       R`G = f(U)\quad\text{(elemento a elemento)}`,
       R`\mathrm{ReLU}(u) = \max(0, u)`,
-      R`\mathrm{GELU}(u) \approx \tfrac12\,u\,\Big(1+\tanh\!\big(\sqrt{2/\pi}\,(u + 0.044715\,u^3)\big)\Big)`,
+      R`\mathrm{GELU}(u) \approx \tfrac12\,u\,\big(1+\tanh a\big),\quad a = \sqrt{2/\pi}\,(u + 0.044715\,u^3)`,
     ],
     shapes: dims(R`(T\times d_{\text{ff}})\to(T\times d_{\text{ff}})`,
       R`<code>{T}×{dff}</code> → <code>{T}×{dff}</code>`,
@@ -463,7 +467,7 @@ H2 = gamma2 * (R - mu) / np.sqrt(var + eps) + beta2   # H' (T, d)`,
     intuition: R`<p>Cada neurona \(k\) tiene asociada una fila de \(W_2\): la dirección que «escribe» en el flujo residual cuando se activa. La salida de un token es la suma de las direcciones de sus neuronas encendidas, cada una multiplicada por su intensidad. Juntas, \(W_1\) y \(W_2\) funcionan como una memoria clave–valor: \(W_1\) reconoce un patrón y \(W_2\) dice qué añadir cuando aparece.</p>`,
     math: [
       R`F = G\,W_2 + \mathbf 1\,b_2`,
-      R`F_{t,:} = \sum_{k=1}^{d_{\text{ff}}} G_{tk}\,(W_2)_{k,:} + b_2`,
+      R`F_{t,:} = \sum_{k=0}^{d_{\text{ff}}-1} G_{tk}\,(W_2)_{k,:} + b_2`,
     ],
     shapes: dims(R`(T\times d_{\text{ff}})\cdot(d_{\text{ff}}\times d) + (1\times d)\to(T\times d)`,
       R`<code>{T}×{dff}</code> · <code>{dff}×{d}</code> + <code>1×{d}</code> → <code>{T}×{d}</code>`,
@@ -538,7 +542,7 @@ Hf = gamma_f * (XN - mu) / np.sqrt(var + eps) + beta_f   # (T, d)`,
     intuition: R`<p>El mismo softmax de la atención, ahora sobre las \(V\) columnas del vocabulario y sin máscara. \(P_{tj}\) es la probabilidad que el modelo asigna a que la palabra \(j\) siga al token de la fila \(t\), habiendo visto solo ese token y los anteriores. Cada fila es una apuesta completa: el 100 % repartido entre todas las palabras posibles.</p>`,
     math: [
       R`P = \operatorname{softmax}_{\text{fila}}(\mathrm{logits})`,
-      R`P_{tj} = \frac{e^{\mathrm{logits}_{tj}}}{\sum_{k=1}^V e^{\mathrm{logits}_{tk}}}`,
+      R`P_{tj} = \frac{e^{\mathrm{logits}_{tj}}}{\sum_{k=0}^{V-1} e^{\mathrm{logits}_{tk}}}`,
     ],
     shapes: dims(R`(T\times V)\to(T\times V)`,
       R`<code>{T}×{V}</code> → <code>{T}×{V}</code>`,
@@ -556,8 +560,8 @@ P = e / e.sum(1, keepdims=True)                # (T, V), cada fila suma 1`,
     summary: 'Se mide lo sorprendido que queda el modelo con la palabra correcta: la media de −log de la probabilidad que asignó a cada objetivo.',
     intuition: R`<p>Si el modelo dio probabilidad 1 a la palabra correcta, la pérdida es 0; con probabilidad 0.5, vale 0.69; con 0.01, vale 4.6. El logaritmo castiga con dureza los errores cometidos con mucha confianza. En cada fila solo cuenta la probabilidad de la palabra correcta (la one-hot \(Y\) la selecciona), y se promedia sobre las \(T\) posiciones.</p>`,
     math: [
-      R`\mathcal L = -\frac1T\sum_{t=1}^T \log P_{t,\,y_t}`,
-      R`\mathcal L = -\frac1T\sum_{t=1}^T\sum_{j=1}^V Y_{tj}\,\log P_{tj}`,
+      R`\mathcal L = -\frac1T\sum_{t=0}^{T-1} \log P_{t,\,y_t}`,
+      R`\mathcal L = -\frac1T\sum_{t=0}^{T-1}\sum_{j=0}^{V-1} Y_{tj}\,\log P_{tj}`,
       R`\text{perplejidad} = e^{\mathcal L}`,
     ],
     shapes: dims(R`(T\times V),\ (T\times V)\to(T\times 1)\to(1\times 1)`,
@@ -574,7 +578,7 @@ P = e / e.sum(1, keepdims=True)                # (T, V), cada fila suma 1`,
   steps['bwd.ce'] = {
     title: 'Gradiente de la pérdida respecto de los logits',
     summary: 'El backward empieza con una fórmula sorprendentemente simple: dlogits = (P − Y) / T.',
-    intuition: R`<p>El backward recorre el mismo camino que el forward, pero al revés, calculando para cada tensor cuánto afecta a la pérdida. Empieza con una fórmula muy sencilla: el gradiente de los logits es «lo que predije menos lo que debía predecir». En la palabra correcta vale \((P_{t,y_t}-1)/T\), un número negativo: el descenso por gradiente subirá su logit. En las demás vale \(P_{tj}/T\), positivo: se bajarán, tanto más cuanta más probabilidad se les dio por error.</p>`,
+    intuition: R`<p>El backward recorre el mismo camino que el forward, pero al revés, calculando para cada tensor cuánto afecta a la pérdida. Empieza con una fórmula muy sencilla: el gradiente de los logits es «lo que predije menos lo que debía predecir». En la palabra correcta vale \((P_{t,y_t}-1)/T\), un número negativo; en las demás, \(P_{tj}/T\), positivo. Al actualizar los parámetros en contra del gradiente, el logit correcto tenderá a subir en la próxima iteración y los demás a bajar, tanto más cuanta más probabilidad se les dio por error. Los logits no se modifican directamente: cambian \(W_{\text{out}}\), \(E\), \(W_Q\)… que los producen.</p>`,
     math: [
       R`\mathrm d\,\mathrm{logits} = \frac1T\,(P - Y)`,
       R`\frac{\partial\mathcal L}{\partial\,\mathrm{logits}_{tj}} = \frac1T\big(P_{tj} - Y_{tj}\big)`,
@@ -598,7 +602,7 @@ dlogits /= T                    # (T, V)`,
     intuition: R`<p>Cada peso \((W_{\text{out}})_{kj}\) conecta la característica \(k\) del vector final con la palabra \(j\). Su gradiente suma, sobre todas las posiciones, «cuánto valía la característica \(k\)» por «cuánto error hubo en la palabra \(j\)». Si la característica \(k\) estaba alta en posiciones donde la palabra \(j\) debía ser más probable, ese peso crecerá. Es la regla universal de toda capa lineal: <b>entrada traspuesta por error</b>.</p>`,
     math: [
       R`\mathrm dW_{\text{out}} = H_f^{\top}\,\mathrm d\,\mathrm{logits}`,
-      R`(\mathrm dW_{\text{out}})_{kj} = \sum_{t=1}^T (H_f)_{tk}\,(\mathrm d\,\mathrm{logits})_{tj}`,
+      R`(\mathrm dW_{\text{out}})_{kj} = \sum_{t=0}^{T-1} (H_f)_{tk}\,(\mathrm d\,\mathrm{logits})_{tj}`,
     ],
     shapes: dims(R`(d\times T)\cdot(T\times V)\to(d\times V)`,
       R`<code>{d}×{T}</code> · <code>{T}×{V}</code> → <code>{d}×{V}</code>`,
@@ -616,7 +620,7 @@ dlogits /= T                    # (T, V)`,
     intuition: R`<p>Ahora el error viaja hacia atrás por la misma matriz, traspuesta. El gradiente del vector final del token \(t\) es una combinación de los «retratos» de las palabras (las columnas de \(W_{\text{out}}\)), ponderada por el error de cada una. Como el error es negativo en la palabra correcta y positivo en las demás, el descenso por gradiente empujará \(\mathbf h_{f,t}\) hacia el retrato de la palabra correcta y lo alejará de las que predijo por error.</p>`,
     math: [
       R`\mathrm dH_f = \mathrm d\,\mathrm{logits}\;W_{\text{out}}^{\top}`,
-      R`(\mathrm dH_f)_{tk} = \sum_{j=1}^V (\mathrm d\,\mathrm{logits})_{tj}\,(W_{\text{out}})_{kj}`,
+      R`(\mathrm dH_f)_{tk} = \sum_{j=0}^{V-1} (\mathrm d\,\mathrm{logits})_{tj}\,(W_{\text{out}})_{kj}`,
     ],
     shapes: dims(R`(T\times V)\cdot(V\times d)\to(T\times d)`,
       R`<code>{T}×{V}</code> · <code>{V}×{d}</code> → <code>{T}×{d}</code>`,
@@ -676,7 +680,7 @@ dR_skip = dX_l.copy()           # atajo: se sumará más tarde`,
     intuition: R`<p>Cada peso \((W_2)_{kj}\) decide cuánto escribe la neurona \(k\) en la componente \(j\) del flujo residual. Su gradiente es «actividad de la neurona» × «error de esa componente», sumado sobre las posiciones. Una neurona que estuvo apagada (\(G_{tk} = 0\)) en todos los tokens no recibe gradiente: no puede aprender qué escribir si no ha participado.</p>`,
     math: [
       R`\mathrm dW_2 = G^{\top}\,\mathrm dF`,
-      R`(\mathrm dW_2)_{kj} = \sum_{t=1}^T G_{tk}\,\mathrm dF_{tj}`,
+      R`(\mathrm dW_2)_{kj} = \sum_{t=0}^{T-1} G_{tk}\,\mathrm dF_{tj}`,
     ],
     shapes: dims(R`(d_{\text{ff}}\times T)\cdot(T\times d)\to(d_{\text{ff}}\times d)`,
       R`<code>{dff}×{T}</code> · <code>{T}×{d}</code> → <code>{dff}×{d}</code>`,
@@ -694,7 +698,7 @@ dR_skip = dX_l.copy()           # atajo: se sumará más tarde`,
     summary: 'El sesgo se sumó a todas las filas, así que su gradiente es la suma de las filas de dF: db_2 = Σ_t dF_t.',
     intuition: R`<p>El sesgo \(b_2\) se sumó a todas las posiciones por igual, así que cada posición aporta su propio error y el gradiente del sesgo es la suma de todos ellos: si subir \(b_2\) ayuda en tres posiciones, ayuda el triple. Es un caso particular de una regla general: <b>lo que en el forward se copia (difusión), en el backward se suma</b>.</p>`,
     math: [
-      R`\mathrm db_2 = \sum_{t=1}^T \mathrm dF_{t,:} = \mathbf 1^{\top}\,\mathrm dF`,
+      R`\mathrm db_2 = \sum_{t=0}^{T-1} \mathrm dF_{t,:} = \mathbf 1^{\top}\,\mathrm dF`,
     ],
     shapes: dims(R`(T\times d)\to(1\times d)`,
       R`<code>{T}×{d}</code> → <code>1×{d}</code>`,
@@ -713,7 +717,7 @@ dR_skip = dX_l.copy()           # atajo: se sumará más tarde`,
     intuition: R`<p>El error de cada token (\(\mathrm dF_{t,:}\), \(d\) números) se traduce en un error para cada una de sus \(d_{\text{ff}}\) neuronas. La neurona \(k\) escribe en la dirección \((W_2)_{k,:}\); su gradiente es el producto escalar de esa dirección con el error. Si escribir más en esa dirección hubiera reducido la pérdida, el gradiente es negativo y el modelo querrá que esa neurona se active más.</p>`,
     math: [
       R`\mathrm dG = \mathrm dF\,W_2^{\top}`,
-      R`\mathrm dG_{tk} = \sum_{j=1}^d \mathrm dF_{tj}\,(W_2)_{kj}`,
+      R`\mathrm dG_{tk} = \sum_{j=0}^{d-1} \mathrm dF_{tj}\,(W_2)_{kj}`,
     ],
     shapes: dims(R`(T\times d)\cdot(d\times d_{\text{ff}})\to(T\times d_{\text{ff}})`,
       R`<code>{T}×{d}</code> · <code>{d}×{dff}</code> → <code>{T}×{dff}</code>`,
@@ -733,7 +737,8 @@ dR_skip = dX_l.copy()           # atajo: se sumará más tarde`,
     math: [
       R`\mathrm dU = \mathrm dG\odot f'(U)`,
       R`\mathrm{ReLU}'(u) = \begin{cases} 1 & u > 0\\ 0 & u\le 0\end{cases}`,
-      R`\mathrm{GELU}'(u) = \tfrac12\big(1+\tanh a\big) + \tfrac12\,u\,\big(1-\tanh^2 a\big)\sqrt{2/\pi}\,\big(1 + 3\cdot 0.044715\,u^2\big),\quad a = \sqrt{2/\pi}\,(u + 0.044715\,u^3)`,
+      R`\mathrm{GELU}'(u) = \tfrac12\big(1+\tanh a\big) + \tfrac12\,u\,\big(1-\tanh^2 a\big)\,a'(u)`,
+      R`a = \sqrt{2/\pi}\,(u + 0.044715\,u^3),\quad a'(u) = \sqrt{2/\pi}\,\big(1 + 3\cdot 0.044715\,u^2\big)`,
     ],
     shapes: dims(R`(T\times d_{\text{ff}})\odot(T\times d_{\text{ff}})\to(T\times d_{\text{ff}})`,
       R`<code>{T}×{dff}</code> ⊙ <code>{T}×{dff}</code> → <code>{T}×{dff}</code>`,
@@ -752,7 +757,7 @@ dR_skip = dX_l.copy()           # atajo: se sumará más tarde`,
     intuition: R`<p>Cada columna \(k\) de \(W_1\) es el detector de la neurona \(k\). Su gradiente combina lo que el detector vio (las filas de \(H'\)) con el error que la neurona recibió (\(\mathrm dU_{:,k}\)). Si la neurona debería haberse activado más ante cierto token, el descenso por gradiente girará su detector hacia el vector de ese token; si debería haberse activado menos, lo alejará.</p>`,
     math: [
       R`\mathrm dW_1 = H'^{\top}\,\mathrm dU`,
-      R`(\mathrm dW_1)_{jk} = \sum_{t=1}^T H'_{tj}\,\mathrm dU_{tk}`,
+      R`(\mathrm dW_1)_{jk} = \sum_{t=0}^{T-1} H'_{tj}\,\mathrm dU_{tk}`,
     ],
     shapes: dims(R`(d\times T)\cdot(T\times d_{\text{ff}})\to(d\times d_{\text{ff}})`,
       R`<code>{d}×{T}</code> · <code>{T}×{dff}</code> → <code>{d}×{dff}</code>`,
@@ -770,7 +775,7 @@ dR_skip = dX_l.copy()           # atajo: se sumará más tarde`,
     summary: 'db_1 = Σ_t dU_t: la suma de las filas de dU, porque b_1 se difundió a todas las posiciones.',
     intuition: R`<p>\(b_1\) es el umbral de cada neurona: cuánto le cuesta encenderse. Su gradiente acumula, sobre todas las posiciones, el error que recibió cada neurona. Un gradiente negativo significa que la pérdida bajaría si la neurona se activara con más facilidad, y el descenso por gradiente subirá su sesgo.</p>`,
     math: [
-      R`\mathrm db_1 = \sum_{t=1}^T \mathrm dU_{t,:} = \mathbf 1^{\top}\,\mathrm dU`,
+      R`\mathrm db_1 = \sum_{t=0}^{T-1} \mathrm dU_{t,:} = \mathbf 1^{\top}\,\mathrm dU`,
     ],
     shapes: dims(R`(T\times d_{\text{ff}})\to(1\times d_{\text{ff}})`,
       R`<code>{T}×{dff}</code> → <code>1×{dff}</code>`,
@@ -788,7 +793,7 @@ dR_skip = dX_l.copy()           # atajo: se sumará más tarde`,
     intuition: R`<p>El error regresa de las \(d_{\text{ff}}\) neuronas a las \(d\) dimensiones del token. Cada neurona activa devuelve su error a lo largo de su propio detector (su columna de \(W_1\)) y las contribuciones de todas las neuronas se suman. Con esto se completa el backward de la FFN.</p>`,
     math: [
       R`\mathrm dH' = \mathrm dU\,W_1^{\top}`,
-      R`\mathrm dH'_{tj} = \sum_{k=1}^{d_{\text{ff}}} \mathrm dU_{tk}\,(W_1)_{jk}`,
+      R`\mathrm dH'_{tj} = \sum_{k=0}^{d_{\text{ff}}-1} \mathrm dU_{tk}\,(W_1)_{jk}`,
     ],
     shapes: dims(R`(T\times d_{\text{ff}})\cdot(d_{\text{ff}}\times d)\to(T\times d)`,
       R`<code>{T}×{dff}</code> · <code>{dff}×{d}</code> → <code>{T}×{d}</code>`,
@@ -870,7 +875,7 @@ dX_skip = dR.copy()             # atajo hacia la entrada de la capa`,
     intuition: R`<p>\(W_O\) aprende a combinar lo que encontraron las cabezas. Su gradiente cruza lo que produjo cada cabeza (las columnas de \(Z\)) con el error que llega por la rama de atención (\(\mathrm dO\)). Si una cabeza había encontrado al sujeto y eso era justo lo que faltaba para reducir la pérdida, los pesos que llevan esa información al flujo residual se refuerzan.</p>`,
     math: [
       R`\mathrm dW_O = Z^{\top}\,\mathrm dO`,
-      R`(\mathrm dW_O)_{kj} = \sum_{t=1}^T Z_{tk}\,\mathrm dO_{tj}`,
+      R`(\mathrm dW_O)_{kj} = \sum_{t=0}^{T-1} Z_{tk}\,\mathrm dO_{tj}`,
     ],
     shapes: dims(R`(d\times T)\cdot(T\times d)\to(d\times d)`,
       R`<code>{d}×{T}</code> · <code>{T}×{d}</code> → <code>{d}×{d}</code>`,
@@ -924,7 +929,7 @@ dX_skip = dR.copy()             # atajo hacia la entrada de la capa`,
     intuition: R`<p>\((\mathrm dA_h)_{ij}\) responde a «¿habría bajado la pérdida si el token \(i\) hubiera atendido un poco más al token \(j\)?». Si el valor de \(j\) apunta en la dirección hacia la que la salida de \(i\) «quería moverse», la respuesta es sí (gradiente negativo). Así aprende la atención a mirar a los tokens cuyo contenido es útil.</p>`,
     math: [
       R`\mathrm dA_h = \mathrm dZ_h\,V_h^{\top}`,
-      R`(\mathrm dA_h)_{ij} = \mathrm d\mathbf z_i\cdot\mathbf v_j = \sum_{m=1}^{d_k}(\mathrm dZ_h)_{im}\,(V_h)_{jm}`,
+      R`(\mathrm dA_h)_{ij} = \mathrm d\mathbf z_i\cdot\mathbf v_j = \sum_{m=0}^{d_k-1}(\mathrm dZ_h)_{im}\,(V_h)_{jm}`,
     ],
     shapes: dims(R`(T\times d_k)\cdot(d_k\times T)\to(T\times T)`,
       R`<code>{T}×{dk}</code> · <code>{dk}×{T}</code> → <code>{T}×{T}</code> (cabeza {hd})`,
@@ -1073,7 +1078,7 @@ dS_hat = A * (dA - rowdot)                # (T, T)`,
     intuition: R`<p>\(W_Q\) decide qué pregunta formula cada token. Su gradiente combina lo que había en \(H\) con cómo debían cambiar las consultas. Si el token «come» debía buscar más al sujeto, se ajustan los pesos que construyen esa búsqueda a partir de las características de «come».</p>`,
     math: [
       R`\mathrm dW_Q = H^{\top}\,\mathrm dQ`,
-      R`(\mathrm dW_Q)_{ji} = \sum_{t=1}^T H_{tj}\,\mathrm dQ_{ti}`,
+      R`(\mathrm dW_Q)_{ji} = \sum_{t=0}^{T-1} H_{tj}\,\mathrm dQ_{ti}`,
     ],
     shapes: dims(R`(d\times T)\cdot(T\times d)\to(d\times d)`,
       R`<code>{d}×{T}</code> · <code>{T}×{d}</code> → <code>{d}×{d}</code>`,
@@ -1090,7 +1095,7 @@ dS_hat = A * (dA - rowdot)                # (T, T)`,
     intuition: R`<p>\(W_K\) decide cómo se anuncia cada token. Su gradiente combina \(H\) con cómo debían cambiar las claves: si «gato» debía ser más fácil de encontrar para la consulta de «come», se ajustan los pesos que construyen la clave a partir de las características de «gato».</p>`,
     math: [
       R`\mathrm dW_K = H^{\top}\,\mathrm dK`,
-      R`(\mathrm dW_K)_{ji} = \sum_{t=1}^T H_{tj}\,\mathrm dK_{ti}`,
+      R`(\mathrm dW_K)_{ji} = \sum_{t=0}^{T-1} H_{tj}\,\mathrm dK_{ti}`,
     ],
     shapes: dims(R`(d\times T)\cdot(T\times d)\to(d\times d)`,
       R`<code>{d}×{T}</code> · <code>{T}×{d}</code> → <code>{d}×{d}</code>`,
@@ -1107,7 +1112,7 @@ dS_hat = A * (dA - rowdot)                # (T, T)`,
     intuition: R`<p>\(W_V\) decide qué información entrega cada token cuando otros le prestan atención. Su gradiente combina \(H\) con cómo debían cambiar los valores: si el valor de «gato» debía llevar más claramente la pista «pescado», se ajustan los pesos que lo construyen.</p>`,
     math: [
       R`\mathrm dW_V = H^{\top}\,\mathrm dV`,
-      R`(\mathrm dW_V)_{ji} = \sum_{t=1}^T H_{tj}\,\mathrm dV_{ti}`,
+      R`(\mathrm dW_V)_{ji} = \sum_{t=0}^{T-1} H_{tj}\,\mathrm dV_{ti}`,
     ],
     shapes: dims(R`(d\times T)\cdot(T\times d)\to(d\times d)`,
       R`<code>{d}×{T}</code> · <code>{T}×{d}</code> → <code>{d}×{d}</code>`,
@@ -1231,11 +1236,11 @@ dX_ln = r * (dxhat - dxhat.mean(1, keepdims=True)
     intuition: R`<p>En el forward, la entrada a la primera capa era una suma: embedding + posición. En el backward el gradiente se copia a los dos sumandos. Con la codificación <b>sinusoidal</b> la tabla de posiciones es fija, así que su copia no se usa para nada; con la <b>aprendida</b>, las filas de \(P_{\text{pos}}\) de las posiciones usadas reciben el gradiente y se actualizarán.</p>`,
     math: [
       R`\mathrm dX_{\text{emb}} = \mathrm dX^{[0]}`,
-      R`\text{(aprendida)}\qquad \mathrm d(P_{\text{pos}})_{0:T} = \mathrm dX^{[0]},\qquad \mathrm d(P_{\text{pos}})_{T:\text{maxLen}} = 0`,
+      R`\text{(aprendida)}\qquad \mathrm d(P_{\text{pos}})_{0:T} = \mathrm dX^{[0]},\qquad \mathrm d(P_{\text{pos}})_{T:T_{\max}} = 0`,
     ],
     shapes: dims(R`(T\times d)\to(T\times d)`,
       R`<code>{T}×{d}</code> → \(\mathrm dX_{\text{emb}}\): <code>{T}×{d}</code> (y, si es aprendida, las primeras {T} filas de \(\mathrm dP_{\text{pos}}\))`,
-      R`\(P_{\text{pos}}\) tiene maxLen filas; las posiciones que no aparecen en esta frase reciben gradiente 0.`),
+      R`\(P_{\text{pos}}\) tiene \(T_{\max}\) filas; las posiciones que no aparecen en esta frase reciben gradiente 0.`),
     details: R`<p><b>Derivación.</b> \(X^{[0]} = X_{\text{emb}} + PE_{0:T}\) es una suma: la derivada respecto de cada sumando es 1 y el gradiente se copia sin cambios, \(\mathrm dX_{\text{emb}} = \mathrm dX^{[0]}\).</p>
 <p><b>Sinusoidal.</b> \(PE\) es una función fija de la posición, sin parámetros: su gradiente existe (es el mismo \(\mathrm dX^{[0]}\)), pero no hay nada que actualizar.</p>
 <p><b>Aprendida.</b> La fila \(t\) de \(P_{\text{pos}}\) se sumó al token de la posición \(t\), así que recibe la fila \(t\) de \(\mathrm dX^{[0]}\) para las \(T\) posiciones usadas, y 0 el resto. Fíjate en la diferencia con el embedding: \(E\) se indexa por <em>qué</em> token es; \(P_{\text{pos}}\), por <em>dónde</em> está. La misma fila de \(P_{\text{pos}}\) aprende de todos los tokens que pasan por esa posición en distintas frases.</p>
@@ -1247,7 +1252,7 @@ if learned: dPpos[:T] += dX0    # solo con codificación aprendida`,
   steps['bwd.embed'] = {
     title: 'Gradiente de la tabla de embeddings',
     summary: 'dE = onehot(x)ᵀ · dX_emb: el gradiente de cada fila de E es la suma de los gradientes de las posiciones donde aparece ese token.',
-    intuition: R`<p>Último paso del backward. Cada fila de \(E\) se usó en las posiciones donde aparecía su token; su gradiente es la suma de los gradientes de esas posiciones. Las palabras que no aparecen en la frase reciben gradiente cero: en esta iteración, sus vectores no tienen nada que aprender.</p>`,
+    intuition: R`<p>Último paso del backward. Cada fila de \(E\) se usó en las posiciones donde aparecía su token; su gradiente es la suma de los gradientes de esas posiciones. Los tokens que no aparecen en la entrada (incluido el último de la frase, que solo es objetivo) reciben gradiente cero: en esta iteración, sus vectores no tienen nada que aprender.</p>`,
     math: [
       R`\mathrm dE = \operatorname{onehot}(\mathbf x)^{\top}\,\mathrm dX_{\text{emb}}`,
       R`\mathrm dE_{v,:} = \sum_{t\,:\,x_t = v}(\mathrm dX_{\text{emb}})_{t,:}`,
@@ -1270,13 +1275,13 @@ np.add.at(dE, ids, dX_emb)      # scatter-add: acumula tokens repetidos`,
     intuition: R`<p>El gradiente indica hacia dónde sube la pérdida, pero su longitud puede dispararse en una zona muy empinada. El recorte funciona como un límite de velocidad: conserva la <b>dirección</b> del paso y solo acota su <b>longitud</b>. Las barras muestran la norma del gradiente de cada parámetro: qué partes del modelo están recibiendo más señal en esta iteración.</p>`,
     math: [
       R`\|g\| = \sqrt{\sum_{\theta}\sum_{i,j}(\mathrm d\theta)_{ij}^2}`,
-      R`c = \min\!\Big(1,\ \frac{\tau}{\|g\|}\Big),\qquad \mathrm d\theta \leftarrow c\,\mathrm d\theta\quad\text{para todo parámetro }\theta`,
+      R`c = \min\!\Big(1,\ \frac{g_{\max}}{\|g\|}\Big),\qquad \mathrm d\theta \leftarrow c\,\mathrm d\theta\quad\text{para todo parámetro }\theta`,
     ],
     shapes: dims(R`\{\mathrm d\theta\}_{\theta}\ \to\ \|g\|\in\mathbb R`,
       R`todos los gradientes → 1 número (más una norma por parámetro); por ejemplo, \(\mathrm dW_Q\) aporta {d}·{d} componentes y \(\mathrm dE\), {V}·{d}`,
-      R`La norma global trata todos los gradientes como un único vector gigante, con tantas componentes como parámetros tiene el modelo. \(\tau\) es el umbral de recorte (<code>clip</code>).`),
+      R`La norma global trata todos los gradientes como un único vector gigante, con tantas componentes como parámetros tiene el modelo. \(g_{\max}\) es el umbral de recorte (<code>clip</code>).`),
     details: R`<p><b>Por qué medir la norma.</b> Es el termómetro del entrenamiento. Los picos repentinos indican que el modelo ha llegado a una zona muy empinada de la función de pérdida; una norma que cae hacia 0 indica que el aprendizaje se está deteniendo.</p>
-<p><b>Recorte global.</b> Si \(\|g\|\) supera el umbral \(\tau\), <em>todos</em> los gradientes se multiplican por el mismo factor \(c = \tau/\|g\|\lt 1\). La dirección de descenso se conserva; solo se limita la longitud del paso. Recortar cada parámetro por separado cambiaría la dirección. Si el recorte está desactivado, \(c = 1\).</p>
+<p><b>Recorte global.</b> Si \(\|g\|\) supera el umbral \(g_{\max}\), <em>todos</em> los gradientes se multiplican por el mismo factor \(c = g_{\max}/\|g\|\lt 1\). La dirección de descenso se conserva; solo se limita la longitud del paso. Recortar cada parámetro por separado cambiaría la dirección. Si el recorte está desactivado, \(c = 1\).</p>
 <p><b>Con Adam.</b> Adam divide por la magnitud típica de cada gradiente, así que un reescalado uniforme le afecta menos que a SGD. Aun así, el recorte evita que un pico aislado contamine los momentos \(m\) y \(v\) durante muchas iteraciones.</p>
 <p><b>Lotes.</b> En el entrenamiento normal, los gradientes de las frases del lote se promedian antes de medir la norma; en esta vista paso a paso, el gradiente es el de una sola frase.</p>`,
     code: `norm = np.sqrt(sum((g ** 2).sum() for g in grads.values()))
@@ -1290,17 +1295,18 @@ grads = {k: c * g for k, g in grads.items()}`,
     intuition: R`<p>El gradiente apunta hacia donde la pérdida crece más deprisa; para reducirla, nos movemos un poco en sentido contrario. \(\eta\) controla el tamaño del paso. <b>SGD</b> da un paso proporcional al gradiente. <b>Adam</b> añade dos ideas: <em>momento</em> (promediar los gradientes recientes para suavizar el ruido) y <em>escala adaptativa</em> (dividir por la magnitud típica del gradiente de cada número, para que todos avancen a un ritmo parecido).</p>`,
     math: [
       R`\text{SGD:}\qquad \theta \leftarrow \theta - \eta\,\mathrm d\theta`,
-      R`\text{Adam:}\qquad m \leftarrow \beta_1 m + (1-\beta_1)\,\mathrm d\theta,\qquad v \leftarrow \beta_2 v + (1-\beta_2)\,(\mathrm d\theta)^2`,
-      R`\hat m = \frac{m}{1-\beta_1^{\,t}},\qquad \hat v = \frac{v}{1-\beta_2^{\,t}}`,
+      R`\text{Adam:}\quad m \leftarrow \beta_{\text m}\, m + (1-\beta_{\text m})\,\mathrm d\theta`,
+      R`v \leftarrow \beta_{\text v}\, v + (1-\beta_{\text v})\,(\mathrm d\theta)^2`,
+      R`\hat m = \frac{m}{1-\beta_{\text m}^{\,t}},\qquad \hat v = \frac{v}{1-\beta_{\text v}^{\,t}}`,
       R`\theta \leftarrow \theta - \eta\,\frac{\hat m}{\sqrt{\hat v}+\epsilon}`,
     ],
     shapes: dims(R`\theta,\ \mathrm d\theta,\ m,\ v,\ \hat m,\ \hat v\ \ \text{tienen todos la misma forma}`,
       R`cada parámetro conserva su forma; por ejemplo, \(W_Q\): <code>{d}×{d}</code>, \(E\): <code>{V}×{d}</code>, \(W_1\): <code>{d}×{dff}</code>`,
       R`Todas las operaciones son elemento a elemento: cada número del parámetro tiene su propio \(m\), su propio \(v\) y, con Adam, su propio tamaño de paso efectivo.`),
     details: R`<p><b>SGD.</b> \(\theta\leftarrow\theta-\eta\,\mathrm d\theta\) con \(\eta = {lr}\): el paso es proporcional al gradiente. Es simple, pero muy sensible a la escala: los parámetros con gradientes pequeños apenas se mueven.</p>
-<p><b>Adam, término a término.</b> \(m\) es una media móvil del gradiente (el <em>momento</em>): suaviza el ruido y acumula velocidad en direcciones consistentes; con \(\beta_1 = 0.9\) recuerda unas 10 iteraciones. \(v\) es una media móvil del gradiente al cuadrado y estima su magnitud típica; con \(\beta_2 = 0.999\), unas 1000 iteraciones. Como \(m\) y \(v\) empiezan en 0, al principio están sesgados hacia 0; dividir por \(1-\beta^t\) (\(t\) = número de actualizaciones) corrige ese sesgo. El cociente \(\hat m/(\sqrt{\hat v}+\epsilon)\) no tiene unidades: en la primera iteración vale casi exactamente \(\pm 1\), así que cada número se mueve ≈ \(\eta\), sea cual sea el tamaño de su gradiente (salvo los que tienen gradiente exactamente 0, como las filas de \(E\) de palabras ausentes, que no se mueven). \(\epsilon\) (por defecto \(10^{-8}\)) evita dividir por 0.</p>
+<p><b>Adam, término a término.</b> \(m\) es una media móvil del gradiente (el <em>momento</em>): suaviza el ruido y acumula velocidad en direcciones consistentes; con \(\beta_{\text m} = 0.9\) recuerda unas 10 iteraciones. \(v\) es una media móvil del gradiente al cuadrado y estima su magnitud típica; con \(\beta_{\text v} = 0.999\), unas 1000 iteraciones. Como \(m\) y \(v\) empiezan en 0, al principio están sesgados hacia 0; dividir por \(1-\beta^t\) (\(t\) = número de actualizaciones) corrige ese sesgo. El cociente \(\hat m/(\sqrt{\hat v}+\epsilon)\) no tiene unidades: en la primera iteración vale casi exactamente \(\pm 1\), así que cada número se mueve ≈ \(\eta\), sea cual sea el tamaño de su gradiente (salvo los que tienen gradiente exactamente 0, como las filas de \(E\) de tokens que no están en la entrada, que no se mueven). \(\epsilon\) (por defecto \(10^{-8}\)) evita dividir por 0.</p>
 <p><b>Con recorte.</b> Si en el paso anterior se recortó el gradiente, aquí \(\mathrm d\theta\) es ya el gradiente reescalado, \(c\,\mathrm d\theta\).</p>
-<p><b>No confundir.</b> Los \(\beta_1\) y \(\beta_2\) de Adam son hiperparámetros; los \(\beta_1\) y \(\beta_2\) de LayerNorm son parámetros que se entrenan.</p>
+<p><b>No confundir.</b> Los coeficientes de Adam (\(\beta_{\text m} = 0.9\), \(\beta_{\text v} = 0.999\), que muchos textos llaman \(\beta_1\) y \(\beta_2\)) son hiperparámetros fijos; los \(\beta_1\), \(\beta_2\) y \(\beta_f\) de este modelo son los desplazamientos de las LayerNorm, parámetros que se entrenan (y se actualizan en esta misma fase).</p>
 <p><b>Qué observar.</b> \(\Delta\theta = \theta_{\text{nuevo}}-\theta\) suele ser diminuto. Tras actualizar todos los parámetros, la siguiente iteración verá (normalmente) una pérdida algo menor.</p>`,
     code: `m = b1 * m + (1 - b1) * g;   v = b2 * v + (1 - b2) * g ** 2
 mhat = m / (1 - b1 ** t);    vhat = v / (1 - b2 ** t)
@@ -1459,7 +1465,7 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
     'scale-why': {
       title: '¿Por qué dividir por √dₖ?',
       html: R`<p>Supongamos que, al inicio, las componentes de una consulta \(\mathbf q\) y de una clave \(\mathbf k\) son independientes, con media 0 y varianza 1. Cada producto \(q_mk_m\) tiene media 0 y varianza \(\mathbb E[q_m^2]\,\mathbb E[k_m^2] = 1\), y como los términos son independientes:</p>
-\[\operatorname{Var}(\mathbf q\cdot\mathbf k) = \sum_{m=1}^{d_k}\operatorname{Var}(q_mk_m) = d_k.\]
+\[\operatorname{Var}(\mathbf q\cdot\mathbf k) = \sum_{m=0}^{d_k-1}\operatorname{Var}(q_mk_m) = d_k.\]
 <p>La desviación típica de las puntuaciones crece como \(\sqrt{d_k}\). Con \(d_k = 64\), puntuaciones típicas de ±8 producen un softmax casi one-hot: \(e^{8}/e^{0}\approx 3000\).</p>
 <p><b>El problema: saturación.</b> Las derivadas del softmax son \(a_j(\delta_{jk}-a_k)\). Si una fila es casi one-hot, todas son casi 0 y el gradiente que llega a \(Q\) y \(K\) se desvanece: el modelo no puede corregir a quién atiende.</p>
 <p><b>La solución.</b> Dividir por \(\sqrt{d_k}\) devuelve la varianza a 1, sea cual sea la dimensión de las cabezas:</p>
@@ -1489,12 +1495,13 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
     'adam': {
       title: 'Adam, término a término',
       html: R`<p>Adam mantiene, para <em>cada número</em> de cada parámetro, dos medias móviles exponenciales. Con \(g_t\) el gradiente en la iteración \(t\):</p>
-\[m_t = \beta_1 m_{t-1} + (1-\beta_1)\,g_t,\qquad v_t = \beta_2 v_{t-1} + (1-\beta_2)\,g_t^2 .\]
-<p><b>\(m\): el momento.</b> Una media de los gradientes recientes (memoria de unas \(1/(1-\beta_1) = 10\) iteraciones). Suaviza el ruido de los minilotes y acumula velocidad en direcciones consistentes, como una bola que rueda cuesta abajo.</p>
+\[m_t = \beta_{\text m} m_{t-1} + (1-\beta_{\text m})\,g_t,\qquad v_t = \beta_{\text v} v_{t-1} + (1-\beta_{\text v})\,g_t^2 .\]
+<p>(Muchos textos llaman \(\beta_1\) y \(\beta_2\) a \(\beta_{\text m} = 0.9\) y \(\beta_{\text v} = 0.999\); aquí esos nombres ya son los desplazamientos de las LayerNorm.)</p>
+<p><b>\(m\): el momento.</b> Una media de los gradientes recientes (memoria de unas \(1/(1-\beta_{\text m}) = 10\) iteraciones). Suaviza el ruido de los minilotes y acumula velocidad en direcciones consistentes, como una bola que rueda cuesta abajo.</p>
 <p><b>\(v\): la escala.</b> Una media de los gradientes al cuadrado (memoria de unas 1000 iteraciones). \(\sqrt{v}\) estima la magnitud típica del gradiente de ese número.</p>
 <p><b>Corrección del sesgo.</b> Como \(m_0 = v_0 = 0\), al principio las medias están sesgadas hacia 0. Si el gradiente fuera constante, \(g_t = g\), desplegando la recurrencia:</p>
-\[m_t = (1-\beta_1)\sum_{s=1}^t \beta_1^{\,t-s}\,g = (1-\beta_1^{\,t})\,g\quad\Longrightarrow\quad \hat m_t = \frac{m_t}{1-\beta_1^{\,t}} = g,\]
-<p>y análogamente \(\hat v_t = v_t/(1-\beta_2^{\,t})\) recupera \(g^2\).</p>
+\[m_t = (1-\beta_{\text m})\sum_{s=1}^t \beta_{\text m}^{\,t-s}\,g = (1-\beta_{\text m}^{\,t})\,g\quad\Longrightarrow\quad \hat m_t = \frac{m_t}{1-\beta_{\text m}^{\,t}} = g,\]
+<p>y análogamente \(\hat v_t = v_t/(1-\beta_{\text v}^{\,t})\) recupera \(g^2\).</p>
 <p><b>El paso.</b></p>
 \[\theta \leftarrow \theta - \eta\,\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}.\]
 <p>El cociente no tiene unidades: si el gradiente se multiplica por 100, \(\hat m\) y \(\sqrt{\hat v}\) también, y el paso no cambia. Cada número avanza del orden de \(\eta\) por iteración, tenga gradientes grandes o pequeños; eso hace a Adam mucho menos sensible a la escala que SGD. En la primera iteración, \(\hat m_1/\sqrt{\hat v_1} = g/|g| = \pm 1\). \(\epsilon\) (típicamente \(10^{-8}\)) evita dividir por cero.</p>
@@ -1521,7 +1528,7 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
 \[\begin{pmatrix}\sin\omega_i(\text{pos}+k)\\ \cos\omega_i(\text{pos}+k)\end{pmatrix} = \begin{pmatrix}\cos\omega_i k &amp; \sin\omega_i k\\ -\sin\omega_i k &amp; \cos\omega_i k\end{pmatrix}\begin{pmatrix}\sin\omega_i\,\text{pos}\\ \cos\omega_i\,\text{pos}\end{pmatrix}.\]
 <p>Desplazarse \(k\) posiciones equivale a aplicar una rotación que depende de \(k\) pero no de \(\text{pos}\): una transformación lineal. Esto facilita que las proyecciones lineales \(W_Q\) y \(W_K\) aprendan relaciones relativas como «el token de dos posiciones atrás».</p>
 <p><b>Propiedades.</b> Valores acotados en \([-1,1]\); sin parámetros; definida para cualquier posición. Se <em>suma</em> al embedding (no se concatena), de modo que \(d\) no cambia.</p>
-<p><b>Alternativa aprendida.</b> Con la codificación aprendida (<code>posEnc = learned</code>), \(P_{\text{pos}}\in\mathbb R^{\text{maxLen}\times d}\) es un parámetro más, que se entrena como \(E\) pero solo existe para las posiciones 0 … maxLen − 1.</p>`,
+<p><b>Alternativa aprendida.</b> Con la codificación aprendida (en «Datos y modelo», <em>Aprendida</em>), \(P_{\text{pos}}\in\mathbb R^{T_{\max}\times d}\) es un parámetro más, que se entrena como \(E\) pero solo existe para las posiciones \(0,\dots,T_{\max}-1\).</p>`,
     },
     'activation-grad': {
       title: 'Activaciones y sus derivadas',
@@ -1537,9 +1544,9 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
       title: 'Recorte del gradiente por norma global',
       html: R`<p>Tras el backward, juntamos todos los gradientes en un único vector \(g\) (con tantas componentes como parámetros) y medimos su norma euclídea:</p>
 \[\|g\| = \sqrt{\sum_{\theta}\sum_{i,j}(\mathrm d\theta)_{ij}^2}.\]
-<p>Si supera un umbral \(\tau\), se reescalan <em>todos</em> los gradientes por el mismo factor:</p>
-\[c = \min\Big(1,\ \frac{\tau}{\|g\|}\Big),\qquad \mathrm d\theta\leftarrow c\,\mathrm d\theta.\]
-<p>Así la dirección de descenso no cambia y la longitud queda acotada por \(\tau\). Protege contra picos esporádicos del gradiente (al principio del entrenamiento o ante ejemplos raros) que podrían lanzar los parámetros a una mala zona en una sola actualización.</p>
+<p>Si supera un umbral \(g_{\max}\), se reescalan <em>todos</em> los gradientes por el mismo factor:</p>
+\[c = \min\Big(1,\ \frac{g_{\max}}{\|g\|}\Big),\qquad \mathrm d\theta\leftarrow c\,\mathrm d\theta.\]
+<p>Así la dirección de descenso no cambia y la longitud queda acotada por \(g_{\max}\). Protege contra picos esporádicos del gradiente (al principio del entrenamiento o ante ejemplos raros) que podrían lanzar los parámetros a una mala zona en una sola actualización.</p>
 <p><b>Global frente a por parámetro.</b> Recortar cada matriz por separado cambiaría la proporción entre sus gradientes, es decir, la dirección. Por eso lo habitual es usar la norma global.</p>`,
     },
     'cross-entropy': {
@@ -1547,7 +1554,8 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
       html: R`<p>El modelo asigna a cada frase una probabilidad, que es el producto de probabilidades condicionales:</p>
 \[p(w_1,\dots,w_T\mid w_0) = \prod_{t=1}^T p(w_t\mid w_0,\dots,w_{t-1}).\]
 <p>Maximizar esta probabilidad (<em>máxima verosimilitud</em>) equivale a minimizar su logaritmo negativo, promediado por token:</p>
-\[\mathcal L = -\frac1T\sum_{t=1}^T\log p(w_t\mid w_{\lt t}) = -\frac1T\sum_{t=1}^T\log P_{t,\,y_t}.\]
+\[\mathcal L = -\frac1T\sum_{t=1}^T\log p(w_t\mid w_{\lt t}) = -\frac1T\sum_{t=0}^{T-1}\log P_{t,\,y_t}.\]
+<p>(Las palabras se numeran desde 1 porque \(w_0\) es <code>&lt;s&gt;</code>; las filas de \(P\), desde 0, como en los mapas: la fila \(t\) predice \(y_t = w_{t+1}\).)</p>
 <p>Es la entropía cruzada entre la distribución «verdadera» (one-hot en la palabra correcta) y la predicha: \(-\sum_j Y_{tj}\log P_{tj}\) en cada posición.</p>
 <p><b>Valores de referencia.</b> Un modelo que no sabe nada (uniforme sobre \(V\) palabras) obtiene \(\mathcal L = \ln V\); uno perfecto, 0. Si el texto tiene ambigüedad real, el mínimo alcanzable es mayor que 0: es la entropía propia de los datos.</p>
 <p><b>Perplejidad.</b> \(\mathrm{PPL} = e^{\mathcal L}\) se interpreta como el número efectivo de palabras entre las que el modelo duda en cada paso: \(V\) para el modelo uniforme, 1 para el perfecto, y 3 si en cada paso dudara entre tres opciones equiprobables.</p>`,
@@ -1586,7 +1594,7 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
     { term: 'SGD', def: 'Descenso por gradiente estocástico: θ ← θ − η·g, usando el gradiente de un minilote en lugar del de todos los datos.' },
     { term: 'Adam', def: 'Optimizador que combina momento (media de los gradientes recientes) con un paso normalizado por la magnitud típica del gradiente de cada número.' },
     { term: 'Tasa de aprendizaje (η)', def: 'Tamaño del paso de optimización. Si es demasiado grande, la pérdida oscila o diverge; si es demasiado pequeña, se aprende muy despacio.' },
-    { term: 'Lote (minilote)', def: 'Grupo de frases que se procesan juntas en una iteración; sus gradientes se promedian.' },
+    { term: 'Lote (minilote)', def: 'Grupo de B frases que se procesan juntas en una iteración; sus gradientes se promedian. En «Paso a paso» B = 1; en los frameworks, las activaciones tienen un eje más: (B × T × d).' },
     { term: 'Iteración', def: 'Un forward, un backward y una actualización de los parámetros.' },
     { term: 'Época', def: 'Una pasada completa por todo el corpus de entrenamiento.' },
     { term: 'Parámetro', def: 'Número del modelo que se aprende con el gradiente: pesos, sesgos, embeddings, γ y β.' },
@@ -1601,13 +1609,18 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
     { term: 'Difusión (broadcasting)', def: 'Usar un vector 1×n como si se repitiera en todas las filas de una matriz T×n. En el backward se convierte en una suma sobre las filas.' },
     { term: 'Producto de Hadamard (⊙)', def: 'Producto elemento a elemento de dos matrices de la misma forma.' },
     { term: 'Comprobación de gradientes', def: 'Comparar el gradiente analítico (el del backward) con una aproximación numérica por diferencias finitas, para detectar errores de implementación.' },
-    { term: 'Ventana de contexto', def: 'Número máximo de tokens que el modelo puede ver a la vez (maxLen).' },
+    { term: 'Ventana de contexto', def: 'Número máximo de tokens que el modelo puede ver a la vez: T_máx (en el formulario, «Ventana de contexto»).' },
+    { term: 'Traza', def: 'Registro de todos los tensores intermedios de una iteración (forward, pérdida, backward y actualización). Es lo que recorre «Paso a paso»; entrenar sin traza es mucho más rápido.' },
+    { term: 'Producto escalar', def: 'Suma de los productos componente a componente de dos vectores: a·b = Σ aᵢbᵢ. Es grande si apuntan en direcciones parecidas. Cada celda de un producto de matrices es uno de ellos.' },
+    { term: 'Producto exterior y rango', def: 'El producto exterior de un vector columna por uno fila (uᵀv) da una matriz de rango 1. Un gradiente como dW = Xᵀ·dY es la suma de T de ellos, así que su rango es como mucho T.' },
+    { term: 'Norma L2 (de Frobenius)', def: 'Raíz de la suma de los cuadrados de todas las entradas de un vector o de una matriz. Mide su «tamaño»; con ella se calcula la norma global del gradiente.' },
+    { term: 'PCA (análisis de componentes principales)', def: 'Proyección de unos vectores sobre las direcciones en las que más varían. En «Entrenamiento» se usa para dibujar en 2-D las filas de E (de d dimensiones).' },
     { term: 'Inicialización', def: 'Valores aleatorios con los que empiezan los parámetros. Su escala (por ejemplo, varianza 1/d) evita que las activaciones exploten o se desvanezcan.' },
   ];
 
   // ───────────────────────────── Recorrido inicial ─────────────────────────────
   const tour = [
-    { title: 'Te damos la bienvenida a Transformer Lab',
+    { title: 'Te damos la bienvenida al Laboratorio Transformer',
       html: R`<p>Aquí verás <b>una iteración completa de entrenamiento</b> de un transformer pequeño, tipo GPT, paso a paso: desde el texto hasta la actualización de los pesos. Nada es una animación pregrabada: cada número se calcula en tu navegador con el modelo real.</p><p>En cada paso verás la operación, las matrices que entran y salen, sus dimensiones (con números y con símbolos) y la explicación matemática. Con el modelo por defecto (1 capa, 2 cabezas, \(d = 8\)) son unos 90 pasos.</p>` },
     { title: '¿Qué hace un transformer?',
       html: R`<p>Un modelo de lenguaje como GPT hace una sola cosa: <b>predecir el siguiente token</b>. Lee una secuencia, convierte cada token en un vector y, capa tras capa, deja que cada posición <em>atienda</em> a las anteriores para reunir contexto. Al final, cada posición produce una distribución de probabilidad sobre el vocabulario.</p><p><b>Entrenar</b> es ajustar los parámetros para que la palabra correcta sea cada vez más probable: se mide el error (la pérdida), se calcula con retropropagación cuánto contribuyó cada parámetro (los gradientes) y se corrige cada uno un poquito.</p>` },
@@ -1618,11 +1631,27 @@ theta -= lr * mhat / (np.sqrt(vhat) + eps)      # SGD: theta -= lr * g`,
     { title: 'Cómo leer las matrices',
       html: R`<p>Cada matriz se dibuja como un <b>mapa de calor</b>, con una celda por número:</p><ul><li><b>azul</b> = negativo, <b>naranja</b> = positivo; cuanto más se parece la celda al color del fondo, más cerca de 0;</li><li><b>violeta</b> = probabilidades (de 0 a 1), como los pesos de atención o las predicciones: cuanto más intenso, más cerca de 1;</li><li>celdas <b>rayadas</b> = \(-\infty\) (posiciones tapadas por la máscara causal).</li></ul><p>Junto a cada matriz verás su nombre, su forma con números (por ejemplo, <code>5×8</code>) y con símbolos (<code>T×d</code>). Las filas suelen ser tokens. <b>Pasa el cursor por una celda</b> del resultado: se resaltan las celdas que la producen y el inspector muestra la cuenta completa.</p>` },
     { title: 'Cómo navegar',
-      html: R`<ul><li><b>Línea de tiempo</b> (abajo): una marca por paso, coloreada por fase. Haz clic en cualquiera para saltar.</li><li><b>Teclado</b>: <kbd>←</kbd> y <kbd>→</kbd> paso anterior y siguiente, <kbd>Espacio</kbd> reproducir o pausar, <kbd>Inicio</kbd> y <kbd>Fin</kbd> primer y último paso.</li><li><b>Diagrama</b>: haz clic en un bloque para ir a su paso.</li><li><b>Explicación</b>: resumen, intuición, fórmulas, cómo cambian las dimensiones, derivación y pseudocódigo del paso actual.</li><li><b>Nueva iteración</b>: repite el recorrido con los pesos ya actualizados y observa cómo baja la pérdida.</li></ul>` },
+      html: R`<ul><li><b>Línea de tiempo</b> (abajo): una marca por paso, coloreada por fase. Haz clic en cualquiera para saltar.</li><li><b>Teclado</b>: <kbd>←</kbd> y <kbd>→</kbd> paso anterior y siguiente, <kbd>Inicio</kbd> y <kbd>Fin</kbd> primer y último paso.</li><li><b>Reproducir</b> (▶ o <kbd>Espacio</kbd>): recorre toda la iteración animando cada operación, como una película; «Animar» repite solo la del paso actual.</li><li><b>Diagrama</b>: haz clic en un bloque para ir a su paso.</li><li><b>Explicación</b>: resumen, intuición, fórmulas, cómo cambian las dimensiones, derivación y pseudocódigo del paso actual.</li><li><b>Nueva iteración</b>: repite el recorrido con los pesos ya actualizados y observa cómo baja la pérdida.</li></ul>` },
     { title: 'La notación, en dos líneas',
-      html: R`<p>\(T\) = tokens de la secuencia, \(d\) = dimensión del modelo, \(h\) = cabezas, \(d_k = d/h\), \(d_{\text{ff}}\) = dimensión de la FFN, \(V\) = vocabulario, \(N\) = capas, \(\eta\) = tasa de aprendizaje.</p><p>Los gradientes se escriben \(\mathrm dX := \partial\mathcal L/\partial X\) y tienen <b>siempre la misma forma que \(X\)</b>. En las matrices de activaciones, las filas son tokens y las columnas, características.</p>` },
+      html: R`<p>\(T\) = tokens de la secuencia, \(d\) = dimensión del modelo, \(h\) = cabezas, \(d_k = d/h\), \(d_{\text{ff}}\) = dimensión de la FFN, \(V\) = vocabulario, \(N\) = capas, \(\eta\) = tasa de aprendizaje.</p><p>Los gradientes se escriben \(\mathrm dX := \partial\mathcal L/\partial X\) y tienen <b>siempre la misma forma que \(X\)</b>. En las matrices de activaciones, las filas son tokens y las columnas, características.</p><p>Filas, columnas y posiciones se cuentan <b>desde 0</b> (como en NumPy); pasos, capas y cabezas, desde 1.</p>` },
     { title: 'Más allá de una iteración',
       html: R`<p><b>Entrenamiento</b>: entrena cientos de iteraciones y observa en vivo la curva de pérdida, la atención y las predicciones. <b>Generación</b>: escribe un comienzo («el gato») y mira cómo el modelo completa la frase token a token usando solo el forward. <b>Datos y modelo</b>: cambia el corpus y los hiperparámetros, consulta el mapa completo de dimensiones y verifica numéricamente los gradientes.</p>` },
+    { title: 'De este laboratorio a un GPT real',
+      html: R`<p>Las operaciones son las mismas que en GPT-2; lo que cambia es la escala y algunos añadidos:</p>
+<table class="table table--compact tour-table"><thead><tr><th></th><th class="num">aquí (por defecto)</th><th class="num">GPT-2 pequeño</th></tr></thead><tbody>
+<tr><td>contexto \(T\)</td><td class="num">≤ 8</td><td class="num">1024</td></tr>
+<tr><td>dimensión \(d\)</td><td class="num">8</td><td class="num">768</td></tr>
+<tr><td>cabezas \(h\)</td><td class="num">2</td><td class="num">12</td></tr>
+<tr><td>capas \(N\)</td><td class="num">1</td><td class="num">12</td></tr>
+<tr><td>vocabulario \(V\)</td><td class="num">22</td><td class="num">50 257</td></tr>
+<tr><td>parámetros</td><td class="num">1 208</td><td class="num">124 millones</td></tr>
+</tbody></table>
+<ul><li><b>Tokens de subpalabras (BPE)</b>: en lugar de palabras enteras, trozos frecuentes («gat» + «os»); así cualquier texto tiene tokens.</li>
+<li><b>Lotes</b>: los tensores son \((B\times T\times d)\) y las frases de distinta longitud se rellenan (<em>padding</em>) con una máscara que ignora el relleno.</li>
+<li><b>Dropout</b>: durante el entrenamiento se anulan activaciones al azar para regularizar; no se usa al generar.</li>
+<li><b>Pesos compartidos</b> (<em>weight tying</em>): \(W_{\text{out}} = E^{\top}\) (ver la explicación de los logits).</li>
+<li><b>Calentamiento de η</b> (<em>warm-up</em>): la tasa de aprendizaje empieza pequeña y crece durante las primeras iteraciones.</li>
+<li><b>Caché KV</b> al generar: se guardan las claves y los valores de los tokens anteriores; aquí se recalcula todo el contexto en cada token.</li></ul>` },
   ];
 
   // ───────────────────────────── Utilidades ─────────────────────────────

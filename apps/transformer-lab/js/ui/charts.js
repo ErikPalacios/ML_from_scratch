@@ -668,34 +668,73 @@
         ctx.beginPath(); ctx.arc(q.x, q.y, R + 2, 0, Math.PI * 2); ctx.fillStyle = th.surface; ctx.fill();
         ctx.beginPath(); ctx.arc(q.x, q.y, q.hi ? R + 1 : R, 0, Math.PI * 2); ctx.fillStyle = q.color; ctx.fill();
       }
-      // etiquetas: colocación voraz con 8 candidatos
+      // etiquetas: colocación voraz con 12 candidatos. Rejilla espacial de celdas de 32 px: cada
+      // candidato solo se compara con los puntos y etiquetas cercanos (con cientos de tokens, comparar
+      // con todos costaría decenas de ms en cada refresco)
       ctx.font = '500 11px ' + th.mono;
-      const lh = 12;
-      const placed = [];
+      const lh = 12, CELL = 32;
+      const gridAdd = (grid, r, item) => {
+        for (let gx = Math.floor(r.x / CELL); gx <= Math.floor((r.x + r.w) / CELL); gx++) {
+          for (let gy = Math.floor(r.y / CELL); gy <= Math.floor((r.y + r.h) / CELL); gy++) {
+            const k = gx * 65536 + gy, a = grid.get(k);
+            if (a) a.push(item); else grid.set(k, [item]);
+          }
+        }
+      };
+      // recorre (una vez cada uno) los elementos de las celdas que toca r ampliado en pad
+      let stamp = 0;
+      const eachNear = (grid, r, pad, fn) => {
+        stamp++;
+        for (let gx = Math.floor((r.x - pad) / CELL); gx <= Math.floor((r.x + r.w + pad) / CELL); gx++) {
+          for (let gy = Math.floor((r.y - pad) / CELL); gy <= Math.floor((r.y + r.h + pad) / CELL); gy++) {
+            const a = grid.get(gx * 65536 + gy);
+            if (a) for (const it of a) if (it._st !== stamp) { it._st = stamp; fn(it); }
+          }
+        }
+      };
+      const placed = new Map(), dots = new Map();
       const pr = P.map((q) => ({ x: q.x - R - 1, y: q.y - R - 1, w: 2 * R + 2, h: 2 * R + 2, q }));
+      for (const b of pr) gridAdd(dots, b, b);
       const inter = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
       const labelOrder = P.slice().sort((a, b) => (b.hi - a.hi) || (Math.hypot(b.x - plot.x - plot.w / 2, b.y - plot.y - plot.h / 2) - Math.hypot(a.x - plot.x - plot.w / 2, a.y - plot.y - plot.h / 2)));
       for (const q of labelOrder) {
         const lab = q.p.label == null ? '' : String(q.p.label);
         if (!lab) continue;
         const tw = ctx.measureText(lab).width;
+        // 8 posiciones junto al punto y 4 algo más lejos (esas llevan una línea guía hasta el punto)
         const c = [
           [q.x + 7, q.y - lh / 2], [q.x - 7 - tw, q.y - lh / 2], [q.x - tw / 2, q.y - 8 - lh], [q.x - tw / 2, q.y + 8],
           [q.x + 5, q.y - 5 - lh], [q.x + 5, q.y + 5], [q.x - 5 - tw, q.y - 5 - lh], [q.x - 5 - tw, q.y + 5],
+          [q.x + 14, q.y - 14 - lh], [q.x + 14, q.y + 14], [q.x - 14 - tw, q.y - 14 - lh], [q.x - 14 - tw, q.y + 14],
         ];
-        let best = null, bestScore = Infinity;
-        for (const [x, y] of c) {
+        let best = null, bestScore = Infinity, bestK = 0;
+        c.forEach(([x, y], k) => {
+          if (bestScore === 0) return;
           const r = { x, y, w: tw, h: lh };
-          let s = 0;
+          let s = k >= 8 ? tw * lh * 0.05 : 0; // las lejanas, solo si las cercanas chocan
           if (x < plot.x + 1 || y < plot.y + 1 || x + tw > plot.x + plot.w - 1 || y + lh > plot.y + plot.h - 1) s += 1e6;
-          for (const b of placed) s += inter(r, b) * 4;
-          for (const b of pr) if (b.q !== q) s += inter(r, b) * 2;
-          if (s < bestScore) { bestScore = s; best = r; }
-          if (s === 0) break;
-        }
+          eachNear(placed, r, 0, (b) => { s += inter(r, b) * 4; });
+          // una etiqueta no debe quedar más cerca de otro punto que del suyo (no se sabría de quién es)
+          const cx = Math.max(x, Math.min(q.x, x + tw)), cy = Math.max(y, Math.min(q.y, y + lh));
+          const own = Math.hypot(cx - q.x, cy - q.y);
+          eachNear(dots, r, own + R + 2, (b) => {
+            if (b.q === q) return;
+            s += inter(r, b) * 2;
+            const o = b.q;
+            const ox = Math.max(x, Math.min(o.x, x + tw)), oy = Math.max(y, Math.min(o.y, y + lh));
+            if (Math.hypot(ox - o.x, oy - o.y) < own - 0.5) s += tw * lh;
+          });
+          if (s < bestScore) { bestScore = s; best = r; bestK = k; }
+        });
         q.labelShown = best && bestScore < tw * lh * 0.12 * 4;
         if (q.labelShown) {
-          placed.push(best);
+          gridAdd(placed, best, best);
+          if (bestK >= 8) {
+            // línea guía del punto a la esquina más cercana de la etiqueta
+            const ex = Math.max(best.x, Math.min(q.x, best.x + tw)), ey = Math.max(best.y, Math.min(q.y, best.y + lh));
+            ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(ex, ey);
+            ctx.strokeStyle = th.muted; ctx.lineWidth = 1; ctx.stroke();
+          }
           ctx.textAlign = 'left'; ctx.textBaseline = 'top';
           ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = th.surface;
           ctx.strokeText(lab, best.x, best.y);

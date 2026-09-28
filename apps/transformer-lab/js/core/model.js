@@ -636,13 +636,16 @@
     }
 
     // ---- pérdida: entropía cruzada media
-    let loss = null;
+    let loss = null, lossCapped = false;
     if (hasTargets) {
       const perToken = new Mat(T, 1), pTarget = new Mat(T, 1);
       let s = 0;
       for (let t = 0; t < T; t++) {
         const pt = probs.d[t * V + targetIds[t]];
-        const lt = -Math.log(pt > 1e-300 ? pt : 1e-300);
+        // p < 1e-300 (o NaN): los logits ya no son razonables; la pérdida real sería +∞
+        if (!(pt >= 1e-300)) lossCapped = true;
+        // p = 0 exacto se acota (pérdida finita y grande); p = NaN (parámetros no finitos) sigue siendo NaN
+        const lt = Number.isNaN(pt) ? NaN : -Math.log(Math.max(pt, 1e-300));
         perToken.d[t] = lt;
         pTarget.d[t] = pt;
         s += lt;
@@ -651,7 +654,7 @@
       if (tr) {
         X_.push({ tpl: 'loss.ce', phase: 'loss', block: 'loss', kind: 'crossentropy',
           title: 'Pérdida: entropía cruzada media',
-          formula: '\\mathcal{L} = -\\frac{1}{T}\\sum_{t=1}^{T}\\log P_{t,\\,y_t} = ' + fmt(loss, 4),
+          formula: '\\mathcal{L} = -\\frac{1}{T}\\sum_{t=0}^{T-1}\\log P_{t,\\,y_t} = ' + fmt(loss, 4),
           dimsSym: '(T\\times V),\\,(T\\times V)\\to(1\\times 1)',
           inputs: [R_('P', 'P', 'P', probs, 'prob', 'T', 'V'), R_('Y', 'Y', 'Y', Mat.oneHot(targetIds, V), 'onehot', 'T', 'V')],
           outputs: [R_('L', '\\mathcal{L}', 'ℒ', Mat.fromRow([loss]), 'scalar', '1', '1')],
@@ -661,7 +664,7 @@
 
     const cache = { T, inputIds: inputIds.slice(), targetIds: hasTargets ? targetIds.slice() : null,
       Xemb, PE: PEm, X0, layers, lnf, Hf, XN: X, logits, probs, mask: M, factor };
-    return { loss, probs, logits, attn, cache, steps: tr ? X_.steps : [] };
+    return { loss, lossCapped, probs, logits, attn, cache, steps: tr ? X_.steps : [] };
   }
 
   function lnAux(c) {
@@ -720,7 +723,7 @@
     if (tr) {
       X_.push({ tpl: 'bwd.lnf', phase: 'backward', block: 'lnf', kind: 'grad_layernorm',
         title: 'Retropropagación por la LayerNorm final',
-        formula: lnBwdFormula(D + xTex(N), D + 'H_f', '\\gamma_f', '\\beta_f'),
+        formula: lnBwdFormula(D + xTex(N), D + 'H_f', '\\gamma_f', '\\beta_f', hatOf(xTex(N))),
         dimsSym: '(T\\times d)\\to(T\\times d),\\,(1\\times d),\\,(1\\times d)',
         inputs: [R_('dY', D + 'H_f', 'dH_f', dHf, 'grad', 'T', 'd'), R_('X', xTex(N), xLab(N), cache.XN, 'act', 'T', 'd'),
           R_('gamma', '\\gamma_f', 'γ_f', gf, 'param', '1', 'd')],
@@ -766,7 +769,7 @@
         R_('dW_2', D + n.t('W_2'), n.u('dW₂'), dW2, 'grad', 'dff', 'd'));
         X_.push(Object.assign({ tpl: 'bwd.ffn2.db', block: bl + 'ffn2', kind: 'sumrows',
           title: n.cap + 'Gradiente de b₂ (suma sobre las posiciones)',
-          formula: D + n.t('b_2') + ' = \\sum_{t=1}^{T} ' + D + n.t('F') + '_{t,:}',
+          formula: D + n.t('b_2') + ' = \\sum_{t=0}^{T-1} ' + D + n.t('F') + '_{t,:}',
           dimsSym: '(T\\times d)\\to(1\\times d)',
           inputs: [dFref()], outputs: [R_('db_2', D + n.t('b_2'), n.u('db₂'), db2, 'grad', '1', 'd')], aux: {} }, cm));
         X_.mm(Object.assign({ tpl: 'bwd.ffn2.dX', block: bl + 'ffn2', title: n.cap + 'Gradiente hacia G',
@@ -803,7 +806,7 @@
         R_('dW_1', D + n.t('W_1'), n.u('dW₁'), dW1, 'grad', 'd', 'dff'));
         X_.push(Object.assign({ tpl: 'bwd.ffn1.db', block: bl + 'ffn1', kind: 'sumrows',
           title: n.cap + 'Gradiente de b₁ (suma sobre las posiciones)',
-          formula: D + n.t('b_1') + ' = \\sum_{t=1}^{T} ' + D + n.t('U') + '_{t,:}',
+          formula: D + n.t('b_1') + ' = \\sum_{t=0}^{T-1} ' + D + n.t('U') + '_{t,:}',
           dimsSym: '(T\\times d_{ff})\\to(1\\times d_{ff})',
           inputs: [dUref()], outputs: [R_('db_1', D + n.t('b_1'), n.u('db₁'), db1, 'grad', '1', 'dff')], aux: {} }, cm));
         X_.mm(Object.assign({ tpl: 'bwd.ffn1.dX', block: bl + 'ffn1', title: n.cap + "Gradiente hacia H'",
@@ -822,7 +825,7 @@
       if (tr) {
         X_.push(Object.assign({ tpl: 'bwd.ln2', block: bl + 'ln2', kind: 'grad_layernorm',
           title: n.cap + 'Retropropagación por LayerNorm 2',
-          formula: lnBwdFormula(dRlnT, D + n.t("H'"), n.t('\\gamma_2'), n.t('\\beta_2')),
+          formula: lnBwdFormula(dRlnT, D + n.t("H'"), n.t('\\gamma_2'), n.t('\\beta_2'), hatOf(n.t('R'))),
           dimsSym: '(T\\times d)\\to(T\\times d),\\,(1\\times d),\\,(1\\times d)',
           inputs: [R_('dY', D + n.t("H'"), n.u("dH'"), dHp, 'grad', 'T', 'd'), R_('X', n.t('R'), n.u('R'), c.R, 'act', 'T', 'd'),
             R_('gamma', n.t('\\gamma_2'), n.u('γ₂'), g2, 'param', '1', 'd')],
@@ -1022,7 +1025,7 @@
       if (tr) {
         X_.push(Object.assign({ tpl: 'bwd.ln1', block: bl + 'ln1', kind: 'grad_layernorm',
           title: n.cap + 'Retropropagación por LayerNorm 1',
-          formula: lnBwdFormula(dXlnT, D + n.t('H'), n.t('\\gamma_1'), n.t('\\beta_1')),
+          formula: lnBwdFormula(dXlnT, D + n.t('H'), n.t('\\gamma_1'), n.t('\\beta_1'), hatOf(xi)),
           dimsSym: '(T\\times d)\\to(T\\times d),\\,(1\\times d),\\,(1\\times d)',
           inputs: [R_('dY', D + n.t('H'), n.u('dH'), dH, 'grad', 'T', 'd'), R_('X', xi, xLab(l), c.Xin, 'act', 'T', 'd'),
             R_('gamma', n.t('\\gamma_1'), n.u('γ₁'), g1, 'param', '1', 'd')],
@@ -1087,11 +1090,19 @@
 
   // Misma notación que el forward: σ² es la varianza de la fila y el divisor es √(σ²+ε) (aux.sigma).
   // \overline{·} = media sobre las d columnas de cada fila.
-  function lnBwdFormula(dX, dY, g, b) {
+  // xh: nombre de la entrada normalizada, con el de la entrada de la LayerNorm (\hat X^{[0]}, \hat R…),
+  // igual que en la vista del forward.
+  function lnBwdFormula(dX, dY, g, b, xh) {
     const D = '\\mathrm{d}';
-    return D + '\\hat X = ' + dY + '\\odot ' + g + ',\\quad ' +
-      dX + ' = \\frac{1}{\\sqrt{\\sigma^2+\\varepsilon}}\\left(' + D + '\\hat X - \\overline{' + D + '\\hat X} - \\hat X\\odot\\overline{' + D + '\\hat X\\odot\\hat X}\\right),\\quad ' +
-      D + g + ' = \\sum_t ' + dY + '\\odot\\hat X,\\quad ' + D + b + ' = \\sum_t ' + dY;
+    xh = xh || '\\hat X';
+    return D + xh + ' = ' + dY + '\\odot ' + g + ',\\quad ' +
+      dX + ' = \\frac{1}{\\sqrt{\\sigma^2+\\varepsilon}}\\left(' + D + xh + ' - \\overline{' + D + xh + '} - ' + xh + '\\odot\\overline{' + D + xh + '\\odot ' + xh + '}\\right),\\quad ' +
+      D + g + ' = \\sum_t ' + dY + '\\odot ' + xh + ',\\quad ' + D + b + ' = \\sum_t ' + dY;
+  }
+  // X^{[0]} → \hat X^{[0]}, R → \hat R: gorro sobre la letra, superíndice de capa fuera
+  function hatOf(tex) {
+    const m = /^([A-Za-z])(.*)$/.exec(tex);
+    return m ? '\\hat ' + m[1] + m[2] : '\\hat X';
   }
 
   // ---------------------------------------------------------------- utilidades públicas
@@ -1126,10 +1137,12 @@
     const learned = cfg.posEnc === 'learned';
     const actName = ACT[cfg.activation].name;
     // sub: '1' | '2' | 'f' ; sup: superíndice LaTeX de capa ('' con una capa) ; name: nombre en texto plano
-    const lnStats = (g, sub, sup, name) => {
+    // letter: letra de la entrada de la LayerNorm (X en LN₁ y LN_f, R en LN₂): su versión normalizada
+    // se llama igual con gorro. La fila σ es el divisor √(σ² + ε) (σ² = varianza), como en las fórmulas.
+    const lnStats = (g, sub, sup, name, letter) => {
       add(g, '\\mu_{' + sub + '}' + sup, 'T', '1', name + ': media de cada fila (una por posición).');
-      add(g, '\\sigma_{' + sub + '}' + sup, 'T', '1', name + ': √(varianza + ε) de cada fila (el divisor de la normalización).');
-      add(g, '\\hat X_{' + sub + '}' + sup, 'T', 'd', name + ': filas normalizadas (media 0, varianza ≈ 1) antes de γ y β.');
+      add(g, '\\sqrt{\\sigma^2_{' + sub + '}+\\varepsilon}' + sup, 'T', '1', name + ': desviación típica con ε de cada fila, el divisor de la normalización (σ² es la varianza).');
+      add(g, '\\hat ' + (letter || 'X') + '_{' + sub + '}' + sup, 'T', 'd', name + ': filas normalizadas (media 0, varianza ≈ 1) antes de γ y β.');
     };
 
     // ---------- forward
@@ -1184,7 +1197,7 @@
       add(gA, n.t('R'), 'T', 'd', 'Residual 1: entrada de la capa + salida de la atención.');
       add(gF, n.t('\\gamma_2'), '1', 'd', 'Parámetro: ganancia de LayerNorm 2.');
       add(gF, n.t('\\beta_2'), '1', 'd', 'Parámetro: sesgo de LayerNorm 2.');
-      lnStats(gF, '2', sfx, 'LayerNorm 2' + capU);
+      lnStats(gF, '2', sfx, 'LayerNorm 2' + capU, 'R');
       add(gF, n.t("H'"), 'T', 'd', 'Salida de LayerNorm 2 (entrada de la FFN).');
       add(gF, n.t('W_1'), 'd', 'd_{ff}', 'Parámetro: primera capa de la FFN (expande de d a d_ff).');
       add(gF, n.t('b_1'), '1', 'd_{ff}', 'Parámetro: sesgo de la primera capa (se suma a cada fila: broadcasting).');

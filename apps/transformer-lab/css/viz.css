@@ -41,6 +41,10 @@
   padding-block: 2px; overscroll-behavior-x: contain;
 }
 .tex-display > mjx-container[display="true"] { margin: 0.35em 0 !important; }
+/* fórmula en bloque que no cabía y se partió en piezas (la app las recoloca en varias líneas) */
+.tex--display.is-multi { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; column-gap: 1em; }
+.tex--display.is-multi .tex-display > mjx-container[display="true"] { margin: 0.15em 0 !important; }
+.step-formula__part { min-width: 0; max-width: 100%; }
 .tex-fallback {
   font-family: var(--font-mono); font-size: 0.86em; color: var(--muted);
   background: var(--surface-2); border: 1px dashed var(--rule-strong); border-radius: var(--r-1);
@@ -78,6 +82,10 @@
 .hm__tag--param::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--upd); margin-right: 4px; }
 .hm__tag--const, .hm__tag--onehot, .hm__tag--mask { color: var(--data-ink); background: var(--data-soft); border-color: color-mix(in srgb, var(--data) 40%, transparent); }
 .hm__tag--mom { color: var(--muted); background: transparent; border-style: dashed; }
+/* backward: activación del forward reutilizada («caché»); es un botón que lleva al paso que la calculó */
+.hm__tag--fwd { color: var(--fwd-ink); background: var(--fwd-soft); border-color: color-mix(in srgb, var(--fwd) 45%, transparent); }
+.hm__tag--btn { cursor: pointer; font: inherit; font-family: var(--font-mono); font-size: 10.5px; }
+.hm__tag--btn:hover { border-color: var(--ph, var(--ink)); text-decoration: underline; text-underline-offset: 2px; }
 .hm__note { width: 0; min-width: 100%; font-size: var(--fs-xs); color: var(--muted); line-height: 1.3; }
 
 .hm__scroll {
@@ -85,6 +93,19 @@
   max-width: calc(100% + 8px); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
   padding: 4px; margin: -4px;
 }
+/* sombra en el borde si la matriz sigue fuera de la vista (las barras de desplazamiento pueden ser invisibles) */
+.hm__scroll, .ov-scroll, .expl__eq mjx-container[display="true"], .insp__tex mjx-container[display="true"],
+.prose mjx-container[display="true"] {
+  background:
+    linear-gradient(to right, var(--sh-bg, var(--surface)) 30%, transparent) left center / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--sh-bg, var(--surface)) 30%, transparent) right center / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--sh-col, color-mix(in srgb, var(--ink) 20%, transparent)), transparent) left center / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--sh-col, color-mix(in srgb, var(--ink) 20%, transparent)), transparent) right center / 10px 100% no-repeat scroll;
+  background-color: var(--sh-bg, var(--surface));
+}
+.expl__eq { --sh-bg: var(--surface-2); }
+/* al animar o recorrer con el teclado, la matriz no queda bajo la cabecera ni la línea de tiempo */
+.ov .hm { scroll-margin-top: calc(var(--head-h) + 8px); scroll-margin-bottom: calc(var(--tl-h) + var(--insp-h, 0px) + 12px); }
 .hm__grid {
   position: relative; display: grid; width: max-content; gap: 1px;
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
@@ -103,14 +124,18 @@
 }
 .hm:not(.hm--vals) .hm__c { font-size: 0; }
 .hm__c.is-zero { color: var(--muted) !important; }
-.hm--vals .hm__c.is-zero { opacity: 0.8; }
 .hm__c.is-ninf {
   background:
     repeating-linear-gradient(135deg, var(--masked) 0 1.5px, transparent 1.5px 5px),
     var(--surface-2);
-  color: var(--muted);
+  color: var(--ink);
 }
-.hm--vals .hm__c.is-ninf { font-size: 10px; }
+/* −∞ sobre una placa del color de fondo: el rayado no cruza los glifos */
+.hm__ninf { display: none; }
+.hm--vals .hm__ninf {
+  display: inline-block; padding: 0 3px; border-radius: 2px; background: var(--surface-2);
+  font-size: 11px; font-weight: 600; line-height: 14px; color: var(--ink);
+}
 .hm__c.is-pending { background: var(--surface-2) !important; color: transparent !important; }
 .hm__c.is-pending.is-ninf { background: var(--surface-2) !important; }
 
@@ -121,8 +146,9 @@
   padding: 1px 0 3px; font-size: 10px; line-height: 1.05; min-width: 0; overflow: hidden;
 }
 .hm__ch .hm__tok { color: var(--ink); font-size: 10.5px; max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
-.hm__ch .hm__abs { font-size: 8.5px; color: var(--muted); opacity: 0.8; }
-.hm--vert .hm__ch .hm__tok {
+.hm__ch .hm__abs { font-size: 9.5px; color: var(--muted); }
+/* solo se giran las etiquetas que no caben en la celda (p. ej. «<s>»); las cortas siguen horizontales */
+.hm__ch.is-vert .hm__tok {
   writing-mode: vertical-rl; transform: rotate(180deg);
   max-height: 64px; text-overflow: ellipsis;
 }
@@ -133,8 +159,9 @@
 .hm--cols .hm__ch { padding-top: 5px; } /* la banda de color de la cabeza no pisa los índices */
 .hm__rh .hm__tok { color: var(--ink); }
 .hm__rh .hm__ix { font-size: 10px; min-width: 1ch; text-align: right; }
-.hm--tiny .hm__ch { font-size: 8.5px; }
+.hm--tiny .hm__ch { font-size: 9.5px; overflow: visible; }
 .hm--tiny .hm__ch .hm__abs { display: none; }
+.hm__ch.is-skip .hm__ix { visibility: hidden; } /* celdas diminutas: solo se rotula cada 5.ª columna */
 .hm__ch.is-hl, .hm__rh.is-hl { color: var(--ph-ink); background: var(--ph-soft); font-weight: 600; }
 .hm__ch.is-hl .hm__tok, .hm__rh.is-hl .hm__tok { color: var(--ph-ink); }
 
@@ -159,6 +186,16 @@
 .hm__hl-tgt, .hm__mk-tgt { box-shadow: inset 0 0 0 2px var(--ink), inset 0 0 0 3.5px var(--surface); z-index: 3; }
 .hm__mk-pin { box-shadow: inset 0 0 0 1.5px var(--ink); z-index: 3; }
 .hm--tiny .hm__mk-tgt, .hm--tiny .hm__hl-tgt { box-shadow: inset 0 0 0 1.5px var(--ink); }
+
+/* matriz entera de ceros (solo color): rótulo centrado para que no parezca un dibujo fallido */
+.hm__allzero {
+  /* absoluto sobre el área de las celdas (como las bandas): no participa en la colocación de la rejilla */
+  position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; pointer-events: none;
+}
+.hm__allzero > span {
+  padding: 2px 8px; border: 1px dashed var(--rule-strong); border-radius: var(--r-1); background: var(--surface);
+  font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap;
+}
 
 /* leyenda de escalas */
 .hm-legend { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs); color: var(--muted); }
@@ -249,6 +286,14 @@
   font-size: var(--fs-sm); line-height: 1.5; color: var(--ink);
 }
 .ov-note code { font-size: 0.9em; }
+.ov-note__btn { display: flex; margin-top: 8px; }
+/* resumen al final de la iteración (último paso) */
+.ov-recap {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 9px 12px;
+  border-left: 3px solid var(--ph); background: var(--ph-soft); border-radius: 0 var(--r-2) var(--r-2) 0;
+  font-size: var(--fs-sm); line-height: 1.5;
+}
+.ov-recap > p { flex: 1 1 320px; margin: 0; }
 
 /* número grande (pérdida, norma) */
 .ov-big {
@@ -292,7 +337,11 @@
 .ov-tokz__text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .ov-tokz__quote { font-family: var(--font-mono); font-size: var(--fs-lg); color: var(--ink); overflow-wrap: anywhere; }
 .ov-scroll { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; padding: 2px; }
-.ov-seq { display: grid; gap: 6px 6px; align-items: center; width: max-content; }
+.ov-seq {
+  display: grid; gap: 6px 6px; align-items: center; width: max-content;
+  grid-template-columns: max-content repeat(var(--n, 1), minmax(52px, max-content));
+}
+.ov-seq > * { grid-row: var(--r); grid-column: var(--c); }
 .ov-seq__lab { font-family: var(--font-mono); font-size: 11px; color: var(--muted); padding-right: 8px; white-space: nowrap; }
 .ov-seq__ix { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); text-align: center; }
 .ov-seq__arrow { text-align: right; color: var(--ph); font-size: 16px; line-height: 1; padding-right: 2px; }
@@ -376,11 +425,18 @@
   white-space: normal; overflow-wrap: break-word; overflow-x: auto; overscroll-behavior-x: contain; min-width: 0; padding-bottom: 2px;
 }
 .insp__note { margin: 0; font-size: var(--fs-xs); color: var(--muted); line-height: 1.45; }
+.insp sup { font-size: .75em; line-height: 0; }
 
 /* ---------------------------------------------------------------------------
    5. PANTALLA ESTRECHA Y MOVIMIENTO REDUCIDO
    ------------------------------------------------------------------------ */
 @media (max-width: 600px) {
+  /* tokenización: la rejilla se traspone (un token por fila) en vez de desbordar a lo ancho */
+  .ov-seq { grid-template-columns: repeat(5, max-content); gap: 4px 8px; }
+  .ov-seq > * { grid-row: var(--c); grid-column: var(--r); }
+  .ov-seq .ov-seq__lab { padding: 0 0 2px; font-size: 10.5px; white-space: normal; max-width: 9ch; line-height: 1.2; }
+  .ov-seq__ix { text-align: right; }
+  .ov-seq__arrow { text-align: center; }
   .ov { gap: 12px; }
   .ov-flow { font-size: 11.5px; padding: 6px 8px; }
   .ov-flow__meta { margin-left: 0; }

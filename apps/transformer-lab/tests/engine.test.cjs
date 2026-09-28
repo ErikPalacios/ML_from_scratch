@@ -1506,7 +1506,7 @@ test('Mapa de dimensiones: cubre la traza, sin LaTeX en las descripciones, M una
     }
     const sgd = TL.Model.shapeTable(s.model, sen.T, { optimizer: 'sgd' });
     assert.ok(sgd.every((r) => r.phase !== 'update') && sgd.length < rows.length);
-    if (s.cfg.nLayers > 1) assert.ok(byTex.has('\\mu_{1}^{[2]}') && byTex.has('\\hat X_{2}^{[1]}'));
+    if (s.cfg.nLayers > 1) assert.ok(byTex.has('\\mu_{1}^{[2]}') && byTex.has('\\hat R_{2}^{[1]}'));
   }
 });
 

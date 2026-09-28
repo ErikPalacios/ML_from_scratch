@@ -40,6 +40,7 @@
       lastGradNorms: {},
       lastGradNorm: null,
       lastClipFactor: 1,
+      diverged: false, // la pérdida o el gradiente dejaron de ser finitos (NaN/∞): no se sigue actualizando
       _rng: TL.rng((cfg.seed ^ 0x5bd1e995) >>> 0), // barajado de mini-lotes (determinista)
       _perm: [],
       _cursor: 0,
@@ -70,11 +71,12 @@
     const tok = s.tok;
     const disp = sen.inputTokens.map(tok.display);
     const ids = Mat.fromRow(sen.inputIds);
-    const quoted = sen.text.replace(/\\/g, '\\backslash ').replace(/([{}#$%&_^~])/g, '\\$1');
+    // la frase no va dentro de la fórmula (en \text{} se verían escapes como \_ o \%): la interfaz
+    // la muestra como texto aparte, desde aux.text
     return {
       id: 'data.tokenize', tpl: 'data.tokenize', phase: 'data', block: 'tokens', layer: null, head: null, kind: 'tokenize',
       title: 'Tokenización: texto → ' + sen.T + ' ids (entrada) y ' + sen.T + ' objetivos',
-      formula: '\\text{«' + quoted + '»}\\;\\mapsto\\;\\mathrm{ids} = [' + sen.inputIds.join(',\\,') + '],\\quad y = [' + sen.targetIds.join(',\\,') + ']',
+      formula: '\\text{texto}\\;\\mapsto\\;\\mathrm{ids} = [' + sen.inputIds.join(',\\,') + '],\\quad y = [' + sen.targetIds.join(',\\,') + ']',
       dimsSym: '\\text{texto}\\to(1\\times T)',
       dims: '\\text{texto}\\to(1\\times ' + sen.T + ')',
       inputs: [],
@@ -111,6 +113,7 @@
     s.lastGradNorms = u.norms;
     s.lastGradNorm = u.gradNorm;
     s.lastClipFactor = u.clipFactor;
+    if (!Number.isFinite(f.loss) || f.lossCapped || !Number.isFinite(u.gradNorm)) s.diverged = true;
     return { steps, loss: f.loss, iter: s.iter, sentenceIndex: s.tok.sentences.indexOf(sen), gradNorm: u.gradNorm, clipFactor: u.clipFactor };
   }
 
@@ -130,6 +133,9 @@
   }
 
   // n iteraciones sin traza; cada una con un mini-lote de s.batchSize frases (gradientes promediados).
+  // Si el entrenamiento diverge (pérdida o norma del gradiente no finitas, o una probabilidad del
+  // objetivo por debajo de 1e-300, que haría la pérdida +∞), se marca s.diverged y se
+  // deja de actualizar: seguir solo propagaría NaN (hay que bajar η o activar el recorte y reiniciar).
   function trainSteps(s, n) {
     n = Math.max(0, n | 0);
     const model = s.model;
@@ -138,13 +144,15 @@
     const acc = {};
     for (const name of model.order) acc[name] = new Mat(model.params[name].r, model.params[name].c);
     for (let it = 0; it < n; it++) {
+      if (s.diverged) break;
       for (const name of model.order) acc[name].d.fill(0);
-      let lsum = 0;
+      let lsum = 0, capped = false;
       for (let b = 0; b < B; b++) {
         const sen = s.tok.sentences[nextIndex(s)];
         const f = TL.Model.forward(model, sen.inputIds, sen.targetIds, { trace: false });
         const g = TL.Model.backward(model, f.cache, { trace: false }).grads;
         lsum += f.loss;
+        if (f.lossCapped) capped = true;
         for (const name of model.order) {
           const a = acc[name].d, gd = g[name].d;
           for (let k = 0; k < a.length; k++) a[k] += gd[k];
@@ -163,8 +171,10 @@
       s.lastGradNorm = u.gradNorm;
       s.lastClipFactor = u.clipFactor;
       losses.push(loss);
+      // pérdida o gradiente no finitos, o una probabilidad del objetivo < 1e-300 (logits desbocados)
+      if (!Number.isFinite(loss) || capped || !Number.isFinite(u.gradNorm)) s.diverged = true;
     }
-    return { losses };
+    return { losses, diverged: s.diverged };
   }
 
   function evaluate(s) {
@@ -311,6 +321,7 @@
       lastGradNorms: Object.assign({}, s.lastGradNorms),
       lastGradNorm: s.lastGradNorm,
       lastClipFactor: s.lastClipFactor,
+      diverged: !!s.diverged,
       rngState: s._rng.getState(),
       perm: s._perm.slice(),
       cursor: s._cursor,
@@ -335,6 +346,7 @@
     s.lastGradNorms = Object.assign({}, snap.lastGradNorms);
     s.lastGradNorm = snap.lastGradNorm === undefined ? null : snap.lastGradNorm;
     s.lastClipFactor = snap.lastClipFactor === undefined ? 1 : snap.lastClipFactor;
+    s.diverged = !!snap.diverged;
     s._rng.setState(snap.rngState);
     s._perm = snap.perm.slice();
     s._cursor = snap.cursor;

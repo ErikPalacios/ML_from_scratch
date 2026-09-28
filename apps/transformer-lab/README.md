@@ -36,9 +36,14 @@ backward (44) y actualización (17, uno por parámetro, precedidos de la norma d
   **Pasa el cursor por una celda** (o tócala, o recórrelas con `Tab` y las flechas): se resaltan las
   celdas que la producen y el *inspector* muestra la cuenta completa con sus números. En pantallas
   anchas el inspector está al pie de la columna derecha (así no tapa las matrices); en pantallas
-  más estrechas, bajo la operación. «Animar» reproduce la operación celda a celda; el botón
-  **Números** alterna entre *auto* (números donde caben; las matrices grandes van solo con color),
-  *todos* y *no* (solo color).
+  más estrechas, fijo al pie sobre la línea de tiempo (en el móvil, como una hoja inferior que se
+  abre al tocar una celda). «Animar» reproduce la operación celda a celda y desplaza la página hasta
+  lo que se está rellenando; el botón **Números** alterna entre *auto* (números donde caben; las
+  matrices grandes van solo con color), *todos* y *no* (solo color). Filas, columnas y posiciones se
+  cuentan desde 0 (como en NumPy); pasos, capas y cabezas, desde 1. En el backward, las activaciones
+  del forward que se reutilizan llevan la etiqueta «del forward · paso N» (pulsa para ir a ese paso),
+  y el último paso resume la iteración: cuántos números se actualizaron y cómo cambia la pérdida de la
+  frase con los pesos nuevos.
 - **Derecha — la explicación.** Resumen, intuición, fórmulas, cómo cambian las dimensiones,
   derivación detallada (en el backward se deriva cada gradiente), pseudocódigo estilo NumPy y
   enlaces a derivaciones largas (regla de la cadena, jacobiano del softmax, LayerNorm, Adam…).
@@ -46,9 +51,11 @@ backward (44) y actualización (17, uno por parámetro, precedidos de la norma d
   **Tensores vivos** lista todos los tensores calculados hasta ese paso; pulsa uno para ir al paso
   que lo produjo.
 - **Abajo — línea de tiempo.** Una marca por paso, coloreada por fase; haz clic o arrastra para
-  moverte. Botones de paso anterior/siguiente, reproducción automática con velocidad (0.5× a 4×) y
-  saltos al inicio de cada fase. El selector de frase y **Nueva iteración** trazan otra iteración con
-  los pesos ya actualizados: la pérdida baja iteración a iteración (el minigráfico la dibuja).
+  moverte. Botones de paso anterior/siguiente, **reproducción automática** con velocidad (0.5× a 4×)
+  —recorre la iteración como una película: cada operación se anima (como «Animar», con una
+  duración acotada) y luego se deja un momento para leerla— y saltos al inicio de cada fase. El
+  selector de frase y **Nueva iteración** recorren otra iteración con los pesos ya actualizados: la
+  pérdida baja iteración a iteración (el minigráfico la dibuja).
 
 Colores de fase: **datos** gris pizarra, **forward** verde azulado (la pérdida cierra el forward),
 **backward** magenta y **actualización** ocre.
@@ -60,18 +67,23 @@ minilote. Se ven en vivo: la curva de pérdida (con media móvil, escala logarí
 referencia `ln V` de un modelo que acierta al azar), la perplejidad, la pérdida de cada frase, la
 norma del gradiente de cada parámetro, **los mapas de atención de todas las capas y cabezas**, una
 tabla de predicciones por posición (las 3 más probables) y los embeddings `E` proyectados en 2-D
-con PCA. «Inspeccionar esta iteración» te lleva a *Paso a paso* con los pesos actuales.
+con PCA. «Ver una iteración paso a paso» da un paso más con la frase elegida (B = 1) y lo muestra en
+*Paso a paso*. Si el entrenamiento diverge (por ejemplo, SGD con η = 5 y sin recorte), se detiene y
+lo explica. Con corpus grandes, la pérdida media se estima mientras se entrena y se completa al
+pausar: ningún fotograma bloquea la página.
 
 ### 3 · Generación
 Escribe un comienzo («el gato») y el modelo lo continúa token a token: para cada paso verás el
-contexto, las 10 probabilidades más altas, el token elegido y la atención de cada cabeza. Modo voraz
-o muestreo con temperatura. En inferencia **solo se ejecuta el forward**: no hay pérdida, ni
+contexto, cómo cambian las formas en ese forward (`ids (1×T) → … → logits (T×V) → última fila`),
+las 10 probabilidades más altas, el token elegido y la atención de cada cabeza (con muchas cabezas,
+en un desplegable por paso). Modo voraz o muestreo con temperatura. En inferencia **solo se ejecuta el forward**: no hay pérdida, ni
 backward, ni actualización. Las palabras fuera del vocabulario dan un error que lista el vocabulario.
 
 ### 4 · Datos y modelo
 Corpus editable (una frase por línea), tokenizador por palabras o por caracteres y todos los
-hiperparámetros, con validación (por ejemplo, `h` debe dividir a `d`). «Aplicar y reiniciar» crea
-un modelo nuevo. Además: tabla de vocabulario, inventario de parámetros (forma, número,
+hiperparámetros, con validación (por ejemplo, `h` debe dividir a `d`, `h ≤ 16`, y se rechazan las
+configuraciones cuya iteración de entrenamiento costaría más de ~0.5 s en el navegador). «Aplicar y
+reiniciar» crea un modelo nuevo. Además: tabla de vocabulario, inventario de parámetros (forma, número,
 inicialización y descripción), **mapa de dimensiones** con cada tensor del forward y del backward
 (forma simbólica y numérica, filtrable por fase, con enlace al paso que lo calcula) y una
 **comprobación numérica de gradientes** (diferencias centrales frente al backward).
@@ -81,10 +93,10 @@ inicialización y descripción), **mapa de dimensiones** con cada tensor del for
 | Tecla | Acción |
 |---|---|
 | `←` `→` | paso anterior / siguiente |
-| `Espacio` | reproducir o pausar |
+| `Espacio` | reproducir o pausar (la iteración entera, animada) |
 | `Inicio` `Fin` | primer / último paso |
 | `Tab` | recorrer los controles; en el esquema, `↑` `↓` siguen el flujo y `←` `→` cambian de cabeza |
-| `Esc` | cerrar la guía o una derivación |
+| `Esc` | cerrar la guía, una derivación o un tooltip |
 
 Los atajos nunca actúan mientras escribes en un campo de texto. El botón **Guía** abre un recorrido
 de introducción, la notación y un glosario. El botón de tema alterna Sistema, Claro y Oscuro.
@@ -127,7 +139,11 @@ componen, que la explicación no tiene marcadores sin rellenar, que el inspector
 celdas y que el esquema marca el bloque activo. Después entrena 300 iteraciones (la pérdida debe
 bajar), genera a partir de «el gato come» (debe salir «pescado»), comprueba los gradientes, recorre
 las pestañas y los temas y, a 390 px de ancho, que ninguna pestaña ni ningún paso desborde en
-horizontal. Devuelve un resumen JSON y falla si algo no se cumple.
+horizontal. También vigila regresiones: que «Animar» y la reproducción dejen a la vista lo que se
+anima (a 1440 y a 1024 px), que el foco del teclado no quede bajo el inspector, que en el móvil la
+cuenta de una celda tocada se vea, que la validación rechace configuraciones que congelarían la
+página, que «Máxima» no arrastre su ritmo entre modelos y que una divergencia se detecte. Devuelve un
+resumen JSON y falla si algo no se cumple.
 
 `tools/browser-check.mjs` abre la página en Chrome sin interfaz, imprime los mensajes de consola,
 evalúa expresiones (`--eval`, `--eval-file`), guarda una captura (`--shot`, `--full`) y termina con

@@ -13,6 +13,10 @@
      TL.MathTex.typeset(el)            -> Promise   (compone \( … \) y \[ … \] de un subárbol HTML)
      TL.MathTex.toHTML(latex, display) -> string    (SVG en caché o respaldo; útil para plantillas)
      TL.MathTex.clearCache()
+   Si MathJax llega tarde (tras los 8 s de espera), las fórmulas de respaldo (y las versiones
+   unicode «lite») se sustituyen solas por las compuestas y se emite el evento
+   'tl:mathjax-ready' en window (la app reconstruye lo que tenga en caché).
+   Los nodos dentro de un elemento .no-tex (p. ej. tokens del corpus) nunca se componen.
    Notas
    - Config (en index.html, antes de MathJax):
        window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
@@ -57,6 +61,7 @@
       if (ok) mj = root.MathJax; else failed = true;
       flushPending();
       resolve(ok);
+      if (!ok) watchLate();
     };
     const poll = () => {
       if (done) return;
@@ -74,10 +79,57 @@
 
   function isReady() { return !!mj; }
 
+  // ---------------------------------------------------------------- MathJax que llega tarde
+  // Tras el tiempo de espera se sigue vigilando (evento load del script y sondeo cada segundo
+  // durante un minuto). Si MathJax aparece, se componen las fórmulas de respaldo ya dibujadas.
+  let lateWatch = false;
+  function watchLate() {
+    if (lateWatch || !doc) return;
+    lateWatch = true;
+    const t0 = Date.now();
+    let timer = 0, upgrading = false;
+    const check = () => {
+      if (mj || upgrading) return;
+      if (mathJaxUsable()) {
+        upgrading = true;
+        clearTimeout(timer);
+        root.MathJax.startup.promise.then(upgradeLate, () => { upgrading = false; });
+        return;
+      }
+      if (Date.now() - t0 < 60000) timer = setTimeout(check, 1000);
+    };
+    const s = doc.getElementById('MathJax-script');
+    if (s) s.addEventListener('load', () => setTimeout(check, 0));
+    timer = setTimeout(check, 1000);
+  }
+  function upgradeLate() {
+    if (mj || !mathJaxUsable()) return;
+    mj = root.MathJax;
+    failed = false;
+    cache.clear();
+    cacheChecked = false;
+    for (const c of Array.from(doc.querySelectorAll('.tex-fallback[data-tex], .tex-lite[data-tex]'))) {
+      if (!c.isConnected) continue;
+      const display = c.dataset.display === '1';
+      const wrap = display && c.parentElement && c.parentElement.classList.contains('tex-display') ? c.parentElement : c;
+      const tmp = doc.createElement('span');
+      tmp.innerHTML = convert(c.dataset.tex, display);
+      wrap.replaceWith.apply(wrap, Array.from(tmp.childNodes));
+    }
+    try { root.dispatchEvent(new Event('tl:mathjax-ready')); } catch (e) { /* nada */ }
+  }
+
   // ---------------------------------------------------------------- conversión con caché
+  // (data-tex guarda el LaTeX original: si MathJax llega tarde, se compone en su sitio)
   function fallbackHTML(latex, display) {
-    const code = '<code class="tex-fallback" title="Fórmula sin componer (MathJax no disponible)">' + esc(latex) + '</code>';
+    const code = '<code class="tex-fallback" title="Fórmula sin componer (MathJax no disponible)" data-tex="' + esc(latex) +
+      '" data-display="' + (display ? 1 : 0) + '">' + esc(latex) + '</code>';
     return display ? '<span class="tex-display">' + code + '</span>' : code;
+  }
+  function liteHTML(latex, display) {
+    const lite = TL.Charts && TL.Charts.texLite ? TL.Charts.texLite(latex) : esc(latex);
+    const s = '<span class="tex-lite" data-tex="' + esc(latex) + '" data-display="' + (display ? 1 : 0) + '">' + lite + '</span>';
+    return display ? '<span class="tex-display">' + s + '</span>' : s;
   }
   // marcador provisional mientras carga MathJax: versión unicode aproximada (sin parpadeo de LaTeX crudo)
   function pendingHTML(latex, display) {
@@ -133,7 +185,7 @@
       pending.delete(el);
       el.innerHTML = convert(latex, display);
     } else if (failed) {
-      el.innerHTML = lite ? pendingHTML(latex, display).replace('tex-pending', 'tex-lite') : fallbackHTML(latex, display);
+      el.innerHTML = lite ? liteHTML(latex, display) : fallbackHTML(latex, display);
     } else {
       el.innerHTML = pendingHTML(latex, display);
       pending.set(el, { latex, display, lite });
@@ -176,7 +228,8 @@
     const walker = doc.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */, {
       acceptNode(n) {
         for (let p = n.parentNode; p && p !== el.parentNode; p = p.parentNode) {
-          if (p.nodeType === 1 && (SKIP_TAGS.test(p.nodeName) || (p.classList && p.classList.contains('tex-fallback')))) return 2; // REJECT
+          // tex-fallback: ya es código LaTeX; no-tex: texto del usuario (tokens), nunca es LaTeX
+          if (p.nodeType === 1 && (SKIP_TAGS.test(p.nodeName) || (p.classList && (p.classList.contains('tex-fallback') || p.classList.contains('no-tex'))))) return 2; // REJECT
         }
         return n.nodeValue.indexOf('\\(') >= 0 || n.nodeValue.indexOf('\\[') >= 0 ? 1 : 3; // ACCEPT : SKIP
       },
@@ -196,6 +249,7 @@
         if (p.text !== undefined) { frag.appendChild(doc.createTextNode(p.text)); continue; }
         const span = doc.createElement('span');
         span.className = p.display ? 'tex tex--display' : 'tex';
+        if (p.display) span.dataset.tex = p.tex; // la app puede volver a partirla si no cabe
         span.innerHTML = mj ? convert(p.tex, p.display) : fallbackHTML(p.tex, p.display);
         frag.appendChild(span);
       }

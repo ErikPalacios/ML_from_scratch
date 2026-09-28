@@ -14,8 +14,18 @@
                animateSpeed,       // ms por celda en las animaciones (por defecto 70)
                cfg, tok,           // config del modelo y tokenizador (PE, activación, objetivos…)
                steps?, targetTokens?,  // opcionales: para mostrar el objetivo en el softmax de salida
+               stepIndex?,         // índice del paso en steps (para enlazar tensores del forward)
+               iter?,              // número de iteración de la traza (notas de la atención)
+               viewport?(),        // → {top, bottom}: franja visible de la ventana (sin cabecera,
+                                   //   línea de tiempo ni inspector fijos); la usa animate() para
+                                   //   desplazar la página hasta lo que se anima
+               goTo?(k),           // ir al paso k (etiquetas «del forward · paso N»)
+               onTrainAndReturn?(n), // entrenar n iteraciones y volver a este paso (nota de atención)
+               recap?,             // último paso: { iter, before, after, nParams, onNew() }
                content? }          // no se usa (la explicación larga la muestra el shell)
-     view.animate() -> Promise     // animación propia del tipo (barrido del matmul, softmax por filas…)
+     view.animate({ budget?, scroll? }) -> Promise   // animación propia del tipo (barrido del matmul,
+                                   //   softmax por filas…); budget = duración total máxima (ms)
+     view.stop()                   // detiene la animación en curso (deja la matriz completa)
      view.destroy()
      view.el, view.heatmaps        // extra
    Extras: TL.OpViews.kinds (tipos con vista propia), TL.OpViews.renderers (extensible).
@@ -70,7 +80,8 @@
   }
   const isAttnRef = (ref) => ref && ref.rowAxis === 'T' && ref.colAxis === 'T';
   const tokQ = (s) => '«' + s + '»';          // texto plano (título, sub, filas: insp los escapa)
-  const tokH = (s) => '«' + esc(s) + '»';     // dentro de HTML (notas): «<s>» no debe ser una etiqueta
+  // dentro de HTML (notas): «<s>» no debe ser una etiqueta, y un token con \( … \) no debe componerse
+  const tokH = (s) => '<span class="no-tex">«' + esc(s) + '»</span>';
 
   // descripción de la posición de una celda para el inspector
   function where(ref, i, j) {
@@ -89,18 +100,23 @@
     return parts.join(' · ');
   }
 
-  // HTML del inspector
+  // superíndice de capa ⁽²⁾ → [2] (como X^{[2]} en las fórmulas; los paréntesis suelen indicar un ejemplo)
+  const SUPN = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+  const supBr = (html) => String(html).replace(/⁽([⁰¹²³⁴⁵⁶⁷⁸⁹]+)⁾/g, (m, n) => '<sup>[' + n.split('').map((c) => SUPN[c]).join('') + ']</sup>');
+  const escS = (x) => supBr(esc(x));
+
+  // HTML del inspector (título, subtítulo y filas llevan texto del corpus: .no-tex, nunca se componen)
   function insp(o) {
     let h = '<div class="insp" data-kind="' + esc(o.kind || '') + '">';
-    h += '<div class="insp__head"><span class="insp__title">' + esc(o.title) + '</span>';
-    if (o.sub) h += '<span class="insp__sub">' + esc(o.sub) + '</span>';
+    h += '<div class="insp__head"><span class="insp__title no-tex">' + escS(o.title) + '</span>';
+    if (o.sub) h += '<span class="insp__sub no-tex">' + escS(o.sub) + '</span>';
     h += '</div>';
     if (o.tex) h += '<div class="insp__tex">\\[' + o.tex + '\\]</div>';
     if (o.rows && o.rows.length) {
       h += '<div class="insp__rows">';
       for (const r of o.rows) {
-        if (typeof r === 'string') h += '<div class="insp__num">' + esc(r) + '</div>';
-        else h += '<div class="insp__row"><span class="insp__k">' + esc(r[0]) + '</span><span class="insp__v">' + esc(r[1]) + '</span></div>';
+        if (typeof r === 'string') h += '<div class="insp__num no-tex">' + escS(r) + '</div>';
+        else h += '<div class="insp__row"><span class="insp__k no-tex">' + escS(r[0]) + '</span><span class="insp__v no-tex">' + escS(r[1]) + '</span></div>';
       }
       h += '</div>';
     }
@@ -289,25 +305,23 @@
         if (x && x + tw > W) { lines++; x = 0; }
         x += tw;
       });
-      // A2 · matrices pequeñas: con números y un ancho de celda común (el justo para los números),
-      // si así caben en dos líneas como mucho (p. ej. S̃ + M = Ŝ con T = 5 en una columna central estrecha)
+      // A2 · matrices pequeñas (< 10 filas): con números y un ancho de celda común (el justo para los
+      // números), en las líneas que hagan falta, siempre que cada término quepa por sí solo
+      // (p. ej. S̃ + M = Ŝ con T = 5 en una columna central estrecha). Hay sitio en vertical: mejor
+      // ver los números que un mapa solo de color.
       if (sv !== false && lines >= 2 && maxR < 10) {
-        let linesU = 1, xu = 0, fits = true;
-        hms.forEach((h, k) => {
-          const tw = ow[k] + h.widthFor(needW) + 12;
-          if (tw > W) fits = false;
-          if (xu && xu + tw > W) { linesU++; xu = 0; }
-          xu += tw;
-        });
-        if (fits && linesU <= 2) {
+        let fits = true;
+        hms.forEach((h, k) => { if (ow[k] + h.widthFor(needW) + 12 > W) fits = false; });
+        if (fits) {
           for (const h of hms) h.fit(W, { w: needW, h: 22, vals: true });
           return;
         }
       }
       // B · toda la ecuación en una línea, solo color (si con números ocuparía demasiado)
       const sq = Math.min(18, cw);
-      // (solo si las celdas quedan de un tamaño legible, ≥ 16 px; si no, mejor partir la ecuación en líneas)
-      if (sv !== true && sq >= 16 && (sv === false || maxR >= 10 || lines >= 3)) {
+      // (solo si las celdas quedan de un tamaño legible, ≥ 16 px, y las matrices son grandes; las
+      // pequeñas pasan a C: cada término por separado, con números si caben)
+      if (sv !== true && sq >= 16 && (sv === false || maxR >= 10)) {
         for (const h of hms) h.fit(W, { w: sq, h: sq, vals: false });
         return;
       }
@@ -354,6 +368,8 @@
       this.texEls = []; // notas y rótulos con \( … \) (se componen al montar)
       this.primary = null;
       this.animator = null;
+      this.animTargets = null; // mapas que rellena la animación (por defecto, [primary])
+      this.budget = Infinity;  // duración máxima de la animación en curso (ms)
       const r = el('div', 'ov');
       r.dataset.kind = step.kind || 'generic';
       r.dataset.phase = step.phase || 'forward';
@@ -367,6 +383,7 @@
     // --- piezas
     hm(ref, opts, onCell) {
       const o = Object.assign({ fit: false, stretch: false, showValues: this.showValues }, opts || {});
+      if (o.tag === undefined) this._cacheTag(ref, o);
       const hm = TL.Heatmap.create(ref, Object.assign(o, {
         onHover: (i, j, v) => this.hover(hm, i, j, v),
         onLeave: () => {},
@@ -374,6 +391,21 @@
       this.hms.push(hm);
       if (onCell) this.handlers.set(hm, onCell);
       return hm;
+    }
+    // backward: una activación del forward que se reutiliza (la «caché») se etiqueta con el paso
+    // que la calculó; la etiqueta es un botón que lleva a ese paso
+    _cacheTag(ref, o) {
+      const s = this.step, ctx = this.ctx;
+      if (s.phase !== 'backward' || !ref || (ref.role !== 'act' && ref.role !== 'prob')) return;
+      if (s.inputs.indexOf(ref) < 0 || !Array.isArray(ctx.steps)) return;
+      const f = producerOf(ctx.steps, ref.tex, ctx.stepIndex == null ? ctx.steps.length : ctx.stepIndex);
+      if (!f) return;
+      o.tag = 'del forward · paso ' + (f.k + 1);
+      o.tagRole = 'fwd';
+      o.tagTitle = (f.transposed ? 'Traspuesta de una matriz calculada' : 'Calculada') + ' en el paso ' + (f.k + 1) +
+        ' del forward y guardada (en caché) para el backward: el gradiente combina lo que llega de atrás con lo que se calculó hacia delante.' +
+        (typeof ctx.goTo === 'function' ? ' Pulsa para ir a ese paso.' : '');
+      if (typeof ctx.goTo === 'function') o.onTag = () => ctx.goTo(f.k);
     }
     line(label) { const L = new Line(this, label); this.lines.push(L); this.body.appendChild(L.el); if (label && label.indexOf('\\(') >= 0) this.texEls.push(L.el.firstChild); return L; }
     card(title, cls) {
@@ -489,6 +521,31 @@
       for (const f of this.layoutHooks) f(W);
     }
     // --- animación
+    // ms por unidad (celda o fila) respetando la duración máxima de la animación en curso
+    stepMs(base, n) { return Math.max(12, Math.min(base, this.budget / Math.max(1, n))); }
+    // desplaza la página para que se vea lo que se va a animar: toda la operación si cabe en la
+    // franja visible; si no, las matrices que se rellenan (la salida)
+    revealAnim() {
+      const targets = (this.animTargets || [this.primary]).filter(Boolean);
+      if (!targets.length || !this.root.isConnected || typeof this.ctx.viewport !== 'function') return;
+      const vp = this.ctx.viewport();
+      const band = vp.bottom - vp.top, pad = 8;
+      if (!(band > 60)) return;
+      const rects = targets.map((h) => h.el.getBoundingClientRect()).filter((r) => r.width || r.height);
+      if (!rects.length) return;
+      const u = { top: Math.min.apply(null, rects.map((r) => r.top)), bottom: Math.max.apply(null, rects.map((r) => r.bottom)) };
+      if (u.top >= vp.top && u.bottom <= vp.bottom) return; // ya se ve
+      const op = { top: this.flowEl.getBoundingClientRect().top, bottom: this.body.getBoundingClientRect().bottom };
+      const fit = (r) => (r.top < vp.top + pad ? r.top - vp.top - pad : r.bottom > vp.bottom - pad ? Math.min(r.bottom - vp.bottom + pad, r.top - vp.top - pad) : 0);
+      let dy;
+      if (op.bottom - op.top + 2 * pad <= band) dy = fit(op);
+      else if (u.bottom - u.top + 2 * pad <= band) dy = fit(u);
+      else dy = u.top - vp.top - pad;
+      if (Math.abs(dy) < 2) return;
+      let smooth = true;
+      try { smooth = !root.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* nada */ }
+      try { root.scrollBy({ top: dy, behavior: smooth ? 'smooth' : 'auto' }); } catch (e) { root.scrollBy(0, dy); }
+    }
     sleep(tok, ms) {
       return new Promise((res) => {
         if (tok.cancelled) { res(); return; }
@@ -505,12 +562,14 @@
       if (t.finish) t.finish();
       this._anim = null;
     }
-    animate() {
+    animate(o) {
       if (this.destroyed) return Promise.resolve();
       this.stopAnim();
       const tok = { cancelled: false, stops: [] };
       this._anim = tok;
+      this.budget = o && o.budget > 0 ? o.budget : Infinity;
       this.root.classList.add('is-animating');
+      if (!(o && o.scroll === false)) this.revealAnim();
       const fn = this.animator || defaultAnimator;
       return Promise.resolve()
         .then(() => fn.call(this, tok))
@@ -540,13 +599,14 @@
     tok.finish = () => { hm.reveal(); };
     hm.reveal(0);
     if (N <= 96) {
+      const per = this.stepMs(this.speed, N);
       for (let k = 0; k < N && !tok.cancelled; k++) {
         hm.reveal(k + 1);
         this.hover(hm, Math.floor(k / C), k % C);
-        await this.sleep(tok, this.speed);
+        await this.sleep(tok, per);
       }
     } else {
-      const d = Math.max(150, Math.min(900, this.speed * 5));
+      const d = this.stepMs(Math.max(150, Math.min(900, this.speed * 5)), R);
       for (let i = 0; i < R && !tok.cancelled; i++) {
         hm.reveal((i + 1) * C);
         this.hover(hm, i, -1);
@@ -554,6 +614,25 @@
       }
     }
     hm.reveal();
+  }
+
+  // primer paso del forward (antes de `before`) que produce el tensor `tex` (o su traspuesta)
+  const producerCache = new WeakMap();
+  function producerOf(steps, tex, before) {
+    let map = producerCache.get(steps);
+    if (!map) {
+      map = new Map();
+      steps.forEach((st, k) => {
+        if (st.phase !== 'forward' && st.phase !== 'loss') return;
+        for (const o of st.outputs) if (!map.has(o.tex)) map.set(o.tex, k);
+      });
+      producerCache.set(steps, map);
+    }
+    let t = String(tex || ''), transposed = false;
+    if (/\^\{\\top\}$/.test(t)) { t = t.replace(/\^\{\\top\}$/, ''); transposed = true; }
+    else if (/\\top\}$/.test(t)) { t = t.replace(/\\top\}$/, '}'); transposed = true; }
+    const k = map.get(t);
+    return k != null && k < before ? { k, transposed } : null;
   }
 
   // inspector genérico: valor de la celda
@@ -598,6 +677,7 @@
     const bias = ax.bias != null ? s.inputs[ax.bias] : null;
     const C = s.outputs[0];
     const K = A.mat.c;
+    let graph = null; // grafo de atención (solo en la mezcla A·V del forward)
     // el coste total (T·k·n) ya está en la cabecera del paso; aquí, qué es cada celda
     v.flow([A, '·', B, bias && '+', bias, '→', C],
       'cada celda: ' + K + ' producto' + (K === 1 ? '' : 's') + (bias ? ' + sesgo' : ''));
@@ -611,9 +691,19 @@
     v.primary = hC;
     const n = mmNote(s, A, B);
     if (n) v.note(n);
+    if (s.tpl === 'fwd.attn.context' && isAttnRef(A)) {
+      // la atención «trae» información aquí: el grafo muestra de qué tokens viene cada fila de Z
+      const body = v.card('Grafo de atención: de quién trae información cada token', 'ov-card--graph');
+      graph = attnGraph(A.mat, A.rowLabels || [], A.colLabels || [], (i) => v.hover(hC, i, -1));
+      body.appendChild(graph.el);
+      body.appendChild(el('p', 'ov-card__cap', 'Grosor = peso A[i, j]: cuánto del valor de j entra en la fila i de ' + esc(C.label || 'Z') + '. Pasa el cursor por una consulta (o por una fila de ' + esc(C.label || 'Z') + ') para aislarla.'));
+      v.clearHooks.push(() => graph.isolate(null));
+      attnNote(v, A.mat, A.rowLabels || [], A.colLabels || []);
+    }
 
     function cellC(hm, i, j) {
       if (i < 0 && j < 0) return null;
+      if (graph && i >= 0) graph.isolate(i);
       if (j === -1) {
         hA.highlightRow(i, 'src'); hC.highlightRow(i, 'hl');
         return insp({ kind: 'matmul', title: (C.label || C.key) + ' · fila ' + i, sub: where(C, i, -1),
@@ -644,6 +734,7 @@
     }
     function cellA(hm, i, k) {
       if (i < 0 || k < 0) return genericCell.call(this, hm, i, k);
+      if (graph) graph.isolate(i, k);
       hA.highlightCell(i, k, 'hl'); hB.highlightRow(k, 'alt'); hC.highlightRow(i, 'src');
       return insp({ kind: 'matmul', title: cellLab(A, i, k), sub: where(A, i, k), tex: at(A.tex, i, k) + ' = ' + texNum(A.mat.get(i, k)),
         rows: [['', 'Multiplica a la fila ' + k + ' de ' + (B.label || '') + ' y contribuye a toda la fila ' + i + ' de ' + (C.label || '') + '.']] });
@@ -907,6 +998,34 @@
     };
   }
 
+  // Nota con datos: a quién mira la penúltima posición (en «el gato come pescado .», «come», que
+  // debe predecir «pescado» y para eso necesita al sujeto) y si ese reparto ya significa algo.
+  function attnNote(v, A, qLab, kLab) {
+    const T = A.r;
+    if (T < 2) return;
+    const i = T >= 3 ? T - 2 : T - 1;
+    const order = Array.from({ length: A.c }, (_, j) => j).filter((j) => A.get(i, j) > 0).sort((a, b) => A.get(i, b) - A.get(i, a)).slice(0, 2);
+    const lab = (L, k) => (L[k] != null ? tokH(L[k]) : String(k));
+    const parts = order.map((j) => pct(A.get(i, j)) + ' a ' + lab(kLab, j));
+    const iter = v.ctx.iter;
+    let html = (iter != null ? '<b>Iteración ' + iter + ':</b> ' : '') + 'la fila de ' + lab(qLab, i) + ' (posición ' + i + ') reparte ' + parts.join(' y ') +
+      (order.length && A.get(i, order[0]) < 0.999 ? ' (y el resto entre las demás visibles)' : '') + '.';
+    const raw = iter != null && iter < 100;
+    if (raw) {
+      html += ' Con pesos casi aleatorios, este reparto todavía no significa nada. Entrena unas 200 iteraciones (pestaña «Entrenamiento») y vuelve con «Ver una iteración paso a paso»: con el corpus por defecto, el verbo («come», «bebe») acaba mirando a su sujeto («gato», «perro», «niña»…), que es lo que decide la palabra siguiente.';
+    } else {
+      html += ' ¿Mira al token que necesita para predecir el siguiente? Con el corpus por defecto, el verbo («come», «bebe») debería cargar su peso en el sujeto («gato», «perro», «niña»…). Otras cabezas pueden especializarse en otra cosa (la palabra anterior, <code>&lt;s&gt;</code>…).';
+    }
+    const n = v.note(html, 'ov-note--attn');
+    if (raw && typeof v.ctx.onTrainAndReturn === 'function') {
+      const b = el('button', 'btn btn--sm ov-note__btn');
+      b.type = 'button';
+      b.textContent = 'Entrenar 200 iteraciones y volver a este paso';
+      b.addEventListener('click', () => v.ctx.onTrainAndReturn(200));
+      n.appendChild(b);
+    }
+  }
+
   // objetivos del softmax de salida (el paso no los trae): ctx.targetTokens → ctx.steps → tokenizador
   function findTargets(ctx, queryLabels) {
     if (ctx.targetTokens) return ctx.targetTokens;
@@ -945,7 +1064,7 @@
     const L2 = v.line('2 · Exponencial y suma de cada fila');
     const hE = v.hm(eRef, { tag: false }, cell);
     const hS = v.hm(sRef, { caption: 'compact', tag: false }, cellRow);
-    L2.term(hE, { tex: 'e_{ij} = \\exp(x_{ij} - m_i) =' }).term(hS, { word: 'Σ por fila' });
+    L2.term(hE, { tex: 'e_{ij} = \\exp(' + at(X.tex, 'i', 'j') + ' - m_i) =' }).term(hS, { word: 'Σ por fila' });
     const L3 = v.line('3 · Normalizar: dividir cada fila por su suma');
     const hP = v.hm(P, {}, cell);
     const hC = v.hm(cRef, { caption: 'compact', scale: 'sequential', maxAbs: 1, tag: false }, cellRow);
@@ -964,6 +1083,7 @@
       body.appendChild(el('p', 'ov-card__cap', 'Grosor y opacidad = peso A[i, j]. Pasa el cursor por una consulta (o por una fila de la matriz) para aislarla. Las líneas hacia el futuro no existen: la máscara las dejó en 0.'));
       v.clearHooks.push(() => graph.isolate(null));
       v.note('Cada fila de A es una distribución de probabilidad sobre las claves visibles: pesos ≥ 0 que suman 1. Restar el máximo m de cada fila no cambia el resultado (se cancela al dividir) pero evita desbordes de exp.');
+      attnNote(v, P.mat, ax.queryLabels || rl || [], ax.keyLabels || X.colLabels || []);
     } else {
       const targets = findTargets(v.ctx, ax.queryLabels || rl || []);
       topBox = v.card('Top-3 predicciones por posición', 'ov-card--wide');
@@ -1007,10 +1127,11 @@
         ] });
     }
     // animación: normalización fila a fila
+    v.animTargets = [hE, hS, hP, hC];
     v.animator = async function (tok) {
       tok.finish = () => { hE.reveal(); hS.reveal(); hP.reveal(); hC.reveal(); };
       hE.reveal(0); hS.reveal(0); hP.reveal(0); hC.reveal(0);
-      const d = Math.max(260, Math.min(1100, this.speed * C * 1.2));
+      const d = this.stepMs(Math.max(260, Math.min(1100, this.speed * C * 1.2)), T);
       for (let i = 0; i < T && !tok.cancelled; i++) {
         hE.reveal((i + 1) * C); hS.reveal(i + 1);
         this.clearHl(); pickRow(i);
@@ -1051,15 +1172,20 @@
     return wrap;
   }
 
+  // nombre de la entrada normalizada de una LayerNorm: el de su entrada con gorro (X^{[0]} → \hat X^{[0]}, R → \hat R)
+  function hatTex(tex) { const m = /^([A-Za-z])(.*)$/.exec(tex || ''); return m ? '\\hat ' + m[1] + m[2] : '\\hat X'; }
+  function hatLab(lab) { const m = /^([A-Za-z])(.*)$/.exec(lab || ''); return m ? m[1] + '\u0302' + m[2] : 'X\u0302'; }
+
   // ---- layernorm
   R.layernorm = function (v) {
     const s = v.step, ax = s.aux, X = s.inputs[0], G = s.inputs[1], Bt = s.inputs[2], Y = s.outputs[0];
     const T = X.mat.r, d = X.mat.c, eps = ax.eps;
+    const XH = hatTex(X.tex), XHL = hatLab(X.label);
     v.flow([X, '→', { tex: '\\mathrm{LN}', text: '' }, '→', Y], G.label + ', ' + Bt.label + ': 1×' + d + ' (parámetros)');
     const rl = X.rowLabels;
     const muRef = mkRef({ key: 'mu', tex: '\\mu', label: 'μ', mat: ax.mu, rowAxis: 'T', colAxis: '1', rowLabels: rl });
     const sgRef = mkRef({ key: 'sigma', tex: '\\sqrt{\\sigma^2+\\varepsilon}', label: '√(σ²+ε)', mat: ax.sigma, rowAxis: 'T', colAxis: '1', rowLabels: rl });
-    const xhRef = mkRef({ key: 'xhat', tex: '\\hat X', label: 'X̂', mat: ax.xhat, rowAxis: 'T', colAxis: 'd', rowLabels: rl });
+    const xhRef = mkRef({ key: 'xhat', tex: XH, label: XHL, mat: ax.xhat, rowAxis: 'T', colAxis: 'd', rowLabels: rl });
     const shared = maxAbsOf([xhRef, Y]);
     const L1 = v.line('1 · Media y desviación de cada fila (de cada token)');
     const hX = v.hm(X, {}, cellY);
@@ -1068,12 +1194,12 @@
     L1.term(hX).term(hMu, '↦').term(hSg, ',');
     const L2 = v.line('2 · Normalizar: media 0 y varianza 1 en cada fila');
     const hXh = v.hm(xhRef, { maxAbs: shared }, cellY);
-    L2.term(hXh, { tex: '\\hat X = \\frac{X - \\mu}{\\sqrt{\\sigma^2+\\varepsilon}} =' });
+    L2.term(hXh, { tex: XH + ' = \\frac{' + X.tex + ' - \\mu}{\\sqrt{\\sigma^2+\\varepsilon}} =' });
     const L3 = v.line('3 · Escalar y desplazar cada columna (parámetros aprendidos)');
     const hG = v.hm(G, {}, cellParam), hB = v.hm(Bt, {}, cellParam), hY = v.hm(Y, { maxAbs: shared }, cellY);
-    L3.term(hG).term(hB, { tex: '\\odot\\,\\hat X\\;+' }).term(hY, '=');
+    L3.term(hG).term(hB, { tex: '\\odot\\,' + XH + '\\;+' }).term(hY, '=');
     v.primary = hY;
-    v.note('LayerNorm trabaja <b>por filas</b>: cada token se normaliza con su propia media y desviación (sobre sus d = ' + d + ' números), sin mirar a los demás tokens. \\(\\hat X\\) y ' + esc(Y.label) + ' comparten escala de color.');
+    v.note('LayerNorm trabaja <b>por filas</b>: cada token se normaliza con su propia media y desviación (sobre sus d = ' + d + ' números), sin mirar a los demás tokens. \\(' + XH + '\\) y ' + esc(Y.label) + ' comparten escala de color.');
 
     function statRows(i) {
       const xs = []; for (let j = 0; j < d; j++) xs.push(f4(X.mat.get(i, j), 3));
@@ -1096,7 +1222,7 @@
       if (j === -1) {
         hX.highlightRow(i, 'src'); hXh.highlightRow(i, 'src'); hY.highlightRow(i, 'hl'); hMu.highlightCell(i, 0, 'src'); hSg.highlightCell(i, 0, 'src');
         let m = 0, q = 0; for (let k = 0; k < d; k++) m += ax.xhat.get(i, k); m /= d; for (let k = 0; k < d; k++) q += (ax.xhat.get(i, k) - m) ** 2; q /= d;
-        return insp({ kind: 'layernorm', title: 'Fila ' + i, sub: where(X, i, -1), rows: statRows(i).concat([['fila de X̂', 'media = ' + f4(Math.abs(m) < 1e-12 ? 0 : m, 3) + ', varianza = ' + f4(q, 4) + ' (≈ 1; un poco menos por ε)']]) });
+        return insp({ kind: 'layernorm', title: 'Fila ' + i, sub: where(X, i, -1), rows: statRows(i).concat([['fila de ' + XHL, 'media = ' + f4(Math.abs(m) < 1e-12 ? 0 : m, 3) + ', varianza = ' + f4(q, 4) + ' (≈ 1; un poco menos por ε)']]) });
       }
       if (i === -1) { hXh.highlightCol(j, 'src'); hY.highlightCol(j, 'hl'); hG.highlightCell(0, j, 'src'); hB.highlightCell(0, j, 'src'); return cellParam.call(this, hG, 0, j); }
       hX.highlightRow(i, 'src'); hX.highlightCell(i, j, 'alt'); hMu.highlightCell(i, 0, 'src'); hSg.highlightCell(i, 0, 'src');
@@ -1113,15 +1239,16 @@
       if (j < 0) return null;
       hG.highlightCell(0, j, hm === hG ? 'hl' : 'src'); hB.highlightCell(0, j, hm === hB ? 'hl' : 'src'); hXh.highlightCol(j, 'alt'); hY.highlightCol(j, 'src');
       return insp({ kind: 'layernorm', title: 'Columna ' + j + ': ' + (G.label || 'γ') + '[' + j + '] y ' + (Bt.label || 'β') + '[' + j + ']', sub: 'la misma para las ' + T + ' filas',
-        tex: at(Y.tex, ':', j) + ' = ' + at1(G.tex, j) + '\\,' + at('\\hat X', ':', j) + ' + ' + at1(Bt.tex, j),
+        tex: at(Y.tex, ':', j) + ' = ' + at1(G.tex, j) + '\\,' + at(XH, ':', j) + ' + ' + at1(Bt.tex, j),
         rows: [[G.label + '[' + j + ']', '= ' + f4(G.mat.get(0, j))], [Bt.label + '[' + j + ']', '= ' + f4(Bt.mat.get(0, j))]],
-        note: 'γ escala y β desplaza la columna ' + j + ' de \\(\\hat X\\) (al empezar γ = 1 y β = 0: este paso deja \\(\\hat X\\) igual).' });
+        note: 'γ escala y β desplaza la columna ' + j + ' de \\(' + XH + '\\) (al empezar γ = 1 y β = 0: este paso deja \\(' + XH + '\\) igual).' });
     }
+    v.animTargets = [hMu, hSg, hXh, hY];
     v.animator = async function (tok) {
       const hs = [hMu, hSg, hXh, hY];
       tok.finish = () => hs.forEach((h) => h.reveal());
       hs.forEach((h) => h.reveal(0));
-      const dl = Math.max(260, Math.min(1000, this.speed * d));
+      const dl = this.stepMs(Math.max(260, Math.min(1000, this.speed * d)), T);
       for (let i = 0; i < T && !tok.cancelled; i++) {
         hMu.reveal(i + 1); hSg.reveal(i + 1);
         this.hover(hMu, i, 0);
@@ -1325,7 +1452,7 @@
     let off = 0; for (const x of ax.deriv.d) if (x === 0) off++;
     v.note(fn === 'relu'
       ? 'ReLU\'(u) vale 1 si u > 0 y 0 si no: el gradiente pasa entero por las neuronas activas y se <b>corta</b> en las apagadas (' + off + ' de ' + ax.deriv.d.length + ' aquí).'
-      : 'GELU\'(u) es suave: ≈ 1 para u grande, ≈ 0 para u muy negativo, y hasta ligeramente negativa cerca de u ≈ −0.75. El gradiente se multiplica por ella en cada celda.');
+      : 'GELU\'(u) es suave: ≈ 1 para u grande y ≈ 0 para u muy negativo; vale 0 en u ≈ −0.75 y es ligeramente negativa para u < −0.75 (mínimo ≈ −0.13 hacia u ≈ −1.4). El gradiente se multiplica por ella en cada celda.');
     function cell(hm, i, j) {
       if (i < 0 || j < 0) return genericCell.call(this, hm, i, j);
       for (const h of [hU, hD, hdG, hdU]) h.highlightCell(i, j, h === hm ? 'hl' : 'src');
@@ -1354,7 +1481,7 @@
     L2.term(hL, { tex: '\\ell_t = -\\log ' + P.tex + '[t, y_t] =' }).node(big, '→');
     v.primary = hL;
     for (let t = 0; t < T; t++) { const y = ax.targetIds[t]; hP.mark(t, y, 'tgt'); hY.mark(t, y, 'tgt'); }
-    const body = v.card('−log p por posición (ℒ es su media)', 'ov-card--wide');
+    const body = v.card('−log p por posición (la pérdida es su media)', 'ov-card--wide');
     const bars = el('div', 'ov-bars');
     body.appendChild(bars);
     const q = P.rowLabels || [];
@@ -1363,7 +1490,7 @@
     const chart = TL.Charts && TL.Charts.bars ? TL.Charts.bars(bars, items, { format: (x) => x.toFixed(3), onSelect: (it) => v.hover(hL, it.t, 0), ariaLabel: 'Pérdida por posición' }) : null;
     if (chart) v.cleanups.push(() => chart.destroy());
     const lnV = Math.log(V);
-    body.appendChild(el('p', 'ov-card__cap', 'Si el modelo repartiera la probabilidad por igual entre los ' + V + ' tokens, cada ℓ_t sería ln ' + V + ' = ' + lnV.toFixed(3) + '. Ahora ℒ = ' + loss.toFixed(4) + (loss < lnV ? ' (mejor que al azar).' : ' (aún no mejor que al azar).')));
+    body.appendChild(el('p', 'ov-card__cap', 'Si el modelo repartiera la probabilidad por igual entre los ' + V + ' tokens, cada ℓ_t sería ln ' + V + ' = ' + lnV.toFixed(3) + '. Ahora la pérdida media es ' + loss.toFixed(4) + (loss < lnV ? ' (mejor que al azar).' : ' (aún no mejor que al azar).')));
     v.note('−log p penaliza la probabilidad del token correcto: si p = 1 la pérdida es 0; si p → 0, crece sin límite. Solo cuenta la columna del objetivo, pero como cada fila suma 1, subirla obliga a bajar las demás.');
     function tgtRows(t) {
       const y = ax.targetIds[t], p = ax.pTarget.get(t, 0);
@@ -1375,7 +1502,7 @@
       hL.highlightCell(t, 0, 'hl'); hP.highlightCell(t, y, 'src'); hY.highlightCell(t, y, 'src'); hP.highlightRow(t, 'alt');
       const terms = []; for (let k = 0; k < T; k++) terms.push(f4(ax.perToken.get(k, 0), 3));
       return insp({ kind: 'crossentropy', title: 'ℓ' + sub(t) + ' · posición ' + t, sub: (q[t] ? tokQ(q[t]) + ' → ' : '') + tokQ(ax.targetTokens[t]),
-        tex: '\\ell_{' + t + '} = -\\log ' + at(P.tex, t, y), rows: tgtRows(t).concat([['ℒ', '= (' + sumStr(terms) + ') / ' + T + ' = ' + f4(loss, 6)]]) });
+        tex: '\\ell_{' + t + '} = -\\log ' + at(P.tex, t, y), rows: tgtRows(t).concat([['pérdida', '= (' + sumStr(terms) + ') / ' + T + ' = ' + f4(loss, 6)]]) });
     }
     function cell(hm, t, k) {
       if (t < 0 || k < 0) return genericCell.call(this, hm, t, k);
@@ -1390,10 +1517,11 @@
     v.animator = async function (tok) {
       tok.finish = () => hL.reveal();
       hL.reveal(0);
+      const per = this.stepMs(Math.max(300, this.speed * 6), T);
       for (let t = 0; t < T && !tok.cancelled; t++) {
         hL.reveal(t + 1);
         this.hover(hL, t, 0);
-        await this.sleep(tok, Math.max(300, this.speed * 6));
+        await this.sleep(tok, per);
       }
       tok.finish();
     };
@@ -1415,7 +1543,7 @@
     const tg = [];
     for (let t = 0; t < Y.mat.r; t++) for (let k = 0; k < Y.mat.c; k++) if (Y.mat.get(t, k) === 1) tg.push([t, k]);
     for (const [t, k] of tg) for (const h of [hP, hY, hPY, hD]) h.mark(t, k, 'tgt');
-    v.note('Signo: en la columna correcta (recuadrada) P − 1 < 0, así que el descenso de gradiente (θ ← θ − η·g) empuja ese logit hacia <b>arriba</b>; en las demás P > 0 y los empuja hacia <b>abajo</b>, más cuanto más probables eran. Cada fila suma 0.');
+    v.note('Signo: en la columna correcta (recuadrada) P − 1 < 0; en las demás, P > 0. Al actualizar los parámetros en contra del gradiente, el logit correcto tenderá a <b>subir</b> en la próxima iteración y los demás a <b>bajar</b>, más cuanto más probables eran. Los logits no se modifican directamente: cambian W_out, E, W_Q… que los producen. Cada fila suma 0.');
     function cell(hm, t, k) {
       if (t < 0 || k < 0) return genericCell.call(this, hm, t, k);
       for (const h of [hP, hY, hPY, hD]) h.highlightCell(t, k, h === hm ? 'hl' : 'src');
@@ -1423,7 +1551,8 @@
       return insp({ kind: 'grad_ce', title: cellLab(D, t, k), sub: where(D, t, k) + (y === 1 ? ' · objetivo' : ''),
         tex: at(D.tex, t, k) + ' = \\frac{' + at(P.tex, t, k) + ' - ' + at(Y.tex, t, k) + '}{' + T + '}',
         rows: [['', '= (' + f4(p) + ' − ' + f4(y) + ') / ' + T + ' = ' + f4(d, 6)]],
-        note: y === 1 ? 'Negativo: el descenso de gradiente empujará este logit hacia <b>arriba</b> (el token correcto ganará probabilidad).' : 'Positivo: el descenso de gradiente empujará este logit hacia <b>abajo</b>, en proporción a lo probable que era (' + pct(p) + ').' });
+        note: y === 1 ? 'Negativo: al actualizar los parámetros en contra del gradiente, este logit tenderá a <b>subir</b> en la próxima iteración (el token correcto ganará probabilidad). El logit no se modifica directamente: cambian los parámetros que lo producen.'
+          : 'Positivo: al actualizar los parámetros en contra del gradiente, este logit tenderá a <b>bajar</b> en la próxima iteración, en proporción a lo probable que era (' + pct(p) + '). El logit no se modifica directamente: cambian los parámetros que lo producen.' });
     }
   };
 
@@ -1431,23 +1560,24 @@
   R.grad_softmax = function (v) {
     const s = v.step, A = s.inputs[0], dA = s.inputs[1], dS = s.outputs[0], rd = s.aux.rowDot;
     const T = A.mat.r, C = A.mat.c;
-    const rRef = mkRef({ key: 'rowDot', tex: '\\mathrm{rowDot}', label: 'rowDot = Σₖ dA⊙A', mat: rd, rowAxis: 'T', colAxis: '1', rowLabels: A.rowLabels });
-    v.flow([A, '⊙', '(', dA, '−', { tex: '\\mathrm{rowDot}', shape: T + '×1' }, ')', '→', dS]);
+    const RS = '\\mathrm{rowsum}(\\mathrm{d}A\\odot A)';
+    const rRef = mkRef({ key: 'rowsum', tex: RS, label: 'rowsum = Σₖ dA⊙A', mat: rd, rowAxis: 'T', colAxis: '1', rowLabels: A.rowLabels });
+    v.flow([A, '⊙', '(', dA, '−', { tex: '\\mathrm{rowsum}', shape: T + '×1' }, ')', '→', dS]);
     const L = v.line();
     const hA = v.hm(A, {}, cell), hdA = v.hm(dA, {}, cell);
     const hR = v.hm(rRef, { caption: 'compact', tag: false }, cellR);
     const hdS = v.hm(dS, {}, cell);
     L.term(hA).term(hdA, { tex: '\\odot\\Big(' }).term(hR, '−', { tex: '\\Big)' }).term(hdS, '=');
     v.primary = hdS;
-    v.note('<code>rowDot</code> = Σₖ dA[i,k]·A[i,k] (uno por fila) se resta a toda la fila: así cada fila de dŜ suma 0 (el softmax ignora constantes sumadas a una fila). Donde A = 0 (enmascarado), el gradiente es 0.');
+    v.note('rowsum(dA ⊙ A)ᵢ = Σₖ dA[i,k]·A[i,k] (un número por fila) se resta a toda la fila: así cada fila de dŜ suma 0 (el softmax ignora constantes sumadas a una fila). Donde A = 0 (enmascarado), el gradiente es 0.');
     function rowDotRows(i) {
       const terms = []; for (let k = 0; k < C; k++) terms.push(par(dA.mat.get(i, k)) + '·' + par(A.mat.get(i, k)));
-      return ['rowDot[' + i + ']', '= ' + sumStr(terms) + ' = ' + f4(rd.get(i, 0))];
+      return ['rowsum[' + i + ']', '= ' + sumStr(terms) + ' = ' + f4(rd.get(i, 0))];
     }
     function cellR(hm, i) {
       if (i < 0) return null;
       hR.highlightCell(i, 0, 'hl'); hA.highlightRow(i, 'src'); hdA.highlightRow(i, 'src');
-      return insp({ kind: 'grad_softmax', title: 'rowDot[' + i + ']', sub: where(A, i, -1), tex: '\\mathrm{rowDot}_{' + i + '} = \\sum_k ' + at(dA.tex, i, 'k') + '\\,' + at(A.tex, i, 'k'), rows: [rowDotRows(i)] });
+      return insp({ kind: 'grad_softmax', title: 'rowsum[' + i + ']', sub: where(A, i, -1), tex: '\\mathrm{rowsum}_{' + i + '} = \\sum_k ' + at(dA.tex, i, 'k') + '\\,' + at(A.tex, i, 'k'), rows: [rowDotRows(i)] });
     }
     function cell(hm, i, j) {
       if (i < 0 || j < 0) return genericCell.call(this, hm, i, j);
@@ -1487,39 +1617,41 @@
     const dX = s.outputs[0], dG = s.outputs[1], dB = s.outputs[2];
     const T = dY.mat.r, d = dY.mat.c;
     const rl = dY.rowLabels;
+    // la entrada normalizada lleva el nombre de la entrada (\hat X^{[0]}, \hat R…), como en el forward
+    const XH = hatTex(X.tex), XHL = hatLab(X.label), DXH = '\\mathrm{d}' + XH, DXHL = 'd' + XHL;
     const m1 = new TL.Mat(T, 1), m2 = new TL.Mat(T, 1);
     for (let t = 0; t < T; t++) {
       let a = 0, b = 0;
       for (let j = 0; j < d; j++) { a += ax.dxhat.get(t, j); b += ax.dxhat.get(t, j) * ax.xhat.get(t, j); }
       m1.d[t] = a / d; m2.d[t] = b / d;
     }
-    const xhRef = mkRef({ key: 'xhat', tex: '\\hat X', label: 'X̂', mat: ax.xhat, rowAxis: 'T', colAxis: 'd', rowLabels: rl });
+    const xhRef = mkRef({ key: 'xhat', tex: XH, label: XHL, mat: ax.xhat, rowAxis: 'T', colAxis: 'd', rowLabels: rl });
     const sgRef = mkRef({ key: 'sigma', tex: '\\sqrt{\\sigma^2+\\varepsilon}', label: '√(σ²+ε)', mat: ax.sigma, rowAxis: 'T', colAxis: '1', rowLabels: rl });
-    const dxhRef = mkRef({ key: 'dxhat', tex: '\\mathrm{d}\\hat X', label: 'dX̂', mat: ax.dxhat, rowAxis: 'T', colAxis: 'd', role: 'grad', rowLabels: rl });
-    const m1Ref = mkRef({ key: 'm1', tex: '\\overline{\\mathrm{d}\\hat X}', label: 'media(dX̂)', mat: m1, rowAxis: 'T', colAxis: '1', role: 'grad', rowLabels: rl });
-    const m2Ref = mkRef({ key: 'm2', tex: '\\overline{\\mathrm{d}\\hat X\\odot\\hat X}', label: 'media(dX̂⊙X̂)', mat: m2, rowAxis: 'T', colAxis: '1', role: 'grad', rowLabels: rl });
+    const dxhRef = mkRef({ key: 'dxhat', tex: DXH, label: DXHL, mat: ax.dxhat, rowAxis: 'T', colAxis: 'd', role: 'grad', rowLabels: rl });
+    const m1Ref = mkRef({ key: 'm1', tex: '\\overline{' + DXH + '}', label: 'media(' + DXHL + ')', mat: m1, rowAxis: 'T', colAxis: '1', role: 'grad', rowLabels: rl });
+    const m2Ref = mkRef({ key: 'm2', tex: '\\overline{' + DXH + '\\odot ' + XH + '}', label: 'media(' + DXHL + '⊙' + XHL + ')', mat: m2, rowAxis: 'T', colAxis: '1', role: 'grad', rowLabels: rl });
     v.flow([dY, ',', X, ',', G, '→', dX, ',', dG, ',', dB]);
     const L0 = v.line('0 · Del forward (caché): la entrada normalizada y su desviación');
     const hX = v.hm(X, {}, cellX), hXh = v.hm(xhRef, {}, cellX), hSg = v.hm(sgRef, { caption: 'compact', tag: false }, cellX);
     L0.term(hX).term(hXh, '↦').term(hSg, ',');
-    const L1 = v.line('1 · Atravesar γ (regla de la cadena): \\(\\mathrm{d}\\hat X = \\mathrm{d}Y \\odot \\gamma\\)');
+    const L1 = v.line('1 · Atravesar γ (regla de la cadena): \\(' + DXH + ' = ' + dY.tex + ' \\odot ' + G.tex + '\\)');
     const hdY = v.hm(dY, {}, cellDX), hG = v.hm(G, {}, cellParam), hdXh = v.hm(dxhRef, { tag: false }, cellDX);
     L1.term(hdY).term(hG, '⊙').term(hdXh, '=');
     const L2 = v.line('2 · Atravesar la normalización: restar las medias de cada fila y dividir por √(σ²+ε)');
     const hM1 = v.hm(m1Ref, { caption: 'compact', tag: false }, cellDX), hM2 = v.hm(m2Ref, { caption: 'compact', tag: false }, cellDX);
     const hdX = v.hm(dX, {}, cellDX);
-    L2.term(hM1, { tex: '\\frac{1}{\\sqrt{\\sigma^2+\\varepsilon}}\\Big(\\mathrm{d}\\hat X\\; -' }).term(hM2, { tex: '-\\;\\hat X\\odot' }, { tex: '\\Big)' }).term(hdX, '=');
+    L2.term(hM1, { tex: '\\frac{1}{\\sqrt{\\sigma^2+\\varepsilon}}\\Big(' + DXH + '\\; -' }).term(hM2, { tex: '-\\;' + XH + '\\odot' }, { tex: '\\Big)' }).term(hdX, '=');
     const L3 = v.line('3 · Gradientes de los parámetros (suma sobre las T filas)');
     const hdG = v.hm(dG, {}, cellParam), hdB = v.hm(dB, {}, cellParam);
-    L3.term(hdG, { tex: '\\textstyle\\sum_t \\mathrm{d}Y\\odot\\hat X =' }).term(hdB, { tex: '\\quad\\textstyle\\sum_t \\mathrm{d}Y =' });
+    L3.term(hdG, { tex: '\\textstyle\\sum_t ' + dY.tex + '\\odot ' + XH + ' =' }).term(hdB, { tex: '\\quad\\textstyle\\sum_t ' + dY.tex + ' =' });
     v.primary = hdX;
-    v.note('Las dos medias restadas vienen de que μ y σ dependen de <b>toda</b> la fila: mover un x cambia la media y la desviación que usan los demás. Por eso \\(\\mathrm{d}X\\) no es simplemente \\(\\mathrm{d}\\hat X / \\sigma\\).');
+    v.note('Las dos medias restadas vienen de que μ y σ dependen de <b>toda</b> la fila: mover un x cambia la media y la desviación que usan los demás. Por eso \\(\\mathrm{d}' + X.tex + '\\) no es simplemente \\(' + DXH + ' / \\sigma\\).');
     function cellX(hm, i, j) {
       if (i < 0) return null;
       hX.highlightRow(i, 'src'); hSg.highlightCell(i, 0, 'src'); hXh.highlightRow(i, 'src');
       if (j >= 0 && hm !== hSg) { hX.highlightCell(i, j, 'hl'); hXh.highlightCell(i, j, 'hl'); }
       return insp({ kind: 'grad_layernorm', title: 'Fila ' + i + ' en el forward', sub: where(X, i, -1),
-        tex: '\\hat X[' + i + ',j] = \\frac{' + at(X.tex, i, 'j') + ' - \\mu_{' + i + '}}{\\sqrt{\\sigma^2_{' + i + '}+\\varepsilon}}',
+        tex: at(XH, i, 'j') + ' = \\frac{' + at(X.tex, i, 'j') + ' - \\mu_{' + i + '}}{\\sqrt{\\sigma^2_{' + i + '}+\\varepsilon}}',
         rows: [['μ' + sub(i), '= ' + f4(ax.mu.get(i, 0))], ['√(σ²+ε)', '= ' + f4(ax.sigma.get(i, 0))]].concat(j >= 0 && hm !== hSg ? [['x̂', '= (' + f4(X.mat.get(i, j)) + ' − ' + par(ax.mu.get(i, 0)) + ') / ' + f4(ax.sigma.get(i, 0)) + ' = ' + f4(ax.xhat.get(i, j))]] : []) });
     }
     function cellDX(hm, i, j) {
@@ -1529,15 +1661,15 @@
         const t1 = [], t2 = [];
         for (let k = 0; k < d; k++) { t1.push(f4(ax.dxhat.get(i, k), 3)); t2.push(par(ax.dxhat.get(i, k)) + '·' + par(ax.xhat.get(i, k))); }
         return insp({ kind: 'grad_layernorm', title: 'Medias de la fila ' + i, sub: where(dY, i, -1),
-          tex: '\\overline{\\mathrm{d}\\hat X}_{' + i + '} = \\frac1{' + d + '}\\sum_j \\mathrm{d}\\hat X[' + i + ',j],\\quad \\overline{\\mathrm{d}\\hat X\\odot\\hat X}_{' + i + '} = \\frac1{' + d + '}\\sum_j \\mathrm{d}\\hat X[' + i + ',j]\\,\\hat X[' + i + ',j]',
-          rows: [['media(dX̂)', '= (' + sumStr(t1) + ') / ' + d + ' = ' + f4(m1.d[i])], ['media(dX̂⊙X̂)', '= (' + sumStr(t2) + ') / ' + d + ' = ' + f4(m2.d[i])]] });
+          tex: '\\overline{' + DXH + '}_{' + i + '} = \\frac1{' + d + '}\\sum_j ' + at(DXH, i, 'j') + ',\\quad \\overline{' + DXH + '\\odot ' + XH + '}_{' + i + '} = \\frac1{' + d + '}\\sum_j ' + at(DXH, i, 'j') + '\\,' + at(XH, i, 'j'),
+          rows: [['media(' + DXHL + ')', '= (' + sumStr(t1) + ') / ' + d + ' = ' + f4(m1.d[i])], ['media(' + DXHL + '⊙' + XHL + ')', '= (' + sumStr(t2) + ') / ' + d + ' = ' + f4(m2.d[i])]] });
       }
       for (const h of [hdY, hdXh, hdX, hXh]) h.highlightCell(i, j, h === hm ? 'hl' : 'src');
       hG.highlightCell(0, j, 'src'); hM1.highlightCell(i, 0, 'src'); hM2.highlightCell(i, 0, 'src'); hSg.highlightCell(i, 0, 'src');
       const dy = dY.mat.get(i, j), g = G.mat.get(0, j), dxh = ax.dxhat.get(i, j), xh = ax.xhat.get(i, j), sg = ax.sigma.get(i, 0);
       return insp({ kind: 'grad_layernorm', title: cellLab(dX, i, j), sub: where(dX, i, j),
-        tex: at(dX.tex, i, j) + ' = \\frac{1}{\\sqrt{\\sigma^2_{' + i + '}+\\varepsilon}}\\Big(\\mathrm{d}\\hat X[' + i + ',' + j + '] - \\overline{\\mathrm{d}\\hat X}_{' + i + '} - \\hat X[' + i + ',' + j + ']\\,\\overline{\\mathrm{d}\\hat X\\odot\\hat X}_{' + i + '}\\Big)',
-        rows: [['dx̂', '= dY · γ = ' + f4(dy) + ' · ' + par(g) + ' = ' + f4(dxh)], ['media(dX̂)', '= ' + f4(m1.d[i])], ['media(dX̂⊙X̂)', '= ' + f4(m2.d[i])], ['x̂', '= ' + f4(xh)],
+        tex: at(dX.tex, i, j) + ' = \\frac{1}{\\sqrt{\\sigma^2_{' + i + '}+\\varepsilon}}\\Big(' + at(DXH, i, j) + ' - \\overline{' + DXH + '}_{' + i + '} - ' + at(XH, i, j) + '\\,\\overline{' + DXH + '\\odot ' + XH + '}_{' + i + '}\\Big)',
+        rows: [['dx̂', '= dY · γ = ' + f4(dy) + ' · ' + par(g) + ' = ' + f4(dxh)], ['media(' + DXHL + ')', '= ' + f4(m1.d[i])], ['media(' + DXHL + '⊙' + XHL + ')', '= ' + f4(m2.d[i])], ['x̂', '= ' + f4(xh)],
           ['dX', '= (' + f4(dxh) + ' − ' + par(m1.d[i]) + ' − ' + par(xh) + '·' + par(m2.d[i]) + ') / ' + f4(sg) + ' = ' + f4(dX.mat.get(i, j), 6)]] });
     }
     function cellParam(hm, i, j) {
@@ -1548,7 +1680,7 @@
       const terms = []; let sum = 0;
       for (let t = 0; t < T; t++) { const a = dY.mat.get(t, j); if (isG) { const b = ax.xhat.get(t, j); terms.push(par(a) + '·' + par(b)); sum += a * b; } else { terms.push(f4(a)); sum += a; } }
       return insp({ kind: 'grad_layernorm', title: cellLab(hm.ref, 0, j), sub: 'suma sobre las ' + T + ' filas de la columna ' + j,
-        tex: at1(hm.ref.tex, j) + ' = \\sum_{t=0}^{' + (T - 1) + '} ' + at(dY.tex, 't', j) + (isG ? '\\,\\hat X[t,' + j + ']' : ''),
+        tex: at1(hm.ref.tex, j) + ' = \\sum_{t=0}^{' + (T - 1) + '} ' + at(dY.tex, 't', j) + (isG ? '\\,' + at(XH, 't', j) : ''),
         rows: [['', '= ' + sumStr(terms) + ' = ' + f4(hm.mat.get(0, j), 6)]] });
     }
   };
@@ -1588,10 +1720,10 @@
     if (clip) {
       const scaleMax = Math.max(total, clip) * 1.1;
       gauge.innerHTML = '<div class="ov-gauge__track"><span class="ov-gauge__bar' + (ax.clipped ? ' is-over' : '') + '" style="width:' + ((total / scaleMax) * 100).toFixed(2) + '%"></span>' +
-        '<span class="ov-gauge__tau" style="left:' + ((clip / scaleMax) * 100).toFixed(2) + '%"><span>τ = ' + esc(f4(clip)) + '</span></span></div>' +
+        '<span class="ov-gauge__tau" style="left:' + ((clip / scaleMax) * 100).toFixed(2) + '%"><span>g<sub>máx</sub> = ' + esc(f4(clip)) + '</span></span></div>' +
         '<p class="ov-gauge__txt">' + (ax.clipped
-          ? '‖g‖ = ' + f4(total, 4) + ' &gt; τ = ' + f4(clip) + ' ⇒ <b>se recorta</b>: c = τ/‖g‖ = ' + f4(factor, 4) + '. Todos los gradientes se multiplican por c; la dirección no cambia, solo la longitud (queda ‖c·g‖ = τ).'
-          : '‖g‖ = ' + f4(total, 4) + ' ≤ τ = ' + f4(clip) + ' ⇒ no se recorta (c = 1).') + '</p>';
+          ? '‖g‖ = ' + f4(total, 4) + ' &gt; g<sub>máx</sub> = ' + f4(clip) + ' ⇒ <b>se recorta</b>: c = g<sub>máx</sub>/‖g‖ = ' + f4(factor, 4) + '. Todos los gradientes se multiplican por c; la dirección no cambia, solo la longitud (queda ‖c·g‖ = g<sub>máx</sub>).'
+          : '‖g‖ = ' + f4(total, 4) + ' ≤ g<sub>máx</sub> = ' + f4(clip) + ' ⇒ no se recorta (c = 1).') + '</p>';
     } else {
       gauge.innerHTML = '<p class="ov-gauge__txt">Recorte desactivado: los gradientes se usan tal cual.</p>';
     }
@@ -1600,12 +1732,17 @@
     const body = v.card('Norma de cada gradiente ‖dθ‖ (antes del recorte)', 'ov-card--wide');
     const bars = el('div', 'ov-bars');
     body.appendChild(bars);
-    const items = ax.norms.map((n) => ({ label: n.name, tex: '\\mathrm{d}' + n.tex, value: n.norm, colorVar: '--bwd', key: n.name, n }));
+    // nombre visible del parámetro (W_Q⁽²⁾), no la clave interna del motor (L1.Wq, con capas desde 0)
+    const pm = (v.ctx.model && v.ctx.model.paramMeta) || {};
+    const labOf = (n) => n.label || (pm[n.name] && pm[n.name].label) || n.name;
+    const layerOf = (n) => (n.layer != null ? n.layer : pm[n.name] && pm[n.name].layer != null ? pm[n.name].layer : null);
+    const items = ax.norms.map((n) => ({ label: labOf(n), tex: '\\mathrm{d}' + n.tex, value: n.norm, colorVar: '--bwd', key: n.name, n }));
     const pick = (it) => {
       if (!it) return;
       const n = it.n;
       const share = total > 0 ? (n.norm * n.norm) / (total * total) : 0;
-      v.inspect(insp({ kind: 'gradnorm', title: '‖d' + n.name + '‖', sub: 'parámetro ' + n.name,
+      const ly = layerOf(n);
+      v.inspect(insp({ kind: 'gradnorm', title: '‖d' + labOf(n) + '‖', sub: ly != null ? 'parámetro de la capa ' + (ly + 1) : 'parámetro',
         tex: '\\|\\mathrm{d}' + n.tex + '\\| = \\sqrt{\\textstyle\\sum_{i,j} (\\mathrm{d}' + n.tex + '[i,j])^2} = ' + texNum(n.norm),
         rows: [['‖dθ‖²', '= ' + f4(n.norm * n.norm)], ['parte de ‖g‖²', '= ' + f4(n.norm * n.norm) + ' / ' + f4(total * total) + ' = ' + pct(share)]].concat(clip && ax.clipped ? [['tras recortar', '= c · ‖dθ‖ = ' + f4(factor) + ' · ' + f4(n.norm) + ' = ' + f4(factor * n.norm)]] : []) }));
     };
@@ -1617,6 +1754,22 @@
     v.legendDisabled = true;
     v.animator = async function () {};
   };
+
+  // una línea propia de cada parámetro (clave interna del motor → nota)
+  function paramNote(name, adam) {
+    const n = String(name || '');
+    if (n === 'E') return 'E: solo reciben gradiente las filas de los tokens de la entrada.';
+    if (n === 'P') return 'P_pos: solo reciben gradiente las T primeras filas (las posiciones de esta frase).';
+    if (n === 'Wout') return 'W_out recibe el gradiente directamente de dlogits = (P − Y)/T: es el parámetro más cercano a la pérdida (suele tener la norma de gradiente más grande).';
+    if (/(^|\.)(ln\d|lnf)\.g$/.test(n)) return 'Escala γ de una LayerNorm: empezó en 1 (sin escalar); cada actualización ajusta cuánto se amplifica cada columna normalizada.';
+    if (/(^|\.)(ln\d|lnf)\.b$/.test(n)) return 'Desplazamiento β de una LayerNorm: empezó en 0 (sin desplazar); cada actualización ajusta el centro de cada columna.';
+    if (/\.W[qk]$/.test(n)) return 'Su gradiente atravesó el softmax de la atención (dQ, dK): aprende qué pares de tokens deben mirarse.';
+    if (/\.Wv$/.test(n)) return 'Su gradiente llegó por A·V sin atravesar el softmax: aprende qué información se copia de un token a otro.';
+    if (/\.Wo$/.test(n)) return 'W_O mezcla las cabezas: su gradiente es Zᵀ·dO.';
+    if (/\.[Wb]1$/.test(n)) return 'Primera capa de la FFN: su gradiente atravesó la derivada de la activación (las neuronas apagadas no aportan).';
+    if (/\.[Wb]2$/.test(n)) return 'Segunda capa de la FFN: su gradiente combina la activación G con dF.';
+    return '';
+  }
 
   // ---- actualización de un parámetro (SGD / Adam)
   R.update = function (v) {
@@ -1660,18 +1813,63 @@
       L2.term(hs.th).term(hs.thN, { tex: '+\\;\\Delta ' + ax.tex + '\\;=' });
     }
     v.primary = hs.thN;
-    let zeroRows = 0;
-    if (th.rowAxis === 'V') for (let i = 0; i < g.mat.r; i++) { let z = true; for (let j = 0; j < g.mat.c; j++) if (g.mat.get(i, j) !== 0) { z = false; break; } if (z) zeroRows++; }
+    // filas de E con gradiente 0 (tokens que no están en la entrada) y cuántas se mueven de todos modos
+    let zeroRows = 0, zeroMoving = 0;
+    if (th.rowAxis === 'V') {
+      for (let i = 0; i < g.mat.r; i++) {
+        let z = true;
+        for (let j = 0; j < g.mat.c; j++) if (g.mat.get(i, j) !== 0) { z = false; break; }
+        if (!z) continue;
+        zeroRows++;
+        for (let j = 0; j < g.mat.c; j++) if (ax.delta.get(i, j) !== 0) { zeroMoving++; break; }
+      }
+    }
+    const filas = (n) => n + (n === 1 ? ' fila tiene' : ' filas tienen');
     const notes = [];
+    const pnote = paramNote(ax.name, adam);
+    if (pnote) notes.push(pnote);
     if (clipped) notes.push('El gradiente usado es c·dθ con c = ' + f4(ax.clipFactor) + ' (recorte por norma global).');
     if (adam) {
-      notes.push('Adam divide cada paso por √v̂: cada número del parámetro tiene su propia tasa de aprendizaje efectiva.' + (t === 1 ? ' En t = 1, m̂ = g y v̂ = g², así que Δθ ≈ −η·signo(g): cada número con gradiente distinto de 0 se mueve ≈ η = ' + fmtC(lr) + '.' : ''));
-      if (zeroRows) notes.push(zeroRows + ' filas tienen gradiente 0 (tokens que no están en la frase)' + (t > 1 ? ', pero aun así se mueven: el momento m recuerda gradientes de iteraciones anteriores.' : ': en t = 1 no se mueven.'));
+      notes.push('Adam divide cada paso por √v̂: cada número del parámetro tiene su propia tasa de aprendizaje efectiva.' +
+        (t === 1 ? ' Primera actualización: m y v empiezan en 0 (por eso sus matrices de partida están en blanco) y la corrección de sesgo (dividir por 1 − βᵗ) da m̂ = g y v̂ = g²; así Δθ ≈ −η·signo(g): cada número con gradiente distinto de 0 se mueve ≈ η = ' + fmtC(lr) + '.' : ''));
+      if (zeroRows) {
+        const base = filas(zeroRows) + ' gradiente 0 (tokens que no están en la entrada, ids)';
+        if (t === 1 || zeroMoving === 0) notes.push(base + ': m = v = 0 para ' + (zeroRows === 1 ? 'ella' : 'ellas') + ' y no se ' + (zeroRows === 1 ? 'mueve' : 'mueven') + '.');
+        else if (zeroMoving < zeroRows) {
+          const rest = zeroRows - zeroMoving;
+          notes.push(base + '. De ellas, ' + (zeroMoving === 1 ? 'una se mueve' : zeroMoving + ' se mueven') + ' por el momento m (recuerda gradientes de iteraciones anteriores); ' +
+            (rest === 1 ? 'la otra nunca ha tenido gradiente (m = 0) y no se mueve.' : 'las otras ' + rest + ' nunca han tenido gradiente (m = 0) y no se mueven.'));
+        }
+        else notes.push(base + ', pero aun así se mueven: el momento m recuerda gradientes de iteraciones anteriores.');
+      }
     } else {
       notes.push('SGD: Δθ = −η·g. El paso es proporcional al gradiente: donde el gradiente es grande, el cambio también.');
-      if (zeroRows) notes.push(zeroRows + ' filas tienen gradiente 0 (tokens que no están en la frase) y no cambian.');
+      if (zeroRows) notes.push(filas(zeroRows) + ' gradiente 0 (tokens que no están en la entrada, ids) y no cambian.');
     }
     v.note(notes.join(' '));
+    // último paso de la iteración: resumen (pérdida de la misma frase con los pesos nuevos)
+    const rc = v.ctx.recap;
+    if (rc && Array.isArray(v.ctx.steps) && v.ctx.stepIndex === v.ctx.steps.length - 1) {
+      const box = el('div', 'ov-recap');
+      box.dataset.phase = 'update';
+      let html = '<b>Fin de la iteración ' + rc.iter + '.</b> Se han actualizado los ' + Number(rc.nParams).toLocaleString('es-ES') + ' números del modelo (todos sus parámetros). ';
+      if (rc.after != null && Number.isFinite(rc.before) && Number.isFinite(rc.after)) {
+        const dl = rc.after - rc.before;
+        html += 'Con los pesos nuevos, la pérdida de esta frase pasa de <b>' + f4(rc.before) + '</b> a <b>' + f4(rc.after) + '</b> (' + (dl <= 0 ? MINUS : '+') + f4(Math.abs(dl), 3) + '). ';
+      } else if (rc.after == null) {
+        html += 'El modelo ha seguido entrenando desde que se recorrió esta iteración, así que sus pesos ya no son los de este paso. ';
+      }
+      html += 'La siguiente iteración parte de estos pesos.';
+      box.innerHTML = '<p>' + html + '</p>';
+      if (typeof rc.onNew === 'function') {
+        const b = el('button', 'btn btn--sm btn--primary');
+        b.type = 'button';
+        b.textContent = 'Nueva iteración';
+        b.addEventListener('click', () => rc.onNew());
+        box.appendChild(b);
+      }
+      v.body.insertBefore(box, v.body.firstChild);
+    }
 
     function cell(hm, i, j) {
       if (i < 0 || j < 0) return genericCell.call(this, hm, i, j);
@@ -1706,18 +1904,20 @@
     v.flow([{ text: 'texto' }, '→', { text: n + ' tokens' }, '→', s.outputs[0], ',', { tex: 'y', shape: '1×' + T }]);
     const card = el('div', 'ov-tokz');
     card.appendChild(el('div', 'ov-tokz__text', '<span class="eyebrow">Texto</span><span class="ov-tokz__quote">«' + esc(ax.text) + '»</span>'));
+    // cada pieza lleva su fila (--r) y su columna (--c): en pantallas estrechas el CSS intercambia
+    // ambas y la frase se lee de arriba abajo (un token por fila) en vez de desbordar a lo ancho
     const grid = el('div', 'ov-seq');
-    grid.style.gridTemplateColumns = 'max-content repeat(' + n + ', minmax(52px, max-content))';
-    let h = '<div class="ov-seq__lab">índice</div>';
-    for (let k = 0; k < n; k++) h += '<div class="ov-seq__ix">' + k + '</div>';
-    h += '<div class="ov-seq__lab">tokens</div>';
-    for (let k = 0; k < n; k++) h += '<button type="button" class="ov-tok" data-k="' + k + '" data-row="all"><span class="ov-tok__t">' + esc(toks[k]) + '</span><span class="ov-tok__id">id ' + ids[k] + '</span></button>';
-    h += '<div class="ov-seq__lab">entrada · ids</div>';
-    for (let k = 0; k < n; k++) h += k < T ? '<button type="button" class="ov-tok ov-tok--in" data-t="' + k + '" data-row="in"><span class="ov-tok__t">' + esc(toks[k]) + '</span><span class="ov-tok__id">t = ' + k + '</span></button>' : '<div></div>';
-    h += '<div class="ov-seq__lab"></div>';
-    for (let k = 0; k < n; k++) h += k < T ? '<div class="ov-seq__arrow" aria-hidden="true">↘</div>' : '<div></div>';
-    h += '<div class="ov-seq__lab">objetivo · y</div>';
-    for (let k = 0; k < n; k++) h += k >= 1 ? '<button type="button" class="ov-tok ov-tok--tgt" data-t="' + (k - 1) + '" data-row="tgt"><span class="ov-tok__t">' + esc(toks[k]) + '</span><span class="ov-tok__id">y<sub>' + (k - 1) + '</sub></span></button>' : '<div></div>';
+    grid.style.setProperty('--n', n);
+    const at2 = (r, c) => ' style="--r:' + r + ';--c:' + c + '"';
+    let h = '<div class="ov-seq__lab"' + at2(1, 1) + '>índice</div>';
+    for (let k = 0; k < n; k++) h += '<div class="ov-seq__ix"' + at2(1, k + 2) + '>' + k + '</div>';
+    h += '<div class="ov-seq__lab"' + at2(2, 1) + '>tokens</div>';
+    for (let k = 0; k < n; k++) h += '<button type="button" class="ov-tok" data-k="' + k + '" data-row="all"' + at2(2, k + 2) + '><span class="ov-tok__t">' + esc(toks[k]) + '</span><span class="ov-tok__id">id ' + ids[k] + '</span></button>';
+    h += '<div class="ov-seq__lab"' + at2(3, 1) + '>entrada · ids</div>';
+    for (let k = 0; k < T; k++) h += '<button type="button" class="ov-tok ov-tok--in" data-t="' + k + '" data-row="in"' + at2(3, k + 2) + '><span class="ov-tok__t">' + esc(toks[k]) + '</span><span class="ov-tok__id">t = ' + k + '</span></button>';
+    for (let k = 0; k < T; k++) h += '<div class="ov-seq__arrow" aria-hidden="true"' + at2(4, k + 2) + '>↘</div>';
+    h += '<div class="ov-seq__lab"' + at2(5, 1) + '>objetivo · y</div>';
+    for (let k = 1; k < n; k++) h += '<button type="button" class="ov-tok ov-tok--tgt" data-t="' + (k - 1) + '" data-row="tgt"' + at2(5, k + 2) + '><span class="ov-tok__t">' + esc(toks[k]) + '</span><span class="ov-tok__id">y<sub>' + (k - 1) + '</sub></span></button>';
     grid.innerHTML = h;
     const sc = el('div', 'ov-scroll');
     sc.appendChild(grid);
@@ -1738,7 +1938,7 @@
     vb.appendChild(strip);
     vb.appendChild(el('p', 'ov-card__cap', 'Resaltados: los tokens que aparecen en esta frase. El id de cada token es su posición en el vocabulario (orden de primera aparición en el corpus; &lt;s&gt; es el 0).'));
     v.note('<b>T = ' + T + '</b>: la frase tiene ' + n + ' tokens contando <code>&lt;s&gt;</code>. La entrada son los ' + T + ' primeros y el objetivo, los ' + T + ' últimos (desplazados una posición): en cada posición t el modelo debe predecir el token siguiente.' +
-      (ax.truncated ? ' La frase se ha recortado a maxLen + 1 tokens.' : '') + (ax.mode === 'char' ? ' Modo carácter: cada letra (y el espacio, ␣) es un token.' : ''));
+      (ax.truncated ? ' La frase se ha recortado a T_máx + 1 tokens (la ventana de contexto más el objetivo).' : '') + (ax.mode === 'char' ? ' Modo carácter: cada letra (y el espacio, ␣) es un token.' : ''));
     v.legendDisabled = true;
     const btns = Array.from(grid.querySelectorAll('.ov-tok'));
     function pick(t, row, k) {
@@ -1768,11 +1968,13 @@
     grid.addEventListener('focusin', onTok);
     function cellIds(hm, i, j) { if (j < 0) return null; return pick(j, 'in'); }
     v.clearHooks.push(() => { for (const b of btns) b.classList.remove('is-hl', 'is-src'); });
+    v.animTargets = [hI, hY];
     v.animator = async function (tok) {
+      const per = this.stepMs(Math.max(350, this.speed * 8), T);
       for (let t = 0; t < T && !tok.cancelled; t++) {
         const html = pick(t, 'in');
         if (html) this.inspect(html);
-        await this.sleep(tok, Math.max(350, this.speed * 8));
+        await this.sleep(tok, per);
       }
     };
   };
@@ -1854,7 +2056,7 @@
       list.appendChild(r);
     }
     body.appendChild(list);
-    body.appendChild(el('p', 'ov-card__cap', 'Las otras ' + (V - groups.size) + ' filas de dE son 0: esos tokens no aparecen en la frase y no reciben gradiente.'));
+    body.appendChild(el('p', 'ov-card__cap', 'Las otras ' + (V - groups.size) + ' filas de dE son 0: esos tokens no aparecen en la entrada (ids) y no reciben gradiente (el último token de la frase solo es objetivo).'));
     v.note('Cada fila de dX_emb vuelve a la fila de E de la que salió. Si un token aparece varias veces, sus gradientes se <b>suman</b> (en NumPy: <code>np.add.at(dE, ids, dX_emb)</code>).');
     function cellE(hm, k, j) {
       if (k < 0) return genericCell.call(this, hm, k, j);
@@ -1916,7 +2118,8 @@
       fn(v);
     } catch (e) {
       if (root.console) console.warn('OpViews: la vista «' + step.kind + '» falló; se usa la genérica', e);
-      for (const h of v.hms) h.destroy();
+      // destroy() también ejecuta las limpiezas (gráficos, observadores) que la vista fallida registró
+      try { v.destroy(); } catch (e2) { /* nada */ }
       const v2 = new View(step, containerEl, ctx);
       R.generic(v2);
       v2.mount();
@@ -1926,7 +2129,8 @@
     return api(v);
   }
   function api(v) {
-    return { el: v.root, heatmaps: v.hms, animate: () => v.animate(), destroy: () => v.destroy(), layout: () => { v._lastW = 0; v.layout(); } };
+    return { el: v.root, heatmaps: v.hms, animate: (o) => v.animate(o), stop: () => v.stopAnim(), destroy: () => v.destroy(),
+      layout: () => { v._lastW = 0; v.layout(); } };
   }
 
   TL.OpViews = { render, renderers: R, kinds: Object.keys(R).filter((k) => k !== 'generic'), _insp: insp };

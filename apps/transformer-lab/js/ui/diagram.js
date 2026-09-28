@@ -61,11 +61,13 @@
     }).join('');
   }
 
+  // tamaño de sub/superíndices respecto del texto (con 0.72 quedaban en ~7 px, ilegibles)
+  const SUBSCALE = 0.9;
   // ancho estimado (px) — mono ≈ 0.6em; sans ≈ 0.56em
   function textWidth(s, fs, mono) {
     const k = mono ? 0.6 : 0.56;
     let w = 0;
-    for (const g of parseRich(String(s))) w += g.t.length * (g.m ? 0.72 : 1);
+    for (const g of parseRich(String(s))) w += g.t.length * (g.m ? SUBSCALE : 1);
     return w * k * fs;
   }
 
@@ -76,7 +78,7 @@
       const ts = svgEl('tspan', cls ? { class: cls } : null, textEl);
       const target = g.m === 1 ? fs * 0.3 : g.m === -1 ? -fs * 0.42 : 0;
       if (target !== shift) ts.setAttribute('dy', (target - shift).toFixed(2));
-      if (g.m) ts.setAttribute('font-size', (fs * 0.72).toFixed(2));
+      if (g.m) ts.setAttribute('font-size', (fs * SUBSCALE).toFixed(2));
       shift = target;
       ts.textContent = g.t;
     }
@@ -142,7 +144,7 @@
   // ---------------------------------------------------------------------------
   const LANE_OPS = [
     { key: 'scores',  label: 'Puntuaciones', sub: (h) => 'Q_' + h + '·K_' + h + '^T', op: 'Q·K^T',  desc: 'Producto escalar de cada consulta con cada clave: S = Q·Kᵀ (T×T).' },
-    { key: 'scale',   label: 'Escala',       sub: () => '÷ √d_k',                      op: '÷√d_k',  desc: 'Se divide entre √d_k para que el softmax no se sature.' },
+    { key: 'scale',   label: 'Escalado',     sub: () => '× 1/√d_k',                    op: '×1/√d_k', desc: 'Se multiplica por 1/√d_k para que el softmax no se sature.' },
     { key: 'mask',    label: 'Máscara',      sub: () => '+ M (causal)',                op: 'máscara', desc: 'Máscara causal: cada token solo ve los anteriores (−∞ en el futuro).' },
     { key: 'softmax', label: 'Softmax',      sub: () => 'por filas',                   op: 'softmax', desc: 'Softmax por filas: pesos de atención A (cada fila suma 1).' },
     { key: 'context', label: 'Contexto',     sub: (h) => 'A_' + h + '·V_' + h,         op: 'A·V',     desc: 'Mezcla de valores: Z = A·V (T×d_k).' },
@@ -153,10 +155,12 @@
     const concatSub = H === 1 ? 'Z = Z_1' : H === 2 ? 'Z_1 ‖ Z_2' : 'Z_1 ‖ … ‖ Z_' + H;
     const act = cfg.activation === 'gelu' ? 'GELU' : 'ReLU';
     const opt = opts.optimizer === 'sgd' ? 'SGD · θ ← θ − η·g' : opts.optimizer === 'adam' ? 'Adam · m̂, v̂' : 'θ ← θ − η·Δθ';
+    const learned = cfg.posEnc === 'learned';
     return {
       tokens:      { label: 'Tokens', sub: 'texto → ids', cls: 'io', desc: 'Tokenización: el texto se convierte en ids del vocabulario.' },
       embed:       { label: 'Embedding', sub: 'one-hot · E', cls: 'param', desc: 'Búsqueda en la tabla E: cada id selecciona una fila (vector de d dimensiones).' },
-      posenc:      { label: 'Posicional', sub: 'X_{emb} + PE', desc: 'Se suma la codificación posicional para que el modelo sepa el orden.' },
+      posenc:      { label: 'Posicional', sub: learned ? 'X_{emb} + P_{pos}' : 'X_{emb} + PE',
+        desc: learned ? 'Se suma una tabla de posiciones aprendida (P_pos), que se entrena como E.' : 'Se suma la codificación posicional sinusoidal (fija) para que el modelo sepa el orden.' },
       ln1:         { label: 'Normalización 1', sub: 'LayerNorm', cls: 'param', desc: 'LayerNorm antes de la atención: normaliza cada fila y aplica γ₁, β₁.' },
       qkv:         { label: 'Proyecciones Q, K, V', sub: 'H·W_Q, H·W_K, H·W_V', cls: 'param', desc: 'Tres productos matriciales: consultas Q, claves K y valores V.' },
       split:       { label: 'Dividir en cabezas', sub: 'T×d → h×(T×d_k)', cls: 'op', desc: 'Se reparten las columnas de Q, K y V entre las cabezas.' },
@@ -368,7 +372,7 @@
 
     const svg = svgEl('svg', {
       class: 'dg-svg', role: 'group', 'aria-label': 'Esquema del transformer (forward de arriba abajo)',
-      xmlns: NS, focusable: 'false',
+      xmlns: NS, focusable: 'false', tabindex: '-1', // la parada de tabulación es el bloque activo, no el SVG
     });
     el.appendChild(svg);
 
@@ -464,7 +468,7 @@
       // notas (V_h, "gradientes")
       for (const n of lay.notes) {
         const t = svgEl('text', { class: 'dg-edge-note' + (n.lane != null ? ' dg-edge-note--lane' : ''), x: n.x, y: n.y, 'text-anchor': n.anchor || 'start' }, gNotes);
-        richText(t, n.text, 10);
+        richText(t, n.text, 10.5);
       }
 
       // nodos
@@ -613,7 +617,7 @@
         const lb = e.label;
         const sh = parseShape(val);
         const avail = lb.maxX - lb.x;
-        const fullW = textWidth((sh.sym ? sh.sym + ' · ' : '') + sh.num, 10, true);
+        const fullW = textWidth((sh.sym ? sh.sym + ' · ' : '') + sh.num, 10.5, true);
         const t = svgEl('text', { x: lb.x, y: lb.y + 3.5, 'data-block': block }, gShapes);
         if (lb.inLane) {
           t.classList.add('dg-shape-inlane');
@@ -623,10 +627,10 @@
         }
         let sft = 0;
         if (fullW <= avail || !sh.num || !sh.sym) {
-          if (sh.sym) sft = appendRich(t, sh.sym + (sh.num ? ' · ' : ''), 10, 'dg-sym', sft);
-          if (sh.num) appendRich(t, sh.num, 10, 'dg-num', sft);
+          if (sh.sym) sft = appendRich(t, sh.sym + (sh.num ? ' · ' : ''), 10.5, 'dg-sym', sft);
+          if (sh.num) appendRich(t, sh.num, 10.5, 'dg-num', sft);
         } else {
-          appendRich(t, sh.num, 10, 'dg-num', 0);
+          appendRich(t, sh.num, 10.5, 'dg-num', 0);
         }
         const tt = svgEl('title', null, t);
         tt.textContent = String(val);

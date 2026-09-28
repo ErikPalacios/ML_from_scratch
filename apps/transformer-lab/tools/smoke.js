@@ -6,6 +6,11 @@
 // marcadores sin rellenar, inspector al pasar por 2–3 celdas de la salida y bloque activo en el
 // diagrama. Después entrena, genera, comprueba gradientes, cambia pestañas y tema, y mira el
 // desbordamiento horizontal a 390 px (en un iframe de ese ancho).
+// Regresiones de la revisión: «Animar» deja a la vista lo que se anima (1440 y 1024 px), la
+// reproducción anima los pasos, el inspector se ve al tocar una celda en el móvil, el foco del
+// teclado no queda bajo el inspector ni la línea de tiempo (1024 px), la validación rechaza
+// configuraciones que congelarían la página, «Máxima» no arrastra su ritmo de un modelo a otro,
+// una divergencia se detecta y se explica, y las fórmulas no son paradas de tabulación.
 (async () => {
   const T0 = performance.now();
   const A = TL.App, S = A.state;
@@ -186,6 +191,56 @@
     };
   }
 
+
+  // ---- utilidades para las regresiones de visibilidad
+  // franja visible de una ventana: sin la cabecera fija, la línea de tiempo ni el inspector fijo al pie
+  const bandOf = (w) => {
+    const d = w.document;
+    const hd = d.getElementById('app-head').getBoundingClientRect();
+    const top = Math.max(0, hd.bottom);
+    let bottom = w.innerHeight;
+    const tl = d.getElementById('timeline');
+    if (!tl.hidden) bottom = Math.min(bottom, tl.getBoundingClientRect().top);
+    if (w.innerWidth < 1200) {
+      const ins = d.getElementById('inspector').getBoundingClientRect();
+      if (ins.height && ins.top > top && ins.top < bottom) bottom = ins.top;
+    }
+    return { top, bottom };
+  };
+  // tras pulsar «Animar»: las matrices que se están rellenando deben verse (con 2 px de tolerancia)
+  async function animVisible(w, B, id, where) {
+    const d = w.document;
+    const i = B.getTrace().steps.findIndex((x) => x.id === id);
+    if (!check(i >= 0, where, 'no existe el paso ' + id)) return;
+    B.goToStep(i); B.flush();
+    w.scrollTo(0, 0);
+    await sleep(50);
+    d.getElementById('btn-animate').click();
+    await sleep(1500); // desplazamiento suave
+    const hms = B.state.view.heatmaps.filter((h) => h._revealed !== Infinity);
+    if (!check(hms.length, where + ' · ' + id, 'no hay ninguna matriz animándose')) return;
+    const rs = hms.map((h) => h.el.getBoundingClientRect());
+    const top = Math.min.apply(null, rs.map((r) => r.top)), bottom = Math.max.apply(null, rs.map((r) => r.bottom));
+    const b = bandOf(w);
+    const fits = bottom - top <= b.bottom - b.top;
+    check(fits ? top >= b.top - 2 && bottom <= b.bottom + 2 : top < b.bottom && bottom > b.top, where + ' · ' + id,
+      'lo que se anima (' + Math.round(top) + '…' + Math.round(bottom) + ' px) queda fuera de la franja visible (' + Math.round(b.top) + '…' + Math.round(b.bottom) + ' px)');
+    B.state.view.stop && B.state.view.stop();
+  }
+  const loadFrame = async (width, height) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'position:fixed;left:0;top:0;width:' + width + 'px;height:' + height + 'px;border:0;opacity:0;pointer-events:none';
+    f.src = location.href.split('#')[0];
+    document.body.appendChild(f);
+    await new Promise((r) => { f.onload = r; });
+    const w = f.contentWindow;
+    for (let k = 0; k < 100 && !(w.TL && w.TL.App && w.TL.App.state.ready); k++) await sleep(50);
+    await w.TL.MathTex.ready;
+    try { w.localStorage.setItem('tl.welcomeDismissed', 'true'); } catch (e) { /* nada */ }
+    const wl = w.document.getElementById('welcome'); if (wl) wl.hidden = true;
+    return f;
+  };
+
   const summary = { mathjax: mj, configs: [] };
   for (const cf of CONFIGS) {
     summary.configs.push(await runConfig(cf));
@@ -315,6 +370,112 @@
     summary.theme = { dark: bgD, light: bgL };
   }
 
+
+  // ---- regresiones de la revisión (1440 px)
+  {
+    const W = 'regresiones 1440';
+    A.applyConfig(CONFIGS[0].c);
+    A.setTab('paso');
+    await frame();
+    const wl = $('welcome'); const wlHidden = wl.hidden; wl.hidden = true;
+    // «Animar» desplaza la página hasta lo que se anima (antes, el resultado quedaba bajo la línea de tiempo)
+    for (const id of ['fwd.L0.attn.q', 'fwd.L0.attn.h0.softmax', 'loss.ce', 'upd.param.L0.W1']) await animVisible(window, A, id, W);
+    // la reproducción automática anima cada paso y avanza
+    A.goToStep(3);
+    document.querySelector('#tl-speed [data-speed="4"]').click();
+    let animSeen = false;
+    A.play();
+    const t0 = performance.now();
+    while (performance.now() - t0 < 2500) { if (document.querySelector('.ov.is-animating')) animSeen = true; await sleep(60); }
+    const moved = S.idx > 3;
+    A.pause();
+    document.querySelector('#tl-speed [data-speed="1"]').click();
+    check(animSeen && moved, W, 'la reproducción no anima los pasos (animación: ' + animSeen + ', avanzó: ' + moved + ')');
+    check(!S.playing && S.view.heatmaps.every((h) => h._revealed === Infinity), W, '«Pausa» no detuvo la animación en curso');
+    // Espacio mantenido (autorrepetición) no alterna la reproducción
+    A.goToStep(0);
+    for (let k = 0; k < 5; k++) document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', repeat: k > 0, bubbles: true }));
+    check(S.playing, W, 'mantener Espacio alterna la reproducción');
+    A.pause();
+    // las fórmulas no son paradas de tabulación (menú de MathJax)
+    if (mj) check(!document.querySelector('mjx-container[tabindex="0"]'), W, 'hay fórmulas con tabindex=0');
+    // la explicación usa el η de la traza aunque luego se cambie en «Entrenamiento»
+    A.setTab('entrenamiento'); $('tr-lr').value = '0.05'; $('tr-lr').dispatchEvent(new Event('change')); A.setTab('paso');
+    A.goToStep(S.trace.steps.findIndex((x) => x.id === 'upd.param.E')); A.flush();
+    check(/η = 0\.01\b/.test($('expl').textContent) && !$('stale-note').hidden, W, 'tras cambiar η, la explicación no sigue a la traza o falta el aviso');
+    wl.hidden = wlHidden;
+    A.applyConfig(CONFIGS[0].c);
+  }
+  // ---- configuraciones que congelarían la página: la validación las rechaza
+  {
+    const W = 'validación de coste';
+    const lines = (n, words, vocab) => { const o = []; let k = 0; for (let i = 0; i < n; i++) { const w = []; for (let j = 0; j < words; j++) w.push('w' + ((k++) % vocab)); o.push(w.join(' ') + ' .'); } return o.join('\n'); };
+    const big = A.applyConfig({ corpus: lines(200, 40, 390), cfg: { dModel: 64, nHeads: 16, nLayers: 3, dFF: 256, maxLen: 32 }, batchSize: 64 });
+    check(!big.ok && /demasiado pesada/.test(big.errors.batchSize || ''), W, 'la configuración máxima no se rechazó: ' + JSON.stringify(big.errors || {}));
+    // «Máxima» no arrastra su ritmo de un modelo pequeño a uno mayor (antes: un primer fotograma de varios segundos)
+    A.applyConfig({ corpus: 'a', cfg: { dModel: 2, nHeads: 1, nLayers: 1, dFF: 1, maxLen: 2 }, batchSize: 1 });
+    A.setTab('entrenamiento');
+    document.querySelector('#tr-speed [data-speed="maxima"]').click();
+    $('tr-run').click();
+    await sleep(600);
+    $('tr-run').click();
+    const med = A.applyConfig({ corpus: lines(200, 20, 300), cfg: { dModel: 32, nHeads: 4, nLayers: 2, dFF: 64, maxLen: 16 }, batchSize: 8 });
+    check(med.ok, W, 'una configuración mediana se rechazó: ' + JSON.stringify(med.errors));
+    A.setTab('entrenamiento');
+    await frame();
+    const gaps = [];
+    $('tr-run').click();
+    await new Promise((res) => { let last = performance.now(); const t0 = last; const f = (t) => { gaps.push(t - last); last = t; if (t - t0 < 800) requestAnimationFrame(f); else res(); }; requestAnimationFrame(f); });
+    const tp = performance.now();
+    $('tr-run').click();
+    const pauseMs = performance.now() - tp;
+    document.querySelector('#tr-speed [data-speed="media"]').click();
+    const worst = Math.max.apply(null, gaps);
+    summary.trainFrames = { worstMs: Math.round(worst), pauseMs: Math.round(pauseMs) };
+    check(worst < 600, W, 'con «Máxima», un fotograma tardó ' + Math.round(worst) + ' ms');
+    check(pauseMs < 400, W, '«Pausa» tardó ' + Math.round(pauseMs) + ' ms');
+    // generación con muchos mapas de atención: solo se construyen los del último paso
+    A.applyConfig({ corpus: CONFIGS[0].c.corpus, cfg: { nLayers: 2, nHeads: 4 } });
+    A.setTab('generacion');
+    const g = A.generate('el gato', { greedy: false, temperature: 2, maxNew: 30, seed: 3 });
+    const nh = $('gen-result').querySelectorAll('.hm').length;
+    check(g.ok && nh <= 8, W, 'la generación construyó ' + nh + ' mapas de atención (máximo 8 a la vista)');
+    // divergencia: se detecta, se detiene y se explica (antes: pérdida «finita» de 690.78 y «sin gradientes»)
+    A.applyConfig({ corpus: CONFIGS[0].c.corpus, cfg: { nLayers: 1, nHeads: 2 }, hp: { type: 'sgd', lr: 5, clip: 0 } });
+    A.setTab('entrenamiento');
+    const dv = A.train(300);
+    check(dv.diverged && dv.iter < 300 && !$('tr-diverged').hidden, W, 'la divergencia no se detectó (iteración ' + dv.iter + ')');
+    check(!/e\+\d/.test($('st-ppl').textContent), W, 'la perplejidad desborda su casilla: ' + $('st-ppl').textContent);
+    A.applyConfig(CONFIGS[0].c);
+    A.setTab('paso');
+  }
+  // ---- 1024×768 en un iframe: inspector fijo al pie, línea de tiempo de una fila, foco y animación a la vista
+  {
+    const W = '1024 px';
+    const f = await loadFrame(1024, 768);
+    const w = f.contentWindow, d = f.contentDocument, B = w.TL.App;
+    B.setTab('paso');
+    check(d.getElementById('iterbar').parentNode.id === 'iterbar-slot' && d.getElementById('timeline').offsetHeight < 110, W,
+      'la línea de tiempo ocupa dos filas (' + d.getElementById('timeline').offsetHeight + ' px)');
+    for (const id of ['fwd.L0.attn.q', 'fwd.L0.attn.h0.scores', 'upd.param.L0.W1']) await animVisible(w, B, id, W);
+    // teclado: flechas por la matriz de salida; la celda enfocada no queda tapada
+    const si = B.getTrace().steps.findIndex((x) => x.id === 'fwd.L0.attn.h0.softmax');
+    B.goToStep(si); B.flush(); w.scrollTo(0, 0);
+    const hms = B.state.view.heatmaps;
+    const first = hms[hms.length - 2].el.querySelector('.hm__c[tabindex="0"]');
+    first.focus();
+    let covered = 0;
+    for (let k = 0; k < 5; k++) {
+      d.activeElement.dispatchEvent(new w.KeyboardEvent('keydown', { key: k < 4 ? 'ArrowDown' : 'ArrowRight', bubbles: true, cancelable: true }));
+      await new Promise((r) => w.requestAnimationFrame(() => w.requestAnimationFrame(() => w.requestAnimationFrame(r))));
+      await sleep(30);
+      const r = d.activeElement.getBoundingClientRect(), b = bandOf(w);
+      if (r.top < b.top - 1 || r.bottom > b.bottom + 1) covered++;
+    }
+    check(!covered, W, covered + ' de 5 celdas enfocadas con el teclado quedaron bajo el inspector o la línea de tiempo');
+    f.remove();
+  }
+
   // ---- móvil (390×844) en un iframe: sin desplazamiento horizontal en ninguna pestaña
   {
     const W = 'móvil 390 px';
@@ -361,6 +522,20 @@
     await wf();
     over('guía');
     B.closeModal();
+    // tocar una celda: la cuenta aparece en el inspector fijo sobre la línea de tiempo, a la vista
+    {
+      const si = B.getTrace().steps.findIndex((x) => x.id === 'fwd.L0.attn.h0.scores');
+      B.goToStep(si); B.flush();
+      const cell = B.state.view.heatmaps[0].el.querySelectorAll('.hm__c')[5];
+      cell.scrollIntoView({ block: 'center' });
+      await wf();
+      cell.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+      B.flush();
+      await wf();
+      const ins = d.getElementById('inspector').getBoundingClientRect(), tl = d.getElementById('timeline').getBoundingClientRect();
+      check(!d.getElementById('inspector').classList.contains('is-empty') && ins.top >= 0 && ins.bottom <= tl.top + 1 && ins.top < w.innerHeight - 100, W,
+        'tras tocar una celda, el inspector no queda a la vista (' + Math.round(ins.top) + '…' + Math.round(ins.bottom) + ' px; línea de tiempo en ' + Math.round(tl.top) + ')');
+    }
     summary.mobile = { width: w.innerWidth, checks: checked + 1 };
     f.remove();
   }
