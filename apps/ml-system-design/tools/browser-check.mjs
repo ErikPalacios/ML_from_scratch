@@ -2,7 +2,7 @@
 // Herramienta de verificación en navegador (Chrome headless vía CDP, sin dependencias).
 //
 // Uso:
-//   node tools/browser-check.mjs --url index.html [--width 1440 --height 900] [--dark]
+//   node tools/browser-check.mjs --url index.html [--width 1440 --height 900] [--dark | --light] [--mobile]
 //        [--wait 2500] [--eval "js"]... [--eval-file script.js] [--shot out.png] [--full] [--timeout ms]
 //
 // - Imprime todos los console.* y excepciones de la página.
@@ -29,6 +29,7 @@ function parseArgs(argv) {
     else if (a === '--shot') o.shot = n();
     else if (a === '--full') o.full = true;
     else if (a === '--dark') o.dark = true;
+    else if (a === '--light') o.light = true;   // fuerza claro aunque el sistema esté en modo oscuro
     else if (a === '--mobile') o.mobile = true;
     else if (a === '--timeout') o.timeout = +n();
     else { console.error('Argumento desconocido: ' + a); process.exit(2); }
@@ -101,7 +102,7 @@ listeners.push((msg) => {
 
 await S('Runtime.enable'); await S('Page.enable'); await S('Log.enable');
 await S('Emulation.setDeviceMetricsOverride', { width: opts.width, height: opts.height, deviceScaleFactor: 1, mobile: !!opts.mobile });
-if (opts.dark) await S('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] });
+if (opts.dark || opts.light) await S('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: opts.dark ? 'dark' : 'light' }] });
 await S('Page.navigate', { url: opts.url });
 for (let i = 0; i < 300 && !loaded; i++) await new Promise((r) => setTimeout(r, 50));
 await new Promise((r) => setTimeout(r, opts.wait));

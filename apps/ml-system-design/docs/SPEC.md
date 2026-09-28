@@ -115,7 +115,7 @@ HTML comment `<!-- contenido: añade aquí los módulos/casos nuevos -->`.
 ```
 node tools/validate-content.mjs            # validates catalog + all content files (schema, links, template)
 node tools/embed-reference.mjs             # regenerates js/content/reference-files.js from reference/**
-node --test tests/                         # runs the validator + checks the embed is fresh
+node --test "tests/*.test.cjs"             # validator + embed freshness + store tests (a bare directory fails on Node 24)
 node tools/browser-check.mjs --url index.html [--width 1440 --height 900] [--dark] [--mobile] \
      [--wait 2500] [--eval "js (awaited)"]... [--eval-file f.js] [--shot /abs/out.png] [--full]
 ```

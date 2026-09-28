@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bloques · Ronda de Diseño ML (dev)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/components.css">
+<style>
+  /* solo para esta página de desarrollo */
+  .dev-shell { max-width: calc(var(--content-max) + 80px); margin: 0 auto; padding: 32px 40px 96px; background: var(--surface); min-height: 100vh; }
+  .dev-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
+  .dev-bar h1 { font: 600 20px/1.2 var(--font-display); flex: 1; }
+  .dev-label { margin: 48px 0 12px; font: 500 12px/1 var(--font-mono); color: var(--muted); }
+  .dev-label::before { content: "// "; }
+  @media (max-width: 767px) { .dev-shell { padding: 20px 16px 64px; } }
+</style>
+</head>
+<body>
+<div class="dev-shell">
+  <div class="dev-bar">
+    <h1>Bloques de contenido — página de prueba</h1>
+    <div class="seg" role="group" aria-label="Tema">
+      <button type="button" data-t="system" aria-pressed="true">Sistema</button>
+      <button type="button" data-t="light" aria-pressed="false">Claro</button>
+      <button type="button" data-t="dark" aria-pressed="false">Oscuro</button>
+    </div>
+  </div>
+
+  <p class="dev-label">cabecera de página + spec strip + uptime strip (marcado estático)</p>
+  <header class="phead">
+    <p class="eyebrow"><span>Parte 2</span><span class="sep">·</span><span>Caso 01</span></p>
+    <h1 class="phead__title">Clasificación de imágenes para un marketplace</h1>
+    <p class="phead__en" lang="en">Image classification service for listings</p>
+    <p class="phead__summary">Sugerir la categoría del producto a partir de las fotos mientras el vendedor llena el formulario.</p>
+    <div class="phead__meta">
+      <span class="meta-item"><span class="mono">≈ 60 min</span> de lectura</span>
+      <span class="freq freq--alta"><span class="freq__bars" aria-hidden="true"><i></i><i></i><i></i></span><span>Frecuencia en entrevistas: <b>alta</b></span></span>
+      <span class="phead__connects"><span class="phead__connects-k">Conecta con</span><a class="chip" href="#m03"><span class="chip__id">M03</span>Serving</a><a class="chip" href="#m07"><span class="chip__id">M07</span>Monitoreo</a></span>
+    </div>
+    <dl class="specstrip" style="margin-top:22px">
+      <div class="specstrip__item"><dt>QPS pico</dt><dd>500 req/s</dd></div>
+      <div class="specstrip__item"><dt>Latencia</dt><dd>p99 ≤ 200 ms</dd></div>
+      <div class="specstrip__item"><dt>Disponibilidad</dt><dd>99.9 %</dd></div>
+      <div class="specstrip__item"><dt>Presupuesto</dt><dd>≈ US$3k/mes</dd></div>
+      <div class="specstrip__item"><dt>Catálogo</dt><dd>500 clases</dd></div>
+    </dl>
+  </header>
+  <div id="uptime-demo"></div>
+
+  <p class="dev-label">sección con número, prioridad y botón de lectura</p>
+  <section class="sec" id="dev.sec" style="margin-top:0">
+    <header class="sec__head"><span class="sec__num" aria-hidden="true">04</span><h2 class="sec__title">Estimaciones back-of-the-envelope</h2><span class="prio prio--core">Esencial</span><p class="sec__en" lang="en">Back-of-the-envelope estimates</p></header>
+    <div class="sec__body" id="blocks"></div>
+    <footer class="sec__foot">
+      <button type="button" class="btn btn--sm read-toggle" aria-pressed="false"><span id="ico-a"></span><span>Marcar como leída</span></button>
+      <button type="button" class="btn btn--sm read-toggle" aria-pressed="true"><span id="ico-b"></span><span>Leída</span></button>
+      <span class="prio prio--extra">Extra</span><span class="prio prio--skip">Sáltate esto</span>
+    </footer>
+  </section>
+
+  <p class="dev-label">botones y chips</p>
+  <div class="modal__row">
+    <a class="btn btn--primary" href="#x">Practicar primero (45 min)</a>
+    <button class="btn" type="button">Secundario</button>
+    <button class="btn btn--ghost" type="button">Fantasma</button>
+    <button class="btn btn--text" type="button">Ver la solución sin practicar</button>
+    <span class="chip">Neutro</span><span class="chip chip--accent">Acento</span><span class="chip chip--ok">Hecha</span>
+    <span class="chip chip--bad">Trampa</span><span class="chip chip--warn">Estimación</span><span class="chip chip--soon">Próximamente</span>
+  </div>
+</div>
+
+<script src="../js/core/registry.js"></script>
+<script src="../js/core/store.js"></script>
+<script src="../js/ui/dom.js"></script>
+<script src="../js/ui/blocks.js"></script>
+<script src="../js/ui/diagram.js"></script>
+<script src="../js/ui/code.js"></script>
+<script>
+(function () {
+  'use strict';
+  var MSD = window.MSD;
+  // Tema
+  document.querySelectorAll('.dev-bar [data-t]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = b.dataset.t;
+      if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+      document.querySelectorAll('.dev-bar [data-t]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+  document.getElementById('ico-a').innerHTML = MSD.dom.icon('check');
+  document.getElementById('ico-b').innerHTML = MSD.dom.icon('check');
+
+  // Uptime strip estático (sin catálogo): 15 | 13 celdas con los 4 estados
+  var st = ['done','done','done','progress','ready','ready','soon','soon','soon','soon','soon','soon','soon','soon','soon'];
+  var sc = ['progress','ready','soon','soon','soon','soon','soon','soon','soon','soon','soon','soon','soon'];
+  var cell = function (s, i) { return '<span class="ucell ucell--' + s + '">' + (s === 'progress' ? '<i style="height:' + (30 + i * 5) + '%"></i>' : '') + '</span>'; };
+  document.getElementById('uptime-demo').innerHTML =
+    '<div class="uptime"><div class="uptime__bars"><div class="uptime__grp uptime__grp--m">' + st.map(cell).join('') +
+    '</div><div class="uptime__grp uptime__grp--c">' + sc.map(cell).join('') + '</div></div>' +
+    '<div class="uptime__axis"><span><span>M01</span><span>Fundamentos</span><span>M15</span></span><span><span>C01</span><span>Casos</span><span>C13</span></span></div></div>' +
+    '<div class="uptime uptime--compact" style="max-width:256px;margin-top:16px"><div class="uptime__bars"><div class="uptime__grp uptime__grp--m">' + st.map(cell).join('') +
+    '</div><div class="uptime__grp uptime__grp--c">' + sc.map(cell).join('') + '</div></div></div>';
+
+  // Un ejemplo de CADA tipo de bloque (SPEC §5.3)
+  var blocks = [
+    { t: 'p', html: 'Párrafo con <b>negrita</b>, <em>énfasis</em>, <code>kubectl rollout undo</code>, un término en inglés <span class="en">throughput</span>, una estimación <span class="est">≈ 1,000 img/s</span>, una tecla <kbd>/</kbd>, un enlace interno <a href="#m03">M3</a> y uno externo <a href="https://sre.google/sre-book/table-of-contents/" target="_blank" rel="noopener">Google SRE Book</a>. H<sub>2</sub>O y 10<sup>6</sup>.' },
+    { t: 'h3', text: 'Sub-encabezado de sección (h3)' },
+    { t: 'list', items: ['Lista sin orden con <code>p99</code>.', 'Segundo elemento, un poco más largo para ver cómo se ve el salto de línea cuando el texto ocupa más de una línea en el ancho de lectura.', 'Tercero.'] },
+    { t: 'list', ordered: true, items: ['Paso uno.', 'Paso dos.', 'Paso tres.'] },
+    { t: 'callout', kind: 'why', html: 'Separar el gateway de CPU del tier de GPU permite escalar cada uno por su cuello de botella.' },
+    { t: 'callout', kind: 'trap', html: 'Balancear gRPC con un <span class="en">load balancer</span> L4: todas las peticiones de una conexión HTTP/2 caen en el mismo pod.' },
+    { t: 'callout', kind: 'senior', html: 'Decir el número <b>y</b> la decisión que cambia: “con 500 req/s y 600 img/s por GPU, una alcanza; pongo dos por disponibilidad”.' },
+    { t: 'callout', kind: 'skip', html: 'La matemática exacta de <span class="en">dynamic batching</span> rara vez se pregunta.' },
+    { t: 'callout', kind: 'estimate', html: 'Capacidad por GPU <span class="est">≈ 600 img/s</span>: mídela con <code>perf_analyzer</code> antes de dimensionar.' },
+    { t: 'callout', kind: 'connect', html: 'Esto conecta con <a href="#m07">M7 · Monitoreo</a>: las mismas métricas alimentan las alertas.' },
+    { t: 'callout', kind: 'interview', html: '<em>“Before drawing boxes, let me confirm the scale: roughly how many images per day, and what latency does the seller experience?”</em>' },
+    { t: 'callout', kind: 'note', title: 'Nota con título propio', html: 'Un callout con título personalizado.<ul><li>con lista</li><li>de dos puntos</li></ul>' },
+    { t: 'table', caption: 'Opciones de serving (tabla más ancha que el teléfono)', head: ['Patrón', 'Latencia típica', 'Throughput', 'Costo', 'Complejidad operativa', 'Cuándo usarlo'],
+      rows: [
+        ['Online síncrono', '<span class="est">20–200 ms</span>', 'Medio', 'Alto (siempre encendido)', 'Media: autoscaling, health checks', 'El usuario espera la respuesta'],
+        ['Batch offline', 'Horas', 'Muy alto', 'Bajo', 'Baja', 'Scores precalculados, reportes'],
+        ['Streaming', 'Segundos', 'Alto', 'Medio', 'Alta: exactly-once, backpressure', 'Features frescas, fraude'],
+      ], note: 'Primera columna fija al desplazar horizontalmente. Valores <span class="est">aproximados</span>.' },
+    { t: 'kv', items: [['QPS promedio', '≈ 116 req/s', '10 M/día ÷ 86,400 s'], ['QPS pico (3×)', '≈ 350 req/s'], ['Diseño con margen', '500 req/s', 'picos y reintentos'], ['VRAM del modelo FP16', '≈ 51 MB']] },
+    { t: 'steps', items: [
+      { title: 'Aclarar el problema', meta: '0–5 min', html: 'Usuarios, escala, latencia, datos y etiquetas.' },
+      { title: 'Requisitos y métricas', meta: '5–10 min', html: 'Métrica de negocio, métrica offline y SLOs.' },
+      { title: 'Estimaciones', meta: '10–15 min', html: 'QPS pico, GPUs, almacenamiento, costo.' },
+    ] },
+    { t: 'calc', title: 'GPUs necesarias en el pico', rows: [
+      { label: 'Peticiones por día', expr: '10,000,000', value: '10 M' },
+      { label: 'QPS promedio', expr: '10,000,000 ÷ 86,400', value: '≈ 116 req/s' },
+      { label: 'QPS pico', expr: '116 × 3', value: '≈ 350 req/s', note: 'patrón diurno' },
+      { label: 'GPUs T4 (600 img/s c/u)', expr: '⌈500 ÷ 600⌉ + 1 (N+1)', value: '2 GPUs' },
+    ], result: 'Una T4 alcanza para el pico; <b>dos</b> por disponibilidad (2 AZ). Costo <span class="est">≈ US$768/mes</span>.' },
+    { t: 'qa', items: [
+      { q: '¿Cuántas imágenes suben por día?', a: '≈ 10 M, con pico diurno de 3×.', why: 'Define QPS pico → número de GPUs y costo.' },
+      { q: '¿Qué latencia percibe el vendedor?', a: 'p99 ≤ 200 ms del lado del servidor; el cliente corta a 300 ms.', why: 'Decide online vs batch y cuánto <span class="en">batching</span> dinámico toleras.' },
+    ] },
+    { t: 'followups', items: [
+      { q: '¿Qué haces si la latencia p99 sube a 400 ms un lunes a las 10 am?', junior: 'Agrego más GPUs.', senior: 'Miro primero dónde está el tiempo: cola de Triton, preprocesamiento o red. Si es la cola, el HPA por <span class="en">queue time</span> debería reaccionar; si no, reviso el tamaño de batch y el <code>max_queue_delay</code>.', why: 'Diagnostica antes de gastar y conecta la métrica con la palanca correcta.' },
+    ] },
+    { t: 'tradeoffs', items: [
+      { option: 'Triton + TensorRT', verdict: 'elegido', pros: 'Dynamic batching, métricas Prometheus, FP16.', cons: 'Engine atado a GPU y versión.', why: 'El volumen justifica optimizar; el costo baja a la mitad.' },
+      { option: 'TorchServe', verdict: 'descartado', pros: 'Simple si ya usas PyTorch.', cons: 'Menos throughput por GPU.', why: 'No aporta nada que Triton no tenga para este caso.' },
+      { option: 'Serverless GPU', verdict: 'depende', pros: 'Escala a cero.', cons: 'Arranque en frío de segundos.', why: 'Solo si el tráfico fuera muy esporádico.' },
+    ] },
+    { t: 'checklist', id: 'dev-checklist', items: [
+      { id: 'qps', html: 'Calculaste el <b>QPS pico</b>, no solo el promedio.' },
+      { id: 'online-offline', html: 'Separaste camino online y offline en el diagrama.' },
+      { id: 'monitor', html: 'Nombraste al menos una alerta concreta (p. ej. <code>p99 &gt; 200 ms por 5 min</code>).' },
+    ] },
+    { t: 'quiz', items: [
+      { q: '¿Qué número dimensiona las GPUs?', options: ['QPS promedio', 'QPS pico con margen', 'Número de usuarios registrados'], answer: 1, explain: 'Se dimensiona para el pico (con margen); el promedio subestima.' },
+    ] },
+    { t: 'diagram', id: 'dev-diagram', title: 'Diagrama mínimo', caption: 'Camino online (azul) y offline (ámbar).', spec: {
+      width: 60, height: 24,
+      lanes: [{ id: 'on', label: 'Online', x: 0, y: 0, w: 60, h: 12, kind: 'online' }, { id: 'off', label: 'Offline', x: 0, y: 12, w: 60, h: 12, kind: 'offline' }],
+      nodes: [
+        { id: 'c', label: 'App móvil', x: 2, y: 3, w: 14, h: 6, kind: 'client', note: 'El vendedor sube la foto.' },
+        { id: 'g', label: 'Gateway', sub: 'FastAPI · CPU', x: 23, y: 3, w: 14, h: 6, kind: 'service', note: 'Valida y preprocesa.' },
+        { id: 't', label: 'Triton', sub: 'T4 · FP16', x: 44, y: 3, w: 14, h: 6, kind: 'gpu', note: 'Inferencia con dynamic batching.' },
+        { id: 's', label: 'Logs S3', x: 23, y: 15, w: 14, h: 6, kind: 'store', note: 'Predicciones para monitoreo.' },
+      ],
+      edges: [{ from: 'c', to: 'g', kind: 'online', label: 'POST' }, { from: 'g', to: 't', kind: 'online' }, { from: 'g', to: 's', kind: 'offline', dashed: true }],
+    } },
+    { t: 'code', title: 'Código en línea', files: [{ name: 'healthz.py', lang: 'python', code: '# Liveness: el proceso responde\n@app.get("/healthz")\ndef healthz():\n    return {"ok": True}\n' }] },
+    { t: 'html', html: '<p>Bloque <b>html</b> (escape hatch) con un <abbr title="Service Level Objective">SLO</abbr>.</p><details><summary>Detalles</summary><p>Contenido plegable.</p></details>' },
+    { t: 'no-existe', html: 'Tipo desconocido: debe verse un aviso, no un error.' },
+  ];
+  MSD.Blocks.renderAll(blocks, document.getElementById('blocks'), { pageId: 'dev', sectionId: 'sec', store: MSD.store });
+  window.__devReady = true;
+})();
+</script>
+</body>
+</html>

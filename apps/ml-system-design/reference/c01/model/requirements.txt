@@ -1,0 +1,10 @@
+# Entorno del job de export + paridad (CI o la máquina con la T4). Versiones con las que se probó.
+# Solo directas: torch arrastra muchas transitivas; en un repo real genera el lock con `uv pip compile`.
+torch==2.14.0  # la versión FIJA importa: el exportador TorchScript está deprecado y cambia entre releases
+torchvision==0.29.0  # arquitectura resnet50 (y la referencia de preprocesamiento en los tests de skew)
+onnx==1.23.0  # onnx.checker y lectura del opset/shapes
+onnxscript==0.7.2  # lo necesita el exportador dynamo (--dynamo)
+onnxruntime==1.30.0  # ejecuta el .onnx en CPU para el gate de paridad
+numpy==2.5.3
+pillow==12.3.0  # MISMA versión que el gateway: el preprocesamiento compartido depende de ella
+tritonclient[http]==2.72.0  # solo para parity_check.py --backend triton

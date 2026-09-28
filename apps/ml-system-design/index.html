@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ronda de Diseño ML</title>
+<meta name="description" content="Curso y simulador de entrevistas de ML System Design para ML Engineers: todo lo que rodea al modelo en producción (serving, datos, evaluación, monitoreo, costo), con casos resueltos, práctica cronometrada de 45 minutos, rúbrica y flashcards.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/practice.css">
+</head>
+<body>
+<a class="skip-link" href="#main" id="skip-link">Saltar al contenido</a>
+
+<!-- Barra superior (solo < 768 px): abre el índice como cajón -->
+<header class="topbar" id="topbar">
+  <button class="icon-btn" type="button" id="menu-btn" aria-controls="sidebar" aria-expanded="false" aria-label="Abrir el índice">
+    <svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>
+  </button>
+  <a class="brand" href="#inicio">
+    <span class="brand__text"><span class="brand__name">Ronda de Diseño ML</span></span>
+  </a>
+  <span class="topbar__progress" id="topbar-progress"></span>
+</header>
+
+<!-- Índice del curso: columna fija (≥ 768 px) o cajón (< 768 px) -->
+<aside class="sidebar" id="sidebar" aria-label="Índice del curso">
+  <div class="sidebar__head">
+    <a class="brand" href="#inicio" aria-label="Ronda de Diseño ML: ir al inicio">
+      <svg class="brand__mark" viewBox="0 0 26 26" aria-hidden="true" focusable="false">
+        <rect class="bm-o" x="1" y="5" width="4" height="16" rx=".6"/>
+        <rect class="bm-o" x="6.5" y="5" width="4" height="16" rx=".6"/>
+        <rect class="bm-a" x="12" y="5" width="4" height="16" rx=".6" opacity=".35"/>
+        <rect class="bm-a" x="12" y="13" width="4" height="8" rx=".6"/>
+        <rect class="bm-r" x="18.1" y="5.6" width="3.3" height="14.8" rx=".5"/>
+        <rect class="bm-r" x="23" y="5.6" width="2.2" height="14.8" rx=".5" opacity=".6"/>
+      </svg>
+      <span class="brand__text">
+        <span class="brand__name">Ronda de Diseño ML</span>
+        <span class="brand__tag">ML System Design · MLE</span>
+      </span>
+    </a>
+    <button class="icon-btn sidebar__close" type="button" id="drawer-close" aria-label="Cerrar el índice">
+      <svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+  </div>
+
+  <div class="search" id="search" role="search">
+    <label class="sr-only" for="search-input">Buscar en el curso</label>
+    <span class="search__icon" aria-hidden="true">
+      <svg class="ico" viewBox="0 0 16 16" width="16" height="16" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2l3.3 3.3"/></svg>
+    </span>
+    <input class="search__input" id="search-input" type="search" placeholder="Buscar temas, términos…" autocomplete="off" spellcheck="false"
+           role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results">
+    <kbd class="search__kbd" aria-hidden="true">/</kbd>
+    <div class="search__results" id="search-results" role="listbox" aria-label="Resultados de búsqueda" hidden></div>
+  </div>
+
+  <div class="side-uptime" id="side-uptime"></div>
+  <nav class="nav" id="nav" aria-label="Contenido del curso"></nav>
+  <div class="sidebar__foot" id="side-foot"></div>
+</aside>
+<div class="backdrop" id="backdrop" hidden></div>
+
+<div class="shell" id="shell">
+  <main class="main" id="main" tabindex="-1">
+    <div class="dev-banner" id="dev-banner" hidden></div>
+    <div class="page" id="page">
+      <noscript><p>Esta app necesita JavaScript activado.</p></noscript>
+    </div>
+  </main>
+  <aside class="toc" id="toc" aria-label="En esta página" hidden></aside>
+</div>
+
+<div class="modal" id="modal" hidden></div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script src="js/core/registry.js"></script>
+<script src="js/core/store.js"></script>
+<script src="js/ui/dom.js"></script>
+<script src="js/ui/blocks.js"></script>
+<script src="js/ui/diagram.js"></script>
+<script src="js/ui/code.js"></script>
+<script src="js/ui/practice.js"></script>
+<script src="js/ui/flashcards.js"></script>
+<script src="js/ui/reference.js"></script>
+<script src="js/content/catalog.js"></script>
+<script src="js/content/reference-files.js"></script>
+<script src="js/content/m01-mapa.js"></script>
+<script src="js/content/c01-clasificacion.js"></script>
+<script src="js/content/c01-archivos.js"></script>
+<!-- contenido: añade aquí los módulos/casos nuevos -->
+<script src="js/app.js"></script>
+</body>
+</html>

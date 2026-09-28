@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Componentes · Ronda de Diseño ML</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Respaldo mínimo de tokens (SPEC §3) por si css/app.css aún no existe; app.css los sobrescribe. */
+  :root {
+    --bg:#EEF1F3; --surface:#FBFCFC; --surface-2:#F3F5F7; --ink:#141B22; --muted:#5B6672; --rule:#D3D9DF; --rule-strong:#A9B3BD;
+    --accent:#2B5BD7; --accent-ink:#1E46B0; --accent-soft:#E3EAFB; --offline:#9A5A06; --offline-soft:#F6E9D5;
+    --monitor:#7445A8; --monitor-soft:#EEE6F7; --store:#2F6B57; --store-soft:#E0EFE8; --ok:#25734A; --ok-soft:#DDF0E4;
+    --bad:#B3261E; --bad-soft:#F8E0DE; --warn:#9A5A06; --warn-soft:#F6E9D5; --focus:#2B5BD7;
+    --shadow-1:0 1px 2px rgba(20,27,34,.06); --shadow-pop:0 8px 28px rgba(20,27,34,.16);
+    --font-display:'IBM Plex Sans Condensed','Arial Narrow',system-ui,sans-serif;
+    --font-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --fs-xs:12px; --fs-sm:13.5px; --fs-md:16px; --fs-lg:19px; --fs-xl:24px; --fs-2xl:32px;
+    --r-1:3px; --r-2:6px; --gap:12px; --gutter:16px; --ease:cubic-bezier(.2,.7,.2,1); --dur:160ms;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#10151B; --surface:#151B22; --surface-2:#1B232C; --ink:#E6EBF0; --muted:#95A1AD; --rule:#27313B; --rule-strong:#3C4854;
+      --accent:#7CA2FF; --accent-ink:#9DB9FF; --accent-soft:#1A2544; --offline:#E3A34B; --offline-soft:#35270F;
+      --monitor:#B794F0; --monitor-soft:#2A1F3D; --store:#6FC3A5; --store-soft:#16302A; --ok:#5CC98A; --ok-soft:#133022;
+      --bad:#F07A70; --bad-soft:#3A1A18; --warn:#E3A34B; --warn-soft:#35270F; --focus:#7CA2FF;
+      --shadow-1:0 1px 2px rgba(0,0,0,.4); --shadow-pop:0 8px 28px rgba(0,0,0,.5); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:#10151B; --surface:#151B22; --surface-2:#1B232C; --ink:#E6EBF0; --muted:#95A1AD; --rule:#27313B; --rule-strong:#3C4854;
+    --accent:#7CA2FF; --accent-ink:#9DB9FF; --accent-soft:#1A2544; --offline:#E3A34B; --offline-soft:#35270F;
+    --monitor:#B794F0; --monitor-soft:#2A1F3D; --store:#6FC3A5; --store-soft:#16302A; --ok:#5CC98A; --ok-soft:#133022;
+    --bad:#F07A70; --bad-soft:#3A1A18; --warn:#E3A34B; --warn-soft:#35270F; --focus:#7CA2FF;
+    --shadow-1:0 1px 2px rgba(0,0,0,.4); --shadow-pop:0 8px 28px rgba(0,0,0,.5); color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.6 var(--font-body); }
+  code { font-family: var(--font-mono); font-size: .92em; }
+</style>
+<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/components.css">
+<style>
+  /* Solo de esta página de desarrollo (no se publica). */
+  .gx { max-width: 780px; margin: 0 auto; padding: 28px var(--gutter) 96px; }
+  .gx-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px;
+             padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+  .gx-eyebrow { font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+  .gx-head h1 { margin: 2px 0 4px; font-family: var(--font-display); font-weight: 700; font-size: var(--fs-2xl); line-height: 1.1; }
+  .gx-head p { margin: 0; color: var(--muted); max-width: 60ch; font-size: var(--fs-sm); }
+  .gx-seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: var(--r-2); overflow: hidden; }
+  .gx-seg button { font: 500 13px/1 var(--font-body); padding: 8px 12px; border: 0; background: var(--surface); color: var(--ink); cursor: pointer; }
+  .gx-seg button + button { border-left: 1px solid var(--rule-strong); }
+  .gx-seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+  .gx-sec { margin-top: 44px; }
+  .gx-sec > h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--rule-strong);
+                 font-family: var(--font-display); font-weight: 600; font-size: var(--fs-xl); }
+  .gx-sec > h2 span { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-weight: 400; }
+  .gx-sec > p { color: var(--muted); font-size: var(--fs-sm); margin: 6px 0 0; }
+  .gx-surface { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-2); padding: 4px 20px; margin-top: 16px; }
+  @media (max-width: 600px) { .gx-surface { padding: 2px 12px; } .gx { padding-top: 18px; } }
+</style>
+</head>
+<body>
+<main class="gx" id="main">
+  <header class="gx-head">
+    <div>
+      <div class="gx-eyebrow">Ronda de Diseño ML · desarrollo</div>
+      <h1>Componentes: diagrama y código</h1>
+      <p>Página aislada para revisar <code>MSD.Diagram</code> y <code>MSD.Code</code> en ambos temas y en móvil. No forma parte de la app publicada.</p>
+    </div>
+    <div class="gx-seg" role="group" aria-label="Tema">
+      <button type="button" data-theme-set="system" aria-pressed="true">Sistema</button>
+      <button type="button" data-theme-set="light" aria-pressed="false">Claro</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false">Oscuro</button>
+    </div>
+  </header>
+
+  <section class="gx-sec" id="arquitectura">
+    <h2>Arquitectura <span>como el caso c01</span></h2>
+    <p>Carriles online / offline / monitoreo, once nodos, dos recorridos. Haz clic en un nodo o usa Tab + Enter.</p>
+    <div class="gx-surface" id="demo-arch"></div>
+  </section>
+
+  <section class="gx-sec" id="ciclo">
+    <h2>Ciclo de vida <span>sin carriles</span></h2>
+    <div class="gx-surface" id="demo-loop"></div>
+  </section>
+
+  <section class="gx-sec" id="codigo">
+    <h2>Código <span>pestañas, resaltado, copiar</span></h2>
+    <div class="gx-surface" id="demo-code"></div>
+  </section>
+
+  <section class="gx-sec" id="lenguajes">
+    <h2>Otros lenguajes</h2>
+    <div class="gx-surface" id="demo-langs"></div>
+  </section>
+
+  <section class="gx-sec" id="robustez">
+    <h2>Robustez <span>specs incompletas</span></h2>
+    <p>Etiquetas largas (se ajustan o encogen), campos faltantes, aristas a nodos inexistentes y archivos que no existen: nada debe romper la página.</p>
+    <div class="gx-surface" id="demo-robust"></div>
+  </section>
+</main>
+
+<script src="../js/core/registry.js"></script>
+<script src="../js/ui/dom.js"></script>
+<script src="../js/ui/diagram.js"></script>
+<script src="../js/ui/code.js"></script>
+<script>
+(function () {
+  'use strict';
+  const MSD = window.MSD;
+
+  // ---------------------------------------------------------------- tema
+  document.querySelectorAll('[data-theme-set]').forEach((b) => b.addEventListener('click', () => {
+    const t = b.getAttribute('data-theme-set');
+    if (t === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', t);
+    document.querySelectorAll('[data-theme-set]').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  }));
+
+  // ------------------------------------------------- (a) arquitectura c01
+  const arch = {
+    width: 100, height: 64,
+    lanes: [
+      { id: 'mon', label: 'Monitoreo', kind: 'monitor', x: 1, y: 1, w: 98, h: 12 },
+      { id: 'online', label: 'Camino online', kind: 'online', x: 1, y: 15, w: 98, h: 16 },
+      { id: 'offline', label: 'Camino offline', kind: 'offline', x: 1, y: 33, w: 98, h: 30 },
+    ],
+    nodes: [
+      { id: 'prom', label: 'Prometheus + Grafana', sub: 'métricas · alertas', kind: 'monitor', x: 58, y: 4.5, w: 22, h: 7,
+        note: 'Métricas de <b>sistema</b> (QPS, p99, 5xx, uso de GPU desde <code>:8002/metrics</code>) y alertas. Sin esto no sabes si cumples el SLO de <span class="est">p99 ≤ 200 ms</span>.' },
+      { id: 'client', label: 'Cliente', sub: 'app / web', kind: 'client', x: 2, y: 20, w: 14, h: 7.5,
+        note: 'La app móvil reduce la foto a ≤ 1024 px antes de subirla (~200 KB). Si la respuesta tarda más de 300 ms, la UI muestra el selector manual de categoría: <b>degradación con gracia</b>.' },
+      { id: 'alb', label: 'API Gateway / ALB', sub: 'TLS · rate limit', kind: 'edge', x: 25, y: 20, w: 15, h: 7.5,
+        note: 'Punto de entrada: termina TLS, autentica a los equipos internos y aplica rate limit por cliente. Reparte en L7 entre los pods del gateway.' },
+      { id: 'gw', label: 'Gateway FastAPI', sub: 'CPU · decode + resize', kind: 'service', badge: '×2', x: 49, y: 20, w: 17, h: 7.5,
+        note: 'Valida (tipo, tamaño), decodifica, redimensiona a 224×224 y normaliza <b>en CPU</b>, para que la GPU solo haga lo que hace bien: el forward. Escala con HPA por CPU.' },
+      { id: 'triton', label: 'Triton', sub: 'GPU T4 · TensorRT FP16', kind: 'gpu', badge: 'N+1', x: 75, y: 20, w: 20, h: 7.5,
+        note: 'NVIDIA Triton con <b>dynamic batching</b> (<code>max_queue_delay_microseconds: 2000</code>) y dos instancias por GPU. Dos GPUs en dos AZ: una sola cubre el pico, la otra es para disponibilidad.' },
+      { id: 's3', label: 'S3 imágenes', sub: 'originales de listings', kind: 'store', x: 2, y: 38, w: 16, h: 8.5,
+        note: 'Las imágenes originales ya viven aquí (las guarda el servicio de listings). Son la materia prima para etiquetar y reentrenar.' },
+      { id: 'labelq', label: 'Cola de etiquetado', sub: 'humanos · ~5k img/mes', kind: 'human', x: 25, y: 38, w: 17, h: 8.5,
+        note: 'Un 1 % de las predicciones pasa a revisión humana. Da <b>etiquetas frescas</b> para medir la precisión real en producción y para reentrenar.' },
+      { id: 'logs', label: 'Logs de predicciones', sub: 'JSONL → S3 Parquet', kind: 'store', x: 49, y: 38, w: 17, h: 8.5,
+        note: 'Una línea JSON por petición (request_id, versión del modelo, top-k, latencia) vía Fluent Bit → S3 en Parquet. Sin logs no hay monitoreo de modelo ni datos para reentrenar.' },
+      { id: 'train', label: 'Entrenamiento', sub: 'job GPU · PyTorch', kind: 'job', x: 25, y: 53, w: 17, h: 8,
+        note: 'Job batch programado (o disparado por drift) que parte del último checkpoint y exporta a ONNX.' },
+      { id: 'eval', label: 'Evaluación', sub: 'gate offline', kind: 'job', badge: 'gate', x: 49, y: 53, w: 17, h: 8,
+        note: 'Compara el candidato con el modelo en producción en el mismo set congelado y por slices. Si no supera el gate, no se registra.' },
+      { id: 'registry', label: 'Model registry', sub: 'MLflow · versiones', kind: 'store', x: 75, y: 53, w: 20, h: 8,
+        note: 'Versiona engine + config + métricas. El deploy siempre sale de aquí (nunca de una laptop) y el rollback es volver a la versión anterior.' },
+    ],
+    edges: [
+      { from: 'client', to: 'alb', kind: 'online', label: 'HTTPS' },
+      { from: 'alb', to: 'gw', kind: 'online', label: 'HTTP' },
+      { from: 'gw', to: 'triton', kind: 'online', label: 'KServe v2' },
+      { from: 'gw', to: 'logs', kind: 'async', label: 'log JSON' },
+      { from: 'gw', to: 'prom', kind: 'monitor', label: 'métricas' },
+      { from: 'triton', to: 'prom', kind: 'monitor', label: ':8002' },
+      { from: 'logs', to: 'labelq', kind: 'offline', label: '1 %' },
+      { from: 's3', to: 'labelq', kind: 'offline' },
+      { from: 'labelq', to: 'train', kind: 'offline', label: 'etiquetas' },
+      { from: 's3', to: 'train', kind: 'offline' },
+      { from: 'train', to: 'eval', kind: 'offline' },
+      { from: 'eval', to: 'registry', kind: 'offline', label: 'si pasa' },
+      { from: 'registry', to: 'triton', kind: 'offline', label: 'deploy canary' },
+    ],
+    flows: [
+      { id: 'online', label: 'Petición online', steps: [
+        { nodes: ['client'], edges: [], text: 'El vendedor sube la foto al crear el listing. La app ya la redujo a ≤ 1024 px, así que el payload es de <span class="est">~200 KB</span>.' },
+        { nodes: ['alb'], edges: ['client>alb'], text: '<code>POST /v1/classify?top_k=5</code> llega al ALB, que termina TLS, autentica y aplica rate limit.' },
+        { nodes: ['gw'], edges: ['alb>gw'], text: 'El gateway valida y preprocesa en CPU (decode + resize + normalize). Si la imagen es inválida responde 400/413/415 sin tocar la GPU.' },
+        { nodes: ['triton'], edges: ['gw>triton'], text: 'Llama a Triton por HTTP (KServe v2, tensor binario). El dynamic batching junta peticiones hasta 2 ms para llenar la GPU.' },
+        { nodes: ['logs'], edges: ['gw>logs'], text: 'Responde el top-5 en <span class="est">~40 ms</span> y, sin bloquear, escribe la línea JSON de la predicción.' },
+        { nodes: ['prom'], edges: ['gw>prom', 'triton>prom'], text: 'Prometheus scrapea gateway y Triton; la alerta principal es p99 &gt; 200 ms durante 5 min.' },
+      ] },
+      { id: 'retrain', label: 'Reentrenamiento', steps: [
+        { nodes: ['labelq'], edges: ['logs>labelq', 's3>labelq'], text: 'Se muestrea el 1 % de las predicciones y sus imágenes para etiquetado humano.' },
+        { nodes: ['train'], edges: ['labelq>train', 's3>train'], text: 'El job de entrenamiento une etiquetas nuevas + históricas y reentrena desde el último checkpoint.' },
+        { nodes: ['eval'], edges: ['train>eval'], text: 'Evaluación offline contra el modelo actual, global y por slices (categorías raras, fotos oscuras).' },
+        { nodes: ['registry'], edges: ['eval>registry'], text: 'Solo si pasa el gate se registra una versión nueva en MLflow con sus métricas.' },
+        { nodes: ['triton'], edges: ['registry>triton'], text: 'Deploy con canary: 5 % del tráfico, se comparan acceptance rate y p99; si empeora, rollback.' },
+      ] },
+    ],
+  };
+  document.getElementById('demo-arch').appendChild(MSD.Diagram.render(arch, {
+    id: 'demo-arquitectura', title: 'Clasificador de categorías: arquitectura de referencia',
+    caption: 'El camino online responde en milisegundos; el offline cierra el ciclo de datos. <b>Separarlos</b> es lo primero que mira el entrevistador.',
+  }));
+
+  // --------------------------------------------------- (b) ciclo de vida
+  const loop = {
+    width: 70, height: 26,
+    nodes: [
+      { id: 'data', label: 'Datos', sub: 'logs + etiquetas', kind: 'store', x: 2, y: 2, w: 15, h: 7, note: 'Sin datos versionados no puedes reproducir un modelo.' },
+      { id: 'train', label: 'Entrenar', sub: 'job GPU', kind: 'job', x: 27.5, y: 2, w: 15, h: 7, note: 'Un job batch, no un notebook.' },
+      { id: 'eval', label: 'Evaluar', sub: 'gate offline', kind: 'service', x: 53, y: 2, w: 15, h: 7, note: 'El gate decide si el candidato sigue.' },
+      { id: 'deploy', label: 'Desplegar', sub: 'canary 5 %', kind: 'edge', x: 53, y: 17, w: 15, h: 7, note: 'Rollout gradual con rollback.' },
+      { id: 'serve', label: 'Servir', sub: 'Triton · online', kind: 'model', x: 27.5, y: 17, w: 15, h: 7, note: 'Donde vive el SLO de latencia.' },
+      { id: 'mon', label: 'Monitorear', sub: 'drift · p99', kind: 'monitor', x: 2, y: 17, w: 15, h: 7, note: 'Cierra el ciclo: dispara el reentrenamiento.' },
+    ],
+    edges: [
+      { from: 'data', to: 'train', kind: 'offline' },
+      { from: 'train', to: 'eval', kind: 'offline' },
+      { from: 'eval', to: 'deploy', kind: 'offline', label: 'pasa' },
+      { from: 'deploy', to: 'serve', kind: 'online' },
+      { from: 'serve', to: 'mon', kind: 'monitor' },
+      { from: 'mon', to: 'data', kind: 'async', label: 'drift' },
+    ],
+    flows: [{ id: 'loop', label: 'Un ciclo completo', steps: [
+      { nodes: ['data', 'train'], edges: ['data>train'], text: 'Los datos versionados alimentan el entrenamiento.' },
+      { nodes: ['eval'], edges: ['train>eval'], text: 'El candidato pasa por el gate offline.' },
+      { nodes: ['deploy', 'serve'], edges: ['eval>deploy', 'deploy>serve'], text: 'Canary y luego 100 % del tráfico.' },
+      { nodes: ['mon', 'data'], edges: ['serve>mon', 'mon>data'], text: 'El monitoreo detecta drift y vuelve a empezar.' },
+    ] }],
+  };
+  document.getElementById('demo-loop').appendChild(MSD.Diagram.render(loop, {
+    id: 'demo-ciclo', title: 'El ciclo de vida de un modelo en producción',
+    caption: 'Un modelo en producción no es un artefacto: es un ciclo.',
+  }));
+
+  // -------------------------------------------------------- (c) código
+  MSD.files = MSD.files || {};
+  MSD.files['demo/gateway/Dockerfile'] = [
+    '# syntax=docker/dockerfile:1',
+    '# Imagen del gateway (CPU). Dos etapas: build con compiladores, runtime mínimo.',
+    '# Ojo: en un Dockerfile solo es comentario la línea que EMPIEZA con #.',
+    '',
+    '# --- etapa 1: dependencias -------------------------------------------',
+    '# Misma versión menor de Python que en local: evita sorpresas de ABI.',
+    'FROM python:3.11-slim AS build',
+    'WORKDIR /build',
+    '# Primero solo requirements: si no cambian, la capa sale de la caché.',
+    'COPY requirements.txt .',
+    'RUN pip install --no-cache-dir --prefix=/install -r requirements.txt  # en RUN, el shell sí ignora esto',
+    '',
+    '# --- etapa 2: runtime ------------------------------------------------',
+    'FROM python:3.11-slim',
+    '# TRITON_URL apunta al Service de K8s de Triton, no a una IP.',
+    'ENV PYTHONUNBUFFERED=1 \\',
+    '    PORT=8080 \\',
+    '    TRITON_URL=triton:8000',
+    '# Solo los paquetes instalados: la imagen final no lleva gcc ni headers.',
+    'COPY --from=build /install /usr/local',
+    '# Nunca corras como root en producción.',
+    'RUN useradd --uid 10001 app',
+    'WORKDIR /app',
+    'COPY app/ ./app/',
+    'USER app',
+    'EXPOSE 8080',
+    '# Un proceso uvicorn por contenedor: K8s escala réplicas, no workers.',
+    'HEALTHCHECK --interval=10s --timeout=2s CMD python -c "import urllib.request as u; u.urlopen(\'http://localhost:8080/healthz\')"',
+    'CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]',
+    '',
+  ].join('\n');
+
+  const mainPy = [
+    '"""Gateway de clasificación: valida, preprocesa en CPU y llama a Triton."""',
+    'import os',
+    'import time',
+    '',
+    'from fastapi import FastAPI, HTTPException, Request',
+    '',
+    'MODEL_NAME = os.getenv("MODEL_NAME", "classifier")',
+    'TRITON_URL = os.getenv("TRITON_URL", "localhost:8000")   # host:puerto, sin http://',
+    'TIMEOUT_S = float(os.getenv("INFER_TIMEOUT_S", "0.15"))',
+    'COLOR = "#2B5BD7"            # un # dentro de un string NO es comentario',
+    "QUOTE = 'dijo \"hola\" # tampoco'",
+    'ESC = "comilla \\" escapada # sigue siendo string"',
+    'TAGS = {"x": 1, \'y\': 2.5e-3}  # esto sí es comentario',
+    '',
+    'app = FastAPI(title="classifier-gateway")',
+    '',
+    '',
+    '@app.post("/v1/classify")',
+    'async def classify(request: Request, top_k: int = 5) -> dict:',
+    '    t0 = time.perf_counter()',
+    '    body = await request.body()',
+    '    if len(body) > 10 * 1024 * 1024:     # 10 MB: el límite se aplica antes de decodificar',
+    '        raise HTTPException(status_code=413, detail="imagen demasiado grande")',
+    '    # ... decode + resize + normalize, luego infer en Triton ...',
+    '    return {"model_version": os.getenv("MODEL_VERSION", "dev"), "predictions": [],',
+    '            "latency_ms": round((time.perf_counter() - t0) * 1000, 1)}',
+  ].join('\n');
+
+  const deployYaml = [
+    '# Deployment del gateway (CPU). Triton va en otro Deployment con nodeSelector de GPU.',
+    'apiVersion: apps/v1',
+    'kind: Deployment',
+    'metadata:',
+    '  name: classifier-gateway',
+    '  labels:',
+    '    app: classifier-gateway          # el Service y el HPA seleccionan por esta etiqueta',
+    'spec:',
+    '  replicas: 2                        # mínimo 2: sobrevives a la caída de un nodo',
+    '  strategy:',
+    '    type: RollingUpdate',
+    '    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}   # nunca bajes capacidad durante un deploy',
+    '  selector:',
+    '    matchLabels:',
+    '      app: classifier-gateway',
+    '  template:',
+    '    metadata:',
+    '      labels:',
+    '        app: classifier-gateway',
+    '    spec:',
+    '      containers:',
+    '        - name: gateway',
+    '          image: "registry.example.com/classifier-gateway:1.4.2"   # tag inmutable, nunca :latest',
+    '          ports:',
+    '            - containerPort: 8080',
+    '          env:',
+    '            - name: TRITON_URL',
+    '              value: "triton:8000"',
+    '            - name: INFER_TIMEOUT_S',
+    '              value: "0.15"                 # los env vars son strings: van entre comillas',
+    '            - name: NOTE',
+    '              value: "un # dentro de comillas no es comentario"',
+    '          resources:',
+    '            requests: {cpu: "1", memory: 1Gi}   # requests = lo que el scheduler reserva',
+    '            limits: {memory: 2Gi}                # sin límite de CPU: evita throttling en picos',
+    '          readinessProbe:',
+    '            httpGet: {path: /readyz, port: 8080}   # listo solo si Triton tiene el modelo cargado',
+    '            periodSeconds: 5',
+    '          livenessProbe:',
+    '            httpGet: {path: /healthz, port: 8080}',
+    '            periodSeconds: 10',
+    '            failureThreshold: 3',
+    '      terminationGracePeriodSeconds: 30   # deja terminar las peticiones en vuelo',
+    '      enableServiceLinks: false',
+  ].join('\n');
+
+  const pbtxt = [
+    '# model_repository/classifier/config.pbtxt',
+    'name: "classifier"',
+    'platform: "tensorrt_plan"          # engine construido con trtexec --fp16 en la MISMA GPU (T4)',
+    'max_batch_size: 32',
+    'input [',
+    '  { name: "input", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] }',
+    ']',
+    'output [',
+    '  { name: "logits", data_type: TYPE_FP32, dims: [ 500 ] }',
+    ']',
+    'dynamic_batching {',
+    '  max_queue_delay_microseconds: 2000   # espera ≤ 2 ms para formar lotes más grandes',
+    '}',
+    'instance_group [ { count: 2, kind: KIND_GPU } ]   # 2 instancias: solapa copia y cómputo',
+  ].join('\n');
+
+  document.getElementById('demo-code').appendChild(MSD.Code.render([
+    { name: 'Dockerfile', lang: 'dockerfile', src: 'demo/gateway/Dockerfile',
+      note: 'Multi-stage: la imagen final no lleva compiladores. <b>Por qué importa</b>: imagen más chica = pull más rápido = autoscaling más rápido.' },
+    { name: 'app/main.py', lang: 'python', code: mainPy, note: 'Prueba del resaltador: los <code>#</code> y comillas dentro de strings no se confunden con comentarios.' },
+    { name: 'k8s/deployment.yaml', lang: 'yaml', code: deployYaml },
+    { name: 'config.pbtxt', lang: 'pbtxt', code: pbtxt },
+  ], { title: 'Archivos de referencia del gateway', caption: 'Cada línea lleva su porqué en un comentario. Usa <b>Copiar</b> para llevarte el archivo exacto.' }));
+
+  document.getElementById('demo-langs').appendChild(MSD.Code.render([
+    { name: 'build.sh', lang: 'bash', code: '#!/usr/bin/env bash\nset -euo pipefail\nTAG="$(git rev-parse --short HEAD)"   # tag = commit: trazabilidad\ndocker build -t "registry.example.com/gw:${TAG}" .\ndocker push registry.example.com/gw:$TAG\ncurl -s -X POST "localhost:8080/v1/classify?top_k=5" \\\n  -H \'Content-Type: image/jpeg\' --data-binary @sofa.jpg | jq .\n' },
+    { name: 'respuesta.json', lang: 'json', code: '{\n  "model_version": "2026-09-01-resnet50-fp16",\n  "predictions": [\n    {"label": "muebles/sofás", "score": 0.83},\n    {"label": "muebles/sillones #2", "score": 0.09}\n  ],\n  "cached": false,\n  "latency_ms": 41.2\n}' },
+    { name: 'pyproject.toml', lang: 'toml', code: '# metadatos del paquete\n[project]\nname = "classifier-gateway"\nversion = "1.4.2"\ndependencies = ["fastapi>=0.110", "tritonclient[http]==2.48.0"]\n\n[tool.pytest.ini_options]\naddopts = "-q"   # salida corta en CI\n' },
+    { name: 'alerta-p99.promql', lang: 'promql', code: '# p99 del gateway en los últimos 5 min (alerta si > 200 ms)\nhistogram_quantile(0.99,\n  sum by (le) (rate(http_request_duration_seconds_bucket{job="gateway", code!~"5.."}[5m]))\n) > 0.2' },
+    { name: 'supervisord.ini', lang: 'ini', code: '; un proceso por contenedor es lo normal; esto es solo un ejemplo\n[program:gateway]\ncommand = uvicorn app.main:app --port 8080\nautorestart = true\nstartsecs = 5\n' },
+    { name: 'NOTAS.txt', lang: 'text', code: 'Texto plano: sin resaltado. <b>no es HTML</b> & "comillas" # no es comentario\nUna línea muy larga para probar el ajuste de líneas: lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.' },
+  ], { title: 'Resaltado por lenguaje' }));
+
+  // --------------------------------------------------------- robustez
+  const robust = document.getElementById('demo-robust');
+  robust.appendChild(MSD.Diagram.render({
+    width: 64, height: 18,
+    nodes: [
+      { id: 'a', label: 'Servicio de features en línea con caché', sub: 'Redis · p99 ≤ 5 ms · TTL 10 min', kind: 'store', x: 2, y: 5, w: 14, h: 7 },
+      { id: 'b', label: 'Modelo', kind: 'model', x: 25, y: 5, w: 14, h: 7, note: 'Sin <code>sub</code>.' },
+      { id: 'c', label: 'Cola', sub: 'Kafka', kind: 'queue', x: 48, y: 1, w: 14, h: 6 },
+      { id: 'd', label: 'Cliente externo', kind: 'external', x: 48, y: 10, w: 14, h: 7 },
+      { id: 'e', label: 'Tipo inválido', kind: 'nave-espacial', x: 25, y: 14, w: 10, h: 3 },
+    ],
+    edges: [
+      { from: 'a', to: 'b', label: 'features' },
+      { from: 'b', to: 'c', bidir: true },
+      { from: 'b', to: 'd', kind: 'online', dashed: true },
+      { from: 'b', to: 'fantasma' },
+      { from: 'c', to: 'd', kind: 'rarísimo', fromSide: 'r', toSide: 'r' },
+      null,
+    ],
+    flows: [{ id: 'x', label: 'Flujo con pasos rotos', steps: [{ nodes: ['a', 'zzz'], edges: ['a>b', 'nope>x'], text: 'Los ids inexistentes se ignoran.' }, null] }],
+  }, { id: 'demo-robusto', title: 'Spec incompleta (no debe romper)' }));
+  robust.appendChild(MSD.Diagram.render(null, { title: 'Spec nula' }));
+  robust.appendChild(MSD.Code.render([
+    { name: 'no-existe.py', lang: 'python', src: 'c01/no/existe.py', note: 'Esta nota se muestra aunque falte el archivo.' },
+    { name: 'sin-contenido.txt', lang: 'text' },
+    { name: 'raro.xyz', lang: 'klingon', code: 'lenguaje desconocido → texto plano' },
+  ], { title: 'Archivos faltantes' }));
+  robust.appendChild(MSD.Code.render([{ name: 'requirements.txt', lang: 'text', code: 'fastapi==0.115.0\nuvicorn[standard]==0.30.6\ntritonclient[http]==2.48.0\npillow==10.4.0\n' }], { caption: 'Un solo archivo: encabezado sin pestañas.' }));
+  robust.appendChild(MSD.Code.render(null, { title: 'Sin archivos' }));
+})();
+</script>
+</body>
+</html>

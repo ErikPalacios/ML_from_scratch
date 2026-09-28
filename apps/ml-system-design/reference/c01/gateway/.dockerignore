@@ -1,0 +1,25 @@
+# Lo que NO entra al contexto de build del gateway: builds más rápidos y sin filtrar basura a la imagen
+# Tests y su config: no corren en producción (se corren en CI antes del build)
+tests/
+pytest.ini
+requirements-dev.txt
+# Artefactos locales de Python en cualquier carpeta: se regeneran, y un venv de macOS no sirve en Linux
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+.venv/
+venv/
+# Control de versiones y editores
+.git/
+.gitignore
+.vscode/
+.idea/
+# Secretos locales: jamás dentro de una imagen (se inyectan como env/Secret en runtime)
+.env
+*.pem
+# Imágenes de prueba y modelos en cualquier carpeta (**/): el gateway no los necesita (el modelo vive en Triton)
+**/*.jpg
+**/*.jpeg
+**/*.png
+**/*.onnx
+**/*.plan

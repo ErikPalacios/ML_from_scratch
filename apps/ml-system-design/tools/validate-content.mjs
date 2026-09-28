@@ -59,8 +59,10 @@ function checkHtml(where, html, allowBlock) {
   if (html == null) return;
   if (typeof html !== 'string') { err(where, 'se esperaba texto/HTML'); return; }
   if (/<script/i.test(html)) err(where, 'contiene <script>');
-  if (/\bon[a-z]+\s*=/i.test(html)) err(where, 'contiene manejadores on*= en línea');
-  if (/\b(TODO|TBD|lorem ipsum|FIXME)\b/i.test(html)) err(where, 'contiene TODO/TBD/lorem');
+  // Solo dentro de etiquetas: en prosa "online = …" es legítimo.
+  if (/<[^>]*\son[a-z]+\s*=/i.test(html)) err(where, 'contiene manejadores on*= en línea');
+  // Marcadores en MAYÚSCULAS (en español "todo" es una palabra normal).
+  if (/(^|[^\p{L}])(TODO|TBD|FIXME)(?![\p{L}])/u.test(html) || /lorem ipsum/i.test(html)) err(where, 'contiene TODO/TBD/FIXME/lorem');
   const ok = allowBlock ? BLOCK_HTML_OK : INLINE_OK;
   const stack = [];
   const re = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g;

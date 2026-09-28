@@ -1,0 +1,74 @@
+# Configuración del modelo "classifier" en Triton Inference Server (caso c01).
+# Formato: protobuf en texto (mensaje ModelConfig). Triton arranca con
+# --disable-auto-complete-config: no "adivina" nada del engine; todo lo que el gateway asume
+# (nombres, dtypes, shapes) está escrito y revisado aquí.
+# El engine (1/model.plan) lo genera model/build_engine.sh y NO se versiona en git.
+
+name: "classifier"  # = nombre del directorio; el gateway lo manda en MODEL_NAME
+platform: "tensorrt_plan"  # backend TensorRT: carga 1/model.plan (nombre por defecto del archivo)
+max_batch_size: 32  # hasta 32 requests en un batch; debe ser ≤ --maxShapes del engine (32)
+
+# Solo la versión más nueva del directorio. Con la imagen "horneada" hay una sola versión; el
+# rollback es volver a desplegar la imagen anterior, no cargar dos versiones en la misma GPU.
+version_policy: { latest: { num_versions: 1 } }
+
+input [
+  {
+    name: "input"  # = input_names del export ONNX y InferInput("input") del gateway
+    data_type: TYPE_FP32  # el gateway manda FP32; TensorRT convierte a FP16 dentro del engine
+    dims: [ 3, 224, 224 ]  # SIN el eje de batch: con max_batch_size > 0 Triton antepone [-1]
+  }
+]
+
+output [
+  {
+    name: "logits"  # logits crudos: softmax y top-k los hace el gateway (así se puede calibrar)
+    data_type: TYPE_FP32
+    dims: [ 500 ]  # una salida por categoría hoja
+  }
+]
+
+# Dynamic batching: junta requests individuales en un batch para usar bien la GPU (1 imagen por
+# llamada deja la T4 casi ociosa). Espera como máximo 2 ms a que lleguen más requests: a 350–500
+# req/s eso forma batches de ~2–8 sin tocar el p99 de 200 ms.
+dynamic_batching {
+  max_queue_delay_microseconds: 2000
+  # Sin preferred_batch_size a propósito: con un solo perfil de optimización (1–32) Triton arma el
+  # batch más grande posible dentro de la espera; fijar tamaños solo tiene sentido con varios
+  # perfiles/engines por tamaño, y mal elegidos agregan espera.
+  default_queue_policy {
+    # Protección ante sobrecarga: un request que lleva 100 ms en cola ya no llega a tiempo al
+    # timeout del gateway (150 ms). Mejor rechazarlo y liberar GPU para requests que siguen vivos
+    # que calcular una respuesta que nadie espera.
+    timeout_action: REJECT
+    default_timeout_microseconds: 100000
+  }
+}
+
+# 2 instancias del engine en la MISMA GPU: mientras una copia datos o espera, la otra computa.
+# Cada instancia reserva su propia memoria de activaciones; con ResNet-50 FP16 sobra en 16 GB.
+instance_group [
+  {
+    count: 2
+    kind: KIND_GPU
+  }
+]
+
+# Warmup: Triton ejecuta estos requests sintéticos al cargar el modelo y ANTES de marcarlo READY.
+# Así la primera request real no paga la inicialización (reserva de memoria, primera ejecución),
+# y el readinessProbe (/v2/health/ready) solo pasa cuando el modelo ya está caliente.
+model_warmup [
+  {
+    name: "warmup_max_batch"
+    batch_size: 32  # el batch máximo: reserva de una vez la memoria del peor caso
+    count: 3  # tres ejecuciones seguidas
+    inputs {
+      key: "input"
+      value: {
+        data_type: TYPE_FP32
+        dims: [ 3, 224, 224 ]
+        zero_data: true  # el contenido no importa, solo el shape
+      }
+    }
+  }
+]

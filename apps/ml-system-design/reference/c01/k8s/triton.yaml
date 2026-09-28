@@ -1,0 +1,159 @@
+# Triton en EKS (caso c01): Deployment en nodos GPU T4 + Service interno + PodDisruptionBudget.
+# Namespace "classifier" (créalo antes: kubectl create namespace classifier).
+# El número de réplicas lo decide KEDA (k8s/keda-triton.yaml): mínimo 2 (2 AZs, N+1), máximo 4.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton  # kube_deployment_status_replicas_available{deployment="triton"} → alerta TritonNotReady
+  namespace: classifier
+  labels:
+    app.kubernetes.io/name: triton
+    app.kubernetes.io/part-of: classifier
+spec:
+  # Sin "replicas": las gestiona el HPA que crea KEDA. Si lo fijas aquí, cada `kubectl apply`
+  # resetea la escala y pelea con el autoscaler.
+  revisionHistoryLimit: 5  # ReplicaSets viejos para `kubectl rollout undo`
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1  # de a un pod nuevo: cada pod necesita una GPU libre (Karpenter/cluster-autoscaler agrega el nodo)
+      maxUnavailable: 0  # nunca bajar de la capacidad actual durante un deploy
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: triton  # inmutable: debe coincidir con las labels del template
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: triton
+        app.kubernetes.io/part-of: classifier
+    spec:
+      # Tiempo total para apagar: preStop (10 s) + --exit-timeout-secs de Triton (30 s) + margen
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        workload: gpu-t4  # solo el node group de g4dn.xlarge (T4, sm_75): el engine se compiló para esa GPU
+      tolerations:
+        # Los nodos GPU tienen el taint nvidia.com/gpu=present:NoSchedule para que ningún pod CPU
+        # (gateway, sistema) ocupe una máquina cara; Triton lo tolera explícitamente.
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: present
+          effect: NoSchedule
+      topologySpreadConstraints:
+        # Una réplica por zona: si cae una AZ, la otra GPU sigue sirviendo (N+1).
+        # DoNotSchedule: preferimos un pod Pending (y una alerta) a dos GPUs en la misma AZ.
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: triton
+      securityContext:
+        # La imagen de NGC arranca como root por defecto; según la documentación de NGC incluye el
+        # usuario triton-server (uid 1000). Lo usamos: sin root, un escape del proceso vale menos.
+        # Si tu release no lo trae, créalo en triton/Dockerfile.
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault  # filtro de syscalls por defecto del runtime
+      containers:
+        - name: triton
+          # Tag = versión del modelo (imagen horneada): canary y rollback son cambiar este tag
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-triton:2026-09-01-resnet50-fp16
+          ports:
+            - name: http  # KServe v2 REST: lo usa el gateway
+              containerPort: 8000
+            - name: grpc
+              containerPort: 8001
+            - name: metrics  # nv_*: lo scrapea Prometheus y lo consulta KEDA
+              containerPort: 8002
+          resources:
+            requests:
+              cpu: "2"  # Triton usa CPU para red, deserializar y el scheduler de batching
+              memory: 6Gi  # librerías CUDA + buffers pinned; el modelo en sí vive en la GPU
+              nvidia.com/gpu: 1  # recurso extendido del NVIDIA device plugin: una T4 entera por pod
+            limits:
+              memory: 6Gi  # memoria: límite = request (sin sorpresas de OOM por vecinos)
+              nvidia.com/gpu: 1  # las GPUs no se comparten ni se sobre-asignan: request = limit
+              # Sin límite de CPU: el nodo es solo para Triton y el throttling de CFS mete latencia
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]  # Triton no necesita capacidades de Linux
+          # startupProbe: carga del engine + warmup pueden tardar minutos; mientras no pase, el
+          # kubelet NO evalúa liveness (así no mata un pod que solo está cargando).
+          startupProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60  # hasta 5 min para quedar listo
+          # readiness: ¿recibe tráfico? ready = servidor + modelo cargado (--strict-readiness)
+          readinessProbe:
+            httpGet:
+              path: /v2/health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2  # ~10 s sin estar listo → sale del Service
+          # liveness: ¿el proceso está colgado? Solo "live", NO "ready": un modelo que se descarga
+          # no se arregla reiniciando en bucle
+          livenessProbe:
+            httpGet:
+              path: /v2/health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                # Al borrar el pod, el Service tarda unos segundos en sacarlo de los endpoints.
+                # Seguimos sirviendo 10 s antes del SIGTERM para no cortar requests en vuelo.
+                command: ["sleep", "10"]
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm  # memoria compartida de Triton (en k8s /dev/shm son 64 MB por defecto)
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory  # tmpfs en RAM: cuenta contra el límite de memoria del pod
+            sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triton  # DNS interno: triton.classifier.svc.cluster.local (TRITON_URL del gateway)
+  namespace: classifier
+  labels:
+    app.kubernetes.io/name: triton
+spec:
+  type: ClusterIP  # solo dentro del cluster: Triton nunca se expone a internet
+  # kube-proxy balancea por CONEXIÓN (L4). Con HTTP/1.1 y un pool de conexiones por gateway el
+  # reparto es razonable. Con gRPC (HTTP/2, una conexión multiplexada) todo el tráfico de un
+  # gateway iría a UN solo pod: necesitarías balanceo L7 (service mesh) o client-side.
+  selector:
+    app.kubernetes.io/name: triton
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+    - name: grpc
+      port: 8001
+      targetPort: grpc
+    - name: metrics
+      port: 8002
+      targetPort: metrics
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: triton
+  namespace: classifier
+spec:
+  # Evicciones VOLUNTARIAS (drain de nodos, upgrades del cluster, consolidación de Karpenter):
+  # siempre queda al menos 1 Triton sirviendo. No protege de fallas involuntarias (eso es N+1).
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: triton

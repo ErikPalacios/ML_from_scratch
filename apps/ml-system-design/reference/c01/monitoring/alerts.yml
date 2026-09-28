@@ -1,0 +1,117 @@
+# Reglas de Prometheus del clasificador de categorías (caso c01): 1 regla de grabación + 6 alertas.
+# Severidades: page = despierta a alguien (el usuario ya lo nota) · warning = mirar en horario
+# laboral, suele anticipar un page · ticket = investigar esta semana (calidad del modelo).
+# Las métricas de drift de NEGOCIO (PSI de categorías vs 4 semanas, tasa de aceptación, re-categorización
+# por moderadores) no están aquí: salen de un job batch diario sobre los logs de predicción.
+# Validación: sintaxis PromQL revisada con un parser; no se corrió `promtool check rules` (sin binario).
+
+groups:
+  # ------------------------------------------------------------------ reglas de grabación
+  - name: classifier-recording
+    interval: 1m  # precalcula cada minuto: la alerta de confianza compara contra 7 días de esta serie
+    rules:
+      # Fracción de predicciones con score top-1 < 0.3 (el bucket le="0.3" del histograma).
+      # Se graba porque avg_over_time(...[7d]) sobre una expresión cruda sería carísimo en cada evaluación.
+      - record: classifier:low_confidence_share:rate30m
+        expr: |
+          sum(rate(classifier_top1_score_bucket{le="0.3"}[30m]))
+            /
+          sum(rate(classifier_top1_score_count[30m]))
+
+  # ------------------------------------------------------------------ alertas
+  - name: classifier-alerts
+    rules:
+      # SLO de latencia: p99 server-side ≤ 200 ms. Histograma agregado entre pods ANTES del quantile
+      # (sum by le): promediar p99 de cada pod da un número matemáticamente sin sentido.
+      - alert: ClassifierHighP99Latency
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))
+          ) > 0.2
+        for: 10m  # 10 min sostenido: ignora picos de un GC o de un deploy
+        labels:
+          severity: page
+        annotations:
+          summary: "p99 del clasificador sobre 200 ms"
+          description: "p99 = {{ $value | humanizeDuration }} (SLO 200 ms). Revisa classifier_preprocess_seconds vs classifier_inference_seconds para saber si es CPU o GPU."
+          runbook_url: "https://runbooks.example.com/classifier/high-p99-latency"
+
+      # Errores del servidor > 1 % de los requests. Los 4xx no cuentan: son errores del cliente.
+      # Punto ciego: si TODOS los gateways quedan NotReady, el ALB responde 503 sin llegar al
+      # gateway y esta métrica no lo ve. Lo cubren TritonNotReady y el HTTPCode_ELB_5XX_Count del ALB.
+      - alert: ClassifierHigh5xxRate
+        expr: |
+          (
+            sum(rate(classifier_requests_total{status=~"5.."}[5m]))
+              /
+            sum(rate(classifier_requests_total[5m]))
+          ) > 0.01
+          and sum(rate(classifier_requests_total[5m])) > 1
+        # La segunda condición exige ≥ 1 req/s: con tráfico casi nulo, 1 error de 20 dispararía un page falso
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Más de 1 % de 5xx en /v1/classify"
+          description: "Tasa de 5xx = {{ $value | humanizePercentage }}. 503 = Triton caído o rechazando; 504 = Triton lento (mira TritonQueueTimeHigh)."
+          runbook_url: "https://runbooks.example.com/classifier/high-5xx-rate"
+
+      # Señal de calidad SIN labels: si se duplica la fracción de predicciones de baja confianza,
+      # algo cambió en la entrada (nueva cámara, nuevo tipo de producto, bug de preprocesamiento).
+      - alert: ClassifierLowConfidenceSpike
+        expr: |
+          classifier:low_confidence_share:rate30m
+            > 2 * avg_over_time(classifier:low_confidence_share:rate30m[7d])
+          and sum(rate(classifier_top1_score_count[30m])) > 1
+        # Necesita 7 días de historia de la regla de grabación (retención de Prometheus ≥ 7 d)
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Se duplicó la fracción de predicciones con score top-1 < 0.3"
+          description: "Fracción actual = {{ $value | humanizePercentage }} (> 2× su promedio de 7 días). Compara por source (mobile/web) en los logs y revisa deploys recientes del gateway."
+          runbook_url: "https://runbooks.example.com/classifier/low-confidence-spike"
+
+      # Tiempo medio en la cola de Triton (µs acumulados / requests exitosos → ms).
+      # Con max_queue_delay de 2 ms, > 20 ms significa GPU saturada: KEDA debería estar escalando.
+      - alert: TritonQueueTimeHigh
+        expr: |
+          (
+            sum(rate(nv_inference_queue_duration_us{model="classifier"}[5m]))
+              /
+            sum(rate(nv_inference_request_success{model="classifier"}[5m]))
+          ) / 1000 > 20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cola de Triton sobre 20 ms en promedio"
+          description: "Espera media en cola = {{ $value | printf \"%.1f\" }} ms. Si KEDA ya está en maxReplicaCount (4), falta capacidad de GPU."
+          runbook_url: "https://runbooks.example.com/classifier/triton-queue-time-high"
+
+      # Menos de 2 réplicas de Triton disponibles (disponible = readinessProbe OK = modelo cargado).
+      # Con 1 aún se sirve el pico, pero sin redundancia N+1. Requiere kube-state-metrics: en
+      # docker compose esta serie no existe y la alerta no evalúa.
+      - alert: TritonNotReady
+        expr: |
+          kube_deployment_status_replicas_available{namespace="classifier", deployment="triton"} < 2
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Menos de 2 pods de Triton listos"
+          description: "Réplicas disponibles = {{ $value }}. Causas típicas: engine que no carga (versión de TensorRT), nodo GPU que no escala, OOM de GPU."
+          runbook_url: "https://runbooks.example.com/classifier/triton-not-ready"
+
+      # Utilización por GPU (0–1) SIN agregar: si solo una GPU está saturada y la otra ociosa, el
+      # problema es de balanceo (p. ej. gRPC con conexiones largas detrás de un Service L4).
+      - alert: GPUSaturated
+        expr: |
+          nv_gpu_utilization > 0.85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GPU {{ $labels.gpu_uuid }} sobre 85 % de utilización"
+          description: "Utilización = {{ $value | humanizePercentage }}. Planeamos ~50 % del máximo medido por GPU: estamos comiendo el margen."
+          runbook_url: "https://runbooks.example.com/classifier/gpu-saturated"
