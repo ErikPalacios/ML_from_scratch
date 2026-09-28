@@ -214,7 +214,7 @@
 
   function typeset(el) {
     if (!el || !doc) return Promise.resolve();
-    if (mj) return typesetNow(el);
+    if (mj || failed) return typesetNow(el); // sin MathJax (ya descartado): el respaldo, también al instante
     return ready.then(() => typesetNow(el));
   }
 

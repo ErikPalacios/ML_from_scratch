@@ -128,8 +128,9 @@
 }
 .hm__rh {
   display: flex; align-items: center; justify-content: flex-end; gap: 5px;
-  padding: 0 6px 0 2px; font-size: 11px; white-space: nowrap;
+  padding: 0 6px 0 5px; font-size: 11px; white-space: nowrap;
 }
+.hm--cols .hm__ch { padding-top: 5px; } /* la banda de color de la cabeza no pisa los índices */
 .hm__rh .hm__tok { color: var(--ink); }
 .hm__rh .hm__ix { font-size: 10px; min-width: 1ch; text-align: right; }
 .hm--tiny .hm__ch { font-size: 8.5px; }
@@ -365,12 +366,14 @@
 .insp__title { font-family: var(--font-mono); font-weight: 600; font-size: 13px; color: var(--ink); }
 .insp__sub { color: var(--muted); font-size: var(--fs-xs); }
 .insp__tex { max-width: 100%; overflow-x: auto; overflow-y: hidden; font-size: 14px; color: var(--ink); }
+.insp__tex { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; column-gap: 1em; }
+.insp__tex.is-multi .tex-display > mjx-container[display="true"] { margin: 0.15em 0 !important; }
 .insp__rows { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .insp__row { display: grid; grid-template-columns: minmax(64px, max-content) minmax(0, 1fr); gap: 10px; align-items: baseline; min-width: 0; }
 .insp__k { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; text-align: right; }
 .insp__v, .insp__num {
   font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink);
-  white-space: nowrap; overflow-x: auto; overscroll-behavior-x: contain; min-width: 0; padding-bottom: 2px;
+  white-space: normal; overflow-wrap: break-word; overflow-x: auto; overscroll-behavior-x: contain; min-width: 0; padding-bottom: 2px;
 }
 .insp__note { margin: 0; font-size: var(--fs-xs); color: var(--muted); line-height: 1.45; }
 

@@ -36,7 +36,7 @@
       <a class="tab" role="tab" id="tab-paso" href="#paso" aria-controls="panel-paso" aria-selected="true"><span class="tabs__num">01</span>Paso a paso</a>
       <a class="tab" role="tab" id="tab-entrenamiento" href="#entrenamiento" aria-controls="panel-entrenamiento" aria-selected="false" tabindex="-1"><span class="tabs__num">02</span>Entrenamiento</a>
       <a class="tab" role="tab" id="tab-generacion" href="#generacion" aria-controls="panel-generacion" aria-selected="false" tabindex="-1"><span class="tabs__num">03</span>Generación</a>
-      <a class="tab" role="tab" id="tab-datos" href="#datos" aria-controls="panel-datos" aria-selected="false" tabindex="-1"><span class="tabs__num">04</span>Datos y modelo</a>
+      <a class="tab" role="tab" id="tab-datos" href="#datos" aria-controls="panel-datos" aria-selected="false" tabindex="-1"><span class="tabs__num">04</span><span>Datos<span class="tab__more"> y modelo</span></span></a>
     </nav>
 
     <div class="app-head__status">
@@ -96,12 +96,15 @@
           <span class="chip chip--data" id="step-chip">Datos</span>
           <span class="step-head__count" id="step-count">Paso 1 / 1</span>
           <span class="step-head__loc" id="step-loc"></span>
-          <span class="grow"></span>
-          <button class="btn btn--sm" type="button" id="btn-animate" title="Reproduce la operación celda a celda">
-            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor"><path d="M5 3.2v9.6L12.6 8z"/></svg>
-            <span id="btn-animate-label">Animar</span>
-          </button>
-          <button class="btn btn--sm" type="button" id="btn-values" aria-pressed="true" data-phase="forward">Mostrar valores</button>
+          <span class="step-head__actions">
+            <button class="btn btn--sm" type="button" id="btn-animate" title="Reproduce la operación celda a celda">
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="currentColor"><path d="M5 3.2v9.6L12.6 8z"/></svg>
+              <span id="btn-animate-label">Animar</span>
+            </button>
+            <button class="btn btn--sm" type="button" id="btn-values" title="Números dentro de las celdas. Auto: donde caben (en las matrices grandes, solo color; el valor exacto está en el inspector). Todos: en todas las matrices. No: solo color.">
+              <span class="btn-values__k">Números:</span> <span id="btn-values-label">auto</span>
+            </button>
+          </span>
         </div>
         <h2 class="step-head__title" id="step-title">Cargando…</h2>
         <div class="step-head__formula" id="step-formula" aria-label="Fórmula del paso"></div>
@@ -137,6 +140,7 @@
         <p class="side-note">Todos los tensores calculados hasta este paso, del más reciente al más antiguo. Pulsa uno para ir al paso que lo produjo.</p>
         <ol class="live" id="live-list" role="list"></ol>
       </div>
+      <div class="insp-slot-side" id="insp-slot-side"></div>
     </aside>
   </div>
 </section>
@@ -396,7 +400,7 @@
     <section class="panel gradcheck" aria-labelledby="gc-title">
       <div class="panel__head"><span class="panel__title" id="gc-title">Comprobación numérica de gradientes</span></div>
       <div class="panel__body stack">
-        <p class="panel-note gc-intro">Compara el gradiente del backward (analítico) con una estimación por diferencias centrales: \(\frac{\mathcal L(\theta + h) - \mathcal L(\theta - h)}{2h}\), con \(h = 10^{-5}\), en tres entradas de cada parámetro. El error relativo es \(\frac{|a - n|}{\max(|a|, |n|)}\); por debajo de \(10^{-6}\) ambos cálculos coinciden.</p>
+        <p class="panel-note gc-intro">Compara el gradiente del backward (analítico) con una estimación por diferencias centrales: \(\frac{\mathcal L(\theta + h) - \mathcal L(\theta - h)}{2h}\), con \(h = 10^{-5}\), en tres entradas de cada parámetro. El error relativo es \(\frac{|a - n|}{\max(|a|, |n|)}\); si queda por debajo de \(10^{-5}\), se da por buena (en la práctica sale del orden de \(10^{-8}\) o menos).</p>
         <div class="cluster"><button class="btn btn--primary" type="button" id="gc-run">Comprobar gradientes</button><span class="gc-summary" id="gc-summary" role="status"></span></div>
         <div class="table-wrap" id="gc-wrap" hidden><table class="table table--compact gc-table" id="gc-table"></table></div>
       </div>

@@ -3,7 +3,7 @@
 //
 // Uso:
 //   node tools/browser-check.mjs --url index.html [--width 1440 --height 900] [--dark]
-//        [--wait 2500] [--eval "js"]... [--eval-file script.js] [--shot out.png] [--full]
+//        [--wait 2500] [--eval "js"]... [--eval-file script.js] [--shot out.png] [--full] [--timeout ms]
 //
 // - Imprime todos los console.* y excepciones de la página.
 // - Cada --eval se evalúa en orden (se espera si devuelve una Promise) y se imprime su valor (JSON).
@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url';
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 function parseArgs(argv) {
-  const o = { width: 1440, height: 900, wait: 2500, evals: [], dark: false, full: false, timeout: 60000 };
+  const o = { width: 1440, height: 900, wait: 2500, evals: [], dark: false, full: false, timeout: 120000 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], n = () => argv[++i];
     if (a === '--url') o.url = n();

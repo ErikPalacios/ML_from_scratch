@@ -69,7 +69,8 @@
     return m > 0 ? m : 1;
   }
   const isAttnRef = (ref) => ref && ref.rowAxis === 'T' && ref.colAxis === 'T';
-  const tokQ = (s) => '«' + s + '»';
+  const tokQ = (s) => '«' + s + '»';          // texto plano (título, sub, filas: insp los escapa)
+  const tokH = (s) => '«' + esc(s) + '»';     // dentro de HTML (notas): «<s>» no debe ser una etiqueta
 
   // descripción de la posición de una celda para el inspector
   function where(ref, i, j) {
@@ -107,7 +108,8 @@
     return h + '</div>';
   }
   // suma larga con todos los términos: "a + b + … = s"
-  const sumStr = (terms) => (terms.length ? terms.join(' + ') : '0');
+  // (un término negativo que no es el primero va entre paréntesis: «+ (−1.85)», no «+ −1.85»)
+  const sumStr = (terms) => (terms.length ? terms.map((t, k) => (k && /^[−-]/.test(t) ? '(' + t + ')' : t)).join(' + ') : '0');
 
   const MIN_CELL = 12;
 
@@ -273,7 +275,7 @@
       let totalC = 0, needW = 0, prefW = 0, maxR = 0;
       const ow = m.ow;
       hms.forEach((h, k) => { fixed += h.rhW + 10 + ow[k]; totalC += h.C; needW = Math.max(needW, h.valW); prefW = Math.max(prefW, h.prefW); maxR = Math.max(maxR, h.R); });
-      const cw = Math.floor((W - fixed) / Math.max(1, totalC));
+      const cw = Math.floor((W - fixed) / Math.max(1, totalC)) - 1; // − 1 px de separación por columna
       // A · toda la ecuación en una línea, con números
       if (sv !== false && cw >= needW) {
         const w = Math.min(Math.max(needW, 46, prefW), cw);
@@ -287,9 +289,25 @@
         if (x && x + tw > W) { lines++; x = 0; }
         x += tw;
       });
+      // A2 · matrices pequeñas: con números y un ancho de celda común (el justo para los números),
+      // si así caben en dos líneas como mucho (p. ej. S̃ + M = Ŝ con T = 5 en una columna central estrecha)
+      if (sv !== false && lines >= 2 && maxR < 10) {
+        let linesU = 1, xu = 0, fits = true;
+        hms.forEach((h, k) => {
+          const tw = ow[k] + h.widthFor(needW) + 12;
+          if (tw > W) fits = false;
+          if (xu && xu + tw > W) { linesU++; xu = 0; }
+          xu += tw;
+        });
+        if (fits && linesU <= 2) {
+          for (const h of hms) h.fit(W, { w: needW, h: 22, vals: true });
+          return;
+        }
+      }
       // B · toda la ecuación en una línea, solo color (si con números ocuparía demasiado)
       const sq = Math.min(18, cw);
-      if (sv !== true && sq >= 13 && (sv === false || maxR >= 10 || lines >= 3)) {
+      // (solo si las celdas quedan de un tamaño legible, ≥ 16 px; si no, mejor partir la ecuación en líneas)
+      if (sv !== true && sq >= 16 && (sv === false || maxR >= 10 || lines >= 3)) {
         for (const h of hms) h.fit(W, { w: sq, h: sq, vals: false });
         return;
       }
@@ -300,6 +318,19 @@
         const wraps = ow[k] > 48 && beside < h.widthFor(h.valW) && W - 4 >= h.widthFor(Math.max(MIN_CELL, Math.floor((beside - h.rhW) / h.C)) + 8);
         h.fit(Math.max(120, wraps ? W - 4 : beside));
       });
+      // términos con el mismo número de columnas (p. ej. P e Y): mismo ancho de celda, para que las
+      // columnas queden alineadas al apilarse (un mapa solo de color no debe quedar más estrecho)
+      const byC = new Map();
+      hms.forEach((h, k) => { const a = byC.get(h.C) || []; a.push(k); byC.set(h.C, a); });
+      for (const ks of byC.values()) {
+        if (ks.length < 2) continue;
+        let ref = hms[ks[0]];
+        for (const k of ks) if (hms[k].cellW > ref.cellW) ref = hms[k];
+        for (const k of ks) {
+          const h = hms[k];
+          if (h.cellW < ref.cellW && h.widthFor(ref.cellW) + ow[k] <= W) h.fit(W, { w: ref.cellW, h: h.valuesShown ? h.cellH : ref.cellH, vals: h.valuesShown });
+        }
+      }
     }
   }
 
@@ -567,9 +598,9 @@
     const bias = ax.bias != null ? s.inputs[ax.bias] : null;
     const C = s.outputs[0];
     const K = A.mat.c;
-    const flops = s.flops != null ? s.flops : A.mat.r * K * B.mat.c;
+    // el coste total (T·k·n) ya está en la cabecera del paso; aquí, qué es cada celda
     v.flow([A, '·', B, bias && '+', bias, '→', C],
-      A.mat.r + '·' + K + '·' + B.mat.c + ' = ' + flops.toLocaleString('es-ES') + ' multiplicaciones y sumas');
+      'cada celda: ' + K + ' producto' + (K === 1 ? '' : 's') + (bias ? ' + sesgo' : ''));
     const L = v.line();
     const hA = v.hm(A, {}, cellA), hB = v.hm(B, {}, cellB);
     const hBias = bias ? v.hm(bias, {}, cellBias) : null;
@@ -802,7 +833,7 @@
       if (i < 0 || j < 0) return genericCell.call(this, hm, i, j);
       for (const h of [hX, hM, hY]) h.highlightCell(i, j, h === hm ? 'hl' : 'src');
       const x = X.mat.get(i, j), m = M.mat.get(i, j), y = Y.mat.get(i, j);
-      const q = X.rowLabels ? tokQ(X.rowLabels[i]) : 'la consulta ' + i, k = X.colLabels ? tokQ(X.colLabels[j]) : 'la clave ' + j;
+      const q = X.rowLabels ? tokH(X.rowLabels[i]) : 'la consulta ' + i, k = X.colLabels ? tokH(X.colLabels[j]) : 'la clave ' + j;
       return insp({ kind: 'mask', title: cellLab(Y, i, j), sub: where(Y, i, j),
         tex: at(Y.tex, i, j) + ' = ' + at(X.tex, i, j) + ' + M[' + i + ',' + j + ']',
         rows: [['', '= ' + f4(x) + ' + ' + (m === -Infinity ? '(−∞)' : f4(m)) + ' = ' + f4(y)]],
@@ -1725,7 +1756,7 @@
       hI.highlightCell(0, t, 'hl'); hY.highlightCell(0, t, 'hl');
       return insp({ kind: 'tokenize', title: 'Posición t = ' + t, sub: tokQ(disp(ax.inputTokens[t])) + ' → ' + tokQ(disp(ax.targetTokens[t])),
         rows: [['entrada', 'ids[' + t + '] = ' + ax.inputIds[t] + ' (' + disp(ax.inputTokens[t]) + ')'], ['objetivo', 'y[' + t + '] = ' + ax.targetIds[t] + ' (' + disp(ax.targetTokens[t]) + ')']],
-        note: 'Viendo ' + ax.inputTokens.slice(0, t + 1).map((x) => tokQ(disp(x))).join(' ') + ', el modelo debe predecir ' + tokQ(disp(ax.targetTokens[t])) + '.' });
+        note: 'Viendo ' + ax.inputTokens.slice(0, t + 1).map((x) => tokH(disp(x))).join(' ') + ', el modelo debe predecir ' + tokH(disp(ax.targetTokens[t])) + '.' });
     }
     const onTok = (e) => {
       const b = e.target.closest && e.target.closest('.ov-tok');
@@ -1773,7 +1804,7 @@
       return insp({ kind: 'lookup', title: cellLab(X, t, j), sub: where(X, t, j) + ' · id ' + id,
         tex: at(X.tex, t, j) + ' = \\sum_{v=0}^{' + (V - 1) + '} \\mathrm{onehot}[' + t + ',v]\\,E[v,' + j + '] = E[' + id + ',' + j + ']',
         rows: [['Σᵥ', '= 0·E[0,' + j + '] + … + 1·E[' + id + ',' + j + '] + … + 0·E[' + (V - 1) + ',' + j + ']'], ['resultado', '= E[' + id + ', ' + j + '] = ' + f4(val, 6)]],
-        note: 'Solo un término es distinto de 0: el del token ' + tokQ(X.rowLabels ? X.rowLabels[t] : id) + ' (id ' + id + ').' });
+        note: 'Solo un término es distinto de 0: el del token ' + tokH(X.rowLabels ? X.rowLabels[t] : id) + ' (id ' + id + ').' });
     }
     function cellO(hm, t, k) {
       if (t < 0 || k < 0) return genericCell.call(this, hm, t, k);

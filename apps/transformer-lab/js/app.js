@@ -11,7 +11,8 @@
      TL.App.train(n)                    n iteraciones sin traza (minilotes) → { iter, loss, meanLoss }
      TL.App.generate(prompt, opts)      genera y lo muestra en «Generación» → { ok, text, error, steps }
      TL.App.applyConfig({corpus, tokMode, cfg, hp, batchSize}) → { ok, errors }
-   Dependencias opcionales (con respaldo si faltan): TL.MathTex, TL.Heatmap, TL.OpViews.
+   Usa TL.MathTex, TL.Heatmap, TL.OpViews, TL.Diagram, TL.Charts y TL.Content (se comprueban al arrancar).
+     TL.App.flush()                     aplica ya la explicación y el inspector pendientes (pruebas)
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -110,25 +111,60 @@
     return esc(s).replace(/([A-Za-zΣγβμσθηεŜ\u0300-\u036f])_(\{[^}]*\}|[A-Za-z0-9]+)/g, (m, a, b) => a + '<sub>' + b.replace(/[{}]/g, '') + '</sub>');
   }
 
-  // ───────────────────────────────────────────── envoltorios con respaldo (viz)
+  // ───────────────────────────────────────────── fórmulas (TL.MathTex degrada solo si MathJax no carga)
   const Tex = {
-    render(tex, el, opts) {
-      if (!el) return el;
-      if (TL.MathTex && typeof TL.MathTex.render === 'function') {
-        try { TL.MathTex.render(tex, el, opts || {}); return el; } catch (e) { /* respaldo abajo */ }
-      }
-      el.textContent = '';
-      el.appendChild(h('code', { class: 'tex-fallback', text: tex }));
-      return el;
-    },
+    render(tex, el, opts) { return TL.MathTex.render(tex, el, opts || {}); },
     typeset(el) {
-      if (el && TL.MathTex && typeof TL.MathTex.typeset === 'function') {
-        try { return Promise.resolve(TL.MathTex.typeset(el)).catch(() => {}).then(() => fitWideMath(el)); } catch (e) { /* nada */ }
-      }
-      return Promise.resolve();
+      if (!el) return Promise.resolve();
+      return Promise.resolve(TL.MathTex.typeset(el)).catch(() => {}).then(() => fitWideMath(el));
     },
-    lite(tex) { return TL.Charts && TL.Charts.texLite ? TL.Charts.texLite(tex) : esc(tex); },
+    lite(tex) { return TL.Charts.texLite(tex); },
   };
+  // Fórmula larga del encabezado: se parte en sus piezas «a,\quad b» (al nivel superior) para que
+  // puedan pasar a la línea siguiente en vez de quedar ocultas tras un desplazamiento horizontal.
+  function splitFormula(tex) {
+    const parts = [];
+    let depth = 0, env = 0, lr = 0, last = 0;
+    for (let i = 0; i < tex.length; i++) {
+      const c = tex[i];
+      if (c === '\\') {
+        const m = /^\\([A-Za-z]+)/.exec(tex.slice(i, i + 12));
+        if (m) {
+          const w = m[1];
+          if (w === 'begin') env++;
+          else if (w === 'end') env--;
+          else if (w === 'left') lr++;
+          else if (w === 'right') lr--;
+          else if (w === 'quad' && !depth && !env && !lr) {
+            const a = tex.slice(last, i).replace(/\s+$/, '');
+            if (a.trim()) parts.push(a);
+            last = i + 5;
+          } else if (w === 'mapsto' && !depth && !env && !lr) {
+            // «texto ↦ ids»: el ↦ empieza la pieza siguiente
+            const a = tex.slice(last, i).replace(/(\\[;,:!]|\s)+$/, '');
+            if (a.trim()) { parts.push(a); last = i; }
+          }
+          i += m[0].length - 1;
+        } else i++;
+        continue;
+      }
+      if (c === '{') depth++;
+      else if (c === '}') depth--;
+    }
+    const rest = tex.slice(last).trim();
+    if (rest) parts.push(rest);
+    return parts.length ? parts : [tex];
+  }
+  function renderFormula(tex, host) {
+    host.textContent = '';
+    const parts = splitFormula(tex);
+    host.classList.toggle('is-multi', parts.length > 1);
+    for (const p of parts) {
+      const s = h('span', { class: 'step-formula__part' });
+      TL.MathTex.render(p, s, { display: true });
+      host.appendChild(s);
+    }
+  }
 
   // Una fórmula en línea no puede partirse: si es más ancha que su párrafo, pasa a bloque con scroll propio
   function fitWideMath(root) {
@@ -140,76 +176,10 @@
     }
   }
 
-  // Mapa de calor mínimo (solo si falta TL.Heatmap)
-  function fallbackHeatmap(ref, opts) {
-    const fig = h('figure', { class: 'hm-fb' });
-    const cap = h('figcaption', { class: 'hm-fb__cap' });
-    const name = h('span', { class: 'hm-fb__name' });
-    Tex.render(ref.tex, name);
-    cap.append(name, h('span', { class: 'badge-shape', text: ref.mat.r + '×' + ref.mat.c }));
-    const wrap = h('div', { class: 'hm-fb__wrap' });
-    const table = h('table', { class: 'hm-fb__t' });
-    wrap.append(table);
-    if (!opts || opts.caption !== false) fig.append(cap);
-    fig.append(wrap);
-    const seq = ref.role === 'prob' || ref.role === 'onehot' || ref.role === 'mask';
-    function update(mat) {
-      table.textContent = '';
-      let mx = 1e-12;
-      for (let k = 0; k < mat.d.length; k++) if (Number.isFinite(mat.d[k])) mx = Math.max(mx, Math.abs(mat.d[k]));
-      if (opts && opts.maxAbs) mx = opts.maxAbs;
-      if (ref.colLabels) {
-        const tr = h('tr', null, h('th'));
-        for (const l of ref.colLabels) tr.append(h('th', { text: l }));
-        table.append(tr);
-      }
-      for (let i = 0; i < mat.r; i++) {
-        const tr = h('tr', null, h('th', { text: ref.rowLabels ? ref.rowLabels[i] : String(i) }));
-        for (let j = 0; j < mat.c; j++) {
-          const v = mat.d[i * mat.c + j];
-          const td = h('td', { title: fmt(v, 4) });
-          if (!Number.isFinite(v)) td.className = 'is-masked';
-          else if (seq) td.style.background = 'color-mix(in srgb, var(--prob-1) ' + Math.round(clamp(v, 0, 1) * 100) + '%, var(--prob-0))';
-          else td.style.background = 'color-mix(in srgb, var(' + (v < 0 ? '--neg' : '--pos') + ') ' + Math.round(Math.abs(v) / mx * 100) + '%, var(--zero))';
-          tr.append(td);
-        }
-        table.append(tr);
-      }
-    }
-    update(ref.mat);
-    const noop = () => {};
-    return { el: fig, update, highlightCell: noop, highlightRow: noop, highlightCol: noop, clear: noop, destroy() { fig.remove(); } };
-  }
-  function makeHeatmap(ref, opts) {
-    if (TL.Heatmap && typeof TL.Heatmap.create === 'function') {
-      try { return TL.Heatmap.create(ref, opts || {}); } catch (e) { console.error('TL.Heatmap.create falló:', e); }
-    }
-    return fallbackHeatmap(ref, opts);
-  }
+  const makeHeatmap = (ref, opts) => TL.Heatmap.create(ref, opts || {});
   function destroyHeatmap(hm) {
     if (!hm) return;
-    try { if (typeof hm.destroy === 'function') hm.destroy(); else if (hm.el) hm.el.remove(); } catch (e) { /* nada */ }
-  }
-
-  // Vista de respaldo de un paso (solo si falta TL.OpViews): entradas → salidas
-  function fallbackView(st, el) {
-    const wrap = h('div', { class: 'fb-view' });
-    const hms = [];
-    const col = (refs, title) => {
-      const c = h('div', { class: 'fb-view__col' }, h('div', { class: 'eyebrow', text: title }));
-      for (const r of refs) { const hm = fallbackHeatmap(r, {}); hms.push(hm); c.append(hm.el); }
-      return c;
-    };
-    if (st.inputs.length) wrap.append(col(st.inputs, 'Entradas'));
-    if (st.inputs.length && st.outputs.length) wrap.append(h('div', { class: 'fb-view__arrow', text: '↦' }));
-    if (st.outputs.length) wrap.append(col(st.outputs, 'Salidas'));
-    if (!st.inputs.length && !st.outputs.length && st.aux && st.aux.norms) {
-      const ul = h('ul', { class: 'fb-view__norms' });
-      for (const n of st.aux.norms) ul.append(h('li', null, n.name + ': ‖d' + n.name + '‖ = ' + fmt(n.norm, 4)));
-      wrap.append(ul);
-    }
-    el.append(wrap);
-    return { destroy() { wrap.remove(); } };
+    try { hm.destroy(); } catch (e) { /* nada */ }
   }
 
   // ───────────────────────────────────────────────────────────── constantes
@@ -231,11 +201,15 @@
   const AX_HTML = { T: '<i>T</i>', V: '<i>V</i>', d: '<i>d</i>', dk: '<i>d</i><sub>k</sub>', dff: '<i>d</i><sub>ff</sub>', 1: '1', maxLen: '<i>T</i><sub>max</sub>' };
   const SYM_HTML = { T: '<i>T</i>', d: '<i>d</i>', h: '<i>h</i>', dk: '<i>d</i><sub>k</sub>', dff: '<i>d</i><sub>ff</sub>', V: '<i>V</i>', N: '<i>N</i>', lr: '<i>η</i>' };
   const THEME_NAME = { auto: 'Sistema', light: 'Claro', dark: 'Oscuro' };
+  // números en las celdas: 'auto' (donde caben) · 'todos' · 'no' (solo color); antes se guardaba true/false
+  const VALUES_ORDER = ['auto', 'todos', 'no'];
+  const VALUES_CTX = { auto: 'auto', todos: 'always', no: false };
+  function normValues(v) { return v === false ? 'no' : VALUES_ORDER.indexOf(v) >= 0 ? v : 'auto'; }
   const THEME_ORDER = ['auto', 'light', 'dark'];
   const PLAY_BASE_MS = 1500;
 
   const phaseName = (p) => {
-    const c = TL.Content && TL.Content.phases && TL.Content.phases[p];
+    const c = TL.Content.phases[p];
     return (c && c.name) || PHASE_FALLBACK[p] || p;
   };
   // forma simbólica en HTML: 'T\\times d_k' → T×d<sub>k</sub>
@@ -258,7 +232,7 @@
     idx: 0,
     tab: 'paso',
     theme: store.get('theme', 'auto'),
-    showValues: store.get('showValues', true) !== false,
+    showValues: normValues(store.get('showValues', 'auto')), // 'auto' | 'todos' | 'no'
     playing: false,
     speed: 1,
     playTimer: 0,
@@ -291,14 +265,8 @@
     store.set('theme', t);
     if (!silent) onThemeChange();
   }
-  function onThemeChange() {
-    afterPaint(() => {
-      if (S.trace) renderStage(S.trace.steps[S.idx]);
-      drawSpark();
-      for (const x of trainHms) if (x.hm && x.hm.update && x.mat) x.hm.update(x.mat);
-      for (const x of genHms) if (x.hm && x.hm.update && x.mat) x.hm.update(x.mat);
-    });
-  }
+  // mapas de calor, gráficos y diagrama se recolorean solos (observan data-theme); aquí solo el minigráfico
+  function onThemeChange() { afterPaint(drawSpark); }
 
   // ───────────────────────────────────────────────────────────── pestañas
   function setTab(id, o) {
@@ -325,7 +293,7 @@
     if (id === 'entrenamiento') refreshTraining(true);
     if (id === 'generacion' && !S.genVisited) { S.genVisited = true; runGeneration(); }
     if (id === 'datos' && S.datosDirty) renderDatos();
-    if (id === 'paso') { updateStale(); measureChrome(); }
+    if (id === 'paso') { updateStale(); measureChrome(); drawSpark(); }
     afterPaint(() => fitWideMath($('panel-' + id)));
     return S.tab;
   }
@@ -473,7 +441,7 @@
     const t = splitTitle(st.title);
     $('step-loc').textContent = [t.loc, KIND_NAME[st.kind] || st.kind].filter(Boolean).join(' · ');
     $('step-title').innerHTML = richTitle(t.main);
-    Tex.render(st.formula, $('step-formula'), { display: true });
+    renderFormula(st.formula, $('step-formula'));
     Tex.render(st.dimsSym, $('step-dimsym'), { display: false });
     Tex.render(st.dims, $('step-dims'), { display: false });
     const fw = $('step-flops-wrap');
@@ -483,7 +451,10 @@
         const A = st.inputs[st.aux.a].mat, B = st.inputs[st.aux.b].mat;
         detail = A.r + '·' + A.c + '·' + B.c + ' = ';
       }
-      $('step-flops').textContent = detail + fmtInt(st.flops) + ' multiplicaciones y sumas';
+      const fl = $('step-flops');
+      fl.textContent = '';
+      fl.append(h('span', { class: 'mono', text: detail + fmtInt(st.flops) }), h('span', { class: 'step-flops__u', text: 'mult. y sumas' }));
+      fl.title = detail + fmtInt(st.flops) + ' multiplicaciones y sumas: una por cada término de cada producto escalar';
       fw.hidden = false;
     } else fw.hidden = true;
   }
@@ -493,29 +464,38 @@
   function resetInspector() {
     const b = $('inspector-body');
     b.classList.add('is-empty');
-    b.textContent = '';
+    b.innerHTML = '<p class="insp-empty">Pasa el cursor por cualquier celda de las matrices (o tócala; con el teclado, <span class="kbd">Tab</span> y las flechas). Aquí aparecerá la <b>cuenta exacta</b> que produce ese número, término a término, y en las demás matrices se resaltarán las celdas que intervienen.</p>';
     $('inspector').classList.add('is-empty');
     $('insp-min').hidden = true;
   }
+  // el HTML llega en cada movimiento del cursor: se aplica como mucho una vez por fotograma
   function inspect(html) {
     inspPending = html === null || html === undefined ? '' : String(html);
     if (inspRaf) return;
-    inspRaf = requestAnimationFrame(() => {
-      inspRaf = 0;
-      const v = inspPending;
-      const b = $('inspector-body');
-      if (!v) { resetInspector(); return; }
-      b.classList.remove('is-empty');
-      $('inspector').classList.remove('is-empty');
-      $('insp-min').hidden = false;
-      b.innerHTML = v;
-      Tex.typeset(b);
-    });
+    inspRaf = requestAnimationFrame(applyInspector);
+  }
+  function applyInspector() {
+    inspRaf = 0;
+    const v = inspPending;
+    inspPending = null;
+    if (v === null) return;
+    const b = $('inspector-body');
+    if (!v) { resetInspector(); return; }
+    b.classList.remove('is-empty');
+    $('inspector').classList.remove('is-empty');
+    $('insp-min').hidden = false;
+    b.innerHTML = v;
+    // la fórmula del inspector (\[…\]) en piezas que pueden pasar de línea, como en la cabecera
+    for (const el of b.querySelectorAll('.insp__tex')) {
+      const t = el.textContent.trim();
+      if (/^\\\[[\s\S]*\\\]$/.test(t)) renderFormula(t.slice(2, -2), el);
+    }
+    Tex.typeset(b);
   }
   function makeCtx(st) {
     return {
       cfg: S.s.cfg, tok: S.s.tok, model: S.s.model, content: TL.Content,
-      showValues: S.showValues, onInspect: inspect,
+      showValues: VALUES_CTX[S.showValues], onInspect: inspect,
       animateSpeed: Math.round(160 / S.speed),
       values: placeholderValues(st), stepIndex: S.idx, steps: S.trace.steps,
       targetTokens: S.s.tok.sentences[S.trace.sentenceIndex].targetTokens.map(S.s.tok.display),
@@ -530,16 +510,15 @@
     resetInspector();
     stage.setAttribute('data-phase', st.phase);
     stage.setAttribute('data-kind', st.kind);
-    if (TL.OpViews && typeof TL.OpViews.render === 'function') {
-      try { S.view = TL.OpViews.render(st, stage, makeCtx(st)) || null; } catch (e) {
-        console.error('TL.OpViews.render falló en el paso ' + st.id + ':', e);
-        stage.textContent = '';
-        S.view = fallbackView(st, stage);
-      }
-    } else {
-      S.view = fallbackView(st, stage);
+    $('inspector').setAttribute('data-phase', st.phase);
+    // TL.OpViews ya recurre a su vista genérica si la específica falla; esto solo cubre lo imprevisto
+    try { S.view = TL.OpViews.render(st, stage, makeCtx(st)); } catch (e) {
+      console.error('TL.OpViews.render falló en el paso ' + st.id + ':', e);
+      stage.textContent = '';
+      stage.append(h('p', { class: 'callout', 'data-phase': 'backward', text: 'No se pudo dibujar este paso (' + e.message + ').' }));
     }
-    const canAnim = !!(S.view && typeof S.view.animate === 'function');
+    // gradnorm no tiene animación (su vista no es una ecuación de matrices)
+    const canAnim = !!(S.view && st.kind !== 'gradnorm');
     $('btn-animate').disabled = !canAnim;
     $('btn-animate').title = canAnim ? 'Reproduce la operación celda a celda' : 'Este paso no tiene animación';
     $('btn-animate-label').textContent = 'Animar';
@@ -563,7 +542,6 @@
   function buildDiagram() {
     if (S.dg) { try { S.dg.destroy(); } catch (e) { /* nada */ } }
     S.dg = null;
-    if (!TL.Diagram) return;
     S.dg = TL.Diagram.create($('dg-host'), S.s.cfg, { onSelect: onBlockSelect, optimizer: S.s.opt.type, legend: true });
   }
   function syncDiagram(st) {
@@ -678,13 +656,12 @@
   }
   function showTickTip(i, x, y) {
     const st = S.trace.steps[i];
-    if (!TL.Charts || !TL.Charts.tip) return;
     TL.Charts.tip.show((t) => {
       t.append(h('div', { class: 'tooltip__title', text: 'Paso ' + (i + 1) + ' / ' + S.trace.steps.length + ' · ' + phaseName(st.phase) }));
       t.append(h('div', { class: 'tl-tip__title', html: richTitle(st.title) }));
     }, x, y);
   }
-  const hideTip = () => { if (TL.Charts && TL.Charts.tip) TL.Charts.tip.hide(); };
+  const hideTip = () => TL.Charts.tip.hide();
   function initTimeline() {
     const track = $('tl-track');
     let raf = 0, pendingX = 0;
@@ -852,16 +829,17 @@
     if (host.firstChild !== el) { host.textContent = ''; host.appendChild(el); }
     if (!el._typeset) { el._typeset = true; Tex.typeset(el); }
     if (changedTpl) {
-      const col = $('expl-col');
-      if (col.scrollHeight > col.clientHeight + 4 && getComputedStyle(col).overflowY !== 'visible') col.scrollTop = 0;
+      for (const col of [$('expl-col'), $('side-expl')]) {
+        if (col.scrollHeight > col.clientHeight + 4 && getComputedStyle(col).overflowY !== 'visible') col.scrollTop = 0;
+      }
     }
   }
   function expSection(title, body) {
     return h('section', { class: 'expl__sec' }, h('h4', { class: 'expl__h', text: title }), body);
   }
   function buildExpl(st) {
-    const C = TL.Content || {};
-    const c = C.steps && C.steps[st.tpl];
+    const C = TL.Content;
+    const c = C.steps[st.tpl];
     const vals = placeholderValues(st);
     const F = (x) => (typeof x === 'string' ? (C.fill ? C.fill(x, vals) : x) : '');
     const art = h('article', { class: 'expl', 'data-phase': st.phase });
@@ -875,7 +853,7 @@
     if (c.intuition) art.append(expSection('Intuición', h('div', { class: 'prose', html: F(c.intuition) })));
     if (c.math && c.math.length) {
       const box = h('div', { class: 'expl__math' });
-      for (const m of c.math) { const d = h('div', { class: 'expl__eq' }); Tex.render(F(m), d, { display: true }); box.append(d); }
+      for (const m of c.math) { const d = h('div', { class: 'expl__eq' }); renderFormula(F(m), d); box.append(d); }
       art.append(expSection('En fórmulas', box));
     }
     if (c.shapes) art.append(expSection('Cómo cambian las dimensiones', h('div', { class: 'prose expl__shapes', html: F(c.shapes) })));
@@ -964,7 +942,7 @@
   function renderSymstrip() {
     const strip = $('symstrip');
     const vals = placeholderValues(null);
-    const syms = (TL.Content && TL.Content.symbols) || [];
+    const syms = TL.Content.symbols || [];
     strip.textContent = '';
     for (const sy of syms) {
       const key = sy.key || sy.sym;
@@ -974,7 +952,6 @@
         h('span', { class: 'sym__eq', text: '=' }),
         h('span', { class: 'sym__v', text: String(v) }));
       const show = (ev) => {
-        if (!TL.Charts || !TL.Charts.tip) return;
         const r = item.getBoundingClientRect();
         TL.Charts.tip.show((t) => {
           t.append(h('div', { class: 'tooltip__title', text: sy.name }));
@@ -1074,11 +1051,11 @@
     $('sent-select').addEventListener('change', (e) => { stopPlay(); traceNew(+e.target.value, S.idx); });
     $('btn-newiter').addEventListener('click', () => { stopPlay(); traceNew(S.trace.sentenceIndex, S.idx); });
     $('stale-retrace').addEventListener('click', () => { stopPlay(); traceNew(S.trace.sentenceIndex, S.idx); });
-    $('btn-values').setAttribute('aria-pressed', String(S.showValues));
+    syncValuesBtn();
     $('btn-values').addEventListener('click', () => {
-      S.showValues = !S.showValues;
+      S.showValues = VALUES_ORDER[(VALUES_ORDER.indexOf(S.showValues) + 1) % VALUES_ORDER.length];
       store.set('showValues', S.showValues);
-      $('btn-values').setAttribute('aria-pressed', String(S.showValues));
+      syncValuesBtn();
       renderStage(S.trace.steps[S.idx]);
     });
     $('btn-animate').addEventListener('click', animateStep);
@@ -1089,6 +1066,13 @@
       $('insp-min').setAttribute('aria-pressed', String(on));
       $('insp-min').textContent = on ? 'Mostrar' : 'Minimizar';
     });
+  }
+
+  function syncValuesBtn() {
+    const b = $('btn-values');
+    $('btn-values-label').textContent = S.showValues;
+    b.setAttribute('aria-label', 'Números en las celdas: ' + { auto: 'automático (donde caben)', todos: 'en todas las matrices', no: 'ninguno, solo color' }[S.showValues] + '. Pulsa para cambiar');
+    b.classList.toggle('is-on', S.showValues !== 'no');
   }
 
   // --- bienvenida
@@ -1151,7 +1135,7 @@
     });
   }
   function openDerivation(id) {
-    const d = TL.Content && TL.Content.derivations && TL.Content.derivations[id];
+    const d = TL.Content.derivations[id];
     if (!d) return;
     openModal({
       eyebrow: 'Derivación', title: d.title,
@@ -1160,7 +1144,7 @@
     });
   }
   function openGuide(section, card) {
-    const C = TL.Content || {};
+    const C = TL.Content;
     const tour = C.tour || [];
     let sec = section || 'tour', k = card || 0;
     const seg = h('div', { class: 'seg seg--sm', role: 'tablist', 'aria-label': 'Secciones de la guía' });
@@ -1338,11 +1322,11 @@
     TL.Trainer.trainSteps(S.s, n);
     refreshTraining(true);
     updateStale();
+    drawSpark();
     return { iter: S.s.iter, loss: S.s.history[S.s.history.length - 1].loss };
   }
 
   function drawLossChart() {
-    if (!TL.Charts) return;
     const s = S.s, hist = s.history, n = hist.length;
     const stride = Math.max(1, Math.ceil(n / 1500));
     const raw = [], ema = [];
@@ -1386,14 +1370,12 @@
     const ev = TL.Trainer.evaluate(s);
     $('st-mean').textContent = fmt(ev.loss, 4);
     $('st-ppl').textContent = fmt(Math.exp(ev.loss), 2);
-    if (TL.Charts) {
-      TL.Charts.bars($('tr-sent-bars'), ev.perSentence.map((p, i) => ({ key: 's' + i, label: (i + 1) + '. ' + p.text, value: p.loss, colorVar: '--fwd', highlight: i === S.attnSent })),
-        { format: (v) => fmt(v, 3), onSelect: (it) => { S.attnSent = +it.key.slice(1); $('tr-attn-sent').value = String(S.attnSent); refreshTraining(true); }, ariaLabel: 'Pérdida por frase' });
-      const pm = s.model.paramMeta;
-      const hasG = s.lastGradNorms && Object.keys(s.lastGradNorms).length;
-      TL.Charts.bars($('tr-grad-bars'), hasG ? s.model.order.map((name) => ({ key: name, label: name, tex: '\\mathrm{d}' + pm[name].tex, value: s.lastGradNorms[name], colorVar: '--bwd' })) : [],
-        { format: (v) => fmt(v, 3), compact: s.model.order.length > 14, emptyText: 'Aún no hay gradientes: entrena una iteración.', ariaLabel: 'Norma del gradiente por parámetro' });
-    }
+    TL.Charts.bars($('tr-sent-bars'), ev.perSentence.map((p, i) => ({ key: 's' + i, label: (i + 1) + '. ' + p.text, value: p.loss, colorVar: '--fwd', highlight: i === S.attnSent })),
+      { format: (v) => fmt(v, 3), onSelect: (it) => { S.attnSent = +it.key.slice(1); $('tr-attn-sent').value = String(S.attnSent); refreshTraining(true); }, ariaLabel: 'Pérdida por frase' });
+    const pm = s.model.paramMeta;
+    const hasG = s.lastGradNorms && Object.keys(s.lastGradNorms).length;
+    TL.Charts.bars($('tr-grad-bars'), hasG ? s.model.order.map((name) => ({ key: name, label: name, tex: '\\mathrm{d}' + pm[name].tex, value: s.lastGradNorms[name], colorVar: '--bwd' })) : [],
+      { format: (v) => fmt(v, 3), compact: s.model.order.length > 14, emptyText: 'Aún no hay gradientes: entrena una iteración.', ariaLabel: 'Norma del gradiente por parámetro' });
     const pr = TL.Trainer.predict(s, S.attnSent || 0);
     renderTrainAttn(pr);
     renderPredTable(pr);
@@ -1514,7 +1496,6 @@
     return { pts, v1: p1.v, v2: p2.v, var1: tr > 0 ? p1.lam / tr : 0, var2: tr > 0 ? p2.lam / tr : 0 };
   }
   function renderPCA(pr) {
-    if (!TL.Charts) return;
     const s = S.s, tok = s.tok;
     const p = pca2(s.model.params.E, S.pca);
     S.pca = p;
@@ -1638,10 +1619,8 @@
       attnCol.append(agrid);
       const art = h('article', { class: 'panel gen-step' }, headRow, h('div', { class: 'gen-step__body' }, probsCol, attnCol));
       out.append(art);
-      if (TL.Charts) {
-        TL.Charts.bars(bars, st.top.map((t) => ({ key: 't' + t.id, label: t.display, value: t.p, colorVar: t.id === st.chosen ? '--fwd' : '--prob-1', highlight: t.id === st.chosen })),
-          { max: 1, format: (v) => fmt(v * 100, 1) + ' %', compact: true, ariaLabel: 'Probabilidades del siguiente token' });
-      }
+      TL.Charts.bars(bars, st.top.map((t) => ({ key: 't' + t.id, label: t.display, value: t.p, colorVar: t.id === st.chosen ? '--fwd' : '--prob-1', highlight: t.id === st.chosen })),
+        { max: 1, format: (v) => fmt(v * 100, 1) + ' %', compact: true, ariaLabel: 'Probabilidades del siguiente token' });
       Tex.typeset(probsCol);
     });
     return { ok: true, text: res.text, generated: res.generated.slice(), steps: res.steps.length, stoppedBy: res.stoppedBy };
@@ -1929,11 +1908,17 @@
 
   // ───────────────────────────────────────────────────────────── adaptación al ancho
   const mqMobile = root.matchMedia ? root.matchMedia('(max-width: 759.98px)') : { matches: false };
+  const mqWide = root.matchMedia ? root.matchMedia('(min-width: 1200px)') : { matches: false };
   let dgUserToggled = false;
   function placeResponsive() {
     const bar = $('iterbar');
     const target = mqMobile.matches ? $('iterbar-slot') : $('tl-controls');
     if (bar.parentNode !== target) target.appendChild(bar);
+    // ≥ 1200 px: el inspector va al pie de la columna derecha (así no tapa las matrices);
+    // más estrecho: debajo del escenario (fijo al pie de la ventana entre 760 y 1199 px)
+    const insp = $('inspector');
+    const slot = mqWide.matches ? $('insp-slot-side') : $('paso-main');
+    if (insp.parentNode !== slot) slot.appendChild(insp);
     const det = $('dg-details');
     if (!mqMobile.matches) det.open = true;
     else if (!dgUserToggled) det.open = false;
@@ -1944,17 +1929,23 @@
     const rs = doc.documentElement.style;
     rs.setProperty('--head-h', (hd ? hd.offsetHeight : 0) + 'px');
     rs.setProperty('--tl-h', (tl && !tl.hidden ? tl.offsetHeight : 0) + 'px');
+    // el aviso de bienvenida empuja las columnas fijas hacia abajo: se descuenta de su altura
+    const wl = $('welcome');
+    rs.setProperty('--welcome-h', (wl && !wl.hidden && S.tab === 'paso' ? wl.offsetHeight + 12 : 0) + 'px');
     layoutBands();
   }
   function initResponsive() {
     const det = $('dg-details');
     det.querySelector('summary').addEventListener('click', () => { dgUserToggled = true; });
-    if (mqMobile.addEventListener) mqMobile.addEventListener('change', placeResponsive);
-    else if (mqMobile.addListener) mqMobile.addListener(placeResponsive);
+    for (const mq of [mqMobile, mqWide]) {
+      if (mq.addEventListener) mq.addEventListener('change', placeResponsive);
+      else if (mq.addListener) mq.addListener(placeResponsive);
+    }
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => measureChrome());
       ro.observe($('app-head'));
       ro.observe($('timeline'));
+      ro.observe($('welcome'));
       ro.observe($('tl-bands'));
     } else root.addEventListener('resize', measureChrome);
     placeResponsive();
@@ -1975,8 +1966,8 @@
   }
   function boot() {
     doc.documentElement.lang = 'es';
-    const missing = ['Mat', 'Tokenizer', 'Model', 'Optim', 'Trainer'].filter((k) => !TL[k]);
-    if (missing.length) { showFatal('Faltan módulos del motor: ' + missing.join(', ') + '.'); return; }
+    const missing = ['Mat', 'Tokenizer', 'Model', 'Optim', 'Trainer', 'Content', 'MathTex', 'Heatmap', 'OpViews', 'Diagram', 'Charts'].filter((k) => !TL[k]);
+    if (missing.length) { showFatal('Faltan módulos: ' + missing.map((k) => 'TL.' + k).join(', ') + '. Comprueba que todos los archivos js/ se cargaron.'); return; }
     applyTheme(S.theme, true);
     $('btn-theme').addEventListener('click', () => applyTheme(THEME_ORDER[(THEME_ORDER.indexOf(S.theme) + 1) % THEME_ORDER.length]));
     $('btn-guide').addEventListener('click', () => openGuide('tour', 0));
@@ -2028,6 +2019,19 @@
     stopTraining() { stopTraining(); },
     pca: pca2,
     validateConfig,
+    // aplica ya lo que espera al siguiente fotograma (explicación del paso e inspector): para pruebas
+    flush() {
+      if (inspRaf) { cancelAnimationFrame(inspRaf); applyInspector(); }
+      if (S.trace) {
+        const st = S.trace.steps[S.idx], key = explKey(st);
+        if (key !== S.explKey) {
+          clearTimeout(explTimer);
+          let el = explCache.get(key);
+          if (!el) { el = buildExpl(st); explCache.set(key, el); }
+          mountExpl(el, key);
+        }
+      }
+    },
   };
 
   try { boot(); } catch (err) { showFatal(err); }

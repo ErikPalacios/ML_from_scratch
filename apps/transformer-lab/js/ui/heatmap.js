@@ -294,7 +294,7 @@
         const n = String(i + this.rowOffset).length + (L && L[i] != null ? String(L[i]).length + 1 : 0);
         if (n > mx) mx = n;
       }
-      return Math.ceil(mx * LAB_W + 12);
+      return Math.ceil(mx * LAB_W + 15);
     }
     _estColLabel() {
       const L = this.colLabels;
@@ -402,7 +402,7 @@
       // ancho preferido con números: el de los números, o el de las etiquetas de columna si caben (≤ 66 px)
       this.prefW = Math.max(this.valW, this.colLabels ? Math.min(this.colLabW, 66) : 0);
       this._band(2, 2, R + 2, C + 2, 'hm__frame', []);
-      if (o.highlightCols) for (const [c0, c1, v] of o.highlightCols) this._band(1, c0 + 2, R + 2, c1 + 2, 'hm__cols', this._marks, v);
+      if (o.highlightCols) { fig.classList.add('hm--cols'); for (const [c0, c1, v] of o.highlightCols) this._band(1, c0 + 2, R + 2, c1 + 2, 'hm__cols', this._marks, v); }
       this._bind();
     }
 
@@ -511,11 +511,12 @@
       if (this.canvasMode) this._draw();
     }
     // ancho natural del mapa con celdas de ancho w
-    widthFor(w) { return this.rhW + this.C * w + 4; }
+    // (cada columna ocupa w + GAP: la rejilla tiene 1 px de separación entre celdas)
+    widthFor(w) { return this.rhW + this.C * (w + GAP) + 4; }
     // tamaño de celda que usaría con un ancho disponible `avail`
     sizeFor(avail) {
       const sv = this.opts.showValues;
-      const cw = Math.floor((avail - this.rhW - 4) / Math.max(1, this.C));
+      const cw = Math.floor((avail - this.rhW - 4) / Math.max(1, this.C)) - GAP;
       const compact = this.opts.stretch === false;
       // en modo compacto (vistas), las matrices altas (≥ 12 filas) van solo con color: los números, en el inspector
       const tall = compact && this.R >= 12;

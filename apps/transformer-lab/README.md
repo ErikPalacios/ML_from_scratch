@@ -33,9 +33,12 @@ backward (44) y actualización (17, uno por parámetro, precedidos de la norma d
   circula (`T×d · 5×8`). Haz clic en un bloque para ir a su primer paso en la fase actual.
 - **Centro — la operación.** Fase, número de paso, fórmula, dimensiones (símbolos y números) y
   coste en multiplicaciones y sumas. Debajo, la operación dibujada como una ecuación de matrices.
-  **Pasa el cursor por una celda** (o tócala): se resaltan las celdas que la producen y el
-  *inspector* muestra la cuenta completa con sus números. «Animar» reproduce la operación celda a
-  celda; «Mostrar valores» activa o quita los números dentro de las celdas.
+  **Pasa el cursor por una celda** (o tócala, o recórrelas con `Tab` y las flechas): se resaltan las
+  celdas que la producen y el *inspector* muestra la cuenta completa con sus números. En pantallas
+  anchas el inspector está al pie de la columna derecha (así no tapa las matrices); en pantallas
+  más estrechas, bajo la operación. «Animar» reproduce la operación celda a celda; el botón
+  **Números** alterna entre *auto* (números donde caben; las matrices grandes van solo con color),
+  *todos* y *no* (solo color).
 - **Derecha — la explicación.** Resumen, intuición, fórmulas, cómo cambian las dimensiones,
   derivación detallada (en el backward se deriva cada gradiente), pseudocódigo estilo NumPy y
   enlaces a derivaciones largas (regla de la cadena, jacobiano del softmax, LayerNorm, Adam…).
@@ -110,18 +113,30 @@ que reparte la probabilidad por igual) y baja a unos 0.4 en 200 iteraciones.
 
 ```bash
 npm test                      # pruebas del motor (node:test): gradientes, formas, traza, entrenamiento
+npm run smoke                 # prueba de humo de la app completa en Chrome sin ventana (unos 20 s)
+npm run smoke:dist            # lo mismo sobre dist/transformer-lab.html (primero lo genera)
 npm run build                 # genera dist/
 node tools/browser-check.mjs --url index.html --width 1440 --height 900 \
      --eval "TL.App.train(200)" --shot /tmp/captura.png     # Chrome sin ventana: errores + captura
 ```
 
+La prueba de humo (`tools/smoke.js`) recorre **todos los pasos** de la traza en cinco
+configuraciones (por defecto; 2 capas y 4 cabezas con GELU y PE aprendida; caracteres; SGD con
+recorte; 1 cabeza) y en cada uno comprueba que no hay errores, que la fórmula y las dimensiones se
+componen, que la explicación no tiene marcadores sin rellenar, que el inspector responde en varias
+celdas y que el esquema marca el bloque activo. Después entrena 300 iteraciones (la pérdida debe
+bajar), genera a partir de «el gato come» (debe salir «pescado»), comprueba los gradientes, recorre
+las pestañas y los temas y, a 390 px de ancho, que ninguna pestaña ni ningún paso desborde en
+horizontal. Devuelve un resumen JSON y falla si algo no se cumple.
+
 `tools/browser-check.mjs` abre la página en Chrome sin interfaz, imprime los mensajes de consola,
 evalúa expresiones (`--eval`, `--eval-file`), guarda una captura (`--shot`, `--full`) y termina con
-código 1 si hubo errores. Opciones: `--dark`, `--mobile`, `--width`, `--height`, `--wait`.
+código 1 si hubo errores. Opciones: `--dark`, `--mobile`, `--width`, `--height`, `--wait`, `--timeout`.
 
 Para automatizar la página existe `TL.App`: `goToStep(i)`, `getStep()`, `setTab(id)`,
 `newIteration()`, `train(n)`, `generate(prompt, opciones)`, `applyConfig({corpus, tokMode, cfg, hp,
-batchSize})` y `state`.
+batchSize})`, `gradCheck()`, `setTheme(t)`, `flush()` (aplica ya la explicación y el inspector
+pendientes) y `state`.
 
 ## Estructura
 
@@ -144,9 +159,10 @@ js/ui/charts.js         TL.Charts: curvas, barras y dispersión
 js/app.js               TL.App: estado, pestañas, línea de tiempo y cableado de la interfaz
 tests/                  pruebas del motor (node --test)
 tools/browser-check.mjs comprobación en Chrome sin ventana
+tools/smoke.js          prueba de humo de la app completa (para browser-check)
 docs/SPEC.md            especificación interna
 ```
 
 Todo es JavaScript clásico (sin módulos ni dependencias) para que funcione desde el disco. La
-aplicación solo guarda en el navegador tus preferencias (tema, aviso de bienvenida cerrado, mostrar
-valores).
+aplicación solo guarda en el navegador tus preferencias (tema, aviso de bienvenida cerrado, modo de
+los números).
