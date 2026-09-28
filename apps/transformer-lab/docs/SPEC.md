@@ -555,3 +555,25 @@ phone width (≥ 360 px, 16 px side gutter, no horizontal page scroll; wide matr
 their own container). Visible keyboard focus; respect `prefers-reduced-motion`. Use
 `font-variant-numeric: tabular-nums` for numbers. No emoji as UI markers. Avoid the generic
 "AI look" (purple gradients, everything centered, rounded cards everywhere).
+
+## 12. Addendum — decisions made after review (supersede the sections above)
+- **Indices**: rows, columns, positions and vocabulary ids are **0-based** everywhere (formulas,
+  inspector, tables). Layers and heads are **1-based** in text ("Capa 1", "Cabeza 2", `Q_2`,
+  `W_Q^{[2]}`); the notation panel states this convention.
+- **LayerNorm names**: the normalized input is named after the input with a hat
+  (`\hat X^{[l-1]}` for LN₁, `\hat R^{[l]}` for LN₂, `\hat X^{[N]}` for LN_f) in steps, views,
+  explanations and the dimension map; `\sqrt{\sigma^2+\varepsilon}` is the divisor.
+- **Optimizer notation**: Adam coefficients `β_m`, `β_v` (to avoid LayerNorm's β); update steps use
+  `\mathrm{d}θ` (or `c\,\mathrm{d}θ` when clipped, with `c = \min(1, g_{\max}/\|g\|)`); `g` denotes
+  only the unclipped global gradient vector in the `gradnorm` step. Gradient check uses `δ`.
+- **Loss**: per-token cross-entropy is computed as `logsumexp(z_t) − z_{t,y_t}` (finite even when
+  `p_y` underflows). Divergence = non-finite loss or gradient norm only; after divergence training
+  and new traced iterations stop until weights are reset.
+- **Limits**: `nHeads ≤ 16`, `nLayers ≤ 3`, `dModel ≥ 2`; configurations (including the minibatch
+  size B) whose estimated cost exceeds ~500 ms per iteration are rejected with a Spanish message.
+  Long training requests run in ~10 ms slices per frame with progress and cancel.
+- **Batch**: traced iterations use B = 1 (one sentence); the Entrenamiento tab averages gradients
+  over a minibatch of B sentences. Shapes note `(B×T×d)` where relevant.
+- **Automation**: `TL.App` exposes `state, goToStep, setTab, newIteration, train, generate,
+  applyConfig, getStep, flush`; `tools/smoke.js` (npm run smoke / smoke:dist) is the end-to-end
+  regression suite.
