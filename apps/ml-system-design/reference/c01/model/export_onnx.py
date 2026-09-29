@@ -37,8 +37,9 @@ def build_model(checkpoint: str | None) -> torch.nn.Module:
         state = torch.load(checkpoint, map_location="cpu", weights_only=True)
         # strict (por defecto): si una llave no coincide, falla AQUÍ y no en producción con pesos al azar
         model.load_state_dict(state)
-    # eval(): BatchNorm usa sus running stats y Dropout se apaga. Exportar en modo train es un bug
-    # clásico: el grafo queda con el comportamiento de training y las predicciones cambian.
+    # eval(): BatchNorm usa sus running stats y Dropout se apaga. torch.onnx.export (2.14) ya exporta
+    # en eval aunque lo olvides, pero este modelo es también la referencia PyTorch de verify() y del
+    # gate de paridad: en modo train daría otros logits y el gate compararía contra una referencia rota.
     return model.eval()
 
 

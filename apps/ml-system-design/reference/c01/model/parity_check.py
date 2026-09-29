@@ -1,8 +1,8 @@
 """Gate de paridad: ¿el modelo optimizado predice lo mismo que el de PyTorch? (caso c01)
 
 Por qué existe: exportar a ONNX y compilar a TensorRT FP16 cambia la aritmética. Casi siempre la
-diferencia es ruido, pero un export roto (modo train, opset mal convertido, preprocesamiento
-distinto, capa no soportada) degrada accuracy SIN lanzar errores. Este script es el paso de CI que
+diferencia es ruido, pero un export roto (opset mal convertido, preprocesamiento distinto,
+capa no soportada) degrada accuracy SIN lanzar errores. Este script es el paso de CI que
 bloquea la promoción del modelo si el candidato no coincide con la referencia en PyTorch FP32.
 
 Backends a comparar contra PyTorch:

@@ -13,6 +13,7 @@ spec:
   # Sin "replicas": las gestiona el HPA que crea KEDA. Si lo fijas aquí, cada `kubectl apply`
   # resetea la escala y pelea con el autoscaler.
   revisionHistoryLimit: 5  # ReplicaSets viejos para `kubectl rollout undo`
+  progressDeadlineSeconds: 900  # un pod con nodo GPU nuevo tarda ≈ 4–11 min: el default de 600 s vence en el caso pesimista
   strategy:
     type: RollingUpdate
     rollingUpdate:
