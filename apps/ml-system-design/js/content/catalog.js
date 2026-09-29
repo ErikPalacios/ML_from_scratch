@@ -49,7 +49,7 @@
         'Tabla de decisión: latencia requerida, frescura, volumen y costo',
         'Idempotencia, reintentos y dead-letter queues',
       ],
-      freq: 'alta', minutes: 35,
+      freq: 'alta', minutes: 45,
       connects: ['m01', 'm03', 'm06', 'm09', 'c02', 'c04', 'c09'],
     },
     {
@@ -759,13 +759,13 @@
       note: 'La app completa (navegación, progreso, buscador), el módulo del mapa con el framework de 7 pasos y el caso de clasificación de imágenes resuelto de punta a punta con archivos de referencia. Incluye el simulador de entrevista con rúbrica, las flashcards y el glosario ES–EN; los demás enunciados ya se pueden practicar.',
     },
     {
-      phase: 2, status: 'next',
+      phase: 2, status: 'done',
       title: 'Fase 2 — El kit de estimaciones',
       items: ['m02', 'm03', 'm04'],
       note: 'Patrón de inferencia, latencia/capacidad y hardware son lo que usas en los primeros 15 minutos de cualquier caso: con esto dejas de estimar a ojo.',
     },
     {
-      phase: 3, status: 'later',
+      phase: 3, status: 'next',
       title: 'Fase 3 — Contenedores y orquestación',
       items: ['m05', 'm06', 'ref-comandos'],
       note: 'Docker y Kubernetes vistos desde lo que pregunta un entrevistador de MLE (imágenes CUDA, autoscaling por GPU, cold starts), con la hoja de comandos para no memorizar flags.',
