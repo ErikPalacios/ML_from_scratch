@@ -765,13 +765,13 @@
       note: 'Patrón de inferencia, latencia/capacidad y hardware son lo que usas en los primeros 15 minutos de cualquier caso: con esto dejas de estimar a ojo.',
     },
     {
-      phase: 3, status: 'next',
+      phase: 3, status: 'done',
       title: 'Fase 3 — Contenedores y orquestación',
       items: ['m05', 'm06', 'ref-comandos'],
       note: 'Docker y Kubernetes vistos desde lo que pregunta un entrevistador de MLE (imágenes CUDA, autoscaling por GPU, cold starts), con la hoja de comandos para no memorizar flags.',
     },
     {
-      phase: 4, status: 'later',
+      phase: 4, status: 'next',
       title: 'Fase 4 — Servidores de modelos y optimización',
       items: ['m07', 'm08', 'ref-numeros'],
       note: 'Cuándo elegir cada model server y cómo ganar latencia con ONNX, TensorRT y cuantización; cierra con la hoja de números que resume M3, M4 y M8.',
