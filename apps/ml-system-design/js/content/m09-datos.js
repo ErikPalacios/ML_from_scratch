@@ -400,7 +400,7 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
         dims: ['monitoreo', 'arquitectura'],
         blocks: [
           { t: 'p', html: `El modelo de c01 da 85 % de top-1 en el golden set. Lo despliegas, la tasa de aceptación sale peor de lo esperado y, cuando mandas imágenes etiquetadas por el gateway real, el top-1 es 80 %. No hay errores en los logs. Si entre el entrenamiento y el serving cambió la <b>forma de calcular</b> la entrada, tienes training-serving skew: el modelo ve en producción inputs distribuidos distinto de los que aprendió, por culpa de tu sistema, no del mundo.` },
-          { t: 'table', caption: 'Skew no es drift', head: ['', 'Training-serving skew', 'Drift (<a href="#m12">M12</a>)'], rows: [
+          { t: 'table', caption: 'Skew no es drift', head: ['', 'Training-serving skew', 'Drift (<a href="#m12.drift">M12</a>)'], rows: [
             ['Causa', 'Tu pipeline calcula distinto en training y en serving', 'El mundo cambió: productos nuevos, cámaras nuevas, otra estación del año'],
             ['Cuándo aparece', 'Desde el primer día del despliegue, o justo después de un cambio de código o de librería', 'Gradual, o de golpe por un evento externo'],
             ['Arreglo', 'Corregir el código; reentrenar no ayuda', 'Datos nuevos y reentrenamiento'],
@@ -445,7 +445,7 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
             ['3 sep., legítima', '—', '1 (cuenta el del 1 sep., que llegó después)', '0'],
             ['25 sep., legítima', '—', '1', '1 (el contracargo del 20 ya existía)'],
           ] },
-          { t: 'p', html: `Solo la última fila es información legítima. Las dos formas de este error: <b>features post-evento</b> (campos que se actualizan después: "cuenta bloqueada", "publicación re-categorizada por un moderador", "estado final del pedido") y <b>agregados calculados con la fecha equivocada</b> (el <code>now()</code> de la <a href="#m09.pipelines">sección 2</a>). La defensa es la misma del feature store: cada feature con el valor que tenía cuando se decidió, y los labels, que llegan tarde, unidos por evento (<i>delayed labels</i>: <a href="#m12">M12</a>).` },
+          { t: 'p', html: `Solo la última fila es información legítima. Las dos formas de este error: <b>features post-evento</b> (campos que se actualizan después: "cuenta bloqueada", "publicación re-categorizada por un moderador", "estado final del pedido") y <b>agregados calculados con la fecha equivocada</b> (el <code>now()</code> de la <a href="#m09.pipelines">sección 2</a>). La defensa es la misma del feature store: cada feature con el valor que tenía cuando se decidió, y los labels, que llegan tarde, unidos por evento (<i>delayed labels</i>: <a href="#m12.modelo">M12</a>).` },
           { t: 'list', items: [
             '<b>Estadísticas ajustadas con todo el dataset</b>: media y desviación para normalizar, vocabularios o target encoding calculados antes del split. Se calculan solo con train.',
             '<b>Umbrales elegidos sobre el set donde reportas</b>: si eliges el punto de operación en el golden set y reportas el recall en el mismo set, el número sale optimista. c03 elige umbrales en validación y certifica recall con defectos de fuentes independientes (<a href="#c03.evaluacion">c03</a>).',
@@ -665,7 +665,7 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
           { t: 'callout', kind: 'trap', title: 'Validar solo el schema', html: `<p>El cambio de centímetros a milímetros pasa cualquier validación de schema: sigue siendo un float, sin nulos, en la misma columna. Lo atrapa un rango (la altura de una pieza no mide 3,000) o una comparación de distribución contra el snapshot anterior. La mayoría de los incidentes de datos son semánticos, no de formato.</p>` },
           { t: 'callout', kind: 'senior', html: `<p>Pon la validación del lado del productor también: si el equipo dueño de la tabla corre tu contrato en su CI, el cambio incompatible falla en su pull request y no a las 3 a. m. en tu pipeline. Y separa responsabilidades: la validación de datos mira los datos; el gate de <a href="#m10.gate">M10</a> mira el modelo; el monitoreo de <a href="#m12">M12</a> mira producción. Los tres hacen falta.</p>` },
           { t: 'callout', kind: 'interview', html: `<ul><li>"Every snapshot is validated before training: schema, ranges, duplicates, freshness and volume against the previous one. If a blocking check fails, we don't train and the champion keeps serving."</li><li>"New checks start as warnings and get promoted to blocking once we know their false-alarm rate."</li></ul>` },
-          { t: 'callout', kind: 'connect', html: `<p>La validación que ocurre en cada request de serving (tipo, tamaño, decode) está en los archivos de <a href="#c01.archivos">c01</a>. La comparación de distribuciones en producción, con PSI y alertas, es <a href="#m12">M12</a>. El gate sobre el modelo, <a href="#m10.gate">M10</a>.</p>` },
+          { t: 'callout', kind: 'connect', html: `<p>La validación que ocurre en cada request de serving (tipo, tamaño, decode) está en los archivos de <a href="#c01.archivos">c01</a>. La comparación de distribuciones en producción, con PSI y alertas, es <a href="#m12.deteccion-drift">M12</a>. El gate sobre el modelo, <a href="#m10.gate">M10</a>.</p>` },
         ],
       },
 

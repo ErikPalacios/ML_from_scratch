@@ -292,9 +292,10 @@ def resize_to(region: np.ndarray, out_px: int) -> np.ndarray:
     1024 → 512, este promedio da exactamente lo mismo salvo el redondeo de los .5 (np.rint
     redondea al par): 1 nivel de gris de diferencia en ≈ 12.5 % de los pixeles (medido con ruido
     uniforme). Se detecta con un test de paridad sobre tiles guardados de training.
-    Velocidad (medida en una laptop Apple Silicon): ≈ 30 ms por tile aquí contra ≈ 2 ms con
-    cv2.resize. Esta versión es la de referencia legible; en producción va la implementación de
-    training, con su test de paridad.
+    Velocidad (medida en una laptop Apple Silicon, numpy 2.5 y OpenCV 5.0): ≈ 30 ms por tile aquí
+    contra ≈ 0.1 ms con cv2.resize, ≈ 300× más lento. A 200 tiles/s, esta versión sola ocuparía
+    ≈ 6 núcleos, más que todo el presupuesto de CPU del caso (≈ 20 ms por tile). Es la versión de
+    referencia legible; en producción va la implementación de training, con su test de paridad.
     """
     n = region.shape[0]
     if n == out_px:
@@ -338,9 +339,15 @@ def blend_window(n: int, ramp: int) -> np.ndarray:
 class Stitcher:
     """Acumula mapas de probabilidad por tile en un mapa del slide a out_mpp (4 µm/px).
 
-    Por qué no a resolución completa: 1.5 cm² a 0.5 µm/px son 600 M px; en float32, 2.4 GB por
-    arreglo. A 4 µm/px son ≈ 9.4 M px (≈ 37 MB por arreglo) y el reporte (mm², %, polígonos para
-    el visor) no necesita más detalle que eso.
+    El mapa cubre TODA el área escaneada (el rectángulo del nivel 0), no solo el tejido: un tile
+    puede caer en cualquier parte. Ejemplo con un escaneo de ≈ 25 × 20 mm (100,000 × 80,000 px a
+    0.25 µm/px; el tamaño real depende del escáner y del portaobjetos):
+      - a 0.5 µm/px (resolución del modelo): 50,000 × 40,000 = 2,000 M px → 8 GB por arreglo float32.
+      - a 4 µm/px: 6,250 × 5,000 ≈ 31 M px → ≈ 125 MB por arreglo. Con acc, wsum y prob (float32)
+        más las máscaras bool (covered, tejido, tumor) son ≈ 0.5 GB: caben en los 16 GiB del pod.
+    Si solo contaras los 1.5 cm² de tejido saldrían ≈ 37 MB por arreglo: 3–4× menos, y es el error
+    de dimensionamiento típico. El reporte (mm², %, polígonos para el visor) no necesita más
+    detalle que 4 µm/px.
     Resultado = Σ(peso × prob) ÷ Σ(peso). Sin dividir entre Σ(peso), los bordes del slide y las
     esquinas donde se cruzan 4 tiles tendrían otra escala: eso ES una costura.
     """

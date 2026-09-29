@@ -240,7 +240,7 @@
         'Cuándo reentrenar: calendario vs disparadores',
         'Dashboards y runbooks: qué hace quien recibe la alerta',
       ],
-      freq: 'alta', minutes: 56,
+      freq: 'alta', minutes: 58,
       connects: ['m09', 'm10', 'm11', 'c01', 'c04', 'c09'],
     },
     {
@@ -422,7 +422,7 @@
         'Métricas por slice (equipo, sitio, tipo de caso) y calibración',
         'Datos sensibles: privacidad, anonimización y regulaciones',
       ],
-      freq: 'baja', minutes: 102, difficulty: 'media',
+      freq: 'baja', minutes: 112, difficulty: 'media',
       connects: ['m02', 'm09', 'm10', 'm12', 'm15'],
       tests: [
         'Elegir batch/asíncrono cuando la latencia no es el requisito',
@@ -902,7 +902,7 @@
       },
       {
         "topic": "Entrada y salida",
-        "a": "Láminas de biopsias y piezas quirúrgicas de <b>colon y recto teñidas con H&amp;E</b>, escaneadas como imágenes de lámina completa (WSI) de ≈ 1 GB (0.5–3 GB). A y B: escáneres del proveedor X, formato SVS (TIFF piramidal), 40× ≈ 0.25 µm/px. C: proveedor Y, <b>DICOM WSI</b> con otro perfil de color. Salida esperada: la región de tumor sobre la lámina, el área en mm² y el % del tejido. El visor puede dibujar polígonos que le entregue una API."
+        "a": "Biopsias y piezas quirúrgicas de <b>colon y recto teñidas con H&amp;E</b>, escaneadas como imágenes de lámina completa (WSI) de ≈ 1 GB (0.5–3 GB). A y B: proveedor X, SVS (TIFF piramidal, un archivo por lámina), 40× ≈ 0.25 µm/px. C: proveedor Y, <b>DICOM WSI</b> con otro perfil de color; cada lámina es una serie de varios archivos (niveles, etiqueta, macro). Salida esperada: la región de tumor, el área en mm² y el % del tejido. El visor dibuja polígonos que le entregue una API."
       },
       {
         "topic": "Escala",
@@ -922,7 +922,7 @@
       },
       {
         "topic": "Restricciones",
-        "a": "Los escáneres ya suben cada lámina al <b>archivo digital del grupo en la nube</b> (almacenamiento tipo S3, en la región aprobada por legal), que emite un evento con la key y el sha256; ese enlace y ese almacenamiento no son costo nuestro. Datos de salud: sensibles (LFPDPPP en México, HIPAA en EE. UU.). La WSI trae imagen de la etiqueta y macro con datos del paciente. La clasificación regulatoria la decide gobierno clínico y legal. Presupuesto: infraestructura ≤ <b>US$2k/mes</b> más las 20 h de patólogo."
+        "a": "Los escáneres ya suben cada lámina al <b>archivo digital del grupo en la nube</b> (tipo S3, en la región aprobada por legal), que emite un evento con la key y el sha256 de cada archivo (en C, uno por archivo); no es costo nuestro. Datos de salud: sensibles (LFPDPPP en México, HIPAA en EE. UU.). La WSI trae imagen de la etiqueta y macro con datos del paciente. La clasificación regulatoria la decide gobierno clínico y legal. Presupuesto: infraestructura ≤ <b>US$2k/mes</b> más las 20 h de patólogo."
       }
     ],
   };

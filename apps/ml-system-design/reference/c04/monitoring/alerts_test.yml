@@ -117,6 +117,32 @@ tests:
         eval_time: 30m
         exp_samples: []
 
+  # ---------------------------------------------------------------- NightlyCoverageAtRisk
+  # Workers caídos desde las 21:30: 50 slides de antes del corte siguen sin resultado → page después de
+  # 1 h sostenida (y Alertmanager la entrega como page desde las 05:30).
+  - interval: 1m
+    input_series:
+      - series: 'seg_pending_slides_before_cutoff{job="results-api"}'
+        values: '50x90'
+    promql_expr_test:
+      - expr: ALERTS{alertname="NightlyCoverageAtRisk", alertstate="firing"}
+        eval_time: 55m
+        exp_samples: []
+      - expr: ALERTS{alertname="NightlyCoverageAtRisk", alertstate="firing"}
+        eval_time: 65m
+        exp_samples:
+          - labels: 'ALERTS{alertname="NightlyCoverageAtRisk",alertstate="firing",severity="page"}'
+            value: 1
+  # Noche normal: lo que quedaba en cola a las 22:00 se vacía en minutos → nada.
+  - interval: 1m
+    input_series:
+      - series: 'seg_pending_slides_before_cutoff{job="results-api"}'
+        values: '50 40 30 20 10 5 0x84'
+    promql_expr_test:
+      - expr: ALERTS{alertname="NightlyCoverageAtRisk"}
+        eval_time: 80m
+        exp_samples: []
+
   # ---------------------------------------------------------------- StainDriftPerScanner
   # C: PSI 0.35 en el canal r con 40 slides → dispara. B: PSI 0.5 pero 5 slides → ruido. A: 0.05.
   - interval: 1m
@@ -140,6 +166,41 @@ tests:
         eval_time: 5m
         exp_samples:
           - labels: 'ALERTS{alertname="StainDriftPerScanner",alertstate="firing",lab="C",scanner="C-Y-01",severity="ticket"}'
+            value: 1
+
+  # ---------------------------------------------------------------- StainPsiJobStale
+  # El job empuja a las 0 h y a las 24 h, y después muere. push_time_seconds (epoch del push) se queda en
+  # 86400 para siempre: pasa las 26 h de antigüedad a las 50 h → firing 30 min después.
+  # 1440 muestras de 1 min = 24 h.
+  - interval: 1m
+    input_series:
+      - series: 'push_time_seconds{job="stain-psi"}'
+        values: '0x1439 86400x1800'
+    promql_expr_test:
+      - expr: ALERTS{alertname="StainPsiJobStale", alertstate="firing"}
+        eval_time: 23h
+        exp_samples: []
+      - expr: ALERTS{alertname="StainPsiJobStale", alertstate="firing"}
+        eval_time: 50h
+        exp_samples: []
+      - expr: ALERTS{alertname="StainPsiJobStale", alertstate="firing"}
+        eval_time: 51h
+        exp_samples:
+          - labels: 'ALERTS{alertname="StainPsiJobStale",alertstate="firing",severity="ticket"}'
+            value: 1
+  # El Pushgateway se reinició sin persistencia: la serie del job ya no existe (solo la de otro job).
+  - interval: 1m
+    input_series:
+      - series: 'push_time_seconds{job="otro-batch"}'
+        values: '0x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="StainPsiJobStale", alertstate="firing"}
+        eval_time: 20m
+        exp_samples: []
+      - expr: ALERTS{alertname="StainPsiJobStale", alertstate="firing"}
+        eval_time: 40m
+        exp_samples:
+          - labels: 'ALERTS{alertname="StainPsiJobStale",alertstate="firing",job="stain-psi",severity="ticket"}'
             value: 1
 
   # ---------------------------------------------------------------- BlurryTilesSpike

@@ -743,7 +743,7 @@
         '<b>Slices de condición</b>: zona y cámara, turno (luz), oclusión por máquinas, postura (agachado), colores de casco y de ropa (una camisa naranja no es un chaleco).',
         '<b>Sesgo entre grupos de personas</b>: un detector puede fallar más con ciertos tonos de piel, complexiones o ropa, y un sistema que alerta más sobre un grupo es dañino aunque no identifique a nadie. No etiquetes atributos sensibles de los trabajadores en producción: mide con un set de prueba construido con voluntarios y con consentimiento, y revisa los resultados con la comisión de seguridad e higiene.',
       ] },
-      { t: 'callout', kind: 'connect', html: 'Shadow, canary, criterios de avance y rollback: <a href="#m11">M11</a>. Labels demorados y monitoreo de calidad sin ground truth inmediato: <a href="#m12">M12</a>. La versión con usuarios y A/B test está en el <a href="#c01.evaluacion">caso 1</a>: compárala con esta.' },
+      { t: 'callout', kind: 'connect', html: 'Shadow, canary, criterios de avance y rollback: <a href="#m11">M11</a>. Labels demorados y monitoreo de calidad sin ground truth inmediato: <a href="#m12.modelo">M12</a>. La versión con usuarios y A/B test está en el <a href="#c01.evaluacion">caso 1</a>: compárala con esta.' },
     ],
   });
 

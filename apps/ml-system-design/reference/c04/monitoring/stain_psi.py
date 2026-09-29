@@ -16,7 +16,17 @@ Un bin vacío haría ln(0): se usa un piso de 1e-4 en ambas distribuciones (lo u
 
 Por qué un job diario y no una métrica del worker: PSI compara DISTRIBUCIONES de muchos slides; un
 slide solo no tiene "drift". Por qué el Pushgateway: es un job batch que termina; Prometheus no
-alcanzaría a scrapearlo. Trampa: el Pushgateway conserva el último valor para siempre (ver alerts.yml).
+alcanzaría a scrapearlo. Trampa: el Pushgateway conserva el último valor para siempre. Por eso el job
+empuja UNA vez, al final y con todo calculado: el push_time_seconds que agrega el Pushgateway es la
+hora de la última corrida exitosa, y alerts.yml → StainPsiJobStale avisa si pasa de 26 h.
+
+Una sola referencia (training, labs A/B) para todos es la versión del día 1. Lab C sale alto desde el
+primer día (otro vendor, otro color) y se silencia hasta validarlo. Después de validarlo, quitar el
+silencio no alcanza: la alerta sonaría todos los días y un cambio real de color en C quedaría
+escondido. Lab C (y cada escáner nuevo) recibe su propia referencia, construida con sus slides de
+silent mode o de validación (`--write-reference` sobre esos summary.json), y cada (lab, escáner) se
+compara con la suya; el PSI contra training queda como panel informativo. Esa selección de referencia
+por (lab, escáner) no está implementada aquí: compute() recibe una sola.
 Por qué RGB y no algo mejor: es el baseline más simple de explicar. La tinción H&E se separa mejor en
 densidad óptica o con deconvolución de color (canales H y E); el esqueleto del job no cambia.
 
@@ -82,7 +92,8 @@ def aggregate(summaries: list[dict]) -> dict[tuple[str, str], dict]:
 
 
 def build_reference(summaries: list[dict]) -> dict:
-    """Referencia = TODOS los slides de training juntos (un solo histograma por canal)."""
+    """Referencia = TODOS los slides dados juntos (un solo histograma por canal): los de training, o
+    los de silent mode/validación de un lab o escáner nuevo cuando se le construye la suya."""
     ref = {"slides": 0, **{c: None for c in CHANNELS}}
     for s in summaries:
         ref["slides"] += 1

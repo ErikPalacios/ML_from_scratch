@@ -88,7 +88,7 @@
       ] },
       { id: 'silenciosa', label: 'Falla silenciosa: tinción nueva (c04)', steps: [
         { nodes: ['svc', 'logs'], edges: ['svc>logs'], text: 'El worker procesa slides del lab C sin un solo error. Por cada slide deja en los logs sus estadísticas de color de tejido, la fracción de tiles borrosos y el % de tumor predicho.' },
-        { nodes: ['logs', 'job'], edges: ['logs>job'], text: 'El job diario compara el histograma de color del escáner Y contra la referencia de entrenamiento (labs A y B): PSI ≈ 0.22.' },
+        { nodes: ['logs', 'job'], edges: ['logs>job'], text: 'El job diario compara el histograma de color del escáner Y contra la referencia de entrenamiento del modelo actual (labs A, B y C, desde que C entró al entrenamiento): PSI ≈ 0.22.' },
         { nodes: ['job', 'prom', 'am'], edges: ['job>prom', 'prom>am'], text: 'Publica el PSI como métrica por lab y escáner. La regla <code>StainDriftPerScanner</code> (PSI &gt; 0.2) dispara como ticket: nadie se despierta, el equipo de ML lo ve en horario.' },
         { nodes: ['job', 'retrain'], edges: ['job>retrain'], text: 'El runbook pide confirmar impacto con labels antes de reentrenar. Si se confirma, el ticket adelanta el reentrenamiento con labels del lab C; nada se despliega sin gate y modo silencioso.' },
       ] },
@@ -119,7 +119,7 @@ def psi_de_proporciones(ref, act):
     ref, act = np.asarray(ref), np.asarray(act)
     return float(np.sum((act - ref) * np.log(act / ref)))
 
-# El ejemplo de la tabla: 5 bins de matiz, escáner Y contra la referencia de A/B
+# El ejemplo de la tabla: 5 bins de matiz, escáner Y contra la referencia de entrenamiento (A, B y C)
 print(round(psi_de_proporciones([.10, .20, .40, .20, .10], [.04, .12, .34, .30, .20]), 3))  # 0.215
 
 rng = np.random.default_rng(0)
@@ -145,7 +145,8 @@ print(f"n=1k   D={r.statistic:.4f}  p={r.pvalue:.1e}")   # D ≈ 0.15, p ≈ 1e-
   const METRICAS_PY = `import random, time
 from prometheus_client import Counter, Histogram, start_http_server
 
-# Nombres y labels iguales a los del gateway de c01: son contrato con las alertas
+# Mismos nombres de métrica que el gateway de c01 (son contrato con las alertas). Versión
+# reducida: allá, además, el label source y 11 buckets desde 0.01 s
 REQUESTS = Counter("classifier_requests_total", "Requests por código y modelo",
                    ["status", "model_version"])          # el cliente no duplica el sufijo _total
 LATENCY = Histogram("classifier_request_latency_seconds", "Latencia server-side",
@@ -184,7 +185,7 @@ classifier_request_latency_seconds_sum 0.0075
 # que el cliente agrega por defecto y se apaga con PROMETHEUS_DISABLE_CREATED_SERIES=True)`;
 
   // YAML parseado con PyYAML; cada expr validada con un parser de PromQL.
-  const SLO_YML = `# SLO de disponibilidad de c01: 99.9 % de requests válidos sin 5xx en 30 días → presupuesto 0.1 %
+  const SLO_YML = `# Parte de errores del SLO de c01: 99.9 % a 30 días (su SLI también exige ≤ 300 ms) → presupuesto 0.1 %
 groups:
   - name: classifier-slo-recording
     rules:
@@ -242,10 +243,10 @@ groups:
         priority: 'core',
         dims: ['monitoreo', 'comunicacion'],
         blocks: [
-          { t: 'p', html: `Un lunes, el laboratorio C actualiza el perfil de color de su escáner. El <code>seg-worker</code> de <a href="#c04">c04</a> sigue procesando cada slide (lámina) en ${E('≈ 20–30 s')}, la cola está vacía, cero errores, cero reinicios, el SLO de turnaround se cumple. Pero los contornos de tumor del lab C salen más chicos, y los patólogos empiezan a corregir más. El dashboard de servicio está todo verde durante semanas.` },
+          { t: 'p', html: `Un lunes, meses después de habilitar el laboratorio C (ya validado y con sus slides en el entrenamiento), el lab C actualiza el perfil de color de su escáner. El <code>seg-worker</code> de <a href="#c04">c04</a> sigue procesando cada slide (lámina) en ${E('≈ 20–30 s')}, la cola está vacía, cero errores, cero reinicios, el SLO de turnaround se cumple. Pero los contornos de tumor del lab C salen más chicos, y los patólogos empiezan a corregir más. El dashboard de servicio está todo verde durante semanas.` },
           { t: 'p', html: `Eso es una <b>falla silenciosa</b>: el servicio responde 200 OK (o, en un batch, escribe su resultado) mientras las predicciones empeoran. Un servidor web roto se nota porque deja de responder; un modelo roto sigue respondiendo con la misma latencia y la misma confianza aparente. Por eso el monitoreo de un sistema de ML tiene capas que un servicio web normal no tiene.` },
           { t: 'table', caption: 'Cinco capas: de abajo hacia arriba, cada una más lenta y más cercana a lo que importa', head: ['Capa', 'Pregunta', 'Ejemplos de señal', 'Qué tan rápido la ves', 'Necesita labels'], rows: [
-            ['Infraestructura', '¿Las máquinas están vivas y con recursos?', 'Nodos listos, GPU con errores Xid, disco, temperatura del Jetson (c03)', 'Segundos', 'No'],
+            ['Infraestructura', '¿Las máquinas están vivas y con recursos?', 'Nodos listos, GPU con errores Xid (los códigos de error que el driver de NVIDIA escribe en el log del kernel), disco, temperatura del Jetson (c03)', 'Segundos', 'No'],
             ['Servicio', '¿Responde bien y a tiempo?', 'p99, tasa de 5xx, saturación; en batch, edad de la cola y DLQ', 'Segundos a minutos', 'No'],
             ['Datos', '¿Los inputs se parecen a los de entrenamiento?', 'Tamaño y formato de imagen (c01), color de tinción por escáner y % de tiles borrosos (c04), mpp faltante', 'Minutos a horas', 'No'],
             ['Modelo', '¿Las predicciones se ven normales? ¿Aciertan?', 'Distribución de predicciones y de confianza; con labels demorados, accuracy o Dice por slice', 'Horas (proxies) a semanas (labels)', 'Los proxies no; la calidad real, sí'],
@@ -256,7 +257,7 @@ groups:
             ['<a href="#c01.monitoreo">c01</a> marketplace', 'Una versión nueva de la app manda fotos con otro procesamiento (HDR, más compresión)', 'Todo verde', 'Estadísticas de entrada y tasa de baja confianza en minutos; tasa de aceptación en horas'],
             ['<a href="#c02.monitoreo">c02</a> video', 'Una telaraña frente al IR de una cámara; el atardecer cambia de hora con la estación', 'Todo verde', 'Candidatos por cámara contra su propia línea base a la misma hora; descartes del SOC'],
             ['<a href="#c03.monitoreo">c03</a> inspección', 'Polvo de aceite en el lente, una lámpara que pierde intensidad', 'Todo verde', 'Tasa de rechazo contra su línea base, pieza patrón al inicio de turno'],
-            ['<a href="#c04.monitoreo">c04</a> patología', 'Perfil de color nuevo en el escáner del lab C, un lote de reactivo distinto', 'Todo verde', 'PSI de color por escáner en un día; tasa de correcciones mayores en semanas'],
+            ['<a href="#c04.monitoreo">c04</a> patología', 'Perfil de color nuevo en el escáner del lab C (ya habilitado), un lote de reactivo distinto', 'Todo verde', 'PSI de color por escáner en un día; tasa de correcciones mayores en semanas'],
           ] },
           { t: 'p', html: `Fíjate en el patrón: en ninguno de los cuatro cambió el modelo. Cambió el mundo que lo alimenta. Un modelo en producción es una función fija aplicada a un mundo que se mueve, y la mayoría de sus fallas se explican así.` },
           { t: 'diagram', id: 'stack-monitoreo', title: 'El stack de monitoreo: métricas en minutos, logs y labels en días', caption: 'Arriba lo que pasa en cada request o slide; al centro, métricas y alertas; abajo, lo que se calcula por lotes. Toca cada caja y recorre los tres flujos.', spec: STACK },
@@ -355,9 +356,9 @@ groups:
           { t: 'h3', text: 'La métrica fuerte de c04: tasa de correcciones mayores' },
           { t: 'p', html: `En c04, un <b>major edit</b> es una corrección que cambia más del 20 % del área de tumor propuesta. Es un label barato (el patólogo corrige de todos modos antes de firmar), llega en horas o días, y está pegado al uso real. Se sigue por lab, escáner y tipo de espécimen, en ventanas de 4 semanas contra su línea base. ¿Por qué 4 semanas y no 1? Por el ruido de muestreo:` },
           { t: 'calc', title: 'Intervalo al 95 % de la tasa de major edits (línea base supuesta 10 %)', rows: [
-            { label: 'Slides por lab en 4 semanas', expr: '≈ 400/día × 20 días', value: E('≈ 8,000'), note: 'si los 3 labs aportan parecido a los 1,200/día' },
-            { label: 'Ventana de 4 semanas, un lab', expr: '1.96 × √(0.1 × 0.9 / 8,000)', value: '± 0.66 pp' },
-            { label: 'Ventana de 1 semana, un lab', expr: '1.96 × √(0.1 × 0.9 / 2,000)', value: '± 1.3 pp' },
+            { label: 'Slides por lab en 4 semanas', expr: '≈ 400/día × 28 días', value: E('≈ 11,200'), note: 'si los 3 labs aportan parecido a los 1,200/día' },
+            { label: 'Ventana de 4 semanas, un lab', expr: '1.96 × √(0.1 × 0.9 / 11,200)', value: '± 0.56 pp' },
+            { label: 'Ventana de 1 semana, un lab', expr: '1.96 × √(0.1 × 0.9 / 2,800)', value: '± 1.1 pp' },
             { label: 'Un slice chico (500 slides en 4 semanas)', expr: '1.96 × √(0.1 × 0.9 / 500)', value: '± 2.6 pp' },
           ], result: 'Con 4 semanas, una subida de 10 % a 12 % en un lab se distingue del ruido; con una semana, apenas. En un slice chico (un tipo de espécimen raro) solo ves cambios grandes: ahí la señal rápida es el drift de entrada, y la confirmación, la auditoría.' },
           { t: 'callout', kind: 'note', html: `<p>La tasa de correcciones también se mueve por cosas que no son el modelo: un cambio de UI del viewer, patólogos nuevos que corrigen distinto, una guía de anotación actualizada. Parte la métrica por patólogo (solo para el análisis del equipo, nunca como evaluación de personas) y anota los cambios de producto en el dashboard.</p>` },
@@ -409,8 +410,8 @@ groups:
         blocks: [
           { t: 'p', html: `Detectar drift es comparar dos muestras: una de <b>referencia</b> y una <b>actual</b>. Las decisiones importantes son qué variable resumes, contra qué referencia comparas, en qué ventana y con qué medida. Empiezo por la medida más usada en la industria, con números.` },
           { t: 'h3', text: 'PSI con un ejemplo de c04' },
-          { t: 'p', html: `Tomas el matiz (hue) de los píxeles de tejido de cada slide y lo resumes en 5 bins. La referencia son los slides de entrenamiento de los labs A y B; la muestra actual, los slides de ayer del escáner Y (lab C). El <b>Population Stability Index</b> suma, por bin, la diferencia de proporciones por el logaritmo de su cociente:` },
-          { t: 'table', caption: 'PSI del matiz de tejido: escáner Y contra la referencia A/B', head: ['Bin de matiz', 'Referencia', 'Actual (escáner Y)', 'Actual − ref.', 'ln(actual / ref.)', 'Aporte'], rows: [
+          { t: 'p', html: `Tomas el matiz (hue) de los píxeles de tejido de cada slide y lo resumes en 5 bins. La referencia son los slides de entrenamiento del modelo actual, que desde el reentrenamiento que habilitó al lab C incluyen los labs A, B y C; la muestra actual, los slides de ayer del escáner Y (lab C). El <b>Population Stability Index</b> suma, por bin, la diferencia de proporciones por el logaritmo de su cociente:` },
+          { t: 'table', caption: 'PSI del matiz de tejido: escáner Y contra la referencia de entrenamiento (A, B y C)', head: ['Bin de matiz', 'Referencia', 'Actual (escáner Y)', 'Actual − ref.', 'ln(actual / ref.)', 'Aporte'], rows: [
             ['1 (más violeta)', '0.10', '0.04', '−0.06', '−0.916', '0.055'],
             ['2', '0.20', '0.12', '−0.08', '−0.511', '0.041'],
             ['3', '0.40', '0.34', '−0.06', '−0.163', '0.010'],
@@ -423,7 +424,7 @@ groups:
             ['&lt; 0.1', 'Estable', '—'],
             ['0.1 – 0.25', 'Cambio moderado: mirar', 'c01 y c04 actúan desde 0.2'],
             ['&gt; 0.25', 'Cambio grande', '—'],
-          ], note: 'Los cortes 0.1 y 0.25 vienen de la práctica de credit scoring y se repiten por costumbre; muchos equipos usan 0.2 como umbral de acción, como c01 (PSI &gt; 0.2 sostenido 3 días) y c04 (PSI &gt; 0.2 por escáner). Ningún número es universal: depende de cuántos bins uses, del tamaño de muestra y de la variable. Calíbralo mirando cuánto se mueve el PSI entre semanas normales.' },
+          ], note: 'Los cortes 0.1 y 0.25 vienen de la práctica de credit scoring y se repiten por costumbre; muchos equipos usan 0.2 como umbral de acción, como c01 (PSI &gt; 0.2 sostenido 3 días) y c04 (PSI &gt; 0.2 por escáner). Ningún número es universal: depende de cuántos bins uses, del tamaño de muestra y de la variable. Calíbralo mirando cuánto se mueve el PSI entre semanas normales. Verás la misma regla escrita como 0.1/0.2 (así la usan c01 y los archivos de c04): el corte superior varía entre 0.2 y 0.25 según la fuente; lo que importa es calibrarlo.' },
           { t: 'callout', kind: 'trap', title: 'Trampas del PSI', html: `<ul><li><b>Bins vacíos</b>: ln(0) explota. Con un bin de referencia al 10 % y el actual en 0, el resultado depende del epsilon que elijas (con un ejemplo, 0.56 con 10⁻³ y 1.26 con 10⁻⁶). Arma los bins con cuantiles de la referencia (ninguno queda vacío de ese lado), agrupa bins raros y fija el epsilon.</li><li><b>Muchos bins con pocos datos</b>: con 500 categorías en c01, las raras meten ruido; c01 lo resuelve con las ≈ 30 categorías padre.</li><li><b>Bordes que cambian</b>: si recalculas los bins cada día, comparas cosas distintas. Los bordes se fijan con la referencia.</li></ul>` },
           { t: 'code', title: 'PSI con numpy', caption: 'Corrió tal cual: imprime 0.215, 0.002 y 0.245.', files: [ { name: 'psi.py', lang: 'python', code: PSI_PY } ] },
           { t: 'h3', text: 'Test KS: la trampa del n grande' },
@@ -432,7 +433,7 @@ groups:
             ['n = 1 M por lado, corrida de 0.02 σ', 'D ≈ 0.008 · p ≈ 10⁻²⁹', 'Significativo e irrelevante'],
             ['n = 1,000 por lado, corrida de 0.3 σ', 'D ≈ 0.15 · p ≈ 10⁻⁹', 'Significativo y relevante'],
           ] },
-          { t: 'p', html: `El p-value mide cuánta evidencia tienes de que <i>hay</i> una diferencia, y con n enorme casi siempre la hay. Lo que te importa es <b>cuánto</b> cambió: el estadístico D, el PSI o una distancia, con un umbral de tamaño de efecto calibrado con semanas normales. Evidently lo resuelve así por defecto: para columnas numéricas usa KS con muestras de hasta 1,000 y la distancia de Wasserstein (umbral 0.1) por encima; para categóricas, chi-cuadrado y Jensen–Shannon.` },
+          { t: 'p', html: `El p-value mide cuánta evidencia tienes de que <i>hay</i> una diferencia, y con n enorme casi siempre la hay. Lo que te importa es <b>cuánto</b> cambió: el estadístico D, el PSI o una distancia, con un umbral de tamaño de efecto calibrado con semanas normales. Evidently lo resuelve así por defecto: para columnas numéricas usa KS con muestras de hasta 1,000 y la distancia de Wasserstein por encima (cuánta masa hay que mover, y qué tan lejos, para convertir una distribución en la otra; un tamaño de efecto, no un p-value; Evidently la normaliza por la desviación estándar de la referencia y usa umbral 0.1); para categóricas, chi-cuadrado y Jensen–Shannon (una versión simétrica y acotada de la divergencia KL).` },
           { t: 'code', title: 'La trampa del n grande, reproducida', caption: 'Corrió con scipy: n = 1 M da p ≈ 10⁻²⁹ con un D minúsculo.', files: [ { name: 'ks.py', lang: 'python', code: KS_PY } ] },
           { t: 'p', html: `Para variables <b>categóricas</b> (categoría predicha en c01, tipo de espécimen en c04) el equivalente es el test chi-cuadrado sobre la tabla de conteos, con la misma trampa del n grande; el PSI sobre las proporciones funciona igual que con bins.` },
           { t: 'h3', text: 'Imágenes: drift en embeddings' },
@@ -449,7 +450,7 @@ groups:
             ['Ventana reciente (p. ej. 4 semanas previas, como c01)', '¿Cambió algo esta semana?', 'Un drift lento (1 % por semana) nunca se ve: cada semana se parece a la anterior'],
             ['La misma franja de semanas anteriores (c02: misma cámara, misma hora)', '¿Esto es raro para este momento?', 'Necesita historia suficiente por franja'],
           ] },
-          { t: 'p', html: `Usa dos: contra entrenamiento (lo que el modelo conoce) y contra una ventana reciente (lo que cambió de golpe). Y la ventana actual tiene que juntar suficientes datos por slice: en c04, un día de un escáner son ${E('≈ 400 slides')}, suficientes para el color; un tipo de espécimen raro necesita semanas.` },
+          { t: 'p', html: `Usa dos: contra entrenamiento (lo que el modelo conoce) y contra una ventana reciente (lo que cambió de golpe). La referencia de entrenamiento se versiona con el modelo: cuando el lab C entró al entrenamiento, se reconstruyó con A, B y C. Contra la referencia original (solo A y B), el PSI de C salía alto desde el día 1 (por eso pasó por modo silencioso, y c04 silencia esa alerta para C hasta validarlo): esa comparación dice "el modelo nunca vio este color", no "cambió", y no puede detectar un cambio nuevo. Por eso, además, cada lab y escáner se compara contra sus propias 4 semanas previas. Y la ventana actual tiene que juntar suficientes datos por slice: en c04, un día de un escáner son ${E('≈ 400 slides')}, suficientes para el color; un tipo de espécimen raro necesita semanas.` },
           { t: 'callout', kind: 'trap', title: 'Muchos tests, muchas falsas alarmas', html: `<p>Con 3 labs × 4 estadísticas, cada día a α = 0.05, haces 12 tests diarios. Aunque nada cambie, esperas ${E('≈ 18 falsas alarmas al mes')} y una probabilidad de ≈ 46 % de al menos una por día. Así nace la <b>fatiga de alertas</b>. Defensas: umbrales de tamaño de efecto en vez de p-values, exigir que el cambio se sostenga (c01: 3 días), corrección por comparaciones múltiples si usas p-values, y agrupar: una alerta por escáner con todas sus estadísticas, no doce.</p>` },
           { t: 'h3', text: 'Herramientas' },
           { t: 'table', caption: 'Estado a septiembre de 2026: verifica versión y licencia antes de elegir', head: ['Herramienta', 'Qué es', 'Para imágenes', 'Ojo con'], rows: [
@@ -509,7 +510,7 @@ groups:
           ], result: 'Cada alerta exige la ventana larga y una corta de 1/12 de su duración (1 h y 5 min; 6 h y 30 min; 3 días y 6 h): la larga confirma que el consumo es real, la corta hace que la alerta se apague pronto cuando el problema se arregla.' },
           { t: 'code', title: 'Alertas multi-window, multi-burn-rate para c01', caption: 'Parseado con PyYAML; cada expresión validada con un parser de PromQL. El SRE Workbook pone el de 6× como page; c01 lo manda a ticket porque su camino tiene fallback (el selector manual).', files: [ { name: 'slo-rules.yml', lang: 'yaml', code: SLO_YML } ] },
           { t: 'p', html: `Para latencia es igual con otra razón: si el SLO es "99 % de los requests en menos de 200 ms", el presupuesto es 1 % de requests lentos, y la fracción lenta sale de los buckets: 1 − (bucket <code>le="0.2"</code> ÷ count). Herramientas como Sloth o Pyrra generan estas reglas desde una definición corta del SLO.` },
-          { t: 'callout', kind: 'trap', title: 'Burn rate con SLOs bajos y poco volumen: c04', html: `<p>El SLO de turnaround de c04 es p95 ≤ 60 min: el presupuesto es 5 % de slides tarde (${E('≈ 1,800')} de 36,000 al mes). Con presupuesto de 5 %, el burn rate máximo posible es 1 / 0.05 = 20: un 14.4× significa que el 72 % de los slides de la última hora llegó tarde. Y con ${E('≈ 86 slides/h')}, una ventana de 5 min tiene ≈ 7 slides: una sola demora mueve la fracción 14 puntos. Dos consecuencias: los factores de burn rate se adaptan al presupuesto de 5 % en vez de copiar el 14.4 de un SLO de 99.9 %, y la alerta que avisa primero es una <b>adelantada</b>: la edad del mensaje más viejo &gt; 30 min (<code>SlideQueueBacklog</code> en c04) suena cuando todavía quedan 30 min para salvar el SLO. c04 usa las dos (<code>TurnaroundSLOBurn</code> es su alerta de burn rate). El SRE Workbook discute este problema de los servicios de poco tráfico.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Burn rate con SLOs bajos y poco volumen: c04', html: `<p>El SLO de turnaround de c04 es p95 ≤ 60 min: el presupuesto es 5 % de slides tarde (${E('≈ 1,800')} de 36,000 al mes). Los factores del SRE Workbook no dependen del objetivo: 14.4× sigue siendo 2 % del presupuesto mensual en 1 h y 6×, 5 % en 6 h (la cuenta 0.02 × 720 / 1 de arriba no usa el 99.9 %). Solo exigen factor × presupuesto ≤ 1: con 5 % el burn rate máximo posible es 1 / 0.05 = 20, y 14.4× significa que el 72 % de los slides de la última hora llegó tarde (6×, el 30 % en 6 h). c04 conserva los dos factores en <code>TurnaroundSLOBurn</code>, con dos ajustes. <b>Poco volumen</b>: con ${E('≈ 86 slides/h')}, una ventana de 5 min tiene ≈ 7 slides y una sola demora mueve la fracción 14 puntos; por eso la regla exige al menos 10 slides terminados en la ventana larga. Y como 72 % tarde ya es un incidente grave (y el histograma solo cuenta slides que terminaron), la alerta que avisa primero es una <b>adelantada</b>: la edad del mensaje más viejo &gt; 30 min sostenida 10 min (<code>SlideQueueBacklog</code>) suena a los ≈ 40 min de espera y deja ≈ 20 min para salvar el SLO, menos un cold start de ${E('3–5 min')} si no hay ningún worker arriba. El SRE Workbook discute este problema de los servicios de poco tráfico.</p>` },
           { t: 'h3', text: 'Page, ticket y a quién le llega' },
           { t: 'table', head: ['Severidad', 'Cuándo', 'Canal', 'Ejemplos'], rows: [
             ['Page', 'El usuario está afectado ahora y alguien puede actuar ahora', 'Despierta al on-call (PagerDuty, Opsgenie o similar)', 'c01: p99, 5xx, Triton no listo; c02: sitio ciego; c03: deadline misses'],
@@ -531,9 +532,9 @@ groups:
             ['Tabla + Grafana', 'El job escribe en una tabla (Postgres, el warehouse) y Grafana la consulta', 'Las alertas se evalúan en Grafana, no en Prometheus: dos lugares con reglas'],
             ['Métrica de un servicio largo', 'Un servicio lee el último resultado y lo expone como gauge', 'Una pieza más que operar'],
           ] },
-          { t: 'callout', kind: 'trap', title: 'Trampa: el job que dejó de correr', html: `<p>Con Pushgateway, si el job de drift falla desde el martes, Prometheus sigue viendo el PSI del lunes, 0.05, y todo parece estable. El job tiene que publicar también la hora de su última corrida exitosa, y una alerta revisa que no sea vieja: <code>time() - drift_job_last_success_timestamp_seconds &gt; 26 * 3600</code> (26 h para un job diario, con margen). Un monitor que no se monitorea a sí mismo falla en silencio igual que el modelo.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Trampa: el job que dejó de correr', html: `<p>Con Pushgateway, si el job de drift falla desde el martes, Prometheus sigue viendo el PSI del lunes, 0.05, y todo parece estable. Hace falta una alerta de frescura. El Pushgateway ya agrega a cada grupo <code>push_time_seconds</code> (la hora del último push exitoso), así que basta con <code>time() - push_time_seconds{job="stain-psi"} &gt; 26 * 3600</code> (26 h para un job diario, con margen; el scrape del Pushgateway va con <code>honor_labels: true</code> para que el label <code>job</code> sea el del job y no el del scrape). Si quieres que la alerta signifique "el cálculo terminó bien" y no solo "algo se empujó", el job publica además su propio gauge de último éxito. Un monitor que no se monitorea a sí mismo falla en silencio igual que el modelo.</p>` },
           { t: 'callout', kind: 'skip', html: `<p>No hace falta saber escribir PromQL de memoria en la entrevista. Hace falta decir "histogram, not averages", "alert on symptoms", el umbral, la ventana, la severidad y a quién le llega. Si mencionas burn rate con el 14.4×, suma; si no, no pierdes el caso.</p>` },
-          { t: 'callout', kind: 'interview', html: `<p>"Prometheus scrapes every pod; latency is a histogram so I can aggregate across pods and take the p99. Alerts come from the SLO: at 99.9% over thirty days, I page when we burn the budget fourteen times too fast over both one hour and five minutes. Model-quality alerts open tickets. The drift job publishes its results and a last-success timestamp, so a dead job is also an alert."</p>` },
+          { t: 'callout', kind: 'interview', html: `<p>"Prometheus scrapes every pod; latency is a histogram so I can aggregate across pods and take the p99. Alerts come from the SLO: at 99.9% over thirty days, I page when we burn the budget fourteen times too fast over both one hour and five minutes. Model-quality alerts open tickets. The drift job pushes its results, and I alert when its last push time gets stale, so a dead job is also an alert."</p>` },
         ],
       },
 
@@ -638,7 +639,7 @@ groups:
             ['Acción', 'escalar, rollback, modo silencioso', 'si no hay ninguna acción posible, no es un page'],
           ] },
           { t: 'h3', text: 'Un runbook completo: drift de tinción en c04' },
-          { t: 'p', html: `La alerta es <code>StainDriftPerScanner</code> de <a href="#c04.monitoreo">c04</a>: PSI del histograma de color de tejido del escáner Y (lab C) &gt; 0.2 contra la referencia de entrenamiento. Severidad ticket; dueños, el equipo de ML y el responsable del laboratorio, en horario. Los pasos, en orden:` },
+          { t: 'p', html: `La alerta es <code>StainDriftPerScanner</code> de <a href="#c04.monitoreo">c04</a>: PSI del histograma de color de tejido del escáner Y (lab C, habilitado hace meses) &gt; 0.2 contra la referencia de entrenamiento del modelo actual (A, B y C). Severidad ticket; dueños, el equipo de ML y el responsable del laboratorio, en horario. Los pasos, en orden:` },
           { t: 'steps', items: [
             { title: 'Acotar', meta: '10 min', html: '¿Un escáner, un lab o todos? ¿Desde cuándo: salto de un día o subida gradual? ¿Coincide con un deploy nuestro (modelo, preprocesamiento, versión del lector de slides)? Si coincide con un deploy, es sospecha de skew: comparar con slides de referencia por los dos caminos y, si difieren, rollback.' },
             { title: 'Mirar la fuente', meta: '30 min', html: 'Preguntar al lab C: ¿actualización de firmware o de perfil de color del escáner, lote nuevo de reactivo, cambio de protocolo de tinción? Revisar si cambiaron los metadatos del DICOM (perfil de color, mpp). Revisar el % de tiles borrosos y el área de tejido: si también se movieron, puede ser el escáner en general, no la tinción.' },
@@ -674,15 +675,15 @@ groups:
               why: 'Entiende que el p-value mide n y que muchos tests dan falsas alarmas.' },
             { q: '¿Qué alertas despiertan a alguien en este sistema batch?',
               junior: 'Todas las importantes: drift, errores, la cola, la GPU.',
-              senior: 'Solo lo que afecta al usuario ahora y alguien puede arreglar ahora. En c04, la cola atrasada hace page solo de 07:00 a 22:00, cuando un patólogo puede abrir un caso sin resultado; de noche es ticket, porque sobra tiempo para cumplir antes de las 07:00. La DLQ, el drift y la calidad son tickets: la respuesta segura (modo silencioso) no necesita despertar a nadie.',
+              senior: 'Solo lo que afecta al usuario ahora y alguien puede arreglar ahora. En c04, la cola atrasada hace page solo de 07:00 a 22:00, cuando un patólogo puede abrir un caso sin resultado; de noche es ticket, porque sobra tiempo para cumplir antes de las 07:00, y una alerta a las 05:30 que sí hace page si quedan slides escaneados antes de las 22:00 sin resultado: el tiempo sobra solo si alguien se entera a tiempo. La DLQ, el drift y la calidad son tickets: la respuesta segura (modo silencioso) no necesita despertar a nadie.',
               why: 'La severidad sale del impacto y del SLO, no de lo "importante" que suena la métrica.' },
             { q: '¿Cómo alertas sobre la latencia de un sistema asíncrono?',
               junior: 'Con la cantidad de mensajes en la cola: si pasa de 100, alerta.',
-              senior: 'Con la edad del mensaje más viejo, que es lo que castiga el SLO de turnaround: más de 30 min en c04 deja margen para salvar los 60. La profundidad la uso para escalar con KEDA. Y una alerta aparte para la DLQ, porque un mensaje venenoso deja de contar en la edad.',
+              senior: 'Con la edad del mensaje más viejo, que es lo que castiga el SLO de turnaround: en c04, más de 30 min sostenido 10 min, que deja ≈ 20 min para salvar los 60. La profundidad la uso para escalar con KEDA. Y una alerta aparte para la DLQ, porque un mensaje venenoso deja de contar en la edad.',
               why: 'Conecta la métrica con el SLO y conoce el punto ciego de la métrica de SQS.' },
             { q: 'Tu job diario de drift publica un PSI de 0.05 todos los días. ¿Todo bien?',
               junior: 'Sí, está debajo de 0.1: estable.',
-              senior: 'Depende de si el job corrió. Publico también la hora de la última corrida exitosa y alerto si es vieja; con Pushgateway, el último valor queda para siempre aunque el job muera.',
+              senior: 'Depende de si el job corrió. Con Pushgateway, el último valor queda para siempre aunque el job muera; por eso alerto si la hora del último push (<code>push_time_seconds</code>, que el Pushgateway agrega solo) tiene más de un día.',
               why: 'Un monitor que no se monitorea falla en silencio.' },
           ] },
           { t: 'callout', kind: 'interview', html: `<p>"Every alert has an owner, a runbook and an action. Pages are for user-facing symptoms; drift opens a ticket for the ML team during working hours. For a stain drift on one scanner, the runbook checks our own deploys first, then the lab, then samples, then impact with labels, and the safe mitigation is to turn off AI results for that scanner, because pathologists can always work without them."</p>` },
@@ -698,7 +699,7 @@ groups:
         dims: ['monitoreo'],
         blocks: [
           { t: 'quiz', items: [
-            { q: 'El dashboard de servicio de c04 está verde (cola vacía, cero errores, SLO cumplido), pero los patólogos del lab C corrigen más. ¿Qué tipo de falla es y qué señal la habría visto primero?',
+            { q: 'El dashboard de servicio de c04 está verde (cola vacía, cero errores, SLO cumplido), pero los patólogos del lab C (habilitado hace meses) corrigen más. ¿Qué tipo de falla es y qué señal la habría visto primero?',
               options: ['Una falla de infraestructura: la veía el uso de GPU', 'Una falla silenciosa del modelo: la veía el drift de entrada por escáner (color de tinción) antes que los labels', 'Un problema de latencia: la veía el p99', 'Ninguna: si el servicio está verde, el modelo está bien'],
               answer: 1,
               explain: 'El servicio responde bien y el modelo empeora. La estadística de color por escáner se mueve en un día; la tasa de correcciones tarda semanas en ser concluyente.' },
@@ -729,7 +730,7 @@ groups:
             { q: 'El job diario de drift de c04 publica sus resultados en Pushgateway. El martes deja de correr por un permiso vencido. ¿Qué ves en Prometheus?',
               options: ['La serie desaparece y la alerta de drift dispara', 'Un error de scrape', 'Un PSI de 0', 'El último PSI publicado, para siempre: parece estable. Hace falta alertar sobre la hora de la última corrida exitosa'],
               answer: 3,
-              explain: 'Pushgateway nunca olvida una serie. Por eso el job publica también su último éxito y una regla revisa que no tenga más de ≈ 26 h.' },
+              explain: 'Pushgateway nunca olvida una serie. Por eso hace falta una regla de frescura (en c04, <code>StainPsiJobStale</code>) sobre <code>push_time_seconds</code>, que el Pushgateway agrega a cada grupo: el último push no puede tener más de ≈ 26 h.' },
             { q: '¿Cuál de estas NO es una razón para reentrenar?',
               options: ['Drift en el lab C con más correcciones mayores en ese lab', 'Un lab nuevo que se va a integrar el mes que viene', 'La tasa de errores subió justo después del deploy de un preprocesamiento nuevo', 'La guía de anotación cambió y los labels nuevos siguen la regla nueva'],
               answer: 2,
@@ -773,8 +774,8 @@ groups:
         a: 'Proxies en horas: color de tinción por escáner, % de tumor predicho, confianza. Label: tasa de correcciones mayores (&gt; 20 % del área) al firmar, horas a días, sesgada por automation bias; auditoría mensual independiente para medir ese sesgo.' },
       { id: 'm12-09', kind: 'trampa', q: '"Monitoreo la accuracy con los labels que confirman los usuarios."',
         a: 'Casi todo label de producción está filtrado por el modelo: c03 solo revisa rechazados (ves precisión, no recall), c01 acepta sugerencias que el modelo mostró, c04 corrige propuestas. Necesitas una muestra que no dependa del modelo.' },
-      { id: 'm12-10', kind: 'numero', q: 'Intervalo al 95 % de una tasa de 10 % con 8,000 vs 2,000 muestras.',
-        a: '± 0.66 pp con 8,000 (4 semanas de un lab en c04) y ± 1.3 pp con 2,000 (1 semana). Por eso la tasa de correcciones se mira en ventanas de 4 semanas.' },
+      { id: 'm12-10', kind: 'numero', q: 'Intervalo al 95 % de una tasa de 10 % con 11,200 vs 2,800 muestras.',
+        a: '± 0.56 pp con ≈ 11,200 (4 semanas de un lab en c04) y ± 1.1 pp con ≈ 2,800 (1 semana). Por eso la tasa de correcciones se mira en ventanas de 4 semanas.' },
       { id: 'm12-11', kind: 'tradeoff', q: 'Data drift vs concept drift vs label shift.',
         a: 'Data drift: cambia p(x) (escáner nuevo); se ve en inputs. Concept drift: cambia p(y|x) (guía nueva); solo se ve con labels. Label shift: cambia p(y) (mezcla estacional); se ve en la distribución de predicciones.' },
       { id: 'm12-12', kind: 'trampa', q: 'La accuracy cayó desde el día del deploy. ¿Drift?',
@@ -784,7 +785,7 @@ groups:
       { id: 'm12-14', kind: 'numero', q: 'PSI de 10/20/40/20/10 % → 4/12/34/30/20 %.',
         a: 'Σ (a − r) × ln(a / r) = 0.055 + 0.041 + 0.010 + 0.041 + 0.069 ≈ 0.215. Para una normal con la media corrida δ σ, PSI ≈ δ²: 0.1 ≈ 0.3 σ, 0.25 ≈ 0.5 σ.' },
       { id: 'm12-15', kind: 'concepto', q: 'Umbrales del PSI.',
-        a: 'Convención de credit scoring: &lt; 0.1 estable, 0.1–0.25 moderado, &gt; 0.25 grande. c01 y c04 actúan desde 0.2. Calíbralo con la variación entre semanas normales; depende de bins y n.' },
+        a: 'Convención de credit scoring: &lt; 0.1 estable, 0.1–0.25 moderado, &gt; 0.25 grande (otras fuentes, c01 y los archivos de c04 cortan en 0.2). c01 y c04 actúan desde 0.2. Calíbralo con la variación entre semanas normales; depende de bins y n.' },
       { id: 'm12-16', kind: 'trampa', q: 'Test KS con un millón de muestras por lado: p ≈ 10⁻²⁹.',
         a: 'Con n enorme todo es significativo (el ejemplo es una corrida de 0.02 σ, D ≈ 0.008). Alerta por tamaño de efecto calibrado. Evidently pasa de KS a Wasserstein por encima de 1,000 muestras.' },
       { id: 'm12-17', kind: 'concepto', q: 'Tres formas de detectar drift en embeddings.',
@@ -796,9 +797,9 @@ groups:
       { id: 'm12-20', kind: 'numero', q: 'Burn rates para 99.9 % en 30 días.',
         a: '14.4× (2 % del presupuesto en 1 h, ventana corta 5 min, page), 6× (5 % en 6 h, corta 30 min, page en el Workbook, ticket en c01), 1× (10 % en 3 días, corta 6 h, ticket). 14.4 × 0.1 % = 1.44 % de errores.' },
       { id: 'm12-21', kind: 'trampa', q: 'Burn rate de 14.4× con un SLO de 95 % (c04).',
-        a: 'Presupuesto 5 % → burn máximo posible 20; 14.4× = 72 % tarde. Con ≈ 86 slides/h la ventana de 5 min tiene ≈ 7 slides: ruido. Mejor la alerta adelantada: edad del más viejo &gt; 30 min.' },
+        a: 'El factor no depende del objetivo: 14.4× sigue siendo 2 % del presupuesto en 1 h. Pero con 5 % de presupuesto el burn máximo es 20 y 14.4× = 72 % tarde: confirma un incidente grave. Con ≈ 86 slides/h la ventana de 5 min tiene ≈ 7 slides: c04 lo conserva con un mínimo de 10 slides en 1 h y lo complementa con la alerta adelantada de edad (más viejo &gt; 30 min sostenido 10 min, ≈ 20 min de margen).' },
       { id: 'm12-22', kind: 'trampa', q: 'Pushgateway para el job diario de drift.',
-        a: 'Es el uso previsto (resultado de un batch a nivel de servicio), pero nunca olvida series: si el job muere, el último PSI queda para siempre. Publica la hora del último éxito y alerta si pasa de ≈ 26 h.' },
+        a: 'Es el uso previsto (resultado de un batch a nivel de servicio), pero nunca olvida series: si el job muere, el último PSI queda para siempre. Alerta si push_time_seconds (el Pushgateway lo agrega por grupo) tiene más de ≈ 26 h; un gauge propio de último éxito si quieres que signifique "el cálculo salió bien".' },
       { id: 'm12-23', kind: 'numero', q: 'Logs de predicción de c01 vs loguear las imágenes.',
         a: '≈ 300 B × 10 M = 3 GB/día, ≈ US$6/mes con 90 días en S3. Imágenes: ≈ 2 TB/día = 60 TB/mes ≈ US$1,380 más cada mes, y son datos personales. Se loguean referencias.' },
       { id: 'm12-24', kind: 'concepto', q: 'Qué va en una fila de log de predicción.',
@@ -821,11 +822,13 @@ groups:
     // dead-letter queue (DLQ), visibility timeout, poison message, KEDA.
     // El vocabulario de patología / WSI / human in the loop (automation bias, etc.) es de c04.
     glossary: [
-      { en: 'silent failure', es: 'falla silenciosa', def: 'Cuando el servicio responde normal (200 OK, latencia y errores sanos) pero las predicciones empeoran. Solo la ven las métricas de datos, modelo y negocio.', say: 'Drift is a silent failure: the service stays green while quality drops.' },
+      { en: 'silent failure', es: 'falla silenciosa', def: 'Cuando el servicio responde normal (200 OK, latencia y errores sanos) pero las predicciones empeoran. Solo la ven las métricas de datos, modelo y negocio.', say: 'A new stain profile in lab C is a classic silent failure: the service stays green while quality drops.' },
       { en: 'covariate shift', es: 'cambio de covariables', def: 'Otro nombre del data drift: cambia la distribución de los inputs, p(x), sin que cambie la regla que los une con el label.', say: 'The new scanner in lab C is a covariate shift, not a new definition of tumor.' },
       { en: 'label shift', es: 'cambio en la proporción de clases', def: 'Cambia p(y), cuánto hay de cada clase, sin que cambie cómo se ve cada una. También se llama prior shift.', say: 'December brings a label shift toward toys, so we check per-class thresholds.' },
       { en: 'KS test', es: 'test de Kolmogorov–Smirnov', def: 'Test de dos muestras para variables continuas; su estadístico D es la máxima distancia entre las dos distribuciones acumuladas. Con n grande casi siempre da p ≈ 0, así que se alerta sobre D, no sobre el p-value.', say: 'At our volume every KS test is significant, so we alert on the statistic, not the p-value.' },
       { en: 'chi-square test', es: 'test chi-cuadrado', def: 'Test para comparar conteos de una variable categórica entre dos muestras (o contra lo esperado). Tiene la misma trampa del n grande que el KS.', say: 'We run a chi-square test on specimen types only as a sanity check; the alert uses PSI.' },
+      { en: 'Wasserstein distance', es: 'distancia de Wasserstein', def: 'Cuánta masa de probabilidad hay que mover, y qué tan lejos, para convertir una distribución en la otra (earth mover\'s distance). Es un tamaño de efecto en las unidades de la variable, no un p-value; Evidently la usa normalizada para columnas numéricas con más de 1,000 muestras.', say: 'Above a thousand samples we look at the Wasserstein distance, not the KS p-value.' },
+      { en: 'Jensen–Shannon distance', es: 'distancia de Jensen–Shannon', def: 'Versión simétrica y acotada de la divergencia KL: compara cada distribución con su promedio. Se usa para variables categóricas o binneadas; va de 0 (idénticas) a 1 con logaritmo en base 2.', say: 'For specimen types we track the Jensen–Shannon distance against the reference.' },
       { en: 'maximum mean discrepancy (MMD)', es: 'discrepancia máxima de medias', def: 'Distancia entre dos distribuciones multivariadas calculada con un kernel; con un test por permutaciones da un umbral. Sirve para embeddings, sobre muestras de miles.', say: 'We compute MMD between a sample of today\'s tile embeddings and the reference.' },
       { en: 'domain classifier', es: 'clasificador de dominio', def: 'Clasificador entrenado para distinguir datos de referencia de datos actuales; si su ROC AUC es ≈ 0.5, no se distinguen. También muestra qué ejemplos cambiaron.', say: 'The domain classifier separates lab C tiles from the reference with an AUC of 0.8, so the shift is real.' },
       { en: 'embedding drift', es: 'drift de embeddings', def: 'Cambio en la distribución de los vectores de una capa intermedia (o de un encoder genérico). Atrapa cambios de contenido que las estadísticas de píxeles no ven.', say: 'Color statistics catch scanner changes; embedding drift catches new tissue types.' },
@@ -835,7 +838,7 @@ groups:
       { en: 'Grafana', es: 'Grafana', def: 'Herramienta de dashboards que consulta fuentes como Prometheus o bases de datos; también puede evaluar alertas.', say: 'The on-call Grafana dashboard starts with the remaining error budget.' },
       { en: 'Alertmanager', es: 'Alertmanager', def: 'Componente de Prometheus que recibe alertas y las agrupa, deduplica, inhibe, silencia y enruta (page, ticket, chat) según sus labels.', say: 'Alertmanager groups the alerts of one incident into a single page.' },
       { en: 'recording rule', es: 'regla de grabación', def: 'Regla de Prometheus que precalcula una expresión cada intervalo y la guarda como serie nueva, para que dashboards y alertas no la recalculen.', say: 'Each burn-rate window is a recording rule, so the alert expression stays cheap.' },
-      { en: 'Pushgateway', es: 'Pushgateway', def: 'Intermediario al que un job batch empuja métricas para que Prometheus las lea. Recomendado solo para resultados de batch a nivel de servicio; nunca olvida una serie.', say: 'The drift job pushes its PSI and a last-success timestamp to the Pushgateway.' },
+      { en: 'Pushgateway', es: 'Pushgateway', def: 'Intermediario al que un job batch empuja métricas para que Prometheus las lea. Recomendado solo para resultados de batch a nivel de servicio; nunca olvida una serie.', say: 'The drift job pushes its PSI to the Pushgateway, and we alert when its push time is older than a day.' },
       { en: 'label cardinality', es: 'cardinalidad de labels', def: 'Cantidad de combinaciones distintas de valores de labels de una métrica; cada una es una serie. Labels con ids sin límite la hacen explotar.', say: 'Slide IDs go to logs, not labels, to keep cardinality bounded.' },
       { en: 'exemplar', es: 'exemplar', def: 'Un id de traza adjunto a algunas observaciones de un histograma, para saltar del p99 a un request concreto sin agregar labels.', say: 'From the p99 panel we jump to an exemplar trace of a slow request.' },
       { en: 'RED method', es: 'método RED', def: 'Rate, Errors, Duration: las tres métricas mínimas de un servicio request/response.', say: 'Each service dashboard starts with RED metrics per stage.' },

@@ -85,13 +85,17 @@ class FakeQueue:
 # ---------------------------------------------------------------------------- storage
 class FakeStorage:
     """Archivo digital (sources, por uri) + bucket de resultados (objects, por key).
-    `writes` registra el ORDEN de escritura; `fail_puts` hace fallar una key una sola vez."""
+    `writes` registra el ORDEN de escritura; `fail_puts` hace fallar una key una sola vez.
+    put_if imita las escrituras condicionales de S3 (ETag = md5 del contenido, como un PutObject
+    simple): 412 → PreconditionFailed. `before_put_if` corre justo antes de cada put_if, para
+    simular a otro worker que escribe entre la lectura y la escritura."""
 
     def __init__(self):
         self.sources: dict[str, bytes] = {}
         self.objects: dict[str, bytes] = {}
         self.writes: list[str] = []
         self.fail_puts: set[str] = set()
+        self.before_put_if = None
 
     def add_source(self, uri: str, data: bytes) -> str:
         self.sources[uri] = data
@@ -106,6 +110,14 @@ class FakeStorage:
     def read(self, key: str):
         return self.objects.get(key)
 
+    @staticmethod
+    def etag(data: bytes) -> str:
+        return '"' + hashlib.md5(data).hexdigest() + '"'
+
+    def read_with_etag(self, key: str):
+        data = self.objects.get(key)
+        return (data, self.etag(data)) if data is not None else (None, None)
+
     def put(self, key: str, data: bytes, content_type: str) -> None:
         if key in self.fail_puts:
             self.fail_puts.discard(key)
@@ -113,7 +125,13 @@ class FakeStorage:
         self.objects[key] = data
         self.writes.append(key)
 
-    def put_atomic(self, key: str, data: bytes, content_type: str) -> None:
+    def put_if(self, key: str, data: bytes, content_type: str, etag) -> None:
+        if self.before_put_if is not None:
+            hook, self.before_put_if = self.before_put_if, None  # una sola vez
+            hook(key)
+        current = self.objects.get(key)
+        if (current is None) != (etag is None) or (current is not None and self.etag(current) != etag):
+            raise W.PreconditionFailed(key)
         self.put(key, data, content_type)
 
 
@@ -201,7 +219,7 @@ class RecordingIndex:
 
     def upsert(self, summary: dict) -> None:
         self.calls += 1
-        self.rows[(summary["slide_id"], summary["model_version"])] = summary
+        self.rows[(summary["slide_id"], summary["model_version"], summary["input_sha256"])] = summary
 
 
 # ---------------------------------------------------------------------------- fixtures

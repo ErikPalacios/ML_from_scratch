@@ -286,7 +286,7 @@ perf_analyzer -m classifier -u triton:8000 \\
           ] },
           { t: 'callout', kind: 'trap', title: 'Medir el servidor y prometerle al cliente', html: `<p>Tu histograma dice p99 = 120 ms y el equipo de la app ve 900 ms. No hay contradicción: la subida por 4G, el TLS del celular y el backend de publicación no están en tu histograma. Por eso c01 define el SLO server-side y el caller tiene su propio timeout. Cada vez que des un número de latencia, di dónde se mide.</p>` },
           { t: 'callout', kind: 'interview', html: `<p>"Our SLO is a p99 of 200 ms, measured server-side at the gateway. I'd compute it from a histogram aggregated across pods, never by averaging per-pod percentiles."</p>` },
-          { t: 'callout', kind: 'connect', html: `<p>Qué alertas se construyen con estas métricas (umbral, ventana, a quién despiertan) está en <a href="#m12">M12</a>; SLOs y error budgets, en <a href="#m15">M15</a>. Las alertas reales del caso 1 están en sus <a href="#c01.archivos">archivos de referencia</a>.</p>` },
+          { t: 'callout', kind: 'connect', html: `<p>Qué alertas se construyen con estas métricas (umbral, ventana, a quién despiertan) está en <a href="#m12.prometheus-grafana">M12</a>; SLOs y error budgets, en <a href="#m15">M15</a>. Las alertas reales del caso 1 están en sus <a href="#c01.archivos">archivos de referencia</a>.</p>` },
         ],
       },
 

@@ -9,7 +9,9 @@ Vida de un mensaje (lo que un entrevistador quiere oír, en orden):
      dejaría 9 invisibles esperando mientras otro worker está ocioso).
   2. ¿Ya existe results/<slide_id>/<model_version>/summary.json con el MISMO sha256 y el MISMO hash
      de preprocesamiento? → ya se hizo: se borra el mensaje sin gastar GPU (idempotencia; SQS
-     estándar entrega "at least once" y un worker puede morir entre escribir y borrar).
+     estándar entrega "at least once" y un worker puede morir entre escribir y borrar). ¿Apunta a
+     un REESCANEO más nuevo (otro sha256, available_at posterior)? → este mensaje es del archivo
+     viejo: se borra sin gastar GPU.
   3. Descarga al disco local (NVMe) y verifica el sha256: el resultado queda atado a ESE archivo.
   4. QC bloqueante: mpp faltante, raro o que no coincide con el escáner registrado, sin pirámide,
      muy poco tejido → summary.json con status "qc_blocked" y SIN números: el visor dice
@@ -17,8 +19,14 @@ Vida de un mensaje (lo que un entrevistador quiere oír, en orden):
   5. Máscara de tejido → grilla de tiles → lectura en hilos → batch a la GPU → stitch con blending.
   6. Escribe los artefactos bajo un prefijo propio de esta corrida (runs/<sha>-<config>/) y
      summary.json AL FINAL: summary.json es el "commit marker". Quien lee (results-api) solo mira
-     summary.json, así que nunca ve un resultado a medias.
-  7. Fila en el índice (Postgres, upsert idempotente) → recién entonces DeleteMessage.
+     summary.json, así que nunca ve un resultado a medias. summary.json es un puntero MONÓTONO al
+     escaneo más nuevo: se relee con su ETag justo antes de escribir, y si ya apunta a un reescaneo
+     posterior no se toca; si no, se escribe con PutObject condicional (If-Match / If-None-Match) y,
+     si otro worker escribió en el medio (412), se relee y se decide otra vez. Sin esto gana el
+     ÚLTIMO en escribir, no el escaneo más nuevo: dos mensajes del mismo slide_id (el viejo
+     reintentado tras un backoff y el del reescaneo) pueden terminar en cualquier orden.
+  7. Fila en el índice (Postgres, upsert idempotente por slide_id + model_version + sha256; se
+     escribe aunque el puntero no cambie) → recién entonces DeleteMessage.
 Mientras procesa, un heartbeat extiende el visibility timeout. Ante un error NO se borra: el
 mensaje reaparece y, al tercer intento fallido, SQS lo mueve a la DLQ (maxReceiveCount 3 se
 configura EN LA COLA, no aquí). Ante SIGTERM (spot, scale-down, deploy) deja de pedir mensajes,
@@ -143,12 +151,19 @@ class Queue(Protocol):
     def delete(self, msg: Message) -> None: ...
 
 
+class PreconditionFailed(Exception):
+    """Escritura condicional rechazada: otro worker cambió el objeto después de que lo leímos."""
+
+
 class Storage(Protocol):
     def download(self, uri: str, dest: Path) -> None: ...
     def exists(self, key: str) -> bool: ...
     def read(self, key: str) -> Optional[bytes]: ...
+    def read_with_etag(self, key: str) -> tuple[Optional[bytes], Optional[str]]: ...
     def put(self, key: str, data: bytes, content_type: str) -> None: ...
-    def put_atomic(self, key: str, data: bytes, content_type: str) -> None: ...
+    # Escribe solo si el objeto sigue siendo el que leímos (etag) o, con etag None, si no existe.
+    # Si no → PreconditionFailed.
+    def put_if(self, key: str, data: bytes, content_type: str, etag: Optional[str]) -> None: ...
 
 
 class Slide(Protocol):
@@ -170,7 +185,9 @@ class Model(Protocol):
 
 
 class ResultIndex(Protocol):
-    def upsert(self, summary: dict) -> None: ...  # idempotente por (slide_id, model_version)
+    # Idempotente por (slide_id, model_version, input_sha256): un reescaneo es OTRA fila, y
+    # results-api sirve la fila cuyo sha256 es el del archivo que el visor está mostrando.
+    def upsert(self, summary: dict) -> None: ...
 
 
 # ---------------------------------------------------------------------------- configuración
@@ -196,6 +213,7 @@ class WorkerConfig:
     labs: tuple[str, ...] = ("A", "B", "C")
     scanners: dict[str, float] = field(default_factory=dict)  # id → mpp calibrado del nivel 0
     liveness_file: Optional[Path] = None  # el livenessProbe revisa su mtime
+    commit_attempts: int = 3  # relecturas de summary.json si otro worker escribe en el medio (412)
     pod_name: str = "local"
 
 
@@ -304,6 +322,21 @@ def iso(ts: float) -> str:
     return dt.datetime.fromtimestamp(ts, tz=dt.timezone.utc).isoformat()
 
 
+def is_newer_scan(current: dict, sha256: str, available_iso: Optional[str]) -> bool:
+    """¿`current` (lo que ya publica summary.json) es de un escaneo POSTERIOR a este?
+
+    Otro sha256 del mismo slide_id = reescaneo. Manda available_at (cuándo quedó el WSI en el
+    archivo), no el orden en que terminaron los workers. Sin available_at en alguno de los dos no
+    se puede decidir y se publica el nuevo, como antes; con el mismo sha no hay nada que comparar.
+    """
+    if current.get("input_sha256") == sha256:
+        return False
+    theirs, ours = current.get("available_at"), available_iso
+    if not theirs or not ours:
+        return False
+    return dt.datetime.fromisoformat(theirs) > dt.datetime.fromisoformat(ours)
+
+
 def tumor_geojson(tumor: np.ndarray, map_to_level0: float, props: dict) -> dict:
     """Máscara de tumor (map px) → GeoJSON con polígonos en coordenadas de NIVEL 0 del WSI.
 
@@ -351,7 +384,7 @@ def heatmap_png(prob: np.ndarray) -> bytes:
 
 # ---------------------------------------------------------------------------- el worker
 class Worker:
-    def __init__(self, queue: Queue, storage: Storage, reader: SlideReader, model: Model,
+    def __init__(self, queue: Queue, storage: Storage, reader: SlideReader, model: Optional[Model],
                  cfg: WorkerConfig, pre: tiling.PreprocConfig = tiling.PreprocConfig(),
                  index: Optional[ResultIndex] = None, registry: Optional[CollectorRegistry] = None,
                  clock: Callable[[], float] = time.time):
@@ -375,6 +408,8 @@ class Worker:
 
     def run(self, max_receives: Optional[int] = None) -> None:
         """Loop principal. max_receives solo existe para los tests."""
+        if self.model is None:
+            raise RuntimeError("sin modelo: main() lo carga después de levantar /metrics")
         n = 0
         while not self._stop.is_set() and (max_receives is None or n < max_receives):
             self._alive()
@@ -460,23 +495,59 @@ class Worker:
             "attempt": msg.receive_count,
         }
 
+    @staticmethod
+    def _available(job: SlideJob, msg: Message) -> Optional[float]:
+        """Inicio del SLO: available_at del evento o, si no vino, el SentTimestamp de SQS."""
+        return job.available_at if job.available_at is not None else msg.sent_at
+
+    def _available_iso(self, job: SlideJob, msg: Message) -> Optional[str]:
+        available = self._available(job, msg)
+        return iso(available) if available else None
+
+    def _publish(self, summary_key: str, body: bytes, job: SlideJob, available_iso: Optional[str]) -> bool:
+        """Escribe summary.json solo si no apunta ya a un reescaneo más nuevo. True = publicado.
+
+        Leer, decidir y escribir con la condición "el objeto sigue siendo el que leí" (ETag). Si
+        otro worker escribió en el medio, S3 contesta 412 y se vuelve a leer y a decidir: el
+        puntero solo avanza hacia escaneos más nuevos, nunca hacia atrás.
+        """
+        for _ in range(self.cfg.commit_attempts):
+            raw, etag = self.storage.read_with_etag(summary_key)
+            if raw is not None and is_newer_scan(json.loads(raw), job.sha256, available_iso):
+                return False  # un reescaneo posterior ya está publicado: no se toca
+            try:
+                self.storage.put_if(summary_key, body, "application/json", etag)  # EL commit
+                return True
+            except PreconditionFailed:
+                continue
+        # Nunca debería pasar con un worker por slide: error → reintento del mensaje con backoff
+        raise PreconditionFailed(f"summary.json cambió {self.cfg.commit_attempts} veces seguidas")
+
     def _finish(self, summary: dict, job: SlideJob, msg: Message, summary_key: str,
                 timings: dict, t_start: float) -> dict:
         """Cierra tiempos, escribe summary.json (commit) y el índice."""
         now = self.clock()
-        available = job.available_at if job.available_at is not None else msg.sent_at
+        available = self._available(job, msg)
         summary["available_at"] = iso(available) if available else None
         summary["completed_at"] = iso(now)
         summary["turnaround_s"] = round(now - available, 1) if available else None
         t = time.monotonic()
         body = json.dumps(summary, indent=2, sort_keys=True).encode()
-        self.storage.put_atomic(summary_key, body, "application/json")  # EL commit
+        published = self._publish(summary_key, body, job, summary["available_at"])
         if self.index is not None:
-            self.index.upsert(summary)  # si falla: error → reintento → rama "duplicate" repite el upsert
+            # Fila propia de este sha256, publicado o no. Si falla: error → reintento → la rama
+            # "duplicate" repite el upsert.
+            self.index.upsert(summary)
         timings["write_summary"] = round(time.monotonic() - t, 3)
         timings["total"] = round(time.monotonic() - t_start, 3)
-        log_event("slide_done", slide_id=job.slide_id, status=summary["status"],
-                  flags=summary["qc"]["flags"], timings=timings)
+        # Tiempos por etapa al histograma (el dashboard "¿qué etapa se atrasó?" y el runbook de
+        # TurnaroundSLOBurn los leen de aquí). Etapas: download, sha256, qc_mask, inference,
+        # postprocess, write_artifacts, write_summary; un qc_blocked solo tiene las primeras.
+        for stage, secs in timings.items():
+            if stage != "total":
+                self.metrics.stage_seconds.labels(stage).observe(secs)
+        log_event("slide_done" if published else "slide_superseded_at_commit", slide_id=job.slide_id,
+                  status=summary["status"], flags=summary["qc"]["flags"], timings=timings)
         return summary
 
     def _qc_blocked(self, job, msg, summary_key, flags, timings, t_start, lab, scanner, extra=None):
@@ -503,8 +574,15 @@ class Worker:
                     self.index.upsert(prev)  # por si el intento anterior murió entre summary e índice
                 log_event("duplicate_skipped", slide_id=job.slide_id, attempt=msg.receive_count)
                 return "duplicate", prev
+            if is_newer_scan(prev, job.sha256, self._available_iso(job, msg)):
+                # Mensaje del archivo VIEJO de un slide que ya se reescaneó y se publicó: no se gasta
+                # GPU. Se cuenta como duplicate (no hay nada nuevo que hacer).
+                log_event("superseded_skipped", slide_id=job.slide_id, attempt=msg.receive_count,
+                          published_sha256=prev.get("input_sha256"))
+                return "duplicate", prev
             # Un qc_blocked previo SÍ se reevalúa: quizá ya se registró el escáner o se corrigió
-            # el metadato. Un sha distinto (reescaneo) también: el summary nuevo reemplaza al viejo.
+            # el metadato. Un sha distinto y más nuevo (reescaneo) también: su summary reemplaza al
+            # viejo en _publish, que vuelve a comparar justo antes de escribir.
 
         # 3. descarga + integridad
         self.cfg.work_dir.mkdir(parents=True, exist_ok=True)
@@ -745,19 +823,47 @@ class S3Storage:
         return self.read(key) is not None
 
     def read(self, key: str) -> Optional[bytes]:
+        return self.read_with_etag(key)[0]
+
+    def read_with_etag(self, key: str) -> tuple[Optional[bytes], Optional[str]]:
+        from botocore.exceptions import ClientError
+
         try:
-            return self._c.get_object(Bucket=self._bucket, Key=key)["Body"].read()
+            r = self._c.get_object(Bucket=self._bucket, Key=key)
         except self._c.exceptions.NoSuchKey:
-            return None
+            return None, None  # 404: de verdad no existe (todavía no se procesó)
+        except ClientError as e:
+            # TRAMPA: sin s3:ListBucket sobre el bucket, S3 contesta 403 AccessDenied (no 404) a una
+            # key que no existe, para no revelar qué keys hay. Leerlo como "no procesado" escondería
+            # un rol mal configurado; dejarlo pasar hace que TODO slide nuevo falle. Se falla fuerte y
+            # con el motivo: el slide va a reintento/DLQ y SegWorkerErrors lo ve en minutos.
+            if e.response.get("Error", {}).get("Code") in ("AccessDenied", "403"):
+                raise PermissionError(
+                    f"403 al leer s3://{self._bucket}/{key}: al rol del worker le falta s3:ListBucket "
+                    "(sin él, una key inexistente da 403 y no 404) o s3:GetObject") from e
+            raise
+        return r["Body"].read(), r["ETag"]
 
     def put(self, key: str, data: bytes, content_type: str) -> None:
         self._c.put_object(Bucket=self._bucket, Key=key, Body=data, ContentType=content_type)
 
-    def put_atomic(self, key: str, data: bytes, content_type: str) -> None:
-        # En S3 un PutObject ya es atómico: nadie lee un objeto a medias, y desde 2020 la lectura
-        # posterior es fuertemente consistente. El orden (artefactos antes, summary al final) es lo
-        # que hace atómico al RESULTADO completo.
-        self.put(key, data, content_type)
+    def put_if(self, key: str, data: bytes, content_type: str, etag: Optional[str]) -> None:
+        # Un PutObject ya es atómico (nadie lee un objeto a medias, y la lectura posterior es
+        # fuertemente consistente). La condición agrega "y nadie lo cambió desde que lo leí":
+        # If-Match con el ETag leído, o If-None-Match: * si no existía (escrituras condicionales de
+        # S3, disponibles desde 2024). El orden (artefactos antes, summary al final) es lo que hace
+        # atómico al RESULTADO completo.
+        from botocore.exceptions import ClientError
+
+        cond = {"IfMatch": etag} if etag else {"IfNoneMatch": "*"}
+        try:
+            self._c.put_object(Bucket=self._bucket, Key=key, Body=data, ContentType=content_type, **cond)
+        except ClientError as e:
+            # 412 = la condición no se cumple; 409 = otra escritura condicional a la misma key en curso.
+            # En ambos casos: releer y decidir otra vez.
+            if e.response.get("Error", {}).get("Code") in ("PreconditionFailed", "ConditionalRequestConflict"):
+                raise PreconditionFailed(key) from e
+            raise
 
 
 class OpenSlideSlide:
@@ -842,12 +948,17 @@ def main() -> int:
     cfg = load_worker_config(env)
     boto_cfg = Config(region_name=env["AWS_REGION"], retries={"mode": "standard", "max_attempts": 5})
     registry = CollectorRegistry()
+    # Primero las métricas (el Worker crea sus series en 0), después /metrics, y RECIÉN entonces el
+    # engine. Por qué: con KEDA desde 0, el pod que despierta toma enseguida el mensaje que lo
+    # despertó; si /metrics abriera después de cargar el engine, un missing_mpp puede pasar a 1 antes
+    # del primer scrape (cada 15 s) y la serie "nace en 1", invisible para increase(). Cargar el
+    # engine tarda más que un scrape, así que Prometheus ve los ceros casi siempre.
     worker = Worker(
         queue=SqsQueue(boto3.client("sqs", config=boto_cfg), env["SQS_QUEUE_URL"]),
         storage=S3Storage(boto3.client("s3", config=boto_cfg), env["RESULTS_BUCKET"]),
-        reader=OpenSlideReader(), model=load_model(env.get("MODEL_ENGINE_PATH", "/models/model.plan")),
-        cfg=cfg, registry=registry)
+        reader=OpenSlideReader(), model=None, cfg=cfg, registry=registry)
     start_http_server(int(env.get("METRICS_PORT", "9100")), registry=registry)  # /metrics
+    worker.model = load_model(env.get("MODEL_ENGINE_PATH", "/models/model.plan"))
     # SIGTERM (kubelet) y SIGINT (Ctrl-C): solo levantan la bandera; el loop termina limpio
     signal.signal(signal.SIGTERM, lambda *_: worker.request_stop())
     signal.signal(signal.SIGINT, lambda *_: worker.request_stop())

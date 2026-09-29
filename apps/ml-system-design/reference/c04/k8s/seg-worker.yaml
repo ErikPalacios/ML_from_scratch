@@ -22,6 +22,11 @@ metadata:
     #   sqs:ReceiveMessage, sqs:ChangeMessageVisibility, sqs:DeleteMessage en slide-jobs
     #   s3:GetObject en el bucket del ARCHIVO (solo lectura: el worker nunca modifica un WSI)
     #   s3:GetObject y s3:PutObject en el bucket de resultados (sin DeleteObject: append-only)
+    #   s3:ListBucket en el bucket de resultados. No es un lujo: la idempotencia lee summary.json
+    #   antes de cada slide y, para un slide nuevo, no existe. Sin ListBucket, S3 contesta 403 (no
+    #   404) a una key inexistente y TODO slide nuevo fallaría hasta la DLQ. Otórgalo sin condición
+    #   s3:prefix, o prueba que con ella una key inexistente siga dando 404: la verificación implícita
+    #   que hace GetObject no es un ListObjects con prefijo.
     # Sin llaves de AWS en el pod ni en el YAML.
     eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/c04-seg-worker
 ---
@@ -63,7 +68,9 @@ spec:
       maxSurge: 1  # el pod con el modelo nuevo sube primero …
       maxUnavailable: 0  # … y el viejo se va después. Durante el rollout conviven dos MODEL_VERSION: cada
       # resultado queda en su prefijo results/<slide>/<model_version>/ y QUÉ versión ve el patólogo lo
-      # decide results-api por lab, no el orden en que los workers tomaron los mensajes.
+      # decide results-api por lab, no el orden en que los workers tomaron los mensajes. Regla: la
+      # versión aprobada más nueva para ese lab que tenga resultado para ese sha256; un caso ya firmado
+      # conserva la versión con que se firmó.
   selector:
     matchLabels:
       app.kubernetes.io/name: seg-worker
@@ -228,7 +235,10 @@ spec:
   # 0 de noche: los escáneres paran a las 22:00 y una L4 ociosa cuesta ≈ US$1/h. El primer slide del día
   # espera el cold start (nodo + imagen de 6.8 GB + engine ≈ 3–5 min, est.) contra un SLO de 60 min.
   minReplicaCount: 0
-  maxReplicaCount: 4  # techo de costo; 4 workers ≈ 480–720 slides/h (est.): un día completo en ≈ 2 h de backfill
+  # Techo de costo: 4 workers ≈ 480–720 slides/h (est.); un día completo (≈ 1,200 slides) cabe en ≈ 2 h
+  # de capacidad. Los backfills de un modelo candidato NO pasan por aquí: van en otro Deployment, fijado
+  # a la MODEL_VERSION candidata, que consume slide-jobs-backfill de noche (ver README.md).
+  maxReplicaCount: 4
   pollingInterval: 30  # cada 30 s KEDA llama GetQueueAttributes (tiempo real, no CloudWatch)
   # cooldownPeriod solo aplica al bajar a 0: 15 min sin mensajes antes de apagar el último worker, para no
   # pagar un cold start por cada slide suelto de la tarde.

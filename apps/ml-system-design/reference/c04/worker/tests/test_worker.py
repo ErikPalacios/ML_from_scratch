@@ -52,6 +52,11 @@ def test_happy_path_writes_result_then_deletes(env):
     assert metric(w, "seg_slides_processed_total", lab="A", scanner="A-X-01", status="ok") == 1
     assert metric(w, "seg_tiles_total", lab="A", scanner="A-X-01") == s["tiles"] > 0
     assert metric(w, "seg_turnaround_seconds_bucket", lab="A", le="900.0") == 1
+    # Cada etapa con tiempo en summary.json también va al histograma (lo cita TurnaroundSLOBurn)
+    for stage in ("download", "sha256", "qc_mask", "inference", "postprocess", "write_artifacts",
+                  "write_summary"):
+        assert metric(w, "seg_stage_seconds_count", stage=stage) == 1, stage
+    assert metric(w, "seg_stage_seconds_count", stage="total") == 0  # el total ya es seg_slide_seconds
     assert (Path(env.cfg.work_dir) / "S-0001.svs").exists() is False  # el WSI no queda en el NVMe
 
 
@@ -90,6 +95,7 @@ def test_rescan_with_new_sha_replaces_result_atomically(env):
     env.add_slide()
     env.make_worker().run(max_receives=1)
     first = env.summary()
+    env.queue.advance(3600)  # el reescaneo llega 1 h después (available_at = SentTimestamp)
     spec = copy.deepcopy(BASE_SPEC)
     spec["tumors"] = [[1600, 1600, 6400, 4800]]  # reescaneo: otro archivo, otro sha
     env.add_slide(spec)
@@ -100,6 +106,73 @@ def test_rescan_with_new_sha_replaces_result_atomically(env):
     # Los artefactos de cada corrida viven en su propio prefijo: el summary nuevo apunta a los suyos
     assert second["artifacts"]["heatmap_png"] != first["artifacts"]["heatmap_png"]
     assert first["artifacts"]["heatmap_png"] in env.storage.objects
+    assert len(env.index.rows) == 2  # una fila por sha256: results-api sirve la del archivo que se ve
+
+
+RESCAN = copy.deepcopy(BASE_SPEC)
+RESCAN["tumors"] = [[1600, 1600, 6400, 4800]]  # 1.2 × 0.8 mm = 0.96 mm² de tumor (el original: 0.64)
+
+
+def test_old_scan_finishing_after_the_rescan_does_not_move_the_pointer_back(env):
+    """La carrera real: el mensaje del archivo viejo (reintentado tras un backoff) y el del reescaneo
+    están en vuelo a la vez, y el viejo termina ÚLTIMO. summary.json debe seguir en el reescaneo."""
+    old = env.add_slide(available_at=env.queue.now - 7200)
+    new = env.add_slide(RESCAN, available_at=env.queue.now - 3600)
+    other = env.make_worker(model=ColorThresholdModel())
+
+    def rescan_finishes_first(model):
+        if model.calls == 1:  # mientras el viejo está en la GPU, otro worker hace todo el reescaneo
+            other.run(max_receives=1)
+
+    w = env.make_worker(model=ColorThresholdModel(on_predict=rescan_finishes_first))
+    w.run(max_receives=1)  # FakeQueue entrega en orden: este toma el viejo
+    s = env.summary()
+    assert s["input_sha256"] == new["sha256"] and s["tumor_mm2"] == pytest.approx(0.96, rel=0.01)
+    assert env.queue.msgs == {} and len(env.queue.deleted) == 2  # ninguno queda dando vueltas
+    assert {k[2] for k in env.index.rows} == {old["sha256"], new["sha256"]}
+    assert metric(w, "seg_slides_processed_total", lab="A", scanner="A-X-01", status="ok") == 1
+
+
+def test_message_of_an_old_scan_after_the_rescan_is_skipped_without_gpu(env):
+    new = env.add_slide(RESCAN, available_at=env.queue.now - 600)
+    env.make_worker().run(max_receives=1)
+    calls = env.model.calls
+    env.add_slide(available_at=env.queue.now - 7200)  # el evento del archivo viejo llega tarde
+    w = env.make_worker()
+    w.run(max_receives=1)
+    assert env.model.calls == calls  # ni un tile a la GPU
+    assert env.summary()["input_sha256"] == new["sha256"] and env.queue.msgs == {}
+    assert metric(w, "seg_slides_processed_total", lab="A", scanner="A-X-01", status="duplicate") == 1
+
+
+@pytest.mark.parametrize("intruder_age_s,wins", [(7200, "ours"), (0, "theirs")])
+def test_write_between_read_and_put_is_reread(env, intruder_age_s, wins):
+    """Otro worker escribe summary.json entre nuestra lectura y nuestro PutObject: 412 → releer.
+    Si lo que escribió es más viejo, lo reemplazamos; si es más nuevo, no se toca."""
+    body = env.add_slide(available_at=env.queue.now - 600)
+    intruder = {"status": "ok", "input_sha256": "e" * 64,
+                "available_at": W.iso(env.queue.now - intruder_age_s)}
+    env.storage.before_put_if = lambda key: env.storage.objects.__setitem__(
+        key, json.dumps(intruder).encode())
+    env.make_worker().run(max_receives=1)
+    expected = body["sha256"] if wins == "ours" else "e" * 64
+    assert env.summary()["input_sha256"] == expected and env.queue.msgs == {}
+
+
+def test_s3_403_on_a_missing_summary_fails_loudly():
+    """Sin s3:ListBucket, S3 contesta 403 (no 404) a una key inexistente. Nunca es "no procesado"."""
+    pytest.importorskip("boto3")
+    from botocore.exceptions import ClientError
+
+    class DeniedClient:
+        class exceptions:
+            NoSuchKey = type("NoSuchKey", (Exception,), {})
+
+        def get_object(self, **kw):
+            raise ClientError({"Error": {"Code": "AccessDenied", "Message": "Access Denied"}}, "GetObject")
+
+    with pytest.raises(PermissionError, match="ListBucket"):
+        W.S3Storage(DeniedClient(), "results").read("results/S-1/v1/summary.json")
 
 
 # ---------------------------------------------------------------------------- errores y DLQ
@@ -289,8 +362,10 @@ def test_every_seg_metric_in_alerts_exists_in_the_worker(env):
     for fam in w.registry.collect():
         exposed.add(fam.name)
         exposed.update({fam.name + s for s in ("_total", "_bucket", "_count", "_sum")})
-    # seg_stain_psi* las expone el job diario de PSI, no el worker
-    missing = {m for m in used if m not in exposed and not m.startswith("seg_stain_psi")}
+    # seg_stain_psi* las expone el job diario de PSI; la de corte nocturno, results-api
+    external = {"seg_pending_slides_before_cutoff"}
+    missing = {m for m in used if m not in exposed and not m.startswith("seg_stain_psi")
+               and m not in external}
     assert not missing, f"alerts.yml usa métricas que el worker no expone: {missing}"
 
 
