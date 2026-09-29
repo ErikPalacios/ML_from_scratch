@@ -947,7 +947,7 @@
           why: 'No para la app. Sí para otros equipos que reconsultan imágenes del catálogo (clave: hash + model_version). Mide la tasa de repetición en los logs antes de construirlo.' },
       ] },
       { t: 'callout', kind: 'connect', html: `Modelo dentro de la imagen vs descargado al arrancar: ${M('contenedores')}. Triton vs otros servidores y REST vs gRPC: ${M('servidores')}. EKS vs SageMaker (self-hosted vs gestionado) y GPU serverless: ${M('nube')} y ${M('orquestacion')}.` },
-      { t: 'callout', kind: 'interview', html: '“I went with Triton and TensorRT because at this load the GPU is mostly idle and I want the cheapest, most observable path to a low p99. In the first week I’d benchmark the same ResNet-50 in INT8 on CPU; if it holds accuracy at around 15 milliseconds per image, I’d drop the GPUs entirely.”' },
+      { t: 'callout', kind: 'interview', html: '“I’m choosing Triton and TensorRT because at this load the GPU is mostly idle and I want the cheapest, most observable path to a low p99. In the first week I’d benchmark the same ResNet-50 in INT8 on CPU; if it holds accuracy at around 15 milliseconds per image, I’d drop the GPUs entirely.”' },
     ],
   });
 

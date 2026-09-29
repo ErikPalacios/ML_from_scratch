@@ -771,13 +771,13 @@
       note: 'Docker y Kubernetes vistos desde lo que pregunta un entrevistador de MLE (imágenes CUDA, autoscaling por GPU, cold starts), con la hoja de comandos para no memorizar flags.',
     },
     {
-      phase: 4, status: 'next',
+      phase: 4, status: 'done',
       title: 'Fase 4 — Servidores de modelos y optimización',
       items: ['m07', 'm08', 'ref-numeros'],
       note: 'Cuándo elegir cada model server y cómo ganar latencia con ONNX, TensorRT y cuantización; cierra con la hoja de números que resume M3, M4 y M8.',
     },
     {
-      phase: 5, status: 'later',
+      phase: 5, status: 'next',
       title: 'Fase 5 — Visión en tiempo real: nube y edge',
       items: ['c02', 'c03'],
       note: 'Dos casos que aplican M2–M8 a tu terreno: video multicámara (nube vs edge) y una flota de Jetson en planta.',

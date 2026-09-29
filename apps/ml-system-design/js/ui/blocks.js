@@ -84,7 +84,7 @@
         it.html ? h('div', { class: 'steps__body', html: String(it.html) }) : null))));
 
   // Un valor que ya empieza con ≈, ~ o un signo de comparación no lleva "=" delante ("= ≈ 500" se lee mal).
-  const APPROX_START = /^(≈|~|≤|≥|<|>|&lt;|&gt;|&le;|&ge;|&asymp;|&sim;)/;
+  const APPROX_START = /^(≈|~|≤|≥|≲|≳|<|>|&lt;|&gt;|&le;|&ge;|&asymp;|&sim;|&lsim;|&gsim;)/;
   const calcValue = (v) => {
     const html = String(v == null ? '' : v);
     const lead = html.replace(/<[^>]*>/g, '').trim();
