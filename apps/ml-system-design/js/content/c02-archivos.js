@@ -1,0 +1,158 @@
+/* =============================================================================
+   Ronda de Diseño ML — js/content/c02-archivos.js
+   Caso 02, sección 13 "Archivos de referencia": los archivos REALES de
+   reference/c02/ (embebidos en MSD.files por tools/embed-reference.mjs) agrupados
+   por capa (DeepStream, forwarder, caja completa, API, verificador, alertas), con
+   el porqué de cada uno, trampas y cómo correrlos.
+   Contrato: docs/SPEC.md §5.5, §6 (fila 13), §8b. Sin DOM: se carga también en Node.
+   ========================================================================== */
+(function (root) {
+  'use strict';
+  const MSD = (root.MSD = root.MSD || {});
+
+  // Enlaces internos cortos: sección del caso y sección de un módulo o referencia.
+  const C = (sec, txt) => '<a href="#c02.' + sec + '">' + txt + '</a>';
+  const L = (hash, txt) => '<a href="#' + hash + '">' + txt + '</a>';
+  // Archivo embebido: el nombre visible es la ruta dentro de reference/c02/.
+  const F = (path, lang, note) => ({ name: path, lang, src: 'c02/' + path, note });
+
+  MSD.addSection('c02', {
+    id: 'archivos',
+    title: 'Archivos de referencia',
+    titleEn: 'Reference files',
+    blocks: [
+      { t: 'p', html: 'Esto no es pseudocódigo: son los archivos reales de <code>reference/c02/</code>, los que llevarías a un repo. Hay dos mundos. En la <b>caja edge</b> de cada sitio, DeepStream se configura con archivos de texto (no hay código C propio) y un forwarder en Python pone las reglas de negocio y todo lo que falla por la red. En la <b>nube</b>, una API de ingesta, el manifest del verificador y las alertas. Cada línea importante trae un comentario con el <b>porqué</b>: es lo que el entrevistador quiere oír cuando pregunta “¿y qué pasa si se cae la red del sitio?” o “¿cómo sabes que una caja murió?”.' },
+      { t: 'callout', kind: 'skip',
+        html: 'En la entrevista nadie te pide recitar un <code>ds_app_config.txt</code>. Primera pasada: el mapa de abajo y las trampas. Lo que sí debes poder decir sin mirar: que DeepStream solo percibe y el forwarder decide; que el evento se escribe en disco antes de intentar enviarlo; que el <code>event_id</code> es determinista y la nube deduplica; que la caja muerta se detecta en la nube por ausencia de heartbeat; y que el verificador nunca baja de 1 réplica. El detalle línea por línea (llaves de nvinfer, parámetros del tracker, flags de ffmpeg, la firma de S3) es para un deep dive de edge o para cuando lo construyas.' },
+      { t: 'callout', kind: 'note', title: 'Qué se ejecutó y qué no',
+        html: '<ul>' +
+          '<li><b>Ejecutado</b> (macOS, Python 3.13, sin GPU ni AWS): 25 tests del forwarder y 15 de la API con pytest, en venvs limpios desde los <code>requirements-dev.txt</code>; mutaciones a mano para comprobar que los tests muerden (usar el centro de la caja en vez del pie, quitar la tolerancia de salida, la ventana nocturna mal calculada, el “duplicate” que no re-encola…: todas fallan). Una <b>integración con procesos reales</b>: broker MQTT (amqtt), <code>app.py</code> completo, la API real con <code>uvicorn --factory</code>, una cámara falsa con Digest y un S3 falso; el evento salió a los ≈ 1.6 s del primer frame con 3 fotos, sobrevivió a la API caída en la cola SQLite y la caja reportó sus fps en <code>/metrics</code>. Cada llave de los configs de DeepStream se comprobó contra el código de los parsers de DeepStream 9.1 (repo de NVIDIA en GitHub); <code>docker compose config</code>; los manifests contra Kubernetes 1.34 y 1.36 y el esquema de los CRDs de KEDA 2.21.0; la sintaxis PromQL con un parser.</li>' +
+          '<li><b>No ejecutado</b>: DeepStream, el engine y el parser de YOLO no corrieron (necesitan la L4); <code>trtexec</code> tampoco, así que el throughput por GPU sigue siendo una <span class="est">estimación</span>; el tracker no se probó con video; no hubo cámaras reales, ni cluster, ni AWS, ni <code>promtool</code>. El <code>README.md</code> de <code>reference/c02</code> tiene la tabla completa.</li>' +
+          '</ul>' },
+
+      { t: 'h3', text: 'Mapa: qué sección del caso implementa cada archivo' },
+      { t: 'table',
+        head: ['Archivo', 'Implementa', 'Qué mirar'],
+        rows: [
+          ['<code>ds_app_config.txt</code> <small>edge/deepstream</small>', C('serving', '7 · Serving') + ', ' + C('arquitectura', '5 · Arquitectura'), 'Sub-stream de 5 fps por RTSP/TCP, lote de 40 con timeout de 100 ms, detector en cada frame, tracker, un mensaje MQTT por frame'],
+          ['<code>config_infer_primary.txt</code>, <code>labels.txt</code> <small>edge/deepstream</small>', C('serving', '7 · Serving') + ', ' + C('datos', '6 · Datos'), 'Engine FP16 precompilado sin ONNX de respaldo, letterbox como en el training, umbrales por clase sesgados a recall'],
+          ['<code>config_tracker_NvSORT.yml</code>, <code>msgconv_config.txt</code> <small>edge/deepstream</small>', C('serving', '7 · Serving') + ', ' + C('fallas', '10 · Fallas'), 'Ids únicos entre reinicios, probation corta a 5 fps, source_id → camera_id'],
+          ['<code>rules.py</code>, <code>site.example.yaml</code> <small>edge/forwarder</small>', C('serving', '7 · Serving') + ', ' + C('evaluacion', '8 · Evaluación'), 'Pie dentro del polígono, horario local, dwell de 1.5 s (60 s en el carril de bomberos), una alerta por track y zona cada 10 min, uuid5'],
+          ['<code>app.py</code> <small>edge/forwarder</small>', C('fallas', '10 · Fallas') + ', ' + C('monitoreo', '9 · Monitoreo'), 'Cola SQLite, backoff con jitter completo, dead-letter, degradación sin fotos, clip en segundo plano, heartbeat con fps por cámara'],
+          ['<code>test_rules.py</code> <small>edge/forwarder/tests</small>', C('evaluacion', '8 · Evaluación'), 'Reglas, horarios y cola offline con reloj falso y HTTP falso'],
+          ['<code>docker-compose.yml</code>, <code>Dockerfile</code> <small>edge</small>', C('arquitectura', '5 · Arquitectura') + ', ' + L('m05', 'M5'), 'GPU con capacidad de video, broker local, secretos como archivos, logs rotados, volumen de la cola'],
+          ['<code>main.py</code>, <code>test_api.py</code> <small>cloud/api</small>', C('serving', '7 · Serving') + ', ' + C('monitoreo', '9 · Monitoreo'), 'Sitio desde el token, idempotencia que no se traga eventos, URLs prefirmadas, métricas del SLO y de falsas alarmas'],
+          ['<code>verifier.yaml</code> <small>cloud/k8s</small>', C('costo', '12 · Costo') + ', ' + C('fallas', '10 · Fallas') + ', ' + L('m06.keda', 'M6'), 'L4 siempre encendida (mín. 1, máx. 2), KEDA por mensajes en SQS, PDB con 1 réplica'],
+          ['<code>alerts.yml</code> <small>cloud/monitoring</small>', C('monitoreo', '9 · Monitoreo'), 'Las 6 alertas con su PromQL, severidad y runbook'],
+        ],
+        note: 'Orden de lectura sugerido: <code>ds_app_config.txt</code> → nvinfer, tracker y msgconv → <code>rules.py</code> con <code>test_rules.py</code> al lado → <code>app.py</code> → compose → API → verificador → alertas. Es el camino de un evento: del píxel a la pantalla del SOC.' },
+
+      // ------------------------------------------------------------------ deepstream
+      { t: 'h3', text: 'Edge: el pipeline de DeepStream' },
+      { t: 'code', title: 'DeepStream 9.1: 40 cámaras, una L4, cero código C',
+        caption: 'Lo corre <code>deepstream-app -c /config/ds_app_config.txt</code> dentro de <code>nvcr.io/nvidia/deepstream:9.1-samples-multiarch</code>. Formato “key file” de GLib: los comentarios van en su propia línea.',
+        files: [
+          F('edge/deepstream/ds_app_config.txt', 'ini', 'Se muestran 2 de las 40 <code>[sourceN]</code>: el resto se <b>genera</b> desde el inventario del sitio, igual que <code>msgconv_config.txt</code> y <code>site.yaml</code>, porque el índice N une las tres cosas. El <code>batched-push-timeout</code> de 100 ms es el equilibrio entre lotes llenos y latencia por frame que se calcula en ' + C('serving', 'serving') + '. <code>[nvds-analytics]</code> queda comentado a propósito: las zonas viven en un solo lugar, el forwarder.'),
+          F('edge/deepstream/config_infer_primary.txt', 'ini', 'Engine FP16 construido con <code>trtexec</code> en una L4 con la misma imagen de DeepStream y entregado en el bundle OTA; <b>sin</b> <code>onnx-file</code> para que un engine incompatible falle en vez de reconstruirse en silencio. INT8 aparece como palanca con sus condiciones (Q/DQ, calibración con frames de estos sitios, gate de recall de noche), no como default (' + L('m08.cuantizacion', 'M8') + '). Los umbrales son de arranque, a calibrar con video de los sitios.'),
+          F('edge/deepstream/config_tracker_NvSORT.yml', 'yaml', 'NvSORT asocia cajas sin tocar píxeles: lo más barato para 40 streams con detección en cada frame. Los parámetros de asociación son los de la guía de NVIDIA; los que cambian son los que se miden en <b>frames</b> (a 5 fps duran 6× más que a 30 fps) y <code>useUniqueID</code>.'),
+          F('edge/deepstream/msgconv_config.txt', 'ini', 'Un <code>[sensorN]</code> por cámara con su id. Sin este archivo, el esquema minimal manda <code>sensorId: "0"</code> para todas.'),
+          F('edge/deepstream/labels.txt', 'text', 'Una clase por línea en el orden del training. Sin comentarios: nvinfer leería el comentario como una clase.'),
+        ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: el default que hace imposible el dwell',
+        html: '<code>msg-conv-frame-interval</code> vale <b>30</b> por defecto: un mensaje cada 30 frames, que a 5 fps es uno cada 6 s. Con eso no puedes medir 1.5 s de permanencia ni saber cuándo alguien salió. La referencia lo pone en 1 (un mensaje por frame, también los vacíos, que el forwarder usa para medir los fps de cada cámara). Lo verificamos en el código de <code>gstnvmsgconv.cpp</code> de DeepStream 9.1, no solo en la tabla de la documentación.' },
+      { t: 'callout', kind: 'trap', title: 'Trampa: ids de track que se repiten después de un reinicio',
+        html: 'Con <code>useUniqueID: 0</code> (el default), los ids del tracker empiezan en 0 cada vez que arranca DeepStream. Como el <code>event_id</code> incluye el track y la ventana de 10 min, una intrusión nueva con el “track 7” pocos minutos después de un reinicio, en la misma zona y la misma ventana, tendría el mismo id que el “track 7” de antes y la nube la descartaría como duplicada: una intrusión real perdida sin ningún error en los logs. Con <code>useUniqueID: 1</code> cada stream recibe 32 bits aleatorios altos por arranque. Es el tipo de bug que solo ves si sigues el id de punta a punta.' },
+      { t: 'callout', kind: 'trap', title: 'Trampa: un comentario al final de la línea',
+        html: 'En los archivos de DeepStream (formato key file de GLib) <code>batch-size=40  # un frame por cámara</code> no es un comentario: el valor pasa a ser el texto completo y el parser falla o, peor, toma algo distinto. Pasa igual con las instrucciones de un Dockerfile. Todos los comentarios de estos archivos van en su propia línea; un script de la verificación revisa que no haya ni uno al final de una llave.' },
+
+      // ------------------------------------------------------------------ forwarder
+      { t: 'h3', text: 'Edge: el forwarder (reglas + entrega)' },
+      { t: 'code', title: 'Forwarder: de detecciones por MQTT a eventos en la nube',
+        caption: 'Tests sin DeepStream, MQTT ni cámaras: <code>cd edge/forwarder &amp;&amp; pip install -r requirements-dev.txt &amp;&amp; pytest</code>. También están <code>requirements-dev.txt</code> y <code>pytest.ini</code>.',
+        files: [
+          F('edge/forwarder/rules.py', 'python', 'Lógica pura: el tiempo viene en cada mensaje, así que dwell, horarios y deduplicación se prueban en milisegundos. Lee primero <code>ZoneRules.process</code>: pie dentro del polígono, clase permitida, zona activa en hora LOCAL, presencia con tolerancia de 1 s, foto 0 al entrar y foto 1 a mitad del dwell, y el disparo con un <code>event_id</code> uuid5 de sitio/cámara/track/zona/ventana de 10 min.'),
+          F('edge/forwarder/app.py', 'python', 'Todo lo que falla por la red. El evento se escribe en SQLite (<code>synchronous=FULL</code>: una caja pierde la luz) <b>antes</b> de enviarse; el sender sube las fotos con URLs prefirmadas y luego hace el POST; <code>duplicate</code> cuenta como entregado; un 4xx va a dead-letter; tras 3 intentos sin poder subir fotos, el evento sale sin ellas. El heartbeat reporta <b>todas</b> las cámaras, con 0 las mudas.'),
+          F('edge/forwarder/site.example.yaml', 'yaml', 'Zonas en coordenadas normalizadas, horarios con nombre y un dwell propio para el carril de bomberos (60 s: un camión que pasa no es uno estacionado). Los tests cargan este mismo archivo: si alguien lo rompe, fallan.'),
+          F('edge/forwarder/tests/test_rules.py', 'python', 'Reloj falso y HTTP falso (<code>httpx2.MockTransport</code> con el cliente real). Cubre polígonos cóncavos, pie vs centro, oclusión corta vs salida, recordatorio a los 10 min, horarios que cruzan la medianoche, ids idempotentes entre reinicios, jitter, cola offline, prioridad de eventos sobre clips y la degradación sin fotos.'),
+          F('edge/forwarder/Dockerfile', 'dockerfile', 'Multi-stage como el gateway de c01, con ffmpeg para el clip (copia el stream, no decodifica) y usuario no root dueño solo del directorio de datos.'),
+          F('edge/forwarder/requirements.txt', 'text', 'paho-mqtt 2.x (exige declarar <code>CallbackAPIVersion</code>), httpx2 y PyYAML, con las transitivas fijadas.'),
+        ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: el centro de la caja',
+        html: 'La zona está pintada en el piso y la cámara la ve en perspectiva. Si pruebas el centro de la caja, fallas en los dos sentidos: alguien parado <b>fuera</b>, delante de una zona lejana, “entra” con el torso; alguien <b>dentro</b>, junto al borde lejano, “sale” porque el centro de su caja queda arriba de ese borde. Por eso el punto es el centro del borde inferior (el pie). Hay un test con una persona real de ese segundo caso: con el centro, la intrusión no existe.' },
+      { t: 'callout', kind: 'trap', title: 'Trampa: la noche del domingo al lunes',
+        html: 'Un horario “después de las 20:00 hasta las 06:00, de lunes a viernes” parece correcto y deja el <b>lunes de 00:00 a 06:00 sin vigilancia</b>: esa franja pertenece a la ventana que empieza el domingo, y el domingo no está en la lista. Una ventana que cruza la medianoche es del día en que empieza. El <code>site.example.yaml</code> incluye las 7 noches y un test lo fija.' },
+      { t: 'callout', kind: 'trap', title: 'Trampa: el token del sitio viajando a S3',
+        html: 'La URL prefirmada ya <b>es</b> la credencial. Si el cliente HTTP manda además su header <code>Authorization: Bearer …</code>, S3 rechaza el PUT por tener dos mecanismos de autenticación, y además estás mandando tu token a un tercero. <code>app.py</code> usa dos clientes: uno con el token para la API y otro limpio para S3; el HTTP falso de los tests falla si el token llega a S3.' },
+      { t: 'callout', kind: 'senior', title: 'Degradar sin perder',
+        html: 'El orden de sacrificio está escrito en el código: primero se pierde el clip (sin disco, no se graba), después las fotos (tras 3 intentos, el evento sale marcado <code>evidence_missing</code> y el SOC lo ve “sin verificar”), y el evento nunca. Decirlo así (“¿qué pierdo primero cuando algo falla?”) es lo que un entrevistador anota como pensamiento de operación.' },
+
+      // ------------------------------------------------------------------ compose
+      { t: 'h3', text: 'Edge: la caja completa' },
+      { t: 'code', title: 'Tres contenedores en una caja con una L4',
+        files: [
+          F('edge/docker-compose.yml', 'yaml', 'DeepStream con reserva de GPU, mosquitto sin puertos publicados (su configuración va en línea con <code>configs.content</code>, Compose ≥ 2.23.1) y el forwarder con su volumen de datos y sus secretos montados como archivos. El OTA cambia <code>MODEL_VERSION</code> y el tag del forwarder y corre <code>docker compose up -d</code>. Validado con <code>docker compose config</code>; levantarlo requiere la L4 y el NVIDIA Container Toolkit.'),
+        ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: la GPU está, el decode no',
+        html: 'Si la variable <code>NVIDIA_DRIVER_CAPABILITIES</code> no está, el NVIDIA Container Toolkit expone solo <code>compute,utility</code>: CUDA funciona dentro del contenedor pero NVDEC no, y el pipeline no decodifica. La imagen oficial de DeepStream ya declara <code>video</code> en su ENV (se ve en su Dockerfile público); la trampa aparece cuando armas tu propia imagen sobre otra base, o cuando alguien la sobrescribe en el compose sin <code>video</code>, porque la variable <b>reemplaza</b> la lista, no la amplía. El compose la escribe completa para no depender de la imagen. Es la versión edge de las trampas de ' + L('m05.gpu-en-contenedor', 'M5: GPU en contenedores') + '.' },
+
+      // ------------------------------------------------------------------ api
+      { t: 'h3', text: 'Nube: la API de ingesta' },
+      { t: 'code', title: 'FastAPI: aceptar rápido, encolar, medir',
+        caption: 'Tests sin AWS: <code>cd cloud/api &amp;&amp; pip install -r requirements-dev.txt &amp;&amp; pytest</code>. Arranque en producción: <code>uvicorn --factory main:app_from_env --port 8080</code>.',
+        files: [
+          F('cloud/api/main.py', 'python', 'Lee primero <code>ingest_event</code>: el sitio sale del token; las fotos deben estar bajo el prefijo del evento; <code>put_if_absent</code> es una escritura condicional; y un evento guardado pero nunca encolado (SQS falló) se encola en el reintento aunque ya “exista”. Después, <code>HeartbeatCollector</code>: gauges que existen para todos los sitios desde el arranque y fps que expiran a los 90 s.'),
+          F('cloud/api/tests/test_api.py', 'python', 'Todo con fakes, salvo dos tests con boto3 real sin red: el <code>Stubber</code> valida <code>send_message</code> contra el modelo de SQS y la URL prefirmada se firma localmente.'),
+          F('cloud/api/requirements.txt', 'text', 'FastAPI, uvicorn, prometheus-client y boto3, con transitivas fijadas.'),
+        ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: un “duplicate” que se traga una intrusión',
+        html: 'La idempotencia ingenua es “si el <code>event_id</code> ya existe, responde duplicate y no hagas nada”. Pero guardar y encolar son dos pasos: si SQS falló después de guardar, el reintento de la caja encuentra el evento y lo descarta, y el SOC nunca lo ve. La API guarda si ya se encoló y, si no, encola en el reintento. Hay un test para exactamente eso, y una mutación que lo rompe lo hace fallar.' },
+      { t: 'callout', kind: 'trap', title: 'Hallazgo verificado: boto3 firmando con SigV2',
+        html: 'Con botocore 1.43 en <code>us-east-1</code>, un cliente de S3 creado sin configuración generó la URL prefirmada con la firma vieja (SigV2: <code>AWSAccessKeyId=…&amp;Signature=…</code>), que los buckets creados después del 24 de junio de 2020 no aceptan. El signer crea su cliente con <code>signature_version="s3v4"</code> y un test comprueba las dos cosas: la URL antigua que sale sin esa opción y la SigV4 que sale con ella.' },
+      { t: 'callout', kind: 'senior', title: 'Métricas de “último valor” detrás de varias réplicas',
+        html: 'Cada réplica de la API recuerda el último heartbeat que <b>le</b> tocó: la réplica A puede tener uno de hace 5 min y la B el de hace 10 s. Por eso las alertas agregan con <code>max by (site)</code> el timestamp y <code>min by (site, camera)</code> los fps, y cada réplica deja de exponer fps viejos a los 90 s. Y una serie que no existe no dispara nada: el gauge de heartbeat nace en 0 para cada sitio conocido, así que un sitio que nunca reportó también alerta.' },
+
+      // ------------------------------------------------------------------ verificador
+      { t: 'h3', text: 'Nube: el verificador en Kubernetes' },
+      { t: 'code', title: 'Worker en L4 escalado por la cola',
+        caption: 'Orden: <code>kubectl create namespace c02</code> y <code>kubectl apply -f cloud/k8s/verifier.yaml</code>. Requiere KEDA, NVIDIA device plugin y un node group de g6.xlarge con label <code>workload=gpu-l4</code> y el taint de GPU.',
+        files: [
+          F('cloud/k8s/verifier.yaml', 'yaml', 'ServiceAccount con IRSA (sin llaves de AWS), Deployment en L4 sin <code>replicas</code> (las decide KEDA), PDB y un ScaledObject <code>aws-sqs-queue</code> con <code>minReplicaCount: 1</code> escrito aunque parezca obvio (el default de KEDA es 0), <code>maxReplicaCount: 2</code> y <code>queueLength: "4"</code> derivado del presupuesto de cola. El código del worker no está aquí: el manifest documenta su contrato (lote de hasta 10 mensajes, veredicto idempotente por <code>event_id</code>, <code>verifier_jobs_total</code>). Validado contra Kubernetes 1.34/1.36 y el esquema de KEDA 2.21.0.'),
+        ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: un PDB con una sola réplica',
+        html: '<code>minAvailable: 1</code> con un solo pod bloquea toda evicción voluntaria: el drain de un nodo, el upgrade del node group y la consolidación de Karpenter se quedan esperando. Aquí es intencional (nadie deja la flota sin verificador sin decidirlo) y el procedimiento está en el comentario: subir <code>minReplicaCount</code> a 2, esperar la segunda réplica y drenar. Lo que no vale es no saberlo y descubrirlo cuando un upgrade de EKS se cuelga.' },
+      { t: 'callout', kind: 'note', title: 'Qué hace y qué no hace KEDA aquí',
+        html: 'El trigger <code>aws-sqs-queue</code> escala por <b>profundidad</b> (mensajes visibles + en proceso ÷ <code>queueLength</code>) y lee SQS casi en tiempo real; no tiene modo de “edad del mensaje más viejo”. La segunda L4 llega en minutos (nodo GPU nuevo), así que sirve para carga sostenida, no para una ráfaga de 30 s: para eso está el lote de hasta 10 mensajes por llamada. La edad es lo que promete el SLO y vive en una alerta (' + L('m06.keda', 'M6: KEDA') + ', ' + L('m06.cold-starts', 'M6: cold starts') + ').' },
+
+      // ------------------------------------------------------------------ alertas
+      { t: 'h3', text: 'Alertas' },
+      { t: 'code', title: 'Reglas de Prometheus',
+        files: [
+          F('cloud/monitoring/alerts.yml', 'yaml', 'Las 6 alertas de ' + C('monitoreo', 'la sección 9') + ': EdgeBoxOffline, CameraStreamDown, EventBacklogHigh, AlertLatencyHigh, FalseAlarmRateHigh y VerifierErrors, con severidad page o ticket y runbook. Las que miran cocientes o percentiles llevan un mínimo de volumen para no decidir con 2 muestras: el SOC recibe como mucho <span class="est">≈ 50 alertas por hora</span> en toda la flota (su presupuesto de noche). Sintaxis PromQL revisada con un parser; no se corrió <code>promtool</code>.'),
+        ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: métricas de CloudWatch con 10 minutos de retraso',
+        html: 'La edad del mensaje más viejo de SQS vive en CloudWatch (<code>ApproximateAgeOfOldestMessage</code>, publicada cada minuto). El exportador oficial de Prometheus (<code>cloudwatch_exporter</code>) pide por defecto datos de hace 10 minutos (<code>delay_seconds: 600</code>) y los expone con el timestamp de CloudWatch: una consulta “ahora” no ve nada y la alerta nunca dispara. En la configuración (comentada en <code>alerts.yml</code>) va <code>delay_seconds: 60</code>. Además, el nombre de la métrica depende del exportador: con ese es <code>aws_sqs_approximate_age_of_oldest_message_maximum</code>; con otro, cambia.' },
+      { t: 'callout', kind: 'senior', title: 'El SLO se mide donde lo siente el usuario',
+        html: '<code>alert_end_to_end_seconds</code> empieza con <code>first_seen_at</code> (la caja, cuando el pie entró a la zona) y termina cuando la consola del SOC <b>dibuja</b> la alerta y llama a <code>/displayed</code>. Son dos relojes distintos, por eso el heartbeat devuelve la hora del servidor y la caja avisa si su NTP se desvía más de 2 s. Y <code>event_ingest_lag_seconds</code> parte el total: si sube la latencia E2E pero no el lag de ingesta, el atraso está en la nube.' },
+
+      // ------------------------------------------------------------------ correrlo
+      { t: 'h3', text: 'Cómo correrlo en tu máquina' },
+      { t: 'steps', items: [
+        { title: 'Tests del forwarder (sin GPU, MQTT ni cámaras)', meta: '≈ 1 min',
+          html: '<code>cd reference/c02/edge/forwarder</code>, crea un venv con Python 3.13, <code>pip install -r requirements-dev.txt</code> y <code>pytest</code>: 25 tests (geometría, dwell, horarios, ids idempotentes, backoff, cola offline, degradación, forwarder completo con fakes).' },
+        { title: 'Tests de la API (sin AWS)', meta: '≈ 1 min',
+          html: '<code>cd reference/c02/cloud/api</code>, otro venv, <code>pip install -r requirements-dev.txt</code> y <code>pytest</code>: 15 tests (token por sitio, idempotencia, 503 de SQS, métricas del heartbeat, latencia E2E, falsas alarmas, boto3 sin red).' },
+        { title: 'La API sola, a mano (sin AWS)', meta: '≈ 5 min',
+          html: 'La fábrica de producción (<code>app_from_env</code>) crea clientes reales de SQS y S3. Para jugar sin AWS, escribe una fábrica de prueba que le pase a <code>create_app</code> una cola y un signer falsos, como hacen los tests, con el token de un sitio (<code>token_hash("mi-token")</code> → <code>"dc-07"</code>), y arráncala con <code>uvicorn --factory</code>. Luego manda un <code>POST /v1/heartbeat</code> con <code>Authorization: Bearer mi-token</code> y mira <code>/metrics</code>: aparecen <code>edge_last_heartbeat_timestamp_seconds</code> y <code>camera_fps</code>.' },
+        { title: 'Validar configs sin GPU', meta: 'segundos',
+          html: '<code>docker compose -f edge/docker-compose.yml config</code> para el compose; <code>kubernetes-validate --strict cloud/k8s/verifier.yaml</code> para los objetos de Kubernetes (el ScaledObject y la TriggerAuthentication se validan contra el CRD de KEDA, no contra el esquema de Kubernetes).' },
+        { title: 'Una caja de verdad (necesita la L4)', meta: 'g6.xlarge o un servidor con L4',
+          html: 'Host con Ubuntu 24.04, driver ≥ 595.58.03, NVIDIA Container Toolkit y el bundle del modelo en <code>/opt/c02/models/&lt;versión&gt;/</code>; secretos en <code>/etc/c02/secrets/</code>; <code>docker compose up -d --build</code> desde <code>edge/</code>. Sin cámaras, apunta una fuente a un video de muestra de la imagen de DeepStream y mira los mensajes con <code>docker compose exec mqtt mosquitto_sub -t ds/detections -C 5</code>.' },
+      ] },
+
+      { t: 'callout', kind: 'interview',
+        html: '“On each site, DeepStream only does perception: it decodes the 5 fps sub-streams on NVDEC, batches 40 cameras into one TensorRT call and tracks objects. A small forwarder owns the business rules, the zones, schedules and a 1.5-second dwell, and it writes every event to a local SQLite outbox before sending it, with a deterministic event ID so the cloud can deduplicate retries. The cloud side accepts the event, queues it in SQS and a GPU verifier confirms it. A dead edge box can\'t alert, so we page on missing heartbeats from the cloud side.”' },
+      { t: 'callout', kind: 'connect',
+        html: 'Cada archivo aterriza un módulo: ' + L('m02.edge', 'M2: edge') + ' (store-and-forward, heartbeats, OTA), ' + L('m03.cuantas-gpus', 'M3: cuántas GPUs') + ' (el ≈ 50 % del máximo medido), ' + L('m04.edge-jetson', 'M4: edge y DeepStream') + ', ' + L('m05.gpu-en-contenedor', 'M5: GPU en contenedores') + ', ' + L('m06.keda', 'M6: KEDA') + ', ' + L('m07.tabla-eleccion', 'M7: qué servidor elegir') + ' (por qué el verificador no usa Triton todavía) y ' + L('m08.cuantizacion', 'M8: cuantización') + ' (INT8 como palanca). Los comandos de Docker con GPU están en ' + L('ref-comandos.docker-gpu', 'la hoja de comandos') + '.' },
+    ],
+  });
+})(typeof window !== 'undefined' ? window : globalThis);

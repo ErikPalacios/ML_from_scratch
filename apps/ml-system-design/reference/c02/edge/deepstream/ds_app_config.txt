@@ -1,0 +1,154 @@
+# Pipeline de DeepStream de UNA caja edge (caso c02): 40 cámaras RTSP → decode en NVDEC → streammux
+# (lote de 40) → detector YOLO en TensorRT → tracker NvSORT → metadatos por MQTT al forwarder local.
+# Lo corre el binario de referencia `deepstream-app -c /config/ds_app_config.txt` (DeepStream 9.1,
+# imagen nvcr.io/nvidia/deepstream:9.1-samples-multiarch). No hay código C propio: todo es configuración.
+#
+# Formato "key file" de GLib: los comentarios van SIEMPRE en su propia línea. Un "# …" al final de
+# un key=value no es comentario: se vuelve parte del valor y rompe la ruta o el número.
+# Rutas: /config es este directorio y /models el bundle del modelo (los monta edge/docker-compose.yml).
+#
+# Qué NO hace esta caja: no decide alertas. DeepStream solo percibe (cajas + id de track por frame);
+# zonas, horarios, dwell y deduplicación viven en el forwarder (forwarder/rules.py), en un solo lugar.
+
+[application]
+# Imprime FPS por stream en el log cada 30 s: primer diagnóstico si una cámara se congela
+enable-perf-measurement=1
+perf-measurement-interval-sec=30
+
+[tiled-display]
+# Sin mosaico ni pantalla: nadie mira video en la caja; renderizar gastaría GPU sin razón
+enable=0
+
+# ------------------------------------------------------------------------------------------------
+# Fuentes: una sección [sourceN] por cámara, N = 0…39. Aquí se muestran 2. Las 40 se GENERAN desde el
+# inventario del sitio (la misma fuente que produce msgconv_config.txt y forwarder/site.yaml) con
+# el script de despliegue: el índice N de [sourceN] debe ser el mismo que el de [sensorN] en
+# msgconv_config.txt, porque así se traduce source_id → camera_id. Editarlas a mano es cómo se
+# cruzan dos cámaras y las alertas salen con la zona de otra.
+# Alternativa: el grupo [source-list] + [source-attr-all] (una lista de URIs separadas por ";"). Es
+# más corto, pero su modo con API REST para agregar cámaras en caliente sigue marcado "Alpha" en 9.1.
+# ------------------------------------------------------------------------------------------------
+[source0]
+enable=1
+# type=4: RTSP (habilita la reconexión automática de abajo); 2 sería URI genérica sin reconexión
+type=4
+# El SEGUNDO stream de la cámara, configurado en la cámara a 1080p @ 5 fps (≈ 1.5 Mb/s, est.).
+# Decodificas solo lo que analizas. Con drop-frame-interval sobre el stream principal (15 fps) el
+# decoder igual decodifica los 15 fps y luego tira 2 de cada 3: tiras NVDEC, no lo ahorras.
+uri=rtsp://10.20.1.11:554/stream2
+# RTSP sobre TCP (4): sin puertos UDP que abrir a través del NAT de Docker y sin paquetes perdidos
+# que corrompen frames. Cuesta un poco de latencia si la red pierde paquetes (TCP retransmite).
+select-rtp-protocol=4
+# Jitterbuffer en ms (100 es el default de deepstream-app, escrito para que se vea). Cada ms aquí
+# suma a la latencia de la alerta; con TCP no hay paquetes desordenados que esperar.
+latency=100
+# Sin datos durante 10 s → reconecta, sin límite de intentos (-1). Una cámara reiniciada vuelve sola;
+# si no vuelve, el forwarder la reporta con 0 fps y salta la alerta CameraStreamDown.
+rtsp-reconnect-interval-sec=10
+rtsp-reconnect-attempts=-1
+# Salida del decoder en memoria de GPU (0 = device): el frame nunca pasa por la CPU
+cudadec-memtype=0
+gpu-id=0
+
+[source1]
+enable=1
+type=4
+uri=rtsp://10.20.1.12:554/stream2
+select-rtp-protocol=4
+latency=100
+rtsp-reconnect-interval-sec=10
+rtsp-reconnect-attempts=-1
+cudadec-memtype=0
+gpu-id=0
+
+# … [source2] a [source39]: idénticas salvo la uri (las genera el script de despliegue)
+
+[streammux]
+gpu-id=0
+# Fuentes en vivo: el muxer no espera "sincronizar" timestamps de archivo; empaqueta lo que llega
+live-source=1
+# Hasta 40 frames por lote, uno por cámara: el detector procesa las 40 cámaras en una sola llamada.
+# Nota: con [sourceN] explícitas este valor manda; con [source-list] deepstream-app lo iguala solo
+# al número de fuentes.
+batch-size=40
+# µs que espera el lote después del primer frame. A 5 fps llega un frame por cámara cada 200 ms,
+# desfasados: esperar el lote completo sumaría hasta 200 ms a cada frame. Con 100 ms salen lotes de
+# ≈ 20 (est.) y el detector, planeado al ≈ 50 % de su máximo medido, los absorbe. Ajuste medido:
+# si la GPU se satura, alarga; si la latencia por frame pasa de 300 ms, acorta.
+batched-push-timeout=100000
+# Salida del muxer = resolución del stream (recomendación de NVIDIA: sin reescalados innecesarios).
+# Además, en el esquema de mensaje "minimal" las cajas salen en ESTAS coordenadas (así lo hace
+# dsmeta_payload.cpp en DS 9.1): el forwarder normaliza dividiendo entre 1920×1080 (site.yaml).
+width=1920
+height=1080
+# Sin franjas negras: todas las cámaras son 16:9; con padding las cajas quedarían desplazadas
+enable-padding=0
+nvbuf-memory-type=0
+
+[primary-gie]
+enable=1
+gpu-id=0
+# Id del detector en los metadatos: el tracker y el conversor de mensajes lo referencian
+gie-unique-id=1
+# Igual al lote del muxer: si fuera menor, nvinfer partiría cada lote en varias llamadas
+batch-size=40
+# 0 = detectar en TODOS los frames (5 por segundo por cámara). interval=1 (detectar 1 de cada 2 y que
+# el tracker rellene) ahorraría ≈ la mitad de GPU a cambio de reaccionar más tarde: no hace falta.
+interval=0
+# Configuración de nvinfer (engine, precisión, clases, umbrales): archivo aparte y versionado
+config-file=/config/config_infer_primary.txt
+nvbuf-memory-type=0
+
+[tracker]
+enable=1
+# NvSORT no usa píxeles (solo cajas + filtro de Kalman), así que este tamaño casi no importa;
+# múltiplos de 32 por si cambias a NvDCF, que sí recorta imágenes y lo exige.
+tracker-width=640
+tracker-height=384
+gpu-id=0
+# Librería de NVIDIA que implementa IOU, NvSORT, NvDeepSORT y NvDCF; el algoritmo lo elige el YAML
+ll-lib-file=/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so
+# Nuestro YAML (NvSORT con ids únicos entre reinicios y probation corta): ver ese archivo
+ll-config-file=/config/config_tracker_NvSORT.yml
+
+[osd]
+# Sin dibujar cajas sobre el video: nadie lo ve y costaría GPU por frame
+enable=0
+
+[sink0]
+enable=1
+# type=6: conversor de mensajes (nvmsgconv) + broker (nvmsgbroker). Es la única salida del pipeline
+type=6
+# Sin sincronizar con el reloj ni descartar por QoS: en vivo se publica en cuanto hay metadatos
+sync=0
+qos=0
+# Mapa source_id → camera_id ([sensorN] → id). Sin él, el esquema minimal manda sensorId "0" para
+# TODAS las cámaras y el forwarder no sabría de dónde viene cada caja.
+msg-conv-config=/config/msgconv_config.txt
+# 1 = esquema "minimal": un JSON por frame con todas sus cajas como texto "id|left|top|right|bottom|label".
+# 0 (esquema completo) mandaría un mensaje por OBJETO, con campos que aquí no usamos.
+msg-conv-payload-type=1
+# Genera el payload directo de los metadatos del frame (sin que nadie adjunte NvDsEventMsgMeta)
+msg-conv-msg2p-new-api=1
+# TRAMPA: el default es 30 → un mensaje cada 30 frames = cada 6 s a 5 fps, y el dwell de 1.5 s sería
+# imposible. 1 = cada frame, incluso los que no traen cajas: esos mensajes vacíos le sirven al
+# forwarder para medir los fps de cada cámara (el heartbeat) y para saber que alguien SALIÓ de la zona.
+msg-conv-frame-interval=1
+# Adaptador MQTT que trae DeepStream (usa libmosquitto y MQTT v5). Publica con QoS 0: at-most-once.
+# La durabilidad empieza en la cola SQLite del forwarder, no aquí.
+msg-broker-proto-lib=/opt/nvidia/deepstream/deepstream/lib/libnvds_mqtt_proto.so
+# "host;puerto": el servicio mosquitto de la red de compose. Nunca sale de la caja.
+msg-broker-conn-str=mqtt;1883
+topic=ds/detections
+# Si el broker se cuelga, deepstream-app pone una cola "leaky" de 20 buffers antes del conversor y
+# tira los más viejos: el pipeline de video nunca se frena por la red. Se pierden detecciones, no
+# se acumula latencia.
+
+# [nvds-analytics] NO se usa, a propósito. Podría filtrar por ROI o cruce de línea dentro de
+# DeepStream, pero el esquema minimal no lleva sus resultados y los polígonos quedarían duplicados
+# (aquí y en el forwarder). Una sola fuente de verdad para las zonas: forwarder/site.yaml.
+# Si algún día lo usas: [nvds-analytics] con enable=1 y config-file=config_nvdsanalytics.txt.
+
+[tests]
+# Solo tiene sentido con archivos (loop del video); con cámaras en vivo queda en 0
+file-loop=0

@@ -1,0 +1,86 @@
+# Configuración del inspector de UNA línea (caso c03). Un archivo por estación: cambian line_id,
+# la IP del PLC y (a veces) los umbrales. Se monta de solo lectura en el contenedor
+# (docker-compose.yml): el proceso no puede modificar su propia config.
+# app.py la VALIDA al arrancar: si algo es incoherente, el inspector no arranca (y el PLC desvía
+# todo mientras tanto), en vez de arrancar con un valor peligroso.
+
+line_id: L1  # L1–L4: label `line` de cada métrica y campo de cada línea de log
+# Versión del modelo: va en cada decisión logueada, así cualquier rechazo se rastrea a su modelo
+model_version: 2026-09-22-bracket-anomaly-v3-fp16
+# Engine TensorRT construido EN un Jetson igual al de producción (tools/build_engine_jetson.sh).
+# Vive fuera de la imagen: en /models conviven la versión actual y la anterior, y el rollback es
+# cambiar model_version + engine_path y reiniciar, sin descargar nada por la DMZ.
+engine_path: /models/2026-09-22-bracket-anomaly-v3-fp16.plan
+
+# ------------------------------------------------------------------ tiempos (ms desde el trigger)
+deadline_ms: 350  # decisión escrita en el PLC antes de esto; los 150 ms restantes son de la compuerta
+# Tiempo reservado para escribir al PLC: cubre reconectar + escribir (2 × plc.timeout_ms).
+# Si queda menos que esto, no se escribe nada y el PLC desvía la pieza por default.
+plc_write_reserve_ms: 50
+# Preprocesamiento (≈ 20 ms) + inferencia (≤ 120 ms, estimado: mídelo con trtexec en el Jetson).
+# Si después de la foto queda menos, no se infiere: DIVERT inmediato y el loop se pone al día.
+min_inference_budget_ms: 140
+fail_safe: divert  # único valor aceptado; está aquí para que quien lea la config lo vea escrito
+
+# ------------------------------------------------------------------ umbrales
+# Salen de tools/choose_threshold.py sobre el set de validación: recall >= 99.5 % en CADA tipo de
+# defecto con el mínimo costo esperado. Los valores de abajo son ILUSTRATIVOS. Regla: score >= umbral → REJECT.
+thresholds:
+  anomaly: 0.62  # modelo de anomalías entrenado con ≈ 2,000 piezas buenas
+  # Clasificador supervisado, cuando ya hay suficientes defectos etiquetados. Al arrancar el
+  # proyecto (≈ 300 imágenes de defectos) esta sección va vacía (`defects: {}`) y decide solo la
+  # anomalía. Si un tipo está aquí y el modelo no lo devuelve, la pieza se desvía (no se asume 0).
+  defects:
+    crack: 0.50
+    burr: 0.55
+    missing_hole: 0.45
+    deformation: 0.60
+
+# ------------------------------------------------------------------ PLC (Modbus TCP)
+plc:
+  host: 10.20.1.10  # PLC de la línea en la VLAN OT (dirección de ejemplo)
+  port: 502  # puerto estándar de Modbus TCP
+  # Holding registers 100 y 101: [part_id (16 bits), código]. Código: 1 PASS, 2 REJECT, 3 DIVERT;
+  # 0 = sin decisión. El PLC desvía toda pieza sin un PASS válido para SU part_id a tiempo.
+  register: 100
+  unit_id: 1
+  # Round trip Modbus en la red local + hasta un ciclo de scan del PLC. 20 ms es un punto de
+  # partida: mide el real con tu PLC y ajusta (y plc_write_reserve_ms con él).
+  timeout_ms: 20
+
+# ------------------------------------------------------------------ golden check
+golden:
+  # Sin golden check aprobado en este proceso (arranque, reinicio o falla), ninguna pieza recibe
+  # PASS: todo va a inspección manual hasta que el operador corra las piezas golden.
+  gate_production: true
+  # Una golden buena debe quedar al menos 0.15 por debajo del umbral de anomalía (aquí: <= 0.47).
+  # Si "pasa raspando", algo se movió (iluminación, lente, foco) aunque todavía no rechace.
+  good_margin: 0.15
+  grab_timeout_s: 20  # el operador pone cada pieza a mano
+  # La aprobación dura un turno (8 h). Vencida, no hay PASS hasta el check del turno siguiente:
+  # así "cada turno empieza con su golden check" lo hace cumplir el software, no la memoria de alguien.
+  max_age_h: 8
+  parts:  # piezas físicas etiquetadas, guardadas junto a la estación; se corren en este orden
+    - {name: G1-buena, expect: PASS}
+    - {name: G2-buena, expect: PASS}
+    - {name: G3-grieta, expect: REJECT}
+    - {name: G4-rebaba, expect: REJECT}
+    - {name: G5-sin-barreno, expect: REJECT}
+    - {name: G6-deformada, expect: REJECT}
+
+# ------------------------------------------------------------------ chequeo de la foto
+# Brillo medio (0–255) aceptable antes de inferir. Fuera de rango → DIVERT con reason bad_image:
+# una foto negra (estrobo que no disparó) NO es una pieza sin defectos. Valores ILUSTRATIVOS:
+# calíbralos con el brillo medio de las piezas golden, con margen.
+image_check:
+  min_mean: 40
+  max_mean: 215
+
+# ------------------------------------------------------------------ operación
+metrics:
+  addr: 10.20.1.21  # IP del Jetson en la VLAN OT (de ejemplo): /metrics no se publica en la NIC de la cámara
+  # Lo scrapea un Prometheus de planta DENTRO de la red OT (guarda aunque no haya nube); hacia
+  # la nube salen datos por el gateway de la DMZ, nunca conexiones entrantes a la red OT
+  port: 9310
+heartbeat_file: /run/inspector/heartbeat  # tmpfs; lo lee el healthcheck de docker-compose.yml
+watchdog_s: 30  # loop sin avanzar 30 s (TensorRT colgado) → el proceso sale y Docker lo reinicia

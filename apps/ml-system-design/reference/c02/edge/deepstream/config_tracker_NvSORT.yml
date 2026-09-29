@@ -1,0 +1,61 @@
+%YAML:1.0
+# Tracker de bajo nivel (NvMultiObjectTracker) configurado como NvSORT para el caso c02.
+# La primera línea "%YAML:1.0" es la que usan los archivos de ejemplo de NVIDIA: no la quites.
+#
+# Por qué NvSORT y no NvDCF: detectamos en TODOS los frames (interval=0), así que el tracker solo
+# tiene que asociar cajas entre frames. NvSORT lo hace con cajas + filtro de Kalman, sin tocar píxeles:
+# es el más barato para 40 streams. NvDCF (seguimiento visual) aguanta mejor oclusiones largas, a costa
+# de GPU. Decide midiendo ID switches en video de TUS sitios: cada cambio de id reinicia el dwell y
+# puede generar un evento duplicado (dedupe es por track).
+#
+# Valores de partida: la configuración NvSORT que publica la guía de Gst-nvtracker de DeepStream 9.1
+# (ajustada para PeopleNet, video a 30 fps). Ojo: los parámetros en FRAMES duran 6× más en segundos a
+# 5 fps que a 30 fps; por eso cambian probationAge y maxShadowTrackingAge. El resto se re-ajusta con
+# video de los sitios (NVIDIA tiene PipeTuner para eso).
+
+BaseConfig:
+  minDetectorConfidence: 0.0415  # nvinfer ya corta en 0.30/0.40: esto casi no filtra nada
+  checkClassMatch: 1  # un track solo se asocia con cajas de su misma clase (person ≠ vehicle)
+
+TargetManagement:
+  enableBboxUnClipping: 0
+  maxTargetsPerStream: 150  # memoria preasignada por cámara: sobra para un andén lleno (default 30)
+  minIouDiff4NewTarget: 0.6974
+  minTrackerConfidence: 0.8049
+  # Late activation: un objeto se reporta después de sobrevivir N frames. A 5 fps, 5 frames = 1 s de
+  # latencia ANTES del dwell de 1.5 s del forwarder. Con 2 (0.4 s) los dos filtros en serie suman
+  # ≈ 1.9 s; el dwell ya es el debounce contra detecciones espurias.
+  probationAge: 2
+  # Frames que un track sigue vivo sin detección (oclusión por un montacargas). 15 frames = 3 s a
+  # 5 fps; los 42 del ejemplo serían 8.4 s y aumentan el riesgo de pegar el id a otra persona.
+  maxShadowTrackingAge: 15
+  earlyTerminationAge: 1
+
+TrajectoryManagement:
+  # CRÍTICO para este caso. Con 0 (default) los ids empiezan en 0 en cada arranque de DeepStream:
+  # tras un reinicio, el track 7 de hoy puede chocar con el track 7 de hace 5 min, y como el event_id
+  # del forwarder incluye el track, la nube lo tomaría como DUPLICADO y descartaría una intrusión real.
+  # Con 1, cada stream recibe 32 bits aleatorios altos por arranque: ids únicos entre reinicios.
+  useUniqueID: 1
+
+DataAssociator:
+  dataAssociatorType: 0
+  associationMatcherType: 1  # 1 = CASCADED: primero las detecciones confiables, luego las dudosas
+  # checkClassMatch va en BaseConfig: en DataAssociator es una llave vieja que 9.1 ignora con un warning
+  minMatchingScore4Overall: 0.2042
+  minMatchingScore4SizeSimilarity: 0.2607
+  minMatchingScore4Iou: 0.3708
+  matchingScoreWeight4SizeSimilarity: 0.2639
+  matchingScoreWeight4Iou: 0.4384
+  tentativeDetectorConfidence: 0.1054
+  minMatchingScore4TentativeIou: 0.4953
+  # Viene así en la configuración NvSORT de la guía (la tabla de parámetros no lo describe). Por su
+  # nombre, asocia contra la posición PREDICHA, que es lo que importa a 5 fps: un montacargas a ≈ 3 m/s
+  # avanza ≈ 0.6 m entre frames y su caja vieja casi no se traslapa con la nueva.
+  usePrediction4Assoc: 1
+
+StateEstimator:
+  stateEstimatorType: 2  # 2 = REGULAR: Kalman de 8 estados (posición, tamaño y sus velocidades)
+  noiseWeightVar4Loc: 0.0853
+  noiseWeightVar4Vel: 0.0061
+  useAspectRatio: 1

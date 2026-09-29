@@ -1,0 +1,58 @@
+# Configuración de UN sitio para el forwarder (caso c02). Se genera desde el inventario del sitio,
+# igual que las [sourceN] de ds_app_config.txt y los [sensorN] de msgconv_config.txt: los ids de cámara
+# deben coincidir en los tres archivos. rules.py la valida al arrancar (polígonos, horarios, días).
+# Sin credenciales aquí: usuario y contraseña de las cámaras llegan como secretos (ver docker-compose.yml).
+
+site_id: dc-07  # mismo id que el token del sitio en la nube (la nube usa el del token, no este)
+timezone: America/Mexico_City  # los horarios se evalúan en hora LOCAL del sitio, no en UTC
+frame_width: 1920  # = width/height del [streammux]: las cajas llegan en esas coordenadas
+frame_height: 1080
+dwell_seconds: 1.5  # debounce: cuánto debe estar el pie dentro antes de avisar (entra al SLO de 5 s)
+dedupe_seconds: 600  # un evento por track y zona cada 10 min
+exit_grace_seconds: 1.0  # 5 frames sin ver al track antes de considerar que salió
+
+# Horarios con nombre. "always" existe siempre (zona activa 24/7) y no se declara.
+schedules:
+  after_hours:
+    # Todas las noches de 20:00 a 06:00 del día siguiente. Una ventana que cruza medianoche pertenece al
+    # día en que EMPIEZA: el lunes a las 03:00 es la ventana del DOMINGO. Trampa real: con solo
+    # [mon…fri] aquí, el lunes de 00:00 a 06:00 quedaría sin vigilancia (lo prueba test_rules.py).
+    - days: [mon, tue, wed, thu, fri, sat, sun]
+      start: "20:00"
+      end: "06:00"
+    # Fin de semana completo: el centro no opera
+    - days: [sat, sun]
+      start: "00:00"
+      end: "24:00"
+
+cameras:
+  cam-01:
+    # JPEG del stream principal: el verificador en la nube trabaja con esta resolución, no con la de 5 fps.
+    # La ruta cambia por fabricante; la estándar la devuelve GetSnapshotUri del servicio Media de ONVIF.
+    snapshot_url: http://10.20.1.11/onvif-http/snapshot?Profile_1
+    # Stream principal (1080p @ 15 fps): de aquí sale el clip de 10 s de evidencia
+    rtsp_main_url: rtsp://10.20.1.11:554/stream1
+    zones:
+      - id: perimetro-norte
+        # Coordenadas normalizadas 0–1 sobre la imagen (x a la derecha, y hacia abajo). Se dibujan una vez
+        # sobre un snapshot de la cámara; si cambias la resolución del muxer, no hay que redibujarlas.
+        polygon: [[0.05, 0.62], [0.96, 0.55], [0.99, 0.98], [0.02, 0.99]]
+        classes: [person, vehicle]
+        schedule: after_hours
+
+  cam-02:
+    snapshot_url: http://10.20.1.12/onvif-http/snapshot?Profile_1
+    rtsp_main_url: rtsp://10.20.1.12:554/stream1
+    zones:
+      - id: pasillo-montacargas-3
+        # Pasillo en L (polígono cóncavo): ray casting lo maneja sin partirlo en dos
+        polygon: [[0.30, 0.40], [0.45, 0.40], [0.45, 0.75], [0.80, 0.75], [0.80, 0.95], [0.30, 0.95]]
+        classes: [person]  # los montacargas SÍ pueden estar aquí; una persona a pie no
+        schedule: always
+      - id: carril-bomberos-este
+        polygon: [[0.82, 0.30], [0.98, 0.30], [0.98, 0.95], [0.82, 0.95]]
+        classes: [vehicle]  # un vehículo estacionado bloquea el carril de bomberos a cualquier hora
+        schedule: always
+        # Dwell propio: un camión que PASA tarda segundos; uno ESTACIONADO, minutos. Con 1.5 s cada paso
+        # sería una alerta. Esta regla no entra en el SLO de 5 s: es una infracción, no una intrusión.
+        dwell_seconds: 60

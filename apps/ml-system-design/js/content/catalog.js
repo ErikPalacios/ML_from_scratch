@@ -777,13 +777,13 @@
       note: 'Cuándo elegir cada model server y cómo ganar latencia con ONNX, TensorRT y cuantización; cierra con la hoja de números que resume M3, M4 y M8.',
     },
     {
-      phase: 5, status: 'next',
+      phase: 5, status: 'done',
       title: 'Fase 5 — Visión en tiempo real: nube y edge',
       items: ['c02', 'c03'],
       note: 'Dos casos que aplican M2–M8 a tu terreno: video multicámara (nube vs edge) y una flota de Jetson en planta.',
     },
     {
-      phase: 6, status: 'later',
+      phase: 6, status: 'next',
       title: 'Fase 6 — Datos, features y MLOps',
       items: ['m09', 'm10', 'm11'],
       note: 'Lo que pasa antes y alrededor del serving: pipelines, feature store y skew, registry y CI/CD, y cómo desplegar sin romper nada (shadow, canary, A/B).',
@@ -831,6 +831,72 @@
       note: 'Sobre M14 y c10: darle al modelo tus documentos con citas (c11) y dejarlo actuar con herramientas, timeouts y guardrails (c12).',
     },
   ];
+
+  // Respuestas del entrevistador para el simulador (salen de la sección 'aclaracion' de cada caso;
+  // si cambian esas respuestas, actualiza también estas).
+  const FACTS = {
+    c02: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Un <b>centro de monitoreo (SOC)</b> central, 24/7, atiende las alertas en una consola web: mira las imágenes y el clip, llama al guardia del sitio o a las autoridades y cierra cada alerta como confirmada o descartada, con un motivo. De noche hay <b>≈ 4 operadores</b> para toda la flota: aguantan ≈ <b>50 alertas/hora</b> como máximo. Cada sitio ya tiene NVR que graban 24/7; no se reemplazan."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Cámaras IP con RTSP y H.264. Stream principal: 1080p a 15 fps, ≈ 4 Mb/s. Las cámaras permiten configurar un <b>segundo stream</b> (resolución y fps propios); hoy no se usa. Hay que detectar <b>personas y vehículos en zonas restringidas</b>: el perímetro fuera de horario, personas a pie en pasillos de montacargas y vehículos detenidos en carriles de bomberos. No se piden armas, peleas, caídas ni EPP. La alerta lleva evidencia: imágenes y un clip corto."
+      },
+      {
+        "topic": "Escala",
+        "a": "<b>25 centros de distribución × 40 cámaras = 1,000 cámaras</b>. Se espera crecer a ≈ 60 sitios en dos años, y algunos sitios van a sumar cámaras."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "La alerta debe estar en la pantalla del SOC en <b>p95 ≤ 5 s</b> desde que la persona entra a la zona, incluido el tiempo de permanencia que exijas para confirmarla. Cada sitio debe poder generar alertas el <b>99.5 %</b> del tiempo. Calidad: <b>recall ≥ 95 %</b> de intrusiones reales y <b>precisión ≥ 90 %</b> de las alertas que llegan al SOC."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "Hay un detector ligero tipo YOLO (≈ 10–30 M parámetros, entrada 640×640) ajustado con datos de un piloto. El equipo de modelos puede entrenar uno más pesado si hace falta. No es nuestro trabajo diseñar la arquitectura del modelo."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "No hay un dataset etiquetado de estas cámaras. Los operadores del SOC cierran cada alerta como confirmada o descartada, con un motivo (p. ej. sombra, animal, persona autorizada). El video de los NVR queda disponible para revisar si hace falta."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Subida de ≈ 20–50 Mb/s por sitio (internet de negocio, sin SLA), con cortes de minutos a horas algunas veces al año; se puede agregar LTE. Cada sitio tiene cuarto de IT con rack, UPS y LAN gigabit (1U de ≈ 300 W aceptable). Privacidad: nada de reconocimiento facial ni identificación, aviso a los trabajadores, clips 30 días con acceso restringido (en México, LFPDPPP). Capex ≈ US$10k por sitio (a 36 meses) y opex de nube ≈ US$1–2k/mes; menor costo a 3 años."
+      }
+    ],
+    c03: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Una planta de autopartes en Nuevo León que estampa y maquina soportes metálicos (brackets) para una armadora. En cada línea, un PLC rastrea las piezas y acciona un desviador neumático hacia un contenedor de inspección manual; hay <b>1 inspector por línea</b> por turno. Las alertas de EPP son para el <b>supervisor del turno</b>, en una tablet; la dirección quiere KPIs agregados por zona y turno. En planta opera mantenimiento de línea (nadie sabe Kubernetes) y hay un equipo central de ML chico."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Inspección: una cámara mono de 5 MP (2,448 × 2,048) por línea, disparada por una fotocelda, una imagen por pieza. Por pieza se necesita saber si pasa o se desvía, y qué defecto tiene: <b>fisura, rebaba, barreno faltante o deformación</b> (las fisuras más finas que importan miden ≈ 0.2 mm). EPP: <b>12 cámaras IP de área 1080p</b> en zonas de riesgo (prensas, pasillos de montacargas); casco, chaleco y lentes; alerta si una persona sin el EPP requerido permanece <b>más de 5 s</b> en la zona."
+      },
+      {
+        "topic": "Escala",
+        "a": "<b>4 líneas</b>, cada una a <b>2 piezas/s</b> (120 por minuto), en <b>2 turnos de 8 h</b>; en la noche no se produce. La tasa de defectos es ≈ <b>0.5 %</b>, repartida de forma desigual entre los 4 tipos (no tienen el reparto exacto). Hoy es una planta; si funciona, se agregan dos más en el próximo año."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "La banda transportadora va a <b>0.6 m/s</b> y la cámara puede ir <b>0.3 m</b> antes del desviador. El equipo de controles necesita la decisión <b>150 ms</b> antes de que la pieza llegue a la compuerta (ciclo del PLC, válvula y actuador). La alerta de EPP debe llegar a la tablet en <b>≤ 10 s</b>. El enlace a internet de la planta se cae a veces por horas (una vez, 3 días): la línea tiene que seguir operando <b>≥ 72 h</b> sin nube."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "No hay modelo en producción. Hoy un operario revisa a ojo al final de la línea; a 2 piezas/s no alcanza a ver cada pieza con detalle y la armadora ha reportado escapes. Calidad pide <b>recall ≥ 99.5 % por tipo de defecto</b>. Un defecto que llega a la armadora puede disparar un incidente de ≈ <b>US$2,000–10,000</b> (contención, cargos, scorecard de PPM); una pieza buena desviada cuesta ≈ <b>US$0.05–0.10</b> de re-inspección. El inspector revisa ≈ 1 pieza cada 15 s."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "De un piloto con una cámara prestada hay ≈ <b>2,000 imágenes de piezas buenas</b> y ≈ <b>300 de defectos</b>, repartidas de forma desigual entre los 4 tipos. Los ingenieros de calidad pueden etiquetar unas horas por semana. El inspector ya revisa cada pieza desviada y decide si tiene un defecto (y de qué tipo) o si está buena."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "La red de planta (OT) está aislada: solo una DMZ puede abrir conexiones salientes a la nube. El PLC de cada línea habla Modbus TCP y OPC UA. EPP: sin reconocimiento facial, sin seguimiento de identidad entre días, caras difuminadas en la evidencia, retención de <b>7 días</b> y KPIs solo agregados; hay que dar aviso a los trabajadores y acordarlo con sus representantes. Aplica la LFPDPPP (los detalles los define legal). Presupuesto: unos miles de dólares de hardware por estación y poco gasto de nube."
+      }
+    ],
+  };
+  cases.forEach((c) => { if (FACTS[c.id]) c.facts = FACTS[c.id]; });
 
   // ------------------------------------------------------------------ ensamblado
   const items = {};

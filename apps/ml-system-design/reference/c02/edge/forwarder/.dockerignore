@@ -1,0 +1,8 @@
+# Contexto de build chico: sin tests, venvs ni caches, y sin la configuración del sitio
+# (site.yaml llega montado por compose, no horneado en la imagen: la misma imagen sirve a los 25 sitios)
+tests/
+.venv/
+__pycache__/
+.pytest_cache/
+*.sqlite3
+site*.yaml
