@@ -184,7 +184,7 @@
         'Validación de datos: schemas y expectativas antes de entrenar',
       ],
       freq: 'alta', minutes: 50,
-      connects: ['m02', 'm10', 'm12', 'c01', 'c04', 'c08', 'c09'],
+      connects: ['m02', 'm10', 'm12', 'c01', 'c02', 'c03', 'c04', 'c08', 'c09'],
     },
     {
       id: 'm10', num: 10,
@@ -194,7 +194,7 @@
       summary: 'Experiment tracking, model registry, CI/CD y reproducibilidad: lo que permite reentrenar y desplegar sin miedo. En la entrevista llega como “¿cómo llega un modelo nuevo a producción?”.',
       topics: [
         'Experiment tracking: MLflow, Weights & Biases',
-        'Model registry: versiones, stages y lineage',
+        'Model registry: versiones, aliases (champion/challenger) y lineage',
         'Reproducibilidad: código + datos + config + entorno + seeds',
         'CI/CD para modelos: tests de datos, de modelo y de servicio',
         'Validation gate: cuándo un modelo nuevo puede reemplazar al actual',
@@ -203,7 +203,7 @@
         'Niveles de madurez de MLOps: qué es razonable para cada equipo',
       ],
       freq: 'media', minutes: 45,
-      connects: ['m05', 'm09', 'm11', 'm12', 'c01', 'c04'],
+      connects: ['m05', 'm09', 'm11', 'm12', 'c01', 'c02', 'c03', 'c04'],
     },
     {
       id: 'm11', num: 11,
@@ -222,7 +222,7 @@
         'Offline–online gap: por qué las métricas no coinciden',
       ],
       freq: 'alta', minutes: 55,
-      connects: ['m10', 'm12', 'c01', 'c08'],
+      connects: ['m10', 'm12', 'c01', 'c02', 'c03', 'c08'],
     },
     {
       id: 'm12', num: 12,
@@ -370,7 +370,7 @@
         'Monitoreo de cámaras caídas y drift por ubicación',
       ],
       freq: 'media', minutes: 130, difficulty: 'alta',
-      connects: ['m02', 'm03', 'm04', 'm08', 'm12', 'c03'],
+      connects: ['m02', 'm03', 'm04', 'm08', 'm09', 'm10', 'm11', 'm12', 'c03'],
       tests: [
         'Hacer la cuenta de streams × FPS × resolución antes de elegir arquitectura',
         'Justificar el reparto edge/nube con ancho de banda y costo',
@@ -397,7 +397,7 @@
         'Privacidad de los trabajadores (detección de EPP)',
       ],
       freq: 'baja', minutes: 125, difficulty: 'media',
-      connects: ['m02', 'm04', 'm08', 'm09', 'm11', 'm12', 'c02'],
+      connects: ['m02', 'm04', 'm08', 'm09', 'm10', 'm11', 'm12', 'c02'],
       tests: [
         'Diseñar para el edge: hardware, latencia determinista y operación sin red',
         'Elegir umbrales a partir del costo real de cada tipo de error',

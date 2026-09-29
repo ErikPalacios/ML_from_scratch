@@ -11,13 +11,13 @@
    deprecados desde 2.9, aún documentados; aliases y copy_model_version), W&B
    Registry (reemplazó al Model Registry legado), KFP 2.17 (caché activa por
    defecto), SageMaker Pipelines (caché opcional con vencimiento), Vertex AI
-   Pipelines (renombrado dentro de Gemini Enterprise Agent Platform en abril de
-   2026), Airflow 3 (versionado de DAGs, assets), niveles 0/1/2 de Google Cloud,
-   nota de reproducibilidad de PyTorch 2.14, cierre del SaaS de Neptune (5 de marzo
-   de 2026) y compra de W&B por CoreWeave (mayo de 2025).
+   Pipelines (caché activa por defecto, como KFP; su documentación aparece bajo
+   Gemini Enterprise Agent Platform), Airflow 3 (versionado de DAGs, assets),
+   niveles 0/1/2 de Google Cloud, nota de reproducibilidad de PyTorch 2.14. Las
+   noticias de proveedores (Neptune, CoreWeave) quedan en una línea, no en tarjetas.
    Snippets: el de MLflow corrió con mlflow 3.16.1 y SQLite (incluida la prueba de
    que el commit se registra aunque el árbol tenga cambios sin commit); el de KFP
-   compiló con kfp 2.17.0; el de seeds y el test de comportamiento corrieron con
+   compiló con kfp 2.17.0 (gate que lanza excepción, sin dsl.If); el de seeds y el test de comportamiento corrieron con
    torch 2.14 en CPU (el test, con un modelo de juguete). Los números del test
    pareado y de la cadencia salen de un script con scipy.
    ========================================================================== */
@@ -30,9 +30,10 @@
 
   // ------------------------------------------------------------ diagramas
   // El camino de un modelo. Columnas x = 2, 30, 60, 88 (w 18) con huecos de 10–12 para
-  // las etiquetas. Carril offline arriba (y 0–31: fila principal y 5 y tracking debajo
-  // del entrenamiento), release al medio (y 33–47), abajo monitoreo (x 0–49) y
-  // producción (x 52–108). El reentrenamiento sube por x = 11 sin cruzar nodos.
+  // las etiquetas. Carril offline arriba (y 0–31: fila principal y 5; debajo, el snapshot
+  // bajo la validación y el tracking bajo el entrenamiento), release al medio (y 33–47),
+  // abajo monitoreo (x 0–49) y producción (x 52–108). El reentrenamiento sube por x = 11
+  // hasta el snapshot, y el snapshot sube a la validación, sin cruzar nodos.
   const CAMINO = {
     width: 108, height: 64,
     lanes: [
@@ -42,7 +43,9 @@
       { id: 'online', label: 'Producción', x: 52, y: 49, w: 56, h: 15, kind: 'online' },
     ],
     nodes: [
-      { id: 'snap', label: 'Snapshot de datos', sub: 'ds-2026-10-01 · inmutable', x: 2, y: 5, w: 18, h: 8, kind: 'store',
+      { id: 'dval', label: 'Validar datos', sub: 'schema · volumen · M9', x: 2, y: 5, w: 18, h: 8, kind: 'job',
+        note: 'Chequeos automáticos del snapshot antes de gastar GPU: schema, labels dentro de las 500 categorías, conteos por categoría y por fuente, sin duplicados con el golden set. Si falla un chequeo bloqueante, no se entrena y el champion sigue sirviendo. Detalle en <a href="#m09.validacion-datos">M9</a>.' },
+      { id: 'snap', label: 'Snapshot de datos', sub: 'ds-2026-10-01 · inmutable', x: 2, y: 20, w: 18, h: 8, kind: 'store',
         note: 'Un id inmutable con su manifest (hash de cada imagen, label, fuente del label). Todo lo que viene después apunta a este id: si el snapshot se pudiera sobrescribir, ningún modelo sería reproducible. Cómo se construye y se valida es <a href="#m09.versionado">M9</a>.' },
       { id: 'train', label: 'Entrenamiento', sub: 'job GPU · imagen por digest', x: 30, y: 5, w: 18, h: 8, kind: 'job',
         note: 'Un job con la imagen de entrenamiento fijada por digest, el commit del código, la config y la seed. En c01: fine-tune desde el champion, unas horas de 1 GPU on-demand (' + E('≈ US$10–50') + ' al mes).' },
@@ -64,7 +67,8 @@
         note: 'Calendario mensual o una señal (PSI sostenido, caída de aceptación, categoría nueva). Abre un ticket y arranca el pipeline; no promueve nada solo. Es la <a href="#m10.reentrenamiento">sección 8</a>.' },
     ],
     edges: [
-      { from: 'snap', to: 'train', kind: 'offline', label: 'ds-id' },
+      { from: 'snap', to: 'dval', kind: 'offline', fromSide: 't', toSide: 'b', label: 'manifest' },
+      { from: 'dval', to: 'train', kind: 'offline', label: 'ds-id' },
       { from: 'train', to: 'track', kind: 'offline', fromSide: 'b', toSide: 't', label: 'métricas' },
       { from: 'train', to: 'gate', kind: 'offline', label: 'candidato' },
       { from: 'gate', to: 'ci', kind: 'offline', label: 'pasa' },
@@ -77,7 +81,7 @@
     ],
     flows: [
       { id: 'nuevo', label: 'Un modelo nuevo de c01 llega a producción', steps: [
-        { nodes: ['snap', 'train'], edges: ['snap>train'], text: 'Fin de mes: el snapshot <code>ds-2026-10-01</code> junta los ≈ 5k labels humanos del mes y los labels débiles filtrados. El pipeline lanza el fine-tune con ese id como parámetro, no con "los datos más recientes".' },
+        { nodes: ['snap', 'dval', 'train'], edges: ['snap>dval', 'dval>train'], text: 'Fin de mes: el snapshot <code>ds-2026-10-01</code> junta los ≈ 5k labels humanos del mes y los labels débiles filtrados. Pasa la validación de datos (si fallara, no se entrena y el champion sigue sirviendo) y el pipeline lanza el fine-tune con ese id como parámetro, no con "los datos más recientes".' },
         { nodes: ['train', 'track'], edges: ['train>track'], text: 'La corrida registra lr, épocas, seed, snapshot, commit y digest de la imagen, y la curva de <code>val_top1</code> por época. Si el resultado sorprende, cualquiera puede ver con qué se entrenó.' },
         { nodes: ['train', 'gate'], edges: ['train>gate'], text: 'El gate compara contra el champion en el golden set de 50k imágenes: top-1 no inferior (margen −0.3 pp, test pareado), recall de las 100 categorías grandes, ECE ≤ 0.05, slices móvil/web.' },
         { nodes: ['gate', 'ci'], edges: ['gate>ci'], text: 'Pasó. CI exporta a ONNX, construye el engine FP16 en un runner con T4 y la misma release de NGC que Triton, corre el parity test (top-1 agreement ≥ 99.5 %) y perf_analyzer (p99 ≤ champion + 10 %).' },
@@ -107,9 +111,9 @@
       { id: 'train', label: 'Fine-tune', sub: '1 GPU · checkpoint 15 min', x: 54, y: 6, w: 18, h: 8, kind: 'gpu',
         note: 'El único paso caro. Guarda un checkpoint cada 15 minutos (pesos + optimizador ≈ 307 MB para ResNet-50 con Adam) y, si se reintenta, reanuda desde el último en vez de empezar de cero.' },
       { id: 'eval', label: 'Evaluar', sub: 'golden set · slices', x: 80, y: 6, w: 18, h: 8, kind: 'gpu',
-        note: 'Corre el candidato y el champion sobre el mismo golden set y guarda predicciones por imagen: el gate necesita los pares para el test pareado, no solo dos promedios.' },
+        note: 'Corre el candidato y el champion <b>v14, recibido como parámetro</b>, sobre el mismo golden set y guarda predicciones por imagen: el gate necesita los pares para el test pareado, no solo dos promedios. Si leyera <code>@champion</code> por su cuenta, la caché no vería que el champion cambió.' },
       { id: 'gate', label: 'Gate', sub: 'vs champion', x: 80, y: 26, w: 18, h: 8, kind: 'job',
-        note: 'Aplica los criterios escritos. Si falla, el pipeline termina en rojo, notifica y deja el motivo en el tracking. Nunca se cachea: el champion contra el que compara puede haber cambiado.' },
+        note: 'Aplica los criterios escritos a los pares. Si no pasa, deja el motivo en el tracking y lanza una excepción: la corrida termina en rojo y la alerta de "pipeline fallido" avisa. Un gate que solo devuelve <code>false</code> deja la corrida en verde con el resto saltado, y nadie se entera.' },
       { id: 'engine', label: 'Build engine', sub: 'trtexec en una T4', x: 54, y: 26, w: 18, h: 8, kind: 'gpu',
         note: 'ONNX opset 17 con batch dinámico 1–32 y <code>trtexec --fp16</code> en un runner con T4 y la misma release de NGC que Triton. El engine no es portable entre GPUs ni entre versiones de TensorRT (<a href="#m08.tensorrt">M8</a>).' },
       { id: 'par', label: 'Parity + perf', sub: '≥ 99.5 % · p99', x: 28, y: 26, w: 18, h: 8, kind: 'job',
@@ -128,7 +132,7 @@
     ],
     flows: [
       { id: 'normal', label: 'La corrida del mes', steps: [
-        { nodes: ['snap', 'val'], edges: ['snap>val'], text: 'El scheduler dispara el pipeline con <code>dataset_id=ds-2026-10-01</code>. Se arma el snapshot y la validación de datos pasa.' },
+        { nodes: ['snap', 'val'], edges: ['snap>val'], text: 'El scheduler resuelve <code>@champion</code> una vez y dispara el pipeline con <code>dataset_id=ds-2026-10-01</code> y <code>champion_version=14</code>. Se arma el snapshot y la validación de datos pasa.' },
         { nodes: ['train', 'eval'], edges: ['val>train', 'train>eval'], text: 'Fine-tune de ' + E('≈ 3–4 h') + ' en una GPU; después, evaluación del candidato y del champion sobre el golden set.' },
         { nodes: ['gate', 'engine', 'par', 'reg'], edges: ['eval>gate', 'gate>engine', 'engine>par', 'par>reg'], text: 'Gate verde, engine construido en la T4, parity y perf verdes: la versión queda como <code>challenger</code>. Todo el recorrido quedó en el historial del orquestador, con los artefactos de cada paso.' },
       ] },
@@ -139,8 +143,8 @@
       ] },
       { id: 'cache', label: 'Arreglas un bug del parity test', steps: [
         { nodes: ['par'], edges: [], text: 'El parity test falló por un bug del script (no del modelo). Lo arreglas y vuelves a correr el pipeline con los mismos parámetros.' },
-        { nodes: ['snap', 'val', 'train', 'eval'], edges: [], text: 'Caché: snapshot, validación, fine-tune y evaluación tienen las mismas entradas y la misma definición, así que el orquestador reutiliza sus salidas. No pagas otras 4 horas de GPU.' },
-        { nodes: ['gate', 'engine', 'par', 'reg'], edges: ['gate>engine', 'engine>par', 'par>reg'], text: 'Corren de nuevo el gate (nunca cacheado) y el parity corregido. El build del engine vuelve a correr solo si cambió alguna de sus entradas declaradas; con el mismo modelo, también sale de caché.' },
+        { nodes: ['snap', 'val', 'train', 'eval'], edges: [], text: 'Caché: snapshot, validación, fine-tune y evaluación tienen las mismas entradas (incluida la versión del champion) y la misma definición, así que el orquestador reutiliza sus salidas. No pagas otras 4 horas de GPU. Si el champion hubiera cambiado desde la corrida anterior, la evaluación y el gate se recalcularían solos.' },
+        { nodes: ['gate', 'engine', 'par', 'reg'], edges: ['gate>engine', 'engine>par', 'par>reg'], text: 'El gate y el build del engine también salen de caché: mismas entradas. Corren el parity corregido (cambió su definición) y el registro que depende de él.' },
       ] },
     ],
   };
@@ -170,11 +174,11 @@ mv = client.create_model_version("classifier", source=f"{run.info.artifact_uri}/
 client.set_model_version_tag("classifier", mv.version, "gate", "passed")
 client.set_registered_model_alias("classifier", "challenger", mv.version)
 
-# Al terminar el canary (lo hace CD, no una persona con la consola):
-client.set_registered_model_alias("classifier", "champion", mv.version)
+# CD resuelve el alias UNA vez, al construir la imagen del canary; los pods no leen el alias al arrancar
+v = client.get_model_version_by_alias("classifier", "challenger").version   # → "15": tag de la imagen
 
-# CD resuelve el alias UNA vez, al construir la imagen; los pods no leen el alias al arrancar
-v = client.get_model_version_by_alias("classifier", "champion").version   # → "15"`;
+# Al terminar el canary (lo hace CD, no una persona con la consola):
+client.set_registered_model_alias("classifier", "champion", mv.version)`;
 
   // Corrió con torch 2.14 en CPU: dos DataLoaders con la misma seed dan los mismos batches.
   const SEEDS = `import os, random
@@ -240,22 +244,23 @@ def finetune(manifest: dsl.Input[dsl.Dataset], seed: int, ckpt_uri: str,
              model: dsl.Output[dsl.Model]): ...       # reanuda desde ckpt_uri si hay checkpoint
 
 @dsl.component(base_image=IMG)
-def gate(model: dsl.Input[dsl.Model], golden_set: str) -> bool: ...
+def gate(model: dsl.Input[dsl.Model], golden_set: str,
+         champion_version: str): ...      # lanza una excepción si no pasa: la corrida queda en rojo
 
 @dsl.component(base_image=IMG)
 def build_and_register(model: dsl.Input[dsl.Model]): ...   # engine en T4, parity, registry
 
 @dsl.pipeline(name="c01-monthly")
-def c01_monthly(dataset_id: str, seed: int = 17, golden_set: str = "golden-v3"):
+def c01_monthly(dataset_id: str, champion_version: str,   # el scheduler resuelve @champion una vez
+                seed: int = 17, golden_set: str = "golden-v3"):
     snap = snapshot(dataset_id=dataset_id)   # el id es una entrada: la caché no puede confundir meses
     ft = finetune(manifest=snap.outputs["manifest"], seed=seed,
                   ckpt_uri=f"s3://ml-ckpt/c01/{dataset_id}/")
     ft.set_accelerator_type("nvidia.com/gpu").set_accelerator_limit(1)
     ft.set_retry(num_retries=3, backoff_duration="120s")   # un nodo perdido no tira la corrida
-    ok = gate(model=ft.outputs["model"], golden_set=golden_set)
-    ok.set_caching_options(False)            # el champion cambia: nunca reusar un veredicto viejo
-    with dsl.If(ok.output == True):
-        build_and_register(model=ft.outputs["model"])
+    ok = gate(model=ft.outputs["model"], golden_set=golden_set,
+              champion_version=champion_version)   # si el champion cambió, la caché no reusa el veredicto
+    build_and_register(model=ft.outputs["model"]).after(ok)   # solo corre si el gate no falló
 
 compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
 
@@ -288,6 +293,7 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
           { t: 'diagram', id: 'camino-a-produccion', title: 'El camino de un modelo a producción (c01)', caption: 'Arriba, lo que pasa offline hasta tener un candidato validado; al medio, el release; abajo, producción y monitoreo, que cierran el ciclo. Toca cada caja y recorre los dos flujos.', spec: CAMINO },
           { t: 'table', caption: 'Cada flecha: quién la dispara y qué deja registrado', head: ['Paso', 'Lo dispara', 'Deja registrado', 'Dónde se ve'], rows: [
             ['Snapshot', 'El pipeline, con un id como parámetro', 'Manifest inmutable', '<a href="#m09.versionado">M9</a>'],
+            ['Validación de datos', 'Automática al armar el snapshot', 'Reporte de chequeos; si falla, no se entrena', '<a href="#m09.validacion-datos">M9</a>'],
             ['Entrenamiento', 'El pipeline (calendario o disparador)', 'Corrida: params, métricas, commit, digest, snapshot', '<a href="#m10.experiment-tracking">sección 2</a>'],
             ['Gate', 'Automático al terminar la evaluación', 'Veredicto y métricas contra el champion', '<a href="#m10.gate">sección 6</a>'],
             ['CI del artefacto', 'Automático si el gate pasa', 'Engine, parity, latencia', '<a href="#m10.ci-cd">sección 5</a>'],
@@ -296,8 +302,8 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
             ['Promoción', 'CD al terminar el canary', 'Movimiento del alias champion: quién, cuándo, por qué', '<a href="#m10.model-registry">sección 3</a>'],
             ['Reentrenar', 'Calendario o una señal de monitoreo', 'Ticket con el motivo', '<a href="#m10.reentrenamiento">sección 8</a>'],
           ] },
-          { t: 'callout', kind: 'trap', title: 'MLOps = comprar una plataforma', html: `<p>"Usaría Kubeflow para MLOps" no responde nada: nombra una herramienta sin decir qué problema resuelve. El entrevistador anota el camino (snapshot, tracking, gate, registry, deploy seguro, monitoreo, disparadores) y quién decide en cada paso. Las herramientas vienen después y se justifican por el tamaño del equipo (<a href="#m10.madurez">sección 9</a>). Un CronJob que corre un script por etapas con un gate escrito le gana a un Kubeflow sin gate.</p>` },
-          { t: 'callout', kind: 'interview', html: `<p>"Every model goes through the same path: a training job on an immutable data snapshot, tracked with its params, commit and image digest; an evaluation gate against the current champion on a frozen golden set; the serving artifact built and parity-tested in CI; then it's registered as the challenger and rolled out through shadow and canary. Monitoring closes the loop, and a drift signal restarts the pipeline, not the deploy."</p>` },
+          { t: 'callout', kind: 'trap', title: 'MLOps = comprar una plataforma', html: `<p>"Usaría Kubeflow para MLOps" no responde nada: nombra una herramienta sin decir qué problema resuelve. El entrevistador anota el camino (snapshot, validación de datos, tracking, gate, registry, deploy seguro, monitoreo, disparadores) y quién decide en cada paso. Las herramientas vienen después y se justifican por el tamaño del equipo (<a href="#m10.madurez">sección 9</a>). Un CronJob que corre un script por etapas con un gate escrito le gana a un Kubeflow sin gate.</p>` },
+          { t: 'callout', kind: 'interview', html: `<p>"Every model goes through the same path: a training job on an immutable data snapshot that has passed data validation, tracked with its params, commit and image digest; an evaluation gate against the current champion on a frozen golden set; the serving artifact built and parity-tested in CI; then it's registered as the challenger and rolled out through shadow and canary. Monitoring closes the loop, and a drift signal restarts the pipeline, not the deploy."</p>` },
           { t: 'callout', kind: 'connect', html: `<p>El ciclo de vida completo ya apareció en <a href="#m01.ciclo-de-vida">M1</a>. Este módulo cubre lo que está entre "tengo datos" y "está en producción": los datos mismos son <a href="#m09">M9</a>, el rollout seguro es <a href="#m11">M11</a> y el monitoreo que dispara el reentrenamiento es <a href="#m12">M12</a>. La imagen inmutable que viaja por el camino es <a href="#m05">M5</a>.</p>` },
         ],
       },
@@ -327,14 +333,14 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
           { t: 'callout', kind: 'trap', title: 'El notebook que nadie registró', html: `<p>El caso clásico: el mejor modelo salió de un notebook con celdas ejecutadas fuera de orden, un <code>df = df[df.label != 17]</code> olvidado en la celda 40 y datos leídos de una carpeta local. Se ve mejor en el golden set y nadie puede reproducirlo. Regla: el notebook explora; lo que va a producción sale de un script versionado corrido por el pipeline, con tracking desde la primera línea.</p>` },
           { t: 'h3', text: 'MLflow, Weights & Biases y el resto' },
           { t: 'table', caption: 'Cuándo cada uno (verifica precios y condiciones: cambian)', head: ['', 'MLflow', 'Weights & Biases', 'MLflow administrado en tu nube', 'Carpeta en S3 + tabla'], rows: [
-            ['Qué es', 'Open source (Apache 2.0): tracking, registry, formato de modelo, evaluación', 'SaaS comercial (también hay opción dedicada o self-managed); de CoreWeave desde mayo de 2025', 'El mismo MLflow operado por Databricks, SageMaker AI o Azure ML (su workspace habla la API de MLflow)', 'Un JSON por corrida y artefactos en un prefijo'],
+            ['Qué es', 'Open source (Apache 2.0): tracking, registry, formato de modelo, evaluación', 'SaaS comercial (también hay opción dedicada o self-managed)', 'El mismo MLflow operado por Databricks, SageMaker AI o Azure ML (su workspace habla la API de MLflow)', 'Un JSON por corrida y artefactos en un prefijo'],
             ['Fuerte en', 'Registry con aliases, integración con el resto de tu stack, sin licencias', 'Interfaz, comparación de corridas, dashboards y reportes para el equipo, sweeps', 'No operar el servidor; IAM y red de tu nube', 'Cero dependencias'],
             ['Registry', 'Model Registry con aliases y tags', 'W&B Registry con aliases (reemplazó al Model Registry legado)', 'El de MLflow, o el registry propio de la nube', 'Tú lo construyes'],
             ['Quién lo opera', 'Tú: servidor, base de datos (Postgres) y artifact store (S3)', 'El proveedor', 'La nube', 'Tú, y casi no hay nada que operar'],
             ['Cuándo', 'Default razonable si nadie eligió todavía, o si los datos no pueden salir de tu nube', 'Investigación con muchos experimentos y un equipo que vive en la interfaz', 'Ya estás en esa nube y no quieres operar otro servicio', 'Un modelo, una persona, las primeras semanas'],
           ], note: 'Hay más (Comet, ClearML, Aim y los de cada nube). En la entrevista no se evalúa cuál conoces, sino que sepas qué registrar y por qué.' },
-          { t: 'callout', kind: 'trap', title: 'Tu historial vive en un SaaS', html: `<p>Neptune.ai apagó su servicio hosted el 5 de marzo de 2026, tres meses después de anunciar su compra por OpenAI: los clientes tuvieron ese plazo para exportar años de corridas. No es un argumento contra el SaaS; es un argumento para tratar el tracking como datos tuyos. Exporta periódicamente lo que importa (métricas finales, punteros, artefactos de los modelos que llegaron a producción) a tu propio almacenamiento, y que el registry de lo que sirve producción no dependa de un proveedor que podría cambiar de dueño.</p>` },
-          { t: 'callout', kind: 'skip', html: `<p>No memorices APIs de W&B ni los parámetros de <code>mlflow.autolog()</code>. En la entrevista basta con la tabla de qué registrar, la trampa del notebook y una frase sobre dónde vive (MLflow con Postgres y S3, o el administrado de tu nube).</p>` },
+          { t: 'p', html: `Trata el tracking como datos tuyos: exporta métricas finales, punteros y artefactos de lo que llegó a producción; un SaaS puede cambiar de dueño o cerrar (le pasó a Neptune.ai en 2026).` },
+          { t: 'callout', kind: 'skip', html: `<p>No memorices APIs de W&B ni los parámetros de <code>mlflow.autolog()</code>. En la entrevista basta con la tabla de qué registrar, la trampa del notebook y una frase sobre dónde vive (MLflow con Postgres y S3, o el administrado de tu nube). Tampoco las noticias de proveedores (a sept. de 2026: W&B es de CoreWeave desde 2025 y la documentación de Vertex AI aparece bajo Gemini Enterprise Agent Platform): no se preguntan.</p>` },
           { t: 'callout', kind: 'interview', html: `<p>"Every training run logs its params, per-epoch metrics, artifacts, the dataset snapshot id, the git commit and the image digest. Candidates only come from the pipeline, starting from a clean commit, so any model in production can be traced back to exactly what produced it."</p>` },
         ],
       },
@@ -366,7 +372,7 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
           { t: 'code', title: 'Registro, gate y promoción con aliases', caption: 'Continúa el fragmento de la sección anterior. Corrió con MLflow 3.16.1: el alias devuelve la versión registrada.', files: [
             { name: 'register.py', lang: 'python', code: REGISTRY },
           ] },
-          { t: 'callout', kind: 'trap', title: 'Los pods de serving leen @champion al arrancar', html: `<p>Parece elegante: el servicio carga <code>models:/classifier@champion</code> en cada arranque y promover es solo mover el alias. El problema: durante un scale-up, un reinicio o un rollout, los pods nuevos cargan otra versión que los viejos. Tienes dos modelos detrás del mismo servicio sin haber desplegado nada, sin canary y con un <code>model_version</code> en los logs que depende de cuándo arrancó cada pod. En c01 el modelo va <b>horneado en la imagen</b> (<a href="#m05.pesos-modelo">M5</a>): CD resuelve el alias una vez, al construir, y el tag de la imagen es la versión. El alias describe producción; no la controla a escondidas.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Los pods de serving leen @champion al arrancar', html: `<p>Parece elegante: el servicio carga <code>models:/classifier@champion</code> en cada arranque y promover es solo mover el alias. El problema: durante un scale-up, un reinicio o un rollout, los pods nuevos cargan otra versión que los viejos. Tienes dos modelos detrás del mismo servicio sin haber desplegado nada, sin canary y con un <code>model_version</code> en los logs que depende de cuándo arrancó cada pod. En c01 el modelo va <b>horneado en la imagen</b> (<a href="#m05.pesos-modelo">M5</a>): CD resuelve el alias <code>challenger</code> (o la versión explícita) una vez, al construir la imagen del canary, y el tag de la imagen es la versión; <code>champion</code> se mueve al terminar el rollout. El alias describe producción; no la controla a escondidas.</p>` },
           { t: 'h3', text: 'Qué hay dentro de una versión de c01' },
           { t: 'list', items: [
             '<b>ONNX</b> y el <b>engine</b> de TensorRT, con la GPU (T4, sm_75) y la release de NGC para la que se construyó escritas como tags: el engine solo corre ahí.',
@@ -380,7 +386,7 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
             ['MLflow', 'Alias (<code>@champion</code>) + tags', 'Stages deprecados desde 2.9; un registered model por entorno + <code>copy_model_version</code> para promover entre entornos'],
             ['W&B Registry', 'Aliases sobre versiones de un artefacto', 'Reemplazó al Model Registry legado (que quedó de solo lectura tras la migración); tiene aliases protegidos'],
             ['SageMaker Model Registry', 'Model package group con versiones y un estado de aprobación: <code>PendingManualApproval</code>, <code>Approved</code>, <code>Rejected</code>', 'La aprobación es explícita y queda registrada; el pipeline de despliegue puede reaccionar al cambio de estado'],
-            ['Vertex AI Model Registry', 'Aliases de versión; exactamente una versión lleva siempre el alias <code>default</code>', 'Desde abril de 2026 Google lo agrupa en Gemini Enterprise Agent Platform; en entrevistas todavía se dice Vertex'],
+            ['Vertex AI Model Registry', 'Aliases de versión; exactamente una versión lleva siempre el alias <code>default</code>', 'Si referencias el modelo sin versión, se usa la que lleva <code>default</code>'],
           ] },
           { t: 'h3', text: 'Model card: el registro para humanos' },
           { t: 'p', html: `Una <b>model card</b> (Mitchell et al., <i>Model Cards for Model Reporting</i>, FAT* 2019) es un documento corto por versión: para qué sirve, para qué <b>no</b>, con qué datos se entrenó, métricas por slice, limitaciones conocidas y dueño. En c01, una línea importante: "sugiere categorías; no está validado para moderar publicaciones sin revisión humana". Es lo que evita que otro equipo use tu modelo para algo que nunca evaluaste. El gate puede exigir que exista antes de registrar.` },
@@ -548,13 +554,13 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
           { t: 'code', title: 'El mismo pipeline en Kubeflow Pipelines (KFP v2)', caption: 'Compiló con kfp 2.17.0 a su YAML. Los cuerpos de los componentes se omiten; lo que importa son las entradas, la GPU, los reintentos y la caché.', files: [
             { name: 'pipeline.py', lang: 'python', code: KFP },
           ] },
-          { t: 'callout', kind: 'trap', title: 'La caché y la carpeta "latest"', html: `<p>En Kubeflow Pipelines la caché está <b>activa por defecto</b>: un paso con la misma definición y las mismas entradas devuelve la salida anterior. Si tu paso lee <code>s3://…/datasets/latest/</code> y no recibe el id como parámetro, sus entradas no cambian entre meses: la corrida de noviembre reutiliza el snapshot de octubre y nadie se entera. Dos reglas: toda entrada que cambia el resultado entra como parámetro o artefacto (el id del snapshot, la versión del golden set), y los pasos que comparan contra algo externo que cambia (el gate contra el champion actual) no se cachean. En SageMaker Pipelines es al revés: la caché es opcional y exige un tiempo de vencimiento.</p>` },
+          { t: 'callout', kind: 'trap', title: 'La caché y la carpeta "latest"', html: `<p>En Kubeflow Pipelines (y en Vertex AI Pipelines, que ejecuta los mismos pipelines) la caché está <b>activa por defecto</b>: un paso con la misma definición y las mismas entradas devuelve la salida anterior. Si tu paso lee <code>s3://…/datasets/latest/</code> y no recibe el id como parámetro, sus entradas no cambian entre meses: la corrida de noviembre reutiliza el snapshot de octubre y nadie se entera. Dos reglas: toda entrada que cambia el resultado entra como parámetro o artefacto (el id del snapshot, la versión del golden set), y los pasos que comparan contra algo externo que cambia (el champion actual) reciben su versión como parámetro; si no puedes, no los caches. En SageMaker Pipelines es al revés: la caché es opcional y exige un tiempo de vencimiento.</p>` },
           { t: 'h3', text: 'Qué orquestador' },
           { t: 'table', caption: 'Hedged: son herramientas vivas, verifica la versión que vas a usar', head: ['', 'Dónde corre', 'Cómo se define', 'Caché y linaje', 'Cuándo lo eliges'], rows: [
             ['Kubeflow Pipelines', 'Tu cluster de Kubernetes (lo operas tú)', 'SDK de Python (KFP v2) que compila a YAML; cada paso, un contenedor', 'Caché activa por defecto; artefactos y metadata por corrida', 'Ya tienes Kubernetes y un equipo que lo opera; quieres portabilidad entre nubes'],
             ['SageMaker Pipelines', 'AWS, administrado', 'SDK de SageMaker; el decorador <code>@step</code> convierte funciones de Python en pasos', 'Caché opcional con vencimiento; integra con su Model Registry (aprobación)', 'Estás en AWS y no quieres operar el orquestador'],
-            ['Vertex AI Pipelines', 'Google Cloud, serverless (desde abril de 2026, dentro de Gemini Enterprise Agent Platform)', 'Pipelines de KFP o TFX, compilados', 'Caché configurable; linaje en su metadata store', 'Estás en GCP; ya escribes KFP'],
-            ['Airflow', 'Donde lo despliegues o administrado (MWAA, Cloud Composer, Astronomer)', 'DAGs en Python; operadores que lanzan jobs', 'Sin caché de salidas por paso: tus tareas deben ser idempotentes; Airflow 3 agregó versionado de DAGs y assets', 'La empresa ya lo usa para sus pipelines de datos y el entrenamiento es un paso más'],
+            ['Vertex AI Pipelines', 'Google Cloud, serverless', 'Pipelines de KFP o TFX, compilados', 'Caché activa por defecto (la misma de KFP; se apaga por tarea o con <code>enable_caching=False</code>); linaje en su metadata store', 'Estás en GCP; ya escribes KFP'],
+            ['Airflow', 'Donde lo despliegues o administrado (MWAA, Cloud Composer, Astronomer)', 'DAGs en Python; operadores que lanzan jobs', 'Sin caché de salidas por paso: tus tareas deben ser idempotentes; Airflow 3 agregó versionado de DAGs y backfills desde el scheduler (los Datasets de la 2.4 pasaron a llamarse assets)', 'La empresa ya lo usa para sus pipelines de datos y el entrenamiento es un paso más'],
             ['Dagster', 'Donde lo despliegues o su nube', 'Assets (datos que se producen) en Python', 'Versiones de código y de datos por asset; marca los que quedaron desactualizados', 'Pipeline de datos y de ML pensados como assets con dependencias'],
           ], note: 'Argo Workflows (el motor que KFP usa por defecto en Kubernetes) y un CronJob que lanza un script por etapas también son respuestas válidas para un equipo chico. La del <a href="#c01.datos">caso 1</a> incluye el CronJob como alternativa más simple.' },
           { t: 'callout', kind: 'senior', html: `<p>La pregunta que decide no es cuál es mejor, sino quién lo opera. Kubeflow en un cluster propio es un sistema más con upgrades, permisos y almacenamiento de artefactos; si no hay un equipo de plataforma, el administrado de tu nube o el Airflow que la empresa ya tiene ganan. Con un solo modelo mensual, un CronJob con un script por etapas, un gate escrito y MLflow cubre casi todo lo de la tabla de arriba, menos la caché y la UI.</p>` },
@@ -565,8 +571,8 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
             { label: 'Checkpoint completo', expr: '102 + 205', value: '≈ 307 MB' },
             { label: 'Escribirlo en S3', expr: E('≈ 100–200 MB/s'), value: E('≈ 2–3 s') },
             { label: 'Cada 15 min durante un fine-tune de 4 h', expr: '16 checkpoints × 3 s', value: E('≈ 1 min en total') },
-          ], result: 'Un checkpoint cada 15 minutos cuesta menos de 1 % del tiempo de entrenamiento y limita lo que pierdes en una interrupción a 15 minutos. Guarda también la época, el paso y el estado del generador aleatorio: sin ellos, reanudar no es seguir.' },
-          { t: 'p', html: `Con checkpoints, el entrenamiento tolera interrupciones y puede correr en <b>spot</b> (<a href="#m06.nodos">M6</a>): el descuento varía por tipo, zona y momento, así que verifícalo. Pero haz la cuenta antes de complicarte: el fine-tune mensual de c01 cuesta ${E('≈ US$10–50')} on-demand (<a href="#c01.costo">costo de c01</a>). Spot ahorraría decenas de dólares al mes a cambio de reintentos y de la posibilidad de no conseguir la GPU el día que la necesitas, y por eso c01 entrena on-demand. c02 sí entrena en spot con checkpoints (<a href="#c02.datos">datos de c02</a>), y con entrenamientos de días en varias GPUs la cuenta cambia por completo (<a href="#m13">M13</a>).` },
+          ], result: 'Un checkpoint cada 15 minutos cuesta menos de 1 % del tiempo de entrenamiento y limita lo que pierdes en una interrupción a 15 minutos. Guarda también la época, el paso, el estado del scheduler de learning rate, el del GradScaler de AMP y el de los generadores aleatorios: sin ellos, reanudar no es seguir.' },
+          { t: 'p', html: `Con checkpoints, el entrenamiento tolera interrupciones y puede correr en <b>spot</b> (<a href="#m06.nodos">M6</a>): el descuento varía por tipo, zona y momento, así que verifícalo. Pero haz la cuenta antes de venderlo como gran ahorro: c01 parte on-demand (${E('≈ US$10–50')} al mes, <a href="#c01.costo">costo de c01</a>) y lista spot como palanca desde el día 1. Con checkpoints cada 15 minutos el riesgo es chico, pero el ahorro son decenas de dólares al mes, así que la razón para hacerlo es el hábito (lo mismo sirve para el backfill de 200 M imágenes), no esta factura. c02 sí entrena en spot con checkpoints (<a href="#c02.datos">datos de c02</a>), y con entrenamientos de días en varias GPUs la cuenta cambia por completo (<a href="#m13">M13</a>).` },
           { t: 'callout', kind: 'interview', html: `<p>"The monthly retrain is a DAG: validate the data, snapshot, fine-tune, evaluate, gate, build the engine on a T4, parity-test and register. Each step is a container with explicit inputs, so it retries on its own and caches safely; the fine-tune checkpoints every fifteen minutes. For one model a month I'd pick whatever orchestrator the company already runs; I wouldn't stand up Kubeflow just for this."</p>` },
           { t: 'callout', kind: 'connect', html: `<p>Los pipelines de datos que alimentan el snapshot (ingesta, joins, validación) son <a href="#m09.pipelines">M9</a>. Cada paso es un contenedor con su imagen por digest: <a href="#m05">M5</a>. Los jobs con GPU en Kubernetes y los nodos spot: <a href="#m06.gpus-k8s">M6</a>.</p>` },
         ],
@@ -584,12 +590,12 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
           { t: 'table', head: ['Política', 'Qué la dispara', 'Encaja cuando', 'Riesgo'], rows: [
             ['Programada', 'Calendario: cada semana, mes o trimestre', 'El cambio es gradual y los labels llegan a un ritmo conocido', 'Llega tarde a un cambio brusco; reentrena aunque nada haya cambiado'],
             ['Disparada', 'Una señal: drift, caída de una métrica, datos nuevos, una clase nueva', 'Hay cambios bruscos o estacionales que se pueden detectar', 'Señales ruidosas disparan reentrenamientos inútiles; una señal que falla en silencio no dispara nada'],
-            ['Continua (online learning)', 'Cada evento o cada pocos minutos, con actualizaciones incrementales', 'Recomendación, anuncios, fraude: el label llega en minutos y el valor está en la frescura', 'Un bug de datos entra al modelo en minutos; difícil de validar y de revertir'],
+            ['Continua (online learning)', 'Cada evento o cada pocos minutos, con actualizaciones incrementales', 'Recomendación y anuncios: el label (clic, reproducción) llega en segundos o minutos y el valor está en la frescura', 'Un bug de datos entra al modelo en minutos; difícil de validar y de revertir. En fraude el label real (contracargo) tarda semanas: la frescura se gana con features de streaming y reentrenamientos frecuentes con labels rápidos parciales, no con online learning sobre el label final'],
           ] },
-          { t: 'callout', kind: 'skip', html: `<p>El aprendizaje continuo casi no aparece en casos de visión: los labels de c01, c02 y c03 llegan en días y cuestan dinero. Nómbralo y descártalo con esa razón. Se discute de verdad en sistemas de ranking y fraude, más adelante en el curso.</p>` },
+          { t: 'callout', kind: 'skip', html: `<p>El aprendizaje continuo casi no aparece en casos de visión: los labels de c01, c02 y c03 llegan en días y cuestan dinero. Nómbralo y descártalo con esa razón. Se discute de verdad en ranking y anuncios (<a href="#c08">c08</a>); en fraude (<a href="#c09">c09</a>) lo fresco son las features, no los labels.</p>` },
           { t: 'h3', text: 'Los tres casos' },
           { t: 'table', head: ['Caso', 'Calendario', 'Disparadores', 'Lo que no se arregla reentrenando'], rows: [
-            ['<a href="#c01.monitoreo">c01</a> marketplace', 'Mensual: el catálogo cambia por temporadas y ≈ 5k labels/mes es la unidad natural de datos nuevos', 'PSI &gt; 0.2 sostenido 3 días; caída de aceptación &gt; 3 pp semana contra semana; categorías nuevas en el árbol', 'Una versión nueva de la app que manda PNG en vez de JPEG: es un bug del cliente'],
+            ['<a href="#c01.monitoreo">c01</a> marketplace', 'Mensual: el catálogo cambia por temporadas y ≈ 5k labels/mes es la unidad natural de datos nuevos', 'PSI &gt; 0.2 sostenido 3 días; caída de aceptación &gt; 3 pp semana contra semana; categorías nuevas en el árbol', 'Una versión nueva de la app que deja de reducir las fotos a ≤ 1024 px (o ignora la orientación EXIF): es un cambio del cliente, se arregla en la app o en el preprocesamiento, no reentrenando'],
             ['<a href="#c02.monitoreo">c02</a> video', 'Mensual', 'Descartes del SOC por "error del modelo" altos en un sitio una semana; cambio de estación u horario; sitio nuevo tras 2 semanas en shadow; walk tests fallidos', 'Telarañas frente al IR, zonas mal dibujadas, rondas de guardia en el horario: escoba o config del sitio'],
             ['<a href="#c03.monitoreo">c03</a> inspección', 'Mensual', 'Variante de pieza nueva (antes de producirla); "otro" acumulado en la tablet (tipo de defecto nuevo, que mientras tanto cubre la anomalía); drift del score sin causa física; escape reportado', 'Un lente sucio o una lámpara que se degrada: lo atrapa la pieza patrón, no el modelo'],
           ] },
@@ -641,7 +647,7 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
           { t: 'followups', items: [
             { q: '¿Cómo llega un modelo nuevo a producción en tu diseño?',
               junior: 'Lo entreno, veo que la accuracy es mejor, subo los pesos a S3 y reinicio el servicio.',
-              senior: `Por un camino fijo. El pipeline entrena sobre un snapshot inmutable y registra params, métricas, commit y digest. Un gate escrito lo compara contra el champion en el golden set congelado: no inferioridad con test pareado, slices, calibración y latencia. CI construye el engine en una T4 y corre el parity test. Se registra como challenger, CD lo lleva por shadow y canary con rollback automático, y al final el alias champion se mueve. Un rollback es volver a la imagen anterior, que sigue en el registry.`,
+              senior: `Por un camino fijo. El pipeline valida un snapshot inmutable (si falla, no entrena), entrena sobre él y registra params, métricas, commit y digest. Un gate escrito lo compara contra el champion en el golden set congelado: no inferioridad con test pareado, slices, calibración y latencia. CI construye el engine en una T4 y corre el parity test. Se registra como challenger, CD lo lleva por shadow y canary con rollback automático, y al final el alias champion se mueve. Un rollback es volver a la imagen anterior, que sigue en el registry.`,
               why: 'Cada paso tiene un control y un registro, y el rollback está pensado antes de desplegar.' },
             { q: 'El modelo nuevo mejora 0.4 pp en el golden set. ¿Lo despliegas?',
               junior: 'Sí, es mejor.',
@@ -681,7 +687,7 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
             { q: 'En MLflow 3.x, ¿cómo marcas qué versión sirve producción?', options: ['Con un alias como <code>champion</code>, y tags para el estado del gate', 'Con el stage Production', 'Con el nombre del archivo de pesos', 'Con una variable de entorno en el servicio'], answer: 0,
               explain: 'Los stages están deprecados desde MLflow 2.9 (siguen documentados, con eliminación anunciada). Los aliases son punteros con nombre que se mueven; los tags guardan estados como gate=passed.' },
             { q: 'El servicio carga <code>models:/classifier@champion</code> en cada arranque. ¿Qué problema tiene?', options: ['Ninguno: promover es solo mover el alias', 'Durante un scale-up o un reinicio, pods nuevos cargan otra versión que los viejos, sin canary ni deploy', 'MLflow no permite cargar por alias', 'Es más lento que cargar por versión'], answer: 1,
-              explain: 'El alias se mueve fuera del proceso de despliegue. En c01, CD resuelve el alias una vez al construir la imagen, y el tag de la imagen es la versión.' },
+              explain: 'El alias se mueve fuera del proceso de despliegue. En c01, CD resuelve el alias <code>challenger</code> una vez, al construir la imagen del canary, y el tag de la imagen es la versión; <code>champion</code> se mueve al terminar el rollout.' },
             { q: 'MLflow registró el commit <code>c3f2fc2</code> en una corrida. ¿Qué garantiza?', options: ['Que el código de la corrida es exactamente ese commit', 'Que la corrida es reproducible', 'Nada sobre cambios sin commit: se registra el mismo commit aunque el árbol tenga modificaciones', 'Que la imagen es la misma'], answer: 2,
               explain: 'Lo probamos con MLflow 3.16. Por eso los candidatos salen del pipeline, desde un commit limpio.' },
             { q: 'Fijaste todas las seeds y entrenas dos veces en la misma GPU. El top-1 difiere en 0.1 pp. ¿Qué es lo más probable?', options: ['Un bug en tu código', 'El golden set cambió', 'Las seeds no funcionan en GPU', 'No determinismo de la GPU (algoritmos de cuDNN, sumas atómicas): normal si no activaste el modo determinista'], answer: 3,
@@ -698,10 +704,10 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
               explain: 'En el nivel 0 se despliega un modelo; en el 1, el pipeline. El nivel 2 agrega CI/CD para el propio pipeline.' },
           ] },
           { t: 'checklist', id: 'antes-de-automatizar', items: [
-            { id: 'camino', html: 'Describo el camino completo de un modelo: snapshot, entrenamiento con tracking, gate, CI del artefacto, registry, deploy seguro, monitoreo y disparadores.' },
+            { id: 'camino', html: 'Describo el camino completo de un modelo: snapshot, validación de datos, entrenamiento con tracking, gate, CI del artefacto, registry, deploy seguro, monitoreo y disparadores.' },
             { id: 'snapshot', html: 'El entrenamiento recibe el id de un snapshot inmutable como parámetro, nunca "la carpeta latest".' },
             { id: 'tracking', html: 'Cada corrida registra params, métricas por época, artefactos, snapshot, commit y digest de la imagen; los candidatos salen de un commit limpio.' },
-            { id: 'registry', html: 'El registry marca producción con aliases (champion/challenger) y tags; el alias se resuelve al construir la imagen, no al arrancar los pods.' },
+            { id: 'registry', html: 'El registry marca producción con aliases (champion/challenger) y tags; el alias challenger se resuelve al construir la imagen, no al arrancar los pods, y champion se mueve al promover.' },
             { id: 'linaje', html: 'Puedo ir de una versión en producción a su corrida, su snapshot, su commit y su imagen, y responder qué datos usó.' },
             { id: 'reproducible', html: 'Fijo los cinco ingredientes y defino "reproducible" como dentro de la tolerancia medida entre seeds.' },
             { id: 'tests', html: 'Tengo tests en cada nivel: preprocesamiento, smoke test de entrenamiento, datos, comportamiento, parity, contrato y rendimiento.' },
@@ -720,21 +726,21 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
       { id: 'm10-01', kind: 'concepto', q: '¿Qué agrega MLOps a DevOps?',
         a: 'Que los datos y el modelo cambian el comportamiento sin cambiar el código. Se versionan además snapshots, pesos, preprocesamiento y linaje; se prueban datos y modelos con umbrales estadísticos; falla en silencio; y los releases también los disparan datos nuevos o métricas (CT).' },
       { id: 'm10-02', kind: 'concepto', q: 'El camino de un modelo a producción, en orden.',
-        a: 'Snapshot inmutable → entrenamiento con tracking → gate contra el champion → CI del artefacto (engine, parity, perf) → registry como challenger → shadow y canary → promoción (alias champion) → monitoreo → disparador de reentrenamiento.' },
+        a: 'Snapshot inmutable → validación de datos → entrenamiento con tracking → gate contra el champion → CI del artefacto (engine, parity, perf) → registry como challenger → shadow y canary → promoción (alias champion) → monitoreo → disparador de reentrenamiento.' },
       { id: 'm10-03', kind: 'concepto', q: '¿Qué registras en cada corrida de entrenamiento?',
         a: 'Parámetros, métricas por época y finales, artefactos (checkpoint, ONNX, labels, reportes), id del snapshot de datos, commit, digest de la imagen y versiones de librerías, y contexto (dueño, ticket, versión del golden set).' },
       { id: 'm10-04', kind: 'trampa', q: 'MLflow registró el commit de la corrida. ¿Ya sabes qué código la produjo?',
         a: 'No: MLflow registra el mismo commit aunque el árbol tenga cambios sin commit (probado con 3.16), sin ningún aviso. Los candidatos se entrenan desde el pipeline, que parte de un commit limpio.' },
       { id: 'm10-05', kind: 'tradeoff', q: 'MLflow vs Weights & Biases.',
-        a: 'MLflow: open source, lo operas tú (Postgres + S3) o lo usas administrado (Databricks, SageMaker AI, Azure ML); registry con aliases. W&B: SaaS comercial (de CoreWeave desde 2025), muy fuerte en interfaz, comparación y reportes; W&B Registry con aliases. Elige por quién opera y dónde pueden vivir los datos.' },
-      { id: 'm10-06', kind: 'trampa', q: '¿Por qué exportar tu historial de tracking aunque uses un SaaS?',
-        a: 'Porque el proveedor puede cambiar: Neptune.ai apagó su servicio hosted el 5 de marzo de 2026 tras su compra por OpenAI, con tres meses para exportar. Lo que sirve producción no debe depender de un tercero.' },
+        a: 'MLflow: open source, lo operas tú (Postgres + S3) o lo usas administrado (Databricks, SageMaker AI, Azure ML); registry con aliases. W&B: SaaS comercial, muy fuerte en interfaz, comparación y reportes; W&B Registry con aliases. Elige por quién opera y dónde pueden vivir los datos.' },
+      { id: 'm10-06', kind: 'concepto', q: 'Usas un tracking SaaS. ¿Qué no puede depender de él?',
+        a: 'El registro de lo que sirve producción y sus punteros: exporta periódicamente métricas, linaje y artefactos a tu almacenamiento.' },
       { id: 'm10-07', kind: 'concepto', q: 'Las cuatro piezas de un model registry.',
         a: 'Registered model (un nombre por problema), versión inmutable (artefactos + corrida), alias (puntero con nombre que se mueve: champion, challenger) y tags (estado del gate, aprobación, ticket).' },
       { id: 'm10-08', kind: 'concepto', q: 'Stages vs aliases en MLflow.',
         a: 'Stages (None/Staging/Production/Archived) deprecados desde 2.9; en 3.x siguen documentados, con eliminación anunciada. Aliases: nombres libres (<code>models:/classifier@champion</code>); tags para estados; un registered model por entorno y <code>copy_model_version</code> para promover entre entornos.' },
       { id: 'm10-09', kind: 'trampa', q: 'El servicio carga <code>@champion</code> del registry al arrancar. ¿Qué pasa?',
-        a: 'Pods nuevos (scale-up, reinicio) cargan otra versión que los viejos cuando el alias se mueve: dos modelos detrás del mismo servicio sin deploy ni canary. En c01, CD resuelve el alias al construir la imagen y el modelo va horneado.' },
+        a: 'Pods nuevos (scale-up, reinicio) cargan otra versión que los viejos cuando el alias se mueve: dos modelos detrás del mismo servicio sin deploy ni canary. En c01, CD resuelve el alias challenger una vez, al construir la imagen del canary, y el modelo va horneado; champion se mueve al terminar el rollout.' },
       { id: 'm10-10', kind: 'concepto', q: '¿Qué hay dentro de una versión registrada de c01?',
         a: 'ONNX y engine TensorRT (con GPU y release de NGC como tags), labels.json con su hash, versión del preprocesamiento y firma de entrada/salida, métricas del gate y del parity, y la corrida: snapshot, commit, digest.' },
       { id: 'm10-11', kind: 'concepto', q: 'Los cinco ingredientes de la reproducibilidad.',
@@ -758,19 +764,19 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
       { id: 'm10-20', kind: 'tradeoff', q: '¿No inferioridad o mejora significativa en el gate?',
         a: 'Reentrenamientos rutinarios: no inferioridad con margen (−0.3 pp en c01), para no bloquear refrescos; más un chequeo contra el champion de hace 3 meses contra la erosión. Cambios grandes: mejora demostrada offline y en A/B.' },
       { id: 'm10-21', kind: 'trampa', q: 'La caché de Kubeflow Pipelines y la carpeta "latest".',
-        a: 'La caché está activa por defecto: si el paso lee "latest" sin recibir el id, sus entradas no cambian y reutiliza el snapshot del mes pasado. Toda entrada que cambia el resultado va como parámetro; el gate no se cachea.' },
+        a: 'La caché está activa por defecto (también en Vertex AI Pipelines): si el paso lee "latest" sin recibir el id, sus entradas no cambian y reutiliza el snapshot del mes pasado. Toda entrada que cambia el resultado va como parámetro, incluida la versión del champion contra la que compara la evaluación.' },
       { id: 'm10-22', kind: 'tradeoff', q: 'Kubeflow vs SageMaker Pipelines vs Vertex AI Pipelines vs Airflow.',
         a: 'Kubeflow: en tu Kubernetes, portable, lo operas tú. SageMaker Pipelines: AWS administrado, caché opcional, integra aprobación del registry. Vertex: GCP serverless con KFP o TFX. Airflow: si la empresa ya lo usa; sin caché de salidas, tareas idempotentes. Decide quién lo opera.' },
       { id: 'm10-23', kind: 'numero', q: '¿Cuánto pesa un checkpoint de ResNet-50 con Adam y cuánto cuesta guardarlo cada 15 min?',
         a: '102 MB de pesos + 205 MB de momentos ≈ 307 MB; ≈ 2–3 s a S3; ≈ 1 min en un fine-tune de 4 h. Menos de 1 % del tiempo, y limita la pérdida por interrupción a 15 min.' },
       { id: 'm10-24', kind: 'concepto', q: 'Programado vs disparado vs continuo.',
-        a: 'Programado: cambio gradual, labels a ritmo conocido (c01, c02, c03 mensual). Disparado: drift, caída de métrica, clase nueva. Continuo: labels en minutos (ranking, fraude); raro en visión. El disparador abre ticket y arranca el pipeline; no promueve.' },
+        a: 'Programado: cambio gradual, labels a ritmo conocido (c01, c02, c03 mensual). Disparado: drift, caída de métrica, clase nueva. Continuo: labels en minutos (ranking, anuncios); no en fraude, donde el label (contracargo) tarda semanas; raro en visión. El disparador abre ticket y arranca el pipeline; no promueve.' },
       { id: 'm10-25', kind: 'numero', q: 'Pérdida promedio por envejecimiento con d = 0.4 pp/mes: semanal, mensual, trimestral (L = 1 semana).',
         a: '≈ d × (T/2 + L): semanal ≈ 0.15 pp, mensual ≈ 0.30, trimestral ≈ 0.70. Mensual con L de 3 semanas ≈ 0.50: acortar L suele rendir más que subir la cadencia.' },
       { id: 'm10-26', kind: 'concepto', q: 'Niveles 0, 1 y 2 de MLOps de Google Cloud.',
         a: '0: todo manual, se despliega un modelo. 1: pipeline de entrenamiento automatizado (CT) con validación, metadata y disparadores; se despliega el pipeline. 2: CI/CD del propio pipeline. c01 está en el 1.' },
       { id: 'm10-27', kind: 'frase', q: '¿Cómo dices en inglés el camino de un modelo a producción?',
-        a: '"Every model goes through the same path: training on an immutable snapshot, tracked with its commit and image digest; an evaluation gate against the champion; the engine built and parity-tested in CI; registered as the challenger; then shadow and canary. A drift signal restarts the pipeline, not the deploy."' },
+        a: '"Every model goes through the same path: training on an immutable, validated snapshot, tracked with its commit and image digest; an evaluation gate against the champion; the engine built and parity-tested in CI; registered as the challenger; then shadow and canary. A drift signal restarts the pipeline, not the deploy."' },
       { id: 'm10-28', kind: 'frase', q: '¿Cómo defiendes en inglés un gate de no inferioridad?',
         a: '"A routine retrain only has to be non-inferior: a paired test on the frozen golden set with a 0.3-point margin, no slice dropping beyond its interval. I also compare against the champion from three months ago, so small losses can\'t add up."' },
     ],
@@ -784,7 +790,7 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
       { en: 'MLOps', es: 'operación de ML', def: 'Prácticas y herramientas para que entrenar, validar, desplegar, monitorear y reentrenar modelos sea repetible, auditable y seguro. Hereda de DevOps y agrega datos y modelos como fuentes de cambio.', say: 'For us MLOps means every model goes through the same gated, traceable path to production.' },
       { en: 'experiment tracking', es: 'registro de experimentos', def: 'Registrar automáticamente cada corrida de entrenamiento (parámetros, métricas, artefactos, versión de datos, commit, entorno) en un lugar compartido y consultable.', say: 'Experiment tracking lets anyone see exactly which data and commit produced the model in production.' },
       { en: 'MLflow', es: 'MLflow', def: 'Plataforma open source (Apache 2.0) de tracking de experimentos, model registry con aliases, formato de modelo y evaluación. Se opera con una base de datos y un artifact store, o administrada por Databricks, SageMaker AI o Azure ML.', say: 'We run MLflow with Postgres and S3, and the registry aliases drive our deployments.' },
-      { en: 'Weights & Biases (W&B)', es: 'Weights & Biases', def: 'Plataforma comercial de tracking de experimentos con dashboards, reportes, sweeps y un registry con aliases (W&B Registry). Parte de CoreWeave desde mayo de 2025.', say: 'The research team compares hundreds of runs in Weights & Biases.' },
+      { en: 'Weights & Biases (W&B)', es: 'Weights & Biases', def: 'Plataforma comercial de tracking de experimentos con dashboards, reportes, sweeps y un registry con aliases (W&B Registry).', say: 'The research team compares hundreds of runs in Weights & Biases.' },
       { en: 'model alias', es: 'alias de modelo', def: 'Nombre que apunta a una versión concreta de un modelo en el registry (champion, challenger) y se puede mover. Reemplaza a los stages de MLflow, deprecados desde la versión 2.9.', say: 'Promotion is just moving the champion alias to version fifteen.' },
       { en: 'model lineage', es: 'linaje del modelo', def: 'La cadena de punteros que une una versión de modelo con su corrida, su snapshot de datos, su commit y su imagen de entrenamiento.', say: 'Lineage tells us in one query which models were trained on the photos a user asked us to delete.' },
       { en: 'model card', es: 'ficha del modelo', def: 'Documento corto por versión (Mitchell et al., 2019) con uso previsto y no previsto, datos, métricas por slice, limitaciones y dueño.', say: 'The model card says it is not validated for automatic moderation.' },
@@ -795,12 +801,12 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
       { en: 'non-inferiority margin', es: 'margen de no inferioridad', def: 'Pérdida máxima tolerada frente al modelo actual para aceptar al nuevo: el límite inferior del intervalo de la diferencia no puede quedar por debajo del margen.', say: 'A routine retrain passes if it is non-inferior within a 0.3-point margin.' },
       { en: 'McNemar\'s test', es: 'test de McNemar', def: 'Test pareado para comparar dos clasificadores sobre las mismas muestras usando solo las discrepancias: (b − c)² / (b + c).', say: 'We compare champion and challenger with McNemar\'s test on the same golden set.' },
       { en: 'deterministic algorithms', es: 'algoritmos deterministas', def: 'Modo de PyTorch (<code>torch.use_deterministic_algorithms(True)</code>) que usa versiones deterministas de las operaciones y falla si una no tiene. Puede ser más lento y no garantiza lo mismo entre GPUs o versiones.', say: 'We only turn on deterministic algorithms when we are chasing a difference between two runs.' },
-      // Misma grafía que m09 (que la define primero): aquí solo agrega el chip de M10.
-      { en: 'workflow orchestrator', es: 'orquestador de workflows', def: 'Sistema que ejecuta DAGs de tareas con dependencias, reintentos, historial y disparadores. Para entrenamiento: Kubeflow Pipelines, SageMaker Pipelines, Vertex AI Pipelines, Airflow, Dagster.', say: 'The orchestrator retries only the failed step and caches the ones whose inputs didn\'t change.' },
-      { en: 'step caching', es: 'caché de pasos', def: 'Reutilizar la salida de un paso del pipeline cuando su definición y sus entradas son las mismas que en una corrida anterior. Activa por defecto en Kubeflow Pipelines; opcional y con vencimiento en SageMaker Pipelines.', say: 'Step caching saved us four GPU hours when we only fixed the parity script.' },
+      // m09 define 'workflow orchestrator' (el general, para datos); este es el de pipelines de ML.
+      { en: 'ML pipeline orchestrator', es: 'orquestador de pipelines de ML', def: 'Orquestador de workflows aplicado a pipelines de ML: ejecuta DAGs de pasos en contenedores con dependencias, reintentos, caché de pasos, historial, linaje de artefactos y disparadores. Para entrenamiento: Kubeflow Pipelines, SageMaker Pipelines, Vertex AI Pipelines, Airflow, Dagster.', say: 'The orchestrator retries only the failed step and caches the ones whose inputs didn\'t change.' },
+      { en: 'step caching', es: 'caché de pasos', def: 'Reutilizar la salida de un paso del pipeline cuando su definición y sus entradas son las mismas que en una corrida anterior. Activa por defecto en Kubeflow Pipelines y en Vertex AI Pipelines; opcional y con vencimiento en SageMaker Pipelines.', say: 'Step caching saved us four GPU hours when we only fixed the parity script.' },
       { en: 'Kubeflow Pipelines (KFP)', es: 'Kubeflow Pipelines', def: 'Orquestador de pipelines de ML sobre Kubernetes: SDK de Python que compila a YAML, cada paso un contenedor, caché y metadata de artefactos. Vertex AI Pipelines ejecuta pipelines escritos con su SDK.', say: 'We define the retraining DAG with the KFP SDK and run it on our own cluster.' },
       { en: 'SageMaker Pipelines', es: 'SageMaker Pipelines', def: 'Orquestador administrado de AWS para pipelines de ML, integrado con su Model Registry (estados de aprobación); el decorador <code>@step</code> convierte funciones de Python en pasos.', say: 'On AWS I would use SageMaker Pipelines and gate deployment on the registry approval status.' },
-      { en: 'Vertex AI Pipelines', es: 'Vertex AI Pipelines', def: 'Servicio serverless de Google Cloud que ejecuta pipelines de KFP o TFX, con caché y linaje. Desde abril de 2026, parte de Gemini Enterprise Agent Platform.', say: 'On GCP the same KFP pipeline runs on Vertex AI Pipelines without a cluster to operate.' },
+      { en: 'Vertex AI Pipelines', es: 'Vertex AI Pipelines', def: 'Servicio serverless de Google Cloud que ejecuta pipelines de KFP o TFX, con caché (activa por defecto) y linaje.', say: 'On GCP the same KFP pipeline runs on Vertex AI Pipelines without a cluster to operate.' },
       { en: 'MLOps maturity level', es: 'nivel de madurez de MLOps', def: 'Escala para describir cuánto está automatizado el ciclo de vida. La de Google Cloud: 0 manual, 1 pipeline automatizado (CT), 2 CI/CD del pipeline. Microsoft usa otra de cinco niveles (0–4).', say: 'This design sits at level one: we deploy the pipeline, not a model.' },
       { en: 'retraining trigger', es: 'disparador de reentrenamiento', def: 'Condición que arranca el pipeline de entrenamiento fuera del calendario: drift sostenido, caída de una métrica, datos o clases nuevas. Arranca el camino; no se salta el gate ni el rollout.', say: 'A retraining trigger opens a ticket and starts the pipeline early; it never deploys on its own.' },
       { en: 'model promotion', es: 'promoción del modelo', def: 'Pasar un candidato validado a servir producción, en el registry moviendo el alias champion después del rollout. Queda registrado quién lo hizo, cuándo y por qué.', say: 'Promotion happens after the canary, and CD moves the alias, not a person in the UI.' },

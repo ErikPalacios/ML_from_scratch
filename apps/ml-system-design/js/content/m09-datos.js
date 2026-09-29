@@ -8,13 +8,14 @@
    Contrato: docs/SPEC.md §5. Los números de los casos son los de c01, c02 y c03
    (y de SPEC §8, §8b, §8c): si cambian allá, se cambian aquí.
    Verificado (sept. 2026) contra documentación oficial y PyPI: Airflow 3.3.2
-   (backfills desde el scheduler, assets, versionado de DAGs), PySpark 4.2, Flink 2.3,
+   (backfills desde el scheduler, versionado de DAGs; datasets de 2.4 renombrados assets), PySpark 4.2, Flink 2.3,
    Kafka (retención por defecto 168 h; KRaft), Feast 0.66, Databricks compró Tecton
    (ago. 2025), Databricks Online Feature Stores sobre Lakebase, Vertex AI Feature
-   Store legacy se apaga el 17 feb. 2027, lakeFS compró DVC (nov. 2025), Delta Lake
+   Store (hoy Agent Platform Feature Store) legacy se apaga el 17 feb. 2027, lakeFS
+   compró DVC (nov. 2025), Delta Lake
    (log 30 días, archivos borrados 7 días), Iceberg (expire snapshots 5 días por
    defecto; tags con RETAIN), Great Expectations 1.23, Pandera 0.33, TFDV 1.21,
-   Label Studio (métricas de acuerdo solo en Enterprise).
+   Label Studio (overlap, ground truth y métricas de acuerdo solo en ediciones pagas).
    Los snippets corrieron con pandas 3.0.6, Pandera 0.33.1 y scikit-learn 1.9.1
    (Python 3.14); los kappa y los cálculos, con un script.
    ========================================================================== */
@@ -179,9 +180,10 @@ pit = pd.merge_asof(events.sort_values("event_ts"), feats.sort_values("feature_t
 print(naive[["event_ts", "is_fraud", "tx_count_1h"]])   # 14 y 14
 print(pit[["event_ts", "is_fraud", "feature_ts", "tx_count_1h"]])   # 3 y 12`;
 
-  // Corrió con pandas 3.0.6 y Pandera 0.33.1 (tests en el scratchpad): pasa un snapshot
-  // sano; atrapa sha duplicado, label fuera de rango, exceso de labels débiles, volumen,
-  // frescura y timestamps sin zona.
+  // Corrió con pandas 3.0.6 y Pandera 0.33.1 (tests en el scratchpad), con `now` en UTC:
+  // pasa un snapshot sano y la mezcla del manifest (72 % débiles); atrapa sha duplicado,
+  // label fuera de rango, exceso de labels débiles, volumen, frescura, timestamps sin zona
+  // y una columna faltante (devuelve el error en vez de reventar).
   const VALIDATE_CODE = `import pandas as pd
 import pandera.pandas as pa   # import recomendado para pandas en Pandera ≥ 0.24
 
@@ -204,24 +206,27 @@ schema = pa.DataFrameSchema(
 )
 
 def validate(df: pd.DataFrame, prev: pd.DataFrame, now: pd.Timestamp) -> list[str]:
-    errors = []
+    errors = []                                         # now en UTC: pd.Timestamp.now(tz="UTC")
     try:
         schema.validate(df, lazy=True)                  # lazy: junta TODAS las fallas
     except pa.errors.SchemaErrors as e:
         fc = e.failure_cases[["column", "check"]].drop_duplicates()
         errors += [f"schema: {c} · {chk}" for c, chk in fc.values]
+        if (fc["check"] == "column_in_dataframe").any():
+            return errors                               # falta una columna: lo demás no se puede calcular
     if not 0.8 <= len(df) / len(prev) <= 1.5:           # volumen vs snapshot anterior
         errors.append(f"volumen: {len(df)} filas vs {len(prev)} antes")
-    if now - df["created_at"].max() > pd.Timedelta("48h"):   # frescura
+    ts = df["created_at"]
+    if isinstance(ts.dtype, pd.DatetimeTZDtype) and now - ts.max() > pd.Timedelta("48h"):   # frescura
         errors.append("frescura: el dato más nuevo tiene más de 48 h")
     weak = df["label_source"].eq("vendedor_filtrado").mean()
-    if weak > 0.6:                                      # mezcla de fuentes de label
-        errors.append(f"labels débiles = {weak:.0%} del snapshot (tope 60 %)")
+    if weak > 0.8:                                      # mezcla de fuentes de label
+        errors.append(f"labels débiles = {weak:.0%} del snapshot (tope 80 %)")
     return errors`;
 
   const VALIDATE_OUT = `ok: []
 mal: ['schema: image_sha256 · field_uniqueness', 'schema: label_id · in_range(0, 499)',
-      'labels débiles = 70% del snapshot (tope 60 %)']
+      'labels débiles = 85% del snapshot (tope 80 %)']
 chico y viejo: ['volumen: 500 filas vs 1000 antes', 'frescura: el dato más nuevo tiene más de 48 h']
 naive: ['schema: created_at · timestamp sin zona UTC']`;
 
@@ -232,7 +237,8 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
   "created_at": "2026-09-01T03:12:44Z",
   "rows_path": "s3://ml-datos/datasets/ds-2026-09-01/rows.parquet",
   "rows_sha256": "9f2c…",
-  "images": "s3://ml-datos/images/by-sha256/",
+  "images": {"humano": "s3://ml-datos/labeled/ (restringido, sin EXIF)",
+             "resto": "storage del producto (por key + sha256, no se copian)"},
   "counts": {"train": 1840211, "val": 92417, "golden": "golden-v3 (aparte, congelado)"},
   "label_sources": {"humano": 0.21, "moderador": 0.07, "vendedor_filtrado": 0.72},
   "split": "por seller_id (hash mod 100 < 95 → train); dedupe por sha256 y pHash",
@@ -373,12 +379,13 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
           ] },
           { t: 'h3', text: 'Cuándo NO necesitas uno' },
           { t: 'p', html: `En <a href="#c01.datos">c01</a> la única "feature" es la foto, preprocesada por <code>preprocess.py</code>: el problema de consistencia existe, pero lo resuelve un paquete compartido y un parity test, no un feature store. En <a href="#c03.datos">c03</a>, además, la línea corre sin conexión 72 h; un online store remoto sería un punto de falla. En <a href="#c02.datos">c02</a>, los polígonos de zona y el dwell por cámara son configuración versionada, no features. Proponer un feature store en un caso de visión sin features tabulares es una señal de que memorizaste un diagrama.` },
+          { t: 'callout', kind: 'skip', html: `<p>Sáltate la tabla que sigue si vas corto de tiempo: en la entrevista basta "Feast si lo operas tú, el administrado de tu nube si ya vives ahí". Nadie te va a preguntar versiones ni quién compró a quién.</p>` },
           { t: 'table', caption: 'Herramientas (estado en septiembre de 2026; verifica antes de proponer)', head: ['Herramienta', 'Qué es', 'A tener en cuenta'], rows: [
-            ['Feast', 'Open source (v0.66, agosto de 2026). Define features en Python; offline sobre tu warehouse o lake, online en Redis, DynamoDB y otros', 'Tú operas los stores y la materialización; el cómputo pesado de las features suele seguir en tu Spark o tu warehouse'],
-            ['Tecton', 'Feature store administrado, fuerte en features en tiempo real', 'Databricks compró Tecton en agosto de 2025: si lo evalúas hoy, pregunta por su hoja de ruta fuera de Databricks'],
+            ['Feast', 'Open source. Define features en Python; offline sobre tu warehouse o lake, online en Redis, DynamoDB y otros', 'Tú operas los stores y la materialización; el cómputo pesado de las features suele seguir en tu Spark o tu warehouse'],
+            ['Tecton', 'Feature store administrado, fuerte en features en tiempo real', 'Hoy es parte de Databricks: si lo evalúas, pregunta por su hoja de ruta fuera de Databricks'],
             ['Databricks Feature Store', 'Features como tablas de Unity Catalog, PIT joins, linaje', 'Online stores sobre Lakebase; tiene sentido si ya vives en Databricks'],
             ['SageMaker Feature Store', 'Online store y offline store en S3, administrados', 'Encaja en un stack AWS; revisa costos de escritura online'],
-            ['Vertex AI Feature Store', 'La versión actual usa BigQuery como fuente y agrega serving online', 'La versión legacy se apaga el 17 de febrero de 2027; su "optimized online serving" también está deprecado: Google recomienda serving sobre Bigtable'],
+            ['Vertex AI Feature Store (hoy Agent Platform Feature Store)', 'La versión actual usa BigQuery como fuente y agrega serving online', 'La versión legacy y su "optimized online serving" están deprecados (se apagan en febrero de 2027): Google recomienda serving sobre Bigtable. Google renombró Vertex AI como Gemini Enterprise Agent Platform en su documentación; en entrevista, "Vertex AI" se sigue entendiendo'],
           ] },
           { t: 'callout', kind: 'interview', html: `<ul><li>"I'd only add a feature store if we have entity features shared across models; for an image classifier, a shared preprocessing package does the job."</li><li>"Training data is built with a point-in-time join, so each example only sees feature values that existed at decision time."</li><li>"We also log the exact feature vector we served, which gives us a ground truth for skew checks."</li></ul>` },
         ],
@@ -511,21 +518,21 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
           ] },
           { t: 'calc', title: 'Por qué un snapshot de imágenes es barato', rows: [
             { label: 'Imágenes del training set', expr: '', value: E('≈ 2 M') },
-            { label: 'Imágenes, guardadas una sola vez por hash', expr: '2 M × ' + E('≈ 200 KB'), value: '≈ 400 GB' },
+            { label: 'Imágenes que el manifest referencia (no copia)', expr: '2 M × ' + E('≈ 200 KB'), value: '≈ 400 GB en el storage del producto; solo las etiquetadas por humanos y el golden set viven en el bucket restringido' },
             { label: 'Manifest (hash, ruta, label, fuente, vendedor, fecha)', expr: '2 M × ' + E('≈ 200 B') + ' por fila, sin comprimir', value: '≈ 400 MB' },
             { label: 'Costo de un snapshot nuevo', expr: '400 MB / 400 GB', value: '≈ 0.1 % de las imágenes' },
-          ], result: 'Con las imágenes en almacenamiento direccionado por contenido (el nombre es su sha256), un snapshot es solo un manifest: puedes tener uno por mes durante años sin copiar una imagen. Es lo que hace c01 con prefijos inmutables en S3.' },
+          ], result: 'Un snapshot es solo un manifest de keys y sha256: no copia imágenes, así que puedes tener uno por mes durante años. En c01 las fotos con label del vendedor siguen en el storage del producto (con su política de borrado) y solo las ≈ 5k/mes etiquetadas y el golden set se copian, sin EXIF, a un bucket restringido. El sha256 del manifest detecta si una foto cambió o se borró.' },
           { t: 'table', caption: 'Cuatro formas de versionar datos', head: ['Opción', 'Qué es', 'Bueno para', 'Cuidado'], rows: [
             ['<b>Prefijos inmutables + manifest</b>', '<code>s3://…/datasets/ds-2026-09-01/</code> con el manifest en Parquet, y object lock o una política que prohíba sobrescribir', 'Datasets de imágenes; lo más simple; la elección de c01', 'Es una convención: sin la política de no-sobrescribir, alguien la rompe'],
-            ['<b>DVC</b>', 'Archivos <code>.dvc</code> con hashes en git; los datos en un remote (S3, GCS); pipelines con <code>dvc repro</code>', 'Un equipo chico con datasets de archivos de tamaño moderado, todo junto al código', 'Con millones de archivos chicos se vuelve lento. Desde noviembre de 2025 lo mantiene lakeFS y sigue siendo open source'],
-            ['<b>lakeFS</b>', 'Branches, commits y merges sobre el object storage, con API compatible con S3; los branches no copian datos', 'Un lake grande; probar un cambio en un branch y publicarlo solo si pasa la validación (write-audit-publish)', 'Un servicio más que operar, o uno administrado que pagar'],
+            ['<b>DVC</b>', 'Archivos <code>.dvc</code> con hashes en git; los datos en un remote (S3, GCS); pipelines con <code>dvc repro</code>', 'Un equipo chico con datasets de archivos de tamaño moderado, todo junto al código', 'Con millones de archivos chicos se vuelve lento'],
+            ['<b>lakeFS</b>', 'Branches, commits y merges sobre el object storage, con API compatible con S3; los branches no copian datos', 'Un lake grande; probar un cambio en un branch y publicarlo solo si pasa la validación (write-audit-publish: escribir aislado, auditar, publicar)', 'Un servicio más que operar, o uno administrado que pagar'],
             ['<b>Delta Lake / Iceberg (time travel)</b>', 'Cada escritura crea una versión; <code>VERSION AS OF</code> o <code>TIMESTAMP AS OF</code> leen el pasado', 'Tablas: features, logs de predicciones, manifests', 'La retención borra el pasado (trampa abajo)'],
           ] },
           { t: 'callout', kind: 'trap', title: 'Time travel no es un archivo', html: `<p>En Delta Lake, por defecto, el historial del log dura 30 días y <code>VACUUM</code> puede borrar los archivos de versiones viejas pasados 7 (<code>delta.deletedFileRetentionDuration</code>). En Iceberg, <code>expire_snapshots</code> borra por defecto los snapshots de más de 5 días cuando corre. "El modelo de marzo se entrenó con la versión 1,234 de la tabla" deja de ser reproducible en cuanto corre el mantenimiento. Para lo que tiene que durar: en Iceberg, un tag con retención (<code>ALTER TABLE … CREATE TAG &#96;ds-2026-09-01&#96; RETAIN 365 DAYS</code>, y luego <code>VERSION AS OF 'ds-2026-09-01'</code>); en Delta, subir la retención de esa tabla o materializar el snapshot aparte.</p>` },
           { t: 'callout', kind: 'senior', html: `<p>Guarda los labels como <b>eventos</b> que nunca se sobrescriben (autor, hora, fuente, versión de la guía), como hace c03 con los veredictos del inspector. Un snapshot es entonces una consulta "todos los labels vigentes a tal fecha": reproducible, auditable, y con point-in-time también para los labels, que llegan tarde. Corregir un label es agregar uno nuevo que lo reemplaza, no editar una fila.</p>` },
           { t: 'callout', kind: 'note', title: 'Inmutable no significa eterno', html: `<p>Las leyes de protección de datos pueden obligarte a borrar una imagen (en México, la LFPDPPP; los detalles los define el equipo legal). Diséñalo desde el inicio: imágenes por hash con una lista de borrado, snapshots con retención definida y un índice que diga qué snapshots y qué modelos tocó cada imagen. Si un modelo se entrenó con datos que hubo que borrar, la política (reentrenar o no, y cuándo) es una decisión explícita, no un descubrimiento.</p>` },
           { t: 'callout', kind: 'skip', html: `<p>Los comandos de DVC o de lakeFS no se preguntan. Lo que se evalúa es que digas "snapshot inmutable con id, manifest, y el modelo apunta a él" y sepas elegir entre prefijos + manifest (imágenes) y una tabla con time travel (datos tabulares) sabiendo su retención.</p>` },
-          { t: 'callout', kind: 'interview', html: `<ul><li>"Every training set is an immutable snapshot with an ID and a manifest, and each registered model points to its snapshot, its commit and its container digest."</li><li>"Images are stored once by content hash, so a new snapshot is just a manifest; that makes monthly snapshots almost free."</li></ul>` },
+          { t: 'callout', kind: 'interview', html: `<ul><li>"Every training set is an immutable snapshot with an ID and a manifest, and each registered model points to its snapshot, its commit and its container digest."</li><li>"A snapshot references images by key and hash instead of copying them, so a new snapshot is just a manifest; that makes monthly snapshots almost free."</li></ul>` },
         ],
       },
 
@@ -564,15 +571,15 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
           ], result: 'Con 97 % de acuerdo, los inspectores coinciden en solo 10 de 40 piezas que alguno marcó como defecto: justo la clase que importa. Dos puntos más de acuerdo bruto duplican kappa. Reporta kappa (o el acuerdo en la clase rara), no el porcentaje. Calculado con <code>sklearn.metrics.cohen_kappa_score</code>; da lo mismo que a mano.' },
           { t: 'p', html: `Una escala muy citada (Landis y Koch, 1977) llama "moderado" a 0.41–0.60, "sustancial" a 0.61–0.80 y "casi perfecto" a más de 0.80. Es una convención, no una ley: para un golden set que certifica un recall de 99.5 %, un kappa de 0.6 en la clase de defecto significa que la guía todavía no está lista. Y la consecuencia de diseño: si dos humanos no coinciden, el modelo no puede aprender la frontera ni tú medirla.` },
           { t: 'callout', kind: 'skip', html: `<p>Con más de dos anotadores por ejemplo se usan Fleiss' kappa o Krippendorff's alpha. Basta con nombrarlos; la intuición es la de Cohen: acuerdo corregido por el que se daría al azar.</p>` },
-          { t: 'callout', kind: 'trap', title: 'La herramienta no calcula el acuerdo por ti', html: `<p>Label Studio Community (open source) sirve para colas, guías y doble anotación, pero la matriz de acuerdo entre anotadores y las estadísticas de calidad son de la edición Enterprise. Si usas la versión gratuita, exporta las anotaciones y calcula kappa tú (con scikit-learn son tres líneas). No asumas que "la herramienta mide la calidad" sin verificar qué edición tienes.</p>` },
+          { t: 'callout', kind: 'trap', title: 'La herramienta no calcula el acuerdo por ti', html: `<p>Label Studio Community (open source) te da la interfaz de etiquetado y los proyectos, pero la configuración de overlap (cuántos anotadores por ejemplo), marcar ground truth para las preguntas de control y las métricas de acuerdo son de las ediciones pagas (limitadas en Starter Cloud, completas en Enterprise). Si tu herramienta no reporta kappa, exporta las anotaciones y calcúlalo tú con scikit-learn.</p>` },
           { t: 'h3', text: 'Costo y throughput' },
           { t: 'calc', title: 'c01: la cola mensual y el golden set', rows: [
             { label: 'Imágenes al mes + 10 % con doble anotación', expr: '5,000 × 1.1', value: '5,500 anotaciones' },
             { label: 'Tiempo por anotación (500 categorías, con sugerencias)', expr: 'mídelo con un piloto', value: E('≈ 20–30 s') },
             { label: 'Horas de anotación al mes', expr: '5,500 × 20–30 s', value: '≈ 31–46 h' },
-            { label: 'Costo al mes', expr: '5,000 × ' + E('US$0.05–0.10'), value: E('≈ US$250–500') },
+            { label: 'Costo al mes', expr: '5,000 imágenes × ' + E('US$0.05–0.10') + ' (la doble anotación suma ≈ 10 %)', value: E('≈ US$250–500 (+≈ US$25–50)') },
             { label: 'Golden set: 50k imágenes, todas con doble anotación', expr: '100,000 × 20–30 s', value: '≈ 560–830 h' },
-            { label: 'Costo único del golden set', expr: '100,000 × ' + E('US$0.05–0.10'), value: E('≈ US$5–10k') },
+            { label: 'Costo único del golden set', expr: '50,000 imágenes × 2 anotaciones × ' + E('US$0.05–0.10'), value: E('≈ US$5–10k') },
           ], result: 'La cola mensual es menos de media persona; el golden set es un proyecto de ≈ 3.5–5 personas-mes que se hace una vez y se cuida. Por eso se congela, se versiona y nunca se usa para entrenar. Los precios por label varían mucho por tarea y proveedor: pide cotización con un piloto.' },
           { t: 'calc', title: 'c03: el label dentro del trabajo del inspector', rows: [
             { label: 'Piezas desviadas por línea al día', expr: 'de <a href="#c03.datos">c03</a>', value: '≈ 2,292' },
@@ -631,22 +638,22 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
           ] },
           { t: 'h3', text: 'Dónde van los chequeos' },
           { t: 'table', head: ['Dónde', 'Qué valida', 'Si falla'], rows: [
-            ['Ingesta (frontera con cada fuente)', 'Schema, nulos, volumen y frescura de cada partición que llega', 'La partición va a cuarentena y se alerta al dueño de la fuente; lo de abajo no corre'],
+            ['Ingesta (frontera con cada fuente)', 'Schema, nulos, volumen y frescura de cada partición que llega', 'La partición va a cuarentena y se alerta al dueño de la fuente; lo de abajo no corre. Es write-audit-publish: se escribe aislada y se publica solo si pasa'],
             ['Antes de entrenar (el snapshot)', 'Todo lo anterior más duplicados, split, mezcla de fuentes de label, distribución vs snapshot anterior', 'No hay entrenamiento; el champion sigue sirviendo'],
             ['En serving (cada request)', 'El input: la imagen decodifica, tipo y tamaño (c01 responde 400, 413 o 415); features en rango y frescas', 'Fallback o valor por defecto, más una métrica; nunca un 500 sin explicación'],
             ['Después de entrenar', 'El modelo, no los datos: golden set, slices, parity', 'Es el gate de <a href="#m10.gate">M10</a>'],
           ] },
           { t: 'h3', text: 'Bloquear o avisar' },
           { t: 'p', html: `No todo chequeo debe detener el pipeline. <b>Bloquea</b> lo que invalida el resultado sin discusión: schema roto, labels fuera de rango, duplicados entre splits, volumen a la mitad, datos de hace una semana. <b>Avisa</b> lo que merece mirada humana pero puede ser real: una categoría que creció 30 % (quizá es temporada), un slice que quedó más chico. Un chequeo nuevo empieza como aviso; cuando ves que su tasa de falsas alarmas es baja, lo promueves a bloqueo. Un pipeline que bloquea por ruido cada semana termina con alguien que desactiva la validación.` },
-          { t: 'code', title: 'Validar un snapshot de c01 antes de entrenar', caption: 'Corrió con pandas 3.0.6 y Pandera 0.33.1: un snapshot sano pasa sin errores; los casos rotos dan la salida de la segunda pestaña.', files: [
+          { t: 'code', title: 'Validar un snapshot de c01 antes de entrenar', caption: 'Corrió con pandas 3.0.6 y Pandera 0.33.1, llamando con <code>now = pd.Timestamp.now(tz="UTC")</code>: un snapshot sano pasa sin errores; los casos rotos dan la salida de la segunda pestaña. Si falta una columna, devuelve el error de schema y no sigue.', files: [
             { name: 'validate_snapshot.py', lang: 'python', code: VALIDATE_CODE },
-            { name: 'salida.txt', lang: 'text', code: VALIDATE_OUT, note: 'Un snapshot con un sha256 duplicado, un <code>label_id</code> de 600 y 70 % de labels débiles; otro con la mitad de filas y 3 días de atraso; otro con timestamps sin zona.' },
+            { name: 'salida.txt', lang: 'text', code: VALIDATE_OUT, note: 'Un snapshot con un sha256 duplicado, un <code>label_id</code> de 600 y 85 % de labels débiles; otro con la mitad de filas y 3 días de atraso; otro con timestamps sin zona.' },
           ] },
           { t: 'list', items: [
             '<b><code>lazy=True</code></b> junta todas las fallas en vez de parar en la primera: un reporte completo le ahorra al dueño de la fuente cinco idas y vueltas.',
             '<b>El schema no alcanza.</b> Volumen, frescura y mezcla de fuentes se comparan contra el snapshot anterior: son relativos y el schema no los ve.',
             '<b>La zona horaria es parte del contrato</b>: un timestamp sin zona es la causa de skew de la <a href="#m09.skew">sección 4</a>, detectado antes de entrenar.',
-            '<b>Los umbrales son del equipo</b>: 0.8–1.5× y 60 % son ejemplos; se fijan mirando la historia de tus snapshots.',
+            '<b>Los umbrales son del equipo</b>: 0.8–1.5× y 80 % son ejemplos; se fijan mirando la historia de tus snapshots.',
           ] },
           { t: 'table', caption: 'Herramientas (versiones de septiembre de 2026)', head: ['Herramienta', 'Qué es', 'Cuándo'], rows: [
             ['Great Expectations (GX Core 1.x)', 'Expectations declarativas, checkpoints y reportes (Data Docs) sobre pandas, Spark o SQL', 'Varios equipos y fuentes, reportes legibles para gente que no programa'],
@@ -743,8 +750,8 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
         a: '0.8<sup>50</sup> + 0.2<sup>50</sup> ≈ 0.0014 %. Casi todo evento del test tiene gemelos en train: se mide memoria. Split por cámara y fecha.' },
       { id: 'm09-16', kind: 'concepto', q: 'Unidades de split de c01, c02 y c03.',
         a: 'c01: por vendedor, tras deduplicar por sha256 y hash perceptual. c02: por cámara y fecha (más sitios enteros aparte para estimar un sitio nuevo). c03: por tiempo o por lote.' },
-      { id: 'm09-17', kind: 'numero', q: 'Barz y Denzler: casi duplicados de train en los test sets de CIFAR.',
-        a: '3.3 % de CIFAR-10 test y 10 % de CIFAR-100 test (<i>Do We Train on Test Data?</i>, 2020).' },
+      { id: 'm09-17', kind: 'concepto', q: '¿Por qué deduplicas antes de partir un dataset de imágenes?',
+        a: 'Hasta CIFAR tiene casi duplicados de train en test (Barz y Denzler, 2020): la métrica mide memoria. Dedupe por sha256 y pHash, luego split por entidad o tiempo.' },
       { id: 'm09-18', kind: 'trampa', q: '"El modelo de marzo usa la versión 1,234 de la tabla: time travel lo hace reproducible."',
         a: 'Delta: log de 30 días y VACUUM borra archivos pasados 7 por defecto; Iceberg: expire_snapshots borra los de más de 5 días por defecto. Fija lo que debe durar: tag con RETAIN en Iceberg, retención más larga o un snapshot materializado.' },
       { id: 'm09-19', kind: 'tradeoff', q: 'Prefijos S3 + manifest vs DVC vs lakeFS vs Delta/Iceberg.',
@@ -754,7 +761,7 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
       { id: 'm09-21', kind: 'numero', q: '1,000 piezas: 960 ambos buena, 10 ambos defecto, 15 + 15 desacuerdos. ¿Acuerdo y kappa?',
         a: 'Acuerdo 97 %; p<sub>e</sub> ≈ 0.951; κ ≈ 0.38. Acuerdo en defectos: 0.40. Tras aclarar la guía (970/20/5/5): 99 % y κ ≈ 0.79.' },
       { id: 'm09-22', kind: 'numero', q: 'Costo de etiquetado de c01: cola mensual y golden set.',
-        a: '≈ 5k imágenes/mes (+10 % doble) a US$0.05–0.10: ≈ US$250–500/mes, ≈ 31–46 h. Golden set de 50k con doble anotación: ≈ 560–830 h y ≈ US$5–10k una vez (estimaciones: mídelo con un piloto).' },
+        a: '≈ 5k imágenes/mes a US$0.05–0.10 por imagen: ≈ US$250–500/mes, más ≈ US$25–50 del 10 % con doble anotación; ≈ 31–46 h. Golden set de 50k × 2 anotaciones: ≈ 560–830 h y ≈ US$5–10k una vez (estimaciones: mídelo con un piloto).' },
       { id: 'm09-23', kind: 'concepto', q: 'Cinco estrategias para elegir qué etiquetar.',
         a: 'Incertidumbre (confianza, margen, entropía), diversidad (clusters, core-set), desacuerdo (modelo vs humano o vs otro modelo), cerca del umbral (casi-rechazos de c03) y aleatoria (20–30 %: la única que estima el error real).' },
       { id: 'm09-24', kind: 'trampa', q: '¿Por qué no evalúas con las imágenes que eligió el active learning?',
@@ -788,7 +795,7 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
       { en: 'feature freshness', es: 'frescura de una feature', def: 'Tiempo desde que se calculó el valor que está usando el serving. Es una métrica de salud del online store y parte de la definición de la feature.', say: 'We alert when feature freshness goes over two hours.' },
       { en: 'log-and-wait', es: 'loguear y esperar', def: 'Agregar una feature nueva al log de serving y esperar a acumular historia antes de entrenar con ella, porque no hay forma de calcularla para el pasado.', say: 'That feature only exists at serving time, so it\'s log-and-wait for a few weeks.' },
       { en: 'workflow orchestrator', es: 'orquestador de workflows', def: 'Sistema que ejecuta DAGs de tareas: decide cuándo corre cada paso, maneja dependencias, reintentos, historial y backfills (Airflow, Dagster, Argo Workflows). No procesa los datos él mismo.', say: 'The orchestrator only triggers the Spark job; it never touches the data.' },
-      { en: 'Apache Airflow', es: 'Airflow', def: 'Orquestador open source de workflows definidos en Python (DAGs). Airflow 3 agregó versionado de DAGs, assets y backfills gestionados por el scheduler.', say: 'Airflow runs the daily DAG once the partition lands and retries each task on its own.' },
+      { en: 'Apache Airflow', es: 'Airflow', def: 'Orquestador open source de workflows definidos en Python (DAGs). Airflow 3 agregó versionado de DAGs y backfills gestionados por el scheduler, y renombró los datasets (desde 2.4) como assets.', say: 'Airflow runs the daily DAG once the partition lands and retries each task on its own.' },
       { en: 'Apache Spark', es: 'Spark', def: 'Motor de procesamiento distribuido para batch (y streaming en micro-batch con Structured Streaming), con APIs en SQL, Python y Scala.', say: 'The daily features are a Spark job that overwrites its own date partition.' },
       { en: 'Apache Kafka', es: 'Kafka', def: 'Log distribuido y durable de eventos, particionado por key, que desacopla productores y consumidores y permite releer desde un offset dentro de su retención.', say: 'Kafka keeps a week of events; the data lake is the long-term source of truth.' },
       { en: 'Apache Flink', es: 'Flink', def: 'Motor de stream processing con estado por clave, ventanas por event time y checkpoints; procesa cada evento al llegar.', say: 'Flink keeps the per-card counters and upserts them into the online store every few seconds.' },
@@ -798,11 +805,12 @@ naive: ['schema: created_at · timestamp sin zona UTC']`;
       { en: 'Great Expectations', es: 'Great Expectations', def: 'Librería open source (GX Core 1.x) de validación de datos con expectations declarativas, checkpoints y reportes legibles (Data Docs) sobre pandas, Spark o SQL.', say: 'We keep the expectations for each source in Great Expectations and publish the reports.' },
       { en: 'Pandera', es: 'Pandera', def: 'Librería de Python para declarar schemas y chequeos de DataFrames (pandas, Polars, PySpark) y validarlos en el pipeline o en tests.', say: 'The snapshot is validated with a Pandera schema before the training job starts.' },
       { en: 'dataset snapshot', es: 'snapshot de dataset', def: 'Versión inmutable de un dataset con id, manifest y regla de construcción. Se escribe una vez; un cambio es un snapshot nuevo. Cada modelo apunta al suyo.', say: 'The model card points to dataset snapshot ds-2026-09-01, so we can always rebuild it.' },
-      { en: 'manifest', es: 'manifiesto', def: 'Tabla que lista cada ejemplo de un snapshot: hash, ruta, label, fuente del label, fecha y split. Con imágenes guardadas por hash, el snapshot es solo su manifest.', say: 'A new snapshot is just a new manifest; the images are stored once by hash.' },
+      { en: 'manifest', es: 'manifiesto', def: 'Tabla que lista cada ejemplo de un snapshot: hash, ruta, label, fuente del label, fecha y split. Si las imágenes se referencian por key y hash en vez de copiarse, el snapshot es solo su manifest.', say: 'A new snapshot is just a new manifest; the images themselves are never copied.' },
       { en: 'content-addressed storage', es: 'almacenamiento por contenido', def: 'Guardar cada archivo con su hash como nombre: el mismo contenido nunca se duplica y cualquier referencia es verificable.', say: 'Images live in content-addressed storage, so deduplication is free.' },
       { en: 'time travel', es: 'viaje en el tiempo (tablas)', def: 'Leer una versión anterior de una tabla Delta Lake o Iceberg (<code>VERSION AS OF</code>, <code>TIMESTAMP AS OF</code>). Limitado por la retención: el mantenimiento borra versiones viejas.', say: 'Time travel is great for debugging, but vacuum removes old versions, so it isn\'t an archive.' },
       { en: 'open table format', es: 'formato de tabla abierto', def: 'Capa de metadatos sobre archivos Parquet (Delta Lake, Apache Iceberg, Apache Hudi) que da transacciones, evolución de schema y versiones de una tabla en el object storage.', say: 'The feature tables are Iceberg, so every write is a snapshot we can tag.' },
-      { en: 'DVC', es: 'DVC (Data Version Control)', def: 'Herramienta open source que versiona datos junto al código: git guarda punteros con hashes y los datos viven en un remote. Desde noviembre de 2025 la mantiene lakeFS.', say: 'For a small team, DVC keeps the dataset version next to the code that used it.' },
+      { en: 'DVC', es: 'DVC (Data Version Control)', def: 'Herramienta open source que versiona datos junto al código: git guarda punteros con hashes y los datos viven en un remote.', say: 'For a small team, DVC keeps the dataset version next to the code that used it.' },
+      { en: 'write-audit-publish (WAP)', es: 'escribir, auditar, publicar', def: 'Patrón para datos: el job escribe en un lugar aislado (branch de lakeFS, branch o snapshot de Iceberg), la validación lo audita y solo si pasa se publica a la tabla que leen los consumidores.', say: 'New partitions follow write-audit-publish, so consumers never read data that failed validation.' },
       { en: 'lakeFS', es: 'lakeFS', def: 'Capa de control de versiones tipo git (branches, commits, merges) sobre el object storage, con API compatible con S3 y branches sin copia de datos.', say: 'We write the new data to a lakeFS branch, validate it, and merge only if it passes.' },
       { en: 'labeling guidelines', es: 'guía de etiquetado', def: 'Documento versionado con la definición operativa de cada clase, ejemplos, contraejemplos y los casos límite ya decididos.', say: 'Every disagreement we resolve goes back into the labeling guidelines.' },
       { en: 'gold question', es: 'pregunta de control', def: 'Ejemplo con respuesta conocida mezclado en la cola de etiquetado, sin que el anotador lo sepa, para medir su exactitud.', say: 'About five percent of each batch are gold questions, so we track accuracy per annotator.' },
