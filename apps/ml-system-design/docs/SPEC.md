@@ -684,6 +684,111 @@ Two different problems that share a platform — a senior splits them:
   requirements.txt, tests/test_inspector.py}, edge/Dockerfile, edge/docker-compose.yml,
   tools/{choose_threshold.py, build_engine_jetson.sh, tests/test_choose_threshold.py}, README.md.
 
+## 8d. Case c04 — shared facts (every c04 agent and the m12 agent MUST use exactly these)
+Scenario: a private **hospital group with 3 pathology labs (A, B, C)** digitizes biopsies and surgical
+specimens. Scope: **colorectal H&E slides**. Today a pathologist reviews each slide and, for the
+report, estimates by eye the **tumor area and % of tumor in the tissue** (used, among other things,
+to decide whether a sample is adequate for molecular testing); estimates vary between pathologists.
+Goal: **segment tumor regions** on every whole-slide image (WSI) so that, when the pathologist opens
+the case, the viewer already shows an overlay + tumor area (mm²) + % of tissue, which they **accept or
+correct before signing**. The pathologist always signs; the system is **assistive (decision support),
+never the diagnosis**. Intra-operative frozen sections (minutes) are **out of scope**. Not our job to
+redesign the model; regulatory classification (software as a medical device) is legal/clinical
+governance's call — we provide traceability and validation evidence, general principles only.
+- Scanners: labs A and B use vendor X (**SVS / pyramidal TIFF**, 40× ≈ **0.25 µm/px**, pyramid levels at
+  downsample 1, 4, 16 — typical for that format, verify per scanner); lab C uses vendor Y (**DICOM WSI**,
+  different color profile). The scanners already upload every WSI to the group's **digital archive in the
+  cloud (object storage, S3-like, in the region legal approved)**; the upload link and the archive's
+  storage are NOT our cost. Upload completion emits an event (object key + sha256).
+- Volume: **≈ 1,200 in-scope WSI/day** across the 3 labs; scanners run ≈ **08:00–22:00** (14 h) → average
+  ≈ 86 slides/h, **peak ≈ 170 slides/h** (≈ 2×, est.). Growth: 2 more labs next year (→ ≈ 2,000/day).
+- Image size (est.): average tissue ≈ **1.5 cm²** per slide; at 40× that is ≈ 2.4 Gpx (≈ 7.2 GB raw RGB;
+  it never fits in RAM as one array); WSI file ≈ **1 GB** (0.5–3 GB depending on tissue and compression).
+  The model runs at **20× (≈ 0.5 µm/px)**: there is no 20× level in the SVS pyramid, so each 512×512 tile is
+  read as a 1024×1024 region at level 0 and downsampled 2× (4× the decode work — a senior detail).
+  Tiles **512×512 with 64 px overlap (stride 448)**, only where a tissue mask (computed on a low-res
+  thumbnail) says there is tissue → **≈ 3,000 tiles/slide** (1.5 cm² / (448 × 0.5 µm)² ≈ 2,990).
+  → **≈ 3.6 M tiles/day**.
+- Model: an existing **U-Net-class segmentation model** (≈ 30 M params, input 512×512 RGB at 20×, output
+  a per-pixel tumor probability), trained in PyTorch on the ≈ 400 annotated slides of labs A/B; offline
+  **Dice ≈ 0.82** on a held-out set from A/B (assumed); **never validated on lab C (vendor Y)**.
+  Served with TensorRT FP16; **assumed measured max ≈ 300 tiles/s per L4** (est. — measure with trtexec)
+  → **planned 200 tiles/s per worker** (≈ 70 %).
+- CPU side (est.): reading + JPEG decode + 2× downsample ≈ **20 ms CPU per tile** → 200 tiles/s needs
+  ≈ 4 busy cores → worker node **g6.2xlarge** (1 × L4, 8 vCPU, 32 GiB, local NVMe; ≈ **US$0.98/h**
+  on-demand us-east-1, verify; spot ≈ 60–70 % cheaper, variable). The WSI is downloaded to local NVMe
+  (≈ 5–10 s per GB with parallel ranged GETs) because the slide readers (OpenSlide / tiffslide) want a
+  file.
+- Per slide (est.): download 5–10 s + tissue mask ≈ 1 s + tiles 3,000 / 200 ≈ **15 s** of GPU (CPU decode
+  overlapped with ≈ 6 reader processes) + stitch + post-process ≈ 2–3 s → **≈ 20–30 s per slide** →
+  ≈ 120–180 slides/h per worker. Daily GPU work: 3.6 M / 200 ≈ 18,000 s ≈ **5 GPU-h/day**.
+  Peak 170 slides/h × 3,000 ≈ 510k tiles/h ≈ **142 tiles/s** → 1 worker at ≈ 71 % of plan; **KEDA scales
+  0–4 workers on SQS queue depth** (scale to zero at night; cold start ≈ 3–5 min for node + image pull is
+  fine against the 60 min SLO).
+- SLOs: **turnaround p95 ≤ 60 min** from "WSI available in the archive" to "result visible in the
+  viewer"; **99 % of slides scanned before 22:00 are processed before 07:00**. Availability is NOT
+  critical (if the system is down, pathologists work as today, and the viewer says "sin resultado de IA"),
+  but **integrity is**: a result must never be shown on the wrong slide or with an unknown model version
+  (result bound to slide_id + sha256 of the file + model_version; wrong/missing mpp metadata → the slide is
+  not processed and is flagged).
+- Architecture (names used everywhere): archive upload event → **`slide-jobs` SQS queue** (+ DLQ after 3
+  attempts) → **`seg-worker`** (GPU, K8s Deployment, KEDA ScaledObject; download → QC + tissue mask →
+  tile → batch infer → stitch with overlap blending → threshold → polygons) → results in object storage
+  `results/<slide_id>/<model_version>/` (GeoJSON polygons in level-0 pixel coordinates, low-res heatmap PNG,
+  `summary.json` with tumor mm², % of tissue, QC flags, model_version, container digest, preprocessing
+  config hash, input sha256) + an index row in Postgres → **`results-api`** (FastAPI, read-only for the
+  viewer; also receives the pathologist's corrections) → existing web **viewer** shows the overlay; the
+  accepted/corrected final mask is stored as a new **annotation version** (never overwrites the model output).
+  Idempotency key = sha256 + model_version + preprocessing config hash (redelivered message → skip).
+  Spot interruption / SIGTERM → stop taking messages; an unfinished slide becomes visible again in the
+  queue (visibility timeout, extended by a heartbeat while processing).
+- Human in the loop & labels: pathologist time is the scarce resource: **20 pathologist-hours/month** for
+  labeling at ≈ **US$200/h** (est.) ≈ **US$4k/month** — the **dominant cost of the system**, bigger than
+  GPUs. Full polygon annotation of a slide ≈ 30–60 min; correcting a model proposal ≈ 5–10 min; labeling
+  one selected region ≈ 1–2 min (est.). → 20 h ≈ 20–40 full slides, or ≈ 120–240 corrections, or
+  ≈ 600–1,200 regions. **Active learning** chooses what to label: uncertain regions (e.g. mean pixel entropy
+  or margin near the threshold) + diversity (cap per slide, stratified by lab/scanner, all of lab C first).
+  Residents can pre-annotate; a pathologist approves. Inter-pathologist agreement on tumor regions:
+  **Dice ≈ 0.75–0.85** (est., varies by tissue) → the ceiling for what the model can be measured against.
+  Corrections from sign-out are free labels but biased: **"accepted without edits" ≠ correct**
+  (automation bias) → a monthly random audit sample is annotated independently.
+- Evaluation: **golden set of 100 slides** (stratified by lab, scanner, specimen type; annotated by 2
+  pathologists + consensus; frozen; never used for training) + a monthly temporal set. Offline metrics
+  per slice (lab, scanner, specimen type, stain batch): pixel **Dice**, **tumor-% absolute error ≤ 5
+  points**, **lesion-level sensitivity for foci ≥ 1 mm ≥ 95 %** at ≤ 1 false-positive region per slide
+  (targets, est.), calibration of the probabilities. Before enabling lab C: **silent mode** (runs, results
+  hidden) + ≥ 30 annotated lab-C slides. Online (no classic A/B on patients without clinical
+  governance approval): silent/shadow period, then assistive mode per lab; metrics: pathologist
+  **major-edit rate** (area changed > 20 %), review time per slide, turnaround, % of slides with QC flags.
+- Monitoring (the m12 agent uses this as its running example next to c01): system — queue age of the
+  oldest message > 30 min, DLQ > 0, turnaround SLO burn, GPU util, worker errors; data — per-lab/scanner
+  **stain color statistics** (PSI > 0.2 on tissue color histograms vs the training reference), % of
+  out-of-focus tiles (blur) per scanner, tissue area, missing/odd mpp; model — distribution of predicted
+  tumor % per lab, mean confidence, and the delayed-but-strong label: **pathologist major-edit rate** over
+  4 weeks vs baseline. Retraining: monthly with new corrections + active-learning labels, or triggered by
+  drift / a new lab or scanner; gate: no slice worse than production by more than its CI (e.g. Dice
+  −0.02), lesion sensitivity target met on the golden set.
+- Privacy & traceability: health data = sensitive personal data (Mexico: LFPDPPP; US: HIPAA — general
+  principles only, no legal advice). WSI files carry a **label image and macro image** (the slide label
+  can show patient name / barcode) and metadata → strip them before any training/labeling copy;
+  pseudonymized ids; least-privilege access; every access and result logged (append-only audit log,
+  object lock); per result: model_version, training dataset version, container digest, preprocessing
+  config hash, input sha256, reviewer, timestamps. Retention follows the lab's clinical-records policy
+  (legal decides).
+- Monthly cost (approx, on-demand, est.): GPU workers ≈ 8 worker-h/day incl. idle/cold starts ≈ 240 h ×
+  US$0.98 ≈ **US$235** (spot ≈ US$80–100); reprocessing/backfills for shadow evaluation of candidate
+  models ≈ US$70; training ≈ US$200; EKS control plane ≈ US$73; CPU nodes (results-api, jobs) ≈ US$150;
+  Postgres (managed, Multi-AZ, small) ≈ US$200; results storage (≈ 5 MB/slide → ≈ 180 GB/month,
+  cumulative) + logs/metrics ≈ US$100 → **infra ≈ US$1.0k/month**; pathologist labeling ≈ **US$4k/month**
+  → **≈ US$5k/month total**. Budget answer: infra ≤ US$2k/month + the 20 h/month of pathologists.
+- Reference files (reference/c04/): worker/{tiling.py (pure: level selection by mpp, tissue-mask tile
+  grid with overlap, stitching with blending, polygon-free summary math), worker.py (SQS-style loop with
+  idempotency, heartbeat, SIGTERM, DLQ semantics, atomic result write, behind interfaces for queue /
+  storage / slide reader / model so tests run without AWS or GPU), requirements.txt,
+  tests/{test_tiling.py, test_worker.py}}, worker/Dockerfile, k8s/seg-worker.yaml (Deployment + KEDA
+  ScaledObject on SQS), loop/{select_for_labeling.py (active learning under an hours budget),
+  tests/test_select.py}, monitoring/alerts.yml (Prometheus rules), README.md.
+
 ## 9. Writing style for content agents (applies to every content file)
 - Spanish (neutral Latin American, tuteo), direct, no filler, no motivational fluff. Technical terms
   in English (latency, throughput, batch, serving, feature store, rollout…), exactly as they'd be
