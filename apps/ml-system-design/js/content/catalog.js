@@ -240,8 +240,8 @@
         'Cuándo reentrenar: calendario vs disparadores',
         'Dashboards y runbooks: qué hace quien recibe la alerta',
       ],
-      freq: 'alta', minutes: 55,
-      connects: ['m09', 'm10', 'm11', 'c01', 'c09'],
+      freq: 'alta', minutes: 56,
+      connects: ['m09', 'm10', 'm11', 'c01', 'c04', 'c09'],
     },
     {
       id: 'm13', num: 13,
@@ -422,7 +422,7 @@
         'Métricas por slice (equipo, sitio, tipo de caso) y calibración',
         'Datos sensibles: privacidad, anonimización y regulaciones',
       ],
-      freq: 'baja', minutes: 125, difficulty: 'media',
+      freq: 'baja', minutes: 102, difficulty: 'media',
       connects: ['m02', 'm09', 'm10', 'm12', 'm15'],
       tests: [
         'Elegir batch/asíncrono cuando la latencia no es el requisito',
@@ -789,13 +789,13 @@
       note: 'Lo que pasa antes y alrededor del serving: pipelines, feature store y skew, registry y CI/CD, y cómo desplegar sin romper nada (shadow, canary, A/B).',
     },
     {
-      phase: 7, status: 'next',
+      phase: 7, status: 'done',
       title: 'Fase 7 — Monitoreo y humano en el loop',
       items: ['m12', 'c04'],
       note: 'Drift, alertas y reentrenamiento, aplicados enseguida a un caso batch de segmentación con revisión humana.',
     },
     {
-      phase: 8, status: 'later',
+      phase: 8, status: 'next',
       title: 'Fase 8 — Pipelines multimodelo',
       items: ['c05', 'c06'],
       note: 'Documentos/OCR y moderación a gran escala: varios modelos encadenados, colas, costos por etapa y revisión humana donde el modelo duda.',
@@ -893,6 +893,36 @@
       {
         "topic": "Restricciones",
         "a": "La red de planta (OT) está aislada: solo una DMZ puede abrir conexiones salientes a la nube. El PLC de cada línea habla Modbus TCP y OPC UA. EPP: sin reconocimiento facial, sin seguimiento de identidad entre días, caras difuminadas en la evidencia, retención de <b>7 días</b> y KPIs solo agregados; hay que dar aviso a los trabajadores y acordarlo con sus representantes. Aplica la LFPDPPP (los detalles los define legal). Presupuesto: unos miles de dólares de hardware por estación y poco gasto de nube."
+      }
+    ],
+    c04: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Un grupo hospitalario con <b>3 laboratorios de patología (A, B y C)</b>. El especialista es un <b>patólogo</b>: para el reporte estima a ojo el área de tumor y el % de tumor en el tejido (entre otras cosas, para decidir si la muestra alcanza para pruebas moleculares); las estimaciones varían entre patólogos. Quieren que, al abrir el caso, el visor web que ya usan muestre la región propuesta, que el patólogo <b>acepta o corrige antes de firmar</b>. La firma siempre es del patólogo: es apoyo a la decisión, no diagnóstico."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Láminas de biopsias y piezas quirúrgicas de <b>colon y recto teñidas con H&amp;E</b>, escaneadas como imágenes de lámina completa (WSI) de ≈ 1 GB (0.5–3 GB). A y B: escáneres del proveedor X, formato SVS (TIFF piramidal), 40× ≈ 0.25 µm/px. C: proveedor Y, <b>DICOM WSI</b> con otro perfil de color. Salida esperada: la región de tumor sobre la lámina, el área en mm² y el % del tejido. El visor puede dibujar polígonos que le entregue una API."
+      },
+      {
+        "topic": "Escala",
+        "a": "≈ <b>1,200 láminas al día</b> dentro del alcance, entre los 3 laboratorios. Los escáneres trabajan de ≈ <b>08:00 a 22:00</b> y se cargan por racks, así que llegan en ráfagas. El año que viene se suman <b>2 laboratorios más</b> (≈ 2,000 láminas al día)."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "El resultado tiene que estar antes de que el patólogo abra el caso: la mayoría se revisa al día siguiente y algunas el mismo día, horas después del escaneo. Los cortes congelados intraoperatorios están fuera de alcance. Si el sistema no está, los patólogos trabajan como hoy, pero un resultado nunca puede aparecer en la lámina equivocada ni con una versión de modelo desconocida."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "Existe un modelo de segmentación tipo <b>U-Net</b> (≈ 30 M parámetros, entrada 512×512 RGB a 20×, salida: probabilidad de tumor por píxel), entrenado en PyTorch con láminas de A y B. Dice offline ≈ <b>0.82</b> en un set separado de A y B. <b>Nunca se validó en el laboratorio C.</b> No es nuestro trabajo rediseñar el modelo."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "≈ <b>400 láminas de A y B con anotación parcial</b> (regiones marcadas, no la lámina completa). Hay <b>20 horas de patólogo al mes</b> para etiquetar, a ≈ <b>US$200/h</b>; los residentes pueden pre-anotar y un patólogo aprueba. Anotar una lámina completa toma 30–60 min; corregir una propuesta, 5–10 min; etiquetar una región elegida, 1–2 min."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Los escáneres ya suben cada lámina al <b>archivo digital del grupo en la nube</b> (almacenamiento tipo S3, en la región aprobada por legal), que emite un evento con la key y el sha256; ese enlace y ese almacenamiento no son costo nuestro. Datos de salud: sensibles (LFPDPPP en México, HIPAA en EE. UU.). La WSI trae imagen de la etiqueta y macro con datos del paciente. La clasificación regulatoria la decide gobierno clínico y legal. Presupuesto: infraestructura ≤ <b>US$2k/mes</b> más las 20 h de patólogo."
       }
     ],
   };

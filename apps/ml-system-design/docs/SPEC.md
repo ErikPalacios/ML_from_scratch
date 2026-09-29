@@ -716,11 +716,11 @@ governance's call — we provide traceability and validation evidence, general p
   → **planned 200 tiles/s per worker** (≈ 70 %).
 - CPU side (est.): reading + JPEG decode + 2× downsample ≈ **20 ms CPU per tile** → 200 tiles/s needs
   ≈ 4 busy cores → worker node **g6.2xlarge** (1 × L4, 8 vCPU, 32 GiB, local NVMe; ≈ **US$0.98/h**
-  on-demand us-east-1, verify; spot ≈ 60–70 % cheaper, variable). The WSI is downloaded to local NVMe
+  on-demand us-east-1, verify; the spot discount varies a lot by instance type and time — check the spot price history, don't assume a fixed %). The WSI is downloaded to local NVMe
   (≈ 5–10 s per GB with parallel ranged GETs) because the slide readers (OpenSlide / tiffslide) want a
   file.
 - Per slide (est.): download 5–10 s + tissue mask ≈ 1 s + tiles 3,000 / 200 ≈ **15 s** of GPU (CPU decode
-  overlapped with ≈ 6 reader processes) + stitch + post-process ≈ 2–3 s → **≈ 20–30 s per slide** →
+  overlapped with ≈ 6 reader threads — OpenSlide decodes in C and releases the GIL) + stitch + post-process ≈ 2–3 s → **≈ 20–30 s per slide** →
   ≈ 120–180 slides/h per worker. Daily GPU work: 3.6 M / 200 ≈ 18,000 s ≈ **5 GPU-h/day**.
   Peak 170 slides/h × 3,000 ≈ 510k tiles/h ≈ **142 tiles/s** → 1 worker at ≈ 71 % of plan; **KEDA scales
   0–4 workers on SQS queue depth** (scale to zero at night; cold start ≈ 3–5 min for node + image pull is

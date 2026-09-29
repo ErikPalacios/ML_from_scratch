@@ -1,0 +1,24 @@
+# Dependencias de RUNTIME de seg-worker, fijadas con == (probadas con Python 3.12, el de la imagen
+# nvcr.io/nvidia/tensorrt:26.08-py3, y con Python 3.13). Incluye las transitivas: esta lista ES el lock.
+# Por qué fijar las transitivas: sin lock, un rebuild del mismo commit puede traer otro botocore u
+# otra numpy y cambiar el comportamiento (o el redondeo de un resize) sin que nadie toque el código.
+# TensorRT NO va aquí: viene en la imagen base, atado a su versión (el engine depende de ella).
+# Tests: pip install -r requirements-dev.txt (no entra a la imagen).
+
+# --- directas (las importan tiling.py / worker.py) ---
+numpy==2.5.3  # tiles, máscaras, stitching
+boto3==1.43.105  # SQS (receive/visibility/delete) y S3 (descarga por rangos en paralelo, resultados)
+openslide-python==1.4.6  # lector de WSI: SVS/TIFF (labs A y B) y DICOM WSI (lab C)
+openslide-bin==4.0.1.2  # la biblioteca OpenSlide 4.0.1 compilada, en un wheel: sin apt ni libopenslide del sistema
+opencv-python-headless==5.0.0.93  # contornos → GeoJSON y el PNG del heatmap; headless = sin libs de GUI
+prometheus-client==0.26.0  # /metrics (Counter/Histogram/Gauge)
+PyYAML==6.0.3  # worker.yaml (ConfigMap con labs y escáneres)
+
+# --- transitivas (pip freeze de un venv limpio con las directas) ---
+botocore==1.43.105
+jmespath==1.1.0
+pillow==12.3.0
+python-dateutil==2.9.0.post0
+s3transfer==0.19.2
+six==1.17.0
+urllib3==2.8.0

@@ -1,0 +1,264 @@
+# seg-worker del caso c04 en EKS: workers de GPU que vacían la cola slide-jobs.
+# Recursos: ServiceAccount (IRSA) + ConfigMap (labs y escáneres) + Deployment en nodos g6.2xlarge
+# + PodMonitor (Prometheus lee /metrics) + TriggerAuthentication y ScaledObject de KEDA (0–4 réplicas
+# según la profundidad de la cola). Namespace "c04": kubectl create namespace c04.
+#
+# La cola (se crea con IaC, no aquí): slide-jobs, estándar, VisibilityTimeout 300 s,
+# ReceiveMessageWaitTimeSeconds 20, retención 4 días, RedrivePolicy → slide-jobs-dlq con
+# maxReceiveCount 3; la DLQ con retención de 14 días (más que la cola: en colas estándar el
+# vencimiento cuenta desde el envío original).
+#
+# Sin PodDisruptionBudget, a propósito (al revés que el verificador del c02): este worker no atiende
+# requests en línea. Si un drain o una interrupción de spot lo saca, el slide en curso vuelve a la cola
+# y otro worker lo repite: se pierden ≈ 30 s de GPU, no un resultado. Un PDB bloquearía los drains
+# (y con scale-to-zero, a veces no hay a quién proteger).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: seg-worker
+  namespace: c04
+  annotations:
+    # IRSA: el pod asume este rol IAM. Mínimo privilegio, y se dice en la entrevista:
+    #   sqs:ReceiveMessage, sqs:ChangeMessageVisibility, sqs:DeleteMessage en slide-jobs
+    #   s3:GetObject en el bucket del ARCHIVO (solo lectura: el worker nunca modifica un WSI)
+    #   s3:GetObject y s3:PutObject en el bucket de resultados (sin DeleteObject: append-only)
+    # Sin llaves de AWS en el pod ni en el YAML.
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/c04-seg-worker
+---
+# Configuración que NO cambia el resultado de un slide (por eso no entra al hash de preprocesamiento):
+# qué labs existen y el mpp CALIBRADO de cada escáner (el worker lo compara con el del archivo).
+# Un escáner que no está aquí → qc_blocked (unknown_scanner): uno nuevo se registra después de validarlo.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: seg-worker-config
+  namespace: c04
+data:
+  worker.yaml: |
+    labs: [A, B, C]
+    scanners:          # id del escáner → µm/px del nivel 0, medido con un portaobjetos de calibración
+      A-X-01: 0.25     # vendor X, SVS, 40×
+      A-X-02: 0.25
+      B-X-01: 0.25
+      C-Y-01: 0.25     # vendor Y, DICOM WSI: valor ilustrativo, mídelo (lab C nunca se validó)
+    batch_size: 16     # tiles por llamada a la GPU (mídelo con trtexec en la L4)
+    reader_threads: 6  # ≈ 20 ms de CPU por tile × 200 tiles/s ≈ 4 núcleos ocupados (est.)
+    min_tissue_mm2: 1.0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seg-worker
+  namespace: c04
+  labels:
+    app.kubernetes.io/name: seg-worker
+    app.kubernetes.io/part-of: c04
+spec:
+  # Sin "replicas": las decide el HPA que crea KEDA (0 a 4). Si lo fijas aquí, cada apply pelea con él.
+  revisionHistoryLimit: 5  # ReplicaSets viejos para `kubectl rollout undo` (volver al modelo anterior)
+  progressDeadlineSeconds: 900  # un pod nuevo puede esperar un nodo GPU nuevo + 6.8 GB de imagen
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1  # el pod con el modelo nuevo sube primero …
+      maxUnavailable: 0  # … y el viejo se va después. Durante el rollout conviven dos MODEL_VERSION: cada
+      # resultado queda en su prefijo results/<slide>/<model_version>/ y QUÉ versión ve el patólogo lo
+      # decide results-api por lab, no el orden en que los workers tomaron los mensajes.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seg-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seg-worker
+        app.kubernetes.io/part-of: c04
+    spec:
+      serviceAccountName: seg-worker
+      # SIGTERM (drain, scale-down, spot, deploy) → el worker deja de pedir mensajes, aborta el slide en
+      # el siguiente batch y lo devuelve a la cola con visibilidad 0. El peor caso es SIGTERM justo al
+      # empezar a bajar un WSI de 3 GB: long poll (≤ 20 s) + descarga (≈ 15–30 s, est.). 90 s cubren
+      # eso y caben en el aviso de 2 min de una interrupción de spot. Si igual llega el SIGKILL, el
+      # mensaje reaparece al vencer su visibilidad (≤ 300 s, el heartbeat ya no la renueva): tarde, no perdido.
+      terminationGracePeriodSeconds: 90
+      nodeSelector:
+        # g6.2xlarge: 1× L4 24 GB, 8 vCPU, 32 GiB, NVMe local (≈ US$0.98/h on-demand en us-east-1, verifica).
+        # El engine se compiló para sm_89: en otra GPU no carga.
+        node.kubernetes.io/instance-type: g6.2xlarge
+        # Spot (≈ 60–70 % más barato, variable): con Karpenter agrega karpenter.sh/capacity-type: spot;
+        # con managed node groups, eks.amazonaws.com/capacityType: SPOT. El SIGTERM de arriba es lo que
+        # lo hace seguro.
+      tolerations:
+        # Los nodos GPU tienen taint para que nada que no use GPU ocupe una máquina de ≈ US$1/h
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: present
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001  # = el useradd del Dockerfile
+        runAsGroup: 10001
+        fsGroup: 10001  # los emptyDir quedan escribibles para ese grupo
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          # Tag = versión del modelo (el engine va horneado) y, además, el DIGEST: una etiqueta se puede
+          # volver a publicar, un digest no. El pipeline de CD escribe el mismo digest en CONTAINER_DIGEST
+          # para que cada summary.json diga exactamente qué imagen lo produjo.
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/c04-seg-worker:2026-09-01-unet-fp16@sha256:3b6f0c1e9d2a7c5b8e4f1a0d6c3b9e2f7a5d8c1b4e0f3a6d9c2b5e8f1a4d7c0b
+          env:
+            - name: SQS_QUEUE_URL
+              value: https://sqs.us-east-1.amazonaws.com/123456789012/slide-jobs
+            - name: RESULTS_BUCKET
+              value: c04-seg-results  # results/<slide_id>/<model_version>/…; lifecycle según la política clínica
+            - name: AWS_REGION
+              value: us-east-1  # la región que aprobó legal para datos de salud (ejemplo)
+            - name: MODEL_VERSION
+              value: 2026-09-01-unet-fp16  # = tag de la imagen; va en la key del resultado y en summary.json
+            - name: CONTAINER_DIGEST
+              value: sha256:3b6f0c1e9d2a7c5b8e4f1a0d6c3b9e2f7a5d8c1b4e0f3a6d9c2b5e8f1a4d7c0b
+            - name: TRAINING_DATA_VERSION
+              value: ds-2026-08-ab-400  # versión del dataset (labs A/B, ≈ 400 slides anotados)
+            - name: MODEL_ENGINE_PATH
+              value: /models/model.plan
+            - name: WORKER_CONFIG
+              value: /config/worker.yaml
+            - name: WORK_DIR
+              value: /scratch
+            - name: METRICS_PORT
+              value: "9100"
+            - name: POD_NAME  # queda en summary.json: qué pod produjo cada resultado
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: metrics
+              containerPort: 9100
+          resources:
+            requests:
+              cpu: "6"  # 6 hilos lectores + el loop; el nodo tiene 8 vCPU y los daemonsets usan el resto
+              memory: 16Gi  # thumbnail, mapas, ventana de tiles, contexto CUDA (est.: mídelo con un WSI de 3 GB)
+              ephemeral-storage: 10Gi
+              nvidia.com/gpu: 1  # una L4 entera por pod
+            limits:
+              # Sin límite de CPU a propósito: con límite, el throttling de CFS frena la lectura y la GPU espera
+              memory: 16Gi  # = request: pasarse es un OOMKilled claro (y el slide vuelve a la cola)
+              ephemeral-storage: 30Gi
+              nvidia.com/gpu: 1  # las GPUs no se sobreasignan: request = limit
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # El worker toca /scratch/alive en cada vuelta del loop (≤ 20 s) y en cada batch. Si pasan 5 min
+          # sin tocarlo, el proceso está colgado (p. ej. dentro de una llamada a la GPU) y reiniciarlo es
+          # lo correcto: su mensaje reaparece solo. No hay readinessProbe: sin Service no hay tráfico que cortar.
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "find /scratch/alive -mmin -5 | grep -q ."]
+            periodSeconds: 10
+            failureThreshold: 30  # hasta 5 min para cargar el engine y entrar al loop
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "find /scratch/alive -mmin -5 | grep -q ."]
+            periodSeconds: 30
+            failureThreshold: 2
+          volumeMounts:
+            - name: scratch
+              mountPath: /scratch  # el WSI descargado (0.5–3 GB) + el archivo de liveness
+            - name: tmp
+              mountPath: /tmp  # el root filesystem es de solo lectura
+            - name: config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        # emptyDir vive en el disco del kubelet. Para que sea el NVMe local del g6.2xlarge (y no el EBS
+        # raíz), el nodo debe montar el instance store como almacenamiento efímero (en Karpenter:
+        # instanceStorePolicy: RAID0 en el EC2NodeClass). Un slide a la vez: 20 GiB sobran.
+        - name: scratch
+          emptyDir:
+            sizeLimit: 20Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: config
+          configMap:
+            name: seg-worker-config
+---
+# Scrape de /metrics con el Prometheus Operator. PodMonitor y no ServiceMonitor: el worker no recibe
+# tráfico, así que no tiene Service. Sin esto, seg_* no existe y SegWorkerErrors / TurnaroundSLOBurn
+# nunca disparan, sin ningún error visible. Con 0 réplicas no hay nada que scrapear: es lo esperado.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: seg-worker
+  namespace: c04
+  labels:
+    release: kube-prometheus-stack  # = podMonitorSelector de tu Prometheus (nombre del release de Helm)
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seg-worker
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# Credenciales del scaler: con provider aws, KEDA usa la identidad (IRSA) del OPERADOR de KEDA, que
+# necesita sqs:GetQueueAttributes sobre slide-jobs. Para asumir un rol específico existe roleArn.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-aws
+  namespace: c04
+spec:
+  podIdentity:
+    provider: aws
+---
+# KEDA crea y administra el HPA (keda-hpa-seg-worker): no definas otro HPA para este Deployment.
+# Campos del scaler aws-sqs-queue según la documentación de KEDA 2.21.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: seg-worker
+  namespace: c04
+spec:
+  scaleTargetRef:
+    name: seg-worker  # el Deployment de arriba
+  # 0 de noche: los escáneres paran a las 22:00 y una L4 ociosa cuesta ≈ US$1/h. El primer slide del día
+  # espera el cold start (nodo + imagen de 6.8 GB + engine ≈ 3–5 min, est.) contra un SLO de 60 min.
+  minReplicaCount: 0
+  maxReplicaCount: 4  # techo de costo; 4 workers ≈ 480–720 slides/h (est.): un día completo en ≈ 2 h de backfill
+  pollingInterval: 30  # cada 30 s KEDA llama GetQueueAttributes (tiempo real, no CloudWatch)
+  # cooldownPeriod solo aplica al bajar a 0: 15 min sin mensajes antes de apagar el último worker, para no
+  # pagar un cold start por cada slide suelto de la tarde.
+  cooldownPeriod: 900
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          # Bajar despacio: el HPA elige qué pod matar y puede ser uno a mitad de un slide (vuelve a la cola;
+          # se pierden ≈ 30 s de GPU). De a uno cada 5 min.
+          stabilizationWindowSeconds: 600
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 300
+  triggers:
+    - type: aws-sqs-queue
+      authenticationRef:
+        name: keda-aws
+      metadata:
+        queueURL: https://sqs.us-east-1.amazonaws.com/123456789012/slide-jobs
+        awsRegion: us-east-1
+        # Mensajes por réplica: réplicas = ceil(mensajes / 20). 20 slides ≈ 8–10 min de trabajo para un
+        # worker (≈ 25 s cada uno, est.): en operación normal (pico ≈ 170 slides/h) basta 1 réplica, y una
+        # tanda grande (un lab que sube 80 slides juntos) levanta 4. Con 60 min de SLO, esperar ≈ 10 min
+        # en cola + un cold start todavía cabe.
+        queueLength: "20"
+        activationQueueLength: "0"  # de 0 a 1 réplica con el primer mensaje
+        # Visibles + en proceso (default): el slide que un worker ya tomó sigue contando. Sin esto, con 1
+        # mensaje en proceso la cola "está vacía" y KEDA apagaría al worker a mitad del slide.
+        scaleOnInFlight: "true"
+        # El scaler escala por PROFUNDIDAD, no por edad del mensaje más viejo. La edad (lo que promete el
+        # SLO) vive en la alerta SlideQueueBacklog (monitoring/alerts.yml).
