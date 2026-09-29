@@ -30,7 +30,7 @@
         'Cómo abrir la respuesta, fijar supuestos y chequear con el entrevistador',
         'Deuda técnica oculta en sistemas de ML (Sculley et al., NeurIPS 2015)',
       ],
-      freq: 'alta', minutes: 40,
+      freq: 'alta', minutes: 65,
       connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'c01'],
     },
     {
@@ -49,7 +49,7 @@
         'Tabla de decisión: latencia requerida, frescura, volumen y costo',
         'Idempotencia, reintentos y dead-letter queues',
       ],
-      freq: 'alta', minutes: 45,
+      freq: 'alta', minutes: 65,
       connects: ['m01', 'm03', 'm06', 'm09', 'c02', 'c04', 'c09'],
     },
     {
@@ -68,7 +68,7 @@
         'Utilización y colas: por qué no se planea al 100 %',
         'Load testing: perf_analyzer, Locust, k6',
       ],
-      freq: 'alta', minutes: 45,
+      freq: 'alta', minutes: 55,
       connects: ['m02', 'm04', 'm06', 'm07', 'c01', 'c02', 'c10'],
     },
     {
@@ -87,7 +87,7 @@
         'Compartir una GPU entre modelos: MIG, time-slicing, múltiples instancias',
         'Instancias GPU en la nube y costo por hora (órdenes de magnitud)',
       ],
-      freq: 'media', minutes: 40,
+      freq: 'media', minutes: 45,
       connects: ['m03', 'm08', 'm13', 'm14', 'c01', 'c03', 'c10'],
     },
     {
@@ -106,7 +106,7 @@
         'Registries (ECR, Artifact Registry, ACR) y tags inmutables',
         'docker compose para desarrollo local',
       ],
-      freq: 'baja', minutes: 35,
+      freq: 'baja', minutes: 50,
       connects: ['m06', 'm07', 'm10', 'c01'],
     },
     {
@@ -125,7 +125,7 @@
         'Aprovisionar nodos GPU: Cluster Autoscaler y Karpenter',
         'Alta disponibilidad: multi-AZ, PodDisruptionBudgets, N+1',
       ],
-      freq: 'media', minutes: 45,
+      freq: 'media', minutes: 55,
       connects: ['m03', 'm05', 'm07', 'm13', 'c01', 'c10', 'c13'],
     },
     {
@@ -164,7 +164,7 @@
         'ONNX Runtime y OpenVINO para inferencia en CPU',
         'Validar la optimización: calidad por slices y latencia medida',
       ],
-      freq: 'media', minutes: 45,
+      freq: 'media', minutes: 60,
       connects: ['m04', 'm07', 'c01', 'c02', 'c03', 'c10'],
     },
     {
@@ -202,7 +202,7 @@
         'Reentrenamiento programado vs disparado por métricas',
         'Niveles de madurez de MLOps: qué es razonable para cada equipo',
       ],
-      freq: 'media', minutes: 40,
+      freq: 'media', minutes: 45,
       connects: ['m05', 'm09', 'm11', 'm12', 'c01', 'c04'],
     },
     {
@@ -221,7 +221,7 @@
         'Criterios automáticos de rollback',
         'Offline–online gap: por qué las métricas no coinciden',
       ],
-      freq: 'alta', minutes: 40,
+      freq: 'alta', minutes: 55,
       connects: ['m10', 'm12', 'c01', 'c08'],
     },
     {
@@ -240,7 +240,7 @@
         'Cuándo reentrenar: calendario vs disparadores',
         'Dashboards y runbooks: qué hace quien recibe la alerta',
       ],
-      freq: 'alta', minutes: 45,
+      freq: 'alta', minutes: 55,
       connects: ['m09', 'm10', 'm11', 'c01', 'c09'],
     },
     {
@@ -259,7 +259,7 @@
         'Reserved instances, savings plans y compromisos de uso',
         'Cuotas y disponibilidad de GPUs por región',
       ],
-      freq: 'baja', minutes: 35,
+      freq: 'baja', minutes: 55,
       connects: ['m04', 'm06', 'm10', 'c01', 'c10'],
     },
     {
@@ -279,7 +279,7 @@
         'Guardrails: prompt injection, PII, salidas estructuradas',
         'Costo por token y cómo bajarlo: routing, caching, modelos pequeños',
       ],
-      freq: 'alta', minutes: 60,
+      freq: 'alta', minutes: 55,
       connects: ['m04', 'm07', 'm08', 'm15', 'c10', 'c11', 'c12'],
     },
     {
@@ -299,7 +299,7 @@
         'Multi-AZ, multi-región y recuperación ante desastres',
         'Supply chain: imágenes, dependencias y pesos de modelos verificados',
       ],
-      freq: 'media', minutes: 40,
+      freq: 'media', minutes: 55,
       connects: ['m06', 'm12', 'm14', 'c06', 'c09', 'c12'],
     },
   ];
@@ -324,7 +324,7 @@
         'Canary y rollback de una versión de modelo',
         'Costo mensual y palancas para reducirlo',
       ],
-      freq: 'alta', minutes: 90, difficulty: 'intro',
+      freq: 'alta', minutes: 120, difficulty: 'intro',
       connects: ['m01', 'm03', 'm04', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12'],
       tests: [
         'Llevar un modelo de notebook a un servicio con API, SLO y fallback',
@@ -369,7 +369,7 @@
         'Actualización de modelos en dispositivos (OTA) y rollback',
         'Monitoreo de cámaras caídas y drift por ubicación',
       ],
-      freq: 'media', minutes: 80, difficulty: 'alta',
+      freq: 'media', minutes: 130, difficulty: 'alta',
       connects: ['m02', 'm03', 'm04', 'm08', 'm12', 'c03'],
       tests: [
         'Hacer la cuenta de streams × FPS × resolución antes de elegir arquitectura',
@@ -396,7 +396,7 @@
         'Monitoreo en el edge y sincronización con la nube',
         'Privacidad de los trabajadores (detección de EPP)',
       ],
-      freq: 'baja', minutes: 75, difficulty: 'media',
+      freq: 'baja', minutes: 125, difficulty: 'media',
       connects: ['m02', 'm04', 'm08', 'm09', 'm11', 'm12', 'c02'],
       tests: [
         'Diseñar para el edge: hardware, latencia determinista y operación sin red',
@@ -422,7 +422,7 @@
         'Métricas por slice (equipo, sitio, tipo de caso) y calibración',
         'Datos sensibles: privacidad, anonimización y regulaciones',
       ],
-      freq: 'baja', minutes: 75, difficulty: 'media',
+      freq: 'baja', minutes: 125, difficulty: 'media',
       connects: ['m02', 'm09', 'm10', 'm12', 'm15'],
       tests: [
         'Elegir batch/asíncrono cuando la latencia no es el requisito',
@@ -448,7 +448,7 @@
         'Escaneos de baja calidad, PDFs variados y varios idiomas',
         'Costo por página y throughput',
       ],
-      freq: 'media', minutes: 75, difficulty: 'media',
+      freq: 'media', minutes: 125, difficulty: 'media',
       connects: ['m02', 'm07', 'm09', 'm12', 'm14'],
       tests: [
         'Descomponer en un pipeline de modelos con contratos claros entre etapas',
@@ -474,7 +474,7 @@
         'Adversarios: evasión, drift rápido y reentrenamiento frecuente',
         'Apelaciones, auditoría y sesgos',
       ],
-      freq: 'alta', minutes: 85, difficulty: 'alta',
+      freq: 'alta', minutes: 125, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'm15'],
       tests: [
         'Diseñar una cascada que balancee costo, latencia y recall',
@@ -500,7 +500,7 @@
         'Evaluación: recall@k, NDCG, sets de consultas y A/B',
         'Memoria del índice y sharding',
       ],
-      freq: 'alta', minutes: 80, difficulty: 'media',
+      freq: 'alta', minutes: 125, difficulty: 'media',
       connects: ['m02', 'm04', 'm07', 'm09', 'm14', 'c08', 'c11'],
       tests: [
         'Separar indexación offline de consulta online, cada una con su presupuesto',
@@ -526,7 +526,7 @@
         'Métricas offline (recall@k, NDCG) vs online (CTR, retención)',
         'Precomputar vs calcular en línea',
       ],
-      freq: 'alta', minutes: 90, difficulty: 'alta',
+      freq: 'alta', minutes: 125, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'c07'],
       tests: [
         'Diseñar un embudo en etapas con presupuesto de latencia por etapa',
@@ -552,7 +552,7 @@
         'Adversarios y drift rápido',
         'Explicabilidad y auditoría de decisiones',
       ],
-      freq: 'alta', minutes: 85, difficulty: 'alta',
+      freq: 'alta', minutes: 125, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm12', 'm15'],
       tests: [
         'Diseñar features en streaming con point-in-time correctness',
@@ -578,7 +578,7 @@
         'Autoscaling con cold starts de modelos grandes',
         'Costo por millón de tokens',
       ],
-      freq: 'alta', minutes: 85, difficulty: 'alta',
+      freq: 'alta', minutes: 125, difficulty: 'alta',
       connects: ['m03', 'm04', 'm06', 'm07', 'm08', 'm14'],
       tests: [
         'Calcular VRAM de pesos y KV cache y deducir GPUs y concurrencia',
@@ -604,7 +604,7 @@
         'Evaluación: retrieval (recall@k) y respuesta (faithfulness) con sets dorados',
         'Latencia y costo por consulta; caching',
       ],
-      freq: 'alta', minutes: 85, difficulty: 'media',
+      freq: 'alta', minutes: 125, difficulty: 'media',
       connects: ['m09', 'm12', 'm14', 'm15', 'c07', 'c10'],
       tests: [
         'Diseñar el pipeline de ingestion, no solo la consulta',
@@ -630,7 +630,7 @@
         'Evaluación: tasa de éxito, trayectorias y regresiones',
         'Estado, memoria y reanudación de tareas largas',
       ],
-      freq: 'media', minutes: 80, difficulty: 'alta',
+      freq: 'media', minutes: 125, difficulty: 'alta',
       connects: ['m02', 'm12', 'm14', 'm15', 'c10', 'c11'],
       tests: [
         'Acotar el agente: qué hace solo y qué requiere aprobación',
@@ -656,7 +656,7 @@
         'Métricas: WER y latencia de finalización, por idioma y acento',
         'Privacidad del audio y retención',
       ],
-      freq: 'baja', minutes: 75, difficulty: 'alta',
+      freq: 'baja', minutes: 125, difficulty: 'alta',
       connects: ['m02', 'm03', 'm04', 'm06', 'm08', 'c02'],
       tests: [
         'Diseñar serving de streaming con estado en lugar de request/response',
@@ -783,13 +783,13 @@
       note: 'Dos casos que aplican M2–M8 a tu terreno: video multicámara (nube vs edge) y una flota de Jetson en planta.',
     },
     {
-      phase: 6, status: 'next',
+      phase: 6, status: 'done',
       title: 'Fase 6 — Datos, features y MLOps',
       items: ['m09', 'm10', 'm11'],
       note: 'Lo que pasa antes y alrededor del serving: pipelines, feature store y skew, registry y CI/CD, y cómo desplegar sin romper nada (shadow, canary, A/B).',
     },
     {
-      phase: 7, status: 'later',
+      phase: 7, status: 'next',
       title: 'Fase 7 — Monitoreo y humano en el loop',
       items: ['m12', 'c04'],
       note: 'Drift, alertas y reentrenamiento, aplicados enseguida a un caso batch de segmentación con revisión humana.',
