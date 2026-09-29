@@ -595,6 +595,95 @@ trained in PyTorch (25.6 M params, ≈ 4.1 GMACs at 224×224), ~85 % top-1 / ~96
   categories); guardrails: p99 latency, % listings re-categorized later by moderators, form
   completion time.
 
+## 8b. Case c02 — shared facts (both c02 agents MUST use exactly these)
+Scenario: a logistics company with **25 distribution centers × 40 IP cameras = 1,000 cameras**. Goal:
+detect **people and vehicles in restricted zones** (after-hours perimeter, forklift aisles, fire lanes)
+and raise alerts to a central **monitoring center (SOC)** within seconds; store short clips as evidence.
+Existing NVRs keep recording continuously (not our job). Not a people-identification system: no face
+recognition.
+- Cameras: RTSP, H.264. Main stream 1080p @ 15 fps ≈ 4 Mb/s (est.) → 40 cams ≈ 160 Mb/s per site
+  (same as m02's edge example) ≈ 1.73 TB/day per site. A **second stream configured at 1080p @ 5 fps
+  (≈ 1.5 Mb/s, est.)** is the one we analyze: decode only what we use.
+- Inference: detection at **5 fps per camera** + multi-object tracking between detections →
+  40 × 5 = **200 frames/s per site**; fleet 5,000 frames/s.
+- Detector: a light YOLO-class model (≈ 10–30 M params), 640×640 input, TensorRT INT8/FP16. **Assumed
+  measured max ≈ 400 frames/s per L4** at this input (est. — measure with trtexec/perf_analyzer or
+  DeepStream's own FPS output) → planned 70 % ≈ 280 frames/s → **1 L4 per site** at ≈ 50 % of the
+  measured max. (m03's heavier detector at ≈ 250 frames/s would run at 80 % → too hot: model choice matters.)
+- Architecture: **hybrid**. Edge box per site (1U server with **1× NVIDIA L4**, ≈ US$10k est.) running
+  **NVIDIA DeepStream** (decode on NVDEC, streammux batch of 40, primary detector, tracker, zone
+  analytics, message broker) → local **event forwarder** (zone rules + dwell debounce ≈ 1.5 s,
+  idempotent event ids, store-and-forward queue, clip upload via presigned URL) → **cloud**: event
+  ingestion API (FastAPI, auth per site, idempotent upsert) → queue (SQS) → **verifier** (heavier
+  detector at higher resolution on 3 key frames, 1–2 × L4 g6.xlarge always on) → alert service to SOC
+  → S3 clips (30-day retention) → labeling of false alarms → retraining → **OTA rollout** to edge boxes
+  by waves (canary sites first).
+- Alert SLO: **p95 ≤ 5 s** from the person entering the zone to the alert on the SOC screen (includes
+  the 1.5 s dwell); edge per-frame processing ≤ 300 ms. Availability of alerting per site 99.5 % (edge
+  box is a single point of failure → heartbeat alert; critical sites may get a second box).
+- Alert quality: recall of real intrusions ≥ 95 %; precision of alerts reaching the SOC ≥ 90 % after
+  cloud verification; SOC capacity ≈ 4 operators at night → fleet-wide budget ≈ 50 alerts/hour.
+  Candidate events from the edge before verification ≈ 250/hour fleet-wide at night peak (est.).
+- Uplink per site: events-only ≈ a few MB per event (10 s clip at 4 Mb/s ≈ 5 MB + 3 key frames ≈ 300 KB
+  each) vs streaming everything (≈ 60 Mb/s per site for the 5 fps streams, 1.5 Gb/s fleet ≈ 16 TB/day).
+- Costs (approx, est.): edge capex ≈ US$250k (25 × US$10k) → ≈ US$6.9k/month amortized over 36 months,
+  power ≈ 300 W per box; cloud ≈ US$1–2k/month (verifier 1–2 × g6.xlarge ≈ US$0.805/h, S3, API, queue).
+  All-cloud alternative: 5,000 / 280 ≈ 18 L4 + N+1 = 19 × g6.xlarge ≈ US$11.2k/month in GPUs alone,
+  plus video ingest (e.g. Kinesis Video Streams, per-GB pricing — verify) and dedicated uplinks at
+  every site.
+- Reference files (reference/c02/): edge/deepstream/ds_app_config.txt, edge/deepstream/
+  config_infer_primary.txt, edge/docker-compose.yml, edge/forwarder/{app.py, rules.py,
+  requirements.txt, tests/test_rules.py}, cloud/api/{main.py, requirements.txt, tests/test_api.py},
+  cloud/k8s/verifier.yaml, cloud/monitoring/alerts.yml, README.md.
+
+## 8c. Case c03 — shared facts (both c03 agents MUST use exactly these)
+Scenario: an **auto-parts plant in Nuevo León** (stamped/machined metal brackets for an automaker).
+Two different problems that share a platform — a senior splits them:
+(A) **defect inspection on the line** (hard real time, integrated with the PLC to reject parts) and
+(B) **PPE compliance** on the plant floor (soft real time, privacy-sensitive).
+- Lines: **4 lines**, each **2 parts/s** (120/min), 2 shifts × 8 h = 16 h/day → **115,200 parts/line/day**
+  (460,800 plant-wide). Defect rate ≈ **0.5 %** → ≈ 576 defects/line/day; 4 defect types (crack, burr,
+  missing hole, deformation).
+- Inspection station per line: 5 MP mono global-shutter GigE Vision camera (2448 × 2048 × 1 B ≈ 5.0 MB
+  per image, ≈ 40–45 ms over 1 GigE), strobe lighting, photo-eye trigger; **Jetson Orin NX 16 GB** per
+  line running TensorRT (engine built for the exact JetPack 6 / L4T r36 on the device).
+- Timing: conveyor 0.6 m/s, camera → reject gate 0.3 m → **500 ms** from trigger to gate. Budget:
+  acquisition + transfer ≈ 50 ms, preprocessing ≈ 20 ms, inference ≤ 120 ms (est. — measure with
+  trtexec on the device), decision + PLC write (Modbus TCP) ≈ 10 ms; **hard decision deadline 350 ms**
+  after the trigger (150 ms left for the gate). If no decision by the deadline → **fail-safe: divert
+  the part to the manual-inspection bin** (never pass it).
+- Models: anomaly detection trained on good parts (≈ 2,000 good images, ≈ 300 defect images at start)
+  + a supervised defect classifier as labeled defects accumulate. Metrics: recall per defect type at
+  a fixed false-positive rate. Don't explain model internals.
+- Error costs (est., contract-dependent): a **false negative** (defect shipped to the automaker) ≈
+  US$2,000–10,000 per escape incident (containment, chargebacks, PPM scorecard); a **false positive**
+  (good part diverted) ≈ US$0.05–0.10 of re-inspection labor. Manual re-inspection capacity ≈ 1 part
+  every 15 s per inspector (1 per line) → 3,840/day per line → false-positive budget ≤ (3,840 − 576) /
+  115,200 ≈ 2.8 %; **target FP rate ≤ 1.5 %** with **recall ≥ 99.5 %** per defect type → thresholds
+  chosen by expected cost under that recall constraint.
+- PPE: **12 area cameras** 1080p, analyzed at **2 fps** (24 frames/s total) on **1 Jetson AGX Orin 64 GB**
+  with DeepStream; detect helmet, safety vest, glasses in hazard zones; alert to the shift supervisor's
+  tablet within **≤ 10 s** if a person without required PPE stays > 5 s in a hazard zone. Privacy: no
+  face recognition, no identity tracking across days, blur faces in stored evidence, aggregate KPIs
+  per zone/shift, 7-day retention, notice to workers and agreement with their representatives;
+  Mexico's data-protection law (LFPDPPP, new law published in 2025) — general principles only, no
+  legal advice.
+- Network: plant OT network isolated; devices on an OT VLAN; a DMZ gateway syncs to the cloud with
+  store-and-forward (rejected-part images, a sample of passed parts, metrics); the line must run fully
+  **offline for ≥ 72 h**.
+- Rollout: models/containers delivered through the DMZ from a registry; **shadow mode on one line for a
+  full shift** (new model runs alongside, its decisions only logged and compared) → canary line →
+  all lines; rollback = keep the previous engine on the device.
+- Monitoring: per-line reject rate vs baseline (> 2× for 30 min → likely lighting/lens/focus problem,
+  not real defects → alert), anomaly-score distribution drift, **golden-part check at shift start**,
+  deadline misses (should be ≈ 0), device temperature/throttling, heartbeats.
+- Costs (approx, est.): per inspection station Jetson Orin NX + carrier ≈ US$1–1.5k, camera + lens +
+  lighting ≈ US$2–5k, plus PLC integration; PPE box (AGX Orin) ≈ US$2–3k; cloud side small
+  (≈ US$200–500/month: storage, API, labeling tool, occasional training jobs).
+- Reference files (reference/c03/): edge/inspector/{app.py, decision.py, config.yaml,
+  requirements.txt, tests/test_inspector.py}, edge/Dockerfile, edge/docker-compose.yml,
+  tools/{choose_threshold.py, build_engine_jetson.sh, tests/test_choose_threshold.py}, README.md.
+
 ## 9. Writing style for content agents (applies to every content file)
 - Spanish (neutral Latin American, tuteo), direct, no filler, no motivational fluff. Technical terms
   in English (latency, throughput, batch, serving, feature store, rollout…), exactly as they'd be

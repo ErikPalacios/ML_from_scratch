@@ -3,7 +3,7 @@
    Parte 4 · Hoja de referencia "Números que debes saber": tiempo y nueves,
    latencias, bytes y tamaños, GPUs, throughput (qué medir y con qué), costos de
    nube, fórmulas de bolsillo y cómo decir los números en la entrevista.
-   CONDENSA números ya establecidos: M1–M6 y c01 (la tabla verificada de GPUs de
+   CONDENSA números ya establecidos: M1–M8 y c01 (la tabla verificada de GPUs de
    m04-hardware.js es la fuente de specs y precios). Si un número cambia allá, se
    cambia aquí. Lo nuevo de esta hoja está verificado (sept. 2026) contra
    documentación de AWS (S3: rendimiento y precios; VPC/NAT; EBS gp3; red de EC2),
@@ -106,12 +106,12 @@
           ] },
           { t: 'table', caption: 'Cómputo de ML', head: ['Operación', 'Orden de magnitud', 'De dónde sale', 'Cómo lo mides'], rows: [
             ['Decode de un JPEG de ≈ 1024 px (≈ 200 KB)', E('≈ 2 ms'), 'Medido en una laptop (Apple M4, Pillow, un hilo): solo orden de magnitud', 'Cronometra el preproceso con fotos reales'],
-            ['Decode de un JPEG de 12 MP', E('≈ 40–80 ms por vCPU'), '≈ 40 ms en una máquina de desarrollo (c01; en la laptop M4, ≈ 35 ms); ≈ 2× menos con draft mode', 'Ídem, con la distribución de tamaños de producción'],
+            ['Decode de un JPEG de 12 MP', E('≈ 40–80 ms por vCPU'), '≈ 40 ms en una máquina de desarrollo (<a href="#c01.estimaciones">c01</a>; en la laptop M4, ≈ 35 ms); ≈ 1.3–2× menos con draft mode (menos cuanto más pesa el archivo: el decoder igual lee todos los bytes)', 'Ídem, con la distribución de tamaños de producción'],
             ['Preproceso completo del c01, promedio', E('≈ 6 ms de CPU'), 'Mezcla 85 % celular y 15 % web, con draft mode (<a href="#c01.estimaciones">c01</a>)', 'Histograma por tramo en el gateway'],
-            ['ResNet-50, TensorRT FP16, T4, batch 1–8', E('≈ 3–6 ms de p50'), 'Presupuesto del c01', '<code>perf_analyzer</code>, <code>trtexec</code>'],
+            ['ResNet-50, TensorRT FP16, T4, batch 1–8', E('≈ 3–6 ms de p50'), 'Presupuesto del <a href="#c01.estimaciones">c01</a>', '<code>perf_analyzer</code>, <code>trtexec</code>'],
             ['ResNet-50, T4, batch 32', E('≈ 27 ms por batch'), 'Tabla ilustrativa de <a href="#m03.batching">M3</a> (≈ 1,190 img/s)', '<code>perf_analyzer</code>'],
-            ['ResNet-50, PyTorch eager FP32, T4, batch 1', E('≈ 10 ms'), '≈ 100 img/s por proceso (c01)', 'Script con <code>torch.cuda.synchronize()</code>'],
-            ['ResNet-50 en un vCPU de nube', E('FP32 ≈ 40–80 ms · INT8 ≈ 8–25 ms'), 'c01 y <a href="#m04.cpu-gpu-tpu">M4</a>: a medir en la semana 1', '<code>onnxruntime_perf_test</code>, <code>benchmark_app</code> (OpenVINO)'],
+            ['ResNet-50, PyTorch eager FP32, T4, batch 1', E('≈ 10 ms'), '≈ 100 img/s por proceso (<a href="#c01.estimaciones">c01</a>)', 'Script con <code>torch.cuda.synchronize()</code>'],
+            ['ResNet-50 en un vCPU de nube', E('FP32 ≈ 40–80 ms · INT8 ≈ 8–25 ms'), '<a href="#c01.estimaciones">c01</a> y <a href="#m04.cpu-gpu-tpu">M4</a>: a medir en la semana 1', '<code>onnxruntime_perf_test</code>, <code>benchmark_app</code> (OpenVINO)'],
             ['LLM 8B en BF16: tiempo por token (decode, batch 1)', '≳ 54 ms L4 · ≳ 27 ms A10G · ≳ 4.8 ms H100', 'Cota: bytes de pesos ÷ ancho de banda (<a href="#m04.roofline">M4</a>)', '<code>vllm bench serve</code> (TPOT, ITL)'],
             ['LLM 8B: time to first token, prompt de 2,000 tokens', '≳ 0.27 s L4 · ≳ 32 ms H100, más la cola', 'Cota: 2 × parámetros × tokens ÷ FLOPS pico (<a href="#ref-numeros.formulas">fórmulas</a>)', '<code>vllm bench serve</code> (TTFT), AIPerf de NVIDIA'],
             ['Velocidad de lectura de una persona', E('≈ 4–7 tokens/s'), E('≈ 200–300 palabras por minuto') + ' en inglés, a ≈ ¾ de palabra por token', 'Referencia para fijar tokens/s en streaming'],
@@ -121,7 +121,7 @@
             ['1 s', 'Se nota la espera, pero no corta el flujo', 'El c01 corta a los 300 ms y muestra el selector manual'],
             ['10 s', 'Se pierde la atención', 'Progreso visible o un patrón asíncrono (<a href="#m02.asincrona-colas">M2</a>)'],
           ] },
-          { t: 'callout', kind: 'trap', title: 'Una llamada lenta escondida en el camino crítico', html: `<p>Un p99 ≤ 200 ms no aguanta un RTT entre continentes (70–250 ms) ni la cola de un GET a S3 (≈ 100–200 ms según AWS). Por eso el c01 recibe los bytes en el request y, si algún día manda la key de S3, mide antes su p99 (<a href="#c01.costo">c01</a>). Dentro de una región, cruzar de AZ cuesta ≈ 1 ms: la razón para evitarlo es el costo por GB, no la latencia.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Una llamada lenta escondida en el camino crítico', html: `<p>Un p99 ≤ 200 ms no aguanta un RTT entre continentes (70–250 ms) ni un GET a S3: mediana de decenas de ms, ≈ 100–200 ms "consistentes" según AWS, y una cola que AWS manda cortar reintentando a los 2 s. Por eso el c01 recibe los bytes en el request y, si algún día manda la key de S3, mide antes su p99 (<a href="#c01.costo">c01</a>). Dentro de una región, cruzar de AZ cuesta ≈ 1 ms: la razón para evitarlo es el costo por GB, no la latencia.</p>` },
           { t: 'callout', kind: 'connect', html: `<p>El presupuesto por tramo del caso 1 (ALB 1–3 ms, hop a Triton 2–4 ms y GPU 3–6 ms de p50; ≈ 20–45 ms de p50 y ≈ 150 ms de p99 pesimista en total) está en <a href="#c01.estimaciones">c01</a>; por qué la suma de los p99 sobrestima el p99 real, en <a href="#m03.presupuesto">M3</a>.</p>` },
         ],
       },
@@ -151,11 +151,12 @@
             { label: 'Llama 3 70B (70.6 B)', expr: '× 2 B · × 1 B · × 0.5 B', value: '≈ 141 GB BF16 · ≈ 71 GB INT8 · ≈ 35 GB + overhead INT4' },
           ], result: 'Una CNN pesa decenas o cientos de MB: en una GPU de 16 GB la memoria casi nunca es el problema. Un LLM pesa decenas de GB: la memoria decide la GPU. La VRAM completa (activaciones, runtime, KV cache) está en <a href="#m04.vram">M4</a>.' },
           { t: 'table', caption: 'Tensores y payloads', head: ['Qué', 'Tamaño', 'Por qué importa'], rows: [
-            ['Tensor 224×224×3 en uint8', '150,528 B ≈ 150 KB', 'Entrada UINT8: ÷ 4 de red contra FP32 (c01, al crecer)'],
+            ['Tensor 224×224×3 en uint8', '150,528 B ≈ 150 KB', 'Entrada UINT8: ÷ 4 de red contra FP32 (<a href="#c01.estimaciones">c01</a>, al crecer)'],
             ['El mismo tensor en FP32', '602,112 B ≈ 602 KB · batch 32 ≈ 19 MB', 'Pesa 3× el JPEG de celular: ≈ 2.4 Gb/s a 500 req/s (<a href="#c01.estimaciones">c01</a>)'],
+            ['El mismo tensor como JSON (floats en texto)', '≈ 3.1 MB (≈ 5× el binario) · en base64, ≈ 803 KB', 'A 500 req/s serían ≈ 12.4 Gb/s, y serializarlo en Python cuesta ' + E('decenas de ms') + ' de CPU por request (≈ 50 ms en una laptop). Por eso binario o gRPC (<a href="#m07.protocolos">M7</a>)'],
             ['Logits de 500 clases en FP32', '2 KB', 'La respuesta es chica: el costo de red está en la entrada'],
             ['JPEG de celular (≤ 1024 px)', E('≈ 150–250 KB'), 'El caso normal del c01'],
-            ['Original web de 12 MP', E('≈ 3 MB') + ' (2–5 MB según calidad y escena)', 'El 15 % del c01 que mueve CPU, red y costo del ALB'],
+            ['Original web de 12 MP', E('≈ 3 MB') + ' (2–5 MB según calidad y escena)', 'El 15 % del <a href="#c01.estimaciones">c01</a> que mueve la CPU de decode; si llegara así al ALB, triplicaría su costo'],
             ['Esa foto decodificada (RGB uint8)', '4000 × 3000 × 3 = 36 MB · 120 MB a 40 MP', 'RAM por request en vuelo; defensa contra decompression bombs'],
             ['Log de una predicción (JSON)', E('≈ 300 B'), '10 M/día → 3 GB/día crudos (<a href="#m01.estimaciones-express">M1</a>)'],
             ['Frame 1080p RGB sin comprimir', '1920 × 1080 × 3 ≈ 6.2 MB', 'A 30 fps: ≈ 187 MB/s ≈ 1.5 Gb/s. El video viaja comprimido y se decodifica cerca del modelo'],
@@ -229,18 +230,18 @@
         blocks: [
           { t: 'p', html: `Esto no es una lista de benchmarks. Cada fila da el orden de magnitud que ya usaste en los módulos, para chequear cordura, y la herramienta con la que lo mides en tu sistema. Ninguno reemplaza tu medición.` },
           { t: 'table', caption: 'Cantidad · orden de magnitud · cómo se mide', head: ['Cantidad', 'Orden de magnitud (de dónde sale)', 'Con qué lo mides'], rows: [
-            ['ResNet-50, TensorRT FP16, una T4 con dynamic batching', E('≈ 1,200 img/s') + ' máximo medido (supuesto del c01) → 600 planificadas al 50 %; a batch 1, ' + E('≈ 250 img/s') + ' (ilustrativo, <a href="#m03.batching">M3</a>)', '<code>perf_analyzer</code> contra Triton (<code>--concurrency-range</code>, <code>--request-rate-range</code>); <code>model_analyzer</code> para barrer configuraciones; <code>trtexec</code> para el engine solo'],
+            ['ResNet-50, TensorRT FP16, una T4 con dynamic batching', E('≈ 1,200 img/s') + ' máximo medido (supuesto del <a href="#c01.estimaciones">c01</a>) → 600 planificadas al 50 %; a batch 1, ' + E('≈ 250 img/s') + ' (ilustrativo, <a href="#m03.batching">M3</a>)', '<code>perf_analyzer</code> contra Triton (<code>--concurrency-range</code>, <code>--request-rate-range</code>); <code>model_analyzer</code> para barrer configuraciones; <code>trtexec</code> para el engine solo'],
             ['Chequeo de cordura con FLOPs', 'T4: 65 TFLOPS ÷ 8.2 GFLOPs por imagen ≈ 7,900 img/s de techo; lo medido queda en ' + E('≈ 15 %') + ' (<a href="#m03.cuantas-gpus">M3</a>)', 'Cuenta en papel: si tu medición supera el techo, está mal'],
-            ['ResNet-50, PyTorch eager FP32, batch 1, T4', E('≈ 100 img/s por proceso') + ' (c01)', 'Script con <code>torch.cuda.synchronize()</code> y warmup'],
-            ['ResNet-50 en CPU, por vCPU', 'FP32 ' + E('≈ 12–25 img/s') + ' · INT8 ' + E('≈ 40–125 img/s') + ' (40–80 y 8–25 ms por imagen, c01)', '<code>onnxruntime_perf_test</code> o <code>benchmark_app</code> (OpenVINO) en el tipo de instancia real'],
-            ['Decode + preproceso JPEG, por core', 'Foto de ≈ 1024 px: cientos por core (' + E('≈ 2 ms') + ' de decode); mezcla del c01: ' + E('≈ 6 ms') + ' → ≈ 170 por core; 12 MP: ' + E('≈ 12–25 por core'), 'Cronometra con fotos de producción: la distribución de tamaños manda'],
+            ['ResNet-50, PyTorch eager FP32, batch 1, T4', E('≈ 100 img/s por proceso') + ' (<a href="#c01.estimaciones">c01</a>)', 'Script con <code>torch.cuda.synchronize()</code> y warmup'],
+            ['ResNet-50 en CPU, por vCPU', 'FP32 ' + E('≈ 12–25 img/s') + ' · INT8 ' + E('≈ 40–125 img/s') + ' (40–80 y 8–25 ms por imagen, <a href="#c01.estimaciones">c01</a>)', '<code>onnxruntime_perf_test</code> o <code>benchmark_app</code> (OpenVINO) en el tipo de instancia real'],
+            ['Decode + preproceso JPEG, por core', 'Foto de ≈ 1024 px: cientos por core (' + E('≈ 2 ms') + ' de decode); mezcla del <a href="#c01.estimaciones">c01</a>: ' + E('≈ 6 ms') + ' → ≈ 170 por core; 12 MP: ' + E('≈ 12–25 por core'), 'Cronometra con fotos de producción: la distribución de tamaños manda'],
             ['Detector a 640 px en una L4', E('≈ 250 frames/s') + ' (supuesto ilustrativo de <a href="#m03.cuantas-gpus">M3</a>)', '<code>trtexec</code> o <code>perf_analyzer</code>; el decode de video, aparte'],
             ['LLM: tokens/s por secuencia', '≲ ancho de banda ÷ bytes de pesos: 8B BF16 ≲ 19 (L4), ≲ 37 (A10G), ≲ 210 (H100)', '<code>vllm bench serve</code> (TTFT, TPOT, tokens/s de salida); AIPerf de NVIDIA, sucesor de GenAI-Perf'],
             ['LLM: tokens/s totales con batching', 'Sube con el batch hasta que el KV cache llena la VRAM: L4 ≲ 59 tokens/s con 4 secuencias de 8k (<a href="#m04.roofline">M4</a>)', 'Ídem, barriendo la concurrencia; mira el uso del KV cache del servidor'],
-            ['Red sostenida por instancia (baseline)', 'g4dn.xlarge 5 Gb/s (ráfaga hasta 25) · g5.xlarge y g6.xlarge 2.5 (hasta 10) · c6i.xlarge 1.56 (hasta 12.5)', 'Documentación de EC2; <code>iperf3</code> entre dos instancias. El c01 manda ≈ 2.4 Gb/s de tensores FP32'],
+            ['Red sostenida por instancia (baseline)', 'g4dn.xlarge 5 Gb/s (ráfaga hasta 25) · g5.xlarge y g6.xlarge 2.5 (hasta 10) · c6i.xlarge 1.56 (hasta 12.5)', 'Documentación de EC2; <code>iperf3</code> entre dos instancias. El <a href="#c01.estimaciones">c01</a> manda ≈ 2.4 Gb/s de tensores FP32'],
             ['Disco del nodo', 'gp3 base: 125 MiB/s y 3,000 IOPS (se provisiona hasta 2,000 MiB/s y 80,000 IOPS)', '<code>fio</code>'],
             ['Descarga desde S3 a un nodo', E('≈ 0.2–1 GB/s') + ' con partes en paralelo (<a href="#m05.pesos-modelo">M5</a>)', 'Cronometra <code>aws s3 cp</code> o el loader real'],
-            ['Pull de una imagen de contenedor', E('≈ 0.03–0.15 GB/s') + ' efectivos → Triton de 9.2 GB en ' + E('≈ 1–5 min') + ' según disco y registry (<a href="#m05.tamano">M5</a>, <a href="#m06.cold-starts">M6</a>)', 'Eventos <code>Pulling</code>/<code>Pulled</code> del kubelet (<a href="#ref-comandos.autoscaling-cmds">comandos</a>)'],
+            ['Pull de una imagen de contenedor', E('≈ 0.03–0.09 GB/s') + ' efectivos (arriba, el benchmark de AWS con un EBS de 1,000 MiB/s; abajo, gp3 base de 125 MiB/s) → Triton de 9.2 GB en ' + E('≈ 2–5 min') + ' (<a href="#m05.tamano">M5</a>)', 'Eventos <code>Pulling</code>/<code>Pulled</code> del kubelet (<a href="#ref-comandos.autoscaling-cmds">comandos</a>)'],
             ['S3: requests por segundo', 'Al menos 3,500 escrituras y 5,500 lecturas por segundo por prefijo; escala de a poco y responde 503 Slow Down mientras', 'Métricas de requests de S3; reparte las keys en varios prefijos'],
             ['Kafka: throughput por partición', 'Productor: "decenas de MB/s" en una partición (Confluent); consumidor: lo que tarde tu lógica (<a href="#m02.streaming">M2</a>: ' + E('≈ 1,500 ev/s') + ' por consumidor, supuesto)', '<code>kafka-producer-perf-test</code> / <code>kafka-consumer-perf-test</code>; particiones ≥ max(t/p, t/c)'],
             ['Servicio HTTP de punta a punta', 'La capacidad al SLO: el último escalón de la rampa con p99 dentro del presupuesto', 'k6 (<code>constant-arrival-rate</code>, carga abierta) o Locust (<a href="#m03.load-testing">M3</a>)'],
@@ -252,6 +253,32 @@
 
       // ======================================================== 6
       {
+        id: 'optimizacion-serving',
+        title: 'Optimización y serving: rangos y umbrales',
+        titleEn: 'Optimization and serving: ranges and thresholds',
+        priority: 'core',
+        dims: ['estimaciones', 'tradeoffs'],
+        blocks: [
+          { t: 'p', html: `Rangos para decir en voz alta, siempre con su condición. Son ganancias del <b>modelo</b>, no del servicio: el porqué de cada una está en <a href="#m08.mapa-tecnicas">M8</a>; el costo de mandar el tensor en JSON, en <a href="#m07.protocolos">M7</a>.` },
+          { t: 'table', caption: 'Qué compra cada técnica y con qué la validas', head: ['Qué', 'Número', 'Condición'], rows: [
+            ['Compilador de grafos (TensorRT, ONNX Runtime, torch.compile), misma precisión', E('≈ 1–2×') + ' sobre PyTorch eager', 'Más a batch chico en GPU, donde manda el overhead; en CPU puede no ganar nada (<a href="#m08.cpu-inferencia">M8</a>)'],
+            ['FP16 con tensor cores', E('≈ 2–4×') + ' sobre FP32', 'Misma GPU, batch moderado; T4 en adelante (BF16: Ampere en adelante)'],
+            ['INT8 post-training (PTQ)', E('≈ 1.5–2×') + ' sobre FP16 en GPU; 4× menos bytes que FP32', 'Techo en la T4: 130 TOPS ÷ 65 TFLOPS = 2×. Pide calibración y un gate por slices'],
+            ['Sparsity 2:4', E('≈ 1.1–1.5×') + ' de punta a punta', 'Ampere en adelante (no T4), con fine-tuning de la máscara'],
+            ['Pruning no estructurado', '≈ 1×', 'Los kernels densos multiplican los ceros igual: 50 % de ceros, misma latencia (medido en <a href="#m08.pruning-destilacion">M8</a>)'],
+            ['Destilación a un estudiante chico', E('≈ 2–5×'), 'La razón entre arquitecturas; se mide (ResNet-50 → MobileNetV3: ≈ 4× en CPU, laptop)'],
+            ['Modelo 2× más rápido en el c01', '≈ 3–5 % menos de p99', 'El cómputo es ' + E('≈ 8–15 ms') + ' de ' + E('≈ 150 ms') + ' de p99: ley de Amdahl'],
+            ['Parity test contra PyTorch FP32', 'Acuerdo top-1 ≥ 99.5 % y top-5 ≥ 99 %; max|Δlogit| esperable ≈ 1e-4 en FP32 y ≈ 1e-2 en FP16', '≈ 10k imágenes del golden set con el preproceso del gateway (gate del c01, <a href="#m08.validar">M8</a>). Un 97 % en FP16 es un bug, no redondeo'],
+            ['Calibración de INT8', '≈ 500–1,000 imágenes', 'Tráfico real reciente, estratificado por slice; NVIDIA Model Optimizer pide al menos 500'],
+            ['Build de un engine de TensorRT (ResNet-50)', E('del orden de minutos'), 'En CI, en la misma GPU y release de NGC que el serving; nunca al arrancar el pod'],
+            ['torch.compile, primera llamada', '≈ 17 s en CPU (laptop); ≈ 1.1–1.4 s con el caché en disco', 'Warmup de todas las shapes antes de la readiness, caché en la imagen o AOTInductor (<a href="#m08.torch-compile">M8</a>)'],
+          ] },
+          { t: 'callout', kind: 'trap', title: 'Multiplicar las ganancias', html: `<p>"TensorRT, INT8 y pruning: 8× más rápido" junta ganancias que solo actúan sobre la parte de cómputo. En el c01 el cómputo es ≈ 5–10 % del p99: aunque desapareciera, el p99 bajaría menos de 10 %. Di qué número mueve la técnica (GPUs, un tier, que el modelo quepa) antes de dar el factor (<a href="#m08.por-que-optimizar">M8</a>).</p>` },
+        ],
+      },
+
+      // ======================================================== 7
+      {
         id: 'costos',
         title: 'Costos de nube (órdenes de magnitud)',
         titleEn: 'Cloud costs (orders of magnitude)',
@@ -260,44 +287,44 @@
         blocks: [
           { t: 'p', html: `Precios on-demand aproximados de us-east-1 (sept. 2026). Cambian: en un diseño real, verifícalos en la calculadora de AWS. Mensual = por hora × 730.` },
           { t: 'table', caption: 'Cómputo', head: ['Recurso', 'US$/h', 'US$/mes', 'Nota'], rows: [
-            ['g4dn.xlarge (1 T4, 4 vCPU, 16 GiB)', E('≈ 0.526'), E('≈ 384'), 'c01: 2 → ≈ US$768/mes'],
+            ['g4dn.xlarge (1 T4, 4 vCPU, 16 GiB)', E('≈ 0.526'), E('≈ 384'), '<a href="#c01.costo">c01</a>: 2 → ≈ US$768/mes'],
             ['g6.xlarge (1 L4)', E('≈ 0.805'), E('≈ 588'), '≈ 53 % más por hora que la T4'],
             ['g5.xlarge (1 A10G)', E('≈ 1.006'), E('≈ 734'), '≈ 2× la T4'],
             ['g6e.xlarge (1 L40S)', E('≈ 1.86'), E('≈ 1,358'), '48 GB y FP8'],
             ['p4d.24xlarge (8 × A100 40 GB)', E('≈ 22'), E('≈ 16k'), '≈ 2.75 por GPU; la A100 viene de a 8'],
             ['p4de.24xlarge (8 × A100 80 GB)', E('≈ 27.4'), E('≈ 20k'), '≈ 3.43 por GPU'],
             ['p5.48xlarge (8 × H100)', E('≈ 55'), E('≈ 40k'), '≈ 6.88 por GPU; p5.4xlarge trae 1'],
-            ['c6i.xlarge (4 vCPU, 8 GiB)', E('≈ 0.17'), E('≈ 124'), '≈ US$0.0425 por vCPU-hora; c01: 2 → ≈ US$248'],
+            ['c6i.xlarge (4 vCPU, 8 GiB)', E('≈ 0.17'), E('≈ 124'), '≈ US$0.0425 por vCPU-hora; <a href="#c01.costo">c01</a>: 2 → ≈ US$248'],
             ['g6f.large (1/8 de L4)', E('≈ 0.20'), E('≈ 146'), 'Fracción de GPU (<a href="#m04.costo-por-prediccion">M4</a>)'],
             ['Cloud Run con L4 (4 vCPU, 16 GiB)', E('≈ 1.05'), E('≈ 764'), 'Por segundo; ese mensual es si nunca se apaga (<a href="#m06.serverless">M6</a>)'],
           ] },
           { t: 'table', caption: 'Plataforma, red, almacenamiento y datos', head: ['Concepto', 'Precio aproximado', 'Ejemplo con números del curso'], rows: [
-            ['Control plane de EKS', 'US$0.10/h por cluster', '≈ US$73/mes (c01)'],
-            ['ALB', 'US$0.0225/h + US$0.008 por LCU-hora (1 LCU = 1 GB/h procesado hacia targets de instancia o IP)', 'c01: ≈ 2 TB/día de imágenes → ' + E('≈ US$500/mes') + ', ≈ 30 % de la infra'],
-            ['Transferencia entre AZs', 'US$0.01/GB en cada sentido (US$0.02 ida y vuelta)', 'c01 sin ruteo por zona: ≈ 90 TB/mes → ' + E('≈ US$1,800/mes') + ', más que las dos GPUs'],
+            ['Control plane de EKS', 'US$0.10/h por cluster', '≈ US$73/mes (<a href="#c01.costo">c01</a>)'],
+            ['ALB', 'US$0.0225/h + US$0.008 por LCU-hora (1 LCU = 1 GB/h procesado hacia targets de instancia o IP)', 'c01, suponiendo ≈ 200 KB por imagen (la web también reduce antes de subir): ≈ 2 TB/día → ' + E('≈ US$500/mes') + ', ≈ 30 % de la infra. Con 15 % de originales web de ≈ 3 MB serían ≈ 6 TB/día y ' + E('≈ US$1.5k') + ' (<a href="#c01.estimaciones">c01</a>)'],
+            ['Transferencia entre AZs', 'US$0.01/GB en cada sentido (US$0.02 ida y vuelta)', '<a href="#c01.estimaciones">c01</a> sin ruteo por zona: ≈ 90 TB/mes → ' + E('≈ US$1,800/mes') + ', más que las dos GPUs'],
             ['Egress a internet', '≈ US$0.09/GB (primeros 10 TB/mes; 100 GB/mes gratis sumando servicios y regiones)', 'Subir datos a la nube normalmente no se cobra (<a href="#m02.edge">M2</a>)'],
             ['NAT Gateway', 'US$0.045/h + US$0.045 por GB procesado', 'Llama 3 70B (141 GB) por NAT: ≈ US$6.3 por réplica que arranca; un VPC endpoint de tipo gateway para S3 no cobra por GB (<a href="#m05.pesos-modelo">M5</a>)'],
-            ['S3 Standard', '≈ US$0.023/GB-mes (primeros 50 TB)', '1 TB ≈ US$23/mes; los logs del c01, ≈ 90 GB/mes crudos'],
-            ['S3 GET', 'US$0.0004 por 1,000', '200 M GETs del backfill ≈ US$80 (c01)'],
+            ['S3 Standard', '≈ US$0.023/GB-mes (primeros 50 TB)', '1 TB ≈ US$23/mes; los logs del <a href="#c01.estimaciones">c01</a>, ≈ 90 GB/mes crudos'],
+            ['S3 GET', 'US$0.0004 por 1,000', '200 M GETs del backfill ≈ US$80 (<a href="#c01.estimaciones">c01</a>)'],
             ['DynamoDB on-demand, escrituras', '≈ US$0.625 por millón', '1.5 B/mes ≈ US$940 (<a href="#m02.batch">M2</a>)'],
-            ['AWS WAF, regla rate-based', '≈ US$0.60 por millón de requests', '≈ 300 M/mes → ≈ US$180 (c01)'],
-            ['Etiquetado humano', E('≈ US$0.05–0.10 por imagen'), '≈ 5k/mes → ≈ US$250–500 (c01)'],
+            ['AWS WAF, regla rate-based', '≈ US$0.60 por millón de requests', '≈ 300 M/mes → ≈ US$180 (<a href="#c01.serving">c01</a>)'],
+            ['Etiquetado humano', E('≈ US$0.05–0.10 por imagen'), '≈ 5k/mes → ≈ US$250–500 (<a href="#c01.costo">c01</a>)'],
           ] },
           { t: 'table', caption: 'Descuentos (el detalle, en M13)', head: ['Mecanismo', 'Descuento de referencia', 'Para qué sí', 'Para qué no'], rows: [
-            ['Savings Plans o reservas a 1 año', E('≈ 30–40 %') + ' (c01); AWS anuncia "hasta 72 %" con compromisos más largos y específicos', 'La base estable: las 2 GPUs de N+1', 'Capacidad que no sabes si vas a usar'],
-            ['Spot', E('≈ 60–70 %') + ' menos en jobs (c01); AWS anuncia "hasta 90 %"', 'Backfill, training, batch con checkpoints (aviso de ≈ 2 min)', 'El mínimo online'],
+            ['Savings Plans o reservas a 1 año', E('≈ 30–40 %') + ' (<a href="#c01.costo">c01</a>); AWS anuncia "hasta 72 %" con compromisos más largos y específicos', 'La base estable: las 2 GPUs de N+1', 'Capacidad que no sabes si vas a usar'],
+            ['Spot', E('≈ 60–70 %') + ' menos en jobs (<a href="#c01.costo">c01</a>); AWS anuncia "hasta 90 %"', 'Backfill, training, batch con checkpoints (aviso de ≈ 2 min)', 'El mínimo online'],
           ], note: 'Un Savings Plan es un descuento, no una reserva de capacidad: no te garantiza GPUs (<a href="#m06.nodos">M6</a>). Más en <a href="#m13">M13</a>.' },
           { t: 'calc', title: 'Costo por 1,000 predicciones = US$/h ÷ (predicciones/s × 3,600 ÷ 1,000)', rows: [
             { label: 'T4 a su capacidad planificada (600 img/s)', expr: '0.526 ÷ (600 × 3.6)', value: E('≈ US$0.00024') },
-            { label: 'Las 2 T4 del c01 con su carga real (≈ 304 M/mes)', expr: 'US$768 ÷ 304 M × 1,000', value: E('≈ US$0.0025'), note: '≈ 10× la cuenta anterior: la GPU trabaja al ≈ 5 %' },
+            { label: 'Las 2 T4 del c01 con su carga real (≈ 304 M/mes)', expr: 'US$768 ÷ 304 M × 1,000', value: E('≈ US$0.0025'), note: '≈ 10× la cuenta anterior: cada GPU procesa ≈ 58 img/s en promedio, ≈ 10 % de las 600 planificadas (≈ 5 % de su máximo medido)' },
             { label: 'Infra completa del c01', expr: 'US$1,750 ÷ 304 M × 1,000', value: E('≈ US$0.006') },
             { label: 'Con etiquetado', expr: 'US$2,300 ÷ 304 M × 1,000', value: E('≈ US$0.008') },
           ], result: 'La hoja de precios da el primer número; tu diseño paga el último. La utilización real y lo que no es GPU (ALB, gateway, red) mandan (<a href="#c01.costo">c01</a>, <a href="#m04.costo-por-prediccion">M4</a>).' },
-          { t: 'callout', kind: 'trap', title: 'Buscar el costo solo en la GPU', html: `<p>En el c01 las GPUs son ≈ 45 % de la infra y el ALB ≈ 30 %, porque cobra por cada GB de imagen que lo cruza. La transferencia entre AZs sin ruteo por zona (≈ US$1,800/mes) o una descarga grande por NAT pueden superar a las GPUs. Recorre los bytes: quién los mueve, cuántas veces y por dónde.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Buscar el costo solo en la GPU', html: `<p>En el c01 las GPUs son ≈ 45 % de la infra y el ALB ≈ 30 % (con ≈ 200 KB por imagen), porque cobra por cada GB de imagen que lo cruza: si el 15 % llegara como original web de ≈ 3 MB, su costo se triplicaría y superaría a las GPUs. La transferencia entre AZs sin ruteo por zona (≈ US$1,800/mes) o una descarga grande por NAT pueden superar a las GPUs. Recorre los bytes: quién los mueve, cuántas veces y por dónde.</p>` },
         ],
       },
 
-      // ======================================================== 7
+      // ======================================================== 8
       {
         id: 'formulas',
         title: 'Fórmulas de bolsillo',
@@ -311,7 +338,7 @@
             { label: 'Diseño = promedio × pico × margen', expr: '116 × 3 ≈ 350; × ≈ 1.4', value: '500 req/s (redondeado)', note: '<a href="#c01.estimaciones">c01</a>' },
             { label: 'Little: L = λ · W (W promedio)', expr: '500 req/s × 0.05 s', value: '25 requests en vuelo', note: '<a href="#m03.little">M3</a>' },
             { label: 'GPUs = ceil(pico ÷ (máx. medido × utilización)) + N+1', expr: 'ceil(500 ÷ (1,200 × 0.5)) + 1', value: '2 GPUs', note: '<a href="#m03.cuantas-gpus">M3</a>' },
-            { label: 'Utilización ρ = carga ÷ máximo', expr: '250 ÷ 1,200', value: '≈ 21 % por GPU en el pico' },
+            { label: 'Utilización ρ = carga ÷ máximo', expr: '250 ÷ 1,200', value: '≈ 21 % por GPU en el pico de diseño (500 req/s entre 2 GPUs)' },
             { label: 'M/M/1, tiempo en el sistema: W = S ÷ (1 − ρ)', expr: '10 ms ÷ (1 − 0.8)', value: '50 ms', note: '<a href="#m03.colas-utilizacion">M3</a>' },
             { label: 'M/M/1, espera en cola: Wq = ρS ÷ (1 − ρ)', expr: '0.8 × 10 ms ÷ 0.2', value: '40 ms' },
             { label: 'Ancho de banda = bytes × tasa × 8', expr: '602 KB × 500 req/s × 8', value: '≈ 2.4 Gb/s', note: '<a href="#c01.estimaciones">c01</a>' },
@@ -341,7 +368,7 @@
         ],
       },
 
-      // ======================================================== 8
+      // ======================================================== 9
       {
         id: 'entrevista',
         title: 'Cómo usar estos números en voz alta',
@@ -354,6 +381,7 @@
             ['"≈ 116 req/s promedio, diseño 500"', 'Tráfico modesto: pocas réplicas, sin Kafka ni sharding'],
             ['"Una T4 alcanza; la segunda es N+1"', 'Dos GPUs en dos AZs; el número de GPUs lo fija la disponibilidad'],
             ['"El tensor pesa 602 KB, 3× el JPEG"', 'Ruteo por zona desde el día 1; entrada UINT8 al crecer'],
+            ['"INT8 da ≈ 2× en la T4, como mucho"', 'En el c01 no quita ninguna GPU (están por N+1): no se lanza hasta 10× el tráfico o para pasar a CPU'],
             ['"8B en BF16 son 16 GB"', 'No cabe en una T4: L4 o cuantizar, y revisar el KV cache'],
             ['"128 KiB de KV cache por token"', '≈ 3–4 conversaciones de 8k por L4: la concurrencia define la flota'],
             ['"99.9 % son 43 minutos al mes"', 'Un rollback manual de 30 minutos se come casi todo el mes: rollback automático'],
@@ -372,7 +400,7 @@
             <li>"At 99.9%, the monthly error budget is about 43 minutes, so a manual rollback that takes half an hour would burn most of it."</li>
             <li>"A round trip to another region costs anywhere from ten to a couple of hundred milliseconds, so nothing in the 200-millisecond request path leaves the region."</li>
             <li>"The 8-billion-parameter model is about 16 GB in BF16, so it doesn't fit on a T4; I'd start with an L4 and check how much memory is left for the KV cache."</li>
-            <li>"These are list prices and they change, but the ratio matters more: here the load balancer costs about two-thirds as much as the GPUs."</li>
+            <li>"These are list prices and they change, but the ratio matters more: here the load balancer costs about two-thirds as much as the GPUs, because it bills by processed bytes and every image goes through it."</li>
           </ul>` },
           { t: 'callout', kind: 'skip', html: `<p>No memorices latencias de caché al nanosegundo ni TFLOPS con decimales. Memoriza la forma de la escalera (ns en memoria, µs en SSD, menos de un ms dentro de una región, decenas a cientos de ms entre regiones) y los números de la lista de abajo. El resto está en esta hoja.</p>` },
           { t: 'checklist', id: 'numeros-de-memoria', items: [
@@ -386,6 +414,7 @@
             { id: 'colas', html: 'Little L = λ · W y M/M/1: al 50 % W = 2S; al 90 %, W = 10S.' },
             { id: 'costo', html: '× 730 para el mes; costo por 1,000 predicciones; entre AZs US$0.01/GB por sentido; egress ≈ US$0.09/GB.' },
             { id: 'ab', html: 'A/B: n ≈ 16 · p(1 − p) ÷ δ² por brazo (≈ 33k para +1 pp sobre 70 %).' },
+            { id: 'optimizacion', html: 'FP16 ≈ 2–4× sobre FP32 e INT8 ≈ 1.5–2× sobre FP16 en GPU; parity top-1 ≥ 99.5 %; calibración con ≈ 500–1,000 imágenes reales; el tensor en JSON pesa ≈ 5× el binario.' },
           ] },
           { t: 'quiz', items: [
             { q: 'Te dicen 50 M requests al día. ¿QPS promedio?', options: ['≈ 58', '≈ 580', '≈ 5,800', '≈ 50'], answer: 1,
@@ -393,7 +422,7 @@
             { q: '99.95 % mensual, con una ventana de 30 días: ¿cuánta caída permite?', options: ['≈ 4 min', '≈ 22 min', '≈ 43 min', '≈ 3.6 h'], answer: 1,
               explain: '0.0005 × 43,200 min = 21.6 min. 43 min es 99.9 % y 4 min es 99.99 %.' },
             { q: '¿Qué cabe con holgura en un presupuesto de p99 de 50 ms?', options: ['Un GET a S3 de un objeto chico, contando su cola', 'Un RTT entre continentes', 'Dos GETs a Redis en la misma AZ', 'Decodificar un JPEG de 40 MP en un vCPU'], answer: 2,
-              explain: 'Redis en la misma AZ: ≈ 0.2–1 ms por GET. La cola de S3 llega a ≈ 100–200 ms, un RTT entre continentes a 70–250 ms, y 40 MP son ≈ 3× los píxeles de 12 MP: más de 100 ms de decode.' },
+              explain: 'Redis en la misma AZ: ≈ 0.2–1 ms por GET. Un GET a S3 tiene mediana de decenas de ms, pero AWS habla de ≈ 100–200 ms "consistentes" y aconseja reintentar a los 2 s: su cola llega a segundos. Un RTT entre continentes llega a 70–250 ms, y 40 MP son ≈ 3× los píxeles de 12 MP: más de 100 ms de decode.' },
             { q: 'Tu gateway manda ≈ 90 TB al mes a un Triton en otra AZ. ¿Cuánto cuesta esa transferencia?', options: ['≈ US$90', '≈ US$900', '≈ US$1,800', 'Nada: es la misma región'], answer: 2,
               explain: 'US$0.01/GB al salir + US$0.01/GB al entrar = US$0.02 × 90,000 GB ≈ US$1,800/mes. Es la cuenta del c01 sin ruteo por zona.' },
           ] },
@@ -410,7 +439,7 @@
       { id: 'ref-numeros-03', kind: 'numero', q: 'Escalera de latencias: acceso a RAM, lectura aleatoria en NVMe, RTT en la misma AZ, entre AZs y entre continentes.',
         a: '≈ 100 ns · ≈ 50–100 µs · ≈ 0.1–0.5 ms · ≈ 0.4–2.5 ms (AWS: "un dígito de ms") · ≈ 70–250 ms. Física: ≥ 1 ms de RTT por cada 100 km de fibra.' },
       { id: 'ref-numeros-04', kind: 'numero', q: 'S3: latencia de un GET de objeto chico y requests por segundo por prefijo.',
-        a: 'Mediana de decenas de ms; AWS habla de ≈ 100–200 ms consistentes. Al menos 3,500 escrituras y 5,500 lecturas por segundo por prefijo, escalando de a poco (503 Slow Down mientras). Para un dígito de ms: S3 Express One Zone o una caché.' },
+        a: 'Mediana de decenas de ms; AWS habla de ≈ 100–200 ms "consistentes" y aconseja reintentar un GET chico a los 2 s: la cola puede llegar a segundos. Al menos 3,500 escrituras y 5,500 lecturas por segundo por prefijo, escalando de a poco (503 Slow Down mientras). Para un dígito de ms: S3 Express One Zone o una caché.' },
       { id: 'ref-numeros-05', kind: 'numero', q: '¿Cuánto pesa un embedding de 768 dimensiones, y 100 M de ellos?',
         a: '768 × 4 B = 3 KB en FP32 (1.5 KB en FP16, 768 B en INT8). 100 M → ≈ 307 GB en FP32 o ≈ 77 GB en INT8, sin contar el índice.' },
       { id: 'ref-numeros-06', kind: 'numero', q: 'Un segundo y una hora de audio PCM de 16 kHz, 16 bit, mono.',
@@ -418,7 +447,7 @@
       { id: 'ref-numeros-07', kind: 'numero', q: '¿Cuántos caracteres es un token, y cuánto pesa un token dentro de un LLM?',
         a: '≈ 4 caracteres de inglés (≈ ¾ de palabra); en español suelen salir más tokens por palabra: cuéntalos con el tokenizer. El texto pesa bytes; su KV cache en Llama 3 8B, 128 KiB. Lo caro es guardarlo, no transmitirlo.' },
       { id: 'ref-numeros-08', kind: 'trampa', q: 'Una foto de 12 MP pesa ≈ 3 MB en JPEG. ¿Cuánta RAM ocupa al decodificarla y cuánto CPU cuesta?',
-        a: '4000 × 3000 × 3 B = 36 MB (120 MB a 40 MP), y ≈ 40–80 ms de decode en un vCPU (≈ 2× menos con draft mode). Por eso el c01 limita tamaño, megapíxeles y requests en vuelo.' },
+        a: '4000 × 3000 × 3 B = 36 MB (120 MB a 40 MP), y ≈ 40–80 ms de decode en un vCPU (≈ 1.3–2× menos con draft mode, según el peso del archivo). Por eso el c01 limita tamaño, megapíxeles y requests en vuelo.' },
       { id: 'ref-numeros-09', kind: 'numero', q: 'Precios de transferencia en AWS: entre AZs, a internet y por NAT Gateway.',
         a: 'Entre AZs US$0.01/GB en cada sentido (US$0.02 ida y vuelta) · egress a internet ≈ US$0.09/GB (primeros 10 TB) · NAT US$0.045/GB procesado + US$0.045/h. En el c01, sin ruteo por zona, la transferencia entre AZs (≈ US$1,800/mes) costaría más que las dos GPUs.' },
       { id: 'ref-numeros-10', kind: 'numero', q: 'Llama 3 8B BF16 en una L4: cota del tiempo por token y del TTFT con un prompt de 2,000 tokens.',
@@ -426,7 +455,7 @@
       { id: 'ref-numeros-11', kind: 'numero', q: 'Red sostenida (baseline) de g4dn.xlarge, g6.xlarge y c6i.xlarge.',
         a: '5 Gb/s (ráfaga hasta 25) · 2.5 Gb/s (hasta 10) · 1.56 Gb/s (hasta 12.5). El tensor FP32 del c01 a 500 req/s son ≈ 2.4 Gb/s: por eso se revisa.' },
       { id: 'ref-numeros-12', kind: 'numero', q: 'S3 Standard, control plane de EKS y ALB: ¿cuánto cuestan?',
-        a: 'S3 ≈ US$0.023/GB-mes · EKS US$0.10/h por cluster (≈ US$73/mes) · ALB US$0.0225/h + US$0.008 por LCU-hora (1 LCU = 1 GB/h procesado): en el c01, ≈ US$500/mes, ≈ 30 % de la infra.' },
+        a: 'S3 ≈ US$0.023/GB-mes · EKS US$0.10/h por cluster (≈ US$73/mes) · ALB US$0.0225/h + US$0.008 por LCU-hora (1 LCU = 1 GB/h procesado): en el c01, con ≈ 200 KB por imagen, ≈ US$500/mes, ≈ 30 % de la infra; con 15 % de originales web de ≈ 3 MB, ≈ US$1.5k.' },
       { id: 'ref-numeros-13', kind: 'concepto', q: 'Disponibilidad de componentes en serie y en paralelo.',
         a: 'Serie: el producto (tres al 99.9 % ≈ 99.7 %, ≈ 130 min/mes). Paralelo: 1 − ∏(1 − A), solo si las fallas son independientes (otra AZ, otro nodo): dos réplicas al 99 % ≈ 99.99 %.' },
       { id: 'ref-numeros-14', kind: 'trampa', q: 'Te piden 99.99 % para el servicio del caso 1. ¿Qué respondes?',
@@ -443,7 +472,7 @@
       { en: 'nines of availability', es: 'nueves de disponibilidad', def: 'Forma de decir el objetivo de disponibilidad por su cantidad de nueves: "tres nueves" es 99.9 % (≈ 43 min de caída al mes). Cada nueve extra divide la caída permitida entre 10.', say: 'Each extra nine cuts the monthly downtime budget by ten, so I only add one if the business needs it.' },
       { en: 'time to first token (TTFT)', es: 'tiempo hasta el primer token', def: 'Latencia desde que llega el request hasta que el LLM devuelve el primer token: cola + prefill del prompt. Escala con los FLOPs del prefill.', say: 'Time to first token is dominated by prefill, so long prompts need more compute, not more bandwidth.' },
       { en: 'time per output token (TPOT)', es: 'tiempo por token de salida', def: 'Tiempo promedio entre tokens generados después del primero. En el decode lo fija el ancho de banda de memoria: ≥ bytes de pesos ÷ ancho de banda.', say: 'On an L4 the time per output token can\'t go much below 54 milliseconds, which is still faster than people read.' },
-      { en: 'first-byte latency', es: 'latencia al primer byte', def: 'Tiempo hasta recibir el primer byte de la respuesta. En S3, mediana de decenas de ms para objetos chicos, con colas de ≈ 100–200 ms.', say: 'S3 first-byte latency has a long tail, so I keep it out of the synchronous path.' },
+      { en: 'first-byte latency', es: 'latencia al primer byte', def: 'Tiempo hasta recibir el primer byte de la respuesta. En S3, mediana de decenas de ms para objetos chicos y ≈ 100–200 ms "consistentes" según AWS; la cola puede llegar a segundos (AWS aconseja reintentar a los 2 s).', say: 'S3 first-byte latency has a long tail, so I keep it out of the synchronous path.' },
       { en: 'egress', es: 'transferencia de salida', def: 'Datos que salen de la nube (o de una región) hacia internet u otra región; se cobran por GB (≈ US$0.09/GB a internet en AWS). Subir datos normalmente no se cobra.', say: 'Egress is cheap here because we only return a small JSON; the images come in, not out.' },
       { en: 'cross-AZ data transfer', es: 'transferencia entre zonas', def: 'Tráfico entre zonas de disponibilidad de una misma región: en AWS, US$0.01/GB en cada sentido. Con payloads grandes puede costar más que el cómputo.', say: 'With 602 KB per request, cross-AZ transfer would cost more than the GPUs, so we route within the zone.' },
       { en: 'NAT gateway', es: 'NAT gateway (puerta de enlace NAT)', def: 'Servicio que da salida a internet a subredes privadas. En AWS cobra por hora y por GB procesado (US$0.045 cada uno en us-east-1): bajar pesos grandes por ahí sale caro.', say: 'We pull model weights through an S3 gateway endpoint, not the NAT gateway, to avoid the per-GB charge.' },

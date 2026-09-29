@@ -21,8 +21,8 @@
 
   // Marca de estimación (SPEC §5.3): subrayado punteado + "est."
   const E = (s) => '<span class="est">' + s + '</span>';
-  // Etiqueta para todo lo que medí en la Mac: el orden de magnitud sirve, el número absoluto no.
-  const MAC = 'medido en una Mac con Apple M4, solo orden de magnitud; mide en tu hardware';
+  // Etiqueta corta para lo medido en la Mac; el aviso completo va una sola vez, en el callout de la sección 2.
+  const MAC = 'laptop M4';
 
   // ------------------------------------------------------------ diagrama
   // Pipeline de optimización del c01. Carril offline (y 0–31) con dos filas: build y gates
@@ -94,7 +94,7 @@
         { nodes: ['perf', 'registry', 'canary'], edges: ['perf>registry', 'registry>canary'], text: 'Si pasa, entra por el mismo canary que cualquier modelo. El tier de GPU se retira solo cuando la versión CPU lleva días estable.' },
       ] },
       { id: 'falla', label: 'Cuando un gate falla', steps: [
-        { nodes: ['parity'], edges: [], text: 'Paridad de 97 % en FP16: no es redondeo, es un bug. Modo train al exportar, preproceso distinto, opset mal convertido u orden de labels. Vuelve al ONNX FP32 en ONNX Runtime: si ahí ya falla, el problema está en el export.' },
+        { nodes: ['parity'], edges: [], text: 'Paridad de 97 % en FP16: no es redondeo, es un bug. Preproceso distinto, opset mal convertido u orden de labels. Vuelve al ONNX FP32 en ONNX Runtime: si ahí ya falla, el problema está en el export.' },
         { nodes: ['quality'], edges: [], text: 'INT8 cae en un slice: prueba escalas por canal, calibración por percentil, dejar en FP16 las capas sensibles o QAT. O no lances INT8: si no quita máquinas, no compra nada.' },
         { nodes: ['perf'], edges: [], text: 'El p99 empeora: revisa que el perfil del engine esté afinado para los batches reales (≈ 1–3 online, no 16) y el número de instancias; compara contra un engine con opt 4.' },
         { nodes: ['metrics', 'decide'], edges: ['metrics>decide'], text: 'El canary cruza un umbral: rollback automático en segundos (el peso vuelve al estable). Después, el postmortem: ¿qué no vio el golden set?' },
@@ -178,9 +178,10 @@ class LectorCalibracion(CalibrationDataReader):
 
 
 quant_pre_process("classifier.onnx", "classifier_pre.onnx")  # shape inference + limpieza del grafo
+# ¿Para TensorRT? Agrega extra_options={"ActivationSymmetric": True} (zero point 0, lo que TensorRT exige) o usa ModelOpt
 quantize_static(
     "classifier_pre.onnx", "classifier_int8.onnx", LectorCalibracion("calib/"),
-    quant_format=QuantFormat.QDQ,     # pares QuantizeLinear/DequantizeLinear: lo leen ORT y TensorRT
+    quant_format=QuantFormat.QDQ,     # pares QuantizeLinear/DequantizeLinear para ORT en CPU
     activation_type=QuantType.QInt8,  # S8S8: el default que recomienda ORT
     weight_type=QuantType.QInt8,
     per_channel=True,                 # una escala por canal de salida en los pesos de cada conv
@@ -189,8 +190,11 @@ quantize_static(
 
   const COMPILE_SNIPPET = `import torch
 
-model = build_model().eval()  # el ResNet-50 del c01 (500 clases), en modo eval
-# dynamic=True: un solo grafo con batch simbólico, en vez de recompilar con cada tamaño nuevo.
+from export_onnx import build_model  # model/export_onnx.py del c01
+
+model = build_model("resnet50_500.pt")  # el ResNet-50 del c01 (500 clases); ya devuelve eval()
+# dynamic=True: el batch arranca simbólico, pero igual salen 3 grafos (batch 1 especializado,
+# 2–15 y ≥ 16 por una guarda de conv): el warmup de abajo los compila todos.
 # En GPU, compara también mode="reduce-overhead" (CUDA graphs): menos overhead a batch chico.
 compilado = torch.compile(model, dynamic=True)
 
@@ -200,7 +204,9 @@ with torch.inference_mode():
 
   const AOTI_SNIPPET = `import torch
 
-model = build_model().eval()
+from export_onnx import build_model  # model/export_onnx.py del c01
+
+model = build_model("resnet50_500.pt")  # el ResNet-50 del c01 (500 clases); ya devuelve eval()
 batch = torch.export.Dim("batch", min=1, max=32)  # el mismo rango que max_batch_size de Triton
 with torch.inference_mode():
     # 1) En CI: capturar el grafo completo (falla si hay algo que no puede exportar)
@@ -271,6 +277,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
           { t: 'h3', text: 'El orden de retorno' },
           { t: 'p', html: `Cuando sí toca optimizar, el orden importa porque cada paso tiene un riesgo de calidad y un costo de ingeniería distintos. De más barato y seguro a más caro:` },
           { t: 'steps', items: [
+            { title: 'No llamar al modelo, o llamarlo con menos', meta: 'sistema', html: `<p>Caché por hash del input y cascadas (<a href="#m02.hibridos">M2</a>), o menos píxeles: los FLOPs de una CNN escalan con la resolución, 224 → 160 px = (160/224)² ≈ 0.51×; en detección, 1280 → 640 px = 0.25×. La caché no toca la calidad si la key incluye <code>model_version</code> (en el c01 no ahorra GPUs: están por N+1). La cascada y la resolución sí la tocan (objetos chicos, detalle fino) y cuestan como el último paso, entrenar y validar, pero se evalúan primero porque pueden quitar más cómputo que todo lo demás.</p>` },
             { title: 'Batching y hardware correcto', meta: 'sin tocar el modelo', html: `<p>Dynamic batching, instancias por GPU y la GPU más chica que cumple (<a href="#m03.batching">M3</a>, <a href="#m04.gpus-nvidia">M4</a>). Cero riesgo de calidad; suele dar el salto más grande de throughput.</p>` },
             { title: 'Un runtime más barato', meta: 'misma precisión', html: `<p>ONNX Runtime, TensorRT o torch.compile: fusionan capas y eligen kernels. El modelo es el mismo; el riesgo es un bug de export, que atrapa el parity test.</p>` },
             { title: 'Menos precisión', meta: 'FP16 → INT8 / FP8', html: `<p>FP16 en una CNN casi nunca cambia la calidad. INT8 sí puede, sobre todo en el long tail: necesita calibración y un gate por slices.</p>` },
@@ -292,10 +299,12 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
         dims: ['tradeoffs'],
         blocks: [
           { t: 'p', html: `En la entrevista no te piden implementar ninguna de estas técnicas. Te piden tres cosas por cada una: <b>cuánto gana, qué cuesta en calidad y cómo lo validas</b>. Esta tabla es el resumen; las secciones siguientes explican cada fila. Todas las ganancias son rangos típicos con sus condiciones: en tu modelo, se miden.` },
+          { t: 'callout', kind: 'note', title: 'Las mediciones de este módulo', html: `<p>Lo marcado "(laptop M4)" se midió en una Mac con Apple M4 (10 núcleos), torch 2.14 y ONNX Runtime 1.30, con pesos aleatorios. Sirve para comparar variantes que corren por el mismo camino (estudiante vs maestro, eager vs compilado) y para ver órdenes de magnitud, no para dimensionar: hasta la razón INT8/FP32 cambia de una CPU a otra (<a href="#m08.cpu-inferencia">sección 8</a>). Para dimensionar, mides en el tipo de instancia de producción.</p>` },
           { t: 'table', caption: 'Técnicas de optimización para inferencia (ganancias: estimaciones con condiciones, no benchmarks)', head: ['Técnica', 'Ganancia típica', 'Riesgo de calidad', 'Esfuerzo', 'Hardware / runtime', 'Cuándo'], rows: [
+            ['<b>Menos trabajo por request</b>: caché, cascada, menor resolución', 'Caché y cascada: la fracción que no llega al modelo grande. Resolución: ≈ (r₂/r₁)² en FLOPs (224 → 160 ≈ 0.51×); la latencia baja algo menos', 'Caché: ninguno. Cascada: los errores del modelo chico. Resolución: objetos chicos y detalle fino', 'Bajo (caché) a alto (resolución, cascada)', 'Cualquiera', 'Antes de comprimir el modelo; en detección y video, es lo primero que se mira'],
             ['<b>Compilador de grafos</b> (TensorRT, ONNX Runtime, torch.compile) en la misma precisión', `${E('≈ 1–2×')} sobre PyTorch eager; más a batch chico en GPU, donde manda el overhead. En CPU medí entre ≈ 0.5× y ≈ 1.2× según runtime y batch (<a href="#m08.cpu-inferencia">sección 8</a>)`, 'Casi nulo: diferencias de ≈ 1e-4 en los logits (FP32). El riesgo real es un bug de export', 'Bajo a medio: exportar, fijar versiones', 'Cualquiera', 'Siempre que sirvas en producción'],
             ['<b>FP16 / BF16</b> con tensor cores', `${E('≈ 2–4×')} sobre FP32 en la misma GPU, a batch moderado. El c01 cita ${E('varias veces')} el throughput de eager FP32 en la T4`, 'Muy bajo en CNNs. FP16 puede desbordar en transformers (usa BF16)', 'Bajo', 'FP16: T4 en adelante. BF16: Ampere en adelante (no T4)', 'El default en GPU'],
-            ['<b>INT8 post-training (PTQ)</b>', `${E('≈ 1.5–2×')} sobre FP16 en GPU (c01); 4× menos bytes que FP32. En CPU medí ≈ 1.5–2× sobre FP32 en batch 1`, 'Bajo a medio: pierde más en el long tail y en objetos chicos', 'Medio: datos de calibración y un gate por slices', 'Tensor cores INT8 (T4+); CPU con VNNI, AMX o dot-product (Arm)', 'Cuando la capacidad por máquina cambia el costo'],
+            ['<b>INT8 post-training (PTQ)</b>', `${E('≈ 1.5–2×')} sobre FP16 en GPU (c01); 4× menos bytes que FP32. En la laptop M4 medí ≈ 1–2× sobre FP32 según hilos y métrica (su FP32 usa una unidad de matrices, <a href="#m08.cpu-inferencia">sección 8</a>); el c01 supone ${E('≈ 3–5×')} en x86 con VNNI/AMX: mídelo`, 'Bajo a medio: pierde más en el long tail y en objetos chicos', 'Medio: datos de calibración y un gate por slices', 'Tensor cores INT8 (T4+); CPU con VNNI, AMX o dot-product (Arm)', 'Cuando la capacidad por máquina cambia el costo'],
             ['<b>INT8 con QAT</b>', 'La misma velocidad que PTQ', 'Menor que PTQ: el modelo aprende a tolerar el redondeo', 'Alto: reentrenar con cuantización simulada', 'La misma que PTQ', 'Cuando PTQ pierde demasiado'],
             ['<b>FP8</b>', `${E('≈ 1.3–2×')} sobre FP16 en transformers grandes; mídelo`, 'Bajo si se calibra', 'Medio', 'Ada (L4, L40S), Hopper (H100) y Blackwell; no T4, A10G ni A100', 'LLMs y transformers en GPUs recientes (<a href="#m14">M14</a>)'],
             ['<b>INT4 weight-only</b>', `En el decode de un LLM, hasta ≈ 4× menos bytes por token que BF16 (el techo de la L4 sube de ≈ 19 a ≈ 52 tokens/s, <a href="#m04.roofline">M4</a>)`, 'Medio: depende del método (AWQ, GPTQ)', 'Medio', 'Kernels de vLLM, TensorRT-LLM y similares', 'LLMs memory-bound (<a href="#m14">M14</a>); casi nunca en CNNs'],
@@ -329,12 +338,13 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
           { t: 'table', caption: 'torch.onnx.export en torch 2.14', head: ['', 'TorchScript (legacy)', 'dynamo (torch.export)'], rows: [
             ['Cómo captura el grafo', 'Ejecuta el modelo con el input de ejemplo y registra las operaciones que ocurrieron (tracing)', 'Captura el programa completo con shapes simbólicas vía <code>torch.export</code>'],
             ['Default', 'No desde torch 2.9: lo pides con <code>dynamo=False</code> y emite un DeprecationWarning', 'Sí, desde torch 2.9'],
-            ['Control de flujo que depende de los datos', 'Congela la rama que tomó el ejemplo, sin avisar', 'Falla con un error explícito (o lo expresas con <code>torch.cond</code>)'],
+            ['Control de flujo que depende de los datos', 'Congela la rama que tomó el ejemplo sin fallar: a lo sumo un <code>TracerWarning</code> que se pierde en el log de CI', 'Falla con un error explícito (o lo expresas con <code>torch.cond</code>)'],
             ['Batch dinámico', '<code>dynamic_axes={"input": {0: "batch"}}</code>', '<code>dynamic_shapes={"x": {0: Dim("batch", min=1, max=32)}}</code>'],
             ['Opset', 'El que pidas: el c01 usa 17', 'Uno reciente por defecto (20 en una prueba mínima con torch 2.14). Si pides uno más viejo, intenta convertir "hacia abajo": en el c01 esa conversión falla con ReduceMean y el archivo queda en 18'],
             ['Dependencias', '<code>onnx</code>', '<code>onnx</code> y <code>onnxscript</code>'],
             ['Cuándo', 'Lo que usa el c01 hoy: opset 17 limpio y <code>dynamic_axes</code> tal cual, con torch fijado', 'Modelos nuevos: es el camino que PyTorch mantiene. El c01 planea migrar con opset 18'],
           ] },
+          { t: 'callout', kind: 'skip', html: `<p>Qué exportador es el default en cada versión de torch, sus dependencias y cómo convierte opsets son detalles de implementación: no se preguntan. Quédate con tres ideas: el tracing congela sin fallar las ramas que dependen de los datos (torch.export falla explícito), el eje de batch se declara dinámico y el opset se fija y se verifica en CI.</p>` },
           { t: 'code', title: 'La llamada real del c01', caption: 'El script completo, con la verificación en ONNX Runtime a batch 1 y 32, está en los <a href="#c01.archivos">archivos del caso 1</a>.', files: [
             { name: 'export (extracto).py', lang: 'python', code: EXPORT_EXCERPT },
           ] },
@@ -342,12 +352,12 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
           { t: 'table', head: ['Síntoma', 'Causa típica', 'Qué haces'], rows: [
             ['Error de export: operador no soportado', 'Una op sin equivalente en ese opset o una op propia de tu librería (en detección: NMS o deformable conv)', 'Subir el opset, reescribir con ops estándar, registrar un custom op/plugin, o dejar esa parte fuera del grafo y hacerla en el servidor'],
             ['Funciona en batch 2 y falla o da basura en batch 7', 'El eje no se declaró dinámico y quedó constante', 'Declarar el batch dinámico y probar batch 1 y máximo en CI (el <code>verify()</code> del c01)'],
-            ['Predicciones distintas, sin ningún error', 'Modo train al exportar, o un <code>if</code> sobre los datos que el tracer congeló', '<code>model.eval()</code> antes de exportar; parity test; el exportador dynamo falla explícito en vez de congelar'],
+            ['Predicciones distintas, sin ningún error', 'Un <code>if</code> sobre los datos que el tracer congeló, o un modelo en modo train capturado con <code>torch.export</code>/AOTInductor', '<code>model.eval()</code> antes de exportar; parity test; el exportador dynamo falla explícito en vez de congelar'],
             ['Pierde accuracy solo en producción', 'El preproceso del servicio no es el del entrenamiento (RGB/BGR, normalización dentro o fuera del grafo)', 'Un solo <code>preprocess.py</code> compartido y parity test end-to-end por el gateway (<a href="#c01.evaluacion">c01</a>)'],
             ['El archivo dice otro opset', 'Conversión de opset que falló a medias', 'Leer el opset real del archivo en CI y fallar si no coincide (el c01 lo hace)'],
-            ['Aparece un <code>.onnx.data</code> aparte', 'Modelos de más de 2 GB: el formato protobuf no admite más, y los pesos van como datos externos', 'Tratar el par de archivos como un solo artefacto en el registry; el c01 pide un solo archivo (<code>external_data=False</code> en su rama dynamo) porque pesa 98 MB'],
+            ['Aparece un <code>.onnx.data</code> aparte', 'El exportador dynamo (default en torch 2.14) guarda los pesos como datos externos por defecto (<code>external_data=True</code>), sin importar el tamaño: el ResNet-50 sale como un .onnx de 0.3 MB y un .onnx.data de 98 MB. Con el exportador TorchScript solo pasa por encima de 2 GB, el límite de protobuf', 'Si el modelo pesa menos de 2 GB, pasa <code>external_data=False</code> (el c01 lo hace en su rama dynamo); si no, trata el par de archivos como un solo artefacto en el registry y en la imagen'],
           ] },
-          { t: 'callout', kind: 'trap', title: 'Exportar sin model.eval()', html: `<p>En modo train, BatchNorm normaliza con las estadísticas del batch en vez de sus running stats, y Dropout apaga neuronas al azar. El export no falla: produce un grafo válido que predice otra cosa. Lo probé exportando el ResNet-50 en modo train: el acuerdo top-1 con el modelo en eval fue <b>0 %</b> (${MAC}; con pesos aleatorios el efecto se exagera, pero con un modelo entrenado el daño es igual de silencioso). El <code>build_model()</code> del c01 devuelve <code>model.eval()</code> por eso, y el parity test existe para atrapar lo que se escape.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Olvidar model.eval() fuera de torch.onnx.export', html: `<p>En modo train, BatchNorm normaliza con las estadísticas del batch en vez de sus running stats, y Dropout apaga neuronas al azar. En torch 2.14, <code>torch.onnx.export</code> te protege: el exportador TorchScript usa <code>training=TrainingMode.EVAL</code> por defecto (pone el modelo en eval durante el export) y el dynamo solo emite un <code>UserWarning</code> y aun así produce un grafo de inferencia. Lo probé con el ResNet-50 en modo train: con los dos exportadores, el ONNX dio 100 % de acuerdo top-1 con el modelo en eval (${MAC}). Donde el modo train sí rompe en silencio es en lo que captura el modelo tal cual: <code>torch.export.export</code> (y por lo tanto AOTInductor, <a href="#m08.torch-compile">sección 7</a>) y <code>torch.compile</code> conservan el BatchNorm con las estadísticas del batch: <b>0 %</b> de acuerdo en la misma prueba. La referencia PyTorch del parity test también tiene que estar en eval. Por eso el <code>build_model()</code> del c01 devuelve <code>model.eval()</code>: es un hábito barato que cubre todos los caminos.</p>` },
           { t: 'h3', text: 'ONNX Runtime: un runtime, varios backends' },
           { t: 'p', html: `ONNX Runtime (ORT) carga el grafo, lo optimiza y lo reparte entre <b>execution providers</b>: bibliotecas que ejecutan nodos en un hardware concreto. Le pasas una lista en orden de prioridad (<code>["CUDAExecutionProvider", "CPUExecutionProvider"]</code>) y cada nodo va al primero que lo soporta. Lo que ninguno acelera cae a la CPU.` },
           { t: 'table', caption: 'Execution providers que vas a nombrar (documentación de ONNX Runtime, sept. 2026)', head: ['Provider', 'Hardware', 'Cuándo'], rows: [
@@ -391,14 +401,14 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
           { t: 'h3', text: 'Optimization profiles: el batch dinámico' },
           { t: 'p', html: `Un engine con entradas dinámicas necesita al menos un <b>optimization profile</b>: shapes mínima, óptima y máxima. El c01 usa 1 / 16 / 32: el engine acepta batches de 1 a 32 (máximo = <code>max_batch_size</code> de Triton) y TensorRT elige las tácticas para 16. Fuera del rango, falla. El detalle que suma: online, con ≈ 250 req/s por GPU y una ventana de 2 ms, los batches reales son de ${E('≈ 1–3')} (<a href="#m03.batching">M3</a>), así que "opt 16" es un punto de partida. El <code>build_engine.sh</code> del c01 lo deja escrito: compara con perf_analyzer contra un engine con opt 4 y quédate con el de mejor p99 a 250–500 req/s. Si los tamaños varían mucho (secuencias, resoluciones), usas varios perfiles, uno por bucket.` },
           { t: 'h3', text: 'Precisiones' },
-          { t: 'table', head: ['Precisión', 'GPU', 'TensorRT 10', 'TensorRT 11', 'Riesgo'], rows: [
-            ['FP32 / TF32', 'Todas (TF32 desde Ampere)', 'Default', 'Default (tipos del ONNX)', 'Ninguno'],
-            ['FP16', 'T4 en adelante', '<code>--fp16</code>', 'Conviertes el ONNX con ModelOpt AutoCast', 'Muy bajo en CNNs; overflow posible en transformers'],
-            ['BF16', 'Ampere en adelante (no T4)', '<code>--bf16</code>', 'Tipos del ONNX', 'Bajo'],
-            ['INT8', 'T4 en adelante', '<code>--int8</code> con calibrador (implícito, deprecado) o nodos Q/DQ en el ONNX (explícito)', 'Solo Q/DQ: el calibrador se eliminó', 'Medio: long tail y objetos chicos'],
-            ['FP8', 'Ada y Hopper en adelante (L4, H100)', 'Q/DQ FP8 (ModelOpt)', 'Q/DQ FP8', 'Bajo si se calibra; sobre todo LLMs'],
-            ['INT4 · FP4', 'INT4 weight-only; FP4 en Blackwell', 'ModelOpt / TensorRT-LLM', 'Igual', 'LLMs (<a href="#m14">M14</a>)'],
-          ], note: 'Q/DQ: pares de nodos QuantizeLinear/DequantizeLinear en el ONNX que dicen dónde y con qué escala cuantizar. Los genera NVIDIA Model Optimizer (ModelOpt) o el cuantizador de ONNX Runtime (<a href="#m08.cuantizacion">sección 5</a>).' },
+          { t: 'table', head: ['Precisión', 'GPU', 'Cómo se pide', 'Riesgo'], rows: [
+            ['FP32 / TF32', 'Todas (TF32 desde Ampere)', 'Default', 'Ninguno'],
+            ['FP16', 'T4 en adelante', '<code>--fp16</code> (TensorRT 10) o el ONNX ya convertido a FP16 con ModelOpt AutoCast (TensorRT 11)', 'Muy bajo en CNNs; overflow posible en transformers'],
+            ['BF16', 'Ampere en adelante (no T4)', '<code>--bf16</code> (TensorRT 10) o los tipos del ONNX (TensorRT 11)', 'Bajo'],
+            ['INT8', 'T4 en adelante', 'Nodos Q/DQ en el ONNX (el calibrador implícito está deprecado en TensorRT 10 y ya no existe en 11)', 'Medio: long tail y objetos chicos'],
+            ['FP8', 'Ada y Hopper en adelante (L4, H100)', 'Nodos Q/DQ FP8 (ModelOpt)', 'Bajo si se calibra; sobre todo LLMs'],
+            ['INT4 · FP4', 'INT4 weight-only; FP4 en Blackwell', 'ModelOpt / TensorRT-LLM', 'LLMs (<a href="#m14">M14</a>)'],
+          ], note: 'Q/DQ: pares de nodos QuantizeLinear/DequantizeLinear en el ONNX que dicen dónde y con qué escala cuantizar. Los genera NVIDIA Model Optimizer (ModelOpt). El cuantizador de ONNX Runtime sirve para TensorRT solo con <code>ActivationSymmetric=True</code>, porque TensorRT exige zero point 0 (<a href="#m08.cuantizacion">sección 5</a>).' },
           { t: 'callout', kind: 'note', title: 'TensorRT 10 vs 11 (2026)', html: `<p>El c01 fija NGC 24.08 (TensorRT 10.3), donde <code>trtexec --fp16</code> es el camino estándar. TensorRT 11.0 (en los contenedores de NGC desde 26.06) hizo obligatorias las redes <b>strongly typed</b>: eliminó las flags de precisión del builder (<code>--fp16</code>, <code>--int8</code> y sus equivalentes en la API) y la calibración implícita de INT8. La precisión ahora vive en el ONNX: FP16 con ModelOpt AutoCast; INT8 y FP8 con nodos Q/DQ. La regla de portabilidad no cambió. En una entrevista basta con saber que existió el cambio y por qué: el engine hace lo que dice el grafo, sin adivinar.</p>` },
           { t: 'h3', text: 'Por qué un engine no es portable' },
           { t: 'p', html: `Las tácticas se eligieron cronometrando en una GPU concreta, los kernels se compilaron para su arquitectura (la T4 es sm_75; la L4, sm_89) y el archivo se serializó en el formato de una versión de TensorRT. La documentación lo dice sin rodeos: por defecto, un engine solo es compatible con el tipo de dispositivo y la versión de TensorRT con que se construyó (y tampoco entre sistemas operativos). Si Triton intenta cargar un engine de otra GPU u otra versión, falla al cargar; en el c01, con <code>--exit-on-error=true</code>, el pod queda en CrashLoopBackOff.` },
@@ -438,7 +448,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
             ['FP32', '98 MB', E('≈ 15–18 ms'), E('≈ 217–247 ms'), '1×'],
             ['INT8 dinámico (pesos INT8, escalas de activación al vuelo)', '24.6 MB', E('≈ 15.5 ms'), E('≈ 139 ms'), '≈ 1× en batch 1 · ≈ 1.7× en batch 8'],
             ['INT8 estático (Q/DQ, escalas por canal, calibrado)', '25.1 MB', E('≈ 7.7–8 ms'), E('≈ 61–70 ms'), '≈ 2× en batch 1 · ≈ 3.5× en batch 8'],
-          ], note: 'Corridas de 20 iteraciones. En corridas sostenidas de 10 s la laptop dio 21–23 ms en FP32 y 11–14 ms en INT8 estático: los absolutos se movieron ±30 % entre corridas; la razón (≈ 1.6–2× en batch 1) se mantuvo. Por eso se mide en la máquina de producción, sin nada más corriendo y con muchas iteraciones.' },
+          ], note: 'Corridas de 20 iteraciones. En corridas sostenidas de 10 s la laptop dio 21–23 ms en FP32 y 11–14 ms en INT8 estático: los absolutos se movieron ±30 % entre corridas; la razón (≈ 1.6–2× en batch 1, con 4 hilos) se mantuvo. Por eso se mide en la máquina de producción, sin nada más corriendo y con muchas iteraciones.' },
           { t: 'p', html: `Por qué 4× menos bytes no da 4× de velocidad:` },
           { t: 'list', items: [
             `<b>En una CNN manda el cómputo, no los bytes de los pesos.</b> El techo lo pone cuántas operaciones INT8 por segundo tiene el hardware frente a las de FP16: en la T4, 130 TOPS INT8 contra 65 TFLOPS FP16, es decir 2× como máximo (<a href="#m04.roofline">M4</a>).`,
@@ -451,7 +461,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
           { t: 'p', html: `Cuantizar es guardar cada número como un entero de 8 bits más una escala compartida: <code>valor ≈ escala × entero</code>. Si los pesos de una capa están entre −2.5 y 2.5, la escala simétrica es 2.5 / 127 ≈ 0.0197. El peso 0.1 se guarda como round(0.1 / 0.0197) = round(5.08) = 5, y vuelve como 5 × 0.0197 ≈ 0.0984: error de 1.6 %. Ahora agrega a la capa un solo peso atípico de 25: la escala pasa a 25 / 127 ≈ 0.197, el mismo 0.1 se guarda como round(0.508) = 1 y vuelve como 0.197. Error de 97 %, por un valor extremo. Casi todo lo que sigue es cómo elegir escalas que no desperdicien la resolución de 8 bits.` },
           { t: 'table', head: ['Decisión', 'Opción A', 'Opción B', 'Qué se usa'], rows: [
             ['Una escala para…', '<b>Per-tensor</b>: todo el tensor', '<b>Per-channel</b>: cada canal de salida de una conv', 'Pesos: per-channel (los canales tienen rangos muy distintos; en depthwise, más). Activaciones: per-tensor'],
-            ['El cero', '<b>Simétrica</b>: rango [−m, m], zero point 0', '<b>Asimétrica</b>: rango [min, max] con un zero point', 'Simétrica para pesos (TensorRT la exige). Asimétrica ayuda en activaciones de un solo signo: tras ReLU en [0, 6], la escala asimétrica es 6 / 255 ≈ 0.024 y la simétrica 6 / 127 ≈ 0.047: el doble de gruesa, porque desperdicias la mitad negativa'],
+            ['El cero', '<b>Simétrica</b>: rango [−m, m], zero point 0', '<b>Asimétrica</b>: rango [min, max] con un zero point', 'Simétrica para pesos. TensorRT exige simétrica también en las activaciones (zero point 0). En CPU con ORT, la asimétrica (el default de <code>quantize_static</code>) ayuda en activaciones de un solo signo: tras ReLU en [0, 6], la escala asimétrica es 6 / 255 ≈ 0.024 y la simétrica 6 / 127 ≈ 0.047, el doble de gruesa, porque desperdicias la mitad negativa'],
             ['Las escalas de activación', '<b>Estáticas</b>: medidas antes, con calibración', '<b>Dinámicas</b>: calculadas en cada inferencia', 'ORT recomienda estática para CNNs y dinámica para transformers y RNNs; en mi medición, la dinámica no ganó nada en batch 1'],
             ['El rango de calibración', 'MinMax: el mínimo y el máximo vistos', 'Percentil o entropía: recortan outliers', 'Percentil o entropía cuando hay valores extremos (el ejemplo de arriba)'],
           ] },
@@ -546,8 +556,8 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
             { label: 'ResNet-50 FP32 en CPU de servidor', expr: 'estimación del c01', value: E('≈ 40–80 ms por imagen por vCPU') },
             { label: 'Estudiante vs maestro', expr: 'razón medida en la Mac: 15.7 / 6.1 a 15.7 / 3.6', value: E('≈ 2.6–4.4× más rápido'), note: '<b>Supuesto:</b> que la razón se mantenga en x86 de servidor' },
             { label: 'Estudiante FP32 por vCPU', expr: '40 / 4.4 a 80 / 2.6', value: E('≈ 9–31 ms') },
-            { label: 'vCPU ocupados en el pico', expr: '500 × (0.009 a 0.031) / 0.6', value: E('≈ 8–26 vCPU') },
-            { label: 'Contra ResNet-50 INT8 (c01)', expr: '500 × (0.008 a 0.025) / 0.6', value: E('≈ 7–21 vCPU') },
+            { label: 'vCPU a provisionar en el pico (HPA al 60 %, <a href="#m06.hpa">M6</a>)', expr: '500 × (0.009 a 0.031) ÷ 0.6', value: E('≈ 8–26 vCPU'), note: '≈ 5–16 ocupados, sin el margen del HPA' },
+            { label: 'Contra ResNet-50 INT8 (c01), misma base', expr: '500 × (0.008 a 0.025) ÷ 0.6', value: E('≈ 7–21 vCPU') },
           ], result: 'Un estudiante en FP32 cae en el mismo rango que el ResNet-50 en INT8, sin el riesgo de la cuantización pero con su propia pérdida de calidad. Estudiante + INT8 bajaría más. Es exactamente la frase del c01: "si el modelo se destila a algo que corre en CPU, vuelve a ser una opción seria".' },
           { t: 'table', caption: 'Las tres formas de achicar, lado a lado', head: ['', 'Cuantización', 'Pruning estructurado', 'Destilación'], rows: [
             ['Qué cambia', 'Los bytes por número', 'El ancho del mismo modelo', 'La arquitectura entera'],
@@ -556,7 +566,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
             ['Quién lo hace', 'MLE en el pipeline de deploy', 'Equipo de modelado', 'Equipo de modelado'],
             ['Se combinan', 'Con las otras dos', 'Con cuantización', 'Con cuantización (el estudiante también se cuantiza)'],
           ] },
-          { t: 'callout', kind: 'senior', html: `<p>En el c01 no te toca rediseñar el modelo, pero sí proponerlo con números: "si el benchmark de ResNet-50 INT8 en CPU no cumple, le pediría al equipo de modelado un estudiante del tamaño de un MobileNet destilado del ResNet-50 con fotos sin etiquetar del tráfico. Si el estudiante es ≈ 3–4× más barato, como en mi medición en CPU, CPU-only necesita ≈ 8–26 vCPU en el pico en FP32 y menos en INT8: lo confirmo con el benchmark y, si cumple, nos ahorramos las dos T4". Es una recomendación con costo, beneficio y dueño.</p>` },
+          { t: 'callout', kind: 'senior', html: `<p>En el c01 no te toca rediseñar el modelo, pero sí proponerlo con números: "si el benchmark de ResNet-50 INT8 en CPU no cumple, le pediría al equipo de modelado un estudiante del tamaño de un MobileNet destilado del ResNet-50 con fotos sin etiquetar del tráfico. Si el estudiante es ≈ 3–4× más barato, como en mi medición en CPU, CPU-only necesita ≈ 8–26 vCPU a provisionar en el pico en FP32 (≈ 5–16 ocupados) y menos en INT8: lo confirmo con el benchmark y, si cumple, nos ahorramos las dos T4". Es una recomendación con costo, beneficio y dueño.</p>` },
           { t: 'callout', kind: 'interview', html: `<p>"Unstructured pruning makes the model sparse, not faster: dense GPU kernels still multiply the zeros. If we need a much cheaper model, I'd rather distill into a smaller architecture that we pick for its latency on our hardware."</p>` },
         ],
       },
@@ -569,7 +579,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
         priority: 'extra',
         dims: ['tradeoffs', 'arquitectura'],
         blocks: [
-          { t: 'p', html: `torch.compile es la forma de acelerar un modelo sin salir de PyTorch. Número primero, medido en la CPU de una Mac con el ResNet-50 del c01 (${MAC}): la primera llamada tardó <b>≈ 17 s</b> (compilando); las siguientes, ${E('≈ 15 ms')} contra ${E('≈ 16–19 ms')} de eager. La ganancia en régimen fue modesta; el costo de arranque, enorme. Ese par de números es todo el tema de esta sección.` },
+          { t: 'p', html: `torch.compile es la forma de acelerar un modelo sin salir de PyTorch. Número primero, medido en CPU con el ResNet-50 del c01 (${MAC}): la primera llamada tardó <b>≈ 17 s</b> (compilando); las siguientes, ${E('≈ 15 ms')} contra ${E('≈ 16–19 ms')} de eager. La ganancia en régimen fue modesta; el costo de arranque, enorme. Ese par de números es todo el tema de esta sección.` },
           { t: 'h3', text: 'Qué hace' },
           { t: 'list', items: [
             `<b>Captura el grafo.</b> TorchDynamo intercepta la ejecución de Python y arma grafos con las operaciones de tensores. Lo que no puede capturar (una llamada a una librería externa, cierto código dinámico) produce un <b>graph break</b>: el grafo se parte y ese tramo corre en eager.`,
@@ -619,7 +629,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
         priority: 'extra',
         dims: ['estimaciones', 'tradeoffs'],
         blocks: [
-          { t: 'p', html: `El c01 ya hizo la cuenta (<a href="#c01.estimaciones">estimaciones</a>, <a href="#m04.cpu-gpu-tpu">M4</a>): ResNet-50 FP32 en CPU serían ${E('≈ 20–40 vCPU')} ocupados en el pico; en INT8, a ${E('≈ 8–25 ms')} por imagen por vCPU, ${E('≈ 7–21 vCPU')}, que con el HPA siguiendo la curva diaria cuestan ${E('≈ US$125–250/mes')} contra ${E('≈ US$768')} de las dos T4. Esta sección es el cómo: con qué runtime, qué hardware y qué configuración conviertes esa estimación en una medición.` },
+          { t: 'p', html: `El c01 ya hizo la cuenta (<a href="#c01.estimaciones">estimaciones</a>, <a href="#m04.cpu-gpu-tpu">M4</a>): ResNet-50 FP32 en CPU serían ${E('≈ 20–40 vCPU')} ocupados en el pico (${E('≈ 33–67')} a provisionar con el HPA al 60 %); en INT8, a ${E('≈ 8–25 ms')} por imagen por vCPU, ${E('≈ 4–12.5')} ocupados y ${E('≈ 7–21')} a provisionar en el pico, y ${E('≈ 4–8 vCPU')} facturados en promedio con el HPA siguiendo la curva diaria: ${E('≈ US$125–250/mes')} contra ${E('≈ US$768')} de las dos T4. Ese 8–25 implica que INT8 rinde ${E('≈ 3–5×')} sobre los 40–80 ms de FP32, lo que se espera en x86 con VNNI (c6i) o AMX (c7i), pero para este stack no está medido. En la laptop M4 medí bastante menos (≈ 1–2×, más abajo), aunque ese número no viaja: ahí el FP32 corre en una unidad de matrices. Si en la instancia real la ganancia fuera ${E('≈ 1.5–2×')}, serían ${E('≈ 20–53 ms')} por imagen y ${E('≈ 17–44 vCPU')} a provisionar en el pico, más cerca de FP32 que del INT8 del c01, y el ahorro contra las dos T4 deja de ser claro. Esa diferencia es lo que decide el benchmark de la semana 1. Esta sección es el cómo: con qué runtime, qué hardware y qué configuración conviertes esa estimación en una medición.` },
           { t: 'h3', text: 'Cuándo la CPU es la respuesta' },
           { t: 'list', items: [
             `<b>Modelos chicos o QPS bajo:</b> tabular, CNNs chicas, un estudiante destilado.`,
@@ -641,14 +651,14 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
             ['1 proceso × 4 hilos', E('≈ 61 img/s'), E('≈ 16.5 ms'), E('≈ 79 img/s'), E('≈ 12.6 ms')],
             ['2 procesos × 2 hilos', E('≈ 72 img/s'), E('≈ 28 ms'), E('≈ 89 img/s'), E('≈ 22.5 ms')],
             ['4 procesos × 1 hilo', E('≈ 86 img/s'), E('≈ 46 ms'), E('≈ 102 img/s'), E('≈ 39 ms')],
-          ], note: 'Más procesos: más throughput total, pero cada request tarda más. Más hilos por proceso: menos latencia por request, con rendimientos decrecientes (en batch 1, 1 hilo dio ≈ 20 ms y 4 hilos ≈ 18 ms en FP32). Eliges según el SLO: con margen en el presupuesto de latencia, más procesos (throughput); con el presupuesto justo, más hilos por request. En los dos casos, mide el p99 con la configuración elegida.' },
+          ], note: 'Más procesos: más throughput total, pero cada request tarda más. Más hilos por proceso: menos latencia por request, con rendimientos decrecientes. Ojo con esta Mac: en FP32 casi no escala con hilos (1 hilo ≈ 20 ms, 4 hilos ≈ 16–18 ms) porque ONNX Runtime 1.30 corre sus GEMM FP32 en la unidad de matrices SME de la M4 vía KleidiAI, compartida por el clúster de núcleos de rendimiento. Con <code>mlas.disable_kleidiai=1</code> (NEON por núcleo, más parecido a un x86), FP32 pasa de ≈ 88 ms con 1 hilo a ≈ 32 ms con 4; el INT8 estático, que no usa esa unidad, pasa de ≈ 21 a ≈ 8 ms. Eliges según el SLO: con margen en el presupuesto de latencia, más procesos (throughput); con el presupuesto justo, más hilos por request. En los dos casos, mide el p99 con la configuración elegida.' },
           { t: 'callout', kind: 'trap', title: 'Los hilos que no te dieron', html: `<p>En Kubernetes, un pod con un límite de 4 vCPU en un nodo de 64 cores: ONNX Runtime y PyTorch dimensionan sus pools por los cores que ven en el nodo, no por tu límite. Resultado: decenas de hilos peleando por 4 vCPU de cuota, CPU throttling y un p99 que empeora al subir la carga (<a href="#m03.presupuesto">M3</a>). Peor si PyTorch, ORT y NumPy crean cada uno su pool en el mismo proceso. Fija los hilos explícitamente con el límite del pod.</p>` },
           { t: 'code', title: 'Una sesión de ONNX Runtime para un pod de CPU', caption: 'Corrió en el venv de este módulo con el INT8 de la sección 5.', files: [
             { name: 'sesion_cpu.py', lang: 'python', code: ORT_CPU_SNIPPET },
           ] },
           { t: 'h3', text: 'Batching en CPU' },
           { t: 'p', html: `En <a href="#m03.batching">M3</a> quedó escrito que el batching rinde menos en CPU. Mis mediciones lo confirman y agregan una advertencia: en PyTorch eager, batch 8 dio ${E('≈ 13–14 ms')} por imagen contra ${E('≈ 16–19 ms')} en batch 1 (poca ganancia); en ONNX Runtime FP32, batch 8 fue <b>más lento</b> por imagen (${E('≈ 27–31 ms')}) que batch 1; y en PyTorch eager, batch 16 saltó a ${E('≈ 1.5 s')}, un acantilado de rendimiento del backend en esta máquina. En CPU, mide batch 1 con varios procesos antes de asumir que el batching ayuda.` },
-          { t: 'callout', kind: 'trap', title: 'Dimensionar con tu laptop', html: `<p>Con un solo hilo, la M4 corrió ResNet-50 FP32 en ≈ 20 ms; el c01 estima ${E('40–80 ms')} por vCPU en servidores x86. No se contradicen: un núcleo de rendimiento de una laptop moderna no es un vCPU de c6i (que es medio core físico). Las mediciones de laptop sirven para comparar variantes entre sí (INT8 vs FP32, estudiante vs maestro); para dimensionar, mides en el tipo de instancia de producción, con el límite de CPU del pod.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Dimensionar con tu laptop', html: `<p>Con un solo hilo y la máquina ociosa, la M4 corrió ResNet-50 FP32 en ≈ 20 ms; el c01 estima ${E('40–80 ms')} por vCPU en servidores x86. No se contradicen, y no porque el núcleo de la laptop sea "más rápido". Esos 20 ms salen de la unidad de matrices SME de la M4, que ONNX Runtime usa en FP32 vía KleidiAI; sin ella (<code>mlas.disable_kleidiai=1</code>) el mismo núcleo tarda ≈ 88 ms. Un vCPU de c6i (medio core físico, sin unidad de matrices para FP32) no se parece a eso. Además, la latencia de un hilo con la máquina ociosa no dimensiona: con 4 procesos de un hilo (tabla de arriba), cada imagen costó 4 ÷ 86 img/s ≈ 46 ms de núcleo en FP32 y 4 ÷ 102 ≈ 39 ms en INT8 estático. Lo que dimensiona es núcleos ÷ throughput a saturación, medido en el tipo de instancia de producción con el límite de CPU del pod. Y la razón INT8/FP32 tampoco viaja: aquí el FP32 tiene unidad de matrices y el INT8 no; en una c7i es al revés (AMX acelera INT8 y BF16, no FP32).</p>` },
           { t: 'callout', kind: 'interview', html: `<p>"On CPU I size the thread pool to the pod's CPU limit, not the node's cores. For throughput I'd rather run a few single-threaded workers than one process with many threads, as long as per-request latency still fits the budget. And I benchmark on the production instance type, not on my laptop."</p>` },
         ],
       },
@@ -698,7 +708,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
               why: 'Decide por arquitectura del serving y costo operativo, no por un benchmark genérico.' },
             { q: 'El parity test del engine FP16 da 97 % de acuerdo top-1. ¿Qué pasó?',
               junior: 'FP16 pierde precisión; bajaría el umbral a 97 %.',
-              senior: 'FP16 en una CNN normalmente pasa el 99.5 % con holgura: 97 % es un bug. Primero pruebo el ONNX FP32 en ONNX Runtime: si ahí ya da 97 %, el problema está en el export (modo train, preproceso distinto, opset mal convertido, orden de labels). Si FP32 pasa y el engine no, busco la capa que diverge comparando salidas intermedias (Polygraphy puede marcarlas todas) y la dejo en FP32; puede ser un overflow de FP16. Nunca bajo el umbral para que pase.',
+              senior: 'FP16 en una CNN normalmente pasa el 99.5 % con holgura: 97 % es un bug. Primero pruebo el ONNX FP32 en ONNX Runtime: si ahí ya da 97 %, el problema está en el export (preproceso distinto, opset mal convertido, orden de labels). Si FP32 pasa y el engine no, busco la capa que diverge comparando salidas intermedias (Polygraphy puede marcarlas todas) y la dejo en FP32; puede ser un overflow de FP16. Nunca bajo el umbral para que pase.',
               why: 'Sabe qué diferencia es esperable en cada precisión y aísla el problema por etapas.' },
             { q: 'Hiciste el modelo 2× más rápido y el p99 no se movió. ¿Por qué?',
               junior: 'Habrá que optimizar más el modelo, quizás con INT8.',
@@ -729,11 +739,11 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
               explain: 'Los engines dependen de la arquitectura y de la versión de TensorRT. El modo ampere+ empieza en compute capability 8.0: la T4 (7.5) queda fuera. Dos engines, dos tags de imagen, nodeSelector por node pool.' },
             { q: '¿Qué datos usas para calibrar INT8?', options: ['Ruido gaussiano con la forma del input', 'El set de entrenamiento con sus augmentations', '≈ 500–1,000 imágenes del tráfico real, con el preproceso del gateway y estratificadas por slice', 'El golden set completo'], answer: 2,
               explain: 'Las escalas se ajustan a la distribución que ven. El golden set se reserva para evaluar sin sesgo; el ruido produce escalas inútiles.' },
-            { q: 'ONNX Runtime recomienda cuantización estática para CNNs. En mi medición, ¿cómo le fue a la dinámica en batch 1?', options: ['4× más rápida', '≈ 2× más rápida', 'Sin ganancia confiable (≈ 1×)', 'No corrió'], answer: 2,
-              explain: 'La dinámica calcula las escalas de activación en cada inferencia y en convoluciones apenas gana: ≈ 15.5 ms contra ≈ 15–18 en FP32. La estática, con calibración, dio ≈ 8 ms.' },
+            { q: 'ResNet-50 en CPU: ¿cuantización estática o dinámica?', options: ['Dinámica: no necesita calibración y rinde igual', 'Estática: las escalas de activación se fijan antes con calibración, sin costo por request; la dinámica las calcula en cada inferencia y en convoluciones gana poco', 'Ninguna: INT8 no acelera en CPU', 'Dinámica, porque es la que ORT recomienda para CNNs'], answer: 1,
+              explain: 'ORT recomienda estática para CNNs y dinámica para transformers y RNNs. En la laptop M4, batch 1 con 4 hilos: dinámica ≈ 1× y estática ≈ 2× sobre FP32. INT8 sí acelera en CPU si el hardware tiene las instrucciones (VNNI, AMX o producto punto en Arm).' },
             { q: 'Un pod con torch.compile pasa la readiness y el primer usuario espera 17 s. ¿Cuál es la corrección?', options: ['Usar mode="max-autotune"', 'Warmup con todas las shapes antes de la readiness, caché de compilación en la imagen o AOTInductor', 'Subir el timeout del caller a 20 s', 'Desactivar el dynamic batching'], answer: 1,
               explain: 'La compilación ocurre en la primera llamada y con cada shape nueva. Se paga en el warmup (o en CI, con AOTInductor), nunca en un request. max-autotune compila todavía más.' },
-            { q: 'El parity test del engine TensorRT FP16 da 97 % de acuerdo top-1. ¿Qué es lo más probable?', options: ['Es el error normal de FP16', 'Un bug: export en modo train, preproceso distinto, opset u orden de labels', 'El golden set está mal etiquetado', 'La T4 está throttling'], answer: 1,
+            { q: 'El parity test del engine TensorRT FP16 da 97 % de acuerdo top-1. ¿Qué es lo más probable?', options: ['Es el error normal de FP16', 'Un bug: preproceso distinto, opset mal convertido u orden de labels', 'El golden set está mal etiquetado', 'La T4 está throttling'], answer: 1,
               explain: 'FP16 en una CNN normalmente pasa el 99.5 % de acuerdo con holgura. Prueba primero el ONNX FP32 en ONNX Runtime para saber si el problema está en el export o en el engine.' },
             { q: 'Pod con límite de 4 vCPU en un nodo de 64 cores; no fijas los hilos de ONNX Runtime. ¿Qué pasa?', options: ['Nada: ORT lee el límite del cgroup', 'ORT dimensiona su pool por los cores del nodo: demasiados hilos para 4 vCPU, throttling y p99 peor', 'ORT usa un solo hilo', 'El pod no arranca'], answer: 1,
               explain: 'Fija intra_op_num_threads con el límite del pod (por ejemplo, con la Downward API) y evita que varios frameworks creen pools en el mismo proceso.' },
@@ -741,7 +751,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
           { t: 'checklist', id: 'antes-de-optimizar', items: [
             { id: 'tramos', html: 'Sé en qué tramo está el tiempo (preproceso, red, cola, cómputo) por los histogramas, antes de tocar el modelo.' },
             { id: 'que-compra', html: 'Digo qué compra la optimización: menos máquinas, menos latencia, que quepa, un tier menos o que corra en el borde.' },
-            { id: 'orden', html: 'Sigo el orden de retorno: batching y hardware, runtime, precisión, modelo más chico.' },
+            { id: 'orden', html: 'Sigo el orden de retorno: menos trabajo por request (caché, cascada, resolución), batching y hardware, runtime, precisión, modelo más chico.' },
             { id: 'referencia', html: 'Tengo congelada la referencia: checkpoint FP32, preproceso y golden set.' },
             { id: 'export', html: 'Exporto en eval(), con los nombres y el eje de batch del contrato, y verifico el opset real del archivo.' },
             { id: 'paridad', html: 'Corro el parity test (top-1 ≥ 99.5 %, top-5, max|Δlogit|) con imágenes reales y el preproceso del gateway.' },
@@ -763,11 +773,11 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
       { id: 'm08-02', kind: 'numero', q: 'Pesos de ResNet-50 (25.6 M parámetros) en FP32, FP16 e INT8.',
         a: '≈ 102 MB · ≈ 51 MB · ≈ 26 MB. El c01 (500 clases, 24.5 M): ONNX FP32 de 98 MB → INT8 de ≈ 25 MB. La latencia baja mucho menos que 4×.' },
       { id: 'm08-03', kind: 'concepto', q: 'Orden de retorno de las optimizaciones.',
-        a: '(1) Batching y hardware correcto, (2) un runtime compilado en la misma precisión (TensorRT, ORT, torch.compile), (3) menos precisión (FP16 → INT8/FP8), (4) un modelo más chico (destilación, pruning estructurado). De menos a más riesgo de calidad y costo de ingeniería.' },
+        a: '(0) No llamar al modelo o llamarlo con menos (caché, cascada, resolución), (1) batching y hardware correcto, (2) un runtime compilado en la misma precisión (TensorRT, ORT, torch.compile), (3) menos precisión (FP16 → INT8/FP8), (4) un modelo más chico (destilación, pruning estructurado). De menos a más riesgo de calidad y costo de ingeniería.' },
       { id: 'm08-04', kind: 'concepto', q: '¿Qué es ONNX y qué es el opset?',
         a: 'Un formato de archivo con el grafo del modelo (operadores), sus pesos y la firma de entradas/salidas. El opset es la versión de la definición de los operadores; el runtime que lo lee (TensorRT, ORT, OpenVINO) tiene que conocerlo. El c01 usa opset 17.' },
-      { id: 'm08-05', kind: 'trampa', q: '¿Qué pasa si exportas a ONNX sin model.eval()?',
-        a: 'BatchNorm usa las estadísticas del batch y Dropout apaga neuronas: el export no falla y el grafo predice otra cosa. En mi prueba (pesos aleatorios) el acuerdo top-1 cayó a 0 %. El parity test lo atrapa.' },
+      { id: 'm08-05', kind: 'trampa', q: '¿Qué pasa si exportas o compilas sin model.eval()?',
+        a: 'Con torch.onnx.export (torch 2.14), nada: TorchScript exporta en eval por defecto y dynamo avisa pero también da un grafo de inferencia (medido: 100 % de acuerdo). Rompe en silencio con torch.export/AOTInductor y torch.compile, que capturan el BatchNorm en modo train (0 % de acuerdo medido), y si la referencia del parity test está en train. Llama a eval() siempre.' },
       { id: 'm08-06', kind: 'numero', q: 'Umbrales del parity test del c01 y diferencias esperables.',
         a: 'Acuerdo top-1 ≥ 99.5 % y top-5 ≥ 99 % sobre ≈ 10k imágenes del golden set con el preproceso del gateway. max|Δlogit|: ≈ 1e-4 FP32 vs FP32, ≈ 1e-2 con TensorRT FP16; el tope de 0.5 atrapa exports rotos.' },
       { id: 'm08-07', kind: 'concepto', q: '¿Qué hace el builder de TensorRT?',
@@ -776,20 +786,20 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
         a: 'Tácticas medidas y kernels compilados para sm_75, y un formato atado a la versión de TensorRT. Se construye uno por tipo de GPU en CI, con la misma release que sirve. ampere+ cubre L4/A10G/A100 con algo de pérdida, pero no la T4 (Turing).' },
       { id: 'm08-09', kind: 'concepto', q: '¿Qué es un optimization profile y cuál usa el c01?',
         a: 'Shapes mínima, óptima y máxima de una entrada dinámica: el engine acepta ese rango y se afina para la óptima. c01: batch 1 / 16 / 32 (máximo = max_batch_size de Triton). Online los batches son ≈ 1–3: conviene comparar contra opt 4.' },
-      { id: 'm08-10', kind: 'concepto', q: '¿Qué cambió en TensorRT 11?',
-        a: 'Redes strongly typed obligatorias: se eliminaron las flags de precisión (--fp16, --int8) y la calibración implícita de INT8. FP16 se hace convirtiendo el ONNX con ModelOpt AutoCast; INT8/FP8, con nodos Q/DQ. Llegó a NGC en 26.06. La regla de portabilidad no cambió.' },
+      { id: 'm08-10', kind: 'concepto', q: '¿Qué son los nodos Q/DQ y por qué la calibración es un paso del pipeline?',
+        a: 'Pares QuantizeLinear/DequantizeLinear en el ONNX que dicen dónde y con qué escala cuantizar; los escribe ModelOpt (o el cuantizador de ORT, con ActivationSymmetric=True si el destino es TensorRT) con los datos de calibración. El engine hace lo que dice el grafo (en TensorRT 11 es el único camino a INT8), así que las escalas se generan, versionan y validan antes del build, con el mismo gate por slices.' },
       { id: 'm08-11', kind: 'tradeoff', q: 'PTQ vs QAT.',
         a: 'PTQ: cuantizas el modelo entrenado con ≈ 500–1,000 ejemplos de calibración; minutos, sin labels; pierde más en modelos compactos y el long tail. QAT: reentrenas con cuantización simulada; días; recupera esa pérdida. PTQ primero; QAT si PTQ no pasa el gate y INT8 compra algo.' },
       { id: 'm08-12', kind: 'concepto', q: '¿Con qué datos calibras INT8?',
         a: '≈ 500–1,000 imágenes del tráfico reciente, con el preproceso del gateway, estratificadas por slice (móvil/web, poca luz, long tail), sin augmentations, separadas del golden set y versionadas con el modelo. Ruido o datos de otra distribución dan escalas inútiles.' },
       { id: 'm08-13', kind: 'concepto', q: 'Per-channel vs per-tensor; simétrica vs asimétrica.',
-        a: 'Pesos: una escala por canal de salida (los canales tienen rangos distintos) y simétrica (zero point 0; TensorRT la exige). Activaciones: per-tensor; la asimétrica aprovecha mejor el rango de valores de un solo signo (post-ReLU).' },
+        a: 'Pesos: una escala por canal de salida (los canales tienen rangos distintos) y simétrica (zero point 0). Activaciones: per-tensor; en CPU la asimétrica aprovecha mejor valores de un solo signo (post-ReLU), pero TensorRT exige simétrica en pesos y activaciones.' },
       { id: 'm08-14', kind: 'trampa', q: '"INT8 perdió 0.3 pp de accuracy global, es aceptable". ¿Qué falta?',
         a: 'El global esconde el long tail: 80 % head con −0.1 pp y 20 % tail con −1.1 pp dan −0.3 pp global. Mira recall por clase head vs tail, slices, ECE y la tasa de baja confianza. Y pregunta qué compra INT8: en el c01 hoy, nada.' },
       { id: 'm08-15', kind: 'concepto', q: 'Weight-only vs pesos + activaciones (W8A8).',
         a: 'Weight-only (INT8/INT4 en pesos, activaciones en BF16) reduce bytes: acelera el decode memory-bound de un LLM. W8A8 cuantiza ambos operandos para usar los tensor cores INT8: es lo que acelera una CNN compute-bound.' },
       { id: 'm08-16', kind: 'numero', q: '¿Por qué INT8 no da 4× de velocidad si pesa 4× menos?',
-        a: 'Una CNN es compute-bound: el techo es TOPS INT8 vs TFLOPS FP16 (T4: 130 vs 65, 2×). Además no todo se cuantiza, hay conversiones Q/DQ y overhead a batch chico. Medí ≈ 2× en CPU (INT8 estático vs FP32, batch 1); el c01 estima ≈ 1.5–2× sobre FP16 en GPU.' },
+        a: 'Una CNN es compute-bound: el techo es TOPS INT8 vs TFLOPS FP16 (T4: 130 vs 65, 2×). Además no todo se cuantiza, hay conversiones Q/DQ y overhead a batch chico. Medí ≈ 2× en la laptop M4 con 4 hilos (≈ 1× con 1 hilo, porque ahí el FP32 corre en la unidad SME); en x86 con VNNI, mídelo. El c01 estima ≈ 1.5–2× sobre FP16 en GPU.' },
       { id: 'm08-17', kind: 'trampa', q: '¿Pruning no estructurado de 50 % acelera la inferencia en GPU?',
         a: 'No: los kernels densos multiplican los ceros igual. Medí 15.8 ms densos contra 16.0 ms con 50 % de ceros, y el checkpoint siguió pesando 98 MB. Acelera el pruning estructurado (modelo más angosto) o 2:4 en GPUs Ampere+.' },
       { id: 'm08-18', kind: 'concepto', q: '¿Qué es la sparsity 2:4 y cuánto gana?',
@@ -835,7 +845,7 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
       { en: 'quantization-aware training (QAT)', es: 'entrenamiento consciente de la cuantización', def: 'Entrenar o afinar el modelo con la cuantización simulada en el forward, para que aprenda a tolerar el redondeo. Recupera lo que PTQ pierde, a cambio de un pipeline de entrenamiento.', say: 'If post-training quantization hurts long-tail recall, quantization-aware training is how we would recover it.' },
       { en: 'INT8 calibration', es: 'calibración de INT8', def: 'Pasar datos representativos por el modelo para medir los rangos de activación y fijar las escalas de cuantización. Se hace con unos cientos a ≈ 1,000 ejemplos de la distribución de producción.', say: 'We calibrate INT8 on about a thousand production images, stratified by slice.' },
       { en: 'per-channel quantization', es: 'cuantización por canal', def: 'Una escala (y zero point) por canal de salida de una capa, en vez de una para todo el tensor. Es el estándar para pesos de convoluciones, cuyos canales tienen rangos muy distintos.', say: 'I\'d use per-channel scales for the weights, because convolution channels have very different ranges.' },
-      { en: 'Q/DQ nodes', es: 'nodos de cuantización y descuantización', def: 'Pares QuantizeLinear/DequantizeLinear insertados en un grafo ONNX que marcan dónde y con qué escala cuantizar. Es el formato explícito que leen TensorRT y ONNX Runtime.', say: 'ModelOpt writes Q/DQ nodes into the ONNX, and TensorRT builds the INT8 engine from them.' },
+      { en: 'Q/DQ nodes', es: 'nodos de cuantización y descuantización', def: 'Pares QuantizeLinear/DequantizeLinear insertados en un grafo ONNX que marcan dónde y con qué escala cuantizar. Es el formato explícito que leen TensorRT y ONNX Runtime; TensorRT solo acepta zero point 0 (simétrica).', say: 'ModelOpt writes Q/DQ nodes into the ONNX, and TensorRT builds the INT8 engine from them.' },
       { en: 'dynamic quantization', es: 'cuantización dinámica', def: 'Pesos cuantizados de antemano y escalas de activación calculadas en cada inferencia, sin calibración. Útil en transformers y RNNs; en CNNs suele rendir menos que la estática.', say: 'For a CNN on CPU I\'d use static quantization; dynamic quantization barely helps convolutions at batch size one.' },
       { en: 'unstructured pruning', es: 'pruning no estructurado', def: 'Poner en cero pesos individuales (por magnitud). El modelo queda sparse, pero los kernels densos no se aceleran: rara vez baja la latencia.', say: 'Unstructured pruning makes the weights sparse, but with dense kernels the latency doesn\'t move.' },
       { en: 'structured pruning', es: 'pruning estructurado', def: 'Quitar canales, filtros o heads completos para obtener un modelo denso más angosto que corre más rápido en cualquier hardware. Necesita fine-tuning.', say: 'Structured pruning of thirty percent of the channels roughly halves the FLOPs, but it needs fine-tuning.' },
@@ -846,6 +856,9 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
       { en: 'NVIDIA Model Optimizer (ModelOpt)', es: 'NVIDIA Model Optimizer', def: 'Librería de NVIDIA para cuantizar (INT8, FP8, INT4), podar y destilar modelos para TensorRT, TensorRT-LLM y vLLM; incluye AutoCast para convertir un ONNX a FP16.', say: 'With TensorRT 11 we quantize with ModelOpt and build the engine from the Q/DQ model.' },
       { en: 'slice', es: 'segmento (de evaluación)', def: 'Subconjunto de datos que se evalúa por separado.', say: 'The INT8 model holds overall accuracy but regresses on the low-light slice.' },
       { en: 'parity test', es: 'prueba de paridad', def: 'Comparación del artefacto servido contra la referencia evaluada.', say: 'The parity test runs ten thousand golden images through both the engine and the PyTorch model.' },
+      { en: "Amdahl's law", es: 'ley de Amdahl', def: 'Si una parte ocupa la fracción p del tiempo y la aceleras s veces, el total queda en (1 − p) + p/s: con el cómputo en 12.5 % del p50 y 2× más rápido, 0.94 (un 6 % menos).', say: "By Amdahl's law, making a model that's ten percent of the latency twice as fast saves about five percent." },
+      { en: 'VNNI / AMX', es: 'instrucciones INT8 de CPUs x86', def: 'VNNI (desde Cascade Lake; c6i) hace productos punto INT8 en una instrucción; AMX (desde Sapphire Rapids; c7i) agrega unidades de matrices INT8/BF16. Sin ellas, INT8 en CPU puede ser más lento que FP32.', say: 'On x86, INT8 only pays off if the instance has VNNI or AMX, so I benchmark c6i against c7i with the same model.' },
+      { en: 'long tail', es: 'cola larga (clases poco frecuentes)', def: 'Las muchas clases con pocos ejemplos cada una: pesan poco en el accuracy global y son lo primero que pierde una cuantización o un estudiante, así que se evalúan por separado.', say: 'If overall accuracy drops 0.3 points, I still check per-class recall on the long tail before shipping.' },
     ],
   });
 })(typeof window !== 'undefined' ? window : globalThis);
