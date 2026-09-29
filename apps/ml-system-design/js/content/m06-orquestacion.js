@@ -34,7 +34,7 @@
     nodes: [
       { id: 'triton', label: 'Pods de Triton', sub: 'métricas en :8002', x: 2, y: 7, w: 16, h: 8, kind: 'gpu',
         note: 'Cada pod de Triton publica sus métricas (tiempo en cola, requests en espera, inferencias) en el puerto 8002. Son la materia prima del escalado: si Prometheus no las scrapea, nada escala.' },
-      { id: 'prom', label: 'Prometheus', sub: 'scrape cada 15–30 s', x: 24, y: 7, w: 16, h: 8, kind: 'monitor',
+      { id: 'prom', label: 'Prometheus', sub: 'scrape cada 15 s (c01)', x: 24, y: 7, w: 16, h: 8, kind: 'monitor',
         note: 'Guarda las series y responde la query de KEDA. En c01 la query promedia la espera en cola sobre una ventana de 2 min: suaviza el ruido y a la vez retrasa la reacción. Ese retraso es el primer tramo del cold start (sección 7).' },
       { id: 'keda', label: 'KEDA', sub: 'expone la métrica', x: 46, y: 7, w: 16, h: 8, kind: 'service',
         note: 'Consulta el trigger (aquí, Prometheus) y expone el resultado como métrica externa para el HPA que él mismo creó (<code>keda-hpa-triton</code>). También decide el paso de 0 a 1 y de 1 a 0 cuando el mínimo es cero.' },
@@ -51,7 +51,7 @@
       { id: 'nodo', label: 'Nodo GPU nuevo', sub: 'join + device plugin', x: 24, y: 26, w: 16, h: 8, kind: 'gpu',
         note: 'La instancia bootea, el kubelet se une al cluster, el driver ya está en la AMI y el device plugin anuncia <code>nvidia.com/gpu: 1</code>. Recién entonces el scheduler puede poner el pod. ' + est('≈ 2–5 min') + ' desde el Pending, según c01.' },
       { id: 'listo', label: 'Pod listo', sub: 'imagen, engine, readiness', x: 2, y: 26, w: 16, h: 8, kind: 'gpu',
-        note: 'Descarga la imagen de varios GB (' + est('≈ 1–5 min') + '), Triton carga el engine y hace el warmup, y la readiness pasa. Solo entonces el Service le manda tráfico.' },
+        note: 'Descarga la imagen (' + est('≈ 1–2 min') + ' para los ≈ 9 GB del c01), Triton carga el engine y hace el warmup, y la readiness pasa. Solo entonces el Service le manda tráfico.' },
     ],
     edges: [
       { from: 'triton', to: 'prom', kind: 'monitor', label: 'scrape' },
@@ -73,7 +73,7 @@
         { nodes: ['hpa', 'deploy', 'pending'], edges: ['hpa>deploy', 'deploy>pending'], text: 'El Deployment crea el tercer pod. Las dos T4 existentes están ocupadas: el pod queda Pending. Hasta aquí, segundos.' },
         { nodes: ['pending', 'karp', 'ec2'], edges: ['pending>karp', 'karp>ec2'], text: 'Karpenter ve el pod pendiente y pide una instancia con T4 en una zona permitida. Si EC2 no tiene capacidad ahí, prueba otra combinación.' },
         { nodes: ['ec2', 'nodo', 'listo'], edges: ['ec2>nodo', 'nodo>listo'], text: 'El nodo bootea, se une al cluster y el device plugin anuncia la GPU; el pod se agenda, descarga la imagen y carga el engine. Minutos.' },
-        { nodes: ['listo', 'triton'], edges: ['listo>triton'], text: 'La readiness pasa, el Service agrega el endpoint y la cola baja. Entre el primer síntoma y este paso pasaron ' + est('≈ 4–13 min') + '.' },
+        { nodes: ['listo', 'triton'], edges: ['listo>triton'], text: 'La readiness pasa, el Service agrega el endpoint y baja la cola de su zona; la otra zona necesita su propia réplica (el 4.º pod, sección 9). Entre el primer síntoma y este paso pasaron ' + est('≈ 4–10 min') + '.' },
       ] },
       { id: 'reserva', label: 'Con un nodo de reserva', steps: [
         { nodes: ['deploy', 'pending'], edges: ['deploy>pending'], text: 'Mismo arranque: el HPA pide un pod y no hay GPU libre… salvo la que ocupa un pod placeholder de prioridad −10.' },
@@ -131,10 +131,10 @@
         { nodes: ['gwa', 'tra', 'gwb', 'trb'], edges: ['gwa>tra', 'gwb>trb'], text: 'Cada gateway llama al Triton de su zona: los tensores de 602 KB no cruzan de AZ y cada T4 trabaja al ≈ 21 % de su máximo en el pico de diseño.' },
       ] },
       { id: 'cae-triton', label: 'Cae el Triton de 1a', steps: [
-        { nodes: ['tra'], edges: [], text: 'Muere el nodo de la T4 en 1a (hardware, error Xid). Su pod sale de los endpoints: la readiness deja de responder y el nodo pasa a NotReady.' },
+        { nodes: ['tra'], edges: [], text: 'Muere la instancia de la T4 en 1a. Nadie corre probes en un nodo muerto: a los ≈ 50 s sin reportes (<code>node-monitor-grace-period</code>) el nodo pasa a NotReady y su pod a no listo, y recién ahí sale de los endpoints. Mientras tanto, los gateways de 1a le siguen mandando requests que vencen a los 150 ms.' },
         { nodes: ['gwa', 'trb'], edges: ['gwa>trb'], text: 'Sin endpoint listo en su zona, PreferSameZone manda a los gateways de 1a al Triton de 1b. Degrada (transferencia entre zonas, unos ms más), no se cae.' },
         { nodes: ['trb'], edges: [], text: 'La T4 de 1b carga los 500 req/s del pico de diseño al ≈ 42 % de su máximo medido. El PDB no intervino: la muerte de un nodo es una disrupción involuntaria.' },
-        { nodes: ['karp', 'tra'], edges: ['karp>tra'], text: 'El Deployment recrea el pod, queda Pending, y Karpenter lanza otra g4dn en 1a. En minutos vuelve el N+1.' },
+        { nodes: ['karp', 'tra'], edges: ['karp>tra'], text: 'A los 5 min (<code>tolerationSeconds: 300</code>, el default para el taint unreachable) el pod se desaloja; el Deployment crea otro, queda Pending y Karpenter lanza otra g4dn en 1a. El N+1 vuelve tras esos 5 min más el cold start de nodo de la sección 7.' },
       ] },
       { id: 'cae-zona', label: 'Cae la zona 1a entera', steps: [
         { nodes: ['alb', 'gwb'], edges: ['alb>gwb'], text: 'Los health checks de los targets de 1a fallan y el ALB manda todo a 1b.' },
@@ -177,7 +177,8 @@ containers:
       periodSeconds: 5
       timeoutSeconds: 2
       failureThreshold: 2
-    # ¿Está colgado el proceso? "live", nunca "ready": reiniciar no recarga un modelo
+    # ¿Está colgado el proceso? "live", nunca "ready": un modelo que no carga no se arregla
+    # reiniciando en bucle
     livenessProbe:
       httpGet:
         path: /v2/health/live
@@ -290,7 +291,8 @@ spec:
         awsRegion: us-east-1
         # Mensajes por worker (AverageValue): 300 s de espera aceptable / ≈ 20 s por job = 15
         queueLength: "15"
-        # Visibles + en proceso (el default): así no se apaga un worker a mitad de un job
+        # Visibles + en proceso (el default): no baja de 1 a 0 mientras quede un mensaje
+        # en proceso. De N a M sí puede cortar jobs: ver la trampa de abajo
         scaleOnInFlight: "true"`;
 
   const NODEPOOL = `apiVersion: karpenter.sh/v1
@@ -319,9 +321,11 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]  # serving online: nada de spot
+        # Las 2 zonas de c01. Con una 3.ª, el spread podría mandar un Triton a una zona
+        # sin gateways (no le llegaría tráfico) y cambia el análisis de la sección 9
         - key: topology.kubernetes.io/zone
           operator: In
-          values: ["us-east-1a", "us-east-1b", "us-east-1c"]
+          values: ["us-east-1a", "us-east-1b"]
       taints:
         - key: nvidia.com/gpu
           value: present
@@ -379,7 +383,8 @@ spec:
               memory: 64Mi
               nvidia.com/gpu: 1`;
 
-  const KEDA_CRON = `# El ScaledObject de c01 (k8s/keda-triton.yaml) con un segundo trigger: cron
+  const KEDA_CRON = `# El ScaledObject de c01 (k8s/keda-triton.yaml) con un segundo trigger: cron.
+# Todo lo demás queda igual; los comentarios de ese archivo explican cada campo
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -387,14 +392,34 @@ metadata:
   namespace: classifier
 spec:
   scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
     name: triton
   minReplicaCount: 2
   maxReplicaCount: 4
+  pollingInterval: 15
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 600
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 300
   triggers:
     - type: prometheus
       metricType: Value
       metadata:
         serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        ignoreNullValues: "false"  # query vacía = error visible, no un 0 silencioso
         query: |
           sum(rate(nv_inference_queue_duration_us{model="classifier"}[2m]))
             /
@@ -475,7 +500,7 @@ spec:
           { t: 'table', caption: 'Lo que te da un orquestador', head: ['Capacidad', 'Qué hace', 'En c01'], rows: [
             ['Scheduling', 'Elige un nodo con CPU, memoria y GPU libres que cumpla tus reglas (labels, taints, zonas)', 'Triton solo en nodos con T4, una réplica por zona'],
             ['Self-healing', 'Reinicia el contenedor que muere o falla la liveness; recrea el pod en otro nodo si el suyo desaparece', 'Un Triton colgado se reinicia; si muere su nodo, el pod se recrea y el autoscaler de nodos trae otra máquina'],
-            ['Rollouts', 'Cambia de versión de a poco (rolling update) y permite volver (<code>kubectl rollout undo</code>)', 'Versión nueva del modelo = tag nuevo de la imagen de Triton'],
+            ['Rollouts', 'Cambia de versión de a poco (rolling update) y permite volver (<code>kubectl rollout undo</code>, o un <code>git revert</code> si el cluster se maneja con GitOps)', 'Versión nueva del modelo = tag nuevo de la imagen de Triton'],
             ['Service discovery y balanceo', 'Un nombre DNS estable delante de los pods sanos', '<code>triton.classifier.svc.cluster.local:8000</code> en <code>TRITON_URL</code>'],
             ['Autoscaling', 'Réplicas (HPA, KEDA) y nodos (Cluster Autoscaler, Karpenter)', 'Gateway por CPU; Triton por tiempo en cola'],
           ] },
@@ -485,10 +510,23 @@ spec:
             ['Una o dos VMs con Docker Compose', 'Un modelo, tráfico chico o interno, equipo de 1–2 personas, MVP', 'La que tenga la VM', 'Baja al inicio; los parches, reinicios y deploys los haces tú', 'Autoscaling, deploys sin corte y reemplazo automático de máquinas. c01 usa Compose solo en local (<a href="#c01.archivos">archivos</a>)'],
             ['Contenedores gestionados (ECS, Cloud Run, Azure Container Apps)', 'Pocos servicios, sin plataforma de Kubernetes, equipo chico', 'ECS con instancias GPU; Cloud Run y Container Apps con GPU serverless (<a href="#m06.serverless">sección 8</a>)', 'Media o baja', 'Control fino (scheduling, métricas custom, sidecars); más atado al proveedor'],
             ['Endpoints gestionados de modelos (SageMaker, Vertex AI, Azure ML)', 'Equipo de ML sin plataforma, pocos modelos; quieres autoscaling, canary y métricas sin operar nodos', 'Sí: eliges el tipo de instancia', 'Baja', 'Pagas un sobreprecio por instancia frente a la VM equivalente (verifícalo en la página de precios), menos control del runtime y de la red, y los límites del producto'],
+            ['Kubernetes con una capa de serving (KServe, Ray Serve)', 'Ya hay cluster y no quieres escribir tú el autoscaling por requests en vuelo, el canary (KServe) o la composición de modelos en Python (Ray Serve)', 'Sí, sobre los node pools con GPU', 'Media-alta: el cluster más el operador', 'Otra capa que actualizar; menos control fino que tus propios Deployments'],
             ['Kubernetes gestionado (EKS, GKE, AKS)', 'La empresa ya lo opera; muchos servicios y modelos; necesitas control (GPUs compartidas, métricas custom, portabilidad)', 'Sí: node pools con GPU y device plugin', 'Alta: node groups, drivers, autoscaling de dos niveles, upgrades del cluster', 'Nada funcional; lo pagas en complejidad, en gente y en el control plane (EKS: ' + est('≈ US$73/mes') + ')'],
           ] },
           { t: 'callout', kind: 'senior', html: `<p>La pregunta que decide no es técnica: <b>¿quién va a operar esto?</b> c01 eligió EKS asumiendo que la empresa ya tiene un equipo de plataforma (<a href="#c01.tradeoffs">trade-offs de c01</a>). Si el enunciado dice "somos 3 personas y no hay Kubernetes", la respuesta pragmática es un endpoint gestionado, y lo dices así: "empezaría en SageMaker real-time y lo revisaría cuando tengamos varios modelos o el sobreprecio pese en la factura". Montar un cluster para un solo modelo es la respuesta que el entrevistador anota como sobreingeniería.</p>` },
           { t: 'callout', kind: 'skip', html: `<p>etcd, el algoritmo de puntaje del scheduler, kube-proxy en iptables vs IPVS, los plugins de red (CNI) y cómo se elige líder en el control plane: casi nunca aparecen en una ronda de ML System Design. Si te preguntan, di que usas el control plane gestionado del proveedor y vuelve al diseño.</p>` },
+          { t: 'h3', text: 'Qué se pregunta en la entrevista y qué no' },
+          { t: 'p', html: `En una ronda de ML System Design, Kubernetes aparece cuando el entrevistador tira del hilo del escalado o de la disponibilidad. Casi todo lo que anota cabe en tres preguntas: con qué señal escalas, cuánto tarda y qué pasa si cae una zona.` },
+          { t: 'table', head: ['Tema', '¿Lo preguntan?', 'Qué esperan oír'], rows: [
+            ['Por qué no escalas la GPU por CPU y qué señal usas', 'Sí, casi siempre', 'La señal del recurso que se satura primero: tiempo en cola o requests en espera en el model server (<a href="#m06.hpa">sección 4</a>)'],
+            ['Cuánto tarda en escalar y cómo aguantas un spike', 'Sí', 'Minutos entre nodo, imagen y modelo; headroom y load shedding para los spikes, escalado programado para los picos conocidos (<a href="#m06.cold-starts">sección 7</a>)'],
+            ['N+1 por zona y qué pasa si cae una', 'Sí', 'Una réplica por zona, cuánta carga queda en la que sobrevive y qué no cubre el PDB (<a href="#m06.alta-disponibilidad">sección 9</a>)'],
+            ['Kubernetes vs endpoint gestionado vs VM', 'A veces', 'Lo decide quién lo va a operar (esta sección)'],
+            ['Escalar a cero y serverless con GPU', 'A veces', 'El SLO del primer request y cuántas horas al día trabaja la GPU (<a href="#m06.keda">sección 5</a> y <a href="#m06.serverless">sección 8</a>)'],
+            ['Device plugin, taints, requests/limits, QoS y probes', 'Como follow-up', 'Qué resuelve cada uno y qué se rompe si falta (<a href="#m06.objetos-basicos">sección 2</a> y <a href="#m06.gpus-k8s">sección 3</a>)'],
+            ['Defaults y flags del HPA, qué trae cada AMI, la lista de triggers de KEDA, internals de Cluster Autoscaler y Karpenter', 'No', 'Nada: son consulta (las tablas de este módulo y la <a href="#ref-comandos">hoja de comandos</a>)'],
+          ] },
+          { t: 'callout', kind: 'skip', html: `<p>Si tienes poco tiempo: secciones 1, 4, 7 y 9, y la autoevaluación. El resto sirve para los follow-ups y para operar el <a href="#c01.archivos">c01</a>.</p>` },
           { t: 'callout', kind: 'interview', html: `<p>"We already run EKS, so the gateway and Triton go there: Kubernetes gives us scheduling onto the GPU nodes, self-healing, rolling updates and autoscaling. If the team had no platform, I'd start with a managed endpoint like SageMaker and revisit once we have several models."</p>` },
           { t: 'callout', kind: 'connect', html: `<p>Kubernetes mueve imágenes: cómo se construyen y por qué pesan varios GB está en <a href="#m05">M5</a>. Gestionado vs autogestionado en cada nube, en <a href="#m13">M13</a>. Los manifests reales del caso 1, comentados línea por línea, en <a href="#c01.archivos">sus archivos de referencia</a>.</p>` },
         ],
@@ -582,6 +620,7 @@ spec:
             ['NVIDIA GPU Operator', 'Instala y gestiona driver (como contenedor), toolkit, device plugin, GPU Feature Discovery, DCGM exporter y MIG manager', 'Si la AMI ya trae driver y toolkit, desactivas esas partes', 'On-prem, varias nubes o un solo stack gestionado'],
             ['GKE', 'Puede instalar el driver al crear el node pool, pone el taint en los nodos GPU y agrega la toleration a los pods que piden GPU', '—', 'GKE Standard o Autopilot'],
           ] },
+          { t: 'callout', kind: 'skip', html: `<p>Qué AMI trae qué componente es consulta, no algo que memorizar. En la entrevista basta con: el driver lo pone la imagen del nodo o el GPU Operator, y el device plugin anuncia la GPU al scheduler.</p>` },
           { t: 'callout', kind: 'note', title: 'DCGM exporter', html: `<p>Expone a Prometheus la utilización, la memoria usada, la temperatura, la potencia y los errores Xid de cada GPU. Lo necesitas para dashboards, para capacity planning y para drenar un nodo cuya GPU empieza a fallar. No lo uses como señal principal de autoscaling: la <a href="#m06.hpa">sección 4</a> explica por qué.</p>` },
           { t: 'h3', text: 'Node pools, labels, taints y tolerations' },
           { t: 'p', html: `Una g4dn.xlarge cuesta ${est('≈ US$0.526/h')} y tiene 4 vCPU. Si el scheduler pone ahí 3 pods de gateway porque "hay CPU libre", Triton (que pide 2 CPU) ya no cabe, y el autoscaler lanza otra máquina con GPU para correr… CPU. La regla: los nodos GPU son solo para pods que usan GPU. Se logra con dos mecanismos que empujan en direcciones opuestas:` },
@@ -595,7 +634,7 @@ spec:
           { t: 'h3', text: 'Cuando el pod se queda en Pending' },
           { t: 'table', head: ['Lo que ves en los eventos del pod (algo como)', 'Causa', 'Qué haces'], rows: [
             ['<code>0/6 nodes are available: 2 Insufficient nvidia.com/gpu, 4 node(s) didn\'t match Pod\'s node affinity/selector</code>', 'Las T4 existentes están ocupadas', 'Esperar al autoscaler de nodos (minutos) o revisar por qué no agrega: máximo del pool, cuota, capacidad'],
-            ['<code>… node(s) had untolerated taint {nvidia.com/gpu: present}</code>', 'El pod no tolera el taint de los nodos GPU', 'Agregar la toleration'],
+            ['<code>… node(s) had untolerated taint(s)</code>', 'El pod no tolera el taint de los nodos GPU', 'Agregar la toleration. Desde Kubernetes 1.34 el evento no dice cuál es el taint (hasta 1.33 lo nombraba): míralo en el nodo (<code>kubectl describe node NODO</code>, bloque Taints)'],
             ['El nodo existe pero su capacidad no muestra <code>nvidia.com/gpu</code>', 'El device plugin no corre o el driver falló', 'Revisar el DaemonSet del plugin y sus logs'],
             ['Pending mientras el autoscaler reporta falta de capacidad', 'EC2 no tiene ese tipo en esa zona (InsufficientInstanceCapacity) o se agotó la cuota', 'Más tipos y zonas permitidas (<a href="#m06.nodos">sección 6</a>)'],
           ], note: 'Los comandos para diagnosticarlo están en <a href="#ref-comandos.depurar">la hoja de comandos</a>.' },
@@ -631,6 +670,7 @@ spec:
             ['Bajada', 'Ventana de 300 s; hasta −100 % cada 15 s', 'Usa la recomendación más alta de los últimos 5 min: baja despacio y no oscila'],
             ['Pods arrancando', 'Ignora la CPU de pods no listos (<code>cpu-initialization-period</code> 5 min, <code>initial-readiness-delay</code> 30 s)', 'El pico de CPU del arranque no dispara más escalado'],
           ], note: 'Todo se ajusta por HPA en <code>behavior</code>. c01: el gateway sube hasta +100 % cada 30 s y baja 1 pod por minuto tras 300 s; Triton sube 1 pod por minuto y baja 1 cada 5 min tras 600 s. Desde Kubernetes 1.37 (agosto de 2026) el HPA nativo también puede bajar a cero con métricas object o external (beta, activado por defecto); los clusters gestionados suelen ir una o dos versiones atrás.' },
+          { t: 'callout', kind: 'skip', html: `<p>Esta tabla es consulta: no memorices flags ni defaults. En la entrevista basta con la fórmula y con que el HPA sube rápido y baja despacio, con una ventana de estabilización para no oscilar.</p>` },
           { t: 'h3', text: 'El argumento central, con números' },
           { t: 'p', html: `Un pod de Triton de c01 pide 2 CPU. Usa CPU para recibir los requests por HTTP, deserializar los tensores y armar los batches: trabajo proporcional a los requests que <b>completa</b>. Supón ${est('≈ 0.5 cores por cada 1,000 img/s')} (es un supuesto: se mide con <code>kubectl top</code> y cambia con el protocolo). La GPU llega a su codo en ≈ 1,200 img/s (<a href="#m03.load-testing">M3</a>). Ahora sube la carga sobre ese pod:` },
           { t: 'table', caption: 'Un pod de Triton (una T4) bajo carga creciente. Números ILUSTRATIVOS, con la forma que vas a ver', head: ['Carga ofrecida', 'Throughput real', 'CPU del pod (% del request)', 'Espera en la cola de Triton', 'Qué pasa', '¿HPA por CPU al 60 % escala?'], rows: [
@@ -647,10 +687,10 @@ spec:
           { t: 'table', caption: 'Señales para escalar un servicio de GPU', head: ['Señal', 'Qué mide', 'Cómo entra al HPA', 'A favor', 'En contra'], rows: [
             ['Tiempo en cola (c01)', 'Cuánto esperan los requests antes de la GPU', 'Valor absoluto (<code>Value</code>): réplicas proporcionales a espera / objetivo', 'Es el síntoma que sienten el usuario y el SLO', 'No lineal: casi 0 hasta saturar y después salta (c01 lo compensa bajando despacio)'],
             ['Requests en espera o en vuelo por réplica', '<code>nv_inference_pending_request_count</code>, o los requests en vuelo del gateway', 'Promedio por pod (<code>AverageValue</code>)', 'Proporcional a la carga; reacciona rápido', 'El objetivo sale de Little (<a href="#m03.little">M3</a>), y hay que recalcularlo si cambia el modelo'],
-            ['QPS por réplica', 'Throughput que llega', '<code>AverageValue</code> = capacidad planeada por GPU (c01 sugiere ≈ 400 img/s como alternativa)', 'Estable, lineal, fácil de explicar', 'No ve cambios en el costo por request (fotos más grandes, un modelo más lento): se recalibra con cada load test'],
+            ['QPS por réplica', 'Throughput que llega', '<code>AverageValue</code> por debajo de la capacidad planeada por GPU, para que la réplica nueva llegue antes de pasarla: c01 sugiere ≈ 400 img/s por réplica contra sus 600 planeados (≈ 2/3)', 'Estable, lineal, fácil de explicar', 'No ve cambios en el costo por request (fotos más grandes, un modelo más lento): se recalibra con cada load test'],
             ['Utilización de GPU', 'Tiempo ocupado', 'Porcentaje', 'Viene gratis con DCGM', 'Engañosa (arriba)'],
             ['CPU del pod de GPU', 'Trabajo de CPU del pod', 'Recurso nativo', 'Viene de fábrica', 'Se congela cuando la GPU se satura'],
-          ], note: 'En LLMs, las señales equivalentes son los requests esperando en el motor de inferencia y el uso del KV cache (<a href="#m14">M14</a>).' },
+          ], note: 'Las plataformas de serving usan estas mismas filas. KServe en modo Knative escala con el autoscaler de Knative (KPA) por concurrencia (requests en vuelo por pod: <code>scaleMetric</code> y <code>scaleTarget</code>) y puede bajar a cero con el activator reteniendo los requests; en modo Standard usa HPA o KEDA. Ray Serve escala por <code>target_ongoing_requests</code> por réplica. SageMaker hace target tracking sobre invocaciones por instancia por minuto o, con métricas cada 10 s, sobre requests concurrentes por modelo. Servidores y protocolos: <a href="#m07">M7</a>. En LLMs, las señales equivalentes son los requests esperando en el motor de inferencia y el uso del KV cache (<a href="#m14">M14</a>).' },
           { t: 'h3', text: 'Cómo llega una métrica custom al HPA' },
           { t: 'p', html: `El HPA no habla con Prometheus. Lee tres APIs del cluster: <code>metrics.k8s.io</code> (CPU y memoria, las publica Metrics Server), <code>custom.metrics.k8s.io</code> (métricas de objetos del cluster, como pods) y <code>external.metrics.k8s.io</code> (cosas de afuera: una cola, una query). Alguien tiene que publicarlas: <b>Prometheus Adapter</b> traduce queries de Prometheus a métricas custom; <b>KEDA</b> publica métricas external. Solo puede haber un servidor de métricas external por cluster, así que KEDA no convive con otro adaptador que también las publique.` },
           { t: 'code', title: 'HPA con una métrica custom por pod', caption: 'Validado con kubernetes-validate --strict. Supone una regla de Prometheus Adapter que publica <code>triton_pending_requests</code>. c01 hace lo equivalente con KEDA (siguiente sección): no pongas dos autoscalers sobre el mismo Deployment, pelearían por el número de réplicas.', files: [
@@ -677,7 +717,7 @@ spec:
           ], note: 'Si <code>minReplicaCount</code> es 1 o más, la activación no aplica y el HPA maneja todo. <code>minReplicaCount</code> vale 0 por defecto y <code>maxReplicaCount</code>, 100.' },
           { t: 'table', caption: 'ScaledObject vs ScaledJob', head: ['', 'ScaledObject', 'ScaledJob'], rows: [
             ['Qué escala', 'Réplicas de un Deployment (procesos de larga vida)', 'Crea Jobs según los mensajes pendientes'],
-            ['Al bajar', 'El HPA elige qué pod terminar: puede ser uno a mitad de un mensaje', 'No mata trabajo: cada Job termina lo suyo'],
+            ['Al bajar', 'El HPA baja las réplicas y el ReplicaSet elige qué pods borrar sin mirar qué hacen: puede ser uno a mitad de un mensaje', 'No mata trabajo: cada Job termina lo suyo'],
             ['Modelo en memoria', 'Se carga una vez y atiende muchos mensajes', 'Cada Job lo carga de nuevo: un cold start por job'],
             ['Bueno para', 'Serving online y consumidores de mensajes cortos', 'Jobs largos: un video de 10 min, un PDF de 200 páginas, un entrenamiento'],
           ] },
@@ -694,6 +734,7 @@ spec:
             { label: 'La GPU se satura', expr: 'ceil(2 × 25 / 10)', value: '5 → 4', note: 'maxReplicaCount: techo de costo' },
             { label: 'Velocidad', expr: 'behavior: +1 pod cada 60 s', value: '3 al primer minuto, 4 al segundo', note: 'más lo que tarde cada nodo nuevo' },
           ], result: 'Con <code>Value</code> la respuesta es proporcional a la espera, como corresponde a un tiempo. Con <code>AverageValue</code> el HPA dividiría la métrica entre las réplicas, lo que tiene sentido para un caudal (req/s), no para una latencia. El archivo completo, comentado, está en <a href="#c01.archivos">c01</a>.' },
+          { t: 'callout', kind: 'trap', title: 'Escalaste y el pod nuevo no recibe tráfico', html: `<p>Que KEDA cree la réplica no significa que la carga se reparta. El Service balancea conexiones (L4), no requests: con gRPC (una conexión HTTP/2 larga) o con un pool keep-alive que no rota, las conexiones existentes siguen pegadas a los pods viejos, el pod nuevo queda casi ocioso y la cola sigue alta. Las salidas (headless service con balanceo en el cliente, un mesh L7 o una vida máxima de conexión) están en <a href="#c01.serving">c01 · serving</a>. Y con ruteo por zona hay un segundo motivo, que ves en la <a href="#m06.alta-disponibilidad">sección 9</a>.</p>` },
           { t: 'h3', text: 'Workers GPU que leen de una cola' },
           { t: 'p', html: `El patrón asíncrono de <a href="#m02.asincrona-colas">M2</a>: aceptas 300 s de espera en cola y cada worker tarda ${est('≈ 20 s')} por job, así que cada worker puede tener 15 mensajes delante: <code>queueLength: 15</code>. SQS reporta 120 mensajes (visibles + en proceso):` },
           { t: 'calc', title: 'Cuántos workers pide KEDA (AverageValue)', rows: [
@@ -705,7 +746,7 @@ spec:
           { t: 'code', title: 'ScaledObject para workers GPU sobre SQS', caption: 'Validado contra el esquema de los CRDs de KEDA 2.21.0 (campos desconocidos = error).', files: [
             { name: 'keda-ocr-workers.yaml', lang: 'yaml', code: KEDA_SQS },
           ] },
-          { t: 'callout', kind: 'trap', title: 'Un worker apagado a mitad de un job', html: `<p>Con un ScaledObject, cuando el backlog baja, el HPA termina pods sin mirar qué están haciendo. Un worker que recibe SIGTERM a los 15 s de un video de 10 min pierde su trabajo, el mensaje vuelve a ser visible cuando vence el visibility timeout y otro worker empieza de cero. Tres defensas: un <code>terminationGracePeriodSeconds</code> mayor que el job más largo y un worker que, al recibir SIGTERM, termina el mensaje actual y no toma otro; ScaledJob para los jobs largos; y jobs idempotentes, porque el reprocesamiento va a pasar igual (<a href="#m02.entrega-reintentos">M2</a>).</p>` },
+          { t: 'callout', kind: 'trap', title: 'Un worker apagado a mitad de un job', html: `<p>Con un ScaledObject, cuando el backlog baja, el HPA reduce las réplicas y el ReplicaSet borra pods sin mirar qué están haciendo. Contar los mensajes en proceso no lo evita: 8 workers con un mensaje cada uno y la cola visible vacía dan 8 mensajes, ceil(8 / 15) = 1 réplica, y a los 5 min de ventana hasta 7 workers reciben SIGTERM a mitad de su job. Un worker que recibe SIGTERM a los 15 s de un video de 10 min pierde su trabajo, el mensaje vuelve a ser visible cuando vence el visibility timeout y otro worker empieza de cero. Tres defensas: un <code>terminationGracePeriodSeconds</code> mayor que el job más largo y un worker que, al recibir SIGTERM, termina el mensaje actual y no toma otro; ScaledJob para los jobs largos; y jobs idempotentes, porque el reprocesamiento va a pasar igual (<a href="#m02.entrega-reintentos">M2</a>).</p>` },
           { t: 'h3', text: 'Escalar a cero: el precio' },
           { t: 'p', html: `A cero no pagas GPU mientras nadie la usa. El primer request después de cero paga el cold start completo: nodo nuevo, imagen de varios GB y carga del modelo, ${est('varios minutos')} (<a href="#m06.cold-starts">sección 7</a>). AWS lo dice así en la documentación de los endpoints de SageMaker que bajan a cero: mientras vuelve a aprovisionar una instancia, que tarda minutos, las invocaciones fallan.` },
           { t: 'table', head: ['Carga', '¿A cero?', 'Por qué'], rows: [
@@ -741,7 +782,7 @@ spec:
           { t: 'p', html: `Las GPUs son el recurso que más falta en la nube. EC2 puede responder <code>InsufficientInstanceCapacity</code> para un tipo en una zona, y tu cuenta tiene una cuota de vCPUs por familia (instancias G y VT) que en cuentas nuevas suele arrancar baja. Un autoscaler configurado hasta 20 réplicas no te da 20 GPUs. Qué haces en el diseño:` },
           { t: 'list', items: [
             `<b>Varios tamaños de la misma GPU.</b> El engine de c01 está compilado para la T4 (sm_75): puedes permitir g4dn.xlarge y g4dn.2xlarge, pero no una L4 sin otro engine (<a href="#m08">M8</a>). La diversificación está limitada por el artefacto del modelo.`,
-            `<b>Varias zonas.</b> Subredes en 3 AZs y el spread por zona de la <a href="#m06.alta-disponibilidad">sección 9</a>.`,
+            `<b>Varias zonas.</b> Cada zona es otra reserva de capacidad. c01 permite sus 2 zonas; sumar una 3.ª al pool de GPU solo sirve si también llevas gateways ahí, porque con ruteo por zona un Triton sin gateways en su zona no recibe tráfico (<a href="#m06.alta-disponibilidad">sección 9</a>).`,
             `<b>Cuota pedida antes.</b> Para el máximo del autoscaler más el surge de un deploy más la reserva, no para el mínimo.`,
             `<b>Capacidad reservada para lo crítico.</b> Una reserva de capacidad on-demand garantiza instancias en una zona y se paga se use o no. Un Savings Plan es un descuento, no una reserva: no te asegura que haya GPUs.`,
             `<b>Alertas.</b> Pods Pending por más de unos minutos y un autoscaler en su máximo son alertas, no curiosidades.`,
@@ -754,7 +795,7 @@ spec:
           ] },
           { t: 'h3', text: 'Spot solo para lo que tolera interrupciones' },
           { t: 'p', html: `Las instancias spot con GPU salen bastante más baratas (el descuento varía por tipo, zona y momento: verifícalo), a cambio de que AWS puede recuperarlas con 2 minutos de aviso. Karpenter escucha esos avisos (con una cola de interrupciones configurada), drena el nodo y lanza el reemplazo en paralelo. Encaja en lo que puede repetirse: backfills, scoring batch, workers asíncronos con jobs idempotentes y entrenamiento con checkpoints. No encaja en el mínimo de un tier online como el de c01: esas réplicas van on-demand. El patrón común: base on-demand para el serving, spot para todo lo batch (<a href="#m02.batch">M2</a>, <a href="#m13">M13</a>).` },
-          { t: 'callout', kind: 'interview', html: `<p>"Pods can't scale past the nodes we have, so there are two loops: KEDA adds Triton replicas in seconds, and Karpenter adds T4 nodes in minutes. GPU capacity can run out in a zone, so the node pool allows more than one T4 size across three zones, and we raise the vCPU quota ahead of time."</p>` },
+          { t: 'callout', kind: 'interview', html: `<p>"Pods can't scale past the nodes we have, so there are two loops: KEDA adds Triton replicas in seconds, and Karpenter adds T4 nodes in minutes. GPU capacity can run out in a zone, so the node pool allows more than one T4 size in each of our two zones, and we raise the vCPU quota ahead of time."</p>` },
         ],
       },
 
@@ -768,19 +809,19 @@ spec:
         blocks: [
           { t: 'p', html: `En <a href="#m03.trafico">M3</a> quedó escrito que el autoscaler no absorbe un spike. Aquí está el porqué, tramo por tramo. Un scale-out de Triton cuando no hay un nodo GPU libre:` },
           { t: 'calc', title: 'Del primer síntoma al primer request servido (c01, sin nodo libre)', rows: [
-            { label: '1. Detectar', expr: 'scrape (15–30 s) + la ventana de 2 min de la query + KEDA y HPA (15 s)', value: est('≈ 0.5–1.5 min') },
+            { label: '1. Detectar', expr: 'scrape (15 s en c01) + lo que tarda el promedio de 2 min en cruzar 10 ms (si la espera salta de 2 a 25 ms: (10 − 2) / (25 − 2) × 120 s ≈ 42 s) + sync del HPA (15 s)', value: est('≈ 0.5–1.5 min'), note: '15 + 42 + 15 ≈ 72 s; menos si el salto es mayor, más si la saturación llega de a poco' },
             { label: '2. Decidir y crear el pod', expr: 'HPA sin ventana de subida; queda Pending', value: 'segundos' },
             { label: '3. Nodo GPU nuevo', expr: 'lanzar la instancia, bootear, unirse al cluster, driver y device plugin listos', value: est('≈ 2–5 min'), note: 'más si el driver se instala al arrancar' },
-            { label: '4. Descargar la imagen', expr: 'varios GB desde el registry (<a href="#m05.tamano">M5</a>)', value: est('≈ 1–5 min') },
+            { label: '4. Descargar la imagen', expr: '≈ 9.2 GB ÷ ≈ 0.08–0.15 GB/s efectivos (<a href="#m05.tamano">M5</a>)', value: est('≈ 1–2 min'), note: 'más con el registry en otra región, una imagen más grande o si el kubelet baja las imágenes de a una (<code>serializeImagePulls: true</code>, su default) y en el nodo nuevo van primero las de los DaemonSets; ≈ 0 si viene precargada en la AMI' },
             { label: '5. Arrancar Triton, cargar el engine y warmup', expr: 'ResNet-50 FP16: MB de pesos', value: est('≈ 10–60 s'), note: 'minutos con pesos de decenas de GB (<a href="#m04.vram">M4</a>)' },
             { label: '6. Readiness y endpoints', expr: 'probe cada 5 s + propagación al Service', value: est('≈ 5–15 s') },
-            { label: 'Total', expr: 'suma de los rangos', value: est('≈ 4–13 min') },
+            { label: 'Total', expr: 'mínimos: 0.5 + 2 + 1 + 0.2 + 0.1 ≈ 3.8 min · máximos: 1.5 + 5 + 2 + 1 + 0.25 ≈ 9.8 min', value: est('≈ 4–10 min') },
           ], result: 'Varios minutos, con mucha varianza. Tus números salen de los eventos del cluster: la hora del cambio de réplicas del HPA, la del pod Pending, el nodo Ready, los eventos Pulling/Pulled de la imagen y la primera readiness exitosa (<a href="#ref-comandos.autoscaling-cmds">comandos</a>).' },
           { t: 'callout', kind: 'why', title: 'La consecuencia de diseño', html: `<p>El autoscaling reacciona en minutos y tus spikes duran segundos. La push notification de <a href="#m03.trafico">M3</a> (≈ 1,670 req/s durante un minuto) termina antes de que exista el primer nodo nuevo; la aguantan las dos T4 que ya estaban, al ≈ 70 % de su máximo medido. Por eso el orden es: headroom para los spikes (<a href="#m03.colas-utilizacion">M3</a>), autoscaling para la curva del día, escalado programado para los picos que conoces y load shedding con fallback para lo que no (<a href="#m03.timeouts-reintentos">M3</a>).</p>` },
           { t: 'table', caption: 'Qué acorta cada tramo', head: ['Tramo', 'Palanca', 'Qué ganas', 'Precio'], rows: [
-            ['Detección', 'Scrape y ventanas más cortas; una señal que reacciona antes (requests en espera en vez de un promedio de 2 min)', 'Del orden de un minuto', 'Más ruido: más riesgo de oscilar'],
+            ['Detección', 'Scrape y ventanas más cortas; una señal que reacciona antes (requests en espera en vez de un promedio de 2 min)', 'Decenas de segundos', 'Más ruido: más riesgo de oscilar'],
             ['Nodo', 'Nodo de reserva (<a href="#m06.nodos">sección 6</a>); réplicas mínimas', 'Los 2–5 min completos', 'Un nodo pagado siempre'],
-            ['Imagen', 'Precargarla en la AMI del nodo o con un DaemonSet; una imagen más chica; carga perezosa de capas (<a href="#m05.tamano">M5</a>)', 'Hasta varios minutos', 'Un pipeline de AMIs que mantener y reconstruir en cada versión'],
+            ['Imagen', 'Precargarla en la AMI del nodo o con un DaemonSet; una imagen más chica; carga perezosa de capas (<a href="#m05.tamano">M5</a>)', 'El pull entero: ≈ 1–2 min en c01', 'Un pipeline de AMIs que mantener y reconstruir en cada versión'],
             ['Modelo', 'Pesos en la imagen o en disco local; un formato que carga rápido; el engine ya compilado, nunca compilado al arrancar (<a href="#m05.pesos-modelo">M5</a>)', 'De segundos a minutos', 'Imágenes más grandes: choca con el tramo anterior'],
             ['Todos', 'Escalado programado antes del pico conocido', 'Todo: la capacidad ya está cuando llega el tráfico', 'Pagas horas de más'],
           ] },
@@ -791,7 +832,7 @@ spec:
             { title: 'Evento conocido', meta: 'días antes', html: `<p>Para un Hot Sale: subir los mínimos el día anterior, confirmar cuota y capacidad en ambas zonas, subir los máximos de los autoscalers (los de c01 están pensados para su tráfico normal), precargar imágenes y correr un load test con la carga esperada.</p>` },
             { title: 'Lo que no conoces', meta: 'siempre', html: `<p>Load shedding (503 rápido) y el fallback del caller (el selector manual de categorías). Es la respuesta para todo lo que llega más rápido que un nodo.</p>` },
           ] },
-          { t: 'code', title: 'Escalado programado sobre el ScaledObject de c01', caption: 'Validado contra el esquema de los CRDs de KEDA 2.21.0. El trigger de Prometheus es el mismo de <code>k8s/keda-triton.yaml</code>; los comentarios de ese archivo explican la query.', files: [
+          { t: 'code', title: 'Escalado programado sobre el ScaledObject de c01', caption: 'Validado contra el esquema de los CRDs de KEDA 2.21.0. Es <code>k8s/keda-triton.yaml</code>, sin sus comentarios, más el trigger cron.', files: [
             { name: 'keda-triton-cron.yaml', lang: 'yaml', code: KEDA_CRON },
           ] },
           { t: 'callout', kind: 'trap', title: '"Tenemos autoscaling hasta 20, así que aguantamos cualquier pico"', html: `<p><code>maxReplicaCount</code> es un techo, no una capacidad. Cada réplica nueva necesita un nodo que tarda minutos, una cuota que alcance y capacidad en la zona. Un plan de capacidad dice qué hay encendido cuando llega el pico, no hasta dónde podría crecer.</p>` },
@@ -859,8 +900,9 @@ spec:
         blocks: [
           { t: 'p', html: `99.9 % son ≈ 43 min al mes. La pregunta de diseño es qué dominio de falla aguantas sin gastar ese presupuesto:` },
           { t: 'table', head: ['Falla', 'Frecuencia', 'Qué te protege', 'En c01'], rows: [
-            ['Un pod (crash, OOM)', 'Común', 'El Deployment lo recrea; la readiness lo saca del Service', 'Réplicas ≥ 2 en cada tier'],
-            ['Un nodo (hardware, error Xid de la GPU)', 'Ocasional', 'N+1: otra réplica en otro nodo; el autoscaler repone la máquina', 'Dos Triton en dos nodos'],
+            ['Un pod (crash, OOM)', 'Común', 'El kubelet reinicia el contenedor en el mismo pod (<code>restartPolicy: Always</code>); la readiness lo saca del Service mientras vuelve', 'Réplicas ≥ 2 en cada tier'],
+            ['Un nodo (la instancia muere o queda NotReady)', 'Ocasional', 'N+1: otra réplica en otro nodo. A los 5 min el pod se desaloja, se recrea y el autoscaler trae otra máquina (flujo "Cae el Triton de 1a", abajo)', 'Dos Triton en dos nodos'],
+            ['Una GPU con errores Xid (el nodo sigue Ready)', 'Ocasional', 'Nada automático por defecto: el device plugin marca la GPU como no sana (no entran pods nuevos), pero el contenedor se reinicia sobre la misma GPU rota y el pod queda en CrashLoopBackOff o no listo. Hace falta una alerta sobre <code>DCGM_FI_DEV_XID_ERRORS</code> que haga cordon + drain, o la reparación automática de nodos si la activaste', 'DCGM exporter y esa alerta'],
             ['Una zona (AZ)', 'Rara, pero pasa', 'Réplicas repartidas por zona; un balanceador con presencia en todas', 'Gateway y Triton en 2 AZs'],
             ['Una región', 'Muy rara', 'Multi-región, activo-pasivo o activo-activo', 'No: el fallback manual cubre, y duplicar todo no se justifica para una sugerencia (<a href="#m15">M15</a>)'],
             ['Mantenimiento: drain, upgrade del cluster, consolidación', 'Frecuente y planeado', 'PodDisruptionBudget', '<code>minAvailable: 1</code>'],
@@ -896,6 +938,7 @@ spec:
           ] },
           { t: 'h3', text: 'Ruteo por zona y el costo de cruzar' },
           { t: 'p', html: `Cada request manda un tensor de 602 KB del gateway a Triton. Si el Service repartiera al azar entre zonas, la mitad cruzaría de AZ: ≈ 90 TB al mes a ${est('US$0.02/GB')} (US$0.01 en cada sentido), ${est('≈ US$1,800/mes')}, más que las dos GPUs (<a href="#c01.estimaciones">estimaciones de c01</a>). <code>trafficDistribution: PreferSameZone</code> hace que cada gateway prefiera el Triton de su zona (Kubernetes ≥ 1.34, estable en 1.35; antes existía como <code>PreferClose</code>). Si en su zona no hay un Triton listo, el tráfico va a la otra: degrada, no se cae. Funciona solo si los gateways también están repartidos parejo entre zonas.` },
+          { t: 'callout', kind: 'trap', title: 'El tercer Triton solo alivia una zona', html: `<p>Con ruteo por zona, la capacidad se agrega por zona. KEDA sube de 2 a 3 réplicas y el spread pone la tercera en una de las dos zonas, digamos 1a: con los gateways parejos, la T4 de 1b sigue recibiendo el 50 % del tráfico, así que el tercer pod baja la carga de 1a y no cambia nada en 1b. Mientras 1b siga saturada, el promedio que lee KEDA sigue arriba del objetivo y termina pidiendo el 4.º pod, que el spread manda a 1b, pero eso es otro cold start de GPU. La salida limpia, que la misma documentación de Kubernetes sugiere para este caso, es un Deployment y un ScaledObject por zona, cada uno escalado por la cola de su zona.</p>` },
           { t: 'diagram', id: 'ha-dos-zonas', title: 'c01 en dos zonas: qué pasa cuando falla una pieza', caption: 'Azul: el camino del request. Punteado: el desvío entre zonas, que solo se usa si una zona se queda sin Triton. Recorre los tres flujos.', spec: ZONAS },
           { t: 'callout', kind: 'interview', html: `<p>"Each tier runs at least one replica per zone, with a topology spread constraint. If a zone goes down, the remaining T4 carries the whole design peak at about 42% of its measured max, and the gateways in the healthy zone scale up on CPU. The PDB only protects us from voluntary disruptions like node drains; node or zone failures are what the N+1 is for."</p>` },
           { t: 'followups', items: [
@@ -917,7 +960,7 @@ spec:
               why: 'Conecta la estrategia de rollout con la escasez de GPUs y revisa cada eslabón (scheduler, autoscaler, nube, cuota) antes de tocar nada.' },
             { q: 'Marketing anuncia un Hot Sale: 5× el pico diario durante 2 horas. ¿Qué haces?',
               junior: 'Nada: tenemos autoscaling.',
-              senior: 'No le dejo un evento conocido al autoscaler. 5 × 350 = 1,750 req/s: ceil(1,750 / 600) = 3 T4 por throughput, más 1 de N+1 = 4, justo el máximo actual de KEDA, que subo para tener margen; si además quiero aguantar la caída de una zona en pleno evento, necesito 3 por zona: 6. El gateway necesita ≈ 10.5 cores (1,750 × 6 ms), ≈ 18 pods al 60 %, más que el máximo de 12 de su HPA; también lo subo. La red entre tiers pasa a ≈ 8 Gb/s en FP32 (<a href="#m03.trafico">M3</a>): reviso nodos de gateway más grandes. El día anterior subo los mínimos, confirmo cuota y capacidad en ambas zonas, precargo imágenes y corro un load test a esa tasa. Lo que exceda eso lo cubren el load shedding y el fallback.',
+              senior: 'No le dejo un evento conocido al autoscaler. 5 × 350 = 1,750 req/s: ceil(1,750 / 600) = 3 T4 por throughput, más 1 de N+1 = 4, justo el máximo actual de KEDA, que subo para tener margen; si además quiero aguantar la caída de una zona en pleno evento, necesito 3 por zona: 6. Eso choca con el límite del NodePool de T4 (<code>nvidia.com/gpu: 6</code>, que ya contaba surge y reserva): lo subo a 8 (6 réplicas + 1 de surge + 1 de reserva) y pido cuota para 8 × 4 = 32 vCPU de instancias G. El gateway necesita ≈ 10.5 cores (1,750 × 6 ms), ≈ 18 pods al 60 %, más que el máximo de 12 de su HPA; también lo subo. La red entre tiers pasa a ≈ 8 Gb/s en FP32 (<a href="#m03.trafico">M3</a>): reviso nodos de gateway más grandes. El día anterior subo los mínimos, confirmo cuota y capacidad en ambas zonas, precargo imágenes y corro un load test a esa tasa. Lo que exceda eso lo cubren el load shedding y el fallback.',
               why: 'Convierte el evento en números por tier, encuentra los techos de su propia configuración y prepara la capacidad antes, en vez de confiar en un autoscaler que tarda minutos.' },
           ] },
         ],
@@ -962,6 +1005,7 @@ spec:
             { id: 'utilizacion', html: 'Explico por qué la utilización de nvidia-smi no mide capacidad ni cola.' },
             { id: 'cero', html: 'Decido si un tier puede bajar a cero según el SLO de su primer request, y escribo minReplicaCount explícito.' },
             { id: 'nodos', html: 'Recuerdo que los pods no escalan más allá de los nodos: tipos y zonas alternativos, cuota pedida, alertas de pods Pending.' },
+            { id: 'reparto', html: 'Compruebo que la réplica nueva recibe tráfico: con ruteo por zona la capacidad se agrega por zona, y las conexiones gRPC o keep-alive tienen que rebalancearse.' },
             { id: 'cold-start', html: 'Desgloso el cold start de un nodo GPU (detección, nodo, imagen, modelo, readiness) y digo qué palanca acorta cada tramo.' },
             { id: 'programado', html: 'Para los picos conocidos escalo antes (cron, mínimos más altos) y dejo el load shedding para lo desconocido.' },
             { id: 'ha', html: 'Hago la cuenta del N+1 por zona, sé qué protege un PDB y qué no, y dimensiono el apagado ordenado (preStop + drenado ≤ grace period).' },
@@ -992,8 +1036,8 @@ spec:
         a: 'Driver de NVIDIA en el nodo (AMI o GPU Operator), NVIDIA Container Toolkit en el runtime, el device plugin anunciando nvidia.com/gpu, y el pod pidiendo nvidia.com/gpu en limits. La AMI acelerada de EKS (AL2023) trae driver y toolkit, no el device plugin.' },
       { id: 'm06-10', kind: 'concepto', q: 'nodeSelector y taint en los nodos GPU: ¿por qué los dos?',
         a: 'El taint aleja a los pods de CPU de las máquinas caras. El nodeSelector lleva a Triton a la GPU exacta para la que se compiló el engine (T4, sm_75). Sin taint, el gateway ocupa las g4dn; sin nodeSelector, Triton podría caer en otra GPU donde su engine no carga.' },
-      { id: 'm06-11', kind: 'numero', q: 'Fórmula del HPA y sus defaults de tiempo.',
-        a: 'ceil(actuales × métrica / objetivo); con varias métricas, el máximo. Sync cada 15 s; tolerancia 10 %; subida sin ventana (+100 % o +4 pods cada 15 s); bajada con ventana de 300 s. Ejemplo: 5 pods al 90 % con objetivo 60 % → 8.' },
+      { id: 'm06-11', kind: 'numero', q: 'Fórmula del HPA y cómo sube y baja.',
+        a: 'ceil(actuales × métrica / objetivo); con varias métricas, el máximo. Sube rápido (sin ventana) y baja despacio (ventana de estabilización, 5 min por defecto) para no oscilar. Ejemplo: 5 pods al 90 % con objetivo 60 % → 8.' },
       { id: 'm06-12', kind: 'trampa', q: '¿Por qué un HPA por CPU no escala un Triton saturado?',
         a: 'La CPU de Triton sigue al throughput completado, y el throughput se aplana cuando la GPU se satura. Un pod al máximo (≈ 1,210 img/s) queda en ≈ 30 % de CPU mientras rechaza hasta 1 de cada 4 requests: ceil(1 × 30 / 60) = 1, no escala. Bajar el umbral lo vuelve una métrica proxy de throughput.' },
       { id: 'm06-13', kind: 'trampa', q: 'nvidia-smi marca 100 %. ¿La GPU está llena?',
@@ -1015,7 +1059,7 @@ spec:
       { id: 'm06-21', kind: 'concepto', q: 'Overprovisioning: cómo funciona y cuánto cuesta en c01.',
         a: 'Un pod placeholder de prioridad −10 (la más baja que todavía hace escalar al Cluster Autoscaler) ocupa un nodo GPU. Un pod real lo desaloja y arranca sin esperar el nodo; el placeholder dispara el próximo nodo en segundo plano. Cuesta una T4 on-demand: ≈ US$384/mes.' },
       { id: 'm06-22', kind: 'numero', q: 'Desglose del cold start de un scale-out de Triton sin nodo libre.',
-        a: 'Detectar ≈ 0.5–1.5 min, nodo GPU nuevo ≈ 2–5 min, imagen de varios GB ≈ 1–5 min, cargar engine y warmup ≈ 10–60 s, readiness ≈ 5–15 s: ≈ 4–13 min en total (estimaciones: mide las tuyas). Por eso headroom para spikes y escalado programado para picos conocidos.' },
+        a: 'Detectar ≈ 0.5–1.5 min, nodo GPU nuevo ≈ 2–5 min, imagen de ≈ 9 GB ≈ 1–2 min, cargar engine y warmup ≈ 10–60 s, readiness ≈ 5–15 s: ≈ 4–10 min en total (estimaciones: mide las tuyas). Por eso headroom para spikes y escalado programado para picos conocidos.' },
       { id: 'm06-23', kind: 'numero', q: 'Serverless GPU vs dedicada: ¿cuándo conviene pagar por segundo?',
         a: 'Cloud Run con L4 ≈ US$1.05/h contra una L4 dedicada ≈ US$0.805/h: gana si la GPU trabaja menos de ≈ 18 h al día. c01 (116 req/s continuos) factura las 730 h: ≈ US$764/mes una instancia, ≈ US$1,038 con redundancia zonal, contra ≈ US$768 de sus dos T4.' },
       { id: 'm06-24', kind: 'concepto', q: '¿De qué te protege un PodDisruptionBudget y de qué no?',
@@ -1040,19 +1084,25 @@ spec:
       { en: 'Pod', es: 'pod', def: 'La unidad que Kubernetes agenda: uno o más contenedores que comparten red y volúmenes en un mismo nodo. Es efímero: se recrea, no se repara.', say: 'Each Triton pod gets one whole T4.' },
       { en: 'Deployment', es: 'Deployment', def: 'Objeto que mantiene N réplicas idénticas de un pod y cambia de versión con rolling updates. El estándar para serving sin estado.', say: 'Triton runs as a Deployment whose replica count is owned by the autoscaler.' },
       { en: 'Kubernetes Service', es: 'Service (Kubernetes)', def: 'Nombre DNS e IP estables delante de los pods listos que cumplen un selector. Balancea por conexión (L4).', say: 'The gateway reaches Triton through a ClusterIP Service, never by pod IP.' },
+      { en: 'kubelet', es: 'agente del nodo', def: 'Proceso de Kubernetes en cada nodo: baja las imágenes, arranca los contenedores del pod, corre las probes y los reinicia. El scheduler decide a qué nodo va el pod; el kubelet lo ejecuta.', say: 'The kubelet restarts the container when liveness fails; readiness only takes the pod out of the Service.' },
+      { en: 'DaemonSet', es: 'DaemonSet', def: 'Objeto que corre una copia de un pod en cada nodo, o en cada nodo que cumpla un selector: el device plugin de NVIDIA, el DCGM exporter, los agentes de logs, la pre-descarga de imágenes.', say: 'The NVIDIA device plugin runs as a DaemonSet on every GPU node.' },
+      { en: 'GitOps', es: 'GitOps', def: 'Los manifests viven en git y una herramienta (Argo CD, Flux) sincroniza el cluster con ese repo. Un cambio o un rollback es un commit o un revert revisado, no un <code>kubectl</code> a mano.', say: 'With GitOps, a rollback is a git revert that Argo CD syncs to the cluster.' },
+      { en: 'IRSA', es: 'roles de IAM para service accounts', def: 'En EKS, el pod recibe credenciales temporales de un rol de IAM a través de su ServiceAccount, sin llaves guardadas en Secrets. EKS Pod Identity es la alternativa más nueva.', say: 'The KEDA operator reads SQS through an IAM role for its service account, so there are no static keys in the cluster.' },
       { en: 'requests and limits', es: 'requests y limits', def: 'El request reserva CPU o memoria para agendar el pod (y es la base del % del HPA); el limit es el techo. Pasarse del limit de CPU produce throttling; del de memoria, OOMKilled.', say: 'We set CPU requests but no CPU limits on the serving pods, and memory limits equal to requests.' },
-      { en: 'CPU throttling', es: 'estrangulamiento de CPU', def: 'Cuando un contenedor con límite de CPU agota su cuota de la ventana de 100 ms (CFS), el kernel lo congela hasta la ventana siguiente. Se ve como picos de latencia con CPU promedio baja.', say: 'The p99 spikes came from CPU throttling, not from load: the pod had a one-core limit.' },
-      { en: 'OOMKilled', es: 'OOMKilled (matado por falta de memoria)', def: 'Estado de un contenedor que el kernel mató por pasar su límite de memoria (exit code 137). El kubelet lo reinicia.', say: 'The gateway was OOMKilled decoding a 40-megapixel PNG, so we cap concurrent decodes.' },
+      { en: 'CPU throttling', es: 'estrangulamiento de CPU', def: 'Cuando un contenedor con límite de CPU agota su cuota de la ventana de 100 ms (CFS), el kernel lo congela hasta la ventana siguiente. Se ve como picos de latencia con CPU promedio baja.', say: 'A one-core CPU limit shows up as p99 spikes from CFS throttling even when average CPU looks low, so the serving pods get CPU requests and no CPU limits.' },
+      { en: 'OOMKilled', es: 'OOMKilled (matado por falta de memoria)', def: 'Estado de un contenedor que el kernel mató por pasar su límite de memoria RAM (exit code 137). El kubelet lo reinicia. Es RAM del contenedor, no VRAM: quedarse sin memoria de GPU es un error de CUDA dentro del proceso, no un OOMKilled.', say: 'A few 40-megapixel PNGs decoding at once could get the gateway OOMKilled, so it rejects anything above 40 megapixels and caps concurrent decodes per pod.' },
       { en: 'QoS class', es: 'clase de QoS', def: 'Guaranteed, Burstable o BestEffort, según los requests y limits de CPU y memoria. Decide el orden de desalojo cuando falta memoria en el nodo. Los recursos extendidos, como la GPU, no cuentan.', say: 'A pod that only requests a GPU is BestEffort, so it\'s the first to be evicted.' },
       { en: 'startup probe', es: 'probe de arranque', def: 'Probe que protege a un contenedor de arranque lento: mientras no pasa, no corren liveness ni readiness. Se dimensiona con failureThreshold × periodSeconds.', say: 'Triton gets a startup probe with a five-minute budget for loading and warming up the engine.' },
       { en: 'rolling update', es: 'actualización gradual', def: 'Reemplazo de pods de a poco, controlado por maxSurge (pods de más) y maxUnavailable (pods de menos), ambos 25 % por defecto.', say: 'With maxSurge one, a rolling update needs a spare GPU for a few minutes.' },
       { en: 'device plugin', es: 'plugin de dispositivos', def: 'DaemonSet del fabricante que detecta dispositivos (GPUs) en cada nodo y los anuncia al kubelet como recurso extendido, como nvidia.com/gpu.', say: 'Without the NVIDIA device plugin, the node advertises no GPUs and nothing gets scheduled there.' },
       { en: 'extended resource', es: 'recurso extendido', def: 'Recurso que Kubernetes no conoce de fábrica y que se anuncia por nodo (nvidia.com/gpu). Solo enteros, en limits, sin sobreasignación.', say: 'GPUs are an extended resource, so a pod can\'t ask for half of one without MIG or time-slicing.' },
-      { en: 'NVIDIA GPU Operator', es: 'NVIDIA GPU Operator', def: 'Operador que instala y gestiona en Kubernetes el driver, el Container Toolkit, el device plugin, GPU Feature Discovery, el DCGM exporter y el MIG manager.', say: 'On-prem we use the GPU Operator; on EKS the AMI already ships the driver, so we disable that part.' },
+      { en: 'NVIDIA GPU Operator', es: 'NVIDIA GPU Operator', def: 'Operador que instala y gestiona en Kubernetes el driver, el Container Toolkit, el device plugin, GPU Feature Discovery, el DCGM exporter y el MIG manager.', say: 'On-prem I\'d use the GPU Operator; on EKS the AMI already ships the driver, so that part stays disabled.' },
       { en: 'DCGM exporter', es: 'exportador DCGM', def: 'Exportador de NVIDIA que publica en Prometheus métricas por GPU: utilización, memoria, temperatura, potencia y errores Xid.', say: 'We watch Xid errors from the DCGM exporter to drain nodes with failing GPUs.' },
       { en: 'nodeSelector', es: 'selector de nodos', def: 'Campo del pod que exige nodos con ciertas labels. Atrae al pod; el taint, en cambio, aleja a los demás.', say: 'A node selector pins Triton to the T4 pool because the engine is built for that architecture.' },
+      { en: 'node pool', es: 'pool de nodos', def: 'Grupo de nodos con la misma configuración (tipo de instancia, labels, taints) que escala como unidad. GKE y AKS lo llaman node pool y EKS, node group; en Karpenter, un NodePool declara requisitos (GPU, zonas, on-demand o spot) en vez de un tipo fijo.', say: 'Triton gets its own T4 node pool with a NoSchedule taint, so CPU pods never land on a GPU node.' },
       { en: 'bin packing', es: 'empaquetado', def: 'Acomodar pods en la menor cantidad de nodos. Con GPUs aparece la fragmentación: GPUs libres repartidas entre nodos donde un pod de varias GPUs no cabe.', say: 'Mixing one-GPU and eight-GPU pods on the same pool fragments capacity.' },
       { en: 'Prometheus Adapter', es: 'Prometheus Adapter', def: 'Componente que traduce queries de Prometheus a la API de métricas custom de Kubernetes para que el HPA pueda usarlas.', say: 'Prometheus Adapter exposes pending requests per pod so the HPA can scale on them.' },
+      { en: 'KServe', es: 'KServe', def: 'Capa de serving sobre Kubernetes (recurso InferenceService): servidor de modelos, autoscaling por concurrencia con Knative o con HPA/KEDA, canary y el protocolo de inferencia v2.', say: 'On a cluster we already run, KServe gives us concurrency-based autoscaling and canaries without writing that plumbing ourselves.' },
       { en: 'ScaledObject', es: 'ScaledObject (KEDA)', def: 'Recurso de KEDA que asocia un Deployment con triggers (una query, una cola). KEDA crea el HPA, le publica la métrica y maneja el paso de 0 a 1 y de 1 a 0.', say: 'The ScaledObject keeps Triton between two and four replicas based on queue time.' },
       { en: 'ScaledJob', es: 'ScaledJob (KEDA)', def: 'Recurso de KEDA que crea Jobs según los eventos pendientes. Cada Job termina su trabajo, así que sirve para tareas largas; paga el arranque en cada Job.', say: 'Long video jobs run as a ScaledJob so a scale-in never kills work in progress.' },
       { en: 'scale to zero', es: 'escalar a cero', def: 'Bajar un servicio a 0 réplicas cuando no hay carga. Ahorra la GPU completa; el primer request después paga el cold start entero.', say: 'The OCR workers scale to zero at night; the online tier never does.' },
@@ -1060,7 +1110,7 @@ spec:
       { en: 'Cluster Autoscaler', es: 'Cluster Autoscaler', def: 'Autoscaler de nodos del proyecto Kubernetes: agranda o achica node groups cuando hay pods Pending o nodos subutilizados.', say: 'Cluster Autoscaler grows the GPU node group when Triton pods go pending.' },
       { en: 'Karpenter', es: 'Karpenter', def: 'Autoscaler de nodos que lanza instancias sueltas elegidas según los pods pendientes (sin node groups) y consolida los nodos que sobran. Nació en AWS.', say: 'Karpenter can fall back to another T4 size or zone when one runs out of capacity.' },
       { en: 'overprovisioning', es: 'sobreaprovisionamiento', def: 'Mantener capacidad de reserva con pods placeholder de prioridad baja que cualquier pod real desaloja. Evita esperar un nodo nuevo, a cambio de pagarlo siempre.', say: 'A single overprovisioned T4 node saves us the node cold start on every deploy.' },
-      { en: 'insufficient capacity error (ICE)', es: 'error de capacidad insuficiente', def: 'Respuesta de la nube (en EC2, InsufficientInstanceCapacity) cuando no hay instancias de un tipo en una zona. Frecuente con GPUs; se mitiga con varios tipos y zonas o reservas.', say: 'GPU capacity can run out in a zone, so the node pool allows three zones.' },
+      { en: 'insufficient capacity error (ICE)', es: 'error de capacidad insuficiente', def: 'Respuesta de la nube (en EC2, InsufficientInstanceCapacity) cuando no hay instancias de un tipo en una zona. Frecuente con GPUs; se mitiga con varios tipos y zonas o reservas.', say: 'GPU capacity can run out in a zone, so the node pool allows two T4 sizes in each zone.' },
       { en: 'scheduled scaling', es: 'escalado programado', def: 'Subir réplicas o nodos antes de un pico conocido, por horario, en vez de esperar a que la métrica reaccione.', say: 'For the Hot Sale we scale ahead on a schedule instead of waiting for the autoscaler.' },
       { en: 'serverless inference', es: 'inferencia serverless', def: 'Servir un modelo pagando por uso mientras el proveedor escala, a veces hasta cero. Conviene con tráfico esporádico; con tráfico continuo pagas todas las horas con sobreprecio.', say: 'Serverless inference fits the internal tool; our 24/7 path would pay for every hour anyway.' },
       { en: 'topology spread constraints', es: 'restricciones de reparto por topología', def: 'Reglas del pod (topologySpreadConstraints) que reparten réplicas entre zonas o nodos con un desbalance máximo (maxSkew).', say: 'A topology spread constraint keeps one Triton replica per zone.' },

@@ -120,7 +120,7 @@ docker run --rm --gpus all ubuntu nvidia-smi
 # 3. ¿Tu imagen la usa? Triton con la GPU y /dev/shm de 1 GB, como en el compose del c01
 docker run -d --name triton --gpus all --shm-size=1g -p 8000:8000 -p 8002:8002 \\
   classifier-triton:2026-09-01-resnet50-fp16
-# Triton abre sus puertos después de cargar los modelos: antes, connection refused; luego 200
+# Triton abre sus puertos después de cargar los modelos: antes imprime 000 (connection refused; -s oculta el error), luego 200
 curl -s localhost:8000/v2/health/ready -o /dev/null -w "%{http_code}\\n"
 
 # Con una imagen de PyTorch: ¿ve la GPU y con qué CUDA se compiló?
@@ -180,12 +180,13 @@ kubectl rollout status deploy/triton -n classifier --timeout=15m
 kubectl rollout undo deploy/triton -n classifier
 kubectl rollout history deploy/triton -n classifier`;
 
-  const COLD_START = `# Cada fase del arranque deja su hora en las condiciones del pod
+  const COLD_START = `# Cada fase del arranque deja su hora: creación del pod, condiciones y arranque del contenedor
 kubectl get pod POD -n classifier \\
-  -o jsonpath='{range .status.conditions[*]}{.type}{"\\t"}{.lastTransitionTime}{"\\n"}{end}'
+  -o jsonpath='{"Created\\t"}{.metadata.creationTimestamp}{"\\n"}{range .status.conditions[*]}{.type}{"\\t"}{.lastTransitionTime}{"\\n"}{end}{"Started\\t"}{.status.containerStatuses[0].state.running.startedAt}{"\\n"}'
 
-# Cuánto tardó el pull (lo dice el evento Pulled) y cuándo arrancó el contenedor
-kubectl events -n classifier --for pod/POD | grep -E "Scheduled|Pulled|Started"
+# Cuánto tardó el pull (mensaje del evento Pulled) y en qué nodo cayó (Scheduled).
+# LAST SEEN es relativo ("4m"): las horas exactas salen del comando anterior
+kubectl events -n classifier --for pod/POD | grep -E "Scheduled|Pulled"
 
 # Cuándo se creó el nodo que lo aloja (lo agregó el autoscaler de nodos)
 kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
@@ -209,7 +210,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
             ['<code>docker run</code>', 'Crea y arranca un contenedor', '<code>--rm</code> · <code>-d</code> · <code>--name</code> · <code>-p 8080:8080</code> (host:contenedor) · <code>-e K=V</code> · <code>--env-file</code> · <code>-v</code>', 'Probar la imagen como correrá: mismo CMD, config por variables'],
             ['<code>docker ps -a</code>', 'Contenedores, incluidos los que murieron', '<code>-a</code> · <code>--format</code>', 'Si un contenedor "desapareció", aquí está con su exit code'],
             ['<code>docker logs gw</code>', 'stdout y stderr del contenedor', '<code>-f</code> · <code>-n 100</code> · <code>--since 10m</code> · <code>-t</code>', 'El gateway escribe una línea JSON por request: lo que después recoge el agente de logs'],
-            ['<code>docker exec -it gw sh</code>', 'Proceso nuevo dentro de un contenedor que corre', '<code>-it</code> · <code>-u</code> · <code>-e</code>', 'Ver qué quedó en la imagen; <code>curl localhost:8080/readyz</code> desde adentro. Una imagen distroless no trae shell'],
+            ['<code>docker exec -it gw sh</code>', 'Proceso nuevo dentro de un contenedor que corre', '<code>-it</code> · <code>-u</code> · <code>-e</code>', 'Ver qué quedó en la imagen (<code>env</code>, <code>pip list</code>). La imagen slim del gateway no trae curl: adentro usa <code>python -c "import urllib.request as u; print(u.urlopen(\'http://127.0.0.1:8080/healthz\').status)"</code>, o <code>curl</code> desde el host. Una imagen distroless no trae shell'],
             ['<code>docker history IMG</code>', 'Una fila por capa: instrucción y tamaño', '<code>--no-trunc</code>', 'Encontrar la capa que infló la imagen: un checkpoint copiado, el cache de pip (<a href="#m05.imagen-capas">M5 · capas</a>)'],
             ['<code>docker image inspect IMG</code>', 'Metadatos: arquitectura, CMD, ENV, usuario', `<code>--format '{{.Os}}/{{.Architecture}}'</code>`, 'Confirmar <code>linux/amd64</code> antes de subir'],
             ['<code>docker system df</code>', 'Espacio de imágenes, contenedores, volúmenes y cache de build', '<code>-v</code>', 'Las imágenes CUDA pesan varios GB: <code>docker image prune</code>, <code>docker builder prune</code>'],
@@ -253,7 +254,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
             ['<code>ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).</code>', 'Los workers del DataLoader llenaron los 64 MB de <code>/dev/shm</code>', '<code>--shm-size</code>; en Kubernetes, un <code>emptyDir</code> con <code>medium: Memory</code> como en <code>k8s/triton.yaml</code>'],
             ['Triton no carga el modelo: el engine es de otra versión de TensorRT o de otra GPU', 'Engine construido en otra GPU o con otra release de TensorRT', 'Reconstruirlo en la misma GPU y release de NGC que Triton (<a href="#c01.archivos">c01 · archivos</a>)'],
           ] },
-          { t: 'callout', kind: 'trap', title: 'El "CUDA Version" de nvidia-smi no es la CUDA de tu imagen', html: `<p>El <code>CUDA Version: 12.2</code> de la cabecera de <code>nvidia-smi</code> es la CUDA <b>máxima</b> que soporta ese driver, no la de tu imagen. La de la imagen la ves con <code>torch.version.cuda</code> o en su etiqueta (<code>cuda:12.4…</code>). Confundirlas explica buena parte de los "en mi máquina funciona" con GPU.</p>` },
+          { t: 'p', html: `El "CUDA Version" de <code>nvidia-smi</code> es la versión máxima que soporta el driver, no la de tu imagen (esa la ves con <code>torch.version.cuda</code>): <a href="#m05.cuda">M5 · CUDA</a>.` },
           { t: 'callout', kind: 'connect', html: `<p>En Kubernetes no hay <code>--gpus</code>: pides <code>nvidia.com/gpu: 1</code> en <code>resources.limits</code> y el NVIDIA device plugin asigna la GPU (<a href="#m06.gpus-k8s">M6 · GPUs en Kubernetes</a>).</p>` },
         ],
       },
@@ -300,7 +301,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
             ['<code>-n keda</code> · <code>-A</code>', 'Un namespace o todos', 'KEDA vive en <code>keda</code>; Prometheus, en <code>monitoring</code>'],
           ] },
           { t: 'table', caption: 'Mirar', head: ['Comando', 'Qué hace', 'Flags clave', 'Cuándo lo usas'], rows: [
-            ['<code>kubectl get pods</code>', 'Estado, READY, RESTARTS, antigüedad', '<code>-o wide</code> (nodo, IP) · <code>-l app.kubernetes.io/name=triton</code> · <code>--show-labels</code> · <code>-L workload</code> · <code>-w</code> · <code>--field-selector status.phase=Pending</code>', '¿En qué nodo está cada Triton? ¿Cuántos reinicios lleva?'],
+            ['<code>kubectl get pods</code>', 'Estado, READY, RESTARTS, antigüedad', '<code>-o wide</code> (nodo, IP) · <code>-l app.kubernetes.io/name=triton</code> · <code>--show-labels</code> · <code>-L app.kubernetes.io/name</code> (la label como columna) · <code>-w</code> · <code>--field-selector status.phase=Pending</code>', '¿En qué nodo está cada Triton? ¿Cuántos reinicios lleva?'],
             ['<code>kubectl get deploy triton -o yaml</code>', 'El objeto completo, con defaults y <code>status</code>', "<code>-o yaml</code> · <code>-o jsonpath='{…}'</code>", 'Ver lo que el cluster tiene, no lo que crees que aplicaste'],
             ['<code>kubectl describe pod POD</code>', 'Spec, estado y <b>Events</b> al final', '—', 'Primera parada: Last State, Reason, Exit Code, Restart Count, QoS Class, eventos'],
             ['<code>kubectl logs POD</code>', 'stdout y stderr del contenedor', '<code>-f</code> · <code>--previous</code> · <code>-c triton</code> · <code>--since=10m</code> · <code>--tail=100</code> · <code>-l … --prefix</code>', '<code>--previous</code>: el contenedor que murió. Con <code>deploy/triton</code> elige un pod'],
@@ -372,7 +373,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
             ['<b>OOMKilled</b>: <code>Reason: OOMKilled</code>, <code>Exit Code: 137</code>', '<code>describe pod</code> · <code>container_memory_working_set_bytes</code> contra el límite', 'RAM, no VRAM: pesos leídos a RAM antes de ir a la GPU, el modelo duplicado en varios procesos, decodes grandes en paralelo, <code>/dev/shm</code> en memoria (cuenta contra el límite)', 'Límite medido, no adivinado; acotar la concurrencia (como el gateway del c01)'],
             ['<b>ImagePullBackOff</b> / <b>ErrImagePull</b>', 'Evento <code>Failed to pull image …</code> con el motivo', 'Tag inexistente, nodo sin permiso en ECR o sin <code>imagePullSecrets</code>, rate limit de Docker Hub, imagen sin <code>linux/amd64</code>', 'Corregir tag, permisos o plataforma. Una imagen grande no falla: tarda (evento <code>Pulled … in …</code>)'],
             ['<b>Pending</b>: <code>Insufficient nvidia.com/gpu</code>', '<code>describe node</code> (Allocatable contra Allocated resources)', 'GPUs todas asignadas (un pod, una GPU entera), o el device plugin no corre en el nodo y este no anuncia <code>nvidia.com/gpu</code>', 'Esperar o destrabar al autoscaler de nodos; revisar el DaemonSet (<code>kubectl get ds -A | grep -i nvidia</code>)'],
-            ['<b>Pending</b>: <code>node(s) had untolerated taint(s)</code> o <code>didn\'t match Pod\'s node affinity/selector</code>', '<code>describe node NODO | grep Taints</code> · <code>get nodes -L workload</code>', 'Falta la toleration de <code>nvidia.com/gpu</code>, o ningún nodo tiene la label <code>workload=gpu-t4</code> del c01', 'Corregir toleration o label. Desde Kubernetes 1.34 el mensaje no nombra el taint: míralo en el nodo'],
+            ['<b>Pending</b>: <code>node(s) had untolerated taint {nvidia.com/gpu: present}</code> (hasta 1.33; desde 1.34 solo <code>node(s) had untolerated taint(s)</code>, sin nombrar el taint) o <code>node(s) didn\'t match Pod\'s node affinity/selector</code>', '<code>get node NODO -o jsonpath=\'{.spec.taints}\'</code> · <code>get nodes -L workload</code>', 'Falta la toleration de <code>nvidia.com/gpu</code>, o ningún nodo tiene la label <code>workload=gpu-t4</code> del c01', 'Corregir toleration o label. Desde Kubernetes 1.35 el mensaje ya no nombra el taint: míralo en el nodo'],
             ['<b>Pending</b> y no llega ningún nodo', '<code>NotTriggerScaleUp</code> (Cluster Autoscaler) · <code>get nodepools,nodeclaims</code> (Karpenter)', 'Node group en su máximo, cuota de vCPU de instancias G, sin capacidad en la AZ, selector que ningún grupo cumple', 'Subir límites o cuota; más tipos de instancia o AZs (<a href="#m06.nodos">M6 · nodos</a>)'],
             ['<b>0/1 READY</b>: <code>Readiness probe failed</code> con <code>connection refused</code> o <code>HTTP probe failed with statuscode: …</code>', '<code>describe pod</code> · <code>logs -f</code>', 'El modelo sigue cargando (Triton abre sus puertos recién al terminar: connection refused); o falta una dependencia (sin Triton, el <code>/readyz</code> del gateway da 503 a propósito)', 'Carga lenta: <code>startupProbe</code> con <code>failureThreshold × periodSeconds</code> ≥ el peor caso (c01: 60 × 5 s = 5 min)'],
             ['<b>Reinicios bajo carga</b>: <code>Liveness probe failed: … context deadline exceeded</code>, <code>failed liveness probe, will be restarted</code>', '<code>describe pod</code> · p99 y CPU del pod', 'Liveness con <code>timeoutSeconds: 1</code> (el default) contra un proceso saturado, o una liveness que revisa dependencias', 'Liveness local y barata, timeout realista, dependencias solo en readiness. Reiniciar bajo carga quita capacidad cuando más falta'],
@@ -418,7 +419,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
             ['<code>kubectl logs -n keda deploy/keda-operator</code>', 'Logs del operador de KEDA', 'Errores de conexión o autenticación contra Prometheus'],
             ['<code>kubectl get apiservice v1beta1.metrics.k8s.io</code> · <code>v1beta1.external.metrics.k8s.io</code>', 'Si las APIs de métricas (metrics-server, KEDA) están <code>Available</code>', 'Si una no lo está, los HPA que dependen de ella no reciben métricas'],
             ['<code>kubectl get nodes -L node.kubernetes.io/instance-type,topology.kubernetes.io/zone,workload</code>', 'Nodos con tipo, AZ y la label del c01', '¿Una GPU por AZ? ¿Llegó el nodo nuevo?'],
-            ['<code>kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\\.com/gpu</code>', 'GPUs asignables por nodo', 'Nodo GPU con <code>&lt;none&gt;</code>: el device plugin no corre ahí'],
+            ['<code>kubectl get nodes -o \'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\\.com/gpu\'</code>', 'GPUs asignables por nodo', 'Nodo GPU con <code>&lt;none&gt;</code>: el device plugin no corre ahí. Las comillas simples son parte del comando: sin ellas, la shell se come la <code>\\</code> y todos los nodos salen <code>&lt;none&gt;</code>'],
             ['<code>kubectl describe node NODO</code>', 'Allocatable, Allocated resources (incluida <code>nvidia.com/gpu</code>), Conditions, Taints', 'Un pod no entra porque los <b>requests</b> llenaron el nodo, aunque el uso real sea bajo'],
             ['<code>kubectl debug node/NODO -it --image=ubuntu --profile=sysadmin</code>', 'Pod privilegiado en el nodo, con su filesystem en <code>/host</code>', '<code>chroot /host nvidia-smi</code> cuando el pod ni arranca. Luego borra el pod <code>node-debugger-…</code>'],
           ] },
@@ -430,7 +431,7 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
             { title: '¿El pod llega a Ready?', meta: 'cold start', html: 'Pull y carga del modelo; mientras, el load shedding y el fallback protegen al usuario (<a href="#m06.cold-starts">M6 · cold starts</a>).' },
           ] },
           { t: 'code', title: 'Medir el cold start de un pod de Triton', files: [
-            { name: 'cold-start.sh', lang: 'bash', code: COLD_START, note: 'Con <code>PodScheduled</code>, <code>ContainersReady</code> y <code>Ready</code>, la creación del nodo y la duración del pull, separas el cold start en nodo, imagen y carga del modelo: cada parte tiene otra palanca.' },
+            { name: 'cold-start.sh', lang: 'bash', code: COLD_START, note: '<code>Created</code> → <code>PodScheduled</code> = espera de nodo (la hora de creación del nodo dice cuánto de eso fue aprovisionar la máquina); <code>PodScheduled</code> → <code>Started</code> = pull y creación del contenedor (el evento <code>Pulled</code> da la duración exacta del pull); <code>Started</code> → <code>Ready</code> = carga del engine y warmup. Cada parte tiene otra palanca.' },
           ] },
           { t: 'callout', kind: 'trap', title: 'El porcentaje del HPA es sobre el request', html: `<p><code>averageUtilization: 60</code> es el 60 % del <b>request</b> de CPU, no del nodo: con el request de 1 CPU del gateway del c01, 0.6 cores por pod. Cambiar el request cambia cuándo escala sin tocar el HPA. <code>kubectl top</code> muestra cores absolutos: compáralos con el request.</p>` },
         ],
@@ -474,6 +475,8 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
     ],
 
     // ---------------------------------------------------------- flashcards
+    // Retiradas: ref-comandos-06 (defaults de probes, ya en m06-07) y ref-comandos-13 (copia de
+    // m05-09). Sus ids son claves de progreso guardado: no reutilizarlos.
     flashcards: [
       { id: 'ref-comandos-01', kind: 'concepto', q: '¿Cuál es el recorrido de 5 comandos para depurar un pod?',
         a: '<code>kubectl get pods -o wide</code> (fase, reinicios, nodo) → <code>kubectl describe pod</code> (Last State, exit code, Events) → <code>kubectl logs --previous</code> (el contenedor que murió) → <code>kubectl events</code> (contexto del cluster) → <code>kubectl top</code> / <code>describe node</code> (recursos).' },
@@ -485,8 +488,6 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
         a: 'No: eso es la VRAM, no la RAM del contenedor. OOMKilled (RAM) lo mata el kernel con exit 137; CUDA OOM es una excepción en el log. Se arregla con batch o resolución más chicos, menos instancias por GPU u otra GPU.' },
       { id: 'ref-comandos-05', kind: 'trampa', q: 'Triton tarda 3 min en cargar el engine y el pod reinicia en bucle antes de estar listo. ¿Qué falta?',
         a: 'Un <code>startupProbe</code> con <code>failureThreshold × periodSeconds</code> ≥ el peor tiempo de carga (c01: 60 × 5 s = 5 min). Mientras no pasa, liveness no se evalúa y el pod no recibe tráfico.' },
-      { id: 'ref-comandos-06', kind: 'numero', q: 'Defaults de una probe de Kubernetes.',
-        a: '<code>periodSeconds</code> 10, <code>timeoutSeconds</code> 1, <code>failureThreshold</code> 3, <code>successThreshold</code> 1, <code>initialDelaySeconds</code> 0. El timeout de 1 s es el que muerde bajo carga.' },
       { id: 'ref-comandos-07', kind: 'concepto', q: 'Pod Pending con <code>Insufficient nvidia.com/gpu</code>: ¿qué revisas?',
         a: 'Si hay GPUs libres (<code>describe node</code>: Allocatable contra Allocated), si el device plugin corre en los nodos GPU (sin él, el nodo no anuncia <code>nvidia.com/gpu</code>) y si el autoscaler de nodos puede agregar uno (tope del grupo, cuota de GPU, capacidad en la AZ).' },
       { id: 'ref-comandos-08', kind: 'trampa', q: 'El gateway tiene un HPA. ¿Qué pasa si haces <code>kubectl scale --replicas=10</code>?',
@@ -499,8 +500,6 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
         a: 'Salió <code>arm64</code>. En los nodos x86 ves <code>no match for platform in manifest</code> al bajarla, o <code>exec format error</code> en el log. Construye con <code>--platform linux/amd64</code> (mejor: en CI) y compruébalo con <code>docker buildx imagetools inspect</code>.' },
       { id: 'ref-comandos-12', kind: 'concepto', q: '¿Para qué <code>--shm-size</code> o <code>--ipc=host</code> con PyTorch o Triton?',
         a: 'Docker da 64 MB de <code>/dev/shm</code> por defecto. Los workers del DataLoader pasan tensores por ahí (si no alcanza: "insufficient shared memory") y Triton también lo usa. En Kubernetes: un emptyDir con <code>medium: Memory</code>.' },
-      { id: 'ref-comandos-13', kind: 'trampa', q: '<code>nvidia-smi</code> dice "CUDA Version: 12.2". ¿Es la CUDA de tu imagen?',
-        a: 'No: es la CUDA máxima que soporta el driver del host. La de la imagen la ves con <code>torch.version.cuda</code> o en la etiqueta de la imagen.' },
       { id: 'ref-comandos-14', kind: 'trampa', q: '¿Sirve <code>kubectl port-forward svc/triton</code> para hacer un load test?',
         a: 'No: elige un solo pod y pasa por el API server y el kubelet. Sirve para una prueba de humo (health, metadata del modelo, métricas); el load test va contra el Service o el balanceador real.' },
       { id: 'ref-comandos-15', kind: 'frase', q: '¿Cómo dices en inglés tu primera reacción ante un deploy que empeora el p99?',
@@ -512,21 +511,17 @@ kubectl get node NODO -o jsonpath='{.metadata.creationTimestamp}{"\\n"}'`;
     // ---------------------------------------------------------- glosario
     glossary: [
       { en: 'CrashLoopBackOff', es: 'bucle de reinicios con espera', def: 'Estado de un contenedor que muere una y otra vez: el kubelet espera 10 s, 20 s, 40 s… (tope de 5 min) antes de cada reinicio. Es un síntoma; la causa está en <code>kubectl logs --previous</code> y en el exit code.', say: 'The pod is in CrashLoopBackOff, so I check the previous container\'s logs and its exit code.' },
-      { en: 'OOMKilled', es: 'terminado por falta de memoria', def: 'Razón de terminación cuando un contenedor supera su límite de memoria (RAM, no VRAM) y el kernel lo mata. Sale con exit code 137.', say: 'The container gets OOMKilled while loading the weights, so the memory limit is below the startup peak.' },
       { en: 'exit code 137', es: 'código de salida 137', def: '128 + 9: el proceso murió por SIGKILL. Con <code>Reason: OOMKilled</code> fue la memoria; sin esa razón, casi siempre no terminó dentro del grace period tras el SIGTERM.', say: 'Exit code 137 means SIGKILL; the reason field tells me whether it was the OOM killer.' },
       { en: 'ImagePullBackOff', es: 'reintento de descarga de imagen con espera', def: 'El kubelet no pudo bajar la imagen (tag inexistente, sin permiso en el registry, rate limit, plataforma equivocada) y espera antes de reintentar. <code>ErrImagePull</code> es el primer fallo.', say: 'ImagePullBackOff here means the node role can\'t pull from ECR.' },
       { en: 'CreateContainerConfigError', es: 'error al armar la configuración del contenedor', def: 'El kubelet no puede crear el contenedor: falta un Secret o ConfigMap referenciado (o una clave), o <code>runAsNonRoot</code> choca con una imagen que corre como root.', say: 'CreateContainerConfigError usually means the Secret doesn\'t exist in that namespace yet.' },
-      { en: 'FailedScheduling', es: 'fallo de programación del pod', def: 'Evento del scheduler cuando ningún nodo cumple lo que pide el pod (recursos como <code>nvidia.com/gpu</code>, taints, nodeSelector). El pod queda Pending y ese evento es lo que dispara al autoscaler de nodos.', say: 'The pod is Pending with Insufficient nvidia.com/gpu, so the question is why no GPU node was added.' },
+      { en: 'FailedScheduling', es: 'fallo de programación del pod', def: 'Evento del scheduler cuando ningún nodo cumple lo que pide el pod (recursos como <code>nvidia.com/gpu</code>, taints, nodeSelector). El pod queda Pending con la condición <code>PodScheduled=False</code> (reason <code>Unschedulable</code>): esa condición, no el evento, es lo que mira el autoscaler de nodos.', say: 'The pod is Pending with Insufficient nvidia.com/gpu, so the question is why no GPU node was added.' },
       { en: 'node-pressure eviction', es: 'desalojo por presión del nodo', def: 'El kubelet termina pods (quedan Evicted) cuando al nodo le falta memoria o disco; primero los que usan más de lo que pidieron. Imágenes grandes y logs suelen llenar el disco.', say: 'Pods get evicted when image layers fill the node\'s disk, so GPU nodes need a larger root volume.' },
-      { en: 'CPU throttling', es: 'estrangulamiento de CPU', def: 'Con <code>limits.cpu</code>, el kernel (CFS) da al contenedor una cuota por ventana de 100 ms; al agotarla, el contenedor espera a la siguiente. No genera eventos: se ve en <code>container_cpu_cfs_throttled_periods_total</code>.', say: 'If p99 spikes while average CPU looks low, I check CPU throttling before adding replicas.' },
-      { en: 'startup probe', es: 'sonda de arranque', def: 'Probe que Kubernetes evalúa solo durante el arranque; mientras no pasa, no se evalúan liveness ni readiness. Cubre la carga lenta de un modelo (c01: hasta 5 min).', say: 'A startup probe gives the model five minutes to load before liveness starts checking.' },
       { en: 'port-forward', es: 'reenvío de puertos', def: '<code>kubectl port-forward</code> abre un túnel desde tu máquina hasta un pod, vía API server y kubelet, sin exponer el servicio. Con <code>svc/</code> o <code>deploy/</code> elige un solo pod.', say: 'I port-forward to one Triton pod to check the model metadata without exposing it.' },
       { en: 'kubectl context', es: 'contexto de kubectl', def: 'Entrada del kubeconfig que combina cluster, usuario y namespace por defecto. Confirmarlo antes de cambiar algo evita aplicar en producción lo que era para staging.', say: 'Before any rollback, I confirm that my kubectl context points at the production cluster.' },
       { en: 'ephemeral container', es: 'contenedor efímero', def: 'Contenedor temporal que <code>kubectl debug</code> agrega a un pod en marcha para depurar con herramientas que la imagen no trae (útil con imágenes distroless). No tiene probes ni se reinicia.', say: 'The image has no shell, so I attach an ephemeral container with kubectl debug.' },
       { en: 'ProgressDeadlineExceeded', es: 'plazo de progreso vencido', def: 'Razón de la condición <code>Progressing=False</code> de un Deployment cuyo rollout no avanza en <code>progressDeadlineSeconds</code> (600 s por defecto). En GPU, esperar nodo, imagen y carga del modelo puede acercarse a ese plazo.', say: 'GPU pods take minutes to become ready, so we raise progressDeadlineSeconds on that Deployment.' },
       { en: 'configuration drift', es: 'deriva de configuración', def: 'Diferencia entre lo que describe git y lo que corre en el cluster, típica de cambios manuales (<code>kubectl edit</code>, <code>scale</code>, <code>set image</code>). Una herramienta de GitOps la detecta y puede revertirla.', say: 'Editing the Deployment by hand creates drift, and the next sync overwrites it.' },
       { en: 'exec format error', es: 'error de formato de ejecutable', def: 'Error del kernel al ejecutar un binario de otra arquitectura: por ejemplo, una imagen arm64 construida en un Mac con Apple Silicon en un nodo x86.', say: 'An exec format error means the image was built for arm64, so I rebuild it for linux/amd64.' },
-      { en: 'NVIDIA Container Toolkit', es: 'NVIDIA Container Toolkit', def: 'Componentes de NVIDIA que configuran el runtime de contenedores (Docker, containerd) para montar el driver y las GPUs del host en el contenedor. Sin él, <code>--gpus</code> falla.', say: 'The host has the driver, but without the NVIDIA Container Toolkit Docker can\'t pass the GPU through.' },
       { en: 'shared memory (/dev/shm)', es: 'memoria compartida', def: 'tmpfs que los procesos usan para intercambiar datos sin copiarlos. Docker da 64 MB por defecto: poco para los workers del DataLoader de PyTorch o para Triton.', say: 'We give the Triton container a 1 GB /dev/shm, because the 64 MB default is too small.' },
       { en: 'metrics-server', es: 'servidor de métricas de recursos', def: 'Componente que recoge CPU y memoria de los kubelets y las expone en la Metrics API. Lo usan <code>kubectl top</code> y el HPA por CPU o memoria; no viene en todos los clusters.', say: 'kubectl top returns nothing because metrics-server isn\'t installed on this cluster.' },
     ],
