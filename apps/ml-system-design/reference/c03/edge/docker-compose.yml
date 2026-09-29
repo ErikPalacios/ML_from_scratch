@@ -45,6 +45,10 @@ services:
       # Engines TensorRT fuera de la imagen: la versión actual y la anterior conviven en disco.
       # Rollback = apuntar config.yaml al engine anterior y `docker compose up -d`, sin red.
       - /opt/inspector/models:/models:ro
+      # Zona horaria del host para golden.shift_starts (hora local de la planta): sin esto el
+      # contenedor vive en UTC y "06:00" serían las 00:00 en Monterrey. Montar el archivo no
+      # necesita tzdata dentro de la imagen, a diferencia de TZ=. El reloj del host, con NTP de la red OT.
+      - /etc/localtime:/etc/localtime:ro
     cap_drop:
       - ALL  # el inspector no necesita ninguna capability de Linux
     security_opt:

@@ -2,7 +2,8 @@
 
 Flujo:  DeepStream ──MQTT (local, QoS 0)──▶ on_message ──▶ rules.ZoneRules (zonas, horario, dwell, dedupe)
           ──▶ fotos del stream principal ──▶ cola SQLite (store-and-forward) ──▶ Sender ──HTTPS──▶ API
-        + clip de 10 s en segundo plano (prioridad baja) + heartbeat cada 30 s con los fps por cámara.
+        + clip de 10 s en segundo plano, con su propio Sender (carril aparte: nunca frena un evento)
+        + heartbeat cada 30 s con los fps por cámara y el estado de la cola.
 
 Por qué un proceso aparte y no código dentro de DeepStream: el pipeline de video es C/GStreamer y no
 debe bloquearse por la red; aquí vive todo lo que falla por la red (reintentos, cola en disco, backoff)
@@ -26,6 +27,7 @@ from collections import Counter  # frames recibidos por cámara → fps del hear
 from concurrent.futures import Future, ThreadPoolExecutor  # fotos y clips sin bloquear el hilo de MQTT
 from dataclasses import dataclass  # filas de la cola
 from pathlib import Path  # spool de fotos y clips en disco
+from urllib.parse import quote  # usuario y clave de la cámara dentro de la URL RTSP
 
 import httpx2  # cliente HTTP (misma API que httpx; es el que usa el TestClient de Starlette 1.x)
 import paho.mqtt.client as mqtt  # cliente MQTT de Eclipse
@@ -72,8 +74,10 @@ class Item:
 class Outbox:
     """Store-and-forward en SQLite: primero se ESCRIBE en disco, después se intenta enviar.
 
-    Si la caja pierde la subida horas o se reinicia, nada se pierde: al volver, se vacía en orden,
-    eventos antes que clips. PRIMARY KEY = event_id: encolar dos veces el mismo evento no lo duplica.
+    Si la caja pierde la subida horas o se reinicia, nada se pierde: al volver, se vacía en orden.
+    Una tabla, dos carriles: eventos y clips se leen por separado (next_due(kind)) y los vacían dos
+    Senders distintos, así un clip de 5 MB nunca frena una intrusión. PRIMARY KEY = event_id: encolar dos
+    veces el mismo evento no lo duplica.
     """
 
     def __init__(self, path: str, clock=time.time):
@@ -115,13 +119,17 @@ class Outbox:
             )
             return cur.rowcount == 1  # False = ya estaba (idempotente)
 
-    def next_due(self) -> Item | None:
-        """El más prioritario que ya puede intentarse: eventos primero, y entre ellos el más viejo."""
+    def next_due(self, kind: str | None = None) -> Item | None:
+        """El siguiente que ya puede intentarse, del carril `kind` ("event" | "clip"); dentro del carril,
+        el más viejo. Sin `kind` (herramientas, tests): eventos antes que clips."""
+        where, args = "next_attempt_at <= ?", [self._clock()]
+        if kind is not None:
+            where, args = where + " AND kind = ?", args + [kind]
         with self._lock:
             row = self._db.execute(
                 "SELECT item_id, kind, payload, files, attempts, created_at FROM outbox"
-                " WHERE next_attempt_at <= ? ORDER BY priority, created_at LIMIT 1",
-                (self._clock(),),
+                f" WHERE {where} ORDER BY priority, created_at LIMIT 1",
+                args,
             ).fetchone()
         if row is None:
             return None
@@ -139,7 +147,9 @@ class Outbox:
             )
 
     def dead(self, item: Item, reason: str) -> None:
-        """Error permanente (un 4xx que no se arregla reintentando): se aparta, no se reintenta para siempre."""
+        """Error permanente (400/404/409/413/422: el request está mal): se aparta, no se reintenta para
+        siempre. NO se pierde: el heartbeat lo reporta, EdgeEventsStuck despierta a alguien y, arreglada la
+        causa, se re-encola con INSERT INTO outbox … SELECT … FROM dead_letter."""
         with self._lock:
             self._db.execute("BEGIN")
             self._db.execute(
@@ -150,21 +160,33 @@ class Outbox:
             self._db.execute("COMMIT")
 
     def stats(self) -> dict:
-        """Para el heartbeat: cuánto hay pendiente y desde hace cuánto (la cola crece = la subida falla)."""
+        """Para el heartbeat: cuánto hay pendiente y desde hace cuánto (la cola crece = la subida falla).
+
+        La nube alerta con dos de estos números (EdgeEventsStuck): la edad del EVENTO más viejo (los clips
+        pueden esperar; una intrusión no) y los eventos en dead-letter (perdidos hasta que alguien los
+        re-encole). Sin ellos, un evento rechazado solo quedaría en un log de la caja que nadie lee.
+        """
         with self._lock:
             pending, oldest = self._db.execute("SELECT COUNT(*), MIN(created_at) FROM outbox").fetchone()
-            dead = self._db.execute("SELECT COUNT(*) FROM dead_letter").fetchone()[0]
-        age = round(self._clock() - oldest, 1) if oldest is not None else 0.0
-        return {"pending": pending, "oldest_age_s": age, "dead_letters": dead}
+            oldest_event = self._db.execute("SELECT MIN(created_at) FROM outbox WHERE kind = 'event'").fetchone()[0]
+            dead, dead_events = self._db.execute(
+                "SELECT COUNT(*), COALESCE(SUM(kind = 'event'), 0) FROM dead_letter").fetchone()
+        now = self._clock()
+
+        def age(t: float | None) -> float:
+            return round(now - t, 1) if t is not None else 0.0
+
+        return {"pending": pending, "oldest_age_s": age(oldest), "oldest_event_age_s": age(oldest_event),
+                "dead_letters": dead, "dead_letter_events": dead_events}
 
 
 # ------------------------------------------------------------------------------ cliente de la API
 class RetryableError(Exception):
-    """Red caída, timeout, 429 o 5xx: vale la pena reintentar más tarde."""
+    """Red caída, timeout, 429, 5xx, 401 o 403: vale la pena reintentar más tarde."""
 
 
 class PermanentError(Exception):
-    """4xx (menos 429): el request está mal y reintentarlo daría lo mismo."""
+    """El resto de los 4xx (400, 404, 409, 413, 422…): el request está mal y reintentarlo daría lo mismo."""
 
 
 class ApiClient:
@@ -191,6 +213,11 @@ class ApiClient:
             raise RetryableError(repr(exc)) from None
         if resp.status_code == 429 or resp.status_code >= 500:
             raise RetryableError(f"HTTP {resp.status_code}")
+        if resp.status_code in (401, 403):
+            # Auth o configuración (un Secret de tokens roto, una caja de repuesto con el site.yaml de otro
+            # sitio): lo arregla un operador, no el request. El evento ESPERA en la cola; si fuera a
+            # dead-letter, al arreglarlo ya no saldría. La cola que crece la ve EdgeEventsStuck.
+            raise RetryableError(f"HTTP {resp.status_code} (auth/config): {resp.text[:200]}")
         if resp.status_code >= 400:
             raise PermanentError(f"HTTP {resp.status_code}: {resp.text[:200]}")
         return resp
@@ -225,18 +252,25 @@ class ApiClient:
 
 # ------------------------------------------------------------------------------ envío
 class Sender:
-    """Vacía la cola: un ítem a la vez, con backoff por ítem y una pausa global si la red está caída."""
+    """Vacía UN carril de la cola ("event" o "clip"): un ítem a la vez, con backoff por ítem y una pausa
+    del carril si la red está caída.
 
-    def __init__(self, outbox: Outbox, api: ApiClient, clock=time.time, rng: random.Random | None = None):
-        self.outbox, self.api, self.clock = outbox, api, clock
+    main() arranca dos, uno por carril, cada uno con su pausa y su backoff. Con uno solo para todo, un
+    evento que llega mientras sube un clip (≈ 5 MB: 2–4 s a 20–10 Mb/s, hasta 60 s de timeout) espera a que
+    termine, y un clip que falla pausa también los eventos hasta 30 s: el clip quedaría en el camino
+    crítico de la alerta.
+    """
+
+    def __init__(self, outbox: Outbox, api: ApiClient, kind: str, clock=time.time, rng: random.Random | None = None):
+        self.outbox, self.api, self.kind, self.clock = outbox, api, kind, clock
         self.rng = rng or random.Random()
         self.pause_until = 0.0  # con la API caída no tiene sentido probar el siguiente ítem enseguida
 
     def run_once(self) -> bool:
-        """Procesa como máximo un ítem. True si hizo algo (el loop decide si dormir)."""
+        """Procesa como máximo un ítem de su carril. True si hizo algo (el loop decide si dormir)."""
         if self.clock() < self.pause_until:
             return False
-        item = self.outbox.next_due()
+        item = self.outbox.next_due(self.kind)
         if item is None:
             return False
         try:
@@ -247,7 +281,7 @@ class Sender:
         except RetryableError as exc:
             delay = backoff_delay(item.attempts, self.rng)
             self.outbox.retry(item.item_id, delay, str(exc))
-            self.pause_until = self.clock() + min(delay, 30.0)  # pausa global corta: otros ítems esperan
+            self.pause_until = self.clock() + min(delay, 30.0)  # pausa corta de ESTE carril: el otro sigue
             jlog("send_retry", item=item.item_id, attempt=item.attempts + 1, delay_s=round(delay, 2), error=str(exc))
             return True
         except PermanentError as exc:
@@ -297,6 +331,16 @@ class Sender:
 
 
 # ------------------------------------------------------------------------------ evidencia
+def rtsp_with_auth(url: str, user: str, password: str) -> str:
+    """rtsp://host/… → rtsp://usuario:clave@host/… con las credenciales CODIFICADAS (percent-encoding).
+
+    Las cámaras suelen exigir un carácter especial en la clave: sin codificar, un '#' empieza el fragmento
+    de la URL y corta la clave ("Ab#2026x" viajaría como "Ab"), y '@', ':' o '/' rompen el host. ffmpeg
+    decodifica usuario y clave antes de autenticarse (libavformat/httpauth.c).
+    """
+    return url.replace("rtsp://", f"rtsp://{quote(user, safe='')}:{quote(password, safe='')}@", 1)
+
+
 class Evidence:
     """Fotos y clips del stream PRINCIPAL de la cámara (15 fps, mejor calidad que el de análisis)."""
 
@@ -307,6 +351,9 @@ class Evidence:
         self.user, self.password = user, password
         self._cache: dict[str, tuple[float, bytes]] = {}
         self._lock = threading.Lock()
+        self._clips: set[subprocess.Popen] = set()  # ffmpeg en curso: stop_clips() los termina al apagar
+        self._clips_lock = threading.Lock()  # aparte del de las fotos: lanzar ffmpeg no frena un snapshot
+        self._stopping = False
 
     def snapshot(self, camera_id: str) -> bytes | None:
         """JPEG actual de la cámara, o None. Reusa una foto de < 0.5 s: varias personas entrando a la
@@ -341,15 +388,40 @@ class Evidence:
         if shutil.disk_usage(dest.parent).free < MIN_FREE_BYTES:
             jlog("clip_skipped_disk", camera=camera_id)
             return False
-        auth_url = url.replace("rtsp://", f"rtsp://{self.user}:{self.password}@", 1)  # nunca se loguea
+        auth_url = rtsp_with_auth(url, self.user, self.password)  # nunca se loguea
         cmd = ["ffmpeg", "-nostdin", "-loglevel", "error", "-rtsp_transport", "tcp", "-i", auth_url,
                "-t", str(CLIP_SECONDS), "-an", "-c", "copy", "-movflags", "+faststart", "-y", str(dest)]
+        # Popen y no subprocess.run: al apagar, stop_clips() tiene que poder terminar este ffmpeg. Con run,
+        # el proceso esperaría hasta CLIP_SECONDS + 20 = 30 s (= stop_grace_period) y Docker lo mataría.
+        with self._clips_lock:
+            if self._stopping:
+                return False
+            try:
+                proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            except OSError as exc:  # ffmpeg no está en la imagen
+                jlog("clip_failed", camera=camera_id, error=type(exc).__name__)
+                return False
+            self._clips.add(proc)
         try:
-            subprocess.run(cmd, check=True, capture_output=True, timeout=CLIP_SECONDS + 20)
-        except (subprocess.SubprocessError, OSError) as exc:
-            jlog("clip_failed", camera=camera_id, error=type(exc).__name__)
+            proc.communicate(timeout=CLIP_SECONDS + 20)  # stderr por pipe: communicate lo drena
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+        finally:
+            with self._clips_lock:
+                self._clips.discard(proc)
+        if proc.returncode != 0:  # error de ffmpeg, timeout o terminado por stop_clips()
+            jlog("clip_failed", camera=camera_id, error=f"ffmpeg exit {proc.returncode}")
             return False
         return dest.exists() and dest.stat().st_size > 0
+
+    def stop_clips(self) -> None:
+        """Apagado: no arranca clips nuevos y termina los que corren (SIGTERM: ffmpeg cierra el archivo y sale)."""
+        with self._clips_lock:
+            self._stopping = True
+            running = list(self._clips)
+        for proc in running:
+            proc.terminate()
 
 
 # ------------------------------------------------------------------------------ orquestación
@@ -368,7 +440,18 @@ class Forwarder:
         self.counters: Counter[str] = Counter()  # mensajes rotos, cámaras desconocidas: van al heartbeat
 
     def on_message(self, payload: bytes) -> None:
-        """Corre en el hilo de red de paho: debe volver en microsegundos (nada de I/O aquí)."""
+        """Corre en el hilo de red de paho: debe volver en microsegundos (nada de I/O aquí).
+
+        Y no debe lanzar NUNCA: paho re-lanza la excepción de un callback y eso termina su hilo de red. El
+        proceso seguiría vivo y mandando heartbeats, pero no procesaría ni un evento más hasta reiniciarlo.
+        """
+        try:
+            self._handle(payload)
+        except Exception as exc:  # noqa: BLE001 - un bug en un mensaje no puede dejar el sitio ciego
+            self.counters["on_message_errors"] += 1
+            jlog("on_message_bug", error=repr(exc))
+
+    def _handle(self, payload: bytes) -> None:
         try:
             frame = parse_minimal_payload(payload)
         except (ValueError, KeyError, TypeError):
@@ -448,10 +531,15 @@ class Forwarder:
 
 def heartbeat_loop(fwd: Forwarder, api: ApiClient, outbox: Outbox, stop: threading.Event, interval: float = 30.0) -> None:
     """Cada 30 s: 'sigo vivo' + fps por cámara + estado de la cola. NO pasa por la cola: un heartbeat
-    de hace una hora no le dice nada a nadie; si falla, el siguiente sale en 30 s."""
+    de hace una hora no le dice nada a nadie; si falla, el siguiente sale en 30 s.
+
+    Lleva el site_id de site.yaml: si no coincide con el del token (una caja de repuesto con la
+    configuración de otro sitio), la API responde 403, el heartbeat deja de contar y EdgeBoxOffline avisa.
+    """
     while not stop.wait(interval):
-        body = {"sent_at": time.time(), "forwarder_version": VERSION, "model_version": MODEL_VERSION,
-                "cameras": fwd.camera_fps(), "outbox": outbox.stats(), "counters": dict(fwd.counters)}
+        body = {"sent_at": time.time(), "site_id": fwd.cfg.site_id, "forwarder_version": VERSION,
+                "model_version": MODEL_VERSION, "cameras": fwd.camera_fps(), "outbox": outbox.stats(),
+                "counters": dict(fwd.counters)}
         try:
             reply = api.heartbeat(body)
             skew = reply.get("server_time", body["sent_at"]) - body["sent_at"]
@@ -488,13 +576,17 @@ def main() -> None:
     # Suscribirse en on_connect (y no una vez al inicio) hace que la suscripción vuelva tras cada reconexión
     client.on_connect = lambda c, userdata, flags, reason, props: c.subscribe(os.getenv("MQTT_TOPIC", "ds/detections"), qos=0)
     client.on_message = lambda c, userdata, msg: fwd.on_message(msg.payload)
+    # Segunda red: por defecto paho re-lanza la excepción de un callback y su hilo de red muere (on_message
+    # ya atrapa todo; esto cubre on_connect y lo que se agregue después)
+    client.suppress_exceptions = True
     client.reconnect_delay_set(min_delay=1, max_delay=30)  # si mosquitto reinicia, reintenta solo
     client.connect_async(os.getenv("MQTT_HOST", "mqtt"), int(os.getenv("MQTT_PORT", "1883")), keepalive=30)
     client.loop_start()  # hilo de red de paho; on_message corre ahí
 
-    sender = Sender(outbox, api)
+    # Dos carriles, dos hilos: un clip que sube (o falla) nunca retrasa una intrusión
     threads = [
-        threading.Thread(target=sender.run_forever, args=(stop,), name="sender", daemon=True),
+        threading.Thread(target=Sender(outbox, api, "event").run_forever, args=(stop,), name="sender-events", daemon=True),
+        threading.Thread(target=Sender(outbox, api, "clip").run_forever, args=(stop,), name="sender-clips", daemon=True),
         threading.Thread(target=heartbeat_loop, args=(fwd, api, outbox, stop), name="heartbeat", daemon=True),
     ]
     for t in threads:
@@ -505,7 +597,11 @@ def main() -> None:
     stop.wait()
     client.loop_stop()  # deja de recibir detecciones
     io_pool.shutdown(wait=True)  # termina de guardar los eventos en curso: quedan en SQLite
-    clip_pool.shutdown(wait=False, cancel_futures=True)  # un clip a medias no vale la pena esperar
+    # Un clip a medias no vale la pena esperar. cancel_futures solo cancela los que no empezaron: Python
+    # espera a los hilos del pool al salir, así que el ffmpeg que corre hay que terminarlo explícitamente
+    # (si no, el apagado tardaría hasta 30 s = stop_grace_period y Docker mataría el proceso).
+    evidence.stop_clips()
+    clip_pool.shutdown(wait=False, cancel_futures=True)
     jlog("stopped", pending=outbox.stats())
 
 

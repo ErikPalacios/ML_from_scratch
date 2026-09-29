@@ -1,12 +1,15 @@
 """API de ingesta de eventos del caso c02: la puerta de la nube para las 25 cajas edge y la consola del SOC.
 
-Endpoints (todos detrás de un ALB con TLS):
+Endpoints:
   cajas (token del SITIO)   POST /v1/events      evento candidato, idempotente por event_id → 202
                             POST /v1/uploads     URL prefirmada de S3 para una foto o el clip
-                            POST /v1/heartbeat   "sigo vivo" + fps por cámara, cada 30 s
+                            POST /v1/heartbeat   "sigo vivo" + fps por cámara + estado de su cola, cada 30 s
   consola SOC (token SOC)   POST /v1/alerts/{id}/displayed    la alerta ya está en pantalla → latencia E2E
                             POST /v1/alerts/{id}/disposition  confirmada | descartada → tasa de falsas alarmas
   plataforma                GET /healthz · GET /readyz · GET /metrics
+El ALB (con TLS) enruta SOLO /v1/* y usa /healthz para su health check. /metrics no se publica: Prometheus
+lo lee de cada pod dentro del cluster. Publicado, camera_fps{site,camera} le diría a cualquiera qué cámaras
+de perímetro están caídas en este momento (como en c01, donde /metrics tampoco pasa por el Ingress).
 
 Por qué la API no verifica ni alerta: solo acepta rápido y encola en SQS. El verificador (GPU) consume a
 su ritmo; si se atrasa, la cola absorbe y las cajas no se enteran. Aceptar ≠ procesar.
@@ -54,12 +57,19 @@ class EventIn(BaseModel):
     zone_id: Slug
     track_id: Annotated[str, StringConstraints(max_length=32)]
     label: Literal["person", "vehicle"]
-    first_seen_at: float  # epoch (reloj de la caja): t0 del SLO de 5 s
+    # Epoch (reloj de la caja) del primer mensaje de DeepStream con el track ya confirmado dentro de la
+    # zona: la entrada real + probation del tracker + pipeline (≈ 1 s, est.) ocurrió ANTES. Ese tramo se
+    # mide con walk tests y se descuenta del umbral de AlertLatencyHigh (4 s, no 5).
+    first_seen_at: float
     triggered_at: float
     dwell_s: Annotated[float, Field(ge=0)]
     box: Annotated[list[Annotated[float, Field(ge=0, le=1)]], Field(min_length=4, max_length=4)]
     frames: Annotated[list[str], Field(max_length=3)] = []
     evidence_missing: bool = False  # la caja no pudo subir fotos: el SOC la ve "sin verificar"
+    # False = recordatorio (mismo track 10 min después) o regla con dwell largo (carril de bomberos): el SOC
+    # lo recibe igual, pero NO entra en las métricas del SLO (mediría 600 s o 61 s "de latencia").
+    # Default True: un forwarder viejo sin este campo sigue contando como antes durante el rollout.
+    slo: bool = True
     model_version: Annotated[str, StringConstraints(max_length=64)]
     forwarder_version: Annotated[str, StringConstraints(max_length=64)] | None = None
 
@@ -71,14 +81,27 @@ class UploadIn(BaseModel):
     content_type: Literal["image/jpeg", "video/mp4"]
 
 
+class OutboxStats(BaseModel):
+    """Estado de la cola SQLite de la caja (Outbox.stats() en edge/forwarder/app.py)."""
+
+    model_config = ConfigDict(extra="ignore")
+    pending: Annotated[int, Field(ge=0)] = 0
+    oldest_event_age_s: Annotated[float, Field(ge=0)] = 0.0  # el EVENTO más viejo sin enviar (los clips no)
+    dead_letter_events: Annotated[int, Field(ge=0)] = 0  # eventos apartados por un 4xx: perdidos hasta re-encolar
+
+
 class HeartbeatIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
     sent_at: float
+    site_id: str | None = None  # el de site.yaml: si no coincide con el del token, 403 (caja mal configurada)
     # ≤ 64 cámaras: un bug (o una caja comprometida) no puede crear miles de series en Prometheus
     cameras: Annotated[dict[CameraId, Fps], Field(max_length=64)]
     model_version: str | None = None
     forwarder_version: str | None = None
-    outbox: dict | None = None  # pendientes y edad del más viejo: se loguea
+    outbox: OutboxStats | None = None  # → edge_outbox_* (alerta EdgeEventsStuck)
+    # Mensajes rotos, cámaras desconocidas, bugs en on_message: solo se loguean (no son labels). Validación
+    # laxa a propósito: un contador nuevo de un forwarder más reciente no puede hacer fallar el heartbeat.
+    counters: Annotated[dict[str, int], Field(max_length=32)] = {}
 
 
 class DispositionIn(BaseModel):
@@ -191,33 +214,43 @@ class HeartbeatCollector:
        existe para TODOS los sitios conocidos desde el arranque (con 0 si esta réplica aún no oyó nada).
     2. Con varias réplicas de la API, cada una recuerda el último heartbeat que LE tocó: un gauge de
        "último valor" en la réplica A puede tener 5 min mientras la B tiene el fresco. Por eso las alertas
-       agregan con max (timestamp) y camera_fps solo se expone si el heartbeat de ESTA réplica tiene < 90 s.
+       agregan con max (timestamp) y camera_fps y edge_outbox_* solo se exponen si el heartbeat de ESTA
+       réplica tiene < 90 s.
     """
 
     def __init__(self, sites: list[str], clock, fresh_s: float = 90.0):
-        self._last = {site: (0.0, {}) for site in sites}
+        self._last: dict[str, tuple[float, dict, OutboxStats | None]] = {site: (0.0, {}, None) for site in sites}
         self._clock, self._fresh_s = clock, fresh_s
         self._lock = threading.Lock()
 
-    def record(self, site: str, now: float, cameras: dict[str, float]) -> None:
+    def record(self, site: str, now: float, cameras: dict[str, float], outbox: OutboxStats | None = None) -> None:
         with self._lock:
-            self._last[site] = (now, dict(cameras))
+            self._last[site] = (now, dict(cameras), outbox)
 
     def collect(self):
         heartbeat = GaugeMetricFamily(
             "edge_last_heartbeat_timestamp_seconds", "Epoch del último heartbeat recibido por esta réplica", labels=["site"]
         )
         fps = GaugeMetricFamily("camera_fps", "Frames analizados por segundo que reporta la caja", labels=["site", "camera"])
+        oldest = GaugeMetricFamily("edge_outbox_oldest_event_age_seconds",
+                                   "Edad del evento más viejo sin enviar en la cola de la caja", labels=["site"])
+        dead = GaugeMetricFamily("edge_outbox_dead_letter_events",
+                                 "Eventos apartados en dead-letter en la caja (perdidos hasta re-encolarlos)", labels=["site"])
         now = self._clock()
         with self._lock:
             snapshot = dict(self._last)
-        for site, (seen_at, cameras) in sorted(snapshot.items()):
+        for site, (seen_at, cameras, outbox) in sorted(snapshot.items()):
             heartbeat.add_metric([site], seen_at)
             if seen_at and now - seen_at <= self._fresh_s:  # solo valores frescos: los viejos mienten
                 for camera, value in sorted(cameras.items()):
                     fps.add_metric([site, camera], value)
+                if outbox is not None:
+                    oldest.add_metric([site], outbox.oldest_event_age_s)
+                    dead.add_metric([site], outbox.dead_letter_events)
         yield heartbeat
         yield fps
+        yield oldest
+        yield dead
 
 
 # ------------------------------------------------------------------------------ la app
@@ -242,9 +275,15 @@ def create_app(
     # Nombres = contrato con cloud/monitoring/alerts.yml. Labels acotados: site (25) × verdict (2).
     events_received = Counter("events_received_total", "Eventos candidatos recibidos por sitio y resultado",
                               ["site", "verdict"], registry=registry)
-    ingest_lag = Histogram("event_ingest_lag_seconds", "De first_seen_at (caja) a recibido en la nube",
+    # Las dos empiezan en first_seen_at: la publicación de DeepStream del primer frame con el pie en la zona
+    # (reloj de la caja), no la entrada real (≈ 1 s antes, est.). Solo eventos con slo=true.
+    ingest_lag = Histogram("event_ingest_lag_seconds",
+                           "De la publicación de DeepStream del primer frame con el pie en la zona (reloj de la caja) "
+                           "a recibido en la nube", ["site"],
                            buckets=(0.5, 1, 2, 3, 4, 5, 7.5, 10, 30, 60, 300, 3600), registry=registry)
-    alert_e2e = Histogram("alert_end_to_end_seconds", "De first_seen_at a la alerta en pantalla del SOC (SLO p95 ≤ 5 s)",
+    alert_e2e = Histogram("alert_end_to_end_seconds",
+                          "De la publicación de DeepStream del primer frame con el pie en la zona (reloj de la caja) "
+                          "a la alerta en pantalla del SOC (alerta: p95 > 4 s = SLO de 5 s menos ≈ 1 s previo)",
                           ["site"], buckets=(1, 2, 3, 4, 5, 6, 8, 10, 15, 30, 60), registry=registry)
     alerts_closed = Counter("alerts_closed_total", "Alertas cerradas por el SOC", ["site"], registry=registry)
     alerts_dismissed = Counter("alerts_dismissed_total", "Alertas cerradas como falsa alarma", ["site"], registry=registry)
@@ -296,7 +335,8 @@ def create_app(
                 log.error(json.dumps({"event": "enqueue_failed", "event_id": event_id, "error": repr(exc)}))
                 raise HTTPException(503, "cola no disponible", headers={"Retry-After": "5"}) from None
             store.update(event_id, enqueued=True)
-            ingest_lag.observe(max(0.0, now - event.first_seen_at))  # reloj de la caja vs el de la nube
+            if event.slo:  # recordatorios y reglas de dwell largo no son latencia: ensuciarían el p95
+                ingest_lag.labels(site=site).observe(max(0.0, now - event.first_seen_at))  # reloj caja vs nube
         verdict = "accepted" if first_delivery else "duplicate"
         events_received.labels(site=site, verdict=verdict).inc()
         log.info(json.dumps({"event": "ingest", "event_id": event_id, "site": site, "verdict": verdict,
@@ -316,10 +356,16 @@ def create_app(
 
     @app.post("/v1/heartbeat")
     def heartbeat(hb: HeartbeatIn, site: str = Depends(site_auth)) -> dict:
+        if hb.site_id is not None and hb.site_id != site:
+            # Una caja con el site.yaml de OTRO sitio (p. ej. un repuesto mal aprovisionado): sus eventos
+            # reciben 403 y esperan en su cola. Rechazar también el heartbeat hace que EdgeBoxOffline avise
+            # en minutos, en vez de un sitio "vivo" que en realidad no entrega nada.
+            raise HTTPException(403, "site_id del heartbeat no coincide con el token")
         now = clock()  # hora del SERVIDOR: el reloj de la caja podría estar mal
-        heartbeats.record(site, now, hb.cameras)
-        log.info(json.dumps({"event": "heartbeat", "site": site, "outbox": hb.outbox, "model_version": hb.model_version,
-                             "skew_s": round(now - hb.sent_at, 2)}))
+        heartbeats.record(site, now, hb.cameras, hb.outbox)
+        log.info(json.dumps({"event": "heartbeat", "site": site,
+                             "outbox": hb.outbox.model_dump() if hb.outbox else None, "counters": hb.counters,
+                             "model_version": hb.model_version, "skew_s": round(now - hb.sent_at, 2)}))
         return {"status": "ok", "server_time": now}  # la caja compara con su reloj y avisa si NTP falla
 
     def _record_or_404(event_id: uuid.UUID) -> tuple[str, EventRecord]:
@@ -333,13 +379,15 @@ def create_app(
         """La consola lo llama al DIBUJAR la alerta: es el final del SLO de 5 s (persona entra → pantalla).
 
         Mide con dos relojes: first_seen_at viene de la caja y `now` del servidor; por eso la caja
-        vigila su desfase con server_time en cada heartbeat. Solo cuenta la primera vez.
+        vigila su desfase con server_time en cada heartbeat. Solo cuenta la primera vez, y solo eventos
+        con slo=true (no recordatorios ni el carril de bomberos).
         """
         eid, record = _record_or_404(event_id)
         if record.displayed_at is None:
             now = clock()
             store.update(eid, displayed_at=now)
-            alert_e2e.labels(site=record.site_id).observe(max(0.0, now - record.event["first_seen_at"]))
+            if record.event.get("slo", True):
+                alert_e2e.labels(site=record.site_id).observe(max(0.0, now - record.event["first_seen_at"]))
         return {"event_id": eid, "displayed_at": store.get(eid).displayed_at}
 
     @app.post("/v1/alerts/{event_id}/disposition", dependencies=[Depends(soc_auth)])

@@ -1,8 +1,11 @@
 # Todo lo que corre en UNA caja edge del caso c02 (1U con 1× NVIDIA L4, Ubuntu 24.04, driver ≥ 595.58.03
 # y NVIDIA Container Toolkit): DeepStream (GPU) + mosquitto (MQTT local) + forwarder (Python).
 # En los 25 sitios es el mismo archivo; cambian site.yaml, los secretos y la versión del modelo.
-# El rollout OTA por olas (canary primero) cambia MODEL_VERSION / FORWARDER_TAG y hace `docker compose up -d`:
-# solo se recrean los contenedores cuya configuración cambió.
+# El rollout OTA por olas (canary primero) instala el bundle nuevo, mueve el symlink `current`, cambia
+# MODEL_VERSION / FORWARDER_TAG y hace `docker compose up -d`: solo se recrean los contenedores cuya
+# DEFINICIÓN cambió. Por eso MODEL_VERSION está también en deepstream: mover el symlink no cambia nada de
+# lo que Compose compara, y sin esa variable DeepStream seguiría con el engine viejo cargado en memoria
+# mientras el forwarder ya reporta la versión nueva.
 # Validado con `docker compose config`; levantarlo requiere la GPU, las cámaras y los secretos.
 
 name: c02-edge  # prefijo de contenedores, red y volúmenes
@@ -14,6 +17,10 @@ services:
     image: nvcr.io/nvidia/deepstream:9.1-samples-multiarch
     command: ["deepstream-app", "-c", "/config/ds_app_config.txt"]
     environment:
+      # deepstream-app NO la lee. Existe para que un cambio de modelo cambie la definición del servicio:
+      # `docker compose up -d` recrea el contenedor y el pipeline vuelve a abrir /models/current (el engine
+      # nuevo). Mismo valor que en el forwarder, que la manda en cada evento y heartbeat.
+      MODEL_VERSION: ${MODEL_VERSION:-det-2026-09-01-yolo-fp16}
       # TRAMPA: sin la variable, el NVIDIA Container Toolkit expone solo "compute,utility"; sin "video" no hay
       # NVDEC dentro del contenedor y el decode no funciona. La imagen de DeepStream ya declara "video" en su
       # ENV (así está en su Dockerfile público, deepstream_dockers/ en el repo de NVIDIA); la escribimos igual
@@ -27,13 +34,21 @@ services:
               count: 1
               capabilities: [gpu]
     volumes:
-      - ./deepstream:/config:ro  # ds_app_config.txt, nvinfer, tracker, msgconv, labels
+      # ds_app_config.txt, nvinfer, tracker, msgconv y labels, RENDERIZADOS por el aprovisionamiento desde
+      # edge/deepstream/ (plantillas en git) con la clave de las cámaras dentro de las URIs RTSP: deepstream-app
+      # no tiene otra forma de recibirla. Por eso esta carpeta es un secreto (root, 0600) y no ./deepstream.
+      - /etc/c02/deepstream:/config:ro
       # Bundle del modelo que entrega el OTA: /opt/c02/models/<versión>/ + symlink RELATIVO current → <versión>.
-      # Rollback = apuntar current a la versión anterior y reiniciar este servicio (el engine viejo sigue ahí).
+      # Rollback = apuntar current a la versión anterior, volver MODEL_VERSION a la anterior y
+      # `docker compose up -d` (el engine viejo sigue en el disco). Un cambio solo en /config no recrea
+      # nada: ahí va `docker compose restart deepstream`.
       - /opt/c02/models:/models:ro
     depends_on:
       mqtt:
         condition: service_healthy  # el adaptador MQTT de DeepStream necesita el broker al arrancar
+        # Compose ≥ 2.17: si una operación de Compose reinicia o recrea mqtt (p. ej. un tag nuevo), reinicia
+        # también DeepStream. Si mosquitto se cae solo, lo cubre new-api=1 en [sink0] (reconexión).
+        restart: true
     restart: unless-stopped  # si el pipeline muere (engine que no carga, bug), Docker lo relanza
     logging: &logs
       # El disco de la caja es finito y nadie lo limpia a mano: logs rotados, máximo 3 × 10 MB por servicio

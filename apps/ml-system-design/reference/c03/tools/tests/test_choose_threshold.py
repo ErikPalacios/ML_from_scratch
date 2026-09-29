@@ -44,12 +44,24 @@ def test_limits_by_type_show_which_defect_binds(small_csv):
     assert limits == {"crack": 0.80, "burr": 0.65}  # con 2 por tipo, 99.5 % exige atrapar los 2
 
 
-def test_picks_highest_threshold_that_catches_all_when_fn_dominates(small_csv):
+def test_lowest_threshold_within_target_leaves_margin_below_the_lowest_defect(small_csv):
+    # Objetivo 25 % = 2 de 8 buenas. El de menor costo (0.65) queda JUSTO en la rebaba más baja;
+    # el elegido baja a 0.60 y gasta el FP que sobra en margen: una rebaba nueva de 0.62 se atrapa
     rows = ct.read_scores(small_csv)
-    res = ct.choose(rows, min_recall=0.995, max_fp_rate=0.2, parts_per_day=115_200,
+    res = ct.choose(rows, min_recall=0.995, target_fp_rate=0.25, max_fp_rate=0.30, parts_per_day=115_200,
+                    defect_rate=0.005, c_fn=2_000, c_fp=0.10)
+    assert res["on_target"] is True and res["chosen"].threshold == 0.60
+    assert res["chosen"].fp == 2 and res["min_cost"].threshold == 0.65
+
+
+def test_falls_back_to_min_cost_when_no_threshold_meets_the_target(small_csv):
+    # Con el objetivo del caso (1.5 %), ni 0.65 cabe (1 de 8 buenas = 12.5 %): se usa el de menor
+    # costo dentro del tope y se marca SOBRE el objetivo
+    rows = ct.read_scores(small_csv)
+    res = ct.choose(rows, min_recall=0.995, target_fp_rate=0.015, max_fp_rate=0.2, parts_per_day=115_200,
                     defect_rate=0.005, c_fn=2_000, c_fp=0.10)
     best = res["chosen"]
-    assert best.threshold == 0.65
+    assert res["on_target"] is False and best.threshold == 0.65
     assert best.fp == 1 and best.fp_rate == 1 / 8  # la buena de 0.70 queda arriba del umbral
     day = ct.daily(best, 115_200, 0.005, 2_000, 0.10)
     assert day["fn_per_day"] == 0
@@ -60,11 +72,11 @@ def test_picks_highest_threshold_that_catches_all_when_fn_dominates(small_csv):
 def test_cheap_false_negatives_move_the_threshold_up(small_csv):
     # Si el FN costara centavos (no es el caso), el costo esperado prefiere un umbral más alto
     rows = ct.read_scores(small_csv)
-    res = ct.choose(rows, min_recall=0.5, max_fp_rate=0.2, parts_per_day=115_200,
+    res = ct.choose(rows, min_recall=0.5, target_fp_rate=0.015, max_fp_rate=0.2, parts_per_day=115_200,
                     defect_rate=0.005, c_fn=0.01, c_fp=0.10)
-    # 0.80: 0 FP a cambio de dejar pasar la rebaba de 0.65 (con FN caro, el elegido era 0.65)
-    assert res["chosen"].threshold == 0.80
-    assert res["chosen"].caught == {"crack": 2, "burr": 1} and res["chosen"].fp == 0
+    # 0.80: 0 FP a cambio de dejar pasar la rebaba de 0.65 (con FN caro, el de menor costo era 0.65)
+    assert res["min_cost"].threshold == 0.80
+    assert res["min_cost"].caught == {"crack": 2, "burr": 1} and res["min_cost"].fp == 0
 
 
 def test_no_viable_threshold_returns_exit_code_3(small_csv, capsys):
@@ -83,7 +95,7 @@ def test_tie_at_threshold_counts_as_rejected(tmp_path):
 
 def test_runtime_uses_the_same_rule_as_the_tool(small_csv):
     rows = ct.read_scores(small_csv)
-    best = ct.choose(rows, min_recall=0.995, max_fp_rate=0.2, parts_per_day=115_200,
+    best = ct.choose(rows, min_recall=0.995, target_fp_rate=0.015, max_fp_rate=0.2, parts_per_day=115_200,
                      defect_rate=0.005, c_fn=2_000, c_fp=0.10)["chosen"]
     # La rebaba con score EXACTAMENTE igual al umbral: la herramienta la cuenta como atrapada...
     assert best.caught["burr"] == 2
@@ -95,12 +107,24 @@ def test_json_output_for_pipelines(small_csv, capsys):
     assert ct.main([small_csv, "--max-fp-rate", "0.2", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["threshold"] == 0.65 and out["recall_by_type"] == {"burr": 1.0, "crack": 1.0}
+    assert out["on_target"] is False and out["target_fp_rate"] == 0.015  # un pipeline no debería escribirlo solo
 
 
 def test_defect_type_mode_ignores_other_types(small_csv, capsys):
-    assert ct.main([small_csv, "--max-fp-rate", "0.2", "--defect-type", "crack", "--json"]) == 0
+    assert ct.main([small_csv, "--target-fp-rate", "0.1", "--max-fp-rate", "0.2",
+                    "--defect-type", "crack", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["threshold"] == 0.80 and list(out["recall_by_type"]) == ["crack"]
+    # Sin rebabas en el análisis: 0.70 atrapa las 2 grietas con 1 de 8 buenas (12.5 %, sobre el 10 %)
+    # y 0.80 con 0 FP; el objetivo solo admite 0.80
+    assert out["threshold"] == 0.80 and list(out["recall_by_type"]) == ["crack"] and out["on_target"]
+
+
+def test_defect_type_mode_requires_this_heads_share_of_the_fp_budget(small_csv, capsys):
+    # Los defaults (1.5 % y 2.85 %) son el presupuesto de la UNIÓN: aplicados a cada una de las
+    # 5 cabezas, la unión podría llegar a ≈ 14 %. Por eso con --defect-type no hay default
+    assert ct.main([small_csv, "--defect-type", "crack"]) == 1
+    assert ct.main([small_csv, "--defect-type", "crack", "--max-fp-rate", "0.0057"]) == 1
+    assert "presupuesto de FP de esta cabeza" in capsys.readouterr().err
 
 
 def test_default_fp_budget_comes_from_inspector_capacity(small_csv, capsys):
@@ -113,8 +137,10 @@ def test_default_fp_budget_comes_from_inspector_capacity(small_csv, capsys):
 def test_report_mentions_binding_type_and_statistical_warning(small_csv, capsys):
     assert ct.main([small_csv, "--max-fp-rate", "0.2"]) == 0
     text = capsys.readouterr().out
-    assert "burr" in text and "limita el umbral" in text
+    assert "burr" in text and "limita el umbral" in text and "SOBRE el objetivo" in text
     assert "≈ 598 defectos por tipo sin fallas" in text  # 2 defectos por tipo no demuestran nada
+    # El umbral de menor costo queda justo sobre la rebaba más baja: 1 de cada 3 rebabas nuevas pasaría
+    assert "(0 fallas + 1) / (2 + 1) = 33.3 %" in text
 
 
 def test_upper_bound_rule_of_three():

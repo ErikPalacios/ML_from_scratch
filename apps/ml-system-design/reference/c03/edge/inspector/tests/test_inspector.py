@@ -8,8 +8,10 @@ Correr (desde edge/inspector):  pip install -r requirements.txt pytest==9.1.1 &&
 """
 
 import asyncio  # el servidor Modbus de pymodbus es asyncio: corre en su propio hilo con su loop
+import datetime as dt  # inicio de turno: vencimiento del golden check
 import math  # NaN, el score que un fail-safe mal hecho dejaría pasar
 import socket  # puertos libres para el servidor Modbus y /metrics
+import struct  # tramas Modbus TCP a mano para el PLC que resetea la conexión
 import sys  # para importar app.py y decision.py desde la carpeta de arriba
 import threading  # main() de punta a punta corre en un hilo mientras el test lee /metrics
 import time  # esperas cortas en el test de punta a punta
@@ -51,7 +53,7 @@ class FakeClock:
 
 
 class FakeCamera:
-    """Cámara que "tarda" delay_s en el reloj falso. fail: None | 'timeout' | 'error'."""
+    """Cámara que "tarda" delay_s en el reloj falso. fail: None | 'timeout' | 'error' | 'incomplete'."""
 
     def __init__(self, clock, delay_s=0.05, fail=None, brightness=120):
         self.clock, self.delay_s, self.fail = clock, delay_s, fail
@@ -65,6 +67,9 @@ class FakeCamera:
             raise CameraTimeout("sin frame")
         if self.fail == "error":
             raise OSError("GVSP: stream perdido")
+        if self.fail == "incomplete":  # la regla del contrato: un buffer incompleto LANZA
+            self.clock.advance(self.delay_s)
+            raise app.IncompleteFrame("status MISSING_PACKETS: 37 paquetes GVSP perdidos")
         self.clock.advance(self.delay_s)
         return np.full((2048, 2448), self.brightness, dtype=np.uint8)  # 5 MP mono
 
@@ -148,11 +153,23 @@ def test_score_equal_to_threshold_is_reject():
     assert decide({"anomaly_score": 0.62, "defects": GOOD["defects"]}, TH).decision == REJECT
 
 
-@pytest.mark.parametrize("bad", [math.nan, math.inf, -0.1, 1.5, True, "0.3", None])
+@pytest.mark.parametrize("bad", [math.nan, math.inf, -0.1, 1.5, True, np.bool_(True), "0.3", None,
+                                 np.float32("nan")])
 def test_invalid_anomaly_score_raises_instead_of_passing(bad):
     # NaN >= 0.62 es False: sin la validación, un NaN sería PASS
     with pytest.raises(InvalidScores):
         decide({"anomaly_score": bad, "defects": GOOD["defects"]}, TH)
+
+
+def test_numpy_float32_scores_are_valid(cfg):
+    # Lo que devuelve con naturalidad un wrapper de TensorRT: out.max() es np.float32, no float.
+    # Rechazarlo haría fallar el primer golden check en el hardware real y desviaría todo.
+    f32 = {"anomaly_score": np.float32(0.41),
+           "defects": {k: np.float32(v) for k, v in GOOD["defects"].items()}}
+    assert decide(f32, TH).decision == PASS
+    insp, clock, *_ = make(cfg, engine=FakeEngine(None, script=(f32,)))
+    rec = insp.inspect(Trigger(20, clock()))
+    assert rec["decision"] == PASS and rec["scores"]["anomaly"] == 0.41
 
 
 def test_missing_defect_score_is_invalid_not_zero():
@@ -242,6 +259,25 @@ def test_late_plc_write_is_logged_as_divert(cfg):
     assert (rec["decision"], rec["reason"]) == (DIVERT, "deadline")
 
 
+def test_crossing_the_write_reserve_after_the_model_is_logged_as_divert(cfg):
+    # El modelo termina con 50.5 ms libres (pasa el chequeo de la reserva de 50 ms) y el log del
+    # golden gate consume 1 ms: ya no se escribe nada, el PLC la desvía y el registro debe decirlo
+    class SlowGate(Inspector):
+        def _gate_reason(self):
+            self.clock.advance(0.001)
+            return super()._gate_reason()
+
+    clock = FakeClock()
+    plc, records, reg = FakePLC(clock), [], CollectorRegistry()
+    insp = SlowGate(cfg, FakeCamera(clock), FakeEngine(clock, delay_s=0.35 - 0.05 - 0.0505), plc,
+                    clock=clock, registry=reg, emit=records.append)
+    insp.golden_ok = True
+    rec = insp.inspect(Trigger(22, clock()))
+    assert plc.writes == []
+    assert (rec["decision"], rec["reason"], rec["model_decision"]) == (DIVERT, "deadline", PASS)
+    assert metric(reg, "inspection_deadline_miss_total", line="L1") == 1
+
+
 # ---------------------------------------------------------------------------- fail-safe: fallas
 def test_camera_error_diverts_but_is_not_a_deadline_miss(cfg):
     insp, clock, _, _, _, _, reg = make(cfg, camera=FakeCamera(None, fail="error"))
@@ -249,6 +285,40 @@ def test_camera_error_diverts_but_is_not_a_deadline_miss(cfg):
     assert (rec["decision"], rec["reason"]) == (DIVERT, "camera_error")
     assert "GVSP" in rec["error"]
     assert metric(reg, "inspection_deadline_miss_total", line="L1") == 0
+
+
+def test_incomplete_frame_is_camera_error_never_a_partial_image(cfg):
+    # Paquetes GVSP perdidos: las filas que faltan pueden traer otra pieza. grab() lanza, no infiere
+    insp, clock, _, eng, plc, _, _ = make(cfg, camera=FakeCamera(None, fail="incomplete"))
+    rec = insp.inspect(Trigger(21, clock()))
+    assert (rec["decision"], rec["reason"]) == (DIVERT, "camera_error")
+    assert "MISSING_PACKETS" in rec["error"] and eng.calls == 0 and plc.writes[0][1] == DIVERT
+
+
+@pytest.mark.parametrize("frame", [None, np.zeros(2048 * 2448, dtype=np.uint8)])  # sin imagen, buffer 1-D
+def test_malformed_frame_diverts_instead_of_crashing_the_loop(cfg, frame):
+    class OddCamera(FakeCamera):
+        def grab(self, timeout_s):
+            super().grab(timeout_s)
+            return frame
+
+    insp, clock, _, eng, plc, _, _ = make(cfg, camera=OddCamera(None))
+    rec = insp.inspect(Trigger(23, clock()))  # antes: TypeError/IndexError fuera de inspect → crash
+    assert (rec["decision"], rec["reason"]) == (DIVERT, "bad_image")
+    assert eng.calls == 0 and plc.writes[0][1] == DIVERT
+
+
+def test_unexpected_bug_is_divert_internal_error_not_a_crash(cfg):
+    class Buggy(Inspector):
+        def _gate_reason(self):
+            raise RuntimeError("bug que nadie previó")
+
+    clock = FakeClock()
+    plc = FakePLC(clock)
+    insp = Buggy(cfg, FakeCamera(clock), FakeEngine(clock), plc, clock=clock,
+                 registry=CollectorRegistry(), emit=lambda r: None)
+    rec = insp.inspect(Trigger(24, clock()))
+    assert (rec["decision"], rec["reason"]) == (DIVERT, "internal_error") and plc.writes[0][1] == DIVERT
 
 
 def test_dark_image_diverts_without_inference(cfg):
@@ -266,6 +336,24 @@ def test_engine_error_diverts(cfg):
     assert (rec["decision"], rec["reason"]) == (DIVERT, "engine_error")
     assert rec["scores"] is None and plc.writes[0][1] == DIVERT
     assert metric(reg, "inspection_decisions_total", line="L1", decision="DIVERT") == 1
+
+
+def test_twenty_engine_errors_in_a_row_exit_for_a_fresh_cuda_context(cfg):
+    insp, clock, _, eng, _, records, reg = make(cfg, engine=FakeEngine(None, error=True))
+    exits = []
+    insp.exit_process = exits.append  # en producción, os._exit(4)
+    n = app.MAX_ENGINE_ERRORS_IN_A_ROW
+    for i in range(n - 1):
+        insp.inspect(Trigger(100 + i, clock()))
+    eng.error = False
+    insp.inspect(Trigger(200, clock()))  # una inferencia buena reinicia la cuenta: fue un error suelto
+    eng.error = True
+    for i in range(n - 1):
+        insp.inspect(Trigger(300 + i, clock()))
+    assert exits == []
+    insp.inspect(Trigger(400, clock()))  # el 20.º seguido: error pegajoso de CUDA, hace falta otro proceso
+    assert exits == [4] and records[-1]["event"] == "engine_error_exit"
+    assert metric(reg, "inspection_divert_total", line="L1", reason="engine_error") == 2 * n - 1
 
 
 def test_nan_score_diverts_never_passes(cfg):
@@ -302,14 +390,33 @@ def test_golden_check_passes_opens_gate_and_sets_gauge(cfg):
     assert insp.inspect(Trigger(13, clock()))["decision"] == PASS
 
 
-def test_golden_approval_expires_after_one_shift(cfg):
+def at(text):
+    return dt.datetime.strptime(text, "%Y-%m-%d %H:%M")
+
+
+@pytest.mark.parametrize("approved, expires", [
+    ("2026-09-29 05:50", "2026-09-29 14:00"),  # 10 min antes del turno de 06:00: cuenta para ESE turno
+    ("2026-09-29 06:10", "2026-09-29 14:00"),
+    ("2026-09-29 13:45", "2026-09-30 06:00"),  # 15 min antes del turno de 14:00: cuenta para ese
+    ("2026-09-29 22:30", "2026-09-30 06:00"),  # línea parada: el turno de la mañana corre el suyo
+])
+def test_approval_expires_at_the_next_shift_start(approved, expires):
+    assert app.approval_expiry(at(approved), (dt.time(6, 0), dt.time(14, 0)), 30) == at(expires)
+
+
+def test_golden_check_before_the_shift_covers_the_whole_shift(cfg):
+    # Con "8 h desde el check", un check a las 05:50 vencería a las 13:50 y los últimos 10 min del
+    # turno (≈ 1,200 piezas) irían a inspección manual. Vence al iniciar el turno siguiente.
     bad = {"anomaly_score": 0.91, "defects": GOOD["defects"]}
     insp, clock, _, _, _, records, reg = make(
         cfg, engine=FakeEngine(None, script=[GOOD, GOOD, bad, bad, bad, bad, GOOD]), golden_ok=None)
+    t0 = clock()
+    insp.wall_clock = lambda: at("2026-09-29 05:50") + dt.timedelta(seconds=clock() - t0)
     assert insp.golden_check() is True
-    clock.advance(7.9 * 3600)  # mismo turno: sigue aprobado
+    assert records[-1]["valid_until"] == "2026-09-29T14:00"
+    clock.advance(8.1 * 3600)  # 13:56: más de 8 h después del check, mismo turno → sigue aprobado
     assert insp.inspect(Trigger(18, clock()))["decision"] == PASS
-    clock.advance(0.2 * 3600)  # 8.1 h después del check: empieza el turno siguiente
+    clock.advance(0.1 * 3600)  # 14:02: empezó el turno siguiente
     assert insp.inspect(Trigger(19, clock()))["reason"] == "golden_pending"
     assert metric(reg, "golden_part_check_ok", line="L1") == 0
     assert any(r["event"] == "golden_expired" for r in records)
@@ -351,12 +458,24 @@ def test_all_metrics_are_exported_with_line_label(cfg):
     families = {f.name: f for f in text_string_to_metric_families(generate_latest(reg).decode())}
     # El parser quita el sufijo _total de los counters: inspection_decisions_total → inspection_decisions
     for name in ("inspection_decisions", "inspection_latency_seconds", "inspection_deadline_miss",
-                 "inspection_anomaly_score", "golden_part_check_ok", "plc_write_errors"):
+                 "inspection_divert", "inspection_anomaly_score", "golden_part_check_ok", "plc_write_errors"):
         assert name in families, name
         assert all(s.labels.get("line") == "L1" for s in families[name].samples)
     # Las 3 decisiones existen desde el arranque (en 0): rate() y las alertas funcionan antes del primer REJECT
     assert metric(reg, "inspection_decisions_total", line="L1", decision="REJECT") == 0
     assert metric(reg, "inspection_latency_seconds_bucket", line="L1", le="0.35") == 1
+
+
+def test_every_divert_is_counted_by_reason(cfg):
+    # Estrobo muerto: todas las fotos negras. Sin la razón en una métrica, la línea entera va a
+    # inspección manual en silencio (el loop avanza, el golden check ya pasó, no hay REJECTs)
+    insp, clock, _, _, _, _, reg = make(cfg, camera=FakeCamera(None, brightness=5))
+    for i in range(3):
+        insp.inspect(Trigger(30 + i, clock()))
+    assert metric(reg, "inspection_divert_total", line="L1", reason="bad_image") == 3
+    # Las 10 razones existen en 0 desde el arranque: una alerta por razón funciona antes del primer DIVERT
+    assert [metric(reg, "inspection_divert_total", line="L1", reason=r) for r in app.DIVERT_REASONS] == \
+        [0, 0, 0, 3, 0, 0, 0, 0, 0, 0]
 
 
 def test_repo_config_loads_with_case_numbers(cfg):
@@ -372,6 +491,9 @@ def test_repo_config_loads_with_case_numbers(cfg):
     ({"min_inference_budget_ms": 300}, "deadline_ms"),
     ({"golden": {"parts": [{"name": "G1", "expect": "PASS"}]}}, "PASS y una REJECT"),
     ({"image_check": {"min_mean": 200, "max_mean": 100}}, "image_check"),
+    # Sin comillas, PyYAML lee 14:00 como 840 (base 60): mejor no arrancar que vencer a otra hora
+    ({"golden": {"parts": [{"name": "G1", "expect": "PASS"}, {"name": "G3", "expect": "REJECT"}],
+                 "shift_starts": ["06:00", 840]}}, "entre comillas"),
 ])
 def test_dangerous_config_does_not_start(tmp_path, patch, match):
     raw = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
@@ -467,6 +589,64 @@ def test_modbus_plc_that_never_answers_times_out():
     assert time.monotonic() - t0 < 0.5  # retries=0: falla en ≈ 1 timeout, no en 4
     plc.close()
     silent.close()
+
+
+@pytest.fixture
+def resetting_plc():
+    """PLC mínimo por Modbus TCP (solo función 16) que puede tirar la conexión con un RST, como
+    uno que se reinicia. El servidor de pymodbus solo cierra en orden (FIN); aquí hace falta RST."""
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen()
+    srv.settimeout(0.05)
+    reset, done, stop = threading.Event(), threading.Event(), threading.Event()
+
+    def serve():
+        while not stop.is_set():
+            try:
+                conn, _ = srv.accept()
+            except socket.timeout:
+                continue
+            conn.settimeout(0.02)
+            with conn:
+                while not stop.is_set():
+                    if reset.is_set():  # SO_LINGER 0 + close = RST, no un cierre ordenado
+                        conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+                        reset.clear()
+                        done.set()
+                        break
+                    try:
+                        req = conn.recv(260)
+                    except socket.timeout:
+                        continue
+                    if not req:
+                        break
+                    tid, _, _, unit, fc, addr, qty = struct.unpack(">HHHBBHH", req[:12])
+                    conn.sendall(struct.pack(">HHHBBHH", tid, 0, 6, unit, fc, addr, qty))  # eco de FC16
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+
+    def do_reset():
+        done.clear()
+        reset.set()
+        assert done.wait(2)
+
+    yield srv.getsockname()[1], do_reset
+    stop.set()
+    thread.join(timeout=2)
+    srv.close()
+
+
+def test_modbus_plc_reconnects_after_the_plc_resets_the_connection(resetting_plc):
+    port, reset = resetting_plc
+    plc = ModbusPLC(PLCConfig(host="127.0.0.1", port=port, timeout_ms=200))
+    plc.write(1, PASS, timeout_s=1.0)
+    reset()  # el PLC se reinicia: la conexión vieja recibe RST
+    with pytest.raises(PLCError):  # antes: BrokenPipeError crudo y `connected` seguía en True
+        plc.write(2, PASS, timeout_s=1.0)
+    plc.write(3, REJECT, timeout_s=1.0)  # reconecta sola, sin reiniciar el contenedor
+    plc.close()
 
 
 def test_inspector_with_real_modbus_plc(cfg, modbus_server):

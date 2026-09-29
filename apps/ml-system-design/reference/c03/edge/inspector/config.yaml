@@ -41,8 +41,9 @@ plc:
   host: 10.20.1.10  # PLC de la línea en la VLAN OT (dirección de ejemplo)
   port: 502  # puerto estándar de Modbus TCP
   # Holding registers 100 y 101: [part_id (16 bits), código]. Código: 1 PASS, 2 REJECT, 3 DIVERT;
-  # 0 = sin decisión. El PLC desvía toda pieza sin un PASS válido para SU part_id a tiempo.
-  register: 100
+  # 0 = sin decisión. El PLC desvía toda pieza sin un PASS válido para SU part_id a tiempo, y pone
+  # el código en 0 al usarlo: el part_id de 16 bits se repite cada 65,536 piezas (≈ 9.1 h).
+  register: 100  # dirección de protocolo (base 0) = 40101 en notación 4xxxx: confírmalo con el integrador
   unit_id: 1
   # Round trip Modbus en la red local + hasta un ciclo de scan del PLC. 20 ms es un punto de
   # partida: mide el real con tu PLC y ajusta (y plc_write_reserve_ms con él).
@@ -57,9 +58,11 @@ golden:
   # Si "pasa raspando", algo se movió (iluminación, lente, foco) aunque todavía no rechace.
   good_margin: 0.15
   grab_timeout_s: 20  # el operador pone cada pieza a mano
-  # La aprobación dura un turno (8 h). Vencida, no hay PASS hasta el check del turno siguiente:
-  # así "cada turno empieza con su golden check" lo hace cumplir el software, no la memoria de alguien.
-  max_age_h: 8
+  # La aprobación vence al INICIAR el turno siguiente; vencida, no hay PASS hasta el check de ese
+  # turno: "cada turno empieza con su golden check" lo hace cumplir el software, no la memoria de
+  # alguien. Es hora local de la planta y va ENTRE COMILLAS: sin ellas, YAML lee 14:00 como 840.
+  shift_starts: ["06:00", "14:00"]  # 2 turnos de 8 h (horario de ejemplo: 06:00–14:00 y 14:00–22:00)
+  early_check_min: 30  # un check hasta 30 min antes de un inicio cuenta para ESE turno (05:50 → vence a las 14:00)
   parts:  # piezas físicas etiquetadas, guardadas junto a la estación; se corren en este orden
     - {name: G1-buena, expect: PASS}
     - {name: G2-buena, expect: PASS}

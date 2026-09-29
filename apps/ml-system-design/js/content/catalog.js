@@ -872,7 +872,7 @@
       },
       {
         "topic": "Entrada y salida",
-        "a": "Inspección: una cámara mono de 5 MP (2,448 × 2,048) por línea, disparada por una fotocelda, una imagen por pieza. Por pieza se necesita saber si pasa o se desvía, y qué defecto tiene: <b>fisura, rebaba, barreno faltante o deformación</b> (las fisuras más finas que importan miden ≈ 0.2 mm). EPP: <b>12 cámaras IP de área 1080p</b> en zonas de riesgo (prensas, pasillos de montacargas); casco, chaleco y lentes; alerta si una persona sin el EPP requerido permanece <b>más de 5 s</b> en la zona."
+        "a": "Inspección: una cámara por línea, disparada por una fotocelda, una imagen por pieza; la cámara, la óptica y la iluminación todavía no están elegidas (el piloto usó una cámara prestada). Por pieza se necesita saber si pasa o se desvía, y qué defecto tiene: <b>fisura, rebaba, barreno faltante o deformación</b> (las fisuras más finas que importan miden ≈ 0.2 mm). EPP: <b>12 cámaras IP de área 1080p</b> en zonas de riesgo (prensas, pasillos de montacargas); casco, chaleco y lentes; alerta si una persona sin el EPP requerido permanece <b>más de 5 s</b> en la zona."
       },
       {
         "topic": "Escala",
@@ -884,7 +884,7 @@
       },
       {
         "topic": "Modelo actual",
-        "a": "No hay modelo en producción. Hoy un operario revisa a ojo al final de la línea; a 2 piezas/s no alcanza a ver cada pieza con detalle y la armadora ha reportado escapes. Calidad pide <b>recall ≥ 99.5 % por tipo de defecto</b>. Un defecto que llega a la armadora puede disparar un incidente de ≈ <b>US$2,000–10,000</b> (contención, cargos, scorecard de PPM); una pieza buena desviada cuesta ≈ <b>US$0.05–0.10</b> de re-inspección. El inspector revisa ≈ 1 pieza cada 15 s."
+        "a": "No hay modelo en producción. Hoy un operario revisa a ojo al final de la línea; a 2 piezas/s no alcanza a ver cada pieza con detalle y la armadora ha reportado escapes. Calidad pide <b>recall ≥ 99.5 % por tipo de defecto</b>. Un defecto que llega a la armadora puede disparar un incidente de ≈ <b>US$2,000–10,000</b> (contención, cargos, scorecard de PPM: piezas defectuosas por millón); una pieza buena desviada cuesta ≈ <b>US$0.05–0.10</b> de re-inspección. El inspector revisa ≈ 1 pieza cada 15 s."
       },
       {
         "topic": "Datos y labels",

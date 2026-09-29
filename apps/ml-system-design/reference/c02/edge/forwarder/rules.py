@@ -21,6 +21,20 @@ from zoneinfo import ZoneInfo  # zonas horarias IANA (incluye cambios de horario
 EVENT_NAMESPACE = uuid.UUID("0233d5c2-d53f-4bf4-bf39-0aa8e8f37d36")
 
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")  # índice = datetime.weekday()
+LABELS = frozenset({"person", "vehicle"})  # = labels.txt del detector: una clase mal escrita es una zona muda
+
+# Llaves permitidas en site.yaml. Una llave mal escrita ("shedule") no se ignora: falla al arrancar.
+_SITE_KEYS = {"site_id", "timezone", "frame_width", "frame_height", "dwell_seconds", "dedupe_seconds",
+              "exit_grace_seconds", "schedules", "cameras"}
+_CAMERA_KEYS = {"snapshot_url", "rtsp_main_url", "zones"}
+_ZONE_KEYS = {"id", "polygon", "classes", "schedule", "dwell_seconds"}
+_WINDOW_KEYS = {"days", "start", "end"}
+
+
+def _check_keys(where: str, raw: dict, allowed: set[str]) -> None:
+    unknown = set(raw) - allowed
+    if unknown:
+        raise ValueError(f"{where}: llave desconocida {sorted(unknown)} (¿mal escrita?)")
 
 
 # ------------------------------------------------------------------------------ mensajes de DeepStream
@@ -41,7 +55,9 @@ class Frame:
     """Todo lo que DeepStream vio en un frame de UNA cámara."""
 
     camera_id: str  # "sensorId" del mensaje = id de [sensorN] en msgconv_config.txt
-    ts: float  # epoch UTC en segundos del "@timestamp" (reloj de la caja, sincronizado por NTP)
+    # Epoch UTC del "@timestamp": la hora (reloj de la caja, NTP) en que nvmsgconv ARMÓ el mensaje, no la
+    # de captura. Ya incluye cámara, RTSP, mux, inferencia y tracker (≈ 0.4–0.6 s, est.).
+    ts: float
     detections: tuple[Detection, ...]
     malformed: int = 0  # objetos que no se pudieron leer (se cuentan, no tumban el frame)
 
@@ -58,9 +74,12 @@ def parse_minimal_payload(raw: bytes | str) -> Frame:
      "objects": ["<track_id>|<left>|<top>|<right>|<bottom>|<label>", …]}
 
     Si hubiera un clasificador secundario, cada objeto trae además "|#|<atributos>|<confianza>": se ignora.
-    Un JSON inválido lanza ValueError/KeyError (el llamador lo cuenta); un objeto roto solo se descarta.
+    Un mensaje inválido lanza ValueError/KeyError/TypeError (el llamador lo cuenta); un objeto roto solo
+    se descarta.
     """
     msg = json.loads(raw)
+    if not isinstance(msg, dict):  # "[1,2]" es JSON válido pero no un mensaje: sin esto, AttributeError
+        raise ValueError(f"se esperaba un objeto JSON, llegó {type(msg).__name__}")
     detections: list[Detection] = []
     malformed = 0
     for item in msg.get("objects", []):  # frame sin objetos = lista vacía: también es información
@@ -165,11 +184,20 @@ class SiteConfig:
 
     @classmethod
     def from_dict(cls, raw: dict) -> SiteConfig:
-        """Valida site.yaml al arrancar: una zona mal escrita debe fallar aquí, no a las 3 a. m."""
+        """Valida site.yaml al arrancar: una zona mal escrita debe fallar aquí, no a las 3 a. m.
+
+        Los dos errores que más cuestan pasan YAML sin problema: una clase mal escrita ("persons") crea
+        una zona que nunca dispara (recall perdido, sin ningún error), y una llave mal escrita
+        ("shedule") se ignoraría y dejaría la zona activa siempre (falsas alarmas de día).
+        """
+        _check_keys("site.yaml", raw, _SITE_KEYS)
         schedules: dict[str, tuple[Window, ...] | None] = {"always": None}
         for name, windows in (raw.get("schedules") or {}).items():
             parsed = []
             for w in windows:
+                _check_keys(f"horario {name}", w, _WINDOW_KEYS)
+                if not w["days"]:  # una ventana sin días nunca se activa
+                    raise ValueError(f"horario {name}: lista de días vacía")
                 days = frozenset(DAYS.index(d) for d in w["days"])  # ValueError si hay un día mal escrito
                 start, end = _minutes(w["start"]), _minutes(w["end"])
                 if start == end:
@@ -178,15 +206,20 @@ class SiteConfig:
             schedules[name] = tuple(parsed)
         cameras = {}
         for cam_id, cam in raw["cameras"].items():
+            _check_keys(f"cámara {cam_id}", cam, _CAMERA_KEYS)
             zones = []
             for z in cam.get("zones", []):
+                _check_keys(f"{cam_id}/{z.get('id')}", z, _ZONE_KEYS)
                 poly = tuple((float(x), float(y)) for x, y in z["polygon"])
                 if len(poly) < 3 or not all(0 <= v <= 1 for p in poly for v in p):
                     raise ValueError(f"{cam_id}/{z['id']}: polígono con < 3 vértices o fuera de 0–1")
+                classes = frozenset(z["classes"])
+                if not classes or not classes <= LABELS:
+                    raise ValueError(f"{cam_id}/{z['id']}: clases {sorted(classes)} fuera de labels.txt {sorted(LABELS)}")
                 if z.get("schedule", "always") not in schedules:
                     raise ValueError(f"{cam_id}/{z['id']}: horario desconocido {z.get('schedule')!r}")
                 dwell = float(z["dwell_seconds"]) if "dwell_seconds" in z else None
-                zones.append(Zone(z["id"], poly, frozenset(z["classes"]), schedules[z.get("schedule", "always")], dwell))
+                zones.append(Zone(z["id"], poly, classes, schedules[z.get("schedule", "always")], dwell))
             cameras[cam_id] = Camera(cam_id, tuple(zones), cam.get("snapshot_url"), cam.get("rtsp_main_url"))
         return cls(
             site_id=raw["site_id"],
@@ -233,9 +266,17 @@ class ZoneEvent:
     zone_id: str
     track_id: str
     label: str
-    first_seen_at: float  # cuándo el pie entró a la zona: t0 del SLO de 5 s
+    # Publicación de DeepStream del primer frame con el pie en la zona (reloj de la caja). NO es la entrada
+    # real: el track ya pasó la probation del tracker (2 frames ≈ 0.4 s) y el frame, la cámara y el pipeline
+    # (≈ 0.4–0.6 s, est.). Esa parte (≈ 1 s) no se ve aquí: se mide con walk tests y se descuenta del umbral
+    # de AlertLatencyHigh (4 s en vez de 5; ver cloud/monitoring/alerts.yml).
+    first_seen_at: float
     triggered_at: float  # cuándo se cumplió el dwell
-    box: tuple[float, float, float, float]  # caja normalizada 0–1 al disparar
+    box: tuple[float, float, float, float]  # caja normalizada 0–1 al disparar (recortada a 0–1)
+    # True solo para la PRIMERA alerta de una intrusión con el dwell del sitio: es lo que promete el SLO.
+    # Un recordatorio (mismo track 10 min después) o una regla con dwell largo (carril de bomberos, 60 s)
+    # medirían 600 s o 61 s "de latencia" y dispararían AlertLatencyHigh sin que nada esté lento.
+    slo: bool = True
 
     def to_payload(self, frames: list[str], model_version: str, forwarder_version: str) -> dict:
         """Cuerpo de POST /v1/events (contrato con cloud/api/main.py)."""
@@ -250,6 +291,7 @@ class ZoneEvent:
             "triggered_at": self.triggered_at,
             "dwell_s": round(self.triggered_at - self.first_seen_at, 3),
             "box": list(self.box),
+            "slo": self.slo,  # la nube solo mide la latencia E2E de los eventos con slo=true
             "frames": frames,  # llaves S3 de las fotos ya subidas (las llena app.py)
             "model_version": model_version,
             "forwarder_version": forwarder_version,
@@ -275,6 +317,8 @@ class _Presence:
     entered_at: float
     last_seen: float
     snapshots: int = 1  # la de entrada ya se pidió al crear la presencia
+    fired: bool = False  # esta presencia ya generó un evento: lo que siga es un recordatorio
+    blocked: bool = False  # cumplió el dwell dentro de la ventana de dedupe de un evento anterior
 
 
 @dataclass
@@ -311,9 +355,15 @@ class ZoneRules:
                 if presence.snapshots == 1 and dwell >= needed / 2:  # foto 1: mitad del dwell
                     presence.snapshots = 2
                     actions.append(SnapshotRequest(key, frame.camera_id, 1))
-                if dwell >= needed and self._may_fire(key, frame.ts):
-                    self._last_fired[key] = frame.ts
-                    actions.append(self._event(key, det, presence, frame.ts))
+                if dwell >= needed:
+                    if self._may_fire(key, frame.ts):
+                        # Dentro del SLO: la primera alerta de esta presencia, con el dwell del sitio
+                        slo = needed <= self.cfg.dwell_s and not presence.fired and not presence.blocked
+                        self._last_fired[key] = frame.ts
+                        presence.fired = True
+                        actions.append(self._event(key, det, presence, frame.ts, slo))
+                    else:
+                        presence.blocked = True  # volvió antes de 10 min: su evento saldrá tarde a propósito
         self._expire(frame, seen)
         return actions
 
@@ -321,8 +371,14 @@ class ZoneRules:
         last = self._last_fired.get(key)
         return last is None or now - last >= self.cfg.dedupe_s  # 10 min después, un recordatorio
 
-    def _event(self, key: Key, det: Detection, presence: _Presence, now: float) -> ZoneEvent:
+    def _event(self, key: Key, det: Detection, presence: _Presence, now: float, slo: bool) -> ZoneEvent:
         w, h = self.cfg.frame_w, self.cfg.frame_h
+
+        def norm(v: float, size: int) -> float:
+            # Recortada a 0–1: una caja que asoma 1 px fuera del frame (tracker, borde de la imagen) haría
+            # que la API rechace el evento con 422 y el evento terminaría en dead-letter.
+            return round(min(1.0, max(0.0, v / size)), 4)
+
         return ZoneEvent(
             event_id=event_id_for(self.cfg.site_id, key, now, self.cfg.dedupe_s),
             key=key,
@@ -333,7 +389,8 @@ class ZoneRules:
             label=det.label,
             first_seen_at=presence.entered_at,
             triggered_at=now,
-            box=(round(det.left / w, 4), round(det.top / h, 4), round(det.right / w, 4), round(det.bottom / h, 4)),
+            box=(norm(det.left, w), norm(det.top, h), norm(det.right, w), norm(det.bottom, h)),
+            slo=slo,
         )
 
     def _expire(self, frame: Frame, seen: set[Key]) -> None:

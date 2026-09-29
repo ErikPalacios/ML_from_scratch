@@ -7,10 +7,14 @@ Correr: cd edge/forwarder && pytest
 """
 
 import json  # mensajes en el formato "minimal" de nvmsgconv
+import os  # PATH con un ffmpeg falso
 import random  # rng con semilla para el jitter
+import threading  # el carril de clips corre en otro hilo, como en producción
+import time  # medir que el apagado no espera al clip
 from concurrent.futures import Future  # el "executor inmediato" devuelve Futures ya resueltos
 from datetime import datetime  # construir timestamps en hora local del sitio
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 import httpx2  # MockTransport: HTTP falso con el cliente real
 import pytest
@@ -172,6 +176,71 @@ def test_zone_specific_dwell_for_fire_lane():
     assert len(events(run(rules, "cam-02", DAY + 30.2, 40.0, truck))) == 1  # estacionado > 60 s: sí
 
 
+def test_only_the_first_alert_of_an_intrusion_counts_for_the_slo():
+    rules = ZoneRules(cfg())
+    person = [PERSON_IN.format(tid=31)]
+    first = events(run(rules, "cam-01", NIGHT, 2.0, person))[0]
+    assert first.slo is True and first.to_payload([], "m", "f")["slo"] is True
+    # Recordatorio: mismo track 10 min después. Mediría ≥ 600 s "de latencia": fuera del SLO
+    reminder = events(run(rules, "cam-01", NIGHT + 2.2, 600.0, person))
+    assert len(reminder) == 1 and reminder[0].slo is False
+    # Carril de bomberos (dwell propio de 60 s): una infracción, no una intrusión
+    truck = events(run(ZoneRules(cfg()), "cam-02", DAY, 61.0, ["8|1650|400|1800|900|vehicle"]))
+    assert len(truck) == 1 and truck[0].slo is False
+    # Sale y vuelve antes de 10 min: su evento sale tarde A PROPÓSITO (dedupe), tampoco cuenta
+    rules = ZoneRules(cfg())
+    assert events(run(rules, "cam-01", NIGHT, 2.0, person))[0].slo is True
+    run(rules, "cam-01", NIGHT + 2.2, 2.0, [])  # 2 s fuera: la presencia termina
+    back = events(run(rules, "cam-01", NIGHT + 100, 505.0, person))
+    assert len(back) == 1 and back[0].slo is False
+
+
+def test_event_box_is_clipped_to_0_1():
+    # Una caja que asoma unos píxeles fuera del frame: sin recortar, la API respondería 422 (box en [0, 1])
+    ev = events(run(ZoneRules(cfg()), "cam-01", NIGHT, 2.0, ["4|-4|700|1925|1000|person"]))[0]
+    assert ev.box[0] == 0.0 and ev.box[2] == 1.0
+    assert all(0.0 <= v <= 1.0 for v in ev.to_payload([], "m", "f")["box"])
+
+
+# ------------------------------------------------------------------------------ validación de site.yaml
+def raw_cfg() -> dict:
+    return yaml.safe_load((HERE / "site.example.yaml").read_text(encoding="utf-8"))
+
+
+def _typo_class(raw):
+    raw["cameras"]["cam-01"]["zones"][0]["classes"] = ["persons"]  # nunca dispararía: recall perdido
+
+
+def _typo_schedule_key(raw):
+    zone = raw["cameras"]["cam-01"]["zones"][0]
+    zone["shedule"] = zone.pop("schedule")  # se ignoraría: zona activa SIEMPRE (falsas alarmas de día)
+
+
+def _typo_camera_key(raw):
+    raw["cameras"]["cam-01"]["snapshot_uri"] = raw["cameras"]["cam-01"].pop("snapshot_url")
+
+
+def _typo_site_key(raw):
+    raw["dwell_second"] = 3
+
+
+def _typo_window_key(raw):
+    raw["schedules"]["after_hours"][0]["strat"] = raw["schedules"]["after_hours"][0].pop("start")
+
+
+def _empty_days(raw):
+    raw["schedules"]["after_hours"][0]["days"] = []  # una ventana que nunca se activa
+
+
+@pytest.mark.parametrize("break_it", [_typo_class, _typo_schedule_key, _typo_camera_key, _typo_site_key,
+                                      _typo_window_key, _empty_days])
+def test_site_config_rejects_typos_that_yaml_accepts(break_it):
+    raw = raw_cfg()
+    break_it(raw)
+    with pytest.raises((ValueError, KeyError)):
+        SiteConfig.from_dict(raw)
+
+
 # ------------------------------------------------------------------------------ horarios
 @pytest.mark.parametrize(
     "when, active",
@@ -242,7 +311,10 @@ class FakeCloud:
         self.log: list[str] = []
         self.events: dict[str, dict] = {}
         self.upload_status = 200
+        self.clip_status = 200
         self.event_status = 202
+        self.block_clip: threading.Event | None = None  # si existe, el PUT del clip espera a que se active
+        self.clip_started = threading.Event()
 
     def handler(self, request: httpx2.Request) -> httpx2.Response:
         if self.down > 0:
@@ -260,6 +332,11 @@ class FakeCloud:
             return httpx2.Response(200, json={"url": f"https://s3.test/{key}?X-Amz-Signature=x", "key": key,
                                               "headers": {"Content-Type": body["content_type"]}})
         if request.url.host == "s3.test":
+            if "clip" in path:
+                self.clip_started.set()
+                if self.block_clip is not None:
+                    self.block_clip.wait(5)
+                return httpx2.Response(self.clip_status)
             return httpx2.Response(self.upload_status)
         if path == "/v1/events":
             if self.event_status != 202:
@@ -277,8 +354,10 @@ def cloud_env(tmp_path):
     cloud = FakeCloud()
     outbox = app.Outbox(str(tmp_path / "outbox.sqlite3"), clock=clock)
     api = app.ApiClient("https://api.test", "secreto-del-sitio", transport=httpx2.MockTransport(cloud.handler))
-    sender = app.Sender(outbox, api, clock=clock, rng=random.Random(1))
-    return clock, cloud, outbox, sender, tmp_path
+    # Dos carriles, como main(): uno vacía eventos y el otro clips, cada uno con su pausa y su backoff
+    lanes = (app.Sender(outbox, api, "event", clock=clock, rng=random.Random(1)),
+             app.Sender(outbox, api, "clip", clock=clock, rng=random.Random(2)))
+    return clock, cloud, outbox, lanes, tmp_path
 
 
 def queue_event(outbox: app.Outbox, folder: Path, event_id: str = "e-1", frames: int = 3) -> list[str]:
@@ -292,50 +371,82 @@ def queue_event(outbox: app.Outbox, folder: Path, event_id: str = "e-1", frames:
     return files
 
 
-def drain(sender: app.Sender, clock: FakeClock, max_steps: int = 200) -> None:
-    """Corre el sender avanzando el reloj falso hasta que no queda nada (o se acaban los pasos)."""
+def drain(lanes, clock: FakeClock, max_steps: int = 200) -> None:
+    """Corre los dos carriles avanzando el reloj falso hasta que no queda nada (o se acaban los pasos)."""
     for _ in range(max_steps):
-        if not sender.run_once():
-            if sender.outbox.stats()["pending"] == 0:
+        if not any([lane.run_once() for lane in lanes]):
+            if lanes[0].outbox.stats()["pending"] == 0:
                 return
             clock.advance(5.0)
 
 
 def test_offline_queue_retries_with_backoff_and_flushes_in_order(cloud_env):
-    clock, cloud, outbox, sender, tmp = cloud_env
+    clock, cloud, outbox, (events_lane, clips_lane), tmp = cloud_env
     files = queue_event(outbox, tmp, "e-1")
     clip = tmp / "clip.mp4"
     clip.write_bytes(b"mp4")
     outbox.put("e-1:clip", "clip", {"event_id": "e-1"}, [str(clip)])
     cloud.down = 3  # la subida del sitio está caída: 3 intentos fallan por red
     for _ in range(3):
-        assert sender.run_once()
+        assert events_lane.run_once()
         stats = outbox.stats()
         assert stats["pending"] == 2  # nada se pierde mientras no hay red
-        clock.advance(sender.pause_until - clock() + 0.01)  # respeta la pausa global y el backoff
+        clock.advance(events_lane.pause_until - clock() + 0.01)  # respeta la pausa del carril y el backoff
         clock.advance(300)  # y deja vencer el backoff del ítem
-    drain(sender, clock)
+    drain((events_lane, clips_lane), clock)
     assert outbox.stats()["pending"] == 0 and cloud.events["e-1"]["frames"][0].endswith("frame-0")
-    # Orden: las 3 fotos (pedir URL + PUT a S3) ANTES del evento, y el clip al final (prioridad baja)
-    posts = [line for line in cloud.log if "/v1/events" in line or "clip" in line]
-    assert posts[0].startswith("POST api.test/v1/events") and "clip" in posts[-1]
+    # Las 3 fotos (pedir URL + PUT a S3) van ANTES del POST del evento; el clip sale por su carril
     assert cloud.log.index("POST api.test/v1/events") > max(i for i, l in enumerate(cloud.log) if "frame-2" in l)
+    assert any("clip" in line for line in cloud.log)
     assert not any(Path(f).exists() for f in files)  # lo enviado se borra del disco de la caja
 
 
-def test_events_jump_ahead_of_older_clips(cloud_env):
-    clock, cloud, outbox, sender, tmp = cloud_env
+def test_events_leave_in_order_and_ignore_the_clip_lane(cloud_env):
+    clock, cloud, outbox, (events_lane, clips_lane), tmp = cloud_env
     clip = tmp / "old.mp4"
     clip.write_bytes(b"mp4")
     outbox.put("e-0:clip", "clip", {"event_id": "e-0"}, [str(clip)])  # un clip de hace un minuto…
     clock.advance(60)
-    queue_event(outbox, tmp, "e-5")  # …y una intrusión nueva: sale PRIMERO aunque sea más reciente
+    queue_event(outbox, tmp, "e-5")  # …y una intrusión nueva
     clock.advance(1)
     queue_event(outbox, tmp, "e-6")  # entre eventos, el más viejo primero (FIFO)
-    assert outbox.next_due().item_id == "e-5"
-    drain(sender, clock)
-    assert cloud.log.index("POST api.test/v1/events") < next(i for i, l in enumerate(cloud.log) if "clip" in l)
-    assert list(cloud.events) == ["e-5", "e-6"]
+    assert outbox.next_due("event").item_id == "e-5" and outbox.next_due("clip").item_id == "e-0:clip"
+    while events_lane.run_once():  # el carril de eventos no toca el clip…
+        pass
+    assert list(cloud.events) == ["e-5", "e-6"] and not any("clip" in line for line in cloud.log)
+    assert outbox.stats()["pending"] == 1  # …que sigue esperando a SU carril
+    drain((events_lane, clips_lane), clock)
+    assert outbox.stats()["pending"] == 0
+
+
+def test_a_clip_upload_in_flight_never_delays_an_event(cloud_env):
+    """Con un solo sender, un evento que llega mientras sube un clip de 5 MB (2–4 s) esperaría."""
+    clock, cloud, outbox, (events_lane, clips_lane), tmp = cloud_env
+    cloud.block_clip = threading.Event()  # el PUT del clip se queda "subiendo" hasta que lo soltemos
+    cloud.clip_started = threading.Event()
+    clip = tmp / "c.mp4"
+    clip.write_bytes(b"mp4")
+    outbox.put("e-7:clip", "clip", {"event_id": "e-7"}, [str(clip)])
+    worker = threading.Thread(target=clips_lane.run_once)
+    worker.start()
+    assert cloud.clip_started.wait(5)  # el clip está a medio subir…
+    queue_event(outbox, tmp, "e-8")  # …y llega una intrusión
+    assert events_lane.run_once() and "e-8" in cloud.events  # sale YA, sin esperar al clip
+    cloud.block_clip.set()
+    worker.join(5)
+    assert outbox.stats()["pending"] == 0
+
+
+def test_a_failing_clip_does_not_pause_events(cloud_env):
+    clock, cloud, outbox, (events_lane, clips_lane), tmp = cloud_env
+    cloud.clip_status = 503  # S3 rechaza el clip
+    clip = tmp / "c.mp4"
+    clip.write_bytes(b"mp4")
+    item = outbox.put("e-9:clip", "clip", {"event_id": "e-9"}, [str(clip)])
+    assert item and clips_lane.run_once() and clips_lane.pause_until > clock()  # el carril de clips se pausa…
+    queue_event(outbox, tmp, "e-10")
+    assert events_lane.pause_until == 0.0 and events_lane.run_once()  # …el de eventos, no
+    assert "e-10" in cloud.events
 
 
 def test_outbox_is_idempotent_and_survives_a_restart(tmp_path):
@@ -348,26 +459,54 @@ def test_outbox_is_idempotent_and_survives_a_restart(tmp_path):
 
 
 def test_duplicate_response_counts_as_delivered(cloud_env):
-    clock, cloud, outbox, sender, tmp = cloud_env
+    clock, cloud, outbox, lanes, tmp = cloud_env
     cloud.events["e-2"] = {"event_id": "e-2"}  # la nube ya lo tenía (p. ej. se perdió el 202 del intento anterior)
     queue_event(outbox, tmp, "e-2")
-    drain(sender, clock)
-    assert outbox.stats() == {"pending": 0, "oldest_age_s": 0.0, "dead_letters": 0}
+    drain(lanes, clock)
+    assert outbox.stats() == {"pending": 0, "oldest_age_s": 0.0, "oldest_event_age_s": 0.0,
+                              "dead_letters": 0, "dead_letter_events": 0}
 
 
 def test_permanent_error_goes_to_dead_letter_instead_of_retrying_forever(cloud_env):
-    clock, cloud, outbox, sender, tmp = cloud_env
+    clock, cloud, outbox, lanes, tmp = cloud_env
     cloud.event_status = 422  # el contrato cambió y la API rechaza el cuerpo: reintentar no lo arregla
     queue_event(outbox, tmp, "e-3")
-    drain(sender, clock)
-    assert outbox.stats()["pending"] == 0 and outbox.stats()["dead_letters"] == 1
+    drain(lanes, clock)
+    # Apartado pero VISIBLE: el heartbeat lleva dead_letter_events y la nube alerta (EdgeEventsStuck)
+    assert outbox.stats()["pending"] == 0 and outbox.stats()["dead_letter_events"] == 1
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_auth_errors_wait_in_the_queue_instead_of_dead_letter(cloud_env, status):
+    clock, cloud, outbox, lanes, tmp = cloud_env
+    cloud.event_status = status  # Secret de tokens roto o site.yaml de otro sitio: lo arregla un operador
+    queue_event(outbox, tmp, "e-11")
+    drain(lanes, clock, max_steps=20)
+    stats = outbox.stats()
+    assert stats["pending"] == 1 and stats["dead_letters"] == 0  # el evento espera…
+    assert stats["oldest_event_age_s"] > 60  # …y su edad es lo que ve EdgeEventsStuck
+    cloud.event_status = 202  # arreglado: sale solo, con sus fotos
+    clock.advance(301)
+    drain(lanes, clock)
+    assert cloud.events["e-11"]["frames"] and outbox.stats()["pending"] == 0
+
+
+def test_stats_separate_events_from_clips(tmp_path):
+    clock = FakeClock()
+    box = app.Outbox(str(tmp_path / "q.sqlite3"), clock=clock)
+    box.put("e-1:clip", "clip", {"event_id": "e-1"}, [])
+    clock.advance(100)
+    box.put("e-2", "event", {"event_id": "e-2"}, [])
+    clock.advance(20)
+    stats = box.stats()
+    assert stats["oldest_age_s"] == 120.0 and stats["oldest_event_age_s"] == 20.0  # un clip viejo no es urgente
 
 
 def test_event_goes_out_without_photos_if_uploads_keep_failing(cloud_env):
-    clock, cloud, outbox, sender, tmp = cloud_env
+    clock, cloud, outbox, lanes, tmp = cloud_env
     cloud.upload_status = 503  # S3 falla, la API responde
     queue_event(outbox, tmp, "e-4")
-    drain(sender, clock)
+    drain(lanes, clock)
     sent = cloud.events["e-4"]
     assert sent["frames"] == [] and sent["evidence_missing"] is True  # mejor una alerta sin fotos que ninguna
 
@@ -407,8 +546,60 @@ def test_forwarder_end_to_end_with_fakes(tmp_path):
     event = outbox.next_due()
     assert event.kind == "event" and len(event.files) == 3  # entrada, mitad del dwell y disparo
     assert event.payload["zone_id"] == "perimetro-norte" and event.payload["model_version"] == app.MODEL_VERSION
+    assert event.payload["slo"] is True
     assert outbox.stats()["pending"] == 2  # evento + clip
     assert fwd.counters == {"malformed_messages": 1, "unknown_camera_messages": 1}
     clock.advance(2.0)
     fps = fwd.camera_fps()
     assert fps["cam-01"] == pytest.approx(5.0) and fps["cam-02"] == 0.0  # la cámara muda se reporta en 0
+
+
+def test_on_message_never_raises_into_the_mqtt_thread(tmp_path, monkeypatch):
+    # paho re-lanza la excepción de on_message y su hilo de red muere: el sitio quedaría ciego con la caja "viva"
+    clock = FakeClock(NIGHT)
+    outbox = app.Outbox(str(tmp_path / "q.sqlite3"), clock=clock)
+    fwd = app.Forwarder(cfg(), outbox, FakeEvidence(), tmp_path / "spool", ImmediatePool(), ImmediatePool(), clock=clock)
+    fwd.on_message(b"[1,2]")  # JSON válido que no es un mensaje: se cuenta como roto
+    real_process = fwd.rules.process
+
+    def buggy(frame):  # un bug cualquiera en las reglas
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(fwd.rules, "process", buggy)
+    fwd.on_message(msg("cam-01", NIGHT, []))  # no lanza
+    monkeypatch.setattr(fwd.rules, "process", real_process)
+    for k in range(10):  # y los mensajes siguientes se procesan normal
+        fwd.on_message(msg("cam-01", NIGHT + k / FPS, [PERSON_IN.format(tid=78)]))
+    assert fwd.counters["malformed_messages"] == 1 and fwd.counters["on_message_errors"] == 1
+    assert outbox.next_due("event") is not None
+
+
+def test_rtsp_credentials_are_percent_encoded():
+    password = "Ab#20:26/x@"  # sin codificar, el '#' cortaría la clave en "Ab"
+    url = app.rtsp_with_auth("rtsp://10.20.1.11:554/stream1", "forwarder", password)
+    parts = urlsplit(url)
+    assert parts.hostname == "10.20.1.11" and parts.port == 554 and parts.path == "/stream1"
+    assert unquote(parts.username) == "forwarder" and unquote(parts.password) == password
+
+
+def test_shutdown_terminates_a_running_clip(tmp_path, monkeypatch):
+    # ffmpeg falso que "graba" 30 s: sin stop_clips el apagado esperaría hasta el SIGKILL de Docker
+    fake = tmp_path / "bin" / "ffmpeg"
+    fake.parent.mkdir()
+    fake.write_text("#!/bin/sh\nexec sleep 30\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake.parent}{os.pathsep}{os.environ['PATH']}")
+    evidence = app.Evidence(cfg(), "forwarder", "clave", http=httpx2.Client(transport=httpx2.MockTransport(lambda r: httpx2.Response(404))))
+    result = {}
+    worker = threading.Thread(target=lambda: result.update(ok=evidence.record_clip("cam-01", tmp_path / "c.mp4")))
+    worker.start()
+    for _ in range(100):  # espera a que ffmpeg arranque
+        if evidence._clips:
+            break
+        threading.Event().wait(0.05)
+    evidence.stop_clips()
+    worker.join(5)
+    assert not worker.is_alive() and result["ok"] is False  # terminó en segundos y cuenta como clip fallido
+    t0 = time.monotonic()
+    assert evidence.record_clip("cam-01", tmp_path / "d.mp4") is False  # apagando: no arranca clips nuevos…
+    assert time.monotonic() - t0 < 2  # …ni espera a uno

@@ -2,7 +2,8 @@
 # (≈ 250/hora en toda la flota en el pico nocturno, est.), corre un detector más pesado a mayor resolución
 # sobre las 3 fotos del evento y, si confirma, lo pasa al servicio de alertas del SOC.
 # Recursos: ServiceAccount (IRSA) + Deployment en nodos L4 + PodDisruptionBudget + TriggerAuthentication
-# y ScaledObject de KEDA (escala por mensajes en la cola). Namespace "c02": kubectl create namespace c02.
+# y ScaledObject de KEDA (escala por mensajes en la cola) + PodMonitor (Prometheus lee /metrics).
+# Namespace "c02": kubectl create namespace c02.
 #
 # Contrato del worker (su código no está en esta carpeta; su imagen sí se referencia aquí):
 #   - long polling a SQS (WaitTimeSeconds=20), hasta 10 mensajes por ReceiveMessage → un lote en la GPU
@@ -186,3 +187,23 @@ spec:
         scaleOnInFlight: "true"
         # El trigger de SQS escala por PROFUNDIDAD: no tiene modo "edad del mensaje más viejo". La edad es
         # lo que promete el SLO, así que vive en la alerta EventBacklogHigh (cloud/monitoring/alerts.yml).
+---
+# Scrape de /metrics del verificador con el Prometheus Operator (kube-prometheus-stack). Un PodMonitor y
+# no un ServiceMonitor: el verificador no recibe tráfico, así que no tiene Service, y un ServiceMonitor
+# solo selecciona Services. Sin esto, verifier_jobs_total no existe, VerifierErrors no tiene series y
+# nunca dispara, sin ningún error visible.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: verifier
+  namespace: c02
+  labels:
+    release: kube-prometheus-stack  # = podMonitorSelector de tu Prometheus (nombre del release de Helm)
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: verifier  # labels del pod del Deployment de arriba
+  podMetricsEndpoints:
+    - port: http  # nombre del puerto del contenedor (8080): /metrics con verifier_jobs_total
+      path: /metrics
+      interval: 15s

@@ -1,6 +1,7 @@
 # Configuración de UN sitio para el forwarder (caso c02). Se genera desde el inventario del sitio,
 # igual que las [sourceN] de ds_app_config.txt y los [sensorN] de msgconv_config.txt: los ids de cámara
-# deben coincidir en los tres archivos. rules.py la valida al arrancar (polígonos, horarios, días).
+# deben coincidir en los tres archivos. rules.py la valida al arrancar (polígonos, horarios, días, clases
+# de labels.txt y llaves: una llave mal escrita falla en vez de ignorarse).
 # Sin credenciales aquí: usuario y contraseña de las cámaras llegan como secretos (ver docker-compose.yml).
 
 site_id: dc-07  # mismo id que el token del sitio en la nube (la nube usa el del token, no este)
@@ -54,5 +55,6 @@ cameras:
         classes: [vehicle]  # un vehículo estacionado bloquea el carril de bomberos a cualquier hora
         schedule: always
         # Dwell propio: un camión que PASA tarda segundos; uno ESTACIONADO, minutos. Con 1.5 s cada paso
-        # sería una alerta. Esta regla no entra en el SLO de 5 s: es una infracción, no una intrusión.
+        # sería una alerta. Esta regla no entra en el SLO de 5 s: es una infracción, no una intrusión
+        # (un dwell más largo que el del sitio → el evento sale con slo=false y no cuenta en la latencia).
         dwell_seconds: 60

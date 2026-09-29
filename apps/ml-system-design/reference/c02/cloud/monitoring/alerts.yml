@@ -1,11 +1,14 @@
-# Alertas del caso c02 (Prometheus): las 6 de la sección de monitoreo. Todas miran la NUBE; las cajas
-# no tienen Prometheus propio: reportan por heartbeat y la API lo convierte en métricas.
-# Severidades: page = despierta a alguien (un sitio está ciego o las alertas llegan tarde) ·
-# ticket = se arregla en horario laboral (una cámara, la calidad del modelo).
+# Alertas del caso c02 (Prometheus): 8 reglas. Edge: EdgeBoxOffline, SitePipelineDown, CameraStreamDown,
+# EdgeEventsStuck. Nube: EventBacklogHigh, AlertLatencyHigh, FalseAlarmRateHigh, VerifierErrors.
+# Todas miran la NUBE; las cajas no tienen Prometheus propio: reportan por heartbeat y la API lo
+# convierte en métricas.
+# Severidades: page = despierta a alguien (un sitio está ciego, sus eventos no salen o las alertas llegan
+# tarde) · ticket = se arregla en horario laboral (una cámara, la calidad del modelo).
 # De dónde sale cada métrica:
-#   edge_last_heartbeat_timestamp_seconds, camera_fps, alert_end_to_end_seconds, alerts_closed_total,
-#   alerts_dismissed_total → cloud/api/main.py · verifier_jobs_total → el worker del verificador
-#   (contrato en cloud/k8s/verifier.yaml) · aws_sqs_* → CloudWatch vía exportador (ver EventBacklogHigh).
+#   edge_last_heartbeat_timestamp_seconds, camera_fps, edge_outbox_*, alert_end_to_end_seconds,
+#   event_ingest_lag_seconds, alerts_closed_total, alerts_dismissed_total → cloud/api/main.py ·
+#   verifier_jobs_total → el worker del verificador (contrato en cloud/k8s/verifier.yaml) ·
+#   aws_sqs_* → CloudWatch vía exportador (ver EventBacklogHigh).
 # Validación: YAML y sintaxis PromQL revisadas con un parser; no se corrió `promtool check rules`.
 
 groups:
@@ -24,21 +27,42 @@ groups:
           severity: page
         annotations:
           summary: "Caja edge de {{ $labels.site }} sin heartbeat"
-          description: "Último heartbeat hace {{ $value | humanizeDuration }}. El sitio no está detectando intrusiones: avisa al SOC para vigilancia manual (NVR) y revisa energía, red y el contenedor."
+          description: "Último heartbeat hace {{ $value | humanizeDuration }}. El sitio no está detectando intrusiones: avisa al SOC para vigilancia manual (NVR) y revisa energía, red y el contenedor. Si la caja responde, busca heartbeat_failed en sus logs: un 401/403 es un token o un site.yaml de otro sitio."
           runbook_url: "https://runbooks.example.com/c02/edge-box-offline"
 
+      # Caja viva (heartbeat fresco) pero TODAS sus cámaras en 0 fps: no son las cámaras, es DeepStream (un
+      # engine que no carga tras un OTA, un crash-loop, la GPU, el broker MQTT local). El sitio está tan
+      # ciego como con la caja apagada, pero EdgeBoxOffline no lo ve: el forwarder sigue mandando heartbeats.
+      # Agrupar 40 tickets en Alertmanager no sube la severidad: esto tiene que ser un page propio.
+      # max by (site) == 0: ninguna cámara del sitio, en ninguna réplica fresca, tiene frames.
+      - alert: SitePipelineDown
+        expr: |
+          max by (site) (camera_fps) == 0
+            unless on (site)
+          (time() - max by (site) (edge_last_heartbeat_timestamp_seconds) > 120)
+        # 2 min: el reinicio normal de DeepStream (reconectar 40 cámaras y cargar el engine) no despierta a
+        # nadie; un pipeline caído de verdad, sí
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "Sitio {{ $labels.site }} ciego: caja viva, 0 fps en todas las cámaras"
+          description: "El forwarder responde pero DeepStream no entrega frames. Avisa al SOC para vigilancia manual (NVR). Revisa `docker compose logs deepstream` (engine, GPU, conexión MQTT); si hubo un OTA, apunta `current` a la versión anterior y `docker compose up -d`."
+          runbook_url: "https://runbooks.example.com/c02/site-pipeline-down"
+
       # Una cámara sin frames analizados: la caja reporta 0.0 explícito para cada cámara de site.yaml.
-      # "unless" evita 40 alertas de cámara cuando lo que se cayó es la caja entera (eso ya es un page).
+      # El primer "unless" evita 40 alertas de cámara cuando lo que se cayó es la caja entera (EdgeBoxOffline)
+      # y el segundo, cuando se cayó el pipeline del sitio (SitePipelineDown): esos ya son un page.
       # min by: con varias réplicas de la API, basta que una tenga un 0 fresco (< 90 s) para que gane el 0.
-      # Si TODAS las cámaras de un sitio caen a 0 con el heartbeat vivo, no son las cámaras: es DeepStream
-      # (un engine que no carga tras un OTA, la GPU). Agrupa por sitio en Alertmanager (group_by: [site]) y
-      # que el runbook lo trate como sitio ciego. Una cámara de perímetro caída de noche puede ser sabotaje:
-      # el ruteo a page del SOC para esas cámaras (un matcher por camera) va en Alertmanager, no aquí.
+      # Una cámara de perímetro caída de noche puede ser sabotaje: el ruteo a page del SOC para esas
+      # cámaras (un matcher por camera) va en Alertmanager, no aquí.
       - alert: CameraStreamDown
         expr: |
           min by (site, camera) (camera_fps) == 0
             unless on (site)
           (time() - max by (site) (edge_last_heartbeat_timestamp_seconds) > 120)
+            unless on (site)
+          (max by (site) (camera_fps) == 0)
         for: 5m  # un reinicio de la cámara (≈ 1–2 min, est.) no debe despertar a nadie
         labels:
           severity: ticket
@@ -46,6 +70,35 @@ groups:
           summary: "Cámara {{ $labels.camera }} de {{ $labels.site }} sin video analizado"
           description: "0 fps durante 5 min. Esa vista no tiene detección: revisa la cámara, el PoE y el segundo stream (5 fps) en la configuración de la cámara."
           runbook_url: "https://runbooks.example.com/c02/camera-stream-down"
+
+      # Intrusiones que la caja detectó y NO llegan a la nube, con la caja viva: un 401/403 (Secret de
+      # tokens roto, caja con el site.yaml de otro sitio), la API rechazando el cuerpo (422 tras un cambio
+      # de contrato) o un bug. Sin esta regla, un evento en dead-letter solo existe en un log de la caja.
+      # edge_outbox_* sale del heartbeat (Outbox.stats) y, como camera_fps, expira a los 90 s.
+      # 60 s: un evento sano sale en ≈ 1–2 s. `for` de 10 min: tras un corte de red (ya avisado por
+      # EdgeBoxOffline), el backoff (tope de 5 min) puede retener eventos sanos unos minutos al volver.
+      # Runbook, en la caja. La imagen no trae el CLI de sqlite3, pero Python ≥ 3.12 trae uno (consola):
+      #   docker compose exec forwarder python -m sqlite3 /var/lib/forwarder/outbox.sqlite3
+      #   SELECT item_id, attempts, last_error FROM outbox WHERE kind = 'event';
+      #   SELECT item_id, reason FROM dead_letter WHERE kind = 'event';
+      # Arreglada la causa, re-encolar los eventos apartados, en la misma consola y en una transacción:
+      #   BEGIN;
+      #   INSERT INTO outbox (item_id, kind, priority, payload, files, next_attempt_at, created_at)
+      #     SELECT item_id, kind, 0, payload, files, strftime('%s', 'now'), failed_at FROM dead_letter WHERE kind = 'event';
+      #   DELETE FROM dead_letter WHERE kind = 'event';
+      #   COMMIT;
+      - alert: EdgeEventsStuck
+        expr: |
+          max by (site) (edge_outbox_oldest_event_age_seconds) > 60
+            or
+          max by (site) (edge_outbox_dead_letter_events) > 0
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Eventos de {{ $labels.site }} que no llegan a la nube"
+          description: "La caja tiene intrusiones sin entregar (en su cola o en dead-letter). Avisa al SOC. Lee last_error y reason en la cola SQLite de la caja, arregla la causa (token, site.yaml, contrato de la API) y re-encola lo que esté en dead-letter (SQL en el comentario de esta regla)."
+          runbook_url: "https://runbooks.example.com/c02/edge-events-stuck"
 
   - name: c02-cloud
     rules:
@@ -74,21 +127,27 @@ groups:
           runbook_url: "https://runbooks.example.com/c02/event-backlog-high"
 
       # EL SLO: p95 ≤ 5 s desde que la persona entra a la zona hasta que la alerta está en la pantalla del SOC.
+      # La métrica NO empieza en la entrada: empieza en first_seen_at, la publicación de DeepStream del primer
+      # frame con el pie en la zona (reloj de la caja). El tramo previo (esperar el frame muestreado + cámara
+      # y RTSP + DeepStream ≈ 0.4–0.6 s, más la probation del tracker, 2 frames ≈ 0.4 s: ≈ 1 s, est.) no se ve
+      # en la nube; se mide con walk tests (cronómetro de la entrada real a la pantalla) y se DESCUENTA del
+      # umbral: 5 s − ≈ 1 s = 4 s. Si los walk tests miden otro tramo previo, ajusta este número.
+      # Solo cuentan eventos con slo=true (sin recordatorios ni el carril de bomberos: medirían 600 o 61 s).
       # Histograma agregado entre réplicas ANTES del quantile (sum by le). Ventana de 30 min, no 10: el SOC
       # recibe como mucho ≈ 50 alertas/hora (su presupuesto), así que 10 min son ≤ 8 muestras, un p95 que
       # salta con una sola alerta lenta.
       # El `for` de 10 min pide que la condición se sostenga. Mínimo de 10 alertas para no decidir con 2.
       - alert: AlertLatencyHigh
         expr: |
-          histogram_quantile(0.95, sum by (le) (rate(alert_end_to_end_seconds_bucket[30m]))) > 5
+          histogram_quantile(0.95, sum by (le) (rate(alert_end_to_end_seconds_bucket[30m]))) > 4
             and
           sum(increase(alert_end_to_end_seconds_count[30m])) >= 10
         for: 10m
         labels:
           severity: page
         annotations:
-          summary: "p95 de la latencia de alerta sobre 5 s"
-          description: "p95 = {{ $value | humanizeDuration }}. Compara event_ingest_lag_seconds (caja → nube) con la edad de la cola (nube) para saber qué tramo se atrasó."
+          summary: "p95 de la latencia de alerta sobre 4 s medidos (≈ 5 s desde la entrada real)"
+          description: "p95 medido = {{ $value | humanizeDuration }} (más ≈ 1 s previo que no se ve aquí). Compara event_ingest_lag_seconds por sitio (caja → nube) con la edad de la cola (nube) para saber qué tramo se atrasó. ¿Un solo sitio o todos?"
           runbook_url: "https://runbooks.example.com/c02/alert-latency-high"
 
       # Calidad: fracción de alertas que el SOC cerró como falsa alarma, por sitio, en 24 h. El objetivo es

@@ -50,13 +50,16 @@ if [[ -n "${EXPECTED_POWER_MODE:-}" && "$mode" != *"$EXPECTED_POWER_MODE"* ]]; t
   exit 1
 fi
 # jetson_clocks fija CPU, GPU y memoria al máximo DEL MODO ACTUAL: sin escalado dinámico de
-# frecuencia, la latencia es repetible. Si en producción no lo usas, mide también sin él: la
-# latencia que importa es la de la línea, no la del benchmark.
+# frecuencia, la latencia es repetible. Ojo: el modo de nvpmodel persiste tras reiniciar, pero
+# jetson_clocks NO. Si esta medición asume clocks fijos, producción también: una unidad de systemd
+# lo aplica en cada arranque (README, "En el Jetson"). La latencia que importa es la de la línea.
 sudo jetson_clocks
 sudo jetson_clocks --show
 
 # ---- 3. Build + benchmark con trtexec, dentro de la imagen base -----------------------------------
-mkdir -p "$MODELS_DIR"
+# /opt es de root: crear la carpeta con sudo y dejarla a tu usuario (el tee y el .json de abajo
+# escriben como tú; el contenedor escribe como root y el chown de después devuelve los archivos)
+sudo install -d -o "$(id -u)" -g "$(id -g)" -m 755 "$MODELS_DIR"
 ONNX_DIR="$(cd "$(dirname "$ONNX")" && pwd)"
 ONNX_FILE="$(basename "$ONNX")"
 # --runtime nvidia     así se expone la GPU integrada del Jetson a un contenedor

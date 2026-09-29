@@ -181,6 +181,29 @@ def test_heartbeat_gauges_exist_for_every_site_and_fps_expires(env):
     assert metric(client, "edge_last_heartbeat_timestamp_seconds", site="dc-07") == clock.t - 120
 
 
+def test_heartbeat_exports_the_edge_outbox_while_fresh(env):
+    client, _, clock = env
+    body = {"sent_at": clock.t, "site_id": "dc-07", "cameras": {"cam-01": 5.0},
+            "outbox": {"pending": 3, "oldest_age_s": 400.0, "oldest_event_age_s": 75.0, "dead_letters": 2,
+                       "dead_letter_events": 1},
+            "counters": {"malformed_messages": 2, "on_message_errors": 0}}  # contadores: solo se loguean
+    assert client.post("/v1/heartbeat", json=body, headers=SITE).status_code == 200
+    # Lo que mira EdgeEventsStuck: un evento que no sale o que quedó en dead-letter en la caja
+    assert metric(client, "edge_outbox_oldest_event_age_seconds", site="dc-07") == 75.0
+    assert metric(client, "edge_outbox_dead_letter_events", site="dc-07") == 1
+    clock.t += 120  # heartbeat viejo en esta réplica: igual que camera_fps, deja de exponerse
+    assert metric(client, "edge_outbox_oldest_event_age_seconds", site="dc-07") is None
+
+
+def test_heartbeat_from_a_box_configured_for_another_site_is_rejected(env):
+    client, _, clock = env
+    # Repuesto con el site.yaml de dc-08 y el token de dc-07: sus eventos reciben 403 y esperan en la caja.
+    # Si el heartbeat pasara, el sitio se vería "vivo"; rechazado, EdgeBoxOffline avisa.
+    body = {"sent_at": clock.t, "site_id": "dc-08", "cameras": {"cam-01": 5.0}}
+    assert client.post("/v1/heartbeat", json=body, headers=SITE).status_code == 403
+    assert metric(client, "edge_last_heartbeat_timestamp_seconds", site="dc-07") == 0.0
+
+
 def test_heartbeat_limits_cardinality(env):
     client, _, clock = env
     too_many = {f"cam-{i:03d}": 5.0 for i in range(65)}
@@ -199,6 +222,22 @@ def test_displayed_observes_end_to_end_latency_once(env):
     assert metric(client, "alert_end_to_end_seconds_sum", site="dc-07") == pytest.approx(3.2)  # first_seen = t − 3.2
     assert metric(client, "alert_end_to_end_seconds_bucket", site="dc-07", le="4.0") == 1  # dentro del SLO de 5 s
     assert client.post(f"/v1/alerts/{uuid.uuid4()}/displayed", headers=SOC).status_code == 404
+
+
+def test_events_outside_the_slo_do_not_touch_the_latency_histograms(env):
+    client, queue, _ = env
+    # Un recordatorio 10 min después (o el carril de bomberos, 60 s): mediría 600 s "de latencia" y un solo
+    # evento así dispararía AlertLatencyHigh. Llega al SOC igual, pero no entra en el SLO.
+    reminder = event(slo=False, first_seen_at=1_790_000_000.0 - 603.2, dwell_s=601.6)
+    assert client.post("/v1/events", json=reminder, headers=SITE).status_code == 202 and len(queue.sent) == 1
+    client.post(f"/v1/alerts/{reminder['event_id']}/displayed", headers=SOC)
+    assert not metric(client, "alert_end_to_end_seconds_count", site="dc-07")
+    assert not metric(client, "event_ingest_lag_seconds_count", site="dc-07")
+    normal = event()
+    client.post("/v1/events", json=normal, headers=SITE)
+    client.post(f"/v1/alerts/{normal['event_id']}/displayed", headers=SOC)
+    assert metric(client, "alert_end_to_end_seconds_count", site="dc-07") == 1
+    assert metric(client, "event_ingest_lag_seconds_count", site="dc-07") == 1  # por sitio: "¿uno o todos?"
 
 
 def test_disposition_feeds_the_false_alarm_counters(env):

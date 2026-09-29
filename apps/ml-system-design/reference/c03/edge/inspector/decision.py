@@ -16,6 +16,7 @@ en validación no sería exactamente el que corre en la línea.
 from __future__ import annotations  # anotaciones como texto: `dict[str, float]` sin costo en runtime
 
 import math  # isfinite: NaN e infinito no son scores válidos
+import numbers  # numbers.Real: acepta float de Python y los floats de NumPy (np.float32) por igual
 from dataclasses import dataclass, field  # objetos inmutables y comparables en los tests
 from typing import Mapping  # los umbrales y scores llegan como dicts leídos de YAML o del Engine
 
@@ -67,9 +68,11 @@ class Decision:
 
 def _check_score(name: str, value: object) -> float:
     """Un score válido es un número finito en [0, 1]. Todo lo demás es InvalidScores."""
+    # numbers.Real y no (int, float): un wrapper de TensorRT devuelve con naturalidad `out.max()`,
+    # que es np.float32 y no un float de Python. NumPy registra sus floats como Real; np.bool_ no.
     # bool es subclase de int en Python: True pasaría como 1.0 sin este chequeo explícito
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise InvalidScores(f"score '{name}' no es numérico: {value!r}")
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        raise InvalidScores(f"score '{name}' no es numérico: {value!r} ({type(value).__name__})")
     score = float(value)
     # LA trampa: NaN >= umbral es False, así que un NaN (p. ej. overflow en FP16) haría PASS.
     # Un fail-safe también se diseña en la lógica pura, no solo en los timeouts.

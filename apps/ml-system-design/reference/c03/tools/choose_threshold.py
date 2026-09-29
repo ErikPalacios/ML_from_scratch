@@ -1,13 +1,30 @@
-"""Elige el umbral de rechazo por COSTO ESPERADO, con recall mínimo por tipo de defecto (caso c03).
+"""Elige el umbral de rechazo con recall mínimo por tipo y el presupuesto de FP del caso (caso c03).
 
 Por qué no "el umbral que maximiza F1": en esta línea los errores no cuestan lo mismo. Un falso
 negativo (defecto que llega a la armadora) cuesta ≈ US$2,000–10,000 por incidente; un falso positivo
 (pieza buena a inspección manual) ≈ US$0.05–0.10. Entonces:
   1. Restricción dura: recall >= 99.5 % en CADA tipo de defecto (no en promedio: un tipo raro con
      recall bajo se esconde en el promedio).
-  2. Restricción de capacidad: los rechazos no pueden superar lo que el inspector manual procesa
-     (1 pieza cada 15 s en 16 h = 3,840/día por línea).
-  3. Entre los umbrales que cumplen ambas, el de menor costo esperado por día.
+  2. FP <= objetivo de 1.5 % (el punto B del caso) y NUNCA sobre el tope de capacidad: los rechazos
+     no pueden superar lo que el inspector manual procesa (1 pieza cada 15 s en 16 h = 3,840/día).
+  3. Entre los que cumplen, el umbral MÁS BAJO: con un FN 20,000× más caro que un FP, el FP que
+     sobra hasta el objetivo se gasta en margen de recall.
+  4. Si ninguno cabe en el objetivo: el de menor costo esperado dentro del tope, marcado "SOBRE el
+     objetivo". Si tampoco: código 3.
+
+Por qué no simplemente "el de menor costo en validación": ese umbral queda EXACTAMENTE en el defecto
+más bajo del tipo que limita. Debajo de él el recall de validación ya es 100 %, así que bajar más no
+ahorra nada EN VALIDACIÓN y el costo no ve razón para gastar el presupuesto. Pero un defecto nuevo de
+ese tipo cae debajo del más bajo de n con probabilidad ≈ 1/(n + 1): con 75 por tipo, ≈ 1.3 %, un
+recall esperado de ≈ 98.7 %, por debajo del 99.5 % exigido. El reporte muestra ese umbral y su riesgo.
+
+Varias cabezas: decision.py rechaza si CUALQUIER score dispara (la anomalía o una de las 4 cabezas
+del clasificador), así que objetivo y tope son de la UNIÓN. Los defaults (1.5 % y ≈ 2.85 %) son el
+presupuesto ENTERO: correcto solo si decide la anomalía sola (`defects: {}` en config.yaml). Con
+clasificador, pasa a cada cabeza su parte con --target-fp-rate/--max-fp-rate (p. ej. 0.003 y 0.0057
+cada una: la anomalía + 4 cabezas = 1.5 % y 2.85 %, o menos por el solape) y verifica la unión sobre
+validación (p. ej. con decision.py y todos los umbrales) antes de escribir config.yaml: esta
+herramienta evalúa UNA columna a la vez. Con --defect-type ambas tasas son obligatorias.
 
 Entrada: CSV con una fila por imagen de VALIDACIÓN (nunca las de entrenamiento):
     score,is_defect,defect_type
@@ -16,8 +33,10 @@ Entrada: CSV con una fila por imagen de VALIDACIÓN (nunca las de entrenamiento)
 El score es el que compara decision.py (score >= umbral → REJECT). Cuando exista el clasificador
 supervisado, cada cabeza se elige con --defect-type sobre su propia columna de scores.
 
-Uso:  python choose_threshold.py val_scores.csv [--c-fn 2000 --c-fp 0.10] [--json]
-Sale con 0 si hay umbral, 1 si el CSV es inválido y 3 si NINGÚN umbral cumple (útil como gate de CI).
+Uso:  python choose_threshold.py val_scores.csv [--target-fp-rate 0.015] [--c-fn 2000 --c-fp 0.10] [--json]
+      python choose_threshold.py crack_scores.csv --defect-type crack --target-fp-rate 0.003 --max-fp-rate 0.0057
+Sale con 0 si hay umbral (aunque quede SOBRE el objetivo: el reporte y --json lo dicen), 1 si la
+entrada es inválida y 3 si NINGÚN umbral cumple recall y tope (útil como gate de CI).
 Solo biblioteca estándar: corre en cualquier máquina del equipo, sin instalar nada.
 """
 
@@ -175,16 +194,25 @@ def defects_needed(min_recall: float, confidence: float = CONFIDENCE) -> int:
     return math.ceil(math.log(1 - confidence) / math.log(min_recall))
 
 
-def choose(rows: list[Row], *, min_recall: float, max_fp_rate: float, parts_per_day: int,
-           defect_rate: float, c_fn: float, c_fp: float) -> dict:
-    """El umbral viable de menor costo esperado; `chosen` es None si ninguno es viable."""
+def choose(rows: list[Row], *, min_recall: float, target_fp_rate: float, max_fp_rate: float,
+           parts_per_day: int, defect_rate: float, c_fn: float, c_fp: float) -> dict:
+    """El umbral MÁS BAJO con FP dentro del objetivo; si no hay, el de menor costo dentro del tope.
+
+    `chosen` es None si ningún umbral cumple recall y tope. `on_target` dice cuál de los dos casos
+    fue. `min_cost` es el umbral de menor costo en validación, para compararlo en el reporte.
+    """
     cands = sweep(rows)
     viable = [c for c in cands
               if min(c.recall_by_type.values()) >= min_recall and c.fp_rate <= max_fp_rate]
-    # Menor costo; en empate, el umbral más alto (menos piezas a inspección manual)
-    best = min(viable, key=lambda c: (daily(c, parts_per_day, defect_rate, c_fn, c_fp)["cost_per_day"],
-                                      -c.threshold), default=None)
-    return {"chosen": best, "limits": max_threshold_by_type(cands, min_recall), "n_candidates": len(cands)}
+    # Menor costo en validación; en empate, el umbral más alto (menos piezas a inspección manual)
+    min_cost = min(viable, key=lambda c: (daily(c, parts_per_day, defect_rate, c_fn, c_fp)["cost_per_day"],
+                                          -c.threshold), default=None)
+    # El más bajo que cabe en el objetivo: el FP que sobra se convierte en margen bajo los defectos
+    on_target = [c for c in viable if c.fp_rate <= target_fp_rate]
+    best = min(on_target, key=lambda c: c.threshold, default=None)
+    return {"chosen": best or min_cost, "on_target": best is not None, "min_cost": min_cost,
+            "limits": max_threshold_by_type(cands, min_recall), "n_candidates": len(cands)}
+
 
 
 def report(rows: list[Row], result: dict, args) -> str:
@@ -195,8 +223,12 @@ def report(rows: list[Row], result: dict, args) -> str:
     lines = [
         f"Validación: {len(rows):,} filas · {n_good:,} buenas · {sum(totals.values()):,} defectos ("
         + ", ".join(f"{t} {n}" for t, n in sorted(totals.items())) + ")",
-        f"Reglas: recall >= {pct(args.min_recall)} en CADA tipo · FP <= {pct(args.max_fp_rate, 2)} (capacidad) · "
-        f"FN US${args.c_fn:,.0f} · FP US${args.c_fp:.2f}",
+        f"Reglas: recall >= {pct(args.min_recall)} en CADA tipo · FP objetivo {pct(args.target_fp_rate, 2)} · "
+        f"tope duro {pct(args.max_fp_rate, 2)} · FN US${args.c_fn:,.0f} · FP US${args.c_fp:.2f}",
+        ("Cabeza " + args.defect_type + ": objetivo y tope son SU parte del presupuesto; verifica la unión de "
+         "todas las cabezas sobre validación antes de escribir config.yaml." if args.defect_type else
+         "Objetivo y tope son de la UNIÓN: correcto si decide la anomalía sola; con clasificador, pasa a "
+         "cada cabeza (y a la anomalía) su parte y verifica la unión."),
         "Umbral más alto que cumple el recall, por tipo (el menor limita):",
     ]
     limits = result["limits"]
@@ -210,17 +242,32 @@ def report(rows: list[Row], result: dict, args) -> str:
                      "iluminación, datos o modelo, o agrega capacidad de inspección manual.")
         return "\n".join(lines)
     d = daily(best, args.parts_per_day, args.defect_rate, args.c_fn, args.c_fp)
-    target_ok = "OK" if best.fp_rate <= args.target_fp_rate else "SOBRE el objetivo"
+    target_ok = "OK" if result["on_target"] else "SOBRE el objetivo"
+    how = ("el más bajo con FP dentro del objetivo" if result["on_target"] else
+           "ninguno cabe en el objetivo: el de menor costo dentro del tope")
     lines += [
-        f"Elegido: umbral {best.threshold:.4f} (score >= umbral → REJECT)",
+        f"Elegido: umbral {best.threshold:.4f} ({how}; score >= umbral → REJECT)",
         "  recall por tipo: " + " · ".join(f"{t} {pct(r)}" for t, r in sorted(best.recall_by_type.items())),
-        f"  FP rate: {pct(best.fp_rate, 2)} (objetivo {pct(args.target_fp_rate)}: {target_ok})",
+        f"  FP rate: {pct(best.fp_rate, 2)} (objetivo {pct(args.target_fp_rate, 2)}: {target_ok} · "
+        f"tope {pct(args.max_fp_rate, 2)})",
         f"  Por línea y día ({args.parts_per_day:,} piezas, {defects_day:,.0f} defectos): "
         f"FN {d['fn_per_day']:.2f} · FP {d['fp_per_day']:,.0f} · "
         f"a inspección manual {d['to_manual_per_day']:,.0f} de {args.inspector_capacity:,}",
         f"  Costo esperado: US${d['cost_per_day']:,.2f}/día "
         f"(FN US${d['fn_per_day'] * args.c_fn:,.2f} + FP US${d['fp_per_day'] * args.c_fp:,.2f})",
     ]
+    # El umbral de menor costo en validación, para comparar: se pega al defecto más bajo del tipo que
+    # limita, y ahí un defecto nuevo de ese tipo cae debajo con probabilidad ≈ (fallas + 1)/(n + 1)
+    cheap: Candidate = result["min_cost"]
+    if binding is not None and cheap is not None and cheap.threshold == limits[binding]:
+        n, misses = totals[binding], totals[binding] - cheap.caught[binding]
+        risk = (misses + 1) / (n + 1)  # rango de un defecto nuevo entre n + 1 intercambiables
+        lines.append(f"  Menor costo en validación: umbral {cheap.threshold:.4f} (FP {pct(cheap.fp_rate, 2)}), justo sobre "
+                     f"un {binding} de validación: uno nuevo cae debajo con probabilidad ≈ ({misses} fallas + 1) / "
+                     f"({n} + 1) = {pct(risk)} (recall esperado ≈ {pct(1 - risk)}).")
+        if best.threshold < cheap.threshold:
+            lines.append(f"  El elegido queda {cheap.threshold - best.threshold:.4f} por debajo: ese margen es lo que "
+                         "compra el FP que sobra hasta el objetivo.")
     # Advertencia estadística: con pocos defectos, "0 fallas en validación" no demuestra 99.5 %
     need = defects_needed(args.min_recall)
     n_total = sum(totals.values())
@@ -251,12 +298,22 @@ def main(argv=None) -> int:
     ap.add_argument("--defect-rate", type=float, default=DEFECT_RATE)
     ap.add_argument("--inspector-capacity", type=int, default=INSPECTOR_CAPACITY, help="piezas/día a mano")
     ap.add_argument("--max-fp-rate", type=float, default=None,
-                    help="default: (capacidad − defectos/día) / buenas/día")
-    ap.add_argument("--target-fp-rate", type=float, default=TARGET_FP_RATE)
-    ap.add_argument("--defect-type", default=None, help="solo este tipo (umbral de una cabeza del clasificador)")
+                    help="tope duro; default: (capacidad − defectos/día) / buenas/día (de la UNIÓN)")
+    ap.add_argument("--target-fp-rate", type=float, default=None,
+                    help=f"objetivo; default: {TARGET_FP_RATE} (de la UNIÓN de cabezas)")
+    ap.add_argument("--defect-type", default=None,
+                    help="solo este tipo (una cabeza del clasificador); exige --target-fp-rate y --max-fp-rate")
     ap.add_argument("--json", action="store_true", help="salida para un pipeline")
     args = ap.parse_args(argv)
     defects_day = args.parts_per_day * args.defect_rate
+    if args.defect_type and (args.target_fp_rate is None or args.max_fp_rate is None):
+        # Los defaults son el presupuesto ENTERO: aplicados a una sola cabeza, la unión se pasa
+        print("error: con --defect-type pasa la parte del presupuesto de FP de esta cabeza con "
+              "--target-fp-rate y --max-fp-rate, p. ej. 0.003 y 0.0057 (1/5 de 1.5 % y de 2.85 %)",
+              file=sys.stderr)
+        return 1
+    if args.target_fp_rate is None:
+        args.target_fp_rate = TARGET_FP_RATE
     # ≈ 2.85 % de las piezas BUENAS (= el ≈ 2.8 % del caso, que divide entre todas las piezas):
     # lo que cabe en la capacidad del inspector después de los defectos reales
     if args.max_fp_rate is None:
@@ -270,13 +327,16 @@ def main(argv=None) -> int:
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    result = choose(rows, min_recall=args.min_recall, max_fp_rate=args.max_fp_rate,
-                    parts_per_day=args.parts_per_day, defect_rate=args.defect_rate,
-                    c_fn=args.c_fn, c_fp=args.c_fp)
+    result = choose(rows, min_recall=args.min_recall, target_fp_rate=args.target_fp_rate,
+                    max_fp_rate=args.max_fp_rate, parts_per_day=args.parts_per_day,
+                    defect_rate=args.defect_rate, c_fn=args.c_fn, c_fp=args.c_fp)
     best = result["chosen"]
     if args.json:
         payload = {"threshold": None if best is None else best.threshold,
-                   "limits_by_type": result["limits"], "max_fp_rate": args.max_fp_rate}
+                   "on_target": result["on_target"],  # False: el pipeline no debería escribirlo sin revisión
+                   "min_cost_threshold": None if result["min_cost"] is None else result["min_cost"].threshold,
+                   "limits_by_type": result["limits"], "target_fp_rate": args.target_fp_rate,
+                   "max_fp_rate": args.max_fp_rate}
         if best is not None:
             payload.update(recall_by_type=best.recall_by_type, fp_rate=best.fp_rate,
                            **daily(best, args.parts_per_day, args.defect_rate, args.c_fn, args.c_fp))

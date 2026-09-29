@@ -18,8 +18,8 @@ contenedor de inspección manual; nunca se deja pasar.
     programa hace su mejor esfuerzo y mide; el PLC hace cumplir.
 
 Interfaces (lo que el loop necesita del hardware; todo inyectable para probar sin hardware):
-  Camera.grab(timeout_s) → imagen numpy (mono uint8, 2048 × 2448)
-  Engine.infer(image)    → {"anomaly_score": float, "defects": {"crack": float, ...}}
+  Camera.grab(timeout_s) → imagen numpy (mono uint8, 2048 × 2448) COMPLETA, o lanza
+  Engine.infer(image)    → {"anomaly_score": float, "defects": {"crack": float, ...}} (np.float32 vale)
   PLC.write(part_id, decision, timeout_s)
   clock()                → segundos monotónicos (en los tests, un reloj falso que avanza a mano)
 
@@ -35,9 +35,10 @@ Uso:  python app.py --config config.yaml --simulate --max-parts 20    (sin hardw
 from __future__ import annotations  # anotaciones como texto: sintaxis moderna también en Python 3.10
 
 import argparse  # CLI mínima: --config, --simulate
+import datetime as dt  # hora de pared de la planta: inicio de turno para vencer el golden check
 import json  # una línea JSON por pieza: la ingesta y las consultas no necesitan parsers
 import logging  # stdout del contenedor; Docker rota el archivo (ver docker-compose.yml)
-import os  # os._exit en el watchdog
+import os  # os._exit en el watchdog y tras errores seguidos del engine
 import queue  # la cola de triggers entre la fuente de triggers y el loop
 import random  # solo para el modo --simulate
 import signal  # SIGTERM de `docker stop`: terminar la pieza en curso y salir limpio
@@ -60,6 +61,15 @@ DIVERT = "DIVERT"  # sin decisión confiable: la pieza va a inspección manual (
 PLC_CODES = {PASS: 1, REJECT: 2, DIVERT: 3}
 # Razones que cuentan como deadline miss: el tiempo se acabó (no la cámara rota ni el modelo con error)
 DEADLINE_REASONS = {"deadline", "camera_timeout"}
+# TODAS las razones posibles de un DIVERT: cada una es una serie de inspection_divert_total, creada
+# en 0 al arrancar. Sin esa métrica, un estrobo muerto (100 % bad_image) desvía la línea entera en
+# silencio: el loop sigue avanzando, el golden check ya pasó y ninguna otra alerta mira la razón.
+DIVERT_REASONS = ("deadline", "camera_timeout", "camera_error", "bad_image", "engine_error",
+                  "invalid_scores", "internal_error", "plc_error", "golden_pending", "golden_failed")
+# Errores del engine SEGUIDOS antes de salir (20 piezas = 10 s a 2 piezas/s). Uno suelto es DIVERT
+# y sigue; muchos seguidos suelen ser un error "pegajoso" de CUDA (p. ej. illegal address): el
+# contexto queda roto y solo un proceso nuevo lo recupera. El watchdog no lo ve: el loop avanza.
+MAX_ENGINE_ERRORS_IN_A_ROW = 20
 MIN_GRAB_TIMEOUT_S = 0.005  # aunque ya no haya tiempo, se consume el frame de ESTE trigger (ver inspect)
 
 log = logging.getLogger("inspector")  # logger propio a stdout, sin duplicar en el root
@@ -96,6 +106,10 @@ class CameraTimeout(Exception):
     """El frame del trigger no llegó a tiempo."""
 
 
+class IncompleteFrame(Exception):
+    """El buffer de la cámara llegó incompleto (paquetes GVSP perdidos). Es camera_error: DIVERT."""
+
+
 class BadImage(Exception):
     """La foto llegó pero no sirve para decidir (estrobo que no disparó, lente tapado, sobreexpuesta)."""
 
@@ -107,13 +121,19 @@ class PLCError(Exception):
 # ---------------------------------------------------------------------------- interfaces
 class Camera(Protocol):
     def grab(self, timeout_s: float) -> np.ndarray:
-        """Devuelve el frame de ESTE trigger o lanza CameraTimeout.
+        """Devuelve el frame COMPLETO de ESTE trigger, o lanza (CameraTimeout si no llegó a tiempo).
 
         La cámara dispara por hardware (línea del photo-eye cableada a su entrada de trigger),
         así que el frame existe aunque el software llegue tarde. La implementación real debe
         emparejar frame y pieza por FrameID o timestamp del buffer y descartar frames viejos:
         si no, una pieza que llega tarde deja su frame en el buffer y la siguiente pieza se
         juzga con la foto de otra.
+
+        Regla: si el buffer no está completo (cualquier status distinto de SUCCESS, p. ej.
+        paquetes GVSP perdidos), grab() LANZA una excepción (IncompleteFrame → camera_error,
+        DIVERT); nunca devuelve un frame parcial. Los buffers se reciclan, así que las filas
+        perdidas pueden traer datos de otra pieza, y el chequeo de brillo medio no lo detecta si
+        falta solo una franja: el modelo juzgaría una foto que no es de esta pieza.
         """
 
 
@@ -158,7 +178,36 @@ class GoldenConfig:
     gate_production: bool = True  # sin golden check aprobado en este proceso, ninguna pieza recibe PASS
     good_margin: float = 0.15  # una golden buena debe quedar al menos esto por debajo del umbral
     grab_timeout_s: float = 20.0  # el operador pone cada pieza a mano
-    max_age_h: float = 8.0  # un turno: la aprobación vence y el turno siguiente corre su propio check
+    # La aprobación vence al INICIAR el turno siguiente (hora local de la planta), no tras N horas:
+    # con "8 h desde el check", uno hecho a las 05:50 vencería a las 13:50, antes de que acabe su
+    # turno, y los últimos 10 min (≈ 1,200 piezas) irían a un contenedor que procesa 1 cada 15 s.
+    shift_starts: tuple[dt.time, ...] = (dt.time(6, 0), dt.time(14, 0))
+    early_check_min: int = 30  # un check hecho hasta 30 min antes de un inicio cuenta para ESE turno
+
+
+def approval_expiry(approved_at: dt.datetime, shift_starts, early_check_min: int) -> dt.datetime:
+    """Hasta cuándo vale un golden check aprobado a la hora `approved_at` (hora local de la planta).
+
+    Vence en el primer inicio de turno que quede a más de `early_check_min` del check. Con turnos a
+    las 06:00 y 14:00: un check a las 05:50 cuenta para el turno de 06:00 y vence a las 14:00; uno a
+    las 06:10 también; uno a las 22:30 (línea parada) vence a las 06:00, y el turno de la mañana
+    corre el suyo.
+    """
+    earliest = approved_at + dt.timedelta(minutes=early_check_min)
+    for day in range(3):  # con al menos un inicio por día, siempre hay uno en las próximas 48 h
+        for start in sorted(shift_starts):
+            candidate = dt.datetime.combine(approved_at.date() + dt.timedelta(days=day), start)
+            if candidate > earliest:
+                return candidate
+    raise ValueError("golden.shift_starts vacío")
+
+
+def _parse_shift_start(value) -> dt.time:
+    """'06:00' → time(6, 0). Exige texto: sin comillas, YAML 1.1 (PyYAML) lee 14:00 como 840 (base 60)."""
+    if not isinstance(value, str):
+        raise ValueError(f"golden.shift_starts: usa 'HH:MM' entre comillas (llegó {value!r}; "
+                         "sin comillas, YAML lee 14:00 como el número 840)")
+    return dt.datetime.strptime(value, "%H:%M").time()
 
 
 @dataclass(frozen=True)
@@ -208,9 +257,11 @@ def load_config(path: str) -> Config:
     if raw.get("fail_safe") != "divert":
         raise ValueError(f"fail_safe debe ser 'divert' (llegó {raw.get('fail_safe')!r})")
     plc = PLCConfig(**raw["plc"])
-    golden_raw = raw.get("golden") or {}
-    parts = tuple(GoldenPart(**p) for p in golden_raw.get("parts", []))
-    golden = GoldenConfig(parts=parts, **{k: v for k, v in golden_raw.items() if k != "parts"})
+    golden_raw = dict(raw.get("golden") or {})
+    parts = tuple(GoldenPart(**p) for p in golden_raw.pop("parts", []))
+    if "shift_starts" in golden_raw:  # hora local de la planta, 'HH:MM'
+        golden_raw["shift_starts"] = tuple(_parse_shift_start(v) for v in golden_raw["shift_starts"])
+    golden = GoldenConfig(parts=parts, **golden_raw)
     metrics = raw.get("metrics") or {}
     cfg = Config(
         line_id=str(raw["line_id"]),
@@ -241,8 +292,10 @@ def load_config(path: str) -> Config:
         raise ValueError("golden.parts[].expect debe ser PASS o REJECT")
     if cfg.watchdog_s <= golden.grab_timeout_s:  # el golden check espera al operador sin matar el proceso
         raise ValueError("watchdog_s debe ser mayor que golden.grab_timeout_s")
-    if golden.max_age_h <= 0:
-        raise ValueError("golden.max_age_h debe ser positivo")
+    if not golden.shift_starts:
+        raise ValueError("golden.shift_starts necesita al menos un inicio de turno")
+    if not 0 <= golden.early_check_min <= 60:
+        raise ValueError("golden.early_check_min debe estar entre 0 y 60")
     if not 0 <= cfg.image_check.min_mean < cfg.image_check.max_mean <= 255:
         raise ValueError("image_check: se necesita 0 <= min_mean < max_mean <= 255")
     return cfg
@@ -261,6 +314,8 @@ class Metrics:
             buckets=(0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 1.0), registry=registry).labels(line)
         self.deadline_miss = Counter(  # debería ser ≈ 0: cada uno es una pieza a inspección manual
             "inspection_deadline_miss", "Piezas sin decisión a tiempo", ["line"], registry=registry).labels(line)
+        self._diverts = Counter(  # POR QUÉ se desvió: sin esto, "100 % DIVERT por bad_image" no dispara nada
+            "inspection_divert", "Piezas desviadas por razón", ["line", "reason"], registry=registry)
         self.anomaly = Histogram(  # distribución del score: drift de iluminación, foco o material, sin labels
             "inspection_anomaly_score", "Score de anomalía por pieza", ["line"],
             buckets=tuple(round(0.05 * i, 2) for i in range(1, 21)), registry=registry).labels(line)
@@ -272,10 +327,14 @@ class Metrics:
         # REJECT. Una serie que no existe no dispara ninguna alerta: falla en silencio.
         for d in (PASS, REJECT, DIVERT):
             self._decisions.labels(line, d)
+        for r in DIVERT_REASONS:  # las 10 razones, fijas: cardinalidad acotada y series desde el arranque
+            self._diverts.labels(line, r)
         self.golden_ok.set(0)
 
-    def decision(self, decision: str) -> None:
+    def decision(self, decision: str, reason: str) -> None:
         self._decisions.labels(self.line, decision).inc()
+        if decision == DIVERT:
+            self._diverts.labels(self.line, reason).inc()
 
 
 # ---------------------------------------------------------------------------- el inspector
@@ -285,15 +344,22 @@ class Inspector:
 
     def __init__(self, cfg: Config, camera: Camera, engine: Engine, plc: PLC, *,
                  clock: Callable[[], float] = time.monotonic,
+                 wall_clock: Callable[[], dt.datetime] = dt.datetime.now,
                  registry: Optional[CollectorRegistry] = None,
-                 emit: Optional[Callable[[dict], None]] = None) -> None:
+                 emit: Optional[Callable[[dict], None]] = None,
+                 exit_process: Callable[[int], None] = os._exit) -> None:
         self.cfg, self.camera, self.engine, self.plc = cfg, camera, engine, plc
         self.clock = clock  # inyectable: los tests simulan una inferencia de 400 ms sin esperar 400 ms
+        # Hora local de la planta, solo para el inicio de turno. En el contenedor, docker-compose.yml
+        # monta /etc/localtime del host: sin eso el contenedor vive en UTC y "06:00" serían las 00:00.
+        self.wall_clock = wall_clock
         self.thresholds = cfg.thresholds
         self.metrics = Metrics(registry or CollectorRegistry(), cfg.line_id)
         self.emit = emit or log_json  # inyectable: los tests guardan los registros en una lista
+        self.exit_process = exit_process  # inyectable: en los tests no se mata pytest
         self.golden_ok: Optional[bool] = None  # None = no se corrió en este proceso o ya venció
-        self.golden_ok_at: Optional[float] = None  # clock() de la última aprobación
+        self.golden_valid_until: Optional[float] = None  # clock() en que vence la aprobación
+        self.engine_errors_in_a_row = 0
         self.last_tick = time.monotonic()  # lo vigila el watchdog (reloj real, no el inyectado)
 
     def tick(self) -> None:
@@ -306,10 +372,10 @@ class Inspector:
                 pass
 
     def _expire_golden(self) -> None:
-        """La aprobación dura un turno (golden.max_age_h). Vencida, vuelve a "pendiente"."""
-        if self.golden_ok is True and self.golden_ok_at is not None and \
-                self.clock() - self.golden_ok_at > self.cfg.golden.max_age_h * 3600:
-            self.golden_ok, self.golden_ok_at = None, None
+        """La aprobación vale hasta el inicio del turno siguiente. Vencida, vuelve a "pendiente"."""
+        if self.golden_ok is True and self.golden_valid_until is not None and \
+                self.clock() >= self.golden_valid_until:
+            self.golden_ok, self.golden_valid_until = None, None
             self.metrics.golden_ok.set(0)  # la alerta de golden check ve el turno sin chequeo
             self.emit({"event": "golden_expired", "ts": round(time.time(), 3), "line": self.cfg.line_id})
 
@@ -347,7 +413,9 @@ class Inspector:
             return DIVERT, "camera_error", None, None, exc
         try:
             self._check_image(image)
-        except BadImage as exc:  # estrobo, lente, exposición: no se infiere sobre una foto inútil
+        # BadImage (estrobo, lente, exposición) o un frame malformado (None, un buffer 1-D): no se
+        # confía en los tipos que devuelve la capa de hardware; nada de esto infiere ni tumba el loop
+        except Exception as exc:
             return DIVERT, "bad_image", None, None, exc
         # ¿Cabe la inferencia? Si no, ni lo intentes: el loop se pone al día en vez de atrasar
         # también a la pieza siguiente (load shedding aplicado a una línea de producción).
@@ -356,10 +424,14 @@ class Inspector:
         try:
             scores = self.engine.infer(image)
         except Exception as exc:  # CUDA, engine corrupto, memoria: DIVERT y que lo vea la alerta
+            self.engine_errors_in_a_row += 1  # inspect() sale tras MAX_ENGINE_ERRORS_IN_A_ROW seguidos
             return DIVERT, "engine_error", None, None, exc
+        self.engine_errors_in_a_row = 0
         try:
             model = decide(scores, self.thresholds)
-        except InvalidScores as exc:  # NaN, falta un tipo de defecto, fuera de rango
+        # InvalidScores (NaN, falta un tipo, fuera de rango) o cualquier otra cosa que el Engine
+        # devuelva y decide() no sepa leer: nunca un PASS, nunca una excepción que escape
+        except Exception as exc:
             return DIVERT, "invalid_scores", scores, None, exc
         if left() < cfg.plc_write_reserve_s:  # el modelo tardó: ya no alcanza a escribir a tiempo
             return DIVERT, "deadline", scores, model, None
@@ -369,14 +441,22 @@ class Inspector:
         return model.decision, model.reason, scores, model, None
 
     def inspect(self, trig: Trigger) -> dict:
-        """Una pieza de punta a punta. Siempre devuelve (y loguea) una decisión; nunca lanza."""
+        """Una pieza de punta a punta. Siempre devuelve (y loguea) una decisión; nunca lanza.
+
+        Nunca lanza porque una excepción aquí tumba el proceso: Docker lo reinicia, la compuerta
+        del golden check arranca cerrada y la línea ENTERA va a inspección manual hasta que el
+        operador corra el check. Una pieza rara debe costar una pieza, no un turno.
+        """
         cfg = self.cfg
         deadline = trig.t_trigger + cfg.deadline_s  # todo se mide desde el photo-eye, no desde "ahora"
 
         def left() -> float:  # segundos que quedan del presupuesto de esta pieza
             return deadline - self.clock()
 
-        decision, reason, scores, model, error = self._model_decision(trig, left)
+        try:
+            decision, reason, scores, model, error = self._model_decision(trig, left)
+        except Exception as exc:  # un bug o un caso que nadie previó: DIVERT, y el loop sigue
+            decision, reason, scores, model, error = DIVERT, "internal_error", None, None, exc
         # Escribir SOLO si la escritura termina antes del deadline. Si no queda tiempo no se
         # escribe nada: el PLC ya desvía por default, y una escritura tardía no sirve.
         if left() >= cfg.plc_write_reserve_s:
@@ -390,10 +470,15 @@ class Inspector:
                 if decision != DIVERT:  # el PLC no recibió el PASS/REJECT: la desvía por default
                     decision, reason = DIVERT, "plc_error"
                 error = error or exc
+        elif decision != DIVERT:
+            # El reloj cruzó la reserva entre el chequeo de _model_decision y este (un log lento,
+            # una pausa del GC): no se escribió nada, así que el PLC la desvía. El registro dice
+            # lo que pasó FÍSICAMENTE con la pieza, no lo que el modelo alcanzó a decidir.
+            decision, reason = DIVERT, "deadline"
         latency = self.clock() - trig.t_trigger
         if reason in DEADLINE_REASONS:
             self.metrics.deadline_miss.inc()
-        self.metrics.decision(decision)
+        self.metrics.decision(decision, reason)
         self.metrics.latency.observe(latency)
         if model is not None:  # solo scores que pasaron la validación de decision.py
             self.metrics.anomaly.observe(float(scores["anomaly_score"]))
@@ -412,6 +497,13 @@ class Inspector:
         if error is not None:
             record["error"] = repr(error)[:200]  # acotado: un traceback entero no cabe en cada línea
         self.emit(record)
+        if self.engine_errors_in_a_row >= MAX_ENGINE_ERRORS_IN_A_ROW:
+            # Contexto CUDA roto: salir y que `restart: unless-stopped` levante un proceso nuevo.
+            # os._exit y no sys.exit: liberar la GPU al salir con el contexto roto puede colgarse.
+            # Mientras tanto el PLC desvía todo; tras el reinicio hace falta el golden check.
+            self.emit({"event": "engine_error_exit", "ts": round(time.time(), 3), "line": cfg.line_id,
+                       "errors_in_a_row": self.engine_errors_in_a_row})
+            self.exit_process(4)
         return record
 
     def golden_check(self) -> bool:
@@ -446,10 +538,18 @@ class Inspector:
             results.append(item)
             ok = ok and passed
         self.golden_ok = ok
-        self.golden_ok_at = self.clock() if ok else None  # empieza a correr la validez de un turno
+        self.golden_valid_until, valid_until = None, None
+        if ok:
+            # La hora de pared se lee UNA vez, aquí; el vencimiento se vigila con el reloj
+            # monotónico, así un ajuste de NTP a media jornada no lo adelanta ni lo atrasa.
+            now = self.wall_clock()
+            expires = approval_expiry(now, self.cfg.golden.shift_starts, self.cfg.golden.early_check_min)
+            self.golden_valid_until = self.clock() + (expires - now).total_seconds()
+            valid_until = expires.isoformat(timespec="minutes")  # el operador ve hasta cuándo vale
         self.metrics.golden_ok.set(1 if ok else 0)
         self.emit({"event": "golden_check", "ts": round(time.time(), 3), "line": self.cfg.line_id,
-                   "model_version": self.cfg.model_version, "ok": ok, "results": results})
+                   "model_version": self.cfg.model_version, "ok": ok, "valid_until": valid_until,
+                   "results": results})
         return ok
 
     def run(self, events: "queue.Queue", stop: threading.Event, max_parts: Optional[int] = None) -> int:
@@ -485,6 +585,15 @@ class ModbusPLC:
     integrador que su PLC aplica la trama completa en el mismo ciclo). Probado con pymodbus 3.15
     contra su propio ModbusTcpServer (tests/test_inspector.py). Alternativa común: OPC UA, más
     rica en tipos y seguridad; Modbus TCP es lo que casi cualquier PLC habla sin licencias extra.
+
+    Dos trampas clásicas de integración (van en el contrato con el integrador, README):
+      - Direcciones: register 100 es la dirección de PROTOCOLO (base 0) = 40101 en la notación
+        4xxxx (base 1) que usan muchos integradores. Con un corrimiento de 1, el PLC leería nuestro
+        part_id como si fuera el código. Confírmalo con el integrador.
+      - Consumo: el PLC toma el par al deadline de SU pieza y pone el código en 0 (una decisión se
+        usa una sola vez). Si no, el par se queda en los registros cuando este proceso deja de
+        escribir, y como el part_id es de 16 bits y se repite cada 65,536 piezas (≈ 9.1 h, o antes
+        si el contador se reinicia), un PASS viejo podría aplicarse a una pieza sin inspeccionar.
     """
 
     def __init__(self, cfg: PLCConfig) -> None:
@@ -504,14 +613,20 @@ class ModbusPLC:
         if timeout_s < self.timeout_s:  # no empieces una escritura que no puede terminar a tiempo
             raise PLCError("sin tiempo para escribir antes del deadline")
         try:
-            if not self.client.connected:  # conexión caída (PLC reiniciado, cable): reconectar
+            if not self.client.connected:  # sin socket (arranque o error anterior): reconectar
                 if timeout_s < 2 * self.timeout_s or not self.client.connect():
                     raise PLCError("sin conexión con el PLC")
             # part_id & 0xFFFF: un registro Modbus es de 16 bits; el PLC solo compara la pieza en curso
             reply = self.client.write_registers(
                 self.cfg.register, [part_id & 0xFFFF, PLC_CODES[decision]], device_id=self.cfg.unit_id)
-        except ModbusException as exc:  # timeout, conexión rechazada o reseteada
-            raise PLCError(f"Modbus: {exc}") from exc
+        except (ModbusException, OSError) as exc:
+            # Timeout, conexión rechazada o reseteada. Ojo: si el PLC se reinicia y manda un RST,
+            # pymodbus lanza el OSError crudo (BrokenPipeError, ConnectionResetError) y deja el
+            # socket puesto: `connected` solo mira `socket is not None` y seguiría en True para
+            # siempre. Cerrar aquí obliga a reconectar en la escritura siguiente; si no, cada pieza
+            # sería plc_error hasta reiniciar el contenedor a mano, y el watchdog no lo ve.
+            self.client.close()
+            raise PLCError(f"Modbus: {exc!r}") from exc
         if reply.isError():  # el PLC respondió con una excepción Modbus (registro inválido, etc.)
             raise PLCError(f"el PLC rechazó la escritura: {reply}")
 
@@ -527,9 +642,13 @@ def build_hardware(cfg: Config):
         Aravis.Camera.new(id); camera.set_trigger("Line1") (FrameStart, flanco de subida);
         stream = camera.create_stream(None, None); stream.push_buffer(...) varias veces;
         camera.start_acquisition(); buffer = stream.timeout_pop_buffer(timeout_us) (µs, None si
-        no llegó → CameraTimeout); revisar buffer.get_status() antes de usar los datos.
+        no llegó → CameraTimeout). REGLA, no sugerencia: si buffer.get_status() !=
+        Aravis.BufferStatus.SUCCESS (p. ej. MISSING_PACKETS), devuelve el buffer al stream con
+        push_buffer y LANZA IncompleteFrame; nunca pases un frame parcial al modelo.
       - o harvesters 1.4 (pip) + el productor GenTL (.cti) del fabricante de la cámara:
         h.add_file(cti); h.update(); ia = h.create(); ia.start(); with ia.fetch(timeout=s) as buf.
+        La misma regla: un buffer que el productor GenTL marca como incompleto no se usa (cómo lo
+        expone depende de la versión de harvesters y del productor: confírmalo, no se probó).
       - En ambos: jumbo frames (p. ej. MTU 9000, si la cámara lo soporta) en su NIC y buffers de recepción grandes
         (sysctl net.core.rmem_max) en el HOST; con red host el contenedor no puede cambiarlos.
     TensorRT 10.3 (el de JetPack 6.2.x y de la imagen base):
