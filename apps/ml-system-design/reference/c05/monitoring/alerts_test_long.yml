@@ -1,0 +1,140 @@
+# Tests de promtool de las alertas con ventanas LARGAS (7 y 28 días): QualityGateRejectSpike,
+# OCRConfidenceShift, STPRateDrop y AuditFieldAccuracyLow.
+#   promtool test rules alerts_test_long.yml
+# evaluation_interval de 10 min (y no 1 min como alerts_test.yml): son miles de horas simuladas, y lo
+# que cuesta es evaluar las 15 reglas en cada paso. Consecuencia: un `for: 15m` dispara a los 20 min
+# (la segunda evaluación que cumple), y los eval_time caen en múltiplos de 10 min.
+# Notación: '0+18x1100 19812+12x50' = 0, 18, 36… (1,101 valores) y sigue en 19812 sumando 12, 50 veces.
+rule_files:
+  - alerts.yml
+evaluation_interval: 10m
+
+tests:
+  # ---------------------------------------------------------------- QualityGateRejectSpike
+  # Cada 10 min: ine 18 aceptados y 2 rechazados (10 %) durante 7.6 días; luego 12 y 8 (40 %).
+  # factura: 25 % de rechazo SIEMPRE (alto pero estable) → no dispara: no es un cambio.
+  - interval: 10m
+    input_series:
+      - series: 'docs_uploads_total{doc_type="ine",outcome="accepted"}'
+        values: '0+18x1100 19812+12x50'
+      - series: 'docs_uploads_total{doc_type="ine",outcome="rejected_quality"}'
+        values: '0+2x1100 2208+8x50'
+      - series: 'docs_uploads_total{doc_type="factura",outcome="accepted"}'
+        values: '0+15x1150'
+      - series: 'docs_uploads_total{doc_type="factura",outcome="rejected_quality"}'
+        values: '0+5x1150'
+    promql_expr_test:
+      - expr: ALERTS{alertname="QualityGateRejectSpike", alertstate="firing"}
+        eval_time: 11000m
+        exp_samples: []
+      - expr: ALERTS{alertname="QualityGateRejectSpike", alertstate="firing"}
+        eval_time: 11100m
+        exp_samples:
+          - labels: 'ALERTS{alertname="QualityGateRejectSpike",alertstate="firing",doc_type="ine",severity="page"}'
+            value: 1
+
+  # ---------------------------------------------------------------- OCRConfidenceShift
+  # Cada 10 min, 1,000 palabras de comprobantes fotografiados: 5 % con confianza ≤ 0.90 durante 7.6 días;
+  # luego 20 %. Los escaneados no cambian. Firing ≈ 2 h después del cambio (1.5× la semana + 1 h).
+  - interval: 10m
+    input_series:
+      - series: 'docs_ocr_word_confidence_bucket{doc_type="comprobante_domicilio",source="photo",le="0.9"}'
+        values: '0+50x1100 55200+200x50'
+      - series: 'docs_ocr_word_confidence_count{doc_type="comprobante_domicilio",source="photo"}'
+        values: '0+1000x1100 1101000+1000x50'
+      - series: 'docs_ocr_word_confidence_bucket{doc_type="comprobante_domicilio",source="scan",le="0.9"}'
+        values: '0+30x1150'
+      - series: 'docs_ocr_word_confidence_count{doc_type="comprobante_domicilio",source="scan"}'
+        values: '0+1000x1150'
+    promql_expr_test:
+      - expr: ALERTS{alertname="OCRConfidenceShift", alertstate="firing"}
+        eval_time: 11120m
+        exp_samples: []
+      - expr: ALERTS{alertname="OCRConfidenceShift", alertstate="firing"}
+        eval_time: 11200m
+        exp_samples:
+          - labels: 'ALERTS{alertname="OCRConfidenceShift",alertstate="firing",doc_type="comprobante_domicilio",severity="ticket",source="photo"}'
+            value: 1
+
+  # ---------------------------------------------------------------- STPRateDrop
+  # Cada 10 min, ine: 14 STP y 6 revisión (70 %) durante 7.6 días; luego 6 y 14 (30 %).
+  # factura estable. El ratio de 6 h baja de 0.8 × semana ≈ 130 min después → firing ≈ 30 min más tarde.
+  - interval: 10m
+    input_series:
+      - series: 'docs_routing_decisions_total{doc_type="ine",decision="stp"}'
+        values: '0+14x1100 15406+6x50'
+      - series: 'docs_routing_decisions_total{doc_type="ine",decision="review"}'
+        values: '0+6x1100 6614+14x50'
+      - series: 'docs_routing_decisions_total{doc_type="factura",decision="stp"}'
+        values: '0+16x1150'
+      - series: 'docs_routing_decisions_total{doc_type="factura",decision="review"}'
+        values: '0+4x1150'
+    promql_expr_test:
+      - expr: ALERTS{alertname="STPRateDrop", alertstate="firing"}
+        eval_time: 11150m
+        exp_samples: []
+      - expr: ALERTS{alertname="STPRateDrop", alertstate="firing"}
+        eval_time: 11250m
+        exp_samples:
+          - labels: 'ALERTS{alertname="STPRateDrop",alertstate="firing",doc_type="ine",severity="ticket"}'
+            value: 1
+
+  # ---------------------------------------------------------------- AuditFieldAccuracyLow (estándar)
+  # 15 campos auditados por hora (≈ 360/día). A 99.5 % (el objetivo) no dispara nunca.
+  - interval: 1h
+    input_series:
+      - series: 'docs_audit_fields_total{doc_type="ine",field_class="standard",result="correct"}'
+        values: '0+15x200'
+      - series: 'docs_audit_fields_total{doc_type="ine",field_class="standard",result="wrong"}'
+        values: '0+0.075x200'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AuditFieldAccuracyLow"}
+        eval_time: 190h
+        exp_samples: []
+
+  # A 98.7 %: no dispara mientras haya < 1,500 campos auditados (≈ 99 h); después sí.
+  - interval: 1h
+    input_series:
+      - series: 'docs_audit_fields_total{doc_type="ine",field_class="standard",result="correct"}'
+        values: '0+15x200'
+      - series: 'docs_audit_fields_total{doc_type="ine",field_class="standard",result="wrong"}'
+        values: '0+0.2x200'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AuditFieldAccuracyLow", alertstate="firing"}
+        eval_time: 95h
+        exp_samples: []
+      - expr: ALERTS{alertname="AuditFieldAccuracyLow", alertstate="firing"}
+        eval_time: 110h
+        exp_samples:
+          - labels: 'ALERTS{alertname="AuditFieldAccuracyLow",alertstate="firing",field_class="standard",severity="ticket"}'
+            value: 1
+
+  # ---------------------------------------------------------------- AuditFieldAccuracyLow (críticos)
+  # 5 campos críticos por hora (≈ 120/día). A 99.9 % (el objetivo): nada en 29 días.
+  - interval: 1h
+    input_series:
+      - series: 'docs_audit_fields_total{doc_type="estado_cuenta",field_class="critical",result="correct"}'
+        values: '0+5x700'
+      - series: 'docs_audit_fields_total{doc_type="estado_cuenta",field_class="critical",result="wrong"}'
+        values: '0+0.005x700'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AuditFieldAccuracyLow"}
+        eval_time: 696h
+        exp_samples: []
+
+  # A 99.7 % (el triple de error): dispara cuando hay ≥ 2,000 auditados (≈ 400 h), no antes.
+  - interval: 1h
+    input_series:
+      - series: 'docs_audit_fields_total{doc_type="estado_cuenta",field_class="critical",result="correct"}'
+        values: '0+5x500'
+      - series: 'docs_audit_fields_total{doc_type="estado_cuenta",field_class="critical",result="wrong"}'
+        values: '0+0.015x500'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AuditFieldAccuracyLow", alertstate="firing"}
+        eval_time: 390h
+        exp_samples: []
+      - expr: ALERTS{alertname="AuditFieldAccuracyLow", alertstate="firing"}
+        eval_time: 420h
+        exp_samples:
+          - labels: 'ALERTS{alertname="AuditFieldAccuracyLow",alertstate="firing",field_class="critical",severity="ticket"}'
+            value: 1

@@ -1,0 +1,279 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Se consulta ALERTS{alertstate="firing"} (no hay que copiar las anotaciones). Notación de promtool:
+# '0+100x20' = empieza en 0 y suma 100 por intervalo, 20 veces (21 valores). Segmentos separados por
+# espacio continúan la serie: '0+100x20 2098+98x39'.
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- ModGatewayLatencyHigh
+  # 100 req/min. Hasta el minuto 20 todos ≤ 150 ms; después el 3 % tarda entre 150 y 200 ms → p99 > 0.15.
+  # Con rate[5m], la fracción lenta en la ventana pasa del 1 % en el minuto 22 → firing en el 32.
+  # p99 = 0.15 + 0.05 × (99 − 97) / 3 ≈ 0.1833 (interpolación lineal dentro del bucket (0.15, 0.2]).
+  - interval: 1m
+    input_series:
+      - series: 'mod_gateway_request_duration_seconds_bucket{surface="post",le="0.12"}'
+        values: '0+90x60'
+      - series: 'mod_gateway_request_duration_seconds_bucket{surface="post",le="0.15"}'
+        values: '0+100x20 2097+97x39'
+      - series: 'mod_gateway_request_duration_seconds_bucket{surface="post",le="0.2"}'
+        values: '0+100x60'
+      - series: 'mod_gateway_request_duration_seconds_bucket{surface="post",le="+Inf"}'
+        values: '0+100x60'
+    promql_expr_test:
+      # Antes del cambio: rango 99 de 100 dentro de (0.12, 0.15] → 0.12 + 0.03 × (99 − 90) / 10 = 0.147
+      - expr: mod:gateway_latency_p99:rate5m
+        eval_time: 15m
+        exp_samples:
+          - labels: 'mod:gateway_latency_p99:rate5m'
+            value: 0.147
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: ModGatewayLatencyHigh
+        exp_alerts: []
+      - eval_time: 33m
+        alertname: ModGatewayLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "mod-gateway: p99 183.3ms (> 150 ms)"
+              description: "Cada post y comentario espera esto antes de publicarse. ¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(mod_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado (kubectl top pods -n c06); escala el Deployment."
+              runbook_url: "https://runbooks.example.com/c06/mod-gateway-latency"
+
+  # El 0.5 % lento no alcanza: el p99 sigue dentro del bucket de 150 ms.
+  - interval: 1m
+    input_series:
+      - series: 'mod_gateway_request_duration_seconds_bucket{surface="post",le="0.15"}'
+        values: '0+199x60'
+      - series: 'mod_gateway_request_duration_seconds_bucket{surface="post",le="+Inf"}'
+        values: '0+200x60'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ModGatewayLatencyHigh
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- ModFailOpenRateHigh
+  # 1,000 req/min. Fail-open: 0.5 % hasta el minuto 10, 2 % después → > 1 % desde el ≈ 12 → firing ≈ 22.
+  - interval: 1m
+    input_series:
+      - series: 'mod_gateway_requests_total{surface="post",status="200"}'
+        values: '0+1000x40'
+      - series: 'mod_fail_open_requests_total{surface="post"}'
+        values: '0+5x10 70+20x29'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ModFailOpenRateHigh
+        exp_alerts: []
+      - eval_time: 24m
+        alertname: ModFailOpenRateHigh
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "2% de los ítems se publican con fail-open"
+              description: "Motivo por etapa: sum by (reason) (rate(mod_fail_open_total[5m])). timeout → Triton saturado (cola de dynamic batching, GPUs al máximo): escala stage-1. error → Triton caído o modelo no cargado. budget_exhausted → el gateway llega tarde a la etapa 1 (ver ModGatewayLatencyHigh)."
+              runbook_url: "https://runbooks.example.com/c06/fail-open"
+
+  # ---------------------------------------------------------------- DeepScorerBacklog
+  # mod-events recibe 2,000 eventos/s (120,000/min). Desde el minuto 10 el consumer se atrasa 60,000
+  # mensajes/min (30 s de atraso por minuto). 240 s de atraso = 480,000 mensajes → minuto 18 → firing en
+  # el 28. El otro consumer group (enforcement) no cuenta.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_topic_partition_current_offset{topic="mod-events",partition="0"}'
+        values: '0+120000x40'
+      - series: 'kafka_consumergroup_lag{consumergroup="deep-scorer",topic="mod-events",partition="0"}'
+        values: '1000x10 61000+60000x29'
+      - series: 'kafka_consumergroup_lag{consumergroup="enforcement",topic="mod-events",partition="0"}'
+        values: '9000000x40'
+    promql_expr_test:
+      # Al día: 1,000 mensajes de lag ÷ 2,000/s = 0.5 s
+      - expr: mod:deep_scorer_lag_seconds
+        eval_time: 5m
+        exp_samples:
+          - labels: 'mod:deep_scorer_lag_seconds'
+            value: 0.5
+    alert_rule_test:
+      - eval_time: 27m
+        alertname: DeepScorerBacklog
+        exp_alerts: []
+      - eval_time: 29m
+        alertname: DeepScorerBacklog
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "deep-scorer va 9m 30s atrasado en mod-events"
+              description: "¿Consumers vivos y sin rebalanceos en bucle? ¿GPUs L4 al máximo (DCGM)? ¿Subió el fail-open (todo va a la etapa 2)? ¿Un evento viral re-dispara scoring? Si el atraso crece, prioriza el tópico de reportes y S0/S1 antes que el resto."
+              runbook_url: "https://runbooks.example.com/c06/deep-scorer-backlog"
+
+  # ---------------------------------------------------------------- ReviewQueueAging
+  # Reportes S1: el más viejo envejece 1 min por minuto → pasa 2,700 s en el minuto 46 → firing en el 51.
+  # S2 con 3 h de antigüedad no alerta (su SLA es de 24 h).
+  - interval: 1m
+    input_series:
+      - series: 'review_queue_oldest_age_seconds{tier="S1",source="user_report",instance="rr-0"}'
+        values: '0+60x60'
+      - series: 'review_queue_oldest_age_seconds{tier="S2",source="user_report",instance="rr-0"}'
+        values: '10800+60x60'
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: ReviewQueueAging
+        exp_alerts: []
+      - eval_time: 52m
+        alertname: ReviewQueueAging
+        exp_alerts:
+          - exp_labels: {severity: page, tier: S1, source: user_report}
+            exp_annotations:
+              summary: "Cola de revisión S1/user_report: el más viejo tiene 52m 0s"
+              description: "¿Turno con menos personas de lo planeado? ¿Pico de reportes (evento en vivo, ataque coordinado)? ¿Llegadas por encima de la capacidad (sube review_queue_depth)? Acciones: mover personas de colas S2/S3, subir temporalmente el umbral de revisión de S3 (policies.yaml, versionado)."
+              runbook_url: "https://runbooks.example.com/c06/review-queue-aging"
+
+  # S0: 22.5 min (1,350 s) → minuto 23 → firing en el 28.
+  - interval: 1m
+    input_series:
+      - series: 'review_queue_oldest_age_seconds{tier="S0",source="proactive",instance="rr-0"}'
+        values: '0+60x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ReviewQueueAging", alertstate="firing"}
+        eval_time: 27m
+        exp_samples: []
+      - expr: ALERTS{alertname="ReviewQueueAging", alertstate="firing"}
+        eval_time: 29m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ReviewQueueAging",alertstate="firing",severity="page",tier="S0",source="proactive"}'
+            value: 1
+
+  # ---------------------------------------------------------------- HashListStale
+  # En promtool, time() = segundos desde el inicio del test; el watermark "fresco" sigue al reloj.
+  # El pod a deja de aplicar novedades de own_removed en el minuto 30 (watermark fijo en 1,800 s); el
+  # pod b sigue al día. min by (list) ve al PEOR pod: 30 min de atraso en el minuto 60 → firing en el 71.
+  - interval: 1m
+    input_series:
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="own_removed",pod="a"}'
+        values: '0+60x30 1800x60'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="own_removed",pod="b"}'
+        values: '0+60x90'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_csam",pod="a"}'
+        values: '0+60x90'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: HashListStale
+        exp_alerts: []
+      - eval_time: 72m
+        alertname: HashListStale
+        exp_alerts:
+          - exp_labels: {severity: page, list: own_removed}
+            exp_annotations:
+              summary: "Lista de hashes own_removed desactualizada"
+              description: "Valor: segundos desde el último watermark aplicado (o 1 si la serie no existe). ¿El stream de novedades de hashes llega a los pods (logs hash_update_error)? ¿El productor de la lista sigue mandando heartbeats? ¿Cambió el acceso a la lista de la industria? Mientras tanto, la re-subida de contenido removido no se bloquea."
+              runbook_url: "https://runbooks.example.com/c06/hash-list-stale"
+
+  # Ningún pod tiene la serie de industry_csam → absent() → firing a los 10 min.
+  - interval: 1m
+    input_series:
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="own_removed",pod="a"}'
+        values: '0+60x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="HashListStale", alertstate="firing"}
+        eval_time: 9m
+        exp_samples: []
+      - expr: ALERTS{alertname="HashListStale", alertstate="firing"}
+        eval_time: 11m
+        exp_samples:
+          - labels: 'ALERTS{alertname="HashListStale",alertstate="firing",severity="page",list="industry_csam"}'
+            value: 1
+
+  # ---------------------------------------------------------------- PolicyScoreShift
+  # 10 ítems/s de odio (6,000 por intervalo de 10 min); durante 1 semana el 1 % tiene score > 0.5.
+  # Desde 1w (paso 1,008) sube al 3 %: el cociente contra la misma hora de la semana pasada pasa de 2
+  # ≈ 30 min después → firing ≈ 1 h 30 min después del cambio. spam_scams no cambia: no alerta.
+  - interval: 10m
+    input_series:
+      - series: 'mod_stage1_score_bucket{policy="hate_harassment",le="0.5"}'
+        values: '0+5940x1008 5993340+5820x40'
+      - series: 'mod_stage1_score_count{policy="hate_harassment"}'
+        values: '0+6000x1049'
+      - series: 'mod_stage1_score_bucket{policy="spam_scams",le="0.5"}'
+        values: '0+5400x1049'
+      - series: 'mod_stage1_score_count{policy="spam_scams"}'
+        values: '0+6000x1049'
+    promql_expr_test:
+      # En milésimas y redondeado: 0.01 y 0.1 en float no salen exactos
+      - expr: round(mod:stage1_high_score_ratio:rate1h * 1000)
+        eval_time: 10080m
+        exp_samples:
+          - labels: '{policy="hate_harassment"}'
+            value: 10
+          - labels: '{policy="spam_scams"}'
+            value: 100
+    alert_rule_test:
+      - eval_time: 10160m  # 1w + 1 h 20 min
+        alertname: PolicyScoreShift
+        exp_alerts: []
+      - eval_time: 10240m  # 1w + 2 h 40 min
+        alertname: PolicyScoreShift
+        exp_alerts:
+          - exp_labels: {severity: ticket, policy: hate_harassment}
+            exp_annotations:
+              summary: "hate_harassment: la fracción con score > 0.5 cambió 3.0× contra la semana pasada"
+              description: "Compara con la muestra aleatoria etiquetada (¿subió la prevalencia de verdad?) y con las decisiones de revisión de hoy. ¿Hubo deploy de modelo o de config? (model_versions y config_version en mod-events). Si es evasión: ejemplos nuevos a etiquetado, hashes del contenido removido y reentrenamiento."
+              runbook_url: "https://runbooks.example.com/c06/policy-score-shift"
+
+  # ---------------------------------------------------------------- AppealOverturnRateHigh
+  # Odio: 4 apelaciones/h, 25 % revertidas durante 28 días; después 50 %. El cociente de 7 días pasa de
+  # 1.5 × 25 % = 37.5 % a mitad de la semana nueva (≈ 3.5 días) → firing a los 2 h. self_harm salta de 0 %
+  # a 100 % pero con < 100 apelaciones en 7 días: el piso de volumen lo calla.
+  - interval: 1h
+    input_series:
+      - series: 'appeals_decided_total{policy="hate_harassment",outcome="upheld"}'
+        values: '0+3x672 2018+2x199'
+      - series: 'appeals_decided_total{policy="hate_harassment",outcome="overturned"}'
+        values: '0+1x672 674+2x199'
+      - series: 'appeals_decided_total{policy="self_harm",outcome="upheld"}'
+        values: '0+0.5x672 336x199'
+      - series: 'appeals_decided_total{policy="self_harm",outcome="overturned"}'
+        values: '0x672 0.5+0.5x199'
+    promql_expr_test:
+      - expr: mod:appeal_overturn_ratio:rate28d
+        eval_time: 672h
+        exp_samples:
+          - labels: 'mod:appeal_overturn_ratio:rate28d{policy="hate_harassment"}'
+            value: 0.25
+          - labels: 'mod:appeal_overturn_ratio:rate28d{policy="self_harm"}'
+            value: 0
+      # El valor exacto en el momento de la evaluación depende de cuándo cae la evaluación horaria del
+      # grupo dentro de la hora: aquí se prueban los labels y el momento, no el texto con el porcentaje.
+      - expr: ALERTS{alertname="AppealOverturnRateHigh", alertstate="firing"}
+        eval_time: 744h  # día 31: 3 días de régimen nuevo, cociente 7d ≈ 36 % < 37.5 %
+        exp_samples: []
+      - expr: ALERTS{alertname="AppealOverturnRateHigh", alertstate="firing"}
+        eval_time: 792h  # día 33: 5 días de régimen nuevo, ≈ 43 %
+        exp_samples:
+          - labels: 'ALERTS{alertname="AppealOverturnRateHigh",alertstate="firing",policy="hate_harassment",severity="ticket"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ProactiveRateDrop
+  # Spam: 100 acciones/h, 90 % proactivas durante 10 días; después 70 %. La tasa de 1 día cae debajo de
+  # 85 % ≈ 6 h después del cambio → firing ≈ 8 h después. Violencia estable: no alerta.
+  - interval: 1h
+    input_series:
+      - series: 'enforcement_actions_total{policy="spam_scams",detection="proactive"}'
+        values: '0+90x240 21670+70x59'
+      - series: 'enforcement_actions_total{policy="spam_scams",detection="user_report"}'
+        values: '0+10x240 2430+30x59'
+      - series: 'enforcement_actions_total{policy="violence",detection="proactive"}'
+        values: '0+60x299'
+      - series: 'enforcement_actions_total{policy="violence",detection="user_report"}'
+        values: '0+40x299'
+    # El valor exacto en el momento de la evaluación depende de cuándo cae la evaluación horaria del
+    # grupo dentro de la hora: aquí se prueban los labels y el momento, no el texto con el porcentaje.
+    promql_expr_test:
+      - expr: ALERTS{alertname="ProactiveRateDrop", alertstate="firing"}
+        eval_time: 245h  # 5 h después del cambio
+        exp_samples: []
+      - expr: ALERTS{alertname="ProactiveRateDrop", alertstate="firing"}
+        eval_time: 252h  # 12 h después
+        exp_samples:
+          - labels: 'ALERTS{alertname="ProactiveRateDrop",alertstate="firing",policy="spam_scams",severity="ticket"}'
+            value: 1

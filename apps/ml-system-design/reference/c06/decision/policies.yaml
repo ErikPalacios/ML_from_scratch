@@ -1,0 +1,196 @@
+# Configuración VERSIONADA del decision-engine (caso c06): qué acción toma la plataforma según la
+# política, la severidad, la superficie (post o comentario) y el score de la cascada.
+#
+# Por qué es un archivo y no código: los umbrales los cambian Trust & Safety y legal más seguido que
+# el modelo (una elección, una campaña de spam, una política nueva). Cambiar un umbral NO es un deploy
+# del modelo: es un cambio de config revisado (PR + validación de engine.py + shadow), con su versión
+# en cada decisión. Así, cuando alguien apela, sabes qué regla se aplicó ese día.
+#
+# Los números son ILUSTRATIVOS: cada umbral sale de la curva precision-recall de esa política en el
+# set de evaluación (muestra aleatoria etiquetada por humanos) y de la capacidad de revisión. Nunca
+# copies estos valores a producción.
+
+# Versión de ESTA config: viaja en cada decisión (config_version) y en cada evento de mod-events.
+version: "2026-10-01.1"
+# Versión de las DEFINICIONES de las políticas (el texto que leen moderadores y usuarios). Las
+# etiquetas de los moderadores llevan esta versión: si "acoso" cambia de definición, las etiquetas
+# viejas no son comparables y no se mezclan al entrenar ni al evaluar.
+policy_definitions_version: "normas-2026-09"
+
+# Superficies que el gateway acepta. Video, lives, mensajes directos y anuncios están fuera de alcance.
+surfaces: [post, comment]
+
+# ---------------------------------------------------------------------------- fail-open por severidad
+# Qué pasa si falta una etapa REMOTA (los modelos de la etapa 1 en Triton) o vence su timeout.
+# El post NO espera: la creación de posts no puede caerse porque un modelo está lento.
+fail_open:
+  S0:
+    # S0 no admite fail-open... y por eso su verificación obligatoria (hash-match) corre LOCAL, en el
+    # proceso del gateway. Si el resultado del hash falta, el motor no decide (error), y un pod sin el
+    # índice de hashes cargado no está ready: el balanceador no le manda tráfico.
+    # Las señales de MODELO de S0 (extremismo violento) son un complemento del hash: si faltan, el
+    # ítem se publica y va a la etapa 2 con prioridad alta. La garantía S0 sigue siendo el hash.
+    allowed: false
+    deep_scoring_priority: high
+  S1:
+    # Se publica, pero con dos redes: reglas locales baratas (abajo) y deep scoring con prioridad alta.
+    # Bloquear TODO cuando el modelo falla dejaría la red social sin posts por una falla de infra.
+    allowed: true
+    fallback_rules: true
+    deep_scoring_priority: high
+  S2:
+    allowed: true  # se publica y la etapa 2 lo revisa en ≤ 5 min (p95)
+    deep_scoring_priority: normal
+  S3:
+    allowed: true
+    deep_scoring_priority: normal
+
+# Reglas locales que SOLO se usan cuando falta la etapa 1 (en operación normal el modelo es mejor:
+# una regex no entiende contexto ni ironía). Lista corta e ilustrativa: la de verdad la mantiene
+# Trust & Safety, en todos los idiomas que soporta la plataforma.
+fallback_rules:
+  - policy: violence
+    pattern: "\\b(te|los|las) voy a matar\\b"  # amenaza explícita en español
+    action: reduce  # reducir alcance mientras la etapa 2 decide; no se elimina por una regex
+  - policy: violence
+    pattern: "\\bi(?:'m| am) going to kill you\\b"
+    action: reduce
+
+# ---------------------------------------------------------------------------- listas de hashes
+# Qué hacer cuando hash-match encuentra una coincidencia. "remove" significa: en el camino síncrono,
+# block_prepublish (el post no llega a publicarse); en el asíncrono, remove.
+hash_lists:
+  industry_csam:
+    # Lista de la industria para CSAM (acceso bajo acuerdo, p. ej. con NCMEC en EE. UU.). Un match no
+    # pasa por la cola general de revisión: va al equipo especializado, que hace el reporte legal.
+    policy: csam
+    action: remove
+    max_distance: 31  # el umbral recomendado de PDQ
+    escalation: s0_specialist_team
+  industry_terror:
+    # Base compartida de la industria para contenido terrorista (p. ej. la de GIFCT; verifica
+    # formatos y condiciones de acceso). Mismo flujo especializado.
+    policy: violent_extremism
+    action: remove
+    max_distance: 31
+    escalation: s0_specialist_team
+  own_removed:
+    # Hashes de lo que NOSOTROS ya removimos (cualquier política): atrapa la re-subida en minutos.
+    # Distancia más estricta: un meme con la misma plantilla y OTRO texto puede caer cerca, y no
+    # queremos remover memes inocentes que comparten la imagen de fondo.
+    policy: from_entry  # la política viene en cada entrada de la lista
+    action: remove
+    max_distance: 16
+  benign_exceptions:
+    # Excepciones por clúster: un meme o un trend BENIGNO que el modelo confunde (p. ej. una plantilla
+    # que dispara "violencia"). Una persona lo confirma y su hash (PDQ de la plantilla o texto
+    # normalizado) entra aquí: el modelo deja de actuar sobre esa política para ese clúster, sin
+    # reentrenar. Nunca anula otro hash. Cada entrada lleva quién la aprobó y vence (lo controla la
+    # lista, no este archivo).
+    policy: from_entry
+    action: none
+    suppress_model_actions: true
+    max_distance: 16
+
+# ---------------------------------------------------------------------------- políticas (7)
+# Por política: severidad, umbrales por superficie y acción, qué acciones automáticas se confirman
+# con una persona, y desde qué score de la etapa 1 se manda el ítem a la etapa 2.
+#
+# Cómo se lee un bloque de umbrales: el motor toma la acción MÁS FUERTE cuyo umbral alcanza el score.
+#   hate_harassment / post: score 0.97 → remove · 0.85 → reduce · 0.65 → review · 0.30 → none
+# Orden de fuerza: block_prepublish > remove > age_gate > interstitial > reduce > review > none.
+# Validación (engine.py): umbrales en [0, 1] y NO crecientes en ese orden (una acción más fuerte
+# nunca puede pedir menos evidencia que una más débil), y solo acciones conocidas.
+# block_prepublish solo aplica en el camino síncrono (antes de publicar); remove solo en el
+# asíncrono (ya está publicado). En el síncrono, un score de "remove" sin llegar a block_prepublish
+# baja a la siguiente acción y queda para la etapa 2.
+# mode (opcional, default enforce): con `mode: shadow` la política se evalúa y su acción queda en
+# shadow_actions de cada decisión, pero NO se aplica. Así entra una política nueva (o umbrales nuevos):
+# primero se mide cuántos ítems caerían en cada banda y si la revisión da abasto, después se activa.
+policies:
+  csam:
+    title: "Explotación sexual infantil"
+    clause: "1.1"
+    severity: S0
+    # Sin umbrales de modelo: lo cubren las listas de hashes y un equipo especializado. Aquí no se
+    # entrena un clasificador ad hoc.
+    hash_only: true
+
+  violent_extremism:
+    title: "Extremismo violento y terrorismo"
+    clause: "1.2"
+    severity: S0
+    thresholds:
+      post: {remove: 0.97, review: 0.40}  # banda de revisión ancha: es S0, revisa el equipo especializado
+      comment: {remove: 0.97, review: 0.50}
+    deep_scoring_trigger: 0.15
+
+  violence:
+    title: "Amenazas creíbles y violencia gráfica"
+    clause: "2.1"
+    severity: S1
+    thresholds:
+      post: {block_prepublish: 0.98, remove: 0.95, interstitial: 0.80, review: 0.50}
+      comment: {block_prepublish: 0.98, remove: 0.95, review: 0.55}
+    review_confirms: [interstitial]  # la pantalla de advertencia se aplica ya y una persona la confirma
+    deep_scoring_trigger: 0.20
+
+  self_harm:
+    title: "Promoción de autolesiones"
+    clause: "2.2"
+    severity: S1
+    thresholds:
+      # interstitial aquí = pantalla con recursos de ayuda antes de ver el contenido
+      post: {remove: 0.96, interstitial: 0.75, review: 0.40}
+      comment: {remove: 0.96, review: 0.45}
+    review_confirms: [interstitial]
+    deep_scoring_trigger: 0.15
+
+  hate_harassment:
+    title: "Discurso de odio y acoso"
+    clause: "3.1"
+    severity: S2
+    thresholds:
+      post: {block_prepublish: 0.99, remove: 0.95, reduce: 0.80, review: 0.60}
+      comment: {block_prepublish: 0.99, remove: 0.93, reduce: 0.75, review: 0.60}
+    review_confirms: [reduce]  # reducir alcance ya, mientras una persona decide si se remueve
+    deep_scoring_trigger: 0.30
+
+  adult_nudity:
+    title: "Desnudos y actividad sexual de adultos"
+    clause: "3.2"
+    severity: S2
+    thresholds:
+      # Solo posts: los comentarios son texto (sin imágenes en este alcance)
+      post: {block_prepublish: 0.99, remove: 0.96, review: 0.70}
+    deep_scoring_trigger: 0.30
+
+  spam_scams:
+    title: "Spam y estafas"
+    clause: "4.1"
+    severity: S3
+    thresholds:
+      # Volumen alto, daño individual bajo: casi todo automático y poca revisión humana
+      post: {block_prepublish: 0.99, remove: 0.97, reduce: 0.85, review: 0.80}
+      comment: {block_prepublish: 0.98, remove: 0.95, reduce: 0.80}
+    deep_scoring_trigger: 0.50
+
+# ---------------------------------------------------------------------------- regiones
+# Ajustes por región, aplicados ENCIMA de los umbrales globales (solo las claves que cambian).
+# Ejemplo ilustrativo: en una región donde cierto discurso es ilegal según la ley local, legal pide
+# remover con menos evidencia. Los valores reales los define legal con Trust & Safety, no ML.
+regions:
+  DE:
+    hate_harassment:
+      post: {remove: 0.90}
+      comment: {remove: 0.90}
+
+# ---------------------------------------------------------------------------- statement of reasons
+# Datos para el texto que recibe la persona afectada (motor: engine.statement_of_reasons). La DSA de
+# la UE (art. 17) pide, entre otros: qué restricción y su alcance, los hechos (proactivo o por
+# reporte), si se usaron medios automatizados, la cláusula de las normas, y cómo apelar. No es asesoría
+# legal: el texto final lo aprueba legal.
+statement_of_reasons:
+  norms_name: "Normas comunitarias"
+  appeal_url: "https://example.com/apelaciones"
+  appeal_window: "6 meses"  # DSA art. 20: el sistema de reclamos debe estar disponible al menos 6 meses

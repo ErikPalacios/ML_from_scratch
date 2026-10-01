@@ -1,0 +1,36 @@
+# Dependencias de RUNTIME de docs-api, fijadas con == e INCLUIDAS las transitivas: esta lista ES el lock.
+# Por qué fijar las transitivas: sin lock, un rebuild del mismo commit puede traer otra Starlette u otra
+# Pillow y cambiar cómo se parsea un multipart o cómo se decodifica un JPEG sin que nadie toque el código.
+# Probadas con Python 3.12 (el de la imagen) y 3.13. Tests: pip install -r requirements-dev.txt.
+# El gate importa pipeline/quality.py y pipeline/cfdi.py: sus dependencias (numpy, defusedxml) están aquí.
+
+# --- directas ---
+fastapi==0.142.2  # la API (validación de formularios, OpenAPI)
+uvicorn==0.54.0  # servidor ASGI (un proceso por contenedor; K8s escala réplicas)
+python-multipart==0.0.32  # sin esto FastAPI no puede leer multipart/form-data (los archivos)
+pillow==12.3.0  # decodificar JPEG/PNG (modo draft para JPEG), EXIF, tope de pixeles
+numpy==2.5.3  # quality.py
+pypdf==6.19.0  # contar páginas y detectar PDF con contraseña sin rasterizar
+prometheus-client==0.26.0  # /metrics
+defusedxml==0.7.1  # cfdi.py: XML del cliente sin DTD ni entidades
+boto3==1.43.106  # S3 (PutObject con SSE-KMS) y Step Functions (StartExecution)
+
+# --- transitivas (pip freeze de un venv limpio con las directas) ---
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+botocore==1.43.106
+click==8.5.0
+h11==0.16.0
+idna==3.20
+jmespath==1.1.0
+opentelemetry-api==1.45.0
+pydantic==2.13.5
+pydantic_core==2.46.5
+python-dateutil==2.9.0.post0
+s3transfer==0.19.2
+six==1.17.0
+starlette==1.7.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.8.0

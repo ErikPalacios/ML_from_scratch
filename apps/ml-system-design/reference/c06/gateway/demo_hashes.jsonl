@@ -1,0 +1,8 @@
+{"kind": "pdq", "id": "demo-industry_csam-1", "value": "aaf912da04acce2dbf4cc3066759d1a3eaf18f5de5e69e77739c6f145f1fd95e", "list": "industry_csam", "policy": "csam", "quality": 90}
+{"kind": "pdq", "id": "demo-industry_terror-1", "value": "1a36b9a4c7dcdb5a286bc0d45c675fca5c5b55b4a881b7e71720a1b8ce04672d", "list": "industry_terror", "policy": "violent_extremism", "quality": 90}
+{"kind": "pdq", "id": "demo-own_removed-1", "value": "4fb3c3dba2e71ca70d1d3519f6915d4c3194692ab2d58af771965bbad44c7beb", "list": "own_removed", "policy": "hate_harassment", "quality": 90}
+{"kind": "text_sha256", "id": "demo-spam-1", "value": "b96ab314174d7d0ee39d3c90a25c7f7cbf2e2be4cf5aa57e9f77d02baedff970", "list": "own_removed", "policy": "spam_scams"}
+{"kind": "domain", "value": "phish.example", "list": "own_removed", "policy": "spam_scams"}
+{"kind": "heartbeat", "list": "industry_csam", "ts": 1790000000}
+{"kind": "heartbeat", "list": "industry_terror", "ts": 1790000000}
+{"kind": "heartbeat", "list": "own_removed", "ts": 1790000000}

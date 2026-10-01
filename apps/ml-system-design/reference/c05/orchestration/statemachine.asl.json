@@ -1,0 +1,679 @@
+{
+  "Comment": "Caso c05 — pipeline por documento (Standard: waitForTaskToken solo existe en Standard; una revisión puede durar días y Express dura máximo 5 min). Cada etapa automática es un mensaje con task token a la cola doc-tasks; los pods doc-worker lo procesan y responden con SendTaskSuccess/SendTaskFailure. Las URLs de las colas son de ejemplo (cuenta 123456789012): el IaC las sustituye.",
+  "QueryLanguage": "JSONPath",
+  "StartAt": "Init",
+  "States": {
+    "Init": {
+      "Type": "Pass",
+      "Comment": "Contrato del input (lo arma docs-api: solo referencias a S3, nunca bytes) + valores por defecto. Toda ruta que un estado lea con .$ debe existir siempre: review nace en null para que Commit funcione también en el camino STP (una ruta inexistente es un error de runtime). sat_mode=required: la factura se valida contra el SAT; SatUnverified lo cambia a skip.",
+      "Parameters": {
+        "document_id.$": "$.document_id",
+        "application_id.$": "$.application_id",
+        "declared_type.$": "$.declared_type",
+        "sha256.$": "$.sha256",
+        "pages.$": "$.pages",
+        "received_at.$": "$.received_at",
+        "opts": {
+          "sat_mode": "required"
+        },
+        "review": null
+      },
+      "Next": "Classify"
+    },
+    "Classify": {
+      "Type": "Task",
+      "Comment": "Tipo de documento y rol de cada página (modelo chico en CPU, en los pods doc-worker). Devuelve doc_type y text_source: xml | text_layer | ocr | manual.",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
+        "MessageBody": {
+          "stage": "classify",
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "attempt.$": "$$.State.RetryCount",
+          "document_id.$": "$.document_id",
+          "declared_type.$": "$.declared_type",
+          "pages.$": "$.pages"
+        }
+      },
+      "TimeoutSeconds": 3600,
+      "ResultPath": "$.classify",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Doc.Unreadable",
+            "Doc.InvalidInput"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        },
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 4,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "AcquireText"
+    },
+    "AcquireText": {
+      "Type": "Choice",
+      "Comment": "El mejor modelo es el que no corres: XML del CFDI > capa de texto del PDF > OCR. Default = OCR (lee cualquier cosa); sin Default, un valor inesperado sería States.NoChoiceMatched y la ejecución fallaría.",
+      "Choices": [
+        {
+          "Variable": "$.classify.text_source",
+          "StringEquals": "xml",
+          "Next": "ReadCfdiXml"
+        },
+        {
+          "Variable": "$.classify.text_source",
+          "StringEquals": "text_layer",
+          "Next": "ReadTextLayer"
+        },
+        {
+          "Variable": "$.classify.text_source",
+          "StringEquals": "manual",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Default": "RunOcr"
+    },
+    "ReadCfdiXml": {
+      "Type": "Task",
+      "Comment": "pipeline/cfdi.py: parsea el XML y devuelve los campos con confidence 1.0 (mismo esquema que Extract). Salta Extract: no hay nada que adivinar.",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
+        "MessageBody": {
+          "stage": "read_xml",
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "attempt.$": "$$.State.RetryCount",
+          "document_id.$": "$.document_id",
+          "pages.$": "$.pages"
+        }
+      },
+      "TimeoutSeconds": 3600,
+      "ResultPath": "$.extract",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Doc.Unreadable",
+            "Doc.InvalidInput"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        },
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 4,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "Validate"
+    },
+    "ReadTextLayer": {
+      "Type": "Task",
+      "Comment": "PDF nacido digital: palabras y cajas de la capa de texto (sin OCR, sin costo por página). El texto completo va a S3; aquí vuelve solo su llave.",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
+        "MessageBody": {
+          "stage": "read_text_layer",
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "attempt.$": "$$.State.RetryCount",
+          "document_id.$": "$.document_id",
+          "pages.$": "$.pages"
+        }
+      },
+      "TimeoutSeconds": 3600,
+      "ResultPath": "$.text",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Doc.Unreadable",
+            "Doc.InvalidInput"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        },
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 4,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "Extract"
+    },
+    "RunOcr": {
+      "Type": "Task",
+      "Comment": "OCR administrado (DetectDocumentText, página por página): palabras + cajas + confianza 0-100 + TextType (PRINTED/HANDWRITING). El JSON va a S3; el estado solo lleva la llave (límite de 256 KiB).",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
+        "MessageBody": {
+          "stage": "ocr",
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "attempt.$": "$$.State.RetryCount",
+          "document_id.$": "$.document_id",
+          "pages.$": "$.pages"
+        }
+      },
+      "TimeoutSeconds": 3600,
+      "ResultPath": "$.text",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Doc.Unreadable",
+            "Doc.InvalidInput"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "Ocr.Throttled"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        },
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 4,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "Extract"
+    },
+    "Extract": {
+      "Type": "Task",
+      "Comment": "Modelo layout-aware (ONNX Runtime en CPU) + reglas/regex por tipo de documento. Devuelve fields: {nombre: {value, confidence calibrada, source, page, bbox}}.",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
+        "MessageBody": {
+          "stage": "extract",
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "attempt.$": "$$.State.RetryCount",
+          "document_id.$": "$.document_id",
+          "doc_type.$": "$.classify.doc_type",
+          "text.$": "$.text"
+        }
+      },
+      "TimeoutSeconds": 3600,
+      "ResultPath": "$.extract",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Doc.Unreadable",
+            "Doc.InvalidInput"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        },
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 4,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "Validate"
+    },
+    "Validate": {
+      "Type": "Task",
+      "Comment": "pipeline/validators.py + cruces entre documentos + estatus del CFDI en el SAT. Si el SAT no responde: 3 reintentos (30, 60, 120 s con jitter) y luego SatUnverified.",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
+        "MessageBody": {
+          "stage": "validate",
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "attempt.$": "$$.State.RetryCount",
+          "document_id.$": "$.document_id",
+          "doc_type.$": "$.classify.doc_type",
+          "application_id.$": "$.application_id",
+          "fields.$": "$.extract.fields",
+          "sat_mode.$": "$.opts.sat_mode"
+        }
+      },
+      "TimeoutSeconds": 900,
+      "ResultPath": "$.validation",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Doc.Unreadable",
+            "Doc.InvalidInput"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "Sat.Unavailable"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0,
+          "JitterStrategy": "FULL"
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        },
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 4,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "Sat.Unavailable"
+          ],
+          "ResultPath": "$.sat_error",
+          "Next": "SatUnverified"
+        },
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "Route"
+    },
+    "SatUnverified": {
+      "Type": "Pass",
+      "Comment": "Degradación: sin SAT, la factura no puede ser STP (la regla sat_estatus falla con 'no verificado') y va a revisión con ese motivo. Alternativa a discutir: esperar más (un Wait) y no inundar a los revisores; lo vigila SATValidationDown.",
+      "Result": "skip",
+      "ResultPath": "$.opts.sat_mode",
+      "Next": "Validate"
+    },
+    "Route": {
+      "Type": "Task",
+      "Comment": "pipeline/routing.py: STP solo si todos los campos requeridos superan su umbral calibrado y todas las validaciones pasan; si no, tarea de revisión con SOLO los campos marcados.",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
+        "MessageBody": {
+          "stage": "route",
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "attempt.$": "$$.State.RetryCount",
+          "document_id.$": "$.document_id",
+          "doc_type.$": "$.classify.doc_type",
+          "application_id.$": "$.application_id",
+          "received_at.$": "$.received_at",
+          "fields.$": "$.extract.fields",
+          "validations.$": "$.validation.results"
+        }
+      },
+      "TimeoutSeconds": 600,
+      "ResultPath": "$.route",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Doc.Unreadable",
+            "Doc.InvalidInput"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        },
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 4,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 60,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "IsStp"
+    },
+    "IsStp": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.route.decision",
+          "StringEquals": "stp",
+          "Next": "Commit"
+        },
+        {
+          "Variable": "$.route.decision",
+          "StringEquals": "review",
+          "Next": "HumanReview"
+        }
+      ],
+      "Default": "ToManualCapture"
+    },
+    "HumanReview": {
+      "Type": "Task",
+      "Comment": "Callback con persona: review-api guarda la tarea (y su token) en Postgres y la ordena por sort_at (SQS no tiene prioridades). Al guardar el revisor, SendTaskSuccess con los campos corregidos. review-api manda SendTaskHeartbeat cada hora por cada tarea abierta: si deja de hacerlo (perdió la tarea), a las 2 h esto falla y el documento no queda colgado 5 días. 5 días de TimeoutSeconds cubren un fin de semana largo.",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-review",
+        "MessageBody": {
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "document_id.$": "$.document_id",
+          "review_task.$": "$.route.review_task"
+        }
+      },
+      "HeartbeatSeconds": 7200,
+      "TimeoutSeconds": 432000,
+      "ResultPath": "$.review",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.HeartbeatTimeout",
+            "States.Timeout"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "Commit"
+    },
+    "Commit": {
+      "Type": "Task",
+      "Comment": "Postgres con procedencia por campo (página, bbox, etapa, versión de modelo, confianza, revisor) + envío al core, idempotente por document_id. Reintentos largos: el core puede estar en mantenimiento, y lo revisado no se tira.",
+      "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
+        "MessageBody": {
+          "stage": "commit",
+          "task_token.$": "$$.Task.Token",
+          "execution.$": "$$.Execution.Id",
+          "attempt.$": "$$.State.RetryCount",
+          "document_id.$": "$.document_id",
+          "route.$": "$.route",
+          "fields.$": "$.extract.fields",
+          "review.$": "$.review"
+        }
+      },
+      "TimeoutSeconds": 900,
+      "ResultPath": "$.commit",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Doc.Unreadable",
+            "Doc.InvalidInput"
+          ],
+          "MaxAttempts": 0
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        },
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 6,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 300,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.DataLimitExceeded"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        },
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "ToManualCapture"
+        }
+      ],
+      "Next": "Done"
+    },
+    "Done": {
+      "Type": "Succeed"
+    },
+    "ToManualCapture": {
+      "Type": "Task",
+      "Comment": "Último recurso, nunca perder un documento: el estado completo (llaves de S3, lo extraído, lo revisado y el error) va a la cola de captura manual, con reintentos generosos. Request-response: no espera a nadie.",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-manual-capture",
+        "MessageBody": {
+          "document_id.$": "$.document_id",
+          "execution.$": "$$.Execution.Id",
+          "state.$": "$"
+        }
+      },
+      "ResultPath": null,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 10,
+          "BackoffRate": 2.0,
+          "MaxDelaySeconds": 300,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "SentToManualCapture"
+    },
+    "SentToManualCapture": {
+      "Type": "Fail",
+      "Error": "Doc.ManualCapture",
+      "Cause": "El documento no terminó en automático ni en revisión; quedó en doc-manual-capture. Termina en Fail a propósito: ExecutionsFailed lo cuenta."
+    }
+  }
+}

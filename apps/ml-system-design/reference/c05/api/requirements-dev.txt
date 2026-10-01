@@ -1,0 +1,6 @@
+# Dependencias de TESTS (no entran a la imagen). pip install -r requirements-dev.txt && pytest
+-r requirements.txt
+pytest==9.1.1  # corre tests/
+httpx2==2.13.1  # lo usa el TestClient de Starlette 1.x (con httpx 0.28 funciona, pero está deprecado)
+moto[s3,stepfunctions]==5.2.3  # S3 y Step Functions en memoria para probar los adaptadores de boto3
+PyYAML==6.0.3  # el test de contrato lee monitoring/alerts.yml

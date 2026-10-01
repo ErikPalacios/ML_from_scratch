@@ -872,7 +872,8 @@ decisions.
 - Volume: **30 M posts/day** (40 % with images, avg 1.5 images → **18 M images/day**) + **150 M
   comments/day** (text) → 180 M text items/day ≈ 2,083/s average, **peak ≈ 3× ≈ 6,250 text items/s**;
   images ≈ 208/s average, **peak ≈ 625 images/s**. Posts 347/s average (≈ 1,040/s peak).
-- Policies (7) and severity tiers: **S0 zero tolerance** (CSAM — handled by hash matching against
+- Policies — exactly 7 ids, as in reference/c06/decision/policies.yaml (hate speech and harassment merge into
+  one policy; credible threats and graphic violence into one) — and severity tiers: **S0 zero tolerance** (CSAM — handled by hash matching against
   industry hash lists and legal reporting obligations, e.g. NCMEC in the US; a specialized team, no ad-hoc
   training; violent extremism/terrorist content), **S1 high** (credible threats, self-harm promotion,
   graphic violence), **S2 medium** (hate speech, harassment, adult nudity), **S3 low** (spam/scams,

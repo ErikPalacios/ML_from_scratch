@@ -448,7 +448,7 @@
         'Escaneos de baja calidad, PDFs variados y varios idiomas',
         'Costo por página y throughput',
       ],
-      freq: 'media', minutes: 125, difficulty: 'media',
+      freq: 'media', minutes: 110, difficulty: 'media',
       connects: ['m02', 'm07', 'm09', 'm12', 'm14'],
       tests: [
         'Descomponer en un pipeline de modelos con contratos claros entre etapas',
@@ -474,7 +474,7 @@
         'Adversarios: evasión, drift rápido y reentrenamiento frecuente',
         'Apelaciones, auditoría y sesgos',
       ],
-      freq: 'alta', minutes: 125, difficulty: 'alta',
+      freq: 'alta', minutes: 106, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'm15'],
       tests: [
         'Diseñar una cascada que balancee costo, latencia y recall',
@@ -795,13 +795,13 @@
       note: 'Drift, alertas y reentrenamiento, aplicados enseguida a un caso batch de segmentación con revisión humana.',
     },
     {
-      phase: 8, status: 'next',
+      phase: 8, status: 'done',
       title: 'Fase 8 — Pipelines multimodelo',
       items: ['c05', 'c06'],
       note: 'Documentos/OCR y moderación a gran escala: varios modelos encadenados, colas, costos por etapa y revisión humana donde el modelo duda.',
     },
     {
-      phase: 9, status: 'later',
+      phase: 9, status: 'next',
       title: 'Fase 9 — Nube y seguridad',
       items: ['m13', 'm15', 'ref-herramientas'],
       note: 'Equivalencias AWS/GCP/Azure, costos y spot, más seguridad, privacidad y confiabilidad; con la tabla de herramientas por categoría ya tienes el mapa completo.',
@@ -923,6 +923,66 @@
       {
         "topic": "Restricciones",
         "a": "Los escáneres ya suben cada lámina al <b>archivo digital del grupo en la nube</b> (tipo S3, en la región aprobada por legal), que emite un evento con la key y el sha256 de cada archivo (en C, uno por archivo); no es costo nuestro. Datos de salud: sensibles (LFPDPPP en México, HIPAA en EE. UU.). La WSI trae imagen de la etiqueta y macro con datos del paciente. La clasificación regulatoria la decide gobierno clínico y legal. Presupuesto: infraestructura ≤ <b>US$2k/mes</b> más las 20 h de patólogo."
+      }
+    ],
+    c05: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Una <b>plataforma mexicana de créditos para PyMEs</b>. Los clientes suben sus documentos desde la app o la web durante el onboarding y en cada solicitud de crédito. Hoy <b>45 capturistas</b> teclean los campos en el sistema core de originación, ≈ <b>4 min por documento</b>. Los campos alimentan el expediente, el análisis de crédito y el desembolso. La autenticidad de la INE y la prueba de vida las hace un proveedor de KYC ya integrado: fuera de alcance."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Mezcla: facturas CFDI 35 % (≈ 1.5 págs; ≈ 60 % llegan como XML; el PDF trae un QR con UUID, RFCs y total), INE 25 % (frente y reverso), comprobantes de domicilio 15 %, estados de cuenta 10 % (≈ 8 págs), solicitudes 15 % (3 págs; ≈ 30 % con campos a mano). La mitad de INE y comprobantes son fotos de celular; estados de cuenta y facturas suelen ser PDF digitales. Salida: los campos de cada tipo (RFC, CURP, CLABE, montos, fechas, nombres) en el core."
+      },
+      {
+        "topic": "Escala",
+        "a": "≈ <b>5,000 documentos/día</b> en promedio (sobre 30 días, fines de semana incluidos), ≈ 2.4 páginas por documento. Los primeros días de cada mes llega ≈ <b>2×</b>. Las subidas ocurren de 08:00 a 22:00."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "Un documento que no necesita revisión debería estar en el core en <b>p95 ≤ 2 min</b> (el cliente sigue en la app); uno que necesita revisión, en <b>p90 ≤ 4 horas hábiles</b> (lunes a viernes, 09:00–19:00). La API de subida es de cara al cliente: <b>99.9 %</b>. Ningún documento se puede perder. Hoy el turnaround es de <b>24–48 h</b> y es el cuello de botella del embudo."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "No hay modelo: todo se captura a mano. Exactitud exigida en los campos que se acepten sin revisión: <b>≥ 99.5 %</b>, y <b>≥ 99.9 %</b> en CURP, RFC, CLABE y montos (una CLABE equivocada es un desembolso a otra cuenta). Meta del negocio: <b>≥ 60 %</b> de documentos sin intervención humana al lanzar y <b>80 %</b> en 12 meses. Nadie ha medido la exactitud de la captura manual."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "≈ 2 años de capturas: ≈ <b>1.2 M documentos</b> con sus imágenes y los valores tecleados por campo, <b>sin cajas</b> (nadie marcó dónde estaba cada valor en la página). Se estima ≈ 1–2 % de errores de tecleo, sin medir. Los capturistas pueden ayudar a etiquetar."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Todo corre en la cuenta de AWS del lender, en la región aprobada por legal; servicios gestionados del mismo proveedor sí, proveedores externos solo con contrato y aprobación. INE, CURP, domicilios y datos bancarios son datos personales (LFPDPPP, ley de 2025); retención según la política del lender. Capturista ≈ <b>US$800/mes</b> cargado (≈ US$36k/mes hoy). Sin tope de infraestructura: el caso de negocio se compara contra el costo de captura y el turnaround."
+      }
+    ],
+    c06: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Una red social. <b>post-service</b> y <b>comment-service</b> llaman al chequeo de moderación antes de confirmar cada publicación. Un equipo de <b>≈ 600 moderadores</b> (proveedor externo + equipo propio, 3 turnos) revisa en una herramienta interna; un equipo especializado aparte maneja CSAM y terrorismo. Un servicio de <b>enforcement</b> que ya existe aplica sanciones a las cuentas (strikes, suspensiones) con nuestras decisiones. Los usuarios reportan contenido y pueden apelar; la apelación la revisa otra persona."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "<b>Posts</b> (texto y, opcionalmente, imágenes) y <b>comentarios</b> (texto). Video, transmisiones en vivo, mensajes directos y anuncios quedan fuera. <b>7 políticas en 4 severidades</b>: S0 CSAM y terrorismo; S1 amenazas creíbles y violencia gráfica, autolesiones; S2 odio y acoso, desnudez adulta; S3 spam y estafas (más lo borderline). Acciones: bloquear antes de publicar, quitar, bajar la distribución, advertencia o restricción por edad, mandar a revisión. Cada restricción lleva su explicación al usuario."
+      },
+      {
+        "topic": "Escala",
+        "a": "<b>30 M posts al día</b>, 40 % con imágenes (1.5 en promedio): <b>18 M imágenes/día</b>. <b>150 M comentarios al día</b>. El pico diurno es ≈ 3× el promedio; eventos grandes (una final, una elección) traen picos más cortos y concentrados en temas. Se estima que ≈ 0.5 % de los ítems viola alguna política, la mayoría spam."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "El chequeo previo puede sumar <b>p99 ≤ 150 ms</b> del lado del servidor a la creación de un post o comentario, con disponibilidad <b>99.95 %</b>: publicar no puede caerse por la moderación. El análisis profundo, <b>p95 ≤ 5 min</b> desde la publicación. Los reportes S1 se revisan <b>p90 ≤ 1 h</b>. Una coincidencia con contenido S0 conocido se actúa de inmediato."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "Hay un <b>clasificador de texto multilingüe destilado</b> (multi-label: un score por política, textos de hasta ≈ 128 tokens) y un <b>clasificador de imágenes ligero</b>. Hay listas de hashes de la industria para CSAM y terrorismo y una lista propia de contenido removido. No hay un modelo multimodal en producción. No es nuestro trabajo diseñar los modelos."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "Años de <b>decisiones de moderadores</b> (sobre lo que el sistema marcó o los usuarios reportaron) y de apelaciones. Las definiciones de las políticas las escribe el equipo de políticas, <b>cambian y tienen versión</b>. Español de varios países, inglés y portugués son ≈ 90 % del volumen; los moderadores cubren bien esos tres. Hay <b>adversarios</b> que se adaptan en días: homoglifos, espacios entre letras, texto dentro de imágenes, imágenes alteradas para cambiar el hash."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Capacidad humana: ≈ 60 ítems/h por persona, ≈ 6 h productivas por turno → <b>≈ 216k revisiones/día</b>, a <b>≈ US$1,500/mes por persona</b> (varía por país). Usuarios en América Latina, EE. UU. y la UE: aplica la Digital Services Act (explicación de cada decisión, apelaciones, transparencia) y el reporte obligatorio de CSAM en EE. UU.; los detalles los decide legal. El bienestar de los moderadores es obligatorio y el CSAM nunca entra a datos de entrenamiento."
       }
     ],
   };

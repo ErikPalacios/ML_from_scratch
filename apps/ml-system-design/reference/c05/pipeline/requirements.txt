@@ -1,0 +1,7 @@
+# Dependencias de RUNTIME de la lógica del pipeline (validators, cfdi, quality, routing, calibrate).
+# Fijadas con ==; ninguna tiene dependencias transitivas, así que esta lista ES el lock.
+# Probadas con Python 3.12 y 3.13. El worker que las usa (no incluido) agrega boto3, onnxruntime, etc.
+numpy==2.5.3  # quality.py: Laplaciano, reflejo y bordes sobre arrays
+PyYAML==6.0.3  # routing.yaml y la salida de calibrate_thresholds.py (siempre safe_load)
+defusedxml==0.7.1  # cfdi.py: parsea el XML del cliente sin DTD ni entidades (XXE, billion laughs)
+tzdata==2026.4  # base de zonas para ZoneInfo("America/Mexico_City"): una imagen slim puede no traerla

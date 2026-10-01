@@ -1,0 +1,119 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Para "dispara" se consulta ALERTS{alertstate="firing"} (así no hay que copiar las anotaciones de cada
+# alerta); un caso (DocPipelineBacklog) compara también las anotaciones renderizadas.
+# Notación de promtool: '0+60x30' = empieza en 0 y suma 60 por intervalo, 30 veces (31 valores);
+# varios tramos se concatenan: '0+18x1100 19812+12x50' sigue en el índice 1101 con 19812.
+# Aquí van las alertas de ventanas cortas (evaluación cada 1 min). Las de 7 y 28 días están en
+# alerts_test_long.yml, que evalúa cada 10 min: evaluar cada minuto 29 días de series tarda > 10 min.
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- DocPipelineBacklog
+  # La edad del más viejo crece 1 min por minuto: pasa 900 s en el minuto 16 → firing a los 5 min (21).
+  # Dos réplicas de docs-api publican lo mismo (max). La fase de revisión no cuenta.
+  - interval: 1m
+    input_series:
+      - series: 'docs_oldest_unfinished_age_seconds{phase="automatic",instance="docs-api-a"}'
+        values: '0+60x30'
+      - series: 'docs_oldest_unfinished_age_seconds{phase="automatic",instance="docs-api-b"}'
+        values: '0+60x30'
+      - series: 'docs_oldest_unfinished_age_seconds{phase="review",instance="docs-api-a"}'
+        values: '20000+60x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: DocPipelineBacklog
+        exp_alerts: []
+      - eval_time: 22m
+        alertname: DocPipelineBacklog
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "Hay documentos atascados en el pipeline automático hace más de 15 min"
+              description: "Más viejo: 22m 0s. ¿Pods doc-worker Running y consumiendo doc-tasks? ¿Ejecuciones en Step Functions esperando un task token (TimeoutSeconds 3600)? ¿docs_execution_start_failures_total creciendo (el barrido resume_unstarted corre)? ¿SATValidationDown?"
+              runbook_url: "https://runbooks.example.com/c05/doc-pipeline-backlog"
+
+  # ---------------------------------------------------------------- StageErrorRateHigh
+  # ocr: 10 % de intentos con error (20 intentos/min) → dispara. classify: 1 % → no.
+  # commit: 50 % de error pero solo 10 intentos en 10 min (< 20) → no: es ruido, no una tendencia.
+  - interval: 1m
+    input_series:
+      - series: 'docs_stage_attempts_total{stage="ocr",outcome="ok"}'
+        values: '0+18x40'
+      - series: 'docs_stage_attempts_total{stage="ocr",outcome="error"}'
+        values: '0+2x40'
+      - series: 'docs_stage_attempts_total{stage="classify",outcome="ok"}'
+        values: '0+99x40'
+      - series: 'docs_stage_attempts_total{stage="classify",outcome="error"}'
+        values: '0+1x40'
+      - series: 'docs_stage_attempts_total{stage="commit",outcome="ok"}'
+        values: '0+0.5x40'
+      - series: 'docs_stage_attempts_total{stage="commit",outcome="error"}'
+        values: '0+0.5x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="StageErrorRateHigh", alertstate="firing"}
+        eval_time: 8m
+        exp_samples: []
+      - expr: ALERTS{alertname="StageErrorRateHigh", alertstate="firing"}
+        eval_time: 15m
+        exp_samples:
+          - labels: 'ALERTS{alertname="StageErrorRateHigh",alertstate="firing",severity="page",stage="ocr"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ReviewSLABreach
+  # De 2 a 8 tareas vencidas sobre ≈ 50 abiertas (16 %) en el minuto 11 → firing a los 15 min (26).
+  # Dos réplicas de review-api publican el mismo gauge: max without (instance) no lo cuenta doble.
+  - interval: 1m
+    input_series:
+      - series: 'docs_review_open_tasks{sla="overdue",instance="r1"}'
+        values: '2x10 8x30'
+      - series: 'docs_review_open_tasks{sla="overdue",instance="r2"}'
+        values: '2x10 8x30'
+      - series: 'docs_review_open_tasks{sla="on_time",instance="r1"}'
+        values: '40x40'
+      - series: 'docs_review_open_tasks{sla="on_time",instance="r2"}'
+        values: '40x40'
+      - series: 'docs_review_open_tasks{sla="at_risk",instance="r1"}'
+        values: '5x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ReviewSLABreach", alertstate="firing"}
+        eval_time: 24m
+        exp_samples: []
+      - expr: ALERTS{alertname="ReviewSLABreach", alertstate="firing"}
+        eval_time: 28m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ReviewSLABreach",alertstate="firing",severity="page"}'
+            value: 1
+
+  # 3 vencidas de 10 abiertas (30 %), pero < 5: a las 07:00 con la fila casi vacía no se despierta a nadie.
+  - interval: 1m
+    input_series:
+      - series: 'docs_review_open_tasks{sla="overdue"}'
+        values: '3x40'
+      - series: 'docs_review_open_tasks{sla="on_time"}'
+        values: '7x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ReviewSLABreach"}
+        eval_time: 40m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- SATValidationDown
+  # 5 consultas ok/min; desde el minuto 10, 2 ok y 4 timeouts por minuto (67 % de fallas: una caída
+  # parcial, la más común). El ratio de 10 min pasa 0.5 hacia el minuto 18 → firing hacia el 28.
+  - interval: 1m
+    input_series:
+      - series: 'docs_sat_requests_total{outcome="ok"}'
+        values: '0+5x10 52+2x30'
+      - series: 'docs_sat_requests_total{outcome="timeout"}'
+        values: '0+0x10 4+4x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="SATValidationDown", alertstate="firing"}
+        eval_time: 22m
+        exp_samples: []
+      - expr: ALERTS{alertname="SATValidationDown", alertstate="firing"}
+        eval_time: 35m
+        exp_samples:
+          - labels: 'ALERTS{alertname="SATValidationDown",alertstate="firing",severity="ticket"}'
+            value: 1

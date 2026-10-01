@@ -1,0 +1,227 @@
+# Alertas del caso c05 (Prometheus): 8 alertas en 3 grupos + las recording rules que usan.
+#   Sistema: DocPipelineBacklog, StageErrorRateHigh, ReviewSLABreach, SATValidationDown
+#   Datos:   QualityGateRejectSpike, OCRConfidenceShift
+#   Modelo:  STPRateDrop, AuditFieldAccuracyLow
+# Severidades: page = alguien lo mira YA, pero solo en horario de operación (uploads 08:00–22:00, equipo
+# de revisión 09:00–19:00; de noche se rutea como ticket: los documentos esperan, no se pierden). El ruteo
+# por horario vive en Alertmanager (time_intervals + active_time_intervals en las rutas), no aquí.
+# ticket = se arregla en horario laboral.
+# De dónde sale cada métrica (un test de api/ verifica que las docs_* de aquí existan o estén listadas):
+#   docs_uploads_total, docs_quality_rejections_total, docs_oldest_unfinished_age_seconds → docs-api
+#     (api/main.py, /metrics). La edad del backlog la calcula docs-api leyendo Postgres en cada scrape.
+#   docs_stage_attempts_total{stage,outcome}, docs_routing_decisions_total{doc_type,decision},
+#     docs_ocr_word_confidence (histograma por doc_type y source), docs_sat_requests_total{outcome}
+#     → doc-worker (los pods que atienden la cola doc-tasks; no incluido en esta carpeta)
+#   docs_review_open_tasks{sla} → review-api (no incluido)
+#   docs_audit_fields_total{doc_type,field_class,result} → herramienta de auditoría de QA (no incluida)
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+# Todos los umbrales son ILUSTRATIVOS: se ajustan con 4–6 semanas de datos reales.
+
+groups:
+  # ------------------------------------------------------------------ sistema
+  - name: c05-system
+    rules:
+      # El documento sin terminar MÁS VIEJO en la fase automática (received/processing; no cuenta la
+      # revisión humana, que tiene su propio SLA). Mide desde la base, no desde una cola: ve un
+      # StartExecution que nunca ocurrió, workers caídos, una ejecución colgada o la cola doc-tasks sin
+      # consumidores. El STP tiene p95 ≤ 2 min: un documento de 15 min ya no es "lento", está atascado.
+      # max(): varias réplicas de docs-api publican el mismo valor.
+      - alert: DocPipelineBacklog
+        expr: |
+          max(docs_oldest_unfinished_age_seconds{phase="automatic"}) > 900
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Hay documentos atascados en el pipeline automático hace más de 15 min"
+          description: "Más viejo: {{ $value | humanizeDuration }}. ¿Pods doc-worker Running y consumiendo doc-tasks? ¿Ejecuciones en Step Functions esperando un task token (TimeoutSeconds 3600)? ¿docs_execution_start_failures_total creciendo (el barrido resume_unstarted corre)? ¿SATValidationDown?"
+          runbook_url: "https://runbooks.example.com/c05/doc-pipeline-backlog"
+
+      # Tasa de error por INTENTO de cada etapa (classify, ocr, extract, validate…). Los Retry de Step
+      # Functions esconden los errores transitorios del resultado final del documento: si el OCR falla
+      # 1 de cada 3 veces y el reintento lo salva, ningún documento falla… hasta que se acaban los
+      # reintentos. Esta métrica lo ve antes. Mínimo 20 intentos en 10 min para no sonar con 1 de 2.
+      - alert: StageErrorRateHigh
+        expr: |
+          (
+            sum by (stage) (rate(docs_stage_attempts_total{outcome="error"}[10m]))
+              / sum by (stage) (rate(docs_stage_attempts_total[10m]))
+          ) > 0.05
+          and on (stage) sum by (stage) (increase(docs_stage_attempts_total[10m])) >= 20
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "La etapa {{ $labels.stage }} falla en {{ $value | humanizePercentage }} de los intentos"
+          description: "Errores por intento en 10 min. ocr: ¿throttling de Textract (cuota de TPS) o un formato nuevo? validate: ¿SAT? extract: ¿deploy reciente del modelo (rollback)? commit: ¿core en mantenimiento?"
+          runbook_url: "https://runbooks.example.com/c05/stage-error-rate"
+
+      # SLA de revisión: p90 ≤ 4 horas hábiles. review-api conoce el vencimiento de cada tarea (calculado
+      # en horas hábiles por routing.py) y publica cuántas tareas abiertas hay por estado de SLA
+      # (on_time, at_risk = vence en < 1 h hábil, overdue). Más de 10 % vencidas ⇒ el p90 está en
+      # riesgo. Es una aproximación con tareas ABIERTAS a propósito: un histograma de tareas terminadas
+      # no ve la fila que nadie está atendiendo.
+      - alert: ReviewSLABreach
+        expr: |
+          (
+            sum(max without (instance, pod) (docs_review_open_tasks{sla="overdue"}))
+              / sum(max without (instance, pod) (docs_review_open_tasks))
+          ) > 0.10
+          and sum(max without (instance, pod) (docs_review_open_tasks{sla="overdue"})) >= 5
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $value | humanizePercentage }} de las tareas de revisión están vencidas"
+          description: "¿Pocos revisores en turno? ¿Subió la tasa de revisión (STPRateDrop) o el volumen (inicio de mes ≈ 2×)? Mueve gente de captura manual a revisión y prioriza por etapa de crédito."
+          runbook_url: "https://runbooks.example.com/c05/review-sla"
+
+      # El servicio de estatus de CFDI del SAT es externo: no lo arreglamos nosotros, pero cambia el
+      # comportamiento del sistema (tras 3 reintentos, las facturas van a revisión con "SAT no
+      # verificado"). Ticket y no page: no hay nada que reiniciar; si inunda la fila, ReviewSLABreach
+      # hace page por su cuenta.
+      - alert: SATValidationDown
+        expr: |
+          (
+            sum(rate(docs_sat_requests_total{outcome!="ok"}[10m]))
+              / sum(rate(docs_sat_requests_total[10m]))
+          ) > 0.5
+          and sum(increase(docs_sat_requests_total[10m])) >= 10
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "La consulta de estatus de CFDI al SAT falla en {{ $value | humanizePercentage }}"
+          description: "Las facturas se están yendo a revisión como 'SAT no verificado'. Avisa a operaciones de revisión; decide con producto si conviene retener las facturas (no mandarlas a revisión) mientras dura la caída."
+          runbook_url: "https://runbooks.example.com/c05/sat-down"
+
+  # ------------------------------------------------------------------ datos
+  - name: c05-data
+    rules:
+      # Las recording rules que usa una alerta van en SU MISMO grupo y antes que ella: dentro de un grupo
+      # las reglas se evalúan en orden con el mismo timestamp; entre grupos no hay orden garantizado, y la
+      # alerta podría leer el valor de la evaluación anterior (o nada, si es más viejo que el lookback de 5 min).
+      # Rechazos del quality gate sobre los uploads que llegaron al gate (los duplicados no pasan por él).
+      - record: docs:quality_reject_ratio:rate1h
+        expr: |
+          sum by (doc_type) (increase(docs_uploads_total{outcome="rejected_quality"}[1h]))
+            / sum by (doc_type) (increase(docs_uploads_total{outcome=~"accepted|rejected_quality"}[1h]))
+      - record: docs:quality_reject_ratio:rate7d
+        expr: |
+          sum by (doc_type) (increase(docs_uploads_total{outcome="rejected_quality"}[7d]))
+            / sum by (doc_type) (increase(docs_uploads_total{outcome=~"accepted|rejected_quality"}[7d]))
+      # Fracción de palabras con confianza de OCR ≤ 0.90 (el worker divide entre 100 la de Textract).
+      - record: docs:ocr_low_conf_frac:rate6h
+        expr: |
+          sum by (doc_type, source) (increase(docs_ocr_word_confidence_bucket{le="0.9"}[6h]))
+            / sum by (doc_type, source) (increase(docs_ocr_word_confidence_count[6h]))
+      - record: docs:ocr_low_conf_frac:rate7d
+        expr: |
+          sum by (doc_type, source) (increase(docs_ocr_word_confidence_bucket{le="0.9"}[7d]))
+            / sum by (doc_type, source) (increase(docs_ocr_word_confidence_count[7d]))
+
+      # Rechazos del quality gate: última hora vs la semana, por tipo. Causas típicas: un release de la
+      # app que comprime más las fotos, un cambio de umbral, una campaña que trae clientes con teléfonos
+      # viejos. Es page porque el cliente NO puede avanzar con su crédito.
+      # Tres condiciones: 2× la semana (cambio real), > 15 % absoluto (que importe) y ≥ 30 uploads
+      # (que no sea ruido de madrugada).
+      - alert: QualityGateRejectSpike
+        expr: |
+          docs:quality_reject_ratio:rate1h > 2 * docs:quality_reject_ratio:rate7d
+          and docs:quality_reject_ratio:rate1h > 0.15
+          and on (doc_type) sum by (doc_type) (increase(docs_uploads_total{outcome=~"accepted|rejected_quality"}[1h])) >= 30
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "El quality gate rechaza {{ $value | humanizePercentage }} de {{ $labels.doc_type }} (2× la semana)"
+          description: "Mira docs_quality_rejections_total por motivo (borrosa, reflejo, baja_resolucion, cortado) y por versión de la app. Si coincide con un deploy de docs-api o de umbrales, rollback."
+          runbook_url: "https://runbooks.example.com/c05/quality-gate-spike"
+
+      # Drift de entrada medido con el propio OCR: fracción de palabras con confianza ≤ 0.90, 6 h vs 7
+      # días, por tipo y fuente (photo/scan/digital). Detecta un cambio en los documentos (formato nuevo de
+      # recibo de luz, otra cámara) o EN EL PROVEEDOR: un OCR administrado puede cambiar su modelo sin
+      # avisarte, y esta es la forma barata de enterarte. Ticket: el pipeline sigue (va más a revisión).
+      - alert: OCRConfidenceShift
+        expr: |
+          docs:ocr_low_conf_frac:rate6h > 1.5 * docs:ocr_low_conf_frac:rate7d
+          and on (doc_type, source) sum by (doc_type, source) (increase(docs_ocr_word_confidence_count[6h])) >= 5000
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Más palabras con baja confianza de OCR en {{ $labels.doc_type }} / {{ $labels.source }}"
+          description: "Fracción de palabras con confianza ≤ 0.90 en 6 h: {{ $value | humanizePercentage }} (> 1.5× la semana). ¿Plantilla nueva de ese emisor? ¿Cambió el proveedor de OCR? Revisa 20 documentos a mano antes de recalibrar umbrales."
+          runbook_url: "https://runbooks.example.com/c05/ocr-confidence-shift"
+
+  # ------------------------------------------------------------------ modelo
+  - name: c05-model
+    rules:
+      # Ratios por tipo de documento: se compara "las últimas horas" contra "la última semana" del MISMO
+      # tipo (las facturas con XML tienen un STP muy distinto al de las INE).
+      - record: docs:stp_ratio:rate6h
+        expr: |
+          sum by (doc_type) (increase(docs_routing_decisions_total{decision="stp"}[6h]))
+            / sum by (doc_type) (increase(docs_routing_decisions_total[6h]))
+      - record: docs:stp_ratio:rate7d
+        expr: |
+          sum by (doc_type) (increase(docs_routing_decisions_total{decision="stp"}[7d]))
+            / sum by (doc_type) (increase(docs_routing_decisions_total[7d]))
+
+      # STP por tipo: 6 h vs 7 días. Si cae, más documentos van a revisión: costo y SLA. Causas: drift de
+      # documentos, un modelo nuevo peor calibrado (los umbrales son por versión de modelo), un cambio de
+      # umbrales, el SAT caído (facturas). Mínimo 100 decisiones en 6 h.
+      - alert: STPRateDrop
+        expr: |
+          docs:stp_ratio:rate6h < 0.8 * docs:stp_ratio:rate7d
+          and on (doc_type) sum by (doc_type) (increase(docs_routing_decisions_total[6h])) >= 100
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "El STP de {{ $labels.doc_type }} cayó a {{ $value | humanizePercentage }} (< 80 % de la semana)"
+          description: "¿Qué campos se marcan más? (review-api, flagged_fields por campo y motivo). ¿Deploy de modelo o de routing.yaml? ¿SATValidationDown u OCRConfidenceShift activas?"
+          runbook_url: "https://runbooks.example.com/c05/stp-rate-drop"
+
+      # La única medición SIN SESGO de la exactitud de lo que se auto-acepta: QA revisa completo un 2 %
+      # aleatorio de los documentos STP (routing.select_for_audit). Volumen estimado: ≈ 3,000 STP/día →
+      # ≈ 60 auditados/día → ≈ 360 campos estándar y ≈ 120 críticos por día.
+      # Estándar (objetivo 99.5 %): 7 días (≈ 2,520 campos) y umbral 99.2 %. Con exactitud real de
+      # 99.5 % suena ≈ 2 % de las semanas; si el error se duplica (99.0 %), la detecta ≈ 82 % de las veces.
+      # Críticos (CURP, RFC, CLABE, montos; objetivo 99.9 %): 28 días (≈ 3,360) y umbral 99.8 %. Con
+      # 99.9 % real suena ≈ 5 % de las veces; si el error se duplica la detecta ≈ 50 %, si se triplica ≈ 87 %.
+      # Lección: la auditoría NO detecta rápido una degradación chica de los campos críticos. Lo que los
+      # protege día a día son los dígitos verificadores y los cruces; la auditoría es la confirmación
+      # lenta e insesgada. Cada error crítico encontrado se investiga igual, suene o no la alerta.
+      # TRAMPA: [28d] necesita retención ≥ 28 días; la de Prometheus es de 15 días por defecto
+      # (--storage.tsdb.retention.time). Con menos, increase() calcula en silencio sobre lo que haya.
+      - alert: AuditFieldAccuracyLow
+        expr: |
+          (
+            sum by (field_class) (increase(docs_audit_fields_total{field_class="standard",result="correct"}[7d]))
+              / sum by (field_class) (increase(docs_audit_fields_total{field_class="standard"}[7d]))
+          ) < 0.992
+          and on (field_class) sum by (field_class) (increase(docs_audit_fields_total{field_class="standard"}[7d])) >= 1500
+        for: 1h
+        labels:
+          severity: ticket
+          field_class: standard  # mismo nombre de alerta, dos reglas: el label las distingue (promtool lo exige)
+        annotations:
+          summary: "Exactitud auditada de campos estándar: {{ $value | humanizePercentage }} en 7 días (objetivo 99.5 %)"
+          description: "Errores en documentos que pasaron SIN revisión. Agrupa los errores por doc_type y campo, sube el umbral de ese campo (más revisión, menos STP) mientras se investiga, y recalibra con calibrate_thresholds.py."
+          runbook_url: "https://runbooks.example.com/c05/audit-accuracy"
+      - alert: AuditFieldAccuracyLow
+        expr: |
+          (
+            sum by (field_class) (increase(docs_audit_fields_total{field_class="critical",result="correct"}[28d]))
+              / sum by (field_class) (increase(docs_audit_fields_total{field_class="critical"}[28d]))
+          ) < 0.998
+          and on (field_class) sum by (field_class) (increase(docs_audit_fields_total{field_class="critical"}[28d])) >= 2000
+        for: 1h
+        labels:
+          severity: ticket
+          field_class: critical
+        annotations:
+          summary: "Exactitud auditada de campos críticos: {{ $value | humanizePercentage }} en 28 días (objetivo 99.9 %)"
+          description: "CURP, RFC, CLABE o montos mal capturados sin revisión: impacto directo en el crédito. Revisa cada caso: ¿falló un dígito verificador que debió atraparlo (posición sin peso, como la 9 de la CURP)? ¿Un cruce que no existe?"
+          runbook_url: "https://runbooks.example.com/c05/audit-accuracy"
