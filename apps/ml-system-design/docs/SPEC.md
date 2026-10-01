@@ -1187,6 +1187,85 @@ Translation, summaries and diarization of a single mixed track are **out of scop
   terminationGracePeriodSeconds, autoscaling on active streams — KEDA prometheus scaler or HPA custom
   metric; validate core resources), monitoring/alerts.yml (+ promtool tests), README.md.
 
+## 8k. Case c10 — shared facts (every c10 agent and the m14 agent MUST use exactly these)
+Scenario: **the c01 marketplace** (Latin America) today calls a **third-party LLM API** from three internal
+products and wants to serve an **open-weights model on its own infrastructure** (AWS, us-east-1). Reasons
+given by the business: a growing bill, customer PII leaving the company, and lack of control (model
+deprecations, rate limits, latency variance). The case must show with numbers when self-hosting wins and
+when it does not, and keep the vendor as an explicit, governed fallback — never "self-host everything".
+- Products (the platform's tenants):
+  1. **Support assistant** (chat with buyers/sellers; streaming; later the agent of #c12) — interactive.
+  2. **Seller listing assistant** (drafts titles/descriptions from photos' attributes and seller notes) — interactive.
+  3. **Catalog enrichment** (extract structured attributes as JSON from listings, nightly) — **batch**.
+  (The employee RAG assistant of #c11 is a future tenant — mention only.)
+- Volume (est., given by the interviewer): interactive ≈ **1.5 M requests/day** (≈ 17 rps avg, **peak ≈ 3×
+  ≈ 52 rps → design for 60 rps**), avg prompt **≈ 2,000 tokens** (system prompt + history + context; ≈ half
+  of it a shared prefix per product → prefix caching) and **≈ 250 output tokens**; batch ≈ **2 M items/day**,
+  ≈ 800 in / 150 out tokens, must finish **within an 8 h night window**.
+  Monthly: interactive ≈ 90 B input + 11.25 B output tokens; batch ≈ 48 B input + 9 B output.
+- Today's vendor bill (est., list prices of a mid-tier proprietary model ≈ US$2.50 / M input and US$10 / M
+  output — illustrative, verify current prices and caching/batch discounts; batch API at −50 %):
+  ≈ 90 × 2.5k + 11.25 × 10k + 0.5 × (48 × 2.5k + 9 × 10k) ≈ **US$442k/month**, growing ≈ 10 %/month.
+- SLOs (interactive, streaming): **TTFT p95 ≤ 1.0 s**, **TPOT p95 ≤ 50 ms** (≈ 20 tokens/s per user, faster
+  than reading); availability 99.9 % for the platform; batch: done by 06:00.
+- Model: one **≈ 70B-class dense open-weights instruct model** (the math uses the Llama 3.x 70B
+  architecture from #m04: 70.6 B params, 80 layers, 8 KV heads × head_dim 128 → **KV 320 KiB/token in BF16**,
+  160 KiB in FP8; candidates and licenses — Llama 3.3 70B community license vs Apache-2.0 families like Qwen
+  or gpt-oss (MoE) — are the narrative's justified, verified choice for Oct 2026; do NOT invent model names
+  or benchmark scores). Weights in **FP8** (≈ 70.6 GB; quality checked on our golden sets, not assumed).
+  A small ≈ 8B model is an optional later lever (routing easy requests), not part of the base design.
+- Serving: **vLLM** (OpenAI-compatible server; continuous batching, PagedAttention, prefix caching, chunked
+  prefill; SGLang / TensorRT-LLM as alternatives; TGI in maintenance mode — verify) on **H100**:
+  one replica = **2 × H100 with tensor parallelism 2** (TP=2), `gpu_memory_utilization` 0.90, max context
+  8k tokens. KV room per replica ≈ 0.9 × 160 − 70.6 − ≈ 5 (runtime/activations, est.) ≈ **68 GB** ≈ 93
+  sequences of 2,250 tokens in BF16 KV (≈ 2× with FP8 KV).
+  Planned capacity per replica (est. — measure with `vllm bench serve` and the real prompt mix): **≈ 6 rps
+  of this mix within SLOs**; plan at 70 % → ≈ 4.2 rps → 60 / 4.2 ≈ 14.3 → **16 replicas = 32 H100 =
+  4 × p5.48xlarge** at peak. Little's law check: 60 rps × ≈ 10.5 s per request ≈ 630 concurrent sequences ≈
+  40 per replica (fits the KV room).
+- Batch fills the night valley on the **same fleet** at lower priority (≈ 3.5k prefill + ≈ 650 output
+  tokens/s per replica over 8 h on 16 replicas — fits the capacity assumption, est.).
+- Platform components (names used everywhere): **`llm-gateway`** (OpenAI-compatible API in front of every
+  model: per-tenant API keys, quotas in tokens/min (token bucket), priority classes interactive > batch,
+  model aliases (`chat-default` → current model revision), streaming passthrough (SSE), timeouts, usage
+  metering per tenant, PII redaction before any vendor call, governed **vendor fallback** only for tenants
+  allowed to send data out) → **`vllm-70b`** (Kubernetes Deployment on EKS, 2 GPUs per pod) ;
+  **`batch-runner`** (reads a night queue, submits through the gateway with batch priority, retries,
+  checkpoints); weights as safetensors in **S3**, copied to node-local NVMe at pod start (sha256 checked);
+  **model registry** with an eval report per revision.
+- Cold start: a new p5 node + image + 70 GB of weights + CUDA graphs ≈ **5–10 min** (est., measure) →
+  autoscaling cannot follow 1-minute spikes: keep the peak fleet warm in business hours, scale in at night
+  only if batch doesn't need it, and absorb spikes with admission control/queueing at the gateway; GPU
+  capacity is the real constraint (p5 on-demand availability, Capacity Blocks / reservations — verify).
+- Cost (est., ref-numeros: p5.48xlarge ≈ US$55/h → ≈ US$6.88 per H100-hour, 730 h/month): 4 nodes always on
+  ≈ **US$160.6k/month** on-demand (+ gateway CPU, storage, observability, and **the team** — 2–4 engineers on
+  call, hedged) vs **≈ US$442k/month** vendor → ≈ 2.7× cheaper at this scale, **not orders of magnitude**;
+  at ≈ 1/5 of the volume the vendor wins (compute the break-even); commitments (Savings Plans / reservations)
+  lower the self-hosted side further — hedged.
+- Quality and evaluation: per-product **golden sets** (support: ≈ 1,000 real conversations with rubric;
+  listings: human-rated drafts; extraction: exact-match / JSON validity / field F1 against labelled items),
+  **LLM-as-judge** calibrated against human ratings (pairwise vs the current vendor), shadow traffic before
+  switching a tenant, per-tenant canary with guardrail metrics (escalation rate to humans, CSAT, seller
+  edits), regression gate per model revision.
+- Privacy/security: prompts contain buyer/seller PII → staying in our VPC is a goal; prompts/outputs **not
+  stored by default**, sampled logging with PII redaction for eval only (30 days), per-tenant isolation in
+  the gateway; prompt injection and output guardrails → #m14 / #m15 (general principles; LFPDPPP).
+- Monitoring alert names: `LLMTTFTHigh`, `LLMTPOTHigh`, `LLMQueueBacklog`, `KVCacheSaturation`,
+  `LLMPreemptionsRising`, `LLMGatewayErrorRate`, `LLMCapacityHeadroomLow`, `CanaryEvalRegression`
+  (vLLM exposes `vllm:`-prefixed Prometheus metrics — verify exact names for the pinned version).
+- Reference files (reference/c10/): capacity/{vram_calc.py (weights + KV per token from a model config;
+  KV room per replica given TP and gpu_memory_utilization; max concurrent sequences; tests reproduce #m04's
+  128 KiB / 320 KiB per token), fleet_calc.py (traffic mix + measured per-replica capacity → replicas,
+  GPUs, nodes, monthly cost vs API cost and break-even), tests/}, bench/{pick_concurrency.py (reads results
+  of `vllm bench serve` sweeps (JSON) and picks the max concurrency meeting TTFT/TPOT SLOs; synthetic fixture
+  data), tests/}, gateway/{llm_gateway.py (FastAPI OpenAI-compatible proxy: API keys per tenant, token-bucket
+  quotas on tokens/min, priority, aliases, SSE streaming passthrough, timeouts, vendor fallback behind an
+  interface with PII redaction, Prometheus metrics; fake upstream in tests), requirements.txt, tests/},
+  k8s/vllm-70b.yaml (Deployment with `vllm serve` args, 2 GPUs, /dev/shm, long startupProbe, readiness,
+  preStop drain, PDB; core resources validated with kubernetes-validate; vLLM itself not run — no GPU here),
+  eval/{golden_eval.py (golden-set runner: JSON validity / field F1 for extraction, pluggable judge for chat
+  with pairwise win-rate and a gate), tests/}, monitoring/alerts.yml (+ promtool tests), README.md.
+
 ## 9. Writing style for content agents (applies to every content file)
 - Spanish (neutral Latin American, tuteo), direct, no filler, no motivational fluff. Technical terms
   in English (latency, throughput, batch, serving, feature store, rollout…), exactly as they'd be
