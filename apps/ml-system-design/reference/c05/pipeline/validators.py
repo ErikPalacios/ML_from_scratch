@@ -78,9 +78,15 @@ def curp_check_digit(first17: str) -> str:
     documento de texto que hayamos podido citar; por eso la verificación es contra una implementación
     independiente y ejemplos conocidos.
 
-    Ojo: el peso de la posición 9 (índice 8) es 10 ≡ 0 (mod 10). Cambiar ESE carácter (el primer
-    dígito del día de nacimiento) no cambia el dígito verificador: el check digit no ve ese error.
-    Por eso además se cruza la fecha de la CURP con la fecha de nacimiento impresa en la INE.
+    Ojo, hay errores que este dígito NO ve (mod 10 con pesos 18…2):
+      - la posición 9 (índice 8, el primer dígito del día de nacimiento) pesa 10 ≡ 0: NINGÚN cambio
+        ahí se nota;
+      - en las posiciones de peso par (1, 3, 5, 7, 9, 11, 13, 15, 17), un cambio de valor múltiplo de 5
+        tampoco: 8↔3 en el año (PEGJ800101… → PEGJ300101…, 1980 → 1930, mismo dígito 7), 0↔5…;
+      - en la posición 14 (peso 5), cualquier cambio de valor par.
+    En la CURP del test, 50 de las 235 sustituciones de un carácter que dejan una CURP bien formada
+    (formato, entidad y fecha válidos) siguen "validando": ≈ 1 de cada 5. Por eso además se cruza la
+    fecha de la CURP con la fecha de nacimiento impresa en la INE, que atrapa los errores de fecha.
     """
     if len(first17) != 17:
         raise ValueError("se esperan 17 caracteres")
@@ -114,6 +120,13 @@ def validate_curp(value: str) -> ValidationResult:
         # No mostramos la CURP en el motivo: el revisor la ve en el recorte de la imagen.
         return _fail(check, f, "El dígito verificador de la CURP no coincide (posible error de lectura).")
     return _ok(check, f, birth_date=birth.isoformat())
+
+
+def validate_curp_field(field_name: str, value: str) -> ValidationResult:
+    """Igual que validate_curp, pero etiquetado con el campo (curp_representante en la solicitud)."""
+    r = validate_curp(value)
+    return ValidationResult(check=f"curp:{field_name}", ok=r.ok, fields=(field_name,), reason=r.reason,
+                            detail=r.detail)
 
 
 def check_curp_matches_birth_date(curp: str, birth_date: dt.date | None) -> ValidationResult:
@@ -363,7 +376,8 @@ def name_similarity(a: str, b: str) -> float:
 def check_names_match(field_a: str, name_a: str, field_b: str, name_b: str, threshold: float = 0.90) -> ValidationResult:
     """Cruce entre documentos: el nombre de la INE ≈ el nombre en la solicitud.
 
-    0.90 es ilustrativo: calíbralo con pares reales (mismo titular / distinto titular) del gold set.
+    0.90 es ilustrativo: calíbralo con pares reales (mismo titular / distinto titular) del set de
+    calibración, no del gold set (ese solo mide).
     Muy alto → cada segundo nombre omitido va a revisión; muy bajo → "JUAN PEREZ" pasa por "JUANA PEREZ".
     """
     check, f = f"nombre:{field_a}~{field_b}", (field_a, field_b)

@@ -1,11 +1,11 @@
 {
-  "Comment": "Caso c05 — pipeline por documento (Standard: waitForTaskToken solo existe en Standard; una revisión puede durar días y Express dura máximo 5 min). Cada etapa automática es un mensaje con task token a la cola doc-tasks; los pods doc-worker lo procesan y responden con SendTaskSuccess/SendTaskFailure. Las URLs de las colas son de ejemplo (cuenta 123456789012): el IaC las sustituye.",
+  "Comment": "Caso c05 — pipeline por documento (Standard: waitForTaskToken solo existe en Standard; una revisión puede durar días y Express dura máximo 5 min). Cada etapa automática es un mensaje con task token a la cola doc-tasks; los pods doc-worker lo procesan y responden con SendTaskSuccess/SendTaskFailure. Regla de datos: por el estado viajan solo llaves de S3, nombres de campos, estados de validación y versiones, NUNCA valores de campos (CURP, RFC, CLABE, nombres, montos): el historial de ejecuciones guarda la entrada y la salida de cada estado hasta 90 días después de cerrar, y lo lee cualquiera con states:GetExecutionHistory. Las URLs de las colas son de ejemplo (cuenta 123456789012): el IaC las sustituye.",
   "QueryLanguage": "JSONPath",
   "StartAt": "Init",
   "States": {
     "Init": {
       "Type": "Pass",
-      "Comment": "Contrato del input (lo arma docs-api: solo referencias a S3, nunca bytes) + valores por defecto. Toda ruta que un estado lea con .$ debe existir siempre: review nace en null para que Commit funcione también en el camino STP (una ruta inexistente es un error de runtime). sat_mode=required: la factura se valida contra el SAT; SatUnverified lo cambia a skip.",
+      "Comment": "Contrato del input (lo arma docs-api: solo referencias a S3, nunca bytes) + valores por defecto. Toda ruta que un estado lea con .$ debe existir siempre: review y error nacen en null para que Commit y ToManualCapture funcionen en todos los caminos (una ruta inexistente es States.Runtime, que ningún Catch atrapa). sat_mode=required: la factura se valida contra el SAT; SatUnverified lo cambia a skip.",
       "Parameters": {
         "document_id.$": "$.document_id",
         "application_id.$": "$.application_id",
@@ -16,7 +16,8 @@
         "opts": {
           "sat_mode": "required"
         },
-        "review": null
+        "review": null,
+        "error": null
       },
       "Next": "Classify"
     },
@@ -107,7 +108,7 @@
     },
     "ReadCfdiXml": {
       "Type": "Task",
-      "Comment": "pipeline/cfdi.py: parsea el XML y devuelve los campos con confidence 1.0 (mismo esquema que Extract). Salta Extract: no hay nada que adivinar.",
+      "Comment": "pipeline/cfdi.py: parsea el XML y escribe los campos (confidence 1.0, mismo esquema que Extract) en S3. Devuelve solo {fields_key, model_version: null, field_names}: los valores se quedan en S3. Salta Extract: no hay nada que adivinar.",
       "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
       "Parameters": {
         "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
@@ -303,7 +304,7 @@
     },
     "Extract": {
       "Type": "Task",
-      "Comment": "Modelo layout-aware (ONNX Runtime en CPU) + reglas/regex por tipo de documento. Devuelve fields: {nombre: {value, confidence calibrada, source, page, bbox}}.",
+      "Comment": "Modelo layout-aware (ONNX Runtime en CPU) + reglas/regex por tipo de documento. Escribe fields {nombre: {value, confidence calibrada, source, page, bbox}} en s3://…/derived/<document_id>/extract/vN.json y devuelve solo {fields_key, model_version, field_names}: los valores son PII y no entran al estado.",
       "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
       "Parameters": {
         "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
@@ -366,7 +367,7 @@
     },
     "Validate": {
       "Type": "Task",
-      "Comment": "pipeline/validators.py + cruces entre documentos + estatus del CFDI en el SAT. Si el SAT no responde: 3 reintentos (30, 60, 120 s con jitter) y luego SatUnverified.",
+      "Comment": "pipeline/validators.py + cruces entre documentos + estatus del CFDI en el SAT. Lee los campos de S3 (fields_key); escribe los resultados completos (motivos con montos, fechas) en S3 y devuelve {results_key, checks: [{check, ok}]}. Si el SAT no responde: 3 reintentos (esperas al azar de hasta 30, 60 y 120 s: jitter completo) y luego SatUnverified.",
       "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
       "Parameters": {
         "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
@@ -378,7 +379,7 @@
           "document_id.$": "$.document_id",
           "doc_type.$": "$.classify.doc_type",
           "application_id.$": "$.application_id",
-          "fields.$": "$.extract.fields",
+          "fields_key.$": "$.extract.fields_key",
           "sat_mode.$": "$.opts.sat_mode"
         }
       },
@@ -454,7 +455,7 @@
     },
     "Route": {
       "Type": "Task",
-      "Comment": "pipeline/routing.py: STP solo si todos los campos requeridos superan su umbral calibrado y todas las validaciones pasan; si no, tarea de revisión con SOLO los campos marcados.",
+      "Comment": "pipeline/routing.py: STP solo si todos los campos requeridos superan su umbral calibrado y todas las validaciones requeridas corrieron y pasan; si no, tarea de revisión con SOLO los campos marcados. La tarea completa (con valores, para el recorte) va a S3; vuelve RouteDecision.state_summary(): decisión, nombres de campos, versiones y review_task_key.",
       "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
       "Parameters": {
         "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
@@ -467,8 +468,8 @@
           "doc_type.$": "$.classify.doc_type",
           "application_id.$": "$.application_id",
           "received_at.$": "$.received_at",
-          "fields.$": "$.extract.fields",
-          "validations.$": "$.validation.results"
+          "fields_key.$": "$.extract.fields_key",
+          "validation_key.$": "$.validation.results_key"
         }
       },
       "TimeoutSeconds": 600,
@@ -536,7 +537,7 @@
     },
     "HumanReview": {
       "Type": "Task",
-      "Comment": "Callback con persona: review-api guarda la tarea (y su token) en Postgres y la ordena por sort_at (SQS no tiene prioridades). Al guardar el revisor, SendTaskSuccess con los campos corregidos. review-api manda SendTaskHeartbeat cada hora por cada tarea abierta: si deja de hacerlo (perdió la tarea), a las 2 h esto falla y el documento no queda colgado 5 días. 5 días de TimeoutSeconds cubren un fin de semana largo.",
+      "Comment": "Callback con persona: review-api lee la tarea completa de S3 (review_task_key), la guarda (y su token) en Postgres y la ordena por sort_at (SQS no tiene prioridades). Al guardar el revisor, SendTaskSuccess con {review_id}: las correcciones quedan en Postgres, no en el estado. review-api manda SendTaskHeartbeat cada hora por cada tarea abierta: si deja de hacerlo (perdió la tarea), a las 2 h esto falla y el documento no queda colgado 5 días. 5 días de TimeoutSeconds cubren un fin de semana largo.",
       "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
       "Parameters": {
         "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-review",
@@ -544,7 +545,7 @@
           "task_token.$": "$$.Task.Token",
           "execution.$": "$$.Execution.Id",
           "document_id.$": "$.document_id",
-          "review_task.$": "$.route.review_task"
+          "review_task_key.$": "$.route.review_task_key"
         }
       },
       "HeartbeatSeconds": 7200,
@@ -578,7 +579,7 @@
     },
     "Commit": {
       "Type": "Task",
-      "Comment": "Postgres con procedencia por campo (página, bbox, etapa, versión de modelo, confianza, revisor) + envío al core, idempotente por document_id. Reintentos largos: el core puede estar en mantenimiento, y lo revisado no se tira.",
+      "Comment": "Postgres con procedencia por campo (página, bbox, etapa, model_version, thresholds_version, confianza, revisor) + envío al core, idempotente por document_id. Lee los campos de S3 (fields_key) y las correcciones de Postgres (review.review_id). Reintentos largos: el core puede estar en mantenimiento, y lo revisado no se tira.",
       "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
       "Parameters": {
         "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-tasks",
@@ -589,7 +590,7 @@
           "attempt.$": "$$.State.RetryCount",
           "document_id.$": "$.document_id",
           "route.$": "$.route",
-          "fields.$": "$.extract.fields",
+          "fields_key.$": "$.extract.fields_key",
           "review.$": "$.review"
         }
       },
@@ -645,14 +646,15 @@
     },
     "ToManualCapture": {
       "Type": "Task",
-      "Comment": "Último recurso, nunca perder un documento: el estado completo (llaves de S3, lo extraído, lo revisado y el error) va a la cola de captura manual, con reintentos generosos. Request-response: no espera a nadie.",
+      "Comment": "Último recurso, nunca perder un documento: manda referencias (document_id, páginas en S3 y el error), no el estado completo: el estado podría traer más de lo debido y pasarlo entero arriesga States.DataLimitExceeded, que este estado no tiene a dónde atrapar. Lo extraído está en s3://…/derived/<document_id>/ y lo revisado en Postgres. Request-response: no espera a nadie.",
       "Resource": "arn:aws:states:::sqs:sendMessage",
       "Parameters": {
         "QueueUrl": "https://sqs.us-east-1.amazonaws.com/123456789012/doc-manual-capture",
         "MessageBody": {
           "document_id.$": "$.document_id",
           "execution.$": "$$.Execution.Id",
-          "state.$": "$"
+          "pages.$": "$.pages",
+          "error.$": "$.error"
         }
       },
       "ResultPath": null,

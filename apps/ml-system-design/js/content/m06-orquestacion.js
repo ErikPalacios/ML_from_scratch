@@ -751,7 +751,7 @@ spec:
           { t: 'p', html: `A cero no pagas GPU mientras nadie la usa. El primer request después de cero paga el cold start completo: nodo nuevo, imagen de varios GB y carga del modelo, ${est('varios minutos')} (<a href="#m06.cold-starts">sección 7</a>). AWS lo dice así en la documentación de los endpoints de SageMaker que bajan a cero: mientras vuelve a aprovisionar una instancia, que tarda minutos, las invocaciones fallan.` },
           { t: 'table', head: ['Carga', '¿A cero?', 'Por qué'], rows: [
             ['c01: síncrona, 24/7, p99 ≤ 200 ms', 'No: mínimo 2', 'Nunca baja de decenas de req/s, y un cold start de minutos no cabe en un timeout de 300 ms'],
-            ['Workers de OCR con SLO de minutos (<a href="#c05">c05</a>)', 'Sí', 'La cola absorbe la espera; noches y fines de semana sin GPU'],
+            ['Workers de OCR propio en GPU con SLO de minutos', 'Sí', 'La cola absorbe la espera; noches y fines de semana sin GPU (<a href="#c05">c05</a> no llega a esto: usa un OCR gestionado y CPU, con al menos 2 réplicas por disponibilidad)'],
             ['Backfill o scoring nocturno (<a href="#m02.batch">M2</a>)', 'Sí, con Job o ScaledJob', 'Arranca, termina y se apaga'],
             ['Modelo interno que se usa 2 h al día', 'Depende', 'Si quien lo usa tolera esperar el primer minuto; si no, mínimo 1 en horario (trigger cron)'],
           ] },

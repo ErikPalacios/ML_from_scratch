@@ -431,7 +431,7 @@ data: [DONE]`;
             ['Control de flujo', 'DAG fijo: siempre los mismos pasos', '<code>if</code>, loops, decisiones según los datos'],
             ['Dónde vive la lógica', 'En el <code>config.pbtxt</code>', 'En un <code>model.py</code>'],
             ['Costo propio', 'Casi nada: lo agenda el núcleo en C++', 'Un proceso de Python por instancia, con su GIL'],
-            ['Ejemplo', 'Preprocesar → clasificar → posprocesar', 'Cascada: modelo chico, y el grande solo si la confianza es baja (moderación, <a href="#c06">caso 6</a>)'],
+            ['Ejemplo', 'Preprocesar → clasificar → posprocesar', 'Cascada: modelo chico, y el grande solo para lo que el chico no descarta (moderación, <a href="#c06">caso 6</a>)'],
           ] },
           { t: 'callout', kind: 'trap', title: 'El ensemble no hace gratis el preprocesamiento', html: `<p>Mover el decode de c01 a un ensemble con Python backend elimina la red entre tiers (viajaría el JPEG, no el tensor), pero ese decode corre en la CPU del nodo GPU. c01 necesita ${E('≈ 3 cores')} de decode en el pico de diseño; la g4dn.xlarge tiene 4 vCPU y el pod de Triton ya pide 2. No entra, y para conseguir más CPU tendrías que comprar más GPU. La comparación completa está en la <a href="#m07.protocolos">sección 7</a>.</p>` },
           { t: 'h3', text: 'Métricas y herramientas' },
@@ -499,7 +499,7 @@ data: [DONE]`;
           ] },
           { t: 'callout', kind: 'why', title: 'El costo de Python en el camino', html: `<p>En Triton, la cola, el batching y la ejecución viven en C++. En Ray Serve y BentoML, cada request pasa por código Python en la réplica (y, según la configuración, en el proxy), con su GIL. Con un modelo pesado en GPU, ese overhead se pierde en el cómputo; con un modelo chico a miles de req/s por réplica, puede ser lo que manda. No hay un número universal: mídelo con tu modelo y tu carga. Y no es excluyente: Ray Serve o BentoML pueden orquestar la lógica y llamar a un Triton o a un vLLM para la parte pesada.</p>` },
           { t: 'callout', kind: 'interview', html: `<p>"If the pipeline is several models glued together with Python logic, like a detector feeding a classifier for each crop, I'd use Ray Serve: each model scales on its own and the glue stays in Python. The heaviest model can still run in Triton behind it."</p>` },
-          { t: 'callout', kind: 'connect', html: `<p>Pipelines de varios modelos aparecen en OCR (detector de texto + reconocedor, <a href="#c05">caso 5</a>) y en video con múltiples cámaras (<a href="#c02">caso 2</a>). Ray Serve escala por requests en curso, la misma familia de señales que KEDA sobre Triton (<a href="#m06.hpa">M6</a>).</p>` },
+          { t: 'callout', kind: 'connect', html: `<p>Pipelines de varios modelos aparecen en documentos (clasificador → OCR → extractor, <a href="#c05">caso 5</a>) y en video con múltiples cámaras (<a href="#c02">caso 2</a>). Ray Serve escala por requests en curso, la misma familia de señales que KEDA sobre Triton (<a href="#m06.hpa">M6</a>).</p>` },
         ],
       },
 

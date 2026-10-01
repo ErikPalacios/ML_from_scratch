@@ -70,6 +70,36 @@ def test_el_digito_de_la_curp_no_ve_un_error_en_la_posicion_9():
     assert not cross.ok and set(cross.fields) == {"curp", "fecha_nacimiento"}  # …el cruce sí
 
 
+def test_tampoco_ve_8_por_3_en_el_anio():
+    """Peso par × diferencia múltiplo de 5 ≡ 0 (mod 10): 8↔3 en la posición 5 (peso 14) pasa igual.
+    1980 leído como 1930: el dígito sigue siendo 7. El cruce con la fecha impresa lo atrapa."""
+    misread = "PEGJ300101MDFRMN07"
+    assert v.validate_curp(misread).ok
+    assert not v.check_curp_matches_birth_date(misread, dt.date(1980, 1, 1)).ok
+
+
+def test_cuantas_sustituciones_de_un_caracter_no_ve_el_digito():
+    """El número del docstring: de las sustituciones de UN carácter que dejan una CURP bien formada
+    (formato, entidad y fecha válidos), ≈ 1 de cada 5 sigue validando."""
+    good = "PEGJ800101MDFRMN07"
+    alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    total = undetected = 0
+    for i in range(17):
+        for c in alphabet:
+            s = good[:i] + c + good[i + 1:]
+            if c == good[i] or not v.CURP_RE.match(s) or s[11:13] not in v.CURP_STATES or v.curp_birth_date(s) is None:
+                continue
+            total += 1
+            undetected += v.validate_curp(s).ok
+    assert (undetected, total) == (50, 235)
+
+
+def test_curp_etiquetada_con_su_campo():
+    r = v.validate_curp_field("curp_representante", "PEGJ800101MDFRMN07")
+    assert r.ok and r.check == "curp:curp_representante" and r.fields == ("curp_representante",)
+    assert not v.validate_curp_field("curp_representante", "PEGJ800101MDFRMN08").ok
+
+
 # -------------------------------------------------------------------------------------------- RFC
 @pytest.mark.parametrize("rfc", ["EKU9003173C9", "PSI200101AB3", "PEGJ800101AB6", "GODE561231GR8", "MAB9307148T4"])
 def test_rfc_validos(rfc):

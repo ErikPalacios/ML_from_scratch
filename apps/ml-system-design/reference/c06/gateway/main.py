@@ -11,7 +11,9 @@ cola del event loop: el presupuesto limita las llamadas remotas, NO un event loo
 
 Fail-open: si un modelo de la etapa 1 vence su timeout o falla, el post se publica con lo que haya
 y se manda a la etapa 2 con prioridad (ver decision/policies.yaml). El hash NO tiene fail-open: corre
-en este proceso, y un pod sin el índice cargado no está ready.
+en este proceso, y un pod sin las listas S0 cargadas no está ready. Si el gateway entero no contesta,
+el fail-open lo hace post-service (publica y marca el ítem unchecked): eso se mide de su lado
+(moderation_unchecked_publish_total, ver monitoring/alerts.yml), porque aquí no queda nadie para contarlo.
 
 Interfaces (Protocol) para todo lo externo: los modelos (Triton), Kafka y la fuente de hashes. Los tests
 usan fakes; los adaptadores reales (tritonclient, un productor de Kafka) no están en esta carpeta porque
@@ -26,6 +28,7 @@ import asyncio  # wait_for + gather: timeouts por etapa y etapas en paralelo
 import json  # una línea JSON por decisión; el evento de Kafka también es JSON
 import logging  # a stdout: en un contenedor los logs son un stream
 import os  # configuración por variables de entorno
+import random  # jitter por pod del momento de compactar el índice
 import sys  # stdout explícito para el logger
 import time  # perf_counter (latencias) y time (timestamps)
 from collections.abc import AsyncIterator, Iterable  # tipos de las interfaces
@@ -64,6 +67,10 @@ class Settings:
     shutdown_flush_s: float = float(os.getenv("SHUTDOWN_FLUSH_S", "5"))
     # Versión del gateway (imagen): va en cada evento junto a las del modelo y la config
     gateway_version: str = os.getenv("GATEWAY_VERSION", "dev")
+    # Altas de hashes en el delta (se escanea entero en cada consulta: 5k ≈ 0.7 ms por imagen, medido)
+    # a partir de las cuales se compacta, EN OTRO HILO. Cada pod elige un punto al azar entre 50 % y
+    # 100 % de este valor: todos consumen el mismo stream, y sin jitter compactarían a la vez.
+    hash_compact_delta: int = int(os.getenv("HASH_COMPACT_DELTA", "5000"))
 
 
 # ---------------------------------------------------------------------------- interfaces
@@ -150,14 +157,15 @@ class ImageIn(BaseModel):
     # media-service ya tiene la imagen: al SUBIRLA (segundos antes de publicar) calcula el PDQ. Por eso
     # aquí llega el hash y no los bytes: decodificar otra vez dentro de los 150 ms sería tirar CPU.
     media_id: str = Field(min_length=1, max_length=128)
-    pdq: str = Field(min_length=64, max_length=64)  # obligatorio: sin PDQ no hay verificación S0
+    # Obligatorio: sin PDQ no hay verificación S0. Exactamente 64 hex: int(v, 16) aceptaría "0x…", "_" o
+    # un signo, que después fallan dentro del handler (500) en vez de devolver 422 al caller.
+    pdq: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
     pdq_quality: int = Field(ge=0, le=100)
 
     @field_validator("pdq")
     @classmethod
-    def _hex(cls, v: str) -> str:
-        int(v, 16)  # ValueError → 422: un hash inválido es un error del caller, no un "limpio"
-        return v.lower()
+    def _lower(cls, v: str) -> str:
+        return v.lower()  # un hash inválido es un error del caller (422), no un "limpio"
 
 
 class ModerateIn(BaseModel):
@@ -179,6 +187,23 @@ class State:
     watermarks: dict[str, float] = field(default_factory=dict)  # lista → ts aplicado (monótono)
     events: asyncio.Queue | None = None
     tasks: list[asyncio.Task] = field(default_factory=list)
+    compact_at: int = 5000  # tamaño del delta en el que ESTE pod compacta (con jitter)
+    compaction: asyncio.Task | None = None  # como mucho una a la vez
+
+
+def s0_lists(cfg: dict) -> list[str]:
+    """Listas de hashes cuya política es S0: sin ellas cargadas el pod no puede garantizar S0."""
+    pols = cfg["policies"]
+    return sorted(
+        name for name, lc in (cfg.get("hash_lists") or {}).items()
+        if lc.get("policy") in pols and pols[lc["policy"]]["severity"] == "S0"
+    )
+
+
+def is_ready(st: State) -> bool:
+    """Ready = hay hashes PDQ Y cada lista S0 llegó en el snapshot (su heartbeat fija el watermark).
+    "Hay alguna entrada" no alcanza: un snapshot sin industry_terror dejaría pasar terrorismo conocido."""
+    return len(st.pdq) > 0 and all(name in st.watermarks for name in s0_lists(st.cfg))
 
 
 def apply_hash_entry(st: State, e: dict) -> None:
@@ -189,9 +214,13 @@ def apply_hash_entry(st: State, e: dict) -> None:
     elif kind == "text_sha256":
         st.texts.add_hash(e["id"], e["value"], e["list"], e["policy"])
     elif kind == "domain":
-        st.domains.add(e["value"], e["list"], e["policy"])
+        st.domains.add(e["value"], e["list"], e["policy"], entry_id=e.get("id"))  # sin id: el dominio
     elif kind == "remove":
-        st.pdq.remove(e["id"])  # apelación ganada o entrada errónea: deja de coincidir ya
+        # Apelación ganada o entrada errónea: deja de coincidir ya, sea imagen, texto o dominio.
+        # Los ids son únicos entre los tres índices; si no estaba en ninguno, queda en el log.
+        removed = [idx.remove(e["id"]) for idx in (st.pdq, st.texts, st.domains)]
+        if not any(removed):
+            log.warning(json.dumps({"event": "hash_remove_unknown", "id": str(e["id"])[:128], "list": e.get("list")}))
     elif kind != "heartbeat":
         raise ValueError(f"tipo de entrada desconocido: {kind}")
     # Watermark: el productor de las listas manda heartbeats aunque no haya novedades (de noche puede
@@ -221,6 +250,7 @@ def _init_metrics(cfg: dict) -> None:
     """Crea las series en 0: un counter que nace en 1 es invisible para increase() (trampa del c04)."""
     for s in ("post", "comment"):
         REQUESTS.labels(surface=s, status="200")
+        REQUESTS.labels(surface=s, status="500")  # numerador de ModFailOpenRateHigh: tiene que nacer en 0
         FAIL_OPEN_REQ.labels(surface=s)
         LATENCY.labels(surface=s)
     for stage in ("stage1_text", "stage1_image"):
@@ -251,8 +281,9 @@ def create_app(deps: Deps, settings: Settings | None = None) -> FastAPI:
             (e["id"], e["value"], e["list"], e["policy"], e.get("quality")) for e in entries if e["kind"] == "pdq"
         )
         HASH_ENTRIES.labels(kind="pdq").set(len(st.pdq))
-        # Ready solo con índice: un pod sin hashes no puede garantizar S0, así que no recibe tráfico
-        st.ready = len(st.pdq) + len(st.texts) + len(st.domains) > 0
+        # Ready solo con las listas S0: un pod sin ellas no puede garantizar S0, así que no recibe tráfico
+        st.ready = is_ready(st)
+        st.compact_at = max(1, int(settings.hash_compact_delta * random.uniform(0.5, 1.0)))
         st.events = asyncio.Queue(maxsize=settings.event_buffer)
         st.tasks.append(asyncio.create_task(_publish_loop(st, deps.publisher, settings)))
         if deps.hash_updates is not None:
@@ -264,7 +295,7 @@ def create_app(deps: Deps, settings: Settings | None = None) -> FastAPI:
             await asyncio.wait_for(st.events.join(), timeout=settings.shutdown_flush_s)
         except TimeoutError:
             log.warning(json.dumps({"event": "shutdown_events_lost", "pending": st.events.qsize()}))
-        for t in st.tasks:
+        for t in st.tasks + ([st.compaction] if st.compaction else []):
             t.cancel()
 
     app = FastAPI(title="mod-gateway", lifespan=lifespan)
@@ -276,7 +307,7 @@ def create_app(deps: Deps, settings: Settings | None = None) -> FastAPI:
 
     @app.get("/readyz")
     def readyz(request: Request, response: Response) -> dict:
-        """Readiness: config cargada e índice de hashes cargado. Triton caído NO saca al pod (hay fail-open)."""
+        """Readiness: config cargada y listas S0 cargadas. Triton caído NO saca al pod (hay fail-open)."""
         st: State = request.app.state.mod
         if not st.ready:
             response.status_code = 503
@@ -405,19 +436,32 @@ async def _moderate(st: State, deps: Deps, settings: Settings, body: ModerateIn,
 
 
 def _emergency_decision(st: State, body: ModerateIn, hits, failed) -> engine.Decision:
-    """Decisión mínima si el motor falla: hash S0 → no publicar; todo lo demás → fail-open a la etapa 2."""
-    s0 = [h for h in hits if (st.cfg["policies"].get(h.policy) or {}).get("severity") == "S0"]
+    """Decisión mínima si el motor falla: hash S0 → no publicar; todo lo demás → fail-open a la etapa 2.
+
+    Aplica la MISMA semántica de listas que el motor (distancia máxima de cada lista, excepciones que no
+    bloquean, política de la lista o de la entrada): un bug del motor no puede bloquear lo que el motor
+    habría dejado pasar, por ejemplo una excepción benigna o un own_removed a distancia 25.
+    """
+    lists, pols = st.cfg.get("hash_lists") or {}, st.cfg["policies"]
+    s0 = []
+    for h in sorted(hits, key=lambda h: h.distance):
+        lc = lists.get(h.list_name)
+        if lc is None or lc.get("suppress_model_actions") or h.distance > lc["max_distance"]:
+            continue
+        pol = h.policy if lc["policy"] == "from_entry" else lc["policy"]
+        if (pols.get(pol) or {}).get("severity") == "S0":
+            s0.append(pol)
     block = bool(s0)
     return engine.Decision(
         item_id=body.item_id, surface=body.surface, path="sync",
         action="block_prepublish" if block else "none",
-        policy=s0[0].policy if block else None, severity="S0" if block else None,
+        policy=s0[0] if block else None, severity="S0" if block else None,
         source="hash" if block else "none", scores={},
         config_version=st.cfg["version"], policy_definitions_version=st.cfg["policy_definitions_version"],
         model_versions={}, needs_review=False, fail_open=not block,
         fail_open_reasons=sorted([f"{k}:{v}" for k, v in failed.items()] + ["engine:error"]),
         send_to_deep_scorer=not block, deep_scoring_priority=None if block else "high",
-        escalation="s0_specialist_team" if block else None,
+        escalation=engine.S0_ESCALATION if block else None,
         decision_id=f"emergency-{body.item_id}",
     )
 
@@ -461,10 +505,30 @@ async def _updates_loop(st: State, updates: HashUpdates) -> None:
     """Aplica altas/bajas de hashes en caliente: lo que removimos hace 2 min ya bloquea la re-subida."""
     async for e in updates:
         try:
-            apply_hash_entry(st, e)
-            st.ready = st.ready or len(st.pdq) > 0
+            apply_hash_entry(st, e)  # O(1): add() solo agrega al delta, nunca compacta aquí
+            st.ready = st.ready or is_ready(st)
+            if st.compaction is None and st.pdq.delta_size() >= st.compact_at:
+                st.compaction = asyncio.create_task(_compact_in_background(st))
         except Exception as exc:  # una entrada mala no detiene el stream (y queda en el log)
             log.warning(json.dumps({"event": "hash_update_error", "error": str(exc)[:200]}))
+
+
+async def _compact_in_background(st: State) -> None:
+    """Compacta el índice SIN bloquear el event loop: ≈ 2 s por millón de hashes (medido) que, en el
+    loop, serían segundos sin atender ningún /v1/moderate (y, sin jitter, en todos los pods a la vez).
+    Pasos 1 y 3 en el loop (baratos); el 2, en un hilo, sobre una foto de las filas."""
+    t = time.perf_counter()
+    try:
+        job = st.pdq.begin_compaction()
+        built = await asyncio.to_thread(match.PdqIndex.build_compacted, job)
+        st.pdq.finish_compaction(job, built)  # re-aplica las altas y bajas que llegaron mientras tanto
+        log.info(json.dumps({"event": "hash_index_compacted", "pdq_entries": len(st.pdq),
+                             "seconds": round(time.perf_counter() - t, 3)}))
+    except Exception as exc:
+        st.pdq.abort_compaction()  # el índice viejo sigue sirviendo; se reintenta con la próxima alta
+        log.warning(json.dumps({"event": "hash_compaction_error", "error": str(exc)[:200]}))
+    finally:
+        st.compaction = None
 
 
 # ---------------------------------------------------------------------------- entradas (uvicorn --factory)

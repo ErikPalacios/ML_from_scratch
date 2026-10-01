@@ -18,6 +18,10 @@ modelo ni del SAT: si el pipeline está atrasado, la API igual recibe y el docum
 Nunca perder un documento: si StartExecution falla DESPUÉS de guardar, respondemos 202 igual (el
 documento ya está seguro en S3 y en la base) y `resume_unstarted` lo reintenta. StartExecution es
 idempotente para Standard con el mismo name y el mismo input mientras la ejecución corre.
+Y si el pod muere ANTES de guardar (entre el INSERT "receiving" y el PutObject: OOM, desalojo, deploy),
+el cliente no recibió 202: un registro "receiving" más viejo que `receiving_stale_seconds` se trata como
+"upload_failed" (el reintento del cliente guarda y arranca, el estatus dice upload_failed y el barrido
+lo marca así). Un 200 "duplicate" solo sale para un registro que de verdad está guardado o en curso.
 
 Interfaces (para probar sin AWS): DocumentRepo (Postgres en producción; aquí InMemoryRepo),
 ObjectStore (S3Store), ExecutionStarter (StepFunctionsStarter). Los adaptadores de boto3 se prueban
@@ -72,8 +76,15 @@ class Settings:
     max_file_bytes: int = 15 * 1024 * 1024
     max_images: int = 10  # un documento = 1 PDF, 1 XML o hasta 10 fotos (sus páginas)
     max_pdf_pages: int = 50  # un estado de cuenta típico tiene ≈ 8; 50 deja margen sin abrir la puerta a 3,000
-    max_image_pixels: int = 60_000_000  # ≈ foto de 60 MP; corta las bombas de descompresión antes de decodificar
+    # Tope por foto, revisado en el encabezado ANTES de decodificar: corta lo absurdo (una "bomba" de
+    # 20,000 × 20,000), pero NO hace barato lo permitido. Un PNG de 60 MP casi blanco pesa ≈ 190 KB y
+    # se decodifica completo (PNG no tiene modo draft): por eso load_image_for_gate reduce en Pillow,
+    # en uint8, antes de que numpy lo toque.
+    max_image_pixels: int = 60_000_000
     analysis_long_side: int = quality.ANALYSIS_LONG_SIDE
+    # Un "receiving" más viejo que esto es un request que murió entre el INSERT y S3 (más largo que
+    # cualquier timeout de request: el ingress corta a los 60 s).
+    receiving_stale_seconds: int = 120
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -102,7 +113,8 @@ class DocType(str, Enum):
 
 
 # Estados del documento. "Automático" = lo está procesando el pipeline (DocPipelineBacklog lo vigila).
-AUTOMATIC = {"received", "processing"}
+# "receiving" cuenta: si el barrido que lo repara no corre, un registro atascado ahí también se ve.
+AUTOMATIC = {"receiving", "received", "processing"}
 REVIEW = {"in_review"}
 UNFINISHED = AUTOMATIC | REVIEW
 
@@ -273,7 +285,12 @@ EXT = {"pdf": "pdf", "jpeg": "jpg", "png": "png", "xml": "xml"}
 
 def load_image_for_gate(data: bytes, s: Settings) -> tuple[np.ndarray, tuple[int, int]]:
     """Decodifica rápido: para JPEG, `draft` pide al decodificador una escala 1/2, 1/4 u 1/8 (lo más
-    caro de una foto de 12–50 MP es decodificarla completa). Devuelve el array y el tamaño ORIGINAL."""
+    caro de una foto de 12–50 MP es decodificarla completa). Devuelve el array y el tamaño ORIGINAL.
+
+    PNG no tiene draft: se decodifica completo (60 MP en RGB ≈ 180 MB, inevitable con Pillow). Lo que
+    sí se evita es multiplicarlo: se reduce en Pillow con `reduce` (promedio por bloques, en uint8)
+    hasta ≤ 2× el lado de análisis ANTES de convertir a gris y de pasar a numpy. Sin esto, quality
+    hacía copias float32 y float64 de 60 MP: ≈ 1.5 GB de pico por foto, y un request trae hasta 10."""
     try:
         im = Image.open(io.BytesIO(data))
         w, h = im.size  # solo leyó el encabezado: todavía no decodifica
@@ -286,7 +303,15 @@ def load_image_for_gate(data: bytes, s: Settings) -> tuple[np.ndarray, tuple[int
     try:
         if im.format == "JPEG":
             im.draft("L", (s.analysis_long_side, s.analysis_long_side))
-        im = ImageOps.exif_transpose(im)  # una foto vertical guardada "acostada" + la marca EXIF
+        im.load()
+        # Una foto vertical guardada "acostada" + la marca EXIF. in_place: sin copia si no hay que girar,
+        # y antes de reduce(), que devuelve una imagen nueva sin el EXIF.
+        ImageOps.exif_transpose(im, in_place=True)
+        if im.mode not in ("L", "RGB"):
+            im = im.convert("RGB")  # paleta, RGBA, 16 bits…: reduce() no los acepta todos
+        factor = max(im.size) // s.analysis_long_side
+        if factor >= 2:
+            im = im.reduce(factor)  # lado largo queda ≥ analysis_long_side; quality.downscale hace el resto
         gray = np.asarray(im.convert("L"))
     except (OSError, ValueError) as exc:  # JPEG truncado, etc.
         raise GateError(422, "imagen_danada") from exc
@@ -427,8 +452,9 @@ def create_app(settings: Settings, repo: DocumentRepo, store: ObjectStore, start
         if rec is None or rec.application_id != application_id:
             return JSONResponse({"error": "no_encontrado"}, status_code=404)
         public = {"receiving": "processing", "received": "processing", "upload_failed": "upload_failed"}
+        shown = "upload_failed" if _stale_receiving(rec, settings) else public.get(rec.status, rec.status)
         return {"document_id": rec.document_id, "doc_type": rec.doc_type,
-                "status": public.get(rec.status, rec.status), "received_at": rec.created_at.isoformat()}
+                "status": shown, "received_at": rec.created_at.isoformat()}
 
     return app
 
@@ -447,7 +473,7 @@ def _handle_upload(s, repo, store, starter, metrics, application_id, doc_type, f
 
     # ---- dedupe ANTES del quality gate: un reintento del mismo archivo no paga otra vez la decodificación
     existing = repo.find(application_id, doc_sha)
-    if existing and existing.status != "upload_failed":
+    if existing and not _must_store_again(existing, s):
         metrics.uploads.labels(dtype, "duplicate").inc()
         return _duplicate(existing)
 
@@ -477,10 +503,15 @@ def _handle_upload(s, repo, store, starter, metrics, application_id, doc_type, f
     # ---- registro (carrera: dos réplicas con el mismo archivo → una gana el INSERT)
     doc_id = existing.document_id if existing else str(uuid.uuid4())
     rec, created = repo.create_if_absent(DocRecord(doc_id, application_id, doc_sha, dtype, "receiving"))
-    if not created and rec.status != "upload_failed":
+    if not created and not _must_store_again(rec, s):
         metrics.uploads.labels(dtype, "duplicate").inc()
         return _duplicate(rec)
     doc_id = rec.document_id
+    if not created:
+        # Reintento de un upload que falló o murió a medias: volvemos a "receiving" con reloj nuevo.
+        # Dos reintentos simultáneos pueden pasar los dos por aquí: escriben las mismas llaves con los
+        # mismos bytes y StartExecution (mismo name + mismo input) es idempotente. Se paga doble, no se rompe.
+        repo.update(doc_id, status="receiving")
 
     # ---- guardar en S3 (cifrado KMS). Si falla, el cliente reintenta y caemos en upload_failed → reintento.
     stored = []
@@ -536,6 +567,18 @@ def _read_and_check(s: Settings, dtype: str, files: list[UploadFile]) -> list[di
     return pages
 
 
+def _stale_receiving(rec: DocRecord, s: Settings) -> bool:
+    """¿Un "receiving" tan viejo que el request que lo creó ya no puede estar vivo?"""
+    age = dt.datetime.now(dt.timezone.utc) - rec.updated_at
+    return rec.status == "receiving" and age > dt.timedelta(seconds=s.receiving_stale_seconds)
+
+
+def _must_store_again(rec: DocRecord, s: Settings) -> bool:
+    """El cliente reintenta y los bytes NO están a salvo: S3 falló (upload_failed) o el pod murió entre
+    el INSERT y el PutObject (receiving viejo). Cualquier otro estado es un duplicado de verdad."""
+    return rec.status == "upload_failed" or _stale_receiving(rec, s)
+
+
 def _duplicate(rec: DocRecord) -> JSONResponse:
     return JSONResponse({"document_id": rec.document_id, "status": "processing" if rec.status in
                          ("receiving", "received") else rec.status, "duplicate": True,
@@ -545,7 +588,8 @@ def _duplicate(rec: DocRecord) -> JSONResponse:
 def execution_input(rec: DocRecord) -> dict:
     """Input de la máquina de estados: solo REFERENCIAS (llaves de S3), nunca el contenido. Step Functions
     limita el input y el estado a 256 KiB; un estado de cuenta de 8 páginas no cabe y además no debe
-    quedar copiado en el historial de ejecuciones."""
+    quedar copiado en el historial de ejecuciones (que guarda la entrada y la salida de cada estado hasta
+    90 días después de cerrar). La misma regla sigue en toda la máquina: ni bytes ni valores de campos."""
     return {"document_id": rec.document_id, "application_id": rec.application_id, "declared_type": rec.doc_type,
             "sha256": rec.sha256, "pages": [{k: p[k] for k in ("key", "content_type", "sha256")} for p in rec.pages],
             "received_at": rec.created_at.isoformat()}
@@ -563,12 +607,20 @@ def _start(repo: DocumentRepo, starter: ExecutionStarter, metrics: Metrics, rec:
 
 
 def resume_unstarted(repo: DocumentRepo, starter: ExecutionStarter, metrics: Metrics,
-                     min_age: dt.timedelta = dt.timedelta(minutes=1)) -> int:
+                     min_age: dt.timedelta = dt.timedelta(minutes=1),
+                     receiving_stale: dt.timedelta = dt.timedelta(seconds=Settings.receiving_stale_seconds)) -> int:
     """Barrido periódico (un CronJob cada minuto): documentos guardados cuya ejecución no arrancó.
     Es la mitad que falta del "nunca perder un documento": guardar primero, arrancar después, y un
-    proceso que repara lo que quedó en medio. Reintentar es seguro porque StartExecution es idempotente."""
-    older_than = dt.datetime.now(dt.timezone.utc) - min_age
-    return sum(_start(repo, starter, metrics, r) for r in repo.list_status("received", older_than))
+    proceso que repara lo que quedó en medio. Reintentar es seguro porque StartExecution es idempotente.
+
+    También cierra los "receiving" abandonados (el pod murió antes de guardar): pasan a upload_failed.
+    Sus bytes nunca quedaron a salvo y el cliente no recibió 202; si reintenta, se guarda de nuevo. Así
+    DocPipelineBacklog no se queda sonando por un documento que nadie puede procesar."""
+    now = dt.datetime.now(dt.timezone.utc)
+    for r in repo.list_status("receiving", now - receiving_stale):
+        repo.update(r.document_id, status="upload_failed")
+        log.warning(json.dumps({"event": "receiving_abandoned", "document_id": r.document_id}))
+    return sum(_start(repo, starter, metrics, r) for r in repo.list_status("received", now - min_age))
 
 
 def build_default_app() -> FastAPI:

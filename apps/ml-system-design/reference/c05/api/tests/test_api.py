@@ -255,6 +255,81 @@ def test_falla_start_execution_202_igual_y_el_barrido_lo_arranca(ctx, ine_jpegs)
     assert n == 1 and repo.get(doc_id).status == "processing" and starter.calls[0][0] == doc_id
 
 
+class PodKilled(BaseException):
+    """Simula que el proceso muere (OOM, desalojo, deploy): no es un Exception, nadie lo atrapa."""
+
+
+class DyingStore:
+    def put(self, key, data, content_type):
+        raise PodKilled()
+
+
+def post_and_die(app, files):
+    """El request muere a medias. anyio lo entrega envuelto en un BaseExceptionGroup."""
+    try:
+        post(TestClient(app), files)
+    except BaseException as e:  # noqa: BLE001
+        assert isinstance(e, PodKilled) or (isinstance(e, BaseExceptionGroup) and e.subgroup(PodKilled))
+    else:
+        pytest.fail("se esperaba que el request muriera")
+
+
+def test_pod_muere_entre_el_registro_y_s3_el_reintento_guarda_y_arranca(ctx, ine_jpegs):
+    client, repo, store, starter, settings, app = ctx
+    post_and_die(main.create_app(main.Settings(receiving_stale_seconds=0), repo, DyingStore(), starter),
+                 ine_files(ine_jpegs))
+    doc_id = next(iter(repo._by_id))
+    assert repo.get(doc_id).status == "receiving" and store.objects == {} and starter.calls == []
+    # El cliente no recibió 202 y reintenta (otro pod, ya pasó la ventana): NO es un duplicado.
+    healthy = TestClient(main.create_app(main.Settings(receiving_stale_seconds=0), repo, store, starter))
+    time.sleep(0.01)
+    again = post(healthy, ine_files(ine_jpegs))
+    assert again.status_code == 202 and again.json()["document_id"] == doc_id
+    assert len(store.objects) == 2 and [c[0] for c in starter.calls] == [doc_id]
+
+
+def test_receiving_reciente_si_es_duplicado_y_el_viejo_no(ctx, ine_jpegs):
+    client, repo, store, starter, settings, app = ctx
+    post_and_die(main.create_app(settings, repo, DyingStore(), starter), ine_files(ine_jpegs))
+    doc_id = next(iter(repo._by_id))
+    # Dentro de la ventana (120 s): puede ser un request en curso en otro pod → 200 "processing".
+    r = post(client, ine_files(ine_jpegs))
+    assert r.status_code == 200 and r.json()["duplicate"] is True and r.json()["status"] == "processing"
+    st = client.get(f"/v1/documents/{doc_id}", params={"application_id": APP}).json()["status"]
+    assert st == "processing"
+    # Pasada la ventana, el estatus ya no promete "processing" y el barrido lo cierra.
+    old = TestClient(main.create_app(main.Settings(receiving_stale_seconds=0), repo, store, starter))
+    time.sleep(0.01)
+    assert old.get(f"/v1/documents/{doc_id}", params={"application_id": APP}).json()["status"] == "upload_failed"
+    import datetime as dt
+    main.resume_unstarted(repo, starter, app.state.metrics, receiving_stale=dt.timedelta(0))
+    assert repo.get(doc_id).status == "upload_failed" and starter.calls == []
+
+
+def test_un_receiving_atascado_cuenta_en_el_backlog(ctx, ine_jpegs):
+    client, repo, store, starter, settings, app = ctx
+    post_and_die(main.create_app(settings, repo, DyingStore(), starter), ine_files(ine_jpegs))
+    time.sleep(0.05)
+    m = client.get("/metrics").text
+    age = float(re.search(r'docs_oldest_unfinished_age_seconds\{phase="automatic"\} ([0-9.e+-]+)', m).group(1))
+    assert age > 0  # si el barrido no corre, DocPipelineBacklog lo ve
+
+
+def test_png_de_60_mp_se_reduce_antes_de_numpy(ctx):
+    """Un PNG de 60 MP casi blanco pesa ≈ 100–200 KB (pasa los 15 MB de sobra) y PNG no tiene modo draft.
+    Antes del arreglo, numpy recibía 6,000 × 10,000 y quality hacía copias float32/float64: ≈ 1.5 GB de
+    pico por foto. Ahora Pillow lo reduce en uint8 a ≤ 2× el lado de análisis."""
+    import numpy as np
+    arr = np.full((10000, 6000), 250, np.uint8)
+    arr[4000:6000, 2000:4000] = 30
+    data = png(arr)
+    assert len(data) < 1_000_000
+    gray, size = main.load_image_for_gate(data, main.Settings())
+    assert size == (6000, 10000)  # los DPI se calculan con el tamaño original…
+    assert gray.dtype == np.uint8 and max(gray.shape) < 2 * main.Settings().analysis_long_side  # …el array es chico
+    assert gray.nbytes < 2_000_000
+
+
 # ------------------------------------------------------------------------------------ operación
 def test_health_ready_y_metricas_en_cero(ctx):
     client, *_ = ctx

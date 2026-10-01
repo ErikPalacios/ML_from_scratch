@@ -59,6 +59,15 @@ def test_reflejo_solo_cuenta_en_la_ine():
     assert "reflejo" not in q.assess(img, q.PROFILES["comprobante_domicilio"]).reasons
 
 
+def test_limitacion_conocida_ine_sobre_fondo_blanco_da_reflejo():
+    """Documenta el límite del baseline: el reflejo se mide en TODA la foto. Una INE perfecta sobre una
+    hoja blanca (fondo saturado) sale como "reflejo". La versión seria mide dentro del contorno."""
+    img = fake_document(table=255)  # la "mesa" es una hoja blanca
+    r = q.assess(img, INE)
+    assert r.reasons == ["reflejo"] and r.metrics["glare_frac"] > 0.4
+    assert q.assess(fake_document(), INE).ok  # la misma credencial sobre una mesa gris pasa
+
+
 def test_baja_resolucion():
     small = fake_document(h=360, w=480)
     r = q.assess(small, INE)

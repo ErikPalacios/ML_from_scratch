@@ -1,7 +1,7 @@
 """review-router del caso c06: QUÉ revisa una persona primero y CUÁNTO mandamos a revisión.
 
-Las ≈ 600 personas moderadoras son el recurso más caro y escaso del sistema (≈ 216k revisiones/día,
-≈ US$900k/mes, est.). Tres decisiones viven aquí:
+Los ≈ 600 puestos de moderación cubiertos cada día son el recurso más caro y escaso del sistema (≈ 216k
+revisiones/día, ≈ US$900k/mes, est.). Tres decisiones viven aquí:
 
 1. Prioridad por DAÑO ESPERADO, no por orden de llegada:
        prioridad = P(viola) × peso de severidad × vistas esperadas en las próximas horas
@@ -24,6 +24,8 @@ borrosas/en gris por defecto, S0 solo para el equipo especializado, idiomas que 
 
 Puro (solo biblioteca estándar): lo usa el servicio review-router, que no está en esta carpeta, y sus
 gauges `review_queue_oldest_age_seconds` y `review_queue_depth` salen de `queue_stats`.
+No incluido: la agrupación de near-duplicates en clústeres (una decisión por clúster, reversión en
+lote) se describe en el caso; aquí cada ReviewItem es un ítem.
 """
 
 from __future__ import annotations  # anotaciones como texto: sintaxis moderna sin costo en runtime
@@ -191,14 +193,15 @@ def plan_review_thresholds(
     daily_scores: por política, los scores de un día (o de una muestra: `sample_fraction` dice qué
       fracción del día representa; cada score cuenta como 1 / sample_fraction ítems).
     reserved_per_day: revisiones que NO salen de estos umbrales y hay que restar primero: reportes de
-      usuarios, apelaciones (las revisa OTRA persona), la muestra aleatoria para medir prevalencia.
+      usuarios, apelaciones (las revisa OTRA persona), la muestra aleatoria para medir prevalencia y el
+      control de calidad (doble revisión).
     protected_tiers: severidades cuyo umbral NUNCA sube por falta de capacidad: se quedan en
       `min_threshold` y sus llegadas se restan primero. Si ni así caben, el error lo dice: la respuesta
       es más personas (o mover personas), no dejar de revisar amenazas.
 
     Para el resto, un mismo λ (valor marginal): entra a revisión si score × peso ≥ λ, o sea
     umbral_p = λ / peso_p. Se elige el λ más bajo cuyas llegadas caben. Así no gastas una revisión en
-    spam a 0.9 (0.9 × 1) mientras odio a 0.2 (0.2 × 10 = 2) espera.
+    spam a 0.9 (0.9 × 1) mientras odio a 0.35 (0.35 × 10 = 3.5) espera.
     Consecuencia que hay que decir en voz alta: con pesos 1/10/100, el spam (S3) casi nunca entra a la
     banda; su calidad se mide con la muestra aleatoria y su revisión llega por reportes y apelaciones,
     que van en `reserved_per_day`. Si producto quiere un piso por política, también va ahí.

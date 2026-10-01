@@ -22,31 +22,38 @@ surfaces: [post, comment]
 
 # ---------------------------------------------------------------------------- fail-open por severidad
 # Qué pasa si falta una etapa REMOTA (los modelos de la etapa 1 en Triton) o vence su timeout.
-# El post NO espera: la creación de posts no puede caerse porque un modelo está lento.
+# El post NO espera: la creación de posts no puede caerse porque un modelo está lento. Siempre se
+# publica con lo que haya; lo que se configura aquí es la RED que se pone debajo, por severidad.
+#
+# S0 NO tiene fail-open, y eso no es una opción de esta config: su verificación obligatoria (hash-match)
+# corre LOCAL, en el proceso del gateway, así que no tiene timeout. Si el resultado del hash falta,
+# decide() lanza HashCheckMissing (no hay decisión), y un pod sin las listas S0 cargadas no está ready:
+# el balanceador no le manda tráfico (gateway/main.py).
 fail_open:
   S0:
-    # S0 no admite fail-open... y por eso su verificación obligatoria (hash-match) corre LOCAL, en el
-    # proceso del gateway. Si el resultado del hash falta, el motor no decide (error), y un pod sin el
-    # índice de hashes cargado no está ready: el balanceador no le manda tráfico.
     # Las señales de MODELO de S0 (extremismo violento) son un complemento del hash: si faltan, el
     # ítem se publica y va a la etapa 2 con prioridad alta. La garantía S0 sigue siendo el hash.
-    allowed: false
     deep_scoring_priority: high
   S1:
     # Se publica, pero con dos redes: reglas locales baratas (abajo) y deep scoring con prioridad alta.
     # Bloquear TODO cuando el modelo falla dejaría la red social sin posts por una falla de infra.
-    allowed: true
     fallback_rules: true
     deep_scoring_priority: high
   S2:
-    allowed: true  # se publica y la etapa 2 lo revisa en ≤ 5 min (p95)
-    deep_scoring_priority: normal
+    deep_scoring_priority: normal  # se publica y la etapa 2 lo revisa en ≤ 5 min (p95)
   S3:
-    allowed: true
     deep_scoring_priority: normal
 
-# Reglas locales que SOLO se usan cuando falta la etapa 1 (en operación normal el modelo es mejor:
-# una regex no entiende contexto ni ironía). Lista corta e ilustrativa: la de verdad la mantiene
+# Qué políticas cubre cada modelo de la etapa 1. Con esto se sabe QUÉ quedó sin evaluar cuando falla
+# una etapa: si vence el modelo de texto, las amenazas escritas quedan sin score aunque el de imagen
+# haya puntuado "violencia" (violencia gráfica en la foto). La cobertura es por etapa, no por política.
+# Ilustrativo: lo define qué etiquetas entrena cada modelo.
+stage_policies:
+  stage1_text: [violent_extremism, violence, self_harm, hate_harassment, spam_scams]
+  stage1_image: [violent_extremism, violence, self_harm, adult_nudity]
+
+# Reglas locales que SOLO se usan cuando falta el modelo de TEXTO de la etapa 1 (en operación normal el
+# modelo es mejor: una regex no entiende contexto ni ironía). Lista corta e ilustrativa: la de verdad la mantiene
 # Trust & Safety, en todos los idiomas que soporta la plataforma.
 fallback_rules:
   - policy: violence
@@ -59,21 +66,26 @@ fallback_rules:
 # ---------------------------------------------------------------------------- listas de hashes
 # Qué hacer cuando hash-match encuentra una coincidencia. "remove" significa: en el camino síncrono,
 # block_prepublish (el post no llega a publicarse); en el asíncrono, remove.
+# La ESCALACIÓN no depende de la lista sino de la severidad: cualquier coincidencia válida con una
+# política S0, venga de la lista que venga (también de own_removed: la re-subida de un CSAM que
+# removimos nosotros), va al equipo especializado (s0_specialist_team) y nunca a la cola general.
+# `escalation:` en una lista es solo un override opcional (p. ej. otro equipo para una lista concreta).
 hash_lists:
   industry_csam:
     # Lista de la industria para CSAM (acceso bajo acuerdo, p. ej. con NCMEC en EE. UU.). Un match no
     # pasa por la cola general de revisión: va al equipo especializado, que hace el reporte legal.
+    # Supone que la lista se distribuye en PDQ. Si viene en PhotoDNA (muy común para CSAM), media-service
+    # calcula también PhotoDNA (licencia on-prem) y hace falta otro índice con su propia métrica; no está
+    # en esta referencia.
     policy: csam
     action: remove
     max_distance: 31  # el umbral recomendado de PDQ
-    escalation: s0_specialist_team
   industry_terror:
     # Base compartida de la industria para contenido terrorista (p. ej. la de GIFCT; verifica
     # formatos y condiciones de acceso). Mismo flujo especializado.
     policy: violent_extremism
     action: remove
     max_distance: 31
-    escalation: s0_specialist_team
   own_removed:
     # Hashes de lo que NOSOTROS ya removimos (cualquier política): atrapa la re-subida en minutos.
     # Distancia más estricta: un meme con la misma plantilla y OTRO texto puede caer cerca, y no
@@ -179,17 +191,22 @@ policies:
 # Ajustes por región, aplicados ENCIMA de los umbrales globales (solo las claves que cambian).
 # Ejemplo ilustrativo: en una región donde cierto discurso es ilegal según la ley local, legal pide
 # remover con menos evidencia. Los valores reales los define legal con Trust & Safety, no ML.
+# Si el override es lo que cambió la acción, la decisión vale SOLO en esa región (territorial_scope) y
+# el statement of reasons cita `legal_ground`: la restricción se basa en la ley local, no en las normas.
 regions:
   DE:
     hate_harassment:
+      legal_ground: "ley local sobre incitación al odio (texto ilustrativo: la referencia exacta la redacta legal)"
       post: {remove: 0.90}
       comment: {remove: 0.90}
 
 # ---------------------------------------------------------------------------- statement of reasons
 # Datos para el texto que recibe la persona afectada (motor: engine.statement_of_reasons). La DSA de
-# la UE (art. 17) pide, entre otros: qué restricción y su alcance, los hechos (proactivo o por
-# reporte), si se usaron medios automatizados, la cláusula de las normas, y cómo apelar. No es asesoría
-# legal: el texto final lo aprueba legal.
+# la UE (art. 17) pide, entre otros: qué restricción y su alcance territorial, los hechos (proactivo o
+# por reporte), si se usaron medios automatizados, la base contractual (la cláusula de las normas) o la
+# legal si es contenido ilegal, y las vías de reclamo: el reclamo interno, la resolución extrajudicial
+# de litigios y los tribunales. La plantilla sigue esos elementos principales; no es asesoría legal: el
+# texto final (y qué se muestra en cada región) lo aprueba legal.
 statement_of_reasons:
   norms_name: "Normas comunitarias"
   appeal_url: "https://example.com/apelaciones"

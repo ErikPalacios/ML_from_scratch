@@ -10,6 +10,10 @@
 #   review_queue_oldest_age_seconds{tier,source} → review-router (gauge calculado con review/priority.py: queue_stats)
 #   appeals_decided_total{policy,outcome}           → appeals-service (outcome = upheld · overturned)
 #   enforcement_actions_total{policy,detection}     → enforcement-service (detection = proactive · user_report)
+#   moderation_unchecked_publish_total{service,reason}, publish_requests_total{service}
+#                                        → post-service y comment-service: lo que publicaron SIN respuesta del
+#                                          gateway (reason = timeout · error · unavailable) y el total publicado
+#   up{job="mod-gateway"}                → Prometheus (supone que el job de scrape del gateway se llama así)
 # Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
 
 groups:
@@ -21,11 +25,23 @@ groups:
       - record: mod:gateway_latency_p99:rate5m
         expr: |
           histogram_quantile(0.99, sum by (le) (rate(mod_gateway_request_duration_seconds_bucket[5m])))
-      # Fracción de requests decididos con fail-open (al menos un modelo de la etapa 1 faltó).
-      # Numerador = requests, no etapas: un request con texto E imagen caídos cuenta 1, no 2.
+      # Fracción de requests que se publican sin la etapa 1, vista desde el gateway: los que decidió con
+      # fail-open (al menos un modelo faltó) MÁS los que terminaron en 500 (post-service publica igual,
+      # sin etapa 1 y sin el chequeo S0 del gateway). Numerador = requests, no etapas: un request con
+      # texto E imagen caídos cuenta 1, no 2. `or vector(0)`: sin 500s, la suma no debe quedar vacía.
       - record: mod:fail_open_ratio:rate5m
         expr: |
-          sum(rate(mod_fail_open_requests_total[5m])) / sum(rate(mod_gateway_requests_total[5m]))
+          (
+            sum(rate(mod_fail_open_requests_total[5m]))
+              + (sum(rate(mod_gateway_requests_total{status="500"}[5m])) or vector(0))
+          ) / sum(rate(mod_gateway_requests_total[5m]))
+      # Lo mismo visto desde QUIEN LLAMA: si el gateway está caído o no se alcanza, sus métricas
+      # desaparecen y la fracción de arriba queda sin datos (no en 100 %). post-service y
+      # comment-service cuentan lo que publicaron sin respuesta del gateway.
+      - record: mod:unchecked_publish_ratio:rate5m
+        expr: |
+          sum by (service) (rate(moderation_unchecked_publish_total[5m]))
+            / sum by (service) (rate(publish_requests_total[5m]))
       # Cuántos SEGUNDOS va atrasado deep-scorer: lag en mensajes ÷ ritmo al que se producen.
       # Mide el atraso aunque deep-scorer no procese nada (consumer caído): un histograma de "tiempo
       # hasta el score" solo ve los ítems que SÍ terminaron (la trampa del caso c04).
@@ -48,6 +64,10 @@ groups:
     interval: 1h
     rules:
       # Tasa de apelaciones que se REVIERTEN, por política: 7 días y 28 días.
+      # TRAMPA: [28d] (y el `offset 7d` de AppealOverturnRateHigh) necesita retención ≥ 35 días de los
+      # counters crudos; la de Prometheus es de 15 días por defecto (--storage.tsdb.retention.time), y con
+      # menos datos increase() calcula en silencio sobre lo que haya: la "línea base de 28 días" sería de
+      # ≈ 15. Sube la retención o calcula estas reglas en un almacenamiento de largo plazo (Thanos, Mimir).
       - record: mod:appeal_overturn_ratio:rate7d
         expr: |
           sum by (policy) (increase(appeals_decided_total{outcome="overturned"}[7d]))
@@ -82,17 +102,25 @@ groups:
           description: "Cada post y comentario espera esto antes de publicarse. ¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(mod_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado (kubectl top pods -n c06); escala el Deployment."
           runbook_url: "https://runbooks.example.com/c06/mod-gateway-latency"
 
-      # Fail-open > 1 % durante 10 min. Cada ítem en fail-open se publica sin la etapa 1 y va a la etapa 2
-      # con prioridad alta: al pico (6,250 ítems/s) 1 % son ≈ 62 ítems/s EXTRA para deep-scorer, que
-      # tiene ≈ 280/s planeados. Sostenido, esta alerta termina en DeepScorerBacklog.
+      # Fail-open > 1 % durante 10 min, de cualquiera de los dos lados, o el gateway sin métricas (caído
+      # entero: "un job muerto también es una alerta", M12). Es la alerta del SLO de disponibilidad: lo
+      # que importa es cuántos posts salen sin la etapa 1, no por qué. Cada ítem en fail-open va a la
+      # etapa 2 con prioridad alta: al pico (6,250 ítems/s), 1 % son ≈ 62 ítems/s extra sobre ≈ 190/s,
+      # ≈ 250 de los ≈ 280/s planeados: cabe, apenas. Por encima de ≈ 1.5 % sostenido, o con Triton caído
+      # (≈ 6,250/s), la etapa 2 se atrasa y suena DeepScorerBacklog (estimaciones del caso).
       - alert: ModFailOpenRateHigh
-        expr: mod:fail_open_ratio:rate5m > 0.01
+        expr: |
+          mod:fail_open_ratio:rate5m > 0.01
+            or
+          mod:unchecked_publish_ratio:rate5m > 0.01
+            or
+          absent_over_time(mod_gateway_requests_total[5m])
         for: 10m
         labels:
           severity: page
         annotations:
           summary: "{{ $value | humanizePercentage }} de los ítems se publican con fail-open"
-          description: "Motivo por etapa: sum by (reason) (rate(mod_fail_open_total[5m])). timeout → Triton saturado (cola de dynamic batching, GPUs al máximo): escala stage-1. error → Triton caído o modelo no cargado. budget_exhausted → el gateway llega tarde a la etapa 1 (ver ModGatewayLatencyHigh)."
+          description: "Con label service: el gateway no contesta a ese servicio (pods caídos, red, timeout del caller). Sin labels y valor 1: no hay métricas del gateway. Si no: motivo por etapa, sum by (reason) (rate(mod_fail_open_total[5m])). timeout → Triton saturado (cola de dynamic batching, GPUs al máximo): escala stage-1. error → Triton caído o modelo no cargado. budget_exhausted → el gateway llega tarde a la etapa 1 (ver ModGatewayLatencyHigh). Y los 500: mod_engine_errors_total y los logs."
           runbook_url: "https://runbooks.example.com/c06/fail-open"
 
       # deep-scorer atrasado más de 4 min durante 10 min. SLO: p95 ≤ 5 min. Avisa con margen.
@@ -128,20 +156,30 @@ groups:
       # debe bloquear la re-subida en minutos → 30 min. Listas de la industria: llegan con otro ritmo
       # (supuesto: diario; ajústalo al real) → 26 h. Sin heartbeats del productor, "no hay novedades" y
       # "el stream está roto" se verían igual: por eso el watermark avanza también con heartbeats.
-      # absent(): un pod sin la serie de CSAM no cargó esa lista (y la garantía S0 depende de ella).
+      # Además, POR POD: un pod vivo (up == 1) sin la serie de una lista S0 no la cargó (la garantía S0
+      # depende de ella). absent() no sirve para esto: solo dispara si NINGÚN pod exporta la serie.
+      # Normalmente ese pod tampoco está ready (/readyz exige las listas S0), pero queda atascado.
       - alert: HashListStale
         expr: |
           (time() - min by (list) (mod_hash_list_watermark_timestamp_seconds{list="own_removed"}) > 1800)
             or
           (time() - min by (list) (mod_hash_list_watermark_timestamp_seconds{list=~"industry_.*"}) > 93600)
             or
-          absent(mod_hash_list_watermark_timestamp_seconds{list="industry_csam"})
+          label_replace(
+            (up{job="mod-gateway"} == 1)
+              unless on (instance) mod_hash_list_watermark_timestamp_seconds{list="industry_csam"},
+            "list", "industry_csam", "", "")
+            or
+          label_replace(
+            (up{job="mod-gateway"} == 1)
+              unless on (instance) mod_hash_list_watermark_timestamp_seconds{list="industry_terror"},
+            "list", "industry_terror", "", "")
         for: 10m
         labels:
           severity: page
         annotations:
           summary: "Lista de hashes {{ $labels.list }} desactualizada"
-          description: "Valor: segundos desde el último watermark aplicado (o 1 si la serie no existe). ¿El stream de novedades de hashes llega a los pods (logs hash_update_error)? ¿El productor de la lista sigue mandando heartbeats? ¿Cambió el acceso a la lista de la industria? Mientras tanto, la re-subida de contenido removido no se bloquea."
+          description: "Valor: segundos desde el último watermark aplicado (o 1 si un pod vivo no tiene la serie de una lista S0: mira su label instance). ¿El stream de novedades de hashes llega a los pods (logs hash_update_error)? ¿El productor de la lista sigue mandando heartbeats? ¿Cambió el acceso a la lista de la industria? Mientras tanto, la re-subida de contenido removido no se bloquea."
           runbook_url: "https://runbooks.example.com/c06/hash-list-stale"
 
   # ------------------------------------------------------------------ modelo

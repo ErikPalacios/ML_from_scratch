@@ -882,8 +882,10 @@ decisions.
   items ≈ 0.5 % (est.), spam is most of it.
 - Sync vs async: a **pre-publication check with p99 ≤ 150 ms** added to post/comment creation (hashes +
   rules + cheap models) and **async deep scoring with p95 ≤ 5 min**; user reports and virality re-trigger
-  scoring. If the sync check fails or times out: **fail open for S2–S3** (publish, score async), but keep
-  the hash check for S0 in-process/local so it never depends on a remote call (narrative explains).
+  scoring. If the sync check fails or times out: **fail open for S1–S3** (publish, score async; S1 also gets
+  local fallback rules that only reduce/send to review, plus high-priority deep scoring); the S0 *model*
+  signal also fails open (high-priority deep scoring). Only the **S0 hash check** fails closed: it runs
+  in-process/local so it never depends on a remote call (narrative explains).
 - Cascade (names used everywhere): `mod-gateway` (sync API called by post-service and comment-service) →
   stage 0 **`hash-match`** (perceptual hashes — PDQ for images, 256 bits, Hamming distance threshold;
   verify the recommended value — against known-bad lists and our own removed content; exact/near-dup text
@@ -898,12 +900,15 @@ decisions.
 - Capacity (est., measure): stage-1 text model ≈ 3,000 items/s per L4 (≤ 128 tokens, batched) → planned
   70 % = 2,100/s → 6,250 / 2,100 → 3 + 1 (N+1, multi-AZ) = **4 L4**; stage-1 image model ≈ 1,500 img/s
   per L4 → 625/s → 1 + 1 = **2 L4**; stage 2 ≈ 100 items/s per L4 (planned 70/s); 3 % of 180 M =
-  5.4 M/day ≈ 62.5/s average, ≈ 190/s at peak → async: size near average with a bounded backlog, not for
-  peak: **4 L4** (≈ 280/s planned) drains the peak; GPUs ≈ 10 × g6.xlarge ≈ US$0.80/h ≈ **US$5.9k/month**
+  5.4 M/day ≈ 62.5/s average, ≈ 190/s at peak → async: sized for the sustained daily peak (≈ 190/s)
+  without N+1 or burst headroom; bursts above it wait in Kafka (bounded backlog): **4 L4** (≈ 280/s
+  planned); GPUs ≈ 10 × g6.xlarge ≈ US$0.80/h ≈ **US$5.9k/month**
   on-demand (verify).
-- Human review (est.): **≈ 600 moderators** (vendor + in-house, 3 shifts), ≈ 60 items/h each over ≈ 6
+- Human review (est.): **≈ 600 moderator seats covered every day** (vendor + in-house, 3 shifts; the
+  vendor covers rest days, so real headcount is ≈ 1.4× larger), ≈ 60 items/h each over ≈ 6
   productive h → **≈ 216k reviews/day capacity** → routing thresholds must keep review arrivals
-  ≤ ≈ 200k/day (≈ 0.11 % of items); cost ≈ US$1,500/month per moderator (est., varies by country) ≈
+  ≤ ≈ 200k/day (≈ 0.11 % of items); cost ≈ US$1,500/month per seat (est., includes that coverage, varies
+  by country) ≈
   **US$900k/month** — humans dominate cost by ≈ 50–100× over infra. Moderator wellbeing (exposure
   limits, blurring/grayscale by default, rotation, counseling) is part of the design.
 - Metrics: **prevalence** (share of views on violating content, measured by a random sample of viewed

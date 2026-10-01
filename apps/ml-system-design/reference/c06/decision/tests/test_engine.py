@@ -51,7 +51,10 @@ def test_real_config_is_valid_and_has_7_policies(cfg):
         (lambda c: c["policies"]["hate_harassment"]["thresholds"]["post"].update(remove=0.5), "no puede tener umbral menor"),
         (lambda c: c["policies"]["spam_scams"]["thresholds"]["post"].update(delete=0.9), "acción desconocida"),
         (lambda c: c["policies"]["violence"]["thresholds"]["post"].update(review=1.5), r"fuera de \[0, 1\]"),
-        (lambda c: c["fail_open"]["S0"].update(allowed=True), "S0.allowed debe ser false"),
+        (lambda c: c["fail_open"]["S1"].update(deep_scoring_priority="urgente"), "high o normal"),
+        (lambda c: c["fail_open"]["S0"].update(allowed=True), "clave desconocida"),  # perilla que no existe
+        (lambda c: c["stage_policies"]["stage1_image"].remove("adult_nudity"), "ningún modelo"),
+        (lambda c: c["fallback_rules"][0].update(policy="adult_nudity"), "reglas son de TEXTO"),
         (lambda c: c["policies"]["self_harm"].update(deep_scoring_trigger=0.9), "deep_scoring_trigger"),
         (lambda c: c["hash_lists"]["own_removed"].update(max_distance=40), "max_distance"),
         (lambda c: c["regions"]["DE"]["hate_harassment"]["post"].update(remove=0.7), "no puede tener umbral menor"),
@@ -156,6 +159,22 @@ def test_csam_hash_blocks_and_escalates_even_without_models(cfg):
     assert d.hash_match == {"list": "industry_csam", "entry_id": "ncmec-1", "distance": 12}
 
 
+def test_s0_escalation_comes_from_severity_not_from_the_list(cfg):
+    """La re-subida de un CSAM que removimos NOSOTROS (own_removed) también va al equipo especializado."""
+    own = e.HashHit("own-9", "own_removed", "csam", 2)
+    d = decide(cfg, hash_hits=[own])
+    assert (d.action, d.policy, d.escalation, d.needs_review) == ("block_prepublish", "csam", "s0_specialist_team", False)
+    # Industria a distancia 30 + own_removed más cercano: gana own_removed, pero la escalación no se pierde
+    # y el flujo especializado ve las dos entradas (el reporte legal necesita la de la industria)
+    ind = e.HashHit("ncmec-1", "industry_csam", "csam", 30)
+    for path in ("sync", "async"):
+        d = decide(cfg, path=path, hash_hits=[ind, own])
+        assert d.escalation == "s0_specialist_team" and d.hash_match["list"] == "own_removed"
+        assert [h["entry_id"] for h in d.hash_matches] == ["own-9", "ncmec-1"]
+    # Un hash S2 de own_removed no escala
+    assert decide(cfg, hash_hits=[e.HashHit("own-1", "own_removed", "hate_harassment", 3)]).escalation is None
+
+
 def test_hash_after_publication_is_remove(cfg):
     hit = e.HashHit("t-9", "industry_terror", "violent_extremism", 0)
     assert decide(cfg, path="async", hash_hits=[hit]).action == "remove"
@@ -195,6 +214,19 @@ def test_fallback_rule_only_when_stage1_missing(cfg):
     assert d.action == "none"  # con el modelo funcionando, manda el modelo (contexto: un chiste, una cita)
 
 
+def test_fail_open_coverage_is_per_stage_not_per_policy(cfg):
+    """Vence el modelo de TEXTO; el de imagen puntuó violencia gráfica baja. La amenaza escrita no la
+    evaluó nadie: la regla de respaldo actúa y la prioridad sale de lo que cubría el texto (S1 → alta)."""
+    img = s1(image={"violence": 0.02, "adult_nudity": 0.01})
+    d = decide(cfg, stages=img, failed_stages={"stage1_text": "timeout"}, text="te voy a matar mañana")
+    assert (d.action, d.policy, d.source) == ("reduce", "violence", "fallback_rule")
+    assert d.review_policies == ["violence"] and d.deep_scoring_priority == "high"
+    # Vence solo la imagen: el texto sí se evaluó, así que la regex de texto NO actúa
+    d = decide(cfg, stages=s1(text={"violence": 0.05}), failed_stages={"stage1_image": "timeout"},
+               text="te voy a matar mañana")
+    assert d.action == "none" and d.fail_open and d.deep_scoring_priority == "high"  # quedó S1 de imagen sin ver
+
+
 def test_async_stage2_replaces_stage1(cfg):
     """La etapa 1 vio odio a 0.85 (reduce); la 2, multimodal, ve que no: 0.10 → se levanta la restricción."""
     st = s1(text={"hate_harassment": 0.85}) + [e.StageResult("stage2", "deep-3", {"hate_harassment": 0.10})]
@@ -211,14 +243,27 @@ def test_statement_of_reasons_has_dsa_elements(cfg):
         "se eliminó",  # qué restricción
         "ya no es visible",  # alcance
         "Discurso de odio y acoso", "cláusula 3.1", cfg["policy_definitions_version"],  # motivo contractual
-        "reporte de otra persona",  # hechos
+        "en todas las regiones",  # alcance territorial
+        "Lo analizamos después de un reporte de otra persona",  # hechos (sin decir "revisamos": no hubo persona)
         "medios automatizados",  # automatización
-        "apelación", "6 meses",  # cómo apelar
+        "revise esta decisión", "6 meses",  # reclamo interno
+        "resolución extrajudicial", "tribunales",  # las otras vías
         cfg["version"],
     ):
         assert piece in sor, piece
+    assert "Base legal" not in sor  # base contractual (las normas), no legal
     human = e.statement_of_reasons(cfg, d, detection="user_report", human_reviewed=True)
     assert "confirmó" in human and "medios automatizados" not in human
+
+
+def test_regional_override_scopes_the_decision_and_cites_the_legal_ground(cfg):
+    d = decide(cfg, path="async", stages=s1(text={"hate_harassment": 0.92}), region="DE")
+    assert (d.action, d.territorial_scope) == ("remove", "DE")
+    assert d.legal_ground and "solo en la región DE" in d.statement_of_reasons
+    assert "Base legal en DE" in d.statement_of_reasons
+    # A 0.97 se remueve igual sin el override: la base es contractual y el alcance, global
+    d = decide(cfg, path="async", stages=s1(text={"hate_harassment": 0.97}), region="DE")
+    assert (d.territorial_scope, d.legal_ground) == ("global", None)
 
 
 def test_decision_is_serializable(cfg):

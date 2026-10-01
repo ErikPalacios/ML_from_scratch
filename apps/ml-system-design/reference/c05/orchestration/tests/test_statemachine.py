@@ -99,6 +99,46 @@ def test_sat_caido_degrada_y_no_cicla():
     assert su["Result"] == "skip" and su["ResultPath"] == "$.opts.sat_mode" and su["Next"] == "Validate"
 
 
+# ------------------------------------------------------------------------- nada de PII en el estado
+# El historial de una ejecución Standard guarda la entrada y la salida de cada estado hasta 90 días
+# después de cerrar (y CloudWatch Logs, si se activa includeExecutionData). Por eso los mensajes solo
+# pueden leer estas rutas: llaves de S3, nombres, versiones y estados. Agregar una ruta nueva a esta
+# lista es una decisión consciente ("¿esto puede traer un valor de campo?"), no un accidente.
+ALLOWED_READS = {
+    "$.document_id", "$.application_id", "$.declared_type", "$.received_at", "$.pages",
+    "$.classify.doc_type", "$.text", "$.opts.sat_mode",
+    "$.extract.fields_key", "$.validation.results_key",
+    "$.route", "$.route.review_task_key", "$.review", "$.error",
+}
+
+
+def _reads(obj):
+    if isinstance(obj, dict):
+        for k, val in obj.items():
+            if k.endswith(".$") and isinstance(val, str) and not val.startswith("$$."):
+                yield k, val
+            else:
+                yield from _reads(val)
+    elif isinstance(obj, list):
+        for x in obj:
+            yield from _reads(x)
+
+
+@pytest.mark.parametrize("name", [n for n, s in STATES.items() if "MessageBody" in s.get("Parameters", {})])
+def test_ningun_mensaje_lleva_valores_de_campos(name):
+    reads = dict(_reads(STATES[name]["Parameters"]["MessageBody"]))
+    assert "fields.$" not in reads and "state.$" not in reads and "review_task.$" not in reads
+    assert "$" not in reads.values(), f"{name} manda el estado completo"
+    extra = set(reads.values()) - ALLOWED_READS
+    assert not extra, f"{name} lee rutas que pueden traer valores: {extra}"
+
+
+def test_captura_manual_manda_referencias_y_no_el_estado():
+    body = STATES[MANUAL]["Parameters"]["MessageBody"]
+    assert set(body) == {"document_id.$", "execution.$", "pages.$", "error.$"}
+    assert STATES["Init"]["Parameters"]["error"] is None  # existe en todos los caminos (también sin Catch)
+
+
 # ------------------------------------------------------------------- flujo de datos por camino
 def _paths_read(obj) -> set[str]:
     """Primer segmento de cada ruta '$.algo…' que un Parameters/MessageBody lee (no '$$.' del contexto)."""

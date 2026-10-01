@@ -86,7 +86,7 @@ def test_plan_thresholds_fits_capacity_and_equalizes_marginal_value():
         "violence": [rng.random() ** 3 for _ in range(300)],  # pocos y casi todos con score bajo
     }
     sev = {"spam_scams": "S3", "hate_harassment": "S2", "violence": "S1"}
-    reserved = {"user_reports": 60_000, "appeals": 10_000, "prevalence_sample": 10_000}
+    reserved = {"user_reports": 50_000, "appeals": 15_000, "prevalence_sample": 10_000, "qa_double_review": 5_000}
     plan = p.plan_review_thresholds(
         scores, sev, p.review_capacity_per_day(), sample_fraction=0.01, reserved_per_day=reserved
     )

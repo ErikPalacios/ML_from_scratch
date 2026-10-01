@@ -91,6 +91,14 @@ def test_monto_no_numerico(xml):
     assert e.value.code == "monto_invalido"
 
 
+@pytest.mark.parametrize("raw", ["NaN", "Infinity", "-Infinity", "1E+3", "sNaN"])
+def test_montos_que_decimal_acepta_pero_no_son_montos(xml, raw):
+    # Decimal("NaN") no falla: sin este chequeo pasaría el gate y reventaría en la cuadratura.
+    with pytest.raises(cfdi.CfdiError) as e:
+        cfdi.parse_cfdi(xml.replace(b'SubTotal="10000.00"', f'SubTotal="{raw}"'.encode()))
+    assert e.value.code == "monto_invalido"
+
+
 def test_impuestos_locales():
     data = FIXTURE.read_bytes().replace(
         b"</cfdi:Complemento>",
@@ -118,6 +126,16 @@ def test_qr_coincide_con_el_xml(xml):
 def test_qr_de_otra_factura(xml):
     qr = cfdi.parse_qr_url(QR.replace("tt=10901.25", "tt=99.00"))
     assert cfdi.qr_matches(cfdi.parse_cfdi(xml), qr) == ["total"]
+
+
+def test_qr_con_mas_literal_en_fe(xml):
+    """fe son los últimos 8 caracteres del Sello (base64, que usa '+'). parse_qs a secas lo volvería
+    espacio y la factura legítima saldría como "QR de otra factura"."""
+    sello_mas = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=srD+Gw=="
+    data = xml.replace(b'Sello="U0VMTE9fRklDVElDSU9fUEFSQV9URVNUU19TSU5URVRJQw=="', f'Sello="{sello_mas}"'.encode())
+    qr = cfdi.parse_qr_url(QR.replace("fe=RVRJQw==", "fe=srD+Gw=="))
+    assert qr.fe == "srD+Gw==" and cfdi.qr_matches(cfdi.parse_cfdi(data), qr) == []
+    assert cfdi.parse_qr_url(QR.replace("fe=RVRJQw==", "fe=srD%2BGw==")).fe == "srD+Gw=="  # ya codificado: igual
 
 
 def test_qr_rfc_con_ampersand_codificado():

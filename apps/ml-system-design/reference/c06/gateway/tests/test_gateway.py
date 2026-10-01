@@ -41,6 +41,7 @@ SNAPSHOT = [
      "list": "own_removed", "policy": "spam_scams"},
     {"kind": "domain", "value": "phish.example", "list": "own_removed", "policy": "spam_scams"},
     {"kind": "heartbeat", "list": "industry_csam", "ts": 1_790_000_000},
+    {"kind": "heartbeat", "list": "industry_terror", "ts": 1_790_000_000},
     {"kind": "heartbeat", "list": "own_removed", "ts": 1_790_000_500},
 ]
 
@@ -191,6 +192,9 @@ def test_missing_or_bad_pdq_is_rejected():
         assert c.post("/v1/moderate", json={"item_id": "x", "surface": "post",
                                             "images": [{"media_id": "m"}]}).status_code == 422
         assert post(c, images=[img("z" * 64)]).status_code == 422
+        # int(x, 16) los aceptaría y fallarían dentro del handler (500, que nadie cuenta como fail-open)
+        for bad in ("0x" + "a" * 62, "a_" + "b" * 62, "-" + "c" * 63):
+            assert post(c, images=[img(bad)]).status_code == 422, bad
         assert post(c, surface="story").status_code == 422  # fuera de alcance
 
 
@@ -206,9 +210,16 @@ def test_hash_updates_apply_live_and_move_watermark():
         c.portal.call(upd.q.put, {"kind": "remove", "id": "own-99", "list": "own_removed", "ts": 1_790_001_100})
         assert wait_for(lambda: metric("mod_hash_list_watermark_timestamp_seconds", list="own_removed") == 1_790_001_100)
         assert post(c, images=[img(fresh)]).json()["action"] == "none"  # apelación ganada: deja de coincidir
+        # Las bajas también llegan a texto y dominios (el id de un dominio es el dominio)
+        assert post(c, text="mira", urls=["https://phish.example/x"]).json()["action"] == "block_prepublish"
+        c.portal.call(upd.q.put, {"kind": "remove", "id": "phish.example", "list": "own_removed", "ts": 1_790_001_200})
+        c.portal.call(upd.q.put, {"kind": "remove", "id": "spam-1", "list": "own_removed", "ts": 1_790_001_300})
+        assert wait_for(lambda: metric("mod_hash_list_watermark_timestamp_seconds", list="own_removed") == 1_790_001_300)
+        assert post(c, text="mira", urls=["https://phish.example/x"]).json()["action"] == "none"
+        assert post(c, text="Gana US$500 al día desde casa").json()["action"] == "none"
         c.portal.call(upd.q.put, {"kind": "heartbeat", "list": "own_removed", "ts": 1_790_000_000})
         time.sleep(0.05)
-        assert metric("mod_hash_list_watermark_timestamp_seconds", list="own_removed") == 1_790_001_100  # no retrocede
+        assert metric("mod_hash_list_watermark_timestamp_seconds", list="own_removed") == 1_790_001_300  # no retrocede
 
 
 # ---------------------------------------------------------------------------- fail-open
@@ -247,6 +258,37 @@ def test_budget_already_spent_skips_models():
     assert d["fail_open_reasons"] == ["stage1_text:budget_exhausted"] and t.calls == 0  # ni siquiera se llamó
 
 
+def test_compaction_runs_off_the_event_loop(monkeypatch):
+    """Compactar 10 M hashes son ≈ 20 s: un request que llega mientras tanto no puede esperarlos."""
+    real = match.PdqIndex.build_compacted
+
+    def slow(job):
+        time.sleep(0.6)  # simula un índice grande; corre en un hilo aparte
+        return real(job)
+
+    monkeypatch.setattr(main.match.PdqIndex, "build_compacted", staticmethod(slow))
+    upd = FakeUpdates()
+    new = [match.hash_to_hex(RNG.integers(0, 256, size=32, dtype=np.uint8)) for _ in range(3)]
+    with client(updates=upd, hash_compact_delta=2) as c:  # compacta con 1 o 2 altas (jitter)
+        st = c.app.state.mod
+        for i in range(2):
+            c.portal.call(upd.q.put, {"kind": "pdq", "id": f"new-{i}", "value": new[i], "list": "own_removed",
+                                      "policy": "violence", "quality": 80})
+        assert wait_for(lambda: st.compaction is not None)
+        t0 = time.perf_counter()
+        d = post(c, images=[img(near(OWN_HASH, 2))]).json()
+        assert time.perf_counter() - t0 < 0.3 and d["action"] == "block_prepublish"  # sin esperar los 0.6 s
+        # Durante la compactación: una baja de algo viejo y una alta nueva
+        c.portal.call(upd.q.put, {"kind": "remove", "id": "own-7", "list": "own_removed"})
+        c.portal.call(upd.q.put, {"kind": "pdq", "id": "new-2", "value": new[2], "list": "own_removed",
+                                  "policy": "violence", "quality": 80})
+        assert st.compaction is not None  # todavía compactando
+        assert wait_for(lambda: st.compaction is None)
+        assert post(c, images=[img(OWN_HASH)]).json()["action"] == "none"  # la baja no revivió
+        for h in new:
+            assert post(c, images=[img(h)]).json()["action"] == "block_prepublish"
+
+
 def test_engine_bug_still_blocks_s0_hash(monkeypatch):
     def boom(*a, **k):
         raise KeyError("bug")
@@ -257,6 +299,23 @@ def test_engine_bug_still_blocks_s0_hash(monkeypatch):
         assert (d["action"], d["policy"]) == ("block_prepublish", "csam")
         d = post(c, text="hola").json()
         assert d["action"] == "none" and "engine:error" in d["fail_open_reasons"]
+
+
+def test_engine_bug_respects_list_semantics(monkeypatch):
+    """La decisión de emergencia no bloquea lo que el motor no habría bloqueado."""
+    benign = match.hash_to_hex(RNG.integers(0, 256, size=32, dtype=np.uint8))
+    entries = SNAPSHOT + [
+        {"kind": "pdq", "id": "ok-1", "value": benign, "list": "benign_exceptions", "policy": "violent_extremism"},
+        {"kind": "pdq", "id": "own-s0", "value": OWN_HASH.translate(str.maketrans("0123456789abcdef", "123456789abcdef0")),
+         "list": "own_removed", "policy": "violent_extremism"},
+    ]
+    monkeypatch.setattr(main.engine, "decide", lambda *a, **k: (_ for _ in ()).throw(KeyError("bug")))
+    own_s0 = entries[-1]["value"]
+    with client(entries=entries) as c:
+        assert post(c, images=[img(benign)]).json()["action"] == "none"  # excepción benigna: no bloquea
+        assert post(c, images=[img(near(own_s0, 25))]).json()["action"] == "none"  # > 16 para own_removed
+        d = post(c, images=[img(near(own_s0, 3))]).json()
+        assert (d["action"], d["policy"], d["escalation"]) == ("block_prepublish", "violent_extremism", "s0_specialist_team")
 
 
 # ---------------------------------------------------------------------------- kafka
@@ -286,11 +345,15 @@ def test_readiness_requires_hash_index():
         assert r.status_code == 503 and r.json()["ready"] is False
     with client() as c:
         assert c.get("/readyz").json() == {"ready": True, "config_version": "2026-10-01.1", "pdq_entries": 2}
+    # Hay hashes, pero falta una lista S0 (industry_terror): "alguna entrada" no alcanza
+    no_terror = [e for e in SNAPSHOT if e.get("list") != "industry_terror"]
+    with client(entries=no_terror) as c:
+        assert c.get("/readyz").status_code == 503
 
 
 def test_invalid_policy_config_prevents_startup(tmp_path):
     cfg = yaml.safe_load((C06 / "decision" / "policies.yaml").read_text(encoding="utf-8"))
-    cfg["fail_open"]["S0"]["allowed"] = True
+    cfg["policies"]["hate_harassment"]["thresholds"]["post"]["remove"] = 0.999  # remove > block_prepublish
     bad = tmp_path / "p.yaml"
     bad.write_text(yaml.safe_dump(cfg), encoding="utf-8")
     with pytest.raises(engine.ConfigError):

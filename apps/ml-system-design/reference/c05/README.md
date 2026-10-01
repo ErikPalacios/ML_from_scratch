@@ -19,7 +19,7 @@ c05/
 │   ├── requirements.txt              # lock completo (27 paquetes con transitivas)
 │   ├── requirements-dev.txt          # + pytest, httpx2, moto (S3, KMS, Step Functions en memoria), PyYAML
 │   ├── pytest.ini
-│   └── tests/                        # 35 tests: test_api.py (TestClient + fakes), test_adapters.py (boto3 + moto)
+│   └── tests/                        # 39 tests: test_api.py (TestClient + fakes), test_adapters.py (boto3 + moto)
 ├── pipeline/                         # lógica PURA de las etapas (la usan los pods doc-worker)
 │   ├── validators.py                 # CURP, RFC, CLABE (dígitos verificadores), montos, CFDI, fechas, nombres
 │   ├── cfdi.py                       # XML CFDI 4.0 → campos + UUID (defusedxml), QR del PDF
@@ -29,11 +29,11 @@ c05/
 │   ├── requirements.txt              # numpy, PyYAML, defusedxml, tzdata
 │   ├── requirements-dev.txt          # + pytest, python-stdnum (implementación independiente de CURP/RFC)
 │   ├── pytest.ini
-│   └── tests/                        # 120 tests + fixtures/cfdi40_sintetico.xml
+│   └── tests/                        # 153 tests + fixtures/cfdi40_sintetico.xml
 ├── orchestration/
 │   ├── statemachine.asl.json         # Step Functions Standard: Retry/Catch, waitForTaskToken, captura manual
 │   ├── pytest.ini
-│   └── tests/test_statemachine.py    # 40 tests de contrato: caminos, rutas $.x por camino, transiciones
+│   └── tests/test_statemachine.py    # 51 tests de contrato: caminos, rutas $.x por camino, nada de PII, transiciones
 └── monitoring/
     ├── alerts.yml                    # 8 alertas (+ 6 recording rules)
     ├── alerts_test.yml               # promtool: ventanas cortas (evaluación cada 1 min)
@@ -43,9 +43,10 @@ c05/
 ## Orden de lectura sugerido
 
 1. `pipeline/routing.py` — la promesa del sistema: STP ⇔ todos los campos requeridos superan su umbral
-   **y** todas las validaciones pasan; si no, el revisor ve solo lo dudoso.
+   **y** todas las validaciones requeridas corrieron y pasan (falla cerrada: una confianza NaN o una
+   validación que no llegó van a revisión); si no, el revisor ve solo lo dudoso.
 2. `pipeline/validators.py` — por qué una regla que falla marca y no rechaza, y qué errores NO ve un
-   dígito verificador (la posición 9 de la CURP).
+   dígito verificador (en la CURP: la posición 9, y 8↔3 en el año; ≈ 1 de cada 5 sustituciones).
 3. `pipeline/calibrate_thresholds.py` — de dónde salen los umbrales, y por qué certificar 99.9 % pide
    ≈ 3,838 aciertos seguidos.
 4. `orchestration/statemachine.asl.json` — qué pasa con el documento en cada falla.
@@ -60,7 +61,7 @@ c05/
 ```
 t = 0       POST /v1/documents  application_id, doc_type=ine, files=[frente.jpg, reverso.jpg]
 ≈ 0.1 s     magic bytes (JPEG) → sha256 por página → ¿(application_id, sha256) ya existe? → 200 mismo id
-            (≈ 50 ms por foto sintética de 12 MP en una laptop Apple M4, con el JPEG decodificado en modo draft;
+            (≈ 35–50 ms por foto sintética de 12 MP en una laptop Apple M4: JPEG en modo draft, PNG reducido en Pillow;
             en el pod y con fotos reales, mídelo con docs_upload_seconds: el SLO es p95 ≤ 3 s)
             quality gate por foto: Laplaciano a 1024 px, reflejo (≤ 2 %), DPI efectivos (≥ 200), bordes
             ¿falla? → 422 {"reasons": [{"code": "borrosa", "page": 1, "message": "La foto salió borrosa…"}]}
@@ -80,6 +81,13 @@ Step Functions (≈ 10 transiciones):
 y el camino es `ReadCfdiXml → Validate` (RFC emisor/receptor, cuadratura de montos, estatus en el SAT):
 **sin OCR y sin Extract**. Es el camino más barato y más exacto del sistema.
 
+El check `sat_estatus` (lo arma el worker de `validate` con la respuesta del servicio de consulta del SAT;
+el cliente SOAP no está en esta referencia) se mapea así: solo **"Vigente" sin cancelación en proceso**
+pasa; "Cancelado" o una cancelación "En proceso" → falla y va a revisión; **"No Encontrado"** → falla
+con el motivo "CFDI no encontrado en el SAT" y va a revisión. Como el sello digital no se verifica, esa
+consulta (UUID, RFCs y total) es también el chequeo de que el XML no fue editado: con un total cambiado,
+el SAT no lo encuentra. Verifica el comportamiento actual del servicio.
+
 ### Qué pasa con el documento en cada falla
 
 | Falla | Qué hace el sistema | Dónde termina |
@@ -87,20 +95,23 @@ y el camino es `ReadCfdiXml → Validate` (RFC emisor/receptor, cuadratura de mo
 | Foto ilegible | 422 inmediato con motivos; no se guarda nada | el cliente la vuelve a tomar |
 | Mismo archivo dos veces (doble clic, reintento del móvil) | 200 con el mismo `document_id` | una sola ejecución |
 | S3 falla al guardar | 503 + `Retry-After: 5`; el registro queda en `upload_failed` | el reintento reutiliza el id |
+| Pod que muere entre el registro y S3 (OOM, desalojo, deploy) | el cliente no recibió 202; el registro queda en `receiving`. Pasados 2 min se trata como `upload_failed`: el reintento guarda y arranca, el estatus dice `upload_failed`, el barrido lo cierra y, si el barrido no corre, el backlog lo ve | el reintento reutiliza el id |
 | `StartExecution` falla | 202 igual (ya está en S3 y en la base); `resume_unstarted` lo arranca | pipeline normal |
-| Error transitorio de una etapa | Retry con backoff y jitter (2, 4, 8, 16 s; máx. 60 s) | sigue |
+| Error transitorio de una etapa | Retry con backoff y jitter completo (esperas al azar de hasta 2, 4, 8, 16 s; tope 60 s) | sigue |
 | Throttling del OCR | `Ocr.Throttled`: hasta 6 reintentos con jitter | sigue |
 | Documento ilegible o input inválido | `Doc.Unreadable` / `Doc.InvalidInput`: **sin** reintentos | captura manual |
 | Pod que muere a mitad de una etapa | SQS reentrega el mensaje (mismo token) a otro pod | sigue |
 | Ningún pod toma la tarea en 1 h | `States.Timeout` → 1 reintento (token NUEVO) → Catch | captura manual |
-| SAT caído | 3 reintentos (30, 60, 120 s) → `SatUnverified` → revisión con "SAT no verificado" | revisión |
+| SAT responde "Cancelado", "En proceso" o "No Encontrado" | `sat_estatus` falla con ese motivo ("CFDI no encontrado en el SAT" en el último caso); no hay STP | revisión |
+| SAT caído | 3 reintentos (esperas de hasta 30, 60, 120 s: ≈ 1.75 min en promedio, 3.5 min máx.) → `SatUnverified` → revisión con "SAT no verificado" | revisión |
 | review-api pierde la tarea | sin heartbeat 2 h → Catch | captura manual |
 | Nadie revisa en 5 días | `States.Timeout` → Catch | captura manual |
 | Estado > 256 KiB | `States.DataLimitExceeded` (States.ALL **no** lo atrapa: está explícito) | captura manual |
 | El core no acepta el commit | 6 reintentos hasta 5 min entre intentos → Catch, con lo revisado adentro | captura manual |
 
-"Captura manual" = la cola `doc-manual-capture` recibe el estado completo (llaves de S3, lo extraído, lo
-revisado, el error) y la ejecución termina en `Fail` (`Doc.ManualCapture`), visible en `ExecutionsFailed`.
+"Captura manual" = la cola `doc-manual-capture` recibe referencias (`document_id`, las páginas en S3 y el
+error), no el estado completo; lo extraído está en `s3://…/derived/<document_id>/` y lo revisado en
+Postgres. La ejecución termina en `Fail` (`Doc.ManualCapture`), visible en `ExecutionsFailed`.
 
 ## Contrato de los workers (`doc-worker`, no incluido)
 
@@ -113,12 +124,20 @@ Cada etapa automática es un `sqs:sendMessage.waitForTaskToken` a la cola **`doc
 
 - El pod hace la etapa y responde `SendTaskSuccess(taskToken, output)`; el output va a `$.classify`,
   `$.text`, `$.extract`, `$.validation`, `$.route` o `$.commit`. Contratos que la máquina lee: classify →
-  `{doc_type, text_source}`; read_xml y extract → `{fields: {nombre: {value, confidence, source, page,
-  bbox}}}` (mismo esquema, `cfdi.to_fields`); validate → `{results: [...]}`; route → `RouteDecision.as_dict()`
-  (`decision` = `stp` | `review`).
+  `{doc_type, text_source}`; read_xml y extract escriben `{nombre: {value, confidence, source, page, bbox}}`
+  (mismo esquema, `cfdi.to_fields`) en `s3://…/derived/<document_id>/extract/vN.json` y devuelven
+  `{fields_key, model_version, field_names}`; validate escribe los resultados completos en S3 y devuelve
+  `{results_key, checks: [{check, ok}]}`; route escribe `RouteDecision.as_dict()` (con la tarea de
+  revisión) en S3 y devuelve `RouteDecision.state_summary(review_task_key)` (`decision` = `stp` | `review`);
+  review-api responde a HumanReview con `{review_id}` (las correcciones quedan en Postgres).
+- **Nada de PII en el estado.** El historial de una ejecución Standard guarda la entrada y la salida de
+  cada estado hasta 90 días después de cerrar, y lo lee cualquiera con `states:GetExecutionHistory` (y
+  CloudWatch Logs, si el logging incluye datos de ejecución). Por el estado viajan llaves, nombres de
+  campos, estados de validación y versiones; nunca CURP, RFC, CLABE, nombres ni montos. Un test de
+  `orchestration/` lista las únicas rutas que los mensajes pueden leer.
 - Errores: `SendTaskFailure(error=…)` con `Doc.Unreadable`, `Doc.InvalidInput` (permanentes),
   `Ocr.Throttled`, `Sat.Unavailable` o cualquier otro (transitorio).
-- Texto y OCR completos van a S3; por el estado solo viajan llaves (límite de 256 KiB por estado).
+- Texto, OCR y campos van a S3; por el estado solo viajan llaves (límite de 256 KiB por estado, y PII).
 - Borra el mensaje de SQS **después** de `SendTaskSuccess/Failure`. Si esa llamada responde que el token
   ya no es válido (la tarea venció y Step Functions mandó otra con un token nuevo), borra el mensaje y no
   hagas nada más: el trabajo lo hará el mensaje nuevo.
@@ -139,7 +158,7 @@ Cada etapa automática es un `sqs:sendMessage.waitForTaskToken` a la cola **`doc
 | `docs_ocr_word_confidence` (histograma, bucket en 0.9) | doc_type, source (`photo` · `scan` · `digital`) | doc-worker | OCRConfidenceShift |
 | `docs_sat_requests_total` | outcome (`ok` · `error` · `timeout`) | doc-worker | SATValidationDown |
 | `docs_review_open_tasks` (gauge) | sla (`on_time` · `at_risk` · `overdue`) | review-api | ReviewSLABreach |
-| `docs_audit_fields_total` | doc_type, field_class (`standard` · `critical`), result (`correct` · `wrong`) | herramienta de QA | AuditFieldAccuracyLow |
+| `docs_audit_fields_total` | doc_type, field_class (`standard` · `critical`), result (`correct` · `wrong`, **después** de adjudicar las discrepancias) | herramienta de QA | AuditFieldAccuracyLow |
 
 Las series de docs-api se crean en 0 al arrancar (un counter que nace en 1 es invisible para `increase()`).
 
@@ -161,13 +180,13 @@ Las series de docs-api se crean en 0 al arrancar (un counter que nace en 1 es in
 ```bash
 cd reference/c05/pipeline
 python3 -m venv .venv && . .venv/bin/activate        # Python 3.12 o 3.13
-pip install -r requirements-dev.txt && pytest          # 120 tests, ≈ 1–5 s
-cd ../orchestration && pytest                          # 40 tests (solo pytest; usa el mismo venv)
+pip install -r requirements-dev.txt && pytest          # 153 tests, ≈ 1–5 s
+cd ../orchestration && pytest                          # 51 tests (solo pytest; usa el mismo venv)
 deactivate
 
 cd ../api
 python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements-dev.txt && pytest          # 35 tests, ≈ 3–8 s (incluye boto3 contra moto)
+pip install -r requirements-dev.txt && pytest          # 39 tests, ≈ 3–8 s (incluye boto3 contra moto)
 
 cd ../monitoring                                        # promtool viene en el release de Prometheus
 promtool check rules alerts.yml
@@ -181,7 +200,9 @@ Umbrales a partir de tus etiquetas:
 
 ```bash
 python pipeline/calibrate_thresholds.py etiquetas.csv --config pipeline/routing.yaml -o umbrales.yaml
-# CSV: doc_id,doc_type,field,confidence,correct[,label_source]   (gold y audit; review se ignora)
+# CSV: doc_id,doc_type,field,confidence,correct,label_source
+#   label_source: shadow (sombra adjudicada), calib (doble captura aparte del gold set), audit, review, gold
+#   por defecto usa audit, shadow y calib; review se ignora; una fila gold hace fallar (el gold set es del gate)
 ```
 
 docs-api en local (adaptadores reales, repo en memoria; necesita credenciales y región de AWS):
@@ -206,14 +227,20 @@ Permisos de mínimo privilegio:
 - **docs-api** (IRSA): `s3:PutObject` en el bucket raw, `kms:GenerateDataKey` en su llave (SSE-KMS lo pide
   para escribir), `states:StartExecution` en la máquina. Sin `s3:GetObject`: la API no lee documentos.
 - **doc-worker**: `sqs:ReceiveMessage`/`DeleteMessage`/`ChangeMessageVisibility` en `doc-tasks`,
-  `states:SendTaskSuccess`/`SendTaskFailure`/`SendTaskHeartbeat`, `s3:GetObject` (raw) y `s3:PutObject`
-  (prefijo de texto/OCR), `kms:Decrypt` y `kms:GenerateDataKey`, `textract:DetectDocumentText`.
+  `states:SendTaskSuccess`/`SendTaskFailure`/`SendTaskHeartbeat`, `s3:GetObject` (raw y derived) y
+  `s3:PutObject` (prefijo derived: texto, OCR, campos, validaciones, tareas), `kms:Decrypt` y
+  `kms:GenerateDataKey`, `textract:DetectDocumentText`.
+- **Personas**: `states:GetExecutionHistory` solo para quien opera el pipeline. Aunque el estado no lleve
+  valores, el historial dice qué documento pasó por dónde.
 
 Privacidad (principios generales; legal decide los detalles): INE, CURP, domicilios y datos bancarios son
 datos personales (en México, la LFPDPPP publicada el 20 de marzo de 2025). Cifrado en reposo con KMS,
 mínimo privilegio, logs sin PII (nunca el nombre original del archivo: la gente sube
 `INE_Juana_Perez.jpg`), la API de estatus responde 404 a quien no es dueño del documento, las fotos
-rechazadas no se guardan, retención según la política del otorgante. El OCR administrado corre en la
+rechazadas no se guardan, retención según la política del otorgante. En Step Functions: nada de valores
+en el estado (ver el contrato de los workers), la máquina cifrada con una llave KMS propia (AWS documenta
+que así se cifran la definición y el historial, y que `GetExecutionHistory` pide entonces `kms:Decrypt`),
+y el logging a CloudWatch sin `includeExecutionData` (o con él, solo porque el estado ya no trae PII). El OCR administrado corre en la
 misma cuenta y región; AWS documenta que puede usar el contenido de Textract para mejorar el servicio
 salvo que la organización lo desactive con una política de opt-out de AWS Organizations: actívala.
 
@@ -223,16 +250,16 @@ Probado en macOS (Apple M4), sin cuenta de AWS, sin daemon de Docker y sin model
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Lógica del pipeline | pytest 9.1.1 en venvs limpios con `requirements-dev.txt`, Python **3.12.14** y **3.13.15** | 120 passed en ambos |
+| Lógica del pipeline | pytest 9.1.1 en venvs limpios con `requirements-dev.txt`, Python **3.12.14** y **3.13.15** | 153 passed en ambos |
 | CURP y RFC contra una implementación independiente | python-stdnum 2.2 en 2,000 cadenas al azar cada uno + ejemplos conocidos (BOXW310820HNERXN09, el RFC de pruebas del SAT EKU9003173C9, la CLABE de ejemplo de Wikipedia 032180000118359719) | coinciden |
 | CFDI 4.0 | XML sintético (namespaces `cfd/4` y `TimbreFiscalDigital`), XXE y billion laughs rechazados por defusedxml, sin timbre, 3.3, impuestos locales, QR | OK |
-| Quality gate | imágenes sintéticas: nítida, borrosa (desenfoque de caja), con mancha saturada, de baja resolución, cortada; la misma escena a dos resoluciones | OK; ≈ 50 ms por JPEG de 12 MP y ≈ 140 ms por PNG de 12 MP (mediana, laptop) |
-| docs-api | TestClient + fakes: 202, dedupe (incluida una carrera de 4 requests), 422 con motivos, PDF con contraseña, HEIC, límites, S3 caído, StartExecution caído + barrido, 404 entre clientes, logs sin PII, métricas | 35 passed (3.12 y 3.13) |
+| Quality gate | imágenes sintéticas: nítida, borrosa (desenfoque de caja), con mancha saturada, de baja resolución, cortada, INE sobre fondo blanco (falso "reflejo", límite documentado); la misma escena a dos resoluciones | OK; ≈ 35 ms por JPEG de 12 MP y ≈ 50 ms por PNG de 12 MP (mediana, laptop). PNG de 60 MP: ≈ 75 MB de pico de memoria (antes de reducir en Pillow, ≈ 1.6 GB) |
+| docs-api | TestClient + fakes: 202, dedupe (incluida una carrera de 4 requests), 422 con motivos, PDF con contraseña, HEIC, límites, S3 caído, pod que muere entre el registro y S3, StartExecution caído + barrido, 404 entre clientes, logs sin PII, métricas | 39 passed (3.12 y 3.13) |
 | Adaptadores de boto3 | `S3Store` contra moto 5.2.3 (SSE-KMS con llave de moto KMS) y `StepFunctionsStarter` contra moto Step Functions (mismo name + input → misma ejecución; otro input → ExecutionAlreadyExists, que el adaptador no relanza) | OK |
 | Wheels de la imagen | `pip download --only-binary=:all:` para cp312 manylinux x86_64 | los 27 paquetes tienen wheel |
 | `uvicorn main:build_default_app --factory` | arrancado en local con los archivos copiados como en la imagen | `/healthz`, `/readyz`, `/metrics` y un 415 responden |
 | Dockerfile | parseado con dockerfile-parse | OK (no se construyó: no hay daemon) |
-| Máquina de estados | JSON válido; asl-validator 4.0.0 (npm) → "valid" (y detecta un destino inexistente en un control negativo); 40 tests de contrato | OK; el test de rutas por camino detecta un `$.review` inexistente (probado quitándolo) |
+| Máquina de estados | JSON válido; asl-validator 4.0.0 (npm) → "valid" (y detecta un destino inexistente en un control negativo); 51 tests de contrato | OK; el test de rutas por camino detecta un `$.review` inexistente (probado quitándolo) y el de PII falla con la versión que pasaba `$.extract.fields` |
 | Contratos cruzados | el input que arma docs-api = el contrato de `Init`; los valores de `routing.decide` = las ramas de `IsStp`; cada `docs_*` de las alertas existe en docs-api o está listada como externa | OK |
 | Alertas | promtool de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt`): `check rules` (15 reglas), `test rules` en los dos archivos | SUCCESS (el largo, 3 veces seguidas); los tests fallan si se cambian los umbrales (probado con 10 mutaciones) |
 
@@ -249,8 +276,10 @@ Probado en macOS (Apple M4), sin cuenta de AWS, sin daemon de Docker y sin model
   repo en memoria.
 - **Los umbrales son ilustrativos**: los del gate (Laplaciano 100/60, reflejo 2 %, 200/150 DPI, bordes
   0.5), los de `routing.yaml` y los de las alertas. Las imágenes de los tests son sintéticas: el detector
-  de "cortado" es un baseline heurístico (una mesa texturizada da falsos positivos). Todo se calibra con el
-  gold set y con fotos reales.
+  de "cortado" es un baseline heurístico (una mesa texturizada da falsos positivos) y el reflejo se mide
+  en toda la foto (una INE sobre una hoja blanca da "reflejo"). Los del gate se calibran con fotos reales
+  que los revisores marcaron como ilegibles; los de `routing.yaml`, con el set de calibración (sombra,
+  doble captura, auditoría), nunca con el gold set, que solo mide.
 - **El algoritmo de la CURP** no se encontró en un documento oficial de RENAPO en texto citable: se
   verificó contra python-stdnum y ejemplos conocidos. El del RFC es el que el SAT entregó por solicitud de
   transparencia (citado por python-stdnum); python-stdnum lo desactiva por defecto porque reporta RFC en

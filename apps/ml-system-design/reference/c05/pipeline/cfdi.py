@@ -97,15 +97,25 @@ class Cfdi:
         return {k: (str(v) if isinstance(v, (Decimal, dt.datetime)) else v) for k, v in asdict(self).items()}
 
 
+# Montos como los escribe el Anexo 20 (dígitos, punto decimal opcional). Decimal() acepta además "NaN",
+# "Infinity" y "1E+3": un SubTotal="NaN" pasaría el parseo (y el gate de docs-api) y reventaría después
+# con InvalidOperation en la cuadratura, en vez de ir a revisión con un motivo claro.
+_DECIMAL_RE = re.compile(r"^-?\d+(\.\d+)?$")
+
+
 def _dec(value: str | None, name: str, required: bool = False) -> Decimal:
     if value is None or value == "":
         if required:
             raise CfdiError("campo_faltante", f"Falta el atributo {name}.")
         return Decimal("0")
+    text = value.strip()
     try:
-        return Decimal(value)
+        d = Decimal(text)
     except InvalidOperation as exc:
         raise CfdiError("monto_invalido", f"{name} no es un número: {value!r}.") from exc
+    if not d.is_finite() or not _DECIMAL_RE.match(text):
+        raise CfdiError("monto_invalido", f"{name} no es un monto decimal válido: {value!r}.")
+    return d
 
 
 def _dt(value: str | None, name: str) -> dt.datetime:
@@ -229,8 +239,11 @@ def parse_qr_url(url: str) -> QrData:
     parsed = urlparse(url.strip())
     if parsed.scheme != "https" or parsed.hostname != QR_HOST:
         raise CfdiError("qr_dominio", "El QR no apunta al verificador del SAT.")
-    # parse_qs convierte '+' en espacio; '&' dentro de un RFC (razones sociales con &) llega como %26.
-    q = {k.lower(): v[0] for k, v in parse_qs(parsed.query, keep_blank_values=True).items()}
+    # parse_qs convierte un '+' literal en espacio (convención de formularios). Pero `fe` son los últimos
+    # 8 caracteres del Sello en base64, y base64 usa '+': ≈ 9 % de los QR (1 − (63/64)^6) traen uno.
+    # Sin este reemplazo, esa factura legítima saldría "QR de otra factura" (señal de fraude) en revisión.
+    # '&' dentro de un RFC (razones sociales con &) llega como %26 y se decodifica bien.
+    q = {k.lower(): v[0] for k, v in parse_qs(parsed.query.replace("+", "%2B"), keep_blank_values=True).items()}
     missing = [k for k in ("id", "re", "rr", "tt") if not q.get(k)]
     if missing:
         raise CfdiError("qr_incompleto", f"Faltan parámetros en el QR: {', '.join(missing)}.")

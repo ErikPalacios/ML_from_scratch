@@ -72,8 +72,58 @@ tests:
           - exp_labels: {severity: page}
             exp_annotations:
               summary: "2% de los ítems se publican con fail-open"
-              description: "Motivo por etapa: sum by (reason) (rate(mod_fail_open_total[5m])). timeout → Triton saturado (cola de dynamic batching, GPUs al máximo): escala stage-1. error → Triton caído o modelo no cargado. budget_exhausted → el gateway llega tarde a la etapa 1 (ver ModGatewayLatencyHigh)."
+              description: "Con label service: el gateway no contesta a ese servicio (pods caídos, red, timeout del caller). Sin labels y valor 1: no hay métricas del gateway. Si no: motivo por etapa, sum by (reason) (rate(mod_fail_open_total[5m])). timeout → Triton saturado (cola de dynamic batching, GPUs al máximo): escala stage-1. error → Triton caído o modelo no cargado. budget_exhausted → el gateway llega tarde a la etapa 1 (ver ModGatewayLatencyHigh). Y los 500: mod_engine_errors_total y los logs."
               runbook_url: "https://runbooks.example.com/c06/fail-open"
+
+  # Sin fail-open decidido por el gateway, pero 2 % de los requests terminan en 500 (post-service publica
+  # igual): 20 de 1,020 por minuto ≈ 1.96 % > 1 % → cuenta como fail-open.
+  - interval: 1m
+    input_series:
+      - series: 'mod_gateway_requests_total{surface="post",status="200"}'
+        values: '0+1000x40'
+      - series: 'mod_gateway_requests_total{surface="post",status="500"}'
+        values: '0x10 20+20x29'
+      - series: 'mod_fail_open_requests_total{surface="post"}'
+        values: '0x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ModFailOpenRateHigh", alertstate="firing"}
+        eval_time: 20m
+        exp_samples: []
+      - expr: ALERTS{alertname="ModFailOpenRateHigh", alertstate="firing"}
+        eval_time: 24m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ModFailOpenRateHigh",alertstate="firing",severity="page"}'
+            value: 1
+
+  # El gateway desaparece en el minuto 10 (pods caídos): sus series se cortan y la fracción del gateway
+  # queda sin datos. post-service publica todo sin chequear desde ese minuto (100 %) → firing con su
+  # label en ≈ 21; absent_over_time ve 5 min sin muestras del gateway (≈ 15) → firing sin labels en ≈ 25.
+  # comment-service no publica nada sin chequear: no alerta.
+  - interval: 1m
+    input_series:
+      - series: 'mod_gateway_requests_total{surface="post",status="200"}'
+        values: '0+1000x10 _x30'
+      - series: 'mod_fail_open_requests_total{surface="post"}'
+        values: '0x10 _x30'
+      - series: 'publish_requests_total{service="post-service"}'
+        values: '0+1000x40'
+      - series: 'moderation_unchecked_publish_total{service="post-service",reason="unavailable"}'
+        values: '0x10 1000+1000x29'
+      - series: 'publish_requests_total{service="comment-service"}'
+        values: '0+500x40'
+      - series: 'moderation_unchecked_publish_total{service="comment-service",reason="unavailable"}'
+        values: '0x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ModFailOpenRateHigh", alertstate="firing"}
+        eval_time: 9m
+        exp_samples: []
+      - expr: ALERTS{alertname="ModFailOpenRateHigh", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ModFailOpenRateHigh",alertstate="firing",severity="page",service="post-service"}'
+            value: 1
+          - labels: 'ALERTS{alertname="ModFailOpenRateHigh",alertstate="firing",severity="page"}'
+            value: 1
 
   # ---------------------------------------------------------------- DeepScorerBacklog
   # mod-events recibe 2,000 eventos/s (120,000/min). Desde el minuto 10 el consumer se atrasa 60,000
@@ -148,13 +198,24 @@ tests:
   # En promtool, time() = segundos desde el inicio del test; el watermark "fresco" sigue al reloj.
   # El pod a deja de aplicar novedades de own_removed en el minuto 30 (watermark fijo en 1,800 s); el
   # pod b sigue al día. min by (list) ve al PEOR pod: 30 min de atraso en el minuto 60 → firing en el 71.
+  # Los dos pods tienen las listas S0 al día: solo alerta own_removed.
   - interval: 1m
     input_series:
-      - series: 'mod_hash_list_watermark_timestamp_seconds{list="own_removed",pod="a"}'
+      - series: 'up{job="mod-gateway",instance="a"}'
+        values: '1x90'
+      - series: 'up{job="mod-gateway",instance="b"}'
+        values: '1x90'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="own_removed",job="mod-gateway",instance="a"}'
         values: '0+60x30 1800x60'
-      - series: 'mod_hash_list_watermark_timestamp_seconds{list="own_removed",pod="b"}'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="own_removed",job="mod-gateway",instance="b"}'
         values: '0+60x90'
-      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_csam",pod="a"}'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_csam",job="mod-gateway",instance="a"}'
+        values: '0+60x90'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_csam",job="mod-gateway",instance="b"}'
+        values: '0+60x90'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_terror",job="mod-gateway",instance="a"}'
+        values: '0+60x90'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_terror",job="mod-gateway",instance="b"}'
         values: '0+60x90'
     alert_rule_test:
       - eval_time: 70m
@@ -166,13 +227,25 @@ tests:
           - exp_labels: {severity: page, list: own_removed}
             exp_annotations:
               summary: "Lista de hashes own_removed desactualizada"
-              description: "Valor: segundos desde el último watermark aplicado (o 1 si la serie no existe). ¿El stream de novedades de hashes llega a los pods (logs hash_update_error)? ¿El productor de la lista sigue mandando heartbeats? ¿Cambió el acceso a la lista de la industria? Mientras tanto, la re-subida de contenido removido no se bloquea."
+              description: "Valor: segundos desde el último watermark aplicado (o 1 si un pod vivo no tiene la serie de una lista S0: mira su label instance). ¿El stream de novedades de hashes llega a los pods (logs hash_update_error)? ¿El productor de la lista sigue mandando heartbeats? ¿Cambió el acceso a la lista de la industria? Mientras tanto, la re-subida de contenido removido no se bloquea."
               runbook_url: "https://runbooks.example.com/c06/hash-list-stale"
 
-  # Ningún pod tiene la serie de industry_csam → absent() → firing a los 10 min.
+  # El pod b está vivo pero no exporta la serie de industry_csam (no cargó esa lista); el pod a sí.
+  # absent() callaría: la serie existe (en a). La regla por pod lo ve → firing a los 10 min, con instance.
+  # El pod c está caído (up == 0): eso no es "lista sin cargar" (lo cubre la disponibilidad).
   - interval: 1m
     input_series:
-      - series: 'mod_hash_list_watermark_timestamp_seconds{list="own_removed",pod="a"}'
+      - series: 'up{job="mod-gateway",instance="a"}'
+        values: '1x30'
+      - series: 'up{job="mod-gateway",instance="b"}'
+        values: '1x30'
+      - series: 'up{job="mod-gateway",instance="c"}'
+        values: '0x30'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_csam",job="mod-gateway",instance="a"}'
+        values: '0+60x30'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_terror",job="mod-gateway",instance="a"}'
+        values: '0+60x30'
+      - series: 'mod_hash_list_watermark_timestamp_seconds{list="industry_terror",job="mod-gateway",instance="b"}'
         values: '0+60x30'
     promql_expr_test:
       - expr: ALERTS{alertname="HashListStale", alertstate="firing"}
@@ -181,7 +254,7 @@ tests:
       - expr: ALERTS{alertname="HashListStale", alertstate="firing"}
         eval_time: 11m
         exp_samples:
-          - labels: 'ALERTS{alertname="HashListStale",alertstate="firing",severity="page",list="industry_csam"}'
+          - labels: 'ALERTS{alertname="HashListStale",alertstate="firing",severity="page",list="industry_csam",instance="b",job="mod-gateway"}'
             value: 1
 
   # ---------------------------------------------------------------- PolicyScoreShift

@@ -448,7 +448,7 @@
         'Escaneos de baja calidad, PDFs variados y varios idiomas',
         'Costo por página y throughput',
       ],
-      freq: 'media', minutes: 110, difficulty: 'media',
+      freq: 'media', minutes: 117, difficulty: 'media',
       connects: ['m02', 'm07', 'm09', 'm12', 'm14'],
       tests: [
         'Descomponer en un pipeline de modelos con contratos claros entre etapas',
@@ -474,7 +474,7 @@
         'Adversarios: evasión, drift rápido y reentrenamiento frecuente',
         'Apelaciones, auditoría y sesgos',
       ],
-      freq: 'alta', minutes: 106, difficulty: 'alta',
+      freq: 'alta', minutes: 115, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'm15'],
       tests: [
         'Diseñar una cascada que balancee costo, latencia y recall',
@@ -932,7 +932,7 @@
       },
       {
         "topic": "Entrada y salida",
-        "a": "Mezcla: facturas CFDI 35 % (≈ 1.5 págs; ≈ 60 % llegan como XML; el PDF trae un QR con UUID, RFCs y total), INE 25 % (frente y reverso), comprobantes de domicilio 15 %, estados de cuenta 10 % (≈ 8 págs), solicitudes 15 % (3 págs; ≈ 30 % con campos a mano). La mitad de INE y comprobantes son fotos de celular; estados de cuenta y facturas suelen ser PDF digitales. Salida: los campos de cada tipo (RFC, CURP, CLABE, montos, fechas, nombres) en el core."
+        "a": "Mezcla: facturas CFDI 35 % (≈ 1.5 págs; ≈ 60 % llegan como XML; el PDF trae un QR con UUID, RFCs y total), INE 25 % (frente y reverso), comprobantes de domicilio 15 %, estados de cuenta 10 % (≈ 8 págs), solicitudes 15 % (3 págs; ≈ 30 % con campos a mano). La mitad de INE y comprobantes son fotos de celular; estados de cuenta y facturas suelen ser PDF digitales con capa de texto (≈ 20 % de los estados de cuenta llegan escaneados). Salida: los campos de cada tipo (RFC, CURP, CLABE, montos, fechas, nombres) en el core."
       },
       {
         "topic": "Escala",
@@ -958,7 +958,7 @@
     c06: [
       {
         "topic": "Usuarios y quién llama",
-        "a": "Una red social. <b>post-service</b> y <b>comment-service</b> llaman al chequeo de moderación antes de confirmar cada publicación. Un equipo de <b>≈ 600 moderadores</b> (proveedor externo + equipo propio, 3 turnos) revisa en una herramienta interna; un equipo especializado aparte maneja CSAM y terrorismo. Un servicio de <b>enforcement</b> que ya existe aplica sanciones a las cuentas (strikes, suspensiones) con nuestras decisiones. Los usuarios reportan contenido y pueden apelar; la apelación la revisa otra persona."
+        "a": "Una red social. <b>post-service</b> y <b>comment-service</b> llaman al chequeo de moderación antes de confirmar cada publicación. Un equipo de <b>≈ 600 moderadores</b> (proveedor externo + equipo propio, 3 turnos: ≈ 600 puestos cubiertos cada día) revisa en una herramienta interna; un equipo especializado aparte maneja CSAM y terrorismo. Un servicio de <b>enforcement</b> que ya existe aplica sanciones a las cuentas (strikes, suspensiones) con nuestras decisiones. Los usuarios reportan contenido y pueden apelar; la apelación la revisa otra persona."
       },
       {
         "topic": "Entrada y salida",
@@ -982,7 +982,7 @@
       },
       {
         "topic": "Restricciones",
-        "a": "Capacidad humana: ≈ 60 ítems/h por persona, ≈ 6 h productivas por turno → <b>≈ 216k revisiones/día</b>, a <b>≈ US$1,500/mes por persona</b> (varía por país). Usuarios en América Latina, EE. UU. y la UE: aplica la Digital Services Act (explicación de cada decisión, apelaciones, transparencia) y el reporte obligatorio de CSAM en EE. UU.; los detalles los decide legal. El bienestar de los moderadores es obligatorio y el CSAM nunca entra a datos de entrenamiento."
+        "a": "Capacidad humana: ≈ 600 puestos cubiertos cada día, ≈ 60 ítems/h por persona, ≈ 6 h productivas por turno → <b>≈ 216k revisiones/día</b>, a <b>≈ US$1,500/mes por puesto</b> (varía por país). Usuarios en América Latina, EE. UU. y la UE: aplica la Digital Services Act (explicación de cada decisión, apelaciones, transparencia) y el reporte obligatorio de CSAM en EE. UU.; los detalles los decide legal. El bienestar de los moderadores es obligatorio y el CSAM nunca entra a datos de entrenamiento."
       }
     ],
   };

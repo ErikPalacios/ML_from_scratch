@@ -162,14 +162,43 @@ def test_remove_takes_effect_immediately_and_survives_compact(index, rng):
     assert idx.query(m.hash_to_hex(data[11]))[0].entry_id == "e11"  # las demás siguen
 
 
-def test_auto_compact_when_delta_grows(rng):
+def test_add_never_compacts_but_reports_when_it_should(rng):
+    """add() es O(1): compactar es caro y lo decide quien llama (el gateway, fuera del event loop)."""
     idx = m.PdqIndex(delta_max=50)
     data = rng.integers(0, 256, size=(120, m.PDQ_BYTES), dtype=np.uint8)
     for i in range(120):
         idx.add(f"x{i}", m.hash_to_hex(data[i]), "industry_terror", "violent_extremism")
-    assert idx._indexed >= 100  # compactó al menos dos veces
+    assert idx._indexed == 0 and idx.delta_size() == 120 and idx.needs_compaction()
+    idx.compact()
+    assert idx.delta_size() == 0 and not idx.needs_compaction()
     for i in (0, 60, 119):
         assert idx.query(m.hash_to_hex(data[i]))[0].entry_id == f"x{i}"
+
+
+def test_compaction_in_three_steps_keeps_changes_made_meanwhile(index, rng):
+    """Lo que llega mientras otro hilo construye el índice nuevo no se pierde ni revive."""
+    idx, data = index
+    gone = idx.add("gone-soon", m.hash_to_hex(data[0] ^ 0xFF), "own_removed", "violence")
+    assert gone
+    job = idx.begin_compaction()
+    with pytest.raises(RuntimeError):
+        idx.begin_compaction()  # una a la vez
+    # mientras el paso 2 corre: una alta nueva, una baja de algo de la foto y una baja de algo nuevo
+    late = rng.integers(0, 256, size=m.PDQ_BYTES, dtype=np.uint8)
+    idx.add("late", m.hash_to_hex(late), "own_removed", "hate_harassment")
+    idx.remove("e20")
+    idx.remove("gone-soon")
+    idx.add("tmp", m.hash_to_hex(late ^ 0x0F), "own_removed", "spam_scams")
+    idx.remove("tmp")
+    built = m.PdqIndex.build_compacted(job)  # en el gateway, en otro hilo
+    assert idx.query(m.hash_to_hex(late))[0].entry_id == "late"  # el índice viejo sigue respondiendo
+    idx.finish_compaction(job, built)
+    assert idx.query(m.hash_to_hex(late))[0].entry_id == "late" and idx.delta_size() == 1
+    assert idx.query(m.hash_to_hex(data[20])) == []  # la baja durante la construcción se respetó
+    assert idx.query(m.hash_to_hex(data[0] ^ 0xFF)) == [] and "tmp" not in {h.entry_id for h in idx.query(m.hash_to_hex(late ^ 0x0F))}
+    assert idx.query(m.hash_to_hex(data[21]))[0].entry_id == "e21"
+    assert len(idx) == 5000 - 1 + 1  # 5,000 − e20 + late
+    assert idx.query(m.hash_to_hex(data[5])) == idx.query_linear(m.hash_to_hex(data[5]))
 
 
 def test_text_normalization_defeats_cheap_tricks():
@@ -191,6 +220,8 @@ def test_text_hash_set():
     s.add("t1", "Compra seguidores YA", "own_removed", "spam_scams")
     assert s.query("compra  SEGUIDORES ya").entry_id == "t1"
     assert s.query("otra cosa") is None
+    assert s.remove("t1") and not s.remove("t1")  # baja por id (apelación ganada)
+    assert s.query("compra seguidores ya") is None and len(s) == 0
 
 
 def test_domain_blocklist_suffix_not_substring():
@@ -201,3 +232,12 @@ def test_domain_blocklist_suffix_not_substring():
     assert b.query("bad.example/promo") is not None  # sin esquema
     assert b.query("https://notbad.example/") is None  # sufijo de string, no de dominio
     assert b.query("https://bad.example.evil.test/") is None
+
+
+def test_domain_blocklist_remove_by_id():
+    b = m.DomainBlocklist()
+    b.add("bad.example", "own_removed", "spam_scams")  # id por defecto: el dominio
+    b.add("scam.example", "own_removed", "spam_scams", entry_id="dom-7")
+    assert b.query("https://x.scam.example/").entry_id == "dom-7"
+    assert b.remove("bad.example") and b.remove("dom-7") and not b.remove("dom-7")
+    assert b.query("https://bad.example/") is None and b.query("https://scam.example/") is None

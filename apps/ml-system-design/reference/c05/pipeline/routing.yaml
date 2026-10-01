@@ -3,12 +3,22 @@
 #
 # thresholds: confianza CALIBRADA mínima por campo para aceptar sin revisión. Los valores de aquí son
 #   ILUSTRATIVOS: en producción los escribe calibrate_thresholds.py (Wilson ≥ 0.995, o ≥ 0.999 para
-#   los campos críticos) a partir del gold set + la auditoría aleatoria. null = este campo nunca se
+#   los campos críticos) a partir del set de calibración (sombra adjudicada, lotes de doble captura y
+#   auditoría), NUNCA del gold set: el gold set solo mide, en el gate. null = este campo nunca se
 #   auto-acepta (siempre lo ve una persona), por ejemplo porque no hay datos para certificarlo.
 # required: sin estos campos el documento no sirve; si falta uno o no pasa su umbral, va a revisión.
 #   Un campo opcional bajo su umbral NO bloquea el STP: se guarda como "no verificado".
+# required_checks: validaciones que DEBEN haber corrido (y pasado) para que haya STP. Si la etapa
+#   validate omite una (un bug del worker, un refactor), el documento va a revisión con "Falta la
+#   validación X": la regla falla cerrada, no "pasa porque nadie dijo que fallara".
+# model_version + thresholds_version, POR TIPO: los umbrales se calibran para un modelo concreto y se
+#   registran junto con él. Promover o revertir el extractor de estados de cuenta cambia solo este
+#   bloque (y su alias); la INE no se entera. Cada decisión guarda el thresholds_version de su tipo.
 # Los campos con source "xml" llegan con confianza 1.0 y pasan cualquier umbral, pero NO se saltan las
 # validaciones (RFC, totales, estatus en el SAT).
+#
+# version: revisión del ARCHIVO (cambia con cualquier edición, incluido el SLA). No es la versión de los
+# umbrales de ningún tipo: esa vive en doc_types.<tipo>.thresholds_version.
 version: "2026-09-28-illustrative"
 
 critical_fields: [curp, curp_representante, rfc, emisor_rfc, receptor_rfc, clabe, subtotal, total, saldo_final,
@@ -20,24 +30,40 @@ never_auto_sources: [ocr_handwriting]
 
 doc_types:
   factura:
+    model_version: factura-2026-09-14
+    thresholds_version: factura-umbrales-v4
     required: [uuid, emisor_rfc, receptor_rfc, fecha, subtotal, total]
+    # sat_estatus siempre llega: con el SAT caído, como fallida ("no verificado"), así que no hay STP.
+    required_checks: [cfdi_totales, "rfc:emisor_rfc", "rfc:receptor_rfc", sat_estatus]
     thresholds: {uuid: 0.99, emisor_rfc: 0.99, receptor_rfc: 0.99, fecha: 0.97, subtotal: 0.99, total: 0.99,
                  descuento: 0.97, iva: 0.98, retenciones: 0.98, emisor_nombre: 0.95, receptor_nombre: 0.95}
   ine:
+    model_version: ine-2026-09-14
+    thresholds_version: ine-umbrales-v3
     required: [nombre_completo, curp, fecha_nacimiento, vigencia]
+    required_checks: [curp, curp_fecha_nacimiento, vigencia]
     # domicilio: null → nunca se auto-acepta (ejemplo: aún no hay etiquetas para certificarlo). Como no
     # es requerido, no bloquea el STP: se guarda como "no verificado" y el core no lo usa como dato firme.
     thresholds: {nombre_completo: 0.97, curp: 0.995, fecha_nacimiento: 0.98, vigencia: 0.98, clave_elector: 0.97,
                  domicilio: null}
   comprobante_domicilio:
+    model_version: comprobante-2026-08-30
+    thresholds_version: comprobante-umbrales-v2
     required: [nombre_titular, domicilio, codigo_postal, fecha_emision]
+    required_checks: ["antiguedad:fecha_emision"]
     thresholds: {nombre_titular: 0.96, domicilio: 0.95, codigo_postal: 0.98, fecha_emision: 0.97}
   estado_cuenta:
+    model_version: edo-cta-2026-09-14
+    thresholds_version: edo-cta-umbrales-v7
     required: [titular, clabe, periodo_fin, saldo_final]
+    required_checks: [clabe]
     thresholds: {titular: 0.96, clabe: 0.995, banco: 0.95, periodo_inicio: 0.97, periodo_fin: 0.97,
                  saldo_final: 0.99}
   solicitud:
+    model_version: solicitud-2026-09-01
+    thresholds_version: solicitud-umbrales-v2
     required: [razon_social, rfc, curp_representante, monto_solicitado, plazo_meses]
+    required_checks: ["rfc:rfc", "curp:curp_representante"]
     thresholds: {razon_social: 0.96, rfc: 0.99, curp_representante: 0.995, monto_solicitado: 0.995,
                  plazo_meses: 0.97}
 

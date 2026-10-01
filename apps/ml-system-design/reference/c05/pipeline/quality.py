@@ -14,14 +14,18 @@ Medidas (todas baratas, ≈ milisegundos sobre una imagen reducida a 1024 px):
     las aplana. Se mide SIEMPRE a la misma escala (lado largo 1024 px): la varianza depende de la
     resolución, y comparar una foto de 12 MP con una de 2 MP sin normalizar no significa nada.
   - Reflejo (glare): fracción de pixeles saturados (≥ 250). Solo para la INE: en un papel blanco bien
-    expuesto el fondo también está saturado y esta medida no distingue reflejo de papel.
+    expuesto el fondo también está saturado y esta medida no distingue reflejo de papel. Y se mide en
+    TODA la foto: en este baseline sin detector de contorno, un fondo blanco alrededor de la INE (una
+    hoja, una mesa clara) también cuenta y da falsos rechazos por "reflejo". La versión seria lo mide
+    dentro del contorno detectado del documento.
   - Resolución: DPI efectivos = pixeles del lado largo ÷ pulgadas del lado largo del documento. Ancla
     documentada: Textract no detecta texto de menos de 15 px de alto (≈ letra de 8 pt a 150 DPI).
   - Documento cortado: densidad de bordes en la franja exterior de la foto. Si el texto llega al borde
     de la imagen, probablemente una orilla del documento quedó fuera.
 
-Los umbrales de PROFILES son ilustrativos: se calibran con el gold set (¿qué valor separa las fotos
-que el OCR leyó bien de las que no?) y se vigilan con QualityGateRejectSpike. Un umbral demasiado
+Los umbrales de PROFILES son ilustrativos: se calibran con fotos reales que los revisores marcaron
+como ilegibles (¿qué valor separa las fotos que el OCR leyó bien de las que no?) y se vigilan con
+QualityGateRejectSpike. Un umbral demasiado
 estricto rechaza clientes que tenían una foto suficiente; uno demasiado laxo manda basura a revisión.
 """
 
@@ -79,15 +83,21 @@ def to_gray(img: np.ndarray) -> np.ndarray:
 def _area_resize_axis(a: np.ndarray, n_out: int, axis: int) -> np.ndarray:
     """Promedio por área a lo largo de un eje, con bordes fraccionarios (la idea de INTER_AREA de OpenCV al
     reducciones): cada pixel de salida promedia exactamente su tramo de entrada. Sumas acumuladas →
-    O(n), sin bucles en Python."""
-    a = np.moveaxis(a, axis, 0).astype(np.float64)
+    O(n), sin bucles en Python.
+
+    float32 y no float64: con una foto grande, el float64 duplica la memoria de cada copia, y en
+    docs-api eso es lo que tumba un pod (el llamador además ya redujo en Pillow, en uint8, a ≤ 2× el
+    tamaño de análisis). La suma acumulada en float32 pierde algo de precisión: medido con una imagen
+    al azar de 6,000 × 10,000 (sin reducir antes), la diferencia contra float64 es ≤ 0.03 niveles de
+    gris y la varianza del Laplaciano cambia en la sexta cifra. Irrelevante para un umbral."""
+    a = np.moveaxis(a, axis, 0).astype(np.float32, copy=False)
     n_in = a.shape[0]
-    cs = np.concatenate([np.zeros((1,) + a.shape[1:]), np.cumsum(a, axis=0)], axis=0)
+    cs = np.concatenate([np.zeros((1,) + a.shape[1:], dtype=np.float32), np.cumsum(a, axis=0, dtype=np.float32)], axis=0)
     edges = np.linspace(0.0, n_in, n_out + 1)
     i = np.floor(edges).astype(int)
-    frac = (edges - i).reshape(-1, *([1] * (a.ndim - 1)))
+    frac = (edges - i).astype(np.float32).reshape(-1, *([1] * (a.ndim - 1)))
     cum = cs[i] + frac * a[np.minimum(i, n_in - 1)]  # suma acumulada en una posición fraccionaria
-    widths = np.diff(edges).reshape(-1, *([1] * (a.ndim - 1)))
+    widths = np.diff(edges).astype(np.float32).reshape(-1, *([1] * (a.ndim - 1)))
     return np.moveaxis((cum[1:] - cum[:-1]) / widths, 0, axis)
 
 
@@ -118,7 +128,12 @@ def laplacian_variance(gray: np.ndarray) -> float:
 
 def glare_fraction(gray: np.ndarray, level: int = SATURATED_LEVEL) -> float:
     """Fracción de pixeles saturados. En una INE (fondo de color, no blanco) un reflejo del flash o de
-    una lámpara aparece como una mancha casi blanca que tapa datos."""
+    una lámpara aparece como una mancha casi blanca que tapa datos.
+
+    Ojo: se mide en TODA la foto, fondo incluido. Una INE fotografiada sobre una hoja blanca o una mesa
+    clara da "reflejo" aunque la credencial esté perfecta (el test lo documenta), y el mensaje al
+    cliente ("aléjate de la luz") no le sirve. Baseline: la versión seria mide solo dentro del contorno
+    del documento, detectado con un modelo pequeño (el mismo que mejoraría el detector de "cortado")."""
     return float((gray >= level).mean())
 
 

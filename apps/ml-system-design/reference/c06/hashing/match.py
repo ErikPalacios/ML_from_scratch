@@ -34,11 +34,12 @@ Hashes reales NO son uniformes (fotos parecidas → bits parecidos), así que ha
 con tus listas (`python match.py --bench`).
 
 Medido con `--bench` (1 M hashes aleatorios, Mac Apple Silicon, un proceso): consulta MIH ≈ 0.5–2 ms,
-escaneo lineal ≈ 35 ms (no cabe con 10 imágenes en 120 ms); carga + compactación ≈ 3 s; pico de memoria
-del proceso ≈ 600 MB (incluye los datos de prueba). Memoria del índice por hash: 32 B del hash + 64 B
-de los 16 arreglos de filas + el id (string) y su entrada en el dict. Esta versión es para enseñar y
-para listas de hasta unos pocos millones; con decenas de millones usarías la implementación C++ de
-Meta (pdq/cpp/index) o un índice binario de faiss, y lo medirías igual.
+escaneo lineal ≈ 35 ms (no cabe con 10 imágenes en 120 ms); carga + compactación ≈ 3 s; compactación
+sola ≈ 2 s; pico de memoria del proceso ≈ 600 MB (incluye los datos de prueba). Memoria del índice por
+hash: 32 B del hash + 64 B de los 16 arreglos de filas + el id (string de Python) y su entrada en el
+dict, ≈ 120 B más (medido con ids de 13 caracteres). Esta versión es para enseñar y para listas de
+hasta unos pocos millones; con decenas de millones usarías la implementación C++ de Meta
+(pdq/cpp/index) o un índice binario de faiss, con ids enteros en un arreglo, y lo medirías igual.
 """
 
 from __future__ import annotations  # anotaciones como texto: sintaxis moderna sin costo en runtime
@@ -46,14 +47,16 @@ from __future__ import annotations  # anotaciones como texto: sintaxis moderna s
 import hashlib  # sha256 del texto normalizado
 import re  # colapsar espacios
 import unicodedata  # NFKC: unifica formas Unicode "equivalentes" (ｆｕｌｌｗｉｄｔｈ → fullwidth)
-from dataclasses import dataclass  # resultados inmutables y legibles
+from dataclasses import dataclass, field  # resultados inmutables y legibles
 from urllib.parse import urlsplit  # extraer el host de una URL sin regex frágiles
 
 import numpy as np  # XOR + popcount vectorizados: verificar miles de candidatos en microsegundos
 
 # ---------------------------------------------------------------------------- constantes PDQ
 PDQ_BITS = 256  # PDQ produce 256 bits (64 caracteres hex)
-PDQ_BYTES = PDQ_BITS // 8  # 32 bytes por hash: 10 M hashes ≈ 320 MB, más ≈ 640 MB del índice y los ids
+# 32 bytes por hash. Con 10 M hashes: ≈ 320 MB de hashes, ≈ 640 MB del CSR (16 slots × 4 B), más los ids
+# como str de Python con su dict (≈ 1–1.5 GB; en producción, ids enteros en un arreglo)
+PDQ_BYTES = PDQ_BITS // 8
 PDQ_MATCH_THRESHOLD = 31  # distancia ≤ 31 = match (recomendación del README de PDQ en ThreatExchange)
 PDQ_MIN_QUALITY = 50  # calidad ≤ 49 → descartar el hash (misma fuente): no se indexa ni se consulta
 SLOTS = 16  # 16 slots de 16 bits: el diseño de MIH256
@@ -116,6 +119,20 @@ def neighbors_within(value: int, radius: int, bits: int = SLOT_BITS) -> list[int
     return out
 
 
+@dataclass
+class CompactionJob:
+    """Foto de las filas al EMPEZAR una compactación (ver PdqIndex). La construcción corre en otro hilo."""
+
+    n: int  # filas [0, n) entran a la reconstrucción; las que lleguen después quedan en el delta
+    alive: np.ndarray  # COPIA de los tombstones a ese momento (los remove() posteriores van a `removed`)
+    rows: np.ndarray  # referencias a los arreglos de ese momento: add() solo escribe filas >= n, y si
+    lists: np.ndarray  # tiene que crecer crea arreglos NUEVOS, así que [0, n) no cambia bajo el hilo
+    policies: np.ndarray
+    ids: list[str]
+    headroom: int  # capacidad libre que se reserva para el delta siguiente (crecer = copiar todo)
+    removed: list[str] = field(default_factory=list)  # entry_ids quitados mientras se construía
+
+
 @dataclass(frozen=True)
 class HashMatch:
     """Un hit: qué entrada de qué lista, a qué distancia."""
@@ -131,21 +148,36 @@ class PdqIndex:
 
     Por qué esta forma: las listas cambian todo el día (contenido que acabamos de remover, entradas
     retiradas por apelación) y no queremos reconstruir 10 M filas por cada cambio. Entonces:
-    - add() agrega la fila al DELTA (filas nuevas aún sin indexar), que se escanea linealmente;
+    - add() agrega la fila al DELTA (filas nuevas aún sin indexar), que se escanea linealmente. add()
+      NUNCA compacta: es O(1) y se puede llamar desde el event loop del gateway;
     - remove() marca la fila como muerta (tombstone): deja de coincidir al instante;
-    - compact() reconstruye el índice estático con todo lo vivo (lo llama add() cuando el delta pasa
-      de `delta_max`, o un job periódico). Es la idea de un LSM: escribir barato, ordenar en lote.
+    - la compactación reconstruye el índice estático con todo lo vivo. Es la idea de un LSM: escribir
+      barato, ordenar en lote.
+    La compactación cuesta ≈ 2 s por millón de hashes (medido): en el event loop del gateway serían
+    segundos sin atender NINGÚN request. Por eso tiene tres pasos, y solo el del medio es caro:
+      1. begin_compaction()       (en el loop, ≈ ms) foto de las filas y copia de los tombstones
+      2. build_compacted(job)     (en OTRO hilo: asyncio.to_thread) arma los arreglos nuevos
+      3. finish_compaction(...)   (en el loop, O(lo que llegó mientras tanto)) aplica las bajas y las
+                                  altas que llegaron durante el paso 2 y cambia los arreglos de una vez
+    Medido con 1 M hashes: pasos 1 + 3 ≈ 5 ms en el loop, casi todo liberar el dict y la lista de ids
+    viejos (con 10 M, ≈ 50 ms: otra razón para usar ids enteros en un arreglo, que se liberan de una vez).
+    `compact()` hace los tres seguidos (carga inicial, tests). Ojo: el hilo comparte el GIL; numpy lo
+    suelta en las operaciones grandes, pero la parte en Python (la lista y el dict de ids) lo alterna con
+    el loop. Con decenas de millones, el índice va en C++ o en un proceso aparte.
     Memoria del índice estático: por slot, un arreglo int32 de filas ordenadas por valor (4 B × N) y
     un arreglo de offsets de 65,537 posiciones. 16 slots → 64 B por hash, más 32 B del hash y el id.
+    Durante la compactación conviven los arreglos viejos y los nuevos: el pico es ≈ 2× el índice.
     """
 
-    def __init__(self, threshold: int = PDQ_MATCH_THRESHOLD, delta_max: int = 20_000):
+    def __init__(self, threshold: int = PDQ_MATCH_THRESHOLD, delta_max: int = 5_000):
         if not 0 <= threshold < PDQ_BITS:
             raise ValueError("umbral fuera de rango")
         self.threshold = threshold
         # Radio por slot: pigeonhole (ver docstring del módulo). Con 31 → 1; con 15 → 0.
         self.slot_radius = threshold // SLOTS
-        # 20k filas en el delta ≈ 0.6 MB: escanearlas cuesta < 1 ms (est.; mídelo con --bench)
+        # Tamaño del delta a partir del cual conviene compactar (needs_compaction). El delta se escanea
+        # COMPLETO en cada consulta: medido, 5k filas ≈ 0.7 ms y 20k ≈ 2 ms por imagen (una Mac M-series).
+        # También es la capacidad libre que deja cada compactación, para no crecer (copiar) en caliente.
         self.delta_max = delta_max
         self._rows = np.zeros((0, PDQ_BYTES), dtype=np.uint8)  # un hash por fila (viva o muerta)
         self._alive = np.zeros(0, dtype=bool)  # tombstones: False = quitada
@@ -162,9 +194,17 @@ class PdqIndex:
         self._offsets = np.zeros((SLOTS, (1 << SLOT_BITS) + 1), dtype=np.int64)  # [slot, v]..[slot, v+1] = rango con valor v
         # Máscaras XOR para "el valor y sus vecinos a ≤ slot_radius bits" (1 + 16 = 17 con radio 1)
         self._flips = np.array(neighbors_within(0, self.slot_radius), dtype=np.int64)
+        self._job: CompactionJob | None = None  # compactación en curso (como mucho una)
 
     def __len__(self) -> int:
         return len(self._row_of)  # entradas vivas
+
+    def delta_size(self) -> int:
+        """Filas que todavía no están en el índice estático (se escanean en cada consulta)."""
+        return self._n - self._indexed
+
+    def needs_compaction(self) -> bool:
+        return self._job is None and self.delta_size() >= self.delta_max
 
     def _intern(self, name: str) -> int:
         if name not in self._code:
@@ -192,27 +232,23 @@ class PdqIndex:
             return False  # un hash de baja calidad "coincide" con demasiadas imágenes planas
         if entry_id in self._row_of:
             return False  # idempotente: la misma actualización puede llegar dos veces (at-least-once)
-        h = hex_to_hash(hash_hex)
+        self._append(hex_to_hash(hash_hex), self._intern(list_name), self._intern(policy), entry_id)
+        return True  # sin compactar aquí: eso lo decide quien llama (needs_compaction)
+
+    def _append(self, h: np.ndarray, list_code: int, policy_code: int, entry_id: str) -> None:
         self._grow(self._n + 1)
         row = self._n
         self._rows[row] = h
         self._alive[row] = True
-        self._list[row] = self._intern(list_name)
-        self._policy[row] = self._intern(policy)
+        self._list[row] = list_code
+        self._policy[row] = policy_code
         self._ids.append(entry_id)
         self._row_of[entry_id] = row
         self._n += 1
-        if self._n - self._indexed > self.delta_max:
-            self.compact()  # el delta creció: ordenar en lote
-        return True
 
     def add_many(self, entries) -> int:
         """Carga masiva (snapshot al arrancar): agrega todo y compacta UNA vez. Devuelve cuántas entraron."""
-        saved, self.delta_max = self.delta_max, 1 << 62  # sin compactar en el medio
-        try:
-            added = sum(self.add(*e) for e in entries)
-        finally:
-            self.delta_max = saved
+        added = sum(self.add(*e) for e in entries)
         self.compact()
         return added
 
@@ -221,27 +257,79 @@ class PdqIndex:
         row = self._row_of.pop(entry_id, None)
         if row is None:
             return False
-        self._alive[row] = False  # deja de coincidir ya; el espacio se recupera en compact()
+        self._alive[row] = False  # deja de coincidir ya; el espacio se recupera al compactar
+        if self._job is not None:
+            self._job.removed.append(entry_id)  # la compactación en curso la vio viva: se aplica al terminar
         return True
 
+    # ------------------------------------------------------------------ compactación en tres pasos
     def compact(self) -> None:
-        """Reconstruye el índice estático con las filas vivas (descarta las muertas). ≈ 1 s por millón (medido, ver README)."""
-        live = np.nonzero(self._alive[: self._n])[0]
-        self._rows = self._rows[live].copy()
-        self._alive = np.ones(len(live), dtype=bool)
-        self._list = self._list[live].copy()
-        self._policy = self._policy[live].copy()
-        self._ids = [self._ids[r] for r in live.tolist()]
-        self._row_of = {eid: i for i, eid in enumerate(self._ids)}
-        self._n = self._indexed = len(live)
+        """Los tres pasos seguidos, en el hilo actual (≈ 2 s por millón, medido). Carga inicial y tests."""
+        job = self.begin_compaction()
+        self.finish_compaction(job, self.build_compacted(job))
+
+    def begin_compaction(self) -> CompactionJob:
+        """Paso 1 (barato): foto de las filas [0, n) y copia de los tombstones."""
+        if self._job is not None:
+            raise RuntimeError("ya hay una compactación en curso")
+        n = self._n
+        self._job = CompactionJob(
+            n=n, alive=self._alive[:n].copy(), rows=self._rows, lists=self._list,
+            policies=self._policy, ids=self._ids, headroom=max(1024, 2 * self.delta_max),
+        )
+        return self._job
+
+    @staticmethod
+    def build_compacted(job: CompactionJob) -> dict:
+        """Paso 2 (caro, sin tocar el índice vivo): arreglos nuevos con las filas vivas de la foto."""
+        live = np.nonzero(job.alive)[0]
+        k = len(live)
+        cap = k + job.headroom  # capacidad libre: las altas siguientes no obligan a copiar todo
+        rows = np.zeros((cap, PDQ_BYTES), dtype=np.uint8)
+        rows[:k] = job.rows[live]
+        alive = np.zeros(cap, dtype=bool)
+        alive[:k] = True
+        lists = np.zeros(cap, dtype=np.uint8)
+        lists[:k] = job.lists[live]
+        policies = np.zeros(cap, dtype=np.uint8)
+        policies[:k] = job.policies[live]
+        ids = [job.ids[r] for r in live.tolist()]
         # Valores de los 16 slots de todas las filas a la vez: ver los 32 bytes como 16 uint16 big-endian
-        slots = self._rows[: self._n].view(">u2").reshape(self._n, SLOTS).astype(np.int64)
-        self._sorted_rows = np.empty((SLOTS, self._n), dtype=np.int32)
-        self._offsets = np.zeros((SLOTS, (1 << SLOT_BITS) + 1), dtype=np.int64)
+        slots = rows[:k].view(">u2").reshape(k, SLOTS).astype(np.int64)
+        sorted_rows = np.empty((SLOTS, k), dtype=np.int32)
+        offsets = np.zeros((SLOTS, (1 << SLOT_BITS) + 1), dtype=np.int64)
         for i in range(SLOTS):
-            self._sorted_rows[i] = np.argsort(slots[:, i], kind="stable")
+            sorted_rows[i] = np.argsort(slots[:, i], kind="stable")
             counts = np.bincount(slots[:, i], minlength=1 << SLOT_BITS)
-            np.cumsum(counts, out=self._offsets[i, 1:])  # CSR: filas con valor v = sorted[offsets[v]:offsets[v+1]]
+            np.cumsum(counts, out=offsets[i, 1:])  # CSR: filas con valor v = sorted[offsets[v]:offsets[v+1]]
+        return {"n": k, "rows": rows, "alive": alive, "lists": lists, "policies": policies, "ids": ids,
+                "row_of": {eid: i for i, eid in enumerate(ids)}, "sorted_rows": sorted_rows, "offsets": offsets}
+
+    def finish_compaction(self, job: CompactionJob, built: dict) -> None:
+        """Paso 3 (barato): cambia los arreglos y re-aplica lo que llegó durante el paso 2."""
+        if self._job is not job:
+            raise RuntimeError("esta compactación no es la que está en curso")
+        # 1) bajas durante la construcción: la foto las vio vivas → tombstone en los arreglos nuevos
+        for eid in job.removed:
+            r = built["row_of"].pop(eid, None)
+            if r is not None:
+                built["alive"][r] = False
+        # 2) altas durante la construcción: filas [job.n, n) de los arreglos viejos → delta de los nuevos
+        old = (self._rows, self._alive, self._list, self._policy, self._ids, self._n)
+        self._rows, self._alive = built["rows"], built["alive"]
+        self._list, self._policy = built["lists"], built["policies"]
+        self._ids, self._row_of = built["ids"], built["row_of"]
+        self._n = self._indexed = built["n"]
+        self._sorted_rows, self._offsets = built["sorted_rows"], built["offsets"]
+        o_rows, o_alive, o_list, o_policy, o_ids, o_n = old
+        for r in range(job.n, o_n):
+            if o_alive[r]:
+                self._append(o_rows[r], int(o_list[r]), int(o_policy[r]), o_ids[r])
+        self._job = None
+
+    def abort_compaction(self) -> None:
+        """Si el paso 2 falló: se descarta la foto y el índice actual sigue sirviendo tal cual."""
+        self._job = None
 
     def candidates(self, h: np.ndarray) -> np.ndarray:
         """Filas vivas que comparten al menos un slot a distancia ≤ slot_radius, más todo el delta.
@@ -332,16 +420,27 @@ class TextHashSet:
 
     def __init__(self) -> None:
         self._by_hash: dict[str, tuple[str, str, str]] = {}  # hash → (entry_id, list_name, policy)
+        self._hash_of: dict[str, str] = {}  # entry_id → hash: para poder quitar una entrada por su id
 
     def __len__(self) -> int:
         return len(self._by_hash)
 
     def add(self, entry_id: str, text: str, list_name: str, policy: str) -> None:
-        self._by_hash[text_hash(text)] = (entry_id, list_name, policy)
+        self.add_hash(entry_id, text_hash(text), list_name, policy)
 
     def add_hash(self, entry_id: str, sha256_hex: str, list_name: str, policy: str) -> None:
         """Cuando la lista ya viene hasheada (no guardamos el texto original de un spam en el gateway)."""
-        self._by_hash[sha256_hex.lower()] = (entry_id, list_name, policy)
+        h = sha256_hex.lower()
+        self._by_hash[h] = (entry_id, list_name, policy)
+        self._hash_of[entry_id] = h
+
+    def remove(self, entry_id: str) -> bool:
+        """Quita una entrada (apelación ganada, entrada errónea). False si el id no existe."""
+        h = self._hash_of.pop(entry_id, None)
+        if h is None or self._by_hash.get(h, ("",))[0] != entry_id:
+            return False
+        del self._by_hash[h]
+        return True
 
     def query(self, text: str) -> HashMatch | None:
         hit = self._by_hash.get(text_hash(text))
@@ -353,13 +452,25 @@ class DomainBlocklist:
     """Dominios bloqueados. 'bad.example' bloquea también 'x.bad.example', pero NO 'notbad.example'."""
 
     def __init__(self) -> None:
-        self._domains: dict[str, tuple[str, str]] = {}  # dominio → (list_name, policy)
+        self._domains: dict[str, tuple[str, str, str]] = {}  # dominio → (entry_id, list_name, policy)
+        self._domain_of: dict[str, str] = {}  # entry_id → dominio
 
     def __len__(self) -> int:
         return len(self._domains)
 
-    def add(self, domain: str, list_name: str, policy: str) -> None:
-        self._domains[domain.lower().strip(".")] = (list_name, policy)
+    def add(self, domain: str, list_name: str, policy: str, entry_id: str | None = None) -> None:
+        """`entry_id` por defecto es el propio dominio (así una baja puede nombrarlo directamente)."""
+        d = domain.lower().strip(".")
+        eid = entry_id or d
+        self._domains[d] = (eid, list_name, policy)
+        self._domain_of[eid] = d
+
+    def remove(self, entry_id: str) -> bool:
+        d = self._domain_of.pop(entry_id, None)
+        if d is None or self._domains.get(d, ("",))[0] != entry_id:
+            return False
+        del self._domains[d]
+        return True
 
     def query(self, url: str) -> HashMatch | None:
         """Recorre el host de más específico a menos: a.b.bad.example → b.bad.example → bad.example → example."""
@@ -368,8 +479,8 @@ class DomainBlocklist:
         for i in range(len(parts)):
             cand = ".".join(parts[i:])
             if cand in self._domains:
-                list_name, policy = self._domains[cand]
-                return HashMatch(cand, list_name, policy, 0)
+                entry_id, list_name, policy = self._domains[cand]
+                return HashMatch(entry_id, list_name, policy, 0)
         return None
 
 
@@ -389,7 +500,14 @@ if __name__ == "__main__":  # python match.py --bench [N]: compara MIH contra el
     print(f"carga + compact: {n:,} hashes en {time.perf_counter() - t:.1f} s")
     t = time.perf_counter()
     idx.compact()
-    print(f"compact solo: {time.perf_counter() - t:.2f} s")
+    print(f"compact solo: {time.perf_counter() - t:.2f} s (en el gateway corre en otro hilo)")
+    t = time.perf_counter()
+    job = idx.begin_compaction()
+    t_begin = time.perf_counter() - t
+    built = PdqIndex.build_compacted(job)
+    t = time.perf_counter()
+    idx.finish_compaction(job, built)
+    print(f"pasos 1 y 3 (los que corren en el event loop): {(t_begin + time.perf_counter() - t) * 1000:.1f} ms")
     q = data[123].copy()
     q[0] ^= 0b1111  # 4 bits distintos
     q[5] ^= 0xFF  # 8 más → distancia 12

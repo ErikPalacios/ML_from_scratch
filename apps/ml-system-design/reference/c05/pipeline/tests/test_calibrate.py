@@ -37,7 +37,7 @@ def test_la_aproximacion_normal_engania_con_cero_errores():
 
 
 # --------------------------------------------------------------------------------- elegir umbral
-def rows(spec, doc_type="ine", field="curp", source="gold"):
+def rows(spec, doc_type="ine", field="curp", source="shadow"):
     """spec = [(confianza, n_correctos, n_incorrectos), …] → filas con doc_id únicos."""
     out, i = [], 0
     for conf, ok, bad in spec:
@@ -83,6 +83,27 @@ def test_cobertura():
     assert r.coverage == pytest.approx(0.9) and r.accuracy == 1.0
 
 
+AUDIT = [cal.Row(f"a{i}", "ine", "curp", 0.995, True, "audit") for i in range(2000)]  # todo sobre el umbral vigente
+
+
+def test_la_auditoria_no_justifica_bajar_el_umbral():
+    # Sombra: 1,000 aciertos a 0.99 (pasa) y una franja a 0.90 con 5 errores de 400 (con ella, falla).
+    # Juntando los 2,000 auditados (todos a 0.995, porque solo se audita lo STP) la franja mala "pasaría":
+    shadow = rows([(0.99, 1000, 0), (0.90, 395, 5)])
+    assert cal.choose_threshold(shadow + AUDIT, 0.995, 1.96, 50)[0] == 0.90  # el subsidio
+    r = cal.calibrate(shadow + AUDIT, 0.995, 0.999, set())[0]
+    assert r.threshold == 0.99  # debajo del piso auditado decide solo la sombra
+
+
+def test_la_auditoria_no_mide_cobertura():
+    # Cobertura solo con fuentes incondicionales: con la auditoría sería (1,000 + 2,000) / 3,400.
+    shadow = rows([(0.99, 1000, 0), (0.90, 395, 5)])
+    r = cal.calibrate(shadow + AUDIT, 0.995, 0.999, set())[0]
+    assert r.coverage == pytest.approx(1000 / 1400)
+    solo_audit = cal.calibrate(AUDIT, 0.995, 0.999, set())[0]
+    assert solo_audit.threshold == 0.995 and solo_audit.coverage is None  # se reporta "-"
+
+
 def test_holdout_confirma_o_anula():
     data = rows([(0.99, 4000, 0)])
     r = cal.calibrate(data, 0.995, 0.999, set(), confirm_frac=0.3)[0]
@@ -92,6 +113,24 @@ def test_holdout_confirma_o_anula():
            for x in data]
     r2 = cal.calibrate(bad, 0.995, 0.999, set(), confirm_frac=0.3)[0]
     assert r2.status == "no_confirmado" and r2.threshold is None
+
+
+def test_confirmacion_con_muy_pocos_aceptados_no_confirma():
+    # Elige bien con 4,000 aciertos, pero en el split de confirmación solo hay 50 filas aceptadas (las
+    # demás quedan bajo el umbral): 50 de 50 NO confirman 99.5 % (hacen falta ≈ 328 con f = 0.3).
+    select = [x for x in rows([(0.99, 6000, 0)]) if not cal.in_confirm_split(x.doc_id, 0.3)][:4000]
+    confirm = [x for x in rows([(0.99, 300, 0)]) if cal.in_confirm_split(x.doc_id, 0.3)][:50]
+    assert len(confirm) == 50  # ids d0…d299 en el split: no se cruzan con los de select (fuera del split)
+    r = cal.calibrate(select + confirm, 0.995, 0.999, set(), confirm_frac=0.3)[0]
+    assert r.confirm_n == 50 and r.confirm_accuracy == 1.0 and r.confirm_lower < 0.95
+    assert r.status == "no_confirmado" and r.threshold is None
+    assert math.ceil(cal.min_n_zero_errors(0.995) * 0.3 / 0.7) == 328
+
+
+def test_sin_filas_de_confirmacion_no_queda_ok():
+    select = [x for x in rows([(0.99, 6000, 0)]) if not cal.in_confirm_split(x.doc_id, 0.3)]
+    r = cal.calibrate(select, 0.995, 0.999, set(), confirm_frac=0.3)[0]
+    assert r.confirm_n == 0 and r.status == "no_confirmado"  # antes: "ok" sin haber confirmado nada
 
 
 def test_el_split_es_por_documento():
@@ -110,23 +149,43 @@ def write_csv(path, rows_, extra=None):
             w.writerow(e)
 
 
+DEFAULT = set(cal.DEFAULT_SOURCES.split(","))
+
+
+def test_fuentes_por_defecto_sin_gold_ni_revision():
+    assert DEFAULT == {"audit", "shadow", "calib"}
+
+
 def test_las_correcciones_de_revision_se_ignoran_por_defecto(tmp_path):
     p = tmp_path / "e.csv"
     write_csv(p, rows([(0.99, 10, 0)]) + rows([(0.5, 0, 10)], source="review"))
-    got = cal.read_rows(p, {"gold", "audit"})
-    assert len(got) == 10 and all(r.label_source == "gold" for r in got)
+    got = cal.read_rows(p, DEFAULT)
+    assert len(got) == 10 and all(r.label_source == "shadow" for r in got)
+
+
+def test_una_fila_del_gold_set_hace_fallar(tmp_path):
+    # El gold set solo mide (en el gate). Si el export lo trae, no se ignora en silencio: se ve.
+    p = tmp_path / "e.csv"
+    write_csv(p, rows([(0.99, 10, 0)]) + rows([(0.99, 1, 0)], source="gold"))
+    with pytest.raises(ValueError, match="línea 12: label_source=gold"):
+        cal.read_rows(p, DEFAULT)
+    with pytest.raises(ValueError, match="solo se usa en el gate"):
+        cal.read_rows(p, DEFAULT | {"gold"})
+    assert len(cal.read_rows(p, DEFAULT | {"gold"}, allow_gold=True)) == 11  # solo para experimentos
 
 
 @pytest.mark.parametrize("bad_row,msg", [
-    (["x", "ine", "curp", "alta", "1", "gold"], "línea 2: confidence no numérica"),
-    (["x", "ine", "curp", "1.5", "1", "gold"], "fuera de"),
-    (["x", "ine", "curp", "0.9", "quizá", "gold"], "correct inválido"),
+    (["x", "ine", "curp", "alta", "1", "shadow"], "línea 2: confidence no numérica"),
+    (["x", "ine", "curp", "1.5", "1", "shadow"], "fuera de"),
+    (["x", "ine", "curp", "0.9", "quizá", "shadow"], "correct inválido"),
+    (["x", "ine", "curp", "0.9", "1", ""], "línea 2: label_source vacío"),
+    (["x", "ine", "curp", "0.9", "1", "historico"], "label_source desconocido"),
 ])
 def test_csv_roto_falla_con_numero_de_linea(tmp_path, bad_row, msg):
     p = tmp_path / "e.csv"
     write_csv(p, [], extra=[bad_row])
     with pytest.raises(ValueError, match=msg):
-        cal.read_rows(p, {"gold"})
+        cal.read_rows(p, DEFAULT)
 
 
 def test_cli_escribe_yaml_compatible_con_routing(tmp_path, capsys):
@@ -136,6 +195,9 @@ def test_cli_escribe_yaml_compatible_con_routing(tmp_path, capsys):
     assert rc == 0
     y = yaml.safe_load(out.read_text(encoding="utf-8"))
     # curp es crítico: 900 aciertos no alcanzan 99.9 % → null. nombre_completo: 800 ≥ 765 → 0.97.
-    assert y["thresholds"]["ine"] == {"curp": None, "nombre_completo": 0.97}
+    # Un bloque por tipo, como doc_types.<tipo> de routing.yaml; las versiones se asignan en el PR.
+    ine = y["doc_types"]["ine"]
+    assert ine["thresholds"] == {"curp": None, "nombre_completo": 0.97}
+    assert ine["thresholds_version"] == ine["model_version"] == cal.PENDING_VERSION
     err = capsys.readouterr().err
     assert "765 para 0.995" in err and "3838 para 0.999" in err

@@ -9,6 +9,8 @@ Salida: `Decision` = acción + política + severidad + scores + versiones + stat
 
 Reglas (todas vienen de policies.yaml, versionado):
 1. Hash de una lista conocida → acción inmediata (block_prepublish antes de publicar, remove después).
+   Cualquier coincidencia válida con una política S0, venga de la lista que venga, escala al equipo
+   especializado: la escalación sale de la SEVERIDAD, no de qué lista ganó.
 2. Scores por política: en el síncrono, el MAX entre texto e imagen (el post viola si viola el texto
    O la imagen). En el asíncrono, el score de la etapa 2 REEMPLAZA al de la etapa 1 para las políticas
    que cubre: es el mejor modelo y ve texto + imagen juntos (un meme donde ninguno de los dos viola
@@ -18,8 +20,10 @@ Reglas (todas vienen de policies.yaml, versionado):
    Por qué no "la severidad primero": spam con 0.99 (remove) y violencia con 0.72 (review) → si
    mandara la severidad, el spam obvio quedaría publicado.
 5. Fail-open: si falta una etapa remota, el ítem se publica con lo que haya y va a la etapa 2 con la
-   prioridad de su severidad. S0 no admite fail-open: si falta el hash, `decide` lanza
-   `HashCheckMissing` (y por eso el hash es local).
+   prioridad de lo que quedó SIN EVALUAR. Qué quedó sin evaluar se calcula por ETAPA (stage_policies):
+   si vence el modelo de texto, "violence" queda sin evaluar aunque el de imagen la haya puntuado
+   (la imagen no ve una amenaza escrita), y las reglas de respaldo de texto se aplican. S0 no admite
+   fail-open: si falta el hash, `decide` lanza `HashCheckMissing` (y por eso el hash es local).
 6. Excepciones: un hash de la lista de clústeres benignos (un meme o un trend que el modelo confunde,
    confirmado por una persona) anula las acciones del MODELO para esa política. Nunca anula un hash.
 7. Políticas en `mode: shadow` (una política nueva, o umbrales nuevos a medir): se calcula su acción y
@@ -47,6 +51,7 @@ SEV_RANK = {"S0": 3, "S1": 2, "S2": 1, "S3": 0}  # mayor = más grave
 SURFACES = ("post", "comment")
 STAGE1 = ("stage1_text", "stage1_image")  # etapas síncronas (remotas: Triton)
 STAGE2 = "stage2"  # deep-scorer
+S0_ESCALATION = "s0_specialist_team"  # flujo especializado (y reporte legal), fuera de la cola general
 SYNC_ONLY = {"block_prepublish"}  # solo tiene sentido antes de publicar
 ASYNC_ONLY = {"remove"}  # solo tiene sentido después de publicar
 # Acciones que restringen el contenido de alguien → llevan statement of reasons (DSA art. 17 incluye
@@ -116,7 +121,14 @@ class Decision:
     send_to_deep_scorer: bool = False
     deep_scoring_priority: str | None = None  # high · normal
     escalation: str | None = None  # s0_specialist_team: fuera de la cola general
-    hash_match: dict | None = None
+    hash_match: dict | None = None  # la coincidencia que decidió la acción
+    # TODAS las coincidencias válidas (no solo la ganadora): el flujo especializado necesita, por
+    # ejemplo, el id de la entrada de la lista de la industria aunque haya ganado una de own_removed
+    hash_matches: list[dict] = field(default_factory=list)
+    # Dónde aplica la acción: "global", o el código de región si fue un override regional (ley local)
+    # lo que la cambió. enforcement la aplica solo ahí.
+    territorial_scope: str = "global"
+    legal_ground: str | None = None  # base legal del override regional (la cita el statement of reasons)
     # Políticas en modo shadow: qué acción HABRÍAN tomado (se mide, no se aplica)
     shadow_actions: dict[str, str] = field(default_factory=dict)
     # Políticas cuyo score de modelo se ignoró por una excepción (hash de un clúster benigno conocido)
@@ -170,12 +182,17 @@ def validate_config(cfg) -> list[str]:
 
     fo = cfg.get("fail_open") or {}
     for sev in SEVERITIES:
-        if not isinstance(fo.get(sev), Mapping) or not isinstance(fo[sev].get("allowed"), bool):
-            errors.append(f"fail_open.{sev}.allowed (bool) es obligatorio")
-    if isinstance(fo.get("S0"), Mapping) and fo["S0"].get("allowed") is not False:
-        errors.append("fail_open.S0.allowed debe ser false: S0 nunca se publica sin su verificación (hash local)")
+        if not isinstance(fo.get(sev), Mapping):
+            errors.append(f"fail_open.{sev} es obligatorio (al menos deep_scoring_priority)")
     for sev, conf in fo.items():
-        if isinstance(conf, Mapping) and conf.get("deep_scoring_priority", "normal") not in ("high", "normal"):
+        if sev not in SEVERITIES or not isinstance(conf, Mapping):
+            errors.append(f"fail_open.{sev}: severidad desconocida o formato inválido")
+            continue
+        # Claves conocidas y nada más: una perilla que el motor no lee (p. ej. un viejo "allowed") sería
+        # una config que promete algo que no pasa
+        for key in set(conf) - {"deep_scoring_priority", "fallback_rules"}:
+            errors.append(f"fail_open.{sev}.{key}: clave desconocida (el motor no la usa)")
+        if conf.get("deep_scoring_priority", "normal") not in ("high", "normal"):
             errors.append(f"fail_open.{sev}.deep_scoring_priority debe ser high o normal")
 
     policies = cfg.get("policies") or {}
@@ -219,6 +236,19 @@ def validate_config(cfg) -> list[str]:
             # Un ítem en la banda de revisión (o con acción automática) debe pasar por la etapa 2
             errors.append(f"{where}.deep_scoring_trigger ({trig}) mayor que su umbral más bajo ({min(lows)})")
 
+    stage_pols = cfg.get("stage_policies") or {}
+    if not isinstance(stage_pols, Mapping) or set(stage_pols) != set(STAGE1):
+        errors.append(f"stage_policies debe tener exactamente {STAGE1}: sin eso no se sabe qué quedó sin evaluar")
+    else:
+        for st, pols in stage_pols.items():
+            for pol in pols or []:
+                if pol not in policies or (policies[pol] or {}).get("hash_only"):
+                    errors.append(f"stage_policies.{st}: '{pol}' no es una política con modelo")
+        covered = {pol for pols in stage_pols.values() for pol in pols or []}
+        for name, p in policies.items():
+            if isinstance(p, Mapping) and not p.get("hash_only") and name not in covered:
+                errors.append(f"stage_policies: ningún modelo de la etapa 1 cubre '{name}'")
+
     for lname, lconf in (cfg.get("hash_lists") or {}).items():
         where = f"hash_lists.{lname}"
         if not isinstance(lconf, Mapping):
@@ -230,14 +260,19 @@ def validate_config(cfg) -> list[str]:
             errors.append(f"{where}.action inválida: {lconf.get('action')!r}")
         elif (lconf.get("action") == "none") != bool(lconf.get("suppress_model_actions")):
             errors.append(f"{where}: action none va con suppress_model_actions: true (y solo ahí)")
+        if "escalation" in lconf and (not isinstance(lconf["escalation"], str) or not lconf["escalation"]):
+            errors.append(f"{where}.escalation (override opcional) debe ser un texto no vacío")
         md = lconf.get("max_distance")
         if not isinstance(md, int) or not 0 <= md <= 31:
             errors.append(f"{where}.max_distance debe ser un entero en [0, 31] (el índice no devuelve más)")
 
+    text_pols = set((stage_pols.get("stage1_text") or []) if isinstance(stage_pols, Mapping) else [])
     for i, rule in enumerate(cfg.get("fallback_rules") or []):
         where = f"fallback_rules[{i}]"
         if rule.get("policy") not in policies:
             errors.append(f"{where}.policy desconocida")
+        elif rule.get("policy") not in text_pols:
+            errors.append(f"{where}: las reglas son de TEXTO y '{rule.get('policy')}' no está en stage_policies.stage1_text")
         if rule.get("action") not in ACTIONS or rule.get("action") in ("none", "block_prepublish", "remove"):
             errors.append(f"{where}.action debe ser suave (reduce, interstitial, review…): una regex no elimina")
         try:
@@ -251,6 +286,10 @@ def validate_config(cfg) -> list[str]:
                 errors.append(f"regions.{region}: política desconocida '{pname}'")
                 continue
             for surface, thr in (by_surface or {}).items():
+                if surface == "legal_ground":
+                    if not isinstance(thr, str) or not thr:
+                        errors.append(f"regions.{region}.{pname}.legal_ground debe ser un texto no vacío")
+                    continue
                 base = ((policies[pname] or {}).get("thresholds") or {}).get(surface)
                 if base is None:
                     errors.append(f"regions.{region}.{pname}: la superficie '{surface}' no tiene umbrales globales")
@@ -270,6 +309,10 @@ def thresholds_for(cfg: Mapping, policy: str, surface: str, region: str | None =
     if region:
         base.update((((cfg.get("regions") or {}).get(region) or {}).get(policy) or {}).get(surface) or {})
     return base
+
+
+def _regional_rule(cfg: Mapping, policy: str, region: str | None) -> Mapping:
+    return (((cfg.get("regions") or {}).get(region) or {}).get(policy) or {}) if region else {}
 
 
 def action_for_score(thr: Mapping[str, float], score: float, path: str) -> str:
@@ -336,7 +379,8 @@ def decide(
 
     # -- 2. candidatos: (acción, política, severidad, score, fuente)
     candidates: list[tuple[str, str, str, float, str]] = []
-    best_hash, escalation = None, None
+    best_hash, escalation, esc_rank = None, None, -1
+    valid_hits: list[dict] = []
     suppressed: set[str] = set()
     for hit in hash_hits:
         lconf = (cfg.get("hash_lists") or {}).get(hit.list_name)
@@ -349,19 +393,28 @@ def decide(
             suppressed.add(pol)  # clúster benigno conocido: el MODELO no actúa sobre esta política
             continue
         sev = policies[pol]["severity"]
+        valid_hits.append({"list": hit.list_name, "entry_id": hit.entry_id, "policy": pol, "distance": hit.distance})
+        # Escalación por SEVERIDAD: un S0 escala aunque venga de own_removed o pierda contra otra
+        # coincidencia más cercana. El override de la lista, si existe, solo cambia a quién.
+        esc = lconf.get("escalation") or (S0_ESCALATION if sev == "S0" else None)
+        if esc and SEV_RANK[sev] > esc_rank:
+            escalation, esc_rank = esc, SEV_RANK[sev]
         key = (SEV_RANK[sev], -hit.distance)
         if best_hash is None or key > best_hash[0]:
-            best_hash = (key, hit, pol, sev, _hash_action(lconf["action"], path), lconf.get("escalation"))
+            best_hash = (key, hit, pol, sev, _hash_action(lconf["action"], path))
     if best_hash is not None:
-        _, hit, pol, sev, act, escalation = best_hash
+        _, hit, pol, sev, act = best_hash
         candidates.append((act, pol, sev, 1.0, "hash"))
 
     shadow: dict[str, str] = {}
+    regional: dict[str, bool] = {}  # política → ¿el override regional cambió su acción?
     for pol, sc in scores.items():
         p = policies[pol]
         if p.get("hash_only") or pol in suppressed:
             continue
         act = action_for_score(thresholds_for(cfg, pol, surface, region), sc, path)
+        if region:
+            regional[pol] = act != action_for_score(thresholds_for(cfg, pol, surface), sc, path)
         if p.get("mode") == "shadow":
             shadow[pol] = act  # se registra para medir (cuántos ítems caerían en cada banda), no se aplica
         elif act != "none":
@@ -372,17 +425,27 @@ def decide(
     fail_open = bool(fail_reasons) and path == "sync"
     priority = None
     if fail_open:
-        # Políticas que quedaron sin score (ninguna etapa síncrona las cubrió)
-        unscored = [n for n, p in policies.items() if not p.get("hash_only") and n not in scores]
+        # Políticas que quedaron SIN EVALUAR: la unión de lo que cubría cada etapa que faltó. Por etapa y
+        # no por política: si vence el texto, la imagen puede haber puntuado "violence" (violencia
+        # gráfica), pero nadie miró la amenaza escrita. Una etapa desconocida → todo, por las dudas.
+        stage_pols = cfg.get("stage_policies") or {}
+        all_model = [n for n, p in policies.items() if not p.get("hash_only")]
+        unscored: set[str] = set()
+        for st in failed:
+            unscored |= set(stage_pols.get(st, all_model))
+        unscored = {n for n in unscored if n in policies and not policies[n].get("hash_only")}
         sevs = {policies[n]["severity"] for n in unscored} or {"S3"}
         prios = [(cfg["fail_open"].get(s) or {}).get("deep_scoring_priority", "normal") for s in sevs]
         priority = "high" if "high" in prios else "normal"
-        rule_sevs = {s for s in sevs if (cfg["fail_open"].get(s) or {}).get("fallback_rules")}
+        # Las reglas de respaldo son regex de TEXTO: actúan cuando faltó el modelo de texto
+        text_unscored = set(stage_pols.get("stage1_text", all_model)) if "stage1_text" in failed else set()
         for rule in cfg.get("fallback_rules") or []:
             pol = rule["policy"]
-            if text and pol in unscored and pol not in suppressed and policies[pol]["severity"] in rule_sevs:
+            sev = policies[pol]["severity"]
+            if (text and pol in text_unscored and pol not in suppressed
+                    and (cfg["fail_open"].get(sev) or {}).get("fallback_rules")):
                 if re.search(rule["pattern"], text, flags=re.IGNORECASE):
-                    candidates.append((rule["action"], pol, policies[pol]["severity"], 0.0, "fallback_rule"))
+                    candidates.append((rule["action"], pol, sev, 0.0, "fallback_rule"))
 
     # -- 4. ganadora: acción más fuerte → severidad → score
     candidates.sort(key=lambda c: (STRENGTH[c[0]], SEV_RANK[c[2]], c[3]), reverse=True)
@@ -392,6 +455,11 @@ def decide(
         action, policy, severity, source = "none", None, None, "none"
 
     # -- 5. revisión humana
+    territorial_scope, legal_ground = "global", None
+    if source == "model" and regional.get(policy):
+        territorial_scope = region
+        legal_ground = _regional_rule(cfg, policy, region).get("legal_ground")
+
     if action in ("block_prepublish", "remove"):
         review = []  # ya no es visible: los errores vuelven por apelación (otra persona revisa)
     else:
@@ -443,6 +511,9 @@ def decide(
             {"list": best_hash[1].list_name, "entry_id": best_hash[1].entry_id, "distance": best_hash[1].distance}
             if best_hash else None
         ),
+        hash_matches=sorted(valid_hits, key=lambda h: (-SEV_RANK[policies[h["policy"]]["severity"]], h["distance"])),
+        territorial_scope=territorial_scope,
+        legal_ground=legal_ground,
     )
     decision.decision_id = hashlib.sha256(
         "|".join([item_id, path, cfg["version"], *(f"{k}={v}" for k, v in sorted(model_versions.items()))]).encode()
@@ -453,7 +524,9 @@ def decide(
 
 
 def statement_of_reasons(cfg: Mapping, d: Decision, *, detection: str = "proactive", human_reviewed: bool = False) -> str:
-    """Texto para la persona afectada, con los elementos que pide la DSA (art. 17), en plantilla.
+    """Texto para la persona afectada, en plantilla, con los elementos principales del art. 17 de la DSA:
+    qué restricción y dónde, hechos, uso de medios automatizados, base contractual (y legal si un
+    override regional decidió) y vías de reclamo. No es asesoría legal: el texto final lo aprueba legal.
 
     Para S0 el texto queda listo, pero CUÁNDO y SI se notifica lo decide el flujo especializado con
     legal: el motor no envía nada. La herramienta de revisión lo regenera con human_reviewed=True.
@@ -461,7 +534,8 @@ def statement_of_reasons(cfg: Mapping, d: Decision, *, detection: str = "proacti
     sor = cfg["statement_of_reasons"]
     p = cfg["policies"][d.policy]
     if detection == "user_report":
-        facts = "Lo revisamos después de un reporte de otra persona."
+        # "analizamos", no "revisamos": sin human_reviewed, lo que actuó fue el sistema
+        facts = "Lo analizamos después de un reporte de otra persona."
     else:
         facts = "Lo detectaron nuestros sistemas antes de que alguien lo reportara."
     if d.source == "hash":
@@ -471,13 +545,20 @@ def statement_of_reasons(cfg: Mapping, d: Decision, *, detection: str = "proacti
         if human_reviewed
         else "Esta decisión se tomó con medios automatizados, sin revisión humana previa."
     )
-    return (
-        f"Decisión sobre tu {SURFACE_ES[d.surface]}: {ACTION_ES[d.action]}. Alcance: {SCOPE_ES[d.action]}, "
-        f"mientras una apelación no revierta la decisión. "
+    where = "en todas las regiones" if d.territorial_scope == "global" else f"solo en la región {d.territorial_scope}"
+    reason = (
         f"Motivo: incumple la política «{p['title']}» (cláusula {p['clause']}) de las {sor['norms_name']}, "
         f"versión {cfg['policy_definitions_version']}. "
+    )
+    if d.legal_ground:
+        reason += f"Base legal en {d.territorial_scope}: {d.legal_ground}. "
+    return (
+        f"Decisión sobre tu {SURFACE_ES[d.surface]}: {ACTION_ES[d.action]}. Alcance: {SCOPE_ES[d.action]}, "
+        f"{where}, mientras una apelación no revierta la decisión. "
+        f"{reason}"
         f"Hechos: {facts} "
         f"{automated} "
-        f"Cómo apelar: puedes pedir que otra persona revise esta decisión en {sor['appeal_url']} "
-        f"durante {sor['appeal_window']}. Referencia: {d.item_id} · config {d.config_version}."
+        f"Cómo reclamar: puedes pedir que otra persona revise esta decisión en {sor['appeal_url']} "
+        f"durante {sor['appeal_window']}. También puedes acudir a un órgano certificado de resolución "
+        f"extrajudicial de litigios o a los tribunales. Referencia: {d.item_id} · config {d.config_version}."
     )

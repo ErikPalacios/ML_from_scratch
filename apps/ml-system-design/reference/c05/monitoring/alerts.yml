@@ -13,7 +13,9 @@
 #     docs_ocr_word_confidence (histograma por doc_type y source), docs_sat_requests_total{outcome}
 #     → doc-worker (los pods que atienden la cola doc-tasks; no incluido en esta carpeta)
 #   docs_review_open_tasks{sla} → review-api (no incluido)
-#   docs_audit_fields_total{doc_type,field_class,result} → herramienta de auditoría de QA (no incluida)
+#   docs_audit_fields_total{doc_type,field_class,result} → herramienta de auditoría de QA (no incluida).
+#     result = correct | wrong DESPUÉS de adjudicar: si la captura de QA difiere del sistema, una segunda
+#     persona mira la imagen y decide; cuenta como wrong solo si el sistema se equivocó.
 # Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
 # Todos los umbrales son ILUSTRATIVOS: se ajustan con 4–6 semanas de datos reales.
 
@@ -186,6 +188,9 @@ groups:
       # La única medición SIN SESGO de la exactitud de lo que se auto-acepta: QA revisa completo un 2 %
       # aleatorio de los documentos STP (routing.select_for_audit). Volumen estimado: ≈ 3,000 STP/día →
       # ≈ 60 auditados/día → ≈ 360 campos estándar y ≈ 120 críticos por día.
+      # result es el resultado ADJUDICADO (ver el encabezado). Sin adjudicar, la alerta mediría el tecleo
+      # de QA: con ≈ 1 % de errores de captura (estimado, como la captura histórica), cada discrepancia de
+      # QA contaría como error del sistema y la regla de 99.2 % dispararía siempre.
       # Estándar (objetivo 99.5 %): 7 días (≈ 2,520 campos) y umbral 99.2 %. Con exactitud real de
       # 99.5 % suena ≈ 2 % de las semanas; si el error se duplica (99.0 %), la detecta ≈ 82 % de las veces.
       # Críticos (CURP, RFC, CLABE, montos; objetivo 99.9 %): 28 días (≈ 3,360) y umbral 99.8 %. Con
@@ -223,5 +228,5 @@ groups:
           field_class: critical
         annotations:
           summary: "Exactitud auditada de campos críticos: {{ $value | humanizePercentage }} en 28 días (objetivo 99.9 %)"
-          description: "CURP, RFC, CLABE o montos mal capturados sin revisión: impacto directo en el crédito. Revisa cada caso: ¿falló un dígito verificador que debió atraparlo (posición sin peso, como la 9 de la CURP)? ¿Un cruce que no existe?"
+          description: "CURP, RFC, CLABE o montos mal capturados sin revisión: impacto directo en el crédito. Revisa cada caso: ¿falló un dígito verificador que no podía atraparlo (p. ej. la posición 9 de la CURP, o 8↔3 en el año)? ¿Un cruce que no existe?"
           runbook_url: "https://runbooks.example.com/c05/audit-accuracy"
