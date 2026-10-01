@@ -1050,6 +1050,139 @@ sellers / purchases** (the business value), not just clicks.
   metric with given mean/variance), offline_metrics.py (recall@k, NDCG@k, AUC), tests/},
   monitoring/alerts.yml (+ promtool tests), README.md.
 
+## 8i. Case c09 — shared facts (every c09 agent MUST use exactly these)
+Scenario: a **Latin American payment platform (PSP)** that processes **card-not-present online payments**
+for merchants (e-commerce, apps). The fraud check runs **inside the authorization flow**: every payment is
+scored before the issuer authorization request. Card data is tokenized upstream (PCI DSS scope): the fraud
+system never sees the PAN, only a card token/fingerprint. Issuer-side fraud and merchant onboarding fraud
+are **out of scope**.
+- Volume: **≈ 10 M transactions/day** → ≈ 116 TPS average; daily peak ≈ 3× ≈ 350 TPS; **design peak
+  ≈ 2,000 TPS** (Buen Fin / Hot Sale / paydays 15 and 30). Average ticket **≈ US$30** → ≈ US$300 M/day ≈
+  **US$9 B/month** processed.
+- Fraud today: **chargebacks ≈ 0.12 % of value (12 bps) ≈ US$11 M/month** in losses (est.); by count
+  **≈ 0.08 %** of transactions (fraud skews toward larger tickets) → ≈ 8,000 fraudulent tx/day. Current
+  defense: a hand-written rules engine (≈ 400 rules) + a nightly batch blocklist. Goal: cut fraud losses
+  ≈ 40 % without raising the decline rate of good customers.
+- Decisions: **approve**, **decline**, **step-up** (3-D Secure challenge / OTP), and **manual review** only for
+  merchants that capture later (e.g. high-value orders). Step-up has friction: ≈ 10–20 % of challenged
+  legitimate buyers abandon (est.).
+- Error costs (est.): a **false negative** = the chargeback amount + ≈ US$15 fee + ops ≈ ticket + US$15;
+  a **false positive** (good tx declined) = lost fee revenue (≈ 2.5 % of the ticket) + a share of future
+  purchases of that customer (churn) — the business sets ≈ US$5–10 per wrongly declined good tx; a step-up
+  costs ≈ abandonment × margin. Thresholds come from expected cost per segment (merchant category,
+  ticket size) under a cap on the decline rate.
+- Latency: the whole authorization takes ≈ 1–2 s; the **fraud check budget is p99 ≤ 100 ms** (feature
+  fetch ≈ 10–20 ms, model ≈ 2–5 ms on CPU, rules ≈ 5 ms, overhead); availability of the fraud check
+  **99.99 %** — if it times out or fails: **fail to a rules-only fallback** (in-process rules + hard
+  velocity limits), never block all payments; the choice per merchant segment is the narrative's trade-off.
+- Features (names used everywhere): `txn-events` Kafka topic → **Flink** jobs compute windowed aggregates
+  per card token, device, IP, email, merchant (counts, sums, distinct merchants/countries over 1 min, 1 h,
+  24 h, 7 d) → **online store** (Redis-class, p99 read ≤ 10 ms); the most time-critical velocity counters
+  (e.g. same card in the last 60 s) are updated **synchronously in the request path** (atomic increments
+  with TTL) because a stream lag of seconds misses card-testing bursts; static/slow features (account age,
+  merchant risk, graph features from shared devices/IPs) computed daily in batch. **One feature-definition
+  module** is used online and for the offline backfill (point-in-time correct; the current transaction is
+  excluded from its own aggregates consistently online and offline — the classic trap).
+- Model: a **gradient-boosted trees model (GBDT, LightGBM-class)** on ≈ 300 features, served **on CPU**
+  in the scoring service (≈ 1–2 ms per prediction, est.) + the **rules engine** (blocklists, hard limits,
+  merchant-specific rules) + champion/challenger. No deep model internals.
+- Labels: **chargebacks arrive late** — dispute windows of up to ≈ 120 days; assume ≈ 60 % of eventual
+  chargebacks arrive within 30 days and ≈ 90 % within 60 days (est.) → evaluate only **matured cohorts**
+  (≥ 60–90 days) and use early proxies (confirmed fraud reports, manual-review outcomes, issuer fraud
+  alerts) for monitoring. **Declined transactions never get a label** (selection bias / reject inference) →
+  keep a small, controlled **exploration slice** (e.g. step-up instead of decline for ≈ 1 % of medium-risk
+  traffic) to measure what the model blocks.
+- Evaluation: time-based splits; metrics: **value-weighted recall** (US$ of fraud caught), recall at a fixed
+  decline rate, decline rate and step-up rate of good customers, approval rate, expected cost per 1,000
+  transactions; online: champion/challenger on a traffic share, guardrails on approval rate.
+- Monitoring alert names: `FraudScoreLatencyHigh`, `FraudFallbackActive`, `FeatureFreshnessLag`,
+  `DeclineRateSpike`, `StepUpRateSpike`, `ScoreDistributionShift`, `RulesEngineErrors`,
+  `ChargebackRateRising` (lagging signal).
+- Costs (est.): scoring service on CPU (≈ 2,000 TPS × 3 ms ≈ 6 cores busy → ≈ 3 × c7i.2xlarge per zone
+  for N+1); Kafka (managed) + Flink (managed) ≈ US$3–6k/month; online store (Redis cluster with replicas)
+  ≈ US$2–4k/month; total infra ≈ US$10–15k/month vs ≈ US$11 M/month of fraud losses → infra is noise; the
+  levers are recall, decline rate and analyst time.
+- Regulation and audit (general principles only): PCI DSS scope reduction via tokenization, personal data
+  (LFPDPPP in Mexico; GDPR/CCPA where applicable), **reason codes** stored for every decision (ops,
+  disputes, merchant support), decision log retained per policy; no legal advice.
+- Reference files (reference/c09/): features/{definitions.py (feature definitions as code: windows,
+  aggregations, keys — one source for online and offline), online_counters.py (sliding-window counters in
+  minute buckets with TTL behind a key-value interface; in-memory fake; injectable clock),
+  point_in_time.py (build the training set from the event log: features as of each transaction,
+  excluding the transaction itself; label = chargeback/confirmed fraud within a maturity window; immature
+  rows excluded, not labeled negative), tests/}, scoring/{service.py (FastAPI POST /v1/score: time budget,
+  sync velocity counters, feature fetch interface with timeout + defaults, model interface (a tiny GBDT
+  trained on synthetic data in the tests or a fake), rules engine, decision with thresholds per segment
+  and reason codes, rules-only fallback, Prometheus metrics), policy.yaml (thresholds per segment, decline
+  cap, step-up band, exploration share), requirements.txt, tests/}, eval/{choose_thresholds.py (expected
+  cost per 1,000 tx per segment over a grid of decline/step-up thresholds with a decline-rate cap),
+  label_maturity.py (fraction of eventual chargebacks arrived by day N; which cohorts are evaluable),
+  tests/}, monitoring/alerts.yml (+ promtool tests), README.md.
+
+## 8j. Case c13 — shared facts (every c13 agent MUST use exactly these)
+Scenario: a **video-meeting platform** (Latin America + US) adds **live captions** to calls and meetings.
+Captions appear for every participant while people speak; transcripts can be saved if the host enables it.
+Translation, summaries and diarization of a single mixed track are **out of scope** (extensions).
+- Volume: **≈ 2 M meetings/day**, average **40 min**, ≈ 4 participants; captions are an opt-in feature used
+  in **≈ 30 %** of meetings → ≈ 600k captioned meetings/day ≈ **24 M captioned meeting-minutes/day**;
+  average concurrency 24 M / 1,440 ≈ 16.7k captioned meetings; **peak ≈ 3× ≈ 50k concurrent captioned
+  meetings** (business hours).
+- Audio path: the SFU (media server) already receives **one Opus track per participant** (48 kHz, 20 ms
+  frames); we transcribe **per participant** (speaker attribution for free, no diarization), resampled to
+  16 kHz mono. With voice activity detection (**VAD**) only the tracks with speech consume ASR compute:
+  ≈ **1.2 active speakers per meeting** on average at any moment (est.) → **≈ 60k concurrent active ASR
+  streams at peak**, while ≈ 200k participant tracks stay connected (cheap, CPU-side).
+- Latency targets: **partial captions p95 ≤ 500 ms** from the word spoken to text on screen; **final
+  segment p95 ≤ 1.5 s** after the end of an utterance (endpointing on ≈ 500–700 ms of silence); audio
+  chunks of **160 ms** to the model (est.) with right-context/lookahead per model.
+- Model and serving: a **streaming-native ASR model** (transducer/CTC-class with cache-aware streaming —
+  e.g. NVIDIA Riva/Parakeet-class or an equivalent open model; verify names and licenses) served on GPU
+  with stateful sequence batching; Whisper-class models are batch/offline by design and need chunking hacks
+  for live use (discussed as an alternative and for post-meeting transcripts). Assumed capacity
+  **≈ 500 concurrent streams per L4** (est. — strongly model-dependent; measure with the real model and
+  160 ms chunks) → planned 70 % ≈ 350 → 60k / 350 ≈ **172 L4 at peak** (+ headroom per zone) — the GPU
+  fleet follows the daily curve (≈ 60 L4 at night).
+- Languages at launch: **Spanish (Mexico/LatAm), English, Portuguese (Brazil)**; language chosen per
+  participant (setting or automatic language ID in the first seconds — trade-off).
+- Architecture (names used everywhere): SFU → **`asr-gateway`** (bidirectional gRPC streaming from the
+  SFU's audio fork; one long-lived session per participant track; VAD and chunking on CPU) → **session
+  router** (assigns sessions to GPU workers by free capacity; sticky for the session's life) →
+  **`asr-worker`** (GPU, holds the streaming model state per session) → partial/final hypotheses →
+  **`caption-bus`** (pub/sub per meeting) → existing meeting signaling WebSocket to clients; finals →
+  transcript store (only if the host enabled saving).
+- Statefulness: the streaming state lives on one GPU worker → load balancing by **active streams**, not
+  requests or CPU; autoscaling on a custom metric (active streams per GPU) with headroom for the morning
+  ramp (GPU nodes take minutes to start → #m06.cold-starts); scale-in only by **draining** (stop assigning
+  new sessions; existing sessions end or migrate at an utterance boundary; meetings can last hours); on
+  worker loss the gateway re-establishes the session on another worker and the user loses ≈ 1–2 s of
+  partials (acceptable for captions).
+- Quality: **WER per language and slice** (accent/region, noise, device, overlapping speech) on golden
+  audio sets; targets as the narrative's justified choice (e.g. ≤ 12–15 % WER on conversational Spanish —
+  est., measure); partial-result stability (**revision/flicker rate**), final latency, punctuation; custom
+  vocabulary per organization (names, products) — hedged.
+- Costs (est.): GPUs follow the curve: ≈ 172 L4 at peak, ≈ 100 L4 average ≈ 100 × US$0.80 × 730 ≈
+  **US$58k/month** on-demand (+ CPU for gateways/VAD, bus, storage) vs a managed streaming ASR API at ≈
+  US$0.024 per audio minute (verify current prices/tiers) × ≈ 24 M × 1.2 active-speaker minutes/day × 30 ≈
+  **US$20 M/month** → at this scale self-hosting wins by orders of magnitude; at a small scale the API
+  wins (break-even to compute).
+- Privacy: audio is **not stored** by default; transcripts only if the host enables saving (retention
+  ≈ 30 days, configurable); visible "captions on" indicator; no training on customer audio without
+  explicit opt-in; LFPDPPP/GDPR/US state laws — general principles only.
+- Monitoring alert names: `CaptionPartialLatencyHigh`, `CaptionFinalLatencyHigh`, `GPUStreamSaturation`,
+  `SessionReconnectRateHigh`, `CaptionDeliveryLag`, `CanaryWERRegression`, `VADActiveRatioShift`,
+  `ASRCapacityHeadroomLow`.
+- Reference files (reference/c13/): streaming/{chunker.py (20 ms frames → 160 ms chunks with left context;
+  energy-based VAD baseline in numpy with hangover; endpointing on silence → final), stabilizer.py (partial
+  vs final hypotheses: stable prefix, revision/flicker metric), tests/}, server/{asr_server.py (FastAPI
+  WebSocket endpoint: receives audio frames, VAD, chunking, model interface (fake ASR in tests), emits
+  partial/final JSON messages with timestamps, backpressure and per-session limits, Prometheus metrics),
+  requirements.txt, tests/}, gateway/{session_router.py (capacity-aware sticky assignment, draining,
+  reassignment on worker loss), tests/}, eval/{wer.py (WER via Levenshtein with Spanish-aware
+  normalization: case, punctuation, optional accent folding; per-slice aggregation; latency percentiles
+  from session logs), tests/}, k8s/asr-worker.yaml (GPU Deployment with preStop drain, long
+  terminationGracePeriodSeconds, autoscaling on active streams — KEDA prometheus scaler or HPA custom
+  metric; validate core resources), monitoring/alerts.yml (+ promtool tests), README.md.
+
 ## 9. Writing style for content agents (applies to every content file)
 - Spanish (neutral Latin American, tuteo), direct, no filler, no motivational fluff. Technical terms
   in English (latency, throughput, batch, serving, feature store, rollout…), exactly as they'd be
