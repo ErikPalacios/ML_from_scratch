@@ -14,12 +14,17 @@ aplica en orden:
                        completa con repeticiones es mejor que una página corta).
   3. regla de negocio  al menos 1 ítem de un vendedor nuevo en las primeras 10 si hay alguno elegible
                        (guardrail "new-seller exposure": sin esto, el ranker, que aprende de contactos
-                       pasados, casi nunca le da una primera impresión a quien acaba de llegar).
+                       pasados, casi nunca le da una primera impresión a quien acaba de llegar). Va a la
+                       posición 10 y, si se puede, de una categoría que no rompa el tope de 3.
   4. exploration       cada posición, con probabilidad 5 %, recibe un candidato elegido AL AZAR (uniforme)
                        entre los que quedaron fuera de la página. Se inserta (lo demás baja un lugar) y se
                        marca exploration=True con su propensity (la probabilidad con la que se eligió):
                        son los datos sin el sesgo del modelo actual que el entrenamiento necesita para
                        estimar el efecto de la posición y evaluar políticas nuevas off-policy.
+  5. re-fijar la regla insertar empuja todo hacia abajo: si se exploró alguna de las primeras 10, el
+                       vendedor nuevo de la posición 10 cae a la 11 (pasa en ≈ 1 − 0.95^10 ≈ 40 % de
+                       los requests). Se lo devuelve a la última posición NO explorada de la primera
+                       pantalla; los explorados no se mueven (su posición es parte del dato que se loguea).
 
 Determinista: el azar sale de un RNG con semilla = hash del request_id. El mismo request da la misma
 página (se puede reproducir un bug o un reclamo), y dos requests distintos exploran distinto.
@@ -68,11 +73,11 @@ class Slot:
 
     item_id: str
     position: int  # 1-based DENTRO de la página (home_api suma el offset de la página)
-    score: float  # score del ranker sin ajustar (el que se loguea para calibración y RankerScoreShift)
+    score: float  # score con el que ordenó el ranker (P(click) × (P(contact|click) + w)), sin el ajuste de freshness
     adjusted_score: float  # después del freshness boost
     source: str
     exploration: bool = False
-    propensity: float | None = None  # P(este ítem en esta posición | exploración); None si no se exploró
+    propensity: float | None = None  # P(explorar esta posición y elegir este ítem) = ε × 1/|pool|; None si no se exploró
     reasons: list[str] = field(default_factory=list)  # por qué está aquí: "freshness", "new_seller", "cap_relaxed"…
 
 
@@ -139,6 +144,8 @@ def rerank(candidates: list[Scored], request_id: str, cfg: RerankConfig | None =
     # -- 4. exploration: inserta candidatos al azar (uniforme sobre los que quedaron fuera)
     if cfg.explore and cfg.exploration_rate > 0 and remaining:
         page = _explore(page, remaining, adj, request_id, cfg)
+        # -- 5. la exploración pudo empujar al vendedor nuevo fuera de la primera pantalla
+        page = _pin_new_seller(page, by_id, cfg)
 
     for i, s in enumerate(page):  # posiciones finales 1..page_size
         s.position = i + 1
@@ -148,7 +155,11 @@ def rerank(candidates: list[Scored], request_id: str, cfg: RerankConfig | None =
 def _ensure_new_seller(page: list[Slot], remaining: list[Scored], by_id: dict[str, Scored],
                        adj: dict[str, float], cfg: RerankConfig) -> None:
     """Si en las primeras top_k no hay un vendedor nuevo, trae el mejor (por score ajustado) a la
-    posición top_k (la última de la primera pantalla): visible, pero sin desplazar a los mejores."""
+    posición top_k (la última de la primera pantalla): visible, pero sin desplazar a los mejores.
+
+    Prefiere uno cuya categoría no rompa el tope de la primera pantalla (cuenta sobre las top_k − 1 que
+    quedan arriba). Si ninguno cabe, la regla de negocio gana sobre el tope y el Slot lleva "cap_relaxed"
+    para que el log muestre que se rompió."""
     if cfg.new_seller_min_top_k <= 0:
         return
     top = page[: cfg.top_k]
@@ -156,23 +167,61 @@ def _ensure_new_seller(page: list[Slot], remaining: list[Scored], by_id: dict[st
     if have >= cfg.new_seller_min_top_k or len(page) < cfg.top_k:
         return
     top_sellers = {by_id[s.item_id].seller_id for s in top}
-    # Primero dentro de la propia página (más abajo), después en lo que quedó fuera
-    later = [i for i in range(cfg.top_k, len(page))
-             if by_id[page[i].item_id].seller_is_new and by_id[page[i].item_id].seller_id not in top_sellers]
-    if later:
-        s = page.pop(later[0])
+    # Las top_k − 1 de arriba se quedan en la primera pantalla; la de la posición top_k baja a la siguiente
+    cats_above = Counter(by_id[s.item_id].category for s in page[: cfg.top_k - 1])
+
+    def elegible(c: Scored) -> bool:
+        return c.seller_is_new and c.seller_id not in top_sellers
+
+    def cabe(c: Scored) -> bool:
+        return cats_above[c.category] < cfg.max_per_category_top_k
+
+    # Primero dentro de la propia página (más abajo), después en lo que quedó fuera; en cada lugar, el
+    # mejor que respete el tope de categoría y, solo si no hay ninguno, el mejor aunque lo rompa
+    later = [i for i in range(cfg.top_k, len(page)) if elegible(by_id[page[i].item_id])]
+    outside = [i for i, c in enumerate(remaining) if elegible(c)]
+    pick = (next((("page", i) for i in later if cabe(by_id[page[i].item_id])), None)
+            or next((("remaining", j) for j in outside if cabe(remaining[j])), None))
+    relaxed = pick is None
+    if relaxed:
+        pick = (("page", later[0]) if later else ("remaining", outside[0]) if outside else None)
+    if pick is None:
+        return  # no hay vendedores nuevos elegibles: la regla no inventa candidatos
+    where, i = pick
+    if where == "page":
+        s = page.pop(i)
     else:
-        j = next((i for i, c in enumerate(remaining)
-                  if c.seller_is_new and c.seller_id not in top_sellers), None)
-        if j is None:
-            return  # no hay vendedores nuevos elegibles: la regla no inventa candidatos
-        c = remaining.pop(j)
+        c = remaining.pop(i)
         s = Slot(c.item_id, 0, c.score, adj[c.item_id], c.source)
         if len(page) >= cfg.page_size:  # la página estaba llena: sale el último
             out = page.pop()
             remaining.insert(0, by_id[out.item_id])
     s.reasons.append("new_seller")
+    if relaxed:
+        s.reasons.append("cap_relaxed")  # la regla de negocio pudo más que el tope de categoría
     page.insert(cfg.top_k - 1, s)
+
+
+def _pin_new_seller(page: list[Slot], by_id: dict[str, Scored], cfg: RerankConfig) -> list[Slot]:
+    """Después de explorar: si ya no hay un vendedor nuevo en las primeras top_k, sube el primero que
+    esté más abajo EN LA PÁGINA (no en `remaining`: el pool de exploración es una copia y ese ítem puede
+    ya estar en la página) a la última posición no explorada de la primera pantalla.
+
+    Los Slots explorados conservan su posición: solo se reacomodan los no explorados, y el que estaba en
+    esa posición baja un lugar. Sin un vendedor nuevo no explorado más abajo, no hay nada que hacer.
+    """
+    if cfg.new_seller_min_top_k <= 0 or len(page) < cfg.top_k:
+        return page
+    if any(by_id[s.item_id].seller_is_new for s in page[: cfg.top_k]):
+        return page
+    ranked = [s for s in page if not s.exploration]
+    n_top = sum(1 for s in page[: cfg.top_k] if not s.exploration)  # posiciones no exploradas arriba
+    j = next((i for i in range(n_top, len(ranked)) if by_id[ranked[i].item_id].seller_is_new), None)
+    if j is None or n_top == 0:
+        return page
+    ranked.insert(n_top - 1, ranked.pop(j))
+    it = iter(ranked)
+    return [s if s.exploration else next(it) for s in page]
 
 
 def _explore(page: list[Slot], remaining: list[Scored], adj: dict[str, float], request_id: str,

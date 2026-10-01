@@ -92,7 +92,8 @@ tests:
         eval_time: 60m
         exp_samples: []
 
-  # El home-api desapareció (no hay ninguna serie suya): la app sirve "recientes" a todos → firing a los 10 min.
+  # El home-api desapareció (no hay ninguna serie suya): la app sirve "recientes" a todos → firing a los
+  # 10 min, con cause="no_metrics" para no confundirlo con "todo degradado".
   - interval: 1m
     input_series:
       - series: 'up{job="otro-servicio"}'
@@ -101,7 +102,24 @@ tests:
       - expr: ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing"}
         eval_time: 12m
         exp_samples:
+          - labels: 'ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing", severity="page", cause="no_metrics"}'
+            value: 1
+
+  # Ranker caído del todo: el 100 % sale heurístico. Valor 1, pero SIN cause: el home-api está vivo.
+  - interval: 1m
+    input_series:
+      - series: 'home_requests_total{status="200",path="heuristic"}'
+        values: '0+1000x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing"}
+        eval_time: 20m
+        exp_samples:
           - labels: 'ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing", severity="page"}'
+            value: 1
+      - expr: home:degraded_ratio:rate5m
+        eval_time: 20m
+        exp_samples:
+          - labels: 'home:degraded_ratio:rate5m'
             value: 1
 
   # ---------------------------------------------------------------- CandidateSourceTimeouts
@@ -242,6 +260,28 @@ tests:
         eval_time: 10330m
         exp_samples:
           - labels: 'ALERTS{alertname="RankerScoreShift", alertstate="firing", severity="ticket", head="click"}'
+            value: 1
+
+  # La rama de abajo (< 0.7): la misma semana y media, pero contact_given_click cae a la mitad (0.20 →
+  # 0.10, 0.5×) en el minuto 10,210 → firing ≈ 1 h 20 min después. click estable → no dispara.
+  - interval: 10m
+    input_series:
+      - series: 'home_ranker_score_count{head="click"}'
+        values: '0+12000x1100'
+      - series: 'home_ranker_score_sum{head="click"}'
+        values: '0+600x1100'
+      - series: 'home_ranker_score_count{head="contact_given_click"}'
+        values: '0+12000x1100'
+      - series: 'home_ranker_score_sum{head="contact_given_click"}'
+        values: '0+2400x1020 2449200+1200x80'
+    promql_expr_test:
+      - expr: ALERTS{alertname="RankerScoreShift", alertstate="firing"}
+        eval_time: 10250m
+        exp_samples: []
+      - expr: ALERTS{alertname="RankerScoreShift", alertstate="firing"}
+        eval_time: 10330m
+        exp_samples:
+          - labels: 'ALERTS{alertname="RankerScoreShift", alertstate="firing", severity="ticket", head="contact_given_click"}'
             value: 1
 
   # ---------------------------------------------------------------- ExplorationTrafficOff

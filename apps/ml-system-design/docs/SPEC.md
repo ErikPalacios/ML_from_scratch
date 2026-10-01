@@ -957,14 +957,16 @@ zero-result and vocabulary-mismatch queries. Not our job to design the embedding
   vector at layer 0 (M = 32 → ≈ 256 B → ≈ 25.6 GB, est.). Design decision: **HNSW over int8 vectors,
   4 shards × 25 M vectors** (≈ 12.8 GB vectors + ≈ 6.4 GB graph ≈ 19 GB per shard, est.), each shard with
   **2 replicas**, scatter-gather; top-200 candidates rescored with the exact float vectors (kept on
-  local NVMe/SSD); IVF-PQ discussed as the memory-cheap alternative (and its recall cost).
+  EBS gp3 and served from the page cache: r7i has no instance store, so a new or restarted copy pre-warms;
+  local NVMe, e.g. r6id, is the cost lever that removes the pre-warm); IVF-PQ discussed as the memory-cheap alternative (and its recall cost).
 - Hybrid: ANN (semantic) and BM25 (keyword: brands, model numbers, exact sizes) **in parallel**, fused
   with **Reciprocal Rank Fusion (k = 60)**, filters applied inside the ANN search when possible (filtered
   HNSW / pre-filter by shard partition) — post-filtering trap (filter after top-k → empty pages for
-  selective filters); optional **cross-encoder reranker** on the top 100 for text queries (GPU).
+  selective filters); optional **cross-encoder reranker** for text queries (GPU); the case's design choice is the **top-30**
+  (top-100 discussed and rejected on cost).
 - Latency SLO (server-side): **text query p99 ≤ 300 ms**, **photo query p99 ≤ 600 ms** (incl. image decode
   + encoding); budget (est.): text encode ≈ 10 ms GPU, ANN ≈ 20 ms per shard (parallel), BM25 ≈ 40 ms
-  (parallel), fusion + filters ≈ 10 ms, rerank top-100 ≈ 60 ms, overhead.
+  (parallel), fusion + filters ≈ 10 ms, rerank top-30 ≈ 25 ms (top-100 would be ≈ 60 ms), overhead.
 - Freshness: a new listing is **searchable within p95 ≤ 5 min** (Kafka `listing-events` → `embed-worker`
   GPU → upsert); a **sold/removed listing must disappear within ≤ 1 min** → availability filter from a
   fast store (tombstones) at query time, because HNSW deletes are expensive (mark deleted + periodic
@@ -1012,7 +1014,9 @@ sellers / purchases** (the business value), not just clicks.
   #m09.skew).
 - Latency SLO: **p99 ≤ 200 ms server-side**; budget (est.): retrieval ≈ 40 ms (parallel sources),
   feature fetch ≈ 40 ms (batch get of ≈ 1,000 items × features + user features — the hidden cost), ranking
-  ≈ 60 ms, re-rank ≈ 10 ms, overhead/network ≈ 30 ms; each source has its own timeout and the feed is
+  ≈ 60 ms, re-rank ≈ 10 ms, overhead ≈ 30 ms (context + in-process) = 180 ms internal budget of home-api; the
+  remaining ≈ 20 ms of the SLO are margin for event-loop queueing and serializing/writing the response
+  (network and LB are outside this server-side SLO); each source has its own timeout and the feed is
   served with whatever sources answered; total failure → cached popular-in-city fallback.
 - Ranking compute (est., measure): 3,100 RPS × 1,000 candidates ≈ **3.1 M item-scores/s at peak**;
   ranker on GPU with Triton ≈ 1.5 M item-scores/s per L4 (measure) → planned 70 % ≈ 1.05 M/s → 3 + 1

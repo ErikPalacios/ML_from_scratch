@@ -25,7 +25,8 @@ RUN pip install --only-binary=:all: -r requirements.txt
 # Solo el código de producción: fakes.py y tests/ no entran a la imagen.
 COPY api.py fusion.py ./
 
-# Usuario sin privilegios: si alguien explota el parser de imágenes o de JSON, no es root.
+# Usuario sin privilegios: si alguien explota el parser de JSON o de HTTP, no es root. (Las fotos no se
+# decodifican aquí: van como bytes a Triton, que las decodifica en su paso de preprocesamiento.)
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 USER 10001
 

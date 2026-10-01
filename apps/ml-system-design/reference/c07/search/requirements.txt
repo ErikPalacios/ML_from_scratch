@@ -2,8 +2,10 @@
 # Generada con `uv pip compile` para Linux x86_64 (manylinux) y Python 3.13 (la imagen). Por qué fijar
 # las transitivas: sin lock, un rebuild del mismo commit puede traer otra starlette u otra pydantic y
 # cambiar el comportamiento sin que nadie toque el código.
-# Sin numpy ni torch: la API solo pasa el vector de la consulta a los shards; los modelos viven en la GPU
-# (Triton) y el índice en los shards. Imagen chica = arranque rápido al escalar.
+# Sin numpy, Pillow ni torch: la API pasa el vector de la consulta a los shards y los bytes de una foto a
+# Triton (que decodifica y redimensiona); los modelos viven en la GPU y el índice en los shards. Imagen
+# chica = arranque rápido al escalar. Ojo: el cliente oficial de Triton (tritonclient) depende de numpy;
+# al conectar el adaptador real, o lo agregas al lock o le hablas a Triton por HTTP/gRPC con lo que hay.
 # Tests: pip install -r ../requirements-dev.txt (no entra a la imagen).
 
 # --- directas ---

@@ -137,7 +137,7 @@
             ['Lanzar sin romper', 'Progressive delivery', 'Argo Rollouts en Kubernetes', 'Pesos en el ALB (c01); Flagger con una malla; el canary del endpoint gestionado', '<a href="#m11.canary">M11</a>, <a href="#c01.evaluacion">c01</a>'],
             ['Métricas y alertas', 'Monitoreo', 'Prometheus + Grafana + Alertmanager', 'CloudWatch o el monitoreo de tu nube', '<a href="#m12.prometheus-grafana">M12</a>, todos'],
             ['Drift de entradas y salidas', 'Monitoreo de modelo', 'Un job propio que publica PSI como métrica', 'Evidently como librería', '<a href="#m12.deteccion-drift">M12</a>, <a href="#c04.monitoreo">c04</a>'],
-            ['Buscar por similitud', 'Vector DB', 'pgvector si ya tienes Postgres', 'Qdrant, Milvus u OpenSearch cuando no cabe o no alcanza', '<a href="#c07">c07</a> (próximamente)'],
+            ['Buscar por similitud', 'Vector DB', 'pgvector si ya tienes Postgres', 'Qdrant, Milvus u OpenSearch cuando no cabe o no alcanza', '<a href="#c07">c07</a>'],
             ['Recrear la infraestructura en otra región o cuenta', 'Infraestructura como código (IaC)', 'Terraform u OpenTofu', 'CDK si todo es AWS; Pulumi si el equipo prefiere un lenguaje general', '<a href="#m15.multi-region-dr">M15</a>, <a href="#ref-herramientas.infra-ci-seguridad">infra y CI</a>'],
             ['Que a producción llegue solo lo que salió de CI', 'Supply chain', 'SBOM + escaneo + firma con cosign + política de admisión', 'El escaneo del registry de tu nube si no quieres operar escáneres', '<a href="#m15.supply-chain">M15</a>, <a href="#m05.registries">M5</a>'],
           ] },

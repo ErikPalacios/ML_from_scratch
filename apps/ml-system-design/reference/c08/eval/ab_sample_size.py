@@ -1,12 +1,15 @@
 """Tamaño de muestra del A/B del home (caso c08): usuarios por brazo y días para detectar +1 % de contactos.
 
-Ejemplo numérico primero (números ILUSTRATIVOS; los reales salen de tus logs):
-  métrica por usuario: contactos con vendedores durante el experimento (un número por persona)
-  línea base: media μ = 0.6, desviación estándar σ = 2.0 (cola larga: la mayoría 0, algunos 20+)
-  efecto mínimo a detectar: +1 % relativo → δ = 0.006 contactos por usuario
+Ejemplo numérico primero (los números del caso; los reales salen de tus logs):
+  métrica por usuario: contactos con vendedores en las 2 semanas del experimento, de cualquier superficie
+  línea base: media μ ≈ 1.3 (2.7 M contactos/día del home + 2.5 M de la búsqueda, × 14 días ÷ ≈ 55 M
+  usuarios distintos) y desviación estándar σ ≈ 4.33 (supuesto: σ/μ ≈ 3.3, cola larga: la mayoría 0)
+  efecto mínimo a detectar: +1 % relativo → δ = 0.013 contactos por usuario
   α = 0.05 (dos colas), potencia 80 % → z = 1.960 + 0.842 = 2.802 → z² = 7.849
-  n por brazo = 2 × z² × σ² / δ² = 2 × 7.849 × 4 / 0.000036 ≈ 1,744,000 usuarios
-Con 30 M de DAU sobran usuarios; lo que se discute es QUÉ fracción del tráfico arriesgar y por cuántos días.
+  n por brazo = 2 × z² × σ² / δ² = 2 × 7.849 × 18.75 / 0.000169 ≈ 1,741,500 usuarios (≈ 1.74 M)
+  con CUPED (ρ = 0.5 con la misma métrica de las 2 semanas anteriores, supuesto): × 0.75 ≈ 1.31 M
+Con ≈ 55 M de usuarios distintos en 2 semanas sobran usuarios; lo que se discute es QUÉ fracción del
+tráfico arriesgar y por cuántos días.
 
 La fórmula (test z de dos muestras, medias, varianzas iguales):  n = 2 (z_{1−α/2} + z_{1−β})² σ² / δ²
 
@@ -89,7 +92,7 @@ def days_needed(n_per_arm: int, cumulative_unique_users: list[int], share_per_ar
 
 
 if __name__ == "__main__":
-    n = users_per_arm(0.6, 2.0, 0.01)
-    print(f"usuarios por brazo (μ=0.6, σ=2.0, +1 %): {n:,}")
-    print(f"con CUPED ρ=0.5: {users_per_arm(0.6, 2.0, 0.01, cuped_rho=0.5):,}")
-    print(f"MDE con 1,000,000 por brazo: {mde(0.6, 2.0, 1_000_000):.2%}")
+    n = users_per_arm(1.3, 4.33, 0.01)
+    print(f"usuarios por brazo (μ=1.3, σ=4.33, +1 %): {n:,}")
+    print(f"con CUPED ρ=0.5: {users_per_arm(1.3, 4.33, 0.01, cuped_rho=0.5):,}")
+    print(f"MDE con 1,000,000 por brazo: {mde(1.3, 4.33, 1_000_000):.2%}")

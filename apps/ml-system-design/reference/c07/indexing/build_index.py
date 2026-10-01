@@ -10,8 +10,9 @@ Y extrapola la memoria a los 100 M de listings del caso con las fórmulas (no co
 Índices que compara (d = 512, producto interno sobre vectores L2-normalizados = coseno):
   HNSW-Flat   grafo HNSW (M = 32) + vectores float32            ≈ 4d + 2·M·4 bytes por vector
   HNSW-SQ8    grafo HNSW + vectores int8 (scalar quantization)  ≈ d + 2·M·4 bytes   ← la decisión del caso
-  + refine    lo anterior + re-score EXACTO de 200 candidatos con los float32 (en producción, en NVMe)
+  + refine    lo anterior + re-score EXACTO de 200 candidatos con los float32 (en producción, en EBS + page cache)
   IVF-PQ      nlist listas invertidas + códigos PQ de 64 bytes  ≈ 64 + 8 (id) bytes ← la alternativa barata
+  IVF-Flat    las mismas listas con los float32 completos       ≈ 4d + 8 bytes: separa la pérdida de IVF de la de PQ
 (fórmulas de la wiki de FAISS, "Guidelines to choose an index"; el benchmark las verifica midiendo)
 
 AVISO: el recall de vectores sintéticos NO es el recall de tus embeddings. Los embeddings reales tienen
@@ -20,7 +21,7 @@ de eso. Este script sirve para entender las perillas y la memoria; el número qu
 set con vectores reales (ver eval/offline_eval.py: knn_recall_at_k, y la alerta ANNRecallDrop).
 
 Uso:
-  python build_index.py                           # 200k × 512: ≈ 100 s medidos en una laptop de 10 núcleos
+  python build_index.py                           # 200k × 512: ≈ 2 min medidos en una laptop de 10 núcleos
   python build_index.py --n 50000 --queries 300   # versión rápida: ≈ 20 s
 """
 
@@ -123,12 +124,25 @@ def build_ivfpq(xb: np.ndarray, nlist: int, pq_bytes: int) -> faiss.Index:
     return idx
 
 
+def build_ivfflat(xb: np.ndarray, nlist: int) -> faiss.Index:
+    """Las mismas listas invertidas que IVF-PQ pero con los vectores completos: sirve para ver qué parte
+    del recall pierde IVF (no visitar la lista correcta) y qué parte pierde PQ (la compresión)."""
+    d = xb.shape[1]
+    idx = faiss.IndexIVFFlat(faiss.IndexFlatIP(d), d, nlist, faiss.METRIC_INNER_PRODUCT)
+    idx.train(xb)  # solo el k-means de las listas
+    idx.add(xb)
+    return idx
+
+
 def with_refine(base: faiss.Index, xb: np.ndarray, k_factor: int) -> faiss.Index:
     """Re-score exacto: el índice base devuelve k × k_factor candidatos y se re-ordenan con float32.
 
     Es el "top-200 re-scored con los vectores exactos" del caso (k = 100, k_factor = 2). Aquí los float32
-    viven en RAM (un IndexFlatIP); en producción viven en el NVMe local del shard: 200 lecturas
-    aleatorias de 2 KB por consulta, que un NVMe resuelve en mucho menos que el resto del presupuesto.
+    viven en RAM (un IndexFlatIP); en producción viven en EBS (gp3) y se sirven desde el page cache del
+    nodo (la r7i no tiene disco local). En frío serían 200 lecturas aleatorias de 2 KB por consulta,
+    ≈ 175k lecturas/s por máquina: más de 4× el techo de 40k IOPS de EBS de una r7i.4xlarge. Por eso una
+    copia nueva o reiniciada se precalienta (lee sus ≈ 51 GB al page cache) antes de recibir tráfico. Un
+    NVMe local (p. ej. r6id, con instance store) es la alternativa que quita el precalentamiento.
     """
     exact = faiss.IndexFlatIP(xb.shape[1])
     exact.add(xb)  # mismo orden de ids que el base: IndexRefine exige el mismo ntotal
@@ -264,16 +278,25 @@ def main(argv=None) -> int:
     ivf = build_ivfpq(xb, nlist, a.pq_bytes)
     build_s = time.perf_counter() - t0
     nb = index_bytes(ivf)
-    for nprobe in (16, 64):
-        ivf.nprobe = nprobe  # cuántas listas se recorren por consulta: la perilla de IVF
+    # nprobe = cuántas listas se recorren por consulta: la perilla de IVF. Con pocas listas se pierden
+    # vecinos que cayeron en una lista no visitada; cuando ya visitas las listas de los vecinos, subir
+    # nprobe deja de ayudar y el techo lo pone PQ (compara con IVF-Flat, mismas listas sin compresión).
+    for nprobe in (1, 4, 16, 64):
+        ivf.nprobe = nprobe
         rows.append(evaluate(f"IVF-PQ{a.pq_bytes}", f"nlist={nlist} nprobe={nprobe}", ivf, xq, gt, build_s, nb, a.n))
     rows.append(evaluate(f"IVF-PQ{a.pq_bytes}+refine", "nprobe=64, 200 cand.", with_refine(ivf, xb, 2), xq, gt,
                          build_s, nb, a.n))
+    t0 = time.perf_counter()
+    ivf_flat = build_ivfflat(xb, nlist)
+    ivf_flat.nprobe = 16
+    rows.append(evaluate("IVF-Flat", f"nlist={nlist} nprobe=16", ivf_flat, xq, gt, time.perf_counter() - t0,
+                         index_bytes(ivf_flat), a.n))
+    del ivf_flat  # 4d bytes por vector: no tiene sentido tenerlo vivo durante el experimento de filtros
 
     print(f"\n{'índice':16s} {'parámetros':22s} {'R@10':>6s} {'R@100':>6s} {'build s':>8s} {'B/vector':>9s} {'p50 ms':>7s} {'p99 ms':>7s}")
     for r in rows:
         print(f"{r.name:16s} {r.params:22s} {r.r10:6.3f} {r.r100:6.3f} {r.build_s:8.1f} {r.bytes_per_vec:9.0f} {r.p50_ms:7.2f} {r.p99_ms:7.2f}")
-    print("B/vector: tamaño serializado del índice ÷ n (en +refine, SIN los float32 del re-score, que van a NVMe).")
+    print("B/vector: tamaño serializado del índice ÷ n (en +refine, SIN los float32 del re-score, que van en EBS + page cache).")
     print("Latencia: 1 consulta a la vez, 1 hilo, k = 100, en esta máquina. No incluye red ni filtros.")
 
     for nv in a.filter_values:
@@ -293,7 +316,7 @@ def main(argv=None) -> int:
                      ("hnsw_flat", "HNSW-Flat"), ("hnsw_sq8", "HNSW-SQ8 (decisión)"),
                      ("hnsw_sq8_per_shard", "  ÷ 4 shards"), ("ivf_pq", "IVF-PQ64 (+ ids)")]:
         print(f"  {label:22s} {e[k]:7.1f} GB")
-    print("  + float32 para el re-score en NVMe: 204.8 GB en total (51.2 GB por shard)")
+    print("  + float32 para el re-score (EBS, servidos desde el page cache): 204.8 GB en total (51.2 GB por shard)")
     print("\nAVISO: recall sintético ≠ recall real. Mide con tus embeddings (canary set, ANNRecallDrop).")
     return 0
 

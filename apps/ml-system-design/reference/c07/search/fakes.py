@@ -14,9 +14,10 @@ import math  # norma
 import re  # tokenizar
 from collections.abc import Sequence  # tipos
 
-from api import Deps, Filters, Hit, ShardResult  # tipos del contrato
+from api import Deps, Filters, Hit, ModelVersionUnavailable, ShardResult  # tipos del contrato
 
 DIM = 64  # chico a propósito: la demo no necesita 512
+V7 = "2026-09-15-clip-ft-v7"
 
 
 def _tokens(text: str) -> list[str]:
@@ -40,30 +41,48 @@ def dot(a: Sequence[float], b: Sequence[float]) -> float:
 
 
 class FakeEncoder:
-    def __init__(self, model_version: str = "2026-09-15-clip-ft-v7", delay_s: float = 0.0, fail: bool = False):
-        self.model_version, self.delay_s, self.fail = model_version, delay_s, fail
-        self.calls = 0
+    """Triton de juguete: sirve las versiones de `versions` (durante un cambio de modelo, dos)."""
 
-    async def _go(self):
-        self.calls += 1
+    def __init__(self, versions=(V7,), delay_s: float = 0.0, fail: bool = False):
+        self.versions, self.delay_s, self.fail = set(versions), delay_s, fail
+        self.calls: list[str] = []  # versión pedida en cada llamada
+
+    async def _go(self, model_version: str):
+        self.calls.append(model_version)
         await asyncio.sleep(self.delay_s)
         if self.fail:
             raise RuntimeError("Triton no disponible")
+        if model_version not in self.versions:
+            raise ModelVersionUnavailable(model_version)
 
-    async def encode_text(self, text: str) -> list[float]:
-        await self._go()
+    async def encode_text(self, text: str, model_version: str) -> list[float]:
+        await self._go(model_version)
         return embed_text(text)
 
-    async def encode_image(self, data: bytes) -> list[float]:
-        await self._go()
+    async def encode_image(self, data: bytes, model_version: str) -> list[float]:
+        await self._go(model_version)
         # "Foto" de juguete: el texto que viene después de la firma JPEG/PNG (la demo manda eso)
         return embed_text(data[3:].decode("utf-8", "ignore"))
+
+
+class FakeAlias:
+    """El alias listings-vec-live: a qué versión apunta hoy."""
+
+    def __init__(self, version: str = V7, fail: bool = False):
+        self.version, self.fail = version, fail
+        self.reads = 0
+
+    async def model_version(self) -> str:
+        self.reads += 1
+        if self.fail:
+            raise ConnectionError("OpenSearch no contesta")
+        return self.version
 
 
 class FakeShard:
     """Un shard en memoria con brute force exacto (el real es HNSW-SQ8 + re-score)."""
 
-    def __init__(self, name: str, items: list[dict], model_version: str = "2026-09-15-clip-ft-v7",
+    def __init__(self, name: str, items: list[dict], model_version: str = V7,
                  supports_inline_filter: bool = True, delay_s: float = 0.0, fail: bool = False):
         self.name, self.items, self.model_version = name, items, model_version
         self.supports_inline_filter, self.delay_s, self.fail = supports_inline_filter, delay_s, fail
@@ -77,7 +96,8 @@ class FakeShard:
         f = Filters(**filters)
         pool = [it for it in self.items if f.matches(it["attrs"])] if filters else self.items
         scored = sorted(pool, key=lambda it: -dot(vector, it["vec"]))[:k]
-        return ShardResult([Hit(it["id"], dot(vector, it["vec"]), it["attrs"], it["title"]) for it in scored],
+        # Como un índice que llena embed-worker: id, coseno y atributos de filtro. Sin título.
+        return ShardResult([Hit(it["id"], dot(vector, it["vec"]), it["attrs"]) for it in scored],
                            self.model_version)
 
 
@@ -95,7 +115,7 @@ class FakeKeyword:
         q = set(_tokens(text))
         scored = [(len(q & set(_tokens(it["title"]))), it) for it in self.items if f.matches(it["attrs"])]
         scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1]["id"]))[:k]
-        return [Hit(it["id"], float(s), it["attrs"], it["title"]) for s, it in scored]
+        return [Hit(it["id"], float(s), it["attrs"]) for s, it in scored]
 
 
 class FakeTombstones:
@@ -109,20 +129,36 @@ class FakeTombstones:
         return self.ids & set(ids)
 
 
+class FakeTexts:
+    """Caché de listings de juguete: título por id. `missing` simula misses."""
+
+    def __init__(self, items: list[dict], missing: set[str] | None = None, delay_s: float = 0.0, fail: bool = False):
+        self.by_id = {it["id"]: it["title"] for it in items}
+        self.missing, self.delay_s, self.fail = set(missing or ()), delay_s, fail
+
+    async def get_many(self, ids) -> dict[str, str]:
+        await asyncio.sleep(self.delay_s)
+        if self.fail:
+            raise ConnectionError("caché de listings caído")
+        return {i: self.by_id[i] for i in ids if i in self.by_id and i not in self.missing}
+
+
 class FakeReranker:
-    """Cross-encoder de juguete: fracción de palabras de la query en el título."""
+    """Cross-encoder de juguete: fracción de palabras de la query en el texto del listing."""
 
     def __init__(self, delay_s: float = 0.0, fail: bool = False):
         self.delay_s, self.fail = delay_s, fail
         self.seen: list[int] = []  # cuántos pares recibió en cada llamada
+        self.texts: list[list[str]] = []  # los textos que leyó (para los tests)
 
-    async def score(self, query: str, hits) -> list[float]:
-        self.seen.append(len(hits))
+    async def score(self, query: str, texts) -> list[float]:
+        self.seen.append(len(texts))
+        self.texts.append(list(texts))
         await asyncio.sleep(self.delay_s)
         if self.fail:
             raise RuntimeError("GPU del reranker ocupada")
         q = set(_tokens(query))
-        return [len(q & set(_tokens(h.title))) / max(1, len(q)) for h in hits]
+        return [len(q & set(_tokens(t))) / max(1, len(q)) for t in texts]
 
 
 # ---------------------------------------------------------------------------- catálogo de juguete
@@ -153,6 +189,6 @@ def demo_deps(n_shards: int = 4, tombstoned: set[str] | None = None) -> Deps:
     items = demo_items()
     shards = [FakeShard(f"shard-{s}", [it for it in items if int(hashlib.md5(it["id"].encode()).hexdigest(), 16)
                                        % n_shards == s]) for s in range(n_shards)]
-    return Deps(encoder=FakeEncoder(), shards=shards, keyword=FakeKeyword(items),
+    return Deps(encoder=FakeEncoder(), alias=FakeAlias(), shards=shards, keyword=FakeKeyword(items),
                 tombstones=FakeTombstones(tombstoned if tombstoned is not None else {"L2"}),
-                reranker=FakeReranker())
+                reranker=FakeReranker(), texts=FakeTexts(items))

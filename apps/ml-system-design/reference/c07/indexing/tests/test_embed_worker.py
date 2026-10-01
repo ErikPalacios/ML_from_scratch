@@ -35,6 +35,7 @@ class FakeConsumer:
 class FakeEmbedder:
     def __init__(self, version="v1", fail_times=0, bad_ids=()):
         self.model_version, self.dim = version, DIM
+        self.served = None  # si se pone, el "servidor" responde con esta versión aunque el atributo diga otra
         self.calls = []
         self.fail_times = fail_times
         self.bad = set(bad_ids)  # textos que devuelven NaN (simula un bug de preprocesamiento)
@@ -50,12 +51,12 @@ class FakeEmbedder:
         for i, t in enumerate(texts):
             if any(b in t for b in self.bad):
                 v[i] = np.nan
-        return v
+        return v, self.served or self.model_version  # como Triton: la versión viene en la respuesta
 
 
 class FakeIndex:
     def __init__(self, version="v1"):
-        self.model_version, self.dim = version, DIM
+        self.name, self.model_version, self.dim = f"listings-vec-{version}", version, DIM
         self.vectors, self.attrs, self.deleted = {}, {}, set()
 
     def upsert(self, ids, vectors, attrs, model_version):
@@ -84,16 +85,20 @@ class FakeTombstones:
 
 
 class FakeStates:
+    """Como Redis con keys state:{index}:{listing_id}: un dict por índice."""
+
     def __init__(self):
-        self.s = {}
+        self.by_index = {}
 
-    def get_many(self, ids):
-        return {i: self.s[i] for i in ids if i in self.s}
+    def get_many(self, index, ids):
+        s = self.by_index.get(index, {})
+        return {i: s[i] for i in ids if i in s}
 
-    def put_many(self, states):
+    def put_many(self, index, states):
+        s = self.by_index.setdefault(index, {})
         for k, v in states.items():
-            if k not in self.s or v.version > self.s[k].version:  # compare-and-set
-                self.s[k] = v
+            if k not in s or v.version > s[k].version:  # compare-and-set
+                s[k] = v
 
 
 class FakeDLQ:
@@ -114,14 +119,19 @@ def msg(listing_id, version, type_, ts=1000.0, **kw):
     return ew.Message(partition=0, offset=next(_offset), value=json.dumps(body).encode())
 
 
-def make(batches, embedder=None, index=None, now=1030.0):
+def make(batches, embedder=None, index=None, now=1030.0, tombstones=None, states=None):
     reg = CollectorRegistry()
     w = ew.Worker(
         consumer=FakeConsumer(batches), embedder=embedder or FakeEmbedder(), index=index or FakeIndex(),
-        tombstones=FakeTombstones(), states=FakeStates(), dlq=FakeDLQ(), metrics=ew.Metrics(reg),
-        clock=lambda: now, sleep=lambda s: None,
+        tombstones=tombstones or FakeTombstones(), states=states or FakeStates(), dlq=FakeDLQ(),
+        metrics=ew.Metrics(reg), clock=lambda: now, sleep=lambda s: None,
     )
     return w, reg
+
+
+def state(w):
+    """El estado guardado para el índice de este worker."""
+    return w.states.by_index.get(w.index.name, {})
 
 
 def val(reg, name, **labels):
@@ -156,7 +166,7 @@ def test_updated_atrasado_no_resucita_un_vendido():
         w.run_once()
     assert "L1" in w.tombstones.ids  # sigue oculto
     assert "L1" in w.index.deleted
-    assert w.states.s["L1"] == ew.ListingState(5, "gone")
+    assert state(w)["L1"] == ew.ListingState(5, "gone")
     assert len(w.embedder.calls) == 1  # el v4 atrasado ni siquiera llegó a la GPU
 
 
@@ -166,7 +176,7 @@ def test_version_mas_nueva_reactiva_un_removido():
     for _ in range(3):
         w.run_once()
     assert "L1" not in w.tombstones.ids and "L1" not in w.index.deleted
-    assert w.states.s["L1"].status == "live"
+    assert state(w)["L1"].status == "live"
     assert len(w.embedder.calls) == 2  # estaba "gone": se re-escribe aunque el contenido sea igual
 
 
@@ -219,7 +229,7 @@ def test_vector_nan_va_a_la_dlq_y_el_resto_se_escribe():
                   embedder=FakeEmbedder(bad_ids=("roto",)))
     w.run_once()
     assert "L1" not in w.index.vectors and "L2" in w.index.vectors
-    assert "L1" not in w.states.s  # sin estado: un evento futuro del L1 se va a procesar
+    assert "L1" not in state(w)  # sin estado: un evento futuro del L1 se va a procesar
     assert val(reg, "embed_worker_dead_letter_total", reason="invalid_vector") == 1
 
 
@@ -237,6 +247,32 @@ def test_modelo_recargado_en_caliente_se_detecta_antes_de_escribir():
     assert w.index.vectors == {} and w.consumer.committed == []  # nada escrito, nada commiteado
 
 
+def test_la_version_sale_de_la_respuesta_no_del_atributo():
+    # El adaptador todavía dice v1, pero el servidor ya respondió con v2 (recargó en medio de la llamada)
+    emb = FakeEmbedder("v1")
+    w, _ = make([[msg("L1", 1, "created")]], embedder=emb)
+    emb.served = "v2"
+    with pytest.raises(ew.ModelVersionMismatch):
+        w.run_once()
+    assert w.index.vectors == {} and w.consumer.committed == []
+
+
+def test_blue_green_cada_indice_con_su_estado_y_tombstones_compartidos():
+    # Mismo StateStore y mismo TombstoneStore (los mismos Redis), dos workers: v7 (blue, sirve) y v8 (green,
+    # se pone al día desde el offset del snapshot). Los dos reciben los mismos eventos.
+    batch = [msg("L9", 1, "created"), msg("L9", 2, "updated", title="chamarra de mezclilla talla M"),
+             msg("L5", 3, "sold")]
+    states, tombs = FakeStates(), FakeTombstones()
+    blue, _ = make([list(batch)], embedder=FakeEmbedder("v7"), index=FakeIndex("v7"), states=states, tombstones=tombs)
+    green, reg = make([list(batch)], embedder=FakeEmbedder("v8"), index=FakeIndex("v8"), states=states, tombstones=tombs)
+    blue.run_once()
+    green.run_once()
+    assert "L9" in blue.index.vectors and "L9" in green.index.vectors  # green NO los tira como stale
+    assert val(reg, "embed_worker_events_total", type="updated", outcome="stale") == 0
+    assert states.by_index.keys() == {"listings-vec-v7", "listings-vec-v8"}
+    assert "L5" in tombs.ids and "L5" in green.index.deleted  # el vendido: un tombstone para los dos
+
+
 def test_error_transitorio_de_gpu_se_reintenta():
     w, _ = make([[msg("L1", 1, "created")]], embedder=FakeEmbedder(fail_times=2))
     w.run_once()
@@ -248,7 +284,7 @@ def test_gpu_caida_no_commitea():
     with pytest.raises(TimeoutError):
         w.run_once()
     assert w.consumer.committed == []  # al reiniciar, Kafka lo vuelve a entregar
-    assert w.states.s == {}
+    assert state(w) == {}
 
 
 def test_backlog_se_publica():

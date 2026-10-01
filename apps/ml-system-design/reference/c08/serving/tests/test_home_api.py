@@ -390,6 +390,42 @@ def test_page_two_continues_without_repeating_page_one():
     assert [it["position"] for it in p2["items"]][:2] == [51, 52]  # posición global en el scroll
 
 
+def test_popular_page_two_starts_at_the_first_unserved_item():
+    # Con contexto, cheap_filters ya saca lo servido: saltar además el offset dejaría ≈ 50 sin mostrar
+    srcs = [FakeSource(n, [], exc=ConnectionError()) for n in h.SOURCES]
+    deps, app = make(sources=srcs)
+    with TestClient(app) as c:
+        p1 = get(c, rid="pop-1").json()
+        time.sleep(0.05)  # add_served corre en segundo plano
+        p2 = get(c, page=2, rid="pop-2").json()
+    assert p1["path"] == p2["path"] == "popular"
+    eligible = [x.item_id for x in FakePopular().get("cdmx") if x.ships or x.city == "cdmx"]
+    assert [it["item_id"] for it in p1["items"]] == eligible[:50]
+    assert [it["item_id"] for it in p2["items"]] == eligible[50:100]  # sin huecos ni repetidos
+    assert [it["position"] for it in p2["items"]][:2] == [51, 52]
+
+
+def test_popular_without_user_context_pages_by_offset():
+    deps, app = make(users=FakeUsers(exc=ConnectionError()))
+    with TestClient(app) as c:
+        p2 = get(c, page=2, rid="nat-2").json()
+    assert p2["path"] == "popular" and p2["items"][0]["item_id"] == "i3050"  # lista nacional, sin filtrar
+
+
+def test_first_screen_score_histogram_only_counts_page_one():
+    deps, app = make()
+    count = lambda: val("home_ranker_score_count", head="click")  # noqa: E731
+    with TestClient(app) as c:
+        before = count()
+        get(c, rid="h-p1")
+        after_p1 = count()
+        time.sleep(0.05)
+        assert get(c, page=2, rid="h-p2").json()["path"] == "ranked"
+        after_p2 = count()
+    assert after_p1 - before == 10  # posiciones 1–10 de la página 1
+    assert after_p2 == after_p1  # la página 2 (posiciones 51–100) no es "primera pantalla"
+
+
 # ---------------------------------------------------------------------------- exploración
 def test_exploration_is_about_5_percent_and_deterministic_per_request():
     deps, app = make()

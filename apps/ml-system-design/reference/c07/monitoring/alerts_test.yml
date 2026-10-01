@@ -56,15 +56,15 @@ tests:
               runbook_url: "https://runbooks.example.com/c07/search-latency"
 
   # ---------------------------------------------------------------- EmbedWorkerBacklog
-  # Se producen 3,000 eventos/min (50/s). El worker se cae en el minuto 20: el lag crece 3,000/min hasta
-  # el 30 y ahí se estanca (34,000 = 680 s; un valor fijo para verificar el summary).
+  # Se producen 3,000 eventos/min (50/s). El worker de v7 se cae en el minuto 20: el lag crece 3,000/min
+  # hasta el 30 y ahí se estanca (34,000 = 680 s; un valor fijo para verificar el summary).
   # lag en segundos = lag ÷ 50 > 180 → lag > 9,000 → desde el minuto 23 (10,000) → firing en el 33.
   # Otro consumer group (otro servicio) con lag enorme no debe disparar.
   - interval: 1m
     input_series:
       - series: 'kafka_topic_partition_current_offset{topic="listing-events",partition="0"}'
         values: '0+3000x60'
-      - series: 'kafka_consumergroup_lag{consumergroup="embed-worker",topic="listing-events",partition="0"}'
+      - series: 'kafka_consumergroup_lag{consumergroup="embed-worker-v7",topic="listing-events",partition="0"}'
         values: '1000x20 4000+3000x10 34000x30'
       - series: 'kafka_consumergroup_lag{consumergroup="analytics",topic="listing-events",partition="0"}'
         values: '500000x60'
@@ -72,7 +72,7 @@ tests:
       - expr: search:embed_worker_lag_seconds
         eval_time: 10m
         exp_samples:
-          - labels: 'search:embed_worker_lag_seconds'
+          - labels: 'search:embed_worker_lag_seconds{consumergroup="embed-worker-v7"}'
             value: 20  # 1,000 mensajes ÷ 50/s
     alert_rule_test:
       - eval_time: 32m
@@ -81,11 +81,33 @@ tests:
       - eval_time: 34m
         alertname: EmbedWorkerBacklog
         exp_alerts:
-          - exp_labels: {severity: page}
+          - exp_labels: {severity: page, consumergroup: embed-worker-v7}
             exp_annotations:
-              summary: "embed-worker atrasado 11m 20s en listing-events"  # 34,000 ÷ 50 = 680 s
-              description: "Listings nuevos y vendidos no llegan al índice. ¿Pods en CrashLoopBackOff (ModelVersionMismatch: encoder e índice con modelos distintos)? ¿GPU saturada (embed_worker_embed_batch_seconds)? ¿DLQ creciendo (embed_worker_dead_letter_total)? Mientras tanto los vendidos tampoco se marcan: mira SoldItemsServed."
+              summary: "embed-worker-v7 atrasado 11m 20s en listing-events"  # 34,000 ÷ 50 = 680 s
+              description: "Listings nuevos y vendidos no llegan a ese índice. ¿Pods en CrashLoopBackOff (ModelVersionMismatch: encoder e índice con modelos distintos)? ¿GPU saturada (embed_worker_embed_batch_seconds)? ¿DLQ creciendo (embed_worker_dead_letter_total)? Mientras tanto los vendidos tampoco se marcan: mira SoldItemsServed. ¿Es el catch-up planeado de green? Silencia solo ese grupo. ¿Es el grupo de una versión retirada? Borra el grupo (kafka-consumer-groups --delete)."
               runbook_url: "https://runbooks.example.com/c07/embed-worker-backlog"
+
+  # ---------------------------------------------------------------- EmbedWorkerBacklog después de un swap
+  # El índice que sirve ya es el de v8 (otro consumer group). Su worker se cae en el minuto 10 y el de v7
+  # (blue, guardado para rollback) sigue sano: la alerta tiene que ver al grupo NUEVO, y solo a él.
+  # 50/s; lag v8 = 500 + 3,000/min desde el 10 → > 9,000 desde el minuto 13 (9,500) → firing en el 23.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_topic_partition_current_offset{topic="listing-events",partition="0"}'
+        values: '0+3000x40'
+      - series: 'kafka_consumergroup_lag{consumergroup="embed-worker-v7",topic="listing-events",partition="0"}'
+        values: '500x40'
+      - series: 'kafka_consumergroup_lag{consumergroup="embed-worker-v8",topic="listing-events",partition="0"}'
+        values: '500x10 3500+3000x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="EmbedWorkerBacklog", alertstate="firing"}
+        eval_time: 22m
+        exp_samples: []
+      - expr: ALERTS{alertname="EmbedWorkerBacklog", alertstate="firing"}
+        eval_time: 24m
+        exp_samples:
+          - labels: 'ALERTS{alertname="EmbedWorkerBacklog", alertstate="firing", severity="page", consumergroup="embed-worker-v8"}'
+            value: 1
 
   # ---------------------------------------------------------------- IndexFreshnessLag (SLO p95 ≤ 300 s)
   # 100 upserts/min, todos ≤ 120 s hasta el minuto 30; después el 10 % tarda entre 300 y 600 s.

@@ -47,13 +47,16 @@ groups:
       - record: search:index_freshness_p95:rate15m
         expr: |
           histogram_quantile(0.95, sum by (le, op) (rate(embed_worker_index_freshness_seconds_bucket[15m])))
-      # Cuántos SEGUNDOS va atrasado embed-worker: lag en mensajes ÷ ritmo al que se producen.
+      # Cuántos SEGUNDOS va atrasado CADA embed-worker: lag en mensajes ÷ ritmo al que se producen.
       # Ve el atraso aunque el worker no procese NADA (caído): el histograma de frescura de arriba solo
       # registra lo que terminó, y con el worker caído se queda callado (la trampa del caso c04).
+      # Un consumer group por versión de modelo (embed-worker-v7, embed-worker-v8 durante un blue/green):
+      # por eso el regex y el `by (consumergroup)`. Con un nombre fijo, después del primer cambio de modelo
+      # la alerta miraría un grupo que ya no alimenta el índice que sirve (o una serie que ya no existe).
       - record: search:embed_worker_lag_seconds
         expr: |
-          sum(kafka_consumergroup_lag{consumergroup="embed-worker", topic="listing-events"})
-            / sum(rate(kafka_topic_partition_current_offset{topic="listing-events"}[5m]))
+          sum by (consumergroup) (kafka_consumergroup_lag{consumergroup=~"embed-worker-.+", topic="listing-events"})
+            / scalar(sum(rate(kafka_topic_partition_current_offset{topic="listing-events"}[5m])))
       # Fracción de búsquedas cuyo chequeo de tombstones falló (se sirvieron sin quitar vendidos).
       - record: search:tombstone_check_failure_ratio:rate5m
         expr: |
@@ -104,13 +107,16 @@ groups:
       - alert: EmbedWorkerBacklog
         # Umbral 180 s: con ≈ 1–2 min de embed + upsert + refresh del índice, a 3 min de atraso el SLO
         # de 5 min (p95) ya está en riesgo. Dispara también con el worker CAÍDO (el lag crece igual).
+        # Una alerta por consumer group. El catch-up de green (embed-worker-<nueva> releyendo desde el
+        # offset del snapshot) arranca con horas de lag A PROPÓSITO: se silencia en Alertmanager durante esa
+        # ventana planeada, con matcher consumergroup="embed-worker-<nueva>", nunca para todos los grupos.
         expr: search:embed_worker_lag_seconds > 180
         for: 10m
         labels:
           severity: page
         annotations:
-          summary: "embed-worker atrasado {{ $value | humanizeDuration }} en listing-events"
-          description: "Listings nuevos y vendidos no llegan al índice. ¿Pods en CrashLoopBackOff (ModelVersionMismatch: encoder e índice con modelos distintos)? ¿GPU saturada (embed_worker_embed_batch_seconds)? ¿DLQ creciendo (embed_worker_dead_letter_total)? Mientras tanto los vendidos tampoco se marcan: mira SoldItemsServed."
+          summary: "{{ $labels.consumergroup }} atrasado {{ $value | humanizeDuration }} en listing-events"
+          description: "Listings nuevos y vendidos no llegan a ese índice. ¿Pods en CrashLoopBackOff (ModelVersionMismatch: encoder e índice con modelos distintos)? ¿GPU saturada (embed_worker_embed_batch_seconds)? ¿DLQ creciendo (embed_worker_dead_letter_total)? Mientras tanto los vendidos tampoco se marcan: mira SoldItemsServed. ¿Es el catch-up planeado de green? Silencia solo ese grupo. ¿Es el grupo de una versión retirada? Borra el grupo (kafka-consumer-groups --delete)."
           runbook_url: "https://runbooks.example.com/c07/embed-worker-backlog"
 
       - alert: IndexFreshnessLag

@@ -14,7 +14,8 @@
 #   marketplace_contacts_total{surface}  → messaging-service: contactos con vendedores (surface = home · search · other)
 #   marketplace_active_users{window}     → job de analytics en streaming: usuarios DISTINTOS activos en la
 #                                          ventana (HyperLogLog). Un counter de Prometheus no cuenta distintos.
-#   up{job="home-api"}                   → Prometheus (supone que el job de scrape se llama así)
+#   up{job="home-api"}                   → Prometheus (supone que el job de scrape se llama así); no entra en
+#                                          ninguna expr: la descripción de HomeFallbackRateHigh lo cita para el diagnóstico
 # Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
 
 groups:
@@ -91,8 +92,9 @@ groups:
   - name: c08-system
     rules:
       # SLO: p99 ≤ 200 ms. Cada etapa tiene timeout, así que un p99 > 200 ms casi nunca es "una fuente
-      # lenta": es el propio home-api (CPU saturada, event loop bloqueado por el re-rank o la
-      # serialización de ≈ 40 KB por registro) o la red.
+      # lenta": es el propio home-api (CPU saturada, event loop bloqueado por el re-rank o por la
+      # serialización del registro de impresión: ≈ 13.5 KB en la demo; decenas de KB en JSON con las
+      # features reales, est.) o la red.
       - alert: HomeLatencyHigh
         expr: home:latency_p99:rate5m > 0.2
         for: 10m
@@ -106,17 +108,19 @@ groups:
       # Más de 2 % de las respuestas degradadas durante 10 min (en condiciones normales, < 1 %), o el
       # home-api sin métricas (caído entero: la app muestra "recientes en tu ciudad" a todo el mundo).
       # Un fallback no es un error HTTP: sin esta alerta, una caída del ranker se ve como "todo 200".
+      # Las dos ramas darían una serie sin labels y valor 1 cuando TODO sale degradado (ranker o feature
+      # store caídos del todo): el label cause="no_metrics" separa "home-api caído" de "100 % degradado".
       - alert: HomeFallbackRateHigh
         expr: |
           home:degraded_ratio:rate5m > 0.02
             or
-          absent_over_time(home_requests_total[5m])
+          label_replace(absent_over_time(home_requests_total[5m]), "cause", "no_metrics", "", "")
         for: 10m
         labels:
           severity: page
         annotations:
           summary: "{{ $value | humanizePercentage }} del home sale degradado (> 2 %)"
-          description: "Sin labels y valor 1: no hay métricas del home-api. Si no, motivo: sum by (reason) (rate(home_fallback_total[5m])). ranker_timeout/ranker_error → Triton (GPUs, cola de batching, modelo no cargado). features_unavailable → feature store (latencia, versión del esquema). no_candidates → todas las fuentes caídas (ver CandidateSourceTimeouts). user_context_unavailable → Redis de usuarios. internal_error → logs."
+          description: "Con cause=\"no_metrics\": el home-api no expone métricas (mira up{job=\"home-api\"}: ¿pods caídos o el scrape roto?). Si no, el valor es la fracción degradada (1 = todo degradado, no caído) y el motivo: sum by (reason) (rate(home_fallback_total[5m])). ranker_timeout/ranker_error → Triton (GPUs, cola de batching, modelo no cargado). features_unavailable → feature store (latencia, versión del esquema). no_candidates → todas las fuentes caídas (ver CandidateSourceTimeouts). user_context_unavailable → Redis de usuarios. internal_error → logs."
           runbook_url: "https://runbooks.example.com/c08/home-fallback"
 
       # Una fuente que vence su timeout > 5 % de las veces durante 15 min. El home sigue saliendo con las
@@ -168,7 +172,8 @@ groups:
     rules:
       # Score medio de la primera pantalla vs la misma hora de la semana pasada: > +30 % o < −30 %
       # durante 1 h. La hora del día y el día de la semana cambian mucho el CTR: comparar con "hace una
-      # hora" daría falsas alarmas cada mañana. Mínimo de volumen para no alertar de madrugada.
+      # hora" daría falsas alarmas cada mañana (y la madrugada se compara con la madrugada). Volumen
+      # mínimo: evita alertar sobre un cociente sin tráfico (home caído o entorno sin usuarios).
       - alert: RankerScoreShift
         expr: |
           (home:ranker_mean_score_wow_ratio:rate1h > 1.3 or home:ranker_mean_score_wow_ratio:rate1h < 0.7)

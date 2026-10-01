@@ -68,8 +68,11 @@ def _env_pairs(name: str, default: str) -> dict[str, float]:
 
 @dataclass
 class Settings:
-    # Presupuesto INTERNO del request: 180 ms de los 200 del SLO p99. Los 20 restantes son red, LB,
-    # serialización y la cola del event loop: el presupuesto limita las llamadas remotas, no un loop bloqueado.
+    # Presupuesto INTERNO del request: 180 ms de los 200 del SLO p99 = las etapas + el overhead en proceso
+    # (merge, filtros, armar el tensor del ranker y la respuesta; el final lo cubre reserve_s). Los ≈ 20
+    # restantes son margen para la cola del event loop y para serializar y escribir la respuesta: el
+    # presupuesto limita las llamadas remotas, no puede cortar un loop bloqueado. La red y el balanceador
+    # quedan fuera del SLO (se miden desde el balanceador y la app).
     budget_s: float = float(os.getenv("BUDGET_S", "0.18"))
     # Lo que se reserva al final para re-rank, serializar y responder (no se le da al ranker)
     reserve_s: float = float(os.getenv("RESERVE_S", "0.015"))
@@ -534,7 +537,7 @@ async def build_feed(st: State, user_id: str, page: int, request_id: str) -> dic
             entry |= {"p_click": round(pc, 6), "p_contact_given_click": round(pk, 6),
                       "features": snapshot["items"][sl.item_id],
                       "features_defaulted": sl.item_id in snapshot["defaulted"]}
-            if sl.position <= 10:
+            if pos <= 10:  # solo la primera pantalla REAL (página 1): la profundidad del scroll no mueve el histograma
                 RANKER_SCORE.labels(head="click").observe(pc)
                 RANKER_SCORE.labels(head="contact_given_click").observe(pk)
         items_log.append(entry)
@@ -601,7 +604,14 @@ async def _popular_response(st: State, user_id: str, page: int, request_id: str,
     except Exception:
         FILTERED.labels(reason="availability_check_failed").inc()
     offset = (page - 1) * s.page_size
-    chosen = cands[offset: offset + s.page_size]  # la lista es la misma para todos: se pagina por offset
+    if user is None:
+        # Sin contexto no hubo filtro por sesión: la lista es la misma para todos y se pagina por offset
+        chosen = cands[offset: offset + s.page_size]
+    else:
+        # cheap_filters ya sacó lo servido en las páginas anteriores (served_this_session): saltar
+        # además el offset dejaría sin mostrar ≈ 50 populares que nadie vio. Pasa también cuando la
+        # página 1 salió del ranker y la 2 cae a populares.
+        chosen = cands[: s.page_size]
     items = [{"item_id": c.item_id, "position": offset + i + 1, "source": "popular", "exploration": False}
              for i, c in enumerate(chosen)]
     ITEMS_SERVED.labels(path="popular").inc(len(items))

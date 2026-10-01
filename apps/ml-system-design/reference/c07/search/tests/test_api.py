@@ -4,6 +4,8 @@ Sin GPU, sin shards reales, sin OpenSearch, sin Redis. Los fakes (search/fakes.p
 errores. Las métricas son globales (como en producción): los tests miden DIFERENCIAS.
 """
 
+import json
+import logging
 import re
 import time
 from pathlib import Path
@@ -18,8 +20,9 @@ import fakes
 JPEG = b"\xff\xd8\xff" + "chamarra de mezclilla".encode()  # "foto" de juguete: firma JPEG + texto
 
 
-def client(deps=None, **settings):
-    return TestClient(api.create_app(deps or fakes.demo_deps(), api.Settings(**settings)))
+def client(deps=None, raise_server_exceptions=True, **settings):
+    return TestClient(api.create_app(deps or fakes.demo_deps(), api.Settings(**settings)),
+                      raise_server_exceptions=raise_server_exceptions)
 
 
 def text(c, q, **params):
@@ -37,7 +40,7 @@ def test_texto_hibrido_con_desglose_de_latencia_y_version():
     body = r.json()
     assert body["model_version"] == "2026-09-15-clip-ft-v7"
     assert body["query_type"] == "text" and body["degraded"] == []
-    assert {"encode", "ann", "bm25", "fusion", "tombstones", "rerank", "total"} <= set(body["latency_ms"])
+    assert {"encode", "ann", "bm25", "fusion", "tombstones", "texts", "rerank", "total"} <= set(body["latency_ms"])
     top = body["results"][0]
     assert top["listing_id"] in {"L1", "L11"}  # las chamarras de mezclilla
     assert set(top["sources"]) == {"ann", "bm25"}  # salió en las dos listas: RRF lo premia
@@ -143,12 +146,69 @@ def test_shard_con_otro_modelo_se_descarta():
     assert metric("search_ann_shard_errors_total", shard="shard-0", reason="model_version_mismatch") == before + 1
 
 
-def test_readyz_exige_mismo_modelo_en_encoder_y_shards():
+def test_readyz_es_local_y_no_depende_de_versiones_ni_de_dependencias():
+    # Si /readyz mirara versiones o dependencias compartidas, un swap del alias (o Triton caído) sacaría a
+    # TODOS los pods del Service a la vez, y con ellos el camino de BM25 que sí funcionaba.
     deps = fakes.demo_deps()
-    assert client(deps).get("/readyz").status_code == 200
     deps.shards[2].model_version = "otro"
+    deps.encoder.fail = True
     r = client(deps).get("/readyz")
-    assert r.status_code == 503 and r.json()["ready"] is False
+    assert r.status_code == 200 and r.json()["ready"] is True
+
+
+def test_la_version_sale_del_alias_y_se_pide_al_encoder():
+    deps = fakes.demo_deps()
+    body = text(client(deps), "chamarra").json()
+    assert body["model_version"] == fakes.V7 and deps.encoder.calls == [fakes.V7]
+
+
+def test_swap_del_alias_cambia_la_version_pedida_sin_reiniciar():
+    deps = fakes.demo_deps()
+    deps.encoder.versions = {fakes.V7, "v8"}  # durante el cambio, Triton tiene las dos cargadas
+    c = client(deps, alias_cache_s=0)  # sin caché: el test no espera 5 s
+    assert text(c, "chamarra").json()["model_version"] == fakes.V7
+    deps.alias.version = "v8"  # swap atómico del alias: los shards ya contestan desde listings-vec-v8
+    for sh in deps.shards:
+        sh.model_version = "v8"
+    body = text(c, "chamarra").json()
+    assert body["model_version"] == "v8" and deps.encoder.calls[-1] == "v8"
+    assert body["degraded"] == []
+
+
+def test_encoder_sin_la_version_del_alias_cae_a_bm25():
+    deps = fakes.demo_deps()
+    deps.alias.version = "v8"  # el alias ya apunta a v8, pero Triton todavía no la cargó
+    before = metric("search_degraded_total", reason="encoder_version_unavailable")
+    body = text(client(deps), "chamarra de mezclilla").json()
+    assert "encoder_version_unavailable" in body["degraded"] and body["model_version"] is None
+    assert body["results"] and all(set(x["sources"]) == {"bm25"} for x in body["results"])
+    assert metric("search_degraded_total", reason="encoder_version_unavailable") == before + 1
+    r = client(deps).post("/v1/search", content=JPEG, headers={"content-type": "image/jpeg"})
+    assert r.status_code == 503  # la foto no tiene fallback
+
+
+def test_alias_que_no_contesta_usa_la_ultima_version_conocida():
+    deps = fakes.demo_deps()
+    c = client(deps, alias_cache_s=0)
+    assert text(c, "chamarra").json()["model_version"] == fakes.V7
+    deps.alias.fail = True
+    assert text(c, "chamarra").json()["model_version"] == fakes.V7  # última conocida
+    # Sin ninguna conocida (pod recién arrancado): no se adivina, solo BM25
+    deps2 = fakes.demo_deps()
+    deps2.alias.fail = True
+    body = text(client(deps2), "chamarra").json()
+    assert "alias_unavailable" in body["degraded"] and body["model_version"] is None
+
+
+def test_shard_de_otro_modelo_invalida_el_cache_del_alias():
+    deps = fakes.demo_deps()
+    c = client(deps)  # caché de 5 s
+    text(c, "chamarra")
+    reads = deps.alias.reads
+    deps.shards[0].model_version = "v8"
+    text(c, "chamarra")  # shard-0 contesta con otro modelo → se descarta y se invalida el caché
+    text(c, "chamarra")
+    assert deps.alias.reads == reads + 1  # releyó el alias sin esperar los 5 s
 
 
 # ---------------------------------------------------------------------------- filtros: la trampa
@@ -180,6 +240,35 @@ def test_adaptador_que_ignora_el_filtro_no_llega_a_la_persona():
 
 
 # ---------------------------------------------------------------------------- rerank
+def test_el_reranker_lee_textos_del_cache_aunque_las_fuentes_no_traigan_titulo():
+    # Los hits del ANN y de BM25 traen id, score y atributos, no títulos (como un índice que llena
+    # embed-worker). Si el reranker leyera Hit.title, re-ordenaría pares (consulta, "") al azar.
+    deps = fakes.demo_deps()
+    text(client(deps), "chamarra de mezclilla talla M")
+    assert deps.reranker.texts and all(t.strip() for t in deps.reranker.texts[0])
+    assert "Chamarra de mezclilla vintage talla M" in deps.reranker.texts[0]
+
+
+def test_cache_de_textos_caido_conserva_el_orden_de_rrf():
+    deps = fakes.demo_deps()
+    plain = [x["listing_id"] for x in text(client(deps, rerank_top_n=0), "chamarra vintage").json()["results"]]
+    deps.texts.fail = True
+    body = text(client(deps), "chamarra vintage").json()
+    assert "texts_error" in body["degraded"] and "rerank_skipped" in body["degraded"]
+    assert [x["listing_id"] for x in body["results"]] == plain and deps.reranker.seen == []
+
+
+def test_sin_texto_en_el_cache_se_queda_en_su_lugar():
+    deps = fakes.demo_deps()
+    plain = [x["listing_id"] for x in text(client(deps, rerank_top_n=0), "chamarra vintage talla").json()["results"]]
+    deps.texts.missing = {plain[0]}
+    before = metric("search_rerank_missing_text_total")
+    body = text(client(deps), "chamarra vintage talla").json()
+    assert body["results"][0]["listing_id"] == plain[0]  # no se re-ordenó: no hay con qué
+    assert "rerank_score" not in body["results"][0]
+    assert metric("search_rerank_missing_text_total") == before + 1
+
+
 def test_rerank_solo_top_30_y_solo_pagina_0():
     deps = fakes.demo_deps()
     c = client(deps, rerank_top_n=3)
@@ -240,6 +329,43 @@ def test_errores_de_texto_y_filtros():
     assert text(c, "x" * 300).status_code == 400
     assert text(c, "chamarra", price_min=900, price_max=100).status_code == 422
     assert c.post("/v1/search", content=b"{", headers={"content-type": "application/json"}).status_code == 400
+
+
+# ---------------------------------------------------------------------------- log sin PII
+def test_scrub_pii_enmascara_telefonos_y_correos():
+    q = "iphone 13 128 gb llámame al 33 1234 5678 o a ana.lopez+venta@example.com.mx"
+    assert api.scrub_pii(q) == "iphone 13 128 gb llámame al [tel] o a [email]"
+    assert api.scrub_pii("tenis nike talla 27 270") == "tenis nike talla 27 270"  # números cortos quedan
+    assert api.scrub_pii("(33) 1234-5678") == "[tel]"
+
+
+def test_el_log_de_busqueda_no_lleva_pii():
+    lines = []
+
+    class Grab(logging.Handler):
+        def emit(self, record):
+            lines.append(record.getMessage())
+
+    h = Grab()
+    api.log.addHandler(h)
+    try:
+        text(client(), "chamarra llámame 33 1234 5678 ana@example.com")
+    finally:
+        api.log.removeHandler(h)
+    entry = json.loads(lines[-1])
+    assert entry["q"] == "chamarra llámame [tel] [email]"
+    assert "5678" not in lines[-1] and "example.com" not in lines[-1]
+
+
+def test_error_inesperado_se_cuenta_como_500(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("bug")
+
+    monkeypatch.setattr(api, "rrf", boom)
+    before = metric("search_requests_total", query_type="text", status="500")
+    r = text(client(raise_server_exceptions=False), "chamarra")
+    assert r.status_code == 500
+    assert metric("search_requests_total", query_type="text", status="500") == before + 1
 
 
 def test_metricas_por_tipo_y_status():

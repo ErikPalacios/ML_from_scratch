@@ -19,7 +19,7 @@ c08/
 │   │                        #   fallbacks, log de impresiones con el feature snapshot, métricas, demo local
 │   ├── rerank.py            # freshness, topes por categoría/vendedor, vendedor nuevo, exploración 5 % (puro)
 │   ├── requirements.txt     # lock completo de la imagen (17 paquetes)
-│   └── tests/               # test_home_api.py (23 tests, fakes), test_rerank.py (12 tests)
+│   └── tests/               # test_home_api.py (26 tests, fakes), test_rerank.py (16 tests)
 ├── retrieval/
 │   ├── covisitation.py      # "quienes vieron esto también vieron": pares por sesión, decaimiento, coseno, top-k
 │   └── tests/test_covisitation.py   # 9 tests con sesiones que se calculan a mano
@@ -30,7 +30,7 @@ c08/
 ├── eval/
 │   ├── ab_sample_size.py    # usuarios por brazo (test z), CUPED, delta method, días con usuarios distintos
 │   ├── offline_metrics.py   # recall@k, NDCG@k (ganancia exponencial), AUC por rangos, promedio por slice
-│   └── tests/test_eval.py   # 15 tests (uno contra el cálculo a mano, uno por simulación)
+│   └── tests/test_eval.py   # 16 tests (contra el cálculo a mano, uno por simulación)
 ├── monitoring/
 │   ├── alerts.yml           # 8 alertas + 12 recording rules
 │   └── alerts_test.yml      # tests de promtool
@@ -43,8 +43,9 @@ c08/
 1. `serving/home_api.py` — el docstring (embudo con el presupuesto de cada etapa y los 3 escalones de
    degradación) y `build_feed()`. Mira dónde se filtra (antes del batch de features, con la metadata
    del candidato), qué corre en paralelo (las 4 fuentes; features y vendidos) y qué se loguea.
-2. `serving/rerank.py` — las 4 reglas del docstring. Sobre todo la exploración: uniforme, con
-   propensity, insertada (no reemplaza) y determinista por `request_id`.
+2. `serving/rerank.py` — los 5 pasos del docstring. Sobre todo la exploración: uniforme, con
+   propensity, insertada (no reemplaza) y determinista por `request_id`; y por qué la regla del vendedor
+   nuevo se vuelve a fijar después de explorar.
 3. `training/build_training_set.py` — las 7 reglas del docstring. La trampa central: un ejemplo de hace
    6 horas sin contacto **no es un negativo todavía**.
 4. `retrieval/covisitation.py` — el ejemplo numérico del docstring (por qué el coseno y no la
@@ -70,7 +71,8 @@ t = 0       la app pide GET /v1/home?user_id=u42&page=1 (header x-request-id: el
             estado del ítem que trae el feature store)
 + ≤ 60 ms   ranker en Triton: P(click) y P(contact | click) por ítem → score = P(click) × (P(contact|click) + 0.05)
 + ≈ 10 ms   re-rank: freshness, ≤ 3 por categoría y ≤ 1 por vendedor en las primeras 10, ≤ 3 por vendedor
-            en la página, ≥ 1 vendedor nuevo en las primeras 10, exploración en ≈ 5 % de las posiciones
+            en la página, ≥ 1 vendedor nuevo en las primeras 10 (también después de explorar), exploración en
+            ≈ 5 % de las posiciones
             → respuesta: 50 ítems con request_id, path ("ranked"), model_version y posición global
             → en segundo plano: registro a Kafka home-impressions (key = user_id) con el FEATURE SNAPSHOT
               de cada ítem servido, y los ids servidos a la sesión (para que la página 2 no los repita)
@@ -90,7 +92,7 @@ después     la app manda vistas (qué estuvo en pantalla) y clicks con el mismo
 | Feature store caído, versión de esquema distinta, ranker con timeout, error o salida con otra forma | los candidatos reales en orden heurístico (round-robin por fuente), sin exploración | `heuristic` | `home_fallback_total{reason}` |
 | Sin contexto de usuario, sin candidatos o una excepción | populares de su ciudad (o nacionales) desde memoria | `popular` | `home_fallback_total{reason}` |
 | Sin caché de populares | 503 con `Retry-After` (y `/readyz` ya había sacado al pod) | — | `home_requests_total{status="503"}` |
-| El home-api entero | la app muestra "recientes en tu ciudad" (lo de hoy) | — | `HomeFallbackRateHigh` por `absent_over_time` |
+| El home-api entero | la app muestra "recientes en tu ciudad" (lo de hoy) | — | `HomeFallbackRateHigh` por `absent_over_time`, con `cause="no_metrics"` |
 
 ### El registro de impresión (`home_impression_v1`)
 
@@ -138,7 +140,7 @@ HyperLogLog: un counter de Prometheus no cuenta distintos).
 | Grupo | Alerta | Umbral | Severidad |
 |---|---|---|---|
 | Sistema | `HomeLatencyHigh` | p99 > 200 ms, 10 min | page |
-| Sistema | `HomeFallbackRateHigh` | > 2 % de respuestas no `ranked` (heurístico, populares, 503), o el home-api sin métricas; 10 min | page |
+| Sistema | `HomeFallbackRateHigh` | > 2 % de respuestas no `ranked` (heurístico, populares, 503), o el home-api sin métricas (`cause="no_metrics"`); 10 min | page |
 | Sistema | `CandidateSourceTimeouts` | una fuente con > 5 % de timeouts, 15 min | ticket |
 | Sistema | `FeatureStoreStale` | watermark de un grupo de features > 5 min atrás (SLO ≤ 1 min), o > 5 % de ítems con defaults; 5 min | page |
 | Sistema | `ImpressionLogLag` | consumer `impression-joiner` > 15 min atrasado, o > 0.1 % de registros perdidos; 15 min | ticket |
@@ -156,7 +158,7 @@ quedaría ciega una semana. Requiere ≥ 8 días de retención de los crudos (Pr
 cd reference/c08
 python3 -m venv .venv && . .venv/bin/activate      # Python 3.13 (o 3.12)
 pip install -r requirements-dev.txt
-pytest                                              # 76 tests, ≈ 3 s
+pytest                                              # 84 tests, ≈ 4 s
 python eval/ab_sample_size.py                       # el ejemplo del docstring
 
 cd monitoring
@@ -201,13 +203,13 @@ Probado en macOS (Apple Silicon), sin GPU, sin Redis, sin Triton, sin Kafka y si
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14 | 76 passed en los dos |
+| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14 | 84 passed en los dos |
 | home-api con fakes | TestClient: fuentes que tardan 500 ms o fallan, feature store lento, con faltantes o con otra versión de esquema, ranker con timeout, error o salida corta, store de tombstones colgado, Kafka colgado, buffer lleno | cada caso sale por el escalón esperado y por debajo de 200 ms; el registro de impresión trae exactamente las features (y defaults) que vio el ranker |
 | Contrato de métricas | un test lee `alerts.yml` y exige que cada `home_*` exista en `/metrics` | OK |
 | Demo con uvicorn real | `uvicorn --factory home_api:demo_app` + curl a `/readyz`, `/v1/home` (páginas 1 y 2), `/metrics` | 50 ítems `ranked` en ≈ 40 ms; la página 2 empieza en la posición 51 sin repetir; registro de ≈ 13.5 KB en stdout |
 | Exploración | 200 requests de 50 posiciones en `test_rerank.py`; 80 en `test_home_api.py` | ≈ 5 % (entre 4 y 6 %); misma página para el mismo `request_id` |
-| Tamaño de muestra | contra el cálculo a mano (1,744,196 por brazo) y por simulación (400 experimentos: potencia ≈ 80 %) | OK |
-| Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 20 reglas OK; los tests de las 8 alertas pasan, y cambiar el umbral de cualquiera hace fallar su test (probado alerta por alerta) |
+| Tamaño de muestra | contra el cálculo a mano (1,744,196 por brazo con números redondos; 1,741,514 con los del caso) y por simulación (400 experimentos: potencia ≈ 80 %) | OK |
+| Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 20 reglas OK; los tests de las 8 alertas pasan, y llevar el umbral al otro lado del valor que producen las series del test (p. ej. 0.2 → 0.25 en HomeLatencyHigh) hace fallar su test. Un cambio chico (0.2 → 0.22) no: los tests tienen margen a propósito |
 | Lock de dependencias | `uv pip compile` para Linux x86_64 y Python 3.13 | 17 paquetes |
 
 **No verificado** (requiere Redis, el índice ANN, Triton, Kafka, un cluster o datos reales):
@@ -223,7 +225,7 @@ Probado en macOS (Apple Silicon), sin GPU, sin Redis, sin Triton, sin Kafka y si
   Spark/SQL. La ventana de gracia de 1 h para eventos tardíos es ilustrativa (mide el p99 de tu retraso),
   igual que la fracción de negativos (`neg_sample_rate`, 0.1 en producción según el caso).
 - Los pesos (`SCORE_W_CLICK`, freshness 15 %, topes de diversidad, `SEEN_CAP`) y los umbrales de las
-  alertas son ilustrativos. μ = 0.6 y σ = 2.0 del ejemplo del A/B también: salen de tus logs.
+  alertas son ilustrativos. μ ≈ 1.3 sale de los números del caso, pero σ ≈ 4.33 del ejemplo del A/B es un supuesto: los dos salen de tus logs.
 - El job de streaming de features, kafka_exporter, messaging-service y el job de usuarios activos no
   existen aquí: sus métricas solo están en los tests de promtool. El nombre
   `feature_pipeline_watermark_timestamp_seconds` es propio (no es una métrica que exporte Flink).

@@ -377,7 +377,7 @@
           { t: 'table', head: ['Patrón', 'Cuándo', 'Ejemplo en CV'], rows: [
             ['Online síncrono', 'Un usuario o servicio espera la respuesta', 'Sugerir la categoría mientras el vendedor llena el formulario (<a href="#c01">c01</a>)'],
             ['Asíncrono con cola', 'Se necesita en segundos o minutos, no en ms', 'Revisar fotos después de publicar; OCR de documentos (<a href="#c05">c05</a>)'],
-            ['Batch offline', 'Sobre el inventario completo, cada cierto tiempo', 'Recalcular los embeddings del catálogo completo cada noche (<a href="#c07">c07</a>)'],
+            ['Batch offline', 'Sobre el inventario completo, cada cierto tiempo', 'Recalcular los embeddings del catálogo completo cuando cambia el modelo (<a href="#c07">c07</a>)'],
             ['Streaming', 'Flujo continuo de eventos o frames', 'Video de cámaras analizado en tiempo real (<a href="#c02">c02</a>)'],
             ['Edge / on-device', 'Sin red confiable, privacidad o latencia de pocos ms', 'Inspección junto a la línea de producción en un Jetson (<a href="#c03">c03</a>)'],
           ], note: 'La tabla de decisión completa, con costos y trade-offs, está en <a href="#m02">M2</a>.' },

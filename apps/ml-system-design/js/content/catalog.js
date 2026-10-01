@@ -500,7 +500,7 @@
         'Evaluación: recall@k, NDCG, sets de consultas y A/B',
         'Memoria del índice y sharding',
       ],
-      freq: 'alta', minutes: 102, difficulty: 'media',
+      freq: 'alta', minutes: 108, difficulty: 'media',
       connects: ['m02', 'm04', 'm07', 'm09', 'm14', 'c08', 'c11'],
       tests: [
         'Separar indexación offline de consulta online, cada una con su presupuesto',
@@ -526,7 +526,7 @@
         'Métricas offline (recall@k, NDCG) vs online (CTR, retención)',
         'Precomputar vs calcular en línea',
       ],
-      freq: 'alta', minutes: 99, difficulty: 'alta',
+      freq: 'alta', minutes: 105, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'c07'],
       tests: [
         'Diseñar un embudo en etapas con presupuesto de latencia por etapa',

@@ -75,6 +75,58 @@ def test_new_seller_gets_a_first_screen_slot():
     assert [s.item_id for s in page[:9]] == [f"i{i}" for i in range(9)]
 
 
+def test_new_seller_prefers_a_category_that_respects_the_first_screen_cap():
+    top = [cand(i, 1.0 - i * 0.01, cat="X") for i in range(3)]  # 3 de la categoría X arriba
+    rest = [cand(10 + i, 0.8 - i * 0.01, cat=f"c{i}") for i in range(40)]
+    new_x = cand(98, 0.05, cat="X", new=True)  # el mejor vendedor nuevo, pero de X
+    new_y = cand(99, 0.04, cat="Y", new=True)
+    page = rr.rerank(top + rest + [new_x, new_y], "r", rr.RerankConfig(explore=False))
+    assert page[9].item_id == "i99" and page[9].reasons == ["new_seller"]
+    assert Counter(by_cat(page[:10], top + rest + [new_x, new_y]))["X"] == 3
+
+
+def test_new_seller_breaks_the_cap_only_if_none_fits_and_says_so():
+    top = [cand(i, 1.0 - i * 0.01, cat="X") for i in range(3)]
+    rest = [cand(10 + i, 0.8 - i * 0.01, cat=f"c{i}") for i in range(40)]
+    new_x = cand(98, 0.05, cat="X", new=True)  # el único vendedor nuevo
+    page = rr.rerank(top + rest + [new_x], "r", rr.RerankConfig(explore=False))
+    assert page[9].item_id == "i98" and page[9].reasons == ["new_seller", "cap_relaxed"]
+
+
+def test_new_seller_stays_on_first_screen_when_exploration_inserts_above():
+    # Insertar empuja todo un lugar: sin re-fijar la regla, el vendedor nuevo de la posición 10 cae a la
+    # 11 en ≈ 1 − 0.95^10 ≈ 40 % de los requests
+    cands = [cand(i, 1.0 - i * 1e-4, cat=f"c{i % 50}") for i in range(500)]
+    cands.append(cand(999, 0.01, cat="x", new=True))
+    new_ids = {"i999"}
+    fired = 0
+    for k in range(300):
+        page = rr.rerank(cands, f"req-{k}", rr.RerankConfig())
+        explored_top = [i for i, s in enumerate(page[:10]) if s.exploration]
+        if explored_top:
+            fired += 1
+        assert any(s.item_id in new_ids for s in page[:10]), f"req-{k}"
+        assert len(page) == 50 and len({s.item_id for s in page}) == 50
+        for i, s in enumerate(page):  # posiciones consecutivas después de reacomodar
+            assert s.position == i + 1
+    assert fired > 60  # el caso que se prueba ocurrió (≈ 40 % de 300)
+
+
+def test_pinning_does_not_move_explored_slots(monkeypatch):
+    cands = [cand(i, 1.0 - i * 1e-4, cat=f"c{i % 50}") for i in range(500)]
+    cands.append(cand(999, 0.01, cat="x", new=True))
+    pinned = {k: rr.rerank(cands, f"req-{k}") for k in range(100)}
+    monkeypatch.setattr(rr, "_pin_new_seller", lambda page, by_id, cfg: page)  # sin el paso 5
+    moved = 0
+    for k in range(100):
+        free = rr.rerank(cands, f"req-{k}")
+        # misma semilla → mismas posiciones exploradas con los mismos ítems y propensities
+        assert [(s.position, s.item_id, s.propensity) for s in pinned[k] if s.exploration] == \
+               [(s.position, s.item_id, s.propensity) for s in free if s.exploration]
+        moved += [s.item_id for s in pinned[k]] != [s.item_id for s in free]
+    assert moved > 20  # el paso 5 sí actuó en una parte de los requests
+
+
 def test_new_seller_rule_does_nothing_when_one_is_already_on_top():
     cands = [cand(0, 1.0, new=True)] + [cand(i, 0.9 - i * 0.01, cat=f"c{i}") for i in range(1, 30)]
     page = rr.rerank(cands, "r", rr.RerankConfig(explore=False))

@@ -11,9 +11,17 @@ import offline_metrics as om
 
 # ---------------------------------------------------------------------------- tamaño de muestra
 def test_users_per_arm_matches_hand_computation():
+    # Chequeo de la FÓRMULA con números redondos (no son los del caso; esos van en el test siguiente)
     # A mano: z = 1.959964 + 0.841621 = 2.801585; z² = 7.848880
     # n = 2 × 7.848880 × 2.0² / (0.01 × 0.6)² = 62.79104 / 0.000036 = 1,744,195.5 → 1,744,196
     assert ab.users_per_arm(0.6, 2.0, 0.01) == 1_744_196
+
+
+def test_case_numbers_match_the_narrative():
+    # Los del caso: μ ≈ 1.3, σ ≈ 4.33, +1 % → δ = 0.013
+    # n = 2 × 7.848880 × 4.33² / 0.013² = 2 × 7.848880 × 18.7489 / 0.000169 = 1,741,513.2 → 1,741,514
+    assert ab.users_per_arm(1.3, 4.33, 0.01) == 1_741_514
+    assert ab.users_per_arm(1.3, 4.33, 0.01, cuped_rho=0.5) == 1_306_135  # ≈ 1.31 M
 
 
 def test_halving_the_lift_needs_four_times_the_users():
@@ -61,11 +69,11 @@ def test_days_needed_counts_distinct_users_and_rounds_to_weeks():
     # Usuarios distintos acumulados (ilustrativo): casi todos vuelven, la curva se aplana
     cum = [30_000_000, 38_000_000, 43_000_000, 46_000_000, 48_000_000, 49_500_000, 51_000_000,
            52_000_000, 53_000_000, 53_800_000, 54_500_000, 55_100_000, 55_600_000, 56_000_000]
-    n = 1_744_196
+    n = 1_741_514  # el del caso
     assert ab.days_needed(n, cum, share_per_arm=0.04) == 7  # 0.04 × 46 M = 1.84 M el día 4 → semana completa
     assert ab.days_needed(n, cum, share_per_arm=0.033) == 14  # 0.033 × 53 M = 1.749 M el día 9 → 2 semanas
     assert ab.days_needed(n, cum, share_per_arm=0.02) is None  # con 2 % no alcanza en 14 días (1.12 M)
-    assert ab.share_needed(n, cum[-1]) == pytest.approx(0.031146, abs=1e-6)
+    assert ab.share_needed(n, cum[-1]) == pytest.approx(0.031098, abs=1e-6)
 
 
 def test_invalid_inputs():
