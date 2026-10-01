@@ -1162,8 +1162,8 @@ Translation, summaries and diarization of a single mixed track are **out of scop
   vocabulary per organization (names, products) — hedged.
 - Costs (est.): GPUs follow the curve: ≈ 172 L4 at peak, ≈ 100 L4 average ≈ 100 × US$0.80 × 730 ≈
   **US$58k/month** on-demand (+ CPU for gateways/VAD, bus, storage) vs a managed streaming ASR API at ≈
-  US$0.024 per audio minute (verify current prices/tiers) × ≈ 24 M × 1.2 active-speaker minutes/day × 30 ≈
-  **US$20 M/month** → at this scale self-hosting wins by orders of magnitude; at a small scale the API
+  US$0.01 per audio minute list (Amazon Transcribe streaming, Oct 2026 — verify; volume tiers lower) × ≈ 24 M ×
+  1.2 active-speaker minutes/day × 30 ≈ **US$8.6 M/month** (≈ US$3.5 M at ≈ US$0.004 volume pricing) → at this scale self-hosting wins by orders of magnitude; at a small scale the API
   wins (break-even to compute).
 - Privacy: audio is **not stored** by default; transcripts only if the host enables saving (retention
   ≈ 30 days, configurable); visible "captions on" indicator; no training on customer audio without

@@ -1,0 +1,84 @@
+# Política de decisión del scoring de fraude (caso c09). La lee scoring/policy.py al arrancar y la valida.
+# Por qué en un archivo y no en el código: los umbrales cambian con cada modelo (otro modelo = otra
+# distribución de scores) y con el negocio (un comercio nuevo, Buen Fin). Cambiar la política es un
+# deploy de configuración con su propia versión, revisión y rollback, no un deploy de código.
+# La versión viaja en cada respuesta y en el log de decisiones: una disputa de hace 90 días se explica con
+# la política Y el modelo que estaban vigentes ese día.
+version: "policy-2026-10-01"
+
+# ------------------------------------------------------------------ segmentos
+# Segmento = grupo de MCC (código de categoría del comercio) × banda de ticket. El costo de un error
+# cambia con el ticket (un fraude de US$400 cuesta 13× uno de US$30) y el patrón de fraude cambia con la
+# categoría (los bienes digitales se revenden en minutos). Pocos segmentos: cada uno necesita volumen de
+# etiquetas maduras para fijar sus umbrales.
+segmentation:
+  # US$100 en centavos: por debajo, banda "low"; desde aquí, "high"
+  ticket_band_cents: 10000
+  # Ejemplos de MCC por grupo (verifica la tabla de MCC de tu adquirente); el resto cae en "retail"
+  mcc_groups:
+    digital: ["5815", "5816", "5817", "5818"]
+    travel: ["4511", "4722", "7011"]
+
+# Umbrales sobre el score del modelo (probabilidad de fraude). score ≥ decline → decline;
+# step_up ≤ score < decline → step-up (3-D Secure); debajo → approve.
+# Punto de partida: la regla de costo esperado con el ticket típico del segmento y los costos de
+# eval/choose_thresholds.py (un test verifica que estos números salen de esa fórmula). En cada release se
+# recalculan con choose_thresholds sobre cohortes MADURAS y con el tope de declines. Ilustrativos.
+#   fallback: qué hace el segmento si no hay modelo (rules-only) y ninguna regla disparó
+#   no_3ds_decline: si tocaba step-up pero la tarjeta o el emisor no soportan 3-D Secure, quedan dos
+#             opciones (approve o decline) y el corte entre ellas es otro: decline si score ≥ este valor.
+#             Por qué no "declinar todo lo que iba a step-up": en retail_high un score de 0.006 aprobado
+#             cuesta ≈ 0.006 × US$265 ≈ US$1.6 esperados, y declinarlo ≈ US$7.5 de cliente perdido.
+segments:
+  retail_low:   {typical_ticket_usd: 25,  step_up: 0.034,  decline: 0.443, fallback: approve, no_3ds_decline: 0.158}
+  retail_high:  {typical_ticket_usd: 250, step_up: 0.0053, decline: 0.107, fallback: approve, no_3ds_decline: 0.0275}
+  digital_low:  {typical_ticket_usd: 20,  step_up: 0.039,  decline: 0.477, fallback: approve, no_3ds_decline: 0.176}
+  # Bienes digitales caros sin modelo: step-up a todo. Es el segmento donde un fraude aprobado se revende
+  # en minutos; la fricción de unas horas de fallback cuesta menos que dejarlo abierto.
+  digital_high: {typical_ticket_usd: 200, step_up: 0.0065, decline: 0.129, fallback: step_up, no_3ds_decline: 0.0337}
+  travel_low:   {typical_ticket_usd: 60,  step_up: 0.0184, decline: 0.298, fallback: approve, no_3ds_decline: 0.0909}
+  travel_high:  {typical_ticket_usd: 400, step_up: 0.0034, decline: 0.071, fallback: approve, no_3ds_decline: 0.0178}
+
+# Tope de declines por segmento (fracción de intentos). Lo respeta choose_thresholds al elegir umbrales
+# y lo vigila DeclineRateSpike en producción. Declinar a gente buena no aparece en ningún chargeback: sin
+# tope, el umbral "óptimo" se come la conversión. Ilustrativo: lo fija el negocio.
+decline_rate_cap: 0.015
+
+# ------------------------------------------------------------------ exploración
+# De lo que el MODELO iba a declinar con score < max_score (riesgo medio, no lo evidente), una fracción
+# `share` va a step-up. Es la única forma de saber qué habría pasado con lo bloqueado: los declinados
+# nunca tienen etiqueta. Determinista por payment_id (un reintento recibe la misma decisión). Nunca
+# explora declines de reglas (lista negra, límites duros) ni comercios con revisión manual.
+exploration:
+  share: 0.01
+  max_score: 0.90
+  # Cambiar la sal cambia QUÉ pagos caen en la exploración (rótala por trimestre para no explorar
+  # siempre los mismos patrones de id)
+  salt: "explore-2026-q4"
+
+# ------------------------------------------------------------------ degradación
+# Grupos de features que pueden faltar (timeout del online store) y aun así se usa el modelo con NaN.
+# batch: cambia una vez al día y el modelo vio muchos NaN ahí (tarjetas y emails nuevos).
+# stream y sync NO: sin velocidades, el modelo ve un pago "sin historia" y lo aprueba; mejor rules-only.
+degraded_groups_allowed: [batch]
+
+# ------------------------------------------------------------------ reglas
+# Límites duros de velocidad: se evalúan SIEMPRE, con o sin modelo. `at_least` = valor de la feature
+# (intentos ANTERIORES en la ventana) desde el cual dispara. 5 intentos previos en 60 s → el sexto se
+# declina: ninguna persona reintenta 6 veces en un minuto con la misma tarjeta; un bot de card testing sí.
+hard_limits:
+  card_count_60s:           {at_least: 5,  action: decline, reason: VELOCITY_CARD_60S}
+  device_distinct_cards_1h: {at_least: 4,  action: decline, reason: DEVICE_MANY_CARDS_1H}
+  # IP compartida (oficina, NAT del operador móvil): muchos intentos no prueban fraude → step-up
+  ip_count_60s:             {at_least: 20, action: step_up, reason: VELOCITY_IP_60S}
+
+# Reglas por comercio (en producción vienen del servicio de configuración de comercios; aquí, ejemplos).
+#   delayed_capture: el comercio autoriza ahora y cobra después (pedidos grandes, viajes): un decline del
+#                    modelo se convierte en revisión manual, porque hay tiempo para que una persona mire.
+merchants:
+  m_travel_001:
+    delayed_capture: true
+    max_ticket_cents: 300000  # > US$3,000 → revisión
+    over_max_action: review
+  m_games_042:
+    blocked_ip_countries: ["KP"]  # ejemplo de regla de negocio del comercio

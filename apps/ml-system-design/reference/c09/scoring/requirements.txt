@@ -1,0 +1,37 @@
+# Dependencias de RUNTIME del servicio de scoring, fijadas con == (incluye transitivas: esta lista ES el lock).
+# Generada con `uv pip compile` para Linux x86_64 (manylinux) y Python 3.13.
+# Por qué fijar las transitivas: sin lock, un rebuild del mismo commit puede traer otra pydantic u otra
+# scikit-learn y cambiar el comportamiento (o no poder cargar el modelo) sin que nadie toque el código.
+# La imagen copia también features/definitions.py y features/online_counters.py (biblioteca estándar).
+# Tests: pip install -r ../requirements-dev.txt (no entra a la imagen).
+
+# --- directas ---
+fastapi==0.142.2  # framework ASGI: validación del request, lifespan
+uvicorn==0.54.0  # servidor ASGI; 1 proceso por contenedor (escala con réplicas, no con workers)
+uvloop==0.23.0  # event loop más rápido; uvicorn lo usa solo si está instalado
+httptools==0.8.0  # parser HTTP en C; uvicorn lo prefiere a h11 si está instalado
+prometheus-client==0.26.0  # /metrics
+PyYAML==6.0.3  # policy.yaml (safe_load)
+# El modelo: MISMA versión que en training (un pickle de sklearn no es portable entre versiones).
+# En producción sería LightGBM/XGBoost con su formato nativo; ver SklearnModel en service.py.
+scikit-learn==1.9.1
+numpy==2.5.3  # el vector de features
+
+# --- transitivas (uv pip compile) ---
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+cloudpickle==3.1.2
+h11==0.16.0
+idna==3.20
+joblib==1.6.0
+narwhals==2.26.0
+opentelemetry-api==1.45.0
+pydantic==2.13.5
+pydantic-core==2.46.5
+scipy==1.18.1
+starlette==1.7.0
+threadpoolctl==3.7.0  # también la usa service.py: 1 thread de OpenMP por thread del modelo
+typing-extensions==4.16.0
+typing-inspection==0.4.4

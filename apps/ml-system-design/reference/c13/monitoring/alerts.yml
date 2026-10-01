@@ -1,0 +1,179 @@
+# Alertas del caso c13 (captions en vivo), Prometheus: 8 alertas en 3 grupos + recording rules.
+#   Sistema: CaptionPartialLatencyHigh, CaptionFinalLatencyHigh, GPUStreamSaturation, SessionReconnectRateHigh,
+#            CaptionDeliveryLag, ASRCapacityHeadroomLow
+#   Modelo:  CanaryWERRegression, VADActiveRatioShift
+# Severidades: page = alguien lo mira YA (los captions de miles de reuniones se atrasan o se cortan);
+# ticket = se trabaja en horario laboral, con dueño (equipo de speech). El ruteo vive en Alertmanager.
+# Umbrales ILUSTRATIVOS: salen del presupuesto de latencia de abajo y de la línea base de cada métrica.
+#
+# Presupuesto del partial (SLO del caso: p95 ≤ 500 ms de la palabra dicha al texto en pantalla), estimado:
+#   uplink cliente → SFU ≈ 80 ms · fork + decode + remuestreo ≈ 20 ms · llenar el chunk ≤ 160 ms ·
+#   server (cola + modelo + salida) ≤ 150 ms · caption-bus + WebSocket + render ≈ 90 ms  → ≈ 500 ms.
+#   Las métricas del worker miden SOLO el tramo server: por eso la alerta del partial es a 200 ms (ya se
+#   comió el margen de la red), no a 500. El tramo de punta a punta se mide en el cliente (RUM).
+# Final (SLO: p95 ≤ 1.5 s después del fin de la utterance): el tramo server incluye los 600 ms de silencio
+#   del endpointing + el paso final del modelo; alerta a 1.2 s (deja ≈ 300 ms para red, bus y cliente).
+#
+# De dónde sale cada métrica:
+#   asr_*                          → server/asr_server.py (un test verifica que cada asr_* de aquí existe allá)
+#   caption_delivery_lag_seconds   → caption-bus / servidor de señalización de la reunión: desde que el
+#                                    caption se publica en el bus hasta que se escribe en el WebSocket de
+#                                    cada participante (histograma; no está en esta carpeta)
+#   asr_golden_wer{language,track}, asr_golden_ref_words{language,track}
+#                                  → job de evaluación: cada 30 min pasa el MISMO audio dorado por la versión
+#                                    estable y por el canario (track = stable | canary) y publica el WER del
+#                                    corpus (eval/wer.py) vía Pushgateway. Mismo audio = comparación pareada.
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules
+  - name: c13-recording
+    rules:
+      # p95 server-side de partials y finales, por idioma. Los histogramas tienen buckets EXACTOS en 0.2 y
+      # 1.2: sin ellos, histogram_quantile interpolaría y el valor "cerca del umbral" sería ruido.
+      - record: asr:partial_latency_p95:rate5m
+        expr: |
+          histogram_quantile(0.95, sum by (le, language) (rate(asr_partial_latency_seconds_bucket[5m])))
+      - record: asr:final_latency_p95:rate5m
+        expr: |
+          histogram_quantile(0.95, sum by (le, language) (rate(asr_final_latency_seconds_bucket[5m])))
+      # p95 del paso del modelo POR POD: la saturación es de una GPU, no del promedio de la flota.
+      - record: asr:model_step_p95:rate5m
+        expr: |
+          histogram_quantile(0.95, sum by (le, pod) (rate(asr_model_step_seconds_bucket[5m])))
+      # Fracción de handshakes que son reconexiones NO planeadas. migrate (drain, rebalanceo) y max_duration
+      # son esperadas y no cuentan. Ventana de 10 min: la caída de UN worker (≈ 450 reconexiones de golpe)
+      # sube la fracción durante ≈ 10 min y se va; un problema sostenido se queda.
+      - record: asr:unplanned_reconnect_ratio:rate10m
+        expr: |
+          (sum(rate(asr_reconnects_total{reason!~"migrate|max_duration"}[10m])) or vector(0))
+            / sum(rate(asr_sessions_started_total[10m]))
+      - record: caption:delivery_lag_p95:rate5m
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(caption_delivery_lag_seconds_bucket[5m])))
+      # Canario − estable, en puntos de WER (0.01 = 1 punto), por idioma.
+      - record: asr:golden_wer_canary_delta
+        expr: |
+          max by (language) (asr_golden_wer{track="canary"}) - max by (language) (asr_golden_wer{track="stable"})
+      # Fracción de frames que el VAD llama voz, ahora y hace una semana (offset sobre los contadores CRUDOS:
+      # una recording rule nueva no tiene historia y la alerta quedaría ciega una semana; requiere ≥ 8 días
+      # de retención, Prometheus guarda 15 por defecto).
+      - record: asr:vad_speech_ratio:rate1h
+        expr: |
+          sum(rate(asr_vad_frames_total{decision="speech"}[1h])) / sum(rate(asr_vad_frames_total[1h]))
+      - record: asr:vad_speech_ratio_wow:rate1h
+        expr: |
+          asr:vad_speech_ratio:rate1h
+            / (sum(rate(asr_vad_frames_total{decision="speech"}[1h] offset 1w))
+                 / sum(rate(asr_vad_frames_total[1h] offset 1w)))
+      # Streams activos ÷ capacidad que ACEPTA (un worker que drena reporta 0 de capacidad, pero sus streams
+      # siguen contando: tienen que caber en otro lado). En régimen, KEDA apunta a 350 de 450 ≈ 0.78.
+      - record: asr:capacity_utilization
+        expr: |
+          sum(asr_active_streams) / sum(asr_stream_capacity)
+
+  # ------------------------------------------------------------------ sistema
+  - name: c13-system
+    rules:
+      - alert: CaptionPartialLatencyHigh
+        expr: asr:partial_latency_p95:rate5m > 0.2
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Captions {{ $labels.language }}: p95 de partials {{ $value | humanizeDuration }} server-side (> 200 ms)"
+          description: "¿El modelo o la cola? Mira asr:model_step_p95:rate5m por pod (GPUStreamSaturation) y asr_dropped_messages_total{reason=\"behind\"}. Si el paso está bien: CPU del pod (serializar JSON, VAD) o consumidores lentos (reason=\"slow_consumer\")."
+          runbook_url: "https://runbooks.example.com/c13/partial-latency"
+
+      - alert: CaptionFinalLatencyHigh
+        expr: asr:final_latency_p95:rate5m > 1.2
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Captions {{ $labels.language }}: p95 de finales {{ $value | humanizeDuration }} server-side (> 1.2 s)"
+          description: "Incluye los 600 ms de endpointing: si alguien subió ENDPOINT_SILENCE_MS o MAX_UTTERANCE_MS, empieza por el último deploy. Si no, el paso final del modelo (asr_model_step_seconds) o la cola de entrada."
+          runbook_url: "https://runbooks.example.com/c13/final-latency"
+
+      - alert: GPUStreamSaturation
+        # El paso del modelo procesa 160 ms de audio. Si su p95 pasa de 128 ms (80 %), ese worker está a un
+        # paso de no ir en tiempo real: los partials se atrasan, y después las sesiones se cierran con 1013.
+        expr: asr:model_step_p95:rate5m > 0.128
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.pod }}: p95 del paso del modelo {{ $value | humanizeDuration }} (chunk de 160 ms)"
+          description: "Una GPU que no da abasto con sus streams. ¿Throttling térmico o errores de la GPU (DCGM)? ¿Más streams de los planeados (asr_active_streams del pod)? Mitigación: kubectl cordon del nodo y drain del pod; el router reparte sus sesiones."
+          runbook_url: "https://runbooks.example.com/c13/gpu-saturation"
+
+      - alert: SessionReconnectRateHigh
+        # 15 min > la ventana de 10: la caída de UN worker no alcanza a disparar; workers que se caen en
+        # loop, la red entre gateway y workers o un deploy mal drenado, sí.
+        expr: asr:unplanned_reconnect_ratio:rate10m > 0.02
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $value | humanizePercentage }} de los handshakes son reconexiones no planeadas (> 2 %)"
+          description: "sum by (reason) (rate(asr_reconnects_total[10m])): worker_lost = pods que mueren (kubectl get pods -n c13, OOMKilled, XID de GPU); network = conexiones gateway–worker; overloaded = GPUs saturadas. Cada reconexión le cuesta al usuario ≈ 1–2 s de captions."
+          runbook_url: "https://runbooks.example.com/c13/reconnects"
+
+      - alert: CaptionDeliveryLag
+        expr: caption:delivery_lag_p95:rate5m > 0.25
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "caption-bus: p95 de entrega {{ $value | humanizeDuration }} (> 250 ms)"
+          description: "El ASR puede estar bien y los captions llegar tarde: el tramo bus → WebSocket de la reunión. Revisa el lag del bus por partición y las conexiones del servidor de señalización."
+          runbook_url: "https://runbooks.example.com/c13/delivery-lag"
+
+      - alert: ASRCapacityHeadroomLow
+        # > 85 % sostenido = KEDA no alcanza (en el máximo de réplicas, o los nodos GPU no llegan: cuota de
+        # la cuenta, una AZ sin L4). Al 100 % el router responde NoCapacity y la reunión sigue sin captions.
+        # La segunda rama dispara si los workers dejan de exportar métricas: sin ellas, el autoscaling y
+        # todas las demás alertas de esta página están ciegos.
+        expr: |
+          asr:capacity_utilization > 0.85
+            or
+          label_replace(absent(asr_active_streams), "cause", "no_metrics", "", "")
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ if $labels.cause }}Workers de ASR sin métricas: autoscaling y alertas a ciegas{{ else }}Capacidad de ASR al {{ $value | humanizePercentage }} (> 85 %){{ end }}"
+          description: "kubectl get scaledobject,hpa -n c13 (¿en maxReplicaCount?); kubectl get pods -n c13 | grep Pending (¿nodos GPU?); rate(asr_sessions_rejected_total{reason=\"capacity\"}[5m]). Con cause=no_metrics: el PodMonitor o Prometheus."
+          runbook_url: "https://runbooks.example.com/c13/capacity"
+
+  # ------------------------------------------------------------------ modelo
+  - name: c13-model
+    rules:
+      - alert: CanaryWERRegression
+        # +1 punto de WER del canario contra el estable en el mismo audio dorado, con ≥ 5,000 palabras de
+        # referencia en ese idioma (con menos, la diferencia es ruido). El gate del rollout ya frena el
+        # canario solo; esta alerta le avisa a una persona que hay algo que mirar.
+        expr: |
+          asr:golden_wer_canary_delta > 0.01
+            and on (language)
+          max by (language) (asr_golden_ref_words{track="canary"}) >= 5000
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Canario {{ $labels.language }}: WER +{{ $value | printf \"%.3f\" }} contra el estable (> 0.01)"
+          description: "Mira el reporte por slice del job (eval/wer.py by_slice): ¿todo el idioma o un acento, ruido o dispositivo? Revisa también la normalización: un cambio de versión del normalizador cambia el WER sin cambiar el modelo."
+          runbook_url: "https://runbooks.example.com/c13/canary-wer"
+
+      - alert: VADActiveRatioShift
+        # La fracción de audio que el VAD llama voz, contra la misma hora de la semana pasada. Muy abajo:
+        # se está perdiendo habla (un cambio de AGC del cliente, un codec): captions que faltan sin ningún
+        # error. Muy arriba: ruido que pasa como voz → más GPU gastada y captions basura.
+        expr: asr:vad_speech_ratio_wow:rate1h < 0.7 or asr:vad_speech_ratio_wow:rate1h > 1.3
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "VAD: fracción de voz {{ $value | printf \"%.2f\" }}× la de la semana pasada a esta hora"
+          description: "¿Cambió algo del lado del cliente o del SFU (versión de la app, AGC, supresión de ruido)? Compara por idioma y plataforma en el dashboard. Si fue un feriado, silénciala con fecha de vencimiento."
+          runbook_url: "https://runbooks.example.com/c13/vad-shift"

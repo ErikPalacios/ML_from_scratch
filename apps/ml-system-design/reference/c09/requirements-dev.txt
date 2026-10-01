@@ -1,0 +1,15 @@
+# Dependencias para correr TODOS los tests de c09 (pytest desde reference/c09). No entran a ninguna imagen.
+# features/point_in_time.py y eval/ usan pandas: en producción son jobs de Spark/SQL, aquí pandas para leerlos.
+-r scoring/requirements.txt  # los tests usan exactamente las versiones de producción
+pandas==3.0.6  # backfill point-in-time, umbrales y madurez de etiquetas
+pytest==9.1.1  # runner de tests
+httpx2==2.13.1  # cliente que usa fastapi.testclient (Starlette 1.x lo prefiere a httpx)
+# --- transitivas ---
+httpcore2==2.13.1
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0
+python-dateutil==2.9.0.post0
+six==1.17.0
+truststore==0.10.4

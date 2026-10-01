@@ -1,0 +1,314 @@
+# asr-worker del caso c13 en EKS: workers de GPU que tienen ESTADO por sesión (el modelo streaming).
+# Recursos: Service headless (el session router descubre los pods Ready) + Deployment en nodos g6.xlarge
+# + PodDisruptionBudget + PodMonitor (Prometheus lee /metrics) + ScaledObject de KEDA (por streams activos).
+# Namespace "c13": kubectl create namespace c13.
+#
+# Lo que hace distinto a este Deployment (comparado con un servicio sin estado como el gateway del c01):
+#   * Una sesión vive horas en el mismo pod: no hay "request" que termine en 200 ms. Por eso se escala por
+#     STREAMS ACTIVOS (no por CPU ni RPS) y se baja SOLO drenando: preStop → el pod deja de estar Ready,
+#     cada sesión migra en su próximo límite de utterance, y recién ahí llega el SIGTERM.
+#   * Un pod que se va sin drenar le cuesta a ≈ 450 personas ≈ 1–2 s de captions (el gateway reabre su
+#     sesión en otro worker). No es grave para uno; es grave para 50 a la vez (un upgrade de nodos sin PDB).
+#
+# Validación: kubernetes-validate --strict (Kubernetes 1.36) sobre Service, Deployment y PodDisruptionBudget.
+# PodMonitor y ScaledObject son CRDs: se validaron contra el esquema OpenAPI de sus CRDs (KEDA v2.21.0,
+# Prometheus Operator v0.94.1) con jsonschema, rechazando campos desconocidos. Eso prueba la FORMA, no el
+# comportamiento: nada de esto corrió en un cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: asr-worker
+  namespace: c13
+  labels:
+    app.kubernetes.io/name: asr-worker
+spec:
+  # Headless: sin IP virtual ni balanceo de kube-proxy. El router del asr-gateway necesita la lista de
+  # pods (DNS o EndpointSlices) para elegir UNO por capacidad y quedarse con él toda la sesión; un
+  # ClusterIP repartiría cada conexión nueva a ciegas y no sabría a cuál volver.
+  clusterIP: None
+  # Solo pods Ready: un pod que drena (readyz 503) sale de la lista y no recibe sesiones nuevas,
+  # mientras sus conexiones abiertas (directas al pod) siguen funcionando hasta migrar.
+  publishNotReadyAddresses: false
+  selector:
+    app.kubernetes.io/name: asr-worker
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asr-worker
+  namespace: c13
+  labels:
+    app.kubernetes.io/name: asr-worker
+    app.kubernetes.io/part-of: c13
+spec:
+  # Sin "replicas": las decide el HPA que crea KEDA (20 a 220). Si lo fijas aquí, cada apply pelea con él.
+  revisionHistoryLimit: 5  # ReplicaSets viejos para `kubectl rollout undo` (volver al modelo anterior)
+  # Un rollout de ≈ 170 pods que drenan de a poco y esperan nodos GPU nuevos tarda; 30 min antes de
+  # marcarlo como fallido (ProgressDeadlineExceeded).
+  progressDeadlineSeconds: 1800
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Primero suben los pods nuevos (hasta 10 % extra), después drenan los viejos. maxUnavailable 0: la
+      # capacidad nunca baja durante un deploy. El modelo nuevo NO llega así a toda la flota de una: antes
+      # pasa por un Deployment canario aparte (asr-worker-canary, mismo Service) con unos pocos pods y la
+      # alerta CanaryWERRegression (no incluido aquí).
+      maxSurge: 10%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: asr-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: asr-worker
+        app.kubernetes.io/part-of: c13
+    spec:
+      # El worker no llama a la API de Kubernetes ni a AWS: sin token montado (menos superficie de ataque).
+      automountServiceAccountToken: false
+      # El reloj del período de gracia empieza ANTES del preStop (documentación de Kubernetes: el preStop
+      # y la parada del contenedor tienen que caber juntos). Presupuesto:
+      #   preStop: drain de hasta DRAIN_TIMEOUT_S = 60 s (+ ≈ 2 s de sondeo y ≈ 1 s de arrancar Python)
+      #   SIGTERM: uvicorn cierra con 1012 lo que quede y espera hasta 10 s (--timeout-graceful-shutdown)
+      #   margen: ≈ 15 s → 90 s. Si no alcanza, SIGKILL: las sesiones que quedaban se reabren en otro
+      #   worker igual (pierden ≈ 1–2 s), así que el costo de quedarse corto está acotado.
+      # Por qué 60 s de drain alcanzan: una sesión callada migra al instante; una que habla llega a un
+      # límite de utterance en ≤ 20.6 s (MAX_UTTERANCE_MS 20 s + 600 ms de silencio de endpointing).
+      terminationGracePeriodSeconds: 90
+      nodeSelector:
+        # g6.xlarge: 1× NVIDIA L4 (24 GB), 4 vCPU, 16 GiB (≈ US$0.80/h on-demand en us-east-1, verifica).
+        # Un pod por GPU: el caso planea ≈ 500 streams por L4 (estimación) y aquí se aceptan hasta 450.
+        node.kubernetes.io/instance-type: g6.xlarge
+      tolerations:
+        # Los nodos GPU tienen taint para que nada que no use GPU ocupe una máquina de ≈ US$0.80/h
+        - key: nvidia.com/gpu
+          operator: Equal
+          value: present
+          effect: NoSchedule
+      topologySpreadConstraints:
+        # Repartir entre zonas: perder una AZ no debe tirar a la mitad de los captions. ScheduleAnyway (no
+        # DoNotSchedule): si una zona se queda sin L4 disponibles, mejor un pod desbalanceado que ninguno.
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: asr-worker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          # Tag = versión del modelo y, además, el DIGEST: un tag se puede volver a publicar, un digest no.
+          # La imagen trae asr_server.py + chunker.py + stabilizer.py y el adaptador del modelo real (en la
+          # referencia, build_app lanza NotImplementedError: ver server/asr_server.py).
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/c13-asr-worker:2026-09-20-streaming-asr@sha256:9a1c4e7b2d5f8a0c3e6b9d2f5a8c1e4b7d0a3f6c9e2b5d8a1c4f7e0b3d6a9c2e
+          command:
+            - uvicorn
+            - --factory
+            - asr_server:build_app
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8080"
+            # Pings de WebSocket cada 20 s y 20 s para el pong (los defaults de uvicorn, explícitos): si el
+            # asr-gateway muere sin cerrar la conexión, el slot de GPU se libera en ≤ ≈ 40 s y no a las 4 h.
+            - --ws-ping-interval
+            - "20"
+            - --ws-ping-timeout
+            - "20"
+            # Con SIGTERM, uvicorn cierra los WebSockets con 1012 y espera a las tareas hasta 10 s
+            - --timeout-graceful-shutdown
+            - "10"
+          env:
+            - name: MODEL_VERSION
+              value: 2026-09-20-streaming-asr  # = tag de la imagen; va en el "ready" de cada sesión
+            - name: ASR_LANGUAGES
+              value: es-419,en-US,pt-BR  # idiomas de lanzamiento (label de métricas: lista cerrada)
+            - name: MAX_STREAMS
+              value: "450"  # tope duro por GPU = capacidad que usa el router (KEDA apunta a 350 en promedio)
+            - name: MAX_SESSION_S
+              value: "14400"  # 4 h: después el gateway reabre la sesión (guarda contra fugas, no límite de producto)
+            - name: MAX_IDLE_S
+              value: "30"  # 30 s sin un frame: la pista murió, liberar el slot
+            - name: DRAIN_TIMEOUT_S
+              value: "60"  # lo que espera el preStop (ver terminationGracePeriodSeconds)
+            - name: CHUNK_MS
+              value: "160"
+            - name: LEFT_CONTEXT_MS
+              value: "0"  # modelo cache-aware: guarda su propio contexto entre chunks
+            - name: ENDPOINT_SILENCE_MS
+              value: "600"
+            - name: MAX_UTTERANCE_MS
+              value: "20000"
+            - name: FREEZE_AFTER_MS
+              value: "800"
+            - name: LATENCY_LOG_RATE
+              value: "0.01"  # 1 % de las sesiones loguean cada latencia (eval/wer.py calcula percentiles)
+            - name: PORT
+              value: "8080"  # lo usa el preStop para hablar con el server
+          ports:
+            - name: http
+              containerPort: 8080  # WebSocket /v1/stream, /healthz, /readyz, /metrics, /admin/*
+          resources:
+            requests:
+              cpu: "3"  # VAD/chunking (si corren aquí), serializar JSON, el loop; el nodo tiene 4 vCPU
+              memory: 12Gi  # modelo en CPU antes de subir a la GPU + buffers (est.: mídelo con el modelo real)
+              nvidia.com/gpu: 1  # una L4 entera por pod
+            limits:
+              # Sin límite de CPU a propósito: el throttling de CFS atrasa el loop y se ve como latencia
+              memory: 12Gi  # = request: pasarse es un OOMKilled claro, no un nodo inestable
+              nvidia.com/gpu: 1  # las GPUs no se sobreasignan: request = limit
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            # Cargar pesos y calentar el modelo puede tardar minutos: hasta 5 min antes de que liveness cuente
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            # 503 mientras drena: el pod sale del Service headless en ≤ 5 s y el router deja de asignarle.
+            # failureThreshold 1: drenar es una decisión, no un síntoma que haya que confirmar.
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              # Drain: POST /admin/drain a localhost y esperar a que no queden streams (o DRAIN_TIMEOUT_S).
+              # exec (no httpGet): el hook tiene que ESPERAR, y el script nunca falla (ver wait_for_drain).
+              exec:
+                command: ["python", "/app/asr_server.py", "drain"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp  # el root filesystem es de solo lectura
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+---
+# Disrupciones VOLUNTARIAS (drain de nodos en un upgrade del cluster, consolidación de Karpenter): como
+# mucho 5 % de los workers a la vez (≈ 9 de 172). Cada uno drena con su preStop; sin esto, un upgrade
+# podría sacar decenas a la vez y mandar miles de reconexiones juntas.
+# Trampa: un PDB NO frena al HPA (bajar réplicas no es una eviction) ni a una caída de nodo o una
+# interrupción de spot. El ritmo de scale-in lo pone el behavior del ScaledObject de abajo.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: asr-worker
+  namespace: c13
+spec:
+  maxUnavailable: 5%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: asr-worker
+---
+# Scrape de /metrics con el Prometheus Operator. Sin esto, asr_* no existe: el autoscaling se queda sin
+# señal (y el ScaledObject lo dice como error porque ignoreNullValues = false) y ninguna alerta dispara.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: asr-worker
+  namespace: c13
+  labels:
+    release: kube-prometheus-stack  # = podMonitorSelector de tu Prometheus (nombre del release de Helm)
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: asr-worker
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+# KEDA crea y administra el HPA (keda-hpa-asr-worker): no definas otro HPA para este Deployment.
+# Campos según la documentación de KEDA 2.21 (scalers prometheus y cron; fallback; advanced).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: asr-worker
+  namespace: c13
+spec:
+  scaleTargetRef:
+    name: asr-worker
+  # Piso: 20 L4 aunque de madrugada sobren (el caso: ≈ 60 de noche). Un reinicio masivo a las 3:00 no
+  # debe empezar desde 2 pods; el resto de la curva la sigue la métrica.
+  minReplicaCount: 20
+  # Techo de costo: el pico del caso pide ≈ 172 L4 (60k streams ÷ 350); 220 deja ≈ 28 % para un día
+  # atípico. Si no alcanza, ASRCapacityHeadroomLow avisa antes de rechazar sesiones.
+  maxReplicaCount: 220
+  pollingInterval: 30  # cada 30 s KEDA consulta Prometheus
+  # Si Prometheus no contesta 3 veces seguidas: max(réplicas actuales, 120). Escalar a ciegas hacia abajo
+  # es lo peligroso (captions rechazados); hacia arriba solo cuesta (≈ 60 L4 extra de noche ≈ US$48/h).
+  fallback:
+    failureThreshold: 3
+    replicas: 120
+    behavior: currentReplicasIfHigher
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0  # subir en cuanto sube la carga: un nodo GPU tarda minutos en llegar
+          selectPolicy: Max
+          policies:
+            - type: Percent
+              value: 20  # +20 % por minuto en la rampa de la mañana…
+              periodSeconds: 60
+            - type: Pods
+              value: 10  # … y al menos 10 pods por minuto cuando la flota es chica
+              periodSeconds: 60
+        scaleDown:
+          # Bajar MUY despacio: cada pod que se va drena y migra hasta 450 sesiones. 20 min de ventana y
+          # de a 5 pods cada 5 min: la caída de la tarde es gradual y nadie ve una tormenta de reconexiones.
+          # QUÉ pod sale lo elige el ReplicaSet, no el HPA. La anotación controller.kubernetes.io/pod-deletion-cost
+          # (beta desde Kubernetes 1.22, de mejor esfuerzo) permite preferir los más vacíos, pero la
+          # documentación pide NO actualizarla seguido con el valor de una métrica (carga en el API server):
+          # se escribe una vez justo antes de bajar. Esta referencia no lo hace.
+          stabilizationWindowSeconds: 1200
+          policies:
+            - type: Pods
+              value: 5
+              periodSeconds: 300
+  triggers:
+    - type: prometheus
+      # AverageValue (el default, explícito): réplicas = ceil(streams activos totales ÷ 350). 350 = 70 % de
+      # los ≈ 500 streams por L4 del caso (estimación): el 30 % restante absorbe la rampa mientras llegan
+      # nodos. Ejemplo: 60,000 streams ÷ 350 = 171.4 → 172 pods.
+      metricType: AverageValue
+      metadata:
+        serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        # Si la query vuelve vacía (falta el PodMonitor, cambió un label), "false" la vuelve un error
+        # visible del scaler (y entra el fallback). Con el default (true) KEDA la toma como 0 y la flota
+        # bajaría al mínimo sin que nada avise.
+        ignoreNullValues: "false"
+        query: sum(asr_active_streams{namespace="c13"})
+        threshold: "350"
+    - type: cron
+      # La métrica reacciona; la rampa de la mañana llega más rápido que un nodo GPU. De lunes a viernes,
+      # de 7:30 a 11:00 (hora del centro de México), al menos 120 pods: desiredReplicas actúa como un
+      # mínimo dinámico (HPA toma el máximo entre triggers). 120 y el horario son ILUSTRATIVOS: salen de la
+      # curva de streams por hora (y con usuarios en EE. UU. y Brasil la rampa empieza en otras zonas).
+      metadata:
+        timezone: America/Mexico_City
+        start: 30 7 * * 1-5
+        end: 0 11 * * 1-5
+        desiredReplicas: "120"

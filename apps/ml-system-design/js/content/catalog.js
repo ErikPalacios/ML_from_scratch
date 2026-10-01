@@ -552,7 +552,7 @@
         'Adversarios y drift rápido',
         'Explicabilidad y auditoría de decisiones',
       ],
-      freq: 'alta', minutes: 125, difficulty: 'alta',
+      freq: 'alta', minutes: 115, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm12', 'm15'],
       tests: [
         'Diseñar features en streaming con point-in-time correctness',
@@ -656,7 +656,7 @@
         'Métricas: WER y latencia de finalización, por idioma y acento',
         'Privacidad del audio y retención',
       ],
-      freq: 'baja', minutes: 125, difficulty: 'alta',
+      freq: 'baja', minutes: 105, difficulty: 'alta',
       connects: ['m02', 'm03', 'm04', 'm06', 'm08', 'c02'],
       tests: [
         'Diseñar serving de streaming con estado en lugar de request/response',
@@ -814,13 +814,13 @@
       note: 'Los clásicos de empresas grandes y van en secuencia: embeddings + ANN (c07) son la base del retrieval de recomendación (c08).',
     },
     {
-      phase: 11, status: 'next',
+      phase: 11, status: 'done',
       title: 'Fase 11 — Tiempo real con streaming',
       items: ['c09', 'c13'],
       note: 'Fraude con features en streaming y speech-to-text en vivo comparten el problema de fondo: decidir con datos que llegan continuamente y un presupuesto de latencia estricto.',
     },
     {
-      phase: 12, status: 'later',
+      phase: 12, status: 'next',
       title: 'Fase 12 — LLMs: el módulo y el serving',
       items: ['m14', 'c10'],
       note: 'KV cache, continuous batching, RAG, agentes, evaluación y costo por token; enseguida lo aplicas sirviendo un LLM propio a escala.',
@@ -1044,6 +1044,66 @@
       {
         "topic": "Restricciones",
         "a": "No hay un presupuesto fijo: hasta <b>≈ US$40k al mes</b> de infraestructura se acepta si el sistema mueve los contactos; más que eso hay que justificarlo. Una publicación sin envío solo se puede comprar en su ciudad. Se pueden correr varios experimentos a la vez."
+      }
+    ],
+    c09: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Somos un <b>PSP</b> en Latinoamérica: procesamos pagos con tarjeta no presente (e-commerce y apps) para miles de comercios. El chequeo de fraude lo llama el <b>orquestador de pagos</b> dentro del flujo de autorización, antes de pedirla al emisor. Un equipo de <b>fraud ops</b> de ≈ 15 analistas escribe las reglas, revisa ≈ 1,500 casos al día de comercios con captura posterior e investiga ataques. Soporte a comercios y el equipo de disputas tienen que poder explicar cada decisión. El equipo de ML es de 2–3 personas."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Por pago llega: token de la tarjeta (nunca el número), BIN, monto y moneda, comercio y su giro (MCC), device fingerprint del SDK de checkout, IP, email y teléfono si el comercio los manda, y dirección de envío en bienes físicos. Se devuelve una decisión: <b>aprobar</b>, <b>rechazar</b>, <b>step-up</b> (3-D Secure u OTP) o <b>revisión manual</b> (solo comercios que capturan después). Del step-up, ≈ 10–20 % de los compradores legítimos abandona."
+      },
+      {
+        "topic": "Escala",
+        "a": "<b>≈ 10 M de transacciones al día</b>; el pico diario es ≈ 3× el promedio. Buen Fin, Hot Sale y las quincenas (días 15 y 30) llevan el pico a <b>≈ 2,000 por segundo</b>. Ticket promedio ≈ US$30: ≈ US$9 B al mes. Fraude: ≈ 0.12 % del valor (≈ US$11 M al mes en contracargos) y ≈ 0.08 % de las transacciones por conteo."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "La autorización completa tarda ≈ 1–2 s. El chequeo de fraude tiene <b>p99 ≤ 100 ms</b>, medido desde el orquestador de pagos, y una disponibilidad de <b>99.99 %</b>. Si se cae o no contesta a tiempo, los pagos no se pueden bloquear todos: hay que decidir con reglas de respaldo."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "No hay modelo. Hay un motor de <b>≈ 400 reglas</b> escritas a mano y una blocklist que se recalcula cada noche. Hoy las reglas rechazan ≈ 1.0 % de las transacciones y mandan ≈ 1.5 % a 3-D Secure. La meta es bajar las pérdidas por fraude ≈ 40 % <b>sin subir la tasa de rechazo de clientes buenos</b>."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "El label es el <b>contracargo por fraude</b>: las ventanas de disputa llegan a ≈ 120 días; ≈ 60 % llega en 30 días y ≈ 90 % en 60. Señales más tempranas: reportes de fraude del emisor, fraude confirmado por el comercio y resultados de la revisión manual. Un pago rechazado nunca recibe label. Hay ≈ 2 años de transacciones y contracargos en el data lake."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "La tarjeta llega tokenizada: el sistema de fraude no ve el número (PCI DSS). Datos personales bajo la LFPDPPP en México (GDPR o leyes de EE. UU. donde aplique). Cada decisión debe guardar <b>reason codes</b>; al comprador no se le dice el motivo exacto. Costo de un error: un fraude aprobado ≈ monto + US$15; un pago bueno rechazado, ≈ US$5–10 (lo fija el negocio). Sin presupuesto fijo de infraestructura."
+      }
+    ],
+    c13: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Una plataforma de videollamadas con usuarios en <b>Latinoamérica y EE. UU.</b> quiere <b>subtítulos en vivo</b> en llamadas y reuniones. Los ven todos los participantes mientras la gente habla, con el nombre de quien habla. El anfitrión puede activar “guardar transcripción”. Cada participante elige su idioma (por defecto, el de su organización). Traducción, resúmenes y diarización de audio mezclado quedan fuera del alcance."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "El media server (<b>SFU</b>, WebRTC) recibe <b>una pista Opus por participante</b> (48 kHz, frames de 20 ms) y puede mandar una copia a un servicio interno. Salida: texto por hablante, <b>parcial</b> mientras habla y <b>final</b> con puntuación al terminar la frase, entregado por la <b>señalización WebSocket</b> que cada cliente ya tiene abierta. Dispositivos: laptops, celulares, salas de juntas; algunos participantes por teléfono (8 kHz)."
+      },
+      {
+        "topic": "Escala",
+        "a": "≈ <b>2 M de reuniones al día</b>, de <b>40 min</b> en promedio, con ≈ <b>4 participantes</b>; se espera que ≈ <b>30 %</b> active subtítulos. Casi todo pasa en horario laboral y el pico es ≈ <b>3× el promedio</b>. En cada momento hablan en promedio ≈ <b>1.2 personas por reunión</b>. Hay webinars de cientos de asistentes, casi todos en mute."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "Parciales en <b>p95 ≤ 500 ms</b> desde que se dice la palabra hasta que se ve en pantalla; el <b>final en p95 ≤ 1.5 s</b> después de que la persona deja de hablar. Los subtítulos son un extra: si fallan, <b>la reunión no puede verse afectada</b>, y un aviso de “subtítulos no disponibles” es aceptable. Si se cae un componente, los subtítulos deberían volver solos en un par de segundos."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "Hoy <b>no hay nada</b>: el producto quiere saber si conviene una <b>API gestionada</b> de speech-to-text o algo propio. Hay reuniones que mezclan español e inglés, y organizaciones con nombres de productos y siglas propias que les gustaría que se reconocieran."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "El <b>audio no se guarda</b>, y no se puede entrenar con audio de clientes sin <b>consentimiento explícito</b>. No hay audio etiquetado propio. Legal aceptaría un programa de opt-in por organización y comprar corpus o grabaciones con consentimiento. Idiomas al lanzar: <b>español</b> (México y Latinoamérica), <b>inglés</b> (EE. UU.) y <b>portugués</b> (Brasil)."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Ya existen <b>Kubernetes en AWS con nodos GPU</b> (hay L4), Prometheus y Kafka. Las transcripciones guardadas se retienen ≈ <b>30 días</b> (configurable por organización), y hay un indicador visible de “subtítulos activados”. Hay clientes en México (LFPDPPP), Brasil, EE. UU. y algunos en la Unión Europea. El presupuesto no tiene un número cerrado."
       }
     ],
   };
