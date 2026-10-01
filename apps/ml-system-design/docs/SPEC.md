@@ -779,7 +779,7 @@ governance's call — we provide traceability and validation evidence, general p
   not billed time: slides arrive every ≈ 42 s from 08:00 to 22:00 and KEDA's cooldownPeriod is 15 min, so the
   first worker stays up the whole scanning window (≈ 14.25 h) + cold starts + a second worker in bursts →
   **≈ 15 billed node-h/day** (est.) ≈ 450 h × US$0.98 ≈ **US$440** (spot: depends on the real discount; at
-  60–70 % off it saves ≈ US$265–310); reprocessing/backfills for shadow evaluation of candidate
+  25–70 % off it saves ≈ US$110–310; ≈ 25 % was observed on g6 in us-east-1, oct-2026, see M13); reprocessing/backfills for shadow evaluation of candidate
   models ≈ US$70; training ≈ US$200; EKS control plane ≈ US$73; CPU nodes (results-api, jobs) ≈ US$150;
   Postgres (managed, Multi-AZ, small) ≈ US$200; results storage (≈ 5 MB/slide → ≈ 180 GB/month,
   cumulative) + logs/metrics ≈ US$100 → **infra ≈ US$1.2k/month**; pathologist labeling ≈ **US$4k/month**

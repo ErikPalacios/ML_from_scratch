@@ -557,7 +557,7 @@
       { t: 'table',
         head: ['', 'OCR gestionado (elegido)', 'OCR propio en GPU', 'LLM de visión para todo'],
         rows: [
-          ['Costo a 186k págs/mes', '≈ US$280 (detección de texto)', 'Una GPU encendida casi ociosa + el equipo que la opera', E('Depende del proveedor y de los tokens por imagen') + ': verifícalo; típicamente mucho más por página'],
+          ['Costo a 186k págs/mes', '≈ US$280 (detección de texto)', 'Una GPU encendida casi ociosa + el equipo que la opera. En CPU (2 nodos, si el benchmark lo confirma) serían ' + E('≈ US$250') + ': empata con el gestionado y la decisión pasa a operación y calidad (<a href="#m13.managed-vs-self">M13</a>)', E('Depende del proveedor y de los tokens por imagen') + ': verifícalo; típicamente mucho más por página'],
           ['Calidad en español impreso', 'Soportado', 'La que logres; hay que medirla', 'Suele ser buena; hay que medirla en tu gold set, y no trae garantías por campo'],
           ['Manuscrita en español', 'Textract: solo inglés según su documentación', 'Posible con datos propios', 'A menudo buena; hay que medirla'],
           ['Cajas y confianza por palabra', 'Sí', 'Sí', 'No de forma nativa: el valor no se puede ubicar en la página ni calibrar fácil'],

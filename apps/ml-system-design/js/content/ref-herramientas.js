@@ -3,8 +3,8 @@
    Parte 4 · Hoja de referencia "Herramientas por categoría": qué herramienta
    resuelve qué problema, su equivalente gestionado en cada nube y cuándo vale la
    pena nombrarla en la entrevista (y cuándo es ruido).
-   CONDENSA lo que ya enseñan M6, M7, M8, M9, M10, M11 y M12 y lo que eligen los
-   casos c01–c06: aquí solo se enlaza. Si una elección cambia allá, se cambia aquí.
+   CONDENSA lo que ya enseñan M5, M6, M7, M8, M9, M10, M11, M12 y M15 y lo que eligen
+   los casos c01–c06: aquí solo se enlaza. Si una elección cambia allá, se cambia aquí.
    La tabla de equivalencias AWS | GCP | Azure usa los mismos nombres que M13
    (m13-nube.js, sección 'equivalencias', leída el 1-oct-2026), que es la fuente.
    Estado de proyectos verificado (1-oct-2026) con la API de GitHub (archivado,
@@ -12,12 +12,23 @@
    TGI en modo mantenimiento (dic-2025) y archivado, BentoML comprado por Modular
    (feb-2026, sigue Apache 2.0), Ray en la PyTorch Foundation (oct-2025), KServe
    incubating en la CNCF (nov-2025), Tecton dentro de Databricks (2025), DVC bajo
-   lakeFS (nov-2025), Neptune.ai cerró su SaaS (mar-2026), W&B de CoreWeave (may-2025),
+   lakeFS (nov-2025; DVC sigue Apache 2.0), lakeFS pasó de Apache 2.0 a BSL 1.1
+   (v1.87.0, 22-sep-2026), Fivetran y dbt Labs completaron su fusión (1-jun-2026),
+   Fivetran mantiene GX Core (may-2026; GX Cloud pasó a FICO), Neptune.ai cerró su
+   SaaS (5-mar-2026), W&B de CoreWeave (may-2025),
    Prefect anunció la compra de Dagster Labs (jul-2026), Langfuse en ClickHouse
    (ene-2026), promptfoo en OpenAI (mar-2026), Dynatrace anunció la compra de Arize
    (ago-2026, pendiente), Microsoft Agent Framework 1.0 (abr-2026), compromiso de
    LiteLLM 1.82.7/1.82.8 en PyPI (24-mar-2026), Vertex AI dentro de Gemini Enterprise
-   Agent Platform (abr-2026), Azure AI Foundry → Microsoft Foundry (ene-2026).
+   Agent Platform (abr-2026), Azure AI Foundry → Microsoft Foundry (ene-2026),
+   Envoy AI Gateway → Agent Router, en la AAIF (9-sep-2026), Arize Phoenix bajo
+   Elastic License 2.0 (no OSI), Azure AI Document Intelligence → Azure Document
+   Intelligence in Foundry Tools (Microsoft Learn, sept-2026).
+   IaC, CI y supply chain (sección 'infra-ci-seguridad'): Terraform BSL desde 1.6
+   (licenciante IBM), OpenTofu MPL 2.0, Pulumi y CDK Apache 2.0, Syft, Grype, Trivy,
+   cosign, Kyverno, BuildKit y External Secrets Apache 2.0 (API de GitHub, 1-oct-2026).
+   Los nombres y el porqué salen de M15 (rate-limiting, secretos, multi-region-dr,
+   supply-chain), M10 (ci-cd) y M5 (registries).
    Vector DBs contra su documentación: pgvector 0.8.6 (HNSW/IVFFlat, iterative scans,
    límites de dimensiones), Milvus 3.0 (HNSW, IVF_*, DiskANN, GPU_CAGRA), Qdrant 1.19
    (HNSW filtrable, payload indexes), Weaviate (hnsw, flat, dynamic, hfresh),
@@ -59,7 +70,7 @@
       { id: 'proc', label: 'Procesamiento', sub: 'Spark · Flink · dbt', x: 24, y: 33, w: 18, h: 8, kind: 'job',
         note: 'Transforma datos crudos en datasets y features: Spark o SQL (dbt) en batch, Flink en streaming. En los casos de visión casi no hay features tabulares: el preproceso es un paquete compartido (<a href="#m09.feature-store">M9</a>).' },
       { id: 'pipe', label: 'Entrenamiento', sub: 'Airflow · KFP', x: 48, y: 33, w: 16, h: 8, kind: 'job',
-        note: 'El pipeline de entrenamiento: un orquestador (Airflow, Kubeflow Pipelines, SageMaker o Vertex AI Pipelines) corre datos → entrenamiento → evaluación → gate. Registra cada corrida en el tracking (<a href="#m10.pipelines-entrenamiento">M10</a>).' },
+        note: 'El pipeline de entrenamiento: un orquestador (Airflow, Kubeflow Pipelines, SageMaker o Vertex AI Pipelines, hoy Gemini Enterprise Agent Platform Pipelines) corre datos → entrenamiento → evaluación → gate. Registra cada corrida en el tracking (<a href="#m10.pipelines-entrenamiento">M10</a>).' },
       { id: 'reg', label: 'Registry', sub: 'MLflow', x: 69, y: 33, w: 14, h: 8, kind: 'store',
         note: 'Guarda versiones de modelo con su linaje y un alias (<code>@champion</code>) que el despliegue lee. Promover es mover el alias; el rollout progresivo (Argo Rollouts, Flagger o el del endpoint gestionado) lo lleva a producción (<a href="#m10.model-registry">M10</a>, <a href="#m11.canary">M11</a>).' },
       { id: 'prom', label: 'Métricas', sub: 'Prometheus · Grafana', x: 88, y: 4, w: 18, h: 8, kind: 'monitor',
@@ -120,15 +131,17 @@
             ['Un flujo de pasos por ítem, con reintentos y espera humana', 'Workflow engine', 'Step Functions', 'Temporal si quieres portabilidad y lo puedes operar', '<a href="#c05.arquitectura">c05</a>'],
             ['Jobs batch programados (ETL, reentrenamiento)', 'Orquestador', 'El que la empresa ya opera (Airflow casi siempre)', 'Kubeflow, SageMaker o Vertex AI Pipelines para ML', '<a href="#m09.pipelines">M9</a>, <a href="#m10.pipelines-entrenamiento">M10</a>'],
             ['Features de entidades compartidas online y offline', 'Feature store', 'Feast si lo operas tú; el de tu nube si ya vives ahí', 'Nada: en visión, un paquete de preproceso compartido', '<a href="#m09.feature-store">M9</a>; descartado en c01 y c03'],
-            ['Saber con qué datos se entrenó', 'Versionado de datos', 'Snapshot inmutable con id (prefijo en S3 o tabla Iceberg/Delta)', 'DVC en un repo chico; lakeFS sobre un lake grande', '<a href="#m09.versionado">M9</a>, <a href="#c01.datos">c01</a>'],
+            ['Saber con qué datos se entrenó', 'Versionado de datos', 'Snapshot inmutable con id (prefijo en S3 o tabla Iceberg/Delta)', 'DVC en un repo chico; lakeFS sobre un lake grande (BSL 1.1 desde sept-2026)','<a href="#m09.versionado">M9</a>, <a href="#c01.datos">c01</a>'],
             ['Etiquetar', 'Herramienta de anotación', 'Label Studio o CVAT', 'QuPath en patología; una UI propia si la revisión es el producto', '<a href="#c04.datos">c04</a>, <a href="#c05.datos">c05</a>'],
             ['Registrar corridas y versiones de modelo', 'Tracking + registry', 'MLflow', 'W&B si el equipo vive en su interfaz', '<a href="#m10.model-registry">M10</a>, <a href="#c01.datos">c01</a>'],
             ['Lanzar sin romper', 'Progressive delivery', 'Argo Rollouts en Kubernetes', 'Pesos en el ALB (c01); Flagger con una malla; el canary del endpoint gestionado', '<a href="#m11.canary">M11</a>, <a href="#c01.evaluacion">c01</a>'],
             ['Métricas y alertas', 'Monitoreo', 'Prometheus + Grafana + Alertmanager', 'CloudWatch o el monitoreo de tu nube', '<a href="#m12.prometheus-grafana">M12</a>, todos'],
             ['Drift de entradas y salidas', 'Monitoreo de modelo', 'Un job propio que publica PSI como métrica', 'Evidently como librería', '<a href="#m12.deteccion-drift">M12</a>, <a href="#c04.monitoreo">c04</a>'],
             ['Buscar por similitud', 'Vector DB', 'pgvector si ya tienes Postgres', 'Qdrant, Milvus u OpenSearch cuando no cabe o no alcanza', '<a href="#c07">c07</a> (próximamente)'],
+            ['Recrear la infraestructura en otra región o cuenta', 'Infraestructura como código (IaC)', 'Terraform u OpenTofu', 'CDK si todo es AWS; Pulumi si el equipo prefiere un lenguaje general', '<a href="#m15.multi-region-dr">M15</a>, <a href="#ref-herramientas.infra-ci-seguridad">infra y CI</a>'],
+            ['Que a producción llegue solo lo que salió de CI', 'Supply chain', 'SBOM + escaneo + firma con cosign + política de admisión', 'El escaneo del registry de tu nube si no quieres operar escáneres', '<a href="#m15.supply-chain">M15</a>, <a href="#m05.registries">M5</a>'],
           ] },
-          { t: 'diagram', id: 'ref-herramientas-mapa', title: 'Dónde vive cada categoría', caption: 'Toca un nodo para ver qué herramientas van ahí y dónde se explican. Las categorías que no aparecen (colas, workflow engines, vector DBs) se enchufan en el camino online o en el offline según el patrón de <a href="#m02">M2</a>.', spec: MAPA },
+          { t: 'diagram', id: 'ref-herramientas-mapa', title: 'Dónde vive cada categoría', caption: 'Toca un nodo para ver qué herramientas van ahí y dónde se explican. Las categorías que no aparecen (colas, workflow engines, vector DBs) se enchufan en el camino online o en el offline según el patrón de <a href="#m02">M2</a>; IaC, CI y supply chain rodean a todo el diagrama (<a href="#ref-herramientas.infra-ci-seguridad">infra, CI y seguridad</a>).', spec: MAPA },
           { t: 'callout', kind: 'why', title: 'Por qué empezar por el problema', html: `<p>El entrevistador no anota que conozcas Kafka: anota si sabías que necesitabas un log que varios consumidores releen, y por qué una cola no alcanzaba. Si dices el problema primero, la herramienta se vuelve un detalle verificable; si dices la herramienta primero, te van a preguntar "¿por qué?" y vas a tener que reconstruir el problema hacia atrás.</p>` },
           { t: 'callout', kind: 'skip', html: `<p>No memorices versiones, licencias ni quién compró a quién: están en esta hoja para que no te sorprendan, no para recitarlas. Lo único de "estado" que vale la pena saber de memoria: TorchServe y TGI no se eligen para sistemas nuevos (archivados), y Vertex AI y Azure AI Foundry cambiaron de nombre (si lo dices con el nombre viejo, se entiende igual).</p>` },
         ],
@@ -192,7 +205,7 @@
           { t: 'table', caption: 'Herramientas', head: ['Herramienta', 'Qué es', 'Para qué sí', 'Cuándo NO', 'Gestionado', 'Dónde'], rows: [
             ['<b>Kubernetes</b>', 'Orquestador de contenedores', 'Varios servicios y modelos, GPUs compartidas, equipo de plataforma', 'Un modelo, sin nadie que opere el cluster: un endpoint gestionado', 'EKS, GKE, AKS', '<a href="#m06.por-que-k8s">M6</a>'],
             ['<b>KEDA</b>', 'Autoscaler por eventos (colas, Kafka, Prometheus); permite escalar a cero', 'Workers que escalan con la profundidad de la cola', 'Escalar por CPU: el HPA basta', 'Add-on de AKS; en EKS y GKE lo instalas tú', '<a href="#m06.keda">M6</a>, <a href="#c04.serving">c04</a>'],
-            ['<b>Karpenter</b>', 'Autoscaler de nodos que elige el tipo de instancia por pod pendiente', 'GPUs, spot, varios tamaños de instancia', '—', 'EKS; AKS lo usa como node auto-provisioning', '<a href="#m06.nodos">M6</a>'],
+            ['<b>Karpenter</b>', 'Autoscaler de nodos que elige el tipo de instancia por pod pendiente', 'GPUs, spot, varios tamaños de instancia', '—', 'En EKS lo instalas tú (EKS Auto Mode lo gestiona); AKS lo ofrece gestionado como node auto-provisioning','<a href="#m06.nodos">M6</a>'],
             ['<b>Cluster Autoscaler</b>', 'Autoscaler de nodos sobre grupos fijos', 'Clusters con node groups ya definidos', '—', 'Integrado en GKE y AKS', '<a href="#m06.nodos">M6</a>'],
             ['<b>Argo Rollouts</b>', 'Controlador de canary y blue/green con análisis por métricas', 'Canary con rollback automático en Kubernetes', 'Sin Kubernetes', '—', '<a href="#m11.canary">M11</a>'],
             ['<b>Flagger</b>', 'Progressive delivery sobre una malla o un ingress (ecosistema Flux)', 'Si ya usas Flux o una malla', 'Igual que Argo Rollouts', '—', '<a href="#m11.canary">M11</a>'],
@@ -225,16 +238,16 @@
             ['<b>Spark</b>', 'Procesamiento distribuido en batch (y micro-batch)', 'Joins y agregados sobre TB, backfills', 'Datos que caben en una máquina: pandas o Polars', 'EMR, Glue, Dataproc, Databricks', '<a href="#m09.pipelines">M9</a>'],
             ['<b>Flink</b>', 'Streaming con estado y event time', 'Features en ventanas de segundos (fraude)', 'Si una latencia de minutos alcanza: micro-batch', 'Amazon Managed Service for Apache Flink', '<a href="#m09.pipelines">M9</a>, <a href="#c09">c09</a>'],
             ['<b>Beam / Dataflow</b>', 'Un modelo de programación para batch y streaming; Dataflow lo ejecuta en GCP', 'GCP, mismo código en batch y streaming', 'Fuera de GCP casi no se usa Beam', 'Dataflow', '<a href="#m09.pipelines">M9</a>'],
-            ['<b>dbt</b>', 'Transformaciones en SQL versionadas y testeadas sobre el warehouse', 'Tablas de features y de evaluación en SQL', 'Lógica que no es SQL', 'Plataforma gestionada de dbt Labs', '—'],
+            ['<b>dbt</b>', 'Transformaciones en SQL versionadas y testeadas sobre el warehouse', 'Tablas de features y de evaluación en SQL', 'Lógica que no es SQL', 'dbt platform (dbt Labs, fusionada con Fivetran desde jun-2026)', '—'],
           ] },
           { t: 'table', caption: 'Features, versionado, validación y etiquetado', head: ['Herramienta', 'Qué es', 'Para qué sí', 'Cuándo NO', 'Dónde'], rows: [
             ['<b>Feast</b>', 'Feature store open source (LF AI &amp; Data): definiciones, PIT joins, materialización a un online store', 'Features de entidades compartidas, sin atarte a una nube', 'Visión sin features tabulares (c01, c03)', '<a href="#m09.feature-store">M9</a>'],
             ['<b>Tecton</b>', 'Feature store gestionado, fuerte en tiempo real; parte de Databricks desde 2025', 'Si ya vives en Databricks', 'Fuera de Databricks: pregunta por su hoja de ruta', '<a href="#m09.feature-store">M9</a>'],
             ['<b>Feature store de tu nube</b>', 'SageMaker Feature Store, Agent Platform Feature Store (ex Vertex AI), managed feature store de Azure ML', 'Ya estás en esa nube', 'Multi-nube', '<a href="#m09.feature-store">M9</a>'],
             ['<b>Delta Lake / Iceberg</b>', 'Formatos de tabla abiertos sobre Parquet: transacciones, time travel', 'Snapshots reproducibles de datasets tabulares', 'Millones de imágenes sueltas: versiona el manifiesto, no los píxeles', '<a href="#m09.versionado">M9</a>'],
-            ['<b>DVC</b>', 'Versionado de datos con git (punteros a S3); bajo lakeFS desde nov-2025, sigue open source', 'Un repo, un equipo, datasets medianos', 'Un lake compartido de muchos TB', '<a href="#m09.versionado">M9</a>'],
-            ['<b>lakeFS</b>', 'Ramas y commits sobre el object storage', 'Lakes grandes, write-audit-publish', 'Un dataset de un equipo', '<a href="#m09.versionado">M9</a>'],
-            ['<b>Great Expectations</b> (GX Core 1.x)', 'Tests declarativos sobre datos', 'Contratos de datos en el pipeline', 'Si basta con 5 asserts', '<a href="#m09.validacion-datos">M9</a>'],
+            ['<b>DVC</b>', 'Versionado de datos con git (punteros a S3); bajo lakeFS desde nov-2025, sigue open source (Apache 2.0)', 'Un repo, un equipo, datasets medianos', 'Un lake compartido de muchos TB', '<a href="#m09.versionado">M9</a>'],
+            ['<b>lakeFS</b>', 'Ramas y commits sobre el object storage. Business Source License 1.1 desde v1.87.0 (22-sep-2026): según su licencia, el uso productivo interno sin modificar está permitido, pero no ofrecerlo como servicio a terceros (si vas a modificarlo o exponerlo, que lo revise legal)','Lakes grandes, write-audit-publish', 'Un dataset de un equipo', '<a href="#m09.versionado">M9</a>'],
+            ['<b>Great Expectations</b> (GX Core 1.x)', 'Tests declarativos sobre datos; GX Core lo mantiene Fivetran desde may-2026 (GX Cloud lo adquirió FICO y dejó de ofrecerse al público el 1-jun-2026)', 'Contratos de datos en el pipeline', 'Si basta con 5 asserts', '<a href="#m09.validacion-datos">M9</a>'],
             ['<b>Pandera</b>', 'Esquemas de DataFrames en Python', 'Validar en el mismo código de pandas o Polars', 'Datos fuera de Python', '<a href="#m09.validacion-datos">M9</a>'],
             ['<b>Label Studio</b>', 'Anotación multimodal open source (HumanSignal)', 'Texto, documentos, imágenes en una sola herramienta', 'Video pesado o volúmenes enormes sin workforce', '<a href="#c05.datos">c05</a>, <a href="#m09.etiquetado">M9</a>'],
             ['<b>CVAT</b>', 'Anotación de visión open source (MIT)', 'Cajas, polígonos, video con tracking', 'Texto y documentos', '<a href="#m09.etiquetado">M9</a>'],
@@ -257,7 +270,7 @@
             ['<b>MLflow</b> (3.x)', 'Open source (Apache 2.0): tracking, registry, evaluación, también de GenAI', 'Model Registry con <b>aliases</b> (<code>@champion</code>); los stages están deprecados desde 2.9', 'Default si nadie eligió, o si los datos no salen de tu nube', 'Lo operas tú: Postgres + S3; el commit que guarda no avisa de cambios sin commit (<a href="#m10.experiment-tracking">M10</a>)'],
             ['<b>Weights &amp; Biases</b>', 'SaaS (también dedicado o self-managed); de CoreWeave desde mayo de 2025', 'W&amp;B Registry con aliases', 'Investigación con muchas corridas y un equipo que vive en la interfaz', 'Datos en un tercero; licencias por usuario'],
             ['<b>Comet</b>', 'SaaS o self-hosted de tracking; su producto de LLMs es Opik (Apache 2.0)', 'Sí', 'Si ya lo usan', 'Menos común en entrevistas'],
-            ['<b>Neptune.ai</b>', 'Lo compró OpenAI (dic-2025) y el SaaS cerró el 6-mar-2026 sin forma de exportar después', '—', 'Ya no es una opción', 'La lección: exporta lo que llegó a producción'],
+            ['<b>Neptune.ai</b>', 'Lo compró OpenAI (dic-2025) y el SaaS cerró el 5-mar-2026 sin forma de exportar después', '—', 'Ya no es una opción', 'La lección: exporta lo que llegó a producción'],
             ['<b>MLflow gestionado</b>', 'MLflow operado por SageMaker AI, Databricks o Azure ML (el workspace habla la API de MLflow)', 'El de MLflow', 'Ya estás en esa nube', 'Versión y features dependen del proveedor'],
             ['<b>Registry de la nube</b>', 'Model Registry de SageMaker AI o de Agent Platform (Vertex AI), registries de Azure ML', 'Grupos y versiones, aprobación', 'Despliegas con el endpoint de esa nube', 'Te ata a su forma de desplegar'],
           ] },
@@ -278,7 +291,7 @@
           { t: 'table', caption: 'Sistema', head: ['Herramienta', 'Qué es', 'Para qué sí', 'Gestionado', 'Dónde'], rows: [
             ['<b>Prometheus</b>', 'Métricas por pull, PromQL, reglas de grabación y de alerta', 'El estándar en Kubernetes: latencia, errores, cola, GPU', 'Amazon Managed Service for Prometheus, Managed Service for Prometheus (GCP), Azure Monitor managed Prometheus', '<a href="#m12.prometheus-grafana">M12</a>'],
             ['<b>Grafana</b>', 'Dashboards sobre Prometheus, Loki y otros', 'Un dashboard por audiencia', 'Amazon Managed Grafana, Azure Managed Grafana, Grafana Cloud', '<a href="#m12.prometheus-grafana">M12</a>'],
-            ['<b>Alertmanager</b>', 'Ruteo de alertas: agrupa, deduplica, silencia', 'Page vs ticket según severidad', 'El Prometheus gestionado de AWS lo incluye; en GCP y Azure las alertas pasan por su propio sistema (verifica)', '<a href="#m12.prometheus-grafana">M12</a>'],
+            ['<b>Alertmanager</b>', 'Ruteo de alertas: agrupa, deduplica, silencia', 'Page vs ticket según severidad', 'Incluido en el Prometheus gestionado de AWS y en el de GCP (Alertmanager gestionado, configurado con un Secret en <code>gmp-public</code>); en Azure las alertas van por Azure Monitor (reglas de alerta + action groups)', '<a href="#m12.prometheus-grafana">M12</a>'],
             ['<b>DCGM exporter</b>', 'Métricas de GPU de NVIDIA para Prometheus', 'Utilización, memoria, temperatura, XID', 'Lo instala el GPU Operator', '<a href="#m12.sistema">M12</a>'],
             ['<b>OpenTelemetry</b>', 'Estándar y SDKs de trazas, métricas y logs; el Collector los rutea', 'Trazas de punta a punta (gateway → model server)', 'CloudWatch/X-Ray, Cloud Trace y Application Insights reciben datos de OpenTelemetry (por OTLP o con su exporter)', '<a href="#m12.sistema">M12</a>'],
             ['<b>Loki / ELK / OpenSearch</b>', 'Almacenes de logs', 'Buscar el request 4f2a… cuando algo falla', 'CloudWatch Logs, Cloud Logging, Log Analytics', '<a href="#m12.logging-predicciones">M12</a>'],
@@ -289,7 +302,7 @@
             ['<b>NannyML</b>', 'Drift y estimación de desempeño sin labels (CBPE, DLE), tabular', 'Supone calibración y ausencia de concept drift; último release en julio de 2025'],
             ['<b>whylogs</b>', 'Perfiles estadísticos mergeables, sin guardar datos crudos', 'Apple compró WhyLabs en 2025 y el SaaS cerró; el repo no tiene cambios desde enero de 2025'],
             ['<b>Alibi Detect</b>', 'Detectores de drift y outliers (Seldon)', 'Business Source License desde enero de 2024: en producción, licencia comercial'],
-            ['<b>Arize, Fiddler</b>', 'Plataformas comerciales de observabilidad de ML y LLMs', 'Dynatrace anunció la compra de Arize en agosto de 2026 (pendiente al escribir esto); Phoenix, su proyecto open source, sigue. Precios y alcance: verifica'],
+            ['<b>Arize, Fiddler</b>', 'Plataformas comerciales de observabilidad de ML y LLMs', 'Dynatrace anunció la compra de Arize en agosto de 2026 (pendiente al escribir esto); Phoenix, su proyecto de código disponible (Elastic License 2.0: se puede autoalojar, no ofrecer como servicio gestionado), sigue. Precios y alcance: verifica'],
             ['<b>Monitores de la nube</b>', 'SageMaker Model Monitor, Vertex AI Model Monitoring, Azure ML model monitoring', 'Pensados sobre todo para tabular; para imágenes, estadísticas o un contenedor propios'],
           ] },
           { t: 'callout', kind: 'senior', html: `<p>Para drift, la respuesta senior casi nunca es una plataforma: es "un job diario que calcula el PSI del histograma de color por escáner contra la referencia del modelo y lo publica como métrica en Prometheus, con alerta por tamaño de efecto". Así el drift vive en la misma tubería de alertas que la latencia (<a href="#m12.deteccion-drift">M12</a>, <a href="#c04.monitoreo">c04</a>).</p>` },
@@ -342,13 +355,13 @@
         priority: 'extra',
         dims: ['arquitectura', 'tradeoffs'],
         blocks: [
-          { t: 'callout', kind: 'note', title: 'Fecha de vencimiento', html: `<p>Esta es la sección que más rápido envejece: en un año cambiaron de dueño Langfuse, promptfoo y Neptune, TGI quedó archivado y Microsoft unificó sus frameworks de agentes. Usa las categorías, que duran; los nombres, verifícalos antes de la entrevista. El diseño de sistemas con LLMs es <a href="#m14">M14</a>.</p>` },
+          { t: 'callout', kind: 'note', title: 'Fecha de vencimiento', html: `<p>Esta es la sección que más rápido envejece: en un año cambiaron de dueño Langfuse, promptfoo y Neptune, TGI quedó archivado, Microsoft unificó sus frameworks de agentes y Envoy AI Gateway pasó a llamarse Agent Router. Usa las categorías, que duran; los nombres, verifícalos antes de la entrevista. El diseño de sistemas con LLMs es <a href="#m14">M14</a>.</p>` },
           { t: 'table', caption: 'Por categoría (octubre de 2026)', head: ['Categoría', 'Qué resuelve', 'Opciones', 'Default razonable', 'Ojo con'], rows: [
             ['Motor de serving', 'Continuous batching, KV cache paginado, API compatible con OpenAI', 'vLLM, SGLang, TensorRT-LLM; TGI archivado', 'vLLM', 'Elegir sin medir con tu tráfico (<a href="#m07.llm-servers">M7</a>)'],
             ['Serving multi-nodo', 'Separar prefill y decode, ruteo por KV cache', 'NVIDIA Dynamo, llm-d', 'Ninguno hasta que un nodo no alcance', 'Complejidad que solo paga a gran escala'],
             ['Local o en el dispositivo', 'Correr un modelo cuantizado en una laptop o un edge', 'llama.cpp, Ollama', 'llama.cpp en edge; Ollama para desarrollo', 'No son servidores de producción multiusuario'],
             ['API gestionada', 'Modelos sin operar GPUs', 'Amazon Bedrock, Model Garden de Agent Platform (Vertex AI), Microsoft Foundry, APIs de cada proveedor', 'La nube donde ya están tus datos', 'Residencia de datos, cuotas, costo por token'],
-            ['Gateway de LLMs', 'Una API para varios proveedores: llaves, presupuestos, rate limits, fallbacks, logs de costo', 'LiteLLM, Envoy AI Gateway (v1 en 2026); gateways comerciales', 'LiteLLM al empezar; Envoy si ya usas Envoy', 'Fija versiones: LiteLLM 1.82.7 y 1.82.8 salieron comprometidas en PyPI el 24-mar-2026'],
+            ['Gateway de LLMs', 'Una API para varios proveedores: llaves, presupuestos, rate limits, fallbacks, logs de costo', 'LiteLLM, Agent Router (ex Envoy AI Gateway; v1.0 en jun-2026, en la AAIF desde sept-2026); gateways comerciales', 'LiteLLM al empezar; Agent Router si ya usas Envoy', 'Fija versiones: LiteLLM 1.82.7 y 1.82.8 salieron comprometidas en PyPI el 24-mar-2026'],
             ['Framework de agentes', 'Loop de herramientas, estado, reintentos', 'LangGraph, OpenAI Agents SDK, Google ADK, Microsoft Agent Framework (1.0 en abril de 2026, sucesor de AutoGen y Semantic Kernel), LlamaIndex, Pydantic AI', 'El más simple que resuelva el loop; a veces 100 líneas propias', 'Atarse a una abstracción que cambia cada trimestre'],
             ['Protocolos', 'Conectar herramientas y agentes', 'MCP (herramientas), A2A (agente a agente)', 'MCP para exponer herramientas', 'Cada servidor MCP es superficie de ataque (<a href="#m15">M15</a>)'],
             ['Evaluación', 'Datasets, métricas, LLM-as-judge, regresiones en CI', 'Ragas, DeepEval, promptfoo (de OpenAI desde mar-2026, sigue MIT), MLflow GenAI', 'Un golden set propio + una de estas para correrlo en CI', 'Juez sin calibrar contra humanos'],
@@ -390,7 +403,7 @@
             ['Container registry', 'Amazon ECR', 'Artifact Registry', 'Azure Container Registry'],
             ['Monitoreo y logs', 'Amazon CloudWatch · Managed Service for Prometheus', 'Cloud Monitoring · Cloud Logging · Managed Service for Prometheus', 'Azure Monitor (Log Analytics, Application Insights, Prometheus gestionado)'],
             ['Secretos y llaves', 'Secrets Manager · AWS KMS', 'Secret Manager · Cloud KMS', 'Azure Key Vault'],
-            ['Documentos (OCR)', 'Amazon Textract', 'Document AI', 'Azure AI Document Intelligence'],
+            ['Documentos (OCR)', 'Amazon Textract', 'Document AI', 'Azure Document Intelligence (Foundry Tools)'],
             ['Búsqueda vectorial', 'OpenSearch Service · S3 Vectors · pgvector en Aurora o RDS', 'Vertex AI Vector Search (hoy en Agent Platform) · AlloyDB', 'Azure AI Search'],
           ], note: 'Renombres recientes (detalle en <a href="#m13.equivalencias">M13</a>): SageMaker → SageMaker AI (3-dic-2024); Vertex AI → Gemini Enterprise Agent Platform (abril de 2026); Azure AI Foundry → Microsoft Foundry (vigente desde enero de 2026); App Runner cerró a clientes nuevos (30-abr-2026). En la entrevista, los nombres de siempre se entienden.' },
           { t: 'callout', kind: 'skip', html: `<p>Si la empresa usa una nube que no conoces, no finjas: di "en AWS esto es SQS; aquí usaría la cola gestionada equivalente" y sigue. El entrevistador evalúa el patrón, no el catálogo. Memoriza solo la columna de la nube que usa la empresa a la que aplicas.</p>` },
@@ -398,6 +411,29 @@
       },
 
       // ======================================================== 10
+      {
+        id: 'infra-ci-seguridad',
+        title: 'Infraestructura como código, CI y seguridad',
+        titleEn: 'Infrastructure as code, CI and security',
+        priority: 'extra',
+        dims: ['arquitectura', 'tradeoffs'],
+        blocks: [
+          { t: 'p', html: `Lo que rodea al sistema de ML y que un senior nombra sin que se lo pidan: con qué se crea la infraestructura, por dónde pasa cada cambio antes de llegar a producción y qué garantiza que lo que corre es lo que construiste. No son herramientas de ML, pero responden preguntas que sí llegan: "¿y si se cae la región?" (redeploy desde IaC), "¿cómo sabes qué corre en producción?" (un digest firmado) y "¿dónde vive la API key?" (en un secret manager, o mejor, no hay API key). El porqué largo está en <a href="#m15">M15</a>, <a href="#m10.ci-cd">M10</a> y <a href="#m05.registries">M5</a>.` },
+          { t: 'table', caption: 'Seis categorías alrededor del modelo (estado a octubre de 2026)', head: ['Categoría', 'Default', 'Alternativa y cuándo', 'Qué resuelve en un sistema de ML', 'Dónde'], rows: [
+            ['<b>Infraestructura como código (IaC)</b>', 'Terraform (Business Source License desde la 1.6; de IBM) u OpenTofu, su fork open source (MPL 2.0)', 'AWS CDK si todo es AWS y el equipo prefiere TypeScript o Python; Pulumi si quiere un lenguaje general en varias nubes', 'Cluster, colas, buckets y roles IAM revisados en un PR y repetibles en otra región o cuenta. Desde el día 1: el DR más barato es "redeploy desde IaC"', '<a href="#m15.multi-region-dr">M15</a>'],
+            ['<b>CI</b>', 'GitHub Actions o GitLab CI, con credenciales OIDC de corta vida hacia la nube (sin llaves guardadas)', 'El CI que la empresa ya usa (Jenkins, Buildkite, CodeBuild, Cloud Build)', 'Tests en cada commit, build de la imagen y del engine en un runner con la GPU de producción', '<a href="#m10.ci-cd">M10</a>, <a href="#m15.supply-chain">M15</a>'],
+            ['<b>Imágenes y registry</b>', 'BuildKit (<code>docker buildx</code>) + ECR, Artifact Registry o ACR con tags inmutables', 'GitHub Container Registry junto al código, replicado a un registry de tu nube para producción', 'Build una vez, deploy por digest, rollback al digest anterior', '<a href="#m05.registries">M5</a>'],
+            ['<b>Supply chain</b>', 'Syft (SBOM) + Grype o Trivy (CVEs) + cosign (firma) + Kyverno o Sigstore policy-controller (admisión)', 'El escaneo del registry de tu nube (Amazon Inspector en ECR, Artifact Analysis, Defender for Containers) si no quieres operar escáneres', 'Que a producción llegue solo lo que salió de tu CI, sin CVEs críticas; pesos en safetensors con hash', '<a href="#m15.supply-chain">M15</a>'],
+            ['<b>Secretos</b>', 'Workload identity (IRSA, EKS Pod Identity) para la nube; para lo que sí es secreto, Secrets Manager, Secret Manager o Key Vault montado con External Secrets Operator o el Secrets Store CSI Driver', 'Variable de entorno desde un Secret de Kubernetes: aceptable, pero se filtra más y rotar exige reiniciar', 'API keys de proveedores y contraseñas de la base, con rotación; KMS cifra los datos', '<a href="#m15.secretos">M15</a>'],
+            ['<b>Rate limiting y borde</b>', 'Token bucket por identidad en tu gateway (o en Envoy) + WAF con reglas rate-based en el borde', 'API gateway gestionado con usage plans, si su tope de payload y su costo por request te sirven (en c01 no)', 'Proteger la GPU con cuotas por cliente y frenar el abuso grueso antes de que llegue', '<a href="#m15.rate-limiting">M15</a>, <a href="#c01.serving">c01</a>'],
+          ], note: 'Licencias según la API de GitHub (1-oct-2026): Pulumi, AWS CDK, BuildKit, Syft, Grype, Trivy, cosign, Kyverno y External Secrets son Apache 2.0. Los equivalentes gestionados por nube del registry y de los secretos están en <a href="#ref-herramientas.equivalencias-nube">equivalencias</a>.' },
+          { t: 'callout', kind: 'trap', title: 'Tener Terraform no es tener un plan de DR', html: `<p>"Lo redespliego desde IaC" solo vale si alguien lo probó. Si el último <code>apply</code> fue hace meses, si la cuota de GPU en la otra región es cero o si no hay engine de TensorRT para la GPU de allá, el redeploy falla justo el día que lo necesitas. El RTO real sale de un ensayo, no del repo (<a href="#m15.multi-region-dr">M15</a>).</p>` },
+          { t: 'callout', kind: 'skip', html: `<p>Sintaxis de HCL, módulos de Terraform, internals de Sigstore o niveles de SLSA son de un rol de plataforma o de seguridad. Al MLE le basta la categoría y una frase por fila. Lo que sí se nota es lo contrario: "lo creo a mano en la consola" o "la API key está en el Dockerfile".</p>` },
+          { t: 'callout', kind: 'interview', html: `<p>"Everything is in Terraform: the cluster, the queues, the buckets and the IAM roles, so a region outage means redeploying from code, not clicking through a console. CI authenticates to the cloud with OIDC, builds each image once, scans it, and signs it with cosign, and the cluster only admits images signed by our pipeline. Pods reach AWS through their own roles, so there are no cloud keys to leak."</p>` },
+        ],
+      },
+
+      // ======================================================== 11
       {
         id: 'entrevista',
         title: 'Cómo nombrar herramientas en la entrevista',
@@ -448,6 +484,7 @@
             { id: 'estado', html: 'Sé que TorchServe y TGI están archivados y que MLflow usa aliases, no stages.' },
             { id: 'vector', html: 'Calculo el tamaño de los vectores antes de elegir entre pgvector y una vector DB.' },
             { id: 'nube', html: 'Traduzco un diseño de AWS a GCP o Azure con la tabla de equivalencias de mi nube objetivo.' },
+            { id: 'infra-ci', html: 'Digo en una frase que la infraestructura vive en IaC, que el CI construye, escanea y firma cada imagen una vez y dónde viven los secretos.' },
           ] },
           { t: 'quiz', items: [
             { q: 'Un worker procesa cada slide una vez, con reintentos, y debe escalar a cero de noche. ¿Qué pieza de transporte eliges?', options: ['Kafka', 'Una cola como SQS, con KEDA', 'Un DAG de Airflow por slide', 'Flink'], answer: 1,
@@ -493,6 +530,8 @@
         a: '"I haven\'t used that service myself; on AWS the equivalent is Step Functions, and the pattern is the same: one execution per document, retries per step and a wait for the human review."' },
       { id: 'ref-herramientas-14', kind: 'frase', q: '¿Cómo justificas en inglés no usar un feature store en un caso de visión?',
         a: '"I don\'t need a feature store: the only input is the image, and a shared preprocessing package plus a parity test keeps training and serving consistent."' },
+      { id: 'ref-herramientas-15', kind: 'concepto', q: 'IaC, CI, supply chain y secretos: ¿qué herramienta nombras en cada uno y qué problema resuelve?',
+        a: 'IaC: Terraform u OpenTofu (recrear la región o la cuenta desde código; DR = redeploy desde IaC). CI: GitHub Actions o GitLab CI con OIDC (tests, build una vez). Supply chain: Syft + Grype o Trivy + cosign + política de admisión (solo corre lo firmado por tu CI). Secretos: workload identity y, para terceros, un secret manager montado como archivo, con rotación.' },
     ],
 
     // ---------------------------------------------------------- glosario
@@ -501,7 +540,8 @@
       { en: 'vector database', es: 'base de datos vectorial', def: 'Servicio que guarda embeddings con su metadata y responde búsquedas por similitud con un índice ANN, filtros, réplicas y updates. Una librería como FAISS da el índice, pero no el servicio.', say: 'We only need a dedicated vector database once the index stops fitting on one node.' },
       { en: 'approximate nearest neighbor (ANN) search', es: 'búsqueda aproximada de vecinos más cercanos', def: 'Búsqueda por similitud que cambia un poco de recall por mucha velocidad usando un índice (HNSW, IVF, DiskANN). Se valida midiendo recall@k contra la búsqueda exacta.', say: 'We tune the ANN index for a recall target, say 95 percent at k equals 10, and check it against exact search.' },
       { en: 'HNSW', es: 'HNSW (grafo jerárquico de mundo pequeño navegable)', def: 'Índice ANN basado en un grafo por capas: rápido y con buen recall, pero vive en memoria y pesa más que los vectores solos. Lo tienen pgvector, Qdrant, Milvus, Weaviate y OpenSearch.', say: 'HNSW keeps the graph in memory, so I size the nodes for vectors plus neighbor lists.' },
-      { en: 'LLM gateway', es: 'gateway de LLMs', def: 'Proxy delante de uno o varios proveedores de LLMs que unifica la API y centraliza llaves, presupuestos, rate limits, fallbacks y logs de costo (LiteLLM, Envoy AI Gateway).', say: 'All model calls go through an LLM gateway, so budgets and fallbacks live in one place.' },
+      { en: 'infrastructure as code (IaC)', es: 'infraestructura como código', def: 'Definir la infraestructura (cluster, colas, buckets, roles IAM) en archivos versionados que una herramienta aplica (Terraform, OpenTofu, AWS CDK, Pulumi), en vez de crearla a mano en la consola. Se revisa en un PR, se repite en otra región o cuenta y se reconstruye después de un desastre.', say: 'Everything is in Terraform, so a second region is a redeploy, not a week of clicking through the console.' },
+      { en: 'LLM gateway', es: 'gateway de LLMs', def: 'Proxy delante de uno o varios proveedores de LLMs que unifica la API y centraliza llaves, presupuestos, rate limits, fallbacks y logs de costo (LiteLLM, Agent Router, ex Envoy AI Gateway).', say: 'All model calls go through an LLM gateway, so budgets and fallbacks live in one place.' },
     ],
   });
 })(typeof window !== 'undefined' ? window : globalThis);

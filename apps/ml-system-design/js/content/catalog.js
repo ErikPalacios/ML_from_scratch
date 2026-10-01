@@ -251,7 +251,7 @@
       summary: 'Nadie te va a preguntar en qué menú está un botón de SageMaker, pero sí qué servicio usarías y cuánto cuesta. Equivalencias AWS/GCP/Azure, órdenes de magnitud de precios y spot instances.',
       topics: [
         'Equivalencias AWS / GCP / Azure: cómputo, storage, colas, Kubernetes',
-        'Plataformas gestionadas: SageMaker, Vertex AI, Azure ML',
+        'Plataformas gestionadas: SageMaker AI, Vertex AI (hoy Gemini Enterprise Agent Platform), Azure ML',
         'Managed vs self-hosted: cuándo conviene cada uno',
         'Instancias GPU y costo por hora (órdenes de magnitud)',
         'Spot / preemptible: para qué sí (entrenamiento, batch) y para qué no',
@@ -259,7 +259,7 @@
         'Reserved instances, savings plans y compromisos de uso',
         'Cuotas y disponibilidad de GPUs por región',
       ],
-      freq: 'baja', minutes: 55,
+      freq: 'baja', minutes: 46,
       connects: ['m04', 'm06', 'm10', 'c01', 'c10'],
     },
     {
@@ -299,7 +299,7 @@
         'Multi-AZ, multi-región y recuperación ante desastres',
         'Supply chain: imágenes, dependencias y pesos de modelos verificados',
       ],
-      freq: 'media', minutes: 55,
+      freq: 'media', minutes: 62,
       connects: ['m06', 'm12', 'm14', 'c06', 'c09', 'c12'],
     },
   ];
@@ -721,8 +721,9 @@
         'Vector DBs: FAISS, Milvus, Qdrant, pgvector, OpenSearch',
         'Stack de LLMs: motores de serving, frameworks de agentes y de evaluación',
         'Equivalencias gestionadas en AWS, GCP y Azure',
+        'IaC, CI y supply chain: Terraform/OpenTofu, GitHub Actions con OIDC, cosign, secret managers',
       ],
-      connects: ['m07', 'm09', 'm10', 'm12', 'm13', 'm14'],
+      connects: ['m05', 'm06', 'm07', 'm09', 'm10', 'm12', 'm13', 'm14', 'm15'],
     },
     {
       id: 'ref-comandos', part: 4, num: 3,
@@ -801,13 +802,13 @@
       note: 'Documentos/OCR y moderación a gran escala: varios modelos encadenados, colas, costos por etapa y revisión humana donde el modelo duda.',
     },
     {
-      phase: 9, status: 'next',
+      phase: 9, status: 'done',
       title: 'Fase 9 — Nube y seguridad',
       items: ['m13', 'm15', 'ref-herramientas'],
       note: 'Equivalencias AWS/GCP/Azure, costos y spot, más seguridad, privacidad y confiabilidad; con la tabla de herramientas por categoría ya tienes el mapa completo.',
     },
     {
-      phase: 10, status: 'later',
+      phase: 10, status: 'next',
       title: 'Fase 10 — Búsqueda y recomendación',
       items: ['c07', 'c08'],
       note: 'Los clásicos de empresas grandes y van en secuencia: embeddings + ANN (c07) son la base del retrieval de recomendación (c08).',

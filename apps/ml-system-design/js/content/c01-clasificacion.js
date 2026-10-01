@@ -991,7 +991,7 @@
         head: ['Palanca', 'Impacto estimado', 'Riesgo', 'Cuándo'],
         rows: [
           ['Savings Plans o instancias reservadas (1 año) sobre la base fija', `${E('≈ 30–40 %')} de ≈ US$1k de cómputo → ${E('≈ US$300–400/mes')}`, 'Compromiso de gasto; poco riesgo con una base estable', 'Tras 2–3 meses de uso estable'],
-          ['Spot para backfill y entrenamiento', `${E('≈ 60–70 %')} menos en esos jobs`, 'Interrupciones: jobs con checkpoints y shards idempotentes', 'Desde el día 1; nunca para el mínimo online'],
+          ['Spot para backfill y entrenamiento', `${E('≈ 60–70 %')} menos en esos jobs (supuesto: en g4dn/g5 se observó ≈ 48–54 %; varía mucho por familia, verifica el historial de precios spot en <a href="#m13.spot">M13</a>)`, 'Interrupciones: jobs con checkpoints y shards idempotentes', 'Desde el día 1; nunca para el mínimo online'],
           ['Consolidar modelos de otros equipos en los mismos Triton', 'Reparte el costo fijo de 2 GPUs ociosas', 'Vecinos ruidosos en la GPU; hay que medir la latencia de cada uno', 'Cuando otro equipo necesite servir un modelo'],
           ['Right-sizing del gateway', `${E('10–30 %')} del tier CPU`, 'Quedarse corto en picos', 'Tras medir CPU real por request'],
           ['Mandar la key de S3 en vez de los bytes (el backend ya guardó la foto; el gateway hace GET)', `ALB de ${E('≈ US$500')} a ${E('≈ US$20')}; GETs ≈ 304 M × ${E('US$0.0004/1,000')} ≈ ${E('US$120')} → ${E('≈ −US$360/mes')} netos`, 'Suma un GET a S3 al camino crítico (mide su p99 contra el SLO de 200 ms); cambia el contrato (v2); exige un VPC gateway endpoint de S3 (por NAT serían ≈ 61 TB × US$0.045/GB ≈ US$2.7k/mes)', 'Cuando el costo del ALB importe y el p99 lo aguante'],

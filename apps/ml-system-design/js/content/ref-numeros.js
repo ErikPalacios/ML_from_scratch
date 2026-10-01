@@ -312,7 +312,7 @@
           ] },
           { t: 'table', caption: 'Descuentos (el detalle, en M13)', head: ['Mecanismo', 'Descuento de referencia', 'Para qué sí', 'Para qué no'], rows: [
             ['Savings Plans o reservas a 1 año', E('≈ 30–40 %') + ' (<a href="#c01.costo">c01</a>); AWS anuncia "hasta 72 %" con compromisos más largos y específicos', 'La base estable: las 2 GPUs de N+1', 'Capacidad que no sabes si vas a usar'],
-            ['Spot', E('≈ 60–70 %') + ' menos en jobs (<a href="#c01.costo">c01</a>); AWS anuncia "hasta 90 %"', 'Backfill, training, batch con checkpoints (aviso de ≈ 2 min)', 'El mínimo online'],
+            ['Spot', E('≈ 25–55 %') + ' observado en GPUs de inferencia (≈ 25 % en g6, ≈ 48 % en g4dn, ≈ 54 % en g5; us-east-1, oct. 2026); varía mucho por familia y zona (<a href="#m13.spot">M13</a>). Los ' + E('60–70 %') + ' de <a href="#c01.costo">c01</a>, c02 y c04 son un supuesto a confirmar con el historial de precios spot; AWS anuncia "hasta 90 %"', 'Backfill, training, batch con checkpoints (aviso de ≈ 2 min)', 'El mínimo online'],
           ], note: 'Un Savings Plan es un descuento, no una reserva de capacidad: no te garantiza GPUs (<a href="#m06.nodos">M6</a>). Más en <a href="#m13">M13</a>.' },
           { t: 'calc', title: 'Costo por 1,000 predicciones = US$/h ÷ (predicciones/s × 3,600 ÷ 1,000)', rows: [
             { label: 'T4 a su capacidad planificada (600 img/s)', expr: '0.526 ÷ (600 × 3.6)', value: E('≈ US$0.00024') },
