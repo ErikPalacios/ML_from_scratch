@@ -1127,6 +1127,8 @@ Translation, summaries and diarization of a single mixed track are **out of scop
   in **≈ 30 %** of meetings → ≈ 600k captioned meetings/day ≈ **24 M captioned meeting-minutes/day**;
   average concurrency 24 M / 1,440 ≈ 16.7k captioned meetings; **peak ≈ 3× ≈ 50k concurrent captioned
   meetings** (business hours).
+- Topology (base scenario): **a single AWS region (us-east-1, three zones)** for every user, SFUs
+  included; gateways and the GPU fleet live in the same region (SFU, gateway and worker in the same zone).
 - Audio path: the SFU (media server) already receives **one Opus track per participant** (48 kHz, 20 ms
   frames); we transcribe **per participant** (speaker attribution for free, no diarization), resampled to
   16 kHz mono. With voice activity detection (**VAD**) only the tracks with speech consume ASR compute:
@@ -1140,7 +1142,9 @@ Translation, summaries and diarization of a single mixed track are **out of scop
   with stateful sequence batching; Whisper-class models are batch/offline by design and need chunking hacks
   for live use (discussed as an alternative and for post-meeting transcripts). Assumed capacity
   **≈ 500 concurrent streams per L4** (est. — strongly model-dependent; measure with the real model and
-  160 ms chunks) → planned 70 % ≈ 350 → 60k / 350 ≈ **172 L4 at peak** (+ headroom per zone) — the GPU
+  160 ms chunks; unvalidated: public cards for current streaming models report ≈ 240 streams on one H100
+  at 80 ms chunks, so 500 per L4 may be optimistic — keep it as the labelled assumption, do not renumber
+  silently) → planned 70 % ≈ 350 → 60k / 350 ≈ **172 L4 at peak** (+ headroom per zone) — the GPU
   fleet follows the daily curve (≈ 60 L4 at night).
 - Languages at launch: **Spanish (Mexico/LatAm), English, Portuguese (Brazil)**; language chosen per
   participant (setting or automatic language ID in the first seconds — trade-off).

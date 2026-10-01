@@ -3,7 +3,8 @@
 Por qué en el request y no en Flink: un ataque de card testing (un bot prueba cientos de tarjetas
 robadas con compras de US$1) dura minutos. Si "intentos de esta tarjeta en 60 s" llega por el stream con
 20 s de lag, el contador dice 0 mientras el bot ya hizo 30 intentos. Las features del tier `sync` de
-definitions.py se LEEN y se ACTUALIZAN aquí, dentro de los 10 ms que el servicio de scoring les da.
+definitions.py se LEEN y se ACTUALIZAN aquí, dentro de los 20 ms que el servicio de scoring les da
+(COUNTERS_TIMEOUT_MS).
 
 Cómo se guardan (una llave por entidad, feature y bucket; ejemplo con card_count_60s, buckets de 10 s):
 
@@ -49,6 +50,7 @@ en su propio agregado (definitions.WindowedFeature.include_current = False), igu
 
 from __future__ import annotations  # anotaciones como texto
 
+import heapq  # expiración activa del fake: las llaves que vencen primero, arriba
 import json  # valor de la guardia: lo que vio la primera llamada
 import time  # reloj por defecto del fake
 from collections.abc import Callable, Iterable, Sequence  # tipos de las interfaces
@@ -94,14 +96,35 @@ class KeyValue(Protocol):
 class InMemoryKV:
     """Fake de un KV store con TTL y reloj inyectable (los tests mueven el tiempo sin dormir).
 
-    Expira de forma perezosa al leer, como hace Redis además de su barrido activo. También sirve como
-    contador LOCAL del pod para el fallback (service.py): sin red, sin dependencias.
+    Expira de las dos formas, como Redis: perezosa (una llave vencida se borra al tocarla) y ACTIVA (en
+    cada escritura se barren las llaves ya vencidas, con un heap por hora de vencimiento). La activa no es
+    opcional: este fake también es el contador LOCAL del pod para el fallback (service.py) y corre en
+    cada request de producción. Solo con expiración perezosa, cada tarjeta que no vuelve deja sus
+    buckets y su guardia para siempre: medido, ≈ 137 MB que no se liberan por cada 100,000 pagos de
+    tarjetas distintas, y un pod ve ≈ 1.7 M pagos al día (10 M ÷ 6 pods; est.). Con el barrido, la
+    memoria queda acotada por lo que vive dentro de las ventanas y del TTL de la guardia. Sin red, sin
+    dependencias.
     """
 
     def __init__(self, clock: Callable[[], float] = time.time) -> None:
         self._clock = clock  # inyectable: el test de TTL avanza el reloj 2 minutos sin esperar
         self._data: dict[str, int | set[str]] = {}
         self._expires: dict[str, float] = {}
+        # (vence_a, llave) por cada EXPIRE. Un EXPIRE que renueva deja la entrada vieja en el heap: al
+        # salir se compara con _expires y se ignora si la llave se renovó. O(log n) por escritura.
+        self._heap: list[tuple[float, str]] = []
+
+    def _expire(self, key: str, at: float) -> None:
+        self._expires[key] = at
+        heapq.heappush(self._heap, (at, key))
+
+    def _sweep(self, now: float) -> None:
+        """Barrido activo: borra todo lo vencido hasta `now` (lo que Redis hace en segundo plano)."""
+        while self._heap and self._heap[0][0] <= now:
+            at, key = heapq.heappop(self._heap)
+            if self._expires.get(key) == at:  # si no, la llave se renovó después: sigue viva
+                self._data.pop(key, None)
+                self._expires.pop(key, None)
 
     def _alive(self, key: str) -> bool:
         exp = self._expires.get(key)
@@ -126,9 +149,10 @@ class InMemoryKV:
 
     def apply_if_new(self, guard_key: str, guard_ttl_s: int, ops: Sequence[Op], payload: str) -> str | None:
         self._before_write(guard_key, ops)  # punto de inyección de fallas para los tests
+        now = self._clock()
+        self._sweep(now)
         if self._alive(guard_key):
             return self._data[guard_key]  # type: ignore[return-value]
-        now = self._clock()
         for op in ops:  # un solo hilo: nada se intercala (en Redis lo garantiza el script)
             if op.kind == "incr":
                 current = self._data[op.key] if self._alive(op.key) else 0
@@ -139,16 +163,17 @@ class InMemoryKV:
                 self._data[op.key].add(str(op.value))  # type: ignore[union-attr]
             # EXPIRE en cada escritura: el TTL corre desde la última y un bucket que recibe eventos no
             # expira. Basta con que dure la ventana + un bucket (WindowedFeature.ttl_s).
-            self._expires[op.key] = now + op.ttl_s
+            self._expire(op.key, now + op.ttl_s)
         self._data[guard_key] = payload  # type: ignore[assignment]
-        self._expires[guard_key] = now + guard_ttl_s
+        self._expire(guard_key, now + guard_ttl_s)
         return None
 
     def _before_write(self, guard_key: str, ops: Sequence[Op]) -> None:
         """No hace nada; un test lo redefine para simular que el pod muere ANTES de escribir."""
 
     def live_keys(self) -> int:
-        """Cuántas llaves siguen vivas (los tests prueban que el TTL acota la memoria)."""
+        """Cuántas llaves siguen vivas. OJO: toca cada llave, así que también las borra si vencieron; para
+        probar el barrido activo, el test mira `len(kv._data)` sin llamar a esto."""
         return sum(1 for k in list(self._data) if self._alive(k))
 
 

@@ -135,6 +135,20 @@ def test_ttl_bounds_memory_and_the_guard_expires(setup):
     assert late.duplicate is False
 
 
+def test_active_expiry_frees_keys_nobody_touches_again(setup):
+    """El contador local del pod corre en cada request: las tarjetas que no vuelven no pueden quedarse
+    para siempre. Sin `live_keys()` (que toca, y por eso borra, cada llave): solo el barrido activo."""
+    clock, kv, c = setup
+    for i in range(2000):
+        step(clock, c, ev(f"p{i}", card=f"tok_{i}", device=f"dev_{i}", ip=f"ip_{i}"), T0 + i * 0.05)
+    assert len(kv._data) > 10_000  # buckets y guardias de 2,000 tarjetas, dispositivos e IPs
+    # pasa la ventana más larga (1 h) + un bucket, y el TTL de la guardia (15 min): una sola escritura más
+    step(clock, c, ev("last", card="tok_last", device="dev_last", ip="ip_last"), T0 + 2 * 3600)
+    # solo quedan las del último pago: 5 buckets (uno por feature sync) + 3 guardias (tarjeta, dispositivo, IP)
+    assert len(kv._data) == 8
+    assert len(kv._heap) == 8  # y el heap no acumula entradas viejas
+
+
 def test_keys_share_a_hash_tag_per_entity():
     """Redis Cluster: un script Lua solo toca llaves del mismo slot. Todo lo de una entidad lleva {…}."""
     f = d.SYNC_FEATURES[0]

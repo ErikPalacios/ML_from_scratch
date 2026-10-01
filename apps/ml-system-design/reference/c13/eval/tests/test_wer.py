@@ -70,6 +70,28 @@ def test_punctuation_thousands_and_percent():
     assert normalize("it's 30%", language="en-US") == ["its", "30", "percent"]  # inglés: dígitos tal cual
 
 
+@pytest.mark.parametrize("text,language,words", [
+    ("3,5 por ciento", "es-419", ["3,5", "por", "ciento"]),  # decimal: un token, no "tres cinco"
+    ("subió 3,5%", "es-419", ["subió", "3,5", "por", "ciento"]),
+    ("a las 3:30.", "es-419", ["a", "las", "3:30"]),  # hora: no "tres treinta"
+    ("cuesta $500", "es-419", ["cuesta", "$500"]),  # monto: el símbolo no desaparece en silencio
+    ("1.º lugar", "es-419", ["1.º", "lugar"]),  # ordinal: no "uno º"
+    ("pi is 3.141", "en-US", ["pi", "is", "3.141"]),  # en inglés "." es decimal, no separador de miles
+    ("we sold 1,500", "en-US", ["we", "sold", "1500"]),
+    ("Vendimos 1.500 unidades.", "es-419", ["vendimos", "mil", "quinientos", "unidades"]),
+])
+def test_decimals_times_ordinals_and_money_stay_literal(text, language, words):
+    assert normalize(text, language=language) == words
+
+
+def test_literal_numbers_are_visible_errors_not_invented_words():
+    # Antes "3:30" se partía en "tres treinta": un error que nadie dijo. Ahora es 1 S + 2 I, visible en el
+    # reporte, y si importa se escribe una regla para horas (versionada)
+    c = utterance_errors("son las 3:30", "son las tres y media")
+    assert (c.substitutions, c.insertions, c.ref_words) == (1, 2, 3)
+    assert utterance_errors("son las 3:30", "son las 3:30").wer == 0.0
+
+
 @pytest.mark.parametrize("n,words", [
     (0, "cero"), (15, "quince"), (21, "veintiuno"), (26, "veintiséis"), (30, "treinta"),
     (31, "treinta y uno"), (100, "cien"), (101, "ciento uno"), (500, "quinientos"),

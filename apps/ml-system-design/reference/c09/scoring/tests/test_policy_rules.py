@@ -76,6 +76,30 @@ def test_without_3ds_the_cut_is_approve_or_decline(policy):
     assert high.decision == "decline"
 
 
+def test_without_model_and_without_3ds_the_segment_decides(policy):
+    """digital_high sin modelo hace step-up a todo; si la tarjeta no soporta 3DS, eso NO puede ser approve."""
+    dh = decide(policy, "digital_high", None, [], "m_x", False, "p1")
+    assert dh.decision == "decline" and "STEP_UP_UNAVAILABLE" in dh.reason_codes
+    # en retail_high, una regla de step-up sin 3DS ni modelo se aprueba (fallback_no_3ds: approve)
+    rh = decide(policy, "retail_high", None, [("step_up", "VELOCITY_IP_60S")], "m_x", False, "p1")
+    assert rh.decision == "approve" and "VELOCITY_IP_60S" in rh.reason_codes
+
+
+@pytest.mark.parametrize("score", [None, 0.02, 0.10, 0.6])
+def test_the_3ds_result_is_decisive_whatever_the_score(policy, score):
+    """La 2.ª llamada aplica el desafío: ni un modelo caído ni un score que se movió lo cambian."""
+    failed = decide(policy, "retail_low", score, [], "m_x", True, "p1", "failed")
+    assert failed.decision == "decline" and failed.reason_codes[-1] == "STEP_UP_FAILED"
+    ok = decide(policy, "retail_low", score, [], "m_x", True, "p1", "authenticated")
+    assert ok.decision == "approve" and ok.reason_codes == ("STEP_UP_AUTHENTICATED",)
+    assert not failed.exploration and not ok.exploration  # la exploración se contó en la 1.ª llamada
+    # una regla de review o decline sigue ganando; una de step-up, no (el desafío ya se hizo)
+    assert decide(policy, "retail_low", score, [("decline", "BLOCKLIST_CARD")], "m_x", True, "p1",
+                  "authenticated").decision == "decline"
+    assert decide(policy, "retail_low", score, [("step_up", "VELOCITY_IP_60S")], "m_x", True, "p1",
+                  "authenticated").decision == "approve"
+
+
 def test_exploration_is_about_one_percent_deterministic_and_logged(policy):
     decisions = [decide(policy, "retail_low", 0.6, [], "m_x", True, f"pay_{i}") for i in range(20000)]
     explored = [x for x in decisions if x.exploration]
@@ -97,6 +121,11 @@ def test_invalid_policy_does_not_load(tmp_path):
     raw = yaml.safe_load(POLICY_PATH.read_text())
     raw["segments"]["retail_low"]["step_up"] = 0.9  # step_up > decline
     bad = tmp_path / "policy.yaml"
+    bad.write_text(yaml.safe_dump(raw))
+    with pytest.raises(ValueError):
+        load_policy(bad)
+    raw = yaml.safe_load(POLICY_PATH.read_text())
+    raw["segments"]["digital_high"]["fallback_no_3ds"] = "step_up"  # sin 3DS, step-up no existe
     bad.write_text(yaml.safe_dump(raw))
     with pytest.raises(ValueError):
         load_policy(bad)

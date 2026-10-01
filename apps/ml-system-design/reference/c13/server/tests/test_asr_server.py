@@ -1,12 +1,15 @@
 """Tests del asr-worker con TestClient (WebSocket real en proceso) y el modelo falso.
 
-Cada test es una situación de operación: el camino feliz, un handshake inválido, el worker lleno, una
-reconexión, un stream que deja de mandar audio, una sesión de 4 h, un drain con alguien hablando, la GPU
-que no da abasto, el modelo que falla y un consumidor que no lee. Más el contrato con las alertas.
+Cada test es una situación de operación: el camino feliz, un handshake inválido, el worker lleno (de
+sesiones o de streams activos), una reconexión, una sesión callada que no ocupa GPU, un stream que deja de
+mandar audio, una sesión de 4 h, un drain con alguien hablando (y con alguien que no para), la GPU que no da
+abasto, audio más rápido que el tiempo real, el modelo que falla y un consumidor que no lee. Más el contrato
+con las alertas.
 """
 
 import asyncio
 import re
+import time
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
+from chunker import ChunkerConfig
 from asr_server import (
     CLOSE_INTERNAL,
     CLOSE_NORMAL,
@@ -68,9 +72,20 @@ def sample(metrics: Metrics, name, labels=None):
     return metrics.registry.get_sample_value(name, labels or {})
 
 
+def wait_until(cond, timeout=3.0):
+    """El server procesa en otras tareas: se espera a que el estado llegue, con plazo (sin sleeps fijos)."""
+    deadline = time.monotonic() + timeout
+    while not cond():
+        assert time.monotonic() < deadline, "la condición no se cumplió a tiempo"
+        time.sleep(0.01)
+
+
 def make(**settings):
     model = FakeStreamingASR(step_delay_s=settings.pop("step_delay_s", 0.0),
                              fail_at_step=settings.pop("fail_at_step", None))
+    # Los tests mandan segundos de audio en milisegundos (más rápido que el tiempo real, a propósito). El
+    # límite de ritmo se prueba aparte, con el default: aquí se le da una ráfaga de 10 min.
+    settings.setdefault("audio_burst_ms", 600_000)
     m = Metrics()
     app = create_app(model, Settings(**settings), m)
     return app, model, m
@@ -100,7 +115,8 @@ def test_one_utterance_partials_then_final_then_normal_close():
     assert sample(m, "asr_sessions_ended_total", {"reason": "normal"}) == 1
     assert sample(m, "asr_final_latency_seconds_count", {"language": "es-419"}) == 1
     assert sample(m, "asr_vad_frames_total", {"decision": "silence"}) > 0
-    assert sample(m, "asr_active_streams") == 0 and model.open_streams == 0  # el estado se liberó
+    assert sample(m, "asr_active_streams") == 0 and sample(m, "asr_sessions") == 0
+    assert model.open_streams == 0  # el estado se liberó
 
 
 def test_silence_only_produces_no_captions():
@@ -133,15 +149,54 @@ def test_bad_handshake_closes_with_policy_violation(first):
     assert sample(m, "asr_sessions_rejected_total", {"reason": "bad_handshake"}) == 1
 
 
+def test_silent_session_counts_as_session_not_as_active_stream():
+    # Una pista conectada y callada es una SESIÓN (la reparte el router) pero no un STREAM ACTIVO (no ocupa
+    # GPU): con ≈ 200k pistas y ≈ 60k hablando, KEDA escala por los 60k
+    app, _, m = make()
+    with TestClient(app) as c, c.websocket_connect("/v1/stream") as ws:
+        start(ws)
+        send_audio(ws, silence(1000))
+        wait_until(lambda: sample(m, "asr_vad_frames_total", {"decision": "silence"}) == 50)
+        assert sample(m, "asr_sessions") == 1 and sample(m, "asr_active_streams") == 0
+        send_audio(ws, np.concatenate([silence(200), tone(500)]))  # empieza a hablar: utterance abierta
+        wait_until(lambda: sample(m, "asr_active_streams") == 1)
+        assert c.get("/readyz").json()["active_streams"] == 1
+        send_audio(ws, silence(1000))  # endpoint + final: la secuencia sale de la GPU
+        wait_until(lambda: sample(m, "asr_active_streams") == 0)
+        assert sample(m, "asr_sessions") == 1  # sigue conectada
+        ws.send_json({"type": "stop"})
+        collect(ws)
+    assert sample(m, "asr_sessions") == 0
+
+
 def test_full_worker_rejects_with_try_again_later():
-    app, _, m = make(max_streams=1)
+    app, _, m = make(max_sessions=1)
     with TestClient(app) as c, c.websocket_connect("/v1/stream") as ws1:
         assert start(ws1, "a")["type"] == "ready"
+        assert c.get("/readyz").status_code == 503 and c.get("/readyz").json()["reason"] == "full"
         with c.websocket_connect("/v1/stream") as ws2:
             ws2.send_json({"type": "start", "session_id": "b", "language": "es-419", "sample_rate": 16000})
             msgs, code = collect(ws2)
         assert code == CLOSE_TRY_AGAIN and msgs[0]["code"] == "capacity"
-        assert sample(m, "asr_active_streams") == 1
+        assert sample(m, "asr_sessions") == 1 and sample(m, "asr_active_streams") == 0
+
+
+def test_gpu_at_its_stream_cap_takes_no_new_sessions():
+    # Sesiones de sobra (1,500), pero la GPU ya tiene MAX_STREAMS hablando: fuera de rotación hasta que baje
+    app, _, m = make(max_streams=1)
+    with TestClient(app) as c, c.websocket_connect("/v1/stream") as ws1:
+        start(ws1, "a")
+        assert c.get("/readyz").status_code == 200
+        send_audio(ws1, np.concatenate([silence(200), tone(500)]))
+        wait_until(lambda: sample(m, "asr_active_streams") == 1)
+        assert c.get("/readyz").status_code == 503
+        with c.websocket_connect("/v1/stream") as ws2:
+            ws2.send_json({"type": "start", "session_id": "b", "language": "es-419", "sample_rate": 16000})
+            msgs, code = collect(ws2)
+        assert code == CLOSE_TRY_AGAIN and msgs[0]["code"] == "capacity"
+        send_audio(ws1, silence(1000))  # termina la frase: vuelve a la rotación
+        wait_until(lambda: sample(m, "asr_active_streams") == 0)
+        assert c.get("/readyz").status_code == 200
 
 
 def test_reconnect_is_counted_with_a_bounded_reason():
@@ -163,7 +218,22 @@ def test_idle_stream_is_closed_and_frees_the_slot():
         msgs, code = collect(ws)  # no manda nada: a los 0.3 s el server cierra
     assert code == CLOSE_NORMAL and msgs == []
     assert sample(m, "asr_sessions_ended_total", {"reason": "idle"}) == 1
-    assert sample(m, "asr_active_streams") == 0
+    assert sample(m, "asr_sessions") == 0
+
+
+def test_keepalive_keeps_a_silent_participant_connected():
+    # Con el VAD en el gateway, una pista callada no manda audio: sin keepalive, MAX_IDLE_S la cerraría
+    app, _, m = make(max_idle_s=0.3)
+    with TestClient(app) as c, c.websocket_connect("/v1/stream") as ws:
+        start(ws)
+        for _ in range(5):  # 0.75 s en total, más que MAX_IDLE_S, sin un byte de audio
+            time.sleep(0.15)
+            ws.send_json({"type": "keepalive"})
+        assert sample(m, "asr_sessions") == 1
+        ws.send_json({"type": "stop"})
+        msgs, code = collect(ws)
+    assert code == CLOSE_NORMAL and msgs == []
+    assert sample(m, "asr_sessions_ended_total", {"reason": "normal"}) == 1
 
 
 def test_max_session_duration():
@@ -204,9 +274,65 @@ def test_drain_migrates_idle_sessions_now_and_speaking_sessions_after_their_fina
             late.send_json({"type": "start", "session_id": "late", "language": "es-419", "sample_rate": 16000})
             msgs, code = collect(late)
             assert code == CLOSE_TRY_AGAIN and msgs[0]["code"] == "draining"
-        assert c.get("/admin/status").json() == {"draining": True, "active_streams": 0}
+        assert c.get("/admin/status").json() == {"draining": True, "sessions": 0, "active_streams": 0}
     assert sample(m, "asr_stream_capacity") == 0 and sample(m, "asr_draining") == 1
     assert sample(m, "asr_sessions_ended_total", {"reason": "migrate"}) == 2
+
+
+class ScriptedTransport:
+    """Mensajes de audio de a 80 ms, a ritmo libre; `on_message[i]` corre justo antes de entregar el i-ésimo."""
+
+    def __init__(self, audio, frame=1280, on_message=None):
+        self.inbox = [audio[i:i + frame].tobytes() for i in range(0, len(audio), frame)]
+        self.on_message = on_message or {}
+        self.i = 0
+        self.sent, self.closed = [], None
+
+    async def receive(self):
+        await asyncio.sleep(0.001)  # deja correr al procesador entre mensajes
+        if self.i >= len(self.inbox):
+            await asyncio.sleep(3600)  # el cliente sigue conectado, callado
+        hook = self.on_message.get(self.i)
+        if hook:
+            hook()
+        self.i += 1
+        return self.inbox[self.i - 1]
+
+    async def send_json(self, msg):
+        self.sent.append(msg)
+
+    async def close(self, code, reason):
+        self.closed = (code, reason)
+
+
+def _drain_while_talking(tone_ms):
+    # Tope de 500 ms y alguien que habla sin pausa desde los 200 ms: la utterance 0 se corta por tope en el
+    # frame 29, a mitad de un mensaje de 80 ms, y los frames 30–31 ya abren la utterance 1 en el chunker.
+    # El drain se pide durante la utterance 0.
+    audio = np.concatenate([silence(200), tone(tone_ms), silence(1200)])
+    s = Settings(audio_burst_ms=600_000, chunker=ChunkerConfig(max_utterance_ms=500))
+    holder = {}
+    t = ScriptedTransport(audio, on_message={3: lambda: holder["sess"].request_drain()})
+    sess = holder["sess"] = StreamSession("talker", "es-419", t, FakeStreamingASR(), s, Metrics())
+    asyncio.run(asyncio.wait_for(sess.run(), timeout=5))
+    assert t.sent[-1]["type"] == "migrate" and t.closed[0] == CLOSE_SERVICE_RESTART
+    return [x for x in t.sent if x["type"] == "final"]
+
+
+def test_drain_waits_for_the_next_final_when_a_new_utterance_already_started():
+    # Migrar después del final 0 tiraría el comienzo de la utterance 1 (pre-roll y onset en el chunker).
+    # Lo correcto: esperar su final y migrar con el chunker vacío.
+    finals = _drain_while_talking(700)
+    assert len(finals) == 2  # 0 cortada por tope, 1 hasta el final del tono: ninguna quedó a medias
+    assert finals[0]["end_ms"] == finals[1]["start_ms"]  # contiguas: sin hueco de audio
+    assert finals[0]["start_ms"] <= 200 and finals[1]["end_ms"] >= 900  # cubren todo el tono
+
+
+def test_drain_waits_only_once_for_a_monologue():
+    # Si el monólogo se encadena otra vez, migra en el segundo final (a lo sumo pierde < 160 ms de comienzo):
+    # esperar sin límite terminaría en el SIGTERM del período de gracia, que corta la frase entera
+    finals = _drain_while_talking(1000)
+    assert len(finals) == 2 and finals[0]["end_ms"] == finals[1]["start_ms"]
 
 
 def test_admin_endpoints_are_local_only():
@@ -219,14 +345,15 @@ def test_admin_endpoints_are_local_only():
 
 def test_wait_for_drain_polls_until_empty_or_deadline():
     now = [0.0]
-    statuses = iter([{"active_streams": 3}, {"active_streams": 1}, {"active_streams": 0}])
-    left = wait_for_drain(lambda: {"active_streams": 5}, lambda: next(statuses), timeout_s=100,
+    # Espera SESIONES conectadas (una callada también tiene que migrar), no streams activos
+    statuses = iter([{"sessions": 3, "active_streams": 0}, {"sessions": 1}, {"sessions": 0}])
+    left = wait_for_drain(lambda: {"sessions": 5, "active_streams": 2}, lambda: next(statuses), timeout_s=100,
                           poll_s=2, clock=lambda: now[0], sleep=lambda s: now.__setitem__(0, now[0] + s))
     assert left == 0 and now[0] == 6  # tres sondeos de 2 s
     now[0] = 0.0
-    left = wait_for_drain(lambda: {"active_streams": 5}, lambda: {"active_streams": 2}, timeout_s=10,
+    left = wait_for_drain(lambda: {"sessions": 5}, lambda: {"sessions": 2}, timeout_s=10,
                           poll_s=2, clock=lambda: now[0], sleep=lambda s: now.__setitem__(0, now[0] + s))
-    assert left == 2 and now[0] == 10  # venció el plazo con 2 streams: el preStop sale igual
+    assert left == 2 and now[0] == 10  # venció el plazo con 2 sesiones: el preStop sale igual
 
     def boom():
         raise OSError("connection refused")
@@ -243,8 +370,32 @@ def test_gpu_behind_real_time_closes_with_try_again_later():
         send_audio(ws, np.concatenate([silence(200), tone(3000)]))
         msgs, code = collect(ws)
     assert code == CLOSE_TRY_AGAIN
-    assert any(x.get("code") == "overloaded" for x in msgs)
+    err = next(i for i, x in enumerate(msgs) if x.get("code") == "overloaded")
+    assert all(x["type"] != "partial" for x in msgs[err + 1:])  # nada después del error
     assert sample(m, "asr_sessions_ended_total", {"reason": "overloaded"}) == 1
+    # Después del cierre, el modelo no siguió con los ≈ 2 s encolados: a lo sumo el paso que ya corría
+    steps = sample(m, "asr_model_step_seconds_count")
+    time.sleep(0.5)
+    assert sample(m, "asr_model_step_seconds_count") == steps
+
+
+def test_audio_faster_than_real_time_closes_with_policy_violation():
+    # Un mensaje con 3 s de audio recién conectado: más que 2× el tiempo transcurrido + 2 s de ráfaga.
+    # Se corta ANTES de pasarlo por el chunker (el event loop es de todas las sesiones del worker).
+    app, _, m = make(audio_burst_ms=2000)
+    with TestClient(app) as c, c.websocket_connect("/v1/stream") as ws:
+        start(ws)
+        ws.send_bytes(tone(3000).tobytes())
+        msgs, code = collect(ws)
+    assert code == CLOSE_POLICY and msgs[-1]["code"] == "audio_too_fast"
+    assert sample(m, "asr_vad_frames_total", {"decision": "speech"}) is None  # no llegó al VAD
+    # Una reconexión puede traer de golpe la frase en curso (hasta MAX_UTTERANCE_MS): esa ráfaga sí entra
+    with TestClient(app) as c, c.websocket_connect("/v1/stream") as ws:
+        start(ws, "s2", reconnect_attempt=1, reconnect_reason="worker_lost")
+        ws.send_bytes(tone(3000).tobytes())
+        ws.send_json({"type": "stop"})
+        msgs, code = collect(ws)
+    assert code == CLOSE_NORMAL and [x["type"] for x in msgs][-1] == "final"
 
 
 def test_model_failure_closes_one_session_with_internal_error():
@@ -297,7 +448,7 @@ def test_slow_consumer_loses_partials_but_gets_every_final():
     audio = np.concatenate([silence(200), tone(1500), silence(800), tone(1500), silence(800)])
     m = Metrics()
     t = SlowTransport(audio)
-    s = Settings(outbound_max_messages=2)
+    s = Settings(outbound_max_messages=2, audio_burst_ms=600_000)  # manda a 10× a propósito
     sess = StreamSession("slow", "es-419", t, FakeStreamingASR(step_delay_s=0.001), s, m)
     asyncio.run(sess.run())
     finals = [x for x in t.sent if x["type"] == "final"]

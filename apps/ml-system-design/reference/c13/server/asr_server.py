@@ -1,10 +1,16 @@
 """asr-worker (caso c13): una sesión de captions por WebSocket, de audio PCM a partials y finales.
 
-Una conexión = un stream = la pista de UN participante. Lo que pasa adentro:
+Una conexión = una SESIÓN = la pista de UN participante, conectada toda la reunión (silencios incluidos).
+Un STREAM ACTIVO es una sesión con una utterance abierta: solo entonces el modelo tiene una secuencia en la
+GPU. Son dos contadores distintos y no se mezclan (caso: ≈ 200k sesiones y ≈ 60k streams activos en el pico):
+  asr_sessions        sesiones conectadas: tope de admisión MAX_SESSIONS; el router reparte sesiones
+  asr_active_streams  sesiones hablando: tope MAX_STREAMS; KEDA escala por esta (objetivo 350 por GPU)
+Lo que pasa adentro:
 
   handshake JSON  {"type": "start", "session_id", "language", "sample_rate": 16000, "encoding": "pcm_s16le",
                    "reconnect_attempt": 0, "reconnect_reason": null}  → {"type": "ready", …}
-  frames binarios PCM16 (20 ms = 640 bytes, o cualquier tamaño: se re-encuadra)
+  frames binarios PCM16 (20 ms = 640 bytes, o hasta ≈ 2 s por mensaje: se re-encuadra)
+  {"type": "keepalive"} (opcional) → cualquier mensaje reinicia MAX_IDLE_S (ver abajo)
     → chunker (VAD + chunks de 160 ms + endpointing a 600 ms de silencio)     streaming/chunker.py
     → cola de entrada ACOTADA → modelo streaming (estado por sesión)           ASRModel (fake en los tests)
     → estabilizador (lo congelado no parpadea)                                 streaming/stabilizer.py
@@ -15,28 +21,41 @@ Una conexión = un stream = la pista de UN participante. Lo que pasa adentro:
 Dónde corre cada cosa en producción (y por qué aquí está todo junto): el caso pone VAD y chunking en el
 asr-gateway (CPU, ≈ 200k pistas conectadas) y el modelo en el asr-worker (GPU, ≈ 60k streams activos en el
 pico). Esta referencia los junta en un proceso para poder probar el camino completo con TestClient. Partirlo
-no cambia la lógica: el gateway manda Chunk y EndOfUtterance en lugar de frames, por gRPC streaming
-bidireccional o este mismo WebSocket.
+cambia UNA cosa: con el VAD en el gateway, un participante callado no manda nada al worker (el gateway
+manda Chunk y EndOfUtterance, por gRPC streaming bidireccional o este mismo WebSocket). Entonces el gateway
+tiene que mandar un keepalive mientras la pista calla (p. ej. cada 10 s), o el límite de inactividad tiene
+que mirar el ping del transporte y no el audio. Si no, MAX_IDLE_S cierra a cada persona que se queda
+callada 30 s, y la sesión deja de ser "sticky toda la reunión" para reconectarse sin parar.
 
 Lo que un worker hace por su cuenta (y por qué):
   * Backpressure en los DOS sentidos. Entrada: si el modelo va > INBOUND_MAX_CHUNKS chunks atrás (≈ 2 s de
     audio), la GPU no da abasto en tiempo real: se cierra con 1013 (try again later) para que el gateway
-    reabra la sesión en otro worker, en lugar de acumular segundos de retraso en silencio. Mientras va
-    atrás, se saltan los partials intermedios (el modelo procesa todo el audio, pero solo se muestra el
-    último). Salida: si quien consume no lee, se descartan los partials más viejos (los reemplaza uno más
+    reabra la sesión en otro worker, en lugar de acumular segundos de retraso en silencio. Desde ese
+    momento el modelo no procesa nada más de esa sesión (la GPU ya está saturada) y no sale ningún partial
+    después del error. Excepción acotada: una reconexión puede traer de golpe la frase en curso, y ese
+    atraso (hasta MAX_UTTERANCE_MS) se admite una vez por sesión. Mientras va atrás, se saltan los partials
+    intermedios (el modelo procesa todo el audio, pero solo se muestra el último). Salida: si quien consume no lee, se descartan los partials más viejos (los reemplaza uno más
     nuevo); un final no se descarta nunca: si no cabe ni descartando partials, se cierra con 1013.
-  * Límites por sesión: MAX_SESSION_S (4 h: una reunión larga reabre sesión, el gateway lo hace solo) y
-    MAX_IDLE_S (30 s sin un solo frame: la pista murió y el slot de GPU se libera).
+  * Admisión: con MAX_SESSIONS sesiones, o con MAX_STREAMS streams activos (la GPU ya está en su tope),
+    /readyz da 503 y el handshake responde 1013 "capacity". A las sesiones que ya tiene no las corta por
+    empezar a hablar: si eso satura la GPU, actúa el backpressure de entrada.
+  * Límites por sesión: MAX_SESSION_S (4 h: una reunión larga reabre sesión, el gateway lo hace solo),
+    MAX_IDLE_S (30 s sin un solo mensaje, audio o keepalive: la pista murió y la sesión se libera) y el
+    ritmo del audio: más de MAX_AUDIO_RATE × el tiempo transcurrido + AUDIO_BURST_MS (+ MAX_UTTERANCE_MS en
+    una reconexión, por el reenvío de la frase en curso) cierra con 1008. Un gateway con un bug que manda
+    audio sin pausa no puede tener ocupado el event loop que comparten todas las sesiones del worker. El
+    tamaño de cada mensaje lo acota uvicorn (--ws-max-size 65536 ≈ 2 s de audio; más grande → 1009).
   * Drain: POST /admin/drain (solo desde localhost: lo llama el preStop de k8s/asr-worker.yaml). /readyz
     pasa a 503 (el router deja de asignar), y cada sesión, en su próximo límite de utterance (después del
-    final), recibe {"type": "migrate"} y se cierra con 1012: el gateway la reabre en otro worker sin perder
-    texto, porque entre utterances no hay estado que perder.
+    final; si la frase siguiente ya empezó, después del final de esa, una sola vez), recibe
+    {"type": "migrate"} y se cierra con 1012: el gateway la reabre en otro worker sin perder texto, porque
+    entre utterances no hay estado que perder.
   * Métricas Prometheus en /metrics (los nombres los usan monitoring/alerts.yml y el autoscaling).
   * Privacidad: nunca se loguea texto ni audio. El log por sesión tiene ids, duraciones y contadores.
 
 Endpoints: WS /v1/stream · GET /healthz · GET /readyz · GET /metrics · POST /admin/drain · GET /admin/status
 Demo local con el modelo falso: `uvicorn --factory asr_server:demo_app --port 8080` y, en otra terminal,
-`python asr_server.py demo-client` (manda 6 s de audio sintético en tiempo real e imprime lo que vuelve).
+`python asr_server.py demo-client` (manda ≈ 4.75 s de audio sintético a ritmo real e imprime lo que vuelve).
 """
 
 from __future__ import annotations  # anotaciones como texto: sintaxis moderna sin costo en runtime
@@ -72,7 +91,7 @@ log = logging.getLogger("asr_server")
 # Códigos de cierre de WebSocket. 1000, 1008 y 1011 son de la RFC 6455; 1012 y 1013 están en el registro
 # de IANA. El gateway decide qué hacer según el código, así que son parte del contrato.
 CLOSE_NORMAL = 1000  # stop del cliente, límite de duración o de inactividad
-CLOSE_POLICY = 1008  # handshake inválido: reintentar igual no sirve
+CLOSE_POLICY = 1008  # handshake inválido o audio más rápido que el tiempo real: reintentar igual no sirve
 CLOSE_INTERNAL = 1011  # el modelo falló: reabrir en otro worker
 CLOSE_SERVICE_RESTART = 1012  # drain / apagado: reabrir en otro worker (esperado, no es una falla)
 CLOSE_TRY_AGAIN = 1013  # sin capacidad, sobrecargado o consumidor lento: reabrir en otro worker
@@ -84,12 +103,22 @@ class Settings:
     # Idiomas de lanzamiento del caso (BCP 47): español de Latinoamérica, inglés de EE. UU., portugués de
     # Brasil. Se valida contra esta lista porque el idioma es label de métricas (cardinalidad acotada).
     languages: tuple[str, ...] = tuple(os.getenv("ASR_LANGUAGES", "es-419,en-US,pt-BR").split(","))
-    # Tope DURO de streams por worker (lo usa también el router como capacidad). Caso: ≈ 500 por L4
-    # (estimación, mídelo con el modelo real y chunks de 160 ms); 450 = 90 % de eso. El autoscaling apunta
-    # a 350 en promedio (70 %): la diferencia es el colchón para la rampa de la mañana mientras llegan nodos.
+    # Tope de STREAMS ACTIVOS por worker (sesiones con una utterance abierta = secuencias en la GPU). Caso:
+    # ≈ 500 por L4 (estimación, mídelo con el modelo real y chunks de 160 ms); 450 = 90 % de eso. El
+    # autoscaling apunta a 350 en promedio (70 % de ≈ 500): la diferencia hasta 450 es el colchón para la
+    # rampa de la mañana mientras llegan nodos. Llegar a 450 deja al worker fuera de la rotación (readyz 503).
     max_streams: int = int(os.getenv("MAX_STREAMS", "450"))
+    # Tope de SESIONES conectadas (la capacidad que usa el router). Solo ≈ 30 % de las pistas tiene voz en
+    # un momento dado (≈ 60k de ≈ 200k en el pico): 450 ÷ 0.3 = 1,500 (ilustrativo). En régimen, cada worker
+    # tiene ≈ 1,170 sesiones para ≈ 350 streams activos. Una sesión callada cuesta CPU y memoria (≈ KB del
+    # chunker), no GPU.
+    max_sessions: int = int(os.getenv("MAX_SESSIONS", "1500"))
     max_session_s: float = float(os.getenv("MAX_SESSION_S", "14400"))  # 4 h; ver docstring
-    max_idle_s: float = float(os.getenv("MAX_IDLE_S", "30"))
+    max_idle_s: float = float(os.getenv("MAX_IDLE_S", "30"))  # sin NINGÚN mensaje (audio o keepalive)
+    # Ritmo máximo del audio (ilustrativo): hasta 2× el tiempo real más 2 s de ráfaga (jitter de red). En una
+    # reconexión se suma MAX_UTTERANCE_MS una vez: el gateway reenvía la frase en curso desde su buffer.
+    max_audio_rate: float = float(os.getenv("MAX_AUDIO_RATE", "2.0"))
+    audio_burst_ms: int = int(os.getenv("AUDIO_BURST_MS", "2000"))
     handshake_timeout_s: float = float(os.getenv("HANDSHAKE_TIMEOUT_S", "5"))
     inbound_max_chunks: int = int(os.getenv("INBOUND_MAX_CHUNKS", "12"))  # 12 × 160 ms ≈ 2 s de audio atrasado
     outbound_max_messages: int = int(os.getenv("OUTBOUND_MAX_MESSAGES", "32"))
@@ -179,10 +208,16 @@ class Metrics:
 
     def __init__(self, registry: CollectorRegistry | None = None) -> None:
         r = self.registry = registry or CollectorRegistry()
-        # Señal de autoscaling y de ruteo: streams activos AHORA en este worker (no requests por segundo)
-        self.active = Gauge("asr_active_streams", "Streams activos en este worker", registry=r)
+        # Señal de autoscaling: streams activos AHORA en este worker = sesiones con una utterance abierta (lo
+        # que ocupa la GPU). No son las sesiones conectadas ni requests por segundo.
+        self.active = Gauge("asr_active_streams", "Sesiones con una utterance abierta (secuencias en la GPU)",
+                            registry=r)
         # Capacidad que este worker ofrece: MAX_STREAMS, o 0 si está drenando (no recibe sesiones nuevas)
         self.capacity = Gauge("asr_stream_capacity", "Streams que este worker acepta (0 si drena)", registry=r)
+        # Sesiones conectadas (habla o no) y su tope: lo que reparte el router y lo que espera el drain
+        self.sessions = Gauge("asr_sessions", "Sesiones conectadas en este worker", registry=r)
+        self.session_capacity = Gauge("asr_session_capacity", "Sesiones que este worker acepta (0 si drena)",
+                                      registry=r)
         self.draining = Gauge("asr_draining", "1 si el worker está drenando", registry=r)
         self.started = Counter("asr_sessions_started_total", "Sesiones aceptadas", ["language"], registry=r)
         self.ended = Counter("asr_sessions_ended_total", "Sesiones terminadas", ["reason"], registry=r)
@@ -281,6 +316,9 @@ class OutboundBuffer:
 
 # ---------------------------------------------------------------------------- sesión
 _END, _DRAIN = object(), object()  # marcadores internos de la cola de entrada
+# Motivos de cierre en los que ya no hay a quién mostrarle nada (o la GPU no da abasto): el procesador deja de
+# llamar al modelo en lugar de gastar hasta ≈ 2 s de GPU en chunks que nadie va a ver.
+_ABORT = frozenset({"overloaded", "slow_consumer", "client_gone", "error", "audio_too_fast"})
 
 
 class StreamSession:
@@ -295,11 +333,20 @@ class StreamSession:
 
     def __init__(self, session_id: str, language: str, transport: Transport, model: ASRModel,
                  settings: Settings, metrics: Metrics, log_latency: bool = False,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+                 clock: Callable[[], float] = time.monotonic, reconnect: bool = False,
+                 on_active_change: Callable[[int], None] | None = None) -> None:
         self.session_id, self.language = session_id, language
         self.t, self.model, self.s, self.m = transport, model, settings, metrics
         self.clock = clock
         self.log_latency = log_latency
+        self.reconnect = reconnect  # una reconexión puede traer de golpe la frase en curso (ritmo del audio)
+        # Y esa frase (hasta MAX_UTTERANCE_MS) llega más rápido de lo que el modelo la procesa: la cola de
+        # entrada puede pasarse de INBOUND_MAX_CHUNKS por esa cantidad de chunks, UNA vez por sesión. Sin esto,
+        # el reenvío que promete el caso cerraría la sesión nueva con 1013 "overloaded".
+        self.replay_chunks = settings.chunker.max_utterance_ms // settings.chunker.chunk_ms if reconnect else 0
+        self.on_active_change = on_active_change  # la app suma ±1 a asr_active_streams
+        self._active = False  # ¿esta sesión es un stream activo (utterance abierta)?
+        self.audio_bytes = 0  # audio recibido: el límite de ritmo lo compara con el reloj
         self.reframer = Reframer()
         self.chunker = StreamChunker(settings.chunker)
         self.inbound: asyncio.Queue = asyncio.Queue()  # sin maxsize: el límite se aplica solo a chunks (abajo)
@@ -313,6 +360,7 @@ class StreamSession:
         self._last_speech_wall = 0.0
         self._utt_open = False  # ¿el modelo tiene una utterance a medias? (drain espera a que cierre)
         self._migrate_after_final = False
+        self._boundaries_waited = 0  # finales en los que el drain no pudo migrar (la frase siguiente ya empezó)
 
     # -- API para la app
     def request_drain(self) -> None:
@@ -321,6 +369,22 @@ class StreamSession:
     def _finish(self, reason: str, code: int) -> None:
         if self.end_reason is None:  # la primera causa gana (p. ej. idle y luego desconexión)
             self.end_reason, self.close_code = reason, code
+
+    @property
+    def active(self) -> bool:
+        """Stream activo = hay una utterance abierta: en el chunker (llega audio con voz) o en el modelo
+        (falta su finalize). Entre utterances la sesión sigue conectada, pero no ocupa GPU."""
+        return self.chunker.in_utterance or self._utt_open
+
+    def _update_active(self, force_off: bool = False) -> None:
+        now = False if force_off else self.active
+        if now != self._active:
+            self._active = now
+            if self.on_active_change is not None:
+                self.on_active_change(1 if now else -1)
+
+    def _aborted(self) -> bool:
+        return self.end_reason in _ABORT
 
     async def run(self) -> None:
         reader = asyncio.create_task(self._read_loop())
@@ -335,6 +399,7 @@ class StreamSession:
         finally:
             self.model.close_stream(state)  # liberar memoria de GPU pase lo que pase
             reader.cancel()
+            self._update_active(force_off=True)  # la sesión deja de contar como stream activo
             self.outbound.append_control({"type": "_close"})  # el writer termina después de vaciar la cola
             try:
                 await asyncio.wait_for(writer, timeout=2.0)  # dar tiempo a que salga el último final
@@ -359,14 +424,27 @@ class StreamSession:
                     if self.clock() - started >= self.s.max_session_s:
                         self._finish("max_duration", CLOSE_NORMAL)
                     else:
-                        self._finish("idle", CLOSE_NORMAL)  # ni un frame en MAX_IDLE_S: liberar el slot
+                        self._finish("idle", CLOSE_NORMAL)  # ni un mensaje en MAX_IDLE_S: liberar la sesión
                     break
                 if msg is None:
                     self.client_gone = True
                     self._finish("client_gone", CLOSE_NORMAL)
                     break
                 if isinstance(msg, bytes):
-                    if not self._on_audio(msg):
+                    # Ritmo ANTES de procesar: un mensaje enorme o una ráfaga sin fin no llega al chunker (que
+                    # corre en el event loop de todas las sesiones). 16 kHz × 2 bytes = 32 bytes por ms.
+                    self.audio_bytes += len(msg)
+                    elapsed_ms = (self.clock() - started) * 1000
+                    allowed_ms = (self.s.max_audio_rate * elapsed_ms + self.s.audio_burst_ms
+                                  + (self.s.chunker.max_utterance_ms if self.reconnect else 0))
+                    if self.audio_bytes / 32 > allowed_ms:
+                        self._finish("audio_too_fast", CLOSE_POLICY)
+                        self.outbound.offer({"type": "error", "code": "audio_too_fast",
+                                             "message": "audio faster than real time"})
+                        break
+                    ok = self._on_audio(msg)
+                    self._update_active()
+                    if not ok:
                         break  # sobrecargado: ya se marcó el cierre
                 else:
                     try:
@@ -376,12 +454,13 @@ class StreamSession:
                     if isinstance(ctrl, dict) and ctrl.get("type") == "stop":
                         self._finish("normal", CLOSE_NORMAL)
                         break
-                    # Cualquier otro texto se ignora: un cliente más nuevo puede mandar tipos que este no conoce
+                    # Cualquier otro texto ({"type": "keepalive"} o tipos que este worker no conoce) se ignora,
+                    # pero ya reinició el plazo de MAX_IDLE_S: el gateway con VAD propio lo usa en los silencios
         except WebSocketDisconnect:
             self.client_gone = True
             self._finish("client_gone", CLOSE_NORMAL)
         finally:
-            if not self.client_gone and self.end_reason != "overloaded":
+            if not self.client_gone and self.end_reason not in ("overloaded", "audio_too_fast"):
                 for ev in self.chunker.flush():  # cerrar la utterance abierta: su final sí sale
                     self._enqueue(ev, force=True)
             self.inbound.put_nowait(_END)
@@ -405,7 +484,9 @@ class StreamSession:
     def _enqueue(self, ev: Chunk | EndOfUtterance, force: bool) -> bool:
         if isinstance(ev, Chunk):
             if not force and self.queued_chunks >= self.s.inbound_max_chunks:
-                return False  # el modelo va ≈ 2 s atrás: no acumular más retraso
+                if self.replay_chunks <= 0:
+                    return False  # el modelo va ≈ 2 s atrás: no acumular más retraso
+                self.replay_chunks -= 1  # el reenvío de una reconexión: atraso esperado y acotado
             self.queued_chunks += 1
             self.inbound.put_nowait((ev, self.clock()))
         else:
@@ -417,8 +498,8 @@ class StreamSession:
         stab = Stabilizer(self.s.freeze_after_ms)
         while True:
             item = await self.inbound.get()
-            if item is _END:
-                return
+            if item is _END or self._aborted():
+                return  # sobrecarga, consumidor lento o cliente ido: lo que queda en la cola no lo ve nadie
             if item is _DRAIN:
                 # Entre utterances (ni el modelo ni el chunker tienen una abierta) no hay nada que perder:
                 # migrar ya. Si alguien está hablando, migrar después de su final.
@@ -434,10 +515,14 @@ class StreamSession:
                 words = await self.model.step(state, ev)
                 self.m.step.observe(self.clock() - t0)
                 self._utt_open = True
+                self._update_active()
+                if self._aborted():
+                    return  # se decidió cerrar mientras el modelo trabajaba: ni un partial después del error
                 if self.queued_chunks > 0:
                     # Vamos atrás: el modelo procesa todo el audio (su estado lo necesita), pero solo se
-                    # muestra el partial del chunk más nuevo. Igual se pasa por el estabilizador para que
-                    # congele con lo que la pantalla tiene.
+                    # muestra el partial del chunk más nuevo. Los intermedios no pasan por el estabilizador:
+                    # la pantalla no cambió, así que no hay nada nuevo que congelar; el partial del chunk más
+                    # nuevo sí pasa.
                     self.m.dropped.labels("partial", "behind").inc()
                     continue
                 display = stab.partial(words, ev.end_ms)
@@ -450,14 +535,24 @@ class StreamSession:
                 display, _ = stab.final(words)
                 stab = Stabilizer(self.s.freeze_after_ms)  # la utterance siguiente empieza de cero
                 self._utt_open = False
+                self._update_active()  # la secuencia salió de la GPU (salvo que el chunker ya abrió otra)
                 self.utterances += 1
+                if self._aborted():
+                    return
                 if words:  # una utterance sin palabras (un ruido que pasó el VAD) no genera final vacío
                     self._emit({"type": "final", "utterance": ev.utterance, "text": display.text,
                                 "start_ms": words[0].start_ms, "end_ms": words[-1].end_ms}, t_ref)
                     self.finals += 1
-                if self._migrate_after_final and self.queued_chunks == 0:
-                    self._migrate()
-                    return
+                # Migrar solo si tampoco empezó la utterance SIGUIENTE (un corte por el tope de 20 s con la
+                # persona hablando): su pre-roll y su comienzo están en el chunker y se perderían. Si empezó,
+                # se espera a su final, UNA vez: 20.6 + 20.6 s caben en el drain de 60 s. Un monólogo que se
+                # encadena otra vez migra en el segundo final y pierde a lo sumo ese comienzo (< 160 ms: si
+                # hubiera un chunk entero, estaría en la cola), no la frase entera que cortaría el SIGTERM.
+                if self._migrate_after_final:
+                    if self.queued_chunks == 0 and (not self.chunker.in_utterance or self._boundaries_waited):
+                        self._migrate()
+                        return
+                    self._boundaries_waited += 1
 
     def _migrate(self) -> None:
         self._finish("migrate", CLOSE_SERVICE_RESTART)
@@ -522,8 +617,9 @@ def create_app(model: ASRModel, settings: Settings | None = None, metrics: Metri
     s = settings or Settings()
     m = metrics or Metrics()
     sessions: set[StreamSession] = set()
-    state = {"draining": False}
+    state = {"draining": False, "active": 0}  # active = streams activos (sesiones con una utterance abierta)
     m.capacity.set(s.max_streams)
+    m.session_capacity.set(s.max_sessions)
     # Sin lógica de apagado propia, a propósito: con SIGTERM, uvicorn 0.54 cierra cada WebSocket abierto con
     # 1012 ANTES del lifespan shutdown (en su código: protocols/websockets/*_impl.py, shutdown(); y probado
     # con la demo: kill -TERM al server y el cliente recibe 1012). Lo que da un corte limpio es el drain del
@@ -532,12 +628,25 @@ def create_app(model: ASRModel, settings: Settings | None = None, metrics: Metri
     app = FastAPI(title="asr-worker")
     app.state.sessions, app.state.metrics, app.state.flags = sessions, m, state
 
+    def on_active_change(delta: int) -> None:
+        state["active"] += delta
+        m.active.set(state["active"])
+
+    def full() -> bool:
+        # Lleno si la GPU ya está en su tope de streams activos O no entran más sesiones. Las dos cosas sacan
+        # al worker de la rotación (readyz 503) y rechazan handshakes nuevos con 1013.
+        return state["active"] >= s.max_streams or len(sessions) >= s.max_sessions
+
+    def counts() -> dict:
+        return {"sessions": len(sessions), "active_streams": state["active"]}
+
     def start_drain() -> None:
         if state["draining"]:
             return
         state["draining"] = True
         m.draining.set(1)
         m.capacity.set(0)  # el fleet deja de contar este worker como capacidad libre
+        m.session_capacity.set(0)
         for sess in list(sessions):
             sess.request_drain()
 
@@ -575,17 +684,19 @@ def create_app(model: ASRModel, settings: Settings | None = None, metrics: Metri
         if state["draining"]:
             # El router no debería mandar aquí (readyz ya da 503), pero puede haber una carrera
             return await reject("draining", CLOSE_TRY_AGAIN, "worker draining; reconnect elsewhere")
-        if len(sessions) >= s.max_streams:
+        if full():
             return await reject("capacity", CLOSE_TRY_AGAIN, "worker full; reconnect elsewhere")
         attempt = hs.get("reconnect_attempt") or 0
-        if isinstance(attempt, int) and attempt > 0:
+        reconnect = isinstance(attempt, int) and attempt > 0
+        if reconnect:
             reason = str(hs.get("reconnect_reason") or "unknown")
             known = {"worker_lost", "network", "migrate", "max_duration", "overloaded"}
             m.reconnects.labels(reason if reason in known else "unknown").inc()  # label acotado
 
-        sess = StreamSession(sid, lang, transport, model, s, m, log_latency=_sampled(sid, s.latency_log_rate))
+        sess = StreamSession(sid, lang, transport, model, s, m, log_latency=_sampled(sid, s.latency_log_rate),
+                             reconnect=reconnect, on_active_change=on_active_change)
         sessions.add(sess)
-        m.active.set(len(sessions))
+        m.sessions.set(len(sessions))  # una sesión nueva está callada: todavía no es un stream activo
         m.started.labels(lang).inc()
         try:
             await transport.send_json({"type": "ready", "session_id": sid, "model_version": model.model_version,
@@ -593,7 +704,7 @@ def create_app(model: ASRModel, settings: Settings | None = None, metrics: Metri
             await sess.run()
         finally:
             sessions.discard(sess)
-            m.active.set(len(sessions))
+            m.sessions.set(len(sessions))
             m.ended.labels(sess.end_reason or "unknown").inc()
 
     @app.get("/healthz")
@@ -604,7 +715,11 @@ def create_app(model: ASRModel, settings: Settings | None = None, metrics: Metri
     async def readyz() -> Response:
         if state["draining"]:
             return JSONResponse({"ready": False, "reason": "draining"}, status_code=503)
-        return JSONResponse({"ready": True, "active_streams": len(sessions), "max_streams": s.max_streams})
+        limits = {**counts(), "max_sessions": s.max_sessions, "max_streams": s.max_streams}
+        if full():
+            # 503 sin drenar: el pod sale del Service headless mientras está lleno y vuelve solo cuando baja
+            return JSONResponse({"ready": False, "reason": "full", **limits}, status_code=503)
+        return JSONResponse({"ready": True, **limits})
 
     def local_only(request: Request) -> bool:
         # El drain lo dispara el preStop DENTRO del pod. Desde afuera nadie debería poder vaciar un worker.
@@ -615,13 +730,13 @@ def create_app(model: ASRModel, settings: Settings | None = None, metrics: Metri
         if not local_only(request):
             return JSONResponse({"error": "forbidden"}, status_code=403)
         start_drain()
-        return JSONResponse({"draining": True, "active_streams": len(sessions)})
+        return JSONResponse({"draining": True, **counts()})
 
     @app.get("/admin/status")
     async def status(request: Request) -> Response:
         if not local_only(request):
             return JSONResponse({"error": "forbidden"}, status_code=403)
-        return JSONResponse({"draining": state["draining"], "active_streams": len(sessions)})
+        return JSONResponse({"draining": state["draining"], **counts()})
 
     @app.get("/metrics")
     async def metrics() -> Response:
@@ -650,20 +765,21 @@ def demo_app() -> FastAPI:
 def wait_for_drain(post_drain: Callable[[], dict], get_status: Callable[[], dict], timeout_s: float,
                    poll_s: float = 2.0, clock: Callable[[], float] = time.monotonic,
                    sleep: Callable[[float], None] = time.sleep) -> int:
-    """Lo que corre el preStop: pedir drain y esperar a que no queden streams o venza el plazo.
+    """Lo que corre el preStop: pedir drain y esperar a que no queden SESIONES o venza el plazo.
 
-    Devuelve los streams que quedaban al salir (0 = drenado). Nunca lanza: si el server no contesta, el
+    Espera sesiones, no streams activos: una sesión callada no ocupa GPU, pero sigue conectada y tiene que
+    migrar igual (lo hace al instante). Devuelve las sesiones que quedaban al salir (0 = drenado). Nunca lanza: si el server no contesta, el
     preStop termina y Kubernetes sigue con el SIGTERM (uvicorn cierra con 1012 lo que quede).
     """
     deadline = clock() + timeout_s
     try:
-        left = int(post_drain().get("active_streams", 0))
+        left = int(post_drain().get("sessions", 0))
     except Exception:
         return -1
     while left > 0 and clock() < deadline:
         sleep(poll_s)
         try:
-            left = int(get_status().get("active_streams", 0))
+            left = int(get_status().get("sessions", 0))
         except Exception:
             return -1
     return left
@@ -676,7 +792,7 @@ def _http_json(method: str, url: str) -> dict:
 
 
 def _demo_client(url: str) -> None:
-    """Manda 6 s de audio sintético (tonos = "voz", con pausas) a ritmo real e imprime lo que vuelve."""
+    """Manda ≈ 4.75 s de audio sintético (tonos = "voz", con pausas) a ritmo real e imprime lo que vuelve."""
     import numpy as np  # ya es dependencia del chunker
     from websockets.exceptions import ConnectionClosed  # cierre del server con su código
     from websockets.sync.client import connect  # websockets viene en requirements.txt (lo usa uvicorn)
@@ -716,7 +832,7 @@ if __name__ == "__main__":
         left = wait_for_drain(lambda: _http_json("POST", f"{base}/admin/drain"),
                               lambda: _http_json("GET", f"{base}/admin/status"),
                               timeout_s=Settings().drain_timeout_s)
-        print(json.dumps({"event": "drain_done", "streams_left": left}))
+        print(json.dumps({"event": "drain_done", "sessions_left": left}))
     elif cmd == "demo-client":
         _demo_client(sys.argv[2] if len(sys.argv) > 2 else "ws://127.0.0.1:8080/v1/stream")
     else:

@@ -13,7 +13,7 @@ puede cortar un loop bloqueado. Presupuesto por etapa (estimaciones del caso; m�
   decisión           umbrales por segmento, exploración, reason codes            < 1 ms
   log                registro de la decisión con el feature snapshot (no bloquea)
 
-Degradación (campo `path` de la respuesta y del log: "model" o "rules_only"):
+Degradación (campo `path` de la respuesta y del log: "model", "rules_only" o "three_ds_result"):
   - falta un grupo de features PERMITIDO (policy.yaml: batch) → NaN para ese grupo, se cuenta en
     fraud_feature_defaults_total{group}, queda en `groups_defaulted` y el modelo decide igual (vio NaN
     ahí al entrenar): path="model";
@@ -22,8 +22,11 @@ Degradación (campo `path` de la respuesta y del log: "model" o "rules_only"):
     `fallback` del segmento. Nunca se bloquean todos los pagos;
   - si este servicio entero no contesta en 100 ms, el ORQUESTADOR aplica su propio rules-only (fuera de
     esta carpeta) y lo cuenta: es la segunda rama de FraudFallbackActive.
-Un pago con step-up llama DOS veces con el mismo payment_id: la segunda trae `three_ds_result`. Los
-contadores no vuelven a sumar (y devuelven lo que vio la primera), y la decisión se toma de nuevo.
+Un pago con step-up llama DOS veces con el mismo payment_id: la segunda trae `three_ds_result`
+(path="three_ds_result"). La segunda llamada aplica el resultado del desafío a la decisión de la primera;
+no vuelve a correr el modelo (las features stream ya incluirían el propio pago: Flink lo contó minutos
+antes) ni pide features al online store. Los contadores no vuelven a sumar y devuelven lo que vio la
+primera, así que las reglas ven lo mismo; una regla de review o decline sigue ganando (policy.decide).
 
 Todo lo externo está detrás de interfaces (Protocol) con fakes en los tests: KV store, online store,
 caché de decisiones y log de decisiones (Kafka). Los adaptadores reales no están en esta carpeta porque
@@ -238,7 +241,8 @@ class BufferedDecisionLog:
     """Buffer acotado en memoria (lo vaciaría un productor de Kafka con acks=all e idempotencia).
 
     Lleno → se descarta y se cuenta, no se bloquea el pago. Perder registros tiene costo (el set de
-    entrenamiento y la auditoría salen de aquí), por eso fraud_decision_log_dropped_total tiene alerta.
+    entrenamiento y la auditoría salen de aquí): fraud_decision_log_dropped_total se cuenta (dashboard);
+    súmale una alerta si tu set de entrenamiento depende de este tópico.
     """
 
     def __init__(self, maxlen: int = 100_000, echo: bool = False) -> None:
@@ -270,6 +274,10 @@ class Metrics:
         self.stage = Histogram("fraud_stage_duration_seconds", "Latencia por etapa", ["stage"],
                                buckets=(0.001, 0.002, 0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.08, 0.1), registry=r)
         self.decisions = Counter("fraud_decisions_total", "Decisiones", ["decision", "segment"], registry=r)
+        # La 2.ª llamada (después de 3-D Secure) va aparte: en fraud_decisions_total un pago con step-up
+        # contaría dos veces y las tasas de DeclineRateSpike y StepUpRateSpike tendrían otro denominador.
+        self.step_up_results = Counter("fraud_step_up_results_total", "Decisión después de 3-D Secure",
+                                       ["decision", "segment"], registry=r)
         self.fallback = Counter("fraud_fallback_total", "Decisiones sin modelo (rules-only)", ["reason"], registry=r)
         self.feature_lookups = Counter("fraud_feature_lookups_total", "Grupos de features pedidos", ["group"], registry=r)
         self.feature_defaults = Counter("fraud_feature_defaults_total", "Grupos que faltaron (NaN o fallback)",
@@ -326,8 +334,8 @@ def create_app(deps: Deps) -> FastAPI:
     engine = RulesEngine(policy, deps.blocklists)
     m.blocklist_generated.set(deps.blocklists.generated_at)
     # Contador LOCAL del pod con las features de los límites duros: si el KV store no contesta, las
-    # reglas de velocidad usan esto. Ve solo el tráfico de ESTE pod (con 9 pods, ≈ 1/9 de los intentos
-    # de una tarjeta si el balanceo es aleatorio): un límite de 5 por minuto se vuelve ≈ 45 en total.
+    # reglas de velocidad usan esto. Ve solo el tráfico de ESTE pod (con 6 pods, ≈ 1/6 de los intentos
+    # de una tarjeta si el balanceo es aleatorio): un límite de 5 por minuto se vuelve ≈ 30 en total.
     # Es un piso, no el mismo control. Rutear por card_token lo arreglaría a costa de acoplar el
     # balanceador a una feature.
     local = OnlineCounters(InMemoryKV(deps.clock),
@@ -381,6 +389,7 @@ def create_app(deps: Deps) -> FastAPI:
         payment_id = req.payment_id
         # La caché es por (pago, etapa): la llamada después de 3-D Secure NO es un reintento de la primera
         cache_key = f"{payment_id}:{req.three_ds_result or 'initial'}"
+        three_ds = req.three_ds_result is not None  # 2.ª llamada: aplica el desafío, no re-scorea
 
         # 0) Reintento: la MISMA respuesta. Un reintento no puede recibir otra decisión (aprobar y luego
         #    declinar el mismo pago) ni volver a sumar velocidades. Caché caída → se sigue sin ella.
@@ -396,17 +405,26 @@ def create_app(deps: Deps) -> FastAPI:
         ts = deps.clock()  # event_time del pago: el MISMO que se loguea y que usa el backfill
         local_values = local.read_and_update(event, ts).values  # en proceso, siempre (respaldo)
 
-        # 1) Contadores sync y features en paralelo, cada uno con su timeout
-        counters_res, features_res = await asyncio.gather(
-            timed("counters", deps.counters.read_and_update(event, ts), s.counters_timeout_s),
-            timed("features", deps.fetcher.fetch(event), s.features_timeout_s),
-        )
+        # 1) Contadores sync y features en paralelo, cada uno con su timeout. En la 2.ª llamada, solo los
+        #    contadores (su guardia devuelve lo que vio la 1.ª): las reglas los necesitan; el modelo, no.
+        if three_ds:
+            counters_res = await timed("counters", deps.counters.read_and_update(event, ts), s.counters_timeout_s)
+            features_res = {}  # no se piden: el modelo no corre
+        else:
+            counters_res, features_res = await asyncio.gather(
+                timed("counters", deps.counters.read_and_update(event, ts), s.counters_timeout_s),
+                timed("features", deps.fetcher.fetch(event), s.features_timeout_s),
+            )
         fallback_reason: str | None = None
         values: dict[str, float | None] = d.request_features(event)
         defaulted: list[str] = []
 
+        m.feature_lookups.labels(group="sync").inc()
         if isinstance(counters_res, Exception):
-            fallback_reason = "counters_timeout" if isinstance(counters_res, TimeoutError) else "counters_error"
+            m.feature_defaults.labels(group="sync").inc()
+            if not three_ds:  # en la 2.ª llamada no hay modelo que proteger: solo cambian las reglas
+                fallback_reason = ("counters_timeout" if isinstance(counters_res, TimeoutError)
+                                   else "counters_error")
             velocity = local_values  # las reglas usan el contador local del pod
             defaulted.append("sync")
         else:
@@ -416,7 +434,7 @@ def create_app(deps: Deps) -> FastAPI:
             values.update(counters_res.values)
 
         groups = {} if isinstance(features_res, Exception) else features_res
-        for group in ("stream", "batch"):
+        for group in () if three_ds else ("stream", "batch"):
             m.feature_lookups.labels(group=group).inc()
             got = groups.get(group)
             if got is None:
@@ -441,11 +459,11 @@ def create_app(deps: Deps) -> FastAPI:
         for h in rules_res.hits:
             m.rule_hits.labels(rule=h.rule, reason=h.reason_code).inc()
 
-        # 3) Modelo, si hay con qué y con cuánto tiempo
+        # 3) Modelo, si hay con qué y con cuánto tiempo (nunca en la 2.ª llamada)
         segment = segment_of(policy, req.mcc, req.amount_cents)
         row = d.vector(values)
         score_value: float | None = None
-        if fallback_reason is None:
+        if fallback_reason is None and not three_ds:
             remaining = deadline - time.perf_counter()
             if deps.model is None:
                 fallback_reason = "model_unavailable"
@@ -466,15 +484,19 @@ def create_app(deps: Deps) -> FastAPI:
         if fallback_reason is not None:
             m.fallback.labels(reason=fallback_reason).inc()
             score_value = None
-        else:
+        elif score_value is not None:
             m.score.labels(segment=segment).observe(score_value)
 
         # 4) Decisión
         decision: Decision = decide(policy, segment, score_value, rules_res.actions(), req.merchant_id,
                                     req.three_ds_available, payment_id, req.three_ds_result)
-        m.decisions.labels(decision=decision.decision, segment=segment).inc()
-        if decision.exploration:
+        if three_ds:
+            m.step_up_results.labels(decision=decision.decision, segment=segment).inc()
+        else:
+            m.decisions.labels(decision=decision.decision, segment=segment).inc()
+        if decision.exploration:  # nunca en la 2.ª llamada: la exploración se contó en la 1.ª
             m.exploration.labels(segment=segment).inc()
+        path = "three_ds_result" if three_ds else "model" if fallback_reason is None else "rules_only"
         latency_ms = round((time.perf_counter() - t0) * 1000, 2)
         response = {
             "payment_id": payment_id,
@@ -482,7 +504,7 @@ def create_app(deps: Deps) -> FastAPI:
             "reason_codes": list(decision.reason_codes),
             "score": None if score_value is None else round(score_value, 6),
             "segment": segment,
-            "path": "model" if fallback_reason is None else "rules_only",
+            "path": path,
             "groups_defaulted": defaulted,  # grupos de features que faltaron (NaN o fallback)
             "fallback_reason": fallback_reason,
             "exploration": decision.exploration,
@@ -495,13 +517,15 @@ def create_app(deps: Deps) -> FastAPI:
 
         # 5) Log de la decisión con el FEATURE SNAPSHOT (log-and-wait): es el set de entrenamiento de
         #    dentro de 90 días y la evidencia de una disputa. Lleva lo que vio el modelo, no lo que habría
-        #    que recalcular después (que ya no sería lo mismo).
+        #    que recalcular después (que ya no sería lo mismo). En la 2.ª llamada, `features` va en null: el
+        #    modelo no corrió, y la fila de entrenamiento usa el snapshot de la 1.ª (point_in_time.py).
         record = {
             **{k: event[k] for k in ("payment_id", "merchant_id", "mcc", "amount_cents", "currency",
                                      "card_token", "card_bin_country", "ip_hash", "ip_country",
                                      "device_hash", "email_hash", "three_ds_available", "three_ds_result")},
             "event_time": ts,
-            "features": dict(zip(d.FEATURE_ORDER, [None if v != v else v for v in row])),  # NaN → null
+            # el vector exacto que vio el modelo, con NaN → null
+            "features": None if three_ds else dict(zip(d.FEATURE_ORDER, [None if v != v else v for v in row])),
             "rule_hits": [h.reason_code for h in rules_res.hits],
             "rule_errors": rules_res.errors,
             "propensity": decision.propensity,
@@ -555,7 +579,8 @@ class DemoFeatureFetcher(StaticFeatureFetcher):
 def demo_app() -> FastAPI:
     """App local con todo falso salvo el modelo: `uvicorn --factory service:demo_app --port 8080`.
 
-    Entrena un GBDT chico con datos SINTÉTICOS al arrancar (≈ 1 s): no es un modelo de fraude.
+    Entrena un GBDT chico con datos SINTÉTICOS al arrancar (≈ 2–8 s según la máquina): no es un modelo de
+    fraude.
     """
     import synthetic  # solo para la demo: no entra al camino de producción
 

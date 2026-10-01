@@ -552,7 +552,7 @@
         'Adversarios y drift rápido',
         'Explicabilidad y auditoría de decisiones',
       ],
-      freq: 'alta', minutes: 115, difficulty: 'alta',
+      freq: 'alta', minutes: 123, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm12', 'm15'],
       tests: [
         'Diseñar features en streaming con point-in-time correctness',
@@ -656,7 +656,7 @@
         'Métricas: WER y latencia de finalización, por idioma y acento',
         'Privacidad del audio y retención',
       ],
-      freq: 'baja', minutes: 105, difficulty: 'alta',
+      freq: 'baja', minutes: 112, difficulty: 'alta',
       connects: ['m02', 'm03', 'm04', 'm06', 'm08', 'c02'],
       tests: [
         'Diseñar serving de streaming con estado en lugar de request/response',
@@ -1103,7 +1103,7 @@
       },
       {
         "topic": "Restricciones",
-        "a": "Ya existen <b>Kubernetes en AWS con nodos GPU</b> (hay L4), Prometheus y Kafka. Las transcripciones guardadas se retienen ≈ <b>30 días</b> (configurable por organización), y hay un indicador visible de “subtítulos activados”. Hay clientes en México (LFPDPPP), Brasil, EE. UU. y algunos en la Unión Europea. El presupuesto no tiene un número cerrado."
+        "a": "Ya existen <b>Kubernetes en AWS con nodos GPU</b> (hay L4), Prometheus y Kafka. Todo corre en <b>una sola región de AWS (us-east-1, tres zonas)</b>, también los media servers, para todos los usuarios. Las transcripciones guardadas se retienen ≈ <b>30 días</b> (configurable por organización), y hay un indicador visible de “subtítulos activados”. Hay clientes en México (LFPDPPP), Brasil, EE. UU. y algunos en la Unión Europea. El presupuesto no tiene un número cerrado."
       }
     ],
   };

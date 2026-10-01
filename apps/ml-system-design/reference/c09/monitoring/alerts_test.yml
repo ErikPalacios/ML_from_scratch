@@ -158,6 +158,35 @@ tests:
           - labels: 'fraud:feature_watermark_lag_seconds{job="merchant-aggregates"}'
             value: 0
 
+  # El job card-aggregates MUERE en el minuto 10: su serie deja de existir (no se traba: desaparece).
+  # merchant-aggregates sigue al día y el grupo stream no pierde lookups (el online store sirve los valores
+  # congelados). Sin la rama watermark_missing, nada dispara: el lag de card-aggregates ya no existe.
+  # Sin muestras en (t − 5m, t] desde el minuto 15 → firing en el 20, con el job en el label.
+  - interval: 1m
+    input_series:
+      - series: 'fraud_feature_watermark_timestamp_seconds{job="card-aggregates"}'
+        values: '0+60x10'
+      - series: 'fraud_feature_watermark_timestamp_seconds{job="merchant-aggregates"}'
+        values: '0+60x40'
+      - series: 'fraud_feature_lookups_total{group="stream"}'
+        values: '0+1000x40'
+      - series: 'fraud_feature_defaults_total{group="stream"}'
+        values: '0x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FeatureFreshnessLag", alertstate="firing"}
+        eval_time: 14m
+        exp_samples: []
+      - expr: ALERTS{alertname="FeatureFreshnessLag", alertstate="firing"}
+        eval_time: 22m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FeatureFreshnessLag", alertstate="firing", severity="page", cause="watermark_missing", job="card-aggregates"}'
+            value: 1
+      - expr: fraud:feature_watermark_lag_seconds
+        eval_time: 22m
+        exp_samples:
+          - labels: 'fraud:feature_watermark_lag_seconds{job="merchant-aggregates"}'
+            value: 0
+
   # ---------------------------------------------------------------- RulesEngineErrors
   # 1,000 evaluaciones/min; desde el minuto 10, la regla de ticket máximo falla en 5/min (0.5 %) → page.
   - interval: 1m

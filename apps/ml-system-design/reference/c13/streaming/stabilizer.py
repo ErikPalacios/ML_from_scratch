@@ -9,6 +9,11 @@ parpadeo (flicker) y cansa más que esperar un poco. La regla de esta referencia
   * Lo congelado no se reescribe aunque la hipótesis nueva diga otra cosa. Solo el FINAL puede corregirlo
     (y eso se cuenta aparte: `final_corrections`).
   * Lo que todavía no se congeló es "tentativo": el cliente lo muestra (p. ej. en gris) y puede cambiar.
+  * Qué se mostró en cada lugar se busca por TIEMPO, no por posición: la palabra del modelo que se congela
+    toma el texto de la(s) palabra(s) en pantalla que se superponen con ella (mismo inicio, o más de la mitad
+    de la más corta). Si el modelo parte "pato" en "pa" + "to", o junta "pa" + "to" en "pato", o mete una
+    palabra en el medio, las posiciones se corren y los tiempos no. Cada palabra en pantalla se congela una
+    sola vez, y lo que el modelo puso adentro de una palabra ya congelada se descarta: nunca hay duplicados.
 
 Ejemplo (freeze_after_ms = 800), con la hipótesis en cada paso y el audio procesado hasta `audio_ms`:
 
@@ -67,7 +72,8 @@ class Stabilizer:
     def __init__(self, freeze_after_ms: int = 800) -> None:
         self.freeze_after_ms = freeze_after_ms
         self._frozen: list[Word] = []  # palabras congeladas, con el texto que se MOSTRÓ (no el último del modelo)
-        self._shown_tail: tuple[str, ...] = ()  # lo tentativo del último partial (para congelar lo que se vio)
+        # Lo tentativo del último partial, CON sus tiempos: para congelar lo que se vio en ese lugar del audio
+        self._shown_tail: tuple[Word, ...] = ()
 
     @property
     def frozen_end_ms(self) -> int:
@@ -76,23 +82,32 @@ class Stabilizer:
     def partial(self, words: list[Word], audio_ms: int) -> Display:
         """Nueva hipótesis parcial del modelo, con el audio procesado hasta `audio_ms`."""
         cutoff = audio_ms - self.freeze_after_ms
-        # Solo palabras posteriores a lo ya congelado (por tiempo, no por índice: si el modelo junta o parte
-        # palabras viejas, el índice se corre y el tiempo no)
-        tail = [w for w in words if w.start_ms >= self.frozen_end_ms]
-        # Congelar el prefijo de la cola que ya es viejo. Se congela con el texto que estaba EN PANTALLA en
-        # esa posición si existía: congelar significa "lo que viste no cambia", no "lo último que dijo el modelo".
-        n_new = 0
-        for w in tail:
-            if w.end_ms <= cutoff:
-                n_new += 1
+        used: set[int] = set()  # índices de _shown_tail ya congelados (cada uno, una vez)
+        rest: list[Word] = []
+        freezing = True
+        for w in words:
+            # Solo palabras posteriores a lo ya congelado. Por tiempo, no por índice: si el modelo junta o
+            # parte palabras viejas, el índice se corre y el tiempo no. Esto también descarta el "to" de un
+            # "pa" + "to" cuando "pato" (lo que estaba en pantalla) ya se congeló hasta 480 ms.
+            if w.start_ms < self.frozen_end_ms:
+                continue
+            if freezing and w.end_ms <= cutoff:
+                # Congelar con el texto que estaba EN PANTALLA en ese tramo de audio, si existía: congelar
+                # significa "lo que viste no cambia", no "lo último que dijo el modelo".
+                shown = [k for k, sw in enumerate(self._shown_tail) if k not in used and _same_place(sw, w)]
+                if shown:
+                    used.update(shown)
+                    for k in shown[:-1]:
+                        self._frozen.append(self._shown_tail[k])
+                    last = self._shown_tail[shown[-1]]
+                    self._frozen.append(Word(last.text, last.start_ms, max(last.end_ms, w.end_ms)))
+                else:
+                    self._frozen.append(w)  # nadie lo vio todavía (palabra nueva o insertada): la del modelo
             else:
-                break
-        for k, w in enumerate(tail[:n_new]):
-            shown = self._shown_tail[k] if k < len(self._shown_tail) else w.text
-            self._frozen.append(Word(shown, w.start_ms, w.end_ms))
-        rest = tail[n_new:]
-        self._shown_tail = tuple(w.text for w in rest)
-        return Display(frozen=tuple(w.text for w in self._frozen), tentative=self._shown_tail)
+                freezing = False  # el prefijo congelado es contiguo: después de la primera tentativa, nada más
+                rest.append(w)
+        self._shown_tail = tuple(rest)
+        return Display(frozen=tuple(w.text for w in self._frozen), tentative=tuple(w.text for w in rest))
 
     def final(self, words: list[Word]) -> tuple[Display, int]:
         """El final reemplaza todo. Devuelve la pantalla y cuántas palabras CONGELADAS corrigió."""
@@ -102,6 +117,14 @@ class Stabilizer:
         self._frozen = []
         self._shown_tail = ()
         return Display(frozen=final_words, tentative=(), is_final=True), corrections
+
+
+def _same_place(a: Word, b: Word) -> bool:
+    """¿Las dos palabras ocupan el mismo lugar del audio? Mismo inicio, o se superponen más de la mitad de
+    la más corta ("pa" 200–300 y "pato" 200–480 sí; "pato" 200–480 y "se" 600–900 no)."""
+    overlap = min(a.end_ms, b.end_ms) - max(a.start_ms, b.start_ms)
+    shorter = min(a.end_ms - a.start_ms, b.end_ms - b.start_ms)
+    return a.start_ms == b.start_ms or (overlap > 0 and 2 * overlap > shorter)
 
 
 @dataclass(frozen=True)

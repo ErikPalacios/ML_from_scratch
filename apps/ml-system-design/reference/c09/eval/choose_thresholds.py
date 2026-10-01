@@ -24,8 +24,11 @@ chequeo: si la grilla da algo muy lejos, el modelo está descalibrado o los cost
 Datos de entrada: una fila por pago con `score` (del modelo CANDIDATO re-scoreando el pasado, no el
 score que logueó el modelo viejo), `amount_cents`, `label` (1/0, o NaN si nunca tendrá etiqueta: lo que
 el sistema anterior declinó) y opcionalmente `weight` (1/propensity en la exploración).
-  - las tasas (decline, step-up) se miden sobre TODAS las filas: el tope es sobre el tráfico real;
-  - el costo y el recall, solo sobre filas etiquetadas. Lo que el sistema viejo declinó no tiene
+  - las tasas (decline, step-up) se miden sobre TODAS las filas y SIN peso: cada fila es un pago real y
+    el tope es sobre el tráfico real. Pesarlas contaría dos veces la región que el sistema viejo
+    declinaba: una por sus filas sin etiqueta (que también están en la entrada) y otra por los
+    explorados, que con peso 1/propensity ya la representan entera;
+  - el costo y el recall, solo sobre filas etiquetadas y CON peso. Lo que el sistema viejo declinó no tiene
     etiqueta: la exploración (pesada) es lo único que dice algo de esa región. Sin ella, el costo de
     "aprobar más" está subestimado. Es el sesgo de selección del caso, y aquí no se resuelve: se mide.
 """
@@ -85,7 +88,7 @@ def grid(df: pd.DataFrame, c: Costs = Costs(), step_grid: np.ndarray = DEFAULT_G
     fraud = labeled & (label == 1)
     good = labeled & (label == 0)
     loss = amount + c.chargeback_fee_usd
-    w_all, w_lab = w.sum(), w[labeled].sum()
+    n_all, w_lab = len(df), w[labeled].sum()  # tasas: sin peso (cada fila, un pago); costo: con peso
     fraud_value = (w * amount * fraud).sum()
     rows = []
     for t_s in step_grid:
@@ -103,8 +106,8 @@ def grid(df: pd.DataFrame, c: Costs = Costs(), step_grid: np.ndarray = DEFAULT_G
             rows.append({
                 "step_up": float(t_s), "decline": float(t_d),
                 "cost_per_1000": 1000 * cost / w_lab if w_lab else np.nan,
-                "decline_rate": (w * dec).sum() / w_all,
-                "step_up_rate": (w * stp).sum() / w_all,
+                "decline_rate": dec.sum() / n_all,
+                "step_up_rate": stp.sum() / n_all,
                 "good_decline_rate": (w * good * dec).sum() / max((w * good).sum(), 1e-12),
                 "good_step_up_rate": (w * good * stp).sum() / max((w * good).sum(), 1e-12),
                 "value_recall": caught / fraud_value if fraud_value else np.nan,  # US$ de fraude frenado

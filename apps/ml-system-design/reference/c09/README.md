@@ -23,7 +23,7 @@ c09/
 │   │                        #   de idempotencia por payment_id (devuelve lo que vio la 1.ª llamada), fake
 │   ├── point_in_time.py     # set de entrenamiento: features "como eran" (pandas), dedupe, as-of join de
 │   │                        #   snapshots batch, etiqueta madura, filas inmaduras fuera, solo autorizados
-│   └── tests/               # test_online_counters.py (11), test_point_in_time.py (10: paridad online == offline)
+│   └── tests/               # test_online_counters.py (12), test_point_in_time.py (12: paridad online == offline)
 ├── scoring/
 │   ├── service.py           # FastAPI POST /v1/score: presupuesto, caché de decisión, contadores + features
 │   │                        #   en paralelo, reglas, GBDT en su executor, decisión, log, métricas, demo
@@ -32,11 +32,11 @@ c09/
 │   ├── policy.yaml          # umbrales por segmento, tope de declines, exploración, límites, comercios
 │   ├── synthetic.py         # datos SINTÉTICOS para tests y demo (no es un modelo de fraude)
 │   ├── requirements.txt     # lock completo de la imagen (25 paquetes)
-│   └── tests/               # test_service.py (20), test_policy_rules.py (18)
+│   └── tests/               # test_service.py (23), test_policy_rules.py (23)
 ├── eval/
 │   ├── choose_thresholds.py # costo esperado por 1,000 pagos sobre una grilla (step-up, decline) con tope
 │   ├── label_maturity.py    # curva de llegada de chargebacks, cohortes evaluables, tasa completada
-│   └── tests/test_eval_c09.py   # 12 tests (cálculo a mano, Bayes vs grilla, sesgo de cohortes jóvenes)
+│   └── tests/test_eval_c09.py   # 13 tests (cálculo a mano, Bayes vs grilla, sesgo de cohortes jóvenes)
 ├── monitoring/
 │   ├── alerts.yml           # 8 alertas (9 reglas: RulesEngineErrors tiene 2) + 12 recording rules
 │   └── alerts_test.yml      # tests de promtool
@@ -74,10 +74,15 @@ t = 0       el orquestador de pagos (con el PAN ya tokenizado) llama POST /v1/sc
             exploración (1 % de los declines de riesgo medio → step-up, con propensity 0.01)
             → respuesta: decision, reason_codes, score, segment, path, versiones, latency_ms
             → log de la decisión con el FEATURE SNAPSHOT (fraud-decisions), sin bloquear
-si step-up  3-D Secure; el orquestador llama OTRA VEZ con el mismo payment_id y three_ds_result:
-            los contadores no suman y devuelven lo que vio la primera llamada → approve o decline
-después     chargebacks por fraude (hasta ≈ 120 días) y fraude confirmado → tabla de etiquetas;
-            point_in_time.py arma el set con los pagos autorizados de cohortes maduras (≥ 90 días)
+si step-up  3-D Secure; el orquestador llama OTRA VEZ con el mismo payment_id y three_ds_result
+            (path="three_ds_result"): se aplica el resultado a la decisión de la primera, sin volver a
+            correr el modelo (las features stream ya incluirían al propio pago). failed → decline;
+            authenticated → approve, salvo una regla de review o decline. Los contadores no suman y
+            devuelven lo que vio la primera llamada (las reglas ven lo mismo)
+después     chargebacks por fraude (hasta ≈ 120 días), reportes de fraude del emisor (TC40, Fraud and
+            Loss Database: los únicos para los pagos con 3DS) y fraude confirmado → tabla de etiquetas;
+            point_in_time.py arma el set con los pagos autorizados de cohortes maduras (≥ 90 días):
+            features del primer registro del pago, decisión final del último (el step-up aprobado entra)
 ```
 
 ### Modos y degradación
@@ -94,7 +99,9 @@ después     chargebacks por fraude (hasta ≈ 120 días) y fraude confirmado �
 
 `fallback` por segmento (`policy.yaml`): approve en todos salvo `digital_high`, que hace step-up a todo
 mientras no haya modelo. Sin 3-D Secure disponible, el step-up se resuelve con otro corte
-(`no_3ds_decline`): decline si el score lo pasa, approve si no.
+(`no_3ds_decline`): decline si el score lo pasa, approve si no. Sin modelo Y sin 3-D Secure no hay score
+que cortar: decide `fallback_no_3ds` del segmento (decline en `digital_high`, approve en los demás), para
+que el "step-up a todo" de `digital_high` no se vuelva un approve a ciegas con las tarjetas sin 3DS.
 
 ### El request y la respuesta
 
@@ -103,7 +110,8 @@ orquestador convierte), `currency`, `card_token` (un PAN con Luhn válido se rec
 repetirlo), `card_bin_country`, `ip_hash`, `ip_country`, `device_hash`, `email_hash`,
 `three_ds_available` (default true), `three_ds_result` (`authenticated` | `failed`, solo en la segunda
 llamada). Respuesta: `payment_id`, `decision` (`approve` · `step_up` · `review` · `decline`),
-`reason_codes`, `score` (null en rules-only), `segment`, `path`, `groups_defaulted`, `fallback_reason`, `exploration`,
+`reason_codes`, `score` (null en rules-only y en la 2.ª llamada), `segment`, `path` (`model` · `rules_only` ·
+`three_ds_result`), `groups_defaulted`, `fallback_reason`, `exploration`,
 `model_version`, `policy_version`, `feature_set_version`, `latency_ms`, `replayed`.
 
 Reason codes: `APPROVED_LOW_RISK`, `MODEL_MEDIUM_RISK`, `MODEL_HIGH_RISK`, `FALLBACK_RULES_ONLY`,
@@ -113,7 +121,8 @@ Reason codes: `APPROVED_LOW_RISK`, `MODEL_MEDIUM_RISK`, `MODEL_HIGH_RISK`, `FALL
 `MERCHANT_BLOCKED_COUNTRY`.
 
 El registro de decisión (tópico `fraud-decisions`) lleva los campos del request (sin PAN), `event_time`
-(el reloj del servicio: el mismo que usa el backfill), `features` (las 16, NaN → null), `groups_defaulted`,
+(el reloj del servicio: el mismo que usa el backfill), `features` (las 16, NaN → null; null entero en la
+2.ª llamada, que no corre el modelo), `groups_defaulted`,
 `rule_hits`, `rule_errors`, `propensity` y los campos de la respuesta. Es la evidencia de una disputa y la
 fuente del set de entrenamiento.
 
@@ -124,7 +133,8 @@ fuente del set de entrenamiento.
 | `fraud_score_requests_total` | status | dashboards |
 | `fraud_score_duration_seconds` (histograma, buckets en 0.08 y 0.1) | — | FraudScoreLatencyHigh |
 | `fraud_stage_duration_seconds` | stage (`cache`, `counters`, `features`, `rules`, `model`, `cache_put`) | runbook de latencia |
-| `fraud_decisions_total` | decision, segment | FraudFallbackActive, DeclineRateSpike, StepUpRateSpike |
+| `fraud_decisions_total` | decision, segment | FraudFallbackActive, DeclineRateSpike, StepUpRateSpike (una por pago: la 1.ª llamada) |
+| `fraud_step_up_results_total` | decision, segment | dashboards (qué pasó después de 3-D Secure; aparte para no contar dos veces un pago) |
 | `fraud_fallback_total` | reason | FraudFallbackActive |
 | `fraud_feature_lookups_total`, `fraud_feature_defaults_total` | group (`sync`, `stream`, `batch`) | FeatureFreshnessLag |
 | `fraud_rule_evaluations_total`, `fraud_rule_hits_total{rule,reason}`, `fraud_rule_errors_total{rule}` | | RulesEngineErrors |
@@ -132,7 +142,7 @@ fuente del set de entrenamiento.
 | `fraud_model_score` (histograma) | segment | ScoreDistributionShift |
 | `fraud_exploration_total` | segment | dashboards (¿sigue en ≈ 1 %?) |
 | `fraud_counter_duplicates_total`, `fraud_idempotent_replays_total` | — | dashboards (reintentos) |
-| `fraud_decision_log_dropped_total`, `fraud_decision_cache_errors_total` | — | dashboards |
+| `fraud_decision_log_dropped_total`, `fraud_decision_cache_errors_total` | — | dashboards (súmale una alerta a la primera si tu set de entrenamiento sale de este tópico) |
 
 Métricas de otros componentes que usan las alertas (no están en esta carpeta):
 `fraud_feature_watermark_timestamp_seconds{job}` (gauge propio de los jobs de Flink, no una métrica de
@@ -145,7 +155,7 @@ Flink), `fraud_cohort_chargeback_bps{days_since_tx}` (job diario de etiquetas) y
 |---|---|---|---|
 | Sistema | `FraudScoreLatencyHigh` | p99 server-side > 80 ms (presupuesto interno; SLO 100 ms en el caller), 5 min | page |
 | Sistema | `FraudFallbackActive` | > 1 % de decisiones rules-only, o > 0.5 % de timeouts en el orquestador, o sin métricas (`cause`); 5 min | page |
-| Sistema | `FeatureFreshnessLag` | watermark de un job de Flink > 5 min atrás, o > 5 % de lookups stream sin respuesta; 5 min | page |
+| Sistema | `FeatureFreshnessLag` | watermark de un job de Flink > 5 min atrás, o un job esperado sin watermark (muerto) > 5 min, o > 5 % de lookups stream sin respuesta; 5 min | page |
 | Sistema | `RulesEngineErrors` | reglas rotas en > 0.1 % de las evaluaciones, 5 min (page) · lista negra generada hace > 30 h (ticket) | page / ticket |
 | Modelo | `DeclineRateSpike` | declines de un segmento en 30 min > 2× la misma hora de la semana pasada y > 0.5 %, o > 1.5 % (tope); ≥ 1 decisión/s; 15 min | page |
 | Modelo | `StepUpRateSpike` | step-up > 2× la semana pasada y > 2 %, ≥ 1 decisión/s; 30 min | ticket |
@@ -164,7 +174,7 @@ segmento chico del test dispara por la rama de la semana pasada y el test falla:
 cd reference/c09
 python3 -m venv .venv && . .venv/bin/activate      # Python 3.13 (o 3.12)
 pip install -r requirements-dev.txt
-pytest                                              # 71 tests, < 1 min
+pytest                                              # 83 tests, < 1 min
 pytest -s scoring/tests -k latency                  # imprime p50/p99 de una predicción en TU CPU
 python eval/choose_thresholds.py                    # el ejemplo de umbrales por segmento
 
@@ -177,12 +187,18 @@ promtool test rules alerts_test.yml                 # ≈ 30 s: simula 8 días d
 
 ```bash
 cd reference/c09/scoring
-PYTHONPATH=../features uvicorn --factory service:demo_app --port 8080   # entrena el GBDT sintético (≈ 6–8 s)
+PYTHONPATH=../features uvicorn --factory service:demo_app --port 8080   # entrena el GBDT sintético (≈ 2–8 s según la máquina)
 curl -s localhost:8080/readyz
 # 6 intentos de la misma tarjeta: el sexto sale decline por VELOCITY_CARD_60S
 for i in 1 2 3 4 5 6; do curl -s -X POST localhost:8080/v1/score -H 'content-type: application/json' \
   -d "{\"payment_id\":\"ct-$i\",\"merchant_id\":\"m_shop\",\"mcc\":\"5411\",\"amount_cents\":100,\"currency\":\"MXN\",\"card_token\":\"tok_demo_0001\",\"ip_hash\":\"ip_demo\",\"device_hash\":\"dev_demo\"}"; echo; done
-# una tarjeta nueva (tok_new…): step-up; repítelo con "three_ds_result":"authenticated" y sale approve
+# una tarjeta nueva (tok_new…) con un ticket de US$25: step-up (con US$1 el modelo sintético la aprueba)
+NEW='{"payment_id":"new-1","merchant_id":"m_shop","mcc":"5411","amount_cents":2500,"currency":"MXN","card_token":"tok_new_0001","ip_hash":"ip_demo","device_hash":"dev_demo"'
+curl -s -X POST localhost:8080/v1/score -H 'content-type: application/json' -d "$NEW}"; echo   # step_up
+curl -s -X POST localhost:8080/v1/score -H 'content-type: application/json' -d "$NEW}"; echo   # replayed
+# la 2.ª llamada, después del desafío: approve con STEP_UP_AUTHENTICATED, path "three_ds_result"
+curl -s -X POST localhost:8080/v1/score -H 'content-type: application/json' \
+  -d "$NEW,\"three_ds_result\":\"authenticated\"}"; echo
 curl -s localhost:8080/metrics | grep '^fraud_'
 ```
 
@@ -212,14 +228,14 @@ Probado en macOS (Apple Silicon, 10 cores), sin Redis, sin Kafka, sin Flink y si
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests de las 3 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14 | 71 passed en los dos |
-| Paridad online == offline | 1,500 pagos sintéticos con reintentos, faltantes y ráfagas por `OnlineCounters` (fake) y por `point_in_time.py`: las 10 features por ventana, valor por valor; también con `include_current=True` | iguales; el `BETWEEN` "ingenuo" difiere en el 100 % de las filas |
+| Tests de las 3 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14 | 83 passed en los dos |
+| Paridad online == offline (de la DEFINICIÓN) | 1,500 pagos sintéticos con reintentos, faltantes y ráfagas, en serie, por `OnlineCounters` (fake de un hilo, un reloj) y por `point_in_time.py`: las 10 features por ventana, valor por valor; también con `include_current=True` | iguales; el `BETWEEN` "ingenuo" difiere en el 100 % de las filas. No prueba que producción haya visto esos valores (lag del watermark, orden de scripts concurrentes en Redis, contadores con timeout): para pagos ya scoreados, el set usa el snapshot del log (`use_logged_features=True`, con su test) |
 | Servicio con fakes | TestClient con un event loop persistente: KV store lento o caído, online store lento, sin stream o sin batch, modelo lento, con error, con score 1.7 o sin cargar, caché caída, reintentos, segunda llamada después de 3DS, PAN en `card_token` | cada caso sale por el modo esperado y en < 100 ms de reloj; el PAN no aparece ni en la respuesta ni en el log |
 | Latencia del GBDT | 500 predicciones de 1 fila en un thread, con y sin `threadpool_limits(1)` en el `initializer` del executor | 1 thread: p50 ≈ 0.3–0.5 ms, p99 < 1 ms; OpenMP por defecto (10 threads): p50 ≈ 1.5–4 ms, p99 de 2 a 30 ms según la carga de la máquina. Limitar solo el thread principal no cambia nada (p50 ≈ 1.45 ms en el executor) |
-| Demo con uvicorn real | `uvicorn --factory service:demo_app` + curl | el sexto intento de una tarjeta en segundos sale `VELOCITY_CARD_60S`; tarjeta nueva → step-up → con `authenticated` → approve; lista negra → decline; reintento → `replayed`; PAN → 422; ≈ 1 ms por request en el servicio |
+| Demo con uvicorn real | `uvicorn --factory service:demo_app` + los curl de arriba | el sexto intento de una tarjeta en segundos sale `VELOCITY_CARD_60S`; tarjeta nueva con US$25 → step-up (score ≈ 0.07) → con `authenticated` → approve sin re-scorear; lista negra → decline; reintento → `replayed`; PAN → 422; ≈ 1 ms por request en el servicio |
 | Umbrales | contra el cálculo a mano; grilla vs regla de Bayes con scores calibrados; el tope de declines cuesta y se ve | `policy.yaml` coincide con `bayes_thresholds()` al ticket típico (un test lo exige) |
 | Madurez de etiquetas | 600,000 pagos sintéticos con 60 % de chargebacks a 30 días y 90 % a 60 | la curva recupera 0.60 y 0.90; usar cohortes jóvenes infla la curva a 30 días en ≈ 7 puntos |
-| Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 21 reglas OK; los tests de las 8 alertas pasan; 16 mutaciones (cada umbral al otro lado de las series del test, el volumen mínimo, la rama `absent`) hacen fallar algún test |
+| Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 21 reglas OK; los tests de las 8 alertas pasan (≈ 35 s); 17 mutaciones (cada umbral al otro lado de las series del test, el volumen mínimo, la rama `absent`, la rama `watermark_missing` de un job muerto) hacen fallar algún test |
 | Lock de dependencias | `uv pip compile` para Linux x86_64 y Python 3.13 | 25 paquetes; el mismo resultado para macOS arm64 |
 
 **No verificado** (requiere Redis, Kafka, Flink, un cluster o datos reales):

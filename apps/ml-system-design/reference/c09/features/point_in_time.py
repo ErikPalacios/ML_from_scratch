@@ -2,8 +2,8 @@
 
 Entrada: el log de eventos de pago (un renglón por intento SCOREADO, aprobado o no: los contadores
 online cuentan intentos, y un ataque de card testing está hecho de intentos declinados) y la tabla de
-etiquetas (chargebacks por fraude y fraude confirmado). Salida: una fila por pago autorizado y maduro,
-con las MISMAS features que vio el servicio de scoring.
+etiquetas (chargebacks por fraude, reportes de fraude del emisor y fraude confirmado). Salida: una fila por pago autorizado y maduro,
+con las features definidas IGUAL que en el servicio de scoring (ver "Qué prueba la paridad", abajo).
 
 Las 5 reglas, cada una con la trampa que evita:
 
@@ -11,24 +11,45 @@ Las 5 reglas, cada una con la trampa que evita:
    eventos ANTERIORES en el orden del log (event_time y, a igual event_time, el orden de llegada): el
    pago no entra en su propio agregado. Trampa: un `BETWEEN ts - 60 AND ts` en SQL incluye al propio
    pago, y "0 intentos previos" pasa a ser "1".
-2. Duplicados por payment_id (reintentos del orquestador) se quedan una vez: el primero. Online la
-   guardia de idempotencia hace lo mismo.
+2. Duplicados por payment_id se quedan una vez. Hay dos tipos: reintentos del orquestador (la misma
+   decisión) y la 2.ª llamada de un step-up (step_up y después approve o decline, con el resultado de
+   3-D Secure). Features y propensity salen del PRIMER renglón (lo que vio el modelo; online, la guardia
+   de idempotencia hace lo mismo); la decisión FINAL sale del ÚLTIMO (`final_decision`). Trampa:
+   quedarse solo con el primero deja cada step-up como "no autorizado" y tira la banda de riesgo medio
+   y TODA la exploración.
 3. Features batch con un as-of join sobre `available_at` (cuándo se PUBLICÓ el snapshot), estrictamente
    antes del pago. Trampa: unir por fecha del snapshot le da al pago de la 01:00 un valor que se calculó
    esa madrugada con datos que incluyen al propio pago (leakage).
-4. Etiqueta = chargeback por fraude o fraude confirmado con `label_time ≤ event_time + maturity_days`.
+4. Etiqueta = cualquier fila de la tabla de etiquetas (chargeback por fraude, reporte de fraude del
+   emisor —TC40 en Visa, Fraud and Loss Database en Mastercard— o fraude confirmado; aquí no se
+   distingue la fuente) con `label_time ≤ event_time + maturity_days`. Los reportes del emisor son
+   OBLIGATORIOS para los pagos autenticados con 3-D Secure (la exploración incluida): con liability
+   shift su fraude casi nunca llega como chargeback, y "sin chargeback = bueno" subestimaría el fraude
+   de la banda que la exploración quiere medir. La tabla sintética de los tests no modela las fuentes.
    Los pagos más jóvenes que `maturity_days` respecto de `as_of` NO son negativos: se DESCARTAN (y se
    cuentan). Trampa: con 30 días de antigüedad llegó ≈ 60 % de los chargebacks (estimación del caso); si
    los etiquetas como negativos, el modelo aprende que lo reciente es seguro, justo lo que el fraude
    nuevo aprovecha.
-5. Solo los pagos AUTORIZADOS pueden recibir un chargeback. Los declinados (y los step-up abandonados)
-   no tienen etiqueta: se usan para las features (cuentan como intentos) pero no como filas. Es el sesgo
-   de selección del caso: el modelo nunca ve qué habría pasado con lo que bloqueó. Las filas de la
-   exploración (≈ 1 % de lo que se iba a declinar, mandado a step-up) llevan peso 1/propensity.
+5. Solo los pagos AUTORIZADOS pueden recibir un chargeback: los que terminaron en approve o review,
+   incluido el step-up que pasó 3-D Secure (por eso cuenta la decisión FINAL, regla 2). Los declinados,
+   los que fallaron el desafío y los step-up abandonados (sin 2.ª llamada) no tienen etiqueta: se usan
+   para las features (cuentan como intentos) pero no como filas. Es el sesgo de selección del caso: el
+   modelo nunca ve qué habría pasado con lo que bloqueó. Las filas de la exploración (≈ 1 % de lo que
+   se iba a declinar, mandado a step-up) llevan peso 1/propensity.
+
+Qué prueba la paridad, y qué no. El test reproduce el log, en serie, por OnlineCounters (un fake de un
+hilo con un solo reloj) y exige el mismo valor que este archivo, pago por pago: prueba que la DEFINICIÓN
+es la misma. No prueba que producción haya visto esos valores: (1) las features stream se sirven con el
+lag del watermark de Flink (≈ 2–5 s normal, minutos en un incidente; est.), y aquí se cuenta todo lo
+anterior con lag 0, así que en una ráfaga de card testing el recálculo ve intentos que serving no vio;
+(2) event_time es el reloj de cada pod y `seq` el offset de Kafka, y ninguno es el orden en que Redis
+aplicó dos scripts concurrentes de la misma tarjeta; (3) un pago cuyo contador hizo timeout puede no
+haberse contado online, y aquí sí. Por eso, para los pagos ya scoreados, el set usa el FEATURE SNAPSHOT
+del log de decisiones (`use_logged_features=True`: lo que vio el modelo), y el recálculo queda para
+features nuevas y backfills (ahí conviene simular el lag del tier stream; no está implementado aquí).
 
 En producción esto es un job de Spark/SQL sobre el data lake (window functions por entidad); aquí es
-pandas para poder leerlo y probarlo. El test de paridad reproduce un stream por OnlineCounters y exige
-el mismo valor que este archivo, pago por pago.
+pandas para poder leerlo y probarlo.
 """
 
 from __future__ import annotations  # anotaciones como texto
@@ -62,15 +83,20 @@ class BuildReport:
 
 # ------------------------------------------------------------------------------------ paso 1 y 2
 def order_and_dedupe(events: pd.DataFrame) -> tuple[pd.DataFrame, int]:
-    """Orden del log + un renglón por payment_id (el primero). Devuelve (eventos, duplicados quitados)."""
+    """Orden del log + un renglón por payment_id (el primero) con la decisión FINAL del pago (la del
+    último renglón: el resultado de 3-D Secure en un step-up). Devuelve (eventos, duplicados quitados)."""
     ev = events.copy()
     # `seq` = orden de llegada (offset de Kafka). Si no viene, el orden de las filas. Desempata pagos con
-    # el mismo event_time exactamente como los vio el contador online: en el orden en que llegaron.
+    # el mismo event_time en el orden en que llegaron (la mejor aproximación offline al orden online:
+    # ver "Qué prueba la paridad" arriba).
     if "seq" not in ev.columns:
         ev["seq"] = np.arange(len(ev))
     ev = ev.sort_values(["event_time", "seq"], kind="stable")
     before = len(ev)
+    final = ev.groupby("payment_id", sort=False)["decision"].last() if "decision" in ev.columns else None
     ev = ev.drop_duplicates("payment_id", keep="first").reset_index(drop=True)
+    if final is not None:
+        ev["final_decision"] = ev["payment_id"].map(final)  # features del 1.º, decisión del último
     return ev, before - len(ev)
 
 
@@ -162,12 +188,14 @@ def label_and_filter(rows: pd.DataFrame, labels: pd.DataFrame, as_of: float,
     """Etiqueta madura + filas que pueden tener etiqueta. Devuelve (filas, conteos)."""
     maturity_s = maturity_days * DAY_S
     # 5) solo autorizados. `authorized` lo escribe el orquestador con el resultado final (aprobado por el
-    #    emisor, step-up completado). Sin esa columna, se aproxima con la decisión: approve y review pasan;
-    #    un step-up sin resultado no se puede saber, así que no entra.
+    #    emisor, step-up completado). Sin esa columna, se aproxima con la decisión FINAL del pago (regla 2):
+    #    approve y review pasan, incluido el step-up que pasó 3-D Secure; un step-up que se quedó en
+    #    step_up (sin 2.ª llamada: abandonado) no entra.
     if "authorized" in rows.columns:
         authorized = rows["authorized"].astype(bool)
     else:
-        authorized = rows["decision"].isin(["approve", "review"]) if "decision" in rows.columns \
+        col = "final_decision" if "final_decision" in rows.columns else "decision"
+        authorized = rows[col].isin(["approve", "review"]) if col in rows.columns \
             else pd.Series(True, index=rows.index)
     n_not_auth = int((~authorized).sum())
     rows = rows[authorized]
@@ -190,13 +218,39 @@ def label_and_filter(rows: pd.DataFrame, labels: pd.DataFrame, as_of: float,
     return rows, {"n_not_authorized": n_not_auth, "n_immature": n_immature}
 
 
+def apply_logged_features(rows: pd.DataFrame) -> pd.DataFrame:
+    """Reemplaza lo recalculado por el FEATURE SNAPSHOT del log (columna `features`: el dict que escribió
+    service.py, null = NaN que vio el modelo) en las filas que el modelo scoreó (`path` == "model").
+
+    Las demás (rules-only, logs viejos sin snapshot) se quedan con el recálculo: ahí no hay "lo que vio
+    el modelo". Una feature que el snapshot no trae (nueva en este feature set) también.
+    """
+    if "features" not in rows.columns:
+        return rows
+    out = rows.copy()
+    scored = out["path"].eq("model") if "path" in out.columns else pd.Series(True, index=out.index)
+    for i in out.index[scored]:
+        snap = out.at[i, "features"]
+        if not isinstance(snap, dict):
+            continue
+        for name in d.FEATURE_ORDER:
+            if name in snap:
+                out.at[i, name] = d.DEFAULT_VALUE if snap[name] is None else float(snap[name])
+    return out
+
+
 def build_training_set(events: pd.DataFrame, labels: pd.DataFrame, as_of: float, maturity_days: int = 90,
-                       batch_snapshots: dict[str, pd.DataFrame] | None = None) -> tuple[pd.DataFrame, BuildReport]:
+                       batch_snapshots: dict[str, pd.DataFrame] | None = None,
+                       use_logged_features: bool = False) -> tuple[pd.DataFrame, BuildReport]:
     """Los 5 pasos. `as_of` = el instante del build (epoch s). maturity_days: 90 por defecto (el caso:
-    ≈ 90 % de los chargebacks llega en 60 días; mídelo con eval/label_maturity.py)."""
+    ≈ 90 % de los chargebacks llega en 60 días; mídelo con eval/label_maturity.py).
+    `use_logged_features=True`: para los pagos scoreados, las features del snapshot del log (lo que vio
+    el modelo) en lugar del recálculo; es lo que se usa para entrenar con pagos ya servidos."""
     rows, n_dup = compute_windowed(events)  # 1 y 2: sobre TODOS los intentos (declinados incluidos)
     rows = join_batch(rows, batch_snapshots or {})  # 3
     rows, counts = label_and_filter(rows, labels, as_of, maturity_days)  # 4 y 5
+    if use_logged_features:
+        rows = apply_logged_features(rows)
     n = len(rows)
     pos = int(rows["label"].sum())
     value = rows["amount_cents"].sum()

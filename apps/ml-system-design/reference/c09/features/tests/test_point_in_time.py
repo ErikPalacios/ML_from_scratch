@@ -144,6 +144,48 @@ def test_exploration_rows_carry_inverse_propensity_weight():
     assert w == {"a": 1.0, "e": pytest.approx(100.0)}  # 1 explorado representa ≈ 100 que se habrían declinado
 
 
+def test_step_up_rows_take_the_final_decision_from_the_second_call():
+    """El log tiene DOS renglones por step-up: step_up (con la propensity, si se exploró) y, minutos
+    después, el resultado de 3-D Secure. Quedarse con el primero tiraría toda la exploración."""
+    base = {"device_hash": None, "ip_hash": "ip_1", "email_hash": None, "merchant_id": "m_1",
+            "amount_cents": 5000, "ip_country": "MX", "card_bin_country": "MX"}
+    log = pd.DataFrame([
+        dict(base, payment_id="a", card_token="t1", event_time=T0, decision="approve", propensity=None),
+        # explorado: el modelo quería declinar, fue a step-up, pasó el desafío; fraude al día 10
+        dict(base, payment_id="e", card_token="t2", event_time=T0 + 1, decision="step_up", propensity=0.01),
+        dict(base, payment_id="e", card_token="t2", event_time=T0 + 60, decision="approve", propensity=None),
+        dict(base, payment_id="s", card_token="t3", event_time=T0 + 2, decision="step_up", propensity=None),
+        dict(base, payment_id="s", card_token="t3", event_time=T0 + 61, decision="approve", propensity=None),
+        dict(base, payment_id="f", card_token="t4", event_time=T0 + 3, decision="step_up", propensity=None),
+        dict(base, payment_id="f", card_token="t4", event_time=T0 + 62, decision="decline", propensity=None),
+        dict(base, payment_id="x", card_token="t5", event_time=T0 + 4, decision="step_up", propensity=None),  # abandonó
+    ])
+    rows, report = build_training_set(log, labels_for(log, ["e"], 10), as_of=T0 + 100 * DAY_S)
+    got = {r.payment_id: (r.label, r.weight) for r in rows.itertuples()}
+    assert got == {"a": (0, 1.0), "e": (1, pytest.approx(100.0)), "s": (0, 1.0)}
+    assert report.n_duplicates == 3 and report.n_not_authorized == 2  # falló 3DS y abandonó
+
+
+def test_logged_snapshot_replaces_the_recomputed_features_for_scored_payments():
+    """La paridad prueba la DEFINICIÓN; para entrenar con pagos ya servidos, manda lo que vio el modelo."""
+    base = {"device_hash": None, "ip_hash": "ip_1", "email_hash": None, "merchant_id": "m_1",
+            "amount_cents": 5000, "ip_country": "MX", "card_bin_country": "MX", "decision": "approve"}
+    # Flink iba atrasado: el modelo vio card_count_24h = 0 aunque la tarjeta ya tenía un pago antes
+    seen = {name: None for name in d.FEATURE_ORDER} | {"card_count_24h": 0.0, "card_count_60s": 1.0}
+    log = pd.DataFrame([
+        dict(base, payment_id="p1", card_token="t1", event_time=T0, path="model", features=None),
+        dict(base, payment_id="p2", card_token="t1", event_time=T0 + 30, path="model", features=seen),
+        dict(base, payment_id="p3", card_token="t1", event_time=T0 + 40, path="rules_only", features=seen),
+    ])
+    recomputed, _ = build_training_set(log, labels_for(log, [], 0), as_of=T0 + 100 * DAY_S)
+    logged, _ = build_training_set(log, labels_for(log, [], 0), as_of=T0 + 100 * DAY_S, use_logged_features=True)
+    rec, lg = recomputed.set_index("payment_id"), logged.set_index("payment_id")
+    assert rec.loc["p2", "card_count_24h"] == 1.0 and lg.loc["p2", "card_count_24h"] == 0.0  # lo que vio
+    assert math.isnan(lg.loc["p2", "card_age_days"])  # null en el snapshot = NaN que vio el modelo
+    assert lg.loc["p3", "card_count_24h"] == rec.loc["p3", "card_count_24h"] == 2.0  # rules-only: recálculo
+    assert lg.loc["p1", "card_count_24h"] == 0.0  # sin snapshot: recálculo
+
+
 def test_batch_snapshot_is_joined_by_publication_time_strictly_before():
     base = {"device_hash": None, "ip_hash": "ip_1", "email_hash": "em_1", "merchant_id": "m_1",
             "amount_cents": 1000, "ip_country": "MX", "card_bin_country": "MX", "decision": "approve"}

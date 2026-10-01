@@ -214,6 +214,35 @@ tests:
           - labels: 'ALERTS{alertname="ASRCapacityHeadroomLow", alertstate="firing", severity="page"}'
             value: 1
 
+  # La fracción de pistas con voz baja: los streams están bien (300 de 450 por pod = 67 %), pero cada pod
+  # tiene 1,350 de 1,500 sesiones (90 %): el router está por rechazar pistas con GPUs de sobra. Dispara la
+  # rama de sesiones (cause="sessions") y no la de streams.
+  - interval: 1m
+    input_series:
+      - series: 'asr_active_streams{pod="asr-worker-a"}'
+        values: '300x30'
+      - series: 'asr_stream_capacity{pod="asr-worker-a"}'
+        values: '450x30'
+      - series: 'asr_sessions{pod="asr-worker-a"}'
+        values: '1350x30'
+      - series: 'asr_session_capacity{pod="asr-worker-a"}'
+        values: '1500x30'
+    promql_expr_test:
+      - expr: asr:session_utilization
+        eval_time: 5m
+        exp_samples:
+          - labels: 'asr:session_utilization'
+            value: 0.9
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: ASRCapacityHeadroomLow
+        exp_alerts:
+          - exp_labels: {cause: sessions, severity: page}
+            exp_annotations:
+              summary: "Sesiones de ASR al 90% de MAX_SESSIONS (> 85 %)"
+              description: 'kubectl get scaledobject,hpa -n c13 (¿en maxReplicaCount?); kubectl get pods -n c13 | grep Pending (¿nodos GPU?); rate(asr_sessions_rejected_total{reason="capacity"}[5m]). Con cause=no_metrics: el PodMonitor o Prometheus.'
+              runbook_url: "https://runbooks.example.com/c13/capacity"
+
   # Los workers dejan de exportar métricas (falta el PodMonitor): dispara con cause="no_metrics".
   - interval: 1m
     input_series:

@@ -1,4 +1,5 @@
-"""Tests del session router: capacidad, sticky, drain, pérdida de un worker y rebalanceo."""
+"""Tests del session router: capacidad en sesiones y tope de streams, sticky, reconexión a otro worker, drain,
+pérdida de un worker y rebalanceo."""
 
 import pytest
 
@@ -34,6 +35,39 @@ def test_sticky_for_the_life_of_the_session():
         r.assign(f"other-{i}")
     b = r.assign("meeting-1/ana")
     assert b.worker_id == a.worker_id and b.sticky and not a.sticky
+
+
+def test_reconnect_after_overload_goes_to_another_worker():
+    # Dos workers de 1,500 sesiones con 200 cada uno. El worker de s0 cerró con 1013 (su GPU no daba abasto):
+    # al liberar s0 queda con un lugar más que el otro, y "spread" lo elegiría de nuevo. No vuelve ahí.
+    r = fleet(n=2, cap=1500)
+    for i in range(400):
+        r.assign(f"s{i}")
+    first = r.session_worker["s0"]
+    again = r.assign("s0", reconnect=True)
+    assert again.worker_id != first and again.reconnects == 1
+    # El gateway puede nombrar el worker que falló aunque la sesión ya no figure en él
+    assert r.assign("nueva", reconnect=True, exclude="w1").worker_id == "w2"
+    # Con un solo worker con lugar, mejor el mismo que sin captions
+    solo = fleet(n=1, cap=10)
+    solo.assign("a")
+    assert solo.assign("a", reconnect=True).worker_id == "w1"
+
+
+def test_capacity_is_in_sessions_and_a_gpu_at_its_stream_cap_gets_nothing_new():
+    # 1,500 sesiones por worker (≈ 30 % hablando → ≈ 450 streams). w1 reporta su GPU en el tope de streams:
+    # tiene lugares de sesión, pero no recibe nada hasta que reporte menos.
+    r = fleet(n=2, cap=1500)
+    r.report_streams("w1", active_streams=450, stream_capacity=450)
+    r.report_streams("w2", active_streams=100, stream_capacity=450)
+    assert {r.assign(f"s{i}").worker_id for i in range(10)} == {"w2"}
+    r.report_streams("w1", active_streams=300, stream_capacity=450)
+    assert r.assign("s10").worker_id == "w1"  # más lugares de sesión libres
+    # Empate en sesiones → el de menos streams activos
+    t = fleet(n=2, cap=1500)
+    t.report_streams("w1", active_streams=400, stream_capacity=450)
+    t.report_streams("w2", active_streams=50, stream_capacity=450)
+    assert t.assign("x").worker_id == "w2"
 
 
 def test_no_capacity_is_an_explicit_error():

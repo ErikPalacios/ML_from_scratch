@@ -5,10 +5,15 @@
 #
 # Lo que hace distinto a este Deployment (comparado con un servicio sin estado como el gateway del c01):
 #   * Una sesión vive horas en el mismo pod: no hay "request" que termine en 200 ms. Por eso se escala por
-#     STREAMS ACTIVOS (no por CPU ni RPS) y se baja SOLO drenando: preStop → el pod deja de estar Ready,
-#     cada sesión migra en su próximo límite de utterance, y recién ahí llega el SIGTERM.
-#   * Un pod que se va sin drenar le cuesta a ≈ 450 personas ≈ 1–2 s de captions (el gateway reabre su
-#     sesión en otro worker). No es grave para uno; es grave para 50 a la vez (un upgrade de nodos sin PDB).
+#     STREAMS ACTIVOS (sesiones hablando: lo que ocupa la GPU; no CPU ni RPS) y se baja SOLO drenando:
+#     preStop → el pod deja de estar Ready, cada sesión migra en su próximo límite de utterance, y recién
+#     ahí llega el SIGTERM.
+#   * Sesiones y streams activos son contadores distintos: en régimen, cada pod tiene ≈ 1,170 sesiones
+#     conectadas (asr_sessions) y ≈ 350 hablando (asr_active_streams), porque solo ≈ 30 % de las pistas tiene
+#     voz en un momento dado (≈ 60k de ≈ 200k en el pico del caso).
+#   * Un pod que se va sin drenar le cuesta a quienes hablaban en él (≈ 350) ≈ 1–2 s de captions, y obliga a
+#     reabrir ≈ 1,170 sesiones en otros workers. No es grave para uno; es grave para 50 a la vez (un upgrade
+#     de nodos sin PDB).
 #
 # Validación: kubernetes-validate --strict (Kubernetes 1.36) sobre Service, Deployment y PodDisruptionBudget.
 # PodMonitor y ScaledObject son CRDs: se validaron contra el esquema OpenAPI de sus CRDs (KEDA v2.21.0,
@@ -47,7 +52,7 @@ metadata:
 spec:
   # Sin "replicas": las decide el HPA que crea KEDA (20 a 220). Si lo fijas aquí, cada apply pelea con él.
   revisionHistoryLimit: 5  # ReplicaSets viejos para `kubectl rollout undo` (volver al modelo anterior)
-  # Un rollout de ≈ 170 pods que drenan de a poco y esperan nodos GPU nuevos tarda; 30 min antes de
+  # Un rollout de ≈ 172 pods que drenan de a poco y esperan nodos GPU nuevos tarda; 30 min antes de
   # marcarlo como fallido (ProgressDeadlineExceeded).
   progressDeadlineSeconds: 1800
   strategy:
@@ -55,18 +60,24 @@ spec:
     rollingUpdate:
       # Primero suben los pods nuevos (hasta 10 % extra), después drenan los viejos. maxUnavailable 0: la
       # capacidad nunca baja durante un deploy. El modelo nuevo NO llega así a toda la flota de una: antes
-      # pasa por un Deployment canario aparte (asr-worker-canary, mismo Service) con unos pocos pods y la
-      # alerta CanaryWERRegression (no incluido aquí).
+      # pasa por un Deployment canario aparte (asr-worker-canary, no incluido aquí) con unos pocos pods,
+      # réplicas fijas y la alerta CanaryWERRegression.
       maxSurge: 10%
       maxUnavailable: 0
+  # El label "track" separa este Deployment (stable) del canario (canary). Los dos llevan
+  # app.kubernetes.io/name: asr-worker, así el Service, el PDB y el PodMonitor los incluyen a ambos, pero los
+  # selectores de los Deployments NO se superponen (la documentación de Kubernetes pide no superponer
+  # selectores entre controladores: cada uno creería que los pods del otro son suyos).
   selector:
     matchLabels:
       app.kubernetes.io/name: asr-worker
+      track: stable
   template:
     metadata:
       labels:
         app.kubernetes.io/name: asr-worker
         app.kubernetes.io/part-of: c13
+        track: stable  # el PodMonitor lo copia a las métricas (podTargetLabels): KEDA escala solo con estos
     spec:
       # El worker no llama a la API de Kubernetes ni a AWS: sin token montado (menos superficie de ataque).
       automountServiceAccountToken: false
@@ -77,11 +88,13 @@ spec:
       #   margen: ≈ 15 s → 90 s. Si no alcanza, SIGKILL: las sesiones que quedaban se reabren en otro
       #   worker igual (pierden ≈ 1–2 s), así que el costo de quedarse corto está acotado.
       # Por qué 60 s de drain alcanzan: una sesión callada migra al instante; una que habla llega a un
-      # límite de utterance en ≤ 20.6 s (MAX_UTTERANCE_MS 20 s + 600 ms de silencio de endpointing).
+      # límite de utterance en ≤ 20.6 s (MAX_UTTERANCE_MS 20 s + 600 ms de silencio de endpointing), y si la
+      # frase siguiente ya empezó (un corte por tope), espera una más: ≤ 41.2 s.
       terminationGracePeriodSeconds: 90
       nodeSelector:
         # g6.xlarge: 1× NVIDIA L4 (24 GB), 4 vCPU, 16 GiB (≈ US$0.80/h on-demand en us-east-1, verifica).
-        # Un pod por GPU: el caso planea ≈ 500 streams por L4 (estimación) y aquí se aceptan hasta 450.
+        # Un pod por GPU: el caso planea ≈ 500 streams activos por L4 (estimación) y aquí se aceptan hasta 450
+        # (MAX_STREAMS), con hasta 1,500 sesiones conectadas (MAX_SESSIONS).
         node.kubernetes.io/instance-type: g6.xlarge
       tolerations:
         # Los nodos GPU tienen taint para que nada que no use GPU ocupe una máquina de ≈ US$0.80/h
@@ -127,17 +140,28 @@ spec:
             # Con SIGTERM, uvicorn cierra los WebSockets con 1012 y espera a las tareas hasta 10 s
             - --timeout-graceful-shutdown
             - "10"
+            # Tope por mensaje: 64 KiB ≈ 2 s de PCM16 a 16 kHz (más grande → uvicorn cierra con 1009). El
+            # default de uvicorn es 16 MiB (≈ 8.7 min de audio): procesarlo bloquearía el event loop que
+            # comparten todas las sesiones del pod. El ritmo del audio lo limita el server (MAX_AUDIO_RATE).
+            - --ws-max-size
+            - "65536"
           env:
             - name: MODEL_VERSION
               value: 2026-09-20-streaming-asr  # = tag de la imagen; va en el "ready" de cada sesión
             - name: ASR_LANGUAGES
               value: es-419,en-US,pt-BR  # idiomas de lanzamiento (label de métricas: lista cerrada)
             - name: MAX_STREAMS
-              value: "450"  # tope duro por GPU = capacidad que usa el router (KEDA apunta a 350 en promedio)
+              value: "450"  # tope de streams ACTIVOS por GPU (KEDA apunta a 350 en promedio); al llegar, readyz 503
+            - name: MAX_SESSIONS
+              value: "1500"  # tope de sesiones conectadas = capacidad del router (450 ÷ 0.3 de pistas con voz)
             - name: MAX_SESSION_S
               value: "14400"  # 4 h: después el gateway reabre la sesión (guarda contra fugas, no límite de producto)
             - name: MAX_IDLE_S
-              value: "30"  # 30 s sin un frame: la pista murió, liberar el slot
+              value: "30"  # 30 s sin un mensaje (audio o keepalive del gateway): la pista murió
+            - name: MAX_AUDIO_RATE
+              value: "2.0"  # audio más rápido que 2× el tiempo real (+ ráfaga) → 1008
+            - name: AUDIO_BURST_MS
+              value: "2000"
             - name: DRAIN_TIMEOUT_S
               value: "60"  # lo que espera el preStop (ver terminationGracePeriodSeconds)
             - name: CHUNK_MS
@@ -179,7 +203,8 @@ spec:
             periodSeconds: 5
             failureThreshold: 60
           readinessProbe:
-            # 503 mientras drena: el pod sale del Service headless en ≤ 5 s y el router deja de asignarle.
+            # 503 mientras drena (o mientras está lleno: MAX_STREAMS hablando o MAX_SESSIONS conectadas): el pod
+            # sale del Service headless en ≤ 5 s y el router deja de asignarle; vuelve solo cuando baja.
             # failureThreshold 1: drenar es una decisión, no un síntoma que haya que confirmar.
             httpGet:
               path: /readyz
@@ -194,7 +219,8 @@ spec:
             failureThreshold: 3
           lifecycle:
             preStop:
-              # Drain: POST /admin/drain a localhost y esperar a que no queden streams (o DRAIN_TIMEOUT_S).
+              # Drain: POST /admin/drain a localhost y esperar a que no queden SESIONES (o DRAIN_TIMEOUT_S). Las
+              # calladas migran al instante; las que hablan, después de su final.
               # exec (no httpGet): el hook tiene que ESPERAR, y el script nunca falla (ver wait_for_drain).
               exec:
                 command: ["python", "/app/asr_server.py", "drain"]
@@ -235,6 +261,10 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: asr-worker
+  # Copia el label "track" del pod a cada métrica: KEDA escala el Deployment stable con
+  # asr_active_streams{track="stable"} y no cuenta los streams del canario (que tiene réplicas fijas)
+  podTargetLabels:
+    - track
   podMetricsEndpoints:
     - port: http
       path: /metrics
@@ -253,12 +283,16 @@ spec:
   # Piso: 20 L4 aunque de madrugada sobren (el caso: ≈ 60 de noche). Un reinicio masivo a las 3:00 no
   # debe empezar desde 2 pods; el resto de la curva la sigue la métrica.
   minReplicaCount: 20
-  # Techo de costo: el pico del caso pide ≈ 172 L4 (60k streams ÷ 350); 220 deja ≈ 28 % para un día
+  # Techo de costo: el pico del caso pide ≈ 172 L4 (60k streams activos ÷ 350); 220 deja ≈ 28 % para un día
   # atípico. Si no alcanza, ASRCapacityHeadroomLow avisa antes de rechazar sesiones.
   maxReplicaCount: 220
-  pollingInterval: 30  # cada 30 s KEDA consulta Prometheus
-  # Si Prometheus no contesta 3 veces seguidas: max(réplicas actuales, 120). Escalar a ciegas hacia abajo
-  # es lo peligroso (captions rechazados); hacia arriba solo cuesta (≈ 60 L4 extra de noche ≈ US$48/h).
+  # Con minReplicaCount > 0 no se usa para escalar: el HPA pide la métrica a KEDA cada ≈ 15 s
+  # (--horizontal-pod-autoscaler-sync-period) y KEDA consulta Prometheus en cada pedido; pollingInterval
+  # solo refresca el estado y los eventos del ScaledObject (documentación de KEDA 2.21).
+  pollingInterval: 30
+  # Si la consulta a Prometheus falla 3 veces seguidas (los pedidos del HPA, ≈ 45 s): max(réplicas actuales,
+  # 120). Escalar a ciegas hacia abajo es lo peligroso (captions rechazados); hacia arriba solo cuesta
+  # (≈ 60 L4 extra de noche ≈ US$48/h).
   fallback:
     failureThreshold: 3
     replicas: 120
@@ -277,7 +311,7 @@ spec:
               value: 10  # … y al menos 10 pods por minuto cuando la flota es chica
               periodSeconds: 60
         scaleDown:
-          # Bajar MUY despacio: cada pod que se va drena y migra hasta 450 sesiones. 20 min de ventana y
+          # Bajar MUY despacio: cada pod que se va drena y migra ≈ 1,170 sesiones. 20 min de ventana y
           # de a 5 pods cada 5 min: la caída de la tarde es gradual y nadie ve una tormenta de reconexiones.
           # QUÉ pod sale lo elige el ReplicaSet, no el HPA. La anotación controller.kubernetes.io/pod-deletion-cost
           # (beta desde Kubernetes 1.22, de mejor esfuerzo) permite preferir los más vacíos, pero la
@@ -290,9 +324,11 @@ spec:
               periodSeconds: 300
   triggers:
     - type: prometheus
-      # AverageValue (el default, explícito): réplicas = ceil(streams activos totales ÷ 350). 350 = 70 % de
-      # los ≈ 500 streams por L4 del caso (estimación): el 30 % restante absorbe la rampa mientras llegan
-      # nodos. Ejemplo: 60,000 streams ÷ 350 = 171.4 → 172 pods.
+      name: active-streams
+      # AverageValue (el default, explícito): réplicas = ceil(streams activos totales ÷ 350). Streams ACTIVOS =
+      # sesiones con una utterance abierta, no sesiones conectadas (esas son ≈ 200k en el pico: ÷ 350 darían
+      # 572 pods). 350 = 70 % de los ≈ 500 streams por L4 del caso (estimación); de 350 a 450 (MAX_STREAMS)
+      # la flota absorbe un salto de ≈ 28 % mientras llegan nodos. Ejemplo: 60,000 ÷ 350 = 171.4 → 172 pods.
       metricType: AverageValue
       metadata:
         serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090
@@ -300,9 +336,23 @@ spec:
         # visible del scaler (y entra el fallback). Con el default (true) KEDA la toma como 0 y la flota
         # bajaría al mínimo sin que nada avise.
         ignoreNullValues: "false"
-        query: sum(asr_active_streams{namespace="c13"})
+        # track="stable": solo los pods de este Deployment (el canario tiene réplicas fijas)
+        query: sum(asr_active_streams{namespace="c13", track="stable"})
         threshold: "350"
+    - type: prometheus
+      name: connected-sessions
+      # Segundo piso: las sesiones conectadas también tienen tope (MAX_SESSIONS 1,500). Si la fracción de
+      # pistas con voz baja (p. ej. 20 % en vez de 30 %), 350 streams por pod significarían ≈ 1,750 sesiones
+      # y el router rechazaría pistas con GPUs de sobra. Objetivo 1,200 (80 % de 1,500, ilustrativo): en el
+      # pico, 200,000 ÷ 1,200 ≈ 167 pods, por debajo de los 172 de los streams. El HPA toma el máximo.
+      metricType: AverageValue
+      metadata:
+        serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        ignoreNullValues: "false"
+        query: sum(asr_sessions{namespace="c13", track="stable"})
+        threshold: "1200"
     - type: cron
+      name: morning-ramp
       # La métrica reacciona; la rampa de la mañana llega más rápido que un nodo GPU. De lunes a viernes,
       # de 7:30 a 11:00 (hora del centro de México), al menos 120 pods: desiredReplicas actúa como un
       # mínimo dinámico (HPA toma el máximo entre triggers). 120 y el horario son ILUSTRATIVOS: salen de la

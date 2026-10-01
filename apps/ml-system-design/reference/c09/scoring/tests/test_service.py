@@ -91,6 +91,16 @@ class FakeModel:
         return self.value
 
 
+class CountingModel(FakeModel):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.calls = 0
+
+    def predict(self, row):
+        self.calls += 1
+        return super().predict(row)
+
+
 class BrokenCache(InMemoryDecisionCache):
     async def get(self, payment_id):
         raise ConnectionError("cache")
@@ -199,20 +209,50 @@ def test_retry_gets_the_same_answer_and_does_not_double_count(make_client, model
     assert log.records[-1]["features"]["card_count_60s"] == 1.0  # r1 una vez, no dos
 
 
-def test_second_call_after_3ds_is_a_new_decision_without_new_counts(make_client):
+def test_second_call_after_3ds_applies_the_result_without_rescoring(make_client):
     """Step-up → desafío → el orquestador llama otra vez con el MISMO payment_id y el resultado."""
     clock = Clock()
-    client, log = make_client(model=FakeModel(value=0.10), clock=clock)  # retail_low: banda de step-up
+    fake = CountingModel(value=0.10)  # retail_low: banda de step-up
+    client, log = make_client(model=fake, clock=clock)
     first = client.post("/v1/score", json=body("s1")).json()
-    assert first["decision"] == "step_up"
+    assert first["decision"] == "step_up" and fake.calls == 2  # warm-up + la 1.ª llamada
     clock.t = T0 + 40  # 40 s resolviendo el desafío
     second = client.post("/v1/score", json=body("s1", three_ds_result="authenticated")).json()
     assert second["replayed"] is False  # no es un reintento: es otra etapa del pago
     assert second["decision"] == "approve" and "STEP_UP_AUTHENTICATED" in second["reason_codes"]
-    # las features de la segunda llamada son las de la primera: el pago no se contó a sí mismo
-    assert log.records[1]["features"]["card_count_60s"] == log.records[0]["features"]["card_count_60s"] == 0.0
-    failed = client.post("/v1/score", json=body("s2", three_ds_result="failed")).json()
-    assert failed["decision"] == "decline" and "STEP_UP_FAILED" in failed["reason_codes"]
+    assert second["path"] == "three_ds_result" and second["score"] is None
+    assert fake.calls == 2  # el modelo NO corre otra vez
+    assert log.records[1]["features"] is None  # no hay snapshot nuevo: la fila de training usa el de la 1.ª
+    # un pago con step-up cuenta UNA vez en fraud_decisions_total (como step_up); el resultado va aparte
+    assert metric(client, "fraud_decisions_total", '{decision="step_up",segment="retail_low"}') == 1
+    assert metric(client, "fraud_decisions_total", '{decision="approve",segment="retail_low"}') == 0
+    assert metric(client, "fraud_step_up_results_total", '{decision="approve",segment="retail_low"}') == 1
+    # los contadores no sumaron otra vez: el pago siguiente de la tarjeta ve 1 intento previo (s1), no 2
+    client.post("/v1/score", json=body("s3"))
+    assert log.records[-1]["features"]["card_count_60s"] == 1.0
+
+
+@pytest.mark.parametrize("fake,fetcher", [
+    (FakeModel(value=0.02), None),  # el score "de ahora" estaría debajo del step-up
+    (FakeModel(value=0.10), "slow"),  # el online store tarda: antes, rules-only y approve
+])
+def test_a_failed_challenge_is_always_declined(make_client, fake, fetcher):
+    client, _ = make_client(model=fake, fetcher=Fetcher(delay=0.5) if fetcher else None)
+    t = time.perf_counter()
+    out = client.post("/v1/score", json=body("f1", three_ds_result="failed")).json()
+    assert (time.perf_counter() - t) < 0.1  # tampoco espera al online store: no lo llama
+    assert out["decision"] == "decline" and "STEP_UP_FAILED" in out["reason_codes"]
+    assert out["path"] == "three_ds_result" and out["fallback_reason"] is None
+
+
+def test_an_authenticated_payment_is_approved_even_if_the_score_moved(make_client):
+    client, _ = make_client(model=FakeModel(value=0.5))  # retail_low: ≥ 0.443 sería decline
+    out = client.post("/v1/score", json=body("a1", three_ds_result="authenticated")).json()
+    assert out["decision"] == "approve" and "STEP_UP_AUTHENTICATED" in out["reason_codes"]
+    # …pero una regla dura sigue ganando (la tarjeta entró a la lista negra entre las dos llamadas)
+    blocked, _ = make_client(model=FakeModel(value=0.10), blocklists=Blocklists(card=frozenset({"tok_9f2c1a77e0"})))
+    out = blocked.post("/v1/score", json=body("a2", three_ds_result="authenticated")).json()
+    assert out["decision"] == "decline" and "BLOCKLIST_CARD" in out["reason_codes"]
 
 
 def test_retry_with_the_cache_down_is_still_counted_once(make_client, model):
@@ -238,6 +278,9 @@ def test_counters_down_means_rules_only_within_budget(make_client, model, counte
     assert out["path"] == "rules_only" and out["fallback_reason"] == reason and out["score"] is None
     assert out["decision"] == "approve"  # retail_low: fallback approve
     assert metric(client, "fraud_fallback_total", f'{{reason="{reason}"}}') == 1
+    assert out["groups_defaulted"] == ["sync"]
+    assert metric(client, "fraud_feature_defaults_total", '{group="sync"}') == 1
+    assert metric(client, "fraud_feature_lookups_total", '{group="sync"}') == 1
 
 
 def test_with_redis_down_the_local_counter_still_stops_card_testing(make_client, model):

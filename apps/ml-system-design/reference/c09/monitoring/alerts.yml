@@ -116,19 +116,31 @@ groups:
           runbook_url: "https://runbooks.example.com/c09/fraud-fallback"
 
       # Features stream atrasadas más de 5 min (en condiciones normales, ≈ 2–5 s; est.), o > 5 % de lookups
-      # del grupo stream sin respuesta. Con el stream atrasado, el modelo ve "24 h de historia" que en realidad
-      # termina hace 20 min: no falla nada, decide peor. Los contadores sync (60 s) no dependen de esto.
+      # del grupo stream sin respuesta, o un job de Flink que dejó de reportar su watermark. Con el stream
+      # atrasado, el modelo ve "24 h de historia" que en realidad termina hace 20 min: no falla nada, decide
+      # peor. Los contadores sync (60 s) no dependen de esto.
+      # Trampa: un job MUERTO (crash, crash-loop) no tiene watermark atrasado: no tiene watermark. La serie
+      # deja de existir, el lag de ese job desaparece de la recording rule y la rama `watermark` queda
+      # ciega; el online store sigue sirviendo los valores congelados, así que `defaults` también da 0 %.
+      # Por eso la rama `watermark_missing`: un absent_over_time POR JOB ESPERADO (absent no puede adivinar
+      # qué jobs deberían existir). Aquí, los dos jobs del ejemplo; un job de features nuevo se agrega aquí.
       - alert: FeatureFreshnessLag
         expr: |
           label_replace(fraud:feature_watermark_lag_seconds > 300, "cause", "watermark", "", "")
             or
           label_replace(fraud:feature_default_ratio:rate5m{group="stream"} > 0.05, "cause", "defaults", "", "")
+            or
+          label_replace(absent_over_time(fraud_feature_watermark_timestamp_seconds{job="card-aggregates"}[5m]),
+                        "cause", "watermark_missing", "", "")
+            or
+          label_replace(absent_over_time(fraud_feature_watermark_timestamp_seconds{job="merchant-aggregates"}[5m]),
+                        "cause", "watermark_missing", "", "")
         for: 5m
         labels:
           severity: page
         annotations:
           summary: "Features stream atrasadas ({{ $labels.cause }}: {{ $value | humanize }})"
-          description: "watermark: ¿el job de Flink está vivo y al día? (consumer lag del tópico txn-events, checkpoints fallidos, backpressure). defaults: el online store no contesta a tiempo (latencia de Redis, conexiones)."
+          description: "watermark: el job de Flink está vivo pero atrasado (consumer lag del tópico txn-events, checkpoints fallidos, backpressure). watermark_missing: el job {{ $labels.job }} no reporta hace más de 5 min (¿murió o está en crash-loop? estado del job en Flink, reinicios de los pods); el online store sirve valores congelados. defaults: el online store no contesta a tiempo (latencia de Redis, conexiones)."
           runbook_url: "https://runbooks.example.com/c09/feature-freshness"
 
       # Una regla que falla se salta (fail-open por regla): sin esta alerta, una lista negra rota deja pasar

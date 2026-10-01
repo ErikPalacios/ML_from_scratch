@@ -1,19 +1,33 @@
 """Session router (caso c13): a qué asr-worker va cada sesión de captions, y qué pasa cuando un worker se va.
 
-Por qué no sirve un balanceador normal: el modelo streaming guarda ESTADO por sesión en la GPU (su caché).
-Una sesión vive horas en el mismo worker, así que la carga se mide en STREAMS ACTIVOS, no en requests por
-segundo ni en CPU. Round-robin por conexión reparte bien las conexiones nuevas y mal la carga: un worker
-que arrancó a las 9:00 tiene 400 sesiones largas y uno que llegó a las 11:00 tiene 30.
+Por qué no sirve un balanceador normal: el modelo streaming guarda ESTADO en la GPU (su caché) mientras
+alguien habla, y una sesión vive horas en el mismo worker. La carga se mide en SESIONES y STREAMS ACTIVOS,
+no en requests por segundo ni en CPU. Round-robin por conexión reparte bien las conexiones nuevas y mal la
+carga: un worker que arrancó a las 9:00 tiene cientos de sesiones largas y uno que llegó a las 11:00, 30.
+
+Dos contadores, que no hay que mezclar (los dos los exporta el asr-worker):
+  sesión         una pista de un participante, conectada toda la reunión (≈ 200k en el pico del caso)
+  stream activo  una sesión con una utterance abierta: la que ocupa GPU (≈ 60k en el pico, ≈ 30 %)
+El router reparte SESIONES: es lo que asigna y lo que cuenta exacto en su tabla. Los streams los reporta
+cada worker (report_streams, cada pocos segundos) y sirven para no mandarle nada a una GPU que ya está en
+su tope. Por qué no se elige por streams reportados: entre dos reportes, todas las sesiones de la rampa de
+las 9:00 irían al worker que en el último reporte se veía más vacío (efecto manada). Con sesiones parejas,
+los streams se emparejan solos (≈ 1,170 sesiones con p = 0.3 de voz: σ ≈ 16 streams, ver el caso).
 
 Reglas (todas probadas en tests/test_session_router.py):
-  1. Capacidad: cada worker acepta hasta `capacity` streams (MAX_STREAMS del asr-worker, 450 en el caso).
-     Asignar = elegir entre los que tienen lugar. Sin lugar → NoCapacity: el gateway responde "captions no
-     disponibles, reintenta" (degradación: la reunión sigue, sin captions) y la alerta de capacidad avisa.
-  2. Estrategia "spread" (la del caso): el worker con MÁS lugares libres. Baja latencia (ninguna GPU va al
-     tope mientras otras sobran). La alternativa "pack" (el que tiene MENOS lugares libres, pero alguno)
-     concentra sesiones y deja workers vacíos para apagar barato, a costa de GPUs más cargadas: se ofrece
-     para comparar, no es la default.
+  1. Capacidad: cada worker acepta hasta `capacity` SESIONES (MAX_SESSIONS del asr-worker, 1,500 en la
+     referencia: 450 streams ÷ 0.3, ilustrativo) y deja de aceptar si reporta sus streams activos en el
+     tope (MAX_STREAMS, 450). Asignar = elegir entre los que tienen lugar. Sin lugar → NoCapacity: el gateway
+     responde "captions no disponibles, reintenta" (degradación: la reunión sigue, sin captions) y la alerta
+     de capacidad avisa.
+  2. Estrategia "spread" (la del caso): el worker con MÁS lugares libres de sesión; empate → menos streams
+     activos. Baja latencia (ninguna GPU va al tope mientras otras sobran). La alternativa "pack" (el que
+     tiene MENOS lugares libres, pero alguno) concentra sesiones y deja workers vacíos para apagar barato, a
+     costa de GPUs más cargadas: se ofrece para comparar, no es la default.
   3. Sticky: una sesión asignada se queda en su worker toda su vida. Volver a pedirla devuelve el mismo.
+     Una RECONEXIÓN (el worker cerró con 1011 porque el modelo falló, 1013 porque su GPU no daba abasto, o
+     1012 por drain) va a OTRO worker: volver al mismo repetiría la falla. Solo si ningún otro tiene lugar,
+     vuelve al anterior.
   4. Drain: un worker que drena no recibe sesiones nuevas; las suyas se mueven en su próximo límite de
      utterance (el worker manda "migrate" y el gateway llama a assign() otra vez). Mover entre
      utterances no pierde texto: no hay estado a medias.
@@ -45,9 +59,11 @@ class NoCapacity(Exception):
 @dataclass
 class WorkerState:
     worker_id: str
-    capacity: int  # streams que acepta (MAX_STREAMS)
+    capacity: int  # SESIONES que acepta (MAX_SESSIONS)
     sessions: set[str] = field(default_factory=set)
     draining: bool = False
+    stream_capacity: int = 0  # MAX_STREAMS que reporta el worker (0 = todavía no reportó)
+    active_streams: int = 0  # streams activos del último reporte (sesiones hablando)
 
     @property
     def free(self) -> int:
@@ -58,8 +74,12 @@ class WorkerState:
         return len(self.sessions) / self.capacity if self.capacity else 1.0
 
     @property
+    def gpu_full(self) -> bool:
+        return self.stream_capacity > 0 and self.active_streams >= self.stream_capacity
+
+    @property
     def accepting(self) -> bool:
-        return not self.draining and self.free > 0
+        return not self.draining and self.free > 0 and not self.gpu_full
 
 
 @dataclass(frozen=True)
@@ -94,11 +114,18 @@ class SessionRouter:
 
     # ------------------------------------------------------------------------ flota
     def add_worker(self, worker_id: str, capacity: int) -> None:
-        """Un worker pasó a Ready (o cambió su capacidad, p. ej. un modelo más pesado)."""
+        """Un worker pasó a Ready (o cambió su capacidad en sesiones, p. ej. un modelo más pesado)."""
         if worker_id in self.workers:
             self.workers[worker_id].capacity = capacity
         else:
             self.workers[worker_id] = WorkerState(worker_id, capacity)
+
+    def report_streams(self, worker_id: str, active_streams: int, stream_capacity: int) -> None:
+        """Lo que el worker dice de su GPU (asr_active_streams y MAX_STREAMS, vía /readyz o un heartbeat).
+        En el tope, el worker deja de recibir sesiones nuevas hasta el próximo reporte por debajo."""
+        w = self.workers.get(worker_id)
+        if w is not None:
+            w.active_streams, w.stream_capacity = active_streams, stream_capacity
 
     def drain(self, worker_id: str) -> list[str]:
         """Marca el worker como drenando. Devuelve sus sesiones: cada una migra en su próximo límite."""
@@ -131,15 +158,24 @@ class SessionRouter:
         return LossResult(moved, unplaced)
 
     # ------------------------------------------------------------------------ sesiones
-    def assign(self, session_id: str, reconnect: bool = False) -> Assignment:
-        """Worker para una sesión. Sticky si ya tiene uno que sigue aceptándola."""
+    def assign(self, session_id: str, reconnect: bool = False, exclude: str | None = None) -> Assignment:
+        """Worker para una sesión. Sticky si ya tiene uno que sigue aceptándola.
+
+        reconnect=True: el worker cerró la sesión (migrate 1012, modelo 1011, sobrecarga 1013) o se cortó la
+        conexión. Se evita el worker anterior (o `exclude`, si el gateway sabe cuál falló): con "spread",
+        ese worker acaba de liberar un lugar y, sin esta regla, muchas veces sería el elegido otra vez.
+        """
         current = self.session_worker.get(session_id)
         if current is not None and current in self.workers and not reconnect:
             return Assignment(session_id, current, True, self.reconnects.get(session_id, 0))
+        if reconnect and exclude is None:
+            exclude = current
         if current is not None:  # reconexión pedida por el worker (migrate) o por el cliente
             self._release(session_id)
             self.reconnects[session_id] = self.reconnects.get(session_id, 0) + 1
-        target = self._choose()
+        target = self._choose(exclude)
+        if target is None and exclude is not None:
+            target = self._choose()  # nadie más tiene lugar: mejor el anterior que sin captions
         if target is None:
             raise NoCapacity(session_id)
         self._place(session_id, target)
@@ -190,18 +226,20 @@ class SessionRouter:
 
     # ------------------------------------------------------------------------ resumen y internos
     def utilization(self) -> float:
-        """Streams activos ÷ capacidad de los workers que aceptan: la señal de ASRCapacityHeadroomLow."""
+        """Sesiones ÷ capacidad en sesiones de los workers que no drenan. La misma cuenta con las métricas de
+        los workers (asr:session_utilization) es una rama de ASRCapacityHeadroomLow; la otra mira streams."""
         cap = sum(w.capacity for w in self.workers.values() if not w.draining)
         active = sum(len(w.sessions) for w in self.workers.values())
         return active / cap if cap else 1.0
 
-    def _choose(self) -> WorkerState | None:
-        candidates = [w for w in self.workers.values() if w.accepting]
+    def _choose(self, exclude: str | None = None) -> WorkerState | None:
+        candidates = [w for w in self.workers.values() if w.accepting and w.worker_id != exclude]
         if not candidates:
             return None
         if self.strategy == "spread":
-            # Más lugares libres; empate → menor carga relativa → id menor (determinista)
-            return min(candidates, key=lambda w: (-w.free, w.load, w.worker_id))
+            # Más lugares libres de sesión; empate → menos streams activos reportados → menor carga relativa
+            # → id menor (determinista)
+            return min(candidates, key=lambda w: (-w.free, w.active_streams, w.load, w.worker_id))
         return min(candidates, key=lambda w: (w.free, w.worker_id))  # pack
 
     def _place(self, session_id: str, w: WorkerState) -> None:

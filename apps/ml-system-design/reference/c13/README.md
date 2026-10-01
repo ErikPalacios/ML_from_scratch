@@ -2,14 +2,20 @@
 
 Archivos **reales** del caso c13 de *Ronda de Diseño ML*: el chunker de audio (frames de 20 ms → chunks
 de 160 ms, VAD por energía, endpointing), el estabilizador de partials, el `asr-worker` (WebSocket con
-backpressure, límites por sesión, drain y métricas), el session router (capacidad, sticky, drain, pérdida
-de un worker, rebalanceo), el WER con normalización para español y los percentiles de latencia, el
+backpressure, límites por sesión, drain y métricas), el session router (capacidad en sesiones, tope de
+streams, sticky, reconexión a otro worker, drain, pérdida de un worker, rebalanceo), el WER con normalización para español y los percentiles de latencia, el
 manifest de Kubernetes con preStop y autoscaling por streams activos, y las 8 alertas con sus tests.
 Cada archivo está comentado explicando **por qué**.
 
 Los números (160 ms por chunk, 600 ms de endpointing, ≈ 500 streams por L4 planeados al 70 % = 350,
-≈ 60k streams en el pico, p95 de partials ≤ 500 ms y de finales ≤ 1.5 s) son los del caso y son
-**estimaciones**. Los umbrales y defaults que no vienen del caso son **ilustrativos**: están marcados así
+≈ 60k streams activos y ≈ 200k pistas conectadas en el pico, p95 de partials ≤ 500 ms y de finales ≤ 1.5 s)
+son los del caso y son **estimaciones**.
+
+**Sesión ≠ stream activo.** Una sesión es la pista de un participante, conectada toda la reunión. Un stream
+activo es una sesión con una utterance abierta: la única que ocupa GPU. Son dos métricas (`asr_sessions` y
+`asr_active_streams`) con dos topes (`MAX_SESSIONS` 1,500 y `MAX_STREAMS` 450, ilustrativos). El router
+reparte sesiones; KEDA escala por streams activos: 60,000 ÷ 350 = 171.4 → 172 pods, con ≈ 1,170 sesiones
+cada uno. Escalar por sesiones conectadas pediría 200,000 ÷ 350 ≈ 572 pods. Los umbrales y defaults que no vienen del caso son **ilustrativos**: están marcados así
 en cada archivo.
 
 ## Estructura
@@ -20,23 +26,24 @@ c13/
 │   ├── chunker.py           # Reframer (bytes → frames de 20 ms), EnergyVAD (piso adaptativo, onset, hangover),
 │   │                        #   StreamChunker (chunks de 160 ms con contexto izquierdo, pre-roll, endpointing, tope)
 │   ├── stabilizer.py        # congela palabras de más de 800 ms; tasa de revisiones (flicker)
-│   └── tests/               # test_chunker.py (12 tests, señales sintéticas), test_stabilizer.py (5)
+│   └── tests/               # test_chunker.py (12 tests, señales sintéticas), test_stabilizer.py (7)
 ├── server/
 │   ├── asr_server.py        # FastAPI WebSocket /v1/stream: handshake, VAD + chunking, modelo (interfaz + fake),
 │   │                        #   partial/final JSON, colas acotadas, límites, drain, /metrics, CLI drain y demo-client
 │   ├── requirements.txt     # lock completo (19 paquetes)
-│   └── tests/test_asr_server.py   # 20 tests con TestClient (WebSocket real en proceso) y fakes
+│   └── tests/test_asr_server.py   # 26 tests con TestClient (WebSocket real en proceso) y fakes
 ├── gateway/
-│   ├── session_router.py    # asignación por capacidad (spread/pack), sticky, drain, worker perdido, rebalanceo
-│   └── tests/test_session_router.py   # 10 tests
+│   ├── session_router.py    # asignación por sesiones (spread/pack) con tope de streams, sticky, reconexión a otro
+│   │                        #   worker, drain, worker perdido, rebalanceo
+│   └── tests/test_session_router.py   # 12 tests
 ├── eval/
 │   ├── wer.py               # WER (Levenshtein con S/D/I), normalización en español, corpus y slices, percentiles
-│   └── tests/test_wer.py    # 29 tests con casos calculados a mano
+│   └── tests/test_wer.py    # 38 tests con casos calculados a mano
 ├── k8s/
 │   └── asr-worker.yaml      # Service headless, Deployment GPU con preStop y gracia de 90 s, PDB, PodMonitor,
-│                            #   ScaledObject (streams activos + cron de la mañana + fallback)
+│                            #   ScaledObject (streams activos + sesiones + cron de la mañana + fallback)
 ├── monitoring/
-│   ├── alerts.yml           # 8 alertas + 9 recording rules
+│   ├── alerts.yml           # 8 alertas + 10 recording rules
 │   └── alerts_test.yml      # tests de promtool
 ├── pytest.ini               # `pytest` desde aquí corre las 4 carpetas
 └── requirements-dev.txt     # server/requirements.txt + pytest + httpx2
@@ -79,13 +86,14 @@ el tiempo real, más el último paso). Con el modelo real, el paso y la cola dom
 | Dirección | Mensaje | Para qué |
 |---|---|---|
 | cliente → server | `{"type":"start","session_id","language","sample_rate":16000,"encoding":"pcm_s16le","reconnect_attempt":0,"reconnect_reason":null}` | primer mensaje, en ≤ 5 s; `language` ∈ `es-419`, `en-US`, `pt-BR` |
-| cliente → server | binario: PCM16 little-endian, 16 kHz, mono (cualquier tamaño; se re-encuadra a 20 ms) | el audio |
+| cliente → server | binario: PCM16 little-endian, 16 kHz, mono (hasta 64 KiB ≈ 2 s por mensaje; se re-encuadra a 20 ms) | el audio, a ritmo real: más de 2× el tiempo transcurrido + 2 s (+ la frase en curso en una reconexión) cierra con 1008 |
+| cliente → server | `{"type":"keepalive"}` | mientras la pista calla, si el VAD corre en el gateway: cualquier mensaje reinicia `MAX_IDLE_S` |
 | cliente → server | `{"type":"stop"}` | cierra la utterance abierta (sale su final) y la sesión |
 | server → cliente | `{"type":"ready","session_id","model_version","chunk_ms","max_session_s"}` | handshake aceptado |
 | server → cliente | `{"type":"partial","utterance","seq","text","stable_words","start_ms","end_ms"}` | hipótesis en curso: las primeras `stable_words` palabras no cambian más |
 | server → cliente | `{"type":"final","utterance","seq","text","start_ms","end_ms"}` | texto final de la utterance (nunca se descarta) |
 | server → cliente | `{"type":"migrate","reason":"draining"}` + cierre 1012 | el worker drena: reabrir en otro (entre utterances, sin perder texto) |
-| server → cliente | `{"type":"error","code","message"}` + cierre | `bad_handshake` (1008), `capacity`/`draining`/`overloaded` (1013), `internal` (1011) |
+| server → cliente | `{"type":"error","code","message"}` + cierre | `bad_handshake`/`audio_too_fast` (1008), `capacity`/`draining`/`overloaded` (1013), `internal` (1011) |
 
 `seq` crece en toda la sesión: el consumidor descarta duplicados y desordenados. Los tiempos (`start_ms`,
 `end_ms`) son de audio, desde el inicio de la sesión.
@@ -94,21 +102,24 @@ el tiempo real, más el último paso). Con el modelo real, el paso y la cola dom
 
 | Código | Cuándo | Qué hace el gateway |
 |---|---|---|
-| 1000 | `stop`, `MAX_IDLE_S` (30 s sin un frame), `MAX_SESSION_S` (4 h) | nada (o reabre si la reunión sigue: `reconnect_reason=max_duration`) |
-| 1008 | handshake inválido | no reintentar igual: es un bug del cliente |
-| 1011 | el modelo falló en esa sesión | reabrir en otro worker |
+| 1000 | `stop`, `MAX_IDLE_S` (30 s sin un mensaje), `MAX_SESSION_S` (4 h) | nada (o reabre si la reunión sigue: `reconnect_reason=max_duration`) |
+| 1008 | handshake inválido, o audio más rápido que el tiempo real | no reintentar igual: es un bug del cliente |
+| 1009 | un mensaje de más de 64 KiB (lo cierra uvicorn, `--ws-max-size`) | no reintentar igual: es un bug del cliente |
+| 1011 | el modelo falló en esa sesión | reabrir en otro worker (`assign(reconnect=True)` excluye el anterior) |
 | 1012 | drain (después de `migrate`) o SIGTERM de uvicorn | reabrir en otro worker (`migrate` es planeado) |
-| 1013 | worker lleno, drenando, ≈ 2 s atrás del tiempo real, o consumidor que no lee | reabrir en otro worker |
+| 1013 | worker lleno (sesiones o streams activos), drenando, ≈ 2 s atrás del tiempo real, o consumidor que no lee | reabrir en otro worker (el router excluye el anterior) |
 
 ### Métricas del asr-worker (`/metrics`)
 
 | Métrica | Labels | La usa |
 |---|---|---|
-| `asr_active_streams` (gauge) | — | KEDA (objetivo 350 por pod), ASRCapacityHeadroomLow |
+| `asr_active_streams` (gauge: sesiones con una utterance abierta, lo que ocupa GPU) | — | KEDA (objetivo 350 por pod), ASRCapacityHeadroomLow |
 | `asr_stream_capacity` (gauge: `MAX_STREAMS`, 0 si drena) | — | ASRCapacityHeadroomLow |
+| `asr_sessions` (gauge: sesiones conectadas, callen o hablen) | — | KEDA (segundo trigger, objetivo 1,200), ASRCapacityHeadroomLow (`cause="sessions"`), el drain |
+| `asr_session_capacity` (gauge: `MAX_SESSIONS`, 0 si drena) | — | ASRCapacityHeadroomLow (`cause="sessions"`) |
 | `asr_draining` (gauge) | — | dashboards |
 | `asr_sessions_started_total` | language | SessionReconnectRateHigh |
-| `asr_sessions_ended_total` | reason (`normal`, `idle`, `max_duration`, `client_gone`, `migrate`, `overloaded`, `slow_consumer`, `error`) | dashboards |
+| `asr_sessions_ended_total` | reason (`normal`, `idle`, `max_duration`, `client_gone`, `migrate`, `overloaded`, `slow_consumer`, `audio_too_fast`, `error`) | dashboards |
 | `asr_sessions_rejected_total` | reason (`bad_handshake`, `capacity`, `draining`) | runbook de capacidad |
 | `asr_reconnects_total` | reason (`worker_lost`, `network`, `migrate`, `max_duration`, `overloaded`, `unknown`) | SessionReconnectRateHigh |
 | `asr_partial_latency_seconds` (histograma, bucket en 0.2) | language | CaptionPartialLatencyHigh |
@@ -131,7 +142,7 @@ versiones cada 30 min (con `eval/wer.py`).
 | Sistema | `GPUStreamSaturation` | p95 del paso del modelo de un pod > 128 ms (80 % del chunk), 5 min | page |
 | Sistema | `SessionReconnectRateHigh` | reconexiones no planeadas > 2 % de los handshakes (ventana de 10 min), 15 min | page |
 | Sistema | `CaptionDeliveryLag` | p95 de entrega del caption-bus > 250 ms, 10 min | page |
-| Sistema | `ASRCapacityHeadroomLow` | streams activos ÷ capacidad que acepta > 85 %, o los workers sin métricas (`cause="no_metrics"`); 10 min | page |
+| Sistema | `ASRCapacityHeadroomLow` | streams activos ÷ capacidad que acepta > 85 %, sesiones ÷ `MAX_SESSIONS` > 85 % (`cause="sessions"`), o los workers sin métricas (`cause="no_metrics"`); 10 min | page |
 | Modelo | `CanaryWERRegression` | WER del canario > estable + 1 punto en el mismo audio dorado, con ≥ 5,000 palabras; 30 min | ticket |
 | Modelo | `VADActiveRatioShift` | fracción de voz < 0.7× o > 1.3× la misma hora de la semana pasada, 1 h | ticket |
 
@@ -145,7 +156,7 @@ bus, WebSocket y render ≈ 90 ≈ 500 ms. A 200 ms en el server, el SLO de punt
 cd reference/c13
 python3 -m venv .venv && . .venv/bin/activate      # Python 3.13 (o 3.12)
 pip install -r requirements-dev.txt
-pytest                                              # 76 tests, ≈ 7 s
+pytest                                              # 95 tests, ≈ 5 s
 python eval/wer.py                                  # los ejemplos del docstring: normalización y corpus
 
 cd monitoring
@@ -172,15 +183,26 @@ percentiles.
 ## Desplegar (resumen)
 
 `build_app()` lanza `NotImplementedError` hasta conectar un `ASRModel` real: un cliente de NVIDIA Riva
-(streaming por gRPC), un modelo cache-aware de NeMo cargado en el proceso o Triton con sequence batching
+(streaming por gRPC), un modelo cache-aware de NeMo cargado en el proceso (el candidato abierto del caso es
+Nemotron 3.5 ASR, `nvidia/nemotron-3.5-asr-streaming-0.6b`, con chunks de 160 ms = `att_context_size`
+[56, 1]; verifica licencia y WER en tu golden set) o Triton con sequence batching
 (con una secuencia por utterance: la caché de GPU vive entre el primer `step()` y `finalize()`). La imagen
 copia `asr_server.py`, `chunker.py` y `stabilizer.py` a `/app` (el preStop corre
 `python /app/asr_server.py drain`). Variables: `ASR_LANGUAGES` (`es-419,en-US,pt-BR`), `MAX_STREAMS` (450),
-`MAX_SESSION_S` (14400), `MAX_IDLE_S` (30), `HANDSHAKE_TIMEOUT_S` (5), `INBOUND_MAX_CHUNKS` (12),
+`MAX_SESSIONS` (1500), `MAX_SESSION_S` (14400), `MAX_IDLE_S` (30), `MAX_AUDIO_RATE` (2.0), `AUDIO_BURST_MS`
+(2000), `HANDSHAKE_TIMEOUT_S` (5), `INBOUND_MAX_CHUNKS` (12),
 `OUTBOUND_MAX_MESSAGES` (32), `FREEZE_AFTER_MS` (800), `DRAIN_TIMEOUT_S` (60), `LATENCY_LOG_RATE` (0.01),
 `CHUNK_MS` (160), `LEFT_CONTEXT_MS` (0), `ENDPOINT_SILENCE_MS` (600), `MAX_UTTERANCE_MS` (20000), `PORT`
 (8080, para el preStop) y `MODEL_VERSION` (la lee el adaptador real). `/healthz` (liveness), `/readyz`
-(503 mientras drena), `/admin/drain` y `/admin/status` solo desde localhost.
+(503 mientras drena o mientras está lleno), `/admin/drain` y `/admin/status` solo desde localhost. uvicorn con
+`--ws-max-size 65536` (el default de 16 MiB son ≈ 8.7 min de audio en un solo mensaje). Los pods llevan
+`track: stable` (el Deployment canario, no incluido, `track: canary`): el Service, el PDB y el PodMonitor
+incluyen a los dos, los selectores de los Deployments no se superponen, y KEDA escala con
+`asr_active_streams{track="stable"}` (el PodMonitor copia el label con `podTargetLabels`).
+
+Si el VAD pasa al asr-gateway (como en el caso), un participante callado deja de mandar audio al worker: el
+gateway tiene que mandar `{"type":"keepalive"}` en los silencios (o el límite de inactividad tiene que mirar el
+ping del transporte). Si no, `MAX_IDLE_S` cierra a cada persona que se queda callada 30 s.
 
 ## Qué se ejecutó y qué no
 
@@ -188,14 +210,15 @@ Probado en macOS (Apple Silicon), sin GPU, sin modelo de ASR, sin SFU, sin clust
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14; 6 corridas seguidas en cada uno | 76 passed, todas las veces |
+| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14; 6 corridas seguidas en cada uno | 95 passed, todas las veces |
 | Chunker y VAD | señales sintéticas (tono de -23 dBFS, ruido de -70 y -40 dBFS, silencio) con tiempos calculados a mano | onset, hangover, pre-roll, endpoint a 600 ms, tope de 20 s sin duplicar audio, piso que se adapta a un ruido nuevo en ≈ 10 s |
-| asr-worker | TestClient (WebSocket en proceso): camino feliz, handshakes inválidos, worker lleno, reconexión, inactividad, duración máxima, drain con una sesión callada y una hablando, GPU atrasada, modelo que falla, consumidor lento (transporte falso) | cada caso cierra con el código y el motivo esperados; el estado del modelo se libera siempre |
+| asr-worker | TestClient (WebSocket en proceso): camino feliz, handshakes inválidos, worker lleno de sesiones o de streams activos, una sesión callada que cuenta como sesión y no como stream, keepalive, reconexión, inactividad, duración máxima, drain con una sesión callada y una hablando, drain con alguien que no para de hablar (tope de utterance a mitad de un mensaje: espera el final siguiente, una sola vez), GPU atrasada (sin partials ni pasos de modelo después del error), audio más rápido que el tiempo real, modelo que falla, consumidor lento (transportes falsos) | cada caso cierra con el código y el motivo esperados; el estado del modelo se libera siempre |
 | Contrato de métricas | un test lee `alerts.yml` y exige que cada `asr_*` del worker exista en `/metrics` | OK |
 | Demo con uvicorn real | `uvicorn --factory asr_server:demo_app` + `demo-client` (websockets 17.1) + curl a `/readyz` y `/metrics` | 25 partials y 2 finales; percentiles con `wer.py` desde el log: partial p50 ≈ 30 ms, finales ≈ 0.81 s |
-| Drain real | `asr_server.py drain` con el demo-client hablando | el final de la utterance sale, después `migrate` y cierre 1012; `drain_done` con 0 streams en ≈ 5 s; `/readyz` 503 |
+| Drain real | `asr_server.py drain` con el demo-client hablando | el final de la utterance sale, después `migrate` y cierre 1012; `drain_done` con 0 sesiones; `/readyz` 503 |
+| Límites de mensaje y de ritmo | uvicorn con `--ws-max-size 65536` y un cliente de `websockets` | 96,000 bytes en un mensaje → 1009; dos mensajes de 60,000 bytes seguidos (≈ 3.75 s de audio) → `audio_too_fast` y 1008 |
 | SIGTERM | `kill -TERM` a uvicorn con una sesión abierta | el cliente recibe 1012 (lo que dice el comentario de `create_app`) |
-| Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 17 reglas OK; los tests de las 8 alertas pasan. 12 mutaciones de umbrales, ventanas, `for`, filtros y del `offset` hacen fallar algún test (ninguna sobrevive) |
+| Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 18 reglas OK; los tests de las 8 alertas pasan. 12 mutaciones de umbrales, ventanas, `for`, filtros y del `offset` hacen fallar algún test (ninguna sobrevive) |
 | Manifest | `kubernetes-validate --strict` (Kubernetes 1.36) sobre Service, Deployment y PodDisruptionBudget; `jsonschema` en modo estricto contra los CRDs de KEDA v2.21.0 (ScaledObject) y Prometheus Operator v0.94.1 (PodMonitor) | OK |
 | Lock de dependencias | `uv pip compile` para Linux x86_64 y Python 3.13 | 19 paquetes |
 
@@ -209,8 +232,11 @@ Probado en macOS (Apple Silicon), sin GPU, sin modelo de ASR, sin SFU, sin clust
 - No se construyó ninguna imagen ni hay Dockerfile; el manifest no corrió en un cluster (ni el preStop
   real, ni KEDA, ni el PDB). La gracia de 90 s y el drain de 60 s salen del razonamiento del archivo.
 - El session router está en memoria y es de un solo proceso: la tabla compartida entre réplicas del
-  gateway (Redis-class con reservas atómicas), los heartbeats, la afinidad por zona y el reenvío de la
+  gateway (Redis-class con reservas atómicas), los heartbeats que traerían los streams activos de cada
+  worker a `report_streams`, la afinidad por zona y el reenvío de la
   frase en curso desde el buffer del gateway cuando cae un worker se describen en el caso, no están aquí.
 - El caption-bus, el job del audio dorado y el servidor de señalización no existen aquí: sus métricas
   solo están en los tests de promtool. Los umbrales de las alertas son ilustrativos.
-- `wer.py` normaliza números solo en español (0–999,999); inglés y portugués dejan los dígitos.
+- `wer.py` normaliza números solo en español (0–999,999); inglés y portugués dejan los dígitos. Decimales,
+  horas, ordinales y montos con símbolo (`3,5`, `3:30`, `1.º`, `$500`) quedan como un token literal en
+  todos los idiomas: si importan, hacen falta reglas propias (versionadas).

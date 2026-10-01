@@ -8,7 +8,7 @@ version: "policy-2026-10-01"
 
 # ------------------------------------------------------------------ segmentos
 # Segmento = grupo de MCC (código de categoría del comercio) × banda de ticket. El costo de un error
-# cambia con el ticket (un fraude de US$400 cuesta 13× uno de US$30) y el patrón de fraude cambia con la
+# cambia con el ticket (un fraude de US$400 cuesta ≈ 9× uno de US$30: US$415 vs US$45 con el fee) y el patrón de fraude cambia con la
 # categoría (los bienes digitales se revenden en minutos). Pocos segmentos: cada uno necesita volumen de
 # etiquetas maduras para fijar sus umbrales.
 segmentation:
@@ -25,19 +25,25 @@ segmentation:
 # eval/choose_thresholds.py (un test verifica que estos números salen de esa fórmula). En cada release se
 # recalculan con choose_thresholds sobre cohortes MADURAS y con el tope de declines. Ilustrativos.
 #   fallback: qué hace el segmento si no hay modelo (rules-only) y ninguna regla disparó
+#   fallback_no_3ds: sin modelo Y sin 3-D Secure disponible, qué pasa con lo que iba a step-up
+#             (approve | decline): sin score no hay corte que aplicar
 #   no_3ds_decline: si tocaba step-up pero la tarjeta o el emisor no soportan 3-D Secure, quedan dos
 #             opciones (approve o decline) y el corte entre ellas es otro: decline si score ≥ este valor.
 #             Por qué no "declinar todo lo que iba a step-up": en retail_high un score de 0.006 aprobado
 #             cuesta ≈ 0.006 × US$265 ≈ US$1.6 esperados, y declinarlo ≈ US$7.5 de cliente perdido.
 segments:
-  retail_low:   {typical_ticket_usd: 25,  step_up: 0.034,  decline: 0.443, fallback: approve, no_3ds_decline: 0.158}
-  retail_high:  {typical_ticket_usd: 250, step_up: 0.0053, decline: 0.107, fallback: approve, no_3ds_decline: 0.0275}
-  digital_low:  {typical_ticket_usd: 20,  step_up: 0.039,  decline: 0.477, fallback: approve, no_3ds_decline: 0.176}
+  retail_low:   {typical_ticket_usd: 25,  step_up: 0.034,  decline: 0.443, fallback: approve, fallback_no_3ds: approve, no_3ds_decline: 0.158}
+  retail_high:  {typical_ticket_usd: 250, step_up: 0.0053, decline: 0.107, fallback: approve, fallback_no_3ds: approve, no_3ds_decline: 0.0275}
+  digital_low:  {typical_ticket_usd: 20,  step_up: 0.039,  decline: 0.477, fallback: approve, fallback_no_3ds: approve, no_3ds_decline: 0.176}
   # Bienes digitales caros sin modelo: step-up a todo. Es el segmento donde un fraude aprobado se revende
-  # en minutos; la fricción de unas horas de fallback cuesta menos que dejarlo abierto.
-  digital_high: {typical_ticket_usd: 200, step_up: 0.0065, decline: 0.129, fallback: step_up, no_3ds_decline: 0.0337}
-  travel_low:   {typical_ticket_usd: 60,  step_up: 0.0184, decline: 0.298, fallback: approve, no_3ds_decline: 0.0909}
-  travel_high:  {typical_ticket_usd: 400, step_up: 0.0034, decline: 0.071, fallback: approve, no_3ds_decline: 0.0178}
+  # en minutos; la fricción de unas horas de fallback cuesta menos que dejarlo abierto. Y sin 3-D Secure
+  # (tarjeta o emisor que no lo soportan), decline: un "step-up" que no se puede hacer no puede volverse
+  # un approve a ciegas justo aquí. Costo: cada pago bueno sin 3DS de este segmento se declina mientras
+  # dure el fallback (≈ US$7.5 cada uno: el costo de un pago bueno declinado que usan los umbrales; est.).
+  # Mide cuántos pagos de digital_high llegan sin 3DS antes de decidirlo.
+  digital_high: {typical_ticket_usd: 200, step_up: 0.0065, decline: 0.129, fallback: step_up, fallback_no_3ds: decline, no_3ds_decline: 0.0337}
+  travel_low:   {typical_ticket_usd: 60,  step_up: 0.0184, decline: 0.298, fallback: approve, fallback_no_3ds: approve, no_3ds_decline: 0.0909}
+  travel_high:  {typical_ticket_usd: 400, step_up: 0.0034, decline: 0.071, fallback: approve, fallback_no_3ds: approve, no_3ds_decline: 0.0178}
 
 # Tope de declines por segmento (fracción de intentos). Lo respeta choose_thresholds al elegir umbrales
 # y lo vigila DeclineRateSpike en producción. Declinar a gente buena no aparece en ningún chargeback: sin

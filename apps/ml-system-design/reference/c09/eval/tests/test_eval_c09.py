@@ -73,11 +73,24 @@ def test_unlabeled_rows_count_in_rates_but_not_in_cost():
     assert a["decline_rate"] == 0.5 and b["decline_rate"] == 0.75  # pero sí cuenta para el tope
 
 
-def test_exploration_weight_scales_its_rows():
+def test_exploration_weight_scales_the_cost_not_the_rates():
     df = pd.DataFrame({"score": [0.6, 0.01], "label": [1.0, 0.0], "amount_cents": [10000, 10000],
-                       "weight": [100.0, 1.0]})
-    r = evaluate(df, 0.5, 0.9)  # el explorado (peso 100) cae en step-up
-    assert r["step_up_rate"] == pytest.approx(100 / 101)
+                       "weight": [1.0, 1.0]})
+    heavy = df.assign(weight=[100.0, 1.0])  # el explorado representa a 100 pagos que se habrían declinado
+    r1, r100 = evaluate(df, 0.5, 0.9), evaluate(heavy, 0.5, 0.9)  # el explorado cae en step-up
+    # costo: el fraude en step-up (0.2 × US$115 = 23) pesa 100 sobre 101 pagos etiquetados "efectivos"
+    assert r1["cost_per_1000"] == pytest.approx(1000 * 23 / 2)
+    assert r100["cost_per_1000"] == pytest.approx(1000 * 100 * 23 / 101)
+    assert r1["step_up_rate"] == r100["step_up_rate"] == pytest.approx(1 / 2)  # la tasa: 1 de 2 pagos
+
+
+def test_rates_do_not_count_the_old_decline_region_twice():
+    """1,000 pagos: 900 buenos aprobados, 99 que el sistema viejo declinó (sin etiqueta) y 1 explorado
+    de esa misma región (peso 100). Con t = 0.9 se declinan 100 de 1,000: 10 %, no 199/1,099."""
+    df = pd.DataFrame({"score": [0.01] * 900 + [0.95] * 100,
+                       "label": [0.0] * 900 + [np.nan] * 99 + [1.0],
+                       "amount_cents": 10000, "weight": [1.0] * 999 + [100.0]})
+    assert evaluate(df, 0.5, 0.9)["decline_rate"] == pytest.approx(0.10)
 
 
 def test_never_decline_is_always_feasible():

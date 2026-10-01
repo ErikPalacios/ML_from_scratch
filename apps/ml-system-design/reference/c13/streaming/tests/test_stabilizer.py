@@ -1,4 +1,6 @@
-"""Tests del estabilizador: el ejemplo del docstring, la propiedad "lo congelado no cambia" y la métrica."""
+"""Tests del estabilizador: el ejemplo del docstring, "lo congelado no cambia", palabras que el modelo
+parte, junta o inserta (sin duplicados), y la métrica.
+"""
 
 import random
 
@@ -66,3 +68,35 @@ def test_revision_stats_rules():
     assert revision_stats([("a",), ("a", "b"), ("a", "b", "c")]).revisions == 0
     assert revision_stats([("a", "b", "c"), ("a", "b")]).revisions == 1
     assert revision_stats([]).revision_rate == 0.0
+
+
+def test_model_splits_a_shown_word_freezes_what_was_shown_once():
+    # En pantalla: "el | pato se". El modelo parte "pato" en "pa" + "to" y agrega "sentó". Por índice se
+    # congelaría "pato" en el lugar de "pa" y "se" (lo que había en la posición 1) en el de "to": "el pato se
+    # se sentó", con un "se" congelado y duplicado hasta el final. Por tiempo: "pato" una vez, y "to" (que
+    # cae adentro de "pato") se descarta.
+    st = Stabilizer(800)
+    d1 = st.partial([W("el", 0, 200), W("pato", 200, 480), W("se", 600, 900)], 1000)
+    assert (d1.frozen, d1.tentative) == (("el",), ("pato", "se"))
+    d2 = st.partial([W("el", 0, 200), W("pa", 200, 300), W("to", 300, 480), W("se", 600, 900),
+                     W("sentó", 900, 1400)], 1300)
+    assert (d2.frozen, d2.tentative) == (("el", "pato"), ("se", "sentó"))
+    assert len(d2.words) == len(set(d2.words))
+
+
+def test_model_merges_or_inserts_words_without_duplicates():
+    # Junta: en pantalla "pa to", el modelo dice "pato" → se congela lo que se vio, "pa to"
+    st = Stabilizer(800)
+    st.partial([W("el", 0, 200), W("pa", 200, 300), W("to", 300, 480)], 900)
+    d = st.partial([W("el", 0, 200), W("pato", 200, 480), W("se", 600, 900)], 1300)
+    assert (d.frozen, d.tentative) == (("el", "pa", "to"), ("se",))
+    # Inserta: en pantalla "el pato se"; el modelo mete "y" entre "pato" y "se" → "y" se congela tal cual
+    # (nadie la había visto), y "se" sigue una sola vez
+    st = Stabilizer(800)
+    st.partial([W("el", 0, 200), W("pato", 200, 480), W("se", 600, 900)], 1000)
+    d = st.partial([W("el", 0, 200), W("pato", 200, 480), W("y", 480, 600), W("se", 600, 900),
+                    W("sentó", 900, 1400)], 1450)
+    assert (d.frozen, d.tentative) == (("el", "pato", "y"), ("se", "sentó"))
+    d = st.partial([W("el", 0, 200), W("pato", 200, 480), W("y", 480, 600), W("se", 600, 900),
+                    W("sentó", 900, 1400)], 1800)
+    assert d.frozen == ("el", "pato", "y", "se") and d.words.count("se") == 1

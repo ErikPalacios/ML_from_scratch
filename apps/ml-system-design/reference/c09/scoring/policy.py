@@ -34,6 +34,7 @@ class SegmentPolicy:
     decline: float  # score ≥ decline → decline
     fallback: str  # acción sin modelo cuando ninguna regla disparó: approve | step_up
     no_3ds_decline: float  # sin 3-D Secure disponible: decline si score ≥ esto, si no approve
+    fallback_no_3ds: str  # sin modelo Y sin 3-D Secure, lo que iba a step-up: approve | decline
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,8 @@ def load_policy(path: str | Path) -> Policy:
             raise ValueError(f"{name}: fallback debe ser approve o step_up")
         if not 0 < s.no_3ds_decline < 1:
             raise ValueError(f"{name}: no_3ds_decline fuera de (0, 1)")
+        if s.fallback_no_3ds not in ("approve", "decline"):
+            raise ValueError(f"{name}: fallback_no_3ds debe ser approve o decline")
     groups = {g: frozenset(map(str, mccs)) for g, mccs in raw["segmentation"]["mcc_groups"].items()}
     for g in [*groups, "retail"]:  # cada grupo × banda necesita sus umbrales
         for band in ("low", "high"):
@@ -144,14 +147,28 @@ def decide(policy: Policy, segment: str, score: float | None, rule_actions: list
            three_ds_result: str | None = None) -> Decision:
     """La decisión final. `score` None = sin modelo (fallback rules-only). `rule_actions` = [(acción, código)].
 
-    `three_ds_result` llega en la SEGUNDA llamada del mismo pago, después del desafío: "authenticated"
-    convierte el step-up en approve; "failed", en decline. Las features son las mismas de la primera
-    llamada (los contadores devuelven lo que vieron entonces), así que el resto de la decisión se repite.
+    `three_ds_result` llega en la SEGUNDA llamada del mismo pago, después del desafío, y es DECISIVO: la
+    segunda llamada aplica el resultado del desafío a la decisión de la primera (que fue step-up); no
+    vuelve a correr el modelo ni sus bandas, ni el fallback, ni la exploración. Por qué: minutos después,
+    las features stream ya incluirían al propio pago (Flink lo contó), y un modelo caído en ese momento
+    no puede convertir un desafío FALLIDO en un approve. "failed" → decline. "authenticated" → approve,
+    salvo que una regla diga review o decline (p. ej., la tarjeta entró a la lista negra entre las dos
+    llamadas): ahí gana la regla.
     """
     seg = policy.segments[segment]
     merchant = policy.merchant(merchant_id)
     codes: list[str] = []
     exploration, propensity = False, None
+
+    # 0) Segunda llamada, con el resultado del desafío: decide aquí y no sigue
+    if three_ds_result is not None:
+        rule_action = max((a for a, _ in rule_actions), key=SEVERITY.__getitem__, default="approve")
+        codes.extend(code for _, code in rule_actions)
+        if three_ds_result == "failed":
+            return Decision("decline", (*codes, "STEP_UP_FAILED"))
+        if SEVERITY[rule_action] >= SEVERITY["review"]:
+            return Decision(rule_action, tuple(codes))
+        return Decision("approve", (*codes, "STEP_UP_AUTHENTICATED"))
 
     # 1) Lo que dice el modelo (o el fallback del segmento si no hay modelo)
     if score is None:
@@ -189,20 +206,16 @@ def decide(policy: Policy, segment: str, score: float | None, rule_actions: list
 
     final = max(model_action, rule_action, key=SEVERITY.__getitem__)
 
-    # 4b) Segunda llamada, con el resultado del desafío
-    if final == "step_up" and three_ds_result == "authenticated":
-        final = "approve"
-        codes.append("STEP_UP_AUTHENTICATED")
-    elif final == "step_up" and three_ds_result == "failed":
-        final = "decline"
-        codes.append("STEP_UP_FAILED")
-
     # 5) Step-up imposible (la tarjeta o el emisor no soportan 3-D Secure): quedan approve o decline, con
-    #    otro corte (el de no_3ds_decline). Sin score (fallback), se aprueba y queda registrado por qué.
+    #    otro corte (el de no_3ds_decline). Sin score (fallback), decide `fallback_no_3ds` del segmento:
+    #    en digital_high es decline, porque "step-up a todo" sin 3DS sería aprobar a ciegas justo ahí.
     if final == "step_up" and not three_ds_available:
         codes.append("STEP_UP_UNAVAILABLE")
         # Vale también si el step-up venía de una regla (VELOCITY_IP_60S): el código queda en el log
-        final = "decline" if score is not None and score >= seg.no_3ds_decline else "approve"
+        if score is None:
+            final = seg.fallback_no_3ds
+        else:
+            final = "decline" if score >= seg.no_3ds_decline else "approve"
 
     if final == "approve" and not codes:
         codes.append("APPROVED_LOW_RISK")

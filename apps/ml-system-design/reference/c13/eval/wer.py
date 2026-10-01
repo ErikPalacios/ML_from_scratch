@@ -66,9 +66,11 @@ def _below_1000(n: int) -> str:
 def spanish_number(n: int) -> str:
     """0 ≤ n ≤ 999,999 escrito como se dice: 2026 → "dos mil veintiséis", 21000 → "veintiún mil".
 
-    Cubre lo que más aparece en reuniones (años, cantidades, montos redondos). Decimales, horas (3:30),
-    ordinales, monedas y millones no se tocan: o se normalizan igual en referencia e hipótesis con reglas
-    propias, o se documenta que quedan como dígitos. Para inglés y portugués hace falta su propia función.
+    Cubre lo que más aparece en reuniones (años, cantidades, montos redondos). Decimales (3,5), horas (3:30),
+    ordinales (1.º), montos con símbolo ($500) y millones no se expanden: normalize() los deja como UN token
+    literal, igual en referencia e hipótesis (así "3:30" contra "tres y media" es un error visible, no un
+    "tres treinta" inventado). Si importan, se normalizan con reglas propias y se versiona. Para inglés y
+    portugués hace falta su propia función (normalize deja sus dígitos tal cual).
     """
     if not 0 <= n <= 999_999:
         raise ValueError("fuera de rango (0–999,999)")
@@ -89,8 +91,33 @@ def spanish_number(n: int) -> str:
 
 
 # ---------------------------------------------------------------------------- normalización
-_THOUSANDS_SEP = re.compile(r"(?<=\d)[,.](?=\d{3}(?!\d))")  # 1,000 / 1.000 → 1000; 3.5 y 1,5 no se tocan
+# Separador de miles: en español y portugués se usan "." y "," (1,500 en México, 1.500 en Argentina o
+# Brasil); en inglés solo "," ("3.141" es un decimal). Un grupo de 3 dígitos exactos; 3,5 y 1.25 no se tocan.
+_THOUSANDS_SEP = {
+    "es": re.compile(r"(?<=\d)[,.](?=\d{3}(?!\d))"),
+    "pt": re.compile(r"(?<=\d)[,.](?=\d{3}(?!\d))"),
+    "en": re.compile(r"(?<=\d),(?=\d{3}(?!\d))"),
+}
 _PERCENT = {"es": " por ciento ", "pt": " por cento ", "en": " percent "}
+# Números que NO se expanden ni se parten en la puntuación: quedan como un token literal
+_DIGITS_WITH_PUNCT = re.compile(r"^\d+(?:[.,:]\d+)+$")  # 3,5 · 3:30 · 3.141 (ya sin separador de miles)
+_ORDINAL = re.compile(r"^\d+\.?[ºª°]$")  # 1.º · 2ª
+_CURRENCY = re.compile(r"[$€£¥]\d|\d[$€£¥]")  # $500 · us$500 · 500€
+
+
+def _literal_number(token: str, lang: str) -> str | None:
+    """El token, sin la puntuación de los bordes, si es un número que se deja literal; si no, None."""
+    core = token
+    while core and unicodedata.category(core[0])[0] == "P":  # ¿ ¡ « ( …
+        core = core[1:]
+    while core and unicodedata.category(core[-1])[0] == "P":  # . , ? » ) % …
+        core = core[:-1]
+    sep = _THOUSANDS_SEP.get(lang)
+    if sep is not None:
+        core = sep.sub("", core)
+    if _DIGITS_WITH_PUNCT.match(core) or _ORDINAL.match(core) or _CURRENCY.search(core):
+        return core
+    return None
 
 
 def _fold_accents(text: str) -> str:
@@ -106,16 +133,31 @@ def _fold_accents(text: str) -> str:
 
 
 def normalize(text: str, language: str = "es-419", fold_accents: bool = False, numbers: bool = True) -> list[str]:
-    """Texto → lista de palabras comparables. Se aplica IGUAL a referencia e hipótesis."""
+    """Texto → lista de palabras comparables. Se aplica IGUAL a referencia e hipótesis.
+
+    Números: los enteros en dígitos se escriben en palabras (solo español, 0–999,999). Decimales, horas,
+    ordinales y montos con símbolo quedan como un token literal ("3,5", "3:30", "1.º", "$500"): ver
+    spanish_number.
+    """
     lang = language.split("-")[0].lower()
     t = unicodedata.normalize("NFC", text)  # "é" compuesta y "e"+"´" combinante son lo mismo: sin esto, son S
     t = t.lower()
-    t = _THOUSANDS_SEP.sub("", t)
-    t = t.replace("%", _PERCENT.get(lang, " % "))
-    t = t.replace("'", "").replace("’", "")  # don't → dont, en las dos: no parte la palabra
-    # Puntuación (P*) y símbolos (S*) → espacio. Incluye ¿ ¡ « » — … y el "-" de "e-mail"
-    t = "".join(" " if unicodedata.category(ch)[0] in "PS" else ch for ch in t)
-    words = t.split()
+    sep = _THOUSANDS_SEP.get(lang)
+    words: list[str] = []
+    for tok in t.split():
+        # Antes de quitar la puntuación: "3,5" o "3:30" partidos serían dos números ("tres cinco")
+        lit = _literal_number(tok, lang)
+        if lit is not None:
+            words.append(lit)
+            if "%" in tok:
+                words.extend(_PERCENT.get(lang, "").split())
+            continue
+        if sep is not None:
+            tok = sep.sub("", tok)
+        tok = tok.replace("%", _PERCENT.get(lang, " "))
+        tok = tok.replace("'", "").replace("’", "")  # don't → dont, en las dos: no parte la palabra
+        # Puntuación (P*) y símbolos (S*) → espacio. Incluye ¿ ¡ « » — … y el "-" de "e-mail"
+        words.extend("".join(" " if unicodedata.category(ch)[0] in "PS" else ch for ch in tok).split())
     if numbers and lang == "es":
         expanded: list[str] = []
         for w in words:

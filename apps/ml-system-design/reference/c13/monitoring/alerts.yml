@@ -1,4 +1,4 @@
-# Alertas del caso c13 (captions en vivo), Prometheus: 8 alertas en 3 grupos + recording rules.
+# Alertas del caso c13 (captions en vivo), Prometheus: 8 alertas en 3 grupos + 10 recording rules.
 #   Sistema: CaptionPartialLatencyHigh, CaptionFinalLatencyHigh, GPUStreamSaturation, SessionReconnectRateHigh,
 #            CaptionDeliveryLag, ASRCapacityHeadroomLow
 #   Modelo:  CanaryWERRegression, VADActiveRatioShift
@@ -6,9 +6,12 @@
 # ticket = se trabaja en horario laboral, con dueño (equipo de speech). El ruteo vive en Alertmanager.
 # Umbrales ILUSTRATIVOS: salen del presupuesto de latencia de abajo y de la línea base de cada métrica.
 #
-# Presupuesto del partial (SLO del caso: p95 ≤ 500 ms de la palabra dicha al texto en pantalla), estimado:
-#   uplink cliente → SFU ≈ 80 ms · fork + decode + remuestreo ≈ 20 ms · llenar el chunk ≤ 160 ms ·
-#   server (cola + modelo + salida) ≤ 150 ms · caption-bus + WebSocket + render ≈ 90 ms  → ≈ 500 ms.
+# Presupuesto del partial (SLO del caso: p95 ≤ 500 ms de la palabra dicha al texto en pantalla). Es un
+#   REPARTO del presupuesto entre dueños, no la cola medida: captura + uplink cliente → SFU ≈ 80 ms ·
+#   fork + decode + remuestreo ≈ 20 ms · llenar el chunk ≤ 160 ms (el lookahead del modelo cache-aware va
+#   DENTRO del chunk, no se suma) · server (cola + modelo + salida) ≤ 150 ms · caption-bus + WebSocket +
+#   render ≈ 90 ms → ≈ 500 ms. La tabla del caso estima ≈ 300 ms típico y ≈ 510 ms si todas las colas
+#   coinciden (server ≈ 70 ms de esos 150: el resto es margen); los tramos reales se miden.
 #   Las métricas del worker miden SOLO el tramo server: por eso la alerta del partial es a 200 ms (ya se
 #   comió el margen de la red), no a 500. El tramo de punta a punta se mide en el cliente (RUM).
 # Final (SLO: p95 ≤ 1.5 s después del fin de la utterance): el tramo server incluye los 600 ms de silencio
@@ -66,11 +69,17 @@ groups:
           asr:vad_speech_ratio:rate1h
             / (sum(rate(asr_vad_frames_total{decision="speech"}[1h] offset 1w))
                  / sum(rate(asr_vad_frames_total[1h] offset 1w)))
-      # Streams activos ÷ capacidad que ACEPTA (un worker que drena reporta 0 de capacidad, pero sus streams
-      # siguen contando: tienen que caber en otro lado). En régimen, KEDA apunta a 350 de 450 ≈ 0.78.
+      # Streams ACTIVOS (sesiones hablando: lo que ocupa GPU) ÷ capacidad que ACEPTA (un worker que drena
+      # reporta 0 de capacidad, pero sus streams siguen contando: tienen que caber en otro lado). En régimen,
+      # KEDA apunta a 350 de 450 ≈ 0.78.
       - record: asr:capacity_utilization
         expr: |
           sum(asr_active_streams) / sum(asr_stream_capacity)
+      # Lo mismo en SESIONES conectadas (≈ 1,170 de 1,500 ≈ 0.78 en régimen): se llena sola si baja la
+      # fracción de pistas con voz, aunque las GPUs sobren.
+      - record: asr:session_utilization
+        expr: |
+          sum(asr_sessions) / sum(asr_session_capacity)
 
   # ------------------------------------------------------------------ sistema
   - name: c13-system
@@ -132,17 +141,20 @@ groups:
       - alert: ASRCapacityHeadroomLow
         # > 85 % sostenido = KEDA no alcanza (en el máximo de réplicas, o los nodos GPU no llegan: cuota de
         # la cuenta, una AZ sin L4). Al 100 % el router responde NoCapacity y la reunión sigue sin captions.
-        # La segunda rama dispara si los workers dejan de exportar métricas: sin ellas, el autoscaling y
-        # todas las demás alertas de esta página están ciegos.
+        # Tres ramas: streams activos (la GPU), sesiones conectadas (cause="sessions": el tope de admisión) y
+        # workers que dejan de exportar métricas (cause="no_metrics": sin ellas, el autoscaling y todas las
+        # demás alertas de esta página están ciegos).
         expr: |
           asr:capacity_utilization > 0.85
+            or
+          label_replace(asr:session_utilization > 0.85, "cause", "sessions", "", "")
             or
           label_replace(absent(asr_active_streams), "cause", "no_metrics", "", "")
         for: 10m
         labels:
           severity: page
         annotations:
-          summary: "{{ if $labels.cause }}Workers de ASR sin métricas: autoscaling y alertas a ciegas{{ else }}Capacidad de ASR al {{ $value | humanizePercentage }} (> 85 %){{ end }}"
+          summary: "{{ if eq $labels.cause \"no_metrics\" }}Workers de ASR sin métricas: autoscaling y alertas a ciegas{{ else if eq $labels.cause \"sessions\" }}Sesiones de ASR al {{ $value | humanizePercentage }} de MAX_SESSIONS (> 85 %){{ else }}Streams activos de ASR al {{ $value | humanizePercentage }} de la capacidad (> 85 %){{ end }}"
           description: "kubectl get scaledobject,hpa -n c13 (¿en maxReplicaCount?); kubectl get pods -n c13 | grep Pending (¿nodos GPU?); rate(asr_sessions_rejected_total{reason=\"capacity\"}[5m]). Con cause=no_metrics: el PodMonitor o Prometheus."
           runbook_url: "https://runbooks.example.com/c13/capacity"
 
