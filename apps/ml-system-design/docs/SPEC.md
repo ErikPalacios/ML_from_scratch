@@ -937,6 +937,115 @@ decisions.
   stratified samples with CIs), tests/}, gateway/{main.py (FastAPI sync endpoint with a time budget and
   fail-open behind interfaces), tests/}, monitoring/alerts.yml, README.md.
 
+## 8g. Case c07 — shared facts (every c07 agent MUST use exactly these)
+Scenario: **the same second-hand marketplace as c01** (sellers upload photos; c01 suggests the category).
+Users must find listings by **describing what they want** ("chamarra de mezclilla vintage talla M") or by
+**uploading a photo** ("algo como esto"). Today search is keyword-only (BM25 in OpenSearch) with many
+zero-result and vocabulary-mismatch queries. Not our job to design the embedding model internals.
+- Catalog: **≈ 100 M active listings** (≈ 4 photos each); **≈ 2.5 M new listings/day** (consistent with
+  c01's 10 M images/day ÷ 4) and about the same number leaving (sold/expired/removed) — steady state.
+  New listings ≈ 29/s average, ≈ 90/s peak.
+- Queries: **≈ 50 M searches/day** → ≈ 579/s average, **peak ≈ 3× ≈ 1,750 QPS**; **≈ 5 % are photo
+  queries** (≈ 90/s at peak). Results: top 48 per page, with filters (category, price, city/shipping,
+  condition) that must be honored.
+- Embeddings: a **CLIP-class dual encoder** (image and text towers in a shared space), fine-tuned on the
+  marketplace's own (title, photo) pairs and click logs; **d = 512**, L2-normalized; **one vector per
+  listing** = normalized average of the main-photo embedding and the title+attributes text embedding
+  (simple, one index; per-photo vectors are discussed as an alternative ×4 memory).
+- Index memory (compute in the case): 100 M × 512 × 4 B = **204.8 GB FP32**; FP16 102.4 GB; **int8
+  scalar quantization 51.2 GB**; **PQ with 64-byte codes 6.4 GB**; HNSW graph links add ≈ M×2×4 B per
+  vector at layer 0 (M = 32 → ≈ 256 B → ≈ 25.6 GB, est.). Design decision: **HNSW over int8 vectors,
+  4 shards × 25 M vectors** (≈ 12.8 GB vectors + ≈ 6.4 GB graph ≈ 19 GB per shard, est.), each shard with
+  **2 replicas**, scatter-gather; top-200 candidates rescored with the exact float vectors (kept on
+  local NVMe/SSD); IVF-PQ discussed as the memory-cheap alternative (and its recall cost).
+- Hybrid: ANN (semantic) and BM25 (keyword: brands, model numbers, exact sizes) **in parallel**, fused
+  with **Reciprocal Rank Fusion (k = 60)**, filters applied inside the ANN search when possible (filtered
+  HNSW / pre-filter by shard partition) — post-filtering trap (filter after top-k → empty pages for
+  selective filters); optional **cross-encoder reranker** on the top 100 for text queries (GPU).
+- Latency SLO (server-side): **text query p99 ≤ 300 ms**, **photo query p99 ≤ 600 ms** (incl. image decode
+  + encoding); budget (est.): text encode ≈ 10 ms GPU, ANN ≈ 20 ms per shard (parallel), BM25 ≈ 40 ms
+  (parallel), fusion + filters ≈ 10 ms, rerank top-100 ≈ 60 ms, overhead.
+- Freshness: a new listing is **searchable within p95 ≤ 5 min** (Kafka `listing-events` → `embed-worker`
+  GPU → upsert); a **sold/removed listing must disappear within ≤ 1 min** → availability filter from a
+  fast store (tombstones) at query time, because HNSW deletes are expensive (mark deleted + periodic
+  shard rebuild).
+- Re-embedding the catalog when the model changes (est.): image tower ≈ 2,000 img/s per L4 at 224×224
+  (measure) → 100 M main photos ≈ 50,000 GPU-s ≈ **14 GPU-h** (≈ 1.7 h on 8 L4 spot) + text tower +
+  index build → **blue/green index** (build the new index aside, shadow-compare, swap an alias); vectors
+  of different model versions are NEVER mixed in one index.
+- Capacity (est., measure): query text encoding ≈ 5,000 queries/s per L4 (short text) → the peak
+  ≈ 1,660 text QPS + ≈ 90 photo QPS fit in 1 L4 + N+1 (shared pool). The **reranker is the GPU cost
+  driver**: a small cross-encoder ≈ 10,000 (query, doc) pairs/s per L4 (est., ≤ 64 tokens) → planned 70 %
+  ≈ 7,000/s; top-100 at 1,660 QPS = 166k pairs/s ≈ 24 L4 — too expensive → rerank the **top-30** (≈ 50k
+  pairs/s → 7 + 1 = 8 L4) or only head queries; the narrative justifies the choice. ANN shards on
+  memory-optimized CPU instances (e.g. r7i family — verify RAM and prices).
+- Evaluation: offline query sets from logs (head/torso/tail), graded human relevance labels (0–3),
+  **NDCG@10**, recall@k; **ANN recall@100 vs exact brute force ≥ 0.95** on a canary query set; online:
+  search CTR, contacts-with-seller per search, zero-result rate, query reformulation rate; A/B (and
+  interleaving for ranking changes → #m11.interleaving-bandits).
+- Alert names: `SearchLatencyHigh`, `ZeroResultRateHigh`, `IndexFreshnessLag`, `SoldItemsServed`,
+  `ANNRecallDrop`, `EmbedWorkerBacklog`, `SearchCTRDrop`, `ShardMemoryHigh`.
+- Reference files (reference/c07/): indexing/{embed_worker.py (consume listing events through an
+  interface: create/update → embed → upsert with model_version; sold/removed → tombstone; idempotent by
+  listing_id + version), build_index.py (FAISS on synthetic vectors: HNSW and IVF-PQ, measure recall@k vs
+  brute force, memory and latency — runs on CPU with small N), requirements.txt, tests/}, search/{api.py
+  (FastAPI: text or photo query → encoder interface; ANN and BM25 interfaces in parallel with timeouts;
+  RRF; filters; tombstone filter; optional rerank; fallbacks: BM25-only if ANN times out),
+  fusion.py (RRF), requirements.txt, tests/}, eval/{offline_eval.py (recall@k, NDCG@10 with graded labels),
+  tests/}, monitoring/alerts.yml (+ promtool tests), README.md.
+
+## 8h. Case c08 — shared facts (every c08 agent MUST use exactly these)
+Scenario: **the same marketplace (c01, c07)**: the app's **home screen** shows each user a personalized
+feed of listings. Today it shows "recientes en tu ciudad" + popular items. Goal: more **contacts with
+sellers / purchases** (the business value), not just clicks.
+- Scale: **≈ 30 M DAU**, ≈ 3 home loads per user per day → **≈ 90 M home requests/day ≈ 1,042 RPS
+  average, peak ≈ 3× ≈ 3,100 RPS**; each response = 50 listings (first screen shows ≈ 10; infinite scroll
+  asks for more pages). Catalog ≈ 100 M active listings with ≈ 2.5 M new/day (c07 facts).
+- Funnel (names used everywhere): `home-api` → **candidate generation in parallel** (≈ 1,000 total):
+  two-tower ANN on the user embedding (≈ 500; item tower embeddings indexed like c07), item-to-item
+  **co-visitation** from the user's recent views (≈ 300), trending/popular in the user's city (≈ 100),
+  followed sellers / saved searches (≈ 100) → **filter** (sold, blocked, already seen many times, geo/
+  shipping) → **ranker** (multi-task DNN, ≈ 10 M params: P(click), P(contact|click); ≈ 300 features of
+  user, item, context and cross features) → **re-ranker** (diversity caps per category/seller, freshness
+  boost, **exploration slots ≈ 5 %**, business rules) → 50 items; impressions logged with request_id
+  and the **feature snapshot used at serving** (log-and-wait to avoid training-serving skew →
+  #m09.skew).
+- Latency SLO: **p99 ≤ 200 ms server-side**; budget (est.): retrieval ≈ 40 ms (parallel sources),
+  feature fetch ≈ 40 ms (batch get of ≈ 1,000 items × features + user features — the hidden cost), ranking
+  ≈ 60 ms, re-rank ≈ 10 ms, overhead/network ≈ 30 ms; each source has its own timeout and the feed is
+  served with whatever sources answered; total failure → cached popular-in-city fallback.
+- Ranking compute (est., measure): 3,100 RPS × 1,000 candidates ≈ **3.1 M item-scores/s at peak**;
+  ranker on GPU with Triton ≈ 1.5 M item-scores/s per L4 (measure) → planned 70 % ≈ 1.05 M/s → 3 + 1
+  (N+1) = **4 L4**; alternative: a light pre-ranker cuts to 300 candidates (≈ 0.93 M/s). GBDT on CPU is
+  discussed as the simpler baseline (estimate cores with ≈ 10 µs per item, est.).
+- Online feature store (est.): item features ≈ 1 KB × 100 M ≈ 100 GB; user features ≈ 2 KB × 30 M DAU
+  (+ inactive users) ≈ 60–100 GB → in-memory key-value cluster (Redis-class) with replicas; real-time
+  features (last 50 user actions, item click/contact counters over 1 h/24 h) from Kafka + a stream
+  processor (Flink-class) with freshness ≤ 1 min.
+- Training data (est.): ≈ 90 M requests × ≈ 10 viewed items ≈ **900 M impressions/day**; labels: click
+  (same session) and **contact with seller within 24 h (delayed label)**; position bias (log position;
+  exploration traffic for unbiased estimates); daily incremental training of the ranker, weekly
+  two-tower retraining + re-indexing of item embeddings (blue/green like c07).
+- Cold start: new users → onboarding categories + city + popular; new listings → content embedding from
+  c07's CLIP vectors mapped into the item tower / content-based candidates + exploration boost.
+- Objective and metrics: primary online metric **contacts with sellers per DAU** (proxy of transactions);
+  guardrails: D7 retention, home latency, diversity, **new-seller exposure** (marketplace health), %
+  sold items shown; offline: recall@k of retrieval sources, NDCG / AUC of the ranker per slice (new vs
+  returning users, city size). A/B: **user-level randomization**, 1 % relative lift on contacts/DAU —
+  compute the sample size; marketplace interference (sellers shared across arms) → mention
+  seller-side/cluster designs (hedged).
+- Alert names: `HomeLatencyHigh`, `CandidateSourceTimeouts`, `FeatureStoreStale`, `RankerScoreShift`,
+  `HomeFallbackRateHigh`, `ContactsPerDAUDrop`, `ImpressionLogLag`, `ExplorationTrafficOff`.
+- Reference files (reference/c08/): serving/{home_api.py (FastAPI: sources in parallel with per-source
+  timeouts behind interfaces, merge + dedupe, filters, feature fetch interface, ranker interface,
+  re-rank, fallback, impression log with feature snapshot), rerank.py (diversity caps + exploration slots,
+  deterministic with a seed per request), requirements.txt, tests/}, retrieval/{covisitation.py
+  (item-item co-visitation counts from sessions with time decay and top-k per item), tests/},
+  training/{build_training_set.py (point-in-time join of impressions with delayed labels — contact within
+  24 h — no leakage), tests/}, eval/{ab_sample_size.py (users per arm for a relative lift on a per-user
+  metric with given mean/variance), offline_metrics.py (recall@k, NDCG@k, AUC), tests/},
+  monitoring/alerts.yml (+ promtool tests), README.md.
+
 ## 9. Writing style for content agents (applies to every content file)
 - Spanish (neutral Latin American, tuteo), direct, no filler, no motivational fluff. Technical terms
   in English (latency, throughput, batch, serving, feature store, rollout…), exactly as they'd be
