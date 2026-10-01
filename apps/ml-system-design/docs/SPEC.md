@@ -977,7 +977,7 @@ zero-result and vocabulary-mismatch queries. Not our job to design the embedding
   ≈ 1,660 text QPS + ≈ 90 photo QPS fit in 1 L4 + N+1 (shared pool). The **reranker is the GPU cost
   driver**: a small cross-encoder ≈ 10,000 (query, doc) pairs/s per L4 (est., ≤ 64 tokens) → planned 70 %
   ≈ 7,000/s; top-100 at 1,660 QPS = 166k pairs/s ≈ 24 L4 — too expensive → rerank the **top-30** (≈ 50k
-  pairs/s → 7 + 1 = 8 L4) or only head queries; the narrative justifies the choice. ANN shards on
+  pairs/s ≈ 7.1 L4 at the planned rate → 8 L4; a query cache gives extra margin) or only head queries; the narrative justifies the choice. ANN shards on
   memory-optimized CPU instances (e.g. r7i family — verify RAM and prices).
 - Evaluation: offline query sets from logs (head/torso/tail), graded human relevance labels (0–3),
   **NDCG@10**, recall@k; **ANN recall@100 vs exact brute force ≥ 0.95** on a canary query set; online:

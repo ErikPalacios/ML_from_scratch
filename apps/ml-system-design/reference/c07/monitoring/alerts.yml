@@ -1,0 +1,216 @@
+# Alertas del caso c07 (búsqueda semántica e híbrida), Prometheus: 8 alertas en 3 grupos + recording rules.
+#   Sistema: SearchLatencyHigh, EmbedWorkerBacklog, IndexFreshnessLag, SoldItemsServed, ShardMemoryHigh
+#   Índice:  ANNRecallDrop
+#   Calidad: ZeroResultRateHigh, SearchCTRDrop
+# Severidades: page = alguien lo mira YA; ticket = horario laboral, con dueño (equipo de búsqueda).
+# El ruteo vive en Alertmanager, no aquí. Los umbrales son ILUSTRATIVOS salvo los que salen del SLO.
+# De dónde sale cada métrica:
+#   search_*                                  → search/api.py (un test verifica que cada search_* existe allá)
+#   embed_worker_*                            → indexing/embed_worker.py (ídem)
+#   kafka_consumergroup_lag, kafka_topic_partition_current_offset → kafka_exporter (danielqsj/kafka_exporter)
+#   ann_canary_recall_at_100{shard}, ann_canary_last_run_timestamp_seconds{shard}
+#                                             → job horario del canary set: ANN vs brute force sobre las mismas
+#                                               queries (eval/offline_eval.py: knn_recall_at_k). No está aquí.
+#   sold_audit_results_checked_total, sold_audit_sold_served_total
+#                                             → job de auditoría: toma una muestra de los resultados servidos
+#                                               (log de search-api) y los cruza con listing-service; cuenta los
+#                                               que llevaban > 60 s vendidos o removidos al servirse. No está aquí.
+#   clickstream_searches_total, clickstream_searches_with_click_total
+#                                             → pipeline de eventos de la app (búsquedas y clics por request_id)
+#   container_memory_working_set_bytes        → cAdvisor (kubelet)
+#   kube_pod_container_resource_limits        → kube-state-metrics
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules
+  - name: c07-recording
+    rules:
+      # p99 server-side por tipo de consulta. El histograma tiene buckets EXACTOS en 0.3 y 0.6 (los SLO):
+      # sin ellos, histogram_quantile interpolaría y el p99 "cerca del SLO" sería ruido.
+      - record: search:latency_p99:rate5m
+        expr: |
+          histogram_quantile(0.99, sum by (le, query_type) (rate(search_request_duration_seconds_bucket[5m])))
+      # Fracción de búsquedas con la primera página vacía. Denominador: búsquedas servidas (200) de
+      # todas las páginas; las páginas > 0 son pocas y diluyen apenas la fracción.
+      - record: search:zero_result_ratio:rate15m
+        expr: |
+          sum by (query_type) (rate(search_zero_results_total[15m]))
+            / sum by (query_type) (rate(search_requests_total{status="200"}[15m]))
+      # La misma fracción hace una semana, desde los counters crudos (offset 1w): el día y la hora pesan
+      # (un domingo en la noche no es un lunes a mediodía). Necesita ≥ 8 días de retención (15 por defecto).
+      - record: search:zero_result_ratio:rate15m_1w_ago
+        expr: |
+          sum by (query_type) (rate(search_zero_results_total[15m] offset 1w))
+            / sum by (query_type) (rate(search_requests_total{status="200"}[15m] offset 1w))
+      # Frescura de punta a punta (commit en listing-service → escrito por el worker), p95 por operación:
+      # op="upsert" (SLO 5 min) y op="tombstone" (SLO 1 min). Buckets exactos en 60 y 300.
+      - record: search:index_freshness_p95:rate15m
+        expr: |
+          histogram_quantile(0.95, sum by (le, op) (rate(embed_worker_index_freshness_seconds_bucket[15m])))
+      # Cuántos SEGUNDOS va atrasado embed-worker: lag en mensajes ÷ ritmo al que se producen.
+      # Ve el atraso aunque el worker no procese NADA (caído): el histograma de frescura de arriba solo
+      # registra lo que terminó, y con el worker caído se queda callado (la trampa del caso c04).
+      - record: search:embed_worker_lag_seconds
+        expr: |
+          sum(kafka_consumergroup_lag{consumergroup="embed-worker", topic="listing-events"})
+            / sum(rate(kafka_topic_partition_current_offset{topic="listing-events"}[5m]))
+      # Fracción de búsquedas cuyo chequeo de tombstones falló (se sirvieron sin quitar vendidos).
+      - record: search:tombstone_check_failure_ratio:rate5m
+        expr: |
+          sum(rate(search_tombstone_checks_total{outcome="failed"}[5m]))
+            / sum(rate(search_tombstone_checks_total[5m]))
+      # Auditoría: de los resultados servidos que se revisaron, cuántos llevaban > 60 s vendidos/removidos.
+      - record: search:sold_served_ratio:rate1h
+        expr: |
+          sum(rate(sold_audit_sold_served_total[1h])) / sum(rate(sold_audit_results_checked_total[1h]))
+      # CTR de búsqueda: búsquedas con ≥ 1 clic ÷ búsquedas (1 h), y la misma hora de la semana pasada.
+      - record: search:ctr:rate1h
+        expr: |
+          sum(rate(clickstream_searches_with_click_total[1h])) / sum(rate(clickstream_searches_total[1h]))
+      - record: search:ctr:rate1h_1w_ago
+        expr: |
+          sum(rate(clickstream_searches_with_click_total[1h] offset 1w))
+            / sum(rate(clickstream_searches_total[1h] offset 1w))
+      # Memoria de cada réplica de shard ANN contra su límite. Supone que cada réplica corre como pod con
+      # límite de memoria (namespace search, container ann-shard): working_set es lo que mira el kubelet
+      # para el OOM kill, y si el motor usa mmap, las páginas de archivo activas también cuentan. Si el motor
+      # corre en VMs (p. ej. nodos de datos de OpenSearch fuera de Kubernetes), la misma regla se escribe con
+      # node_exporter: 1 − node_memory_MemAvailable_bytes ÷ node_memory_MemTotal_bytes por nodo.
+      - record: search:ann_shard_memory_ratio
+        expr: |
+          max by (namespace, pod) (
+            container_memory_working_set_bytes{namespace="search", container="ann-shard"}
+              / on (namespace, pod, container)
+            kube_pod_container_resource_limits{namespace="search", container="ann-shard", resource="memory"}
+          )
+
+  # ------------------------------------------------------------------ sistema
+  - name: c07-system
+    rules:
+      - alert: SearchLatencyHigh
+        # Dos SLO distintos en una alerta: texto 300 ms, foto 600 ms (la foto incluye decode + encode).
+        expr: |
+          search:latency_p99:rate5m{query_type="text"} > 0.3
+            or
+          search:latency_p99:rate5m{query_type="photo"} > 0.6
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "search-api: p99 de {{ $labels.query_type }} = {{ $value | humanizeDuration }}"
+          description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(search_stage_duration_seconds_bucket[5m]))). ann → un shard lento o sin memoria (ShardMemoryHigh); encode/rerank → GPU saturada (baja RERANK_TOP_N antes de que todo venza); bm25 → OpenSearch."
+          runbook_url: "https://runbooks.example.com/c07/search-latency"
+
+      - alert: EmbedWorkerBacklog
+        # Umbral 180 s: con ≈ 1–2 min de embed + upsert + refresh del índice, a 3 min de atraso el SLO
+        # de 5 min (p95) ya está en riesgo. Dispara también con el worker CAÍDO (el lag crece igual).
+        expr: search:embed_worker_lag_seconds > 180
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "embed-worker atrasado {{ $value | humanizeDuration }} en listing-events"
+          description: "Listings nuevos y vendidos no llegan al índice. ¿Pods en CrashLoopBackOff (ModelVersionMismatch: encoder e índice con modelos distintos)? ¿GPU saturada (embed_worker_embed_batch_seconds)? ¿DLQ creciendo (embed_worker_dead_letter_total)? Mientras tanto los vendidos tampoco se marcan: mira SoldItemsServed."
+          runbook_url: "https://runbooks.example.com/c07/embed-worker-backlog"
+
+      - alert: IndexFreshnessLag
+        # SLO: un listing nuevo es buscable en p95 ≤ 5 min. Solo ve lo que el worker SÍ escribió; si el
+        # worker no escribe nada, la serie no tiene datos y avisa EmbedWorkerBacklog.
+        expr: search:index_freshness_p95:rate15m{op="upsert"} > 300
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "Listings nuevos tardan {{ $value | printf \"%.0f\" }} s (p95) en ser buscables (SLO 300 s)"
+          description: "El worker avanza pero tarde: GPU lenta (embed_worker_embed_batch_seconds), upserts lentos en los shards, o un backfill (re-embedding) compitiendo por la GPU. Un re-embedding del catálogo va en OTRO pool de GPU y escribe en el índice nuevo (blue/green), nunca en el que sirve."
+          runbook_url: "https://runbooks.example.com/c07/index-freshness"
+
+      - alert: SoldItemsServed
+        # La promesa: un vendido desaparece en ≤ 1 min. Tres formas de romperla, cada una con su label:
+        #   tombstone_check_failures  search-api no pudo consultar los tombstones (> 1 % de búsquedas)
+        #   tombstone_lag             el worker escribe los tombstones tarde (p95 > 60 s)
+        #   audit                     la auditoría encontró vendidos servidos (> 0.1 % de lo revisado)
+        expr: |
+          label_replace(search:tombstone_check_failure_ratio:rate5m > 0.01, "signal", "tombstone_check_failures", "", "")
+            or
+          label_replace(search:index_freshness_p95:rate15m{op="tombstone"} > 60, "signal", "tombstone_lag", "", "")
+            or
+          label_replace(search:sold_served_ratio:rate1h > 0.001, "signal", "audit", "", "")
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Vendidos o removidos en los resultados ({{ $labels.signal }}: {{ $value | humanize }})"
+          description: "tombstone_check_failures → el store de tombstones (Redis) no contesta en 20 ms. tombstone_lag → embed-worker atrasado (mira EmbedWorkerBacklog). audit → los dos anteriores están bien y aun así se sirven vendidos: ¿listing-service dejó de publicar eventos sold? ¿un TTL de tombstone más corto que el ciclo de rebuild del índice?"
+          runbook_url: "https://runbooks.example.com/c07/sold-items-served"
+
+      - alert: ShardMemoryHigh
+        # 85 %: queda margen para el crecimiento del día y para el pico del rebuild. Arriba del límite,
+        # el kubelet mata la réplica (OOMKilled) y el shard queda con una sola.
+        expr: search:ann_shard_memory_ratio > 0.85
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "{{ $labels.pod }} usa {{ $value | humanizePercentage }} de su límite de memoria"
+          description: "Causas típicas: el catálogo creció; los borrados marcados se acumulan desde el último rebuild del shard (el espacio solo se recupera al reconstruir); o un índice nuevo (blue/green) se cargó en los mismos pods. Opciones: rebuild del shard, más shards (re-particionar), o instancias con más RAM."
+          runbook_url: "https://runbooks.example.com/c07/shard-memory"
+
+  # ------------------------------------------------------------------ índice
+  - name: c07-index
+    rules:
+      - alert: ANNRecallDrop
+        # El canary corre cada hora: mismas queries por el ANN de cada shard y por brute force exacto.
+        # for: 1h → al menos dos corridas seguidas bajo 0.95. Y si el canary dejó de correr (> 3 h, o su
+        # serie desapareció del todo), también avisa: un canary muerto se ve igual que un índice sano.
+        # Supone que el job publica sus gauges en un exporter de larga vida (o Pushgateway): así el
+        # timestamp de la última corrida sigue visible aunque el job no corra.
+        expr: |
+          min by (shard) (ann_canary_recall_at_100) < 0.95
+            or
+          label_replace(
+            min by (shard) (time() - ann_canary_last_run_timestamp_seconds) > 3 * 3600,
+            "signal", "canary_stale", "", "")
+            or
+          label_replace(absent(ann_canary_last_run_timestamp_seconds), "signal", "canary_missing", "", "")
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "ANN de {{ $labels.shard }}: recall@100 vs exacto = {{ $value | humanize }} (meta ≥ 0.95)"
+          description: "Recall del índice, no calidad del modelo. Causas: muchos borrados marcados en el grafo (rebuild), un efSearch más bajo en un deploy, un índice construido con parámetros distintos, o datos que cambiaron de distribución. Si la señal es canary_stale, el valor es la edad en segundos del último canary."
+          runbook_url: "https://runbooks.example.com/c07/ann-recall"
+
+  # ------------------------------------------------------------------ calidad
+  - name: c07-quality
+    rules:
+      - alert: ZeroResultRateHigh
+        # Contra la misma hora de la semana pasada y con un piso absoluto de 2 %: con la parte semántica,
+        # el ANN casi siempre devuelve algo; una subida brusca suele ser un fallback (solo BM25) o un filtro.
+        expr: |
+          search:zero_result_ratio:rate15m > 0.02
+            and
+          search:zero_result_ratio:rate15m > 2 * search:zero_result_ratio:rate15m_1w_ago
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.query_type }}: {{ $value | humanizePercentage }} de búsquedas sin resultados (> 2× la semana pasada)"
+          description: "¿Fallback activo? sum by (reason) (rate(search_degraded_total[5m])): ann_unavailable o encode_timeout → solo BM25. ¿Un filtro nuevo de la app o un cambio de atributos en listing-service? search_postfilter_underfilled_total y search_filter_violations_total."
+          runbook_url: "https://runbooks.example.com/c07/zero-results"
+
+      - alert: SearchCTRDrop
+        # 20 % menos que la misma hora de la semana pasada, con tráfico suficiente para que no sea ruido.
+        # Ticket: casi nunca es una caída del sistema (esas las ven las alertas de arriba) sino calidad: un
+        # modelo nuevo, un cambio de ranking, un catálogo distinto. Se cruza con el A/B en curso.
+        expr: |
+          search:ctr:rate1h < 0.8 * search:ctr:rate1h_1w_ago
+            and
+          sum(rate(clickstream_searches_total[1h])) > 10
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "CTR de búsqueda {{ $value | humanizePercentage }} (< 80 % de la semana pasada)"
+          description: "¿Hubo deploy de modelo, de índice (swap blue/green) o de ranking? ¿El rerank se está saltando (search_degraded_total{reason=\"rerank_skipped\"})? ¿Cambió la app (eventos de clic que dejan de llegar se ven igual que un CTR que cae)? Compara NDCG@10 offline de la versión actual contra la anterior."
+          runbook_url: "https://runbooks.example.com/c07/search-ctr"

@@ -500,7 +500,7 @@
         'Evaluación: recall@k, NDCG, sets de consultas y A/B',
         'Memoria del índice y sharding',
       ],
-      freq: 'alta', minutes: 125, difficulty: 'media',
+      freq: 'alta', minutes: 102, difficulty: 'media',
       connects: ['m02', 'm04', 'm07', 'm09', 'm14', 'c08', 'c11'],
       tests: [
         'Separar indexación offline de consulta online, cada una con su presupuesto',
@@ -526,7 +526,7 @@
         'Métricas offline (recall@k, NDCG) vs online (CTR, retención)',
         'Precomputar vs calcular en línea',
       ],
-      freq: 'alta', minutes: 125, difficulty: 'alta',
+      freq: 'alta', minutes: 99, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'c07'],
       tests: [
         'Diseñar un embudo en etapas con presupuesto de latencia por etapa',
@@ -808,13 +808,13 @@
       note: 'Equivalencias AWS/GCP/Azure, costos y spot, más seguridad, privacidad y confiabilidad; con la tabla de herramientas por categoría ya tienes el mapa completo.',
     },
     {
-      phase: 10, status: 'next',
+      phase: 10, status: 'done',
       title: 'Fase 10 — Búsqueda y recomendación',
       items: ['c07', 'c08'],
       note: 'Los clásicos de empresas grandes y van en secuencia: embeddings + ANN (c07) son la base del retrieval de recomendación (c08).',
     },
     {
-      phase: 11, status: 'later',
+      phase: 11, status: 'next',
       title: 'Fase 11 — Tiempo real con streaming',
       items: ['c09', 'c13'],
       note: 'Fraude con features en streaming y speech-to-text en vivo comparten el problema de fondo: decidir con datos que llegan continuamente y un presupuesto de latencia estricto.',
@@ -984,6 +984,66 @@
       {
         "topic": "Restricciones",
         "a": "Capacidad humana: ≈ 600 puestos cubiertos cada día, ≈ 60 ítems/h por persona, ≈ 6 h productivas por turno → <b>≈ 216k revisiones/día</b>, a <b>≈ US$1,500/mes por puesto</b> (varía por país). Usuarios en América Latina, EE. UU. y la UE: aplica la Digital Services Act (explicación de cada decisión, apelaciones, transparencia) y el reporte obligatorio de CSAM en EE. UU.; los detalles los decide legal. El bienestar de los moderadores es obligatorio y el CSAM nunca entra a datos de entrenamiento."
+      }
+    ],
+    c07: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Compradores del mismo marketplace de segunda mano donde ya se sugiere la categoría de las fotos. Buscan desde la app y la web, escribiendo o subiendo una foto; llama el front de búsqueda. Los vendedores crean, editan y marcan como vendidos sus listings en <b>listing-service</b>, que publica cada cambio en Kafka. La búsqueda de hoy la opera el equipo de búsqueda."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Entrada: texto libre (“chamarra de mezclilla vintage talla M”) <b>o</b> una foto (“algo como esto”; la app la reduce antes de subirla, la web puede mandar fotos grandes), más filtros: categoría, rango de precio, ciudad o “con envío”, y estado. Los filtros son <b>estrictos</b>. Salida: <b>48 resultados por página</b>, paginados; la mayoría de las sesiones no pasa de la página 2. En la primera versión, una búsqueda por foto no lleva texto."
+      },
+      {
+        "topic": "Escala",
+        "a": "≈ <b>100 M listings activos</b>, ≈ 4 fotos cada uno. Entran ≈ <b>2.5 M listings nuevos al día</b> y salen otros tantos (vendidos, vencidos, retirados); hay ≈ 5 M cambios de atributos al día (precio, estado). ≈ <b>50 M búsquedas al día</b>, con un pico de la tarde ≈ 3× el promedio; ≈ <b>5 %</b> son por foto."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "Del lado del servidor: texto <b>p99 ≤ 300 ms</b>; foto <b>p99 ≤ 600 ms</b>, incluido recibir y procesar la imagen. Un listing nuevo debe ser buscable en <b>p95 ≤ 5 min</b>; uno vendido o retirado debe dejar de aparecer en <b>≤ 1 min</b>. La búsqueda debe estar disponible el <b>99.9 %</b>; si la parte nueva falla, es aceptable volver a la búsqueda por palabras clave de hoy."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "Hoy: <b>BM25 en OpenSearch</b> con los mismos filtros. ≈ 8 % de las búsquedas no devuelve nada; fallan sinónimos (“chamarra” vs “campera”), descripciones vagas y errores de escritura; no hay búsqueda por foto. El equipo de modelos entrega un <b>dual encoder tipo CLIP</b> (texto e imagen en el mismo espacio) ajustado con datos del marketplace: <b>d = 512</b>, L2-normalizado, versionado. Diseñar el modelo no es nuestro trabajo."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "Por búsqueda se registran la consulta, los filtros, los resultados mostrados con su posición, los clics, los favoritos y los <b>contactos con el vendedor</b> (13 meses de logs). Las compras se ven solo en parte: muchas se cierran fuera de la plataforma. No hay juicios de relevancia hechos por personas. Cada listing tiene título, atributos y ≈ 4 fotos. Idiomas: español de México y otros países, con marcas y palabras en inglés."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Presupuesto ≈ <b>US$20k al mes</b> de infraestructura nueva; el clúster de OpenSearch actual ya está pagado. Las consultas pueden traer datos personales (teléfonos, nombres) y las fotos de consulta son de los usuarios: retención y privacidad las decide legal. La personalización por usuario queda fuera de este proyecto."
+      }
+    ],
+    c08: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "La <b>app del celular</b> del mismo marketplace de segunda mano (el de categorías y búsqueda) pide el home al abrirse y al hacer scroll. Hoy el home muestra “recientes en tu ciudad” más lo popular, sin personalización. El negocio quiere más <b>contactos con vendedores</b> (abrir el chat o pedir el teléfono) por usuario activo, no más clicks, y sin quitarle contactos a la búsqueda."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Entrada: el usuario (id, ciudad, dispositivo) y la página del scroll. Salida: <b>50 publicaciones</b> por respuesta; la primera pantalla muestra ≈ 10. Nunca se puede mostrar algo vendido o borrado, ni algo sin envío fuera de la ciudad del usuario. Un usuario nuevo elige 3 o más categorías en el onboarding. Ningún vendedor nuevo debería quedar invisible."
+      },
+      {
+        "topic": "Escala",
+        "a": "<b>≈ 30 M de usuarios activos al día</b>, ≈ 3 requests de home por usuario contando las páginas del scroll: <b>≈ 90 M/día</b>, con pico diurno ≈ 3× el promedio. Catálogo: <b>≈ 100 M publicaciones activas</b>, ≈ 2.5 M nuevas al día y casi las mismas salen; casi todas son unidades únicas que viven unas semanas. Hay ciudades con millones de publicaciones y muchas con unos pocos miles."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "<b>p99 ≤ 200 ms</b> del lado del servidor. Si el servidor no responde a tiempo, la app muestra su caché o “recientes en tu ciudad”. Lo que el usuario acaba de ver debería contar en su siguiente home en ≈ 1 minuto. Una publicación vendida debe desaparecer en ≤ 1 min; una nueva, poder aparecer en ≤ 5 min."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "No hay modelo de recomendación: el home es una heurística. Del sistema de búsqueda ya existen un vector CLIP por publicación (foto + título) y un índice ANN; otro servicio sugiere la categoría de cada publicación. No es nuestro trabajo diseñar la arquitectura interna de los modelos."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "La app registra <b>impresiones</b> (qué quedó visible y en qué posición), clicks, guardados, contactos, búsquedas y vistas; llegan a Kafka en segundos. Los clicks ocurren en la sesión; un contacto puede llegar horas después y cuenta si llega <b>dentro de 24 h</b> de la impresión. La compra casi no se observa: se paga fuera de la app. Hay plataforma de A/B con asignación por usuario."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "No hay un presupuesto fijo: hasta <b>≈ US$40k al mes</b> de infraestructura se acepta si el sistema mueve los contactos; más que eso hay que justificarlo. Una publicación sin envío solo se puede comprar en su ciudad. Se pueden correr varios experimentos a la vez."
       }
     ],
   };

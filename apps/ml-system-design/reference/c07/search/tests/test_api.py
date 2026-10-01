@@ -1,0 +1,259 @@
+"""Tests de search/api.py con fakes: cada test es un modo de falla o una regla del caso.
+
+Sin GPU, sin shards reales, sin OpenSearch, sin Redis. Los fakes (search/fakes.py) simulan latencia y
+errores. Las métricas son globales (como en producción): los tests miden DIFERENCIAS.
+"""
+
+import re
+import time
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from prometheus_client import REGISTRY
+
+import api
+import fakes
+
+JPEG = b"\xff\xd8\xff" + "chamarra de mezclilla".encode()  # "foto" de juguete: firma JPEG + texto
+
+
+def client(deps=None, **settings):
+    return TestClient(api.create_app(deps or fakes.demo_deps(), api.Settings(**settings)))
+
+
+def text(c, q, **params):
+    return c.post("/v1/search", params=params, json={"q": q})
+
+
+def metric(name, **labels):
+    return REGISTRY.get_sample_value(name, labels) or 0.0
+
+
+# ---------------------------------------------------------------------------- camino feliz
+def test_texto_hibrido_con_desglose_de_latencia_y_version():
+    r = text(client(), "chamarra de mezclilla talla M")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["model_version"] == "2026-09-15-clip-ft-v7"
+    assert body["query_type"] == "text" and body["degraded"] == []
+    assert {"encode", "ann", "bm25", "fusion", "tombstones", "rerank", "total"} <= set(body["latency_ms"])
+    top = body["results"][0]
+    assert top["listing_id"] in {"L1", "L11"}  # las chamarras de mezclilla
+    assert set(top["sources"]) == {"ann", "bm25"}  # salió en las dos listas: RRF lo premia
+    assert [x["rank"] for x in body["results"]] == list(range(1, len(body["results"]) + 1))
+
+
+def test_vendido_no_aparece_aunque_siga_en_el_indice():
+    before = metric("search_tombstoned_results_total")
+    ids = [x["listing_id"] for x in text(client(), "chamarra de mezclilla Levi's").json()["results"]]
+    assert "L2" not in ids  # L2 está en el índice y en BM25, pero tiene tombstone
+    assert metric("search_tombstoned_results_total") > before
+
+
+def test_filtros_viajan_a_los_motores_y_se_cumplen():
+    deps = fakes.demo_deps()
+    body = text(client(deps), "chamarra vintage", city="GDL", price_max=1000).json()
+    assert body["results"] and all(fakes.DEMO[int(x["listing_id"][1:]) - 1][4] == "GDL" for x in body["results"])
+    k, f = deps.shards[0].requests[0]
+    assert f == {"city": "GDL", "price_max": 1000.0} and k == 200  # filtro DENTRO de la búsqueda, k normal
+
+
+def test_filtro_sin_resultados_devuelve_pagina_vacia_y_se_cuenta():
+    before = metric("search_zero_results_total", query_type="text")
+    r = text(client(), "chamarra", category_id=999)
+    assert r.status_code == 200
+    assert r.json()["results"] == [] and r.json()["has_more"] is False
+    assert metric("search_zero_results_total", query_type="text") == before + 1
+
+
+def test_condicion_multiple_en_query_string():
+    r = client().post("/v1/search?condition=new&condition=like_new", json={"q": "chamarra iphone funda"})
+    conds = {fakes.DEMO[int(x["listing_id"][1:]) - 1][5] for x in r.json()["results"]}
+    assert conds and conds <= {"new", "like_new"}
+
+
+# ---------------------------------------------------------------------------- fallbacks
+def test_encoder_lento_cae_a_solo_bm25_dentro_del_presupuesto():
+    deps = fakes.demo_deps()
+    deps.encoder.delay_s = 2.0  # GPU saturada
+    t0 = time.perf_counter()
+    r = text(client(deps), "chamarra de mezclilla")
+    assert time.perf_counter() - t0 < 0.5  # cortó en el timeout (50 ms), no esperó 2 s
+    body = r.json()
+    assert r.status_code == 200 and body["results"]
+    assert "encode_timeout" in body["degraded"] and "ann_unavailable" in body["degraded"]
+    assert body["model_version"] is None  # no se usó ningún embedding
+    assert all(set(x["sources"]) == {"bm25"} for x in body["results"])
+
+
+def test_shards_lentos_no_pasan_del_timeout():
+    deps = fakes.demo_deps()
+    for sh in deps.shards:
+        sh.delay_s = 1.0
+    t0 = time.perf_counter()
+    body = text(client(deps), "chamarra").json()
+    assert time.perf_counter() - t0 < 0.5  # 4 shards en PARALELO con timeout 80 ms, no 4 × 1 s
+    assert "ann_unavailable" in body["degraded"]
+
+
+def test_un_shard_caido_da_resultados_parciales():
+    deps = fakes.demo_deps()
+    deps.shards[1].fail = True
+    before = metric("search_ann_shard_errors_total", shard="shard-1", reason="error")
+    body = text(client(deps), "chamarra").json()
+    assert "ann_partial:shard-1" in body["degraded"] and body["results"]
+    assert body["model_version"] is not None
+    assert metric("search_ann_shard_errors_total", shard="shard-1", reason="error") == before + 1
+
+
+def test_bm25_caido_sirve_solo_ann():
+    deps = fakes.demo_deps()
+    deps.keyword.fail = True
+    body = text(client(deps), "chamarra de mezclilla").json()
+    assert "bm25_error" in body["degraded"] and body["results"]
+    assert all(set(x["sources"]) == {"ann"} for x in body["results"])
+
+
+def test_todo_caido_es_503_con_retry_after():
+    deps = fakes.demo_deps()
+    deps.keyword.fail = True
+    deps.encoder.fail = True
+    r = text(client(deps), "chamarra")
+    assert r.status_code == 503 and r.headers["retry-after"] == "2"
+
+
+def test_tombstones_caidos_se_sirve_igual_y_se_cuenta():
+    deps = fakes.demo_deps()
+    deps.tombstones.fail = True
+    before = metric("search_tombstone_checks_total", outcome="failed")
+    body = text(client(deps), "chamarra de mezclilla Levi's").json()
+    assert "tombstones_unchecked" in body["degraded"]
+    assert "L2" in [x["listing_id"] for x in body["results"]]  # el vendido se coló: por eso hay alerta
+    assert metric("search_tombstone_checks_total", outcome="failed") == before + 1
+
+
+# ---------------------------------------------------------------------------- versiones de modelo
+def test_shard_con_otro_modelo_se_descarta():
+    deps = fakes.demo_deps()
+    deps.shards[0].model_version = "2026-06-01-clip-ft-v6"  # quedó apuntando al índice viejo
+    before = metric("search_ann_shard_errors_total", shard="shard-0", reason="model_version_mismatch")
+    body = text(client(deps), "chamarra").json()
+    assert "ann_partial:shard-0" in body["degraded"]
+    assert metric("search_ann_shard_errors_total", shard="shard-0", reason="model_version_mismatch") == before + 1
+
+
+def test_readyz_exige_mismo_modelo_en_encoder_y_shards():
+    deps = fakes.demo_deps()
+    assert client(deps).get("/readyz").status_code == 200
+    deps.shards[2].model_version = "otro"
+    r = client(deps).get("/readyz")
+    assert r.status_code == 503 and r.json()["ready"] is False
+
+
+# ---------------------------------------------------------------------------- filtros: la trampa
+def test_shard_que_solo_post_filtra_recibe_overfetch_y_se_filtra_aqui():
+    deps = fakes.demo_deps()
+    for sh in deps.shards:
+        sh.supports_inline_filter = False
+    before = sum(metric("search_postfilter_underfilled_total", shard=sh.name) for sh in deps.shards)
+    body = text(client(deps), "chamarra", city="MER").json()
+    k, f = deps.shards[0].requests[0]
+    assert k == 800 and f == {}  # 200 × overfetch 4, sin filtro: el motor no sabe filtrar
+    assert [x["listing_id"] for x in body["results"]] == ["L11"]  # la única chamarra en Mérida
+    after = sum(metric("search_postfilter_underfilled_total", shard=sh.name) for sh in deps.shards)
+    assert after == before + 4  # 1 resultado de 200 pedidos: el post-filtro no alcanza (y se ve)
+
+
+def test_adaptador_que_ignora_el_filtro_no_llega_a_la_persona():
+    deps = fakes.demo_deps()
+
+    class Buggy(fakes.FakeShard):
+        async def search(self, vector, k, filters):  # dice que filtra, pero ignora el filtro
+            return await super().search(vector, k, {})
+
+    deps.shards = [Buggy(sh.name, sh.items) for sh in deps.shards]
+    before = metric("search_filter_violations_total")
+    body = text(client(deps), "chamarra", city="QRO").json()
+    assert {fakes.DEMO[int(x["listing_id"][1:]) - 1][4] for x in body["results"]} == {"QRO"}
+    assert metric("search_filter_violations_total") > before
+
+
+# ---------------------------------------------------------------------------- rerank
+def test_rerank_solo_top_30_y_solo_pagina_0():
+    deps = fakes.demo_deps()
+    c = client(deps, rerank_top_n=3)
+    body = text(c, "chamarra de mezclilla talla M").json()
+    assert deps.reranker.seen == [3]
+    assert sum("rerank_score" in x for x in body["results"]) == 3
+    text(c, "chamarra", page=1)
+    assert deps.reranker.seen == [3]  # la página 1 no cambia con el rerank del top-3: no se paga GPU
+
+
+def test_rerank_lento_conserva_el_orden_de_rrf():
+    deps = fakes.demo_deps()
+    plain = [x["listing_id"] for x in text(client(deps, rerank_top_n=0), "chamarra vintage").json()["results"]]
+    deps.reranker.delay_s = 1.0
+    body = text(client(deps), "chamarra vintage").json()
+    assert "rerank_skipped" in body["degraded"]
+    assert [x["listing_id"] for x in body["results"]] == plain
+
+
+def test_paginacion():
+    c = client(page_size=2)
+    p0 = text(c, "chamarra vintage talla").json()
+    p1 = text(c, "chamarra vintage talla", page=1).json()
+    assert p0["has_more"] and [x["rank"] for x in p1["results"]] == [3, 4]
+    assert not {x["listing_id"] for x in p0["results"]} & {x["listing_id"] for x in p1["results"]}
+
+
+# ---------------------------------------------------------------------------- foto
+def test_foto_va_solo_por_ann_sin_bm25_ni_rerank():
+    deps = fakes.demo_deps()
+    r = client(deps).post("/v1/search", content=JPEG, headers={"content-type": "image/jpeg"})
+    body = r.json()
+    assert r.status_code == 200 and body["query_type"] == "photo"
+    assert body["results"] and all(set(x["sources"]) == {"ann"} for x in body["results"])
+    assert deps.reranker.seen == []
+
+
+def test_foto_sin_encoder_es_503():
+    deps = fakes.demo_deps()
+    deps.encoder.fail = True
+    r = client(deps).post("/v1/search", content=JPEG, headers={"content-type": "image/jpeg"})
+    assert r.status_code == 503  # una foto no tiene fallback de palabras clave
+
+
+@pytest.mark.parametrize("content,ctype,status", [
+    (b"no soy una imagen", "image/jpeg", 400),  # firma inválida: no se manda a la GPU
+    (JPEG, "image/gif", 415),
+    (b"\xff\xd8\xff" + b"0" * 2000, "image/jpeg", 413),  # max_image_bytes=1000 en este test
+])
+def test_errores_de_foto(content, ctype, status):
+    r = client(max_image_bytes=1000).post("/v1/search", content=content, headers={"content-type": ctype})
+    assert r.status_code == status
+
+
+def test_errores_de_texto_y_filtros():
+    c = client()
+    assert text(c, "   ").status_code == 400
+    assert text(c, "x" * 300).status_code == 400
+    assert text(c, "chamarra", price_min=900, price_max=100).status_code == 422
+    assert c.post("/v1/search", content=b"{", headers={"content-type": "application/json"}).status_code == 400
+
+
+def test_metricas_por_tipo_y_status():
+    before = metric("search_requests_total", query_type="text", status="200")
+    text(client(), "chamarra")
+    assert metric("search_requests_total", query_type="text", status="200") == before + 1
+    assert metric("search_request_duration_seconds_bucket", query_type="text", le="0.3") > 0
+
+
+def test_contrato_de_metricas_con_alerts_yml():
+    alerts = (Path(__file__).resolve().parents[2] / "monitoring" / "alerts.yml").read_text()
+    # (?<![:\w]): ignora los nombres de recording rules (search:embed_worker_lag_seconds no es una métrica)
+    used = set(re.findall(r"(?<![:\w])(search_[a-z0-9_]+?)(?:_bucket|_count|_sum)?\b", alerts))
+    text(client(), "chamarra")  # crea las series con labels
+    exported = {m.name for m in REGISTRY.collect()} | {m.name + "_total" for m in REGISTRY.collect()}
+    assert used, "alerts.yml debería usar métricas de search-api"
+    assert used <= exported, used - exported

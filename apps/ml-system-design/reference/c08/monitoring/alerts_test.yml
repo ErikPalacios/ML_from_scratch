@@ -1,0 +1,326 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Se consulta ALERTS{alertstate="firing"} (no hay que copiar las anotaciones); HomeLatencyHigh además
+# prueba el texto renderizado. Notación de promtool: '0+100x20' = empieza en 0 y suma 100 por intervalo,
+# 20 veces (21 valores). Segmentos separados por espacio continúan la serie: '0+100x20 2097+97x39'.
+# Los momentos de cada test dejan ≥ 2 min de margen: rate() extrapola en los bordes de la ventana.
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- HomeLatencyHigh
+  # 100 req/min. Hasta el minuto 20, todo ≤ 200 ms; después el 3 % tarda entre 200 y 250 ms → p99 > 0.2
+  # desde el ≈ 22 → firing en el ≈ 32. p99 = 0.2 + 0.05 × (99 − 97) / 3 ≈ 0.2333 (interpolación lineal
+  # dentro del bucket (0.2, 0.25]).
+  - interval: 1m
+    input_series:
+      - series: 'home_request_duration_seconds_bucket{le="0.175"}'
+        values: '0+95x60'
+      - series: 'home_request_duration_seconds_bucket{le="0.2"}'
+        values: '0+100x20 2097+97x39'
+      - series: 'home_request_duration_seconds_bucket{le="0.25"}'
+        values: '0+100x60'
+      - series: 'home_request_duration_seconds_bucket{le="+Inf"}'
+        values: '0+100x60'
+    promql_expr_test:
+      # Antes del cambio: rango 99 de 100 dentro de (0.175, 0.2] → 0.175 + 0.025 × (99 − 95) / 5 = 0.195
+      - expr: home:latency_p99:rate5m
+        eval_time: 15m
+        exp_samples:
+          - labels: 'home:latency_p99:rate5m'
+            value: 0.195
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HomeLatencyHigh
+        exp_alerts: []
+      - eval_time: 34m
+        alertname: HomeLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "home-api: p99 233.3ms (> 200 ms)"
+              description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(home_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado (kubectl top pods -n c08); escala el Deployment."
+              runbook_url: "https://runbooks.example.com/c08/home-latency"
+
+  # El 0.5 % lento no alcanza: el p99 sigue dentro del bucket de 200 ms.
+  - interval: 1m
+    input_series:
+      - series: 'home_request_duration_seconds_bucket{le="0.2"}'
+        values: '0+199x60'
+      - series: 'home_request_duration_seconds_bucket{le="+Inf"}'
+        values: '0+200x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="HomeLatencyHigh"}
+        eval_time: 60m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- HomeFallbackRateHigh
+  # 1,000 req/min por el ranker. Heurístico: 5/min (0.5 %) hasta el minuto 10, 30/min (≈ 2.9 %) después
+  # → la fracción de 5 min pasa del 2 % en el ≈ 13 → firing en el ≈ 23.
+  - interval: 1m
+    input_series:
+      - series: 'home_requests_total{status="200",path="ranked"}'
+        values: '0+1000x40'
+      - series: 'home_requests_total{status="200",path="heuristic"}'
+        values: '0+5x10 80+30x29'
+    promql_expr_test:
+      - expr: ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing"}
+        eval_time: 20m
+        exp_samples: []
+      - expr: ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing"}
+        eval_time: 26m
+        exp_samples:
+          - labels: 'ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing", severity="page"}'
+            value: 1
+      # 30 de 1,030 por minuto: 2.9 %
+      - expr: home:degraded_ratio:rate5m
+        eval_time: 30m
+        exp_samples:
+          - labels: 'home:degraded_ratio:rate5m'
+            value: 0.029126213592233007
+
+  # 1.5 % de populares sostenido (dentro del objetivo de < 2 %): no dispara.
+  - interval: 1m
+    input_series:
+      - series: 'home_requests_total{status="200",path="ranked"}'
+        values: '0+985x60'
+      - series: 'home_requests_total{status="200",path="popular"}'
+        values: '0+15x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="HomeFallbackRateHigh"}
+        eval_time: 60m
+        exp_samples: []
+
+  # El home-api desapareció (no hay ninguna serie suya): la app sirve "recientes" a todos → firing a los 10 min.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="otro-servicio"}'
+        values: '1x20'
+    promql_expr_test:
+      - expr: ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing"}
+        eval_time: 12m
+        exp_samples:
+          - labels: 'ALERTS{alertname="HomeFallbackRateHigh", alertstate="firing", severity="page"}'
+            value: 1
+
+  # ---------------------------------------------------------------- CandidateSourceTimeouts
+  # 1,000 llamadas/min por fuente. two_tower: timeouts al 10 % desde el minuto 10 → firing ≈ 27.
+  # covisitation: 1 % todo el tiempo → nunca.
+  - interval: 1m
+    input_series:
+      - series: 'home_source_requests_total{source="two_tower"}'
+        values: '0+1000x40'
+      - series: 'home_source_timeouts_total{source="two_tower"}'
+        values: '0+5x10 150+100x29'
+      - series: 'home_source_requests_total{source="covisitation"}'
+        values: '0+1000x40'
+      - series: 'home_source_timeouts_total{source="covisitation"}'
+        values: '0+10x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="CandidateSourceTimeouts", alertstate="firing"}
+        eval_time: 24m
+        exp_samples: []
+      - expr: ALERTS{alertname="CandidateSourceTimeouts", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="CandidateSourceTimeouts", alertstate="firing", severity="ticket", source="two_tower"}'
+            value: 1
+
+  # ---------------------------------------------------------------- FeatureStoreStale
+  # En promtool el tiempo empieza en 0 (epoch): un watermark que va al día vale lo mismo que la hora de
+  # evaluación. user_realtime se congela en el minuto 20 (1,200 s): atraso > 300 s desde el ≈ 25 →
+  # firing ≈ 30. item_realtime sigue al día → no dispara.
+  - interval: 1m
+    input_series:
+      - series: 'feature_pipeline_watermark_timestamp_seconds{feature_group="user_realtime"}'
+        values: '0+60x20 1200+0x40'
+      - series: 'feature_pipeline_watermark_timestamp_seconds{feature_group="item_realtime"}'
+        values: '0+60x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FeatureStoreStale", alertstate="firing"}
+        eval_time: 28m
+        exp_samples: []
+      - expr: ALERTS{alertname="FeatureStoreStale", alertstate="firing"}
+        eval_time: 33m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FeatureStoreStale", alertstate="firing", severity="page", feature_group="user_realtime"}'
+            value: 1
+
+  # Ítems con defaults: 1 % hasta el minuto 10, 8 % después → firing ≈ 17 (for: 5m).
+  - interval: 1m
+    input_series:
+      - series: 'home_feature_lookups_total{entity="item"}'
+        values: '0+10000x30'
+      - series: 'home_feature_defaults_total{entity="item"}'
+        values: '0+100x10 1800+800x19'
+      - series: 'home_feature_lookups_total{entity="user"}'
+        values: '0+10x30'
+      - series: 'home_feature_defaults_total{entity="user"}'
+        values: '0x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="FeatureStoreStale", alertstate="firing"}
+        eval_time: 12m
+        exp_samples: []
+      - expr: ALERTS{alertname="FeatureStoreStale", alertstate="firing"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'ALERTS{alertname="FeatureStoreStale", alertstate="firing", severity="page", entity="item"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ImpressionLogLag
+  # 1,000 registros/s (60,000/min). El consumer impression-joiner se detiene en el minuto 10: el lag crece
+  # 60,000 por minuto = 60 s de atraso por minuto → > 900 s en el ≈ 25 → firing ≈ 40.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_topic_partition_current_offset{topic="home-impressions",partition="0"}'
+        values: '0+60000x60'
+      - series: 'kafka_consumergroup_lag{consumergroup="impression-joiner",topic="home-impressions",partition="0"}'
+        values: '0x10 60000+60000x50'
+      # Otro consumer del mismo tópico atrasado (un job de analytics): no es esta alerta
+      - series: 'kafka_consumergroup_lag{consumergroup="analytics",topic="home-impressions",partition="0"}'
+        values: '0+600000x60'
+    promql_expr_test:
+      - expr: home:impression_log_lag_seconds
+        eval_time: 20m
+        exp_samples:
+          - labels: 'home:impression_log_lag_seconds'
+            value: 600
+      - expr: ALERTS{alertname="ImpressionLogLag", alertstate="firing"}
+        eval_time: 37m
+        exp_samples: []
+      - expr: ALERTS{alertname="ImpressionLogLag", alertstate="firing"}
+        eval_time: 43m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ImpressionLogLag", alertstate="firing", severity="ticket"}'
+            value: 1
+
+  # Pérdida en el home-api: 2 de cada 1,000 registros descartados (0.2 % > 0.1 %) desde el minuto 5 → firing ≈ 21.
+  # La serie de fallas de Kafka no existe: `or vector(0)` evita que la suma quede vacía.
+  - interval: 1m
+    input_series:
+      - series: 'home_requests_total{status="200",path="ranked"}'
+        values: '0+1000x40'
+      - series: 'home_impression_log_dropped_total'
+        values: '0x5 2+2x34'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ImpressionLogLag", alertstate="firing"}
+        eval_time: 17m
+        exp_samples: []
+      - expr: ALERTS{alertname="ImpressionLogLag", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ImpressionLogLag", alertstate="firing", severity="ticket"}'
+            value: 1
+
+  # ---------------------------------------------------------------- RankerScoreShift
+  # Una semana y media de series cada 10 min. 12,000 scores por 10 min (20/s) por cabeza. click: media
+  # 0.05 durante toda la semana pasada; en el minuto 10,210 (1 semana + 130 min) sube a 0.10 (2×) →
+  # la ventana de 1 h pasa de 1.3× en ≈ 20 min → firing ≈ 1 h 20 min después del cambio.
+  # contact_given_click: estable → no dispara.
+  - interval: 10m
+    input_series:
+      - series: 'home_ranker_score_count{head="click"}'
+        values: '0+12000x1100'
+      - series: 'home_ranker_score_sum{head="click"}'
+        values: '0+600x1020 613200+1200x80'
+      - series: 'home_ranker_score_count{head="contact_given_click"}'
+        values: '0+12000x1100'
+      - series: 'home_ranker_score_sum{head="contact_given_click"}'
+        values: '0+2400x1100'
+    promql_expr_test:
+      # Antes del cambio, la misma hora que hace una semana: cociente 1
+      - expr: home:ranker_mean_score_wow_ratio:rate1h{head="click"}
+        eval_time: 10200m
+        exp_samples:
+          - labels: 'home:ranker_mean_score_wow_ratio:rate1h{head="click"}'
+            value: 1
+      - expr: ALERTS{alertname="RankerScoreShift", alertstate="firing"}
+        eval_time: 10250m
+        exp_samples: []
+      - expr: ALERTS{alertname="RankerScoreShift", alertstate="firing"}
+        eval_time: 10330m
+        exp_samples:
+          - labels: 'ALERTS{alertname="RankerScoreShift", alertstate="firing", severity="ticket", head="click"}'
+            value: 1
+
+  # ---------------------------------------------------------------- ExplorationTrafficOff
+  # 50,000 ítems/min por el ranker. Exploración al 5 % hasta el minuto 30; después 0.5 % (un deploy
+  # cambió EXPLORATION_RATE) → la fracción de 30 min baja del 2 % en el ≈ 50 → firing ≈ 80.
+  - interval: 1m
+    input_series:
+      - series: 'home_items_served_total{path="ranked"}'
+        values: '0+50000x100'
+      - series: 'home_exploration_items_total'
+        values: '0+2500x30 75250+250x69'
+    promql_expr_test:
+      - expr: ALERTS{alertname="ExplorationTrafficOff", alertstate="firing"}
+        eval_time: 76m
+        exp_samples: []
+      - expr: ALERTS{alertname="ExplorationTrafficOff", alertstate="firing"}
+        eval_time: 86m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ExplorationTrafficOff", alertstate="firing", severity="ticket"}'
+            value: 1
+
+  # Exploración al 5 % sostenida: no dispara (y la recording rule da 0.05).
+  - interval: 1m
+    input_series:
+      - series: 'home_items_served_total{path="ranked"}'
+        values: '0+50000x100'
+      - series: 'home_exploration_items_total'
+        values: '0+2500x100'
+    promql_expr_test:
+      - expr: home:exploration_share:rate30m
+        eval_time: 60m
+        exp_samples:
+          - labels: 'home:exploration_share:rate30m'
+            value: 4.9999999999999996E-02  # 0.05 con el redondeo de punto flotante
+      - expr: ALERTS{alertname="ExplorationTrafficOff"}
+        eval_time: 100m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- ContactsPerDAUDrop
+  # Series cada 5 min durante 1 semana y media (un gauge muestreado cada 10 min desaparecería entre
+  # muestras: Prometheus solo mira 5 min hacia atrás en una consulta instantánea). 30,000 contactos por
+  # 5 min con 2 M de usuarios activos en la hora. En el minuto 10,200 (1 semana + 120 min) los contactos
+  # bajan 20 % → el cociente contra la misma hora de la semana pasada baja de 0.85 en ≈ 40 min →
+  # firing ≈ 2 h después.
+  - interval: 5m
+    input_series:
+      - series: 'marketplace_contacts_total{surface="home"}'
+        values: '0+30000x2040 61224000+24000x160'
+      - series: 'marketplace_active_users{window="1h"}'
+        values: '2000000x2200'
+    promql_expr_test:
+      - expr: marketplace:contacts_per_active_user_wow_ratio:1h
+        eval_time: 10400m
+        exp_samples:
+          - labels: 'marketplace:contacts_per_active_user_wow_ratio:1h'
+            value: 7.999999999999999E-01  # 0.8: −20 %
+      - expr: ALERTS{alertname="ContactsPerDAUDrop", alertstate="firing"}
+        eval_time: 10350m
+        exp_samples: []
+      - expr: ALERTS{alertname="ContactsPerDAUDrop", alertstate="firing"}
+        eval_time: 10390m
+        exp_samples:
+          - labels: 'ALERTS{alertname="ContactsPerDAUDrop", alertstate="firing", severity="ticket"}'
+            value: 1
+
+  # La misma caída de 20 %, pero la semana pasada a esa hora pasó lo mismo (madrugada de domingo, un
+  # partido de fútbol): el cociente se queda en 1 y NO dispara. Por eso se compara con hace una semana.
+  - interval: 5m
+    input_series:
+      - series: 'marketplace_contacts_total{surface="home"}'
+        values: '0+30000x25 774000+24000x94 3060000+30000x1920 60684000+24000x94 62970000+30000x60'
+      - series: 'marketplace_active_users{window="1h"}'
+        values: '2000000x2200'
+    promql_expr_test:
+      - expr: marketplace:contacts_per_active_user_wow_ratio:1h
+        eval_time: 10500m
+        exp_samples:
+          - labels: 'marketplace:contacts_per_active_user_wow_ratio:1h'
+            value: 1
+      - expr: ALERTS{alertname="ContactsPerDAUDrop"}
+        eval_time: 10500m
+        exp_samples: []
