@@ -792,6 +792,145 @@ governance's call — we provide traceability and validation evidence, general p
   ScaledObject on SQS), loop/{select_for_labeling.py (active learning under an hours budget),
   tests/test_select.py}, monitoring/alerts.yml (Prometheus rules), README.md.
 
+## 8e. Case c05 — shared facts (every c05 agent MUST use exactly these)
+Scenario: a Mexican **SME lending platform** (créditos PyME). Customers upload documents during
+onboarding and loan applications; today a team of **45 data-entry staff (capturistas)** types the fields
+into the core system: turnaround 24–48 h, the bottleneck of the loan funnel. Goal: automate capture,
+send to humans **only the doubtful fields**, keep accuracy. Identity-fraud checks (liveness, document
+authenticity) are done by an existing KYC vendor — **out of scope**; we extract and validate fields.
+- Document mix and volume: **≈ 5,000 documents/day** (average over 30 days incl. weekends), month-start
+  peaks ≈ 2×. Uploads 08:00–22:00. Mix (est.): CFDI invoices (facturas) 35 % (≈ 1.5 pages), INE voter
+  ID front+back 25 % (2 images), proof of address (comprobante de domicilio: CFE, Telmex, water…) 15 %
+  (1 page), bank statements 10 % (≈ 8 pages), loan application forms 15 % (3 pages; ≈ 30 % of forms have
+  handwritten fields) → **≈ 2.4 pages/doc → ≈ 12,000 pages/day** (≈ 24k at peak).
+- Sources: ≈ 50 % of INE and proofs of address are **phone photos** (skew, glare, blur, cropped);
+  bank statements and CFDI PDFs are mostly **digital-born PDFs with a text layer** (no OCR needed); forms
+  are scans or photos.
+- **CFDI = Mexican e-invoice**: every CFDI 4.0 has an XML (namespace `http://www.sat.gob.mx/cfd/4`,
+  UUID in the `tfd:TimbreFiscalDigital` complement) and its printed PDF carries a QR with UUID, RFCs and
+  total; SAT exposes a public status check (vigente/cancelado — verify the current service). Senior move:
+  **ask for the XML (or read the QR) instead of OCR-ing the PDF** — the best model is no model. Assume
+  ≈ 60 % of invoices arrive with XML.
+- Pages that need OCR (est.): ≈ 6,200/day (≈ 51 %): INE 2,500, forms 2,250, statements 800 (the ≈ 20 %
+  scanned), proofs of address ≈ 375, invoices ≈ 260 → ≈ **186k OCR pages/month**.
+- Pipeline (names used everywhere): `docs-api` (FastAPI) upload → raw object storage (S3, KMS) +
+  **sync quality gate ≤ 3 s p95** (type/size/page limits, sha256 dedupe, blur via variance of Laplacian,
+  glare, resolution, document boundary → immediate "súbelo de nuevo" to the customer) → **orchestration
+  with AWS Step Functions (Standard)** per document (retries with backoff, Catch → failure state, the
+  human-review step uses `waitForTaskToken`) → stages: **classify** (doc type + page roles; small model on
+  CPU) → **text acquisition** (CFDI XML parse | PDF text layer | OCR: managed text-detection API, words +
+  boxes + confidence) → **extract** (per doc type: a layout-aware token-classification model fine-tuned on
+  our documents, ONNX Runtime **on CPU** — throughput is tiny, ≈ 0.6 pages/s at peak; + rules/regex for
+  structured fields; INE back has an MRZ-like zone) → **validate** (format + check digits: CURP, RFC
+  homoclave, CLABE; cross-field: subtotal + IVA − retenciones = total; cross-document: name on INE ≈ name
+  on the application; external: SAT CFDI status) → **route** (per-field calibrated confidence vs per-field
+  threshold; the doc is straight-through (STP) only if every required field is accepted and every
+  validation passes; otherwise a review task with only the flagged fields, prioritized by SLA and loan
+  stage) → **review UI** (the capturistas become reviewers; corrections are labels) → Postgres records with
+  provenance per field (page, bbox, source stage, model version, confidence) → core system.
+- Model licensing trap: some popular document-model weights are **non-commercial** (e.g. LayoutLMv3 —
+  verify); pick a commercially licensed model (verify licenses) — a senior asks.
+- Vision LLM option: allowed only as a fallback for long-tail layouts, with **grounding** (every extracted
+  value must match OCR tokens on the page, else review), through a provider contract with zero data
+  retention, and **never for INE images** (policy decision). Cost and latency per page to verify.
+- Targets: field accuracy on auto-accepted fields **≥ 99.5 %** (critical fields CURP, RFC, CLABE,
+  amounts ≥ 99.9 %); **STP ≥ 60 % of documents at launch → 80 % in 12 months**; turnaround: STP docs
+  **p95 ≤ 2 min**, reviewed docs **p90 ≤ 4 business hours**; `docs-api` availability 99.9 %
+  (customer-facing); the async pipeline may lag but never loses a document.
+- People and time (est.): manual capture ≈ 4 min/doc (≈ 15 docs/h); reviewing only flagged fields with
+  image crops ≈ 45 s/doc; full audit of an STP doc ≈ 2 min; QA audits a random **2 % of STP docs**.
+  Capturista fully loaded cost ≈ US$800/month → today ≈ 45 × 800 ≈ **US$36k/month**.
+- Labels: ≈ 2 years of manual captures (≈ 1.2 M documents) = **typed values without boxes** (weak labels:
+  align them to OCR tokens by fuzzy matching to build token labels) with ≈ 1–2 % typing errors (est.);
+  a **gold set of 2,000 documents** double-keyed by two capturistas + adjudication, stratified by doc type
+  and source (photo/scan/digital); reviewer corrections feed retraining.
+- Costs (approx, est., verify prices): managed OCR text detection ≈ US$1.50 per 1,000 pages → ≈ US$280/
+  month (forms/tables/queries APIs cost ≈ 10–40× more per page — the trade-off to discuss); extraction on
+  CPU (2 pods for HA) + `docs-api` + classifier ≈ US$300; Step Functions (≈ 10 transitions/doc ≈ 1.5 M/
+  month at ≈ US$0.025 per 1,000) ≈ US$40; Postgres + S3 + logs ≈ US$400 → **infra ≈ US$1.0–1.5k/month**;
+  humans (reviewers + QA) dominate.
+- Privacy: INE, CURP, addresses, bank data = personal data (Mexico: LFPDPPP, new law 2025 — general
+  principles only); encryption, least privilege, PII redaction in logs, retention per the lender's
+  policy (legal decides), managed OCR in the same cloud account/region under the provider's terms.
+- Alert names (narrative + reference files): `DocPipelineBacklog`, `StageErrorRateHigh`,
+  `STPRateDrop`, `AuditFieldAccuracyLow`, `OCRConfidenceShift`, `ReviewSLABreach`, `SATValidationDown`,
+  `QualityGateRejectSpike`.
+- Reference files (reference/c05/): pipeline/{validators.py (CURP, RFC, CLABE check digits, CFDI totals,
+  dates), cfdi.py (parse CFDI 4.0 XML → fields + UUID), quality.py (numpy: variance of Laplacian, glare,
+  resolution), routing.py (per-field thresholds → STP or review task with flagged fields + priority),
+  calibrate_thresholds.py (per-field threshold for a target accuracy on a labeled CSV, with a Wilson lower
+  bound), requirements.txt, tests/}, api/{main.py (FastAPI upload: limits, sha256 dedupe, sync quality
+  gate, start execution behind an interface), requirements.txt, tests/}, orchestration/
+  statemachine.asl.json (Step Functions definition: Retry/Catch, waitForTaskToken review), monitoring/
+  alerts.yml, README.md.
+
+## 8f. Case c06 — shared facts (every c06 agent MUST use exactly these)
+Scenario: a **social network** where users publish posts (text, optionally images) and comments.
+Detect content that violates the policies and act on it. Video, live streams, DMs and ads are **out of
+scope** (mention them as extensions). Account-level enforcement (strikes, bans) exists and consumes our
+decisions.
+- Volume: **30 M posts/day** (40 % with images, avg 1.5 images → **18 M images/day**) + **150 M
+  comments/day** (text) → 180 M text items/day ≈ 2,083/s average, **peak ≈ 3× ≈ 6,250 text items/s**;
+  images ≈ 208/s average, **peak ≈ 625 images/s**. Posts 347/s average (≈ 1,040/s peak).
+- Policies (7) and severity tiers: **S0 zero tolerance** (CSAM — handled by hash matching against
+  industry hash lists and legal reporting obligations, e.g. NCMEC in the US; a specialized team, no ad-hoc
+  training; violent extremism/terrorist content), **S1 high** (credible threats, self-harm promotion,
+  graphic violence), **S2 medium** (hate speech, harassment, adult nudity), **S3 low** (spam/scams,
+  borderline) — exact mapping per policy is the narrative's choice; actions: block pre-publication, remove,
+  reduce distribution / interstitial warning, age-gate, send to review. Overall prevalence of violating
+  items ≈ 0.5 % (est.), spam is most of it.
+- Sync vs async: a **pre-publication check with p99 ≤ 150 ms** added to post/comment creation (hashes +
+  rules + cheap models) and **async deep scoring with p95 ≤ 5 min**; user reports and virality re-trigger
+  scoring. If the sync check fails or times out: **fail open for S2–S3** (publish, score async), but keep
+  the hash check for S0 in-process/local so it never depends on a remote call (narrative explains).
+- Cascade (names used everywhere): `mod-gateway` (sync API called by post-service and comment-service) →
+  stage 0 **`hash-match`** (perceptual hashes — PDQ for images, 256 bits, Hamming distance threshold;
+  verify the recommended value — against known-bad lists and our own removed content; exact/near-dup text
+  hashes; URL/domain blocklists; rate rules) → stage 1 **fast models** (multilingual distilled text
+  classifier, multi-label per policy; light image classifier; served on Triton) → **`decision-engine`**
+  (per policy × severity × surface thresholds from a **versioned policy config**; actions; statement of
+  reasons) → Kafka topic `mod-events` → stage 2 **`deep-scorer`** async (larger multimodal model incl. text
+  in images/OCR for memes) only for items whose stage-1 score exceeds a low threshold (**≈ 3 % of items**,
+  est.) → **`review-router`** (priority = P(violation) × severity weight × predicted views in the next
+  hours; SLA aging) → review tool → decisions = labels → appeals service (a different reviewer) →
+  enforcement service.
+- Capacity (est., measure): stage-1 text model ≈ 3,000 items/s per L4 (≤ 128 tokens, batched) → planned
+  70 % = 2,100/s → 6,250 / 2,100 → 3 + 1 (N+1, multi-AZ) = **4 L4**; stage-1 image model ≈ 1,500 img/s
+  per L4 → 625/s → 1 + 1 = **2 L4**; stage 2 ≈ 100 items/s per L4 (planned 70/s); 3 % of 180 M =
+  5.4 M/day ≈ 62.5/s average, ≈ 190/s at peak → async: size near average with a bounded backlog, not for
+  peak: **4 L4** (≈ 280/s planned) drains the peak; GPUs ≈ 10 × g6.xlarge ≈ US$0.80/h ≈ **US$5.9k/month**
+  on-demand (verify).
+- Human review (est.): **≈ 600 moderators** (vendor + in-house, 3 shifts), ≈ 60 items/h each over ≈ 6
+  productive h → **≈ 216k reviews/day capacity** → routing thresholds must keep review arrivals
+  ≤ ≈ 200k/day (≈ 0.11 % of items); cost ≈ US$1,500/month per moderator (est., varies by country) ≈
+  **US$900k/month** — humans dominate cost by ≈ 50–100× over infra. Moderator wellbeing (exposure
+  limits, blurring/grayscale by default, rotation, counseling) is part of the design.
+- Metrics: **prevalence** (share of views on violating content, measured by a random sample of viewed
+  items labeled by humans — not by the model), **proactive rate** (actioned before any user report),
+  precision/recall per policy (recall from the random sample), **time to action** / views before action,
+  **appeal overturn rate**, reviewer agreement, and fairness checks across languages/dialects.
+- SLOs: `mod-gateway` p99 ≤ 150 ms and availability 99.95 % (fail-open covers it); deep scoring p95 ≤ 5
+  min; S1 user reports reviewed p90 ≤ 1 h; S0 matches actioned immediately.
+- Labels and drift: reviewer decisions are biased (only what was flagged) → random-sample labeling for
+  evaluation; labels carry the **policy version** (definitions change); adversaries adapt in days
+  (homoglyphs, spacing, text inside images, perturbations to evade hashes) → frequent retraining + new
+  hashes of removed content; a new policy can launch in days with an **LLM classifier prompted with the
+  policy** as a stopgap (cost/latency only for the stage-2 slice), its outputs verified by humans, then
+  distilled into the fast model.
+- Regulation (general principles, no legal advice): EU **Digital Services Act** (notice and action,
+  statement of reasons, appeals, transparency reports — verify obligations by service size), US legal
+  reporting of CSAM; Mexico has no equivalent platform law (verify, hedge).
+- Alert names (narrative + reference files): `ModGatewayLatencyHigh`, `ModFailOpenRateHigh`,
+  `DeepScorerBacklog`, `ReviewQueueAging`, `PolicyScoreShift`, `HashListStale`, `AppealOverturnRateHigh`,
+  `ProactiveRateDrop`.
+- Reference files (reference/c06/): decision/{policies.yaml (versioned thresholds per policy × severity ×
+  surface → action), engine.py (combine cascade scores, apply thresholds, fail-open rules, statement of
+  reasons), requirements.txt, tests/}, hashing/{match.py (256-bit hashes, Hamming distance with numpy,
+  bucketed multi-index search), tests/}, review/{priority.py (harm-based priority + SLA aging +
+  capacity-aware routing), tests/}, eval/{prevalence.py (prevalence and per-policy precision/recall from
+  stratified samples with CIs), tests/}, gateway/{main.py (FastAPI sync endpoint with a time budget and
+  fail-open behind interfaces), tests/}, monitoring/alerts.yml, README.md.
+
 ## 9. Writing style for content agents (applies to every content file)
 - Spanish (neutral Latin American, tuteo), direct, no filler, no motivational fluff. Technical terms
   in English (latency, throughput, batch, serving, feature store, rollout…), exactly as they'd be
