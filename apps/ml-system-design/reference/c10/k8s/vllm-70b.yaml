@@ -1,0 +1,306 @@
+# vllm-70b del caso c10 en EKS: el modelo de ≈ 70B (pesos FP8) servido con vLLM, una réplica = 2 × H100 (TP=2).
+# Recursos: Service (lo llama el llm-gateway) + Deployment (16 réplicas en 4 nodos p5.48xlarge) +
+# PodDisruptionBudget + NetworkPolicy (solo el gateway y Prometheus llegan al puerto) + PodMonitor (Prometheus).
+# Namespace "c10": kubectl create namespace c10.
+#
+# Por qué Deployment y no StatefulSet: una réplica no tiene identidad ni disco propios que sobrevivan. Los pesos
+# se copian de S3 a NVMe local en cada arranque y el KV cache muere con el proceso. Un StatefulSet daría
+# nombres estables y arranque en orden, que aquí no sirven y harían más lentos los rollouts.
+#
+# Por qué réplicas FIJAS (sin HPA/KEDA): un nodo p5 nuevo + la imagen (≈ 8.7 GB comprimida) + ≈ 70 GB de pesos +
+# CUDA graphs ≈ 5–10 min (est., mídelo). Un autoscaler no sigue un pico de 1 minuto con eso; y de noche la
+# flota no queda ociosa, porque la usa el batch de catálogo. Se mantiene la flota del pico prendida y los picos
+# los absorbe la admisión del gateway (gateway/admission.py). Los nodos los da la capacidad reservada
+# (On-Demand Capacity Reservation o Capacity Blocks for ML; verifica disponibilidad de p5 en tu región), no
+# "on-demand cuando haga falta": la H100 es el recurso escaso, no el dinero.
+#
+# Validación: kubernetes-validate --strict (Kubernetes 1.36) sobre Service, Deployment, PodDisruptionBudget y
+# NetworkPolicy; el PodMonitor contra el esquema de su CRD (Prometheus Operator v0.94.1). Prueba la FORMA, no el
+# comportamiento: no hay GPU aquí, vLLM no corrió y nada de esto se aplicó a un cluster.
+# Flags de `vllm serve` verificados contra el código de vLLM v0.30.0 (vllm/engine/arg_utils.py).
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-70b
+  namespace: c10
+  labels:
+    app.kubernetes.io/name: vllm-70b
+spec:
+  # ClusterIP normal: con continuous batching cualquier réplica sirve cualquier request, así que alcanza con que
+  # kube-proxy reparta conexiones. Lo que se pierde: afinidad de prefijo (mandar el mismo system prompt a la misma
+  # réplica aprovecha mejor el prefix caching) y ruteo por carga real. Eso lo dan routers que miran el KV cache
+  # (llm-d, NVIDIA Dynamo, Gateway API Inference Extension; #m07.llm-servers): palanca para después, medida.
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: vllm-70b
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-70b
+  namespace: c10
+  labels:
+    app.kubernetes.io/name: vllm-70b
+    app.kubernetes.io/part-of: c10
+spec:
+  # 16 réplicas = 32 H100 = 4 nodos p5.48xlarge (capacity/fleet_calc.py: 60 rps ÷ 4.2 = 15 → 4 nodos → 16).
+  replicas: 16
+  revisionHistoryLimit: 5  # ReplicaSets viejos para `kubectl rollout undo`
+  progressDeadlineSeconds: 3600  # un rollout de 16 réplicas de a una, con arranques de minutos, tarda
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # maxSurge 0: no hay GPUs libres para levantar una réplica extra (las 32 están en uso) y una réplica que
+      # queda Pending no ayuda. Se baja de a una (−1/16 ≈ 6 % de capacidad, dentro del margen del 70 % planeado).
+      # Una revisión NUEVA del modelo no entra así: va antes por shadow y por un Deployment canario aparte
+      # (vllm-70b-canary, no incluido) con su alerta CanaryEvalRegression.
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-70b
+      track: stable
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vllm-70b
+        app.kubernetes.io/part-of: c10
+        track: stable  # el canario lleva track: canary; Service, PDB y PodMonitor ven a los dos
+    spec:
+      # Lee los pesos de S3 con IRSA o EKS Pod Identity (rol de solo lectura sobre el prefijo de modelos).
+      serviceAccountName: vllm-weights-reader
+      # Presupuesto del apagado (el reloj empieza ANTES del preStop):
+      #   preStop: 15 s para que el pod salga de los endpoints y el gateway deje de mandarle requests nuevos
+      #   SIGTERM: vLLM con --shutdown-timeout 60 deja terminar lo que está en vuelo hasta 60 s y aborta el resto
+      #            (un request interactivo dura ≈ 10.5 s; uno de 1,024 tokens a 50 ms/token, ≈ 51 s)
+      #   margen: 15 s → 90 s. Lo que se corte lo reintenta el cliente (batch-runner) o lo ve como error.
+      terminationGracePeriodSeconds: 90
+      nodeSelector:
+        node.kubernetes.io/instance-type: p5.48xlarge  # 8 × H100 SXM con NVLink: TP=2 dentro del nodo
+      tolerations:
+        - key: nvidia.com/gpu  # los nodos GPU tienen taint: nada que no use GPU ocupa una máquina de ≈ US$55/h
+          operator: Exists
+          effect: NoSchedule
+      topologySpreadConstraints:
+        # Repartir los nodos entre zonas si hay capacidad; ScheduleAnyway porque las p5 escasean y una réplica
+        # desbalanceada es mejor que una Pending. Con 4 nodos, una zona caída se lleva ≈ 1/4 o más de la flota:
+        # por eso el gateway tiene admisión y (para quien puede) fallback.
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: vllm-70b
+      securityContext:
+        # La imagen oficial corre como root por defecto; trae el usuario vllm (UID 2000, GID 0) para correr sin
+        # root (docker/Dockerfile de vLLM v0.30.0). No se probó corriendo aquí.
+        runAsNonRoot: true
+        runAsUser: 2000
+        runAsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: fetch-weights
+          # aws-cli 2.37.8 por digest (índice multi-arquitectura): un tag se puede volver a publicar, un digest no
+          image: amazon/aws-cli:2.37.8@sha256:420ab345e847291b541b45d989535f55bcff957c27fa1100fae4aa233e86398c
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              # 1) Bajar la revisión del model registry a NVMe local. S3 → NVMe (no un volumen de red):
+              #    vLLM lee los safetensors por mmap y un disco remoto convierte la carga en minutos.
+              aws s3 sync "s3://${WEIGHTS_BUCKET}/${WEIGHTS_PREFIX}/" "/models/${MODEL_REVISION}/" --only-show-errors
+              cd "/models/${MODEL_REVISION}"
+              # 2) El manifiesto de hashes tiene que ser EL que se revisó: su sha256 está fijado en este YAML.
+              #    Así un objeto cambiado en S3 (error o ataque) no pasa (#m15.supply-chain).
+              echo "${MANIFEST_SHA256}  SHA256SUMS" | sha256sum -c -
+              # 3) Cada archivo contra el manifiesto (≈ 70 GB: ≈ 1 min de CPU, est.). Si algo no coincide, el pod
+              #    no arranca: mejor una réplica menos que un modelo corrupto respondiendo.
+              sha256sum -c SHA256SUMS
+          env:
+            - name: HOME
+              value: /tmp  # el UID 2000 no puede escribir en /root (el HOME de la imagen de aws-cli)
+            - name: WEIGHTS_BUCKET
+              value: marketplace-ml-models  # bucket del model registry (versionado, cifrado con KMS)
+            - name: WEIGHTS_PREFIX
+              value: llm/chat-70b-fp8/2026-09-28  # una revisión = un prefijo inmutable
+            - name: MODEL_REVISION
+              value: chat-70b-fp8-2026-09-28
+            - name: MANIFEST_SHA256
+              value: 3f1c9a4e7b2d5c8f0a6e1b4d7c2f5a8e3b6d9c1f4a7e0b3d6c9f2a5e8b1d4c7f  # placeholder: lo escribe el pipeline de release
+          resources:
+            requests:
+              cpu: "4"  # la descarga usa varios hilos y sha256 es CPU pura
+              memory: 4Gi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: vllm
+          # vLLM v0.30.0 (2026-09-22) por digest. ENTRYPOINT de la imagen: ["vllm", "serve"] → aquí van solo args.
+          image: vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
+          args:
+            - /models/chat-70b-fp8-2026-09-28  # los pesos locales (checkpoint FP8: la cuantización se lee de su config)
+            - --served-model-name
+            - chat-70b-fp8-2026-09-28  # el nombre que ve el gateway: el alias chat-default apunta aquí
+            - --load-format
+            - safetensors  # nunca pickle (.bin): cargar un pickle ejecuta código
+            - --tensor-parallel-size
+            - "2"  # 70.6 GB de pesos FP8 + KV no entran cómodos en 80 GB; en 2 GPUs quedan ≈ 68 GB para KV
+            - --gpu-memory-utilization
+            - "0.90"  # explícito: el default es 0.92 desde v0.20 (0.9 hasta v0.19); la capacidad no cambia con un upgrade
+            - --max-model-len
+            - "8192"  # contexto máximo del producto: más largo = menos secuencias a la vez (capacity/vram_calc.py)
+            - --max-num-seqs
+            - "128"  # techo de secuencias por réplica (el default en H100 es 1,024): el KV da ≈ 92 de 2,250 tokens
+            - --kv-cache-dtype
+            - auto  # KV en BF16. "fp8" duplica las secuencias; se activa solo si pasa el golden set
+            - --enable-prefix-caching  # default en v0.30; explícito porque el plan cuenta con él (system prompts)
+            - --enable-chunked-prefill  # default en v0.30: un prompt de 8k no frena el decode de los demás
+            - --max-num-batched-tokens
+            - "8192"  # tokens por paso (prefill troceado + decode): más = mejor TTFT y peor TPOT; se ajusta con el bench
+            - --scheduling-policy
+            - priority  # el gateway manda priority 0 (interactive) o 10 (batch); sin esto vLLM rechaza priority ≠ 0
+            - --generation-config
+            - vllm  # defaults de muestreo de vLLM, no del generation_config.json del modelo: una revisión nueva no
+                    # cambia la temperatura por defecto en silencio (los productos mandan la suya)
+            - --shutdown-timeout
+            - "60"  # con SIGTERM, deja terminar lo que está en vuelo hasta 60 s (default 0 = abortar todo)
+            - --port
+            - "8000"
+            # NO se agrega --enable-log-requests: loguearía prompts con PII. El log por request vive en el gateway,
+            # sin contenido.
+          env:
+            - name: HOME
+              value: /home/vllm  # caches de vLLM, torch.compile y Triton en un lugar escribible para UID 2000
+            - name: HF_HUB_OFFLINE
+              value: "1"  # nunca bajar nada de Hugging Face en runtime: los pesos vienen solo de nuestro S3
+            - name: VLLM_NO_USAGE_STATS
+              value: "1"  # sin telemetría de uso hacia afuera desde una VPC con PII
+          ports:
+            - name: http
+              containerPort: 8000  # API OpenAI (/v1/chat/completions), /health y /metrics
+          resources:
+            requests:
+              cpu: "40"  # p5.48xlarge: 192 vCPU para 4 réplicas; tokenización, scheduler y el API server son CPU
+              memory: 256Gi  # 2 TiB en el nodo; page cache de los safetensors (mmap) + /dev/shm + buffers
+              ephemeral-storage: 200Gi  # el emptyDir de los pesos cuenta aquí
+              nvidia.com/gpu: 2  # TP=2: dos H100 del mismo nodo
+            limits:
+              memory: 256Gi  # = request: pasarse es un OOMKilled claro
+              nvidia.com/gpu: 2  # las GPUs no se sobreasignan
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            # Cargar ≈ 70 GB desde NVMe, perfilar memoria, capturar CUDA graphs y (sin caché) torch.compile: minutos.
+            # 90 × 10 s = 15 min antes de que cuente la liveness. Si se pasa, el pod reinicia (y lo ves).
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            # /health = 200 si el engine está vivo, 503 si murió (EngineDeadError). No dice "estoy lleno": eso lo
+            # maneja la admisión del gateway, no Kubernetes.
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 6  # 1 min sin respuesta: reiniciar (un engine colgado no se cura solo)
+            timeoutSeconds: 5
+          lifecycle:
+            preStop:
+              # Esperar a que el pod salga de los endpoints antes del SIGTERM. Acción "sleep" nativa (GA en
+              # Kubernetes 1.34): no necesita un binario en la imagen.
+              sleep:
+                seconds: 15
+          volumeMounts:
+            - name: models
+              mountPath: /models
+              readOnly: true  # el servidor solo lee los pesos
+            - name: shm
+              mountPath: /dev/shm  # NCCL y los procesos de TP comparten memoria por aquí
+      volumes:
+        - name: models
+          emptyDir:
+            # Almacenamiento efímero del nodo: con Karpenter, instanceStorePolicy RAID0 lo pone sobre los NVMe
+            # locales de la p5 (verifica tu EC2NodeClass). Cada pod baja su copia: 4 descargas de ≈ 70 GB por
+            # nodo; un caché por nodo (hostPath o un DaemonSet) ahorra eso a cambio de más piezas.
+            sizeLimit: 200Gi
+        - name: shm
+          emptyDir:
+            medium: Memory  # el /dev/shm por defecto de un contenedor es 64 MiB: TP con NCCL necesita más
+            sizeLimit: 16Gi  # cuenta contra el límite de memoria del contenedor
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vllm-70b
+  namespace: c10
+spec:
+  # Drains voluntarios (upgrade de nodos, consolidación): como mucho 2 réplicas fuera a la vez → 14 × 4.2 ≈ 59 rps
+  # planeados, ≈ el diseño de 60. OJO: un nodo tiene 4 réplicas y no hay GPUs libres donde moverlas, así que
+  # vaciar un nodo ESPERA a que haya otro nodo. Es el precio de no pagar un nodo de repuesto (≈ US$40k/mes).
+  maxUnavailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-70b
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vllm-70b
+  namespace: c10
+spec:
+  # vLLM no tiene autenticación por tenant: si cualquiera en el cluster llega al puerto, se saltea cuotas,
+  # prioridad y la medición del gateway. Solo entran el llm-gateway y Prometheus (requiere un CNI que aplique
+  # NetworkPolicy; en EKS, el agente de network policy de la VPC CNI o Calico/Cilium).
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-70b
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: llm-gateway
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 8000
+          protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-70b
+  namespace: c10
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-70b
+  podTargetLabels: ["track"]  # stable | canary en cada serie: las alertas comparan las dos
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics  # métricas vllm:* (TTFT, TPOT, cola, KV cache, preemptions); ver monitoring/alerts.yml
+      interval: 15s

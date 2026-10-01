@@ -279,7 +279,7 @@
         'Guardrails: prompt injection, PII, salidas estructuradas',
         'Costo por token y cómo bajarlo: routing, caching, modelos pequeños',
       ],
-      freq: 'alta', minutes: 55,
+      freq: 'alta', minutes: 61,
       connects: ['m04', 'm07', 'm08', 'm15', 'c10', 'c11', 'c12'],
     },
     {
@@ -578,7 +578,7 @@
         'Autoscaling con cold starts de modelos grandes',
         'Costo por millón de tokens',
       ],
-      freq: 'alta', minutes: 125, difficulty: 'alta',
+      freq: 'alta', minutes: 105, difficulty: 'alta',
       connects: ['m03', 'm04', 'm06', 'm07', 'm08', 'm14'],
       tests: [
         'Calcular VRAM de pesos y KV cache y deducir GPUs y concurrencia',
@@ -820,13 +820,13 @@
       note: 'Fraude con features en streaming y speech-to-text en vivo comparten el problema de fondo: decidir con datos que llegan continuamente y un presupuesto de latencia estricto.',
     },
     {
-      phase: 12, status: 'next',
+      phase: 12, status: 'done',
       title: 'Fase 12 — LLMs: el módulo y el serving',
       items: ['m14', 'c10'],
       note: 'KV cache, continuous batching, RAG, agentes, evaluación y costo por token; enseguida lo aplicas sirviendo un LLM propio a escala.',
     },
     {
-      phase: 13, status: 'later',
+      phase: 13, status: 'next',
       title: 'Fase 13 — RAG y agentes',
       items: ['c11', 'c12'],
       note: 'Sobre M14 y c10: darle al modelo tus documentos con citas (c11) y dejarlo actuar con herramientas, timeouts y guardrails (c12).',
@@ -1074,6 +1074,36 @@
       {
         "topic": "Restricciones",
         "a": "La tarjeta llega tokenizada: el sistema de fraude no ve el número (PCI DSS). Datos personales bajo la LFPDPPP en México (GDPR o leyes de EE. UU. donde aplique). Cada decisión debe guardar <b>reason codes</b>; al comprador no se le dice el motivo exacto. Costo de un error: un fraude aprobado ≈ monto + US$15; un pago bueno rechazado, ≈ US$5–10 (lo fija el negocio). Sin presupuesto fijo de infraestructura."
+      }
+    ],
+    c10: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "El <b>marketplace del c01</b> (Latinoamérica). Tres productos internos llaman hoy a la API de un proveedor de LLMs: el <b>asistente de soporte</b> (chat con compradores y vendedores, en streaming), el <b>asistente de publicaciones</b> (redacta título y descripción a partir de los atributos de las fotos y las notas del vendedor, en streaming) y el <b>enriquecimiento del catálogo</b> (extrae atributos en JSON, batch nocturno). Más adelante se sumaría un asistente de empleados con documentos internos. Cada equipo de producto es dueño de sus prompts."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Formato de chat compatible con OpenAI. Interactivo: ≈ <b>2,000 tokens de entrada</b> de promedio (system prompt, políticas, historial y contexto), de los que ≈ <b>la mitad es un prefijo fijo por producto</b>, y ≈ <b>250 de salida</b>; el p99 de entrada es ≈ 5,000 y ningún prompt pasa de ≈ 6k. Batch: ≈ <b>800 de entrada y ≈ 150 de salida</b>, un <b>JSON con esquema</b> de atributos por categoría. Publicaciones devuelve un JSON chico (título y descripción)."
+      },
+      {
+        "topic": "Escala",
+        "a": "Interactivo: ≈ <b>1.5 M requests al día</b> (soporte ≈ 1.0 M, unas 200k conversaciones de ≈ 5 turnos; publicaciones ≈ 0.5 M), con el pico a media mañana en ≈ <b>3× el promedio</b>. Batch: ≈ <b>2 M ítems por noche</b> (publicaciones nuevas o editadas). El uso crece ≈ <b>10 % al mes</b>."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "Soporte y publicaciones muestran el texto mientras se genera: la primera palabra en <b>p95 ≤ 1.0 s</b> y después ≈ 20 tokens por segundo (<b>p95 ≤ 50 ms entre tokens</b>). La plataforma debe tener <b>99.9 %</b> de disponibilidad. El batch entra a las 22:00 y tiene que estar listo a las <b>06:00</b>."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "Un <b>modelo propietario de gama media</b> de un proveedor externo, a precio de lista de ≈ <b>US$2.50 por millón de tokens de entrada y US$10 por millón de salida</b>; el catálogo usa su API batch (−50 %). Factura ≈ <b>US$442k/mes</b>; nadie revisó si tiene descuento por prompt caching. Razones para cambiar: la factura, datos personales que salen y poco control (deprecaciones, rate limits, latencia variable). El modelo del proveedor es mejor en benchmarks generales; nadie sabe si uno abierto alcanza por producto. No se necesita fine-tuning."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "No hay golden sets todavía. Existen conversaciones de soporte históricas y publicaciones con sus atributos, y personas de soporte y del equipo de catálogo podrían calificar respuestas. Soporte lleva <b>datos personales</b> (nombres, direcciones, teléfonos, pedidos); publicaciones, poco; el catálogo es texto público. Legal pide que los datos de soporte <b>dejen de salir</b> de la empresa y que no se guarden prompts sin necesidad (México, LFPDPPP)."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "AWS <b>us-east-1</b>, con el <b>EKS del c01</b> (tres zonas), Prometheus, Grafana y S3. No hay GPUs grandes: hay que pedir cuota de instancias P y no hay garantía de conseguir H100 on-demand. Sin presupuesto cerrado: finanzas quiere el costo mensual con las personas incluidas y nada de compromisos de 3 años al arrancar. Opera un equipo de plataforma de ≈ <b>3 personas</b> con guardia. Publicaciones puede seguir usando al proveedor con redacción de datos personales; soporte no."
       }
     ],
     c13: [

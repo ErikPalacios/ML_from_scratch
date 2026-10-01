@@ -1,0 +1,30 @@
+# Dependencias de RUNTIME del llm-gateway, fijadas con == (incluye transitivas: esta lista ES el lock).
+# Generada con `uv pip compile` para Linux x86_64 (manylinux) y Python 3.13 (el de la imagen).
+# Por qué fijar las transitivas: sin lock, un rebuild del mismo commit puede traer otra starlette u otra
+# pydantic y cambiar el comportamiento (el manejo de desconexiones del streaming vive en starlette).
+# Tests: pip install -r ../requirements-dev.txt (no entra a la imagen).
+
+# --- directas ---
+fastapi==0.142.2  # framework ASGI: la ruta /v1/chat/completions (vía Starlette)
+uvicorn==0.54.0  # servidor ASGI; 1 proceso por contenedor (escala con réplicas, no con workers)
+uvloop==0.23.0  # event loop más rápido; uvicorn lo usa solo si está instalado
+httptools==0.8.0  # parser HTTP en C; uvicorn lo prefiere a h11 si está instalado
+httpx2==2.13.1  # cliente HTTP async hacia vLLM y el vendor (streaming SSE, timeouts, MockTransport en tests)
+prometheus-client==0.26.0  # /metrics
+pyyaml==6.0.3  # tenants.yaml
+
+# --- transitivas (uv pip compile) ---
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+h11==0.16.0
+httpcore2==2.13.1
+idna==3.20
+opentelemetry-api==1.45.0
+pydantic==2.13.5
+pydantic-core==2.46.5
+starlette==1.7.0
+truststore==0.10.4
+typing-extensions==4.16.0
+typing-inspection==0.4.4
