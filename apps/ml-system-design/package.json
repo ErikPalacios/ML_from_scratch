@@ -13,7 +13,8 @@
     "smoke:mobile": "node tools/browser-check.mjs --url index.html --wait 1500 --timeout 180000 --eval-file tools/smoke.js --mobile --width 375 --height 812",
     "smoke:dark": "node tools/browser-check.mjs --url index.html --wait 1500 --timeout 180000 --eval-file tools/smoke.js --dark",
     "smoke:tablet": "node tools/browser-check.mjs --url index.html --width 768 --height 1024 --wait 1500 --timeout 180000 --eval-file tools/smoke.js --light",
-    "smoke:dist": "node tools/embed-reference.mjs && node build.mjs && node tools/browser-check.mjs --url dist/ml-system-design.html --wait 1500 --timeout 180000 --eval-file tools/smoke.js --light"
+    "smoke:dist": "node tools/embed-reference.mjs && node build.mjs && node tools/browser-check.mjs --url dist/ml-system-design.html --wait 1500 --timeout 180000 --eval-file tools/smoke.js --light",
+    "build:web": "node tools/embed-reference.mjs && node build.mjs && node tools/build-web.mjs"
   },
   "engines": {
     "node": ">=20"

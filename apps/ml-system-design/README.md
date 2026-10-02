@@ -29,7 +29,7 @@ Genera dos archivos en `dist/`:
 
 | archivo | para qué |
 |---|---|
-| `dist/ml-system-design.html` | la app completa en un solo HTML autocontenido (~7.5 MB). Cópialo a donde quieras y ábrelo con doble clic. |
+| `dist/ml-system-design.html` | la app completa en un solo HTML autocontenido (~8.5 MB). Cópialo a donde quieras y ábrelo con doble clic. |
 | `dist/artifact.html` | el mismo contenido sin `<!doctype>`, `<html>`, `<head>` ni `<body>` (empieza con `<title>`), para publicarlo como **Artifact de claude.ai**. |
 
 El único recurso externo son las fuentes IBM Plex de Google Fonts; sin conexión, la app usa las
@@ -52,6 +52,24 @@ caso con reloj → rúbrica → solución.
 
 **Atajos de teclado:** `/` busca · `[` y `]` página anterior/siguiente del curso · `Esc` cierra
 paneles. En flashcards: `Espacio` muestra la respuesta, `1` / `2` / `3` califican.
+
+**Opción 3: en la web (Vercel), para celular y tablet.** `npm run build:web` arma `dist/web/`: el
+mismo HTML como `index.html`, más un manifest, íconos y un service worker. En el celular o la tablet
+puedes **agregarla a la pantalla de inicio** (iPhone/iPad: Safari → Compartir → "Agregar a inicio";
+Android: Chrome → menú → "Instalar app") y, **después de abrirla una vez con internet, funciona sin
+conexión**. Cada deploy nuevo reemplaza la copia guardada la siguiente vez que la abras con internet.
+La app ya está pensada para pantallas de 360 px en adelante.
+
+Para subirla, usa una de estas dos formas:
+
+- **Con Git:** sube el repositorio a GitHub, impórtalo en Vercel (Add New → Project) y en **Root
+  Directory** pon `apps/ml-system-design`. El resto lo toma de `vercel.json`: sin framework, sin
+  instalar dependencias, build `npm run build:web` y salida `dist/web`.
+- **Con la CLI**, desde esta carpeta: `npx vercel` (preview) y luego `npx vercel --prod`.
+  `.vercelignore` deja fuera lo que no hace falta (venvs, tests, docs).
+
+En la web el progreso se guarda **en el navegador de cada dispositivo** ("Guardado en este navegador").
+Para pasarlo del celular a la tablet o desde el Artifact, usa **Exportar / importar progreso**.
 
 ## Cómo se guarda tu progreso
 
@@ -235,7 +253,9 @@ js/ui/                  dom · blocks · diagram · code · practice · flashcar
 js/content/             catalog.js · reference-files.js (generado) · un archivo por módulo/caso
 js/app.js               router, barra lateral, búsqueda, páginas del shell
 reference/c01/          archivos reales del caso C01 (gateway FastAPI, Triton, K8s, monitoreo…)
-tools/                  validate-content · embed-reference · browser-check · smoke
+tools/                  validate-content · embed-reference · build-web · browser-check · smoke
+web/                    manifest, íconos y service worker de la versión web (Vercel)
+vercel.json             build y headers para Vercel (salida dist/web)
 tests/                  pruebas de node:test
 docs/SPEC.md            contrato interno de la app (formato de contenido, diseño, arquitectura)
 ```
