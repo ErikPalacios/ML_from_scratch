@@ -279,7 +279,7 @@
         'Guardrails: prompt injection, PII, salidas estructuradas',
         'Costo por token y cómo bajarlo: routing, caching, modelos pequeños',
       ],
-      freq: 'alta', minutes: 61,
+      freq: 'alta', minutes: 68,
       connects: ['m04', 'm07', 'm08', 'm15', 'c10', 'c11', 'c12'],
     },
     {
@@ -578,7 +578,7 @@
         'Autoscaling con cold starts de modelos grandes',
         'Costo por millón de tokens',
       ],
-      freq: 'alta', minutes: 105, difficulty: 'alta',
+      freq: 'alta', minutes: 114, difficulty: 'alta',
       connects: ['m03', 'm04', 'm06', 'm07', 'm08', 'm14'],
       tests: [
         'Calcular VRAM de pesos y KV cache y deducir GPUs y concurrencia',
@@ -1091,7 +1091,7 @@
       },
       {
         "topic": "Latencia y disponibilidad",
-        "a": "Soporte y publicaciones muestran el texto mientras se genera: la primera palabra en <b>p95 ≤ 1.0 s</b> y después ≈ 20 tokens por segundo (<b>p95 ≤ 50 ms entre tokens</b>). La plataforma debe tener <b>99.9 %</b> de disponibilidad. El batch entra a las 22:00 y tiene que estar listo a las <b>06:00</b>."
+        "a": "Soporte y publicaciones muestran el texto mientras se genera: la primera palabra en <b>p95 ≤ 1.0 s</b> y después ≈ 20 tokens por segundo (<b>p95 ≤ 50 ms por token de salida</b>, promedio de cada respuesta). La plataforma debe tener <b>99.9 %</b> de disponibilidad. El batch entra a las 22:00 y tiene que estar listo a las <b>06:00</b>."
       },
       {
         "topic": "Modelo actual",

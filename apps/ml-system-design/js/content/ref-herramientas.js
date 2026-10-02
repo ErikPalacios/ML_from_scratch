@@ -123,7 +123,7 @@
             ['Modelo chico en CPU, pocas req/s', 'Runtime en tu proceso', 'FastAPI + ONNX Runtime', 'OpenVINO en CPUs Intel', '<a href="#c05.serving">c05</a> (clasificador)'],
             ['Video de muchas cámaras', 'Pipeline de video', 'DeepStream (decode en NVDEC + TensorRT)', 'GStreamer o PyAV propio si son pocas cámaras', '<a href="#c02.serving">c02</a>, <a href="#c03.serving">c03</a>'],
             ['Inferencia en un Jetson o en la planta', 'Runtime optimizado', 'TensorRT (engine compilado en el dispositivo)', 'ONNX Runtime con el execution provider de TensorRT', '<a href="#c03.serving">c03</a>'],
-            ['Generar texto con un LLM propio', 'Motor de LLM', 'vLLM', 'SGLang con prefijos compartidos; TensorRT-LLM a gran escala en NVIDIA', '<a href="#c10">c10</a> (próximamente)'],
+            ['Generar texto con un LLM propio', 'Motor de LLM', 'vLLM', 'SGLang con prefijos compartidos; TensorRT-LLM a gran escala en NVIDIA', '<a href="#c10.serving">c10</a>'],
             ['Escalar réplicas por cola o a cero', 'Autoscaler por eventos', 'KEDA', 'HPA si la señal es CPU o una métrica del pod', '<a href="#c04.serving">c04</a>, <a href="#c01.serving">c01</a>'],
             ['Agregar nodos con GPU', 'Autoscaler de nodos', 'Karpenter (EKS)', 'Cluster Autoscaler; el de GKE o AKS', '<a href="#c04.serving">c04</a>, <a href="#m06.nodos">M6</a>'],
             ['Desacoplar productor y consumidor', 'Cola', 'SQS', 'Pub/Sub o Service Bus en otra nube', '<a href="#c02.arquitectura">c02</a>, <a href="#c04.arquitectura">c04</a>'],

@@ -1,5 +1,7 @@
 """Tests de la redacción de PII: qué atrapa, qué NO atrapa (a propósito, para que los límites queden escritos)."""
 
+import json  # los argumentos de una tool call son JSON en texto
+
 from pii import Redactor, clabe_ok, luhn_ok
 
 
@@ -58,3 +60,21 @@ def test_messages_text_parts_and_name_field():
     assert out[1]["content"][0]["text"] == "tel [PHONE_1]"
     assert out[1]["content"][1] == msgs[1]["content"][1]
     assert msgs[0]["content"] == "mi correo: ana@x.mx"  # el original no se toca
+
+
+def test_tool_call_arguments_are_redacted_and_unknown_message_keys_dropped():
+    # Lista PERMITIDA dentro de cada mensaje: los argumentos de una tool call suelen traer correos y teléfonos, y
+    # un campo propio que agregue un cliente ("customer_id") no sale de la VPC
+    r = Redactor()
+    msgs = [
+        {"role": "assistant", "content": None, "customer_id": "C-981", "tool_calls": [
+            {"id": "1", "type": "function",
+             "function": {"name": "buscar", "arguments": '{"email": "ana.p@mail.com", "tel": "5512345678"}'}}]},
+        {"role": "tool", "tool_call_id": "1", "content": "pedido de ana.p@mail.com: enviado"},
+    ]
+    out = r.redact_messages(msgs)
+    assert set(out[0]) == {"role", "content", "tool_calls"}
+    args = json.loads(out[0]["tool_calls"][0]["function"]["arguments"])  # sigue siendo JSON válido
+    assert args == {"email": "[EMAIL_1]", "tel": "[PHONE_1]"}
+    assert out[0]["tool_calls"][0]["function"]["name"] == "buscar" and out[0]["tool_calls"][0]["id"] == "1"
+    assert out[1] == {"role": "tool", "tool_call_id": "1", "content": "pedido de [EMAIL_1]: enviado"}

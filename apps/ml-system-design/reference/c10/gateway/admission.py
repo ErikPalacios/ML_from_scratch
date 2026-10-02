@@ -15,10 +15,14 @@ que un pico de 1 minuto no se resuelve escalando. Se resuelve decidiendo en la p
     para todos; acotada, el que no entra recibe un rechazo honesto con Retry-After (503 en llm_gateway.py) y
     el cliente decide: reintentar, degradar o (si el tenant puede) ir al vendor.
 
-Números del caso (por réplica del gateway, con 4 réplicas; ILUSTRATIVOS): 16 réplicas de vLLM × ≈ 40 secuencias
-planeadas = 640 en vuelo en la flota → 160 por réplica del gateway; 40 reservados para interactive; cola
+Números del caso (por réplica del gateway, con 4 réplicas; ILUSTRATIVOS): el tope sale de lo que la flota aguanta
+DENTRO del SLO, no de la carga planeada. 16 réplicas de vLLM × 72 en vuelo (el último punto del barrido que cumple
+TTFT y TPOT) ≈ 1,150 en la flota → 288 por réplica del gateway. En el pico de diseño (60 rps × 10.5 s ≈ 630) se usa
+≈ 55 %: el margen del 70 % planeado queda disponible para picos. Si el tope fuera lo planeado (≈ 40 por réplica de
+vLLM), el gateway daría 503 desde ≈ 61 rps con GPUs de sobra. 72 reservados para interactive (1/4); cola
 interactiva de 64 con espera ≤ 0.5 s (el SLO de TTFT es 1 s: esperar más ya lo rompe); cola batch de 256 con
-espera ≤ 30 s (el batch-runner reintenta).
+espera ≤ 30 s (el batch-runner reintenta). Lo ideal es que el tope siga a las réplicas listas (12 × 72 con un nodo
+caído); aquí es fijo.
 
 Solo asyncio. Un objeto por proceso; se usa con `async with admission.slot("interactive"):`.
 """
@@ -45,8 +49,8 @@ class Overloaded(Exception):
 
 @dataclass(frozen=True)
 class AdmissionConfig:
-    max_inflight: int = 160  # requests en vuelo hacia la flota desde ESTE proceso
-    interactive_reserved: int = 40  # lugares que batch no puede ocupar
+    max_inflight: int = 288  # requests en vuelo hacia la flota desde ESTE proceso (16 × 72 medidos ÷ 4)
+    interactive_reserved: int = 72  # lugares que batch no puede ocupar
     queue_max: tuple[tuple[str, int], ...] = (("interactive", 64), ("batch", 256))
     max_wait_s: tuple[tuple[str, float], ...] = (("interactive", 0.5), ("batch", 30.0))
     retry_after_s: tuple[tuple[str, float], ...] = (("interactive", 2.0), ("batch", 60.0))

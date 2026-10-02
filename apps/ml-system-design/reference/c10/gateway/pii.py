@@ -16,6 +16,10 @@ LÍMITES (dilo así en la entrevista: una regex es una línea base, no una garan
   * Sobre-redacta: un número de pedido de 10 dígitos parece un teléfono. Eso baja la calidad de la respuesta
     del vendor, pero falla hacia el lado seguro.
   * Formatos de otros países (DNI, CPF, SSN) no están.
+  * Las DEFINICIONES de tools (`tools`: nombres, descripciones, esquemas) salen sin redactar: las escribe el
+    producto, no el usuario; si un producto mete datos de clientes ahí, esto no lo ve. Los ARGUMENTOS de las
+    tool calls de mensajes anteriores sí se redactan (suelen traer correos y teléfonos).
+  * Las partes que no son texto (una imagen) salen tal cual: una regex no las lee.
   * El siguiente paso es un detector con NER (p. ej. Microsoft Presidio, open source; verifica idiomas y
     reconocedores para español) y, sobre todo, MEDIR recall y precisión con una muestra etiquetada de
     prompts reales por tenant. Sin esa medición, "redactamos la PII" es una promesa, no un control.
@@ -28,6 +32,9 @@ from __future__ import annotations  # anotaciones como texto
 
 import re  # las expresiones regulares
 from collections import Counter  # conteo por tipo para la métrica
+
+# Claves de un mensaje que pueden salir al vendor (lista permitida, como VENDOR_FIELDS en llm_gateway.py)
+MESSAGE_FIELDS = ("role", "content", "tool_calls", "tool_call_id")
 
 # Orden importa: lo más específico primero (una CLABE de 18 dígitos también "parece" una tarjeta o un teléfono).
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
@@ -97,10 +104,14 @@ class Redactor:
         return text
 
     def redact_messages(self, messages: list[dict]) -> list[dict]:
-        """Copia de los mensajes con el texto redactado (content como string o como lista de partes)."""
+        """Copia de los mensajes con el texto redactado: content (string o lista de partes) y los argumentos de
+        las tool calls. Lista PERMITIDA también dentro de cada mensaje: cualquier otra clave (p. ej. "name", que
+        suele traer el nombre de la persona, o un campo propio que agregue un cliente) no sale."""
         out = []
         for msg in messages:
-            m = dict(msg)
+            if not isinstance(msg, dict):
+                continue
+            m = {k: msg[k] for k in MESSAGE_FIELDS if k in msg}
             content = m.get("content")
             if isinstance(content, str):
                 m["content"] = self.redact(content)
@@ -109,6 +120,18 @@ class Redactor:
                     dict(p, text=self.redact(p["text"])) if isinstance(p, dict) and isinstance(p.get("text"), str) else p
                     for p in content
                 ]
-            m.pop("name", None)  # el campo opcional "name" suele traer el nombre de la persona: no sale
+            if isinstance(m.get("tool_calls"), list):
+                m["tool_calls"] = [self._redact_tool_call(tc) for tc in m["tool_calls"] if isinstance(tc, dict)]
             out.append(m)
         return out
+
+    def _redact_tool_call(self, tc: dict) -> dict:
+        fn = tc.get("function") if isinstance(tc.get("function"), dict) else {}
+        args = fn.get("arguments")
+        return {
+            "id": tc.get("id"),
+            "type": tc.get("type", "function"),
+            # arguments es un JSON en texto: se redacta como texto (un correo dentro de un string JSON se reemplaza
+            # por [EMAIL_1], que sigue siendo un string JSON válido)
+            "function": {"name": fn.get("name"), "arguments": self.redact(args) if isinstance(args, str) else args},
+        }

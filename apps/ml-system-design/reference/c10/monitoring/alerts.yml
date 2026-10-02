@@ -17,7 +17,7 @@
 #   vllm:*                         → vLLM v0.30.0, /metrics de cada pod (labels model_name, engine; Prometheus
 #                                    agrega pod, namespace y track con el PodMonitor de k8s/vllm-70b.yaml).
 #                                    Nombres verificados en vllm/v1/metrics/loggers.py de v0.30.0. Ojo con versiones
-#                                    viejas: el gauge del KV cache se llamaba vllm:gpu_cache_usage_perc; desde v0.10
+#                                    viejas: el gauge del KV cache se llamaba vllm:gpu_cache_usage_perc; desde v0.9.2
 #                                    es vllm:kv_cache_usage_perc (el viejo quedó oculto en v0.11 y ya no existe en v0.12+).
 #                                    Los counters llevan el sufijo _total en Prometheus (vllm:num_preemptions_total).
 #   batch_runner_*                 → batch-runner (no está en esta carpeta): items pendientes de la noche (gauge) e
@@ -46,19 +46,26 @@ groups:
       - record: llm:vllm_ttft_p95:rate5m
         expr: |
           histogram_quantile(0.95, sum by (le, pod) (rate(vllm:time_to_first_token_seconds_bucket[5m])))
-      # Errores que ve el usuario: 5xx (incluye 503 por plataforma llena, 502/504 del upstream) y streams cortados
-      # a la mitad. NO cuentan: 429 (la cuota del tenant es un límite pactado, no una falla) ni 499 (el cliente se
-      # fue). El denominador excluye 499 por lo mismo.
+      # Errores que ve el usuario: 5xx (incluye 503 por plataforma llena o por el vendor que nos limita con 429
+      # durante un fallback, y 502/504 del upstream, también un request que vLLM aborta antes de dar texto, como
+      # en un drain) y streams cortados o abortados a la mitad. NO cuentan: 429 (la cuota del tenant es un límite
+      # pactado, no una falla; el gateway solo contesta 429 por eso) ni 499 (el cliente se fue). El denominador
+      # excluye 499 por lo mismo.
       - record: llm:gateway_error_ratio:rate5m
         expr: |
           (sum(rate(llm_gateway_requests_total{status=~"5..|stream_error"}[5m])) or vector(0))
             / sum(rate(llm_gateway_requests_total{status!="499"}[5m]))
       # Preemptions por request terminado, en la flota: vLLM desaloja una secuencia de la GPU cuando el KV cache no
-      # alcanza y la recalcula después. Con --scheduling-policy priority, primero salen las de batch.
+      # alcanza y la recalcula después. Con --scheduling-policy priority, primero salen las de batch. Cuenta
+      # EVENTOS, no requests: una secuencia desalojada 3 veces suma 3, así que 0.05 no es "5 % de los requests" (el
+      # valor puede pasar de 1). El histograma por request (vllm:request_num_preemptions) no da la fracción
+      # exacta de afectados: en v0.30 su primer bucket es le="1" y junta 0 y 1 preemptions.
       - record: llm:preemption_ratio:rate15m
         expr: |
           sum(rate(vllm:num_preemptions_total[15m])) / sum(rate(vllm:request_success_total[15m]))
-      # Lugares en vuelo usados ÷ tope, en todas las réplicas del gateway (≈ 0.7 en el pico planeado: 40 de ≈ 57)
+      # Lugares en vuelo usados ÷ tope, en todas las réplicas del gateway. El tope es lo medido DENTRO del SLO
+      # (72 por réplica de vLLM, el codo del barrido; gateway/tenants.yaml), no lo planeado: ≈ 0.55 en el pico
+      # planeado (40 de 72); > 0.85 ≈ 61 por réplica, cerca del codo.
       - record: llm:gateway_inflight_utilization
         expr: |
           sum(llm_gateway_inflight) / sum(llm_gateway_max_inflight)
@@ -105,7 +112,7 @@ groups:
           severity: page
         annotations:
           summary: "{{ $value | humanizePercentage }} de los requests fallan en el gateway (> 1 %)"
-          description: "sum by (status, tenant) (rate(llm_gateway_requests_total[5m])): 503 = sin capacidad (admisión); 502/504 = réplicas caídas o lentas; stream_error = réplicas que mueren a mitad del stream (OOM, XID de GPU). Con 99.9 % de disponibilidad, 1 % de errores gasta el presupuesto del mes en ≈ 3 días."
+          description: "sum by (status, tenant) (rate(llm_gateway_requests_total[5m])): 503 = sin capacidad (admisión); 502/504 = réplicas caídas o lentas; stream_error = réplicas que mueren o abortan a mitad del stream (OOM, XID de GPU, un drain que no alcanzó los 60 s); un 503 con el vendor como backend = el proveedor nos limita durante un fallback. Con 99.9 % de disponibilidad, 1 % de errores gasta el presupuesto del mes en ≈ 3 días."
           runbook_url: "https://runbooks.example.com/c10/errors"
 
   # ------------------------------------------------------------------ flota
@@ -124,9 +131,15 @@ groups:
           description: "La flota está llena para el tráfico interactivo: los que esperan más de 0.5 s reciben 503. ¿Hay batch fuera de su ventana ocupando lugares (llm_gateway_inflight{priority=\"batch\"})? ¿Réplicas caídas (LLMCapacityHeadroomLow)?"
           runbook_url: "https://runbooks.example.com/c10/queue"
       - alert: LLMQueueBacklog
-        # Solo dentro de la ventana nocturna (22:00–06:00 CDMX = 04:00–12:00 UTC)
+        # Solo dentro de la ventana nocturna (22:00–06:00 CDMX = 04:00–12:00 UTC). Es la cuenta de
+        # batch:eta_seconds > batch:seconds_to_deadline escrita completa: las recording rules están en OTRO grupo,
+        # y entre grupos no hay orden garantizado, así que la alerta podría leer la evaluación anterior (1 min de
+        # atraso en el valor del summary; con promtool, un test que a veces falla).
         expr: |
-          (batch:eta_seconds > batch:seconds_to_deadline)
+          (
+            sum(batch_runner_items_remaining) / clamp_min(sum(rate(batch_runner_items_completed_total[30m])), 0.001)
+              > (43200 - time() % 86400 + 86400) % 86400
+          )
             and on() (hour() >= 4 and hour() < 12)
         for: 15m
         labels:
@@ -160,7 +173,7 @@ groups:
         labels:
           severity: ticket
         annotations:
-          summary: "{{ $value | humanizePercentage }} de los requests terminados sufrieron una preemption (> 5 %)"
+          summary: "{{ $value | humanize }} preemptions por request terminado (> 0.05)"
           description: "Cada preemption recalcula el prefill de esa secuencia: GPU tirada y saltos de TPOT. Se arregla con más KV por réplica o menos secuencias (max-num-seqs), no reiniciando."
           runbook_url: "https://runbooks.example.com/c10/preemptions"
 

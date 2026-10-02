@@ -4,8 +4,8 @@ Los tres productos internos (soporte, asistente de vendedores, enriquecimiento d
 vLLM ni al vendor directo. Por qué un gateway propio y no "cada producto con su cliente de OpenAI":
   * quién es quién: API key por tenant → cuotas, prioridad, modelos permitidos y medición de uso por producto;
   * un ALIAS (`chat-default`) en vez de una revisión: cambiar de modelo es editar tenants.yaml, no tres deploys;
-  * admisión: la flota tiene un techo (≈ 640 secuencias planeadas) y no crece en 1 minuto; alguien tiene que
-    decidir quién pasa y a quién se le dice "reintenta en 2 s";
+  * admisión: la flota tiene un techo (16 réplicas × 72 en vuelo dentro del SLO ≈ 1,150 secuencias, medido con
+    el barrido) y no crece en 1 minuto; alguien tiene que decidir quién pasa y a quién se le dice "reintenta en 2 s";
   * el ÚNICO lugar por donde un prompt puede salir de la VPC (al vendor), con redacción de PII y solo para los
     tenants que tienen permiso.
 
@@ -18,22 +18,25 @@ Un request de punta a punta (POST /v1/chat/completions, stream=true, tenant list
      alcanza). Al final se concilia con `usage` (quota.py).
   4. Admisión: un lugar en vuelo para su clase (interactive/batch) o espera acotada (admission.py). Sin lugar:
      503 + Retry-After, o el vendor si el tenant puede (`overloaded`).
-  5. Upstream: alias → revisión servida (`chat-70b-fp8-2026-09-28`, o la que el tenant tenga fijada durante un
-     canary), `priority` 0 o 10 para el scheduler de vLLM, y stream_options.include_usage para poder conciliar
-     tokens.
-  6. Antes del primer byte al cliente, una falla del upstream (conexión, 5xx, sin primer evento en 10 s) todavía
-     se puede convertir en otra cosa: un 502/504 limpio o el vendor (si el tenant puede). Después del primer
-     byte, no: se manda un evento de error y se corta. No se pueden pegar dos streams de dos modelos.
+  5. Upstream: alias → (Service, revisión servida): `vllm-70b` + `chat-70b-fp8-2026-09-28`, o el canario
+     (`vllm-70b-canary` + su revisión) si el tenant lo tiene fijado (pins, todo el tenant o un % de sus usuarios);
+     `priority` 0 o 10 para el scheduler de vLLM, y stream_options.include_usage para poder conciliar tokens.
+  6. Antes del primer byte al cliente, una falla del upstream (conexión, 5xx, sin primer token en 10 s, o un
+     request que vLLM aborta o marca con error antes de dar texto, como hace un pod en drain) todavía se puede
+     convertir en otra cosa: un 502/504 limpio o el vendor (si el tenant puede). Por eso el gateway lee hasta el
+     primer evento con CONTENIDO antes de contestar. Después del primer byte, no: se manda un evento de error y se
+     corta. No se pueden pegar dos streams de dos modelos.
   7. Streaming SSE: cada evento se reenvía apenas llega; el TTFT se mide en el primer evento con CONTENIDO (el
      primer chunk de vLLM puede traer solo el rol). Si el cliente se va, se cierra la conexión con vLLM, que
      aborta el request: una GPU no debería generar 1,000 tokens para nadie.
   8. Cierre: liberar el lugar, conciliar la cuota, métricas y una línea de log SIN prompt ni respuesta.
 
 Códigos: 400 request inválido · 401 key · 403 alias no permitido · 404 alias inexistente · 429 cuota del tenant
-(su problema: Retry-After = cuándo le alcanza) · 503 plataforma llena (nuestro problema: Retry-After sugerido) ·
-502/504 upstream caído o lento · 4xx del upstream: se reenvían tal cual (p. ej. prompt más largo que el contexto).
-En métricas, "499" = el cliente cerró antes del final (convención de nginx) y "stream_error" = el upstream falló
-con el stream ya empezado (el cliente vio un 200).
+(su problema: Retry-After = cuándo le alcanza) · 503 plataforma llena (nuestro problema: Retry-After sugerido),
+incluido el vendor que nos limita con 429 durante un fallback · 502/504 upstream caído o lento (también un 401/403
+del vendor: la credencial es nuestra) · otros 4xx del upstream: se reenvían tal cual (p. ej. prompt más largo que
+el contexto). En métricas, "499" = el cliente cerró antes del final (convención de nginx) y "stream_error" = el
+upstream falló o abortó con el stream ya empezado (el cliente vio un 200 incompleto).
 
 Correr la demo (upstream falso): uvicorn --factory llm_gateway:demo_app --port 8080 (ver README).
 En producción: uvicorn --factory llm_gateway:app_from_env con GATEWAY_CONFIG=tenants.yaml y VENDOR_API_KEY.
@@ -80,7 +83,8 @@ VLLM_PRIORITY = {"interactive": 0, "batch": 10}
 
 # Lo único que sale hacia el vendor: lista PERMITIDA, no lista prohibida. Un campo nuevo que agregue un cliente
 # (o un parámetro propio de vLLM) no viaja fuera de la empresa por accidente. "user" queda afuera: suele
-# llevar un id de persona.
+# llevar un id de persona. Dentro de cada mensaje vale lo mismo (pii.MESSAGE_FIELDS: role, content, tool_calls,
+# tool_call_id), con el texto y los argumentos de las tool calls redactados.
 VENDOR_FIELDS = frozenset({
     "model", "messages", "max_tokens", "max_completion_tokens", "temperature", "top_p", "stop", "seed",
     "presence_penalty", "frequency_penalty", "response_format", "tools", "tool_choice", "stream", "stream_options",
@@ -103,10 +107,34 @@ class Tenant:
     max_tokens_cap: int
     vendor_fallback: bool
     max_prompt_tokens: int  # tope de prompt ESTIMADO (quota.py): un loop que manda historiales infinitos no pasa
-    pins: dict = field(default_factory=dict)  # alias → revisión fija para ESTE tenant (canary por tenant, rollback)
+    pins: dict = field(default_factory=dict)  # alias → Pin: otro upstream y otra revisión para ESTE tenant
 
-    def model_for(self, alias: "Alias") -> str:
-        return self.pins.get(alias.name, alias.model)
+    def route_for(self, alias: "Alias", user: object = None) -> tuple[str, str]:
+        """(upstream, revisión) para este request. Un pin cambia LAS DOS cosas: cada pod de vLLM sirve solo su
+        --served-model-name, así que la revisión canaria solo existe detrás del Service canario."""
+        pin = self.pins.get(alias.name)
+        if pin is not None and pin.applies(self.name, alias.name, user):
+            return pin.upstream, pin.model
+        return alias.upstream, alias.model
+
+
+@dataclass(frozen=True)
+class Pin:
+    """Canary o rollback por tenant: `percent` de sus usuarios finales (100 = el tenant entero) va a `upstream`."""
+
+    upstream: str  # nombre en `upstreams` (una flota propia, p. ej. vllm-70b-canary)
+    model: str  # la revisión que sirve ese upstream
+    percent: int = 100
+
+    def applies(self, tenant: str, alias: str, user: object) -> bool:
+        if self.percent >= 100:
+            return True
+        if not isinstance(user, str) or not user:
+            return False  # sin id de usuario no hay asignación estable: el request va a la estable
+        # Por usuario y no por request: una conversación no cambia de modelo a mitad. La revisión NO entra en el
+        # hash: al subir de 5 % a 25 %, los usuarios que ya estaban en el canario siguen ahí.
+        digest = hashlib.sha256(f"{tenant}|{alias}|{user}".encode()).digest()
+        return int.from_bytes(digest[:8], "big") % 100 < self.percent
 
 
 @dataclass(frozen=True)
@@ -120,8 +148,8 @@ class Alias:
 @dataclass(frozen=True)
 class Limits:
     gateway_replicas: int = 4
-    max_inflight: int = 160
-    interactive_reserved: int = 40
+    max_inflight: int = 288  # 16 réplicas de vLLM × 72 en vuelo dentro del SLO ÷ 4 réplicas del gateway
+    interactive_reserved: int = 72
     queue_max: dict = field(default_factory=lambda: {"interactive": 64, "batch": 256})
     max_wait_s: dict = field(default_factory=lambda: {"interactive": 0.5, "batch": 30.0})
     retry_after_s: dict = field(default_factory=lambda: {"interactive": 2.0, "batch": 60.0})
@@ -169,7 +197,7 @@ def load_config(source: str | Path | dict) -> GatewayConfig:
             max_tokens_cap=int(t["max_tokens_cap"]),
             vendor_fallback=bool(t["vendor_fallback"]),
             max_prompt_tokens=int(t["max_prompt_tokens"]),
-            pins=dict(t.get("pins") or {}),
+            pins=_parse_pins(name, t.get("pins") or {}, upstreams),
         )
         if unknown_t := set(t) - {"key_sha256", "priority", "tokens_per_minute", "allowed_aliases", "max_tokens_cap",
                                   "vendor_fallback", "max_prompt_tokens", "pins"}:
@@ -195,6 +223,20 @@ def load_config(source: str | Path | dict) -> GatewayConfig:
             by_key[h] = tenant
         tenants[name] = tenant
     return GatewayConfig(int(raw["max_model_len"]), limits, upstreams, aliases, tenants, by_key)
+
+
+def _parse_pins(tenant: str, raw_pins: dict, upstreams: dict) -> dict:
+    pins = {}
+    for alias, p in raw_pins.items():
+        if not isinstance(p, dict) or not {"upstream", "model"} <= set(p) or set(p) - {"upstream", "model", "percent"}:
+            raise ValueError(f"tenant {tenant}: el pin de {alias} debe ser {{upstream, model[, percent]}}")
+        if p["upstream"] not in upstreams or upstreams[p["upstream"]]["kind"] != "self":
+            raise ValueError(f"tenant {tenant}: el pin de {alias} apunta a {p['upstream']!r}, que no es una flota propia")
+        pct = p.get("percent", 100)
+        if not isinstance(pct, int) or isinstance(pct, bool) or not 1 <= pct <= 100:
+            raise ValueError(f"tenant {tenant}: percent del pin de {alias} fuera de [1, 100]")
+        pins[alias] = Pin(p["upstream"], str(p["model"]), pct)
+    return pins
 
 
 # =============================================================================== upstreams
@@ -257,15 +299,30 @@ class HttpUpstream:
                  connect_retries: int = 1):
         self.name, self.kind, self.limits = name, kind, limits
         # Un reintento SOLO si la conexión ni se estableció (ConnectError): el request no llegó a ningún servidor,
-        # así que reintentar no duplica trabajo. Pasa en cada deploy: un pod que ya recibió SIGTERM rechaza
-        # conexiones mientras todavía figura en los endpoints; la conexión nueva cae en otro. Nada de reintentos
-        # ante timeouts o 5xx: ahí el request pudo haber llegado, y reintentar en masa es una tormenta (#m03).
+        # así que reintentar no duplica trabajo. Pasa con un pod que murió o ya se borró y todavía figura en las
+        # reglas de kube-proxy de este nodo (los cambios de endpoints tardan segundos en propagarse): la conexión
+        # nueva cae en otro. Un pod en DRAIN no es este caso: vLLM v0.30 sigue aceptando conexiones mientras drena
+        # y aborta los requests nuevos (200 con finish_reason "abort" y sin texto); eso lo detecta
+        # _open_and_first. Nada de reintentos ante timeouts o 5xx: ahí el request pudo haber llegado, y reintentar
+        # en masa es una tormenta (#m03).
         self.connect_retries = connect_retries
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        # Pool de conexiones, dos decisiones:
+        #  * max_connections=None: el tope de concurrencia es la ADMISIÓN (288 en vuelo por réplica), no el pool.
+        #    El default de httpx2 es 100 conexiones; un stream ocupa la suya ≈ 10.5 s, así que desde ≈ 38 rps en la
+        #    flota el request 101 de una réplica esperaría un lugar en el pool y caería con PoolTimeout a los 2 s
+        #    (504 o vendor) con las GPUs ociosas.
+        #  * Hacia vLLM, sin keep-alive (max_keepalive_connections=0): cada request abre su conexión TCP (dentro
+        #    del cluster, < 1 ms) y kube-proxy la manda a un endpoint LISTO en ese momento. kube-proxy solo
+        #    balancea conexiones nuevas: una conexión reusada seguiría llevando requests a un pod que ya salió de
+        #    los endpoints (preStop, drain). Hacia el vendor sí se reusan (el handshake TLS a internet cuesta
+        #    decenas de ms); ahí la concurrencia la acota la cuota del tenant.
+        pool = httpx2.Limits(max_connections=None, max_keepalive_connections=0 if kind == "self" else 20)
         self.client = httpx2.AsyncClient(
             base_url=base_url,
             headers=headers,
-            transport=transport,
+            transport=transport,  # con un transport propio (tests), `limits` no aplica: lo usa el transport default
+            limits=pool,
             # connect corto (una réplica que no acepta en 2 s está mal); read = silencio máximo entre bytes
             timeout=httpx2.Timeout(connect=limits.connect_timeout_s, read=limits.read_timeout_s,
                                    write=10.0, pool=limits.connect_timeout_s),
@@ -295,7 +352,12 @@ class HttpUpstream:
             raise UpstreamUnavailable("error", f"HTTP {resp.status_code}")
         if resp.status_code >= 400:
             raise UpstreamRejected(resp.status_code, _error_body(resp), _retry_after_header(resp))
-        return resp.json()
+        data = resp.json()
+        if any(isinstance(c, dict) and c.get("finish_reason") == "abort" for c in data.get("choices") or []):
+            # vLLM abortó la generación (un pod en drain aborta lo nuevo; uno que no terminó en 60 s, lo que tenía):
+            # un 200 con la respuesta vacía o cortada no es una respuesta. Todavía no le mandamos nada al cliente.
+            raise UpstreamUnavailable("error", "abortado por el servidor")
+        return data
 
     async def open_stream(self, body: dict) -> SSEStream:
         try:
@@ -569,8 +631,9 @@ class Gateway:
             self.buckets[tenant.name].settle(charged, 0)
             raise
 
-        upstream = self.upstreams[alias.upstream]
-        self_body = self._self_body(body, tenant.model_for(alias), priority)
+        up_name, model = tenant.route_for(alias, body.get("user"))
+        upstream = self.upstreams[up_name]
+        self_body = self._self_body(body, model, priority)
         if stream:
             return await self._stream_self(request, tenant, alias, body, upstream, self_body, charged, est_prompt, t0, rid)
         return await self._complete_self(request, tenant, alias, body, upstream, self_body, charged, est_prompt, t0, rid)
@@ -617,24 +680,40 @@ class Gateway:
         self.admission.release(tenant.priority)
         self.finish(tenant, alias.name, tenant.priority, "self", "200", charged, est_prompt, data.get("usage"), t0,
                     None, None, rid)
-        return JSONResponse(data, headers=self._headers(rid, "self", tenant.model_for(alias)))
+        return JSONResponse(data, headers=self._headers(rid, "self", self_body["model"]))
 
     # ---------------------------------------------------------------- con streaming
-    async def _open_and_first(self, upstream: HttpUpstream, body: dict) -> tuple[SSEStream, str]:
-        """Abre el stream y espera el PRIMER evento: hasta aquí todavía se puede elegir otro camino."""
+    async def _open_and_first(self, upstream: HttpUpstream, body: dict) -> tuple[SSEStream, list[str]]:
+        """Abre el stream y lee hasta el primer evento con CONTENIDO (o el fin): hasta aquí todavía se puede elegir
+        otro camino. El primer chunk de vLLM trae solo el rol; si después llega un finish_reason "abort" o un evento
+        de error sin texto (un pod en drain aborta los requests nuevos), es una falla del upstream: 502 o el
+        vendor, no un 200 vacío que ninguna alerta ve. Devuelve los eventos leídos, para reenviarlos."""
         stream = await upstream.open_stream(body)
         try:
-            first = await asyncio.wait_for(stream.next_event(), self.cfg.limits.first_token_timeout_s)
+            events = await asyncio.wait_for(self._until_content(stream), self.cfg.limits.first_token_timeout_s)
         except asyncio.TimeoutError:
             await stream.aclose()
-            raise UpstreamUnavailable("timeout", "sin primer evento") from None
+            raise UpstreamUnavailable("timeout", "sin primer token") from None
         except BaseException:
             await stream.aclose()
             raise
-        if first is None:
-            await stream.aclose()
-            raise UpstreamUnavailable("error", "stream vacío")
-        return stream, first
+        return stream, events
+
+    @staticmethod
+    async def _until_content(stream: SSEStream) -> list[str]:
+        events: list[str] = []
+        while True:
+            event = await stream.next_event()
+            if event is None:
+                if not events:
+                    raise UpstreamUnavailable("error", "stream vacío")
+                return events
+            kind = _peek(event)
+            if kind in ("abort", "error"):
+                raise UpstreamUnavailable("error", f"el servidor terminó el request sin contenido ({kind})")
+            events.append(event)
+            if event == "[DONE]" or kind in ("content", "finish"):
+                return events
 
     async def _stream_self(self, request, tenant, alias, body, upstream, self_body, charged, est_prompt, t0, rid):
         try:
@@ -662,9 +741,9 @@ class Gateway:
             raise
         state = StreamState(self, tenant, alias.name, tenant.priority, "self", stream, True, charged, est_prompt, t0,
                             _wants_usage(body), rid)
-        return self._sse_response(state, first, tenant.model_for(alias))
+        return self._sse_response(state, first, self_body["model"])
 
-    def _sse_response(self, state: StreamState, first: str, model: str) -> GuardedStream:
+    def _sse_response(self, state: StreamState, first: list[str], model: str) -> GuardedStream:
         return GuardedStream(
             self._relay(state, first),
             state,
@@ -672,9 +751,10 @@ class Gateway:
             headers=dict(self._headers(state.request_id, state.backend, model), **{"Cache-Control": "no-cache"}),
         )
 
-    async def _relay(self, st: StreamState, first: str) -> AsyncIterator[bytes]:
+    async def _relay(self, st: StreamState, first: list[str]) -> AsyncIterator[bytes]:
         """Reenvía evento por evento. Mide TTFT en el primer contenido; guarda usage; corta limpio si falla."""
-        event: str | None = first
+        pending = list(first)  # lo que _open_and_first ya leyó
+        event: str | None = pending.pop(0)
         while event is not None:
             if event == "[DONE]":
                 st.done = True
@@ -683,6 +763,9 @@ class Gateway:
             out = self._process_event(st, event)
             if out is not None:
                 yield out
+            if pending:
+                event = pending.pop(0)
+                continue
             try:
                 event = await st.stream.next_event()
             except UpstreamUnavailable as e:
@@ -700,6 +783,11 @@ class Gateway:
             return f"data: {event}\n\n".encode()  # no es JSON: se reenvía tal cual
         if isinstance(obj, dict) and obj.get("usage"):
             st.usage = obj["usage"]
+        if isinstance(obj, dict) and (obj.get("error") or any(
+                isinstance(c, dict) and c.get("finish_reason") in ("abort", "error") for c in obj.get("choices") or [])):
+            # vLLM cortó la generación ya empezada (un drain que no alcanzó los 60 s, un error interno). El cliente ya
+            # vio un 200: se reenvía, pero cuenta como stream_error para que LLMGatewayErrorRate lo vea.
+            st.status = "stream_error"
         has_content = isinstance(obj, dict) and any(
             (c.get("delta") or {}).get("content") or (c.get("delta") or {}).get("tool_calls")
             for c in obj.get("choices") or [] if isinstance(c, dict)
@@ -729,8 +817,7 @@ class Gateway:
                 return self._upstream_failure(tenant, alias, e)
             except UpstreamRejected as e:
                 self.buckets[tenant.name].settle(charged, 0)
-                self.metrics.requests.labels(tenant.name, alias.name, str(e.status)).inc()
-                return JSONResponse(e.body, status_code=e.status, headers=e.headers)
+                return self._vendor_rejected(tenant, alias, e)
             except ClientGone:
                 self.buckets[tenant.name].settle(charged, 0)
                 self.metrics.requests.labels(tenant.name, alias.name, "499").inc()
@@ -745,8 +832,7 @@ class Gateway:
             return self._upstream_failure(tenant, alias, e)
         except UpstreamRejected as e:
             self.buckets[tenant.name].settle(charged, 0)
-            self.metrics.requests.labels(tenant.name, alias.name, str(e.status)).inc()
-            return JSONResponse(e.body, status_code=e.status, headers=e.headers)
+            return self._vendor_rejected(tenant, alias, e)
         except ClientGone:
             self.buckets[tenant.name].settle(charged, 0)
             self.metrics.requests.labels(tenant.name, alias.name, "499").inc()
@@ -756,8 +842,42 @@ class Gateway:
         return JSONResponse(data, headers=self._headers(rid, "vendor", alias.vendor_model))
 
 
+    def _vendor_rejected(self, tenant: Tenant, alias: Alias, e: UpstreamRejected) -> JSONResponse:
+        """Un 4xx del vendor durante un fallback. Su 429 es NUESTRO límite con el proveedor, no la cuota del tenant:
+        se contesta 503 (plataforma sin capacidad) y se cuenta como 503, para que LLMGatewayErrorRate lo vea (ignora
+        los 429). Un 401/403 es nuestra credencial: 502. Otro 4xx (request inválido) se reenvía tal cual."""
+        if e.status == 429:
+            retry = e.headers.get("Retry-After") or str(math.ceil(self.cfg.limits.retry_after_s[tenant.priority]))
+            return self._reject(tenant, alias.name, 503, "plataforma sin capacidad (proveedor limitado)",
+                                "overloaded_error", "overloaded", {"Retry-After": retry})
+        if e.status in (401, 403):
+            return self._reject(tenant, alias.name, 502, "el modelo no está disponible", "api_error", "upstream_error")
+        self.metrics.requests.labels(tenant.name, alias.name, str(e.status)).inc()
+        return JSONResponse(e.body, status_code=e.status, headers=e.headers)
+
+
 def _wants_usage(body: dict) -> bool:
     return bool((body.get("stream_options") or {}).get("include_usage"))
+
+
+def _peek(event: str) -> str | None:
+    """Qué trae un evento SSE: "content" (texto o tool calls), "abort" / "error" (el servidor cortó), "finish"
+    (terminó normal) o None (rol, usage, algo que no es JSON)."""
+    try:
+        obj = json.loads(event)
+    except ValueError:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    if obj.get("error"):
+        return "error"
+    choices = [c for c in obj.get("choices") or [] if isinstance(c, dict)]
+    if any((c.get("delta") or {}).get("content") or (c.get("delta") or {}).get("tool_calls") for c in choices):
+        return "content"
+    reasons = {c.get("finish_reason") for c in choices} - {None}
+    if "abort" in reasons or "error" in reasons:
+        return "abort"
+    return "finish" if reasons else None
 
 
 # =============================================================================== app

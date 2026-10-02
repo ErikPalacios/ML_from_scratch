@@ -246,7 +246,7 @@ tests:
               runbook_url: "https://runbooks.example.com/c10/kv-cache"
 
   # ---------------------------------------------------------------- LLMPreemptionsRising
-  # 100 requests terminados/min y 6 preemptions/min (6 %) en horario interactivo → dispara; 3/min (3 %) no.
+  # 100 requests terminados/min y 6 preemptions/min (0.06 por request) en horario interactivo → dispara; 3/min (0.03) no.
   - interval: 1m
     input_series:
       - series: 'vllm:num_preemptions_total{pod="vllm-70b-a",model_name="m",engine="0"}'
@@ -280,20 +280,21 @@ tests:
         exp_alerts: []
 
   # ---------------------------------------------------------------- LLMCapacityHeadroomLow
-  # Rama inflight: 2 réplicas del gateway, 140 + 140 de 160 + 160 en vuelo = 87.5 % desde el minuto 5.
+  # Rama inflight: 2 réplicas del gateway, 252 + 252 de 288 + 288 en vuelo = 87.5 % desde el minuto 5
+  # (≈ 63 por réplica de vLLM de 72: cerca del codo). En el pico planeado serían ≈ 160 de 288 (≈ 55 %).
   # Rama replicas: 16 pods estables, 2 caen en el minuto 10 → 14 < 15. El canario no cuenta (track="canary").
   - interval: 1m
     input_series:
       - series: 'llm_gateway_inflight{pod="gw-0",priority="interactive"}'
-        values: '60x4 120x40'
+        values: '120x4 212x40'
       - series: 'llm_gateway_inflight{pod="gw-0",priority="batch"}'
-        values: '0x4 20x40'
+        values: '0x4 40x40'
       - series: 'llm_gateway_inflight{pod="gw-1",priority="interactive"}'
-        values: '60x4 140x40'
+        values: '120x4 252x40'
       - series: 'llm_gateway_max_inflight{pod="gw-0"}'
-        values: '160x44'
+        values: '288x44'
       - series: 'llm_gateway_max_inflight{pod="gw-1"}'
-        values: '160x44'
+        values: '288x44'
       - series: 'vllm:num_requests_running{pod="vllm-70b-0",model_name="m",engine="0"}'
         values: '30x44'
       - series: 'up{namespace="c10",pod="vllm-70b-0",track="stable"}'
@@ -360,7 +361,7 @@ tests:
       - series: 'llm_gateway_inflight{pod="gw-0",priority="interactive"}'
         values: '10x20'
       - series: 'llm_gateway_max_inflight{pod="gw-0"}'
-        values: '160x20'
+        values: '288x20'
     alert_rule_test:
       - eval_time: 15m
         alertname: LLMCapacityHeadroomLow

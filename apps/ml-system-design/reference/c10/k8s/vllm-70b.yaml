@@ -1,6 +1,8 @@
 # vllm-70b del caso c10 en EKS: el modelo de ≈ 70B (pesos FP8) servido con vLLM, una réplica = 2 × H100 (TP=2).
-# Recursos: Service (lo llama el llm-gateway) + Deployment (16 réplicas en 4 nodos p5.48xlarge) +
-# PodDisruptionBudget + NetworkPolicy (solo el gateway y Prometheus llegan al puerto) + PodMonitor (Prometheus).
+# Recursos: Service (lo llama el llm-gateway; solo pods track=stable) + Deployment (16 réplicas en 4 nodos
+# p5.48xlarge) + PodDisruptionBudget + NetworkPolicy (solo el gateway y Prometheus llegan al puerto) + PodMonitor.
+# El canario (no incluido) es OTRO Deployment (track=canary, otra revisión y otro --served-model-name) con OTRO
+# Service, vllm-70b-canary (selector track=canary), que el gateway conoce como upstream aparte (tenants.yaml).
 # Namespace "c10": kubectl create namespace c10.
 #
 # Por qué Deployment y no StatefulSet: una réplica no tiene identidad ni disco propios que sobrevivan. Los pesos
@@ -31,8 +33,12 @@ spec:
   # réplica aprovecha mejor el prefix caching) y ruteo por carga real. Eso lo dan routers que miran el KV cache
   # (llm-d, NVIDIA Dynamo, Gateway API Inference Extension; #m07.llm-servers): palanca para después, medida.
   type: ClusterIP
+  # Solo la revisión estable. Cada pod de vLLM sirve SOLO su --served-model-name: si este Service también eligiera
+  # pods canarios, ≈ 1 de cada 17 requests caería en un pod que no conoce chat-70b-fp8-2026-09-28 y recibiría
+  # 404 "model does not exist" (y el gateway reenvía los 4xx sin fallback). El canario va por vllm-70b-canary.
   selector:
     app.kubernetes.io/name: vllm-70b
+    track: stable
   ports:
     - name: http
       port: 8000
@@ -69,14 +75,20 @@ spec:
       labels:
         app.kubernetes.io/name: vllm-70b
         app.kubernetes.io/part-of: c10
-        track: stable  # el canario lleva track: canary; Service, PDB y PodMonitor ven a los dos
+        track: stable  # el canario lleva track: canary y su propio Service; PDB, NetworkPolicy y PodMonitor ven a los dos
     spec:
       # Lee los pesos de S3 con IRSA o EKS Pod Identity (rol de solo lectura sobre el prefijo de modelos).
       serviceAccountName: vllm-weights-reader
       # Presupuesto del apagado (el reloj empieza ANTES del preStop):
-      #   preStop: 15 s para que el pod salga de los endpoints y el gateway deje de mandarle requests nuevos
-      #   SIGTERM: vLLM con --shutdown-timeout 60 deja terminar lo que está en vuelo hasta 60 s y aborta el resto
-      #            (un request interactivo dura ≈ 10.5 s; uno de 1,024 tokens a 50 ms/token, ≈ 51 s)
+      #   preStop: 15 s para que el pod salga de los endpoints y kube-proxy deje de mandarle conexiones NUEVAS.
+      #            Ojo: kube-proxy balancea conexiones, no requests. Una conexión keep-alive ya abierta seguiría
+      #            llevando requests a este pod; por eso el gateway NO reusa conexiones hacia vLLM
+      #            (gateway/llm_gateway.py, HttpUpstream): cada request abre la suya y cae en un pod listo.
+      #   SIGTERM: vLLM v0.30 con --shutdown-timeout 60 entra en drain: deja terminar lo que está en vuelo hasta
+      #            60 s y aborta el resto (un request interactivo dura ≈ 10.5 s; uno de 1,024 tokens a 50 ms/token,
+      #            ≈ 51 s). Durante el drain el servidor HTTP SIGUE aceptando conexiones: un request nuevo que llegue
+      #            no se rechaza al conectar, se ABORTA (un 200 con finish_reason "abort" y sin texto). El gateway lo
+      #            trata como falla del upstream (502 o vendor), no como respuesta.
       #   margen: 15 s → 90 s. Lo que se corte lo reintenta el cliente (batch-runner) o lo ve como error.
       terminationGracePeriodSeconds: 90
       nodeSelector:
@@ -116,11 +128,22 @@ spec:
               aws s3 sync "s3://${WEIGHTS_BUCKET}/${WEIGHTS_PREFIX}/" "/models/${MODEL_REVISION}/" --only-show-errors
               cd "/models/${MODEL_REVISION}"
               # 2) El manifiesto de hashes tiene que ser EL que se revisó: su sha256 está fijado en este YAML.
-              #    Así un objeto cambiado en S3 (error o ataque) no pasa (#m15.supply-chain).
               echo "${MANIFEST_SHA256}  SHA256SUMS" | sha256sum -c -
               # 3) Cada archivo contra el manifiesto (≈ 70 GB: ≈ 1 min de CPU, est.). Si algo no coincide, el pod
               #    no arranca: mejor una réplica menos que un modelo corrupto respondiendo.
               sha256sum -c SHA256SUMS
+              # 4) Y NADA más que lo del manifiesto: `sha256sum -c` solo revisa lo listado, y `s3 sync` baja todo el
+              #    prefijo. Un archivo AGREGADO (un chat template o un tokenizer de más que vLLM levante, un .py)
+              #    pasaría el paso 3. Con 2 + 3 + 4, un objeto cambiado o agregado en S3 (error o ataque) no
+              #    pasa (#m15.supply-chain). Las rutas del manifiesto son relativas (como las escribe `sha256sum`
+              #    corrido dentro de la carpeta); find y comm vienen en la imagen (findutils, coreutils).
+              find . -type f ! -name SHA256SUMS -printf '%P\n' | sort > /tmp/descargados
+              cut -c67- SHA256SUMS | sort > /tmp/esperados
+              extra="$(comm -23 /tmp/descargados /tmp/esperados)"
+              if [ -n "$extra" ]; then
+                echo "archivos que no están en SHA256SUMS: $extra" >&2
+                exit 1
+              fi
           env:
             - name: HOME
               value: /tmp  # el UID 2000 no puede escribir en /root (el HOME de la imagen de aws-cli)

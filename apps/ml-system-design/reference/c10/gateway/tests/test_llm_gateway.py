@@ -111,7 +111,13 @@ def test_tenants_yaml_loads_and_hashes_match_demo_keys():
     (lambda r: r["tenants"]["catalog-enrichment"].update(vendor_fallback=True), "vendor_fallback sin"),
     (lambda r: r["tenants"]["support-assistant"].update(tokens_per_minute=1000), "tokens_per_minute"),
     (lambda r: r["tenants"]["support-assistant"].update(priority="vip"), "prioridad"),
-    (lambda r: r["tenants"]["support-assistant"].update(pins={"extract-default": "x"}), "fija revisiones"),
+    (lambda r: r["tenants"]["support-assistant"].update(
+        pins={"extract-default": {"upstream": "vllm-70b-canary", "model": "x"}}), "fija revisiones"),
+    (lambda r: r["tenants"]["support-assistant"].update(pins={"chat-default": "x"}), "debe ser"),  # falta el upstream
+    (lambda r: r["tenants"]["support-assistant"].update(
+        pins={"chat-default": {"upstream": "vendor", "model": "x"}}), "no es una flota propia"),
+    (lambda r: r["tenants"]["support-assistant"].update(
+        pins={"chat-default": {"upstream": "vllm-70b-canary", "model": "x", "percent": 0}}), "percent"),
     (lambda r: r["tenants"]["support-assistant"].update(max_prompt_token=10), "claves desconocidas"),
 ])
 def test_config_errors_fail_at_startup(mutate, msg):
@@ -160,22 +166,51 @@ async def test_non_stream_rewrites_alias_priority_and_max_tokens():
     assert bucket.tokens == pytest.approx(bucket.capacity - usage["total_tokens"], abs=50)  # + la recarga de ms
 
 
-@pytest.mark.anyio
-async def test_prompt_cap_and_per_tenant_pin():
+CANARY = "chat-70b-fp8-2026-10-12"
+
+
+def build_with_canary(pin):
+    """Gateway con DOS Services de vLLM (estable y canario), cada uno con su upstream falso, y un pin en listings."""
     raw = yaml.safe_load((HERE / "tenants.yaml").read_text())
-    raw["tenants"]["listing-assistant"]["pins"] = {"chat-default": "chat-70b-fp8-2026-10-12"}  # canary solo para él
-    rec = Recorder()
+    raw["tenants"]["listing-assistant"]["pins"] = {"chat-default": pin}
     cfg = load_config(raw)
-    up = HttpUpstream("vllm-70b", "http://vllm/v1", "self", cfg.limits, transport=httpx2.MockTransport(rec))
-    c = httpx2.AsyncClient(transport=httpx2.ASGITransport(app=create_app(cfg, {"vllm-70b": up}, CollectorRegistry())),
-                           base_url="http://gw")
+    stable, canary = Recorder(), Recorder()
+    ups = {name: HttpUpstream(name, f"http://{name}/v1", "self", cfg.limits, transport=httpx2.MockTransport(rec))
+           for name, rec in (("vllm-70b", stable), ("vllm-70b-canary", canary))}
+    app = create_app(cfg, ups, CollectorRegistry())
+    return httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url="http://gw"), stable, canary
+
+
+@pytest.mark.anyio
+async def test_prompt_cap_and_per_tenant_pin_routes_to_canary_service():
+    c, stable, canary = build_with_canary({"upstream": "vllm-70b-canary", "model": CANARY})  # el tenant entero
     r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG}, headers=h(LISTINGS))
-    assert r.headers["x-model-revision"] == rec.calls[0]["model"] == "chat-70b-fp8-2026-10-12"
+    # El pin cambia el Service Y la revisión: el pod canario solo sirve su --served-model-name (si no, 404)
+    assert r.headers["x-model-revision"] == canary.calls[0]["model"] == CANARY and stable.calls == []
     r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG}, headers=h(SUPPORT))
-    assert rec.calls[1]["model"] == "chat-70b-fp8-2026-09-28"  # los demás siguen en la estable
-    long_msg = [{"role": "user", "content": "x" * 9_100}]  # 9,100 ÷ 3 + 4 ≈ 3,038 tokens estimados > 3,000 de listing-assistant
+    assert stable.calls[0]["model"] == "chat-70b-fp8-2026-09-28" and len(canary.calls) == 1  # los demás, estable
+    long_msg = [{"role": "user", "content": "x" * 18_100}]  # 18,100 ÷ 3 + 4 ≈ 6,038 estimados > 6,000 de listings
     r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": long_msg}, headers=h(LISTINGS))
-    assert r.status_code == 400 and r.json()["error"]["code"] == "prompt_too_long" and len(rec.calls) == 2
+    assert r.status_code == 400 and r.json()["error"]["code"] == "prompt_too_long" and len(canary.calls) == 1
+
+
+@pytest.mark.anyio
+async def test_canary_percent_is_per_user_and_sticky():
+    c, stable, canary = build_with_canary({"upstream": "vllm-70b-canary", "model": CANARY, "percent": 30})
+    users = [f"seller-{i}" for i in range(200)]
+    first = {}
+    for u in users + users:  # cada usuario dos veces: tiene que caer del mismo lado
+        n = len(canary.calls)
+        await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG, "user": u},
+                     headers=h(LISTINGS))
+        side = len(canary.calls) > n
+        assert first.setdefault(u, side) == side
+    share = sum(first.values()) / len(users)
+    assert 0.2 < share < 0.4  # ≈ 30 % de los usuarios, no de los requests
+    assert all(call["model"] == CANARY for call in canary.calls)
+    n = len(canary.calls)
+    await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG}, headers=h(LISTINGS))
+    assert len(canary.calls) == n  # sin `user` no hay asignación estable: va a la estable
 
 
 @pytest.mark.anyio
@@ -281,7 +316,7 @@ async def test_one_retry_on_connect_error_only():
 
     async def flaky(request):
         attempts.append(1)
-        if len(attempts) == 1:  # el pod que recibió SIGTERM rechaza la conexión
+        if len(attempts) == 1:  # un pod que ya murió y todavía figura en kube-proxy: conexión rechazada
             raise httpx2.ConnectError("connection refused", request=request)
         return await ok(request)
 
@@ -302,6 +337,66 @@ async def test_stream_fallback_before_first_byte():
                      headers=h(LISTINGS))
     assert r.status_code == 200 and r.headers["x-llm-backend"] == "vendor"
     assert sse_events(r.text)[-1] == "[DONE]" and vendor.calls[0]["stream"] is True
+
+
+def aborted_stream(content_first=False):
+    """Lo que manda vLLM v0.30 cuando aborta un request (p. ej. un pod en drain rechaza lo nuevo): un 200 con el
+    chunk del rol, finish_reason "abort" (con o sin texto antes), usage y [DONE]."""
+    async def handler(request):
+        body = json.loads(request.content)
+        base = {"id": "x", "object": "chat.completion.chunk", "model": body["model"]}
+        if not body.get("stream"):
+            return httpx2.Response(200, json=dict(base, object="chat.completion", choices=[
+                {"index": 0, "message": {"role": "assistant", "content": ""}, "finish_reason": "abort"}]))
+        chunks = [dict(base, choices=[{"index": 0, "delta": {"role": "assistant", "content": ""}}])]
+        if content_first:
+            chunks.append(dict(base, choices=[{"index": 0, "delta": {"content": " hola"}}]))
+        chunks.append(dict(base, choices=[{"index": 0, "delta": {}, "finish_reason": "abort"}]))
+        chunks.append(dict(base, choices=[], usage={"prompt_tokens": 10, "completion_tokens": 1, "total_tokens": 11}))
+        text = "".join(f"data: {json.dumps(ch)}\n\n" for ch in chunks) + "data: [DONE]\n\n"
+        return httpx2.Response(200, headers={"content-type": "text/event-stream"}, content=text.encode())
+    return handler
+
+
+@pytest.mark.anyio
+async def test_abort_before_content_is_an_upstream_failure_not_an_empty_200():
+    app, c, _, vendor = build()
+    app.state.gateway.upstreams["vllm-70b"].client._transport = httpx2.MockTransport(aborted_stream())
+    stream_body = {"model": "chat-default", "messages": MSG, "stream": True}
+    r = await c.post("/v1/chat/completions", json=stream_body, headers=h(SUPPORT))
+    assert r.status_code == 502  # soporte: error honesto (y cuenta en LLMGatewayErrorRate)
+    r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG}, headers=h(SUPPORT))
+    assert r.status_code == 502  # sin streaming, igual
+    r = await c.post("/v1/chat/completions", json=stream_body, headers=h(LISTINGS))
+    assert r.status_code == 200 and r.headers["x-llm-backend"] == "vendor" and len(vendor.calls) == 1
+    assert await metric(c, "llm_gateway_requests_total", tenant="support-assistant", status="502") == 2
+    assert await metric(c, "llm_gateway_vendor_requests_total", reason="upstream_error") == 1
+    assert app.state.gateway.admission.inflight("interactive") == 0
+
+
+@pytest.mark.anyio
+async def test_abort_after_content_counts_as_stream_error():
+    app, c, _, _ = build()
+    app.state.gateway.upstreams["vllm-70b"].client._transport = httpx2.MockTransport(aborted_stream(content_first=True))
+    r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG, "stream": True},
+                     headers=h(SUPPORT))
+    assert r.status_code == 200 and sse_events(r.text)[-1] == "[DONE]"  # el cliente ya lo estaba recibiendo
+    assert await metric(c, "llm_gateway_requests_total", status="stream_error") == 1
+    assert await metric(c, "llm_gateway_requests_total", status="200") == 0
+
+
+@pytest.mark.anyio
+async def test_vendor_429_during_fallback_is_our_503():
+    async def limited(request):
+        return httpx2.Response(429, headers={"retry-after": "7"}, json={"error": {"message": "rate limited"}})
+
+    app, c, _, _ = build(Recorder(mode="500"))
+    app.state.gateway.upstreams["vendor"].client._transport = httpx2.MockTransport(limited)
+    r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG}, headers=h(LISTINGS))
+    # El producto no ve "tu cuota" (429): ve "plataforma sin capacidad", con el Retry-After del vendor
+    assert r.status_code == 503 and r.json()["error"]["code"] == "overloaded" and r.headers["Retry-After"] == "7"
+    assert await metric(c, "llm_gateway_requests_total", status="503") == 1
+    assert await metric(c, "llm_gateway_requests_total", status="429") == 0
 
 
 @pytest.mark.anyio
