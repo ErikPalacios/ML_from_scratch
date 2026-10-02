@@ -1266,6 +1266,117 @@ when it does not, and keep the vendor as an explicit, governed fallback — neve
   eval/{golden_eval.py (golden-set runner: JSON validity / field F1 for extraction, pluggable judge for chat
   with pairwise win-rate and a gate), tests/}, monitoring/alerts.yml (+ promtool tests), README.md.
 
+## 8l. Case c11 — shared facts (every c11 agent MUST use exactly these)
+Scenario: **the c01 marketplace company** (≈ 8,000 employees: support, operations, sellers' success,
+engineering, legal) wants an **internal assistant** that answers employees' questions from internal
+documents and **cites its sources**. It becomes a new tenant (`employee-assistant`) of the c10 platform:
+generation goes through **`llm-gateway`** to the self-hosted **`chat-default`** model (≈ 70B, max context
+**8k tokens** — a hard budget for the prompt). Not our job to train the LLM or the embedding model.
+- Sources (connectors): **Confluence** wiki (≈ 400k pages), **Google Drive** (Docs, Sheets, PDFs; ≈ 1.2 M
+  files of which ≈ 300k PDFs, some scanned), **Jira** tickets (≈ 3 M, only the last 2 years indexed), and
+  the **support policies/macros** repository. After filtering (type, age, trash, size) ≈ **1.5 M documents
+  → ≈ 12 M chunks** of ≈ 400 tokens (≈ 4.8 B tokens).
+- Changes: ≈ **1 % of documents change per day** (≈ 15k) — incremental ingestion by change feeds/webhooks
+  where the source has them, otherwise polling by modified time; deletions as tombstones. Freshness target:
+  an edited page is answerable in **p95 ≤ 15 min**; **permission changes (revocations) apply in ≤ 5 min**.
+- Permissions are THE hard requirement: every document carries its ACL from the source (Confluence space and
+  page restrictions, Drive sharing incl. groups and "anyone in the domain", Jira project roles), normalized
+  into principal ids (users + groups); group membership synced from the IdP (Okta/Google groups). The
+  filter is applied **inside retrieval (pre-filter)**, never after generation; a chunk the user can't open
+  must never reach the prompt. Link sharing ("anyone with the link") is treated as NOT shared (trap).
+- Traffic: ≈ 40 % weekly active; ≈ **25k questions/day** in business hours (≈ 0.7 qps avg over 10 h, **peak
+  ≈ 2 qps**) — tiny for the GPUs; the hard parts are ingestion, permissions and quality.
+- Retrieval: **hybrid** — BM25 + dense vectors in **OpenSearch** (as in c07: k-NN HNSW + BM25, fused with
+  **RRF k = 60**), a multilingual embedding model (Spanish + English + Portuguese; **d = 1024**, served on
+  1–2 L4 with the c07 pattern; model choice verified by the narrative) → top-50 → **cross-encoder
+  reranker** (GPU) → **top-8 chunks** into the prompt. Index memory (compute): 12 M × 1024 × 4 B ≈ 49 GB
+  FP32, ≈ 12.3 GB int8 + HNSW graph. Initial embedding ≈ 4.8 B tokens ≈ 44 L4-hours at ≈ 30k tokens/s
+  (est., measure) ≈ US$36 — embedding is cheap; re-embedding = blue/green index like c07.
+- Prompt budget (8k): system + instructions ≈ 800, conversation history ≤ 1,200, **8 chunks × 400 ≈ 3,200**,
+  question ≈ 100 → ≈ 5,300 in + **≤ 600 out** (≈ 6k average with overhead, est.). Tokens/day ≈ 25k × 6k ≈
+  **150 M in + 10 M out** — < 5 % of the c10 fleet's interactive load.
+- Answers: grounded only in retrieved chunks, every claim with **citations** [n] linking to the source and
+  section; if the evidence is insufficient → say so and show the best documents ("no sé" is a valid answer);
+  conflicting sources → show both with dates. Latency: retrieval + rerank **p95 ≤ 700 ms**, first token
+  **p95 ≤ 2.5 s**, full answer streamed ≤ 10 s.
+- Evaluation: golden set of **≈ 600 questions** written with subject-matter experts per area (with the
+  expected documents and a reference answer), incl. permission tests (same question, users with different
+  access) and unanswerable questions; retrieval **recall@8 / MRR**; answer **faithfulness/groundedness**
+  and **citation precision** by an LLM judge calibrated on ≈ 200 human-rated answers; online: thumbs,
+  citation clicks, "no sé" rate, deflection of internal tickets (hedged).
+- Privacy/security: answers logged with doc ids, not full text, 30 days; HR/legal spaces excluded by default
+  (allow-list of sources per sensitivity); indirect prompt injection via documents (a page that says
+  "ignore your instructions…") → #m14.guardrails.
+- Monitoring alert names: `RAGAnswerLatencyHigh`, `RetrievalLatencyHigh`, `IngestionLagHigh`,
+  `ACLSyncStale`, `EmptyRetrievalRateHigh`, `IndexDocCountDrop`, `GroundednessCanaryRegression`,
+  `NegativeFeedbackRising`.
+- Reference files (reference/c11/): ingest/{chunker.py (structure-aware chunking: headings path kept as
+  context, tables not split mid-row, overlap, token counting with a pluggable tokenizer), acl.py (normalize
+  source ACLs to principals; expand user → groups; build the retrieval filter; link-sharing trap),
+  incremental.py (change detection by version/content hash, upserts, tombstones, ACL-only updates without
+  re-embedding), tests/}, retrieval/{hybrid.py (BM25 + vector behind interfaces with in-memory fakes, ACL
+  pre-filter, RRF fusion, rerank interface, top-k), tests/}, answer/{prompt_builder.py (8k context budget,
+  numbered sources, refusal instruction), citations.py (parse [n], validate each cited id was retrieved AND
+  allowed, strip/flag invalid ones), tests/}, service/{app.py (FastAPI /v1/ask with SSE streaming through an
+  llm-gateway client interface; auth → principals; fake LLM in tests), requirements.txt, tests/},
+  eval/{retrieval_eval.py (recall@k, MRR per slice incl. permission cases), groundedness.py (judge interface
+  + agreement with human labels), tests/}, monitoring/alerts.yml (+ promtool tests), README.md.
+
+## 8m. Case c12 — shared facts (every c12 agent MUST use exactly these)
+Scenario: **the c01 marketplace's support assistant** (a c10 tenant, `support-assistant`) today only answers
+questions. The business wants it to **resolve cases** by acting on internal systems on behalf of the
+authenticated customer (buyer or seller). It runs on the c10 platform (`llm-gateway` → `chat-default`,
+tool calling via the OpenAI-compatible API — verify vLLM tool-calling support/flags for the chosen model).
+- Volume: ≈ **150k support conversations/day**; ≈ **6 LLM calls per conversation** on average (loop steps)
+  → ≈ 0.9 M LLM calls/day ≈ 10 rps avg, **≈ 31 rps peak** — inside the c10 support tenant's share
+  (≈ 2/3 of 60 rps); ≈ 2,500 input tokens per call (system prompt + **tool schemas ≈ 1,500 shared prefix**
+  → prefix caching) and ≈ 150 output tokens.
+- Today: ≈ 600 human agents; ≈ 45 % of conversations need an action (refund, return, address change,
+  cancellation, tracking). Goal: the agent **resolves ≈ 40–50 % end to end** (est., not promised), hands
+  off the rest with a summary; human cost per conversation ≈ US$3–5 (est.) vs agent ≈ cents (compute).
+- Tools (names used everywhere): `get_order`, `get_shipment_tracking`, `search_help_center` (c11-style
+  retrieval over the PUBLIC help center), `update_shipping_address` (only before shipment),
+  `cancel_order` (only before shipment), `create_return_label`, `issue_refund`, `escalate_to_human`.
+  Side-effect classes: **read** (retries OK), **write** (idempotency key per conversation + action),
+  **irreversible/money** (explicit customer confirmation in chat + policy check).
+- Policy (enforced in code, NOT in the prompt): tools are scoped to the authenticated customer's own
+  orders (the backend checks ownership on every call — the model never passes a customer id);
+  **auto-refund ≤ US$50 equivalent** and only for eligible reasons/states; above that or outside policy →
+  **human approval queue** (the conversation waits; SLA 4 business hours); max **1 refund per order** by
+  the agent.
+- Limits: **≤ 8 tool calls per turn**, **≤ 12 LLM calls per conversation**, **token budget 40k per
+  conversation**, tool timeout **3 s** (reads retried once with backoff; writes never blindly retried),
+  turn wall-clock **≤ 20 s** (then a holding message); on any limit → hand off to a human.
+- Latency: first visible response of a turn **p95 ≤ 4 s** (streaming text or a "consultando tu pedido…"
+  status), full turn with tools **p95 ≤ 12 s**.
+- State: conversation + **step log** (every LLM call, tool call with args/result, policy decision) in a
+  durable store (Postgres); a turn can **resume after a crash** from the last completed step; waiting for
+  approval can take hours (durable workflow — Temporal-class engines or an own state machine; hedged).
+- Security: untrusted text enters via customer messages, seller messages, product descriptions and tool
+  results → **indirect prompt injection**; mitigations: privilege separation (policy layer), allow-listed
+  tools per conversation type, structured tool outputs, confirmation for money, output filters; none is
+  complete (say so). PII minimized in prompts and logs.
+- Evaluation: offline **scenario suite ≈ 400 scenarios** (mocked tool backends, scripted or LLM-simulated
+  customers — hedged) with checks on outcome (task success), **policy violations (zero tolerance; any one
+  blocks release)**, trajectory (no unnecessary/forbidden calls), turns and cost; regression gate per
+  model/prompt/tool-schema revision; online: resolution rate, escalation rate, **reopen within 7 days**,
+  CSAT, refunds US$ per 1,000 conversations vs the human baseline, canary per conversation type.
+- Observability: one **trace per conversation** with a span per LLM call and tool call (OpenTelemetry
+  GenAI semantic conventions — verify status), cost per conversation, replay from the step log.
+- Monitoring alert names: `AgentToolErrorRateHigh`, `AgentStepLimitHit`, `AgentPolicyViolation`,
+  `RefundAmountAnomaly`, `AgentTurnLatencyHigh`, `ApprovalQueueBacklog`, `AgentCostPerConversationHigh`,
+  `EscalationRateShift`.
+- Reference files (reference/c12/): agent/{loop.py (orchestrator: LLM interface with a scripted fake in
+  tests; tool dispatch; step/tool/token/wall-clock limits; observation truncation; stop conditions;
+  hand-off), tools.py (registry with pydantic argument schemas → JSON schema for the LLM; side-effect class;
+  per-tool timeout/retry rules; idempotency keys), policy.py (ownership scope, refund limits and
+  eligibility, confirmation required, approval routing — pure functions), state.py (durable step log in
+  SQLite for tests; resume after crash; exactly-once effects via idempotency), tests/},
+  guardrails/{untrusted.py (wrap untrusted tool/user text, heuristics flags — state its limits), tests/},
+  eval/{scenarios/*.yaml, run_scenarios.py (mock backends, success/violation/trajectory metrics, gate),
+  tests/}, service/{app.py (FastAPI conversation endpoint with SSE status/messages; approvals webhook),
+  requirements.txt, tests/}, monitoring/alerts.yml (+ promtool tests), README.md.
+
 ## 9. Writing style for content agents (applies to every content file)
 - Spanish (neutral Latin American, tuteo), direct, no filler, no motivational fluff. Technical terms
   in English (latency, throughput, batch, serving, feature store, rollout…), exactly as they'd be
