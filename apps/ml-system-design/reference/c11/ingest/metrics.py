@@ -27,8 +27,11 @@ class IngestMetrics:
                                 registry=registry)
         self.documents = Gauge("rag_index_documents", "Documentos vivos en el índice, por fuente", ["source"],
                                registry=registry)
+        # El poller de CAMBIOS de permisos (cada ≈ minuto), no el barrido completo nocturno: ACLSyncStale pagina
+        # a los 300 s y app.py saca del retrieval a una fuente con más de 300 s sin éxito
         self.acl_sync = Gauge("rag_acl_sync_last_success_timestamp_seconds",
-                              "Último barrido de ACLs exitoso por fuente (epoch s)", ["source"], registry=registry)
+                              "Último éxito del poller de cambios de permisos, por fuente (epoch s); no el barrido "
+                              "nocturno", ["source"], registry=registry)
         self.mass_delete = Counter("rag_ingest_mass_delete_blocked_total",
                                    "Lotes frenados por borrado masivo sospechoso", ["source"], registry=registry)
 

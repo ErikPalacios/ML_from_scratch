@@ -29,6 +29,22 @@ tests:
               summary: "Primer token p95 de 3.775s (SLO 2.5 s)"
               description: "Mira primero RetrievalLatencyHigh (¿es el índice?) y después LLMTTFTHigh y LLMQueueBacklog en #c10 (¿es la flota?)."
 
+  - name: cola larga normal (p95 > 10 s, mediana ≈ 7 s) no pagina
+    interval: 1m
+    input_series:
+      - {series: 'rag_ttft_seconds_bucket{le="1.0"}', values: '0+60x40'}
+      - {series: 'rag_ttft_seconds_bucket{le="+Inf"}', values: '0+60x40'}
+      - {series: 'rag_ttft_seconds_count', values: '0+60x40'}
+      # 40 de 60 en ≤ 8 s, pero 10 de 60 tardan entre 15 y 30 s (respuestas de 600 tokens): p95 ≈ 25 s
+      - {series: 'rag_answer_latency_seconds_bucket{le="8"}', values: '0+40x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="10"}', values: '0+45x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="15"}', values: '0+50x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="30"}', values: '0+60x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="+Inf"}', values: '0+60x40'}
+      - {series: 'rag_answer_latency_seconds_count', values: '0+60x40'}
+    alert_rule_test:
+      - {eval_time: 35m, alertname: RAGAnswerLatencyHigh, exp_alerts: []}
+
   - name: primer token lento de noche (3 preguntas en 10 min) no despierta a nadie
     interval: 1m
     input_series:
@@ -45,9 +61,10 @@ tests:
       - {series: 'rag_ttft_seconds_bucket{le="1.0"}', values: '0+60x40'}
       - {series: 'rag_ttft_seconds_bucket{le="+Inf"}', values: '0+60x40'}
       - {series: 'rag_ttft_seconds_count', values: '0+60x40'}
-      - {series: 'rag_answer_latency_seconds_bucket{le="8"}', values: '0+40x40'}
-      - {series: 'rag_answer_latency_seconds_bucket{le="10"}', values: '0+50x40'}
-      - {series: 'rag_answer_latency_seconds_bucket{le="15"}', values: '0+60x40'}
+      # 1 pregunta/s: solo 25 de 60 terminan en ≤ 10 s → la MEDIANA ya pasa de 10 s
+      - {series: 'rag_answer_latency_seconds_bucket{le="8"}', values: '0+20x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="10"}', values: '0+25x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="15"}', values: '0+50x40'}
       - {series: 'rag_answer_latency_seconds_bucket{le="+Inf"}', values: '0+60x40'}
       - {series: 'rag_answer_latency_seconds_count', values: '0+60x40'}
     alert_rule_test:
@@ -57,7 +74,7 @@ tests:
         exp_alerts:
           - exp_labels: {severity: page, which: full_answer}
             exp_annotations:
-              summary: "Respuesta completa p95 de 13.5s (objetivo 10 s)"  # 10 + 7/10 × 5
+              summary: "Respuesta completa p50 de 11s (objetivo ≈ 10 s para la típica)"  # rank 30 entre 10 s (25) y 15 s (50): 10 + 5/25 × 5
               description: "Con el primer token en SLO, suele ser decode lento (TPOT en #c10) o respuestas que no respetan max_tokens."
 
   - name: retrieval lento

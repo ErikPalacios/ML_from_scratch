@@ -19,7 +19,8 @@ c12/
 │   ├── tools.py          # las 8 herramientas: argumentos pydantic → JSON Schema (formato tools de OpenAI, strict),
 │   │                     #   clase de efecto (read/write/money), timeout 3 s, reintentos, idempotency keys, executor
 │   ├── policy.py         # funciones PURAS: dueño, estado del pedido, monto/moneda/1 por pedido, elegibilidad,
-│   │                     #   confirmación, aprobación (> US$50 o conversación marcada), kill switch
+│   │                     #   confirmación, aprobación (> US$50, 2.º reembolso del cliente en 90 días, score de
+│   │                     #   riesgo alto o conversación marcada por texto de terceros), kill switch
 │   ├── loop.py           # el orquestador: límites, loop detection, compactación, streaming por oración, hand-off
 │   ├── state.py          # step log en SQLite (Postgres en producción): write-ahead, reanudar, acciones, trazas
 │   ├── llm.py            # cliente del llm-gateway de c10 (stream + tool calls) y dos modelos falsos (guion y demo)
@@ -68,6 +69,7 @@ t = 0        la app manda POST /v1/conversations/c1/messages  {"message_id": "m1
 + < 10 ms    token → AuthContext(cust-1) (de la SESIÓN; el modelo nunca elige el cliente); lock de la conversación;
              el turno arranca en su propia tarea (si el cliente se va, el turno termina igual)
              message_id nuevo → se registra (dedupe); banderas de inyección del texto del cliente → ninguna
+             (si hubiera, se cuentan en métricas pero no marcan la conversación: el cliente es el dueño)
              step log: user_message
 + ≈ 2 s      llamada 1 al llm-gateway (stream, tools de order_support, tool_choice auto, parallel_tool_calls false)
              → tool call get_order {"order_id": "A-1029"}                         step log: llm_call (+ usage)
@@ -100,7 +102,9 @@ una **plantilla** (sin llamar al modelo). El cliente lo ve en `GET /events` aunq
 |---|---|
 | Key de `update_shipping_address` incluye el turno | Dirección A → B → A en turnos distintos es legítimo; con key por conversación el tercer cambio se "deduplicaría" en silencio. Dinero y cancelación: una vez por conversación. |
 | `escalate_to_human`: un ticket por conversación | La key no incluye el resumen: dos textos distintos del modelo no abren dos tickets. |
-| Banderas de inyección → aprobación humana para el dinero | Las heurísticas tienen falsos positivos, así que no bloquean; suben la exigencia. |
+| Banderas de inyección → aprobación humana para el dinero, solo si vienen de texto de terceros | Las heurísticas tienen falsos positivos, así que no bloquean; suben la exigencia. Solo las de resultados de herramientas con texto del vendedor o del producto (de ahí viene la inyección indirecta): "quiero el reembolso total" del cliente se cuenta en métricas pero no manda su reembolso de US$24.75 a una persona. |
+| Tope por cliente: el 2.º reembolso del agente en 90 días (otro pedido) o un score de riesgo alto → aprobación | El "1 por pedido" no ve "llegó dañado" en un pedido distinto cada semana. El umbral del score (0.8) es ilustrativo. |
+| Un turno caído se termina cuando llega el siguiente mensaje | `run_turn` llama a `resume` con el `turn_id` del turno caído (mismas idempotency keys) antes de procesar el mensaje nuevo. El webhook de aprobaciones toma el mismo lock por conversación que los mensajes. |
 | El `order_id` tiene que haber aparecido en la conversación o estar en los pedidos recientes | Un id "recordado" mal no llega a la API; vuelve al modelo con la lista real. El segundo error de argumentos en un turno → hand-off. |
 | Escribir en lugar de tocar el botón invalida la tarjeta pendiente | El cliente pudo cambiar de opinión; si el modelo vuelve a proponer lo mismo, sale la misma tarjeta (mismo `action_id`). |
 | Al reanudar un paso "started" no se vuelve a decidir la política | Los hechos nuevos ya muestran el reembolso hecho y la política lo negaría; se concilia con la key. |
@@ -166,7 +170,7 @@ Esos flags van en el Deployment `vllm-70b` de c10 (no en esta carpeta): son una 
 cd reference/c12
 python3 -m venv .venv && . .venv/bin/activate      # Python 3.13 (o 3.12)
 pip install -r requirements-dev.txt
-pytest                                              # 147 tests, ≈ 3–10 s
+pytest                                              # 158 tests, ≈ 3–10 s
 python eval/run_scenarios.py                        # 15 escenarios, tabla de métricas y GATE: PASA
 python eval/run_scenarios.py --max-forbidden-proposed-rate 0.05   # GATE: FALLA (el guion "cae" en 2 inyecciones)
 
@@ -205,7 +209,7 @@ Probado en macOS (Apple Silicon), sin GPU, sin modelo, sin red hacia sistemas re
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14; varias corridas; warnings como errores | 147 passed, todas las veces |
+| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14; varias corridas; warnings como errores | 158 passed, todas las veces |
 | Política | tablas de casos sobre funciones puras: dueño, estados, bordes del límite en USD (909.09 / 909.10 / 909.20 MXN), elegibilidad, aprobación, inyección, kill switch | OK |
 | Executor | fallas inyectadas: timeout antes y después de aplicar el efecto, 503, operación colgada, reuso de key | lecturas: 1 reintento; escrituras: consulta por key, un solo reembolso, "unknown" sin reintento |
 | Orquestador | modelo con guion: confirmación, aprobación (aprobada, rechazada, con el pedido cambiado), loop, 8 tool calls, 12 llamadas, 40k tokens, 20 s, LLM caído, JSON roto, id inventado, inyección obedecida, filtro de salida, mensaje duplicado, tope de prompt del gateway | OK |
@@ -229,7 +233,8 @@ Probado en macOS (Apple Silicon), sin GPU, sin modelo, sin red hacia sistemas re
   consulta por key es un supuesto del diseño (el caso dice qué hacer cuando una API no las acepta).
 - **Estado**: SQLite en un proceso. No hay Postgres, ni leases entre workers (`SELECT … FOR UPDATE SKIP LOCKED`), ni
   outbox, ni job de vencimientos (la confirmación vence cuando se intenta usar; las aprobaciones no vencen solas).
-  El lock de "un turno a la vez" es por proceso.
+  El lock de "un turno a la vez" es por proceso. No hay un job que retome al arrancar las conversaciones quietas: un
+  turno caído se retoma cuando llega su siguiente mensaje o su aprobación.
 - **Circuit breaker**: no hay uno automático; `disabled_tools` es el interruptor que un breaker movería.
 - **Trazas**: `StepLog.to_trace()` produce spans con atributos `gen_ai.*` (convenciones en estado *Development* a
   oct. 2026), pero no hay exportador de OpenTelemetry.

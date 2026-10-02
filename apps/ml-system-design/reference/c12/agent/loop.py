@@ -13,7 +13,9 @@ Un turno (un mensaje del cliente) es:
 
 Límites (SPEC §8m), todos en código y todos con hand-off cuando se tocan:
   ≤ 8 tool calls por turno · ≤ 12 llamadas al modelo por conversación · 40k tokens por conversación ·
-  20 s de reloj por turno (después, mensaje de espera + hand-off) · 3 s por herramienta (tools.py) ·
+  20 s de reloj por turno, revisado antes de cada llamada al modelo, durante el stream y antes de cada tool call
+  nueva (después, mensaje de espera + hand-off; una herramienta ya empezada termina con su propia regla) ·
+  3 s por herramienta (tools.py) ·
   la MISMA tool call (herramienta + argumentos) dos veces en un turno = loop · el 2.º error de argumentos en un
   turno (el primero vuelve al modelo para que corrija).
 Y uno que viene de #c10: el tenant `support-assistant` del llm-gateway rechaza prompts de más de 6,000 tokens
@@ -183,6 +185,9 @@ class AgentLoop:
         # Herramientas apagadas por configuración: circuit breaker abierto de una API caída o un escalón de la
         # escalera de degradación ("solo lectura"). Salen de la lista que ve el modelo Y de la permitida.
         self.disabled_tools: set[str] = set()
+        # Turnos corriendo AHORA en este proceso: uno incompleto que está aquí no se "reanuda" (no se cayó, está
+        # en curso). Entre procesos lo garantiza el lock/lease por conversación del servicio, no esto.
+        self._active: set[tuple[str, str]] = set()
 
     # ================================================================== entradas públicas
     async def run_turn(self, *, conversation_id: str, auth: pol.AuthContext, message_id: str, text: str,
@@ -205,6 +210,20 @@ class AgentLoop:
                               {"reason": "already_handed_off", "text": "Una persona ya está atendiendo tu caso."})
             self.store.append_step(conversation_id, message_id, "turn_end", {"outcome": "handoff"})
             return
+        pending_turn = self.store.incomplete_turn(conversation_id)
+        if pending_turn is not None and (conversation_id, pending_turn) not in self._active:
+            # Un turno anterior quedó a medias (el proceso murió): se TERMINA primero, con su propio turn_id (así
+            # sus idempotency keys son las mismas), y recién después corre este mensaje. No hay un job aparte que
+            # reanude conversaciones quietas: un turno se retoma cuando llega el siguiente mensaje o su aprobación.
+            async for ev in self.resume(conversation_id):
+                yield ev
+            conv = self.store.get_conversation(conversation_id) or conv
+            if conv.status == "handed_off":
+                self.store.append_step(conversation_id, message_id, "user_message", {"text": sanitize(text)[0]})
+                yield self._event(conversation_id, message_id, "handoff",
+                                  {"reason": "already_handed_off", "text": "Una persona ya está atendiendo tu caso."})
+                self.store.append_step(conversation_id, message_id, "turn_end", {"outcome": "handoff"})
+                return
         first_message = not any(s.kind == "user_message" for s in self.store.steps(conversation_id))
         if first_message:
             self.obs.conversation_started(conversation_type)
@@ -212,7 +231,7 @@ class AgentLoop:
         flags += flag_instruction_like(clean)
         self.store.append_step(conversation_id, message_id, "user_message",
                                {"text": clean, "flags": [f.rule for f in flags]})
-        self._record_flags(conversation_id, "customer", flags)
+        self._record_flags(conversation_id, "customer", flags, message_id)
         if conv.status == "awaiting_confirmation" and not confirm_action_id:
             # El cliente escribió en lugar de tocar el botón: la tarjeta pendiente queda inválida (puede haber
             # cambiado de opinión). Si el modelo vuelve a proponer la MISMA acción, sale la misma tarjeta otra vez.
@@ -259,10 +278,22 @@ class AgentLoop:
             raise ApprovalAlreadyDecided(current.status if current else "unknown")
         conv = self.store.get_conversation(action.conversation_id)
         assert conv is not None
+        # Si el caso ya lo tiene una persona (o se cerró) mientras esperaba la aprobación, se ejecuta y se avisa
+        # igual, pero la conversación NO vuelve a "active": el agente no se mete en un caso que es de una persona
+        keep_status = conv.status if conv.status in ("handed_off", "closed") else None
         turn_id = f"approval:{approval_id}"
         self.store.append_step(conv.id, turn_id, "approval_resume",
                                {"approval_id": approval_id, "approved": approved, "approver": approver})
         turn = self._new_turn(conv.id, turn_id, pol.AuthContext(conv.customer_id), conv.conversation_type)
+        self._active.add((conv.id, turn_id))
+        try:
+            return await self._decide_approval(turn, action, approval_id, approved, keep_status)
+        finally:
+            self._active.discard((conv.id, turn_id))
+
+    async def _decide_approval(self, turn: _Turn, action: Any, approval_id: str, approved: bool,
+                               keep_status: str | None) -> list[Event]:
+        conv_id = turn.conversation_id
         events: list[Event] = []
         if not approved:
             async for ev in self._handoff(turn, "approval_rejected"):
@@ -270,13 +301,13 @@ class AgentLoop:
             return events
         # Paso sintético: el orquestador "propone" la acción aprobada; corre por la MISMA política y executor
         call = {"id": f"orch_{approval_id}", "name": action.tool, "arguments": json.dumps(action.args)}
-        self.store.append_step(conv.id, turn_id, "llm_call", {"synthetic": True, "content": "",
-                                                              "tool_calls": [call]})
+        self.store.append_step(conv_id, turn.turn_id, "llm_call", {"synthetic": True, "content": "",
+                                                                   "tool_calls": [call]})
         async for ev in self._run_tool_call(turn, self._view(turn), call):
             events.append(ev)
         if turn.ended:
             return events
-        result = self._last_tool_result(conv.id, call["id"])
+        result = self._last_tool_result(conv_id, call["id"])
         executed = self.store.get_action(approval_id)
         if executed is None or executed.status != "executed" or not result:
             # Aprobada pero ya no ejecutable (el pedido cambió en estas horas, o la política la niega ahora):
@@ -290,7 +321,7 @@ class AgentLoop:
         else:
             text = "Tu solicitud fue aprobada y quedó aplicada."
         events.append(self._agent_message(turn, text))
-        events.append(self._end_turn(turn, "answered"))
+        events.append(self._end_turn(turn, "answered", status=keep_status))
         return events
 
     def close(self, conversation_id: str, auth: pol.AuthContext) -> dict[str, Any]:
@@ -308,6 +339,14 @@ class AgentLoop:
 
     # ================================================================== el loop
     async def _proceed(self, turn: _Turn) -> AsyncIterator[Event]:
+        self._active.add((turn.conversation_id, turn.turn_id))
+        try:
+            async for ev in self._proceed_inner(turn):
+                yield ev
+        finally:
+            self._active.discard((turn.conversation_id, turn.turn_id))
+
+    async def _proceed_inner(self, turn: _Turn) -> AsyncIterator[Event]:
         while not turn.ended:
             view = self._view(turn)
             # 1. Tool calls propuestas que todavía no tienen resultado (normal, o al reanudar tras una caída)
@@ -378,7 +417,7 @@ class AgentLoop:
 
     def _delta(self, turn: _Turn, sentence: str, shown: list[str]) -> Event:
         text, flags = filter_output(sentence)
-        self._record_flags(turn.conversation_id, "model_output", flags)
+        self._record_flags(turn.conversation_id, "model_output", flags, turn.turn_id)
         shown.append(text)
         self._mark_first_response(turn)
         return Event("message_delta", {"text": text + " "})
@@ -430,6 +469,12 @@ class AgentLoop:
         # d) tope de tool calls por turno
         if view.turn_tool_calls >= self.limits.max_tool_calls_per_turn and cid not in view.started_steps:
             async for ev in self._handoff(turn, "tool_calls_per_turn"):
+                yield ev
+            return
+        # d2) reloj del turno: una tool call NUEVA no arranca pasados los 20 s (una ya empezada, la de un paso
+        # "started", termina con su propia regla de timeouts y reintentos de tools.py)
+        if self.clock() > turn.deadline and cid not in view.started_steps:
+            async for ev in self._handoff(turn, "turn_wall_clock", holding=True):
                 yield ev
             return
         # e) estado visible para el cliente
@@ -511,7 +556,14 @@ class AgentLoop:
         """Ejecuta con WRITE-AHEAD: el paso queda "started" en el log ANTES de llamar al backend y "completed"
         después. Si el proceso muere en el medio, `resume` encuentra el "started" y reenvía con la misma key."""
         args_json = args.model_dump(mode="json")
-        key = idempotency_key(turn.conversation_id, name, args, turn_id=turn.turn_id) \
+        key_turn = turn.turn_id
+        if cid in view.started_steps:
+            # Reanudando: la key es la que quedó escrita en el paso "started" (la MISMA del primer intento), no una
+            # recalculada. _view solo devuelve pasos de este turno, así que el turn_id coincide; esto lo deja explícito.
+            started = next(s for s in self.store.steps(turn.conversation_id)
+                           if s.step_id == view.started_steps[cid])
+            key_turn = started.turn_id
+        key = idempotency_key(turn.conversation_id, name, args, turn_id=key_turn) \
             if spec.side_effect is not SideEffect.READ else None
         step_id = view.started_steps.get(cid) or self.store.append_step(
             turn.conversation_id, turn.turn_id, "tool_call",
@@ -520,7 +572,7 @@ class AgentLoop:
         approval = aid if aid in facts.approved_action_ids else None
         confirmation = aid if name in pol.CONFIRMATION_REQUIRED else None
         outcome = await self.executor.execute(name, args, auth=turn.auth, conversation_id=turn.conversation_id,
-                                              turn_id=turn.turn_id, confirmation_id=confirmation,
+                                              turn_id=key_turn, confirmation_id=confirmation,
                                               approval_id=approval)
         self.crash_hook("after_tool_before_log", {"tool": name, "status": outcome.status})
         self.obs.tool_call(name, outcome.status, outcome.latency_s)
@@ -585,7 +637,7 @@ class AgentLoop:
             cut = len(raw) - self.limits.max_observation_chars
             raw = raw[: self.limits.max_observation_chars] + f"…[truncated {cut} chars]"
         wrapped = wrap_untrusted(raw, source=f"tool:{name}", ref=cid)
-        self._record_flags(turn.conversation_id, f"tool:{name}", wrapped.flags)
+        self._record_flags(turn.conversation_id, f"tool:{name}", wrapped.flags, turn.turn_id)
         return wrapped.text
 
     def _tool_result(self, turn: _Turn, cid: str, name: str, args: dict | None, outcome: str,
@@ -628,6 +680,11 @@ class AgentLoop:
                        ticket: Any = None) -> AsyncIterator[Event]:
         if reason in LIMIT_REASONS:
             self.obs.step_limit(reason)
+        conv = self.store.get_conversation(turn.conversation_id)
+        # Ya en manos de una persona (o cerrada): p. ej. una aprobación rechazada que llega después de un hand-off.
+        # Se avisa al cliente, pero el cierre y el costo ya se registraron: no se cuentan dos veces
+        record_close = conv is None or conv.status not in ("handed_off", "closed")
+        final_status = "handed_off" if record_close or conv is None else conv.status
         summary = handoff_summary(self.store, turn.conversation_id, reason)
         if ticket is None:  # si el modelo ya escaló, el ticket existe; si no, lo crea el orquestador
             from agent.tools import EscalateToHumanArgs  # import local: solo aquí
@@ -640,10 +697,11 @@ class AgentLoop:
         yield self._agent_message(turn, text)
         yield self._event(turn.conversation_id, turn.turn_id, "handoff",
                           {"reason": reason, "detail": detail, "ticket": ticket, "summary": summary})
-        self.obs.handoff(turn.conversation_type, reason)
-        self.obs.conversation_closed(turn.conversation_type, "handoff",
-                                     float(self._conversation_cost(turn.conversation_id)))
-        yield self._end_turn(turn, "handoff", status="handed_off")
+        if record_close:
+            self.obs.handoff(turn.conversation_type, reason)
+            self.obs.conversation_closed(turn.conversation_type, "handoff",
+                                         float(self._conversation_cost(turn.conversation_id)))
+        yield self._end_turn(turn, "handoff", status=final_status)
 
     def _end_turn(self, turn: _Turn, outcome: str, *, status: str | None = None) -> Event:
         turn.ended = True
@@ -713,8 +771,9 @@ class AgentLoop:
                     msg["tool_calls"] = [{"id": c["id"], "type": "function",
                                           "function": {"name": c["name"], "arguments": c["arguments"]}}
                                          for c in p["tool_calls"]]
-                    for c in p["tool_calls"]:
-                        pending[c["id"]] = c
+                    if s.turn_id == turn.turn_id:  # solo las de ESTE turno: otro turno no corre llamadas ajenas
+                        for c in p["tool_calls"]:
+                            pending[c["id"]] = c
                 if msg["content"] or msg.get("tool_calls"):
                     v.messages.append(msg)
             elif s.kind == "tool_call":
@@ -725,7 +784,8 @@ class AgentLoop:
                         v.turn_signatures.add(f"{p['name']}:{canonical_args(spec.args_model.model_validate(p['args']))}")
                     v.turn_tool_calls += 1
                 if s.status == "started":
-                    v.started_steps[cid] = s.step_id  # write-ahead sin resultado: se re-ejecuta con la misma key
+                    if s.turn_id == turn.turn_id:  # write-ahead sin resultado: se re-ejecuta con la misma key
+                        v.started_steps[cid] = s.step_id
                     continue
                 pending.pop(cid, None)
                 v.messages.append({"role": "tool", "tool_call_id": cid, "content": p["observation"]})
@@ -756,11 +816,19 @@ class AgentLoop:
             return "prompt_too_long"
         return None
 
-    def _record_flags(self, conversation_id: str, source: str, flags: list[Any]) -> None:
+    def _record_flags(self, conversation_id: str, source: str, flags: list[Any], turn_id: str = "") -> None:
         for f in flags:
             self.obs.injection_flag(source.split(":")[0], f.rule)
-        # Solo las banderas de ENTRADA marcan la conversación (las de salida ya se filtraron)
-        if flags and source != "model_output":
+        if not flags:
+            return
+        # Quedan en el step log con su momento (el oráculo de eval compara contra el paso del reembolso)
+        self.store.append_step(conversation_id, turn_id, "note",
+                               {"flags": [f.rule for f in flags], "source": source})
+        # Solo marcan la conversación las banderas de texto de TERCEROS: resultados de herramientas con texto del
+        # vendedor o del producto, de donde viene la inyección indirecta. Las del cliente se cuentan pero no
+        # marcan: el cliente es el dueño de la sesión, y "quiero el reembolso total" es un pedido normal que la
+        # política ya acota (monto, dueño, confirmación). Las de salida ya se filtraron.
+        if source not in ("customer", "model_output"):
             self.store.flag_injection(conversation_id)
 
     def _pseudonym(self, auth: pol.AuthContext) -> str:

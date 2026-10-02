@@ -11,10 +11,13 @@ Por qué no "cortar cada 400 tokens" y ya:
 Qué hace (en orden):
   1. Recorre los bloques del documento manteniendo la ruta de títulos (título del doc > H1 > H2 …).
   2. Cada título abre un chunk nuevo (una sección no se mezcla con la siguiente), salvo que el chunk actual sea
-     muy chico (< min_tokens) y el título nuevo sea una SUBsección: ahí sigue en el mismo chunk.
+     muy chico (< min_tokens) y el título nuevo sea una SUBsección: ahí sigue en el mismo chunk, con la ruta del
+     padre. Si esa subsección no termina en ese chunk, los chunks que siguen llevan SU ruta (la más profunda).
   3. Junta "unidades" (un párrafo, una oración si el párrafo no cabe, un ítem de lista) hasta ≈ target_tokens.
-  4. Al cerrar un chunk por tamaño (no por título), el siguiente arranca con las últimas oraciones del anterior
-     (overlap ≤ overlap_tokens, en unidades enteras: nunca media oración).
+  4. Al cerrar un chunk por tamaño (no por título), el siguiente arranca con la(s) última(s) unidad(es) ENTERA(S)
+     del anterior (un párrafo, un ítem, o una oración si el párrafo era más largo que un chunk) si caben en
+     overlap_tokens. Con párrafos de más de 50 tokens no hay overlap, y casi no hace falta: los cortes caen
+     entre párrafos, no dentro de una idea.
   5. Tablas: entera si cabe; si no cabe en un chunk, se parte POR FILAS repitiendo el encabezado en cada parte.
      Una fila nunca se corta. Una sola fila más grande que un chunk sale sola y marcada `oversized` (el armado
      del prompt la ve y la cuenta con su tamaño real).
@@ -115,7 +118,7 @@ class Chunk:
 class ChunkerConfig:
     target_tokens: int = 400  # objetivo del caso: se cierra el chunk antes de pasarlo
     max_tokens: int = 512  # techo duro (incluye la ruta de títulos); una unidad sola de hasta 512 cabe
-    overlap_tokens: int = 50  # ≈ 12 %: repite las últimas oraciones para no perder una idea partida en dos
+    overlap_tokens: int = 50  # ≈ 12 %: repite la(s) última(s) unidad(es) enteras si caben (ver el paso 4 arriba)
     min_tokens: int = 80  # una sección más chica que esto se junta con sus subsecciones (chunks enanos rinden mal)
 
     def __post_init__(self) -> None:
@@ -143,9 +146,21 @@ class _Builder:
 
     path: tuple[str, ...]
     units: list[_Unit] = field(default_factory=list)
+    # Ruta de una subsección que se juntó con su padre enano: el chunk actual lleva la ruta del padre, pero el
+    # SIGUIENTE (si la subsección sigue después de un corte por tamaño) debe llevar la de la subsección.
+    next_path: tuple[str, ...] | None = None
 
     def body_tokens(self) -> int:
         return sum(u.tokens for u in self.units)
+
+    def deepest(self) -> tuple[str, ...]:
+        # La ruta más larga que puede tocarle al texto que llega: con ella se mide el espacio (conservador)
+        return self.next_path or self.path
+
+    def advance_path(self) -> None:
+        # Después de cerrar el chunk mezclado, el texto que sigue es de la subsección: pasa a su ruta
+        if self.next_path:
+            self.path, self.next_path = self.next_path, None
 
 
 class Chunker:
@@ -167,18 +182,20 @@ class Chunker:
                 new_path = (doc.title, *(h.text for h in stack))
                 if cur.units and deeper and cur.body_tokens() < self.cfg.min_tokens:
                     # Sección enana con subsecciones: se queda en el mismo chunk, con el subtítulo como línea.
-                    # La ruta del chunk sigue siendo la del padre (es la que describe a todo el chunk).
+                    # La ruta del chunk sigue siendo la del padre (es la que describe a todo el chunk); los chunks
+                    # que sigan, si la subsección no termina aquí, llevan la de la subsección (next_path).
                     cur.units.append(self._unit(block.text + ":", overlappable=False))
+                    cur.next_path = new_path
                     continue
                 self._flush(cur, doc, out)
                 cur = _Builder(path=new_path)
             elif isinstance(block, Paragraph):
-                for unit in self._paragraph_units(block.text, cur.path):
+                for unit in self._paragraph_units(block.text, cur.deepest()):
                     self._add(unit, cur, doc, out)
             elif isinstance(block, ListBlock):
                 for i, item in enumerate(block.items, 1):
                     bullet = f"{i}. " if block.ordered else "- "
-                    for unit in self._paragraph_units(bullet + item, cur.path):
+                    for unit in self._paragraph_units(bullet + item, cur.deepest()):
                         self._add(unit, cur, doc, out)
             elif isinstance(block, Table):
                 cur = self._table(block, cur, doc, out)
@@ -228,8 +245,10 @@ class Chunker:
     def _add(self, unit: _Unit, cur: _Builder, doc: Document, out: list[Chunk]) -> None:
         prefix_tokens = self.counter.count(self._prefix(cur.path)) + 1
         if cur.units and prefix_tokens + cur.body_tokens() + unit.tokens > self.cfg.target_tokens:
-            tail = self._overlap_tail(cur)  # las últimas oraciones pasan al chunk siguiente
+            tail = self._overlap_tail(cur)  # la(s) última(s) unidad(es) enteras pasan al chunk siguiente
             self._flush(cur, doc, out)
+            cur.advance_path()  # tras un chunk mezclado, el siguiente lleva la ruta de la subsección
+            prefix_tokens = self.counter.count(self._prefix(cur.path)) + 1
             cur.units = tail
             if tail and prefix_tokens + cur.body_tokens() + unit.tokens > self.cfg.max_tokens:
                 cur.units = []  # el overlap no puede empujar al chunk siguiente sobre el techo: se sacrifica
@@ -275,12 +294,15 @@ class Chunker:
             cur.units.append(_Unit(whole, whole_tokens, overlappable=False))  # cabe con el texto anterior
             return cur
         self._flush(cur, doc, out)  # la tabla no se mezcla a medias con el texto: chunk propio
+        cur.advance_path()  # si venía de un chunk mezclado, la tabla es de la subsección
         room = self._room(cur.path)
         if whole_tokens <= room:
             self._emit_table(cur.path, whole, doc, out)
             return _Builder(path=cur.path)
-        # No cabe: partes por FILAS, cada una con el encabezado repetido y "filas i–j de N".
-        head_tokens = self.counter.count("\n".join(head)) + 8  # + la nota "(filas i–j de N)"
+        # No cabe: partes por FILAS, cada una con el encabezado repetido y la nota "(tabla, filas i–j de N)".
+        n = len(rows)
+        # Se reserva la nota del peor caso (los números más largos posibles), contada con el MISMO contador
+        head_tokens = self.counter.count("\n".join(head)) + self.counter.count(f"(tabla, filas {n}–{n} de {n})")
         parts: list[list[int]] = [[]]
         used = head_tokens
         for i, r in enumerate(rows):
@@ -290,7 +312,6 @@ class Chunker:
                 used = head_tokens
             parts[-1].append(i)
             used += t
-        n = len(rows)
         for idx in parts:
             note = f"(tabla, filas {idx[0] + 1}–{idx[-1] + 1} de {n})"
             text = "\n".join([*head, note, *(rows[i] for i in idx)])

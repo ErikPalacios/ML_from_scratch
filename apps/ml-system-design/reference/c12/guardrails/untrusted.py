@@ -12,8 +12,10 @@ LÍMITES, escritos para que nadie los olvide:
     tasa de éxito de ataques ingenuos; no la lleva a cero.
   * Las banderas son HEURÍSTICAS: no ven paráfrasis ("olvida lo anterior y…" escrito de mil formas), otros
     idiomas, texto codificado o instrucciones partidas entre dos campos; y dan falsos positivos (un cliente que
-    escribe "ignora mi mensaje anterior"). Por eso NO bloquean: se registran, se cuentan en métricas, y hacen
-    que la política suba la exigencia (un reembolso en una conversación marcada va a aprobación humana).
+    escribe "ignora mi mensaje anterior, las instrucciones de entrega eran otras", o "quiero el reembolso
+    total"). Por eso NO bloquean: se registran y se cuentan en métricas. Solo las que salen de texto de TERCEROS
+    (resultados de herramientas con texto del vendedor o del producto) hacen que la política suba la exigencia
+    (un reembolso en esa conversación va a aprobación humana); las del mensaje del cliente solo se cuentan.
   * La defensa real está en otra capa: la política en código (agent/policy.py), las herramientas en lista
     permitida, el dueño del pedido desde la sesión, la confirmación del cliente para el dinero. Si el modelo
     obedece la inyección, lo peor que puede hacer es lo que la política deja hacer.
@@ -44,7 +46,8 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         r"\b(ignora|olvida|omite|ignore|disregard|forget|ignore[ms]?)\b.{0,40}\b(instrucciones|instructions|"
         r"instruções|reglas|rules|regras|anteriores|previous|prior|above)\b", re.I | re.S)),
     ("role_reassignment", re.compile(
-        r"\b(ahora eres|you are now|act as|actúa como|a partir de ahora|from now on|você agora é)\b", re.I)),
+        r"\b(ahora eres|you are now|act as|actúa como|a partir de ahora (eres|serás|debes|vas a)|from now on,? you|"
+        r"você agora é)\b", re.I)),  # "a partir de ahora mándenlo a mi oficina" NO es un cambio de rol
     ("system_prompt_probe", re.compile(r"\b(system prompt|prompt del sistema|instrucciones del sistema)\b", re.I)),
     ("chat_template_tokens", re.compile(r"<\|[a-z_]+\|>|\[/?INST\]|<<SYS>>", re.I)),  # tokens especiales
     ("fake_role_turn", re.compile(r"^\s*(system|assistant|sistema|asistente)\s*:", re.I | re.M)),
@@ -57,8 +60,13 @@ _PATTERNS.append(("markdown_image", _MD_IMAGE))
 _TOOL_NAMES = ("get_order", "get_shipment_tracking", "search_help_center", "update_shipping_address",
                "cancel_order", "create_return_label", "issue_refund", "escalate_to_human")
 
-# Caracteres invisibles que esconden texto a una persona pero no al modelo (zero-width, bidi, "tag" Unicode)
-_INVISIBLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff\U000e0000-\U000e007f]")
+# Caracteres invisibles que esconden texto a una persona pero no al modelo (zero-width, bidi, "tag" Unicode).
+# Excepción: U+200D (zero-width joiner) entre dos emoji es parte del emoji (🤷‍♀️, 👨‍👩‍👧): se deja. Los "tag"
+# Unicode también arman banderas de subdivisiones (🏴 de Escocia), pero son raros en un chat de soporte y son
+# el canal clásico de texto oculto: se quitan.
+_EMOJI = "\U0001f000-\U0001faff\u2600-\u27bf\u2640\u2642\u2b00-\u2bff"
+_INVISIBLE = re.compile("[\u200b\u200c\u200e\u200f\u202a-\u202e\u2060-\u2064\ufeff\U000e0000-\U000e007f]"
+                        f"|(?<![{_EMOJI}\ufe0f\U0001f3fb-\U0001f3ff])\u200d|\u200d(?![{_EMOJI}])")
 
 
 def sanitize(text: str) -> tuple[str, list[Flag]]:

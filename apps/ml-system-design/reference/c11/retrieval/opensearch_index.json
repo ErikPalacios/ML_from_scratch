@@ -39,7 +39,7 @@
           "name": "hnsw",
           "engine": "faiss",
           "parameters": {
-            "m": 16,
+            "m": 32,
             "ef_construction": 256,
             "encoder": {"name": "sq", "parameters": {"bits": 16, "type": "fp16"}}
           }

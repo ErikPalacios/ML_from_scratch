@@ -100,3 +100,18 @@ def test_business_seconds_for_the_approval_sla():
     thu_9am = datetime(2026, 10, 1, 15, 0, tzinfo=UTC)
     assert business_seconds_between(thu_9am, thu_9am.replace(hour=19)) == 4 * 3600  # 9:00 → 13:00
     assert business_seconds_between(mon_10am, fri_5pm) == 0.0
+
+
+def test_next_message_finishes_a_crashed_turn_with_the_same_key(make_loop, backend, h):
+    # Nadie llama a resume "a mano": el siguiente mensaje termina primero el turno caído, con su turn_id, así que
+    # la key de update_shipping_address (que incluye el turno) es la misma y el efecto no se repite
+    addr = {"street": "Calle 5", "interior": None, "city": "Cholula", "state": "PUE", "postal_code": "72760", "country": "MX"}
+    loop, *_ = make_loop([h.call("update_shipping_address", order_id="A-1030", address=addr)],
+                         crash_hook=crash_at("after_tool_before_log", "update_shipping_address"))
+    with pytest.raises(SimulatedCrash):
+        turn(h, loop, "Cambia la dirección de A-1030 a Cholula", "m1")
+    loop2, llm2, store2, _ = make_loop([h.say("Listo, la dirección quedó en Cholula."), h.say("De nada.")])
+    turn(h, loop2, "Gracias", "m2")
+    keys = [a["key"] for a in backend.audit if a["op"] == "update_shipping_address"]
+    assert len(set(keys)) == 1 and len(keys) == 1
+    assert store2.incomplete_turn("conv-1") is None

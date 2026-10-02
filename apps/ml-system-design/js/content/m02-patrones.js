@@ -611,7 +611,7 @@ def on_event(r, ev):
           { t: 'table', caption: 'Resumen de híbridos', head: ['Híbrido', 'Qué resuelve', 'Costo que agrega', 'Casos'], rows: [
             ['Batch + re-rank online', 'Frescura de sesión sin puntuar todo en el request', 'Dos sistemas que mantener consistentes (features, versiones)', '<a href="#c08">c08</a>, <a href="#c07">c07</a>'],
             ['Cascada barato → caro', 'Costo: lo caro solo para lo dudoso', 'Recall acotado por la etapa 1; dos latencias para lo escalado', '<a href="#c06">c06</a>, <a href="#c05">c05</a>'],
-            ['Caché de predicciones', 'Inferencias repetidas; latencia de los hits', 'Invalidación por versión; no sirve para lo personalizado o fresco', '<a href="#c01">c01</a> a mayor escala, <a href="#c11">c11</a> (preguntas repetidas)'],
+            ['Caché de predicciones', 'Inferencias repetidas; latencia de los hits', 'Invalidación por versión; no sirve para lo personalizado o fresco', '<a href="#c01">c01</a> a mayor escala; <a href="#c11">c11</a> lo descarta para respuestas (con permisos por persona, la misma pregunta tiene respuestas distintas)'],
             ['Edge filtra + nube verifica', 'Ancho de banda y latencia sin perder calidad', 'Una flota de dispositivos y dos modelos que versionar', '<a href="#c02">c02</a>'],
             ['Síncrono con salida asíncrona', 'Requests pesados sin romper el timeout', 'Dos contratos (200 y 202) que el cliente debe manejar', '<a href="#c05">c05</a>, <a href="#c04">c04</a>'],
             ['Síncrono + features por streaming', 'Decisión en ms con features de segundos', 'El consumer lag como nueva forma de falla', '<a href="#c09">c09</a>'],

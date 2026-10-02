@@ -18,11 +18,15 @@
 groups:
   - name: rag-recording
     rules:
-      # p95 a 10 min de las tres latencias del caso (los histogramas tienen bordes EXACTOS en 2.5, 10 y 0.7 s)
+      # p95 a 10 min de las latencias del caso (los histogramas tienen bordes EXACTOS en 2.5, 10 y 0.7 s)
       - record: rag:ttft_seconds:p95_10m
         expr: histogram_quantile(0.95, sum by (le) (rate(rag_ttft_seconds_bucket[10m])))
       - record: rag:answer_latency_seconds:p95_10m
         expr: histogram_quantile(0.95, sum by (le) (rate(rag_answer_latency_seconds_bucket[10m])))
+      # p50 de la respuesta completa: la promesa es la pregunta TÍPICA en ≈ 10 s, no el p95 (una respuesta de 600
+      # tokens tarda ≈ 15–30 s y es normal). Un p95 > 10 s paginaría todos los días.
+      - record: rag:answer_latency_seconds:p50_10m
+        expr: histogram_quantile(0.5, sum by (le) (rate(rag_answer_latency_seconds_bucket[10m])))
       - record: rag:retrieval_latency_seconds:p95_10m
         expr: histogram_quantile(0.95, sum by (le) (rate(rag_retrieval_latency_seconds_bucket[10m])))
       # preguntas que llegaron al retrieval por segundo (el denominador de las tasas y el mínimo de tráfico)
@@ -41,12 +45,14 @@ groups:
           summary: "Primer token p95 de {{ $value | humanizeDuration }} (SLO 2.5 s)"
           description: "Mira primero RetrievalLatencyHigh (¿es el índice?) y después LLMTTFTHigh y LLMQueueBacklog en #c10 (¿es la flota?)."
       - alert: RAGAnswerLatencyHigh
-        # Respuesta completa p95 > 10 s. Incluye las que terminaron sin LLM (timeout del primer token = 8 s).
-        expr: rag:answer_latency_seconds:p95_10m > 10 and on() sum(rate(rag_answer_latency_seconds_count[10m])) > 0.05
+        # Respuesta completa p50 > 10 s: la pregunta TÍPICA ya no termina en ≈ 10 s (la mitad tarda más). Se mira la
+        # mediana y no el p95 porque las respuestas largas (600 tokens, ≈ 15–30 s) son parte normal de la cola.
+        # Incluye las que terminaron sin LLM (timeout del primer token = 8 s).
+        expr: rag:answer_latency_seconds:p50_10m > 10 and on() sum(rate(rag_answer_latency_seconds_count[10m])) > 0.05
         for: 15m
         labels: {severity: page, which: full_answer}
         annotations:
-          summary: "Respuesta completa p95 de {{ $value | humanizeDuration }} (objetivo 10 s)"
+          summary: "Respuesta completa p50 de {{ $value | humanizeDuration }} (objetivo ≈ 10 s para la típica)"
           description: "Con el primer token en SLO, suele ser decode lento (TPOT en #c10) o respuestas que no respetan max_tokens."
       - alert: RetrievalLatencyHigh
         # Retrieval + rerank p95 > 700 ms. Ticket y no page: RAGAnswerLatencyHigh ya pagina si la persona lo sufre;
@@ -135,8 +141,9 @@ groups:
           description: "Los eventos kind=acl deberían saltarse la cola de contenido (no re-embeben nada)."
       - alert: IndexDocCountDrop
         # Documentos vivos de una fuente: más de 5 % menos que hace 24 h. Casi nunca es gente borrando: es la cuenta
-        # de servicio que perdió acceso y la fuente "parece vacía".
-        expr: sum by (source) (rag_index_documents) < 0.95 * sum by (source) (rag_index_documents offset 1d)
+        # de servicio que perdió acceso y la fuente "parece vacía". max y no sum: cada réplica del worker exporta la
+        # MISMA cuenta global; con sum, apagar una réplica "borraría" 1/N de los documentos.
+        expr: max by (source) (rag_index_documents) < 0.95 * max by (source) (rag_index_documents offset 1d)
         for: 15m
         labels: {severity: ticket, which: count_drop}
         annotations:

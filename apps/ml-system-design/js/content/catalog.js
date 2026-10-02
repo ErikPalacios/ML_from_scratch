@@ -604,7 +604,7 @@
         'Evaluación: retrieval (recall@k) y respuesta (faithfulness) con sets dorados',
         'Latencia y costo por consulta; caching',
       ],
-      freq: 'alta', minutes: 117, difficulty: 'media',
+      freq: 'alta', minutes: 120, difficulty: 'media',
       connects: ['m09', 'm12', 'm14', 'm15', 'c07', 'c10'],
       tests: [
         'Diseñar el pipeline de ingestion, no solo la consulta',
@@ -630,7 +630,7 @@
         'Evaluación: tasa de éxito, trayectorias y regresiones',
         'Estado, memoria y reanudación de tareas largas',
       ],
-      freq: 'media', minutes: 100, difficulty: 'alta',
+      freq: 'media', minutes: 104, difficulty: 'alta',
       connects: ['m02', 'm12', 'm14', 'm15', 'c10', 'c11'],
       tests: [
         'Acotar el agente: qué hace solo y qué requiere aprobación',
@@ -1121,11 +1121,11 @@
       },
       {
         "topic": "Latencia y disponibilidad",
-        "a": "Que empiece a responder rápido: primer token <b>p95 ≤ 2.5 s</b>; una respuesta típica completa en ≈ 10 s, en streaming. Una página editada debe poder responderse en <b>p95 ≤ 15 min</b>; un cambio de permisos que quita acceso, en <b>≤ 5 min</b>. Es una herramienta interna, no un camino crítico: si la generación falla, mostrar resultados de búsqueda es aceptable."
+        "a": "Que empiece a responder rápido: primer token <b>p95 ≤ 2.5 s</b>; una respuesta típica completa en ≈ 10 s, en streaming; el retrieval con rerank, <b>p95 ≤ 700 ms</b>. Una página editada debe poder responderse en <b>p95 ≤ 15 min</b>; un cambio de permisos que quita acceso, en <b>≤ 5 min</b>. Es una herramienta interna, no un camino crítico: si la generación falla, mostrar resultados de búsqueda es aceptable."
       },
       {
         "topic": "Modelo actual",
-        "a": "No hay asistente hoy; se busca a mano en cada herramienta. Existe la plataforma de LLM del <b>c10</b>: un <code>llm-gateway</code> compatible con OpenAI y el modelo <code>chat-default</code> (≈ 70B) con <b>contexto máximo de 8k tokens</b>; este asistente sería un tenant nuevo. También existe el OpenSearch y el equipo de búsqueda del c07. No es nuestro trabajo entrenar el LLM ni el modelo de embeddings."
+        "a": "No hay asistente hoy; se busca a mano en cada herramienta. Existe la plataforma de LLM del <b>c10</b>: un <code>llm-gateway</code> compatible con OpenAI y el modelo <code>chat-default</code> (≈ 70B) con <b>contexto máximo de 8k tokens</b>; este asistente sería un tenant nuevo (<code>employee-assistant</code>). También existe el OpenSearch y el equipo de búsqueda del c07. No es nuestro trabajo entrenar el LLM ni el modelo de embeddings."
       },
       {
         "topic": "Datos y labels",
@@ -1143,7 +1143,7 @@
       },
       {
         "topic": "Entrada y salida",
-        "a": "Entra el mensaje del cliente (español o portugués) con su token de sesión. Hay <b>8 herramientas</b> acordadas: <code>get_order</code>, <code>get_shipment_tracking</code>, <code>search_help_center</code> (centro de ayuda público), <code>update_shipping_address</code> y <code>cancel_order</code> (solo antes del envío), <code>create_return_label</code>, <code>issue_refund</code> y <code>escalate_to_human</code>. Sale texto en el chat, acciones sobre los pedidos del cliente o un pase a una persona. Nada de tocar la cuenta, el medio de pago ni pedidos de otros."
+        "a": "Entra el mensaje del cliente (español o portugués; chat en la app y la web, sin voz) con su token de sesión. Las APIs internas aceptan un token de servicio en nombre del cliente (con su <code>customer_id</code>, que sale de la sesión) y verifican en cada llamada que el pedido le pertenece. Hay <b>8 herramientas</b> acordadas: <code>get_order</code>, <code>get_shipment_tracking</code>, <code>search_help_center</code> (centro de ayuda público), <code>update_shipping_address</code> y <code>cancel_order</code> (solo antes del envío), <code>create_return_label</code>, <code>issue_refund</code> y <code>escalate_to_human</code>. Sale texto en el chat, acciones sobre los pedidos del cliente o un pase a una persona. Nada de tocar la cuenta, el medio de pago ni pedidos de otros."
       },
       {
         "topic": "Escala",
@@ -1155,7 +1155,7 @@
       },
       {
         "topic": "Modelo actual",
-        "a": "No se elige ni se entrena modelo: corre en la plataforma del c10 (<code>llm-gateway</code> → <code>chat-default</code>, ≈ 70B, contexto máximo de 8k tokens; el tenant de soporte acepta prompts de hasta 6,000 tokens y tiene una cuota de 5.4 M tokens/min). La API es compatible con OpenAI; el tool calling todavía no está activado en la flota. Soporte <b>no tiene respaldo al proveedor externo</b>: sus conversaciones llevan datos personales."
+        "a": "No se elige ni se entrena modelo: corre en la plataforma del c10 (<code>llm-gateway</code> → <code>chat-default</code>, ≈ 70B, contexto máximo de 8k tokens; el tenant de soporte acepta prompts de hasta 6,000 tokens y tiene una cuota de 5.4 M tokens/min). La API es compatible con OpenAI; hay que verificar que la flota tenga el tool calling activado. Soporte <b>no tiene respaldo al proveedor externo</b>: sus conversaciones llevan datos personales."
       },
       {
         "topic": "Datos y labels",

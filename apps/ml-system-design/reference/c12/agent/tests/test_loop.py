@@ -389,3 +389,90 @@ def test_one_ticket_per_conversation(make_loop, backend, h):
                                        EscalateToHumanArgs(reason="cannot_resolve", summary="otro resumen distinto"),
                                        auth=h.ME, conversation_id="conv-1", turn_id="m9"))
     assert out.status == "ok" and out.result["idempotent_replay"] and len(backend.tickets) == 1
+
+
+# ---------------------------------------------------------------- revisión de la fase 13
+def test_approval_and_a_customer_turn_overlapping_pay_once(make_loop, backend, h):
+    # La aprobación ejecuta el reembolso (lento) mientras el cliente escribe: el turno del cliente NO toma la
+    # llamada sintética de la aprobación como suya (antes la ejecutaba otra vez).
+    loop, llm, store, rec = make_loop([
+        h.call("issue_refund", order_id="A-1031", amount=2400.0, currency="MXN", reason="damaged"),
+        h.say("Tu reembolso quedó en revisión con una persona."),
+        h.say("Sigue en revisión; te avisamos."),
+    ])
+    ev1 = turn(h, loop, "El monitor del pedido A-1031 llegó con la pantalla rota", "m1")
+    ev2 = turn(h, loop, "Confirmo", "m2", confirm_action_id=conf_id(ev1))
+    aid = next(e for e in ev2 if e.type == "approval_pending").data["approval_id"]
+    backend.inject("issue_refund", "slow:0.1")  # menos que el timeout de 0.2 s
+
+    async def both():
+        import asyncio
+        return await asyncio.gather(
+            loop.decide_approval(aid, approved=True, approver="sup-7"),
+            h.collect(loop.run_turn(conversation_id="conv-1", auth=h.ME, message_id="m3", text="¿Ya?")))
+
+    h.run(both())
+    assert backend.calls.count("issue_refund") == 1 and len(backend.refunds) == 1
+    assert rec.of("refund") == [("approved", Decimal("132.00"))]
+
+
+def test_approval_after_a_handoff_keeps_the_case_with_the_person(make_loop, backend, h):
+    loop, llm, store, rec = make_loop([
+        h.call("issue_refund", order_id="A-1031", amount=2400.0, currency="MXN", reason="damaged"),
+        h.say("Tu reembolso quedó en revisión con una persona."),
+        h.call("escalate_to_human", reason="customer_request", summary="El cliente pide hablar con alguien"),
+    ])
+    ev1 = turn(h, loop, "El monitor del pedido A-1031 llegó con la pantalla rota", "m1")
+    ev2 = turn(h, loop, "Confirmo", "m2", confirm_action_id=conf_id(ev1))
+    aid = next(e for e in ev2 if e.type == "approval_pending").data["approval_id"]
+    turn(h, loop, "Quiero hablar con una persona", "m3")
+    assert store.get_conversation("conv-1").status == "handed_off"
+    closed_before = len(rec.of("conversation_closed"))
+    h.run(loop.decide_approval(aid, approved=True, approver="sup-7"))
+    assert len(backend.refunds) == 1 and store.get_conversation("conv-1").status == "handed_off"
+    ev4 = turn(h, loop, "¿Ya quedó?", "m4")
+    assert [e.type for e in ev4] == ["handoff"] and ev4[0].data["reason"] == "already_handed_off"
+    assert len(rec.of("conversation_closed")) == closed_before  # el cierre no se cuenta dos veces
+
+
+def test_rejected_approval_after_a_handoff_does_not_count_the_close_twice(make_loop, backend, h):
+    loop, llm, store, rec = make_loop([
+        h.call("issue_refund", order_id="A-1031", amount=2400.0, currency="MXN", reason="damaged"),
+        h.say("Tu reembolso quedó en revisión con una persona."),
+        h.call("escalate_to_human", reason="customer_request", summary="El cliente pide hablar con alguien"),
+    ])
+    ev1 = turn(h, loop, "El monitor del pedido A-1031 llegó con la pantalla rota", "m1")
+    ev2 = turn(h, loop, "Confirmo", "m2", confirm_action_id=conf_id(ev1))
+    aid = next(e for e in ev2 if e.type == "approval_pending").data["approval_id"]
+    turn(h, loop, "Quiero hablar con una persona", "m3")
+    closed, handoffs = len(rec.of("conversation_closed")), len(rec.of("handoff"))
+    out = h.run(loop.decide_approval(aid, approved=False, approver="sup-7"))
+    assert "handoff" in [e.type for e in out] and store.get_conversation("conv-1").status == "handed_off"
+    assert len(rec.of("conversation_closed")) == closed and len(rec.of("handoff")) == handoffs
+
+
+def test_customer_phrasing_does_not_send_a_small_refund_to_people(make_loop, backend, h):
+    # "quiero el reembolso total" levanta money_instruction, pero el cliente es el dueño de la sesión: se cuenta
+    # en métricas y NO marca la conversación (solo el texto de terceros la marca)
+    loop, llm, store, rec = make_loop([
+        h.call("issue_refund", order_id="A-1029", amount=450.0, currency="MXN", reason="damaged"),
+        h.say("Listo: emitimos tu reembolso."),
+    ])
+    ev1 = turn(h, loop, "Mi pedido A-1029 llegó roto, quiero el reembolso total", "m1")
+    assert ("customer", "money_instruction") in rec.of("injection_flag")
+    assert not store.get_conversation("conv-1").injection_flagged
+    turn(h, loop, "Sí", "m2", confirm_action_id=conf_id(ev1))
+    assert [r["amount"] for r in backend.refunds] == [Decimal("450.00")]
+
+
+def test_no_new_tool_call_starts_after_the_turn_clock(make_loop, backend, clock, h):
+    def slow_tool(point, info):  # la herramienta "tarda" 5 s en el reloj falso
+        if point == "after_tool_before_log":
+            clock.advance(5.0)
+    loop, llm, store, rec = make_loop([
+        {"delay_s": 16.0, "tool_calls": [{"name": "get_order", "arguments": {"order_id": "A-1029"}},
+                                         {"name": "get_shipment_tracking", "arguments": {"order_id": "A-1029"}}]},
+    ], crash_hook=slow_tool)
+    ev = turn(h, loop, "¿Dónde está A-1029?", "m1")
+    assert ev[-2].data["reason"] == "turn_wall_clock"
+    assert "get_shipment_tracking" not in backend.calls

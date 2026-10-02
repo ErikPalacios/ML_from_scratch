@@ -39,7 +39,7 @@ def test_every_chunk_respects_max_tokens_and_targets_400():
     assert all(c.tokens <= 400 + 10 for c in chunks[:-1])  # cerrados cerca del objetivo (overlap incluido)
 
 
-def test_overlap_repeats_whole_sentences_only():
+def test_overlap_repeats_whole_units_only():
     cfg = ChunkerConfig(target_tokens=60, max_tokens=80, overlap_tokens=20, min_tokens=10)
     doc = Document("d1", "T", (Paragraph(sentences(12)),))  # 12 oraciones de 10 tokens
     chunks = Chunker(config=cfg).chunk(doc)
@@ -71,6 +71,21 @@ def test_tiny_section_merges_with_its_subsections():
     assert "México:" in chunks[0].text and "US$60" in chunks[0].text
 
 
+def test_chunks_after_a_merged_one_carry_the_subsection_path():
+    # Viáticos (enano) + Colombia larga: el primer chunk lleva la ruta del padre; los que siguen son SOLO de
+    # Colombia y deben decirlo (si no, un párrafo que nunca repite "Colombia" no se encuentra ni se cita bien).
+    paras = tuple(Paragraph(f"Regla {i}: " + sentences(6)) for i in range(12))  # ≈ 63 tokens cada uno
+    doc = Document("d2", "Política de viajes", (Heading(1, "Viáticos"), Paragraph("Intro corta."),
+                                                Heading(2, "Colombia"), *paras))
+    chunks = Chunker().chunk(doc)
+    assert len(chunks) >= 2
+    assert chunks[0].heading_path == ("Política de viajes", "Viáticos") and "Colombia:" in chunks[0].text
+    for c in chunks[1:]:
+        assert c.heading_path[-1] == "Colombia"
+        assert c.text.startswith("Política de viajes > Viáticos > Colombia\n")
+        assert c.tokens <= 512
+
+
 def test_small_table_stays_whole_with_its_header():
     md = "# Montos\n| Motivo | Monto |\n|---|---|\n| No recibido | US$50 |\n| Dañado | US$30 |"
     [c] = Chunker().chunk(from_markdown("d1", "Reembolsos", md))
@@ -91,6 +106,18 @@ def test_big_table_is_split_by_rows_with_header_repeated():
         seen_rows += body
     # cada fila aparece exactamente una vez y ENTERA (nunca partida entre dos chunks)
     assert seen_rows == [f"| País {i} | US${50 + i} | {words(20, 'nota')} |" for i in range(60)]
+
+
+def test_no_multi_row_table_part_goes_over_the_ceiling():
+    # Filas de tamaños variados: la reserva para la nota "(tabla, filas i–j de N)" debe ser la nota REAL
+    import random
+    rng = random.Random(1)
+    for _ in range(40):
+        rows = tuple(("f", words(rng.randint(1, 30), "x")) for _ in range(80))
+        for c in Chunker().chunk(Document("d1", "T", (Table(("A", "B"), rows),))):
+            n_rows = sum(1 for ln in c.text.split("\n") if ln.startswith("| f |"))
+            if n_rows > 1:
+                assert c.tokens <= 512 and not c.oversized
 
 
 def test_single_row_bigger_than_a_chunk_is_flagged_not_cut():

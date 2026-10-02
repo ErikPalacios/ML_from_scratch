@@ -26,7 +26,7 @@ import hashlib  # hash de parámetros para detectar reuso de una key con otros d
 import json  # serialización canónica de parámetros
 from collections import deque  # fallas inyectadas en orden por operación
 from dataclasses import dataclass, field, replace  # modelos del dominio falso
-from datetime import UTC, datetime  # fechas con zona (nunca naive)
+from datetime import UTC, datetime, timedelta  # fechas con zona (nunca naive); ventana de 90 días
 from decimal import Decimal  # dinero
 from typing import Any, Protocol  # interfaz
 
@@ -166,6 +166,7 @@ class InMemoryCommerceBackend:
         self.ops: dict[str, Operation] = {}  # registro de idempotencia (en producción: tabla con TTL ≥ 7 días)
         self.faults: dict[str, deque[str]] = {}
         self.calls: list[str] = []  # cada llamada recibida (también las que fallaron): para los tests
+        self.risk_scores: dict[str, float] = {}  # customer_id → score de riesgo (en producción, otro servicio)
         self.hang_s = hang_s
         self.base_latency_s = base_latency_s
         self._now = now  # reloj fijo para tests reproducibles; None = reloj real
@@ -266,6 +267,9 @@ class InMemoryCommerceBackend:
             order_id=o.order_id, customer_id=o.customer_id, status=o.status, currency=o.currency, total=o.total,
             refunded_total=self._refunded(o.order_id),
             agent_refunds=sum(1 for r in self.refunds if r["order_id"] == o.order_id and r["by"] == "agent"),
+            agent_refunds_last_90d=sum(1 for r in self.refunds if r.get("customer_id") == o.customer_id
+                                       and r["by"] == "agent" and r["at"] >= self.now() - timedelta(days=90)),
+            risk_score=self.risk_scores.get(o.customer_id),
             delivered_at=o.delivered_at,
             shipment=ShipmentFacts(ship.status, ship.expected_delivery) if ship else None,
         )
@@ -377,7 +381,8 @@ class InMemoryCommerceBackend:
             if amount > o.total - self._refunded(order_id):
                 raise BusinessRuleError("amount_exceeds_order")
             refund = {"refund_id": f"RF-{len(self.refunds) + 1:05d}", "order_id": order_id, "amount": amount,
-                      "currency": currency, "reason": reason, "by": "agent"}
+                      "currency": currency, "reason": reason, "by": "agent",
+                      "customer_id": o.customer_id, "at": self.now()}
             self.refunds.append(refund)
             self._audit("issue_refund", auth, order_id, key, amount=str(amount), currency=currency,
                         confirmation_id=confirmation_id, approval_id=approval_id)

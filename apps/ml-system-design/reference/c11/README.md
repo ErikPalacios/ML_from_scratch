@@ -133,7 +133,7 @@ el textfile collector o un Pushgateway): `rag_eval_groundedness{suite}`, `rag_ev
 
 | Grupo | Alerta | Umbral | Severidad |
 |---|---|---|---|
-| Experiencia | `RAGAnswerLatencyHigh` | primer token p95 > 2.5 s (10 min) o respuesta completa p95 > 10 s (15 min), con ≥ 0.05 preguntas/s | page |
+| Experiencia | `RAGAnswerLatencyHigh` | primer token p95 > 2.5 s (10 min) o respuesta completa p50 > 10 s (15 min; la típica, no la cola), con ≥ 0.05 preguntas/s | page |
 | Experiencia | `RetrievalLatencyHigh` | retrieval + rerank p95 > 700 ms, 15 min | ticket |
 | Calidad | `EmptyRetrievalRateHigh` | > 15 % de preguntas sin chunks en 1 h, 30 min | ticket |
 | Calidad | `NegativeFeedbackRising` | pulgares abajo en 24 h > 1.5× los de hace una semana, > 10 % y ≥ 100 votos, 1 h | ticket |
@@ -152,7 +152,7 @@ Por qué las latencias exigen tráfico mínimo: con ≈ 2 qps en el pico y casi 
 cd reference/c11
 python3 -m venv .venv && . .venv/bin/activate      # Python 3.13 (o 3.12)
 pip install -r requirements-dev.txt
-pytest                                              # 124 tests, ≈ 2 s
+pytest                                              # 128 tests, ≈ 2 s
 PYTHONPATH=ingest:retrieval python eval/retrieval_eval.py   # el golden de ejemplo contra el corpus ficticio
 
 cd monitoring
@@ -197,8 +197,9 @@ para ver el contrato (eventos, citas, permisos, métricas), no la calidad. Token
   request ≈ 0.9 M/min en el pico, más margen; ilustrativo).
 - **Índice**: `retrieval/opensearch_index.json`: motor faiss (filtrado eficiente de k-NN desde 2.9), producto
   interno sobre vectores normalizados y cuantización escalar de 16 bits (FP16). Con la fórmula de la documentación de
-  OpenSearch para HNSW, 1.1 × (1024 × 16/8 + 8 × m) bytes por vector: con m = 16, ≈ 2,394 B → ≈ 28.7 GB para 12 M
-  chunks (≈ 24.6 GB son los vectores en FP16; estimación, mídelo con el índice real). Sin réplicas; con
+  OpenSearch para HNSW, 1.1 × (1024 × 16/8 + 8 × m) bytes por vector: con m = 32 (como en #c07), ≈ 2,534 B →
+  ≈ 30.4 GB para 12 M chunks (≈ 24.6 GB son los vectores en FP16; los ≈ 27.7 GB de la página del caso son la misma
+  cuenta sin el 1.1 de overhead; estimación, mídelo con el índice real). Sin réplicas; con
   `number_of_replicas: 1`, el doble. Un índice por modelo de embeddings detrás de un alias (blue/green, como #c07);
   `RetrievalConfig.index_model_version` hace que un encoder de otra versión no se use (degrada a BM25).
 
@@ -208,12 +209,12 @@ Probado en macOS (Apple Silicon), sin GPU, sin OpenSearch, sin el gateway, sin c
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests de las 5 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14; varias corridas seguidas; warnings como errores | 124 passed, todas las veces |
+| Tests de las 5 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14; varias corridas seguidas; warnings como errores | 128 passed, todas las veces |
 | Retrieval con permisos | índice en memoria con la MISMA regla que el filtro de OpenSearch (`acl.fields_allow`); 300 chunks con ACLs aleatorias y 40 personas aleatorias × BM25 y kNN | ninguna fuga; post-filtering deja 0 resultados donde pre-filtering deja 3 |
 | Fuentes atrasadas y chequeo tardío | `source_acl_sync` con Drive atrasado; `late_check` falso que revoca un documento y otro que no contesta a tiempo | Drive sale del retrieval, Confluence y las macros siguen; el documento revocado no entra; sin respuesta, esa fuente no entra |
 | Cadena completa | corpus ficticio → ACLs normalizadas → chunker → ingesta → índice → retrieval → prompt → LLM falso → citas → SSE | recall@8 = 1.0 en el golden de ejemplo (14 preguntas, 8 con respuesta), 0 fugas |
 | Servicio | `httpx2.ASGITransport` contra la app; el cliente real del gateway contra `httpx2.MockTransport` con SSE con la forma de la API de OpenAI; la desconexión del cliente consumiendo el generador de la respuesta a mano | eventos, outcomes, 401/403/400/503, timeout del primer token, stream cortado, cierre del stream upstream |
-| Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 19 reglas OK; los dos archivos de tests pasan. 22 mutaciones de umbrales, mínimos de tráfico y de preguntas, ventanas, filtros de fuente y horarios hacen fallar algún test (ninguna sobrevive); los tests corrieron varias veces seguidas con el orden de grupos fijado |
+| Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 20 reglas OK; los dos archivos de tests pasan. 22 mutaciones de umbrales, mínimos de tráfico y de preguntas, ventanas, filtros de fuente y horarios hacen fallar algún test (ninguna sobrevive); los tests corrieron varias veces seguidas con el orden de grupos fijado |
 | Mapping | `opensearch_index.json` parseado como JSON; sus campos y parámetros se compararon con la documentación de OpenSearch 3.9 (repo `documentation-website`) | no se creó en un cluster |
 | Demo con uvicorn real | `uvicorn --factory app:demo_app` + curl | streaming, permisos distintos para la misma pregunta, `no_answer`, `no_sources`, 401, `/metrics`; un `curl --max-time 0.2` queda como `client_disconnected` |
 | Lint | `ruff check` (E, F, W, B, UP; 120 columnas) | sin hallazgos |

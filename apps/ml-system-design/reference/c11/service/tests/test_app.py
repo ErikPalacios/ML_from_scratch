@@ -239,6 +239,8 @@ def gateway_handler(mode="ok"):
                 yield f"data: {json.dumps(chunk)}\n\n".encode()
             if mode == "abort":
                 yield b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"abort"}]}\n\n'
+            if mode == "badjson":
+                yield b"data: {no-json\n\n"  # un proxy que corta un evento a la mitad
             yield b"data: [DONE]\n\n"
 
         return httpx2.Response(200, headers={"content-type": "text/event-stream"}, content=sse())
@@ -254,12 +256,23 @@ async def test_gateway_client_parses_openai_sse():
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("mode", ["503", "abort"])
+@pytest.mark.parametrize("mode", ["503", "abort", "badjson"])
 async def test_gateway_client_errors(mode):
     s = Settings(gateway_url="http://gw/v1", gateway_api_key="sk-employee-assistant")
     gc = GatewayClient(s, transport=httpx2.MockTransport(gateway_handler(mode)))
     with pytest.raises(LLMUnavailable):
         _ = [p async for p in gc.stream([{"role": "user", "content": "x"}], 600, "u")]
+
+
+@pytest.mark.anyio
+async def test_malformed_gateway_event_ends_with_a_final_event(corpus):
+    # Un data: que no es JSON a mitad del stream no puede dejar al cliente sin "final" ni contarse como desconexión
+    s = Settings(gateway_url="http://gw/v1", gateway_api_key="sk-employee-assistant")
+    client, _, reg = make(corpus, GatewayClient(s, transport=httpx2.MockTransport(gateway_handler("badjson"))),
+                          settings=s)
+    ev = events((await ask(client, "t-ana", "viático Colombia")).text)
+    assert ev[-1][0] == "final" and ev[-1][1]["outcome"] == "llm_error"
+    assert reg.get_sample_value("rag_requests_total", {"outcome": "client_disconnected"}) is None
 
 
 # ---------------------------------------------------------------- contrato con las alertas

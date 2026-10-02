@@ -106,3 +106,12 @@ tests:
             exp_annotations:
               summary: "drive: 1.1e+06 documentos, > 5 % menos que ayer"
               description: "Compara con rag_ingest_events_total{action=\"tombstoned\"} y con los permisos de la cuenta del conector."
+
+  - name: dos réplicas del worker exportan la misma cuenta; una se apaga y NO es una caída
+    interval: 1m
+    input_series:
+      # Cada réplica publica la cuenta GLOBAL de la fuente: con sum, apagar una "perdería" la mitad
+      - {series: 'rag_index_documents{source="drive", instance="worker-a"}', values: '1200000x1560'}
+      - {series: 'rag_index_documents{source="drive", instance="worker-b"}', values: '1200000x1440'}
+    alert_rule_test:
+      - {eval_time: 25h, alertname: IndexDocCountDrop, exp_alerts: []}

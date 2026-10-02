@@ -120,6 +120,13 @@ def test_approval_webhook_signed_and_idempotent():
         assert c.post(f"/v1/approvals/{aid}", content=raw, headers=headers).status_code == 401
         raw, headers = signed(body, ts=str(int(time.time()) - 3600))  # firma válida pero vieja: replay
         assert c.post(f"/v1/approvals/{aid}", content=raw, headers=headers).status_code == 401
+        # con un turno del cliente corriendo, el webhook espera su turno (el mismo lock): 409 + Retry-After
+        lock = app.state.locks.setdefault("c1", asyncio.Lock())
+        asyncio.run(lock.acquire())
+        raw, headers = signed(body)
+        busy = c.post(f"/v1/approvals/{aid}", content=raw, headers=headers)
+        assert busy.status_code == 409 and busy.headers["retry-after"] == "5" and backend.refunds == []
+        lock.release()
         raw, headers = signed(body)
         r = c.post(f"/v1/approvals/{aid}", content=raw, headers=headers)
         assert r.status_code == 200 and len(backend.refunds) == 1

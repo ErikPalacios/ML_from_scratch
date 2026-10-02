@@ -166,3 +166,19 @@ def test_injection_flag_sends_even_small_refunds_to_a_human():
 def test_unknown_currency_fails_loudly():
     with pytest.raises(ValueError):
         pol.to_usd(Decimal("10"), "XYZ", pol.PolicyConfig())
+
+
+# ---------------------------------------------------------------- tope por cliente y score de riesgo
+@pytest.mark.parametrize("facts,reason", [
+    (dict(agent_refunds_last_90d=1), "customer_refund_cap"),  # 2.º reclamo, OTRO pedido, monto chico
+    (dict(risk_score=0.93), "risk_score"),
+])
+def test_customer_level_signals_send_a_small_refund_to_people(facts, reason):
+    d = ev("issue_refund", refund(Decimal("450.00")), o=order(**facts), c=conv(confirmed_action_ids={"act_1"}))
+    assert d.verdict is pol.Verdict.NEEDS_APPROVAL and d.reason == reason
+
+
+def test_customer_level_signals_below_threshold_stay_automatic():
+    d = ev("issue_refund", refund(Decimal("450.00")), o=order(agent_refunds_last_90d=0, risk_score=0.2),
+           c=conv(confirmed_action_ids={"act_1"}))
+    assert d.verdict is pol.Verdict.ALLOW

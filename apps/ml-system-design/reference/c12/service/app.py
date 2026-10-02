@@ -15,8 +15,10 @@ Tres decisiones que no se ven en la lista:
      termina igual (y el aviso queda en /events). En #c10 era al revés: cancelar el stream libera GPU; aquí cancelar
      a mitad de una escritura deja un efecto a medias. Lo que se corta es el stream, no el trabajo.
   2. Un turno a la vez por conversación (409 si llega otro): dos turnos en paralelo leerían el mismo step log y
-     podrían proponer la misma acción dos veces. El lock es por proceso; con varias réplicas, las conversaciones
-     se rutean por afinidad o el lock va a la base (un lease en Postgres).
+     podrían proponer la misma acción dos veces. El webhook de aprobaciones toma el MISMO lock (409 con
+     Retry-After si hay un turno corriendo; el sistema de aprobaciones reintenta): ejecutar la acción aprobada
+     también es un turno. El lock es por proceso; con varias réplicas, las conversaciones se rutean por
+     afinidad o el lock va a la base (un lease en Postgres).
   3. El webhook de aprobaciones se verifica con HMAC-SHA256 sobre "timestamp.cuerpo" y una ventana de 5 min
      (mismo esquema que usan proveedores de pagos para sus webhooks): sin firma, cualquiera que llegue a la red
      interna podría aprobar reembolsos; sin timestamp, un webhook capturado se podría reenviar.
@@ -194,7 +196,7 @@ def _sse(ev: Event) -> ServerSentEvent:
 
 # ------------------------------------------------------------------ la app
 def build_app(loop: AgentLoop, store: StepLog, authenticate: Authenticator, *, webhook_secret: str,
-              registry: CollectorRegistry | None = None, drain_timeout_s: float = 25.0) -> FastAPI:
+              registry: CollectorRegistry | None = None, drain_timeout_s: float = 40.0) -> FastAPI:
     registry = registry or CollectorRegistry()
     loop.obs = PrometheusObserver(registry, store)
     tasks: set[asyncio.Task] = set()
@@ -203,9 +205,11 @@ def build_app(loop: AgentLoop, store: StepLog, authenticate: Authenticator, *, w
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
-        # Apagado: se dejan terminar los turnos en curso (≤ 20 s cada uno + 3 s de la última herramienta).
-        # terminationGracePeriodSeconds del pod tiene que ser mayor que esto. Lo que no termine se retoma con
-        # AgentLoop.resume desde el step log al arrancar otro pod.
+        # Apagado: se dejan terminar los turnos en curso. Un turno puede pasar los 20 s hasta ≈ 35 s: el reloj se
+        # revisa antes de cada tool call, pero una escritura ya empezada termina con sus timeouts y reintentos
+        # (≈ 15 s en el peor caso) y el hand-off crea su ticket (otros ≈ 15 s). drain_timeout_s = 40 y
+        # terminationGracePeriodSeconds del pod > 40. Lo que no termine queda incompleto en el step log y
+        # AgentLoop.run_turn lo retoma (con AgentLoop.resume) cuando llega el siguiente mensaje de esa conversación.
         if tasks:
             await asyncio.wait(tasks, timeout=drain_timeout_s)
         store.close()
@@ -255,7 +259,7 @@ def build_app(loop: AgentLoop, store: StepLog, authenticate: Authenticator, *, w
                     await queue.put(ev)
             except NotOwner:
                 await queue.put(Event("error", {"code": "conversation_not_found"}))
-            except Exception:  # el turno falló: queda incompleto en el step log y se retoma con resume
+            except Exception:  # el turno falló: queda incompleto en el step log y el próximo mensaje lo retoma
                 log.exception("turn failed")
                 await queue.put(Event("error", {"code": "internal_error",
                                                 "text": "Tuvimos un problema; seguimos con tu caso en breve."}))
@@ -298,13 +302,21 @@ def build_app(loop: AgentLoop, store: StepLog, authenticate: Authenticator, *, w
         if skew > 300:
             raise HTTPException(401, "stale webhook")
         body = ApprovalIn.model_validate(json.loads(raw))
-        try:
-            events = await loop.decide_approval(approval_id, approved=body.decision == "approved",
-                                                approver=body.approver_id, note=body.note)
-        except KeyError as e:
-            raise HTTPException(404, "approval not found") from e
-        except ApprovalAlreadyDecided as e:
-            raise HTTPException(409, f"already {e}") from e
+        action = store.get_action(approval_id)
+        if action is None:
+            raise HTTPException(404, "approval not found")
+        # El mismo lock que POST /messages: si el cliente está escribiendo justo ahora, se reintenta en segundos
+        lock = locks.setdefault(action.conversation_id, asyncio.Lock())
+        if lock.locked():
+            raise HTTPException(409, "a turn is running for this conversation", headers={"Retry-After": "5"})
+        async with lock:
+            try:
+                events = await loop.decide_approval(approval_id, approved=body.decision == "approved",
+                                                    approver=body.approver_id, note=body.note)
+            except KeyError as e:
+                raise HTTPException(404, "approval not found") from e
+            except ApprovalAlreadyDecided as e:
+                raise HTTPException(409, f"already {e}") from e
         return {"approval_id": approval_id, "decision": body.decision,
                 "events": [{"type": e.type, "data": e.data} for e in events]}
 

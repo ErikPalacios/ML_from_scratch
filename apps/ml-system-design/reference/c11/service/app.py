@@ -149,7 +149,12 @@ class GatewayClient:
                     data = line[5:].strip()
                     if data == "[DONE]":
                         return
-                    event = json.loads(data)
+                    try:
+                        event = json.loads(data)
+                    except json.JSONDecodeError as e:
+                        # Un evento mal formado = el stream ya no es confiable: se trata como un corte (llm_error si
+                        # ya llegó texto, llm_unavailable si no), nunca como una excepción que deja al cliente sin final
+                        raise LLMUnavailable("evento SSE mal formado") from e
                     if "error" in event:
                         raise LLMUnavailable("error a mitad del stream")
                     for choice in event.get("choices", ()):

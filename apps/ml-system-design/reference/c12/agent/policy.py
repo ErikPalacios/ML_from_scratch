@@ -18,8 +18,11 @@ Qué decide `evaluate()` (en este orden, y el primer "no" gana):
   5. Confirmación: toda acción de dinero o irreversible (issue_refund, cancel_order) necesita que el cliente la
      confirme en la UI con un botón atado a ESA acción exacta (action_id = hash de los argumentos). Que el
      modelo diga "el cliente confirmó" no es una confirmación.
-  6. Aprobación: un reembolso > US$50 equivalentes (o cualquier reembolso en una conversación con señales de
-     inyección) va a la cola de aprobación humana; la conversación espera (SLA 4 horas hábiles).
+  6. Aprobación: va a la cola humana un reembolso > US$50 equivalentes, el de un cliente que ya tuvo un reembolso
+     del agente en los últimos 90 días (en cualquier pedido) o con score de riesgo alto, y cualquier reembolso en
+     una conversación marcada por texto de TERCEROS con señales de inyección (resultados de herramientas con texto
+     del vendedor o del producto; las banderas del mensaje del propio cliente se cuentan pero no marcan). La
+     conversación espera (SLA 4 horas hábiles).
 
 Pura = sin I/O, sin reloj (recibe `now`), sin base de datos: los hechos (OrderFacts) los trae el orquestador
 con una lectura del backend justo antes de decidir, y se vuelven a leer después de una espera larga (una
@@ -77,6 +80,10 @@ class OrderFacts:
     total: Decimal  # total cobrado
     refunded_total: Decimal = Decimal("0")  # ya reembolsado (por personas o por el agente)
     agent_refunds: int = 0  # reembolsos que hizo el AGENTE en este pedido (máximo 1)
+    # Del CLIENTE, no del pedido: el abuso que el tope por pedido no ve ("llegó dañado" en un pedido distinto
+    # cada semana). Los trae la misma lectura de hechos.
+    agent_refunds_last_90d: int = 0  # reembolsos del agente a este cliente en 90 días, en cualquier pedido
+    risk_score: float | None = None  # score del modelo de fraude/riesgo (0–1); None = no disponible
     delivered_at: datetime | None = None  # para la ventana de devolución
     shipment: ShipmentFacts | None = None  # None si todavía no se creó el envío
 
@@ -89,7 +96,7 @@ class ConversationFacts:
     allowed_tools: frozenset[str]  # tools.TOOLSETS[conversation_type]: se pasa para que esto siga siendo puro
     confirmed_action_ids: frozenset[str] = frozenset()  # action_ids confirmados con el botón de la UI
     approved_action_ids: frozenset[str] = frozenset()  # action_ids aprobados en la cola humana
-    injection_flagged: bool = False  # alguna señal de inyección en esta conversación (guardrails/untrusted.py)
+    injection_flagged: bool = False  # señal de inyección en texto de TERCEROS (herramientas), no del cliente
 
 
 @dataclass(frozen=True)
@@ -114,6 +121,10 @@ class PolicyConfig:
         (None, "refunds-tier2"),  # montos grandes: equipo de riesgo / finanzas
     )
     approval_sla_business_hours: int = 4  # SPEC: la conversación espera hasta 4 horas hábiles
+    # Tope por CLIENTE: desde el 2.º reembolso del agente en esta ventana, lo decide una persona (ilustrativo)
+    customer_refund_window_days: int = 90
+    max_auto_refunds_per_customer: int = 1
+    risk_score_threshold: float = 0.8  # score ≥ esto → aprobación humana (ilustrativo; lo calibra riesgo)
     # Kill switch (escalón de la escalera de degradación): toda acción de dinero o irreversible va a aprobación
     # humana. Se prende con AgentPolicyViolation o RefundAmountAnomaly sin explicar; es configuración, no un deploy.
     money_to_humans: bool = False
@@ -283,6 +294,17 @@ def evaluate(
         if amount_usd > cfg.auto_refund_limit_usd:
             return Decision(Verdict.NEEDS_APPROVAL, "over_auto_limit",
                             f"US${amount_usd} supera el límite automático de US${cfg.auto_refund_limit_usd}.",
+                            amount_usd=amount_usd, approval_queue=route_approval(amount_usd, cfg))
+        if order.agent_refunds_last_90d >= cfg.max_auto_refunds_per_customer:
+            # Un reembolso automático por cliente por ventana: el segundo, aunque sea de otro pedido y chico, lo
+            # mira una persona con el historial a la vista (el patrón "un pedido distinto cada semana")
+            return Decision(Verdict.NEEDS_APPROVAL, "customer_refund_cap",
+                            f"El cliente ya tuvo {order.agent_refunds_last_90d} reembolso(s) del asistente en "
+                            f"{cfg.customer_refund_window_days} días.",
+                            amount_usd=amount_usd, approval_queue=route_approval(amount_usd, cfg))
+        if order.risk_score is not None and order.risk_score >= cfg.risk_score_threshold:
+            return Decision(Verdict.NEEDS_APPROVAL, "risk_score",
+                            "El score de riesgo del cliente está sobre el umbral: revisa una persona.",
                             amount_usd=amount_usd, approval_queue=route_approval(amount_usd, cfg))
         if conv.injection_flagged:
             # Las heurísticas de inyección no bloquean (tienen falsos positivos), pero SUBEN la exigencia: en una
