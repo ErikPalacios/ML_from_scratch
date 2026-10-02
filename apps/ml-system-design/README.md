@@ -29,7 +29,7 @@ Genera dos archivos en `dist/`:
 
 | archivo | para qué |
 |---|---|
-| `dist/ml-system-design.html` | la app completa en un solo HTML autocontenido (~0.9 MB). Cópialo a donde quieras y ábrelo con doble clic. |
+| `dist/ml-system-design.html` | la app completa en un solo HTML autocontenido (~7.5 MB). Cópialo a donde quieras y ábrelo con doble clic. |
 | `dist/artifact.html` | el mismo contenido sin `<!doctype>`, `<html>`, `<head>` ni `<body>` (empieza con `<title>`), para publicarlo como **Artifact de claude.ai**. |
 
 El único recurso externo son las fuentes IBM Plex de Google Fonts; sin conexión, la app usa las
