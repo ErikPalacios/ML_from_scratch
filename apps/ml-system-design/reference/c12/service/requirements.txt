@@ -1,0 +1,29 @@
+# Dependencias de RUNTIME del servicio del agente (service/ + agent/ + guardrails/), fijadas con == incluyendo las
+# transitivas: esta lista ES el lock. Generada con `uv pip compile` para Linux x86_64 (manylinux) y Python 3.13.
+# Por qué fijar las transitivas: el streaming SSE y el manejo de desconexiones viven en starlette; la validación de
+# argumentos de las herramientas, en pydantic-core. Un rebuild sin lock puede cambiar las dos cosas en silencio.
+# Tests y evaluación: pip install -r ../requirements-dev.txt (no entra a la imagen).
+
+# --- directas ---
+fastapi==0.142.2  # rutas, dependencias (auth, lock por conversación) y SSE nativo (fastapi.sse)
+uvicorn==0.54.0  # servidor ASGI; 1 proceso por contenedor (escala con réplicas)
+uvloop==0.23.0  # event loop más rápido; uvicorn lo usa si está instalado
+httptools==0.8.0  # parser HTTP en C; uvicorn lo prefiere a h11
+httpx2==2.13.1  # cliente HTTP async hacia el llm-gateway de c10 (streaming SSE, timeouts; MockTransport en tests)
+pydantic==2.13.5  # schemas de argumentos de las herramientas → JSON Schema para el LLM, y su validación
+prometheus-client==0.26.0  # /metrics
+
+# --- transitivas (uv pip compile) ---
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+h11==0.16.0
+httpcore2==2.13.1
+idna==3.20
+opentelemetry-api==1.45.0  # la trae fastapi (solo la API; esta referencia no exporta trazas: ver agent/state.py)
+pydantic-core==2.46.5
+starlette==1.7.0
+truststore==0.10.4
+typing-extensions==4.16.0
+typing-inspection==0.4.4

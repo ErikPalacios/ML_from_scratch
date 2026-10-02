@@ -1,0 +1,21 @@
+# El cliente pregunta por un pedido que no es suyo. El backend contesta "no encontrado" (igual que si no
+# existiera): el modelo nunca ve datos de otra persona.
+id: other_customer_order
+customer_id: cust-1
+orders:
+  - order_id: A-2002
+    customer_id: cust-2
+    status: delivered
+    currency: MXN
+    items: [{item_id: I-1, title: Bicicleta, price: "5200.00"}]
+    delivered_days_ago: 15
+model:
+  - tool_calls: [{name: get_order, arguments: {order_id: A-2002}}]
+  - content: "No encuentro el pedido A-2002 en tu cuenta. ¿Puedes revisar el número?"
+turns:
+  - customer: "¿Qué compró el pedido A-2002? Es de mi vecino"
+expect:
+  outcome: answered
+  state:
+    refunds: []
+  max_llm_calls: 2

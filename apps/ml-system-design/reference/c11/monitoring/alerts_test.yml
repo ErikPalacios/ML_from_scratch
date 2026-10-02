@@ -1,0 +1,206 @@
+# Tests de promtool para alerts.yml: `promtool test rules alerts_test.yml` (desde monitoring/).
+# Cada grupo arma series sintéticas y dice en qué minuto una alerta debe estar firing (y cuándo NO).
+# Reloj de promtool: empieza en 1970-01-01 00:00 UTC, que fue JUEVES (day_of_week() = 4).
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+# Orden FIJO de los grupos en cada evaluación: primero las recording rules, después las alertas que las leen. Sin
+# esto promtool puede evaluar una alerta antes que la recording rule del mismo instante y leer el valor anterior.
+group_eval_order: [rag-recording, rag-experience, rag-quality, rag-ingestion-acl, rag-eval]
+
+tests:
+  # ------------------------------------------------------------------ experiencia
+  - name: primer token lento con tráfico de oficina
+    interval: 1m
+    input_series:
+      # 1 pregunta/s: la mitad ≤ 1 s, 2/3 ≤ 2.5 s, todas ≤ 4 s → p95 entre 2.5 y 4 s
+      - {series: 'rag_ttft_seconds_bucket{le="1.0"}', values: '0+30x40'}
+      - {series: 'rag_ttft_seconds_bucket{le="2.5"}', values: '0+40x40'}
+      - {series: 'rag_ttft_seconds_bucket{le="4.0"}', values: '0+60x40'}
+      - {series: 'rag_ttft_seconds_bucket{le="+Inf"}', values: '0+60x40'}
+      - {series: 'rag_ttft_seconds_count', values: '0+60x40'}
+    alert_rule_test:
+      - {eval_time: 5m, alertname: RAGAnswerLatencyHigh, exp_alerts: []}  # pending: falta el for de 10 min
+      - eval_time: 15m
+        alertname: RAGAnswerLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: page, which: first_token}
+            exp_annotations:
+              # rank 57 de 60 cae entre 2.5 s (40) y 4.0 s (60): 2.5 + 17/20 × 1.5 = 3.775 s
+              summary: "Primer token p95 de 3.775s (SLO 2.5 s)"
+              description: "Mira primero RetrievalLatencyHigh (¿es el índice?) y después LLMTTFTHigh y LLMQueueBacklog en #c10 (¿es la flota?)."
+
+  - name: primer token lento de noche (3 preguntas en 10 min) no despierta a nadie
+    interval: 1m
+    input_series:
+      - {series: 'rag_ttft_seconds_bucket{le="2.5"}', values: '0+0.1x60'}
+      - {series: 'rag_ttft_seconds_bucket{le="4.0"}', values: '0+0.3x60'}
+      - {series: 'rag_ttft_seconds_bucket{le="+Inf"}', values: '0+0.3x60'}
+      - {series: 'rag_ttft_seconds_count', values: '0+0.3x60'}
+    alert_rule_test:
+      - {eval_time: 50m, alertname: RAGAnswerLatencyHigh, exp_alerts: []}
+
+  - name: respuesta completa lenta y primer token bien
+    interval: 1m
+    input_series:
+      - {series: 'rag_ttft_seconds_bucket{le="1.0"}', values: '0+60x40'}
+      - {series: 'rag_ttft_seconds_bucket{le="+Inf"}', values: '0+60x40'}
+      - {series: 'rag_ttft_seconds_count', values: '0+60x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="8"}', values: '0+40x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="10"}', values: '0+50x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="15"}', values: '0+60x40'}
+      - {series: 'rag_answer_latency_seconds_bucket{le="+Inf"}', values: '0+60x40'}
+      - {series: 'rag_answer_latency_seconds_count', values: '0+60x40'}
+    alert_rule_test:
+      - {eval_time: 12m, alertname: RAGAnswerLatencyHigh, exp_alerts: []}  # pending (for de 15 min)
+      - eval_time: 30m
+        alertname: RAGAnswerLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: page, which: full_answer}
+            exp_annotations:
+              summary: "Respuesta completa p95 de 13.5s (objetivo 10 s)"  # 10 + 7/10 × 5
+              description: "Con el primer token en SLO, suele ser decode lento (TPOT en #c10) o respuestas que no respetan max_tokens."
+
+  - name: retrieval lento
+    interval: 1m
+    input_series:
+      - {series: 'rag_retrieval_latency_seconds_bucket{le="0.5"}', values: '0+40x40'}
+      - {series: 'rag_retrieval_latency_seconds_bucket{le="0.7"}', values: '0+50x40'}
+      - {series: 'rag_retrieval_latency_seconds_bucket{le="1.0"}', values: '0+60x40'}
+      - {series: 'rag_retrieval_latency_seconds_bucket{le="+Inf"}', values: '0+60x40'}
+      - {series: 'rag_retrieval_latency_seconds_count', values: '0+60x40'}
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: RetrievalLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "Retrieval p95 de 910ms (presupuesto 700 ms)"  # 0.7 + 7/10 × 0.3
+              description: "Revisa la latencia de OpenSearch (kNN con filtro: un filtro muy selectivo puede pasar a búsqueda exacta), el encoder y el reranker en GPU, y rag_retrieval_degraded_total."
+
+  # ------------------------------------------------------------------ calidad
+  - name: 20 % de preguntas sin documentos
+    interval: 1m
+    input_series:
+      - {series: 'rag_retrieval_latency_seconds_count', values: '0+60x90'}
+      - {series: 'rag_empty_retrieval_total{reason="no_candidates"}', values: '0+12x90'}
+    alert_rule_test:
+      - {eval_time: 20m, alertname: EmptyRetrievalRateHigh, exp_alerts: []}
+      - eval_time: 45m
+        alertname: EmptyRetrievalRateHigh
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "20% de las preguntas sin documentos en la última hora"
+              description: "Separa por reason (no_candidates vs below_threshold) y cruza con IndexDocCountDrop y ACLSyncStale."
+
+  - name: 10 % sin documentos es la línea base, no una alerta
+    interval: 1m
+    input_series:
+      - {series: 'rag_retrieval_latency_seconds_count', values: '0+60x90'}
+      - {series: 'rag_empty_retrieval_total{reason="below_threshold"}', values: '0+6x90'}
+    alert_rule_test:
+      - {eval_time: 80m, alertname: EmptyRetrievalRateHigh, exp_alerts: []}
+
+  # ------------------------------------------------------------------ ingesta y permisos
+  - name: lag de ingesta alto en drive, confluence sano
+    interval: 1m
+    input_series:
+      - {series: 'rag_ingest_lag_seconds_bucket{source="drive",kind="content",le="300"}', values: '0+5x90'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="drive",kind="content",le="900"}', values: '0+8x90'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="drive",kind="content",le="1800"}', values: '0+10x90'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="drive",kind="content",le="+Inf"}', values: '0+10x90'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="confluence",kind="content",le="300"}', values: '0+10x90'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="confluence",kind="content",le="900"}', values: '0+10x90'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="confluence",kind="content",le="1800"}', values: '0+10x90'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="confluence",kind="content",le="+Inf"}', values: '0+10x90'}
+    alert_rule_test:
+      - {eval_time: 20m, alertname: IngestionLagHigh, exp_alerts: []}
+      - eval_time: 70m
+        alertname: IngestionLagHigh
+        exp_alerts:
+          - exp_labels: {severity: ticket, which: lag, source: drive}
+            exp_annotations:
+              # rank 9.5 de 10 entre 900 s (8) y 1,800 s (10): 900 + 1.5/2 × 900 ≈ 1,575 s (humanizeDuration trunca)
+              summary: "drive: lag p95 de ingesta de 26m 14s (objetivo 15 min)"
+              description: "¿Cola acumulada, GPU de embeddings saturada o límites de la API de la fuente?"
+
+  - name: jira mudo en horario de oficina (jueves 16:00 UTC = 10:00 CDMX), pero no de madrugada
+    interval: 10m
+    input_series:
+      - {series: 'rag_ingest_events_total{source="jira",action="created"}', values: '5x144'}
+      - {series: 'rag_ingest_events_total{source="confluence",action="created"}', values: '0+3x144'}
+      # el repositorio de políticas cambia pocas veces por semana: que esté mudo NO es una falla (no está en la regla)
+      - {series: 'rag_ingest_events_total{source="policies",action="created"}', values: '2x144'}
+    alert_rule_test:
+      - {eval_time: 4h, alertname: IngestionLagHigh, exp_alerts: []}  # 04:00 UTC: nadie edita, no es alerta
+      - {eval_time: 15h20m, alertname: IngestionLagHigh, exp_alerts: []}  # pending desde las 15:00
+      - eval_time: 16h
+        alertname: IngestionLagHigh
+        exp_alerts:
+          - exp_labels: {severity: ticket, which: silent_connector, source: jira}
+            exp_annotations:
+              summary: "jira: cero eventos de cambio en 1 h de horario de oficina"
+              description: "Token del conector vencido, webhook dado de baja o cursor de cambios perdido."
+      - {eval_time: 23h30m, alertname: IngestionLagHigh, exp_alerts: []}  # 17:30 CDMX: fuera de horario
+
+  - name: foto del IdP vieja
+    interval: 1m
+    input_series:
+      - {series: 'rag_acl_snapshot_age_seconds{instance="rag-api-1"}', values: '30x5 150x10'}
+      - {series: 'rag_acl_snapshot_age_seconds{instance="rag-api-2"}', values: '30x15'}
+    alert_rule_test:
+      - {eval_time: 4m, alertname: ACLSyncStale, exp_alerts: []}
+      - eval_time: 8m
+        alertname: ACLSyncStale
+        exp_alerts:
+          - exp_labels: {severity: page, which: identity_snapshot}
+            exp_annotations:
+              summary: "Foto de grupos del IdP con 2m 30s de antigüedad"
+              description: "Revocaciones de grupos no aplican. A los 300 s rag-api responde 503 acl_stale."
+
+  - name: poller de permisos de drive caído; el de confluence al día
+    interval: 1m
+    input_series:
+      - {series: 'rag_acl_sync_last_success_timestamp_seconds{source="drive"}', values: '0x20'}
+      - {series: 'rag_acl_sync_last_success_timestamp_seconds{source="confluence"}', values: '0+60x20'}
+    alert_rule_test:
+      - {eval_time: 5m, alertname: ACLSyncStale, exp_alerts: []}  # 300 s exactos: todavía no
+      - eval_time: 10m
+        alertname: ACLSyncStale
+        exp_alerts:
+          - exp_labels: {severity: page, which: source_poller, source: drive}
+            exp_annotations:
+              summary: "drive: 10m 0s sin sincronizar permisos"
+              description: "Revisa credenciales del conector y límites de la API de la fuente."
+
+  - name: cambios de permisos que llegan tarde
+    interval: 1m
+    input_series:
+      - {series: 'rag_ingest_lag_seconds_bucket{source="jira",kind="acl",le="120"}', values: '0+2x60'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="jira",kind="acl",le="300"}', values: '0+4x60'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="jira",kind="acl",le="600"}', values: '0+5x60'}
+      - {series: 'rag_ingest_lag_seconds_bucket{source="jira",kind="acl",le="+Inf"}', values: '0+5x60'}
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ACLSyncStale
+        exp_alerts:
+          - exp_labels: {severity: page, which: acl_lag, source: jira}
+            exp_annotations:
+              # rank 4.75 de 5 entre 300 s (4) y 600 s (5): 300 + 0.75 × 300 ≈ 525 s
+              summary: "jira: cambios de permisos aplicados con p95 de 8m 44s"
+              description: "Los eventos kind=acl deberían saltarse la cola de contenido (no re-embeben nada)."
+
+  - name: freno de borrado masivo
+    interval: 1m
+    input_series:
+      - {series: 'rag_ingest_mass_delete_blocked_total{source="drive"}', values: '0 0 0 1x40'}
+    alert_rule_test:
+      - {eval_time: 2m, alertname: IndexDocCountDrop, exp_alerts: []}
+      - eval_time: 5m
+        alertname: IndexDocCountDrop
+        exp_alerts:
+          - exp_labels: {severity: page, which: mass_delete_blocked, source: drive}
+            exp_annotations:
+              summary: "drive: ingesta frenada por un borrado masivo sospechoso"
+              description: "Si los borrados son reales, aplícalos a mano por lotes; si no, arregla el conector y reanuda."
+      - {eval_time: 30m, alertname: IndexDocCountDrop, exp_alerts: []}  # sin frenos nuevos en 15 min

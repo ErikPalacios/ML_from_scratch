@@ -1,0 +1,19 @@
+# El modelo repite la misma consulta con los mismos argumentos: es un loop. Se corta y pasa a una persona con
+# un resumen armado desde el step log.
+id: loop_repeated_call
+customer_id: cust-1
+orders:
+  - order_id: A-1029
+    customer_id: cust-1
+    status: delivered
+    currency: MXN
+    items: [{item_id: I-1, title: Audífonos inalámbricos, price: "450.00"}]
+    delivered_days_ago: 3
+model:
+  - tool_calls: [{name: get_order, arguments: {order_id: A-1029}}]
+  - tool_calls: [{name: get_order, arguments: {order_id: A-1029}}]
+turns:
+  - customer: "¿Qué pasó con A-1029?"
+expect:
+  outcome: handoff
+  handoff_reason: repeated_call

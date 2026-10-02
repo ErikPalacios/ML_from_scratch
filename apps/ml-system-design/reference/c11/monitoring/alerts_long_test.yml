@@ -1,0 +1,108 @@
+# Tests de promtool para las alertas que miran días (feedback contra la semana pasada, el canario contra su
+# promedio de 7 días, documentos contra ayer): `promtool test rules alerts_long_test.yml` (desde monitoring/).
+# Archivo aparte porque simula hasta 8 días: con evaluación cada 5 min (y no cada 1 min) tarda segundos, no minutos.
+# Los gauges van con una muestra por minuto: una consulta instantánea solo mira 5 min hacia atrás, y un gauge con
+# una muestra por hora "desaparecería" entre muestras (en producción se scrapea cada 15–60 s).
+rule_files: [alerts.yml]
+evaluation_interval: 5m
+# Orden FIJO de los grupos en cada evaluación: primero las recording rules, después las alertas que las leen. Sin
+# esto promtool puede evaluar una alerta antes que la recording rule del mismo instante y leer el valor anterior.
+group_eval_order: [rag-recording, rag-experience, rag-quality, rag-ingestion-acl, rag-eval]
+
+tests:
+  - name: pulgares abajo de 10 % a 40 % contra la semana pasada
+    interval: 1h
+    input_series:
+      # 7 días con 1 abajo y 9 arriba por hora (10 %), después 4 y 6 (40 %). Contadores: increase() no necesita
+      # muestras cada minuto.
+      - {series: 'rag_feedback_total{rating="down"}', values: '0+1x168 172+4x23'}
+      - {series: 'rag_feedback_total{rating="up"}', values: '0+9x168 1518+6x23'}
+    alert_rule_test:
+      - {eval_time: 167h, alertname: NegativeFeedbackRising, exp_alerts: []}
+      - eval_time: 192h
+        alertname: NegativeFeedbackRising
+        exp_alerts:
+          - exp_labels: {severity: ticket}
+            exp_annotations:
+              summary: "40% de pulgares abajo en 24 h (≥ 1.5× la semana pasada)"  # 96 de 240 contra 24 de 240
+              description: "Lee las líneas de log de los request_id con pulgar abajo: qué chunks llegaron y qué se citó. ¿Cambió el modelo, el prompt o una fuente?"
+
+  - name: el mismo salto con pocos votos no alerta
+    interval: 1h
+    input_series:
+      - {series: 'rag_feedback_total{rating="down"}', values: '0+0.1x168 17+1x23'}
+      - {series: 'rag_feedback_total{rating="up"}', values: '0+0.9x168 152+1x23'}
+    alert_rule_test:
+      - {eval_time: 192h, alertname: NegativeFeedbackRising, exp_alerts: []}  # 48 votos en 24 h < 100
+
+  - name: canario por debajo del piso y por debajo de su semana
+    interval: 1m
+    input_series:
+      - {series: 'rag_eval_groundedness{suite="canary"}', values: '0.9x10080 0.8x240'}
+      - {series: 'rag_eval_items{suite="canary"}', values: '100x10320'}
+    alert_rule_test:
+      - {eval_time: 167h, alertname: GroundednessCanaryRegression, exp_alerts: []}
+      - eval_time: 170h
+        alertname: GroundednessCanaryRegression
+        exp_alerts:
+          - exp_labels: {severity: ticket, which: floor, suite: canary}
+            exp_annotations:
+              summary: "Groundedness del canario en 80% (piso 85 %)"
+              description: "¿Qué cambió? modelo detrás de chat-default, prompt, chunking o índice. Compara con la suite full de la última revisión."
+          - exp_labels: {severity: ticket, which: drop, suite: canary}
+            exp_annotations:
+              summary: "Groundedness del canario 80%, > 5 puntos bajo su promedio de 7 días"
+              description: "Un cambio silencioso: una revisión nueva del alias, un documento nuevo que contradice a otros, un cambio del reranker."
+
+  - name: canario que cae 7 puntos pero sigue arriba del piso
+    interval: 1m
+    input_series:
+      - {series: 'rag_eval_groundedness{suite="canary"}', values: '0.97x10080 0.90x240'}
+      - {series: 'rag_eval_items{suite="canary"}', values: '100x10320'}
+    alert_rule_test:
+      - eval_time: 170h
+        alertname: GroundednessCanaryRegression
+        exp_alerts:
+          - exp_labels: {severity: ticket, which: drop, suite: canary}
+            exp_annotations:
+              summary: "Groundedness del canario 90%, > 5 puntos bajo su promedio de 7 días"
+              description: "Un cambio silencioso: una revisión nueva del alias, un documento nuevo que contradice a otros, un cambio del reranker."
+
+  - name: una corrida del canario con solo 20 preguntas no alcanza para alertar
+    interval: 1m
+    input_series:
+      # la misma caída de 0.97 a 0.80 (debajo del piso y del promedio), pero con 20 preguntas: ruido, no señal
+      - {series: 'rag_eval_groundedness{suite="canary"}', values: '0.97x10080 0.80x240'}
+      - {series: 'rag_eval_items{suite="canary"}', values: '100x10080 20x240'}
+    alert_rule_test:
+      - {eval_time: 170h, alertname: GroundednessCanaryRegression, exp_alerts: []}
+
+  - name: canario que dejó de correr
+    interval: 1m
+    input_series:
+      # corrió a las 0 h y a las 4 h; después nada
+      - {series: 'rag_eval_last_run_timestamp_seconds{suite="canary"}', values: '0x239 14400x600'}
+    alert_rule_test:
+      - {eval_time: 10h, alertname: GroundednessCanaryRegression, exp_alerts: []}  # 6 h sin correr: todavía no
+      - eval_time: 12h30m
+        alertname: GroundednessCanaryRegression
+        exp_alerts:
+          - exp_labels: {severity: ticket, which: not_running, suite: canary}
+            exp_annotations:
+              summary: "El canario de groundedness no corre hace 8h 30m 0s"
+              description: "Corre cada 4 h: dos corridas perdidas."
+
+  - name: drive pierde 8 % de documentos en un día; confluence estable
+    interval: 1m
+    input_series:
+      - {series: 'rag_index_documents{source="drive"}', values: '1200000x1440 1100000x120'}
+      - {series: 'rag_index_documents{source="confluence"}', values: '400000x1560'}
+    alert_rule_test:
+      - {eval_time: 23h, alertname: IndexDocCountDrop, exp_alerts: []}
+      - eval_time: 24h30m
+        alertname: IndexDocCountDrop
+        exp_alerts:
+          - exp_labels: {severity: ticket, which: count_drop, source: drive}
+            exp_annotations:
+              summary: "drive: 1.1e+06 documentos, > 5 % menos que ayer"
+              description: "Compara con rag_ingest_events_total{action=\"tombstoned\"} y con los permisos de la cuenta del conector."

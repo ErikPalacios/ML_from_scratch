@@ -1,0 +1,86 @@
+{
+  "_comment": "Corpus FICTICIO de la empresa acme.com (el marketplace de c01) para tests, eval y demo. No son políticas reales. Cada documento trae su ACL en la forma de su fuente; ingest/fixture_loader.py la normaliza con ingest/acl.py.",
+  "company_domain": "acme.com",
+  "identity": {
+    "user_groups": {
+      "ana@acme.com": ["group:google:soporte-mx@acme.com", "group:atlassian:soporte"],
+      "luis@acme.com": ["group:google:finanzas@acme.com", "group:atlassian:confluence-users"],
+      "marta@acme.com": ["group:google:ingenieria@acme.com", "group:atlassian:seguridad"],
+      "carlos@consultora.com": ["group:atlassian:contratistas"]
+    },
+    "group_parents": {
+      "group:google:soporte-mx@acme.com": ["group:google:soporte@acme.com"],
+      "group:atlassian:soporte": ["group:atlassian:confluence-users"],
+      "group:atlassian:seguridad": ["group:atlassian:confluence-users"]
+    },
+    "role_members": {
+      "role:jira:PAG:developers": ["group:google:ingenieria@acme.com", "user:luis@acme.com"],
+      "role:jira:SEC:developers": ["group:atlassian:seguridad"]
+    }
+  },
+  "documents": [
+    {
+      "source": "confluence", "doc_id": "confluence:2001", "version": 7,
+      "title": "Reembolsos a compradores: política vigente",
+      "url": "https://wiki.acme.com/spaces/SOP/pages/2001", "updated_at": "2026-07-01T10:00:00Z",
+      "acl": {"kind": "confluence", "space": {"groups": ["confluence-users"]}, "restrictions": []},
+      "markdown": "# Plazo para pedir un reembolso\nUn comprador puede pedir el reembolso hasta 30 días naturales después de la entrega confirmada. Pasado ese plazo, el caso se escala a Operaciones con la etiqueta reembolso-fuera-de-plazo.\n\n# Motivos y monto máximo sin aprobación\n| Motivo | Monto máximo sin aprobación | Evidencia |\n|---|---|---|\n| Paquete no recibido | US$50 | rastreo sin entrega |\n| Producto distinto al anunciado | US$50 | foto del producto |\n| Producto dañado | US$30 | foto del daño |\n\n# Cómo se paga\nEl reembolso vuelve al mismo medio de pago en 5 a 10 días hábiles. Si el pago fue en efectivo en tienda, el reembolso es saldo en la cuenta del comprador."
+    },
+    {
+      "source": "confluence", "doc_id": "confluence:2002", "version": 3,
+      "title": "Reembolsos a compradores (versión 2024, archivada)",
+      "url": "https://wiki.acme.com/spaces/SOP/pages/2002", "updated_at": "2024-03-10T09:00:00Z",
+      "acl": {"kind": "confluence", "space": {"groups": ["confluence-users"]}, "restrictions": []},
+      "markdown": "# Plazo para pedir un reembolso\nUn comprador puede pedir el reembolso hasta 15 días naturales después de la entrega. Esta versión fue reemplazada en 2026."
+    },
+    {
+      "source": "drive", "doc_id": "drive:3001", "version": 41,
+      "title": "Bonos trimestrales del equipo de Finanzas",
+      "url": "https://docs.acme.com/d/3001", "updated_at": "2026-09-02T16:20:00Z",
+      "acl": {"kind": "drive", "permissions": [
+        {"type": "group", "role": "reader", "emailAddress": "finanzas@acme.com"},
+        {"type": "anyone", "role": "reader", "allowFileDiscovery": false}
+      ]},
+      "markdown": "# Bonos trimestrales\nEl bono trimestral del equipo de Finanzas se calcula sobre el cumplimiento del cierre contable en 5 días hábiles. El pago es el último viernes del mes siguiente al trimestre."
+    },
+    {
+      "source": "drive", "doc_id": "drive:3002", "version": 12,
+      "title": "Guía de viáticos 2026",
+      "url": "https://docs.acme.com/d/3002", "updated_at": "2026-01-15T12:00:00Z",
+      "acl": {"kind": "drive", "permissions": [
+        {"type": "domain", "role": "reader", "domain": "acme.com", "allowFileDiscovery": true}
+      ]},
+      "markdown": "# Viáticos por país\n| País | Viático diario | Hotel máximo por noche |\n|---|---|---|\n| México | US$60 | US$120 |\n| Colombia | US$55 | US$110 |\n| Brasil | US$70 | US$140 |\n\n# Cómo se comprueban\nLos viáticos se comprueban en la herramienta de gastos con factura electrónica dentro de los 10 días hábiles posteriores al viaje."
+    },
+    {
+      "source": "drive", "doc_id": "drive:3003", "version": 2,
+      "title": "Notas de la reunión de precios",
+      "url": "https://docs.acme.com/d/3003", "updated_at": "2026-09-20T18:00:00Z",
+      "acl": {"kind": "drive", "permissions": [
+        {"type": "anyone", "role": "reader", "allowFileDiscovery": false}
+      ]},
+      "markdown": "# Notas\nSe discutió subir la comisión de vendedores en la categoría de electrónica."
+    },
+    {
+      "source": "jira", "doc_id": "jira:PAG-1234", "version": 1758300000000,
+      "title": "PAG-1234 Falla en pagos con OXXO",
+      "url": "https://acme.atlassian.net/browse/PAG-1234", "updated_at": "2026-09-19T17:20:00Z",
+      "acl": {"kind": "jira", "project": "PAG", "browse": [["role", "developers"]]},
+      "markdown": "# Descripción\nLos pagos en efectivo con OXXO quedan en estado pendiente cuando la referencia expira antes de la confirmación del proveedor. Causa raíz: el webhook del proveedor llega después de las 48 horas de vigencia.\n\n# Solución\nSe extendió la vigencia de la referencia a 72 horas y se agregó una conciliación cada hora."
+    },
+    {
+      "source": "jira", "doc_id": "jira:SEC-77", "version": 1758400000000,
+      "title": "SEC-77 Rotación de llaves del proveedor de pagos",
+      "url": "https://acme.atlassian.net/browse/SEC-77", "updated_at": "2026-09-21T08:00:00Z",
+      "acl": {"kind": "jira", "project": "SEC", "browse": [["logged_in", ""]], "security": [["role", "developers"]]},
+      "markdown": "# Descripción\nLa rotación de llaves del proveedor de pagos se hace cada 90 días con el procedimiento de doble custodia."
+    },
+    {
+      "source": "policies", "doc_id": "policies:macro-15", "version": 4,
+      "title": "Macro: reembolso por paquete no recibido",
+      "url": "https://support-macros.acme.com/macros/15", "updated_at": "2026-07-03T11:00:00Z",
+      "acl": {"kind": "confluence", "space": {"groups": ["soporte"]}, "restrictions": []},
+      "markdown": "# Texto de la macro\nLamentamos que tu paquete no haya llegado. Ya revisamos el rastreo y procede el reembolso completo, que verás en tu medio de pago en 5 a 10 días hábiles."
+    }
+  ]
+}

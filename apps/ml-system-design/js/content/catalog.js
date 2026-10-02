@@ -604,7 +604,7 @@
         'Evaluación: retrieval (recall@k) y respuesta (faithfulness) con sets dorados',
         'Latencia y costo por consulta; caching',
       ],
-      freq: 'alta', minutes: 125, difficulty: 'media',
+      freq: 'alta', minutes: 117, difficulty: 'media',
       connects: ['m09', 'm12', 'm14', 'm15', 'c07', 'c10'],
       tests: [
         'Diseñar el pipeline de ingestion, no solo la consulta',
@@ -630,7 +630,7 @@
         'Evaluación: tasa de éxito, trayectorias y regresiones',
         'Estado, memoria y reanudación de tareas largas',
       ],
-      freq: 'media', minutes: 125, difficulty: 'alta',
+      freq: 'media', minutes: 100, difficulty: 'alta',
       connects: ['m02', 'm12', 'm14', 'm15', 'c10', 'c11'],
       tests: [
         'Acotar el agente: qué hace solo y qué requiere aprobación',
@@ -826,7 +826,7 @@
       note: 'KV cache, continuous batching, RAG, agentes, evaluación y costo por token; enseguida lo aplicas sirviendo un LLM propio a escala.',
     },
     {
-      phase: 13, status: 'next',
+      phase: 13, status: 'done',
       title: 'Fase 13 — RAG y agentes',
       items: ['c11', 'c12'],
       note: 'Sobre M14 y c10: darle al modelo tus documentos con citas (c11) y dejarlo actuar con herramientas, timeouts y guardrails (c12).',
@@ -1104,6 +1104,66 @@
       {
         "topic": "Restricciones",
         "a": "AWS <b>us-east-1</b>, con el <b>EKS del c01</b> (tres zonas), Prometheus, Grafana y S3. No hay GPUs grandes: hay que pedir cuota de instancias P y no hay garantía de conseguir H100 on-demand. Sin presupuesto cerrado: finanzas quiere el costo mensual con las personas incluidas y nada de compromisos de 3 años al arrancar. Opera un equipo de plataforma de ≈ <b>3 personas</b> con guardia. Publicaciones puede seguir usando al proveedor con redacción de datos personales; soporte no."
+      }
+    ],
+    c11: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Los empleados del <b>marketplace del c01</b>: ≈ <b>8,000</b> personas de soporte, operaciones, éxito de vendedores, ingeniería y legal. Entran con SSO (Okta) desde el chat interno. ≈ 40 % lo usaría cada semana, sobre todo agentes de soporte y operaciones, que preguntan varias veces al día. Las respuestas son para leer y verificar: el asistente no actúa en ningún sistema."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Entra una pregunta en lenguaje natural (español la mayoría; inglés en ingeniería; portugués en Brasil), a veces de seguimiento en una conversación. Sale una respuesta corta, en streaming, basada solo en documentos internos, con <b>citas</b> que llevan a la fuente y a la sección. Si la información no está, debe decirlo y mostrar los documentos más cercanos; si dos fuentes se contradicen, mostrar ambas con fechas."
+      },
+      {
+        "topic": "Escala",
+        "a": "Cuatro fuentes: <b>Confluence</b> (≈ 400k páginas), <b>Google Drive</b> (≈ 1.2 M archivos, ≈ 300k PDFs, algunos escaneados y con tablas), <b>Jira</b> (≈ 3 M tickets; interesan los últimos 2 años) y el repositorio de políticas y macros de soporte. Tras filtrar quedan ≈ <b>1.5 M documentos</b>; cambia ≈ 1 % al día. Se esperan ≈ <b>25k preguntas al día</b> en horario hábil (≈ 10 h), con pico ≈ 3× a media mañana."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "Que empiece a responder rápido: primer token <b>p95 ≤ 2.5 s</b>; una respuesta típica completa en ≈ 10 s, en streaming. Una página editada debe poder responderse en <b>p95 ≤ 15 min</b>; un cambio de permisos que quita acceso, en <b>≤ 5 min</b>. Es una herramienta interna, no un camino crítico: si la generación falla, mostrar resultados de búsqueda es aceptable."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "No hay asistente hoy; se busca a mano en cada herramienta. Existe la plataforma de LLM del <b>c10</b>: un <code>llm-gateway</code> compatible con OpenAI y el modelo <code>chat-default</code> (≈ 70B) con <b>contexto máximo de 8k tokens</b>; este asistente sería un tenant nuevo. También existe el OpenSearch y el equipo de búsqueda del c07. No es nuestro trabajo entrenar el LLM ni el modelo de embeddings."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "No hay preguntas de prueba ni respuestas etiquetadas. Los expertos de cada área pueden dedicar algunas horas a escribir preguntas y revisar respuestas. Cada fuente tiene sus permisos: espacios y restricciones de página en Confluence, permisos por archivo en Drive (incluido “cualquiera con el link”), proyectos y niveles de seguridad en Jira; los grupos viven en Okta y Google. Nadie mide hoy el tiempo que se pierde buscando."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Regla de Seguridad: nadie puede obtener del asistente algo que no podría abrir en la fuente. Los documentos internos <b>no salen</b> de la empresa (sin proveedor externo). RH y legal quedan fuera salvo aprobación de sus dueños. Las respuestas se registran con ids de documentos, no con texto, 30 días. AWS us-east-1 con EKS, Prometheus y S3. Sin presupuesto cerrado: el LLM se cobra como showback; el resto, miles de dólares al mes, no decenas de miles."
+      }
+    ],
+    c12: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "El <b>asistente de soporte del marketplace del c01</b> (el tenant <code>support-assistant</code> de la plataforma del c10) atiende por chat, en la app y la web, a <b>compradores y vendedores ya autenticados</b>. Hoy solo responde preguntas; lo demás lo atiende una de ≈ <b>600 personas</b>. El negocio quiere que <b>resuelva casos actuando sobre los sistemas internos</b> en nombre del cliente y que pase el resto a una persona con un resumen."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Entra el mensaje del cliente (español o portugués) con su token de sesión. Hay <b>8 herramientas</b> acordadas: <code>get_order</code>, <code>get_shipment_tracking</code>, <code>search_help_center</code> (centro de ayuda público), <code>update_shipping_address</code> y <code>cancel_order</code> (solo antes del envío), <code>create_return_label</code>, <code>issue_refund</code> y <code>escalate_to_human</code>. Sale texto en el chat, acciones sobre los pedidos del cliente o un pase a una persona. Nada de tocar la cuenta, el medio de pago ni pedidos de otros."
+      },
+      {
+        "topic": "Escala",
+        "a": "≈ <b>150k conversaciones al día</b>, con el pico a media mañana en ≈ 3× el promedio. ≈ <b>45 %</b> necesitan una acción (reembolso, devolución, cambio de dirección, cancelación, rastreo). El asistente actual cierra ≈ la mitad; ≈ <b>75k al día</b> llegan a una persona. Los prototipos hacen ≈ <b>6 llamadas al LLM por conversación</b>, con ≈ 2,500 tokens de entrada (≈ 1,500 son el system prompt y los schemas de las tools, iguales siempre) y ≈ 150 de salida por llamada."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "El cliente tiene que ver algo rápido: primera respuesta visible de un turno (texto o un estado como “consultando tu pedido…”) en <b>p95 ≤ 4 s</b>; turno completo con herramientas en <b>p95 ≤ 12 s</b>. Las APIs internas responden en p50 ≈ 100–300 ms y p99 ≈ 1–2 s; la de envíos depende de paqueterías y se cae un par de veces al mes. Las aprobaciones humanas tienen un SLA de <b>4 horas hábiles</b>. El chat tiene que seguir funcionando aunque el agente no esté."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "No se elige ni se entrena modelo: corre en la plataforma del c10 (<code>llm-gateway</code> → <code>chat-default</code>, ≈ 70B, contexto máximo de 8k tokens; el tenant de soporte acepta prompts de hasta 6,000 tokens y tiene una cuota de 5.4 M tokens/min). La API es compatible con OpenAI; el tool calling todavía no está activado en la flota. Soporte <b>no tiene respaldo al proveedor externo</b>: sus conversaciones llevan datos personales."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "Hay registros de las conversaciones actuales (del asistente y de las personas), con datos personales, y sus resultados: si se resolvió, si se <b>reabrió en 7 días</b>, CSAT y reembolsos hechos. No existen trayectorias etiquetadas ni escenarios de prueba. Finanzas estima ≈ <b>US$3–5 por conversación</b> atendida por una persona. Las métricas del área son resolución, reaperturas en 7 días, CSAT y reembolsos en US$ por cada 1,000 conversaciones."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Reembolso automático hasta <b>US$50 o su equivalente</b>, solo por motivos y estados elegibles, y <b>máximo uno por pedido</b> hecho por el agente; arriba de eso o fuera de política decide una persona. Cambiar dirección o cancelar, solo antes del envío. El riesgo aceptado es <b>cero violaciones de política con dinero</b>; pueden aceptar que al principio resuelva menos. Los datos no salen de la empresa y se minimizan en prompts y logs. La API de pagos acepta idempotency keys; la de pedidos, todavía no."
       }
     ],
     c13: [

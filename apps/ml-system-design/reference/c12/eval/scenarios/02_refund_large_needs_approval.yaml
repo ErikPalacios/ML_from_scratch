@@ -1,0 +1,29 @@
+# Reembolso grande (2,400 MXN ≈ US$132): el cliente confirma, la política lo manda a la cola de aprobación
+# (refunds-tier1), el turno termina esperando; horas después una persona aprueba y se emite SIN llamar al modelo.
+id: refund_large_needs_approval
+customer_id: cust-1
+orders:
+  - order_id: A-1031
+    customer_id: cust-1
+    status: delivered
+    currency: MXN
+    items: [{item_id: I-1, title: Monitor 27 pulgadas, price: "2400.00"}]
+    delivered_days_ago: 2
+    shipment: {status: delivered, expected_in_days: -3}
+model:
+  - tool_calls: [{name: get_order, arguments: {order_id: A-1031}}]
+  - tool_calls: [{name: issue_refund, arguments: {order_id: A-1031, amount: 2400.0, currency: MXN, reason: damaged}}]
+  - content: "Tu reembolso quedó en revisión con una persona del equipo; te avisamos en máximo 4 horas hábiles."
+turns:
+  - customer: "El monitor del pedido A-1031 llegó con la pantalla estrellada"
+  - customer: "Confirmo"
+    confirm: true
+approvals:
+  - decision: approve
+expect:
+  outcome: answered
+  state:
+    refunds: [{order_id: A-1031, amount: "2400.00"}]
+  required_calls: [get_order, issue_refund]
+  allowed_calls: [get_order, issue_refund]
+  max_llm_calls: 3

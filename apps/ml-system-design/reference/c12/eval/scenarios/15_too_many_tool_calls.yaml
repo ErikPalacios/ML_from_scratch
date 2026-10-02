@@ -1,0 +1,21 @@
+# Nueve búsquedas distintas en un turno: el tope es 8 tool calls por turno. Se corta y pasa a una persona
+# (cuenta en agent_step_limit_hits_total{limit="tool_calls_per_turn"}).
+id: too_many_tool_calls
+conversation_type: general_question
+customer_id: cust-1
+orders: []
+model:
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 1", language: es}}]
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 2", language: es}}]
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 3", language: es}}]
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 4", language: es}}]
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 5", language: es}}]
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 6", language: es}}]
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 7", language: es}}]
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 8", language: es}}]
+  - tool_calls: [{name: search_help_center, arguments: {query: "devoluciones 9", language: es}}]
+turns:
+  - customer: "Explícame todo sobre devoluciones"
+expect:
+  outcome: handoff
+  handoff_reason: tool_calls_per_turn

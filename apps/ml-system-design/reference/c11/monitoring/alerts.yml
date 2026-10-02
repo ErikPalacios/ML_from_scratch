@@ -1,0 +1,183 @@
+# Alertas del asistente interno con RAG (caso c11). Las 8 del caso, en cuatro grupos:
+#   experiencia (lo que espera la persona) · calidad (lo que recibe) · ingesta y permisos (lo que el índice sabe)
+#   · evaluación continua (el canario del golden set).
+# De dónde sale cada métrica (ninguna lleva usuario, pregunta ni documento como label):
+#   rag-api (service/app.py) ......... rag_ttft_seconds, rag_answer_latency_seconds, rag_retrieval_latency_seconds,
+#                                       rag_empty_retrieval_total, rag_feedback_total, rag_acl_snapshot_age_seconds
+#   worker de ingesta (ingest/metrics.py) rag_ingest_lag_seconds{source,kind}, rag_ingest_events_total,
+#                                       rag_index_documents, rag_acl_sync_last_success_timestamp_seconds,
+#                                       rag_ingest_mass_delete_blocked_total
+#   job de evaluación (eval/groundedness.py) rag_eval_groundedness{suite}, rag_eval_items{suite},
+#                                       rag_eval_last_run_timestamp_seconds{suite}
+# Tráfico: ≈ 25k preguntas/día en horario de oficina (≈ 0.7 qps promedio, pico ≈ 2 qps). Es POCO: un p95 de 10 min
+# con 5 preguntas no significa nada. Por eso las alertas de latencia exigen un mínimo de tráfico (0.05 qps = 30
+# preguntas en 10 min) y de noche simplemente no evalúan.
+# Umbrales que no vienen del caso (15 %, 0.85, 5 puntos, 1.5×…) son ILUSTRATIVOS: se fijan con el primer mes.
+# Horario de oficina CDMX (UTC−6, sin horario de verano desde 2022): 09:00–17:00 = 15:00–23:00 UTC; hour() es UTC.
+
+groups:
+  - name: rag-recording
+    rules:
+      # p95 a 10 min de las tres latencias del caso (los histogramas tienen bordes EXACTOS en 2.5, 10 y 0.7 s)
+      - record: rag:ttft_seconds:p95_10m
+        expr: histogram_quantile(0.95, sum by (le) (rate(rag_ttft_seconds_bucket[10m])))
+      - record: rag:answer_latency_seconds:p95_10m
+        expr: histogram_quantile(0.95, sum by (le) (rate(rag_answer_latency_seconds_bucket[10m])))
+      - record: rag:retrieval_latency_seconds:p95_10m
+        expr: histogram_quantile(0.95, sum by (le) (rate(rag_retrieval_latency_seconds_bucket[10m])))
+      # preguntas que llegaron al retrieval por segundo (el denominador de las tasas y el mínimo de tráfico)
+      - record: rag:retrievals:rate10m
+        expr: sum(rate(rag_retrieval_latency_seconds_count[10m]))
+
+  - name: rag-experience
+    rules:
+      - alert: RAGAnswerLatencyHigh
+        # Primer token p95 > 2.5 s (el SLO del caso). Incluye retrieval, armado del prompt y la cola del gateway:
+        # lo que la persona espera mirando el cursor.
+        expr: rag:ttft_seconds:p95_10m > 2.5 and on() sum(rate(rag_ttft_seconds_count[10m])) > 0.05
+        for: 10m
+        labels: {severity: page, which: first_token}
+        annotations:
+          summary: "Primer token p95 de {{ $value | humanizeDuration }} (SLO 2.5 s)"
+          description: "Mira primero RetrievalLatencyHigh (¿es el índice?) y después LLMTTFTHigh y LLMQueueBacklog en #c10 (¿es la flota?)."
+      - alert: RAGAnswerLatencyHigh
+        # Respuesta completa p95 > 10 s. Incluye las que terminaron sin LLM (timeout del primer token = 8 s).
+        expr: rag:answer_latency_seconds:p95_10m > 10 and on() sum(rate(rag_answer_latency_seconds_count[10m])) > 0.05
+        for: 15m
+        labels: {severity: page, which: full_answer}
+        annotations:
+          summary: "Respuesta completa p95 de {{ $value | humanizeDuration }} (objetivo 10 s)"
+          description: "Con el primer token en SLO, suele ser decode lento (TPOT en #c10) o respuestas que no respetan max_tokens."
+      - alert: RetrievalLatencyHigh
+        # Retrieval + rerank p95 > 700 ms. Ticket y no page: RAGAnswerLatencyHigh ya pagina si la persona lo sufre;
+        # esta dice DÓNDE está el tiempo.
+        expr: rag:retrieval_latency_seconds:p95_10m > 0.7 and on() rag:retrievals:rate10m > 0.05
+        for: 15m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Retrieval p95 de {{ $value | humanizeDuration }} (presupuesto 700 ms)"
+          description: "Revisa la latencia de OpenSearch (kNN con filtro: un filtro muy selectivo puede pasar a búsqueda exacta), el encoder y el reranker en GPU, y rag_retrieval_degraded_total."
+
+  - name: rag-quality
+    rules:
+      - alert: EmptyRetrievalRateHigh
+        # Preguntas sin un solo chunk > 15 % en 1 h. Causas típicas: un conector caído (el índice perdió una fuente),
+        # una foto del IdP que llegó sin grupos (todos ven menos), un umbral del reranker mal calibrado.
+        expr: |
+          sum(rate(rag_empty_retrieval_total[1h])) / sum(rate(rag_retrieval_latency_seconds_count[1h])) > 0.15
+          and on() sum(rate(rag_retrieval_latency_seconds_count[1h])) > 0.05
+        for: 30m
+        labels: {severity: ticket}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} de las preguntas sin documentos en la última hora"
+          description: "Separa por reason (no_candidates vs below_threshold) y cruza con IndexDocCountDrop y ACLSyncStale."
+      - alert: NegativeFeedbackRising
+        # Pulgares abajo en 24 h: más de 1.5× los de la misma ventana hace una semana, más de 10 % y con ≥ 100 votos.
+        # Comparar contra la semana pasada (no contra un número fijo) absorbe que cada empresa vota distinto.
+        expr: |
+          (sum(increase(rag_feedback_total{rating="down"}[1d])) / sum(increase(rag_feedback_total[1d])))
+            > 1.5 * (sum(increase(rag_feedback_total{rating="down"}[1d] offset 7d)) / sum(increase(rag_feedback_total[1d] offset 7d)))
+          and (sum(increase(rag_feedback_total{rating="down"}[1d])) / sum(increase(rag_feedback_total[1d]))) > 0.10
+          and on() sum(increase(rag_feedback_total[1d])) >= 100
+        for: 1h
+        labels: {severity: ticket}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} de pulgares abajo en 24 h (≥ 1.5× la semana pasada)"
+          description: "Lee las líneas de log de los request_id con pulgar abajo: qué chunks llegaron y qué se citó. ¿Cambió el modelo, el prompt o una fuente?"
+
+  - name: rag-ingestion-acl
+    rules:
+      - alert: IngestionLagHigh
+        # Ediciones: p95 desde el cambio en la fuente hasta el índice > 15 min (la promesa del caso), por fuente.
+        expr: histogram_quantile(0.95, sum by (le, source) (rate(rag_ingest_lag_seconds_bucket{kind="content"}[30m]))) > 900
+        for: 30m
+        labels: {severity: ticket, which: lag}
+        annotations:
+          summary: "{{ $labels.source }}: lag p95 de ingesta de {{ $value | humanizeDuration }} (objetivo 15 min)"
+          description: "¿Cola acumulada, GPU de embeddings saturada o límites de la API de la fuente?"
+      - alert: IngestionLagHigh
+        # Un conector MUDO en horario de oficina: Confluence, Drive y Jira cambian cada hora de un día hábil. Un lag
+        # alto necesita eventos; un conector caído no produce ninguno y la regla de arriba no lo ve.
+        expr: |
+          sum by (source) (increase(rag_ingest_events_total{source=~"confluence|drive|jira"}[1h])) == 0
+          and on() (hour() >= 15 and hour() < 23)
+          and on() (day_of_week() >= 1 and day_of_week() <= 5)
+        for: 30m
+        labels: {severity: ticket, which: silent_connector}
+        annotations:
+          summary: "{{ $labels.source }}: cero eventos de cambio en 1 h de horario de oficina"
+          description: "Token del conector vencido, webhook dado de baja o cursor de cambios perdido."
+      - alert: ACLSyncStale
+        # La foto del IdP que usa rag-api tiene más de 2 min (se refresca cada ≈ 60 s). A los 5 min el servicio deja
+        # de contestar (falla cerrado): esta alerta da ≈ 2 min de aviso antes de ese 503.
+        expr: max(rag_acl_snapshot_age_seconds) > 120
+        for: 1m
+        labels: {severity: page, which: identity_snapshot}
+        annotations:
+          summary: "Foto de grupos del IdP con {{ $value | humanizeDuration }} de antigüedad"
+          description: "Revocaciones de grupos no aplican. A los 300 s rag-api responde 503 acl_stale."
+      - alert: ACLSyncStale
+        # El poller de cambios de permisos de una fuente no tiene un éxito en 5 min: la promesa "revocación ≤ 5 min"
+        # ya no se cumple para esa fuente.
+        expr: time() - max by (source) (rag_acl_sync_last_success_timestamp_seconds) > 300
+        for: 2m
+        labels: {severity: page, which: source_poller}
+        annotations:
+          summary: "{{ $labels.source }}: {{ $value | humanizeDuration }} sin sincronizar permisos"
+          description: "Revisa credenciales del conector y límites de la API de la fuente."
+      - alert: ACLSyncStale
+        # Los cambios de permisos SÍ llegan, pero tarde: p95 > 5 min entre el cambio y el índice.
+        expr: histogram_quantile(0.95, sum by (le, source) (rate(rag_ingest_lag_seconds_bucket{kind="acl"}[30m]))) > 300
+        for: 10m
+        labels: {severity: page, which: acl_lag}
+        annotations:
+          summary: "{{ $labels.source }}: cambios de permisos aplicados con p95 de {{ $value | humanizeDuration }}"
+          description: "Los eventos kind=acl deberían saltarse la cola de contenido (no re-embeben nada)."
+      - alert: IndexDocCountDrop
+        # Documentos vivos de una fuente: más de 5 % menos que hace 24 h. Casi nunca es gente borrando: es la cuenta
+        # de servicio que perdió acceso y la fuente "parece vacía".
+        expr: sum by (source) (rag_index_documents) < 0.95 * sum by (source) (rag_index_documents offset 1d)
+        for: 15m
+        labels: {severity: ticket, which: count_drop}
+        annotations:
+          summary: "{{ $labels.source }}: {{ $value }} documentos, > 5 % menos que ayer"
+          description: "Compara con rag_ingest_events_total{action=\"tombstoned\"} y con los permisos de la cuenta del conector."
+      - alert: IndexDocCountDrop
+        # El freno de borrado masivo detuvo un lote: la ingesta de esa fuente está PARADA hasta que alguien decida.
+        expr: sum by (source) (increase(rag_ingest_mass_delete_blocked_total[15m])) > 0
+        labels: {severity: page, which: mass_delete_blocked}
+        annotations:
+          summary: "{{ $labels.source }}: ingesta frenada por un borrado masivo sospechoso"
+          description: "Si los borrados son reales, aplícalos a mano por lotes; si no, arregla el conector y reanuda."
+
+  - name: rag-eval
+    rules:
+      - alert: GroundednessCanaryRegression
+        # Suite canario (≈ 100 preguntas del golden set, cada 4 h contra producción): menos de 85 % de respuestas
+        # con todo respaldado, con al menos 50 preguntas evaluadas.
+        expr: rag_eval_groundedness{suite="canary"} < 0.85 and rag_eval_items{suite="canary"} >= 50
+        for: 5m
+        labels: {severity: ticket, which: floor}
+        annotations:
+          summary: "Groundedness del canario en {{ $value | humanizePercentage }} (piso 85 %)"
+          description: "¿Qué cambió? modelo detrás de chat-default, prompt, chunking o índice. Compara con la suite full de la última revisión."
+      - alert: GroundednessCanaryRegression
+        # Caída de más de 5 puntos contra el promedio de la última semana (aunque siga arriba del piso). El promedio
+        # usa un subquery con un punto por hora ([7d:1h] = 168 puntos): el valor solo cambia cada 4 h, así que no se
+        # pierde nada, y no se cargan las ≈ 20k muestras de 7 días de scrapes cada vez que se evalúa la regla.
+        expr: |
+          rag_eval_groundedness{suite="canary"} < avg_over_time(rag_eval_groundedness{suite="canary"}[7d:1h]) - 0.05
+          and rag_eval_items{suite="canary"} >= 50
+        for: 5m
+        labels: {severity: ticket, which: drop}
+        annotations:
+          summary: "Groundedness del canario {{ $value | humanizePercentage }}, > 5 puntos bajo su promedio de 7 días"
+          description: "Un cambio silencioso: una revisión nueva del alias, un documento nuevo que contradice a otros, un cambio del reranker."
+      - alert: GroundednessCanaryRegression
+        # El canario no corre: sin datos, las dos reglas de arriba callan para siempre.
+        expr: time() - rag_eval_last_run_timestamp_seconds{suite="canary"} > 8 * 3600
+        for: 10m
+        labels: {severity: ticket, which: not_running}
+        annotations:
+          summary: "El canario de groundedness no corre hace {{ $value | humanizeDuration }}"
+          description: "Corre cada 4 h: dos corridas perdidas."

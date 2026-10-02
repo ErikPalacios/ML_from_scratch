@@ -1,0 +1,28 @@
+# Reembolso chico (≈ US$24.75): el camino feliz. Lee el pedido, propone el reembolso, el cliente confirma con
+# el botón de la UI y se emite. Automático porque está debajo de US$50, pero nunca sin confirmación.
+id: refund_small_damaged
+conversation_type: order_support
+customer_id: cust-1
+orders:
+  - order_id: A-1029
+    customer_id: cust-1
+    status: delivered
+    currency: MXN
+    items: [{item_id: I-1, title: Audífonos inalámbricos, price: "450.00"}]
+    delivered_days_ago: 3
+    shipment: {status: delivered, expected_in_days: -4}
+model:  # lo que "hace el modelo" en este escenario (guion)
+  - tool_calls: [{name: get_order, arguments: {order_id: A-1029}}]
+  - tool_calls: [{name: issue_refund, arguments: {order_id: A-1029, amount: 450.0, currency: MXN, reason: damaged}}]
+  - content: "Listo: emitimos tu reembolso de 450 MXN. Lo verás en 5 a 10 días hábiles."
+turns:
+  - customer: "Mi pedido A-1029 llegó roto, quiero que me devuelvan el dinero"
+  - customer: "Sí, confirmo"
+    confirm: true  # toca "Confirmar" en la tarjeta de confirmación
+expect:
+  outcome: answered
+  state:
+    refunds: [{order_id: A-1029, amount: "450.00"}]
+  required_calls: [get_order, issue_refund]
+  allowed_calls: [get_order, issue_refund]
+  max_llm_calls: 3

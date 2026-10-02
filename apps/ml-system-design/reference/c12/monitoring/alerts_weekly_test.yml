@@ -1,0 +1,110 @@
+# Tests que necesitan DÍAS de series: las dos alertas que comparan contra la misma hora de hace una semana (offset
+# 1w: RefundAmountAnomaly y EscalationRateShift) y ApprovalQueueBacklog un sábado. Aparte de alerts_test.yml para
+# evaluar cada 10 min en lugar de cada 1 min (segundos en promtool, no un minuto). Las series también van cada
+# 10 min, alineadas con la evaluación: con series cada 10 min y evaluación cada 1 min, la mitad de las
+# evaluaciones no encontraría muestra (lookback de 5 min) y ningún `for` se cumpliría.
+#   promtool test rules alerts_weekly_test.yml
+rule_files:
+  - alerts.yml
+evaluation_interval: 10m
+# Orden FIJO de los grupos en cada evaluación: primero las recording rules, después las alertas que las leen.
+# Sin esto promtool evalúa los grupos en orden aleatorio y una alerta puede leer el valor de la evaluación
+# anterior (o ninguno, si el intervalo supera los 5 min de lookback): tests que pasan o fallan al azar.
+group_eval_order: [c12-recording, c12-safety, c12-operations, c12-behavior]
+
+tests:
+  # ---------------------------------------------------------------- RefundAmountAnomaly (offset 1w)
+  # 1 conversación/s todo el tiempo. Reembolsos: US$1/s la primera semana (= US$1,000 por 1,000 conversaciones),
+  # US$2/s después (2,000 por 1,000). 2,000 > 1.5 × 1,000 desde ≈ 168h + algo de ventana; firing 30 min después.
+  - interval: 10m
+    input_series:
+      - series: 'agent_refund_amount_usd_total{path="auto"}'
+        values: '0+600x1008 606000+1200x40'
+      - series: 'agent_conversations_started_total{conversation_type="order_support"}'
+        values: '0+600x1050'
+    promql_expr_test:
+      - expr: agent:refund_usd_per_1k_conversations:rate1h
+        eval_time: 167h
+        exp_samples:
+          - labels: 'agent:refund_usd_per_1k_conversations:rate1h'
+            value: 1000
+      - expr: ALERTS{alertname="RefundAmountAnomaly", alertstate="firing"}
+        eval_time: 170h
+        exp_samples:
+          - labels: 'ALERTS{alertname="RefundAmountAnomaly", alertstate="firing", severity="page", team="support-agent"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 167h
+        alertname: RefundAmountAnomaly
+        exp_alerts: []
+
+  # El mismo salto con poco volumen (0.1 conversaciones/s, de madrugada): no alerta
+  - interval: 10m
+    input_series:
+      - series: 'agent_refund_amount_usd_total{path="auto"}'
+        values: '0+60x1008 60600+120x40'
+      - series: 'agent_conversations_started_total{conversation_type="order_support"}'
+        values: '0+60x1050'
+    alert_rule_test:
+      - eval_time: 170h
+        alertname: RefundAmountAnomaly
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- EscalationRateShift (offset 1w)
+  # Sube de 30 % a 45 % (+15 puntos) → dispara.
+  - interval: 10m
+    input_series:
+      - series: 'agent_handoffs_total{conversation_type="order_support",reason="model_escalation"}'
+        values: '0+180x1008 181710+270x40'
+      - series: 'agent_conversations_started_total{conversation_type="order_support"}'
+        values: '0+600x1050'
+    promql_expr_test:
+      - expr: ALERTS{alertname="EscalationRateShift", alertstate="firing"}
+        eval_time: 170h
+        exp_samples:
+          - labels: 'ALERTS{alertname="EscalationRateShift", alertstate="firing", severity="ticket", team="support-agent"}'
+            value: 1
+  # BAJA de 30 % a 15 % (−15 puntos) → también dispara: el agente "resuelve" lo que antes pasaba a una persona
+  - interval: 10m
+    input_series:
+      - series: 'agent_handoffs_total{conversation_type="order_support",reason="model_escalation"}'
+        values: '0+180x1008 181530+90x40'
+      - series: 'agent_conversations_started_total{conversation_type="order_support"}'
+        values: '0+600x1050'
+    promql_expr_test:
+      - expr: ALERTS{alertname="EscalationRateShift", alertstate="firing"}
+        eval_time: 170h
+        exp_samples:
+          - labels: 'ALERTS{alertname="EscalationRateShift", alertstate="firing", severity="ticket", team="support-agent"}'
+            value: 1
+  # De 30 % a 35 % (+5 puntos): dentro del ruido → no
+  - interval: 10m
+    input_series:
+      - series: 'agent_handoffs_total{conversation_type="order_support",reason="model_escalation"}'
+        values: '0+180x1008 181650+210x40'
+      - series: 'agent_conversations_started_total{conversation_type="order_support"}'
+        values: '0+600x1050'
+    alert_rule_test:
+      - eval_time: 170h
+        alertname: EscalationRateShift
+        exp_alerts: []
+
+  # ---------------------------------------------------------------- ApprovalQueueBacklog en fin de semana
+  # Misma edad hábil (20,000 s ≈ 5.6 h) el jueves a las 16:00 UTC (alerta) y el sábado a la misma hora (no).
+  - interval: 10m
+    input_series:
+      - series: 'agent_approval_oldest_pending_seconds'
+        values: '20000x400'
+      - series: 'agent_approvals_pending'
+        values: '2x400'
+    alert_rule_test:
+      - eval_time: 2d16h  # sábado 3 de enero de 1970
+        alertname: ApprovalQueueBacklog
+        exp_alerts: []
+      - eval_time: 16h  # el jueves a la misma hora, con el mismo valor (≈ 5.6 h hábiles), sí
+        alertname: ApprovalQueueBacklog
+        exp_alerts:
+          - exp_labels: {severity: page, team: support-ops}
+            exp_annotations:
+              summary: "Aprobación de reembolso esperando 5h 33m 20s hábiles (SLA 4 h)"
+              description: "Hay 2 pendientes. Clientes esperando su dinero: suma aprobadores o revisa si el webhook dejó de llegar."

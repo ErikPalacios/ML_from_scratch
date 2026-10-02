@@ -1,0 +1,23 @@
+# Cancelación antes del envío: irreversible → confirmación del cliente; después se aplica.
+id: cancel_before_shipment
+customer_id: cust-1
+orders:
+  - order_id: A-1030
+    customer_id: cust-1
+    status: preparing
+    currency: MXN
+    items: [{item_id: I-1, title: Licuadora, price: "1299.00"}]
+model:
+  - tool_calls: [{name: cancel_order, arguments: {order_id: A-1030, reason: changed_mind}}]
+  - content: "Tu pedido A-1030 quedó cancelado; el cargo se anula en tu tarjeta."
+turns:
+  - customer: "Ya no quiero la licuadora del pedido A-1030, cancélalo"
+  - customer: "Sí, cancélalo"
+    confirm: true
+expect:
+  outcome: answered
+  state:
+    order_status: {A-1030: cancelled}
+    refunds: []
+  required_calls: [cancel_order]
+  max_llm_calls: 2

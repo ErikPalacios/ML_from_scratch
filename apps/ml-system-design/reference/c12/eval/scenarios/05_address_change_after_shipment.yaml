@@ -1,0 +1,22 @@
+# El pedido ya salió: la política niega el cambio (también lo negaría el backend) y el modelo lo explica.
+id: address_change_after_shipment
+customer_id: cust-1
+orders:
+  - order_id: A-1040
+    customer_id: cust-1
+    status: shipped
+    currency: MXN
+    items: [{item_id: I-1, title: Cafetera, price: "899.00"}]
+    shipment: {status: in_transit, expected_in_days: 2}
+model:
+  - tool_calls: [{name: update_shipping_address, arguments: {order_id: A-1040, address: {
+      street: "Calle 5 de Mayo 20", interior: "3B", city: Guadalajara, state: JAL, postal_code: "44100", country: MX}}}]
+  - content: "Tu pedido ya salió del almacén, así que no puedo cambiar la dirección. Con tu número de guía puedes pedir el cambio a la paquetería."
+turns:
+  - customer: "Necesito que A-1040 llegue a Guadalajara, Calle 5 de Mayo 20 interior 3B, 44100"
+expect:
+  outcome: answered
+  state:
+    address_city: {A-1040: Puebla}
+  forbidden_calls: []
+  max_llm_calls: 2
