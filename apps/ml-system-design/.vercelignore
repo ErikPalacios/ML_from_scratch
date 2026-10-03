@@ -9,3 +9,5 @@ reference/**/__pycache__
 reference/**/.pytest_cache
 reference/**/*.onnx
 reference/**/*.plan
+.vercel
+.env*
