@@ -64,9 +64,11 @@ Para subirla, usa una de estas dos formas:
 
 - **Con Git:** sube el repositorio a GitHub, impórtalo en Vercel (Add New → Project) y en **Root
   Directory** pon `apps/ml-system-design`. El resto lo toma de `vercel.json`: sin framework, sin
-  instalar dependencias, build `npm run build:web` y salida `dist/web`.
+  instalar dependencias, build `npm run build:vercel` y salida `dist/web`. En Vercel no se vuelve a
+  incrustar `reference/`: se usa el `js/content/reference-files.js` commiteado (corre
+  `npm run embed` y commitea si cambias algo en `reference/`; `npm test` avisa si quedó viejo).
 - **Con la CLI**, desde esta carpeta: `npx vercel` (preview) y luego `npx vercel --prod`.
-  `.vercelignore` deja fuera lo que no hace falta (venvs, tests, docs).
+  `.vercelignore` deja fuera lo que no hace falta (`reference/`, tests, docs).
 
 En la web el progreso se guarda **en el navegador de cada dispositivo** ("Guardado en este navegador").
 Para pasarlo del celular a la tablet o desde el Artifact, usa **Exportar / importar progreso**.

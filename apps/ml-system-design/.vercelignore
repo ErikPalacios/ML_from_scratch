@@ -1,13 +1,10 @@
-# Lo que no hace falta subir para construir la versión web (vercel deploy desde esta carpeta)
-dist
-dev
-tests
-docs
-node_modules
-reference/**/.venv
-reference/**/__pycache__
-reference/**/.pytest_cache
-reference/**/*.onnx
-reference/**/*.plan
-.vercel
+# Vercel solo necesita index.html, css/, js/ (con reference-files.js ya generado y commiteado),
+# build.mjs, tools/build-web.mjs, web/ y package.json. Rutas ancladas a esta carpeta con "/".
+/dist
+/dev
+/docs
+/tests
+/reference
+/node_modules
+/.vercel
 .env*

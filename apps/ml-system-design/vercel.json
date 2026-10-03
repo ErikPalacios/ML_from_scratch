@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "",
-  "buildCommand": "npm run build:web",
+  "buildCommand": "npm run build:vercel",
   "outputDirectory": "dist/web",
   "headers": [
     {
