@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Ícono del Atlas: un bloque transformer (embedding · atención · MLP) con su residual, sobre el azul de acento. -->
+  <rect width="512" height="512" rx="112" fill="#2B5BD7"/>
+  <rect x="136" y="104" width="240" height="72" rx="14" fill="#E3EAFB"/>
+  <rect x="136" y="220" width="240" height="72" rx="14" fill="#F7E1EE"/>
+  <rect x="136" y="336" width="240" height="72" rx="14" fill="#DDF0E4"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 176v44M256 292v44"/>
+    <path d="M136 256H100v116h36" stroke-dasharray="22 18"/>
+  </g>
+  <rect x="136" y="220" width="240" height="72" rx="14" fill="none" stroke="#B4307A" stroke-width="8"/>
+  <rect x="136" y="104" width="240" height="72" rx="14" fill="none" stroke="#1E46B0" stroke-width="8"/>
+  <rect x="136" y="336" width="240" height="72" rx="14" fill="none" stroke="#25734A" stroke-width="8"/>
+</svg>

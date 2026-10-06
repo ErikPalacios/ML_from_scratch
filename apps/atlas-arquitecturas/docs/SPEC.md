@@ -166,7 +166,7 @@ dark under `@media (prefers-color-scheme: dark){ :root:not([data-theme="light"])
 | `conv` | convolution | `#9A5A06` / `#F6E9D5` | `#E3A34B` / `#35270F` | conv layers, CNN backbones, patchify-as-conv |
 | `fuse` | modality fusion | `#7445A8` / `#EEE6F7` | `#B794F0` / `#2A1F3D` | cross-modal attention, feature enhancers, token concat of modalities |
 | `head` | output heads & losses | `#0E7C74` / `#D5ECE9` | `#3CC2B4` / `#12302E` | classifier, box/class heads, LM head, mask decoder output, losses |
-| `tensorop` | tensor ops (no params) | `--rule-strong` / `--surface` | same tokens | reshape, flatten, split heads, concat, add (⊕), pooling, sampling |
+| `tensorop` | tensor ops (no params) | `--muted` / `--surface` | same tokens | reshape, flatten, split heads, concat, add (⊕), pooling, sampling |
 
 ### 3.2 Modality palette (tensor glyphs and the stripe on encoders/streams)
 | token (`--mod-*`) | modality | light / dark | glyph texture |
@@ -184,7 +184,7 @@ fails under 3:1 (graphics) / 4.5:1 (text); the shell agent may adjust hexes and 
 ### 3.3 Edge styles (connections)
 | kind | look | meaning |
 |---|---|---|
-| `data` | solid 1.75 px `--rule-strong`, filled arrowhead | main data flow (carries the tensor label) |
+| `data` | solid 1.75 px `--muted` (`--rule-strong` fails 3:1), filled arrowhead | main data flow (carries the tensor label) |
 | `residual` | dashed 6/4, `--ink` at 70 %, routed as a rounded bypass, ends in an `⊕` node | residual connection inside a block |
 | `skip` | long dash-dot, `--op-conv`, routed outside the main column | long-range skip (U-Net, FPN, encoder→decoder features) |
 | `cross` | double line (two 1 px strokes) in `--op-fuse`, hollow arrowhead, tag "K,V" | cross-attention: K and V come from another stream |
@@ -323,6 +323,10 @@ note`), plus:
 - `{t:'shapedrill', model, pool:[tensorIds]|'all', configs?:[configIds]}` — §8.2.
 - `{t:'whatif', items:[{q, change:{key:value}, ask:'tokens'|'params'|'macs'|'attnMem'|'kv', options?}]}` — §8.3.
 - `{t:'card', family|model}` — a map card (§5.5) embedded inline.
+- `{t:'formulas', prims?:[ids]}` — generated table of primitives (`ATLAS.Arch.primitives()`): name,
+  params formula, MACs formula, output shape (LaTeX). Used by `ref-formas`.
+Links to the Laboratorio in any html field: `<a href="lab:paso">…</a>`, `lab:entrenamiento`,
+`lab:generacion`, `lab:datos`, `lab:paso-<n>`; the shell rewrites them with `ATLAS.labLink` (§10.3).
 Inline HTML whitelist and number conventions as the Ronda: `<b> <strong> <i> <em> <code> <a href>
 <br> <sub> <sup> <kbd> <span class="en"> <span class="est">`; decimal point, comma thousands
 (86,567,656); `≈` for rounded values; **estimates** wrapped in `<span class="est">`. Inline quantities
@@ -344,7 +348,7 @@ over typed numbers whenever a number is architectural.
 Generated, not hand-written: for each primitive (§6.3) its param formula, MAC formula and output
 shape (LaTeX), and for each ready model a compact table (tokens, D, L, heads, params, MACs at the
 canonical config) via `compare`. Plus hand-written sections (allowed prose): rules of thumb (params
-of a transformer layer ≈ 12 D², MACs per token ≈ 2·params for the linear parts, attention term
+of a transformer layer ≈ 12 D², MACs per token ≈ params for the linear parts, i.e. FLOPs per token ≈ 2·params, attention term
 N²·D…), each one verified by a calculator assertion in `tests/arch.test.cjs` (§9.2).
 
 ## 6. The architecture calculator (`ATLAS.Arch`) — single source of numbers
@@ -426,6 +430,34 @@ dtype), actMem(B,dtype), kvCache(B,ctx,dtype)?…}`; `overrides` may change only
 `params.totalM` → `86.6 M`; `macs.totalG` → `17.56 G`; `tokens`; `tensor.<id>.shape` → `197×768`;
 `tensor.<id>.sym` → `(N+1)×D`). Unknown keys are validator errors and render as a visible warning.
 
+### 6.7 Exact result of `ATLAS.Arch.run(configId)` (contract for diagram, blocks, practice, validator)
+```js
+{ id:'vit-b16-224', model:'vit', label:'ViT-B/16 @ 224', config:{…resolved config…}, paper:{…},
+  tensors: { 'x-patches': { id, sym:['N','D'], num:[196,768], mod:'img', layout:'seq'|'grid'|'heads'|'vec',
+                            tex:'X_p', label:'Patches embebidos', producer:'patch-flatten'|null, consumers:[opId],
+                            perLayer:false } },
+  order: ['x-img', 'x-patch-grid', …],          // tensor ids in forward order (one layer shown for repeated blocks)
+  ops: [ { id:'qkv', prim:'linear', label:'Proyección Q, K, V', path:['encoder','enc-layer','mhsa','qkv'],
+           in:['h-ln1'], out:['qkv'], repeat:12,  // how many times it runs (per-layer ops: L); totals multiply by it
+           params:1771776, macs:348585984, other:0,
+           paramTex:'D\cdot 3D + 3D', paramArith:'768·2304 + 2304 = 1,771,776',
+           macTex:'(N+1)\cdot D\cdot 3D', macArith:'197·768·2304 = 348,585,984',
+           shapeTex:'(N{+}1)\times D \to (N{+}1)\times 3D' } ],
+  totals: { params, macs, flops /* = 2·macs */, other,
+            byNode: { [nodeId]: {params, macs} },  // every node id appearing in any op.path (aggregated ×repeat)
+            byPrim: { linear:{params,macs}, … } },
+  quantities: { tokens:197, patches:196, … }        // flat, model-specific extras for {{…}}
+}
+```
+- `op.path` lists the diagram node ids from the outermost group to the innermost node; a node's
+  params/MACs in a tooltip = `totals.byNode[nodeId]`, so overview and expanded views agree by construction.
+- Per-layer numbers (one layer) are `params/macs` of the op; whole-model contribution = `× repeat`.
+- `ATLAS.Arch.fmt`: `int(n)` → `86,567,656` · `si(n)` → `86.6 M` / `17.56 G` · `shape(t,'num')` →
+  `197×768` · `shape(t,'sym')` → `(N+1)×D` (plain text) · `shapeTex(t)` → LaTeX.
+- `ATLAS.Arch.configs(model?)` → `[{id,label,model,canonical}]`; `ATLAS.Arch.models()` → model ids;
+  `ATLAS.Arch.primitives()` → `[{id, paramTex, macTex, outTex, note}]` (for `ref-formas`).
+- Errors (unknown config, invalid knob) throw `Error` with a Spanish message; the UI shows it inline.
+
 ## 7. Architecture diagrams (`ATLAS.ArchDiagram`) — the core component
 
 ### 7.1 Principles
@@ -445,6 +477,8 @@ dtype), actMem(B,dtype), kvCache(B,ctx,dtype)?…}`; `overrides` may change only
 ### 7.2 Spec (`js/content/diagrams/<page>.js` → `ATLAS.registerDiagram(spec)`)
 ```js
 { id:'vit-overview', model:'vit', config:'vit-b16-224', kind:'arch'|'map', title, caption,
+  page:'vit', section:'diagrama',             // where it lives (search + `#page.section~node` routes)
+  parent?:'vit-overview', parentNode?:'enc-layer',   // for level-(b) views: which block it expands
   grid:{w:120, h:70},                       // units (1 unit = 8 px at 100 %)
   direction:'lr'|'tb', maxCrossings:0,
   groups:[ {id:'encoder', label:'Transformer encoder', x,y,w,h, repeat:{sym:'L', from:'L'} /* "×L = 12" from config */,
@@ -524,6 +558,24 @@ illustrative), `shifted-windows` (Swin), `similarity-matrix` (CLIP, with InfoNCE
 (LLM), `dynamic-resolution` (Qwen2-VL), `prompt-to-mask` (SAM), `denoise` (diffusion), `action-chunk`
 (VLA). Any synthetic data is labelled "ilustrativo".
 
+### 7.9 JS API (contract for blocks, practice and the map)
+```js
+const dg = ATLAS.ArchDiagram.render(diagramId, containerEl, {
+  mode: 'full' | 'mini' | 'blank',      // mini = no toolbar/panel (drills); blank = practice §8.1
+  walk?: walkId, wide?: bool, showNumbers?: bool,
+  blank?: { slots:[{id /* node id or 'from>to' */, ask:'label'|'shape'|'op'}], onSlot(slotId, anchorEl) },
+  onSelect?(nodeId), onExpand?(diagramId),
+});
+dg.el; dg.expand(diagramId); dg.collapse(); dg.focusNode(nodeId);
+dg.highlight({ nodes:[], edges:['a>b'], tensors:[] }); dg.clearHighlight();
+dg.setSlot(slotId, text, state /* 'empty'|'filled'|'ok'|'bad' */);
+dg.startWalk(walkId); dg.stopWalk(); dg.destroy();
+ATLAS.ArchDiagram.legend(diagramId) → HTMLElement      // the legend alone (map page, ref sheet)
+ATLAS.Viz.register(name, (el, params, ctx) => ({ destroy() })); ATLAS.Viz.render(name, el, params, ctx)
+```
+Everything reads CSS variables at render time and re-renders on theme change (`ATLAS.App.onTheme`,
+or a `MutationObserver` on `<html data-theme>` + `matchMedia` listener).
+
 ## 8. Practice (`ATLAS.Practice`)
 
 ### 8.1 Blank diagrams
@@ -550,6 +602,17 @@ Fork of the Ronda's (Leitner, 5 boxes, Space / 1 / 2 / 3). Kinds: `forma`, `form
 ### 8.5 `practica` hub
 Per model: drills done/accuracy, blank diagrams completed, "mezcla" mode (random drills across all
 ready models), and the flashcards due count.
+
+### 8.6 Rendering contract between shell and practice
+The shell's `blocks.js` delegates these block types to `ATLAS.Practice.renderBlock(block, el, ctx)`:
+`scaling`, `blankdiagram`, `shapedrill`, `whatif` (and shows a warning box if `ATLAS.Practice` is
+missing). The router calls page renderers with `(container, route, ctx)`:
+`ATLAS.Practice.renderHub` (`practica`), `ATLAS.Practice.renderModel` (`practica-<model>`),
+`ATLAS.Flashcards.render` (`flashcards`), `ATLAS.Reference.renderGlossary` (`glosario`).
+`ctx = {store: ATLAS.store, navigate(hash), renderBlocks(blocks, el, pageCtx), pageId}`; `pageCtx`
+carries `{pageId, model, config}` so generated blocks default to the page's canonical config.
+`archdiagram` and `viz` blocks call `ATLAS.ArchDiagram.render` / `ATLAS.Viz.render` (§7.9); the shell
+keeps the returned controllers per section so a `#page.section~node` route can call `focusNode`.
 
 ## 9. Verification (exactness is a feature)
 
@@ -632,13 +695,16 @@ install, build `npm run build:vercel`, output `dist/web`; `.vercelignore` anchor
 drops dotfiles — nothing in the build may depend on one). Deploy only when the user asks (new Vercel
 project `atlas-arquitecturas`).
 
-### 10.3 Linking the Laboratorio Transformer
-`ATLAS.labLink(tab)` returns, by environment: web build → `lab/#<tab>` (the web build copies the Lab's
-`dist/transformer-lab.html` to `dist/web/lab/index.html`, precached by the service worker; built by
-running the Lab's own `build.mjs`); `file://` → `../transformer-lab/index.html#<tab>`; Artifact → no
-link, a note "Abre el Laboratorio Transformer (apps/transformer-lab)". Lab tabs that exist today:
-`paso`, `entrenamiento`, `generacion`, `datos`. (Optional, needs the user's OK: a 10-line change in the
-Lab to accept `#paso-<n>` deep links to a step.)
+### 10.3 Linking the Laboratorio Transformer (approved by the user 2026-10-06)
+`ATLAS.labLink(tab)` returns, by environment: web build → `lab/#<tab>` (the web build copies
+`vendor/lab/index.html` to `dist/web/lab/index.html`, precached by the service worker).
+`vendor/lab/index.html` is a **committed copy** of the Lab's `dist/transformer-lab.html`, regenerated
+with `npm run vendor:lab` (runs `node ../transformer-lab/build.mjs` and copies) because a Vercel CLI
+deploy from this folder cannot see `../transformer-lab`; `tests/content.test.cjs` warns when it is
+older than the Lab's sources (only when `../transformer-lab` exists); `file://` → `../transformer-lab/index.html#<tab>`; Artifact → no
+link, a note "Abre el Laboratorio Transformer (apps/transformer-lab)". Lab tabs: `paso`, `entrenamiento`,
+`generacion`, `datos`, plus `#paso-<n>` (1-based step of the traced iteration) — a small change in the
+Lab's `js/app.js` approved by the user, done by the orchestrator, not by Atlas agents.
 
 ## 11. Writing style (every content file)
 The Ronda's §9, adapted:
@@ -696,3 +762,49 @@ the three masks (bidirectional / causal / cross), pre-LN vs post-LN, cost `O(N²
 where they cross (`N ≈ 6D`-ish — the calculator computes the exact crossover per config), what the Lab
 covers (link each item to a Lab tab), what this app adds (vision-side shapes). Kept compact: ≤ 25 min
 reading. Toy example sized like the Lab's (N=5, D=8, h=2) so the user can match numbers.
+Calculator: model `transformer`, configs `toy-n5-d8` (N=5, D=8, h=2, D_mlp=32, L=1, pre-LN, bias in
+qkv/proj/MLP, no embeddings: input is `x0` 5×8) and `toy-n5-d8-causal` (same, causal mask — same counts,
+the mask only changes which scores are used). Tensor ids reuse ViT's layer ids (`x0`, `h-ln1`, `qkv`,
+`q`, `k`, `v`, `scores`, `attn`, `z-heads`, `z`, `o`, `r1`, `h-ln2`, `u`, `g`, `f`, `x-out`); node ids
+as `vit-enc-layer` / `vit-mhsa` (`ln1 mhsa res1 ln2 mlp res2` / `qkv split scores scale softmax
+weighted-sum merge proj`). Diagrams: `repaso-block` (one pre-LN block, expandable to `repaso-mhsa`)
+and `repaso-masks` is a `viz` (`attention-masks`: bidirectional / causal / cross, side by side).
+
+### 13.4 Ownership in Phase 1 (who writes what)
+- **shell**: index.html, css/app.css, js/core/store.js, js/ui/dom.js, js/ui/math.js, js/ui/blocks.js,
+  js/app.js, build.mjs, tools/build-web.mjs, web/*, vercel.json, .vercelignore, .gitignore,
+  tools/smoke.js, dev/blocks.html, tests/store.test.cjs.
+- **arch**: js/arch/primitives.js, js/arch/transformer.js, js/arch/vit.js, js/core/quantities.js,
+  tests/arch.test.cjs, crosscheck/**, tools/crosscheck-compare.mjs, tests/crosscheck.test.cjs.
+- **diagram**: js/ui/archdiagram.js, css/diagram.css, js/ui/viz/{patchify,attention-map,attention-masks}.js,
+  dev/diagram.html, tools/contrast-check.mjs, and the diagram specs js/content/diagrams/{vit,repaso,mapa}.js.
+- **practice**: js/ui/practice.js, js/ui/flashcards.js, js/ui/reference.js, css/practice.css.
+- **content-vit**: js/content/vit.js.
+- **content-general**: js/content/catalog.js, js/content/repaso-atencion.js, js/content/mapa.js,
+  js/content/ref-formas.js, tools/validate-content.mjs, tests/content.test.cjs.
+- **orchestrator**: docs/*, package.json, js/core/registry.js, tools/browser-check.mjs, vendor/lab/*,
+  the Lab's `#paso-<n>` change, integration.
+
+### 13.3 Catalog ids (every agent uses exactly these; map nodes, links and `from`/`to` refer to them)
+Kinds: `recap` (counts in progress), `model` (11-section page), `card` (map card only, level 1 —
+`anchor:true` for things the user already knows), `special`.
+- recap: `repaso-atencion` (block 0).
+- Bloque 1 models (phase): `vit` (F1) · `swin`, `clip` (F2) · `detr` (F3; Deformable DETR inside it) ·
+  `grounding-dino`, `yolo-world` (F4) · `sam`, `sam2` (F5) · `llm-decoder`, `llm-inferencia` (F6) ·
+  `llava`, `qwen2-vl` (F7) · `stable-diffusion`, `dit` (F8; flow matching inside `dit`) · `rt2`,
+  `openvla`, `pi0` (F9).
+- Bloque 2: `lora`, `rlhf-dpo` (F10) · `bert`, `retrieval`, `ann` (F11) · `t5`, `whisper` (F12) ·
+  `two-tower`, `dlrm`, `gbdt` (F13).
+- Bloque 3: `bytetrack`, `depth`, `pointnet` (F14) · `rl-ppo`, `imitation` (F15).
+- Cards: anchors `resnet`, `yolo` (anchor:true); level-1 `gnn`, `mamba`, `gan`, `rnn-lstm`, `nerf-3dgs`
+  (written as full cards in F12; F1 ships a 2–3 line card for each).
+- Special: `inicio`, `mapa`, `practica`, `flashcards`, `ref-formas`, `glosario`, `buscar`.
+- Families (`catalog.families`, map regions): `transformer` (root: repaso), `cnn`, `vit` (ViT, Swin),
+  `contrastive` (CLIP), `detect` (DETR, Grounding DINO, YOLO-World, + anchor yolo), `seg` (SAM, SAM 2),
+  `llm` (decoder-only), `vlm` (LLaVA, Qwen2-VL), `gen` (Stable Diffusion, DiT, GAN card), `vla`
+  (RT-2, OpenVLA, π0), `encoder` (encoder-only: BERT, retrieval), `encdec` (T5, Whisper), `align`
+  (LoRA, RLHF/DPO), `search` (ANN), `recsys` (two-tower, DLRM), `trees` (GBDT), `robot` (tracking,
+  depth, PointNet, RL, imitation, NeRF/3DGS), `otros` (GNN, Mamba, RNN/LSTM).
+- Map relation edges (`catalog.relations`): `[{from, to, kind:'hereda'|'usa'|'contrasta'|'reemplaza', label?}]`,
+  e.g. `{from:'vit', to:'swin', kind:'hereda'}`, `{from:'clip', to:'llava', kind:'usa', label:'ViT-L/14 como encoder'}`,
+  `{from:'yolo', to:'detr', kind:'contrasta', label:'sin anchors ni NMS'}`.
