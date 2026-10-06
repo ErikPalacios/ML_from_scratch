@@ -1,0 +1,698 @@
+# Atlas de Arquitecturas — build specification (internal contract)
+
+Single source of truth for every agent building this app. Read it fully before writing anything.
+If something is ambiguous, choose the option that keeps modules decoupled and leave a short code
+comment explaining the choice. Do NOT edit files owned by another agent (§2); if you need a change in
+someone else's file, note it in your final report. The phase roadmap lives in `docs/ROADMAP.md`
+(Spanish, user-facing) and is mirrored in `js/content/catalog.js` (`roadmap`).
+
+Sibling apps in this repo — reuse their patterns, never import their files at runtime:
+- `apps/ml-system-design` (**Ronda de Diseño ML**): shell, store, flashcards, build, web/Vercel build,
+  validator, smoke test. This app is a fork of that shell (copy + adapt, §2).
+- `apps/transformer-lab` (**Laboratorio Transformer**): attention/transformer from scratch, step by
+  step, with MathJax. The Atlas links to it instead of re-teaching it (§10.3).
+
+## 0. Goal (from the user, condensed)
+
+The user is a mechatronics engineer (MSc), fluent in CNNs (ResNet) and classic detection (YOLO:
+anchors, IoU, NMS, mAP). Gap: **attention applied to vision, multimodal models, and LLM internals**.
+Target: ML/AI Engineer interviews, later robotics. They want an **atlas of architectures at "level 2"**:
+block diagram + math + tensor dimensions, for the models those interviews ask about, starting with
+the ones that combine attention and vision.
+
+Level definitions (used in the UI and in content):
+- **Nivel 1** — what it is, inputs → outputs, when to use it, one diagram. (Map cards only.)
+- **Nivel 2** — every block with its exact formula, every tensor with its shape (symbols and
+  numbers), parameter and FLOP counts with the arithmetic shown, training objective, inference
+  costs, failure modes, interview questions. (Every model page.)
+- Nivel 3 (writing it from scratch, training it) is out of scope: that's what the Laboratorio
+  Transformer does for the vanilla decoder.
+
+The app has five areas:
+1. **Mapa** — every family (encoder-only, decoder-only, encoder-decoder, CNN, ViT, detectors,
+   multimodal, generative, VLA, trees, level-1 families) and how they relate.
+2. **Modelos** — one page per model (or per tightly coupled pair), fixed 11-section template (§5.3).
+3. **Repaso de atención** — compact recap with the notation every other page uses; deep-links to the
+   Laboratorio Transformer.
+4. **Práctica** — blank diagrams, "¿qué forma tiene este tensor?" drills generated from the
+   calculator, "¿qué pasa si duplico…?" scaling questions, flashcards (Leitner, like the Ronda).
+5. **Referencia** — shapes & formulas sheet (parameter/FLOP formulas per block type, generated tables
+   per model), glossary ES–EN.
+
+**Diagrams are the heart of the app** (§7). **Exactness is critical** (§6, §9): every shape, parameter
+count and FLOP count shown anywhere comes from the calculator (§6), which is unit-tested and
+cross-checked against reference PyTorch implementations (§9.3). Nothing numeric about a model's
+architecture is typed by hand in content.
+
+Built **in phases** (docs/ROADMAP.md). Phase 1 = the complete shell + the three engines (calculator,
+diagram, practice) + Mapa skeleton + Repaso de atención + **ViT** complete + reference sheet (ViT rows).
+Later phases add one content file (+ one calculator file + diagram specs) per model **without touching
+the shell**, so the formats in §5–§7 are long-lived contracts.
+
+## 1. Hard technical constraints
+
+Same as the Ronda (its SPEC §1), plus MathJax:
+- Plain JavaScript (ES2020), **classic scripts** (no ES modules: they break on `file://`). Every file
+  is an IIFE attaching to the global namespace `ATLAS`:
+  ```js
+  (function (root) {
+    'use strict';
+    const ATLAS = (root.ATLAS = root.ATLAS || {});
+    // ...
+  })(typeof window !== 'undefined' ? window : globalThis);
+  ```
+  `js/core/*`, `js/arch/*` and `js/content/*` must NOT touch `document`/`window` at load time (they
+  load in Node for validation and tests).
+- No npm dependencies. Node ≥ 20 (`node --test`). Machine: Node 24, macOS, Chrome. Python cross-check
+  (§9.3) runs in a local venv and is **dev-only** (never shipped, never needed by `npm test`).
+- External resources allowed: Google Fonts stylesheet (IBM Plex Sans, IBM Plex Sans Condensed, IBM
+  Plex Mono) and **MathJax 3 SVG** from cdnjs
+  (`https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js`, config as in the Lab:
+  `\( \)` inline, `\[ \]` display, `startup.typeset:false`, `svg.fontCache:'global'`). Offline: fonts
+  fall back to system stacks; formulas fall back to monospace LaTeX source (readable, never broken).
+  The web build's service worker caches MathJax at runtime so the installed app has formulas offline.
+- Must work (1) by double-clicking `index.html` (`file://`), (2) bundled by `build.mjs` into one HTML
+  and published as a claude.ai Artifact (sandboxed iframe: no `alert/confirm/prompt`, no downloads, no
+  `window.open`, no service workers, only `#token` hashes with `[A-Za-z0-9._~-]`), (3) as the web build
+  for Vercel (installable, offline after the first visit) — §10.
+- Toggle visibility with `el.hidden`; global `[hidden]{display:none!important}`.
+- All user-facing text in **Spanish (neutral Latin American, tuteo)**; technical terms in English as
+  said in interviews (patch embedding, self-attention, cross-attention, KV cache, prefill…). Code
+  comments in Spanish, short.
+- Accessibility: landmarks, skip link, visible focus, everything keyboard-operable (including diagram
+  blocks and practice), `aria-current`, `prefers-reduced-motion`, text contrast ≥ 4.5:1, graphic
+  elements (block fills, edge strokes) ≥ 3:1 against their background in both themes.
+- Responsive: 360 px+ with 16 px gutter; the body never scrolls horizontally. Diagrams pan/zoom with
+  gestures inside their own viewport (§7.6).
+- Theme-aware (light/dark/system) per §3.
+
+## 2. File layout and ownership
+
+```
+apps/atlas-arquitecturas/
+  index.html                     # full document; load order §2.1                                   [shell]
+  package.json                   # scripts §9.5                                                     [orchestrator]
+  build.mjs                      # → dist/atlas-arquitecturas.html + dist/artifact.html            [shell]
+  vercel.json · .vercelignore · .gitignore                                                          [shell]
+  README.md                      # Spanish user guide (written last)                                [integrator]
+  docs/SPEC.md · docs/ROADMAP.md # this file · phase plan                                           [orchestrator]
+  css/app.css                    # tokens (§3) + base + layout + sidebar + pages + blocks           [shell]
+  css/diagram.css                # architecture diagrams, legend, tooltips, detail panel, walk mode [diagram]
+  css/practice.css               # drills, blank diagrams, flashcards, glossary                     [practice]
+  js/core/registry.js            # catalog, register, templates, lookups (§5)                       [orchestrator]
+  js/core/store.js               # persistence (fork of the Ronda's store, key 'atlas.v1') (§4.4)   [shell]
+  js/core/quantities.js          # {{model.key}} resolver used by content/validator (§6.6)          [arch]
+  js/arch/primitives.js          # ATLAS.Arch: layer primitives, shapes, params, MACs (§6)          [arch]
+  js/arch/<model>.js             # one file per model family: config(s) + build() (§6.4)            [arch / phase agent]
+  js/ui/dom.js                   # ATLAS.dom (fork of MSD.dom + new icons)                         [shell]
+  js/ui/math.js                  # ATLAS.MathTex (fork of the Lab's TL.MathTex)                    [shell]
+  js/ui/blocks.js                # ATLAS.Blocks.render for every block type (§5.4)                 [shell]
+  js/ui/archdiagram.js           # ATLAS.ArchDiagram (§7) — THE core component                    [diagram]
+  js/ui/viz/<name>.js            # key-idea visualizations, one per file (§7.8)                    [diagram / phase agent]
+  js/ui/practice.js              # ATLAS.Practice: drills, blank diagrams, what-if (§8)             [practice]
+  js/ui/flashcards.js            # ATLAS.Flashcards (fork of the Ronda's)                          [practice]
+  js/ui/reference.js             # glossary + generated shape/formula sheet (§5.6)                  [practice]
+  js/app.js                      # ATLAS.App: router, layout, sidebar, home, map, model pages, search [shell]
+  js/content/catalog.js          # ATLAS.defineCatalog({...}) — every page's meta + families + roadmap [catalog]
+  js/content/<id>.js             # one content file per page (e.g. vit.js, repaso-atencion.js, mapa.js) [content]
+  js/content/diagrams/<id>.js    # diagram specs of that page (overview + expanded blocks) (§7.2)  [content]
+  crosscheck/                    # Python cross-check (dev-only): requirements.txt, *.py, expected/*.json [arch]
+  tools/                         # validate-content.mjs, browser-check.mjs (copy), smoke.js, build-web.mjs,
+                                 # crosscheck-compare.mjs, contrast-check.mjs                     [orchestrator/shell]
+  tests/                         # arch.test.cjs, content.test.cjs, store.test.cjs, crosscheck.test.cjs
+  dev/diagram.html · dev/blocks.html  # isolated demo pages for the diagram component and blocks [diagram/shell]
+  web/                           # manifest, icons, sw.js (fork of the Ronda's)                   [shell]
+```
+Forking rule: copy the Ronda's file, rename the namespace (`MSD` → `ATLAS`) and keys (`msd.v1` →
+`atlas.v1`, cache prefix `ronda-` → `atlas-`), then adapt. Keep a one-line header comment
+"Basado en apps/ml-system-design/…". Never edit the Ronda or the Lab from an Atlas phase (exception:
+§10.3, only if the user approves).
+
+### 2.1 Load order in `index.html`
+Google Fonts → `css/app.css` → `css/diagram.css` → `css/practice.css` → MathJax config inline →
+MathJax script (`async`). Scripts at the end of `<body>`, classic, in this order:
+`js/core/registry.js` → `js/core/store.js` → `js/arch/primitives.js` → `js/arch/*.js` (catalog order)
+→ `js/core/quantities.js` → `js/ui/dom.js` → `js/ui/math.js` → `js/ui/blocks.js` →
+`js/ui/archdiagram.js` → `js/ui/viz/*.js` → `js/ui/practice.js` → `js/ui/flashcards.js` →
+`js/ui/reference.js` → `js/content/catalog.js` → content files and their diagram files →
+`js/app.js`. Future phases append lines at three marked spots:
+`<!-- arch: modelos nuevos -->`, `<!-- viz: visualizaciones nuevas -->`,
+`<!-- contenido: páginas nuevas -->`. The validator fails if a file in `js/arch/`, `js/ui/viz/` or
+`js/content/` is not loaded, or is loaded after `js/app.js`.
+
+## 3. Visual design (tokens are a contract: `css/app.css` defines them, others consume them)
+
+Name: **Atlas de Arquitecturas**. Treatment: a technical atlas — precise, dense, quiet; the figures
+should look like the best paper/blog figures (The Illustrated Transformer, Lilian Weng, the ViT/Swin/
+DETR paper figures), not like a dashboard. Ground with a faint blueprint grid behind diagrams only.
+No emoji markers, no gradients, no card soup. Fonts as in the Ronda: display IBM Plex Sans Condensed
+600/700; body IBM Plex Sans 16 px / 1.6; data, shapes and formulas-as-text IBM Plex Mono
+(`tabular-nums`).
+
+Base tokens: same names and values as the Ronda (`--bg --surface --surface-2 --ink --muted --rule
+--rule-strong --accent --accent-ink --accent-soft --ok --bad --warn` + soft variants, `--focus`,
+shadows, type scale, radii, `--gap --gutter --ease --dur`, `--sidebar-w:288px --content-max:820px
+--toc-w:220px`), plus `--grid` (`#DCE2E8` / `#18222C`) for the blueprint grid. Light on bare `:root`;
+dark under `@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){…} }` and under
+`:root[data-theme="dark"]{…}`; `color-scheme` set; `body{background:var(--bg);color:var(--ink)}`.
+
+### 3.1 Operation palette (block fills/strokes — one color per op type, everywhere in the app)
+| token (`--op-*`) | op type | light stroke / fill | dark stroke / fill | used for |
+|---|---|---|---|---|
+| `embed` | embeddings & projections | `#2B5BD7` / `#E3EAFB` | `#7CA2FF` / `#1A2544` | patch/token embedding, linear projections W_Q/K/V/O, projectors |
+| `attn` | attention | `#B4307A` / `#F7E1EE` | `#F07BBE` / `#3A1630` | self-, cross-, windowed, deformable attention; QKᵀ, softmax·V |
+| `norm` | normalization | `#5B6672` / `#E7EBEE` | `#A3AFBB` / `#232C35` | LayerNorm, RMSNorm, BatchNorm, GroupNorm |
+| `mlp` | MLP / FFN | `#25734A` / `#DDF0E4` | `#5CC98A` / `#133022` | FFN, SwiGLU, MoE experts |
+| `conv` | convolution | `#9A5A06` / `#F6E9D5` | `#E3A34B` / `#35270F` | conv layers, CNN backbones, patchify-as-conv |
+| `fuse` | modality fusion | `#7445A8` / `#EEE6F7` | `#B794F0` / `#2A1F3D` | cross-modal attention, feature enhancers, token concat of modalities |
+| `head` | output heads & losses | `#0E7C74` / `#D5ECE9` | `#3CC2B4` / `#12302E` | classifier, box/class heads, LM head, mask decoder output, losses |
+| `tensorop` | tensor ops (no params) | `--rule-strong` / `--surface` | same tokens | reshape, flatten, split heads, concat, add (⊕), pooling, sampling |
+
+### 3.2 Modality palette (tensor glyphs and the stripe on encoders/streams)
+| token (`--mod-*`) | modality | light / dark | glyph texture |
+|---|---|---|---|
+| `img` | image / vision tokens | `#0B7FA6` / `#4CC3EA` | solid |
+| `txt` | text tokens | `#A4501B` / `#F0955A` | horizontal hatch |
+| `act` | robot actions / states | `#5C7A12` / `#A9CF4F` | dots |
+| `aud` | audio (Whisper, later) | `#8A6D00` / `#E5C443` | vertical hatch |
+| `lat` | latent / noise (diffusion) | `#6B6F76` / `#B4B9C0` | speckle |
+| `qry` | learned queries (DETR, Q-Former) | `#3D4FAE` / `#97A6FF` | outline only |
+Modality is also encoded by texture (not only hue) for color-blind readers. `tools/contrast-check.mjs`
+computes every pair the diagram uses (stroke vs `--surface`, label text vs fill) in both themes and
+fails under 3:1 (graphics) / 4.5:1 (text); the shell agent may adjust hexes and must update this table.
+
+### 3.3 Edge styles (connections)
+| kind | look | meaning |
+|---|---|---|
+| `data` | solid 1.75 px `--rule-strong`, filled arrowhead | main data flow (carries the tensor label) |
+| `residual` | dashed 6/4, `--ink` at 70 %, routed as a rounded bypass, ends in an `⊕` node | residual connection inside a block |
+| `skip` | long dash-dot, `--op-conv`, routed outside the main column | long-range skip (U-Net, FPN, encoder→decoder features) |
+| `cross` | double line (two 1 px strokes) in `--op-fuse`, hollow arrowhead, tag "K,V" | cross-attention: K and V come from another stream |
+| `query` | dotted `--mod-qry` | learned queries entering a decoder |
+| `control` | thin dotted `--muted`, no tensor label | masks, conditioning scalars (timestep, prompt type) |
+Every `data`/`cross`/`query`/`skip` edge carries a **shape label** (§7.4) from the calculator.
+
+### 3.4 Signature details (keep them)
+1. **Ficha técnica** strip on model pages (paper · year · canonical config · params · tokens · GMACs),
+   every number generated from the calculator.
+2. **Tensors drawn to proportion** (§7.3): a 197-token sequence looks long, a 2048-channel map looks deep.
+3. **Legend** pinned to every diagram (collapsible on mobile) with exactly the colors used in it.
+4. **Familias** strip in the Mapa: one cell per model, state `done/progress/ready/soon` (the Ronda's
+   uptime strip, regrouped by family).
+
+Layout: as the Ronda (≥ 1200 px sidebar | content | TOC; 768–1199 sidebar + content; < 768 top bar +
+drawer). Diagram blocks may break out of `--content-max` up to 1100 px on wide screens
+(`.wide` figure) — they are the main reading surface.
+
+## 4. Shell architecture
+
+### 4.1 Pages and ids (ids are persistence keys: never rename)
+- `inicio` (home), `mapa` (family map), `repaso-atencion`, model pages (ids in catalog, kebab-case,
+  e.g. `vit`, `swin`, `clip`, `detr`, `grounding-dino`, `yolo-world`, `sam`, `llm-decoder`,
+  `llm-inferencia`, `llava`, `qwen2-vl`, `diffusion`, `vla`…), `practica` (hub), `practica-<model>`
+  (drills of one model), `flashcards`, `ref-formas` (shapes & formulas sheet), `glosario`, `buscar`.
+- Sidebar groups: **Inicio** · **Mapa** · **Repaso de atención** · **Bloque 1 — Visión + atención**
+  · **Bloque 2 — LLMs, retrieval y ML de industria** · **Bloque 3 — Robótica** · **Práctica**
+  (Ejercicios, Flashcards) · **Referencia** (Formas y fórmulas, Glosario). Each model item shows its
+  short name, state marker (✓ / progress ring / "Próx.").
+
+### 4.2–4.3 dom, routing
+As the Ronda (§4.2–4.3 of its SPEC) with `ATLAS.dom`; hash routes `#<page>` / `#<page>.<section>` /
+`#<page>.<section>.<sub>`; extra route forms for diagrams: `#vit.diagrama~enc-layer` opens the
+diagram of that section expanded on block `enc-layer` (`~` is allowed in artifact hashes).
+`document.title` = `<page> · Atlas de Arquitecturas`. Keys: `/` search, `[` `]` prev/next page,
+`Esc` closes panels, and inside a focused diagram §7.7.
+
+### 4.4 `ATLAS.store`
+Fork of `MSD.store` (two-tier: localStorage `atlas.v1` + claude.ai account db when published with
+capabilities `{db:{}, user:{}}`; tab merge; export/import). Keep: sections read, page completed,
+checklists, flashcards (Leitner 5 boxes, intervals [0,1,3,7,16] days), prefs (theme, legendOpen,
+showNumbers), lastLocation. Drop: practice attempts/rubric/drafts. Add:
+```js
+store.drillResult(drillId, {ok:bool, answer:string})   // shape drills, what-if, blank diagrams
+store.drillStats(prefix?) → {seen, ok, streak, lastAt}  // per model or global
+store.blankDiagram(diagramId) → {filled:{slotId:answerId}, checkedAt?}
+store.setBlankSlot(diagramId, slotId, answerId|null)
+```
+`store.courseProgress()` counts model pages + `repaso-atencion` (not the map or references).
+
+### 4.5 Pages the shell renders
+- **inicio**: purpose (one paragraph), the families strip + "X de N modelos", continue where you left
+  off, next recommended, flashcards due, drill streak, roadmap from `catalog.roadmap`, study loop
+  (diagrama → recorrido con números → costo → preguntas → práctica → flashcards).
+- **mapa**: §5.5.
+- **Model page**: header (eyebrow "Bloque 1 · Visión + atención", h1, `titleEn` mono, one-line
+  summary, **ficha técnica** strip, "Viene de / Lleva a" chips from the catalog graph), then the 11
+  template sections (§5.3) with read toggles, TOC with read ticks, template navigator 1–11, prev/next
+  in course order, "Marcar como completado".
+- **Próximamente** page for not-ready models: title, summary, topics, canonical config planned, paper,
+  connections, and its map card.
+- **Search** over page titles, section titles, block/sub-block names of diagrams, glossary,
+  flashcards (as the Ronda).
+- **Sidebar footer**: storage status, theme switch, export/import (as the Ronda).
+
+## 5. Content format (long-lived contract)
+
+### 5.1 Registry API (`js/core/registry.js`)
+Same shape as the Ronda's (`defineCatalog, register, addSection, getPage, listPages, courseOrder,
+flashcards, glossary, searchIndex, catalog(), registryProblems, registeredIds, slug, stripHtml`) plus
+`ATLAS.MODEL_TEMPLATE` (§5.3), `ATLAS.OP_TYPES`, `ATLAS.MODALITIES`, `ATLAS.EDGE_KINDS`,
+`ATLAS.families()`, `ATLAS.diagram(id)` (registered diagram specs), `ATLAS.registerDiagram(spec)`.
+
+### 5.2 Catalog (`js/content/catalog.js`)
+```js
+ATLAS.defineCatalog({ version: 1,
+  families: [ {id:'vit', title:'Vision Transformers', titleEn, summary, kind:'family'} , … ],   // §5.5
+  items: {
+    vit: { id:'vit', kind:'model', block:1, num:1, family:'vit', title:'ViT — Vision Transformer',
+           titleEn:'Vision Transformer', short:'ViT', summary, topics:[…], freq:'alta'|'media'|'baja',
+           minutes, from:['repaso-atencion','resnet*'], to:['swin','clip','sam','llava'],
+           paper:{ title:'An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale',
+                   authors:'Dosovitskiy et al.', venue:'ICLR 2021', arxiv:'2010.11929' },
+           canonical:'vit-b16-224', level:2 },
+    // level-1 entries (map cards only, no page): kind:'card', level:1
+    inicio:{…kind:'special'}, mapa:{…}, 'repaso-atencion':{…kind:'recap'}, practica:{…},
+    flashcards:{…}, 'ref-formas':{…}, glosario:{…} },
+  roadmap: [ {phase:1, title:'Fase 1 — …', status:'done'|'next'|'later', items:[ids], note:html} ],
+  flashcards: [], glossary: [] });
+```
+`from` entries ending in `*` are "things you already know" outside the atlas (ResNet, YOLO): the map
+draws them as grey anchor nodes.
+
+### 5.3 Model page template (MANDATORY; ids fixed, order fixed)
+| # | id | título | must contain |
+|---|---|---|---|
+| 1 | `para-que` | Para qué sirve | entradas → salidas in one sentence; when to use it / when not (table or two lists) |
+| 2 | `puente` | Puente con lo que ya sabes | "como ResNet/YOLO, pero…" (or vs. an earlier atlas model); a comparison table of the 3–5 concepts that map 1:1 and the 1–2 that are genuinely new |
+| 3 | `diagrama` | Diagrama de bloques | `archdiagram` block, overview + every expandable block (§7); legend; walk mode |
+| 4 | `operaciones` | Operaciones por bloque | per block: `op` blocks (§5.4) with exact LaTeX, input/output shapes, what and **why**; then `trace` block: the full walk with numbers of the canonical example (e.g. 224×224×3 → … → 1000 logits) |
+| 5 | `costo` | Parámetros y costo | `params` table and `flops` table (generated, arithmetic shown), `scaling` explorer (resolution / tokens / context), the scaling law in words ("×2 resolución → ×4 tokens → ×16 en la matriz de atención…") |
+| 6 | `entrenamiento` | Entrenamiento | loss with formula, data (dataset names + sizes as stated in the paper), objective, recipe facts that interviewers ask (warmup, augmentation, resolution fine-tuning…) |
+| 7 | `inferencia` | Inferencia | steps; what dominates latency and memory (with calculator numbers); common tricks |
+| 8 | `fallas` | Cómo falla y trade-offs | 2–4 failure modes; comparison table vs alternatives (rows = criteria) |
+| 9 | `variantes` | Variantes y descendientes | one line each, linked to atlas pages when they exist |
+| 10 | `entrevista` | Preguntas de entrevista | `followups` (junior vs senior) and `qa`; traps flagged with `trap: true` |
+| 11 | `practica` | Práctica activa | `blankdiagram`, `shapedrill`, `whatif` blocks + link to the page's flashcards |
+A page may register sub-pages only through the catalog (e.g. `llm-decoder` + `llm-inferencia`), never
+by adding template sections. Sections can have `priority:'core'|'extra'|'skip'` ("Sáltate esto").
+
+### 5.4 Block types
+All Ronda block types (`p h3 list callout table kv steps calc qa followups tradeoffs checklist quiz
+code html`) with the same fields and callout kinds (`why trap senior skip estimate connect interview
+note`), plus:
+- `{t:'math', tex, display?:true, caption?}` — LaTeX via `ATLAS.MathTex`. Inline LaTeX inside any html
+  field with `\( … \)`.
+- `{t:'op', block:'<diagram node id>', model, title, tex, in:[tensorId], out:[tensorId], what:html,
+  why:html, params?:true, flops?:true}` — the per-block card of section 4. Shapes, parameter and MAC
+  counts are pulled from the calculator by tensor/node id; the author writes only prose and LaTeX.
+- `{t:'trace', model, config?, from?, to?}` — the numeric walk: a generated table of every tensor in
+  forward order (step, op, formula, symbolic shape, numeric shape, elements, note). Clicking a row
+  highlights the tensor in the page's diagram.
+- `{t:'params', model, config?, group?:'block'|'layer'|'op'}` — generated table: block, formula
+  (LaTeX), count, % of total; total row equals the calculator's total.
+- `{t:'flops', model, config?}` — generated table in MACs and FLOPs (FLOPs = 2 × MACs), per block,
+  with the formula and % of total; footnote on the MACs-vs-FLOPs convention (§6.2).
+- `{t:'scaling', model, knobs:[{key:'res', values:[224,384,448,512]} …], show:['tokens','params','macs','attnMem','kvCache'…]}`
+  — interactive explorer (sliders/chips); every number recomputed by the calculator; a small log-log
+  chart of the chosen metric.
+- `{t:'archdiagram', diagram:'<diagram id>', walk?:'<walk id>', wide?:true, caption?}` — §7.
+- `{t:'viz', kind:'<viz name>', params:{…}, caption?}` — key-idea visualization (§7.8).
+- `{t:'compare', models:[ids], rows:[metric keys]}` — generated side-by-side table from the calculator
+  (params, tokens, MACs at canonical config) for the trade-offs sections.
+- `{t:'blankdiagram', diagram, slots:[{node|edge, ask:'label'|'shape'|'op', options?:[…]}]}` — §8.1.
+- `{t:'shapedrill', model, pool:[tensorIds]|'all', configs?:[configIds]}` — §8.2.
+- `{t:'whatif', items:[{q, change:{key:value}, ask:'tokens'|'params'|'macs'|'attnMem'|'kv', options?}]}` — §8.3.
+- `{t:'card', family|model}` — a map card (§5.5) embedded inline.
+Inline HTML whitelist and number conventions as the Ronda: `<b> <strong> <i> <em> <code> <a href>
+<br> <sub> <sup> <kbd> <span class="en"> <span class="est">`; decimal point, comma thousands
+(86,567,656); `≈` for rounded values; **estimates** wrapped in `<span class="est">`. Inline quantities
+from the calculator: `{{vit-b16-224.params.total}}`, `{{vit-b16-224.tokens}}` (§6.6) — prefer these
+over typed numbers whenever a number is architectural.
+
+### 5.5 The Map (`mapa`)
+- A hand-laid SVG (same diagram engine, `kind:'map'` spec) of families as regions and models as
+  nodes, with typed relation edges: `hereda` (descendant), `usa` (uses as a component: LLaVA usa CLIP
+  ViT-L/14), `contrasta` (alternative to), `reemplaza`. Anchors for what the user already knows
+  (ResNet, YOLO) in grey. Clicking a node opens its card; ready models link to their page.
+- Under it, one **card** per family and per model (level 1 for `kind:'card'` entries): inputs →
+  outputs, one-line idea, where it's used, canonical size, paper, "nivel 2 en: <page>" or "solo nivel 1".
+- A table "¿Qué familia uso para…?" (task → family → why) and a "tres sabores de transformer" table
+  (encoder-only / decoder-only / encoder-decoder: mask, objective, examples) — the recap of the three
+  masks lives here and in `repaso-atencion`.
+
+### 5.6 Reference sheet (`ref-formas`)
+Generated, not hand-written: for each primitive (§6.3) its param formula, MAC formula and output
+shape (LaTeX), and for each ready model a compact table (tokens, D, L, heads, params, MACs at the
+canonical config) via `compare`. Plus hand-written sections (allowed prose): rules of thumb (params
+of a transformer layer ≈ 12 D², MACs per token ≈ 2·params for the linear parts, attention term
+N²·D…), each one verified by a calculator assertion in `tests/arch.test.cjs` (§9.2).
+
+## 6. The architecture calculator (`ATLAS.Arch`) — single source of numbers
+
+### 6.1 Purpose
+Every shape, parameter count and MAC/FLOP count in the app is computed here, in plain JS that runs in
+the browser (diagrams, tables, drills, scaling explorer) and in Node (tests, validator). Nothing
+architectural is typed by hand anywhere else.
+
+### 6.2 Conventions (state them in the UI footnotes and in `ref-formas`)
+- Shapes **without batch** by default, row-major "tokens × channels": `N×D`, images `H×W×C`
+  (channels-last in text; note that PyTorch is `C×H×W`). Batch appears only in memory/throughput
+  numbers, as an explicit `B`.
+- Symbols (shared with the Lab; mapping table in `repaso-atencion`): `N` tokens (ViT: patches),
+  `D` model width, `h` heads, `d_h = D/h`, `L` layers, `D_mlp` MLP hidden size, `P` patch size,
+  `H, W` image size, `C` channels, `V` vocabulary, `K` classes, `T` text/sequence length when a second
+  stream exists (CLIP, VLMs), `M` window size (Swin), `Q` queries (DETR). Lab ↔ Atlas: `T↔N`,
+  `d↔D`, `d_k↔d_h`, `d_ff↔D_mlp`.
+- **Parameters**: exact integers, biases included when the reference implementation has them (the
+  config says so per layer). Buffers (fixed sinusoidal PE, relative position index) are not
+  parameters; learned tables (relative position bias in Swin) are.
+- **MACs**: multiply-accumulates of matmuls/convs (count `m·n·k` for an `m×k · k×n` matmul).
+  **FLOPs = 2 × MACs.** Elementwise ops, softmax, norms and activations are reported separately as
+  "otros (≈)" and excluded from the headline number, and the UI says so. Trap to flag everywhere:
+  many papers and tools (fvcore, the DeiT/Swin tables) report **MACs under the name "FLOPs"** — the
+  ≈ 17.5 "GFLOPs" usually quoted for ViT-B/16 @224 are ≈ 17.5 **GMACs** (the F1 reviewers confirm the
+  exact table and figure before the page quotes it).
+- Attention MACs = projections + `QKᵀ` (N·N·D) + `A·V` (N·N·D) + output projection; attention
+  **memory** reports the `h×N×N` score tensor in fp16/bf16 bytes (and notes FlashAttention avoids
+  materializing it).
+- Every number has a provenance: `computed` (calculator), `paper` (quoted from a cited table, with
+  table number) or `estimate` (rendered with `.est`). Paper numbers that disagree with the calculator
+  are shown side by side with an explanation (e.g. MACs vs FLOPs, or a different head), never silently
+  replaced.
+
+### 6.3 Primitives (`js/arch/primitives.js`)
+Each primitive is a pure function `(inShape, cfg) → {out:Shape, params:int, macs:int, other?:int,
+paramFormula:tex, macFormula:tex, detail:{…}}`. A `Shape` is `{sym:['N+1','D'], num:[197,768],
+mod:'img'|'txt'|…, layout:'seq'|'grid'|'vec'|'heads'}`. Required in Phase 1:
+`linear, conv2d (incl. patchify), layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned,
+cls_token, concat_tokens, split_heads, merge_heads, attention_scores, softmax, attention_weighted_sum,
+mhsa (composite: qkv → split → scores → softmax → ·V → merge → proj), mlp (composite), residual_add,
+transformer_block (pre-LN composite), pool_cls, classifier_head`. Later phases add their own
+(window_attention, patch_merging, cross_attention, deformable_attention, rope, gqa, swiglu, moe,
+unet_block, timestep_embed…) in `primitives.js` (shared) or in their model file (model-specific) —
+each new primitive comes with tests.
+
+### 6.4 Model definitions (`js/arch/<model>.js`)
+```js
+ATLAS.Arch.defineModel({
+  id: 'vit',
+  configs: {
+    'vit-b16-224': { label:'ViT-B/16 @ 224', H:224, W:224, C:3, P:16, D:768, L:12, h:12, Dmlp:3072, K:1000,
+                     qkvBias:true, source:'Dosovitskiy et al. 2021, Tabla 1 (ViT-Base); cabeza de 1000 clases como timm vit_base_patch16_224',
+                     canonical:true },
+    'vit-l16-224': {…}, 'vit-h14-224': {…}, 'vit-s16-224': {…, source:'DeiT (Touvron et al. 2021)'},
+  },
+  knobs: { res:[224,384,512], P:[8,14,16,32] },            // for the scaling explorer / what-if
+  build(cfg, A) {                                           // A = primitives, returns a Graph
+    const g = A.graph(cfg);
+    const x0 = g.input('img', A.shape(['H','W','C'], [cfg.H, cfg.W, cfg.C], 'img', 'grid'));
+    const p = g.op('patch-embed', A.conv2d(x0, {k:cfg.P, s:cfg.P, cout:cfg.D, bias:true}), {node:'patch-embed'});
+    // … every op gets a stable id; node = the diagram node it belongs to; tensors get stable ids
+    return g;
+  },
+});
+```
+`ATLAS.Arch.run(configId) → {tensors:{id:{shape, producer, consumers}}, ops:[{id,node,prim,params,macs,…}],
+totals:{params, macs, flops, other, byNode:{…}, byGroup:{…}}, quantities:{tokens, …}}` (memoized).
+Tensor and op ids are **contracts** with diagrams (§7), content (`op`/`trace` blocks), drills and the
+cross-check (§9.3): kebab-case, stable, never renamed once shipped.
+
+### 6.5 Derived metrics (for scaling/what-if)
+`ATLAS.Arch.metrics(configId, overrides) → {tokens, params, macs, flops, attnMacsShare, attnMem(bytes,
+dtype), actMem(B,dtype), kvCache(B,ctx,dtype)?…}`; `overrides` may change only `knobs`.
+
+### 6.6 Quantities in prose (`js/core/quantities.js`)
+`{{<configId>.<path>}}` in any html field → formatted number (`params.total` → `86,567,656`;
+`params.totalM` → `86.6 M`; `macs.totalG` → `17.56 G`; `tokens`; `tensor.<id>.shape` → `197×768`;
+`tensor.<id>.sym` → `(N+1)×D`). Unknown keys are validator errors and render as a visible warning.
+
+## 7. Architecture diagrams (`ATLAS.ArchDiagram`) — the core component
+
+### 7.1 Principles
+- **Hand-laid per model**: authors place every node on a grid (no auto-layout); the engine only
+  routes edges (orthogonal with rounded corners, through optional `via` points) and draws.
+- Flow left→right for pipelines (CLIP, VLMs, VLA), top→bottom for deep stacks (encoder layers); no
+  unnecessary crossings (validator §9.1 counts crossings of `data` edges and fails above the spec's
+  declared `maxCrossings`, default 0).
+- Two zoom levels: **(a) overview** of the whole model; **(b) expanded** view of a block showing its
+  sub-operations (e.g. MHSA → Q/K/V projections → split into heads → QKᵀ/√d_h → softmax → ·V →
+  concat → W_O). Expanding animates the viewBox into the block and swaps in the sub-diagram, with a
+  breadcrumb ("ViT-B/16 › Encoder layer × 12 › MHSA"). Up to 3 levels are allowed when a block nests
+  (encoder layer → MHSA → one head).
+- **The diagram must be understood without reading the page text** (review criterion §9.4): labels
+  on blocks, shapes on edges, legend, repeat/parallel markers, and a one-line `caption` are enough.
+
+### 7.2 Spec (`js/content/diagrams/<page>.js` → `ATLAS.registerDiagram(spec)`)
+```js
+{ id:'vit-overview', model:'vit', config:'vit-b16-224', kind:'arch'|'map', title, caption,
+  grid:{w:120, h:70},                       // units (1 unit = 8 px at 100 %)
+  direction:'lr'|'tb', maxCrossings:0,
+  groups:[ {id:'encoder', label:'Transformer encoder', x,y,w,h, repeat:{sym:'L', from:'L'} /* "×L = 12" from config */,
+            modality?:'img'} ],
+  nodes:[ {id:'patch-embed', op:'embed'|'attn'|'norm'|'mlp'|'conv'|'fuse'|'head'|'tensorop'|'io',
+           label:'Patch embedding', sub:'conv 16×16, s=16', x,y,w,h,
+           expand?:'vit-patch-embed' /* id of a level-(b) diagram */,
+           heads?:'h' /* draw a fanned deck of h cards */, parallel?:n, shape?:'add'|'concat'|'split'|'rect',
+           ops:['patch-embed'] /* calculator op ids → tooltip params/MACs */, tex?:'…' /* tooltip formula */,
+           note:html /* detail panel: what + why */ } ],
+  tensors:[ {id:'x-patches', at:{x,y}|{edge:'patch-embed>flatten', t:0.5}, show:'glyph'|'label'|'both'} ],
+  edges:[ {from, to, kind:'data'|'residual'|'skip'|'cross'|'query'|'control', tensor?:'x-patches',
+           fromSide?, toSide?, via?:[[x,y]], tag?:'K,V'} ],
+  walks:[ {id:'forward', label:'Recorrido con números', steps:[ {nodes:[ids], edges:['a>b'], tensors:[ids],
+           text:html /* uses {{…}} quantities */, expand?:'diagram id'} ]} ],
+  legend:'auto' }
+```
+Edges never carry free-text shapes: a `data/cross/query/skip` edge must name a `tensor` (validator
+error otherwise), and its label is rendered from the calculator. Walk steps reference ids only.
+
+### 7.3 Tensor glyphs (proportional)
+A tensor is drawn as a small isometric box whose three visible extents map to its dims:
+- `seq` (`N×D`): length ∝ `log2(N)`, depth ∝ `log2(D)`; `grid` (`H×W×C`): face ∝ `log2(H)`,
+  `log2(W)`, depth ∝ `log2(C)`; `heads` (`h×N×d_h`): a stack of `min(h,8)` thin slabs with "×h";
+  `vec`: a thin bar. Log scaling with clamps (min 6 px, max 64 px per extent at 100 %) so 197 vs 50
+  tokens or 768 vs 2048 channels are visibly different without one tensor dwarfing the figure.
+- Fill = modality color (§3.2) at 18 % + texture; stroke = modality color.
+- Label next to the glyph or on the edge: symbolic shape on top (`(N+1)×D`), numbers below (`197×768`),
+  both in mono; toggle "Mostrar números" (pref `showNumbers`, default on).
+
+### 7.4 Visual grammar
+- Op blocks: rounded rects (r = 4) filled with `--op-*-soft`, 1.5 px stroke `--op-*`, label 13 px
+  semibold, `sub` 11.5 px mono muted. Tensor ops (`tensorop`) are small circles/pills: ⊕ add, ‖ concat,
+  ✂ split, ⤓ pool. Learnable-parameter badge (small key-shaped tick + count, e.g. "1.77 M") at the
+  top-right of blocks with parameters, from the calculator.
+- `repeat` groups: frame with the label "× L = 12" and two offset shadow frames behind (a stack).
+- `heads`: fanned deck of cards (offset 3 px each, up to 8 drawn) with "h = 12".
+- Parallel encoders (CLIP image ‖ text): side-by-side columns with modality stripes, joined at the
+  fusion node; parallel branches are vertically aligned.
+- Residuals bypass on the left/outside of the main column and join at a ⊕; never cross the data path.
+- Cross-attention edges arrive at the side of the attention block, tagged "K,V"; the query path
+  arrives from below/above.
+
+### 7.5 Interaction
+- **Hover / focus** on a node or edge → tooltip: name, formula (MathJax), input → output shapes
+  (symbols and numbers), params and MACs (from `ops`). Touch: first tap = tooltip, second tap = open.
+- **Click / Enter** → detail panel (right side ≥ 1024 px; bottom sheet on mobile): `note`, formula,
+  shapes, params with the arithmetic (`768·2304 + 2304 = 1,771,776`), MACs with arithmetic, link to
+  the matching `op` card in section 4 and the "Abrir bloque" button if `expand` exists.
+- **Expand** (double-click, "Abrir bloque" button, or `+` key) → level (b) with breadcrumb; `Backspace`
+  / breadcrumb / "Volver" returns.
+- **Walk mode** ("Recorrido"): Anterior / Siguiente / play; the active nodes/edges/tensors light up
+  (others dim to 35 %), the step text shows the numeric example, expanded views open automatically
+  when a step requires it; the `trace` table row of the active tensor is highlighted if visible.
+- Toolbar per diagram: zoom −/+/ajustar, "Mostrar números", "Leyenda", "Recorrido", "Pantalla
+  completa" (CSS full-viewport overlay — not the Fullscreen API, which artifacts may block).
+
+### 7.6 Pan/zoom and responsiveness
+Pointer-events pan (drag) and pinch-zoom inside the diagram viewport (`touch-action:none` only on the
+viewport; page scroll still works outside it and with two-finger scroll on desktop needing Ctrl/⌘ for
+zoom). Min zoom = fit width; max 4×. On < 768 px the diagram opens at fit-width with a "Toca para
+explorar" hint; the legend collapses into a chip row.
+
+### 7.7 Accessibility
+Every node and labelled edge is focusable (`role="button"`, `aria-label` with name + shapes). Arrow
+keys move along `data` edges (→/↓ next, ←/↑ previous), Tab cycles nodes in spec order, Enter opens,
+`+`/`-` expand/collapse, `Esc` closes the panel. Under every diagram a `<details>` "Bloques y formas"
+lists every node with its shapes, params and note (text alternative).
+
+### 7.8 Key-idea visualizations (`js/ui/viz/<name>.js`, `ATLAS.Viz.register(name, render)`)
+Hand-made, interactive, theme-aware, driven by calculator numbers. Planned:
+`patchify` (F1: a 224×224 image — procedurally drawn scene, no external images — split into the 14×14
+grid, flattened to 196 tokens + CLS, position embeddings; slider for P and resolution),
+`attention-map` (F1, recap: one query token's attention over the patches; synthetic but labelled as
+illustrative), `shifted-windows` (Swin), `similarity-matrix` (CLIP, with InfoNCE row/column softmax),
+`hungarian` (DETR: queries ↔ GT boxes, cost matrix, assignment), `causal-mask` + `kv-cache` growing
+(LLM), `dynamic-resolution` (Qwen2-VL), `prompt-to-mask` (SAM), `denoise` (diffusion), `action-chunk`
+(VLA). Any synthetic data is labelled "ilustrativo".
+
+## 8. Practice (`ATLAS.Practice`)
+
+### 8.1 Blank diagrams
+The same diagram with chosen slots blanked (node label, op type or edge shape). Tap a slot → choose
+from options (generated distractors: other node labels of the same model, shapes from the trace with
+one dim changed). "Comprobar" marks right/wrong per slot; state persisted (`store.blankDiagram`).
+Distractors for shapes come from the calculator (e.g. `196×768` vs `197×768` vs `197×2304`).
+
+### 8.2 Shape drills ("¿Qué forma tiene este tensor?")
+Pick a tensor (random from the pool, any config in `configs`), highlight it on a mini diagram, ask for
+its numeric shape. Free-text answer normalized (`197x768`, `197 × 768`, `(197, 768)` all accepted;
+batch dim optional). Show the derivation from the trace on reveal. Also reverse drills: "¿cuántos
+parámetros tiene este bloque?" with tolerance ±1 % and the formula on reveal.
+
+### 8.3 What-if ("¿qué pasa si duplico…?")
+Multiple choice or numeric: e.g. ViT-B/16 at 448 instead of 224 → tokens ×4 (196 → 784), params ≈ same
+(only the position table changes and must be interpolated), attention-score MACs ×16, total MACs ≈
+×4.x. Every answer computed by `ATLAS.Arch.metrics`; the explanation shows both runs side by side.
+
+### 8.4 Flashcards
+Fork of the Ronda's (Leitner, 5 boxes, Space / 1 / 2 / 3). Kinds: `forma`, `formula`, `conteo`,
+`concepto`, `tradeoff`, `trampa`. Card answers may use `{{…}}` quantities and LaTeX.
+
+### 8.5 `practica` hub
+Per model: drills done/accuracy, blank diagrams completed, "mezcla" mode (random drills across all
+ready models), and the flashcards due count.
+
+## 9. Verification (exactness is a feature)
+
+### 9.1 Validator (`tools/validate-content.mjs`, `npm run validate`)
+Loads everything `index.html` loads (in order) in Node and fails on: unknown block types or missing
+fields; template sections missing/out of order; broken internal links; unknown `{{…}}` keys;
+diagram specs whose nodes overlap, fall outside the grid, reference unknown op/tensor ids, have
+`data` edges without `tensor`, or exceed `maxCrossings`; `op`/`trace` blocks with unknown ids;
+calculator `run` failures for any config; glossary slug collisions; files not loaded by `index.html`;
+digit groups typed in prose that equal a calculator quantity of the page's model (warning: "usa
+`{{…}}`"); paper entries without `arxiv` (or `url`) and `venue`.
+
+### 9.2 Calculator tests (`tests/arch.test.cjs`)
+For every primitive: shape/param/MAC unit tests on tiny configs computed by hand in the test. For every
+model config: totals equal the cross-check expectations (§9.3) exactly for params, within 0.5 % for
+MACs (different conventions documented per model), output shapes equal. Rules of thumb in prose are
+asserted (e.g. per-layer params of ViT-B = 12·D² + 13·D within the exact formula). Anchor values for
+Phase 1, recomputed independently (both must match the calculator): ViT-B/16 @224 with a 1000-class
+head = **86,567,656** params (timm `vit_base_patch16_224`); ≈ **17.56 GMACs** of matmuls/convs (the "FLOPs"
+figure in the DeiT/Swin tables — verify the table before quoting it).
+
+### 9.3 Python cross-check (`crosscheck/`, dev-only)
+`crosscheck/requirements.txt` (torch, timm, transformers; pinned), `crosscheck/<model>.py` builds the
+**reference implementation from a config, without downloading weights** (`pretrained=False`, HF
+`*Config(...)` objects built in code), counts parameters (`sum(p.numel())`), runs a forward pass on a
+zero input recording every hooked module's output shape, and counts FLOPs with
+`torch.utils.flop_counter.FlopCounterMode` (which reports 2 × MACs). Output:
+`crosscheck/expected/<configId>.json` = `{params_total, params_by_module, shapes:{tensorId:[…]},
+flops_total, source:{lib, version, ctor}}`, **committed**. The mapping from calculator tensor ids to
+PyTorch module names lives in the same `.py`. `npm run crosscheck` (= `tools/crosscheck-compare.mjs`)
+regenerates (needs the venv) and diffs; `tests/crosscheck.test.cjs` compares the calculator with the
+committed JSON (no Python needed). Venv: `apps/atlas-arquitecturas/.venv` (gitignored,
+vercelignored), created with `python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt`.
+If a reference implementation differs from the paper (e.g. timm drops ViT's pre-logits layer), the JSON
+notes it and the page says which one the numbers follow.
+
+### 9.4 Review per phase (content-focused, like the Ronda's)
+Reviewers (parallel) → verify-then-apply fixers:
+1. **Exactitud técnica** — formulas, mechanisms, paper configs and citations (arXiv ids, venues,
+   table numbers), no invented benchmarks.
+2. **Números** — runs `npm test`, `npm run crosscheck` (if the venv exists) and recomputes by hand
+   every hand-written number and every rule of thumb.
+3. **Diagramas** — screenshots (light, dark, 375 px) of every diagram view and expanded block;
+   checks every drawn shape against `ATLAS.Arch.run` output, layout grammar (§7.4), crossings,
+   legend completeness, and the **"se entiende sin leer el texto"** test: describe the model from the
+   screenshot alone and compare with the page.
+4. **Entrevistador senior** — would a senior interviewer accept these answers; traps; what's missing;
+   what to mark "sáltate esto".
+UX/shell reviewers only in phases that change the shell (F1).
+
+### 9.5 Commands
+```
+npm run validate        # §9.1
+npm test                # node --test "tests/*.test.cjs"  (arch, content, store, crosscheck JSON)
+npm run crosscheck      # regenerate + diff with Python (needs .venv)
+npm run contrast        # tools/contrast-check.mjs (§3.2)
+npm run smoke           # headless Chrome walk of every ready page, every diagram view, walk mode, drills
+npm run smoke:mobile · smoke:dark · smoke:tablet · smoke:dist
+npm run build           # dist/atlas-arquitecturas.html + dist/artifact.html
+npm run build:web       # + dist/web (manifest, icons, sw.js)   ·   build:vercel = same without re-generation
+```
+Smoke must assert, per diagram: renders without console errors, every edge label equals the
+calculator's shape, expand/collapse works, the walk visits all steps, no horizontal page overflow at
+375 px.
+
+## 10. Build and distribution
+
+### 10.1 Single file + Artifact
+`build.mjs` (fork of the Ronda's) inlines css/js → `dist/atlas-arquitecturas.html` (double-click) and
+`dist/artifact.html` (no doctype/html/head/body, starts with `<title>`); MathJax and fonts stay as
+external links (allowed hosts). Publish as a claude.ai Artifact with capabilities `{db:{}, user:{}}`
+only when the user asks.
+
+### 10.2 Web (Vercel)
+Fork of the Ronda's `tools/build-web.mjs` + `web/` (manifest name "Atlas de Arquitecturas", short
+name "Atlas", icons redrawn, cache prefix `atlas-`) → `dist/web/`. The service worker also
+runtime-caches the MathJax script and the font files (stale-while-revalidate) so formulas work offline
+after the first visit. `vercel.json` with Root Directory `apps/atlas-arquitecturas`, no framework, no
+install, build `npm run build:vercel`, output `dist/web`; `.vercelignore` anchored with `/` (Vercel
+drops dotfiles — nothing in the build may depend on one). Deploy only when the user asks (new Vercel
+project `atlas-arquitecturas`).
+
+### 10.3 Linking the Laboratorio Transformer
+`ATLAS.labLink(tab)` returns, by environment: web build → `lab/#<tab>` (the web build copies the Lab's
+`dist/transformer-lab.html` to `dist/web/lab/index.html`, precached by the service worker; built by
+running the Lab's own `build.mjs`); `file://` → `../transformer-lab/index.html#<tab>`; Artifact → no
+link, a note "Abre el Laboratorio Transformer (apps/transformer-lab)". Lab tabs that exist today:
+`paso`, `entrenamiento`, `generacion`, `datos`. (Optional, needs the user's OK: a 10-line change in the
+Lab to accept `#paso-<n>` deep links to a step.)
+
+## 11. Writing style (every content file)
+The Ronda's §9, adapted:
+- Spanish (neutral LatAm, tuteo), direct, no filler. Technical terms in English as said in interviews.
+- **Always the why.** **Numeric example before notation** (first the 224×224×3 image becoming 196
+  vectors of 768, then `x_p ∈ ℝ^{N×(P²C)}`). Comparison tables when two things get confused. Traps
+  flagged (`callout trap`). "Sáltate esto" (`callout skip` / `priority:'skip'`) for what's rarely asked.
+- Bridge from what the user knows: ResNet (stages, stride, receptive field, BatchNorm, GAP head), YOLO
+  (grid, anchors, IoU, NMS, mAP), and earlier atlas pages. Point forward with `callout connect`.
+- Use the paper's own config and cite it (title, first author et al., venue, year, arXiv id; table
+  number when quoting a number). Paper-reported accuracies only with the table cited; otherwise none.
+  Never invent benchmarks or latencies; estimates go in `.est` with how to measure them.
+- Interviewer voice: "esto es lo que te van a preguntar", "esto es lo que un entrevistador anota".
+- Validate with `npm run validate` until 0 errors.
+
+## 12. Phase recipe (for the orchestrator)
+- Check plan usage before each phase (`get_usage`); a phase must fit one 5-hour window (build + review
+  + fixes + commits). Don't chain a phase after another in the same window unless usage is low.
+- Write the phase's **shared facts** (canonical configs, tensor ids, node ids, paper citations) into
+  §13+ of this SPEC before launching agents, so parallel agents agree.
+- Build agents (parallel, by file ownership) → integrate → `validate`/`test`/`smoke` green → **commit**
+  → reviewers (§9.4) → verify-then-apply fixers → green → **commit**. Commit messages:
+  `feat(atlas): …` / `fix(atlas): apply phase N review findings (…)`.
+- Phase 1 agents: shell (fork + pages), calculator + tests + cross-check, diagram engine + legend +
+  `dev/diagram.html` + `patchify`, content ViT (+ its diagrams), content repaso + mapa + ref-formas +
+  catalog. Later phases: one calculator+content+diagram agent per model, plus one viz agent if needed.
+
+## 13. Phase 1 shared facts (every F1 agent MUST use exactly these)
+
+### 13.1 ViT canonical config `vit-b16-224`
+Paper: Dosovitskiy et al., *An Image is Worth 16x16 Words: Transformers for Image Recognition at
+Scale*, ICLR 2021, arXiv:2010.11929 (Table 1: ViT-Base L=12, D=768, MLP 3072, heads 12, 86M).
+Input 224×224×3, P=16 → N = (224/16)² = 196 patches, + CLS = 197 tokens. Pre-LN encoder, GELU,
+learned 1-D position embeddings (197×768), qkv with bias, classifier = LayerNorm → CLS token →
+linear 768→1000 (follows timm `vit_base_patch16_224`; the paper's pre-training head had an extra
+hidden layer, dropped at fine-tuning — say so in `entrenamiento`). Other configs for drills/variants:
+`vit-s16-224` (DeiT-S: D=384, L=12, h=6, MLP 1536), `vit-l16-224` (D=1024, L=24, h=16, MLP 4096),
+`vit-h14-224` (D=1280, L=32, h=16, MLP 5120), `vit-b16-384`, `vit-b32-224`.
+
+Diagram node ids (overview `vit-overview`): `input`, `patch-embed` (expand `vit-patch-embed`),
+`cls`, `pos-embed`, `add-pos`, `encoder` (group, repeat L), `enc-layer` (expand `vit-enc-layer`),
+`final-ln`, `pool-cls`, `head`. Expanded `vit-enc-layer`: `ln1`, `mhsa` (expand `vit-mhsa`), `res1`,
+`ln2`, `mlp` (expand `vit-mlp`), `res2`. Expanded `vit-mhsa`: `qkv`, `split`, `scores`, `scale`,
+`softmax`, `weighted-sum`, `merge`, `proj`.
+Tensor ids (forward order): `x-img` (224×224×3), `x-patch-grid` (14×14×768), `x-patches` (196×768),
+`x-cls-cat` (197×768), `x0` (197×768), `h-ln1`, `qkv` (197×2304), `q`,`k`,`v` (12×197×64 each),
+`scores` (12×197×197), `attn` (12×197×197), `z-heads` (12×197×64), `z` (197×768), `o` (197×768),
+`r1`, `h-ln2`, `u` (197×3072), `g` (197×3072), `f` (197×768), `x-out` (= x_L, 197×768), `x-ln`,
+`cls-out` (768), `logits` (1000). Layer-internal tensors are those of one layer; the trace shows layer
+1 in full and "× 12 idénticas" for the rest.
+
+### 13.2 Attention recap (`repaso-atencion`)
+Notation of §6.2; scaled dot-product attention `\mathrm{softmax}(QK^\top/\sqrt{d_h})V`, multi-head,
+the three masks (bidirectional / causal / cross), pre-LN vs post-LN, cost `O(N²·D)` vs `O(N·D²)` and
+where they cross (`N ≈ 6D`-ish — the calculator computes the exact crossover per config), what the Lab
+covers (link each item to a Lab tab), what this app adds (vision-side shapes). Kept compact: ≤ 25 min
+reading. Toy example sized like the Lab's (N=5, D=8, h=2) so the user can match numbers.
