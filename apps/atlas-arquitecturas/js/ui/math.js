@@ -4,7 +4,7 @@
    ATLAS.MathTex: envoltorio de MathJax 3 (salida SVG) con caché LRU (SPEC §1).
 
    API
-     ATLAS.MathTex.ready                  -> Promise<boolean>  (true: MathJax usable; false: no cargó en 8 s)
+     ATLAS.MathTex.ready                  -> Promise<boolean>  (true: MathJax usable; false: el script falló o no cargó en 8 s)
      ATLAS.MathTex.isReady()              -> boolean
      ATLAS.MathTex.render(latex, el, { display = false } = {}) -> el
          Síncrono si MathJax está listo; si no, deja un marcador provisional y lo encola.
@@ -69,6 +69,12 @@
       setTimeout(poll, 40);
     };
     poll();
+    // Sin red (o CDN bloqueado) el <script> avisa con 'error' al instante: no se esperan los 8 s
+    // para mostrar el respaldo. watchLate() sigue atento por si MathJax llega después.
+    // (index.html anota en window.__atlasMathJaxFailed un fallo anterior a la carga de este archivo.)
+    if (root.__atlasMathJaxFailed && !mathJaxUsable()) { finish(false); return; }
+    const s = doc.getElementById && doc.getElementById('MathJax-script');
+    if (s && typeof s.addEventListener === 'function') s.addEventListener('error', () => { if (!mathJaxUsable()) finish(false); }, { once: true });
     // límite duro también para startup.promise
     setTimeout(() => finish(mathJaxUsable() && !!root.MathJax.startup.document), TIMEOUT_MS + 50);
   });

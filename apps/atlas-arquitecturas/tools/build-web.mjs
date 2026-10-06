@@ -7,6 +7,7 @@
 //   sw.js           = web/sw.js con el hash del build y la lista de archivos a precargar
 //   manifest, íconos = copiados de web/
 // Requiere haber corrido antes build.mjs (npm run build:web hace las dos cosas).
+// --require-lab (lo usa build:vercel): falla si falta vendor/lab/index.html en vez de solo avisar.
 // No depende de ningún archivo que empiece con punto (Vercel no los sube).
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -18,6 +19,7 @@ const SRC = join(ROOT, 'dist', 'atlas-arquitecturas.html');
 const WEB = join(ROOT, 'web');
 const LAB = join(ROOT, 'vendor', 'lab', 'index.html');
 const OUT = join(ROOT, 'dist', 'web');
+const requireLab = process.argv.includes('--require-lab');   // build:vercel: sin el Laboratorio, falla
 if (!existsSync(SRC)) { console.error('[build-web] ERROR: falta dist/atlas-arquitecturas.html (corre antes node build.mjs).'); process.exit(1); }
 
 let html = readFileSync(SRC, 'utf8');
@@ -53,11 +55,19 @@ const build = hash.digest('hex').slice(0, 12);
 const swSrc = readFileSync(join(WEB, 'sw.js'), 'utf8');
 if ((swSrc.match(/__BUILD__/g) || []).length !== 1) { console.error('[build-web] ERROR: web/sw.js debe tener exactamente un marcador __BUILD__.'); process.exit(1); }
 if ((swSrc.match(/\/\*__EXTRA__\*\//g) || []).length !== 1) { console.error('[build-web] ERROR: web/sw.js debe tener exactamente un marcador /*__EXTRA__*/.'); process.exit(1); }
+if ((swSrc.match(/\/\*__RUNTIME__\*\//g) || []).length !== 1) { console.error('[build-web] ERROR: web/sw.js debe tener exactamente un marcador /*__RUNTIME__*/.'); process.exit(1); }
 const extra = hasLab ? ["'./lab/'", "'./lab/index.html'"] : [];
+// Recursos externos de index.html (MathJax de cdnjs, CSS de Google Fonts): el service worker los
+// precarga al instalarse para que funcionen sin conexión desde la primera visita (SPEC §10.2).
+const runtimeUrls = Array.from(new Set([
+  ...Array.from(html.matchAll(/<script\b[^>]*\bsrc="(https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/mathjax\/[^"]+)"/gi), (m) => m[1]),
+  ...Array.from(html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="(https:\/\/fonts\.googleapis\.com\/[^"]+)"/gi), (m) => m[1].replace(/&amp;/g, '&')),
+]));
+if (!runtimeUrls.some((u) => /mathjax/.test(u))) console.warn('[build-web] AVISO: no encontré el <script> de MathJax en el HTML: el service worker no lo precargará.');
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, 'index.html'), html);
-writeFileSync(join(OUT, 'sw.js'), swSrc.replace('__BUILD__', build).replace('/*__EXTRA__*/', extra.join(', ')));
+writeFileSync(join(OUT, 'sw.js'), swSrc.replace('__BUILD__', build).replace('/*__EXTRA__*/', extra.join(', ')).replace('/*__RUNTIME__*/', runtimeUrls.map((u) => JSON.stringify(u)).join(', ')));
 for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
   if (!existsSync(join(WEB, f))) { console.error('[build-web] ERROR: falta web/' + f); process.exit(1); }
   copyFileSync(join(WEB, f), join(OUT, f));
@@ -65,6 +75,9 @@ for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.p
 if (hasLab) {
   mkdirSync(join(OUT, 'lab'), { recursive: true });
   copyFileSync(LAB, join(OUT, 'lab', 'index.html'));
+} else if (requireLab) {
+  console.error('[build-web] ERROR: no existe vendor/lab/index.html (npm run vendor:lab): sin él, cada enlace lab/#… daría 404 en la web.');
+  process.exit(1);
 } else {
   console.warn('[build-web] AVISO: no existe vendor/lab/index.html (npm run vendor:lab): los enlaces al Laboratorio no abrirán en la web.');
 }

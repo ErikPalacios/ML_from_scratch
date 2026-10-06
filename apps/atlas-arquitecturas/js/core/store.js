@@ -26,6 +26,13 @@
   const MAX_ANSWER = 200;                  // tope de la respuesta guardada por drill
   const ID_RE = /^[A-Za-z0-9_\-.~:@+>|]{1,200}$/;   // ids de drills / diagramas / slots
   const PREF_DEFAULTS = { theme: 'system', legendOpen: true, showNumbers: true };
+  // Valores válidos de las preferencias conocidas (las demás claves se aceptan tal cual).
+  const PREF_OK = {
+    theme: (v) => v === 'system' || v === 'light' || v === 'dark',
+    legendOpen: (v) => typeof v === 'boolean',
+    showNumbers: (v) => typeof v === 'boolean',
+  };
+  const prefOk = (k, v) => !PREF_OK[k] || PREF_OK[k](v);
   // Tiempos (configurables solo para los tests): escritura local, pausa antes de sincronizar,
   // y espera máxima para no posponer la sincronización indefinidamente.
   const cfg = { localDelay: 250, syncDelay: 2000, maxWait: 15000 };
@@ -113,7 +120,7 @@
     const pf = isObj(raw.prefs) ? raw.prefs : {};
     s.prefs.updatedAt = num(pf.updatedAt, 0);
     if (isObj(pf.values)) {
-      for (const [k, e] of Object.entries(pf.values)) if (isObj(e) && 'v' in e) s.prefs.values[k] = { v: clone(e.v), at: num(e.at, 0) };
+      for (const [k, e] of Object.entries(pf.values)) if (isObj(e) && 'v' in e && prefOk(k, e.v)) s.prefs.values[k] = { v: clone(e.v), at: num(e.at, 0) };
     }
 
     const ck = isObj(raw.checklists) ? raw.checklists : {};
@@ -203,6 +210,28 @@
     return out;
   }
 
+  // Qué áreas cambiaron entre dos estados (para avisar con el tipo concreto, no con un 'remote' genérico):
+  // una pestaña que solo desplazó la página (lastLocation) o visitó otra (visitedAt) no obliga a
+  // volver a pintar nada aquí.
+  const J = (x) => JSON.stringify(x);
+  function completedOnly(pages) {
+    const o = {};
+    for (const k of Object.keys(pages).sort()) if (pages[k].completed || pages[k].at) o[k] = [pages[k].completed, pages[k].at];   // sin marcar = ausente
+    return o;
+  }
+  function changedKinds(a, b) {
+    const k = [];
+    if (J(a.progress.sections) !== J(b.progress.sections) || J(completedOnly(a.progress.pages)) !== J(completedOnly(b.progress.pages))) k.push('progress');
+    else if (J(a.progress.pages) !== J(b.progress.pages)) k.push('visit');
+    if (J(a.flash.cards) !== J(b.flash.cards)) k.push('flash');
+    if (J(a.prefs.values) !== J(b.prefs.values)) k.push('prefs');
+    if (J(a.checklists.items) !== J(b.checklists.items)) k.push('checklist');
+    if (J(a.drills.items) !== J(b.drills.items) || J(a.drills.log) !== J(b.drills.log)) k.push('drill');
+    if (J(a.blank.items) !== J(b.blank.items)) k.push('blank');
+    if (J(a.lastLocation) !== J(b.lastLocation)) k.push('location');
+    return k;
+  }
+
   // ------------------------------------------------------------------ estado en memoria + localStorage
   let state = emptyState();
   let localAvailable = false;   // localStorage accesible al cargar
@@ -251,9 +280,9 @@
         let cur = null;
         try { const raw = ls.getItem(KEY); if (raw) cur = sanitize(JSON.parse(raw)); } catch (_) { cur = null; }
         if (cur) {
-          const before = JSON.stringify(state);
+          const before = state;
           state = mergeInto(state, cur);
-          if (JSON.stringify(state) !== before) notify('remote');
+          changedKinds(before, state).forEach((k) => notify(k, 'tab'));
         }
         ls.setItem(KEY, JSON.stringify(state));
         ok = true;
@@ -283,6 +312,7 @@
     flushLocal();
     if (!remote || remote.dead) return;
     for (const [key, d] of remote.docs) {
+      if (d.soft && !d.disabled) { d.soft = false; d.dirty = true; }
       if (d.dirty && !d.writing && !d.disabled) { if (d.timer) clearTimeout(d.timer); d.timer = null; flushDoc(key); }
     }
   }
@@ -299,16 +329,24 @@
     for (const fn of Array.from(statusListeners)) { try { fn(s); } catch (e) { logErr(e); } }
   }
 
-  function notify(kind) {
-    for (const fn of Array.from(listeners)) { try { fn(kind); } catch (e) { logErr(e); } }
+  // fn(kind, source): source = 'local' (esta pestaña), 'tab' (otra pestaña) o 'account' (la db).
+  function notify(kind, source) {
+    for (const fn of Array.from(listeners)) { try { fn(kind, source || 'local'); } catch (e) { logErr(e); } }
   }
 
   // Tras cada mutación: persistir (local + remoto) y avisar a los suscriptores.
+  // remoteKeys = [] (visitas y última ubicación): no programa una escritura en la cuenta; el cambio
+  // viaja con la próxima escritura real del documento o al ocultar/cerrar la página (flushAll).
   function commit(kind, remoteKeys) {
     state.updatedAt = now();
     scheduleLocal();
+    if (remoteKeys && !remoteKeys.length) markSoft('main');
     (remoteKeys || ['main']).forEach(scheduleRemote);
     notify(kind);
+  }
+  function markSoft(key) {
+    if (!remote || remote.dead || !BODY[key]) return;
+    docEntry(key).soft = true;
   }
 
   // ------------------------------------------------------------------ sincronización con la cuenta (Artifact)
@@ -356,6 +394,7 @@
     d.timer = null;
     if (d.writing || !d.dirty) return;   // una escritura a la vez por documento; la actual reprograma al terminar
     d.dirty = false;
+    d.soft = false;                      // lo "suave" (visitas, ubicación) va incluido en esta escritura
     let json;
     try { json = JSON.stringify(BODY[key](state)); } catch (e) { d.disabled = true; return; }
     if (json === d.last) return;                       // nada cambió desde la última escritura
@@ -431,7 +470,7 @@
       scheduleRemote('main');
       scheduleRemote('practice');
       emitStatus();
-      if (JSON.stringify(state) !== before) { scheduleLocal(); notify('remote'); }
+      if (JSON.stringify(state) !== before) { scheduleLocal(); notify('remote', 'account'); }
     }).catch((e) => {
       // Sin acceso a la db (revocado, sin permisos, etc.): se sigue con el guardado local.
       if (remote) degrade();
@@ -529,7 +568,7 @@
     const t = now();
     pageEntry(pageId).visitedAt = t;
     state.progress.updatedAt = t;
-    commit('visit');
+    commit('visit', []);
   }
 
   function getChecklist(pageId, listId) {
@@ -554,7 +593,7 @@
     const h = typeof hash === 'string' ? (hash.charAt(0) === '#' ? hash : '#' + hash) : '';
     if (!/^#[A-Za-z0-9._~-]*$/.test(h) || h === state.lastLocation.hash) return;
     state.lastLocation = { updatedAt: now(), hash: h };
-    commit('location');
+    commit('location', []);
   }
 
   // ------------------------------------------------------------------ API: práctica (drills)
@@ -708,6 +747,7 @@
   function setPref(key, value) {
     if (typeof key !== 'string' || !key) return;
     const v = value === undefined ? null : clone(value);
+    if (!prefOk(key, v)) return;
     const cur = state.prefs.values[key];
     if (cur && JSON.stringify(cur.v) === JSON.stringify(v)) return;
     const t = now();
@@ -766,9 +806,9 @@
       root.addEventListener('storage', (e) => {
         if (!e || e.key !== KEY || !e.newValue) return;
         try {
-          const before = JSON.stringify(state);
+          const before = state;
           state = mergeInto(state, sanitize(JSON.parse(e.newValue)));
-          if (JSON.stringify(state) !== before) notify('remote');
+          changedKinds(before, state).forEach((k) => notify(k, 'tab'));
         } catch (_) { /* valor ajeno o corrupto: se ignora */ }
       });
     }

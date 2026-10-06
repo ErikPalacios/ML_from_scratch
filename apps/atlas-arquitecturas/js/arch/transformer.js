@@ -30,7 +30,7 @@
     },
     configs: {
       'toy-n5-d8': Object.assign({}, toy, { label: 'Juguete N=5, D=8, h=2', causal: false, canonical: true,
-        source: 'Ejemplo del Laboratorio Transformer; equivale a torch.nn.TransformerEncoderLayer(8, 2, 32, norm_first=True)' }),
+        source: 'Ejemplo del Laboratorio Transformer; equivale (en conteos) a torch.nn.TransformerEncoderLayer(8, 2, 32, activation="gelu", norm_first=True)' }),
       'toy-n5-d8-causal': Object.assign({}, toy, { label: 'Juguete causal N=5, D=8, h=2', causal: true,
         source: 'Igual que toy-n5-d8 con máscara causal (decoder-only)' }),
     },

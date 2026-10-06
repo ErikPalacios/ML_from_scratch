@@ -76,6 +76,10 @@ pairs.push(['arista cross (--op-fuse)', '--op-fuse', '--surface', G]);
 pairs.push(['arista query (--mod-qry)', '--mod-qry', '--surface', G]);
 pairs.push(['arista control (--muted)', '--muted', '--surface', G]);
 pairs.push(['etiqueta K,V', '--ink', '--op-fuse-soft', T]);
+pairs.push(['etiqueta Q / K / V (neutra): texto', '--ink', '--surface', T]);
+pairs.push(['etiqueta Q / K / V (neutra): borde', '--ink', '--surface', G]);
+pairs.push(['bloque compuesto (style:block): borde', '--ink', '--surface', G]);
+pairs.push(['nota de glifo (--muted)', '--muted', '--surface', T]);
 for (const m of MODS) pairs.push([`glifo de tensor ${m} (trazo)`, `--mod-${m}`, '--surface', G]);
 pairs.push(['forma: símbolos (--muted)', '--muted', '--surface', T]);
 pairs.push(['forma: números (--ink)', '--ink', '--surface', T]);
@@ -93,8 +97,8 @@ pairs.push(['mapa: borde de nodo listo (--accent)', '--accent', '--surface-2', G
 pairs.push(['mapa: borde de nodo próximo/ancla (--muted)', '--muted', '--surface-2', G]);
 pairs.push(['mapa: etiqueta en nodo listo', '--ink', '--accent-soft', T]);
 pairs.push(['mapa: etiqueta en nodo próximo', '--ink', '--surface', T]);
-pairs.push(['mapa: etiqueta en ancla', '--ink', '--surface-2', T]);
-pairs.push(['mapa: fase "F2" (--muted)', '--muted', '--surface-2', T]);
+pairs.push(['mapa: etiqueta en ancla (relleno gris = --muted 22 % sobre --surface)', '--ink', 'mix:--muted:0.22:--surface', T]);
+pairs.push(['mapa: borde de ancla sobre su relleno gris', '--muted', '--surface-2', G]);
 // práctica (huecos), recorrido, tooltip, panel
 pairs.push(['hueco: borde (--accent)', '--accent', '--surface', G]);
 pairs.push(['hueco: texto (--accent-ink)', '--accent-ink', '--surface', T]);
@@ -117,13 +121,22 @@ pairs.push(['viz: rótulo "ilustrativo" (--warn)', '--warn', '--surface', T]);
 pairs.push(['viz: celda de máscara usada (--op-attn)', '--op-attn', '--surface', G]);
 pairs.push(['viz: celda cross (--op-fuse)', '--op-fuse', '--surface', G]);
 pairs.push(['viz: query seleccionada (--ink)', '--ink', '--surface', G]);
+pairs.push(['viz: extremo de la escala de atención (--op-attn 82 %)', '--op-attn', '--surface', G, 0.82]);
 
 let fails = 0;
 const report = [];
 for (const [theme, tokens] of [['claro', light], ['oscuro', dark]]) {
   for (const [what, fgT, bgT, min, alpha] of pairs) {
-    const fgV = resolve(tokens, `var(${fgT})`), bgV = resolve(tokens, `var(${bgT})`);
-    const fg = hex(fgV), bg = hex(bgV);
+    const fgV = resolve(tokens, `var(${fgT})`);
+    let bgV, bg;
+    if (bgT.startsWith('mix:')) {
+      // mix:--a:α:--b = color-mix(in srgb, var(--a) α, var(--b))
+      const [, a, al, b] = bgT.split(':');
+      const ca = hex(resolve(tokens, `var(${a})`)), cb = hex(resolve(tokens, `var(${b})`));
+      bg = ca && cb ? mix(ca, cb, +al) : null;
+      bgV = bg ? '#' + bg.map((x) => x.toString(16).padStart(2, '0')).join('') : null;
+    } else { bgV = resolve(tokens, `var(${bgT})`); bg = hex(bgV); }
+    const fg = hex(fgV);
     if (!fg || !bg) { report.push(`  ? [${theme}] ${what}: no se pudo leer ${fgT}=${fgV} / ${bgT}=${bgV}`); fails++; continue; }
     const c = ratio(alpha ? mix(fg, bg, alpha) : fg, bg);
     const ok = c >= min;

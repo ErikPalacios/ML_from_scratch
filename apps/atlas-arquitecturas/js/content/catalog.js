@@ -25,17 +25,17 @@
     { id: 'cnn', kind: 'family', block: 1, title: 'CNNs', titleEn: 'Convolutional networks',
       summary: 'Lo que ya dominas: convoluciones locales con pesos compartidos, stages con stride, BatchNorm y cabeza GAP. Aquí son el punto de comparación y el backbone de varios modelos.' },
     { id: 'vit', kind: 'family', block: 1, title: 'Vision Transformers', titleEn: 'Vision Transformers',
-      summary: 'La imagen se corta en patches que se vuelven tokens y pasan por un encoder transformer. ViT es plano; Swin recupera la jerarquía de una CNN con ventanas.' },
+      summary: 'La imagen se corta en parches que se vuelven tokens y pasan por un encoder transformer. ViT es plano; Swin recupera la jerarquía de una CNN con ventanas.' },
     { id: 'contrastive', kind: 'family', block: 1, title: 'Aprendizaje contrastivo imagen-texto', titleEn: 'Contrastive vision-language',
       summary: 'Dos encoders (imagen y texto) que proyectan a un mismo espacio; la pérdida InfoNCE acerca los pares correctos. De aquí salen los encoders de visión de casi todos los VLMs.' },
     { id: 'detect', kind: 'family', block: 1, title: 'Detección', titleEn: 'Object detection',
-      summary: 'De YOLO (anchors, NMS) a DETR (queries y matching húngaro, sin NMS) y a la detección de vocabulario abierto, donde las clases llegan como texto.' },
+      summary: 'De YOLO (grilla, NMS; anchors según la versión) a DETR (queries y matching húngaro, sin NMS) y a la detección de vocabulario abierto, donde las clases llegan como texto.' },
     { id: 'seg', kind: 'family', block: 1, title: 'Segmentación con prompts', titleEn: 'Promptable segmentation',
       summary: 'Un encoder de imagen pesado que corre una vez y un decoder liviano que convierte un prompt (punto, caja) en máscara; SAM 2 le agrega memoria para video.' },
     { id: 'llm', kind: 'family', block: 1, title: 'LLMs (decoder-only)', titleEn: 'Decoder-only LLMs',
       summary: 'El transformer con máscara causal que predice el siguiente token, con las piezas modernas (RMSNorm, RoPE, SwiGLU, GQA) y lo que domina su inferencia (KV cache, prefill vs decode).' },
     { id: 'vlm', kind: 'family', block: 1, title: 'Modelos visión-lenguaje', titleEn: 'Vision-language models',
-      summary: 'Encoder de visión → projector → LLM: los patches se vuelven tokens dentro del prompt. Cambia cómo se generan esos tokens (resolución fija o dinámica).' },
+      summary: 'Encoder de visión → projector → LLM: los parches se vuelven tokens dentro del prompt. Cambia cómo se generan esos tokens (resolución fija o dinámica).' },
     { id: 'gen', kind: 'family', block: 1, title: 'Modelos generativos de imagen', titleEn: 'Generative image models',
       summary: 'Difusión (U-Net latente o transformer DiT) y flow matching, más las GANs como referencia histórica. Las mismas ideas generan acciones en robótica.' },
     { id: 'vla', kind: 'family', block: 1, title: 'Vision-Language-Action', titleEn: 'Vision-language-action models',
@@ -49,7 +49,7 @@
     { id: 'search', kind: 'family', block: 2, title: 'Búsqueda vectorial', titleEn: 'Vector search',
       summary: 'Encontrar los vecinos más cercanos entre millones de embeddings sin compararlos todos: grafos (HNSW) y cuantización (IVF-PQ).' },
     { id: 'recsys', kind: 'family', block: 2, title: 'Recomendación', titleEn: 'Recommender systems',
-      summary: 'El embudo de industria: two-tower para recuperar candidatos, un modelo de ranking (DLRM, Wide & Deep) para ordenarlos.' },
+      summary: 'El embudo de industria: two-tower para recuperar candidatos y, en la etapa siguiente, un modelo de ranking (DLRM, Wide & Deep) para ordenarlos.' },
     { id: 'trees', kind: 'family', block: 2, title: 'Árboles (GBDT)', titleEn: 'Gradient boosted trees',
       summary: 'XGBoost y LightGBM: siguen ganando en datos tabulares y aparecen en casi toda entrevista de ML de industria.' },
     { id: 'robot', kind: 'family', block: 3, title: 'Percepción y control para robótica', titleEn: 'Robotics perception & control',
@@ -85,7 +85,7 @@
       'Encoder-only, decoder-only y encoder-decoder',
     ],
     freq: A, minutes: 25,
-    from: [], to: ['vit', 'llm-decoder', 'bert', 't5'],
+    from: [], to: ['vit', 'llm-decoder', 'bert', 't5', 'whisper'],
     paper: { title: 'Attention Is All You Need', authors: 'Vaswani et al.', venue: 'NeurIPS 2017', arxiv: '1706.03762' },
     model: 'transformer', canonical: 'toy-n5-d8',
   });
@@ -94,7 +94,7 @@
   add(model({
     id: 'vit', block: 1, num: 1, phase: 1, family: 'vit',
     title: 'ViT — Vision Transformer', titleEn: 'Vision Transformer', short: 'ViT',
-    summary: 'Corta la imagen en patches de 16×16, los trata como tokens y los pasa por un encoder transformer estándar. Es la pieza que reutilizan CLIP, SAM, LLaVA y DiT.',
+    summary: 'Corta la imagen en parches de 16×16, los trata como tokens y los pasa por un encoder transformer estándar. Es el encoder de visión que reutilizan CLIP, SAM y LLaVA, y DiT reusa su arquitectura como denoiser.',
     topics: [
       'Patch embedding: una conv P×P con stride P (patchify)',
       'Token CLS y position embeddings aprendidas',
@@ -109,8 +109,8 @@
     paper: { title: 'An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale', authors: 'Dosovitskiy et al.', venue: 'ICLR 2021', arxiv: '2010.11929' },
     model: 'vit', canonical: 'vit-b16-224',
     card: { in: 'imagen 224×224×3', out: 'logits de clase (o tokens para otro modelo)',
-      idea: 'patches de 16×16 → tokens → encoder transformer; el token CLS resume la imagen',
-      uso: 'clasificación y, sobre todo, encoder de visión de CLIP, SAM, LLaVA y DiT',
+      idea: 'parches de 16×16 → tokens → encoder transformer; el token CLS resume la imagen',
+      uso: 'clasificación y, sobre todo, encoder de visión de CLIP, SAM y LLaVA; DiT reusa su arquitectura como denoiser',
       tamano: 'ViT-B/16: {{vit-b16-224.params.totalM}} parámetros, {{vit-b16-224.tokens}} tokens' },
   }));
   add(model({
@@ -260,7 +260,7 @@
     ],
     freq: A, minutes: 110,
     from: ['repaso-atencion'], to: ['llm-inferencia', 'llava', 'qwen2-vl', 'lora', 'rlhf-dpo', 'rt2'],
-    paper: { title: 'The Llama 3 Herd of Models', authors: 'Grattafiori et al.', venue: 'arXiv 2024', arxiv: '2407.21783' },   // v1 de arXiv lista a Dubey como primer autor
+    paper: { title: 'The Llama 3 Herd of Models', authors: 'Dubey et al.', venue: 'arXiv 2024', arxiv: '2407.21783' },   // primer autor como en la v1 de arXiv (jul. 2024); versiones posteriores listan a Grattafiori primero
     model: 'llm', canonical: 'llama3-8b',
     card: { in: 'tokens de texto', out: 'distribución del siguiente token',
       idea: 'transformer con máscara causal + RMSNorm, RoPE, SwiGLU y GQA', uso: 'chat, código, agentes; el "cerebro" de los VLMs y VLAs',
@@ -289,7 +289,7 @@
   add(model({
     id: 'llava', block: 1, num: 11, phase: 7, family: 'vlm',
     title: 'LLaVA — encoder + projector + LLM', titleEn: 'LLaVA: Large Language and Vision Assistant', short: 'LLaVA',
-    summary: 'Los patches de un CLIP ViT-L/14 pasan por un MLP y entran al prompt de un LLM como si fueran palabras. La receta más simple de VLM y la que todo el mundo usa de base.',
+    summary: 'Los parches de un CLIP ViT-L/14 pasan por un MLP y entran al prompt de un LLM como si fueran palabras. La receta más simple de VLM y la que todo el mundo usa de base.',
     topics: [
       'Tokens visuales: de 336×336 a 576 tokens',
       'Projector MLP: del espacio de CLIP al del LLM',
@@ -301,7 +301,7 @@
     paper: { title: 'Improved Baselines with Visual Instruction Tuning', authors: 'Liu et al.', venue: 'CVPR 2024', arxiv: '2310.03744' },
     model: 'llava', canonical: 'llava15-7b',
     card: { in: 'imagen + texto', out: 'texto',
-      idea: 'encoder de visión → MLP → tokens dentro del prompt del LLM', uso: 'VQA, descripción de imágenes, base de OpenVLA',
+      idea: 'encoder de visión → MLP → tokens dentro del prompt del LLM', uso: 'VQA, descripción de imágenes; plantilla de VLMs como Prismatic, la base de OpenVLA',
       tamano: 'LLaVA-1.5-7B (CLIP ViT-L/14 @ 336 → MLP → Vicuna-7B)' },
   }));
   add(model({
@@ -345,7 +345,7 @@
   add(model({
     id: 'dit', block: 1, num: 14, phase: 8, family: 'gen',
     title: 'DiT + flow matching', titleEn: 'Diffusion Transformers and flow matching', short: 'DiT + flow matching',
-    summary: 'Reemplaza la U-Net por un ViT sobre patches del latente, condicionado con adaLN. Flow matching cambia la cadena de ruido por una línea recta entre ruido y dato: es lo que usa π0 para acciones.',
+    summary: 'Reemplaza la U-Net por un ViT sobre parches del latente, condicionado con adaLN (el paper de DiT usa difusión tipo DDPM). Flow matching cambia la cadena de ruido por una línea recta entre ruido y dato: es la técnica que π0 toma para generar acciones.',
     topics: [
       'Patchify del latente y bloques DiT',
       'adaLN-Zero: condicionar con timestep y clase',
@@ -357,7 +357,7 @@
     paper: { title: 'Scalable Diffusion Models with Transformers', authors: 'Peebles & Xie', venue: 'ICCV 2023', arxiv: '2212.09748' },
     model: 'dit', canonical: 'dit-xl2-256',
     card: { in: 'latente con ruido + timestep + condición', out: 'ruido (o velocidad) predicho',
-      idea: 'un ViT sobre patches del latente, condicionado con adaLN', uso: 'generadores de imagen y video recientes; el action expert de π0',
+      idea: 'un ViT sobre parches del latente, condicionado con adaLN', uso: 'generadores de imagen y video recientes; π0 toma de esta línea el flow matching (su action expert no es un DiT)',
       tamano: 'DiT-XL/2 @ 256 (latente 32×32×4)' },
   }));
   add(model({
@@ -514,7 +514,7 @@
       'Encoder-decoder vs decoder-only: cuándo conviene cada uno',
     ],
     freq: M, minutes: 60,
-    from: ['repaso-atencion', 'bert'], to: ['whisper'],
+    from: ['repaso-atencion', 'bert'], to: [],
     paper: { title: 'Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer', authors: 'Raffel et al.', venue: 'JMLR 2020', arxiv: '1910.10683' },
     model: 't5', canonical: null,
     card: { in: 'texto', out: 'texto',
@@ -523,7 +523,7 @@
   add(model({
     id: 'whisper', block: 2, num: 7, phase: 12, family: 'encdec',
     title: 'Whisper — audio a texto', titleEn: 'Whisper: robust speech recognition', short: 'Whisper',
-    summary: 'Encoder-decoder sobre el espectrograma log-mel de 30 s de audio, entrenado con supervisión débil a gran escala. El mismo esquema que T5 con otra entrada.',
+    summary: 'Encoder-decoder sobre el espectrograma log-mel de 30 s de audio, entrenado con supervisión débil a gran escala. Usa el encoder-decoder del Transformer original: es hermano de T5, no su descendiente (ni span corruption ni relative position bias).',
     topics: [
       'Log-mel spectrogram y convoluciones de entrada',
       'Tokens especiales de tarea e idioma',
@@ -531,7 +531,7 @@
       'Latencia: el decoder autoregresivo domina',
     ],
     freq: B, minutes: 60,
-    from: ['t5'], to: [],
+    from: ['repaso-atencion'], to: [],
     paper: { title: 'Robust Speech Recognition via Large-Scale Weak Supervision', authors: 'Radford et al.', venue: 'ICML 2023', arxiv: '2212.04356' },
     model: 'whisper', canonical: null,
     card: { in: 'audio (30 s)', out: 'texto (transcripción o traducción)',
@@ -540,7 +540,7 @@
   add(model({
     id: 'two-tower', block: 2, num: 8, phase: 13, family: 'recsys',
     title: 'Two-tower para recomendación', titleEn: 'Two-tower retrieval models', short: 'Two-tower',
-    summary: 'Una torre para el usuario y otra para el ítem, entrenadas para que el producto punto prediga interacción. Los ítems se precomputan y se indexan con ANN: es un bi-encoder de recomendación.',
+    summary: 'Una torre para el usuario y otra para el ítem, entrenadas para que el producto punto prediga interacción. Los ítems se precomputan y se indexan con ANN: es el mismo patrón bi-encoder que el retrieval de texto (DSSM, 2013, ya lo usaba en búsqueda).',
     topics: [
       'Torres de usuario e ítem, features categóricas como embeddings',
       'Softmax muestreado y corrección por sesgo de muestreo',
@@ -557,7 +557,7 @@
   add(model({
     id: 'dlrm', block: 2, num: 9, phase: 13, family: 'recsys',
     title: 'Ranking: DLRM y Wide & Deep', titleEn: 'Ranking models: DLRM, Wide & Deep', short: 'DLRM / Wide & Deep',
-    summary: 'El modelo que ordena los cientos de candidatos: tablas de embeddings enormes para features categóricas, un MLP para las densas e interacciones explícitas entre ellas.',
+    summary: 'La etapa siguiente del embudo, después de two-tower: el modelo que ordena los cientos de candidatos. Tablas de embeddings enormes para features categóricas, un MLP para las densas e interacciones explícitas entre ellas.',
     topics: [
       'Tablas de embeddings: donde están casi todos los parámetros',
       'Interacción de features (producto punto por pares)',
@@ -689,16 +689,16 @@
   add(card({
     id: 'yolo', anchor: true, family: 'detect',
     title: 'YOLO', titleEn: 'You Only Look Once', short: 'YOLO (ya lo sabes)',
-    summary: 'Lo que ya sabes: detección en una etapa sobre una grilla, anchors, IoU, NMS y mAP. DETR y YOLO-World se explican contra él.',
+    summary: 'Lo que ya sabes: detección en una etapa sobre una grilla (anchors en YOLOv2–v7; v1 y v8+ son anchor-free), IoU, NMS y mAP. DETR y YOLO-World se explican contra él.',
     freq: A, from: [], to: ['detr', 'yolo-world', 'bytetrack'],
     paper: { title: 'You Only Look Once: Unified, Real-Time Object Detection', authors: 'Redmon et al.', venue: 'CVPR 2016', arxiv: '1506.02640' },
     card: { in: 'imagen', out: 'cajas + clases + confianza (después de NMS)',
-      idea: 'cada celda de la grilla (y cada anchor) predice cajas en una sola pasada', uso: 'detección en tiempo real, edge' },
+      idea: 'cada celda de la grilla (con o sin anchors, según la versión) predice cajas en una sola pasada; YOLOv10 ya no necesita NMS', uso: 'detección en tiempo real, edge' },
   }));
   add(card({
     id: 'gnn', phase: 12, family: 'otros',
     title: 'Graph Neural Networks', titleEn: 'Graph neural networks', short: 'GNNs',
-    summary: 'Cada nodo actualiza su vector agregando mensajes de sus vecinos. La self-attention es un caso particular: un grafo completo con pesos aprendidos.',
+    summary: 'Cada nodo actualiza su vector agregando mensajes de sus vecinos. La self-attention es un caso particular: un grafo completo cuyos pesos de arista se calculan desde el contenido (como en GAT).',
     freq: B, from: [], to: [],
     paper: { title: 'Semi-Supervised Classification with Graph Convolutional Networks', authors: 'Kipf & Welling', venue: 'ICLR 2017', arxiv: '1609.02907' },
     card: { in: 'grafo (nodos con features + aristas)', out: 'embedding por nodo o por grafo',
@@ -752,19 +752,20 @@
   add(special({ id: 'flashcards', title: 'Flashcards', titleEn: 'Flashcards', short: 'Flashcards',
     summary: 'Repetición espaciada (Leitner, 5 cajas) de formas, fórmulas, conteos, conceptos y trampas.' }));
   add(special({ id: 'ref-formas', title: 'Formas y fórmulas', titleEn: 'Shapes & formulas sheet', short: 'Formas y fórmulas',
-    summary: 'Parámetros, MACs y forma de salida de cada primitiva; tabla comparativa de los modelos listos; convención MACs vs FLOPs y reglas de dedo verificadas.' }));
+    summary: 'Parámetros, MACs y forma de salida de cada primitiva; tabla comparativa de los modelos listos; convención MACs vs FLOPs y reglas prácticas (verificadas por el calculador, más la de entrenamiento: 6·params·tokens).' }));
   add(special({ id: 'glosario', title: 'Glosario ES–EN', titleEn: 'Glossary', short: 'Glosario',
     summary: 'Cada término como se dice en una entrevista en inglés, con su definición en español y una frase de ejemplo.' }));
   add(special({ id: 'buscar', title: 'Buscar', titleEn: 'Search', short: 'Buscar',
     summary: 'Busca en páginas, secciones, bloques de los diagramas, glosario y flashcards.' }));
 
   // ------------------------------------------------------------------ relaciones tipadas del Mapa
-  // Semántica (from → to): hereda = "to desciende de from"; usa = "to usa a from como componente";
+  // Semántica (from → to): hereda = "to desciende de from" (o toma de él su técnica central);
+  // usa = "to usa a from como componente" (o consume su salida como etapa previa del embudo);
   // contrasta = "to es la alternativa a from" (la etiqueta dice en qué); reemplaza = "to reemplazó a from".
   // Debe coincidir arista por arista con js/content/diagrams/mapa.js (el validador lo comprueba).
   const relations = [
     { from: 'repaso-atencion', to: 'vit', kind: 'hereda', label: 'encoder sobre patches' },
-    { from: 'resnet', to: 'vit', kind: 'contrasta', label: 'sin convolución' },
+    { from: 'resnet', to: 'vit', kind: 'contrasta', label: 'sin convoluciones en el cuerpo' },
     { from: 'vit', to: 'swin', kind: 'hereda', label: 'ventanas + jerarquía' },
     { from: 'vit', to: 'clip', kind: 'usa', label: 'encoder de imagen' },
     { from: 'yolo', to: 'detr', kind: 'contrasta', label: 'sin anchors ni NMS' },
@@ -788,22 +789,22 @@
     { from: 'rt2', to: 'openvla', kind: 'hereda', label: 'versión abierta' },
     { from: 'llava', to: 'openvla', kind: 'hereda', label: 'VLM tipo LLaVA' },
     { from: 'openvla', to: 'pi0', kind: 'contrasta', label: 'acciones continuas' },
-    { from: 'dit', to: 'pi0', kind: 'usa', label: 'flow matching' },
+    { from: 'dit', to: 'pi0', kind: 'hereda', label: 'flow matching (la técnica)' },
     { from: 'repaso-atencion', to: 'bert', kind: 'hereda', label: 'encoder bidireccional' },
     { from: 'bert', to: 'grounding-dino', kind: 'usa', label: 'text encoder' },
     { from: 'bert', to: 'retrieval', kind: 'hereda', label: 'bi- / cross-encoder' },
     { from: 'ann', to: 'retrieval', kind: 'usa', label: 'índice de embeddings' },
     { from: 'repaso-atencion', to: 't5', kind: 'hereda', label: 'encoder-decoder' },
-    { from: 't5', to: 'whisper', kind: 'hereda', label: 'mismo esquema, audio' },
+    { from: 'repaso-atencion', to: 'whisper', kind: 'hereda', label: 'encoder-decoder, entrada de audio' },
     { from: 'llm-decoder', to: 'lora', kind: 'usa', label: 'modelo base congelado' },
     { from: 'llm-decoder', to: 'rlhf-dpo', kind: 'usa', label: 'política = el LLM' },
     { from: 'rl-ppo', to: 'rlhf-dpo', kind: 'usa', label: 'PPO' },
-    { from: 'retrieval', to: 'two-tower', kind: 'hereda', label: 'bi-encoder = two-tower' },
-    { from: 'two-tower', to: 'dlrm', kind: 'contrasta', label: 'retrieval → ranking' },
+    { from: 'retrieval', to: 'two-tower', kind: 'contrasta', label: 'mismo patrón bi-encoder, otro dominio' },
+    { from: 'two-tower', to: 'dlrm', kind: 'usa', label: 'rankea sus candidatos' },
     { from: 'gbdt', to: 'dlrm', kind: 'contrasta', label: 'tabular: árboles vs redes' },
     { from: 'yolo', to: 'bytetrack', kind: 'usa', label: 'detecciones por frame' },
     { from: 'vit', to: 'depth', kind: 'usa', label: 'encoder de DPT' },
-    { from: 'stable-diffusion', to: 'imitation', kind: 'usa', label: 'Diffusion Policy' },
+    { from: 'stable-diffusion', to: 'imitation', kind: 'hereda', label: 'difusión (DDPM) sobre acciones' },
     { from: 'imitation', to: 'pi0', kind: 'hereda', label: 'action chunking' },
     { from: 'rnn-lstm', to: 'repaso-atencion', kind: 'reemplaza', label: 'la atención reemplazó la recurrencia' },
     { from: 'llm-decoder', to: 'mamba', kind: 'contrasta', label: 'costo lineal' },

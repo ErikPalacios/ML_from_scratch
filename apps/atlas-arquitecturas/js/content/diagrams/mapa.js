@@ -54,65 +54,51 @@
   region('gen', 'Generativos de imagen', 1, 7, 3, 1, ['gan', 'stable-diffusion', 'dit']);
   region('seg', 'Segmentación', 5, 7, 2, 1, ['sam', 'sam2']);
 
-  // Relaciones (= catalog.relations). Semántica from → to: hereda = "to desciende de from";
-  // usa = "to usa a from como componente"; contrasta = "to es la alternativa a from"; reemplaza = "to reemplazó a from".
-  const R = (from, to, kind, label, extra) => Object.assign({ from, to, kind, label }, extra || {});
-  const edges = [
-    R('repaso-atencion', 'vit', 'hereda', 'encoder sobre patches'),
-    R('resnet', 'vit', 'contrasta', 'sin convolución'),
-    R('vit', 'swin', 'hereda', 'ventanas + jerarquía'),
-    R('vit', 'clip', 'usa', 'encoder de imagen'),
-    R('yolo', 'detr', 'contrasta', 'sin anchors ni NMS'),
-    R('resnet', 'detr', 'usa', 'backbone R50'),
-    R('detr', 'grounding-dino', 'hereda', 'DETR + texto'),
-    R('swin', 'grounding-dino', 'usa', 'backbone Swin-T'),
-    R('yolo', 'yolo-world', 'hereda', 'vocabulario abierto'),
-    R('clip', 'yolo-world', 'usa', 'text encoder'),
-    R('vit', 'sam', 'usa', 'image encoder ViT-H'),
-    R('sam', 'sam2', 'hereda', 'memoria para video'),
-    R('repaso-atencion', 'llm-decoder', 'hereda', 'decoder causal'),
-    R('llm-decoder', 'llm-inferencia', 'hereda', 'KV cache, MoE'),
-    R('clip', 'llava', 'usa', 'ViT-L/14 como encoder'),
-    R('llm-decoder', 'llava', 'usa', 'LLM (Vicuna)'),
-    R('llava', 'qwen2-vl', 'contrasta', 'resolución dinámica'),
-    R('clip', 'stable-diffusion', 'usa', 'text encoder'),
-    R('gan', 'stable-diffusion', 'reemplaza', 'difusión desplazó a las GANs'),
-    R('stable-diffusion', 'dit', 'reemplaza', 'U-Net → transformer'),
-    R('vit', 'dit', 'hereda', 'ViT sobre el latente'),
-    R('vit', 'rt2', 'usa', 'ViT dentro del VLM'),
-    R('rt2', 'openvla', 'hereda', 'versión abierta'),
-    R('llava', 'openvla', 'hereda', 'VLM tipo LLaVA'),
-    R('openvla', 'pi0', 'contrasta', 'acciones continuas'),
-    R('dit', 'pi0', 'usa', 'flow matching'),
-    R('repaso-atencion', 'bert', 'hereda', 'encoder bidireccional'),
-    R('bert', 'grounding-dino', 'usa', 'text encoder'),
-    R('bert', 'retrieval', 'hereda', 'bi- / cross-encoder'),
-    R('ann', 'retrieval', 'usa', 'índice de embeddings'),
-    R('repaso-atencion', 't5', 'hereda', 'encoder-decoder'),
-    R('t5', 'whisper', 'hereda', 'mismo esquema, audio'),
-    R('llm-decoder', 'lora', 'usa', 'modelo base congelado'),
-    R('llm-decoder', 'rlhf-dpo', 'usa', 'política = el LLM'),
-    R('rl-ppo', 'rlhf-dpo', 'usa', 'PPO'),
-    R('retrieval', 'two-tower', 'hereda', 'bi-encoder = two-tower'),
-    R('two-tower', 'dlrm', 'contrasta', 'retrieval → ranking'),
-    R('gbdt', 'dlrm', 'contrasta', 'tabular: árboles vs redes'),
-    R('yolo', 'bytetrack', 'usa', 'detecciones por frame'),
-    R('vit', 'depth', 'usa', 'encoder de DPT'),
-    R('stable-diffusion', 'imitation', 'usa', 'Diffusion Policy'),
-    R('imitation', 'pi0', 'hereda', 'action chunking'),
-    R('rnn-lstm', 'repaso-atencion', 'reemplaza', 'la atención reemplazó la recurrencia'),
-    R('llm-decoder', 'mamba', 'contrasta', 'costo lineal'),
-    R('repaso-atencion', 'gnn', 'contrasta', 'atención = grafo completo'),
-    R('resnet', 'pointnet', 'contrasta', 'puntos sin grilla'),
-    R('depth', 'nerf-3dgs', 'contrasta', '3D por escena'),
-  ];
+  // Relaciones = catalog.relations, tal cual (mismo from, to, kind y label; el validador compara ambas
+  // listas): se leen del catálogo para que el mapa no pueda desincronizarse. Semántica from → to:
+  // hereda = "to desciende de from o toma de él su técnica central"; usa = "to usa a from como componente
+  // o consume su salida (etapa anterior del embudo)"; contrasta = "alternativa, sin dirección";
+  // reemplaza = "to reemplazó a from". La ruta de cada curva la calcula el motor (evita nodos y títulos);
+  // ROUTE permite fijar lados o puntos de paso (via, en unidades) para una relación concreta.
+  // Rutas fijadas (salen del enrutador automático; fijarlas evita recalcular al abrir el mapa).
+  // Una relación nueva sin entrada aquí se enruta sola; el validador exige que no pase por detrás de
+  // ningún nodo ni sobre un título (ATLAS.ArchDiagram.mapCheck).
+  const ROUTE = {
+    'repaso-atencion>vit': {fromSide: 'left', toSide: 'top', via: [[83.6, 22.5], [83.6, 46.5]]},
+    'resnet>vit': {fromSide: 'right', toSide: 'left', off: 56},
+    'swin>grounding-dino': {fromSide: 'left', toSide: 'left'},
+    'clip>yolo-world': {fromSide: 'left', toSide: 'right'},
+    'vit>sam': {fromSide: 'bottom', toSide: 'left'},
+    'clip>llava': {fromSide: 'right', toSide: 'bottom'},
+    'llm-decoder>llava': {fromSide: 'right', toSide: 'top', off: 56},
+    'llava>qwen2-vl': {},
+    'clip>stable-diffusion': {fromSide: 'bottom', toSide: 'right', via: [[65.4, 44.5], [65.4, 81.5]]},
+    'vit>dit': {},
+    'dit>pi0': {fromSide: 'right', toSide: 'bottom'},
+    'bert>grounding-dino': {fromSide: 'bottom', toSide: 'top', via: [[127, 33.5], [62.6, 33.5]]},
+    'repaso-atencion>t5': {fromSide: 'right', toSide: 'left'},
+    'repaso-atencion>whisper': {fromSide: 'right', toSide: 'bottom', off: -56},
+    'llm-decoder>rlhf-dpo': {fromSide: 'left', toSide: 'right'},
+    'gbdt>dlrm': {fromSide: 'right', toSide: 'right'},
+    'yolo>bytetrack': {fromSide: 'left', toSide: 'top', via: [[20.6, 33.5], [20.6, 68.5]]},
+    'vit>depth': {fromSide: 'bottom', toSide: 'right'},
+    'imitation>pi0': {},
+    'rnn-lstm>repaso-atencion': {fromSide: 'right', toSide: 'left'},
+    'repaso-atencion>gnn': {fromSide: 'right', toSide: 'right', bend: 0.7, off: -56},
+    'llava>openvla': { fromSide: 'right', toSide: 'right', via: [[105.4, 36], [105.4, 58]] },
+  };
+  const cat = ATLAS.catalog ? ATLAS.catalog() : null;
+  const edges = ((cat && cat.relations) || []).map((r) => Object.assign({ from: r.from, to: r.to, kind: r.kind, label: r.label }, ROUTE[r.from + '>' + r.to] ? Object.assign({ pin: true }, ROUTE[r.from + '>' + r.to]) : {}));
 
   ATLAS.registerDiagram({
-    id: 'mapa-overview', kind: 'map', title: 'Mapa de familias', page: 'mapa', section: 'familias',
+    id: 'mapa-overview', kind: 'map', title: 'Mapa de familias', page: 'mapa', section: 'mapa',
     caption: 'Familias (regiones) y modelos (nodos). Pasa el cursor o enfoca un nodo para ver solo sus relaciones; tócalo para abrir su ficha.',
     grid: { w: 149, h: 90 }, direction: 'lr', edgeRoute: 'curve',
-    // 47 relaciones curvas: quedan 2 cruces inevitables con esta distribución (al enfocar un nodo solo se ven las suyas)
-    maxCrossings: 2,
+    // Las curvas rodean nodos y títulos (ATLAS.ArchDiagram.mapCheck); a cambio quedan 12 cruces entre
+    // relaciones, medidos sobre la geometría del motor (al enfocar un nodo solo se ven las suyas).
+    maxCrossings: 13,
+    // En el teléfono el mapa abre con zoom sobre el núcleo (Transformer → ViT → CLIP → LLaVA); se recorre arrastrando.
+    mobileFocus: ['repaso-atencion', 'llava', 'clip', 'vit'],
     groups, nodes, edges,
     legend: 'auto',
   });

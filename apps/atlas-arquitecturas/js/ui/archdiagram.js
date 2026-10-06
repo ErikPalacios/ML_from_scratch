@@ -12,7 +12,18 @@
    Puras (sin DOM, para el validador y los tests):
      ATLAS.ArchDiagram.geometry(spec) → {nodes, groups, edges:[{key, kind, tensor, pts}]}  (px, 1 u = 8 px)
      ATLAS.ArchDiagram.crossings(spec, kinds=['data']) → {count, pairs}
+     ATLAS.ArchDiagram.mapCheck(spec) → {through:[…], overTitle:[…], ok}  curvas de un mapa que pasan por
+                  detrás de un nodo que no unen o sobre el título de una región (para el validador)
      ATLAS.ArchDiagram.glyphSize(tensor) → {w, h}
+   Campos de spec que entiende el motor (además de SPEC §7.2):
+     mapa: edge.via (puntos de paso, u), fromSide/toSide, bend, off (desvío lateral, px), pin (no re-enrutar);
+           sin ellos, cada curva se enruta sola evitando nodos y títulos. spec.mobileFocus = ids que se
+           encuadran al abrir en el teléfono.
+     nodo: style:'block' (bloque compuesto, marco neutro), badgeTotal ("por capa"), badgePos:'right',
+           subNum (sub con {{cfg.X}} cuando "Números" está activo). group.repeat.totalOf = id del nodo cuyo
+           total (× L) se muestra bajo "× L = n". Etiquetas con subíndices TeX: "z_{ℓ−1}", "W_O".
+     arista: tag, tagStyle:'plain' (neutra), tagSide:'on' (sobre la línea), tagT.
+     tensors[]: at:{edge} o at:{x, y} (centro inferior, u) + note (texto encima) + labelSide:'below'.
    Verificación en navegador: ATLAS.ArchDiagram.checkLabels(rootEl) → [{edge, tensor, got, want}] (vacío = OK).
 
    Reglas: las formas de las aristas salen SIEMPRE de ATLAS.Arch.run (nunca del spec). Los colores son
@@ -27,7 +38,12 @@
   const SVGNS = 'http://www.w3.org/2000/svg';
   const SHAPED = { data: 1, skip: 1, cross: 1, query: 1 };
   const MAP_KINDS = ['hereda', 'usa', 'contrasta', 'reemplaza'];
-  const MAP_KIND_TITLES = { hereda: 'Hereda de (descendiente)', usa: 'Usa como componente', contrasta: 'Alternativa a', reemplaza: 'Lo reemplaza' };
+  // Leyenda del mapa: la dirección se lee "A → B" (from → to).
+  const MAP_KIND_TITLES = { hereda: 'A → B: B hereda de A (o toma su técnica)', usa: 'A ⇢ B: B usa A (componente o etapa previa)', contrasta: 'A ··· B: alternativas (sin dirección)', reemplaza: 'A → B: B reemplazó a A' };
+  const MAP_KIND_SENT = {
+    hereda: (a, b) => b + ' hereda de ' + a, usa: (a, b) => b + ' usa ' + a,
+    contrasta: (a, b) => a + ' y ' + b + ': alternativas', reemplaza: (a, b) => b + ' reemplazó a ' + a,
+  };
   const OPP = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
   const NORMAL = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
   const CIRCLE_SHAPES = { add: 1, concat: 1, split: 1, pool: 1, flatten: 1, mul: 1 };
@@ -115,39 +131,251 @@
     return { pts: simplify(pts), fromSide: fs, toSide: ts };
   }
 
-  // Curva (mapas): Bézier cúbica entre lados elegidos por el eje dominante; pts = muestreo (para cruces).
-  function curveEdge(e, rects) {
-    const a = rects[e.from], b = rects[e.to];
-    if (!a || !b) return null;
+  // ------------------------------------------------------------ curvas (mapas)
+  // Una curva es una lista de tramos cúbicos [P0, C1, C2, P1] (px). pts = muestreo (cruces y choques).
+  function bez(s, t) {
+    const u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+    return [a * s[0][0] + b * s[1][0] + c * s[2][0] + d * s[3][0], a * s[0][1] + b * s[1][1] + c * s[2][1] + d * s[3][1]];
+  }
+  function sampleCurve(segsC) {
+    const pts = [];
+    segsC.forEach((s, i) => {
+      const L = Math.hypot(s[1][0] - s[0][0], s[1][1] - s[0][1]) + Math.hypot(s[2][0] - s[1][0], s[2][1] - s[1][1]) + Math.hypot(s[3][0] - s[2][0], s[3][1] - s[2][1]);
+      const n = Math.max(8, Math.ceil(L / 12));
+      for (let k = i ? 1 : 0; k <= n; k++) pts.push(bez(s, k / n));
+    });
+    return pts;
+  }
+  function polyLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; }
+  const unit = (v) => { const L = Math.hypot(v[0], v[1]) || 1; return [v[0] / L, v[1] / L]; };
+  // Curva directa: una cúbica que sale y llega perpendicular a los lados (bend = tensión, off = desvío lateral).
+  function directCurve(A, B, fs, ts, bend, off) {
+    const dist = Math.hypot(B[0] - A[0], B[1] - A[1]);
+    const k = clamp(dist * bend, 16, 160);
+    const na = NORMAL[fs], nb = NORMAL[ts];
+    const n = unit([-(B[1] - A[1]), B[0] - A[0]]);
+    return [[A, [A[0] + na[0] * k + n[0] * off, A[1] + na[1] * k + n[1] * off], [B[0] + nb[0] * k + n[0] * off, B[1] + nb[1] * k + n[1] * off], B]];
+  }
+  // Curva por puntos de paso: spline de Hermite con tangentes perpendiculares en los extremos.
+  function viaCurve(A, B, fs, ts, vias) {
+    const Q = [A].concat(vias, [B]);
+    const T = Q.map((q, i) => (i === 0 ? NORMAL[fs] : i === Q.length - 1 ? [-NORMAL[ts][0], -NORMAL[ts][1]] : unit([Q[i + 1][0] - Q[i - 1][0], Q[i + 1][1] - Q[i - 1][1]])));
+    const out = [];
+    for (let i = 0; i < Q.length - 1; i++) {
+      const L = Math.hypot(Q[i + 1][0] - Q[i][0], Q[i + 1][1] - Q[i][1]);
+      const ka = (i === 0 ? 0.45 : 0.36) * L, kb = (i === Q.length - 2 ? 0.45 : 0.36) * L;
+      out.push([Q[i], [Q[i][0] + T[i][0] * ka, Q[i][1] + T[i][1] * ka], [Q[i + 1][0] - T[i + 1][0] * kb, Q[i + 1][1] - T[i + 1][1] * kb], Q[i + 1]]);
+    }
+    return out;
+  }
+  function autoCurveSides(a, b) {
     const ca = [a.x + a.w / 2, a.y + a.h / 2], cb = [b.x + b.w / 2, b.y + b.h / 2];
     const dx = cb[0] - ca[0], dy = cb[1] - ca[1];
-    let fs, ts;
     const horiz = Math.abs(dx) - (a.w + b.w) / 2 > Math.abs(dy) - (a.h + b.h) / 2;
-    if (horiz) { fs = dx > 0 ? 'right' : 'left'; ts = OPP[fs]; } else { fs = dy > 0 ? 'bottom' : 'top'; ts = OPP[fs]; }
-    if (e.fromSide) fs = e.fromSide;
-    if (e.toSide) ts = e.toSide;
-    const A = attach(a, fs, e.fromAt), B = attach(b, ts, e.toAt);
-    const dist = Math.hypot(B[0] - A[0], B[1] - A[1]);
-    const k = clamp(dist * (e.bend || 0.4), 16, 160);
-    const na = NORMAL[fs], nb = NORMAL[ts];
-    const C1 = [A[0] + na[0] * k, A[1] + na[1] * k], C2 = [B[0] + nb[0] * k, B[1] + nb[1] * k];
-    const pts = [];
-    for (let i = 0; i <= 24; i++) {
-      const t = i / 24, u = 1 - t;
-      pts.push([u * u * u * A[0] + 3 * u * u * t * C1[0] + 3 * u * t * t * C2[0] + t * t * t * B[0], u * u * u * A[1] + 3 * u * u * t * C1[1] + 3 * u * t * t * C2[1] + t * t * t * B[1]]);
+    if (horiz) { const fs = dx > 0 ? 'right' : 'left'; return [fs, OPP[fs]]; }
+    const fs = dy > 0 ? 'bottom' : 'top';
+    return [fs, OPP[fs]];
+  }
+  // Lado de r que mira hacia el punto p (eje dominante, normalizado por el tamaño del rectángulo).
+  function sideToward(r, p) {
+    const dx = (p[0] - (r.x + r.w / 2)) / (r.w / 2 + 8), dy = (p[1] - (r.y + r.h / 2)) / (r.h / 2 + 8);
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
+  }
+
+  // Obstáculos del mapa: nodos y títulos de región (los títulos van arriba a la izquierda, ver drawGroup).
+  const REGION_TITLE = { dx: 10, base: 17, px: 11, charW: 7.6, asc: 11, desc: 3 };
+  // Ancho máximo del título: el de la región menos márgenes (si no cabe, se comprime con textLength).
+  const regionTitleMax = (r) => r.w - REGION_TITLE.dx - 4;
+  function regionTitleRect(g, r) {
+    if (!g.label) return null;
+    const w = Math.min(String(g.label).length * REGION_TITLE.charW, regionTitleMax(r));
+    return { x: r.x + REGION_TITLE.dx, y: r.y + REGION_TITLE.base - REGION_TITLE.asc, w, h: REGION_TITLE.asc + REGION_TITLE.desc };
+  }
+  function mapObstacles(spec, rects) {
+    const obs = [];
+    for (const n of spec.nodes || []) obs.push({ id: n.id, kind: 'node', r: rects[n.id] });
+    for (const g of spec.groups || []) if (g.region) { const t = regionTitleRect(g, rects[g.id]); if (t) obs.push({ id: g.id, label: g.label, kind: 'title', r: t }); }
+    return obs;
+  }
+  // Choques de una curva muestreada: nodos ajenos (inflados 5 px), títulos (3 px) y sus propios extremos (por dentro).
+  function curveHits(pts, from, to, obs) {
+    const hit = [];
+    const A = pts[0], B = pts[pts.length - 1];
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (const p of pts) { if (p[0] < bx0) bx0 = p[0]; if (p[0] > bx1) bx1 = p[0]; if (p[1] < by0) by0 = p[1]; if (p[1] > by1) by1 = p[1]; }
+    for (const o of obs) {
+      if (o.r.x - 6 > bx1 || o.r.x + o.r.w + 6 < bx0 || o.r.y - 6 > by1 || o.r.y + o.r.h + 6 < by0) continue;
+      const own = o.kind === 'node' && (o.id === from || o.id === to);
+      const m = own ? -2 : o.kind === 'title' ? 3 : 5;
+      const r = o.r;
+      for (const p of pts) {
+        if (own && (Math.hypot(p[0] - A[0], p[1] - A[1]) < 10 || Math.hypot(p[0] - B[0], p[1] - B[1]) < 10)) continue;
+        if (p[0] > r.x - m && p[0] < r.x + r.w + m && p[1] > r.y - m && p[1] < r.y + r.h + m) { hit.push(o); break; }
+      }
     }
-    return { pts, ctrl: [A, C1, C2, B] };
+    return hit;
+  }
+  function polyCross(P, Q) {
+    let n = 0;
+    const or = (a, b, c) => Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+    for (let i = 1; i < P.length; i++) {
+      const p1 = P[i - 1], p2 = P[i];
+      const x0 = Math.min(p1[0], p2[0]), x1 = Math.max(p1[0], p2[0]), y0 = Math.min(p1[1], p2[1]), y1 = Math.max(p1[1], p2[1]);
+      for (let j = 1; j < Q.length; j++) {
+        const q1 = Q[j - 1], q2 = Q[j];
+        if (Math.max(q1[0], q2[0]) < x0 || Math.min(q1[0], q2[0]) > x1 || Math.max(q1[1], q2[1]) < y0 || Math.min(q1[1], q2[1]) > y1) continue;
+        if (or(p1, p2, q1) * or(p1, p2, q2) < 0 && or(q1, q2, p1) * or(q1, q2, p2) < 0) n++;
+      }
+    }
+    return n;
+  }
+  // Carriles libres: huecos entre columnas y filas de nodos (en px), a 1/4, 1/2 y 3/4 de cada hueco.
+  function mapLanes(spec, rects) {
+    const ns = (spec.nodes || []).map((n) => rects[n.id]);
+    const lanes = (lo, hi) => {
+      const iv = ns.map((r) => [lo(r), hi(r)]).sort((p, q) => p[0] - q[0]);
+      const merged = [];
+      for (const v of iv) { const l = merged[merged.length - 1]; if (l && v[0] <= l[1]) l[1] = Math.max(l[1], v[1]); else merged.push(v.slice()); }
+      const out = [];
+      if (merged.length) out.push(merged[0][0] - 2 * U);
+      for (let i = 1; i < merged.length; i++) { const g0 = merged[i - 1][1], g1 = merged[i][0]; [0.22, 0.5, 0.78].forEach((f) => out.push(g0 + (g1 - g0) * f)); }
+      if (merged.length) out.push(merged[merged.length - 1][1] + 2 * U);
+      return out;
+    };
+    return { x: lanes((r) => r.x, (r) => r.x + r.w), y: lanes((r) => r.y, (r) => r.y + r.h) };
+  }
+  // Enrutado del mapa: por arista, la curva directa si no choca; si no, la mejor entre variantes de lados,
+  // tensión, desvío lateral y uno o dos puntos de paso por los carriles. Puntaje = choques ≫ cruces > largo.
+  const mapCache = (typeof WeakMap === 'function') ? new WeakMap() : null;
+  function routeMap(spec, rects, W, Hh) {
+    if (mapCache && mapCache.has(spec)) return mapCache.get(spec);
+    const obs = mapObstacles(spec, rects);
+    const lanes = mapLanes(spec, rects);
+    const done = [];
+    const out = {};
+    let grid = new Map();                         // hash espacial de puntos ya trazados (celdas de 8 px)
+    const cell = (x, y) => Math.floor(x / 8) + ',' + Math.floor(y / 8);
+    const ends = (pts, p) => Math.hypot(p[0] - pts[0][0], p[1] - pts[0][1]) < 22 || Math.hypot(p[0] - pts[pts.length - 1][0], p[1] - pts[pts.length - 1][1]) < 22;
+    // tramos que corren encima de otra relación (paralelos a < 5 px), salvo junto a los extremos
+    const overlap = (pts) => {
+      let n = 0;
+      for (const p of pts) {
+        if (ends(pts, p)) continue;
+        const cx = Math.floor(p[0] / 8), cy = Math.floor(p[1] / 8);
+        let hit = false;
+        for (let i = -1; i <= 1 && !hit; i++) for (let j = -1; j <= 1 && !hit; j++) {
+          const l = grid.get((cx + i) + ',' + (cy + j));
+          if (l) for (const q of l) if (Math.hypot(q[0] - p[0], q[1] - p[1]) < 5) { hit = true; break; }
+        }
+        if (hit) n++;
+      }
+      return n;
+    };
+    function addGrid(pts) { for (const p of pts) { if (ends(pts, p)) continue; const k = cell(p[0], p[1]); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(p); } }
+    const SIDES = ['left', 'right', 'top', 'bottom'];
+    const outside = (pts) => pts.some((p) => p[0] < -4 || p[1] < -4 || p[0] > W + 4 || p[1] > Hh + 4);
+    // routePasses > 1 (solo para fijar rutas en desarrollo): vuelve a enrutar cada arista viendo todas las demás.
+    const passes = spec.routePasses || 1;
+    for (let pass = 0; pass < passes; pass++) for (const e of spec.edges || []) {
+      if ((e.route || spec.edgeRoute) !== 'curve') continue;
+      const a = rects[e.from], b = rects[e.to];
+      if (!a || !b) continue;
+      const key = edgeKey(e);
+      if (pass > 0 && e.pin) continue;
+      const pool = pass === 0 ? done : Object.keys(out).filter((k) => k !== key).map((k) => out[k]);
+      if (pass > 0) { grid = new Map(); for (const d of pool) addGrid(d.pts); }
+      const others = pool.filter((d) => d.from !== e.from && d.from !== e.to && d.to !== e.from && d.to !== e.to);
+      const evalC = (segsC, extra, how) => {
+        const pts = sampleCurve(segsC);
+        const hits = curveHits(pts, e.from, e.to, obs);
+        const nH = hits.filter((h) => h.kind === 'node').length, tH = hits.length - nH;
+        const ov = overlap(pts);
+        return { segs: segsC, pts, hits, ov, how, base: nH * 1000 + tH * 700 + ov * 40 + (outside(pts) ? 900 : 0) + polyLen(pts) + (extra || 0) };
+      };
+      const auto = autoCurveSides(a, b);
+      const fs0 = e.fromSide || auto[0], ts0 = e.toSide || auto[1];
+      let best;
+      if (e.via && e.via.length) {
+        const vias = e.via.map((v) => [v[0] * U, v[1] * U]);
+        const fs = e.fromSide || sideToward(a, vias[0]), ts = e.toSide || sideToward(b, vias[vias.length - 1]);
+        best = evalC(viaCurve(attach(a, fs, e.fromAt), attach(b, ts, e.toAt), fs, ts, vias), 0, null);
+      } else {
+        const first = evalC(directCurve(attach(a, fs0, e.fromAt), attach(b, ts0, e.toAt), fs0, ts0, e.bend || 0.4, e.off || 0), 0, null);
+        first.cross = others.reduce((s, d) => s + polyCross(first.pts, d.pts), 0);
+        if (e.pin || (!first.hits.length && !first.cross && !first.ov)) best = first;
+        else {
+          const cands = [first];
+          const pick = () => {
+            cands.sort((p, q) => p.base - q.base);
+            const top = cands.filter((c) => c.base <= cands[0].base + 700).slice(0, 40);
+            for (const c of top) if (c.cross == null) c.cross = others.reduce((s, d) => s + polyCross(c.pts, d.pts), 0);
+            top.sort((p, q) => (p.base + p.cross * 220) - (q.base + q.cross * 220));
+            return top[0];
+          };
+          const clean = (c) => c && !c.hits.length && !c.cross && !c.ov;
+          // 1) variantes directas: lados, tensión y desvío lateral
+          const fsL = e.fromSide ? [e.fromSide] : SIDES, tsL = e.toSide ? [e.toSide] : SIDES;
+          for (const fs of fsL) for (const ts of tsL) {
+            const A = attach(a, fs, e.fromAt), B = attach(b, ts, e.toAt);
+            // penaliza salir/entrar de espaldas al otro extremo
+            const back = ((B[0] - A[0]) * NORMAL[fs][0] + (B[1] - A[1]) * NORMAL[fs][1] < -8 ? 140 : 0) + ((A[0] - B[0]) * NORMAL[ts][0] + (A[1] - B[1]) * NORMAL[ts][1] < -8 ? 140 : 0);
+            for (const bend of [0.4, 0.7]) for (const off of [0, -56, 56]) cands.push(evalC(directCurve(A, B, fs, ts, bend, off), back + Math.abs(off) * 0.6, { fromSide: fs, toSide: ts, bend, off }));
+          }
+          best = pick();
+          if (!clean(best)) {
+            // 2) uno o dos puntos de paso por los carriles libres
+            const ca = [a.x + a.w / 2, a.y + a.h / 2], cb = [b.x + b.w / 2, b.y + b.h / 2];
+            const x0 = Math.min(ca[0], cb[0]) - 24 * U, x1 = Math.max(ca[0], cb[0]) + 24 * U, y0 = Math.min(ca[1], cb[1]) - 12 * U, y1 = Math.max(ca[1], cb[1]) + 12 * U;
+            const LX = lanes.x.filter((x) => x >= x0 && x <= x1), LY = lanes.y.filter((y) => y >= y0 && y <= y1);
+            const viaC = (vias) => {
+              const fs = e.fromSide || sideToward(a, vias[0]), ts = e.toSide || sideToward(b, vias[vias.length - 1]);
+              cands.push(evalC(viaCurve(attach(a, fs, e.fromAt), attach(b, ts, e.toAt), fs, ts, vias), 60 * vias.length, { fromSide: fs, toSide: ts, via: vias.map((v) => [r1(v[0] / U), r1(v[1] / U)]) }));
+            };
+            for (const x of LX) for (const y of LY) viaC([[x, y]]);
+            best = pick();
+            if (!clean(best)) {
+              const nearest = (arr, v, k) => arr.slice().sort((p, q) => Math.abs(p - v) - Math.abs(q - v)).slice(0, k);
+              for (const y of LY) for (const xa of nearest(LX, ca[0], 3)) for (const xb of nearest(LX, cb[0], 3)) if (Math.abs(xa - xb) > U) viaC([[xa, y], [xb, y]]);
+              for (const x of LX) for (const ya of nearest(LY, ca[1], 3)) for (const yb of nearest(LY, cb[1], 3)) if (Math.abs(ya - yb) > U) viaC([[x, ya], [x, yb]]);
+              best = pick();
+            }
+          }
+        }
+      }
+      out[key] = { from: e.from, to: e.to, segs: best.segs, pts: best.pts, hits: best.hits, how: best.how || null, cross: best.cross || 0, ov: best.ov || 0 };
+      if (pass === 0) { done.push(out[key]); addGrid(best.pts); }
+    }
+    const res = { edges: out, obstacles: obs };
+    if (mapCache) mapCache.set(spec, res);
+    return res;
+  }
+  // Verificación pura (para el validador): curvas del mapa que pasan por detrás de un nodo que no unen
+  // o por encima del título de una región. Vacío = OK.
+  function mapCheck(spec) {
+    const geo = geometry(spec);
+    const through = [], overTitle = [];
+    const obs = mapObstacles(spec, Object.assign({}, geo.groups, geo.nodes));
+    for (const ge of geo.edges) {
+      if (!ge.curve) continue;
+      for (const h of curveHits(ge.pts, ge.from, ge.to, obs)) {
+        if (h.kind === 'node') through.push(ge.key + ' pasa por detrás de ' + h.id);
+        else overTitle.push(ge.key + ' cruza el título "' + h.label + '"');
+      }
+    }
+    return { through, overTitle, ok: !through.length && !overTitle.length };
   }
 
   function geometry(spec) {
     const nodes = {}, groups = {}, rects = {};
     for (const g of spec.groups || []) { groups[g.id] = rectOf(g); rects[g.id] = groups[g.id]; }
     for (const n of spec.nodes || []) { nodes[n.id] = rectOf(n); rects[n.id] = nodes[n.id]; }
+    const W = (spec.grid && spec.grid.w || 0) * U, Hh = (spec.grid && spec.grid.h || 0) * U;
+    const routed = (spec.edges || []).some((e) => (e.route || spec.edgeRoute) === 'curve') ? routeMap(spec, rects, W, Hh) : null;
     const edges = [];
     for (const e of spec.edges || []) {
       if ((e.route || spec.edgeRoute) === 'curve') {
-        const c = curveEdge(e, rects);
-        edges.push({ key: edgeKey(e), from: e.from, to: e.to, kind: e.kind || 'data', tensor: e.tensor || null, pts: c ? c.pts : [], curve: c ? c.ctrl : null, spec: e });
+        const c = routed && routed.edges[edgeKey(e)];
+        edges.push({ key: edgeKey(e), from: e.from, to: e.to, kind: e.kind || 'data', tensor: e.tensor || null, pts: c ? c.pts : [], curve: c ? c.segs : null, spec: e });
         continue;
       }
       const r = routeEdge(spec, e, rects);
@@ -183,19 +411,23 @@
 
   // ------------------------------------------------------------ glifos de tensor (§7.3)
   const ext = (n) => clamp(6.5 * Math.log2(Math.max(2, n)) - 14, 6, 64);   // log2 con pinzas 6–64 px (§7.3)
+  // Eje de canales/profundidad: log más empinado, para que 768 vs 3072 o 64 vs 197 se vean distintos
+  // (64 → 10, 197 → 26, 768 → 46, 3072 → 66 px).
+  const extD = (n) => clamp(10 * Math.log2(Math.max(2, n)) - 50, 6, 72);
   const DEPTH = [0.55, -0.42];                   // proyección isométrica de la profundidad
   function glyphDims(t) {
     const num = (t && t.num) || [];
     const lay = (t && t.layout) || (num.length === 3 ? 'grid' : num.length === 1 ? 'vec' : 'seq');
-    if (lay === 'vec') return { lay, w: ext(num[0] || 2), h: 5, d: 0 };
-    if (lay === 'grid') return { lay, w: ext(num[1] || 2), h: ext(num[0] || 2), d: ext(num[2] || 2) };
-    if (lay === 'heads') return { lay, w: ext(num[1] || 2), h: 4, d: ext(num[2] || 2), n: Math.min(num[0] || 1, 8), heads: num[0] };
-    return { lay: 'seq', w: ext(num[0] || 2), h: 6, d: ext(num[1] || 2) };
+    // un vector de D = una rebanada de token del glifo N×D (la D va en el mismo eje de profundidad)
+    if (lay === 'vec') return { lay, w: 6, h: 6, d: extD(num[0] || 2) };
+    if (lay === 'grid') return { lay, w: ext(num[1] || 2), h: ext(num[0] || 2), d: extD(num[2] || 2) };
+    if (lay === 'heads') return { lay, w: ext(num[1] || 2), h: 4, d: extD(num[2] || 2), n: Math.min(num[0] || 1, 8), heads: num[0] };
+    return { lay: 'seq', w: ext(num[0] || 2), h: 6, d: extD(num[1] || 2) };
   }
   function glyphSize(t) {
     const g = glyphDims(t);
     const dx = g.d * DEPTH[0], dy = -g.d * DEPTH[1];
-    const stack = g.lay === 'heads' ? (g.n - 1) * 5 : 0;
+    const stack = g.lay === 'heads' ? (g.n - 1) * 4 : 0;
     return { w: g.w + dx, h: g.h + dy + stack };
   }
 
@@ -211,6 +443,11 @@
     if (A && A.fmt && typeof A.fmt.shape === 'function') return A.fmt.shape(t, mode);
     const a = mode === 'sym' ? t.sym : t.num;
     return (a || []).join('×');
+  }
+  function shapeTexOf(t) {
+    const A = arch();
+    if (A && A.fmt && typeof A.fmt.shapeTex === 'function') return A.fmt.shapeTex(t);
+    return (t.sym || []).map((x) => (/[+\-]/.test(x) ? '(' + x + ')' : x)).join('\\times ');
   }
   function fint(n) { const A = arch(); return A && A.fmt && A.fmt.int ? A.fmt.int(n) : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   function fsi(n) {
@@ -238,6 +475,17 @@
     if (rest[0] === 'macs' && rest[1] === 'totalG') return fsi(run.totals.macs);
     if (run.quantities && rest.length === 1 && run.quantities[rest[0]] != null) return fint(run.quantities[rest[0]]);
     return null;
+  }
+
+  // sub de un nodo: con "Números" activado y subNum definido, la versión con números del calculador
+  // (p. ej. 'conv {{cfg.P}}×{{cfg.P}}' → 'conv 16×16'); si no, la simbólica.
+  function nodeSub(n, ctl, spec) {
+    if (n.subNum && ctl && ctl.showNumbers && ctl.mode !== 'blank') {
+      const cfg = (ctl.opts && ctl.opts.config) || (spec && spec.config) || (ctl.view && ctl.view.spec && ctl.view.spec.config);
+      const v = strip(qResolve(n.subNum, cfg));
+      if (v && v.indexOf('{{') < 0 && v.indexOf('¿') < 0) return v;
+    }
+    return n.sub || '';
   }
 
   function nodeOps(run, node) {
@@ -272,9 +520,30 @@
   }
   function txt(parent, x, y, s, cls, anchor) {
     const t = S('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, parent);
-    t.textContent = s;
+    setRich(t, s);
     return t;
   }
+  // Subíndices estilo TeX en las etiquetas del SVG: "z_{ℓ−1}", "W_O", "d_h" → tspan rebajado
+  // (sin guion bajo visible). textContent queda en forma plana: "zℓ−1", "WO", "dh" (ver plainSub).
+  function setRich(t, s) {
+    s = String(s == null ? '' : s);
+    t.textContent = '';
+    if (s.indexOf('_') < 0) { t.textContent = s; return; }
+    let last = 0, m, down = false;
+    SUB_RE.lastIndex = 0;
+    const put = (str, dy, cls) => { const ts = S('tspan', { dy: dy || null, class: cls || null }, t); ts.textContent = str; };
+    while ((m = SUB_RE.exec(s))) {
+      if (m.index > last) { put(s.slice(last, m.index), down ? '-0.25em' : null); down = false; }
+      put(subOf(m[1]), down ? null : '0.25em', 'ad-subscript');
+      down = true;
+      last = m.index + m[0].length;
+    }
+    if (last < s.length) put(s.slice(last), down ? '-0.25em' : null);
+  }
+  const SUB_RE = /_(\{[^}]*\}|[A-Za-z0-9ℓ\u0370-\u03FF]+)/g;
+  const subOf = (g) => (g[0] === '{' ? g.slice(1, -1) : g);
+  function plainSub(s) { return String(s == null ? '' : s).replace(SUB_RE, (m, g) => subOf(g)); }
+  function htmlSub(s) { return esc(s).replace(SUB_RE, (m, g) => '<sub>' + subOf(g) + '</sub>'); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function strip(s) { return String(s || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim(); }
   function reducedMotion() { try { return root.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
@@ -285,7 +554,7 @@
     el.innerHTML = '<code class="ad-tex">' + esc(tex) + '</code>';
     return el;
   }
-  function textW(s, px, mono) { return String(s).length * px * (mono ? 0.6 : 0.56); }
+  function textW(s, px, mono) { return plainSub(s).length * px * (mono ? 0.6 : 0.56); }
 
   // ------------------------------------------------------------ <defs>: texturas por modalidad
   function defs(svg, id) {
@@ -319,7 +588,7 @@
       S('rect', { x: r1(bx), y: r1(by - h), width: r1(w), height: r1(h), class: 'ad-face ad-face--front', fill }, grp);
     };
     if (g.lay === 'heads') {
-      for (let i = g.n - 1; i >= 0; i--) box(x, y - i * 5, g.w, g.h, g.d);
+      for (let i = g.n - 1; i >= 0; i--) box(x, y - i * 4, g.w, g.h, g.d);
     } else box(x, y, g.w, g.h, g.d);
     if (g.lay === 'seq' && t && t.num && t.num[0] > 1) {
       // marcas de tokens sobre la cara frontal (hasta 12)
@@ -370,6 +639,8 @@
   // ============================================================ dibujo de una vista
   function buildView(ctl, spec) {
     const run = ctl.runFor(spec);
+    ctl.building = spec;
+    ctl.blankHide = blankGiveaways(ctl, spec, run);
     const id = ctl.id;
     const geo = geometry(spec);
     const svg = S('svg', { class: 'ad-svg', 'data-kind': spec.kind || 'arch', xmlns: SVGNS, role: 'group', 'aria-label': spec.title || spec.id, preserveAspectRatio: 'xMidYMid meet' });
@@ -379,7 +650,7 @@
     S('path', { d: blueprint(W, Hh), class: 'ad-grid' }, svg);
     const scene = S('g', { class: 'ad-scene' }, svg);
     const L = { groups: S('g', { class: 'ad-l-groups' }, scene), edges: S('g', { class: 'ad-l-edges' }, scene), nodes: S('g', { class: 'ad-l-nodes' }, scene), labels: S('g', { class: 'ad-l-labels' }, scene) };
-    const used = { ops: new Set(), mods: new Set(), edges: new Set(), repeat: false, heads: false, badge: false, map: new Set() };
+    const used = { ops: new Set(), mods: new Set(), edges: new Set(), repeat: false, heads: false, badge: false, glyph: false, map: new Set() };
     const isMap = spec.kind === 'map';
 
     // ---- grupos
@@ -402,12 +673,17 @@
       if (g.modality) { used.mods.add(g.modality); S('rect', { x: r.x, y: r.y + 6, width: 4, height: r.h - 12, class: 'ad-stripe ad-mod--' + g.modality }, gg); }
       if (g.label) {
         const right = g.labelPos === 'bottom-right';
-        txt(gg, right ? r.x + r.w - 10 : r.x + 10, (g.labelPos || '').indexOf('bottom') === 0 ? r.y + r.h - 8 : r.y + 17, g.label, g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
+        // títulos de región: encima de las aristas (capa de etiquetas) y con halo
+        const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10, (g.labelPos || '').indexOf('bottom') === 0 ? r.y + r.h - 8 : r.y + 17, g.label, g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
+        if (g.region && String(g.label).length * 7.0 > regionTitleMax(r)) { lt.setAttribute('textLength', r1(regionTitleMax(r))); lt.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
       }
       if (g.repeat && run) {
         const v = run.config[g.repeat.from || g.repeat.sym];
-        const tag = '× ' + (g.repeat.sym || 'L') + ' = ' + v;
+        let tag = '× ' + (g.repeat.sym || 'L') + ' = ' + v;
+        // repeat.totalOf: parámetros del nodo repetido en todo el modelo (byNode del calculador)
+        const tn = g.repeat.totalOf && (spec.nodes || []).find((x) => x.id === g.repeat.totalOf);
         txt(gg, r.x + r.w - 10, r.y + 17, tag, 'ad-group-tag', 'end');
+        if (tn && ctl.mode !== 'blank' && !ctl.quiz) { const c = nodeCost(run, tn); if (c.total && c.total.params) txt(gg, r.x + r.w - 10, r.y + 31, '= ' + fsi(c.total.params) + ' en total', 'ad-group-total', 'end'); }
       }
       if (g.label2) txt(gg, r.x + 10, r.y + 31, g.label2, 'ad-group-sub');
     }
@@ -432,10 +708,18 @@
       if (!t.at || t.at.edge || !run || !run.tensors[t.id]) continue;
       const rt = run.tensors[t.id];
       const gg = S('g', { class: 'ad-tensor', 'data-tensor-glyph': t.id }, L.labels);
-      drawGlyph(gg, rt, t.at.x * U, t.at.y * U, id, t.mark);
-      used.mods.add(rt.mod || 'img');
-      if (t.show !== 'glyph') shapeLabel(ctl, gg, rt, t.at.x * U + glyphSize(rt).w + 6, t.at.y * U - glyphSize(rt).h / 2, 'right', t.id);
+      const gs = glyphSize(rt);
+      // (x, y) = centro inferior del glifo; nota opcional encima y forma a la derecha o debajo
+      const gx = t.at.x * U - gs.w / 2, gy = t.at.y * U;
+      drawGlyph(gg, rt, gx, gy, id, t.mark);
+      used.mods.add(rt.mod || 'img'); used.glyph = true;
+      if (t.note) txt(gg, t.at.x * U, gy - gs.h - 7, t.note, 'ad-glyph-note', 'middle');
+      if (t.show !== 'glyph') {
+        if (t.labelSide === 'below') shapeLabel(ctl, gg, rt, t.at.x * U, gy - 4, 'below', t.id);
+        else shapeLabel(ctl, gg, rt, gx + gs.w, gy - gs.h / 2, 'right', t.id);
+      }
     }
+    ctl.building = null;
     return { svg, geo, used, nodeEls, edgeEls, run, spec, width: W, height: Hh };
   }
 
@@ -455,13 +739,15 @@
     const shape = n.shape || (op === 'tensorop' ? 'add' : 'rect');
     const slot = slotFor(ctl, n.id);
     const blankOp = slot && slot.ask === 'op';
-    const g = S('g', { class: 'ad-node ad-op--' + (blankOp ? 'blank' : op) + (op === 'io' ? ' ad-node--io' : '') + (CIRCLE_SHAPES[shape] ? ' ad-node--sym' : '') + (n.expand ? ' ad-node--expandable' : ''),
+    // style:'block' = bloque compuesto (p. ej. una capa entera): marco neutro; el color lo dan sus sub-ops (mini).
+    const block = n.style === 'block' && !blankOp;
+    const g = S('g', { class: 'ad-node ad-op--' + (blankOp ? 'blank' : op) + (op === 'io' ? ' ad-node--io' : '') + (CIRCLE_SHAPES[shape] ? ' ad-node--sym' : '') + (n.expand ? ' ad-node--expandable' : '') + (block ? ' ad-node--block' : ''),
       'data-node': n.id, tabindex: ctl.mode === 'blank' && !slot ? -1 : 0, role: 'button' }, parent);
-    if (op !== 'io' && !blankOp) used.ops.add(op);
+    if (op !== 'io' && !blankOp && !block) used.ops.add(op);
     if (n.modality) used.mods.add(n.modality);
     const cost = run && op !== 'io' ? nodeCost(run, n) : null;
     let label = n.label || '';
-    let sub = n.sub || '';
+    let sub = nodeSub(n, ctl, spec);
     if (slot && slot.ask === 'label') { label = ''; sub = ''; }
     const hv = n.heads && run && run.config ? run.config[n.heads] : 0;
     if (CIRCLE_SHAPES[shape]) {
@@ -514,10 +800,14 @@
       }
       if (cost && cost.params > 0 && ctl.mode !== 'blank' && !ctl.quiz) {
         used.badge = true;
-        const s = fsi(cost.params);
+        // badgeTotal: en un bloque repetido, "por capa · total" (ambos del calculador)
+        // (el total del bloque repetido va en la etiqueta "× L" del grupo: repeat.totalOf)
+        const s = n.badgeTotal && cost.rep > 1 ? fsi(cost.params) + ' por capa' : fsi(cost.params);
         const bw = textW(s, 10.5, true) + 18;
-        // insignia de parámetros: arriba a la izquierda (las etiquetas de forma van a la derecha de las aristas)
-        const bx = n.badgePos === 'right' ? r.x + r.w - bw - 4 : r.x + 4, by = r.y - 8;
+        // insignia de parámetros arriba a la izquierda, entera por encima del borde: la derecha de cada nodo la
+        // ocupan las etiquetas de forma de la arista que llega (y la pila de cabezas). badgePos:'right' la mueve.
+        const left = n.badgePos !== 'right';
+        const bx = left ? r.x + 4 : r.x + r.w - bw - 4, by = r.y - 11;
         const b = S('g', { class: 'ad-badge' }, g);
         S('rect', { x: r1(bx), y: by, width: r1(bw), height: 15, rx: 7.5, class: 'ad-badge-bg' }, b);
         S('path', { d: 'M' + P([bx + 6, by + 7.5]) + 'm-2.2,0a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0M' + P([bx + 8.2, by + 7.5]) + 'h3.6M' + P([bx + 10.6, by + 7.5]) + 'v2.2', class: 'ad-key' }, b);
@@ -559,9 +849,14 @@
       }
       x += w + gap;
     });
+    // residuales: puente discontinuo por encima, con punta que entra en el ⊕ (como .ad-edge--residual)
     for (const [a, b] of mini.res || []) {
-      const xa = cx[a][0] - 3, xb = (cx[b][0] + cx[b][1]) / 2;
-      S('path', { d: 'M' + P([xa, y + hgt / 2]) + 'V' + r1(y - 5) + 'H' + r1(xb) + 'V' + r1(y + 1), class: 'ad-mini-res' }, mg);
+      const xa = cx[a][0] - 3, xb = (cx[b][0] + cx[b][1]) / 2, top = y - 7;
+      const rg = S('g', { class: 'ad-edge--residual ad-mini-resg' }, mg);
+      S('circle', { cx: r1(xa), cy: r1(y + hgt / 2), r: 1.8, class: 'ad-dot' }, rg);
+      S('path', { d: 'M' + P([xa, y + hgt / 2]) + 'V' + r1(top) + 'H' + r1(xb) + 'V' + r1(y + hgt / 2 - 6 - 3.5), class: 'ad-ln ad-mini-res' }, rg);
+      arrowHead(rg, [[xb, top], [xb, y + hgt / 2 - 6]], 'ad-head', 4.5);
+      used.edges.add('residual');
     }
   }
 
@@ -575,14 +870,34 @@
     S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: r.h / 2 > 10 ? 6 : r.h / 2, class: 'ad-box' }, g);
     const label = n.label || (it && (it.short || it.title)) || n.id;
     txt(g, r.x + r.w / 2, r.y + r.h / 2 + 4.5, label, 'ad-map-label', 'middle');
-    if (state === 'soon' && it && it.phase) txt(g, r.x + r.w - 4, r.y - 3, 'F' + it.phase, 'ad-map-phase', 'end');
-    g.setAttribute('aria-label', label + (state === 'ready' ? ' — listo' : state === 'anchor' ? ' — lo que ya sabes' : state === 'card' ? ' — tarjeta de nivel 1' : ' — próximamente'));
+    g.setAttribute('aria-label', label + (state === 'ready' ? ' — listo' : state === 'anchor' ? ' — lo que ya sabes' : state === 'card' ? ' — tarjeta de nivel 1' : ' — próximamente' + (it && it.phase ? ' (fase ' + it.phase + ')' : '')));
     return g;
   }
 
+  // Práctica: si un hueco pide la forma de un tensor, se ocultan las formas iguales de las aristas vecinas
+  // (las que comparten un nodo con la del hueco), que si no darían la respuesta.
+  function blankGiveaways(ctl, spec, run) {
+    const out = new Set();
+    if (ctl.mode !== 'blank' || !run) return out;
+    const edges = spec.edges || [];
+    const num = (e) => (e.tensor && run.tensors[e.tensor] ? run.tensors[e.tensor].num.join('×') : null);
+    for (const sid in ctl.slots) {
+      const sl = ctl.slots[sid];
+      if (!sl || sl.ask !== 'shape') continue;
+      const hits = edges.filter((e) => e.tensor && (sid === edgeKey(e) || sid === edgeKey(e) + '@' + e.tensor || sid === 'tensor:' + e.tensor) && (!sl.tensor || sl.tensor === e.tensor));
+      for (const h of hits) {
+        const want = num(h);
+        for (const e of edges) if (e !== h && num(e) === want && (e.from === h.from || e.from === h.to || e.to === h.from || e.to === h.to)) out.add(edgeKey(e) + '@' + e.tensor);
+      }
+    }
+    return out;
+  }
+  function nodeLabelOf(ctl, id) { const sp = ctl.building || (ctl.view ? ctl.view.spec : null); const n = sp && (sp.nodes || []).find((x) => x.id === id); return n ? String(n.label || id).replace(/\n/g, ' ') : id; }
+  function mapName(id) { const c = ATLAS.catalog && ATLAS.catalog(); const it = c && c.items && c.items[id]; return (it && (it.short || it.title)) || id; }
+
   function nodeAria(ctl, n, run) {
-    const parts = [n.label || n.id];
-    if (n.sub) parts.push(n.sub);
+    const parts = [plainSub(n.label || n.id)];
+    if (n.sub) parts.push(plainSub(nodeSub(n, ctl)));
     const io = nodeIO(ctl.cur(), n.id, run);
     if (io.in.length) parts.push('entrada ' + io.in.map((t) => shapeText(t, 'num')).join(', '));
     if (io.out.length) parts.push('salida ' + io.out.map((t) => shapeText(t, 'num')).join(', '));
@@ -714,12 +1029,16 @@
       tabindex: (t || isMap) && ctl.mode !== 'blank' ? -1 : null, role: t ? 'button' : null }, L.edges);
     const headSize = kind === 'control' ? 5 : 7;
     let d;
+    let headPts = ge.pts;
     if (ge.curve) {
-      const [A, C1, C2, B] = ge.curve;
+      const cs = ge.curve, last = cs[cs.length - 1];
+      const C2 = near(last[2][0], last[3][0]) && near(last[2][1], last[3][1]) ? last[1] : last[2], B = last[3];
       const L = Math.hypot(B[0] - C2[0], B[1] - C2[1]) || 1;
       const B2 = kind === 'contrasta' ? B : [B[0] - (B[0] - C2[0]) / L * (headSize - 1), B[1] - (B[1] - C2[1]) / L * (headSize - 1)];
-      d = 'M' + P(A) + 'C' + P(C1) + ' ' + P(C2) + ' ' + P(B2);
-      S('path', { d: 'M' + P(A) + 'C' + P(C1) + ' ' + P(C2) + ' ' + P(B), class: 'ad-hit' }, g);
+      const path = (end) => 'M' + P(cs[0][0]) + cs.map((s, i) => 'C' + P(s[1]) + ' ' + P(s[2]) + ' ' + P(i === cs.length - 1 ? end : s[3])).join('');
+      d = path(B2);
+      S('path', { d: path(B), class: 'ad-hit' }, g);
+      headPts = [C2, B];
     } else {
       d = roundedPath(shorten(ge.pts, headSize - 1), 8);
       S('path', { d: roundedPath(ge.pts, 8), class: 'ad-hit' }, g);  // área de toque
@@ -729,18 +1048,21 @@
       S('path', { d, class: 'ad-ln ad-ln--cross-in' }, g);
     } else S('path', { d, class: 'ad-ln' }, g);
     const hollow = kind === 'cross' || kind === 'usa';
-    if (kind !== 'contrasta') arrowHead(g, ge.curve ? [ge.curve[2], ge.curve[3]] : ge.pts, 'ad-head' + (hollow ? ' ad-head--hollow' : ''), headSize);
+    if (kind !== 'contrasta') arrowHead(g, headPts, 'ad-head' + (hollow ? ' ad-head--hollow' : ''), headSize);
     if (kind === 'contrasta') { const p0 = ge.pts[0], p1 = ge.pts[ge.pts.length - 1]; S('circle', { cx: r1(p0[0]), cy: r1(p0[1]), r: 2.4, class: 'ad-end' }, g); S('circle', { cx: r1(p1[0]), cy: r1(p1[1]), r: 2.4, class: 'ad-end' }, g); }
-    if (isMap) g.setAttribute('aria-label', (MAP_KIND_TITLES[kind] || kind) + ': ' + e.from + ' → ' + e.to + (e.label ? ' (' + e.label + ')' : ''));
+    if (isMap) g.setAttribute('aria-label', (MAP_KIND_SENT[kind] ? MAP_KIND_SENT[kind](mapName(e.from), mapName(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' (' + e.label + ')' : ''));
+    if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? e.tag + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num') + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
     if (e.dot) { const dp = ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
     if (kind === 'cross' || e.tag) {
-      const la = labelAnchor(ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSide: e.tagSide || null }));
+      const la = labelAnchor(ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
       if (la) {
-        const tg = S('g', { class: 'ad-tag' }, L.labels);
+        const tg = S('g', { class: 'ad-tag' + (e.tagStyle === 'plain' ? ' ad-tag--plain' : '') }, L.labels);
         tg.setAttribute('data-edge-tag', ge.key);
+        if (e.tensor) tg.setAttribute('data-tensor', e.tensor);
         const s = e.tag || 'K,V';
         const tw = textW(s, 10.5, true) + 8;
-        const off = la.vertical ? [-(tw / 2) - 8, 0] : [0, 12];
+        // tagSide:'on' = la etiqueta va sobre la línea (nombra la arista); si no, al costado
+        const off = e.tagSide === 'on' ? [0, 0] : la.vertical ? [-(tw / 2) - 8, 0] : [0, 12];
         S('rect', { x: r1(la.x + off[0] - tw / 2), y: r1(la.y + off[1] - 8), width: r1(tw), height: 15, rx: 3, class: 'ad-tag-bg' }, tg);
         txt(tg, la.x + off[0], la.y + off[1] + 3.5, s, 'ad-tag-txt', 'middle');
       }
@@ -749,7 +1071,7 @@
       used.mods.add(t.mod || 'img');
       const la = labelAnchor(ge.pts, e);
       const tk = tensorAt[ge.key + '@' + e.tensor] || tensorAt[ge.key];
-      const hide = ctl.hideShapes === true || (Array.isArray(ctl.hideShapes) && ctl.hideShapes.indexOf(e.tensor) >= 0);
+      const hide = ctl.hideShapes === true || (Array.isArray(ctl.hideShapes) && ctl.hideShapes.indexOf(e.tensor) >= 0) || (ctl.blankHide && ctl.blankHide.has(ge.key + '@' + e.tensor));
       if (slot) {
         drawEdgeSlot(ctl, g, ge, la, slot, e.tensor);
       } else if (la && !hide && e.label !== false) {
@@ -762,6 +1084,7 @@
           else if (la.side === 'below') { gx = la.x - gs.w / 2; gy = la.y + 8 + gs.h; ly = gy; }
           else { gx = la.x - gs.w / 2; gy = la.y - 7; ly = gy - gs.h + 2; }
           drawGlyph(g, t, gx, gy, ctl.id, tk.mark);
+          used.glyph = true;
         }
         if (!tk || tk.show !== 'glyph') {
           const sl = shapeLabel(ctl, g, t, lx, ly, la.side, e.tensor);
@@ -803,7 +1126,7 @@
     const mods = ATLAS.MODALITIES || [];
     const lid = view.legendDefsId;
     for (const m of mods) {
-      if (!used.mods.has(m.id)) continue;
+      if (!used.mods.has(m.id) || !used.glyph) continue;
       item((s) => {
         defs(s, lid + '-l' + m.id);
         const g = S('g', { class: 'ad-glyph ad-mod--' + m.id + (m.id === 'qry' ? ' ad-glyph--outline' : '') }, s);
@@ -884,6 +1207,7 @@
       ctl.bLeg = btn('Leyenda', 'Mostrar u ocultar la leyenda', () => { const open = legendBox.hidden; legendBox.hidden = !open; ctl.bLeg.setAttribute('aria-pressed', String(open)); prefSet('legendOpen', open); }, { 'aria-pressed': 'true' });
       const firstWalk = (spec0.walks || [])[0];
       if (firstWalk) ctl.bWalk = btn('Recorrido', 'Recorrido con números paso a paso', () => (ctl.walk ? api.stopWalk() : api.startWalk(opts.walk || firstWalk.id)), { 'aria-pressed': 'false' });
+      if (spec0.kind === 'map') btn('Ver como lista', 'Ver los modelos y sus relaciones como lista', () => { if (!alt) return; alt.open = true; const sm = alt.querySelector('summary'); try { alt.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' }); } catch (e) { /* sin scroll */ } if (sm) sm.focus({ preventScroll: true }); });
       ctl.bFull = btn('<span aria-hidden="true">⛶</span>', 'Pantalla completa', () => toggleFull(), { 'aria-pressed': 'false' });
       walkBar = H('div', { class: 'ad-walk', hidden: 'hidden', 'aria-live': 'polite' }, fig);
       walkBar.hidden = true;
@@ -895,6 +1219,7 @@
       panel = H('aside', { class: 'ad-panel', 'aria-label': 'Detalle del bloque' }, body);
       panel.hidden = true;
       hint = H('div', { class: 'ad-hint', 'aria-hidden': 'true', text: 'Toca para explorar · pellizca para hacer zoom' }, vp);
+      ctl.hintTimer = setTimeout(() => { if (hint) hint.classList.add('ad-hint--gone'); }, 2500);
       legendBox = H('div', { class: 'ad-legend-wrap' }, fig);
       const lo = prefGet('legendOpen', true);
       legendBox.hidden = !lo;
@@ -933,9 +1258,12 @@
 
     function renderCrumbs() {
       crumbs.innerHTML = '';
+      let repShown = false;
       ctl.stack.forEach((id, i) => {
         const sp = ATLAS.diagram(id);
-        const label = i === 0 ? rootTitle(sp) : crumbLabel(ATLAS.diagram(ctl.stack[i - 1]), sp);
+        const cl = i === 0 ? null : crumbLabel(ATLAS.diagram(ctl.stack[i - 1]), sp, repShown);
+        if (cl && cl.rep) repShown = true;
+        const label = i === 0 ? rootTitle(sp) : cl.text;
         if (i > 0) H('span', { class: 'ad-crumb-sep', 'aria-hidden': 'true', text: '›' }, crumbs);
         if (i === ctl.stack.length - 1) H('span', { class: 'ad-crumb', 'aria-current': 'location', text: label }, crumbs);
         else { const b = H('button', { type: 'button', class: 'ad-crumb ad-crumb--link', text: label }, crumbs); b.addEventListener('click', () => collapseTo(i)); }
@@ -945,31 +1273,62 @@
       if (sp.kind === 'map') return sp.title || 'Mapa';
       try { const r = ctl.runFor(sp); return (r && r.label) || sp.title; } catch (e) { return sp.title || sp.id; }
     }
-    function crumbLabel(parentSpec, sp) {
+    // "× L" solo en el primer nivel repetido (la capa); más adentro sería ambiguo (¿L o h?).
+    function crumbLabel(parentSpec, sp, repShown) {
       const n = parentSpec && (parentSpec.nodes || []).find((x) => x.id === sp.parentNode);
-      let s = (n && n.label ? n.label.replace(/\n/g, ' ') : sp.title) || sp.id;
-      const grp = parentSpec && n && (parentSpec.groups || []).find((g) => g.repeat && inside(n, g));
-      if (grp) { try { const r = ctl.runFor(parentSpec); s += ' × ' + r.config[grp.repeat.from || grp.repeat.sym]; } catch (e) { /* sin número */ } }
-      return s;
+      let s = plainSub((n && n.label ? n.label.replace(/\n/g, ' ') : sp.title) || sp.id);
+      const grp = !repShown && parentSpec && n && (parentSpec.groups || []).find((g) => g.repeat && inside(n, g));
+      let rep = false;
+      if (grp) { try { const r = ctl.runFor(parentSpec); s += ' × ' + r.config[grp.repeat.from || grp.repeat.sym]; rep = true; } catch (e) { /* sin número */ } }
+      return { text: s, rep };
     }
 
     function renderAlt() {
       const view = ctl.view, spec = view.spec, run = view.run;
       alt.innerHTML = '';
+      if (spec.kind === 'map') { renderMapList(spec); return; }
       H('summary', { text: 'Bloques y formas (texto alternativo)' }, alt);
       const list = H('dl', { class: 'ad-alt-list' }, alt);
       for (const n of spec.nodes || []) {
-        H('dt', { text: (n.label || n.id).replace(/\n/g, ' ') + (n.sub ? ' — ' + n.sub : '') }, list);
+        H('dt', null, list, htmlSub((n.label || n.id).replace(/\n/g, ' ') + (n.sub ? ' — ' + nodeSub(n, ctl) : '')));
         const dd = H('dd', null, list);
         if (spec.kind === 'map') { dd.innerHTML = '<a href="#' + esc(n.id) + '">Abrir</a>'; continue; }
         const io = nodeIO(view, n.id, run);
         const parts = [];
-        if (io.in.length) parts.push('Entra: ' + io.in.map((t) => shapeText(t, 'sym') + ' = ' + shapeText(t, 'num')).join(', '));
-        if (io.out.length) parts.push('Sale: ' + io.out.map((t) => shapeText(t, 'sym') + ' = ' + shapeText(t, 'num')).join(', '));
+        if (io.in.length) parts.push('Entra: ' + io.in.map((t) => plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num')).join(', '));
+        if (io.out.length) parts.push('Sale: ' + io.out.map((t) => plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num')).join(', '));
         if (run && n.op !== 'io') { const c = nodeCost(run, n); if (c.params) parts.push('Parámetros: ' + fint(c.params) + (c.rep > 1 ? ' por capa' : '')); if (c.macs) parts.push('MACs: ' + fint(c.macs) + (c.rep > 1 ? ' por capa' : '')); }
         if (n.expand) parts.push('Se abre en: ' + ((ATLAS.diagram(n.expand) || {}).title || n.expand));
         dd.innerHTML = esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, spec.config) : '');
       }
+    }
+
+    // Mapa como lista: por región, cada modelo con sus relaciones en frase y el enlace a su ficha.
+    function renderMapList(spec) {
+      H('summary', { text: 'Ver como lista: modelos y relaciones' }, alt);
+      const wrapL = H('div', { class: 'ad-alt-map' }, alt);
+      const nodes = spec.nodes || [];
+      const regions = (spec.groups || []).filter((g) => g.region);
+      const placed = new Set();
+      const sentence = (e) => (MAP_KIND_SENT[e.kind] ? MAP_KIND_SENT[e.kind](mapLabel(e.from), mapLabel(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' — ' + e.label : '');
+      const block = (title, list) => {
+        if (!list.length) return;
+        H('h5', { class: 'ad-alt-h', text: title }, wrapL);
+        const dl = H('dl', { class: 'ad-alt-list' }, wrapL);
+        for (const n of list) {
+          placed.add(n.id);
+          const it = catItem(n.id);
+          const dt = H('dt', null, dl);
+          const href = it && it.kind === 'card' ? '#mapa.' + (ATLAS.slug ? ATLAS.slug(n.id) : n.id) : '#' + n.id;
+          H('a', { href, text: (it && it.title) || n.label || n.id }, dt);
+          const rels = (spec.edges || []).filter((e) => e.from === n.id || e.to === n.id);
+          const dd = H('dd', null, dl);
+          if (rels.length) { const ul = H('ul', { class: 'ad-alt-rels' }, dd); rels.forEach((e) => H('li', { text: sentence(e) }, ul)); }
+          else dd.textContent = 'Sin relaciones dibujadas.';
+        }
+      };
+      for (const g of regions) block(g.label, nodes.filter((n) => !placed.has(n.id) && inside(n, g)));
+      block('Otros', nodes.filter((n) => !placed.has(n.id)));
     }
 
     // ---- tamaño del viewport y viewBox
@@ -977,6 +1336,7 @@
       const view = ctl.view; if (!view) return;
       const cw = vp.clientWidth || container.clientWidth || 800;
       if (fig.classList.contains('ad--fs')) { vp.style.height = ''; return; }
+      if (view.spec.kind === 'map' && isMobile() && ctl.mode === 'full') { vp.style.height = Math.round(Math.min((root.innerHeight || 800) * 0.7, 560)) + 'px'; return; }
       const s = Math.min(capScale(), cw / (view.width + 24));
       const maxH = Math.max(260, (root.innerHeight || 900) * (isMobile() ? 0.72 : 0.92));
       vp.style.height = Math.round(clamp((view.height + 24) * s, 160, maxH)) + 'px';
@@ -1105,8 +1465,8 @@
         if (!n) return '';
         if (spec.kind === 'map') return mapTip(n);
         if (slotFor(ctl, n.id)) return '';
-        let h = '<div class="ad-tip-t">' + esc((n.label || n.id).replace(/\n/g, ' ')) + '</div>';
-        if (n.sub) h += '<div class="ad-tip-sub">' + esc(n.sub) + '</div>';
+        let h = '<div class="ad-tip-t">' + htmlSub((n.label || n.id).replace(/\n/g, ' ')) + '</div>';
+        if (n.sub) h += '<div class="ad-tip-sub">' + htmlSub(nodeSub(n, ctl)) + '</div>';
         if (n.tex) h += '<div class="ad-tip-tex" data-tex="' + esc(n.tex) + '"></div>';
         const io = nodeIO(view, n.id, run);
         if (io.in.length || io.out.length) h += '<div class="ad-tip-io">' + io.in.map(shp).join(', ') + (io.in.length && io.out.length ? ' <span aria-hidden="true">→</span> ' : '') + io.out.map(shp).join(', ') + '</div>';
@@ -1121,17 +1481,17 @@
       if (target.edge) {
         const e = (spec.edges || []).find((x) => edgeKey(x) === target.edge && (!target.tensor || x.tensor === target.tensor));
         if (!e) return '';
-        if (spec.kind === 'map') return '<div class="ad-tip-t">' + esc(MAP_KIND_TITLES[e.kind] || e.kind) + '</div><div class="ad-tip-sub">' + esc(mapLabel(e.from)) + ' → ' + esc(mapLabel(e.to)) + '</div>' + (e.label ? '<div>' + esc(e.label) + '</div>' : '');
+        if (spec.kind === 'map') return '<div class="ad-tip-t">' + esc(MAP_KIND_SENT[e.kind] ? MAP_KIND_SENT[e.kind](mapLabel(e.from), mapLabel(e.to)) : e.kind) + '</div>' + (e.label ? '<div class="ad-tip-sub">' + esc(e.label) + '</div>' : '');
         const t = e.tensor && run && run.tensors[e.tensor];
         if (!t || slotFor(ctl, edgeKey(e)) || slotFor(ctl, edgeKey(e) + '@' + e.tensor)) return '';
         const els = (t.num || []).reduce((a, b) => a * b, 1);
-        return '<div class="ad-tip-t">' + esc(t.label || e.tensor) + '</div>' + (t.tex ? '<div class="ad-tip-tex" data-tex="' + esc(t.tex + ' \\in \\mathbb{R}^{' + (t.sym || []).join('\\times ') + '}') + '"></div>' : '')
+        return '<div class="ad-tip-t">' + esc(t.label || e.tensor) + '</div>' + (t.tex ? '<div class="ad-tip-tex" data-tex="' + esc(t.tex + ' \\in \\mathbb{R}^{' + shapeTexOf(t) + '}') + '"></div>' : '')
           + '<div class="ad-tip-io">' + shp(t) + '</div><div class="ad-tip-cost">' + fint(els) + ' elementos · ' + esc(((ATLAS.MODALITIES || []).find((m) => m.id === t.mod) || {}).title || t.mod || '') + '</div>'
           + (e.kind === 'cross' ? '<div class="ad-tip-sub">K y V vienen de otro flujo</div>' : '');
       }
       return '';
     }
-    function shp(t) { return '<span class="ad-mono">' + esc(shapeText(t, 'sym')) + ' = <b>' + esc(shapeText(t, 'num')) + '</b></span>'; }
+    function shp(t) { return '<span class="ad-mono">' + htmlSub(shapeText(t, 'sym')) + ' = <b>' + esc(shapeText(t, 'num')) + '</b></span>'; }
     function mapLabel(id) { const n = (ctl.view.spec.nodes || []).find((x) => x.id === id); const it = catItem(id); return (n && n.label) || (it && (it.short || it.title)) || id; }
     function catItem(id) { const c = ATLAS.catalog && ATLAS.catalog(); return (c && c.items && c.items[id]) || null; }
     function mapTip(n) {
@@ -1139,7 +1499,8 @@
       let h = '<div class="ad-tip-t">' + esc((it && it.title) || n.label || n.id) + '</div>';
       if (it && it.summary) h += '<div class="ad-tip-p">' + it.summary + '</div>';
       const rels = (ctl.view.spec.edges || []).filter((e) => e.from === n.id || e.to === n.id);
-      if (rels.length) h += '<div class="ad-tip-cost">' + rels.map((e) => esc((e.from === n.id ? '→ ' + mapLabel(e.to) : '← ' + mapLabel(e.from)) + ' (' + e.kind + ')')).join('<br>') + '</div>';
+      if (rels.length) h += '<div class="ad-tip-cost">' + rels.map((e) => esc(MAP_KIND_SENT[e.kind] ? MAP_KIND_SENT[e.kind](mapLabel(e.from), mapLabel(e.to)) : e.from + ' → ' + e.to)).join('<br>') + '</div>';
+      if (it && it.phase && !(ATLAS.getPage && (ATLAS.getPage(n.id) || {}).ready) && !it.anchor) h += '<div class="ad-tip-hint">Llega en la fase ' + esc(it.phase) + ' del Atlas</div>';
       return h;
     }
 
@@ -1154,7 +1515,7 @@
       panelFor = nodeId;
       panel.innerHTML = '';
       const head = H('div', { class: 'ad-panel-head' }, panel);
-      H('h4', { class: 'ad-panel-t', text: (n.label || n.id).replace(/\n/g, ' ') }, head);
+      H('h4', { class: 'ad-panel-t' }, head, htmlSub((n.label || n.id).replace(/\n/g, ' ')));
       const close = H('button', { type: 'button', class: 'ad-btn ad-panel-x', 'aria-label': 'Cerrar detalle', title: 'Cerrar (Esc)' }, head, '×');
       close.addEventListener('click', () => { closePanel(); const el = ctl.view.nodeEls[nodeId]; if (el) el.focus({ preventScroll: true }); });
       if (spec.kind === 'map') {
@@ -1166,7 +1527,7 @@
         const href = it && it.kind === 'card' ? '#mapa.' + (ATLAS.slug ? ATLAS.slug(n.id) : n.id) : '#' + n.id;
         H('a', { class: 'ad-btn ad-btn--primary', href, text: page && page.ready ? 'Abrir página' : it && it.kind === 'card' ? 'Ver tarjeta' : 'Ver qué viene' }, panel);
       } else {
-        if (n.sub) H('p', { class: 'ad-panel-sub', text: n.sub }, panel);
+        if (n.sub) H('p', { class: 'ad-panel-sub' }, panel, htmlSub(nodeSub(n, ctl)));
         if (n.note) H('div', { class: 'ad-panel-note' }, panel, qResolve(n.note, spec.config));
         if (n.tex) texInto(H('div', { class: 'ad-panel-tex' }, panel), n.tex, true);
         const io = nodeIO(view, n.id, run);
@@ -1206,7 +1567,7 @@
     }
     function costRow(box, o, which) {
       const p = H('div', { class: 'ad-cost-row' }, box);
-      H('div', { class: 'ad-cost-l', text: o.label || o.id }, p);
+      H('div', { class: 'ad-cost-l' }, p, htmlSub(o.label || o.id));
       const tex = which === 'param' ? o.paramTex : o.macTex;
       const ar = which === 'param' ? o.paramArith : o.macArith;
       if (tex) texInto(H('div', { class: 'ad-cost-tex' }, p), tex, false);
@@ -1224,13 +1585,32 @@
       for (const id of h.nodes || []) { const el = view.nodeEls[id]; if (el) el.classList.add('is-on'); const gr = svg.querySelector('[data-group="' + id + '"]'); if (gr) gr.classList.add('is-on'); }
       for (const k of h.edges || []) {
         const [key, tn] = k.split('@');
-        svg.querySelectorAll('[data-edge="' + cssq(key) + '"]').forEach((el) => { if (!tn || el.getAttribute('data-tensor') === tn) el.classList.add('is-on'); });
+        svg.querySelectorAll('[data-edge="' + cssq(key) + '"], [data-edge-tag="' + cssq(key) + '"]').forEach((el) => { if (!tn || !el.hasAttribute('data-tensor') || el.getAttribute('data-tensor') === tn) el.classList.add('is-on'); });
       }
-      for (const t of h.tensors || []) svg.querySelectorAll('[data-tensor="' + cssq(t) + '"].ad-edge, [data-tensor-glyph="' + cssq(t) + '"]').forEach((el) => el.classList.add('is-on'));
+      for (const t of h.tensors || []) svg.querySelectorAll('[data-tensor="' + cssq(t) + '"].ad-edge, [data-tensor="' + cssq(t) + '"].ad-tag, [data-tensor-glyph="' + cssq(t) + '"]').forEach((el) => el.classList.add('is-on'));
       // los grupos que contienen nodos activos no se atenúan
       for (const g of view.spec.groups || []) {
         if ((h.nodes || []).some((id) => { const n = (view.spec.nodes || []).find((x) => x.id === id); return n && inside(n, g); })) { const gr = svg.querySelector('[data-group="' + g.id + '"]'); if (gr) gr.classList.add('is-on'); }
       }
+    }
+    // Modo mini (drills): en vez de encoger todo el diagrama, encuadra lo resaltado (+ contexto) a escala ≥ 0.85.
+    function miniFocus(h) {
+      const view = ctl.view; if (!view) return;
+      const spec = view.spec, g = view.geo;
+      const ids = new Set((h && h.nodes) || []);
+      for (const k of (h && h.edges) || []) k.split('@')[0].split('>').forEach((x) => ids.add(x));
+      for (const e of spec.edges || []) if (h && e.tensor && (h.tensors || []).indexOf(e.tensor) >= 0) { ids.add(e.from); ids.add(e.to); }
+      const rs = Array.from(ids).map((id) => g.nodes[id] || g.groups[id]).filter(Boolean);
+      if (!rs.length) { sizeViewport(); fit(false); return; }
+      const pad = 36;
+      const x0 = Math.min(...rs.map((r) => r.x)) - pad, y0 = Math.min(...rs.map((r) => r.y)) - pad;
+      const x1 = Math.max(...rs.map((r) => r.x + r.w)) + pad, y1 = Math.max(...rs.map((r) => r.y + r.h)) + pad;
+      const cw = vp.clientWidth || 400;
+      const k = Math.min(1, Math.max(0.85, cw / (x1 - x0)));
+      const vh = clamp((y1 - y0) * k, 200, 380);
+      vp.style.height = Math.round(vh) + 'px';
+      const w = cw / k, hh = vh / k;
+      setVB({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - hh / 2, w, h: hh });
     }
     function cssq(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 
@@ -1256,16 +1636,23 @@
         document.querySelectorAll('tr.is-walk').forEach((tr) => tr.classList.remove('is-walk'));
         for (const t of st.tensors || []) document.querySelectorAll('tr[data-tensor="' + cssq(t) + '"]').forEach((tr) => tr.classList.add('is-walk'));
       } catch (e) { /* sin tabla de trace */ }
-      // centra los elementos activos si estamos con zoom
-      if (ctl.zoomed) focusBox(st.nodes || []);
+      // En el teléfono el paso activo se acerca (texto ≥ 11 px); con zoom manual, se centra.
+      const ids = (st.nodes || []).concat(...(st.edges || []).map((k) => k.split('@')[0].split('>')));
+      if (isMobile()) focusBox(ids, 0.96);
+      else if (ctl.zoomed) focusBox(ids);
     }
-    function focusBox(ids) {
+    function focusBox(ids, minK) {
       const g = ctl.view.geo; const rs = ids.map((id) => g.nodes[id]).filter(Boolean);
       if (!rs.length) return;
       const x0 = Math.min(...rs.map((r) => r.x)), y0 = Math.min(...rs.map((r) => r.y));
       const x1 = Math.max(...rs.map((r) => r.x + r.w)), y1 = Math.max(...rs.map((r) => r.y + r.h));
-      const vb = ctl.vb;
-      setVB({ x: (x0 + x1) / 2 - vb.w / 2, y: (y0 + y1) / 2 - vb.h / 2, w: vb.w, h: vb.h });
+      const vb = ctl.vb, s = vpSize();
+      let w = vb.w, h = vb.h;
+      if (minK) {
+        const r = rectVB({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+        w = Math.min(r.w, s.w / minK); h = w * s.h / s.w;
+      }
+      setVB({ x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h });
     }
     function buildWalkBar() {
       walkBar.innerHTML = '';
@@ -1424,14 +1811,25 @@
       if (!fwd && !back) return;
       ev.preventDefault();
       const edges = (ctl.view.spec.edges || []).filter((e) => (e.kind || 'data') === 'data' || ctl.view.spec.kind === 'map');
+      const goEdge = (e) => {
+        const el = edgeEl(e);
+        if (el && el.hasAttribute('tabindex')) { el.focus({ preventScroll: false }); showTipAt({ edge: edgeKey(e), tensor: e.tensor, el }); return true; }
+        return false;
+      };
       if (t.node) {
         const e = fwd ? edges.find((x) => x.from === t.node) : edges.find((x) => x.to === t.node);
         if (!e) return;
-        const el = edgeEl(e);
-        if (el && el.hasAttribute('tabindex')) { el.focus({ preventScroll: false }); showTipAt({ edge: edgeKey(e), tensor: e.tensor, el }); }
-        else { const n = ctl.view.nodeEls[fwd ? e.to : e.from]; if (n) n.focus(); }
+        if (!goEdge(e)) { const n = ctl.view.nodeEls[fwd ? e.to : e.from]; if (n) n.focus(); }
       } else if (t.edge) {
+        // ←/→ recorren las aristas hermanas (mismo origen, p. ej. Q, K y V); ↓/↑ van al destino/origen
         const [from, to] = t.edge.split('>');
+        const sib = edges.filter((x) => x.from === from);
+        const i = sib.findIndex((x) => edgeKey(x) === t.edge && (!t.tensor || x.tensor === t.tensor));
+        if ((k === 'ArrowRight' || k === 'ArrowLeft') && sib.length > 1 && i >= 0) {
+          const j = (i + (k === 'ArrowRight' ? 1 : sib.length - 1)) % sib.length;
+          hideTip(); goEdge(sib[j]);
+          return;
+        }
         const n = ctl.view.nodeEls[fwd ? to : from];
         if (n) { hideTip(); n.focus(); }
       }
@@ -1461,17 +1859,32 @@
     let ro = null;
     if (root.ResizeObserver) {
       let lastW = 0;
-      ro = new ResizeObserver(() => { const w = vp.clientWidth; if (Math.abs(w - lastW) < 2) return; lastW = w; const z = ctl.zoomed, keep = ctl.vb; sizeViewport(); if (z && keep) setVB(keep); else fit(false); });
+      ro = new ResizeObserver(() => {
+        const w = vp.clientWidth; if (Math.abs(w - lastW) < 2) return; lastW = w;
+        if (ctl.mode === 'mini' && ctl.hl) { miniFocus(ctl.hl); return; }
+        const z = ctl.zoomed, keep = ctl.vb; sizeViewport(); if (z && keep) setVB(keep); else fit(false);
+      });
       ro.observe(body);
     }
     const onWinResize = () => { if (fig.classList.contains('ad--fs')) fit(false); };
     on(root, 'resize', onWinResize);
 
+    // Vista inicial: ajustada; en el teléfono, con zoom sobre spec.mobileFocus si existe (p. ej. el núcleo del mapa).
+    function initialView() {
+      const spec = ctl.view && ctl.view.spec;
+      const ids = spec && isMobile() && ctl.mode === 'full' && !fig.classList.contains('ad--fs') ? spec.mobileFocus : null;
+      const rs = (ids || []).map((id) => ctl.view.geo.nodes[id] || ctl.view.geo.groups[id]).filter(Boolean);
+      if (!rs.length) { fit(false); return; }
+      const x0 = Math.min(...rs.map((r) => r.x)), y0 = Math.min(...rs.map((r) => r.y)), x1 = Math.max(...rs.map((r) => r.x + r.w)), y1 = Math.max(...rs.map((r) => r.y + r.h));
+      setVB(rectVB({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }));
+    }
+    ctl.initialView = initialView;
+
     // ---- montaje inicial
     mountView(diagramId);
     sizeViewport();
-    fit(false);
-    if (root.requestAnimationFrame) root.requestAnimationFrame(() => { if (!ctl.destroyed) { sizeViewport(); if (!ctl.zoomed) fit(false); } });
+    initialView();
+    if (root.requestAnimationFrame) root.requestAnimationFrame(() => { if (ctl.destroyed) return; if (ctl.mode === 'mini' && ctl.hl) { miniFocus(ctl.hl); return; } sizeViewport(); if (!ctl.zoomed) initialView(); });
 
     function inside(n, g) { return n.x >= g.x && n.y >= g.y && n.x + n.w <= g.x + g.w && n.y + n.h <= g.y + g.h; }
 
@@ -1495,8 +1908,8 @@
         const p = vid === ctl.rootId ? collapseTo(0) : expandTo(vid);
         return Promise.resolve(p).then(go);
       },
-      highlight(h) { ctl.hl = h || null; applyHighlight(ctl.hl); },
-      clearHighlight() { ctl.hl = null; applyHighlight(null); },
+      highlight(h) { ctl.hl = h || null; applyHighlight(ctl.hl); if (ctl.mode === 'mini') miniFocus(ctl.hl); },
+      clearHighlight() { ctl.hl = null; applyHighlight(null); if (ctl.mode === 'mini') miniFocus(null); },
       setSlot(slotId, text, state) {
         const st = { text: text == null || text === '' ? '?' : String(text), state: state || (text ? 'filled' : 'empty') };
         ctl.slotState[slotId] = st;
@@ -1522,6 +1935,7 @@
         fig.classList.remove('ad--walking');
         if (ctl.bWalk) ctl.bWalk.setAttribute('aria-pressed', 'false');
         ctl.hl = null; applyHighlight(null);
+        if (ctl.zoomed) fit(true);
         try { document.querySelectorAll('tr.is-walk').forEach((tr) => tr.classList.remove('is-walk')); } catch (e) { /* nada */ }
       },
       walkStep: (i) => goStep(i),
@@ -1532,6 +1946,7 @@
       destroy() {
         ctl.destroyed = true;
         stopPlay();
+        clearTimeout(ctl.hintTimer);
         if (ro) ro.disconnect();
         for (const [el, ev, fn, o] of ctl.listeners) el.removeEventListener(ev, fn, o);
         document.documentElement.classList.remove('ad-noscroll');
@@ -1573,14 +1988,15 @@
       f.querySelectorAll('[data-edge] .ad-shape-num, [data-edge] .ad-shape-sym, [data-tensor-glyph] .ad-shape-num, [data-tensor-glyph] .ad-shape-sym').forEach((tEl) => {
         const id = tEl.getAttribute('data-tensor');
         const t = run.tensors[id];
-        const want = t ? shapeText(t, tEl.classList.contains('ad-shape-num') ? 'num' : 'sym') : '(tensor desconocido)';
+        const want = t ? plainSub(shapeText(t, tEl.classList.contains('ad-shape-num') ? 'num' : 'sym')) : '(tensor desconocido)';
         if (tEl.textContent !== want) bad.push({ diagram: spec.id, edge: (tEl.closest('[data-edge]') || {}).getAttribute ? tEl.closest('[data-edge]').getAttribute('data-edge') : null, tensor: id, got: tEl.textContent, want });
       });
     }
     return bad;
   }
 
-  ATLAS.ArchDiagram = { render, legend, geometry, crossings, glyphSize, edgeKey, checkLabels, drawScene, UNIT: U, _route: routeEdge };
+  ATLAS.ArchDiagram = { render, legend, geometry, crossings, mapCheck, glyphSize, edgeKey, checkLabels, drawScene, UNIT: U, _route: routeEdge,
+    _routeMap: (spec) => { const g = geometry(spec); return mapCache && mapCache.get(spec) || g; } };
 
   // ============================================================ ATLAS.Viz (SPEC §7.8)
   const vizReg = {};

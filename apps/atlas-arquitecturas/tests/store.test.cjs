@@ -27,7 +27,7 @@ function fakeStorage(initial) {
 }
 
 // Entorno: reloj + temporizadores controlados; `advance(ms)` ejecuta los vencidos en orden.
-function makeEnv({ storage, claude, withCatalog = true } = {}) {
+function makeEnv({ storage, claude, withCatalog = true, events } = {}) {
   const clock = { t: T0 };
   let timers = [];
   let seq = 1;
@@ -39,6 +39,7 @@ function makeEnv({ storage, claude, withCatalog = true } = {}) {
   };
   if (storage !== undefined) ctx.localStorage = storage;
   if (claude) ctx.claude = claude;
+  if (events) ctx.addEventListener = (ev, fn) => { (events[ev] = events[ev] || []).push(fn); };
   vm.createContext(ctx);
   vm.runInContext('Date.now = () => globalThis.__clock.t;', Object.assign(ctx, { __clock: clock }));
   vm.runInContext(REGISTRY, ctx, { filename: 'registry.js' });
@@ -175,7 +176,53 @@ test('dos pestañas con el mismo localStorage: la escritura de una no borra lo q
   assert.strictEqual(Object.keys(saved.drills.items).length, 2, 'drills de ambas pestañas');
   assert.strictEqual(saved.drills.log.length, 2, 'historial unido sin duplicados');
   assert.strictEqual(B.store.drillStats('vit:').seen, 2, 'B ve el drill de A');
-  assert.ok(kinds.includes('remote'), 'B avisa que trajo datos de otra pestaña');
+  assert.ok(kinds.includes('drill') && kinds.includes('flash'), 'B avisa qué trajo de otra pestaña (tipos concretos): ' + kinds.join(','));
+  assert.ok(!kinds.includes('remote'), 'sin el aviso genérico remote');
+});
+
+test('evento storage de otra pestaña: tipos concretos; solo ubicación o visita no avisan de progreso', () => {
+  const ls = fakeStorage();
+  const events = {};
+  const B = makeEnv({ storage: ls, events });
+  const fire = (st) => (events.storage || []).forEach((fn) => fn({ key: 'atlas.v1', newValue: JSON.stringify(st) }));
+  const kinds = [];
+  B.store.subscribe((k, src) => kinds.push(k + '@' + src));
+  const base = JSON.parse(B.store.exportJSON()).state;
+  // Otra pestaña solo desplazó la página y visitó otra.
+  const s1 = JSON.parse(JSON.stringify(base));
+  s1.lastLocation = { updatedAt: T0 + 5, hash: '#vit.costo' };
+  s1.progress.pages.vit = { completed: false, at: 0, visitedAt: T0 + 5 };
+  fire(s1);
+  assert.deepStrictEqual(kinds, ['visit@tab', 'location@tab']);
+  assert.strictEqual(B.store.lastLocation(), '#vit.costo');
+  // Ahora marcó una sección y cambió el tema.
+  kinds.length = 0;
+  const s2 = JSON.parse(JSON.stringify(s1));
+  s2.progress.sections['vit.costo'] = { read: true, at: T0 + 6 };
+  s2.prefs.values.theme = { v: 'dark', at: T0 + 6 };
+  fire(s2);
+  assert.deepStrictEqual(kinds, ['progress@tab', 'prefs@tab']);
+  // Lo mismo otra vez: nada cambió, nada se avisa.
+  kinds.length = 0;
+  fire(s2);
+  assert.deepStrictEqual(kinds, []);
+});
+
+test('preferencias inválidas (respaldo, otra pestaña o setPref) se descartan', () => {
+  const ls = fakeStorage({ 'atlas.v1': JSON.stringify({ v: 1, prefs: { updatedAt: 1, values: {
+    theme: { v: { evil: 1 }, at: 1 }, legendOpen: { v: 'sí', at: 1 }, showNumbers: { v: false, at: 1 }, otra: { v: { x: 1 }, at: 1 } } } }) });
+  const { store } = makeEnv({ storage: ls });
+  assert.strictEqual(store.pref('theme'), 'system', 'theme inválido → valor por defecto');
+  assert.strictEqual(store.pref('legendOpen'), true);
+  assert.strictEqual(store.pref('showNumbers'), false, 'los válidos se conservan');
+  assert.deepStrictEqual(Object.assign({}, store.pref('otra')), { x: 1 }, 'claves desconocidas: tal cual');
+  store.setPref('theme', 'morado');
+  assert.strictEqual(store.pref('theme'), 'system');
+  store.setPref('theme', 'dark');
+  assert.strictEqual(store.pref('theme'), 'dark');
+  const r = store.importJSON(JSON.stringify({ app: 'atlas-arquitecturas', v: 1, state: { v: 1, prefs: { updatedAt: 9e15, values: { theme: { v: 42, at: 9e15 } } } } }));
+  assert.ok(r.ok);
+  assert.strictEqual(store.pref('theme'), 'dark', 'la importación no mete un tema inválido');
 });
 
 test('JSON corrupto en localStorage: estado vacío y copia de respaldo', () => {
@@ -439,6 +486,30 @@ test('sync: fusiona lo remoto al arrancar y escribe solo lo que cambió, coalesc
   assert.strictEqual(db.docs.get(PRAC).drills.items['vit:shape:qkv'].ok, 1);
   assert.strictEqual(db.docs.get(PRAC).blank.items['vit-overview'].slots.head.v, 'opt-head');
   assert.ok(db.maxInFlight() <= 1, 'una escritura a la vez');
+});
+
+test('sync: visitas y última ubicación no programan escrituras en la cuenta; viajan con flush', async () => {
+  const db = fakeDb({});
+  const env = makeEnv({ storage: fakeStorage(), claude: fakeClaude(db) });
+  await env.advance(0);
+  assert.strictEqual(env.store.backend(), 'account');
+  env.store.setSectionRead('vit', 'para-que', true);
+  await env.advance(20000);
+  db.log.length = 0;
+  env.store.markVisited('vit');
+  env.store.setLastLocation('#vit.costo');
+  await env.advance(20000);
+  assert.deepStrictEqual(db.log, [], 'leer y desplazarse no escribe en la cuenta');
+  env.store.flush();
+  await env.advance(0);
+  assert.deepStrictEqual(db.log, [['set', MAIN]], 'al ocultar/cerrar (flush) sí se sube');
+  assert.strictEqual(db.docs.get(MAIN).lastLocation.hash, '#vit.costo');
+  db.log.length = 0;
+  env.store.setLastLocation('#vit.fallas');
+  env.store.setSectionRead('vit', 'costo', true);   // una escritura real lleva también la ubicación
+  await env.advance(2100);
+  assert.deepStrictEqual(db.log, [['set', MAIN]]);
+  assert.strictEqual(db.docs.get(MAIN).lastLocation.hash, '#vit.fallas');
 });
 
 test('sync: lo local más reciente gana y se sube', async () => {

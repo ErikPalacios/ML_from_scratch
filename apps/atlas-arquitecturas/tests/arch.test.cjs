@@ -364,7 +364,12 @@ test('fmt', () => {
   assert.strictEqual(A.fmt.si(17563828224), '17.56 G');
   assert.strictEqual(A.fmt.si(1771776), '1.77 M');
   assert.strictEqual(A.fmt.si(872), '872');
-  assert.strictEqual(A.fmt.bytes(2 * 1024 * 1024), '2.00 MiB');
+  // Memoria en unidades decimales (1 KB = 1000 B), un solo formateador para toda la app.
+  assert.strictEqual(A.fmt.bytes(2e6), '2.00 MB');
+  assert.strictEqual(A.fmt.bytes(12 * 197 * 197 * 2), '931.4 KB');
+  assert.strictEqual(A.fmt.bytes(86567656 * 2), '173.1 MB');
+  assert.strictEqual(A.fmt.bytes(999960), '1.00 MB');
+  assert.strictEqual(A.fmt.bytes(512), '512 B');
   assert.strictEqual(A.fmt.pct(0.1234), '12.3 %');
 });
 
@@ -390,6 +395,10 @@ test('Quantities: get, fill y keys', () => {
   assert.strictEqual(Q.get('vit-b16-224.params.totalM').text, '86.6 M');
   assert.strictEqual(Q.get('vit-b16-224.macs.totalG').text, '17.56 G');
   assert.strictEqual(Q.get('vit-b16-224.flops.totalG').text, '35.13 G');
+  assert.strictEqual(Q.get('vit-b16-224.macs.totalGMACs').text, '17.56 GMACs');
+  assert.strictEqual(Q.get('vit-b16-224.flops.totalGFLOPs').text, '35.13 GFLOPs');
+  assert.strictEqual(A.fmt.ops(17563828224), '17.56 GMACs');
+  assert.strictEqual(A.fmt.ops(872), '872 MACs');
   assert.strictEqual(Q.get('vit-b16-224.tokens').text, '197');
   assert.strictEqual(Q.get('vit-b16-224.quantities.patches').text, '196');
   assert.strictEqual(Q.get('vit-b16-224.tensor.x0.shape').text, '197×768');
@@ -398,6 +407,9 @@ test('Quantities: get, fill y keys', () => {
   assert.strictEqual(Q.get('vit-b16-224.node.enc-layer.params').value, 12 * 7087872);
   assert.strictEqual(Q.get('vit-b16-224.op.qkv.paramArith').text, '768·2304 + 2304 = 1,771,776');
   assert.strictEqual(Q.get('vit-b16-224.cfg.D').text, '768');
+  assert.strictEqual(Q.get('vit-l16-224.cfg.D').text, '1024');      // dimensiones sin separador (como en las formas)
+  assert.strictEqual(Q.get('vit-b16-224.metrics.attnMem').text, '931.4 KB');
+  assert.strictEqual(Q.get('vit-b16-224.metrics.paramMem').text, '173.1 MB');
   assert.strictEqual(Q.get('vit-b16-224.cfg.qkvBias').text, 'sí');
   assert.strictEqual(Q.get('vit-b16-224.metrics.attnMem').value, 12 * 197 * 197 * 2);
   assert.strictEqual(Q.get('tokens', { config: 'vit-b16-384' }).text, '577');

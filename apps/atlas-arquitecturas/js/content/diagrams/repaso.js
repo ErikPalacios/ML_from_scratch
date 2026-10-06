@@ -15,9 +15,9 @@
     id: 'repaso-block', model: 'transformer', config: C, kind: 'arch',
     title: 'Bloque Transformer pre-LN (juguete)', page: 'repaso-atencion', section: 'atencion',
     caption: 'Un bloque pre-LN con el ejemplo de juguete (N = 5 tokens, D = 8, h = 2), como en el Laboratorio. Abre la MHSA para ver cada paso con su forma.',
-    grid: { w: 60, h: 86 }, direction: 'tb', maxCrossings: 0,
+    grid: { w: 62, h: 86 }, direction: 'tb', maxCrossings: 0,
     groups: [
-      { id: 'layer', label: 'Bloque pre-LN', labelPos: 'bottom', x: 8, y: 8, w: 46, h: 66 },
+      { id: 'layer', label: 'Bloque pre-LN', labelPos: 'bottom', x: 8, y: 6, w: 48, h: 68 },
     ],
     nodes: [
       { id: 'in', op: 'io', label: 'Entrada X', x: 22, y: 1, w: 16, h: 4, note: 'N tokens de D dimensiones (en el juguete no hay embeddings: la entrada ya es X).' },
@@ -36,7 +36,7 @@
     ],
     edges: [
       { from: 'in', to: 'ln1', kind: 'data', tensor: 'x0', labelT: 0.66 },
-      { from: 'in', to: 'res1', kind: 'residual', fromSide: 'bottom', toSide: 'left', via: [[30, 6.5], [12, 6.5], [12, 38]], dot: true },
+      { from: 'in', to: 'res1', kind: 'residual', fromSide: 'bottom', toSide: 'left', via: [[30, 7.5], [12, 7.5], [12, 38]], dot: true },
       { from: 'ln1', to: 'mhsa', kind: 'data', tensor: 'h-ln1', labelT: 0.28 },
       { from: 'mhsa', to: 'res1', kind: 'data', tensor: 'o' },
       { from: 'res1', to: 'ln2', kind: 'data', tensor: 'r1' },
@@ -44,6 +44,11 @@
       { from: 'ln2', to: 'mlp', kind: 'data', tensor: 'h-ln2' },
       { from: 'mlp', to: 'res2', kind: 'data', tensor: 'f' },
       { from: 'res2', to: 'out', kind: 'data', tensor: 'x-out', labelT: 0.74 },
+    ],
+    // El flujo (N×D) frente a la matriz de atención que vive dentro de la MHSA (h×N×N): el costo N².
+    tensors: [
+      { id: 'x0', at: { edge: 'in>ln1' }, show: 'both' },
+      { id: 'attn', at: { x: 49, y: 42 }, show: 'both', labelSide: 'below', note: 'A (en la MHSA)' },
     ],
     walks: [
       { id: 'forward', label: 'Recorrido con el juguete', steps: [
@@ -70,9 +75,9 @@
     title: 'Multi-head attention (juguete)', page: 'repaso-atencion', section: 'atencion',
     parent: 'repaso-block', parentNode: 'mhsa',
     caption: 'Q, K, V → h cabezas → QKᵀ/√d_h → softmax → A·V → concatenar → W_O, con las formas del juguete.',
-    grid: { w: 72, h: 101 }, direction: 'tb', maxCrossings: 0,
+    grid: { w: 72, h: 111 }, direction: 'tb', maxCrossings: 0,
     groups: [
-      { id: 'heads', label: 'Una cabeza (las h corren en paralelo)', labelPos: 'bottom-right', heads: 'h', x: 8, y: 31, w: 58, h: 39 },
+      { id: 'heads', label: 'Las h cabezas, en paralelo', labelPos: 'bottom-right', heads: 'h', x: 8, y: 31, w: 58, h: 49 },
     ],
     nodes: [
       { id: 'in', op: 'io', label: 'Entrada (tras LN 1)', x: 21, y: 1, w: 18, h: 4, note: 'Los tokens normalizados.' },
@@ -82,23 +87,33 @@
         tex: 'N\\times 3D \\to 3\\times h\\times N\\times d_h', note: 'Reshape: separa Q, K, V y corta D en h trozos de d_h.' },
       { id: 'scores', op: 'attn', label: 'Q · Kᵀ', sub: 'producto punto entre todos los pares', x: 12, y: 35, w: 36, h: 5,
         tex: 'S = QK^\\top \\in \\mathbb{R}^{h\\times N\\times N}', note: 'Similitud de cada query con cada key.' },
-      { id: 'scale', op: 'attn', label: '÷ √d_h', shape: 'pill', x: 20, y: 44, w: 20, h: 4, tex: 'S/\\sqrt{d_h}', note: 'Evita que la softmax se sature.' },
-      { id: 'softmax', op: 'attn', label: 'softmax', sub: 'por fila (+ máscara)', x: 20, y: 52, w: 20, h: 5,
+      { id: 'scale', op: 'attn', label: '÷ √d_h', shape: 'pill', x: 20, y: 49, w: 20, h: 4, tex: 'S/\\sqrt{d_h}', note: 'Evita que la softmax se sature.' },
+      { id: 'softmax', op: 'attn', label: 'softmax', sub: 'por fila (+ máscara)', x: 20, y: 57, w: 20, h: 5,
         tex: 'A = \\mathrm{softmax}(S/\\sqrt{d_h} + M)', note: 'Cada fila suma 1. Con máscara causal, M = −∞ sobre el futuro (mismos conteos, menos scores usados).' },
-      { id: 'weighted-sum', op: 'attn', label: 'A · V', sub: 'promedio ponderado de los values', x: 12, y: 62, w: 36, h: 5,
+      { id: 'weighted-sum', op: 'attn', label: 'A · V', sub: 'promedio ponderado de los values', x: 12, y: 72, w: 36, h: 5,
         tex: '\\mathrm{head}_i = A_i V_i', note: 'Mezcla de values con los pesos de atención.' },
-      { id: 'merge', op: 'tensorop', shape: 'concat', label: 'Concatenar cabezas', labelPos: 'right', x: 28, y: 76, w: 4, h: 4,
+      { id: 'merge', op: 'tensorop', shape: 'concat', label: 'Concatenar cabezas', labelPos: 'right', x: 28, y: 86, w: 4, h: 4,
         tex: 'h\\times N\\times d_h \\to N\\times D', note: 'h·d_h = D.' },
-      { id: 'proj', op: 'embed', label: 'Proyección de salida W_O', sub: 'Linear D → D', x: 16, y: 85, w: 28, h: 5,
+      { id: 'proj', op: 'embed', label: 'Proyección de salida W_O', sub: 'Linear D → D', x: 16, y: 95, w: 28, h: 5,
         tex: 'O = [\\,\\mathrm{head}_1;\\dots;\\mathrm{head}_h\\,]W_O + b', note: 'Mezcla las cabezas.' },
-      { id: 'out', op: 'io', label: 'Hacia la residual 1', x: 21, y: 96, w: 18, h: 4, note: 'Vuelve al bloque.' },
+      { id: 'out', op: 'io', label: 'Hacia la residual 1', x: 21, y: 106, w: 18, h: 4, note: 'Vuelve al bloque.' },
+    ],
+    // Glifos proporcionales: la matriz h×N×N (scores, A) frente a V y la salida por cabeza (h×N×d_h).
+    tensors: [
+      { id: 'qkv', at: { edge: 'qkv>split' }, show: 'both' },
+      { id: 'v', at: { edge: 'split>weighted-sum' }, show: 'both' },
+      { id: 'scores', at: { edge: 'scores>scale' }, show: 'both' },
+      { id: 'attn', at: { edge: 'softmax>weighted-sum' }, show: 'both' },
+      { id: 'z-heads', at: { edge: 'weighted-sum>merge' }, show: 'both' },
+      { id: 'z', at: { edge: 'merge>proj' }, show: 'both' },
     ],
     edges: [
       { from: 'in', to: 'qkv', kind: 'data', tensor: 'h-ln1' },
       { from: 'qkv', to: 'split', kind: 'data', tensor: 'qkv' },
-      { from: 'split', to: 'scores', kind: 'data', tensor: 'q', fromSide: 'bottom', fromAt: 0.0625, toSide: 'top', toAt: 0.1111, labelSide: 'left', labelT: 0.3 },
-      { from: 'split', to: 'scores', kind: 'data', tensor: 'k', fromSide: 'bottom', toSide: 'top', labelT: 0.3 },
-      { from: 'split', to: 'weighted-sum', kind: 'data', tensor: 'v', fromSide: 'right', toSide: 'right', via: [[54, 21], [54, 64.5]], labelT: 0.45 },
+      // Q, K y V nombrados sobre la línea (etiqueta neutra: no es la "K,V" de cross-attention)
+      { from: 'split', to: 'scores', kind: 'data', tensor: 'q', fromSide: 'bottom', fromAt: 0.0625, toSide: 'top', toAt: 0.1111, labelSide: 'left', labelT: 0.3, tag: 'Q', tagStyle: 'plain', tagSide: 'on', tagT: 0.78 },
+      { from: 'split', to: 'scores', kind: 'data', tensor: 'k', fromSide: 'bottom', toSide: 'top', labelT: 0.3, tag: 'K', tagStyle: 'plain', tagSide: 'on', tagT: 0.78 },
+      { from: 'split', to: 'weighted-sum', kind: 'data', tensor: 'v', fromSide: 'right', toSide: 'right', via: [[54, 21], [54, 74.5]], labelT: 0.62, tag: 'V', tagStyle: 'plain', tagSide: 'on', tagT: 0.1 },
       { from: 'scores', to: 'scale', kind: 'data', tensor: 'scores' },
       { from: 'scale', to: 'softmax', kind: 'data', tensor: 'scores-scaled' },
       { from: 'softmax', to: 'weighted-sum', kind: 'data', tensor: 'attn' },

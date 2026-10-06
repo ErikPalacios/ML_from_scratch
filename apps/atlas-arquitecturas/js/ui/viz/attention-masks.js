@@ -15,7 +15,8 @@
     const cfgId = params.config || 'toy-n5-d8';
     const run = A.run(cfgId);
     const N = run.config.N || run.config.tokens || (run.quantities && run.quantities.tokens) || 5;
-    const S = params.source || N;                 // largo de la secuencia del encoder en cross-attention
+    const S = params.source || N;                 // largo de la secuencia del encoder en cross-attention (keys/values)
+    const M = params.queries || Math.max(2, N - 2); // queries del decoder: otro largo (M × N no tiene por qué ser cuadrada)
     const fmt = A.fmt;
     const state = { cell: null };
 
@@ -27,10 +28,10 @@
     const masks = [
       { id: 'bi', title: 'Bidireccional', sub: 'encoder (BERT, ViT)', rows: N, cols: N, on: () => true, cls: 'viz-mask-on', qn: 'token', kn: 'token' },
       { id: 'causal', title: 'Causal', sub: 'decoder (GPT, LLMs)', rows: N, cols: N, on: (i, j) => j <= i, cls: 'viz-mask-on', qn: 'token', kn: 'token' },
-      { id: 'cross', title: 'Cross-attention', sub: 'Q: decoder · K,V: encoder', rows: N, cols: S, on: () => true, cls: 'viz-mask-cross', qn: 'decoder', kn: 'encoder' },
+      { id: 'cross', title: 'Cross-attention', sub: 'Q: decoder (M) · K,V: encoder (N)', rows: M, cols: S, on: () => true, cls: 'viz-mask-cross', qn: 'decoder', kn: 'encoder', foot: 'M × N: no tiene por qué ser cuadrada' },
     ];
     const cs = 22, pad = 44, mw = Math.max(N, S) * cs;
-    const W = masks.length * (mw + pad + 26) + 10, Hh = N * cs + 84;
+    const W = masks.length * (mw + pad + 26) + 100, Hh = N * cs + 84;   // +90: textos de la tercera máscara
     const svg = V.svg('svg', { class: 'viz-svg', style: 'max-width:' + W + 'px', viewBox: '0 0 ' + W + ' ' + Hh, role: 'group', 'aria-label': 'Tres máscaras de atención con ' + N + ' posiciones' }, stage);
 
     masks.forEach((m, k) => {
@@ -55,6 +56,7 @@
       for (let i = 0; i < m.rows; i++) txt(svg, ox - 4, oy + i * cs + cs / 2 + 4, String(i + 1), 'viz-s', 'end');
       for (let j = 0; j < m.cols; j++) txt(svg, ox + j * cs + cs / 2, oy + m.rows * cs + 13, String(j + 1), 'viz-s', 'middle');
       txt(svg, ox - 26, oy + m.rows * cs + 32, 'usadas: ' + used + ' de ' + (m.rows * m.cols), 'viz-n');
+      if (m.foot) txt(svg, ox - 26, oy + m.rows * cs + 48, m.foot, 'viz-s');
       m.used = used;
     });
 
@@ -64,6 +66,7 @@
       kv('N =', N);
       kv('bidireccional:', 'N² = ' + fmt.int(N * N));
       kv('causal:', 'N(N+1)/2 = ' + fmt.int(N * (N + 1) / 2) + ' (mismos MACs: la máscara no ahorra cómputo sin kernels especiales)');
+      kv('cross-attention:', 'M×N = ' + M + '×' + S + ' = ' + fmt.int(M * S));
       const c = state.cell;
       if (c) kv(c.m.title + ':', 'query ' + (c.i + 1) + ' (' + c.m.qn + ') → key ' + (c.j + 1) + ' (' + c.m.kn + ') ' + (c.ok ? 'permitido' : 'bloqueado: −∞ → peso 0'));
     }

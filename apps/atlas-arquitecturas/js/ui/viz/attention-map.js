@@ -81,8 +81,11 @@
       const wmax = Math.max(...w.slice(1));
       stage.innerHTML = '';
       const W = 560, IX = 12, IY = 30, IS = 300;
-      const svg = V.svg('svg', { class: 'viz-svg', style: 'max-width:' + W + 'px', viewBox: '0 0 ' + W + ' 350', role: 'img', 'aria-label': 'Mapa de atención ilustrativo de la query en la fila ' + (Math.floor(state.q / g) + 1) + ', columna ' + (state.q % g + 1) + '.' }, stage);
+      const svg = V.svg('svg', { class: 'viz-svg', style: 'max-width:' + W + 'px', viewBox: '0 0 ' + W + ' 378', role: 'img', 'aria-label': 'Mapa de atención ilustrativo de la query en la fila ' + (Math.floor(state.q / g) + 1) + ', columna ' + (state.q % g + 1) + '.' }, stage);
       const defs = V.svg('defs', null, svg);
+      const lg = V.svg('linearGradient', { id: id + '-ramp', x1: 0, x2: 1, y1: 0, y2: 0 }, defs);
+      V.svg('stop', { offset: 0, style: 'stop-color:var(--op-attn);stop-opacity:0' }, lg);
+      V.svg('stop', { offset: 1, style: 'stop-color:var(--op-attn);stop-opacity:0.82' }, lg);
       V.scene(V.svg('g', { id: id + '-s' }, defs), 0, 0, 100, 100, 0);
       V.svg('use', { href: '#' + id + '-s', transform: 'translate(' + IX + ',' + IY + ') scale(' + IS / 100 + ')', opacity: 0.55 }, svg);
       const cs = IS / g;
@@ -103,16 +106,23 @@
         else if (k === 'ArrowDown' && q + g < N) q += g; else if (k === 'ArrowUp' && q - g >= 0) q -= g; else return;
         ev.preventDefault(); state.q = q; draw(); const ng = stage.querySelector('[role="grid"]'); if (ng) ng.focus();
       });
+      // escala de color del mapa: 0 → el peso máximo entre los parches
+      const RY = IY + IS + 14;
+      txt(svg, IX, RY + 10, '0', 'viz-s');
+      V.svg('rect', { x: IX + 14, y: RY + 1, width: 150, height: 10, rx: 2, fill: 'url(#' + id + '-ramp)', stroke: 'var(--rule-strong)', 'stroke-width': 0.8 }, svg);
+      txt(svg, IX + 170, RY + 10, 'máx = ' + (wmax * 100).toFixed(1) + ' % (peso de un parche)', 'viz-s');
       txt(svg, IX, IY - 12, 'Query: parche fila ' + (Math.floor(state.q / g) + 1) + ', columna ' + (state.q % g + 1) + ' (' + cls[state.q] + ')', 'viz-t');
       // ---- barra lateral: la fila de la softmax (CLS + top parches)
       const BX = IX + IS + 28;
       txt(svg, BX, IY - 12, 'Fila de A (softmax): suma 1', 'viz-t');
-      const order = w.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).slice(0, 9);
+      // primero el [CLS] (también es una de las N+1 keys), después los 8 parches con más peso
+      const order = [[w[0], 0]].concat(w.map((v, i) => [v, i]).filter((x) => x[1] > 0).sort((a, b) => b[0] - a[0]).slice(0, 8));
+      const vmax = Math.max(...order.map((x) => x[0]));
       order.forEach(([v, i], k) => {
         const y = IY + 8 + k * 30;
         const name = i === 0 ? '[CLS]' : 'parche ' + (Math.floor((i - 1) / g) + 1) + ',' + ((i - 1) % g + 1) + ' (' + cls[i - 1] + ')';
         txt(svg, BX, y + 4, name, 'viz-s');
-        V.svg('rect', { x: BX, y: y + 9, width: Math.max(1, 180 * v / order[0][0]), height: 8, rx: 2, fill: 'var(--op-attn)' }, svg);
+        V.svg('rect', { x: BX, y: y + 9, width: Math.max(1, 180 * v / vmax), height: 8, rx: 2, fill: 'var(--op-attn)' }, svg);
         txt(svg, BX + 186, y + 17, (v * 100).toFixed(1) + ' %', 'viz-n');
       });
       out.innerHTML = '';

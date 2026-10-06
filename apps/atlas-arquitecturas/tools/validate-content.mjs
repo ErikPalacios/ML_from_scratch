@@ -407,7 +407,16 @@ function checkDiagram(d) {
     else if (d.section) {
       const p = ATLAS.getPage(d.page);
       if (p && p.sections.length && !p.sections.some((s) => s.id === d.section)) err(where, 'la página ' + d.page + ' no tiene la sección ' + d.section);
+      // page/section dicen dónde vive (búsqueda y rutas ~nodo): una raíz debe estar en un bloque
+      // archdiagram de esa sección; una vista expandida, en la misma sección que su padre.
+      else if (p && p.sections.length && !d.parent) {
+        const homes = p.sections.filter((s) => (s.blocks || []).some((b) => b && b.t === 'archdiagram' && b.diagram === d.id)).map((s) => s.id);
+        if (homes.length && !homes.includes(d.section)) err(where, 'section: "' + d.section + '", pero el bloque archdiagram está en ' + d.page + '.' + homes.join(', ') + ' (la búsqueda enlazaría #' + d.page + '.' + d.section + '~nodo a una sección sin el diagrama; usa section: \'' + homes[0] + '\')');
+      }
     }
+  }
+  if (d.parent && diagrams[d.parent] && d.page && (diagrams[d.parent].page !== d.page || diagrams[d.parent].section !== d.section)) {
+    err(where, 'page/section (' + d.page + '.' + d.section + ') distintos de los de su padre ' + d.parent + ' (' + diagrams[d.parent].page + '.' + diagrams[d.parent].section + ')');
   }
   if (d.parent) {
     const par = diagrams[d.parent];
@@ -513,8 +522,25 @@ function checkDiagram(d) {
   const cx = crossings(dataLines);
   if (cx.n > max) err(where, cx.n + ' cruces de aristas data (máx ' + max + '): ' + cx.pairs.join('; ') + ' — agrega via o mueve nodos');
   if (isMap) {
-    const cm = crossings(mapLines);
+    // El mapa enruta sus curvas en el motor (js/ui/archdiagram.js): se cuentan los cruces sobre la
+    // geometría real (ATLAS.ArchDiagram.geometry) y no sobre la copia local de curvePts, que ya no
+    // coincide. Sin el motor (no cargó en Node), se usa la aproximación local.
+    const AD = ATLAS.ArchDiagram;
+    let lines = mapLines;
+    if (AD && typeof AD.geometry === 'function') {
+      try { lines = AD.geometry(d).edges.filter((ge) => Array.isArray(ge.pts) && ge.pts.length > 1).map((ge) => ({ id: ge.from + '>' + ge.to, pts: ge.pts })); }
+      catch (e) { err(where, 'ATLAS.ArchDiagram.geometry falla: ' + (e && e.message || e)); }
+    }
+    const cm = crossings(lines);
     if (cm.n > max) warn(where, cm.n + ' cruces entre relaciones del mapa (máx ' + max + '): ' + cm.pairs.slice(0, 8).join('; ') + (cm.pairs.length > 8 ? '…' : ''));
+    // Curvas que pasan por detrás de un nodo que no unen o sobre el título de una región: error.
+    if (AD && typeof AD.mapCheck === 'function') {
+      try {
+        const mc = AD.mapCheck(d) || {};
+        for (const t of mc.through || []) err(where, 'relación del mapa ' + t + ' (re-enruta con via/bend o mueve nodos)');
+        for (const t of mc.overTitle || []) err(where, 'relación del mapa: ' + t);
+      } catch (e) { err(where, 'ATLAS.ArchDiagram.mapCheck falla: ' + (e && e.message || e)); }
+    } else warn(where, 'ATLAS.ArchDiagram.mapCheck no está disponible en Node: no se comprueba que las curvas eviten nodos y títulos');
   }
   (d.tensors || []).forEach((t, i) => {
     const w = where + '.tensors[' + (t.id || i) + ']';
@@ -598,8 +624,11 @@ function checkBlock(where, b, page, ids, pctx) {
     case 'calc':
       need('rows'); (b.rows || []).forEach((r, i) => { if (!r.label || r.value == null) err(where, 'fila ' + i + ' necesita label y value'); ['label', 'expr', 'value', 'note'].forEach((k) => r[k] != null && checkHtml(where + '[' + i + '].' + k, String(r[k]))); });
       if (b.result) checkHtml(where, b.result, true); if (b.title) checkHtml(where, b.title); break;
-    case 'qa': need('items'); (b.items || []).forEach((it, i) => { if (!it.q || !it.a) err(where, 'qa ' + i + ' necesita q y a'); checkHtml(where, it.q); checkHtml(where, it.a, true); checkHtml(where, it.why, true); w += words(it.q) + words(it.a) + words(it.why || ''); }); break;
-    case 'followups': need('items'); (b.items || []).forEach((it, i) => { if (!it.q || !it.junior || !it.senior) err(where, 'followup ' + i + ' necesita q, junior y senior'); checkHtml(where, it.q); checkHtml(where, it.junior, true); checkHtml(where, it.senior, true); checkHtml(where, it.why, true); w += words(it.q) + words(it.junior) + words(it.senior) + words(it.why || ''); }); break;
+    case 'qa': need('items'); (b.items || []).forEach((it, i) => { if (!it.q || !it.a) err(where, 'qa ' + i + ' necesita q y a'); checkHtml(where, it.q); checkHtml(where, it.a, true); checkHtml(where, it.why, true); if (it.say != null) { if (typeof it.say !== 'string' || !it.say.trim()) err(where, 'qa ' + i + ': say debe ser texto'); else checkHtml(where, it.say); } w += words(it.q) + words(it.a) + words(it.why || ''); }); break;
+    case 'followups': need('items'); (b.items || []).forEach((it, i) => { if (!it.q || !it.junior || !it.senior) err(where, 'followup ' + i + ' necesita q, junior y senior'); checkHtml(where, it.q); checkHtml(where, it.junior, true); checkHtml(where, it.senior, true); checkHtml(where, it.why, true);
+      // say (opcional): la respuesta senior en inglés para decirla tal cual ("Dilo así")
+      if (it.say != null) { if (typeof it.say !== 'string' || !it.say.trim()) err(where, 'followup ' + i + ': say debe ser texto (la respuesta senior en inglés)'); else checkHtml(where, it.say); }
+      w += words(it.q) + words(it.junior) + words(it.senior) + words(it.why || ''); }); break;
     case 'tradeoffs': need('items'); (b.items || []).forEach((it, i) => { if (!it.option || !['elegido', 'descartado', 'depende'].includes(it.verdict)) err(where, 'tradeoff ' + i + ' necesita option y verdict elegido|descartado|depende'); ['option', 'pros', 'cons', 'why'].forEach((k) => checkHtml(where + '[' + i + '].' + k, it[k], true)); w += words(it.pros || '') + words(it.cons || '') + words(it.why || ''); }); break;
     case 'checklist':
       need('id'); need('items');
@@ -1010,15 +1039,80 @@ for (const { where, href } of links) {
   if (!p.sections.some((s) => s.id === sid)) { err(where, 'enlace a sección inexistente: ' + href); continue; }
   if (sub && !KEBAB.test(sub)) err(where, 'sub-ancla inválida: ' + href);
   if (node) {
-    // El nodo debe existir en un diagrama de esa sección (o en sus vistas expandidas).
-    const sec = p.sections.find((s) => s.id === sid);
-    const ds = new Set((sec.blocks || []).filter((b) => b && b.t === 'archdiagram').map((b) => b.diagram));
-    for (const d of Object.values(diagrams)) if (d.page === pid && d.section === sid) ds.add(d.id);
-    let grow = true;
-    while (grow) { grow = false; for (const d of Object.values(diagrams)) if (d.parent && ds.has(d.parent) && !ds.has(d.id)) { ds.add(d.id); grow = true; } }
-    const found = [...ds].some((id) => diagrams[id] && ((diagrams[id].nodes || []).some((n) => n.id === node) || (diagrams[id].groups || []).some((n) => n.id === node)));
-    if (!found) err(where, 'enlace a un nodo que no está en los diagramas de ' + pid + '.' + sid + ': ' + href);
+    // El nodo debe existir en un diagrama de esa sección (o en sus vistas expandidas). Forma calificada
+    // ~<diagrama>.<nodo>: ese diagrama debe ser de la sección y tener el nodo. Sin calificar, el id debe
+    // ser único en la sección: si está en varias vistas, el router no sabría cuál abrir (SPEC §4.2).
+    const ref = ATLAS.splitNodeRef(node);
+    const ds = ATLAS.sectionDiagrams(pid, sid);
+    if (ref.diagram) {
+      if (!ds.includes(ref.diagram)) err(where, 'enlace calificado a un diagrama que no está en ' + pid + '.' + sid + ': ' + href);
+      else if (!ATLAS.nodeDiagrams(pid, sid, ref.node).includes(ref.diagram)) err(where, 'el diagrama ' + ref.diagram + ' no tiene el nodo "' + ref.node + '": ' + href);
+    } else {
+      const hits = ATLAS.nodeDiagrams(pid, sid, ref.node);
+      if (!hits.length) err(where, 'enlace a un nodo que no está en los diagramas de ' + pid + '.' + sid + ': ' + href);
+      else if (hits.length > 1) err(where, 'enlace ambiguo: el nodo "' + ref.node + '" está en ' + hits.join(', ') + '; usa #' + pid + '.' + sid + '~<diagrama>.' + ref.node + ' (p. ej. ' + ATLAS.nodeHref(pid, sid, ref.node, hits[0]) + ')');
+    }
   }
+}
+
+// ------------------------------------------------------------------ ids de nodo repetidos en una sección
+// Las rutas ~nodo y la búsqueda necesitan ids únicos por sección; los de entrada/salida (op 'io') se
+// permiten repetidos porque no se indexan (su enlace, si lo hubiera, debe ir calificado).
+{
+  const seen = new Set();
+  for (const d of Object.values(diagrams)) {
+    if (!d.page || !d.section || d.kind === 'map') continue;
+    const key = d.page + '.' + d.section;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const owners = {};
+    for (const id of ATLAS.sectionDiagrams(d.page, d.section)) {
+      for (const n of diagrams[id].nodes || []) if (n && n.id && n.op !== 'io') (owners[n.id] = owners[n.id] || []).push(id);
+    }
+    for (const [nid, ids] of Object.entries(owners)) {
+      if (ids.length > 1) warn('diagramas de ' + key, 'el nodo "' + nid + '" aparece en ' + ids.join(', ') + ': un enlace #' + key + '~' + nid + ' sería ambiguo (la búsqueda usa ~<diagrama>.' + nid + ')');
+    }
+  }
+}
+
+// ------------------------------------------------------------------ LaTeX que perdió sus barras
+// En un template literal normal (sin R`…`/String.raw), "\(" se vuelve "(", "\cdot" → "cdot" y
+// "\top" → TAB + "op", "\frac" → salto de página + "rac", "\beta" → retroceso + "eta". Se revisan
+// las cadenas ya evaluadas de páginas, catálogo y diagramas.
+{
+  const CTRL = /[\x08\x09\x0B\x0C\x0D]/;
+  const CTRL_NAME = { '\x08': 'retroceso (\\b de \\beta, \\bar…)', '\x09': 'tabulador (\\t de \\top, \\times, \\tau…)', '\x0B': 'tab vertical (\\v de \\vec…)', '\x0C': 'salto de página (\\f de \\frac…)', '\x0D': 'retorno de carro (\\r de \\right, \\rho…)' };
+  // Comandos que nunca son palabras de prosa: sin "\" delante son LaTeX roto en cualquier parte.
+  const NEVER_PROSE = /(^|[^\\A-Za-z])(cdot|cdots|ldots|mathrm|mathbf|mathit|mathcal|operatorname|boldsymbol|sqrt\{|frac\{|sum_|prod_)/;
+  // Dentro de \( … \) / \[ … \] (o en un campo tex): también estas, tras "(" o espacio.
+  const IN_MATH = /(^|[\s(])(cdot|frac|sqrt|mathbf|mathrm|top|times|sum|ell|approx|operatorname|infty|alpha|beta|gamma|sigma|lambda|epsilon)\b/;
+  const SKIP_KEYS = new Set(['code', 'id', 't', 'model', 'config', 'configs', 'diagram', 'href', 'family', 'kind', 'ref', 'src', 'arxiv', 'url', 'parent', 'parentNode', 'expand']);
+  const reported = new Set();
+  const mathSegs = (s) => Array.from(s.matchAll(/\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]/g), (m) => m[1] != null ? m[1] : m[2]);
+  const check = (where, str, key) => {
+    if (typeof str !== 'string' || !str) return;
+    const at = (i) => JSON.stringify(str.slice(Math.max(0, i - 20), i + 20));
+    const say = (msg) => { const k = where + msg; if (!reported.has(k)) { reported.add(k); err(where, msg); } };
+    const c = CTRL.exec(str);
+    if (c) say('carácter de control ' + CTRL_NAME[c[0]] + ': LaTeX que perdió su "\\" (usa R`…`): …' + at(c.index) + '…');
+    const n = NEVER_PROSE.exec(str);
+    if (n) say('comando LaTeX sin "\\": "' + n[2] + '" (¿template literal sin R`…`?): …' + at(n.index) + '…');
+    const segs = key === 'tex' ? [str] : mathSegs(str);
+    for (const seg of segs) { const m = IN_MATH.exec(seg); if (m) { say('dentro de la fórmula, "' + m[2] + '" sin "\\": ' + JSON.stringify(seg.slice(0, 60))); break; } }
+  };
+  const walk = (where, obj, key, depth) => {
+    if (depth > 14 || obj == null) return;
+    if (typeof obj === 'string') { check(where, obj, key); return; }
+    if (Array.isArray(obj)) { obj.forEach((x, i) => walk(where + '[' + i + ']', x, key, depth + 1)); return; }
+    if (typeof obj === 'object') for (const k of Object.keys(obj)) if (!SKIP_KEYS.has(k)) walk(where + '.' + k, obj[k], k, depth + 1);
+  };
+  for (const [id, pg] of Object.entries(rawPages)) {
+    (pg.sections || []).forEach((sct) => walk(id + '.' + (sct && sct.id), sct, null, 0));
+    walk(id + '.flashcards', pg.flashcards || [], null, 0);
+    walk(id + '.glossary', pg.glossary || [], null, 0);
+  }
+  if (catalog) walk('catalog', catalog, null, 0);
+  for (const d of Object.values(diagrams)) walk('diagrama ' + d.id, d, null, 0);
 }
 
 // ------------------------------------------------------------------ informe

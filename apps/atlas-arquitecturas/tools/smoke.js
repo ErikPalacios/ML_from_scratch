@@ -5,6 +5,10 @@
      npm run smoke            # index.html, escritorio 1440×900, claro
      npm run smoke:mobile     # 375×812 · npm run smoke:dark · npm run smoke:tablet (768×1024)
      npm run smoke:dist       # lo mismo contra dist/atlas-arquitecturas.html
+     npm run smoke:artifact   # dist/artifact.html envuelto con un window.claude falso y sin localStorage
+     npm run smoke:web        # dist/web servido por http (service worker, lab/ precargado)
+     npm run smoke:offline    # MathJax bloqueado: el respaldo aparece al instante
+   El modo lo fija tools/smoke-harness.mjs en window.__SMOKE_MODE (artifact | web | offline).
    Recorre cada página lista del registro (y las especiales), verifica que cada sección se pinte,
    que no haya bloques rotos ni desborde horizontal, que cada diagrama dibuje en sus aristas
    exactamente las formas de ATLAS.Arch (ATLAS.ArchDiagram.checkLabels, y como respaldo
@@ -17,6 +21,7 @@
 (async () => {
   'use strict';
   const T0 = performance.now();
+  const MODE = window.__SMOKE_MODE || 'dev';
   const A = window.ATLAS;
   const store = A.store;
   const passes = [];
@@ -161,6 +166,33 @@
     return { diagrams: ctrls.length, views, walks };
   }
 
+  // Contadores de recursos vivos (para comprobar que salir de una página destruye sus controladores):
+  // ResizeObservers sin desconectar y listeners de window/document de los tipos que usan los componentes.
+  const live = { ro: 0, ls: new Map() };
+  (() => {
+    const RO = window.ResizeObserver;
+    if (RO) {
+      window.ResizeObserver = class extends RO {
+        constructor(cb) { super(cb); this.__smokeOn = true; live.ro++; }
+        disconnect() { if (this.__smokeOn) { this.__smokeOn = false; live.ro--; } return super.disconnect(); }
+      };
+    }
+    const TYPES = ['resize', 'hashchange', 'keydown', 'pointerdown', 'scroll'];
+    const keyOf = (who, t, o) => who + ':' + t + (o === true || (o && o.capture) ? ':c' : '');
+    for (const [who, tgt] of [['window', window], ['document', document]]) {
+      const add = tgt.addEventListener, rem = tgt.removeEventListener;
+      tgt.addEventListener = function (t, fn, o) {
+        if (TYPES.indexOf(t) >= 0 && fn) { const k = keyOf(who, t, o); const m = live.ls.get(k) || new Set(); m.add(fn); live.ls.set(k, m); }
+        return add.call(this, t, fn, o);
+      };
+      tgt.removeEventListener = function (t, fn, o) {
+        if (TYPES.indexOf(t) >= 0 && fn) { const m = live.ls.get(keyOf(who, t, o)); if (m) m.delete(fn); }
+        return rem.call(this, t, fn, o);
+      };
+    }
+  })();
+  const liveCounts = () => { const o = { ro: live.ro }; for (const [k, m] of live.ls) o[k] = m.size; return o; };
+
   // ------------------------------------------------------------------ 0. arranque
   await step('arranque', async () => {
     ok('registro sin problemas', A.registryProblems().length === 0, A.registryProblems());
@@ -171,7 +203,13 @@
     ok('índice con todos los modelos', $$('#nav .nav__item').filter((a) => (A.catalog().items[a.dataset.id] || {}).kind === 'model').length === Object.values(A.catalog().items).filter((it) => it.kind === 'model').length);
     notes.viewport = innerWidth + '×' + innerHeight + (drawerMode() ? ' (cajón)' : '') + (matchMedia('(prefers-color-scheme: dark)').matches ? ' oscuro' : ' claro');
     notes.backend = store.backend();
+    notes.mode = MODE;
+    // Sin red (smoke:offline) el respaldo debe estar listo ya (el error del <script> se detecta al
+    // instante); con red, MathJax tiene que cargar.
+    const st = await Promise.race([A.MathTex.ready.then((v) => (v ? 'ok' : 'falló')), sleep(30).then(() => 'esperando')]);
+    if (MODE === 'offline') ok('sin MathJax: ready ya resolvió false (sin esperar 8 s)', st === 'falló', st);
     notes.mathjax = await A.MathTex.ready;
+    if (MODE !== 'offline') ok('MathJax cargó', notes.mathjax === true, notes.mathjax);
   });
 
   // ------------------------------------------------------------------ 1. inicio
@@ -261,9 +299,13 @@
     ok(id + ': check en el índice', !!(await waitFor(() => $('#nav .nav__item[data-id="' + id + '"] .mk-done'), 1500)));
     ok(id + ': contador 1/N', await waitFor(() => /^1\/\d+$/.test(txt($('#side-uptime .side-uptime__count'))), 1500), txt($('#side-uptime .side-uptime__count')));
     store.flush();
-    let ls = null;
-    try { ls = localStorage.getItem('atlas.v1'); } catch (e) { ls = null; }
-    ok('persistido en localStorage atlas.v1', !!ls && ls.indexOf(id + '.' + first) >= 0);
+    if (store.backend() === 'local') {
+      let ls = null;
+      try { ls = localStorage.getItem('atlas.v1'); } catch (e) { ls = null; }
+      ok('persistido en localStorage atlas.v1', !!ls && ls.indexOf(id + '.' + first) >= 0);
+    } else if (store.backend() === 'account' && window.__writes) {
+      ok('persistido en la cuenta (data/users/<uid>/state)', !!(await waitFor(() => window.__writes.some((p) => /\/state$/.test(p)), 4000)), window.__writes);
+    }
   });
 
   // ------------------------------------------------------------------ 5. páginas de otros componentes
@@ -286,6 +328,48 @@
       key('3');
       ok('flashcards: Espacio + 3 califica una tarjeta', !!(await waitFor(() => store.flashStats(ids).seen === s0.seen + 1, 1500)), { s0: s0.seen, s1: store.flashStats(ids).seen });
     }
+  });
+
+  // ------------------------------------------------------------------ 5b. salir de una página destruye sus controladores
+  await step('teardown de controladores', async () => {
+    await go('#inicio');
+    await sleep(150);
+    const base = liveCounts();
+    const routes = ['#vit', '#practica', '#practica-vit', '#flashcards', '#glosario', '#repaso-atencion'];
+    for (let i = 0; i < 3; i++) for (const r of routes) { await go(r); await go('#inicio'); }
+    await sleep(150);
+    const after = liveCounts();
+    const grew = Object.keys(after).filter((k) => (after[k] || 0) > (base[k] || 0)).map((k) => k + ' ' + (base[k] || 0) + '→' + after[k]);
+    ok('3 idas y vueltas a ' + routes.join(' ') + ' no dejan observadores ni listeners vivos', grew.length === 0, grew);
+    notes.vivos = after;
+  });
+
+  // ------------------------------------------------------------------ 5c. cada bloque de la búsqueda abre su diagrama
+  await step('búsqueda: bloques → diagrama', async () => {
+    const blocks = A.searchIndex().filter((e) => e.type === 'block');
+    const bad = [];
+    for (const e of blocks) {
+      await go(e.href);
+      const r = A.App.parseHash(e.href);
+      const sec = byId(r.pageId + '.' + r.section);
+      const c = sec && diagramCtrls(sec)[0];
+      const fig = c && ($('figure.ad', c.el) || c.el);
+      const opened = fig && await waitFor(() => fig.getAttribute('data-view') === e.diagram, 2500);
+      const focused = await waitFor(() => document.activeElement && document.activeElement.getAttribute('data-node') === e.node && fig.contains(document.activeElement), 1500);
+      if (!opened || !focused) bad.push(e.href + ' → vista ' + (fig && fig.getAttribute('data-view')) + ', foco ' + (document.activeElement && (document.activeElement.getAttribute('data-node') || document.activeElement.tagName)));
+    }
+    ok('los ' + blocks.length + ' resultados de tipo Bloque abren su diagrama y enfocan su nodo', bad.length === 0, bad.slice(0, 6));
+    // Forma calificada (~diagrama.nodo) para un id repetido en la sección (el "in" de cada vista de vit).
+    if ((A.getPage('vit') || {}).ready && A.nodeDiagrams('vit', 'diagrama', 'in').length > 1) {
+      await go('#vit.diagrama~vit-mlp.in');
+      const c = diagramCtrls(byId('vit.diagrama'))[0];
+      const fig = c && ($('figure.ad', c.el) || c.el);
+      ok('#vit.diagrama~vit-mlp.in abre vit-mlp (no la primera vista con "in")', !!fig && !!(await waitFor(() => fig.getAttribute('data-view') === 'vit-mlp', 2500)), fig && fig.getAttribute('data-view'));
+      ok('#vit.diagrama~vit-mlp.in enfoca el nodo in', !!(await waitFor(() => document.activeElement && document.activeElement.getAttribute('data-node') === 'in', 1500)));
+      await go('#vit.diagrama~vit-patch-embed.in');
+      ok('…y ~vit-patch-embed.in cambia a vit-patch-embed', !!fig && !!(await waitFor(() => fig.getAttribute('data-view') === 'vit-patch-embed', 2500)), fig && fig.getAttribute('data-view'));
+    }
+    await go('#inicio');
   });
 
   // ------------------------------------------------------------------ 6. búsqueda y atajos
@@ -358,6 +442,42 @@
     ok('ruta desconocida: página "no encontrado"', txt(byId('page-title')) === 'No encontramos esta página');
     checkOverflow('#no-existe-esta-ruta');
     await go('#inicio');
+  });
+
+  // ------------------------------------------------------------------ 9. por entorno (smoke-harness)
+  await step('entorno ' + MODE, async () => {
+    if (MODE === 'artifact') {
+      ok('artifact: ATLAS_ENV', window.ATLAS_ENV === 'artifact', window.ATLAS_ENV);
+      ok('artifact: guardado en la cuenta', !!(await waitFor(() => store.backend() === 'account', 4000)), store.backend());
+      await go('#repaso-atencion');
+      ok('artifact: ningún enlace al Laboratorio (no hay a.lab-link)', $$('#page a.lab-link').length === 0);
+      const notesEls = $$('#page .lab-link--note');
+      ok('artifact: notas en lugar de enlaces', notesEls.length > 0, notesEls.length);
+      ok('artifact: la ubicación completa del Laboratorio aparece una sola vez por página', $$('#page .lab-link__where--full').length === 1, $$('#page .lab-link__where--full').length);
+      ok('artifact: sin "Laboratorio Transformer" repetido en cada nota', !notesEls.some((n) => (txt(n).match(/Laboratorio/gi) || []).length > 1), notesEls.map(txt).filter((t) => (t.match(/Laboratorio/gi) || []).length > 1).slice(0, 3));
+    } else if (MODE === 'web') {
+      ok('web: ATLAS_ENV', window.ATLAS_ENV === 'web', window.ATLAS_ENV);
+      const reg = await Promise.race([navigator.serviceWorker.ready, sleep(15000).then(() => null)]);
+      ok('web: service worker activo', !!(reg && reg.active), reg && reg.scope);
+      const keys = await caches.keys();
+      const app = keys.find((k) => k.startsWith('atlas-app-'));
+      const pre = app ? (await (await caches.open(app)).keys()).map((r) => new URL(r.url).pathname) : [];
+      ok('web: lab/ precargado', pre.some((p) => /\/lab\/$/.test(p)), pre);
+      const rt = keys.indexOf('atlas-runtime') >= 0 ? (await (await caches.open('atlas-runtime')).keys()).map((r) => r.url) : [];
+      ok('web: MathJax en la caché desde la primera visita', rt.some((u) => /mathjax\/.*tex-svg/.test(u)), rt.slice(0, 5));
+      await go('#repaso-atencion');
+      const links = $$('#page a.lab-link');
+      ok('web: los enlaces al Laboratorio apuntan a lab/#…', links.length > 0 && links.every((a) => /^lab\/#/.test(a.getAttribute('href'))), links.slice(0, 3).map((a) => a.getAttribute('href')));
+      const lr = await fetch('lab/');
+      const lt = await lr.text();
+      ok('web: lab/ responde con el Laboratorio', lr.status === 200 && /Laboratorio/i.test((/<title>([^<]*)/i.exec(lt) || [])[1] || ''), lr.status);
+      await go('#inicio');
+    } else if (MODE === 'offline') {
+      await go('#vit.operaciones');
+      ok('offline: fórmulas en LaTeX de respaldo', $$('#page .tex-fallback').length > 0, $$('#page .tex-fallback').length);
+      ok('offline: ningún marcador provisional pendiente', $$('#page .tex-pending').length === 0, $$('#page .tex-pending').length);
+      await go('#inicio');
+    }
   });
 
   const summary = {

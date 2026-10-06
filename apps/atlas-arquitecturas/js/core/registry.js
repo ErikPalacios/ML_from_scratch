@@ -204,35 +204,85 @@
 
   function stripHtml(s) { return String(s || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim(); }
 
+  // LaTeX en línea (y subíndices TeX en etiquetas de nodos: z_{ℓ−1}) → texto plano legible, para la
+  // búsqueda y otros usos de texto plano.
+  const TEX_SYM = { sqrt: '√', top: 'ᵀ', cdot: '·', times: '×', sum: 'Σ', ell: 'ℓ', alpha: 'α', beta: 'β', gamma: 'γ', sigma: 'σ', mu: 'μ', le: '≤', ge: '≥', approx: '≈', to: '→', infty: '∞' };
+  function deTex(s) {
+    return String(s || '')
+      .replace(/\\[()[\]]/g, '')
+      .replace(/\\(?:mathrm|mathbf|operatorname|text|mathit|boldsymbol)\{([^{}]*)\}/g, '$1')
+      .replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '$1/$2')
+      .replace(/\\([A-Za-z]+)/g, (m, x) => (TEX_SYM[x] !== undefined ? TEX_SYM[x] : x))
+      .replace(/[{}]/g, '')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  // ------------------------------------------------------------------ rutas a nodos de diagrama
+  // Diagramas de una sección: los que declaran page/section, los que la sección incrusta (bloque
+  // archdiagram) y todas sus vistas expandidas (parent). Orden: raíces primero.
+  function sectionDiagrams(pageId, sectionId) {
+    const ids = [];
+    const add = (id) => { if (id && diagrams[id] && ids.indexOf(id) < 0) ids.push(id); };
+    for (const d of Object.values(diagrams)) if (d.page === pageId && d.section === sectionId && !d.parent) add(d.id);
+    const p = getPage(pageId);
+    const sec = p && p.sections.find((s) => s && s.id === sectionId);
+    if (sec) (sec.blocks || []).forEach((b) => { if (b && b.t === 'archdiagram') add(b.diagram); });
+    for (const d of Object.values(diagrams)) if (d.page === pageId && d.section === sectionId) add(d.id);
+    let grow = true;
+    while (grow) { grow = false; for (const d of Object.values(diagrams)) if (d.parent && ids.indexOf(d.parent) >= 0 && ids.indexOf(d.id) < 0) { ids.push(d.id); grow = true; } }
+    return ids;
+  }
+  const diagramHas = (d, nodeId) => !!d && ((d.nodes || []).some((n) => n && n.id === nodeId) || (d.groups || []).some((g) => g && g.id === nodeId));
+  // Diagramas de la sección que contienen ese nodo (o grupo).
+  function nodeDiagrams(pageId, sectionId, nodeId) {
+    return sectionDiagrams(pageId, sectionId).filter((id) => diagramHas(diagrams[id], nodeId));
+  }
+  // '<nodo>' o '<diagrama>.<nodo>' → {diagram, node} (los ids de diagrama son kebab-case, sin puntos).
+  function splitNodeRef(ref) {
+    const s = String(ref || '');
+    const k = s.indexOf('.');
+    return k > 0 ? { diagram: s.slice(0, k), node: s.slice(k + 1) } : { diagram: null, node: s };
+  }
+  // Enlace a un nodo: #página.sección~nodo si el id es único en la sección; si no, la forma
+  // calificada #página.sección~diagrama.nodo (SPEC §4.2).
+  function nodeHref(pageId, sectionId, nodeId, diagramId) {
+    const hits = nodeDiagrams(pageId, sectionId, nodeId);
+    const dId = diagramId || hits[0] || null;
+    const qualify = hits.length > 1 && dId;
+    return '#' + pageId + '.' + sectionId + '~' + (qualify ? dId + '.' : '') + nodeId;
+  }
+
   function searchIndex() {
     const out = [];
     const items = (catalog && catalog.items) || {};
     for (const id of Object.keys(items)) {
       const it = items[id];
       if (it.kind === 'card') {
-        out.push({ type: 'page', id, title: it.title, text: [it.titleEn, it.summary].filter(Boolean).join(' · '), href: '#mapa.' + slug(id) });
+        out.push({ type: 'page', id, title: it.title, text: deTex(stripHtml([it.titleEn, it.summary].filter(Boolean).join(' · '))), href: '#mapa.' + slug(id) });
         continue;
       }
-      out.push({ type: 'page', id, title: it.title, text: [it.titleEn, it.summary, (it.topics || []).join(' ')].filter(Boolean).join(' · '), href: '#' + id });
+      out.push({ type: 'page', id, title: it.title, text: deTex(stripHtml([it.titleEn, it.summary, (it.topics || []).join(' ')].filter(Boolean).join(' · '))), href: '#' + id });
     }
     for (const p of pagesWithContent()) {
       for (const s of p.sections) {
         out.push({ type: 'section', id: p.id + '.' + s.id, title: s.title, text: (p.title || p.id) + (s.titleEn ? ' · ' + s.titleEn : ''), href: '#' + p.id + '.' + s.id });
       }
     }
-    // Bloques de los diagramas: buscar "MHSA" lleva al diagrama abierto en ese bloque.
+    // Bloques de los diagramas: buscar "MHSA" lleva al diagrama abierto en ese bloque. Los nodos de
+    // entrada/salida (op 'io': "Entrada", "Hacia la residual") no se indexan: son ruido. Si un id se
+    // repite en varios diagramas de la sección, el enlace va calificado (~diagrama.nodo).
     for (const d of Object.values(diagrams)) {
       if (!d.page || !d.section) continue;
       for (const n of (d.nodes || [])) {
-        if (!n.label) continue;
-        out.push({ type: 'block', id: d.id + ':' + n.id, title: n.label, text: (d.title || d.id) + (n.sub ? ' · ' + n.sub : ''), href: '#' + d.page + '.' + d.section + '~' + n.id });
+        if (!n.label || n.op === 'io') continue;
+        out.push({ type: 'block', id: d.id + ':' + n.id, diagram: d.id, node: n.id, title: deTex(n.label), text: deTex((d.title || d.id) + (n.sub ? ' · ' + n.sub : '')), href: nodeHref(d.page, d.section, n.id, d.id) });
       }
     }
     for (const t of glossary()) {
-      out.push({ type: 'term', id: 'term:' + t.en, title: t.en, text: t.es + ' · ' + stripHtml(t.def), href: '#glosario.' + slug(t.en) });
+      out.push({ type: 'term', id: 'term:' + t.en, title: deTex(t.en), text: deTex(t.es + ' · ' + stripHtml(t.def)), href: '#glosario.' + slug(t.en) });
     }
     for (const c of flashcards()) {
-      out.push({ type: 'card', id: 'card:' + c.id, title: stripHtml(c.q), text: c.source, href: '#flashcards.' + c.id });
+      out.push({ type: 'card', id: 'card:' + c.id, title: deTex(stripHtml(c.q)), text: c.source, href: '#flashcards.' + c.id });
     }
     return out;
   }
@@ -240,7 +290,8 @@
   Object.assign(ATLAS, {
     MODEL_TEMPLATE, OP_TYPES, MODALITIES, EDGE_KINDS, BLOCK_TYPES, CALLOUT_KINDS, COURSE_KINDS,
     defineCatalog, register, addSection, registerDiagram, getPage, listPages, courseOrder, families,
-    flashcards, glossary, searchIndex, slug, stripHtml,
+    flashcards, glossary, searchIndex, slug, stripHtml, deTex,
+    sectionDiagrams, nodeDiagrams, nodeHref, splitNodeRef,
     diagram: (id) => diagrams[id] || null,
     diagrams: () => Object.assign({}, diagrams),
     catalog: () => catalog,

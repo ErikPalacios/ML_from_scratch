@@ -13,14 +13,17 @@
    Paths:
      label · id
      params.total | params.totalM · macs.total | macs.totalG | macs.totalM · flops.total |
-     flops.totalG · other.total | other.totalG
+     flops.totalG · other.total | other.totalG   (…G = número con prefijo: '17.56 G'; la prosa añade ' MACs')
+     macs.totalGMACs | flops.totalGFLOPs | macs.text | flops.text   (unidad pegada: '17.56 GMACs', '35.13 GFLOPs')
      tokens (y cualquier clave de quantities, también como quantities.<k>)
      tensor.<id>.shape | .sym | .elements
      node.<id>.params | .paramsM | .paramsPct | .macs | .macsG | .macsM | .macsPct | .flops | .flopsG
      op.<id>.params | .macs | .paramArith | .macArith | .repeat
      prim.<prim>.params | .macs   ·   group.<g>.params | .macs
-     cfg.<key>                         (valores de la config resuelta)
-     metrics.<k>                       (ATLAS.Arch.metrics con B = 1, bf16; bytes con texto en MiB/GiB)
+     cfg.<key>                         (valores de la config resuelta; enteros < 10,000 sin separador
+                                        de miles, como en las formas: 'D = 1024' junto a '197×1024')
+     metrics.<k>                       (ATLAS.Arch.metrics con B = 1, bf16; bytes con ATLAS.Arch.fmt.bytes,
+                                        unidades decimales: 1 KB = 1000 B → '931.4 KB', '173.1 MB')
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -66,6 +69,12 @@
       case 'flops.totalG': return num(t.flops / 1e9, (t.flops / 1e9).toFixed(2) + ' G');
       case 'other.total': return num(t.other, f.int(t.other));
       case 'other.totalG': return num(t.other / 1e9, (t.other / 1e9).toFixed(2) + ' G');
+      // Con unidad pegada (formato único: '17.56 GMACs', '35.13 GFLOPs'). Las claves *G de arriba
+      // siguen dando solo el número con prefijo ('17.56 G') porque la prosa ya escribe ' MACs' detrás.
+      case 'macs.totalGMACs': return num(t.macs / 1e9, (t.macs / 1e9).toFixed(2) + ' GMACs');
+      case 'flops.totalGFLOPs': return num(t.flops / 1e9, (t.flops / 1e9).toFixed(2) + ' GFLOPs');
+      case 'macs.text': return num(t.macs, f.ops(t.macs, 'MACs'));
+      case 'flops.text': return num(t.flops, f.ops(t.flops, 'FLOPs'));
       default: break;
     }
     if (parts.length === 1 && Object.prototype.hasOwnProperty.call(r.quantities, head)) return qty(r.quantities[head]);
@@ -105,7 +114,8 @@
       const c = r.config;
       if (!Object.prototype.hasOwnProperty.call(c, parts[1])) return null;
       const v = c[parts[1]];
-      if (typeof v === 'number') return num(v, f.int(v));
+      // Dimensiones (D = 1024, D_mlp = 3072) sin separador, igual que en las formas '197×1024'.
+      if (typeof v === 'number') return num(v, Number.isInteger(v) && Math.abs(v) < 10000 ? String(v) : f.int(v));
       if (typeof v === 'boolean') return num(v, v ? 'sí' : 'no');
       if (typeof v === 'string') return num(v, v);
       return null;
@@ -161,7 +171,7 @@
     const A = arch();
     const r = A.run(configId);
     const out = ['label', 'id', 'params.total', 'params.totalM', 'macs.total', 'macs.totalG', 'macs.totalM',
-      'flops.total', 'flops.totalG', 'other.total', 'other.totalG'];
+      'flops.total', 'flops.totalG', 'other.total', 'other.totalG', 'macs.totalGMACs', 'flops.totalGFLOPs', 'macs.text', 'flops.text'];
     for (const k of Object.keys(r.quantities)) { out.push(k); out.push('quantities.' + k); }
     for (const id of r.order) ['shape', 'sym', 'elements'].forEach((x) => out.push('tensor.' + id + '.' + x));
     const nf = ['params', 'paramsM', 'paramsPct', 'macs', 'macsG', 'macsM', 'macsPct', 'flops', 'flopsG'];

@@ -4,6 +4,8 @@
 // Uso:
 //   node tools/browser-check.mjs --url index.html [--width 1440 --height 900] [--dark | --light] [--mobile]
 //        [--wait 2500] [--eval "js"]... [--eval-file script.js] [--shot out.png] [--full] [--timeout ms]
+//        [--allow-log <regex>]   (errores de red/log cuyo texto o URL coincide no cuentan: p. ej. el
+//                                 MathJax bloqueado a propósito en smoke:offline)
 //
 // - Imprime todos los console.* y excepciones de la página.
 // - Cada --eval se evalúa en orden (se espera si devuelve una Promise) y se imprime su valor (JSON).
@@ -17,7 +19,7 @@ import { pathToFileURL } from 'node:url';
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 function parseArgs(argv) {
-  const o = { width: 1440, height: 900, wait: 2500, evals: [], dark: false, full: false, timeout: 120000 };
+  const o = { width: 1440, height: 900, wait: 2500, evals: [], dark: false, full: false, timeout: 120000, allowLog: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], n = () => argv[++i];
     if (a === '--url') o.url = n();
@@ -32,6 +34,7 @@ function parseArgs(argv) {
     else if (a === '--light') o.light = true;   // fuerza claro aunque el sistema esté en modo oscuro
     else if (a === '--mobile') o.mobile = true;
     else if (a === '--timeout') o.timeout = +n();
+    else if (a === '--allow-log') o.allowLog.push(new RegExp(n()));
     else { console.error('Argumento desconocido: ' + a); process.exit(2); }
   }
   if (!o.url) { console.error('Falta --url'); process.exit(2); }
@@ -96,7 +99,8 @@ listeners.push((msg) => {
   } else if (msg.method === 'Log.entryAdded') {
     const e = msg.params.entry;
     if (e.level === 'error' || e.level === 'warning') console.log(`[log.${e.level}] ${e.text} ${e.url || ''}`);
-    if (e.level === 'error' && !/favicon/.test(e.url || '')) hadError = true;
+    const allowed = opts.allowLog.some((re) => re.test(e.text || '') || re.test(e.url || ''));
+    if (e.level === 'error' && !/favicon/.test(e.url || '') && !allowed) hadError = true;
   } else if (msg.method === 'Page.loadEventFired') loaded = true;
 });
 

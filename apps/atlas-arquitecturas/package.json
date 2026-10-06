@@ -11,13 +11,17 @@
     "vendor:lab": "node ../transformer-lab/build.mjs && cp ../transformer-lab/dist/transformer-lab.html vendor/lab/index.html",
     "build": "node build.mjs",
     "check": "node tools/browser-check.mjs --url index.html",
-    "smoke": "node tools/browser-check.mjs --url index.html --wait 2500 --timeout 240000 --eval-file tools/smoke.js --light",
-    "smoke:mobile": "node tools/browser-check.mjs --url index.html --wait 2500 --timeout 240000 --eval-file tools/smoke.js --mobile --width 375 --height 812",
-    "smoke:dark": "node tools/browser-check.mjs --url index.html --wait 2500 --timeout 240000 --eval-file tools/smoke.js --dark",
-    "smoke:tablet": "node tools/browser-check.mjs --url index.html --width 768 --height 1024 --wait 2500 --timeout 240000 --eval-file tools/smoke.js --light",
-    "smoke:dist": "node build.mjs && node tools/browser-check.mjs --url dist/atlas-arquitecturas.html --wait 2500 --timeout 240000 --eval-file tools/smoke.js --light",
+    "smoke": "node tools/browser-check.mjs --url index.html --wait 2500 --timeout 360000 --eval-file tools/smoke.js --light",
+    "smoke:mobile": "node tools/browser-check.mjs --url index.html --wait 2500 --timeout 360000 --eval-file tools/smoke.js --mobile --width 375 --height 812 --light",
+    "smoke:mobile:dark": "node tools/browser-check.mjs --url index.html --wait 2500 --timeout 360000 --eval-file tools/smoke.js --mobile --width 375 --height 812 --dark",
+    "smoke:dark": "node tools/browser-check.mjs --url index.html --wait 2500 --timeout 360000 --eval-file tools/smoke.js --dark",
+    "smoke:tablet": "node tools/browser-check.mjs --url index.html --width 768 --height 1024 --wait 2500 --timeout 360000 --eval-file tools/smoke.js --light",
+    "smoke:dist": "node build.mjs && node tools/browser-check.mjs --url dist/atlas-arquitecturas.html --wait 2500 --timeout 360000 --eval-file tools/smoke.js --light",
+    "smoke:artifact": "node build.mjs && node tools/smoke-harness.mjs artifact",
+    "smoke:web": "node build.mjs && node tools/build-web.mjs && node tools/smoke-harness.mjs web",
+    "smoke:offline": "node build.mjs && node tools/smoke-harness.mjs offline",
     "build:web": "node build.mjs && node tools/build-web.mjs",
-    "build:vercel": "node build.mjs && node tools/build-web.mjs"
+    "build:vercel": "node build.mjs && node tools/build-web.mjs --require-lab"
   },
   "engines": { "node": ">=20" }
 }

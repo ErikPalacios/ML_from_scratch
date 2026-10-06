@@ -219,7 +219,13 @@ drawer). Diagram blocks may break out of `--content-max` up to 1100 px on wide s
 ### 4.2–4.3 dom, routing
 As the Ronda (§4.2–4.3 of its SPEC) with `ATLAS.dom`; hash routes `#<page>` / `#<page>.<section>` /
 `#<page>.<section>.<sub>`; extra route forms for diagrams: `#vit.diagrama~enc-layer` opens the
-diagram of that section expanded on block `enc-layer` (`~` is allowed in artifact hashes).
+diagram of that section expanded on block `enc-layer` (`~` is allowed in artifact hashes). When a
+node id appears in more than one view of the section (e.g. the `in`/`out` io nodes of every level-(b)
+view), use the qualified form `#<page>.<section>~<diagramId>.<nodeId>` (`#vit.diagrama~vit-mlp.in`):
+the router expands that view (`dg.expand(diagramId)`) and then calls `dg.focusNode(nodeId)`. The
+unqualified `~<nodeId>` stays valid only while the id is unique in the section: the validator errors on
+an ambiguous unqualified link, and `ATLAS.nodeHref(page, section, node, diagramId)` (registry) emits
+the qualified form only when needed (search results and the "Ver en el diagrama" links use it).
 `document.title` = `<page> · Atlas de Arquitecturas`. Keys: `/` search, `[` `]` prev/next page,
 `Esc` closes panels, and inside a focused diagram §7.7.
 
@@ -477,7 +483,9 @@ dtype), actMem(B,dtype), kvCache(B,ctx,dtype)?…}`; `overrides` may change only
 ### 7.2 Spec (`js/content/diagrams/<page>.js` → `ATLAS.registerDiagram(spec)`)
 ```js
 { id:'vit-overview', model:'vit', config:'vit-b16-224', kind:'arch'|'map', title, caption,
-  page:'vit', section:'diagrama',             // where it lives (search + `#page.section~node` routes)
+  page:'vit', section:'diagrama',             // where it lives (search + `#page.section~node` routes): a root diagram must be
+                                              // in an archdiagram block of that section; level-(b) views repeat their parent's page/section.
+                                              // Node ids should be unique per section (io nodes may repeat: link them as ~<diagramId>.<nodeId>, §4.2)
   parent?:'vit-overview', parentNode?:'enc-layer',   // for level-(b) views: which block it expands
   grid:{w:120, h:70},                       // units (1 unit = 8 px at 100 %)
   direction:'lr'|'tb', maxCrossings:0,
@@ -522,6 +530,14 @@ A tensor is drawn as a small isometric box whose three visible extents map to it
 - Cross-attention edges arrive at the side of the attention block, tagged "K,V"; the query path
   arrives from below/above.
 
+Decided after the Phase 1 review: parameter badges sit at the **top-left** of blocks (top-right
+collided with incoming shape labels); the three edges out of a head split carry neutral `Q`/`K`/`V`
+tags (not the cross-attention tag style); memory is always printed in **decimal** units via
+`ATLAS.Arch.fmt.bytes` (1 KB = 1000 B) and compute as `GMACs`/`GFLOPs` via `ATLAS.Arch.fmt.ops`; any
+"attention share" names which one it is: *atención (solo QKᵀ y A·V)* = `scoreMacsShare`, *bloque de
+atención (con proyecciones)* = `attnMacsShare`. On ViT pages `N` = patches and the sequence is N+1;
+in generic recaps `N` = sequence length.
+
 ### 7.5 Interaction
 - **Hover / focus** on a node or edge → tooltip: name, formula (MathJax), input → output shapes
   (symbols and numbers), params and MACs (from `ops`). Touch: first tap = tooltip, second tap = open.
@@ -544,7 +560,7 @@ explorar" hint; the legend collapses into a chip row.
 
 ### 7.7 Accessibility
 Every node and labelled edge is focusable (`role="button"`, `aria-label` with name + shapes). Arrow
-keys move along `data` edges (→/↓ next, ←/↑ previous), Tab cycles nodes in spec order, Enter opens,
+keys move along `data` edges (→/↓ next, ←/↑ previous; on parallel sibling edges such as Q/K/V, ←/→ cycle between them), Tab cycles nodes in spec order, Enter opens,
 `+`/`-` expand/collapse, `Esc` closes the panel. Under every diagram a `<details>` "Bloques y formas"
 lists every node with its shapes, params and note (text alternative).
 
@@ -623,7 +639,12 @@ diagram specs whose nodes overlap, fall outside the grid, reference unknown op/t
 `data` edges without `tensor`, or exceed `maxCrossings`; `op`/`trace` blocks with unknown ids;
 calculator `run` failures for any config; glossary slug collisions; files not loaded by `index.html`;
 digit groups typed in prose that equal a calculator quantity of the page's model (warning: "usa
-`{{…}}`"); paper entries without `arxiv` (or `url`) and `venue`.
+`{{…}}`"); paper entries without `arxiv` (or `url`) and `venue`. Added after the Phase 1 review: LaTeX that lost
+its backslashes (control chars or bare `cdot`/`frac`/`sqrt`… inside math — always write LaTeX in
+`String.raw` (R``) strings); ambiguous `~node` links (use `~diagramId.nodeId`); a root diagram's
+declared `section` must be the one that embeds it; map diagrams: no relation curve may pass behind a
+node it doesn't connect or over a region title (`ATLAS.ArchDiagram.mapCheck`), crossings counted on
+the engine's real geometry (`ATLAS.ArchDiagram.geometry`); map edges are built from `catalog.relations`.
 
 ### 9.2 Calculator tests (`tests/arch.test.cjs`)
 For every primitive: shape/param/MAC unit tests on tiny configs computed by hand in the test. For every
@@ -670,7 +691,8 @@ npm test                # node --test "tests/*.test.cjs"  (arch, content, store,
 npm run crosscheck      # regenerate + diff with Python (needs .venv)
 npm run contrast        # tools/contrast-check.mjs (§3.2)
 npm run smoke           # headless Chrome walk of every ready page, every diagram view, walk mode, drills
-npm run smoke:mobile · smoke:dark · smoke:tablet · smoke:dist
+npm run smoke:mobile · smoke:mobile:dark · smoke:dark · smoke:tablet · smoke:dist
+npm run smoke:artifact · smoke:web · smoke:offline   # artifact wrapper, service worker + lab, MathJax blocked
 npm run build           # dist/atlas-arquitecturas.html + dist/artifact.html
 npm run build:web       # + dist/web (manifest, icons, sw.js)   ·   build:vercel = same without re-generation
 ```

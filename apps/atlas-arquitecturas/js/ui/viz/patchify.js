@@ -145,7 +145,9 @@
       kv('N =', '(' + state.res + '/' + state.P + ')² = ' + fmt.int(N));
       kv('tokens', fmt.int(m.tokens));
       kv('MACs', fmt.si(m.macs) + (ref ? ' (×' + (m.macs / ref.macs).toFixed(2) + ' vs ' + base.label + ')' : ''));
-      kv('atención / total', Math.round(m.attnMacsShare * 100) + ' %');
+      // Dos métricas distintas, cada una con su nombre (SPEC §6.5): scoreMacsShare y attnMacsShare.
+      kv('atención (solo QKᵀ y A·V) / MACs', fmt.pct(m.scoreMacsShare));
+      kv('bloque de atención (con proyecciones) / MACs', fmt.pct(m.attnMacsShare));
       function setHover(i) {
         state.hover = i;
         Object.values(tokEls).forEach((e) => e.classList.remove('is-hl'));

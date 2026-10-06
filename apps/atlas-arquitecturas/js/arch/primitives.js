@@ -52,11 +52,33 @@
     return decimals !== undefined ? n.toFixed(decimals) : int(n);
   }
 
+  // bytes(n): ÚNICO formateador de memoria de la app. Unidades DECIMALES (SI): 1 KB = 1000 B,
+  // 1 MB = 10⁶ B, 1 GB = 10⁹ B, 1 TB = 10¹² B (como las fichas de GPU y los tamaños de checkpoint).
+  // 931,416 → '931.4 KB' · 173,135,312 → '173.1 MB' · 2,000,000 → '2.00 MB' · 512 → '512 B'.
+  // Dos decimales por debajo de 10 y uno por encima (≥ 3 cifras significativas).
   function bytes(n) {
+    if (n === null || n === undefined || !isFinite(n)) return '—';
     const a = Math.abs(n);
-    const units = [[2 ** 40, 'TiB'], [2 ** 30, 'GiB'], [2 ** 20, 'MiB'], [2 ** 10, 'KiB']];
-    for (const [v, u] of units) if (a >= v) { const x = n / v; return x.toFixed(x < 10 ? 2 : 1) + ' ' + u; }
+    const units = [[1e12, 'TB'], [1e9, 'GB'], [1e6, 'MB'], [1e3, 'KB']];
+    for (const [v, u] of units) {
+      if (a >= v) {
+        const x = n / v;
+        let s = x.toFixed(Math.abs(x) < 10 ? 2 : 1);
+        // 999.96 KB → '1000.0 KB': sube de unidad.
+        if (Math.abs(parseFloat(s)) >= 1000 && v < 1e12) { const y = n / (v * 1e3); s = y.toFixed(2); return s + ' ' + units[units.findIndex((w) => w[0] === v) - 1][1]; }
+        return s + ' ' + u;
+      }
+    }
     return int(n) + ' B';
+  }
+
+  // ops(n, unit): cómputo con el prefijo pegado a la unidad, formato único de la app:
+  // 17,563,828,224 → '17.56 GMACs' · ops(n, 'FLOPs') → '35.13 GFLOPs' · 872 → '872 MACs'.
+  function ops(n, unit) {
+    const u = unit || 'MACs';
+    const s = si(n);
+    const m = s.match(/^(.*) ([KMGT])$/);
+    return m ? m[1] + ' ' + m[2] + u : s + ' ' + u;
   }
 
   function pct(x, decimals) { return (x * 100).toFixed(decimals === undefined ? 1 : decimals) + ' %'; }
@@ -103,7 +125,7 @@
     return v.map(int).join(' + ') + ' = ' + int(total);
   }
 
-  const fmt = { int, si, bytes, pct, shape: shapeStr, shapeTex, symText, symTex: symTexShape };
+  const fmt = { int, si, ops, bytes, pct, shape: shapeStr, shapeTex, symText, symTex: symTexShape };
 
   // ------------------------------------------------------------------ formas
   function shape(sym, num, mod, layout) {

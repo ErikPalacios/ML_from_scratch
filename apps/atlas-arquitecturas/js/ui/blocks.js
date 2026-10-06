@@ -61,6 +61,15 @@
     if (a >= 1e3) return (n / 1e3).toFixed(1) + ' K';
     return String(n);
   }
+  // Cómputo con el prefijo pegado a la unidad, formato único de la app: '17.56 GMACs', '872 MACs'.
+  function fmtOps(n, unit) {
+    const u = unit || 'MACs';
+    const f = A() && A().fmt;
+    if (f && typeof f.ops === 'function') { const v = safe(() => f.ops(n, u), null); if (v != null) return v; }
+    const s = fmtSi(n);
+    const m = /^(.*) ([KMGT])$/.exec(s);
+    return m ? m[1] + ' ' + m[2] + u : s + ' ' + u;
+  }
   function shapeNum(t) {
     if (!t) return '—';
     const f = A() && A().fmt;
@@ -125,6 +134,14 @@
     }
     return null;
   }
+  // #página.sección~nodo, calificado (~diagrama.nodo) si el id se repite en la sección (SPEC §4.2).
+  function nodeHrefFor(pageId, sectionId, nodeId, diagramId) {
+    if (typeof ATLAS.nodeHref === 'function') { const v = safe(() => ATLAS.nodeHref(pageId, sectionId, nodeId, diagramId), null); if (v) return v; }
+    return '#' + pageId + '.' + sectionId + '~' + nodeId;
+  }
+  // Etiqueta de nodo (puede traer subíndices TeX: 'Entrada z_{ℓ−1}') → texto plano o HTML con <sub>.
+  const labelText = (l) => (typeof ATLAS.deTex === 'function' ? ATLAS.deTex(str(l)) : str(l).replace(/[{}]/g, ''));
+  const labelHtml = (l) => ATLAS.dom.esc(str(l)).replace(/_\{([^{}]*)\}/g, '<sub>$1</sub>').replace(/_([A-Za-z0-9ℓ])/g, '<sub>$1</sub>');
   function opColor(op) {
     const id = op && OP_TITLE[op] !== undefined ? op : null;
     return id ? { '--opc': 'var(--op-' + id + ')', '--opc-soft': 'var(--op-' + id + '-soft)' } : null;
@@ -244,14 +261,17 @@
     h('div', { class: 'qa__item' + (it.trap ? ' qa__item--trap' : '') },
       h('div', { class: 'qa__row qa__row--q' }, h('span', { class: 'qa__k' }, it.trap ? 'Trampa' : 'Pregunta'), h('div', { class: 'qa__v qa__q', html: str(it.q) })),
       h('div', { class: 'qa__row qa__row--a' }, h('span', { class: 'qa__k' }, 'Respuesta'), h('div', { class: 'qa__v', html: str(it.a) })),
-      it.why ? h('div', { class: 'qa__row qa__row--why' }, h('span', { class: 'qa__k' }, 'Por qué importa'), h('div', { class: 'qa__v', html: str(it.why) })) : null)));
+      it.why ? h('div', { class: 'qa__row qa__row--why' }, h('span', { class: 'qa__k' }, 'Por qué importa'), h('div', { class: 'qa__v', html: str(it.why) })) : null,
+      it.say ? h('div', { class: 'qa__row qa__row--say' }, h('span', { class: 'qa__k' }, 'Dilo así'), h('div', { class: 'qa__v', lang: 'en', html: str(it.say) })) : null)));
 
   R.followups = (b) => h('div', { class: 'fu' }, arr(b.items).map((it) =>
     h('div', { class: 'fu__item' + (it.trap ? ' fu__item--trap' : '') },
       h('div', { class: 'fu__q' }, h('span', { class: 'fu__who' }, it.trap ? 'Entrevistador · trampa' : 'Entrevistador'), h('div', { class: 'fu__qtext', html: str(it.q) })),
       h('div', { class: 'fu__cols' },
         h('div', { class: 'fu__col fu__col--junior' }, h('div', { class: 'fu__label' }, h('span', { class: 'fu__mark', html: icon('close') }), 'Nivel junior'), h('div', { class: 'fu__text', html: str(it.junior) })),
-        h('div', { class: 'fu__col fu__col--senior' }, h('div', { class: 'fu__label' }, h('span', { class: 'fu__mark', html: icon('check') }), 'Nivel senior'), h('div', { class: 'fu__text', html: str(it.senior) }))),
+        h('div', { class: 'fu__col fu__col--senior' }, h('div', { class: 'fu__label' }, h('span', { class: 'fu__mark', html: icon('check') }), 'Nivel senior'), h('div', { class: 'fu__text', html: str(it.senior) }),
+          // say (opcional): la respuesta senior en inglés, en una o dos frases, para decirla tal cual
+          it.say ? h('p', { class: 'fu__say' }, h('span', { class: 'fu__say-k' }, 'Dilo así'), h('span', { lang: 'en', html: str(it.say) })) : null)),
       it.why ? h('div', { class: 'fu__why' }, h('span', { class: 'fu__why-k' }, 'Por qué puntúa'), h('div', { html: str(it.why) })) : null)));
 
   R.tradeoffs = (b) => h('div', { class: 'to' }, arr(b.items).map((it) => {
@@ -425,8 +445,8 @@
 
     const head = h('header', { class: 'opc__head' },
       info.op ? h('span', { class: 'opc__type' }, OP_TITLE[info.op] || info.op) : null,
-      h('h3', { class: 'opc__title', html: str(b.title || info.label || b.block) }),
-      hasDiagram ? h('a', { class: 'opc__diag', href: '#' + pageId + '.diagrama~' + b.block }, h('span', { html: icon('diagram') }), 'Ver en el diagrama') : null);
+      h('h3', { class: 'opc__title', html: b.title ? str(b.title) : info.label ? labelHtml(info.label) : str(b.block) }),
+      hasDiagram ? h('a', { class: 'opc__diag', href: nodeHrefFor(pageId, 'diagrama', b.block, info.diagram) }, h('span', { html: icon('diagram') }), 'Ver en el diagrama') : null);
 
     const counts = [];
     const rows = ops.filter((o) => (showP && o.params) || (showM && o.macs));
@@ -442,11 +462,11 @@
           h('th', { scope: 'row' }, h('span', null, str(o.label || o.id)), h('span', { class: 'opc__prim mono' }, str(o.prim || ''))),
           showP ? h('td', null, o.params ? [h('div', { class: 'opc__ftex' }, o.paramTex ? tex(o.paramTex) : ''), h('div', { class: 'opc__arith mono' }, str(o.paramArith || fmtInt(o.params)))] : h('span', { class: 'muted' }, '0')) : null,
           showM ? h('td', null, o.macs ? [h('div', { class: 'opc__ftex' }, o.macTex ? tex(o.macTex) : ''), h('div', { class: 'opc__arith mono' }, str(o.macArith || fmtInt(o.macs)))] : h('span', { class: 'muted' }, '0')) : null))));
-      counts.push(h('div', { class: 'scroll-x opc__scroll', tabindex: '0', role: 'region', 'aria-label': 'Conteo de ' + strip(b.title || info.label || b.block) + ' (desplazable)' }, table));
+      counts.push(h('div', { class: 'scroll-x opc__scroll', tabindex: '0', role: 'region', 'aria-label': 'Conteo de ' + strip(b.title || labelText(info.label) || b.block) + ' (desplazable)' }, table));
       }
       const sum = [];
       if (showP) sum.push(h('span', { class: 'opc__sum-item' }, h('span', { class: 'opc__k' }, 'Parámetros'), h('b', { class: 'mono' }, fmtInt(rep && rep > 1 ? perCall.p : total.params)), rep && rep > 1 ? h('span', { class: 'muted' }, ' por capa · × ' + rep + ' = ', h('b', { class: 'mono' }, fmtInt(total.params))) : null));
-      if (showM) sum.push(h('span', { class: 'opc__sum-item' }, h('span', { class: 'opc__k' }, 'MACs'), h('b', { class: 'mono' }, fmtInt(rep && rep > 1 ? perCall.m : total.macs)), rep && rep > 1 ? h('span', { class: 'muted' }, ' por capa · × ' + rep + ' = ', h('b', { class: 'mono' }, fmtSi(total.macs))) : h('span', { class: 'muted mono' }, ' (' + fmtSi(total.macs) + ')')));
+      if (showM) sum.push(h('span', { class: 'opc__sum-item' }, h('span', { class: 'opc__k' }, 'MACs'), h('b', { class: 'mono' }, fmtInt(rep && rep > 1 ? perCall.m : total.macs)), rep && rep > 1 ? h('span', { class: 'muted' }, ' por capa · × ' + rep + ' = ', h('b', { class: 'mono' }, fmtOps(total.macs))) : h('span', { class: 'muted mono' }, ' (' + fmtOps(total.macs) + ')')));
       if (other > 0) sum.push(h('span', { class: 'opc__sum-item muted' }, h('span', { class: 'opc__k' }, 'Otros (≈)'), h('span', { class: 'mono' }, fmtSi(other)), ' elementwise, fuera del total de MACs'));
       counts.push(h('div', { class: 'opc__sum' }, sum));
     } else if (!ops.length) {
@@ -456,7 +476,7 @@
     const el = h('article', {
       class: 'opc', id: pageId ? pageId + '.' + sectionId + '.' + b.block : null,
       style: opColor(info.op), dataset: { node: b.block, model: model || '' },
-      'aria-label': strip(b.title || info.label || b.block),
+      'aria-label': strip(b.title || labelText(info.label) || b.block),
     },
     head,
     b.tex ? h('div', { class: 'opc__tex' }, '\\[' + str(b.tex) + '\\]') : null,
@@ -570,7 +590,7 @@
   function groupName(model, g, group) {
     if (group === 'op' || g.ops.length === 1 && !nodeInfo(model, g.key)) return str(g.ops[0].label || g.key);
     const info = nodeInfo(model, g.key);
-    return info ? str(info.label) : g.key;
+    return info ? labelText(info.label) : g.key;
   }
   // Fórmula de un grupo: la de su op si es una; si son pocas, sumadas; si no, un detalle desplegable.
   function groupFormula(g, which) {
@@ -639,7 +659,7 @@
         h('td', { class: 'num' }, fmtInt(g.macs)),
         h('td', { class: 'num' }, fmtInt(2 * g.macs)),
         h('td', { class: 'num ptab__pct' }, pctBar(g.macs, total), pctTxt(g.macs, total))))),
-      h('tfoot', null, h('tr', null, h('th', { scope: 'row' }, 'Total'), h('td', null, h('span', { class: 'mono muted' }, fmtSi(total) + 'MACs · ' + fmtSi(2 * total) + 'FLOPs')), h('td', { class: 'num' }, h('b', null, fmtInt(total))), h('td', { class: 'num' }, fmtInt(2 * total)), h('td', { class: 'num' }, '100 %'))));
+      h('tfoot', null, h('tr', null, h('th', { scope: 'row' }, 'Total'), h('td', null, h('span', { class: 'mono muted' }, fmtOps(total) + ' · ' + fmtOps(2 * total, 'FLOPs'))), h('td', { class: 'num' }, h('b', null, fmtInt(total))), h('td', { class: 'num' }, fmtInt(2 * total)), h('td', { class: 'num' }, '100 %'))));
     const note = h('div', { class: 'b-table__note' },
       h('b', null, 'Convención: '), 'MACs = multiplicaciones-acumulaciones de matmuls y convoluciones (', h('span', { class: 'mono' }, 'm·n·k'), ' para ', h('span', { class: 'mono' }, 'm×k · k×n'), '); FLOPs = 2 × MACs. ',
       'Muchos papers y herramientas (fvcore, las tablas de DeiT/Swin) llaman «FLOPs» a lo que son MACs: compara siempre la misma unidad. ',
@@ -651,8 +671,8 @@
   const METRICS = {
     params: { label: 'Parámetros', get: (r) => r.totals && r.totals.params, fmt: 'int' },
     paramsM: { label: 'Parámetros (M)', get: (r) => r.totals && r.totals.params, fmt: 'si' },
-    macs: { label: 'MACs', get: (r) => r.totals && r.totals.macs, fmt: 'si' },
-    flops: { label: 'FLOPs (= 2 × MACs)', get: (r) => r.totals && (r.totals.flops || 2 * r.totals.macs), fmt: 'si' },
+    macs: { label: 'MACs', get: (r) => r.totals && r.totals.macs, fmt: 'si', unit: 'MACs' },
+    flops: { label: 'FLOPs (= 2 × MACs)', get: (r) => r.totals && (r.totals.flops || 2 * r.totals.macs), fmt: 'si', unit: 'FLOPs' },
     tokens: { label: 'Tokens', get: (r) => r.quantities && r.quantities.tokens, fmt: 'int' },
     patches: { label: 'Patches', get: (r) => r.quantities && r.quantities.patches, fmt: 'int' },
     D: { label: 'Ancho D', get: (r) => r.config && r.config.D, fmt: 'int' },
@@ -678,7 +698,7 @@
       if (v == null && !m) v = safe(() => (r.quantities && r.quantities[k] != null ? r.quantities[k] : r.config && r.config[k]), null);
       if (v == null) return '—';
       if (typeof v !== 'number') return String(v);
-      return (m && m.fmt === 'si') ? fmtSi(v) : fmtInt(v);
+      return (m && m.fmt === 'si') ? (m.unit ? fmtOps(v, m.unit) : fmtSi(v)) : fmtInt(v);   // "17.56 GMACs", como en la prosa
     };
     const table = h('table', { class: 'dtable dtable--num cmp' },
       h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Métrica'), cols.map((c) => h('th', { scope: 'col', class: 'num' },
@@ -860,14 +880,23 @@
         a.setAttribute('target', '_blank');
         a.setAttribute('rel', 'noopener');
         a.classList.add('lab-link');
-        if (!a.title) a.title = 'Abre el Laboratorio Transformer (' + tab + ')';
+        if (root.ATLAS_ENV === 'single') {
+          // El HTML de un solo archivo enlaza por ruta relativa: solo abre si sigue dentro del repo.
+          a.classList.add('lab-link--fragile');
+          if (!a.title) a.title = 'Abre el Laboratorio Transformer (' + tab + '). Requiere el repo: apps/transformer-lab junto a apps/atlas-arquitecturas';
+        } else if (!a.title) a.title = 'Abre el Laboratorio Transformer (' + tab + ')';
       } else {
-        // Artifact: sin enlace, una nota que dice dónde está.
+        // Artifact: sin enlace, una nota que dice dónde está. La ubicación completa va solo en la
+        // primera nota de la página; las siguientes, en forma corta (sin repetir el nombre 20 veces).
         const span = document.createElement('span');
         span.className = 'lab-link lab-link--note';
         span.innerHTML = a.innerHTML;
         span.title = 'Abre el Laboratorio Transformer (apps/transformer-lab), pestaña ' + tab;
-        span.appendChild(Object.assign(document.createElement('span'), { className: 'lab-link__where', textContent: ' (Laboratorio Transformer: apps/transformer-lab)' }));
+        const named = /laboratorio/i.test(a.textContent || '');
+        const pageEl = document.getElementById('page');
+        const first = !el.querySelector('.lab-link__where--full') && !(pageEl && pageEl.querySelector('.lab-link__where--full'));
+        const where = first ? (named ? ' (apps/transformer-lab)' : ' (Laboratorio Transformer: apps/transformer-lab)') : (named ? '' : ' (en el Laboratorio)');
+        if (where) span.appendChild(Object.assign(document.createElement('span'), { className: 'lab-link__where' + (first ? ' lab-link__where--full' : ''), textContent: where }));
         a.replaceWith(span);
       }
     });
@@ -949,7 +978,7 @@
   ATLAS.Blocks = {
     render, renderAll, decorate, mount, controllers, destroyAll, markTrace, typeset,
     fillText, paperLine, run, configFor: (b, ctx) => configFor(b || {}, ctx || {}), canonicalFor,
-    fmt: { int: fmtInt, si: fmtSi, shapeNum, shapeSym },
+    fmt: { int: fmtInt, si: fmtSi, ops: fmtOps, shapeNum, shapeSym },
     clearCache: () => runCache.clear(),
     TYPES: Object.keys(R),
   };

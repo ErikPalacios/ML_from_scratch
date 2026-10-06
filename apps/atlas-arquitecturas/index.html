@@ -17,6 +17,11 @@
   window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
                      svg: { fontCache: 'global' }, startup: { typeset: false },
                      options: { menuOptions: { settings: { inTabOrder: false } } } };
+  // Si el script de MathJax no carga (sin red, CDN bloqueado), se anota al instante: math.js muestra
+  // el respaldo sin esperar sus 8 s (el evento 'error' de un recurso no burbujea: se captura aquí).
+  window.addEventListener('error', function (e) {
+    if (e && e.target && e.target.id === 'MathJax-script') window.__atlasMathJaxFailed = true;
+  }, true);
 </script>
 <script async id="MathJax-script" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
 </head>

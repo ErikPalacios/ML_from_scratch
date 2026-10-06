@@ -1,7 +1,7 @@
 /* =============================================================================
    Atlas de Arquitecturas — js/ui/flashcards.js
    Basado en apps/ml-system-design/js/ui/flashcards.js.
-   ATLAS.Flashcards.render(container, route, ctx) — página 'flashcards' (SPEC §8.4).
+   ATLAS.Flashcards.render(container, route, ctx) → {el, destroy} — página 'flashcards' (SPEC §8.4).
    Mazo = ATLAS.flashcards() (sin compuerta de práctica en esta app). '#flashcards.<cardId>'
    (desde la búsqueda) pone esa tarjeta primero. Repetición espaciada Leitner (5 cajas) en
    ATLAS.store: dueCards / gradeCard / cardState / flashStats. Filtro guardado en pref 'flashFilter'
@@ -91,7 +91,7 @@
         h('p', { class: 'px-empty__t' }, 'El mazo está vacío'),
         h('p', { class: 'muted' }, 'Las tarjetas llegan con cada modelo. Empieza por ViT.'),
         h('p', null, h('a', { class: 'btn btn--primary', href: '#vit' }, 'Abrir ViT'))));
-      return;
+      return { el: wrap, destroy() { wrap.remove(); } };
     }
 
     // ---------------------------------------------------------------- filtro
@@ -358,6 +358,8 @@
     paintStage(false);
     wrap.appendChild(filtersEl);
     wrap.appendChild(h('div', { class: 'fc__grid' }, stage, statsEl));
+    // El shell llama destroy() al salir de la página: quita el listener de teclado al instante.
+    return { el: wrap, destroy() { teardown(); wrap.remove(); } };
   }
 
   ATLAS.Flashcards = { render, visibleCards, KINDS: KIND_ORDER.slice(), KIND_LABEL: Object.assign({}, KIND_LABEL) };

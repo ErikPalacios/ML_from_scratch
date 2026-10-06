@@ -1,7 +1,7 @@
 /* =============================================================================
    Atlas de Arquitecturas — js/ui/reference.js
    Basado en apps/ml-system-design/js/ui/reference.js.
-   ATLAS.Reference.renderGlossary(container, route, ctx) — página 'glosario' (SPEC §8.6):
+   ATLAS.Reference.renderGlossary(container, route, ctx) → {el, destroy} — página 'glosario' (SPEC §8.6):
    tabla ES–EN filtrable (sin acentos), salto A–Z, cada fila con id "glosario.<slug(en)>".
    Las definiciones pueden traer {{…}} (ATLAS.Quantities.fill) y LaTeX (ATLAS.MathTex.typeset).
    La hoja 'ref-formas' NO vive aquí: es contenido (bloques formulas/compare que pinta blocks.js).
@@ -58,7 +58,7 @@
       c.appendChild(h('div', { class: 'px-empty' },
         h('p', { class: 'px-empty__t' }, 'El glosario está vacío'),
         h('p', { class: 'muted' }, 'Los términos llegan con cada modelo.')));
-      return;
+      return { el: c, destroy() { c.remove(); } };
     }
 
     const letterOf = (en) => { const L = norm(en).charAt(0).toUpperCase(); return /[A-Z]/.test(L) ? L : '#'; };
@@ -183,6 +183,8 @@
     }
     root.addEventListener('hashchange', onHash);
     mounted = { el: gl, teardown };
+    // El shell llama destroy() al salir de la página: quita el listener de hashchange al instante.
+    return { el: c, destroy() { teardown(); c.remove(); } };
   }
 
   // render(): alias por compatibilidad con el router de la Ronda.

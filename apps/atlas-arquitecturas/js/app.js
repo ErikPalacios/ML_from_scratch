@@ -57,6 +57,8 @@
     searchItems: null, results: [], active: -1,
     pending: new Set(), flushQueued: false,
     drawerOpen: false, modalOpen: false, lastFocus: null, booted: false, forceRender: false,
+    delegated: null,   // controlador {destroy} que devolvió el renderizador de una página delegada
+    pendingFrom: new Set(),   // orígenes de los cambios pendientes del store: local | tab | account
   };
   const themeListeners = new Set();
 
@@ -120,7 +122,8 @@
   ATLAS.labLink = labLink;
 
   // ------------------------------------------------------------------ hash
-  // #página · #página.sección · #página.sección.sub · #página.sección~nodo
+  // #página · #página.sección · #página.sección.sub · #página.sección~nodo · #página.sección~diagrama.nodo
+  // (la forma calificada desambigua un id de nodo que se repite en varios diagramas de la sección)
   function parseHash(hash) {
     let s = String(hash || '').replace(/^#/, '');
     try { s = decodeURIComponent(s); } catch (e) { /* hash raro: se usa tal cual */ }
@@ -135,7 +138,8 @@
     const j = sectionId ? sectionId.indexOf('.') : -1;
     const section = sectionId ? (j < 0 ? sectionId : sectionId.slice(0, j)) : null;
     const sub = sectionId && j >= 0 ? sectionId.slice(j + 1) || null : null;
-    const r = { pageId, sectionId, section, sub, node, hash: '#' + s };
+    const r = { pageId, sectionId, section, sub, node, nodeDiagram: null, nodeId: node, hash: '#' + s };
+    if (node) { const k = node.indexOf('.'); if (k > 0) { r.nodeDiagram = node.slice(0, k); r.nodeId = node.slice(k + 1) || null; } }
     const pm = /^practica-(.+)$/.exec(pageId);
     if (pm) r.modelId = pm[1];
     return r;
@@ -409,7 +413,7 @@
     els.sideStrip.innerHTML = '';
     els.sideStrip.appendChild(h('div', { class: 'side-uptime__row' },
       h('span', { class: 'side-uptime__label' }, 'Progreso'),
-      h('span', { class: 'side-uptime__count' }, cp.done + '/' + cp.total)));
+      h('span', { class: 'side-uptime__count', title: cp.done + ' de ' + cp.total + ' páginas del curso completadas (modelos + repaso)' }, cp.done + '/' + cp.total)));
     els.sideStrip.appendChild(familiesStrip(true));
     if (els.topProgress) els.topProgress.textContent = cp.done + '/' + cp.total;
   }
@@ -418,7 +422,8 @@
     const f = els.foot;
     f.innerHTML = '';
     const status = h('div', { class: 'store-status', id: 'store-status' }, h('span', { class: 'store-status__dot', 'aria-hidden': 'true' }), h('span', { class: 'store-status__text' }));
-    const theme = store.pref('theme') || 'system';
+    const t0 = store.pref('theme');
+    const theme = t0 === 'light' || t0 === 'dark' ? t0 : 'system';
     const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Tema de color' },
       [['system', 'Sistema', 'system'], ['light', 'Claro', 'sun'], ['dark', 'Oscuro', 'moon']].map(([v, txt, ic]) =>
         h('button', { type: 'button', 'aria-pressed': String(theme === v), dataset: { theme: v }, on: { click: () => setTheme(v) } },
@@ -669,7 +674,10 @@
     exportTa.value = json;
     const importTa = h('textarea', { class: 'textarea', rows: 6, id: 'import-text', spellcheck: 'false', placeholder: '{ "app": "atlas-arquitecturas", "v": 1, … }' });
     const msg = h('p', { class: 'result-msg', role: 'status', 'aria-live': 'polite' });
-    const kb = (new Blob([json]).size / 1024).toFixed(1);
+    // Tamaño en unidades decimales, con el formateador único de la app (ATLAS.Arch.fmt.bytes).
+    const nBytes = new Blob([json]).size;
+    const F = ATLAS.Arch && ATLAS.Arch.fmt;
+    const sizeTxt = F && typeof F.bytes === 'function' ? safe(() => F.bytes(nBytes), null) || (nBytes / 1000).toFixed(1) + ' KB' : (nBytes / 1000).toFixed(1) + ' KB';
     const copyBtn = h('button', { type: 'button', class: 'btn btn--sm', on: { click: () => {
       D.copyText(json, exportTa).then((ok) => {
         copyBtn.lastChild.textContent = ok ? 'Copiado' : 'Selecciónalo y copia (Cmd/Ctrl+C)';
@@ -697,7 +705,7 @@
           h('h3', null, 'Exportar'),
           h('p', null, 'Copia este respaldo y guárdalo (en un archivo .json o en tus notas). Incluye secciones leídas, flashcards, ejercicios de práctica, diagramas en blanco y preferencias.'),
           exportTa,
-          h('div', { class: 'modal__row' }, copyBtn, h('span', { class: 'muted small mono' }, kb + ' KB'))),
+          h('div', { class: 'modal__row' }, copyBtn, h('span', { class: 'muted small mono' }, sizeTxt))),
         h('section', { class: 'modal__sec' },
           h('h3', null, h('label', { for: 'import-text' }, 'Importar')),
           h('p', null, 'Pega aquí un respaldo. Se fusiona con lo que ya tienes: en cada dato gana la versión más reciente, nada se borra.'),
@@ -998,19 +1006,17 @@
     const row = (k, small, ...body) => h('section', { class: 'drow', 'aria-label': k },
       h('h2', { class: 'drow__label' }, k, small ? h('small', null, small) : null), h('div', { class: 'drow__body' }, body));
 
-    // Progreso: tira de familias
+    // Progreso: tira de familias. Mismo denominador que la barra lateral y la tira: las páginas del
+    // curso = modelos + repaso (SPEC §4.4, store.courseProgress).
     const order = courseOrder();
-    const models = order.filter((id) => meta(id).kind === 'model');
-    const doneModels = models.filter((id) => store.pageState(id) === 'done').length;
-    const readyModels = models.filter((id) => (getPage(id) || {}).ready).length;
     const cp = store.courseProgress();
-    c.appendChild(row('Familias', 'tu avance por modelo', h('div', null,
+    c.appendChild(row('Familias', 'tu avance en el curso', h('div', null,
       h('div', { class: 'home-status__head' },
-        h('span', { class: 'home-status__big' }, doneModels + ' de ' + models.length, h('small', null, 'modelos completados')),
+        h('span', { class: 'home-status__big' }, cp.done + ' de ' + cp.total, h('small', null, 'páginas del curso completadas (modelos + repaso)')),
         h('span', { class: 'home-status__stats' },
           h('span', null, h('b', null, String(cp.inProgress)), ' en curso'),
-          h('span', null, h('b', null, String(readyModels)), readyModels === 1 ? ' modelo disponible' : ' modelos disponibles'),
-          h('span', null, h('b', null, String(Math.max(0, models.length - readyModels))), ' próximamente'))),
+          h('span', null, h('b', null, String(cp.ready)), cp.ready === 1 ? ' disponible' : ' disponibles'),
+          h('span', null, h('b', null, String(Math.max(0, cp.total - cp.ready))), ' próximamente'))),
       familiesStrip(false),
       h('p', { class: 'small muted' }, h('a', { href: '#mapa' }, 'Abre el mapa'), ' para ver cómo se relacionan las familias.'))));
 
@@ -1110,9 +1116,12 @@
       return 'wide';
     }
     // ctx.navigate(hash): mismo pageId → no re-renderiza (solo desplaza);  ctx.rerender(): vuelve a pintar la ruta.
-    mod[fnName](c, r, Object.assign({
+    // Lo que devuelva el renderizador ({destroy}) se guarda y se destruye al salir (teardownPage):
+    // sus diagramas, observadores y listeners no viven dentro de un [data-ctrl] del shell.
+    const ret = mod[fnName](c, r, Object.assign({
       store, navigate, renderBlocks, app: ATLAS.App, pageId: r.pageId, rerender: () => rerender(false),
     }, pageCtx || {}));
+    S.delegated = ret && typeof ret.destroy === 'function' ? ret : null;
     return 'wide';
   }
 
@@ -1120,6 +1129,7 @@
   function teardownPage() {
     if (S.observer) { S.observer.disconnect(); S.observer = null; }
     if (S.wideObserver) { S.wideObserver.disconnect(); S.wideObserver = null; }
+    if (S.delegated) { const d = S.delegated; S.delegated = null; safe(() => d.destroy(), null); }
     if (B()) safe(() => B().destroyAll(els.page), null);
   }
 
@@ -1180,21 +1190,27 @@
     const el = sectionEl(r);
     if (!el) return false;
     el.scrollIntoView({ block: 'start', behavior: smooth && !reduced() ? 'smooth' : 'auto' });
-    const hd = el.querySelector('.sec__title') || (el.matches('[tabindex]') ? el : null);
+    // Sección → su título; otra ancla (#mapa.<tarjeta>, #vit.operaciones.<nodo>…) → el propio elemento,
+    // para que el foco no se quede en <body> (teclado y lector de pantalla no pierden el lugar).
+    let hd = el.querySelector('.sec__title');
+    if (!hd) { if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1'); hd = el; }
     if (hd && hd.focus) hd.focus({ preventScroll: true });
     const sec = el.closest ? el.closest('section.sec') : null;
     if (sec && sec.dataset && sec.dataset.sec) setCurrentSection(sec.dataset.sec, false);
     return true;
   }
 
-  // #página.sección~nodo → el diagrama de esa sección (abriendo el nivel que haga falta) enfoca el nodo.
+  // #página.sección~nodo (o ~diagrama.nodo) → el diagrama de esa sección, abierto en la vista que
+  // contiene el nodo, lo enfoca (y abre su panel). Sin calificar y con el id repetido en varias vistas
+  // (el validador lo prohíbe en el contenido) se prefiere la vista actual y después la primera.
   function focusDiagramNode(r) {
     if (!r.node || !B()) return false;
     const scope = (r.section && document.getElementById(r.pageId + '.' + r.section)) || els.page;
     const ctrls = B().controllers(scope, 'diagram');
     if (!ctrls.length) return false;
     const diagrams = safe(() => ATLAS.diagrams(), {});
-    const has = (d) => d && arr(d.nodes).some((n) => n && n.id === r.node);
+    const nId = r.nodeId || r.node;
+    const has = (d) => !!d && (arr(d.nodes).some((n) => n && n.id === nId) || arr(d.groups).some((g) => g && g.id === nId));
     const chainTo = (specId, rootId) => {   // [rootId, …, specId] si specId cuelga de rootId
       const chain = [];
       let cur = diagrams[specId];
@@ -1206,27 +1222,34 @@
       }
       return null;
     };
+    const viewOf = (c) => safe(() => c.ctrl.view, null) || c.diagram;
+    // Candidatos: [{c, target}] = controlador y vista (diagrama) donde está el nodo.
+    const cands = [];
     for (const c of ctrls) {
-      try {
-        if (has(diagrams[c.diagram])) {
-          if (typeof c.ctrl.focusNode === 'function') c.ctrl.focusNode(r.node);
-          c.el.scrollIntoView({ block: 'start', behavior: 'auto' });
-          return true;
-        }
-        for (const d of Object.values(diagrams)) {
-          if (!has(d)) continue;
-          const chain = chainTo(d.id, c.diagram);
-          if (!chain) continue;
-          // expand() del diagrama recorre él mismo la cadena de padres (y puede animar): se espera.
-          const done = () => { try { if (typeof c.ctrl.focusNode === 'function') c.ctrl.focusNode(r.node); } catch (e) { /* nodo desconocido */ } };
-          const p = typeof c.ctrl.expand === 'function' && chain.length > 1 ? c.ctrl.expand(d.id) : null;
-          if (p && typeof p.then === 'function') p.then(done, done); else done();
-          c.el.scrollIntoView({ block: 'start', behavior: 'auto' });
-          return true;
-        }
-      } catch (e) { if (root.console) root.console.warn('[app] focusNode', e); }
+      for (const d of Object.values(diagrams)) {
+        if (!has(d) || (r.nodeDiagram && d.id !== r.nodeDiagram)) continue;
+        if (chainTo(d.id, c.diagram)) cands.push({ c, target: d.id });
+      }
     }
-    try { if (typeof ctrls[0].ctrl.focusNode === 'function') ctrls[0].ctrl.focusNode(r.node); } catch (e) { /* nodo desconocido */ }
+    const pick = cands.find((x) => x.target === viewOf(x.c)) || cands.find((x) => x.target === x.c.diagram) || cands[0];
+    const focus = (c) => { try { if (typeof c.ctrl.focusNode === 'function') return c.ctrl.focusNode(nId); } catch (e) { /* nodo desconocido */ } return null; };
+    if (!pick) { focus(ctrls[0]); return false; }
+    const c = pick.c;
+    try {
+      let p = null;
+      if (viewOf(c) !== pick.target) {
+        if (pick.target === c.diagram) {
+          // volver a la raíz: collapse() sube un nivel por llamada (puede animar)
+          p = (async () => { for (let i = 0; i < 8 && viewOf(c) !== c.diagram; i++) { if (typeof c.ctrl.collapse !== 'function') break; await c.ctrl.collapse(); } })();
+        } else if (typeof c.ctrl.expand === 'function') {
+          p = c.ctrl.expand(pick.target);   // el diagrama recorre él mismo la cadena de padres
+        }
+      }
+      const done = () => focus(c);
+      if (p && typeof p.then === 'function') p.then(done, done); else done();
+      c.el.scrollIntoView({ block: 'start', behavior: 'auto' });
+      return true;
+    } catch (e) { if (root.console) root.console.warn('[app] focusNode', e); }
     return false;
   }
 
@@ -1252,9 +1275,10 @@
     const known = r.pageId === 'inicio' || isCourse(r.pageId) || SPECIAL[r.pageId] || /^practica-/.test(r.pageId);
     if (known && r.pageId !== 'inicio' && r.pageId !== 'buscar') {
       store.markVisited(r.pageId);
-      // "Continúa donde lo dejaste" no debe apuntar a una página "Próximamente".
-      const soon = isCourse(r.pageId) && !(getPage(r.pageId) || {}).ready;
-      if (!soon) store.setLastLocation(r.hash);
+      // "Continúa donde lo dejaste" apunta solo a páginas de estudio (curso listo o práctica de un modelo),
+      // nunca a una "Próximamente" ni al glosario, el mapa o las flashcards.
+      const study = (isCourse(r.pageId) && (getPage(r.pageId) || {}).ready) || /^practica-/.test(r.pageId);
+      if (study) store.setLastLocation(r.hash);
     }
     const scrolled = r.sectionId ? scrollToSection(r, false) : false;
     if (!scrolled) root.scrollTo(0, 0);
@@ -1279,21 +1303,29 @@
   }
 
   // ------------------------------------------------------------------ cambios del store (sin re-render mientras escribes)
-  function onStoreChange(kind) {
+  function onStoreChange(kind, source) {
     S.pending.add(kind);
+    if (source && source !== 'local') S.pendingFrom.add(kind);
     if (S.flushQueued) return;
     S.flushQueued = true;
     const run = () => { S.flushQueued = false; flushStoreChanges(); };
     if (typeof root.requestAnimationFrame === 'function') root.requestAnimationFrame(run); else setTimeout(run, 16);
   }
 
+  // El store avisa con el tipo de cambio y su origen (esta pestaña, otra pestaña o la cuenta). Solo
+  // se vuelve a pintar la página entera cuando hace falta: importación, la primera fusión con la cuenta
+  // ('remote') o, desde otra pestaña, checklists (lo único del shell que no se actualiza en su sitio).
+  // Desplazarse o visitar páginas en otra pestaña (location / visit) nunca re-renderiza esta.
   function flushStoreChanges() {
     const kinds = S.pending;
+    const fromElsewhere = S.pendingFrom;
     S.pending = new Set();
+    S.pendingFrom = new Set();
     const only = (list) => Array.from(kinds).every((k) => list.indexOf(k) >= 0);
     if (only(['location', 'visit'])) return;
     if (kinds.has('prefs') || kinds.has('remote') || kinds.has('import')) {
-      const t = store.pref('theme') || 'system';
+      const t0 = store.pref('theme');
+      const t = t0 === 'light' || t0 === 'dark' ? t0 : 'system';
       const de = document.documentElement;
       if ((de.getAttribute('data-theme') || 'system') !== t) applyTheme(t);
       syncThemeButtons(t);
@@ -1302,12 +1334,14 @@
     updateNavMarkers();
     renderSideStrip();
     if (kinds.has('progress')) refreshReadMarks();
-    if (kinds.has('remote') || kinds.has('import')) {
-      renderFoot();
-      const shellPage = S.route && (S.route.pageId === 'inicio' || isCourse(S.route.pageId) || (S.page && S.page.kind === 'sheet'));
-      const typing = isTextEntry(document.activeElement) && els.page.contains(document.activeElement);
-      if (shellPage && !typing) rerender(false);
-    }
+    const full = kinds.has('remote') || kinds.has('import');
+    if (full) renderFoot();
+    const pid = S.route && S.route.pageId;
+    const shellPage = S.route && (pid === 'inicio' || isCourse(pid) || (S.page && S.page.kind === 'sheet'));
+    const elsewhere = Array.from(fromElsewhere).filter((k) => k !== 'location' && k !== 'visit');
+    const needs = full || (pid === 'inicio' && elsewhere.length > 0) || fromElsewhere.has('checklist');
+    const typing = isTextEntry(document.activeElement) && els.page.contains(document.activeElement);
+    if (shellPage && needs && !typing) rerender(false);
   }
 
   // ------------------------------------------------------------------ teclado global
@@ -1327,7 +1361,10 @@
       return;
     }
     if (S.modalOpen) { trapTab(e, els.modal); return; }
-    if (S.drawerOpen) { trapTab(e, els.sidebar); }
+    if (S.drawerOpen) {
+      trapTab(e, els.sidebar);
+      if (e.key === '[' || e.key === ']') return;   // el contenido detrás del cajón está inerte
+    }
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTextEntry(e.target)) return;
     // Dentro de un diagrama enfocado, sus teclas mandan (SPEC §7.7).
