@@ -525,7 +525,14 @@
   // stage1 cuesta lo de path 'stage1'): ops y byNode se toman de ese id en vez del id del nodo.
   // node.scope = id de path que además debe aparecer (p. ej. 'img-encoder' o 'txt-encoder' en CLIP, donde
   // las dos torres comparten ids de nodo: enc-layer, ln1, qkv…). node.opsExact = solo las ops de node.ops.
+  // node.costRef = {config, nodes:[…]}: el costo sale de OTRA config (fase 4: el encoder de texto de CLIP que
+  // YOLO-World corre offline; en su propio grafo vale 0). node.costNote = aclaración en el tooltip y el panel.
   function nodeOps(run, node) {
+    if (node && node.costRef) {
+      let r2 = null;
+      try { r2 = runFor(node.costRef.config); } catch (e) { r2 = null; }
+      return r2 ? r2.ops.filter((o) => o.path && (node.costRef.nodes || []).some((id) => o.path.indexOf(id) >= 0)) : [];
+    }
     if (!run) return [];
     const ids = node.ops || [];
     const pid = node.costOf || node.id;
@@ -542,7 +549,7 @@
       macs = ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0);
       rep = 1;
     }
-    const by = run && run.totals && run.totals.byNode && run.totals.byNode[node.costOf || node.id];
+    const by = !node.costRef && run && run.totals && run.totals.byNode && run.totals.byNode[node.costOf || node.id];
     return { ops, params, macs, rep, total: (!node.opsExact && !node.scope && by) || { params: ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
   }
 
@@ -570,9 +577,10 @@
 
   // Valor de un grupo repetido: config[from] (o config[from][index] si es una lista, p. ej. depths de
   // Swin), dividido por div (pares de bloques W-MSA + SW-MSA: depth / 2). raw = sin dividir.
+  // rep.len:true = el largo de la lista (p. ej. strides [8, 16, 32] → × 3 niveles).
   function repeatValue(cfg, rep, raw) {
-    let v = cfg ? cfg[rep.from || rep.sym] : undefined;
-    if (Array.isArray(v)) v = v[rep.index || 0];
+    let v = cfg ? cfgPath(cfg, rep.from || rep.sym) : undefined;
+    if (Array.isArray(v)) v = rep.len ? v.length : v[rep.index || 0];
     if (!raw && rep.div && Number.isFinite(v)) v = v / rep.div;
     return v;
   }
@@ -800,7 +808,9 @@
       if (g.style === 'batch') used.batch = true;
       // style:'train' = carril de "solo entrenamiento" (DETR: matching húngaro y pérdida), marco discontinuo gris
       if (g.style === 'train') used.train = true;
-      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : '') + (g.style === 'train' ? ' ad-group--train' : ''), 'data-group': g.id }, L.groups);
+      // style:'offline' = carril "offline" (YOLO-World: el vocabulario se codifica una vez, antes de la inferencia)
+      if (g.style === 'offline') used.offline = true;
+      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : '') + (g.style === 'train' ? ' ad-group--train' : '') + (g.style === 'offline' ? ' ad-group--offline' : ''), 'data-group': g.id }, L.groups);
       if (g.repeat) {
         used.repeat = true;
         S('rect', { x: r.x + 10, y: r.y + 10, width: r.w, height: r.h, rx: 6, class: 'ad-stack' }, gg);
@@ -1236,7 +1246,7 @@
     if (isMap) g.setAttribute('aria-label', (MAP_KIND_SENT[kind] ? MAP_KIND_SENT[kind](mapName(e.from), mapName(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' (' + e.label + ')' : ''));
     if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? e.tag + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num') + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
     if (e.dot) { const dp = e.fromPt ? ge.pts[0] : ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
-    if (kind === 'cross' || e.tag) {
+    if ((kind === 'cross' || e.tag) && e.tag !== false) {   // tag:false = arista cross sin etiqueta (chips de texto de YOLO-World)
       const la = labelAnchor(ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
       if (la) {
         const tg = S('g', { class: 'ad-tag' + (e.tagStyle === 'plain' ? ' ad-tag--plain' : '') }, L.labels);
@@ -1345,6 +1355,7 @@
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
     if (used.train) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--train' }, s); }, 'Marco gris discontinuo: solo en entrenamiento');
+    if (used.offline) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--offline' }, s); }, 'Marco ámbar: offline (una vez, antes de la inferencia)');
     if (used.badge) item((s) => { S('rect', { x: 1, y: 3, width: 24, height: 10, rx: 5, class: 'ad-badge-bg' }, s); S('path', { d: 'M5,8m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M7,8h3.5M9.5,8v2', class: 'ad-key' }, s); }, 'Parámetros aprendibles');
     if ((!opts || opts.withShapes !== false) && view.spec.kind !== 'map') {   // antes "opts && …": nunca se mostraba
       const li = H('div', { class: 'ad-leg-item ad-leg-shape', role: 'listitem' }, wrap);
@@ -1492,6 +1503,7 @@
         if (io.in.length) parts.push('Entra: ' + io.in.map((t) => plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num')).join(', '));
         if (io.out.length) parts.push('Sale: ' + io.out.map((t) => plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num')).join(', '));
         if (run && n.op !== 'io') { const c = nodeCost(run, n); const pp = perPairOf(c.ops); if (c.params) parts.push('Parámetros: ' + fint(c.params) + (c.rep > 1 ? ' ' + unitOf(n) : '')); if (c.macs) parts.push('MACs: ' + fint(c.macs) + (c.rep > 1 ? ' ' + unitOf(n) : '') + (pp ? ' por par (lote de B = ' + fint(pp.B) + ': ' + fint(pp.batchMacs) + ')' : '')); }
+        if (n.costNote) parts.push(strip(qResolve(n.costNote, opts.config || spec.config)));
         if (n.expand) parts.push('Se abre en: ' + ((ATLAS.diagram(n.expand) || {}).title || n.expand));
         dd.innerHTML = esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, opts.config || spec.config) : '');
       }
@@ -1673,6 +1685,7 @@
           else h += '<div class="ad-tip-cost ad-muted">Sin parámetros ni MACs de matmul</div>';
           const pp = perPairOf(c.ops);
           if (pp && c.macs) h += '<div class="ad-tip-cost ad-muted">MACs por par (una fila de la matriz); el lote de B = ' + fint(pp.B) + ' entero: <b>' + fsi(pp.batchMacs) + '</b></div>';
+          if (n.costNote) h += '<div class="ad-tip-cost ad-muted">' + esc(qText(n.costNote, ctl, spec)) + '</div>';
         }
         h += '<div class="ad-tip-hint">' + (n.expand && ctl.mode === 'full' ? 'Clic: detalle · doble clic o + : abrir bloque' : ctl.mode === 'full' ? 'Clic o Enter: detalle' : '') + '</div>';
         return h;
@@ -1753,6 +1766,7 @@
             if (pp) H('p', { class: 'ad-panel-sum' }, box, 'Por par: una fila de la matriz B×B. El lote entero (B = ' + fint(pp.B) + '): <b>' + fint(pp.batchMacs) + '</b> MACs (= ' + fsi(pp.batchMacs) + ').');
           }
           if (c.rep > 1) H('p', { class: 'ad-panel-sum' }, box, 'En el modelo (' + repTimes(n, c.rep) + '): <b>' + fint(c.total.params) + '</b> parámetros · <b>' + fsi(c.total.macs) + '</b> MACs');
+          if (n.costNote) H('p', { class: 'ad-panel-sum ad-muted' }, box, esc(qText(n.costNote, ctl, spec)));
         }
         const acts = H('div', { class: 'ad-panel-acts' }, panel);
         if (n.expand && ATLAS.diagram(n.expand)) { const b = H('button', { type: 'button', class: 'ad-btn ad-btn--primary', text: 'Abrir bloque' }, acts); b.addEventListener('click', () => expandTo(n.expand, n.id)); }
@@ -2233,6 +2247,8 @@
     scene: drawScene,
     icon: drawIcon,
     ICONS: ['house', 'tree', 'sun', 'boat', 'mountain', 'fish', 'car', 'star'],
+    // fase 4: íconos extra (fuera de ICONS para no mover la semilla de similarity-matrix)
+    ICONS_EXTRA: ['cat', 'dog', 'person'],
     // generador pseudoaleatorio con semilla (mulberry32) y normal estándar: datos ilustrativos reproducibles
     rng(seed) {
       let a = (seed >>> 0) || 1;
@@ -2326,6 +2342,26 @@
     else if (name === 'fish') { p('M8 20C13 11 25 11 30 20C25 29 13 29 8 20Z', 'var(--op-head)'); p('M30 20L37 13V27Z', 'var(--op-head)'); S('circle', { cx: 14, cy: 18, r: 1.8, fill: 'var(--surface)' }, g); }
     else if (name === 'car') { p('M6 27V21L11 20L15 14H26L31 20L35 21V27Z', 'var(--op-attn)'); S('circle', { cx: 13, cy: 28, r: 3.6, fill: 'var(--ink)' }, g); S('circle', { cx: 28, cy: 28, r: 3.6, fill: 'var(--ink)' }, g); p('M16.5 16H20V20H13.8Z', 'var(--surface)'); }
     else if (name === 'star') { p('M20 6L24 16H35L26 22.5L29.5 33L20 26.5L10.5 33L14 22.5L5 16H16Z', 'var(--warn)'); }
+    // fase 4 (Grounding DINO, YOLO-World): gato, perro y persona, para los prompts "cat . dog ."
+    else if (name === 'cat') {
+      p('M9 34C9 25 12 20 20 20C28 20 31 25 31 34Z', 'var(--op-conv)');                         // cuerpo
+      p('M11 10L14 3.5L18 9Z', 'var(--op-conv)'); p('M22 9L26 3.5L29 10Z', 'var(--op-conv)');  // orejas
+      S('circle', { cx: 20, cy: 13.5, r: 8, fill: 'var(--op-conv)' }, g);                         // cabeza
+      p('M31 32C36 31 37 25 34 22', 'none', { stroke: 'var(--op-conv)', 'stroke-width': 2.4, 'stroke-linecap': 'round' });   // cola
+      S('circle', { cx: 17, cy: 12.5, r: 1.3, fill: 'var(--surface)' }, g); S('circle', { cx: 23, cy: 12.5, r: 1.3, fill: 'var(--surface)' }, g);
+      p('M12 16.5H6M12 18H7M28 16.5H34M28 18H33', 'none', { stroke: 'var(--ink)', 'stroke-width': 0.8, 'stroke-linecap': 'round' });
+    } else if (name === 'dog') {
+      p('M6 24C6 19 9 17 14 17H28C32 17 34 19 34 24V27H6Z', 'var(--op-embed)');                 // lomo
+      p('M8 26H12V34H8ZM28 26H32V34H28Z', 'var(--op-embed)');                                   // patas
+      S('circle', { cx: 30, cy: 13, r: 6.5, fill: 'var(--op-embed)' }, g);                         // cabeza
+      p('M34 13.5H38.5Q39.5 13.5 39.5 15V17H34Z', 'var(--op-embed)');                          // hocico
+      p('M25.2 9.5L26.6 2.5L30.5 7.6Z', 'var(--op-embed)');                                     // oreja
+      p('M6 21C3 19 2.5 15.5 4 13', 'none', { stroke: 'var(--op-embed)', 'stroke-width': 2.4, 'stroke-linecap': 'round' });   // cola
+      S('circle', { cx: 31.5, cy: 11.5, r: 1.2, fill: 'var(--surface)' }, g); S('circle', { cx: 39.2, cy: 14.6, r: 1.1, fill: 'var(--ink)' }, g);
+    } else if (name === 'person') {
+      S('circle', { cx: 20, cy: 8.5, r: 5, fill: 'var(--op-head)' }, g);
+      p('M13 15H27L29 26H25L24 35H16L15 26H11Z', 'var(--op-head)');
+    }
     return g;
   }
 })(typeof window !== 'undefined' ? window : globalThis);

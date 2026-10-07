@@ -49,6 +49,13 @@
      (suma inverse_sigmoid(ref) a la caja), box_mlp (compuesta), hungarian_cost (matriz Q×G),
      hungarian_match y set_prediction_loss (solo "otros"). conv_bn y bottleneck aceptan `frozenBN`
      (sin la opción, el resultado es exactamente el de la fase 2).
+   - Fase 4 (Grounding DINO, YOLO-World, YOLOv8): silu, upsample_nearest, concat_channels, split_channels,
+     adaptive_max_pool, layer_scale, subsentence_mask, sine_pos_1d, box_sine_embed, encoder_proposals,
+     contrastive_logits (logits = query · token de texto, sin pesos), topk_select, gather_rows, transpose_scores,
+     token_mask, text_guided_scores, max_over_text, maxsig_gate, head_modulate, region_text_similarity, scale_bias,
+     dfl_decode, dist2bbox, merge_level_logits, offline_text_encoder (0 en el grafo online; costo en detail); compuestas conv_bn_act (Conv de Ultralytics), csp_bottleneck, c2f,
+     sppf, max_sigmoid_attn, t_csp_layer, image_pooling_attn y bi_attention. Un '·' dentro de un símbolo se escribe
+     \cdot en LaTeX. Ninguna cambia el resultado de las fases 1–3.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -114,7 +121,9 @@
   function symTexAtom(s) {
     s = String(s);
     if (SYM_TEX[s]) return SYM_TEX[s];
-    return s.replace(/D_mlp/g, 'D_{\\mathrm{mlp}}');
+    // Fase 4: '·' dentro de un símbolo (H/8·W/8, las celdas de un nivel de YOLO) → \cdot. Ningún símbolo
+    // anterior lo usa fuera de SYM_TEX (hLK·2), así que las fórmulas de las fases 1–3 no cambian.
+    return s.replace(/D_mlp/g, 'D_{\\mathrm{mlp}}').replace(/·/g, '\\cdot ');
   }
   const compound = (s) => /[+\-\/ ]/.test(String(s));
   // En una forma: (N+1)×D. En LaTeX de forma: (N{+}1)\times D.
@@ -174,7 +183,9 @@
   const OTHER = { bias: 1, add: 1, scale: 1, layernorm: 5, rmsnorm: 4, softmax: 5, gelu: 8,
     batchnorm: 5, relu: 1, mask: 1, l2norm: 3,
     // Fase 3: BN congelada = escala + desplazamiento; GroupNorm como LayerNorm; sigmoide; PE seno/coseno.
-    frozenbn: 2, groupnorm: 5, sigmoid: 4, sinpos: 3 };
+    frozenbn: 2, groupnorm: 5, sigmoid: 4, sinpos: 3,
+    // Fase 4: SiLU (x·σ(x)) ≈ sigmoide + producto.
+    silu: 4 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -668,6 +679,214 @@
     });
   }
 
+  // ---- Fase 4 (Grounding DINO, YOLO-World, YOLOv8): primitivas elementales ----------------
+  // silu: x·σ(x), la activación de los Conv de YOLOv8 (≈ 4 ops por elemento).
+  const silu = (x) => elementwise('silu', x, OTHER.silu);
+
+  // upsample_nearest (YOLO, PAN top-down): H×W×C → sH×sW×C copiando cada píxel. Sin parámetros ni MACs.
+  // o = {s=2, outSym:[hs, ws]}
+  function upsample_nearest(x, o) {
+    o = o || {};
+    const s = o.s || 2, [H, W, C] = x.num;
+    const os = o.outSym || [x.sym[0] + '·' + s, x.sym[1] + '·' + s];
+    return result('upsample_nearest', [x], shape([os[0], os[1], x.sym[2]], [H * s, W * s, C], x.mod, 'grid'), { detail: { s, mode: 'nearest' } });
+  }
+
+  // concat_channels: concatena rejillas del mismo H×W a lo largo de los canales. o.mult[i] = cuántas veces
+  // cuenta la entrada i (C2f concatena las n salidas de sus bottlenecks; el grafo muestra una). o.sym = símbolo.
+  function concat_channels(list, o) {
+    o = o || {};
+    const mult = o.mult || list.map(() => 1);
+    const [H, W] = list[0].num;
+    list.forEach((t) => { if (t.num.length !== 3 || t.num[0] !== H || t.num[1] !== W) throw new Error('concat_channels: rejillas de distinto tamaño (' + shapeStr(list[0]) + ' y ' + shapeStr(t) + ').'); });
+    const C = list.reduce((s, t, i) => s + t.num[2] * mult[i], 0);
+    return result('concat_channels', list, shape([list[0].sym[0], list[0].sym[1], o.sym || String(C)], [H, W, C], o.mod || list[0].mod, 'grid'), {
+      detail: { parts: list.map((t, i) => t.num[2] * mult[i]), mult: mult.slice() },
+    });
+  }
+
+  // split_channels (C2f: chunk(2, 1)): H×W×C → parts × [H×W×C/parts]. Vista: sin costo.
+  function split_channels(x, o) {
+    o = o || {};
+    const parts = o.parts || 2, [H, W, C] = x.num;
+    if (C % parts !== 0) throw new Error('split_channels: ' + C + ' canales no se dividen en ' + parts + ' partes.');
+    const c = C / parts;
+    const outs = Array.from({ length: parts }, () => shape([x.sym[0], x.sym[1], o.sym || String(c)], [H, W, c], x.mod, 'grid'));
+    return result('split_channels', [x], outs, { detail: { parts, c } });
+  }
+
+  // adaptive_max_pool (YOLO-World, image-pooling attention): H×W×C → k×k×C (máximo por región). ≈ 1 op por elemento.
+  function adaptive_max_pool(x, o) {
+    const k = (o && o.k) || 3, [H, W, C] = x.num;
+    return result('adaptive_max_pool', [x], shape([String(k), String(k), x.sym[2]], [k, k, C], x.mod, 'grid'), { other: H * W * C, detail: { k, H, W } });
+  }
+
+  // layer_scale (Grounding DINO, fusión): γ ⊙ x con γ ∈ ℝ^D aprendido (init 1e-4). D parámetros.
+  function layer_scale(x, o) {
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1];
+    return result('layer_scale', [x], plain(x), { paramTerms: [[D]], paramTex: symTexFactor(Ds), other: elems(x), detail: { D, init: (o && o.init) || 1e-4 } });
+  }
+
+  // subsentence_mask (Grounding DINO): a partir de los ids (T) y de los tokens especiales ([CLS], [SEP], '.', '?')
+  // arma la máscara T×T de sub-oraciones (cada nombre de categoría solo se atiende a sí mismo) y los position
+  // ids reiniciados en cada frase. Calculada, sin parámetros ni MACs. → [máscara T×T, position ids T]
+  function subsentence_mask(ids, o) {
+    const T = ids.num[0], Ts = ids.sym[0];
+    return result('subsentence_mask', [ids], [shape([Ts, Ts], [T, T], 'txt', 'mat'), shape([Ts], [T], 'txt', 'vec')], {
+      other: T * T, detail: { T, special: (o && o.special) || ['[CLS]', '[SEP]', '.', '?'] },
+    });
+  }
+
+  // sine_pos_1d (Grounding DINO, texto del feature enhancer): PE seno/coseno de los position ids → T×D. Buffer.
+  function sine_pos_1d(o) {
+    const out = shape([o.rowsSym || 'T', o.Dsym || 'D'], [o.rows, o.D], o.mod || 'txt', 'seq');
+    return result('sine_pos_1d', [], out, { other: o.rows * o.D * OTHER.sinpos, detail: { rows: o.rows, D: o.D, temperature: o.temperature || 10000, buffer: true } });
+  }
+
+  // box_sine_embed (Grounding DINO, decoder): PE seno/coseno de cada coordenada de la caja de referencia
+  // (cx, cy, w, h), D/2 canales por coordenada: Q×4 → Q×2D. Sin parámetros (la proyección es un MLP aparte).
+  function box_sine_embed(boxes, o) {
+    const [Q, c] = boxes.num, D = o.D, per = D / 2;
+    return result('box_sine_embed', [boxes], shape([boxes.sym[0], o.outSym || '2D'], [Q, c * per], boxes.mod, 'seq'), {
+      other: Q * c * per * OTHER.sinpos, detail: { coords: c, perCoord: per, temperature: 10000 },
+    });
+  }
+
+  // encoder_proposals (Grounding DINO / DINO two-stage): una caja ancla por token de la memoria (centro del
+  // token, lado 0.05·2^l en el nivel l), en logit. Calculada: N×4, sin parámetros ni MACs.
+  function encoder_proposals(o) {
+    const lv = o.levels, rows = lv.reduce((s, hw) => s + hw[0] * hw[1], 0);
+    return result('encoder_proposals', [], shape([o.rowsSym || 'N', '4'], [rows, 4], o.mod || 'img', 'seq'), { other: rows * 4 * 3, detail: { levels: lv.map((x) => x.slice()), wh: '0.05·2^l' } });
+  }
+
+  // contrastive_logits (Grounding DINO): logits por token de texto = q · tᵀ (sin parámetros):
+  // N_q×D, T×D → N_q×T. MACs N_q·T·D. o.pad = largo máximo del texto (HF rellena hasta 256 con −∞).
+  function contrastive_logits(q, t, o) {
+    if (q.num[1] !== t.num[1]) throw new Error('contrastive_logits: anchos distintos (' + q.num[1] + ' y ' + t.num[1] + ').');
+    const [Nq, D] = q.num, T = t.num[0];
+    return result('contrastive_logits', [q, t], shape([q.sym[0], t.sym[0]], [Nq, T], q.mod, 'seq'), {
+      macTerms: [[Nq, T, D]], macTex: texProd([q.sym[0], t.sym[0], q.sym[1]]), other: Nq * T * OTHER.mask,
+      detail: { Nq, T, D, padTo: (o && o.pad) || null, note: 'sin pesos: la "clase" es un token del prompt' },
+    });
+  }
+
+  // topk_select (Grounding DINO, query selection guiada por lenguaje): para cada token de imagen, su máxima
+  // similitud con los T tokens de texto; se quedan los índices de los K mejores. N×T → K (índices).
+  function topk_select(scores, o) {
+    const [N, T] = scores.num, K = o.k;
+    if (K > N) throw new Error('topk_select: K = ' + K + ' es mayor que los ' + N + ' candidatos.');
+    return result('topk_select', [scores], shape([o.kSym || 'Q'], [K], scores.mod, 'vec'), { other: N * T + N, detail: { N, T, K, reduce: 'max sobre el texto' } });
+  }
+
+  // gather_rows: toma K filas (índices) de una tabla N×C → K×C. Sin costo.
+  function gather_rows(x, idx, o) {
+    const out = shape([idx.sym[0], (o && o.Csym) || x.sym[1]], [idx.num[0], x.num[1]], (o && o.mod) || x.mod, 'seq');
+    return result('gather_rows', [x, idx], out, { detail: { from: x.num[0], rows: idx.num[0] } });
+  }
+
+  // transpose_scores (Grounding DINO, fusión): la misma matriz de scores vista desde el otro lado:
+  // h×N_a×N_b → h×N_b×N_a. Sin costo (el t2i reutiliza los scores del i2t).
+  function transpose_scores(x) {
+    const nd = x.num.length;
+    const num = x.num.slice(), sym = x.sym.slice();
+    [num[nd - 1], num[nd - 2]] = [num[nd - 2], num[nd - 1]];
+    [sym[nd - 1], sym[nd - 2]] = [sym[nd - 2], sym[nd - 1]];
+    return result('transpose_scores', [x], shape(sym, num, x.mod, x.layout), { detail: { note: 'misma matriz, transpuesta' } });
+  }
+
+  // token_mask: suma una máscara aditiva a los scores (0 / −∞): sub-oraciones del texto o tokens de relleno.
+  function token_mask(x, o) {
+    return result('token_mask', [x], plain(x), { other: elems(x) * OTHER.mask, detail: { kind: (o && o.kind) || 'tokens' } });
+  }
+
+  // text_guided_scores (YOLO-World, max-sigmoid attention): por cabeza, el producto de cada píxel con cada
+  // embedding de texto: H×W×E, V×E → n_h×(H·W)×V. MACs H·W·V·E (E = n_h·c_h).
+  function text_guided_scores(x, guide, o) {
+    const [H, W, E] = x.num, V = guide.num[0], nh = o.nh;
+    if (guide.num[1] !== E) throw new Error('text_guided_scores: el texto tiene ' + guide.num[1] + ' canales y la imagen ' + E + '.');
+    if (E % nh !== 0) throw new Error('text_guided_scores: ' + E + ' canales no se dividen en ' + nh + ' cabezas.');
+    const hw = o.hwSym || (x.sym[0] + '·' + x.sym[1]);
+    return result('text_guided_scores', [x, guide], shape([o.nhSym || String(nh), hw, guide.sym[0]], [nh, H * W, V], x.mod, 'heads'), {
+      macTerms: [[H, W, V, E]], macTex: texProd([x.sym[0], x.sym[1], guide.sym[0], x.sym[2]]), detail: { nh, hc: E / nh, V },
+    });
+  }
+
+  // max_over_text (YOLO-World): máximo sobre las V clases: n_h×HW×V → n_h×HW. ≈ 1 op por elemento.
+  function max_over_text(x) {
+    const nd = x.num.length;
+    return result('max_over_text', [x], shape(x.sym.slice(0, nd - 1), x.num.slice(0, nd - 1), x.mod, 'seq'), { other: elems(x), detail: { over: x.num[nd - 1] } });
+  }
+
+  // maxsig_gate (YOLO-World): peso por cabeza y píxel = σ(max/√c_h + b_h). n_h parámetros (un sesgo por cabeza).
+  function maxsig_gate(x, o) {
+    const nh = o.nh;
+    return result('maxsig_gate', [x], plain(x), { paramTerms: [[nh]], paramTex: 'n_h', other: elems(x) * (2 + OTHER.sigmoid), detail: { nh, hc: o.hc || null } });
+  }
+
+  // head_modulate (YOLO-World): multiplica los canales de cada cabeza por su peso: H×W×C, n_h×HW → H×W×C.
+  function head_modulate(x, gate, o) {
+    if (gate.num[1] !== x.num[0] * x.num[1]) throw new Error('head_modulate: el peso no tiene un valor por píxel.');
+    return result('head_modulate', [x, gate], plain(x), { other: elems(x), detail: { nh: gate.num[0], hc: x.num[2] / gate.num[0], nhCheck: o && o.nh } });
+  }
+
+  // region_text_similarity (YOLO-World, cabeza contrastiva región-texto): coseno entre el embedding de
+  // cada píxel (H×W×E) y cada embedding de texto (V×E), ambos normalizados L2: → (H·W)×V. MACs H·W·V·E.
+  function region_text_similarity(x, vocab, o) {
+    const [H, W, E] = x.num, V = vocab.num[0];
+    if (vocab.num[1] !== E) throw new Error('region_text_similarity: el texto tiene ' + vocab.num[1] + ' canales y la imagen ' + E + '.');
+    const hw = (o && o.hwSym) || (x.sym[0] + '·' + x.sym[1]);
+    return result('region_text_similarity', [x, vocab], shape([hw, vocab.sym[0]], [H * W, V], x.mod, 'seq'), {
+      macTerms: [[H, W, V, E]], macTex: texProd([x.sym[0], x.sym[1], vocab.sym[0], x.sym[2]]),
+      other: (H * W + V) * E * OTHER.l2norm, detail: { E, V, normalized: true },
+    });
+  }
+
+  // scale_bias (YOLO-World, ContrastiveHead): logits·e^s + b, con s (init log 1/0.07) y b (init −10) aprendidos: 2 parámetros.
+  function scale_bias(x) {
+    return result('scale_bias', [x], plain(x), { paramTerms: [[2]], paramTex: '2', other: 2 * elems(x), detail: { scaleInit: 'log(1/0.07)', biasInit: -10 } });
+  }
+
+  // dfl_decode (YOLOv8, Distribution Focal Loss): cada lado de la caja es una distribución sobre R = 16
+  // bins; softmax y esperanza con una conv 1×1 de pesos FIJOS 0…R−1 (R parámetros, requires_grad = False).
+  // Entradas: los mapas por nivel h×w×4R → A×4 (distancias l, t, r, b), A = Σ h·w anclas. MACs A·4·R.
+  function dfl_decode(levels, o) {
+    const R = (o && o.R) || 16;
+    const A = levels.reduce((s, t) => s + t.num[0] * t.num[1], 0);
+    levels.forEach((t) => { if (t.num[2] !== 4 * R) throw new Error('dfl_decode: cada nivel debe tener 4·R = ' + (4 * R) + ' canales.'); });
+    return result('dfl_decode', levels, shape([(o && o.Asym) || 'A', '4'], [A, 4], levels[0].mod, 'seq'), {
+      paramTerms: [[R]], paramTex: 'R', macTerms: [[A, 4, R]], macTex: 'A\\cdot 4\\cdot R', other: A * 4 * R * OTHER.softmax,
+      detail: { R, A, frozen: true, note: 'pesos fijos 0…R−1: cuentan en parameters() pero no se entrenan' },
+    });
+  }
+
+  // dist2bbox (YOLOv8): distancias (l, t, r, b) + centro del ancla, × stride → caja xyxy. A×4 → A×4 (≈ 3 ops).
+  function dist2bbox(d) {
+    return result('dist2bbox', [d], plain(d), { other: elems(d) * 3, detail: { note: 'anclas = centros de las celdas (sin cajas ancla)' } });
+  }
+
+  // merge_level_logits (YOLO): concatena los logits de los niveles (h·w filas cada uno) y aplica la sigmoide:
+  // → A×K (o A×V). Entradas 2-D (filas×clases) o rejillas h×w×K.
+  function merge_level_logits(levels, o) {
+    const K = levels[0].num[levels[0].num.length - 1];
+    const rows = levels.reduce((s, t) => s + elems(t) / t.num[t.num.length - 1], 0);
+    return result('merge_level_logits', levels, shape([(o && o.Asym) || 'A', (o && o.Ksym) || levels[0].sym[levels[0].sym.length - 1]], [rows, K], levels[0].mod, 'seq'), {
+      other: rows * K * OTHER.sigmoid, detail: { rows, K },
+    });
+  }
+
+  // offline_text_encoder (YOLO-World, "prompt-then-detect"): el codificador de texto (CLIP) convierte los V
+  // prompts del vocabulario en V embeddings UNA vez, fuera de la inferencia: en el grafo online cuesta 0
+  // parámetros y 0 MACs; su costo real va en detail (params, macsPerPrompt, macs = V·macsPerPrompt).
+  // prompts V×T_clip (ids) → V×E. o = {E, Esym, model, params, macsPerPrompt}
+  function offline_text_encoder(prompts, o) {
+    const V = prompts.num[0];
+    return result('offline_text_encoder', [prompts], shape([prompts.sym[0], o.Esym || String(o.E)], [V, o.E], 'txt', 'seq'), {
+      params: 0, macs: 0,
+      detail: { offline: true, model: o.model || null, params: o.params || 0, macsPerPrompt: o.macsPerPrompt || 0, macs: V * (o.macsPerPrompt || 0), V, T: prompts.num[1],
+        note: 'se ejecuta una vez por vocabulario (offline); su costo no entra en los totales online' },
+    });
+  }
+
   // ---- compuestas (para fórmulas, tablas y pruebas; los modelos usan las elementales en el grafo)
   function composite(prim, x, parts, out, o) {
     return {
@@ -935,6 +1154,180 @@
     });
   }
 
+  // ---- Fase 4: compuestas -------------------------------------------------------------------
+  // conv_bn_act (el `Conv` de Ultralytics): conv k×k SIN sesgo → BatchNorm → SiLU (act 'silu') o nada
+  // (act 'none'). Padding k/2 ("same" con stride 1). o = {k, s=1, cout, coutSym, outSym, act='silu'}
+  function conv_bn_act(x, o) {
+    const k = o.k, s = o.s || 1, act = o.act === undefined ? 'silu' : o.act;
+    const co = { k, s, p: o.p !== undefined ? o.p : Math.floor(k / 2), cout: o.cout, floor: true, bias: false };
+    if (o.coutSym) co.coutSym = o.coutSym;
+    if (o.outSym) co.outSym = o.outSym;
+    const cv = conv2d(x, co);
+    const bn = batchnorm2d(cv.out);
+    const parts = [cv, bn];
+    if (act === 'silu') parts.push(silu(bn.out));
+    return composite('conv_bn_act', x, parts, parts[parts.length - 1].out, {
+      paramTex: 'k^2\\,C_{in}\\,C_{out} + 2C_{out}', macTex: 'H_o\\,W_o\\,C_{out}\\,k^2\\,C_{in}', detail: { k, s, act },
+    });
+  }
+
+  // csp_bottleneck (el `Bottleneck` de C2f, e = 1): conv 3×3 → conv 3×3 (C → C), + atajo si shortcut.
+  // Parámetros 18C² + 4C; MACs 18·H·W·C².
+  function csp_bottleneck(x, o) {
+    const C = x.num[2], g = [x.sym[0], x.sym[1]];
+    const a = conv_bn_act(x, { k: 3, cout: C, coutSym: x.sym[2], outSym: g });
+    const b = conv_bn_act(a.out, { k: 3, cout: C, coutSym: x.sym[2], outSym: g });
+    const parts = [a, b];
+    let out = b.out;
+    if (o && o.shortcut) { const r = residual_add(x, b.out); parts.push(r); out = r.out; }
+    return composite('csp_bottleneck', x, parts, out, { paramTex: '18C^2 + 4C', macTex: '18\\,H\\,W\\,C^2', detail: { shortcut: !!(o && o.shortcut) } });
+  }
+
+  // c2f (YOLOv8): cv1 1×1 (C_in → 2c) → partir en dos mitades c → n bottlenecks encadenados sobre la
+  // segunda → concatenar las 2 + n salidas ((2+n)c) → cv2 1×1 → C_out. c = e·C_out (e = 0.5).
+  // o = {cout, coutSym, n, shortcut, e=0.5}
+  function c2f(x, o) {
+    const n = o.n, c = Math.round(o.cout * (o.e || 0.5)), g = [x.sym[0], x.sym[1]];
+    const cv1 = conv_bn_act(x, { k: 1, cout: 2 * c, outSym: g });
+    const sp = split_channels(cv1.out, { parts: 2 });
+    const parts = [cv1, sp];
+    let y = sp.out[1];
+    for (let i = 0; i < n; i++) { const b = csp_bottleneck(y, { shortcut: o.shortcut }); parts.push(b); y = b.out; }
+    const cat = concat_channels([sp.out[0], sp.out[1], y], { mult: [1, 1, n] });
+    const cv2 = conv_bn_act(cat.out, { k: 1, cout: o.cout, coutSym: o.coutSym, outSym: g });
+    parts.push(cat, cv2);
+    return composite('c2f', x, parts, cv2.out, {
+      paramTex: '2c\\,C_{in} + 4c + n\\,(18c^2 + 4c) + (2{+}n)\\,c\\,C_{out} + 2C_{out}',
+      macTex: 'H\\,W\\,[\\,2c\\,C_{in} + 18\\,n\\,c^2 + (2{+}n)\\,c\\,C_{out}\\,]', detail: { n, c, shortcut: !!o.shortcut },
+    });
+  }
+
+  // sppf (YOLOv8): cv1 1×1 (C → C/2) → 3 max-pool 5×5 encadenados (stride 1) → concatenar 4 mapas → cv2 1×1 → C_out.
+  // Equivale a SPP con pools 5, 9 y 13. o = {cout, coutSym, k=5, cv1Act='none'} (Ultralytics 8.4: cv1 sin activación).
+  function sppf(x, o) {
+    const C = x.num[2], c = C / 2, k = o.k || 5, g = [x.sym[0], x.sym[1]];
+    const cv1 = conv_bn_act(x, { k: 1, cout: c, outSym: g, act: o.cv1Act || 'none' });
+    const parts = [cv1];
+    let y = cv1.out;
+    for (let i = 0; i < 3; i++) { const p = maxpool2d(y, { k, s: 1, p: Math.floor(k / 2), outSym: g }); parts.push(p); y = p.out; }
+    const cat = concat_channels([cv1.out, y], { mult: [1, 3] });
+    const cv2 = conv_bn_act(cat.out, { k: 1, cout: o.cout, coutSym: o.coutSym, outSym: g });
+    parts.push(cat, cv2);
+    return composite('sppf', x, parts, cv2.out, {
+      paramTex: 'C\\,\\tfrac{C}{2} + C + 2C\\,C_{out} + 2C_{out}', macTex: 'H\\,W\\,(\\tfrac{C^2}{2} + 2C\\,C_{out})', detail: { k, pools: [k, 2 * k - 1, 3 * k - 2] },
+    });
+  }
+
+  // max_sigmoid_attn (YOLO-World, dentro del T-CSPLayer): el texto guía a la imagen.
+  //   [conv 1×1 C → E si C ≠ E] · g = Linear(512 → E) sobre los V embeddings · scores píxel × clase por
+  //   cabeza (H·W·V·E MACs) · máximo sobre las V clases · σ(·/√c_h + b_h) · conv 3×3 (C → C_out, BN, sin
+  //   activación) · cada cabeza de la salida × su peso. o = {nh, ec, cout, gc=512}
+  function max_sigmoid_attn(x, guide, o) {
+    const C = x.num[2], E = o.ec, nh = o.nh, g = [x.sym[0], x.sym[1]];
+    const parts = [];
+    let emb = x;
+    if (C !== E) { const ec = conv_bn_act(x, { k: 1, cout: E, outSym: g, act: 'none' }); parts.push(ec); emb = ec.out; }
+    const gl = linear(guide, { dout: E, doutSym: String(E) });
+    const sc = text_guided_scores(emb, gl.out, { nh });
+    const mx = max_over_text(sc.out);
+    const gt = maxsig_gate(mx.out, { nh, hc: E / nh });
+    const pj = conv_bn_act(x, { k: 3, cout: o.cout || C, outSym: g, act: 'none' });
+    const md = head_modulate(pj.out, gt.out, { nh });
+    parts.push(gl, sc, mx, gt, pj, md);
+    const r = composite('max_sigmoid_attn', x, parts, md.out, {
+      paramTex: '512E + E + n_h + 9\\,C\\,C_{out} + 2C_{out}' + (C !== E ? ' + C\\,E + 2E' : ''),
+      macTex: 'V\\cdot 512\\cdot E + H\\,W\\,V\\,E + 9\\,H\\,W\\,C\\,C_{out}' + (C !== E ? ' + H\\,W\\,C\\,E' : ''),
+      detail: { nh, ec: E, V: guide.num[0], hc: E / nh, embedConv: C !== E },
+    });
+    r.inputs = [x, guide];
+    return r;
+  }
+
+  // t_csp_layer (YOLO-World, `C2fAttn`): un C2f cuya última rama es la max-sigmoid attention guiada por texto:
+  // cv1 → dos mitades c → n bottlenecks (sin atajo) → atención sobre la última salida → concatenar (3+n)c → cv2.
+  // o = {cout, coutSym, n, ec, nh, e=0.5}
+  function t_csp_layer(x, guide, o) {
+    const n = o.n, c = Math.round(o.cout * (o.e || 0.5)), g = [x.sym[0], x.sym[1]];
+    const cv1 = conv_bn_act(x, { k: 1, cout: 2 * c, outSym: g });
+    const sp = split_channels(cv1.out, { parts: 2 });
+    const parts = [cv1, sp];
+    let y = sp.out[1];
+    for (let i = 0; i < n; i++) { const b = csp_bottleneck(y, { shortcut: !!o.shortcut }); parts.push(b); y = b.out; }
+    const at = max_sigmoid_attn(y, guide, { nh: o.nh, ec: o.ec });
+    const cat = concat_channels([sp.out[0], sp.out[1], y, at.out], { mult: [1, 1, n, 1] });
+    const cv2 = conv_bn_act(cat.out, { k: 1, cout: o.cout, coutSym: o.coutSym, outSym: g });
+    parts.push(at, cat, cv2);
+    const r = composite('t_csp_layer', x, parts, cv2.out, {
+      paramTex: '\\text{C2f}(n) + c\\,C_{out} + \\text{max-sigmoid}', macTex: 'H\\,W\\,[\\,2c\\,C_{in} + 18\\,n\\,c^2 + 9c^2 + (3{+}n)\\,c\\,C_{out}\\,] + H\\,W\\,V\\,E + 512\\,V\\,E',
+      detail: { n, c, ec: o.ec, nh: o.nh, V: guide.num[0] },
+    });
+    r.inputs = [x, guide];
+    return r;
+  }
+
+  // image_pooling_attn (YOLO-World v1, I-Pooling attention): el texto se actualiza con la imagen.
+  //   Por nivel: conv 1×1 (C_l → E, con sesgo) y max-pool adaptativo a k×k → 3·k² = 27 "tokens de imagen".
+  //   q = Linear(LN(texto)) (512 → E), k y v = Linear(LN(tokens)) (E → E), atención multi-cabeza V×27,
+  //   salida Linear(E → 512) + residual. o = {ec=256, nh=8, k=3}
+  function image_pooling_attn(feats, text, o) {
+    o = o || {};
+    const E = o.ec || 256, nh = o.nh || 8, k = o.k || 3, ct = text.num[1];
+    const parts = [];
+    const pooled = feats.map((f) => {
+      const pj = conv2d(f, { k: 1, cout: E, coutSym: String(E), outSym: [f.sym[0], f.sym[1]] });
+      const pl = adaptive_max_pool(pj.out, { k });
+      parts.push(pj, pl);
+      return pl.out;
+    });
+    const tok = flatten_levels(pooled, { sym: [String(feats.length * k * k), String(E)] });
+    const qn = layernorm(text), qp = linear(qn.out, { dout: E, doutSym: String(E) });
+    const kn = layernorm(tok.out), kp = linear(kn.out, { dout: E, doutSym: String(E) });
+    const vn = layernorm(tok.out), vp = linear(vn.out, { dout: E, doutSym: String(E) });
+    const sp = split_qkv_heads(qp.out, kp.out, vp.out, { h: nh, hSym: String(nh), dhSym: String(E / nh) });
+    const sc = attention_scores(sp.out[0], sp.out[1]);
+    const sl = scale(sc.out);
+    const sm = softmax(sl.out);
+    const ws = attention_weighted_sum(sm.out, sp.out[2]);
+    const mg = merge_heads(ws.out, { Dsym: String(E) });
+    const pr = linear(mg.out, { dout: ct, doutSym: text.sym[1] });
+    const rs = residual_add(text, pr.out);
+    parts.push(tok, qn, qp, kn, kp, vn, vp, sp, sc, sl, sm, ws, mg, pr, rs);
+    const r = composite('image_pooling_attn', text, parts, rs.out, {
+      paramTex: '\\textstyle\\sum_l (C_l E + E) + 2\\cdot 512 + 512E + E + 2(2E + E^2 + E) + E\\cdot 512 + 512',
+      macTex: '\\textstyle\\sum_l H_lW_l C_l E + 2\\cdot 512\\,V\\,E + 2\\cdot 27E^2 + 2\\cdot 27\\,V\\,E',
+      detail: { ec: E, nh, k, tokens: feats.length * k * k, V: text.num[0] },
+    });
+    r.inputs = feats.concat([text]);
+    return r;
+  }
+
+  // bi_attention (Grounding DINO, fusión del feature enhancer): atención cruzada BIDIRECCIONAL imagen ↔ texto
+  // con UNA sola matriz de scores. Q de la imagen y K del texto (D → E, E = D_mlp/2 = 1024, h = 4 cabezas),
+  // values de los dos lados; imagen→texto usa softmax sobre T, texto→imagen la transpuesta con softmax
+  // sobre N. Parámetros 6DE + 4E + 2D. MACs 3NDE + 3TDE + 3NTE. o = {E, h}
+  function bi_attention(img, txt, o) {
+    const E = o.E, h = o.h, D = img.num[1];
+    const qi = linear(img, { dout: E, doutSym: String(E) }), kt = linear(txt, { dout: E, doutSym: String(E) });
+    const vi = linear(img, { dout: E, doutSym: String(E) }), vt = linear(txt, { dout: E, doutSym: String(E) });
+    const sp = split_qkv_heads(qi.out, kt.out, vt.out, { h, hSym: String(h), dhSym: String(E / h) });
+    const svi = split_heads(vi.out, { h, hSym: String(h), dhSym: String(E / h) });
+    const sc = attention_scores(sp.out[0], sp.out[1]);
+    const sl = scale(sc.out);
+    const smI = softmax(sl.out);
+    const wsI = attention_weighted_sum(smI.out, sp.out[2]);
+    const tr = transpose_scores(sl.out);
+    const smT = softmax(tr.out);
+    const wsT = attention_weighted_sum(smT.out, svi.out);
+    const mI = merge_heads(wsI.out, { Dsym: String(E) }), mT = merge_heads(wsT.out, { Dsym: String(E) });
+    const oI = linear(mI.out, { dout: D, doutSym: img.sym[1] }), oT = linear(mT.out, { dout: D, doutSym: txt.sym[1] });
+    const r = composite('bi_attention', img, [qi, kt, vi, vt, sp, svi, sc, sl, smI, wsI, tr, smT, wsT, mI, mT, oI, oT], oI.out, {
+      paramTex: '6DE + 4E + 2D', macTex: '3NDE + 3TDE + 3NTE',
+      detail: { E, h, dh: E / h, N: img.num[0], T: txt.num[0], scoreMacs: sc.macs, outText: oT.out },
+    });
+    r.inputs = [img, txt];
+    return r;
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -947,6 +1340,11 @@
     frozen_batchnorm2d, group_norm, sigmoid, sine_pos_encoding, level_embed, add_level_embed, flatten_levels,
     learned_queries, zeros_init, split_qkv_heads, reference_points, deform_sample, deform_weighted_sum, ref_offset,
     hungarian_cost, hungarian_match, set_prediction_loss, multihead_attention, cross_attention, deformable_attention, box_mlp,
+    // Fase 4
+    silu, upsample_nearest, concat_channels, split_channels, adaptive_max_pool, layer_scale, subsentence_mask, sine_pos_1d,
+    box_sine_embed, encoder_proposals, contrastive_logits, topk_select, gather_rows, transpose_scores, token_mask,
+    text_guided_scores, max_over_text, maxsig_gate, head_modulate, region_text_similarity, scale_bias, dfl_decode, dist2bbox,
+    merge_level_logits, offline_text_encoder, conv_bn_act, csp_bottleneck, c2f, sppf, max_sigmoid_attn, t_csp_layer, image_pooling_attn, bi_attention,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -1016,6 +1414,40 @@
     { id: 'hungarian_cost', name: 'Matriz de costos del matching', paramTex: '0', macTex: '0', outTex: 'Q\\times (K{+}1),\\ Q\\times 4,\\ G \\to Q\\times G', note: 'C = λ_cls(−p̂(c)) + λ_L1‖b − b̂‖₁ + λ_giou(−GIoU) para cada par (query, objeto). Solo entrenamiento.' },
     { id: 'hungarian_match', name: 'Matching húngaro', paramTex: '0', macTex: '0', outTex: 'Q\\times G \\to G\\times 2', note: 'Asignación uno a uno de costo mínimo: G queries emparejadas, Q − G → ∅. Por eso DETR no necesita NMS.' },
     { id: 'set_prediction_loss', name: 'Pérdida de conjunto', paramTex: '0', macTex: '0', outTex: '\\to 1', note: 'CE de clase sobre las Q queries (∅ con peso reducido) + L1 + GIoU sobre las emparejadas.' },
+    // Fase 4 (Grounding DINO, YOLO-World, YOLOv8)
+    { id: 'silu', name: 'SiLU', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'x·σ(x): la activación de los Conv de YOLOv8; ≈ 4 ops por elemento en "otros".' },
+    { id: 'upsample_nearest', name: 'Upsample ×2 (nearest)', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to 2H\\times 2W\\times C', note: 'Copia cada píxel 2×2: el camino top-down del PAN sube de resolución sin aprender nada.' },
+    { id: 'concat_channels', name: 'Concatenar canales', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C_a,\\ H\\times W\\times C_b \\to H\\times W\\times (C_a{+}C_b)', note: 'Une mapas de la misma resolución (lateral del FPN/PAN, ramas de C2f).' },
+    { id: 'split_channels', name: 'Partir canales', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times 2c \\to 2\\times(H\\times W\\times c)', note: 'chunk(2): C2f procesa una mitad y deja pasar la otra.' },
+    { id: 'adaptive_max_pool', name: 'Max-pool adaptativo', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to k\\times k\\times C', note: 'YOLO-World: cada nivel se resume en 3×3 = 9 "tokens de imagen" para actualizar el texto.' },
+    { id: 'layer_scale', name: 'Layer scale γ', paramTex: 'D', macTex: '0', outTex: 'N\\times D \\to N\\times D', note: 'γ ⊙ Δ con γ aprendido (init 1e-4): la fusión de Grounding DINO arranca casi apagada y se enciende al entrenar.' },
+    { id: 'subsentence_mask', name: 'Máscara de sub-oraciones', paramTex: '0', macTex: '0', outTex: 'T \\to T\\times T,\\ T', note: 'Grounding DINO: los tokens de una categoría solo se atienden entre sí (y los position ids se reinician en cada frase).' },
+    { id: 'sine_pos_1d', name: 'Posición 1-D seno/coseno', paramTex: '0', macTex: '0', outTex: '\\to T\\times D', note: 'Para los tokens de texto del feature enhancer (de los position ids). Buffer, no parámetro.' },
+    { id: 'box_sine_embed', name: 'PE seno/coseno de la caja', paramTex: '0', macTex: '0', outTex: 'Q\\times 4 \\to Q\\times 2D', note: 'D/2 canales por coordenada (cx, cy, w, h); un MLP la lleva a query_pos (D). Es la parte posicional de las queries de Grounding DINO / DINO.' },
+    { id: 'encoder_proposals', name: 'Cajas ancla del encoder', paramTex: '0', macTex: '0', outTex: '\\to N\\times 4', note: 'Una caja por token (centro del token, lado 0.05·2^l): el MLP de cajas predice un ajuste sobre ella.' },
+    { id: 'contrastive_logits', name: 'Logits contrastivos (por token de texto)', paramTex: '0', macTex: 'N_q\\,T\\,D', outTex: 'N_q\\times D,\\ T\\times D \\to N_q\\times T', note: 'La cabeza de clase sin pesos de Grounding DINO: cada logit es query · token de texto. Las "clases" son lo que diga el prompt.' },
+    { id: 'topk_select', name: 'Top-K por similitud con el texto', paramTex: '0', macTex: '0', outTex: 'N\\times T \\to Q', note: 'Query selection guiada por lenguaje: máximo sobre los T tokens y los Q = 900 mejores tokens de imagen.' },
+    { id: 'gather_rows', name: 'Tomar filas', paramTex: '0', macTex: '0', outTex: 'N\\times C,\\ Q \\to Q\\times C', note: 'Indexar: sin parámetros ni MACs.' },
+    { id: 'transpose_scores', name: 'Transponer scores', paramTex: '0', macTex: '0', outTex: 'h\\times N\\times T \\to h\\times T\\times N', note: 'La fusión de Grounding DINO calcula QKᵀ una vez y la usa en los dos sentidos.' },
+    { id: 'token_mask', name: 'Máscara de atención por tokens', paramTex: '0', macTex: '0', outTex: 'h\\times T\\times T \\to \\text{igual}', note: 'Suma 0 / −∞: sub-oraciones del prompt o tokens de relleno.' },
+    { id: 'text_guided_scores', name: 'Scores píxel × clase (max-sigmoid)', paramTex: '0', macTex: 'H\\,W\\,V\\,E', outTex: 'H\\times W\\times E,\\ V\\times E \\to n_h\\times HW\\times V', note: 'YOLO-World: producto de cada píxel con cada embedding de texto, por cabeza.' },
+    { id: 'max_over_text', name: 'Máximo sobre las clases', paramTex: '0', macTex: '0', outTex: 'n_h\\times HW\\times V \\to n_h\\times HW', note: 'Cada píxel se queda con su clase más parecida (por cabeza).' },
+    { id: 'maxsig_gate', name: 'Compuerta σ(max/√c_h + b)', paramTex: 'n_h', macTex: '0', outTex: 'n_h\\times HW \\to n_h\\times HW', note: 'Un sesgo por cabeza; la sigmoide da un peso en (0, 1) por píxel.' },
+    { id: 'head_modulate', name: 'Modular por cabeza', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C,\\ n_h\\times HW \\to H\\times W\\times C', note: 'Los canales de cada cabeza se multiplican por su peso: el texto enciende o apaga regiones.' },
+    { id: 'region_text_similarity', name: 'Similitud región-texto', paramTex: '0', macTex: 'H\\,W\\,V\\,E', outTex: 'H\\times W\\times E,\\ V\\times E \\to HW\\times V', note: 'YOLO-World: coseno (L2 de los dos lados) entre el embedding de cada celda y cada clase del vocabulario.' },
+    { id: 'scale_bias', name: 'Escala y sesgo aprendidos', paramTex: '2', macTex: '0', outTex: 'HW\\times V \\to HW\\times V', note: 'logits·e^s + b (init s = log 1/0.07, b = −10): la ContrastiveHead de YOLO-World.' },
+    { id: 'dfl_decode', name: 'DFL: distribución → distancia', paramTex: 'R', macTex: 'A\\cdot 4\\cdot R', outTex: '\\{h_l\\times w_l\\times 4R\\} \\to A\\times 4', note: 'Cada lado de la caja es una softmax sobre R = 16 bins; la esperanza es una conv 1×1 de pesos fijos 0…R−1.' },
+    { id: 'dist2bbox', name: 'Distancias → caja', paramTex: '0', macTex: '0', outTex: 'A\\times 4 \\to A\\times 4', note: '(l, t, r, b) desde el centro de cada celda, × stride. Anchor-free: sin cajas ancla.' },
+    { id: 'merge_level_logits', name: 'Unir niveles + sigmoide', paramTex: '0', macTex: '0', outTex: '\\{h_lw_l\\times K\\} \\to A\\times K', note: 'A = Σ h_l·w_l = 8,400 celdas a 640×640. Después va el NMS (fuera del modelo).' },
+    { id: 'offline_text_encoder', name: 'Codificador de texto offline', paramTex: '0\\ (\\text{online})', macTex: '0\\ (\\text{online})', outTex: 'V\\times 77 \\to V\\times 512', note: 'YOLO-World: CLIP codifica el vocabulario una vez y los embeddings quedan como pesos; en inferencia no corre (su costo offline va aparte).' },
+    { id: 'conv_bn_act', name: 'Conv + BN + SiLU (Conv de YOLO)', paramTex: 'k^2\\,C_{in}\\,C_{out} + 2C_{out}', macTex: 'H_o\\,W_o\\,C_{out}\\,k^2\\,C_{in}', outTex: 'H\\times W\\times C_{in} \\to H_o\\times W_o\\times C_{out}', note: 'Sin sesgo (lo absorbe β de la BN); padding k/2. En inferencia la BN se funde en la conv.' },
+    { id: 'csp_bottleneck', name: 'Bottleneck de C2f', paramTex: '18C^2 + 4C', macTex: '18\\,HWC^2', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'Dos convs 3×3 sin cambiar canales; atajo en el backbone, sin atajo en el neck.' },
+    { id: 'c2f', name: 'C2f (CSP con 2 convs)', paramTex: '2cC_{in} + 4c + n(18c^2 + 4c) + (2{+}n)cC_{out} + 2C_{out}', macTex: 'HW[2cC_{in} + 18nc^2 + (2{+}n)cC_{out}]', outTex: 'H\\times W\\times C_{in} \\to H\\times W\\times C_{out}', note: 'Parte en dos, encadena n bottlenecks sobre una mitad y concatena TODAS las salidas intermedias (gradiente por muchos caminos).' },
+    { id: 'sppf', name: 'SPPF', paramTex: 'C\\tfrac{C}{2} + C + 2CC_{out} + 2C_{out}', macTex: 'HW(\\tfrac{C^2}{2} + 2CC_{out})', outTex: 'H\\times W\\times C \\to H\\times W\\times C_{out}', note: '3 max-pool 5×5 encadenados = campos de 5, 9 y 13: contexto multi-escala casi gratis.' },
+    { id: 'max_sigmoid_attn', name: 'Max-sigmoid attention', paramTex: '512E + E + n_h + 9CC_{out} + 2C_{out}', macTex: '512VE + HWVE + 9HWCC_{out}', outTex: 'H\\times W\\times C,\\ V\\times 512 \\to H\\times W\\times C_{out}', note: 'YOLO-World: peso por píxel = σ(máx. similitud con las clases); multiplica la salida de una conv 3×3.' },
+    { id: 't_csp_layer', name: 'T-CSPLayer (C2f guiado por texto)', paramTex: '\\text{C2f} + cC_{out} + \\text{max-sigmoid}', macTex: '\\text{C2f} + 9HWc^2 + HWVE + 512VE', outTex: 'H\\times W\\times C_{in},\\ V\\times 512 \\to H\\times W\\times C_{out}', note: 'El C2f del neck con una rama extra de max-sigmoid attention: el vocabulario entra en la RepVL-PAN.' },
+    { id: 'image_pooling_attn', name: 'Image-pooling attention', paramTex: '\\textstyle\\sum_l C_lE + \\ldots', macTex: '\\textstyle\\sum_l H_lW_lC_lE + 4VE\\cdot 128 + \\ldots', outTex: '\\{H_l\\times W_l\\times C_l\\},\\ V\\times 512 \\to V\\times 512', note: 'YOLO-World v1: cada embedding de texto atiende a 27 tokens de imagen (3×3 por nivel) y se actualiza (residual). La v2 la quitó.' },
+    { id: 'bi_attention', name: 'Atención bidireccional imagen ↔ texto', paramTex: '6DE + 4E + 2D', macTex: '3NDE + 3TDE + 3NTE', outTex: 'N\\times D,\\ T\\times D \\to N\\times D,\\ T\\times D', note: 'Fusión del feature enhancer de Grounding DINO: una matriz de scores N×T por cabeza, softmax por filas (imagen→texto) y por columnas (texto→imagen).' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -1230,6 +1662,9 @@
     // Fase 3: vistas (split_qkv_heads, flatten_levels), tablas de parámetros (learned_queries, level_embed) y
     // tensores constantes calculados (PE seno/coseno, ceros, puntos de referencia del encoder).
     split_qkv_heads: 1, flatten_levels: 1, learned_queries: 1, level_embed: 1, sine_pos_encoding: 1, zeros_init: 1, reference_points: 1,
+    // Fase 4: vistas (split_channels, transpose_scores), constantes calculadas (máscara de sub-oraciones, PE 1-D, cajas
+    // ancla) y scores previos a la reducción / al softmax (token_mask, text_guided_scores: el max solo guarda índices).
+    split_channels: 1, transpose_scores: 1, subsentence_mask: 1, sine_pos_1d: 1, encoder_proposals: 1, token_mask: 1, text_guided_scores: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).

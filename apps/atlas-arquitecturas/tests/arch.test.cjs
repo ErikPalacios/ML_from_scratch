@@ -1223,3 +1223,379 @@ test('DETR y Deformable DETR: etiqueta + símbolo identifican una forma; Quantit
   assert.strictEqual(A.canonical('detr'), 'detr-r50-800x1216');
   assert.strictEqual(A.canonical('deformable-detr'), 'deformable-detr-r50');
 });
+
+// ---------------------------------------------------------------- fase 4 (Grounding DINO, YOLO-World, YOLOv8)
+// Contexto propio con los modelos de la fase 4 (el de arriba no los carga: su lista de modelos queda fija).
+const ATLAS4 = (function () {
+  const ctx = vm.createContext({});
+  for (const f of FILES.filter((x) => x !== 'js/core/quantities.js').concat(['js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/core/quantities.js'])) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  }
+  return vm.runInContext('ATLAS', ctx);
+})();
+const A4 = ATLAS4.Arch, Q4 = ATLAS4.Quantities;
+const G = (sym, num) => A4.shape(sym, num, 'img', 'grid');
+const Sq = (sym, num) => A4.shape(sym, num, 'txt', 'seq');
+
+test('F4 los modelos nuevos no cambian ningún resultado de las fases 1–3', () => {
+  for (const c of A.configs()) {
+    const a = A.run(c.id).totals, b = A4.run(c.id).totals;
+    assert.deepStrictEqual([b.params, b.macs, b.other], [a.params, a.macs, a.other], c.id);
+  }
+  assert.deepStrictEqual(J(A4.models()).sort(), ['clip', 'deformable-detr', 'detr', 'grounding-dino', 'resnet', 'swin', 'transformer', 'vit', 'yolo-world', 'yolov8']);
+  assert.deepStrictEqual([A4.canonical('grounding-dino'), A4.canonical('yolo-world'), A4.canonical('yolov8')], ['grounding-dino-t', 'yolo-world-l-640', 'yolov8l-640']);
+  // '·' dentro de un símbolo → \cdot en LaTeX; hLK·2 sigue por su tabla
+  assert.strictEqual(A4.fmt.shapeTex(A4.shape(['H/8·W/8', 'V'], [6400, 80])), '(H/8\\cdot W/8)\\times V');
+  assert.strictEqual(A4.fmt.shapeTex(A4.shape(['Q', 'hLK·2'], [3, 8])), 'Q\\times hLK\\cdot 2');
+});
+
+test('F4 primitivas de YOLO: SiLU, upsample, concat/split de canales, Conv-BN-SiLU, bottleneck, C2f y SPPF', () => {
+  const x = G(['H', 'W', 'C'], [4, 4, 8]);
+  assert.strictEqual(A4.silu(x).other, 4 * 4 * 8 * 4);
+  const u = A4.upsample_nearest(x, { outSym: ['2H', '2W'] });
+  assert.deepStrictEqual(J(u.out.num), [8, 8, 8]);
+  assert.strictEqual(u.params + u.macs, 0);
+  const cc = A4.concat_channels([x, G(['H', 'W', 'c'], [4, 4, 3])], { mult: [1, 2] });
+  assert.deepStrictEqual(J(cc.out.num), [4, 4, 14]);
+  assert.throws(() => A4.concat_channels([x, G(['h', 'w', 'C'], [2, 2, 8])]), /distinto tamaño/);
+  const sp = A4.split_channels(x, { parts: 2 });
+  assert.deepStrictEqual(J(sp.out.map((t) => t.num)), [[4, 4, 4], [4, 4, 4]]);
+  const cb = A4.conv_bn_act(x, { k: 3, cout: 6 });
+  assert.strictEqual(cb.params, 9 * 8 * 6 + 2 * 6);              // conv sin sesgo + γ, β
+  assert.strictEqual(cb.macs, 4 * 4 * 6 * 9 * 8);
+  assert.deepStrictEqual(J(cb.out.num), [4, 4, 6]);                // padding k/2
+  assert.deepStrictEqual(J(A4.conv_bn_act(x, { k: 3, s: 2, cout: 6 }).out.num), [2, 2, 6]);
+  assert.strictEqual(A4.conv_bn_act(x, { k: 1, cout: 6, act: 'none' }).detail.parts.length, 2);
+  const b = A4.csp_bottleneck(x, { shortcut: true });
+  assert.strictEqual(b.params, 18 * 64 + 4 * 8);                   // 18C² + 4C
+  assert.strictEqual(b.macs, 18 * 16 * 64);
+  assert.strictEqual(A4.csp_bottleneck(x, { shortcut: false }).params, b.params);
+  // C2f(16 → 16, n = 2): cv1 16·16 + 32 · 2 bottlenecks (8 canales) · cv2 (2+2)·8 → 16
+  const y = G(['H', 'W', 'C'], [8, 8, 16]);
+  const c = A4.c2f(y, { cout: 16, n: 2, shortcut: true });
+  assert.strictEqual(c.params, (16 * 16 + 32) + 2 * (18 * 64 + 32) + (32 * 16 + 32));
+  assert.strictEqual(c.macs, 64 * (16 * 16 + 2 * 18 * 64 + 32 * 16));
+  assert.deepStrictEqual(J(c.out.num), [8, 8, 16]);
+  // SPPF(16 → 16): cv1 16 → 8 (BN), 3 max-pool 5×5, concat 32, cv2 32 → 16
+  const s = A4.sppf(y, { cout: 16 });
+  assert.strictEqual(s.params, (16 * 8 + 16) + (32 * 16 + 32));
+  assert.strictEqual(s.macs, 64 * (16 * 8 + 32 * 16));
+  assert.deepStrictEqual(J(s.detail.pools), [5, 9, 13]);
+});
+
+test('F4 primitivas de YOLO-World: max-sigmoid, T-CSPLayer, image-pooling attention, similitud región-texto, DFL', () => {
+  const x = G(['H', 'W', 'c'], [4, 4, 8]), voc = Sq(['V', '512'], [5, 512]);
+  const g = A4.text_guided_scores(x, Sq(['V', '8'], [5, 8]), { nh: 2 });
+  assert.deepStrictEqual(J(g.out.num), [2, 16, 5]);
+  assert.strictEqual(g.macs, 16 * 5 * 8);                          // H·W·V·E
+  assert.throws(() => A4.text_guided_scores(x, Sq(['V', '6'], [5, 6]), { nh: 2 }), /canales/);
+  assert.deepStrictEqual(J(A4.max_over_text(g.out).out.num), [2, 16]);
+  assert.strictEqual(A4.maxsig_gate(A4.max_over_text(g.out).out, { nh: 2 }).params, 2);
+  assert.deepStrictEqual(J(A4.head_modulate(x, A4.shape(['2', 'HW'], [2, 16]), { nh: 2 }).out.num), [4, 4, 8]);
+  // max-sigmoid con C = E (sin conv de embedding): Linear 512 → 8 + n_h + conv 3×3 (8 → 8, BN)
+  const ms = A4.max_sigmoid_attn(x, voc, { nh: 2, ec: 8 });
+  assert.strictEqual(ms.params, (512 * 8 + 8) + 2 + (9 * 64 + 16));
+  assert.strictEqual(ms.macs, 5 * 512 * 8 + 16 * 5 * 8 + 16 * 9 * 64);
+  assert.strictEqual(A4.max_sigmoid_attn(x, voc, { nh: 2, ec: 4 }).detail.embedConv, true);
+  // T-CSPLayer(16 → 16, n = 1, E = 8): C2f + c·C_out extra en cv2 + max-sigmoid
+  const y = G(['H', 'W', 'C'], [4, 4, 16]);
+  const t = A4.t_csp_layer(y, voc, { cout: 16, n: 1, ec: 8, nh: 2 });
+  const c2 = A4.c2f(y, { cout: 16, n: 1, shortcut: false });
+  assert.strictEqual(t.params - c2.params, 8 * 16 + ms.params);
+  assert.strictEqual(t.macs - c2.macs, 16 * 8 * 16 + ms.macs);
+  assert.deepStrictEqual(J(t.inputs.map((z) => z.num)), [[4, 4, 16], [5, 512]]);
+  // image-pooling attention: 2 niveles → 18 tokens; q de 512 → E, k y v E → E, salida E → 512
+  const f1 = G(['h', 'w', '8'], [6, 6, 8]), f2 = G(['h', 'w', '16'], [3, 3, 16]);
+  const ip = A4.image_pooling_attn([f1, f2], voc, { ec: 8, nh: 2, k: 3 });
+  assert.strictEqual(ip.detail.tokens, 18);
+  assert.strictEqual(ip.params, (8 * 8 + 8) + (16 * 8 + 8) + (2 * 512 + 512 * 8 + 8) + 2 * (2 * 8 + 64 + 8) + (8 * 512 + 512));
+  assert.strictEqual(ip.macs, 36 * 8 * 8 + 9 * 16 * 8 + 5 * 512 * 8 + 2 * 18 * 64 + 2 * 5 * 18 * 8 + 5 * 8 * 512);
+  assert.deepStrictEqual(J(ip.out.num), [5, 512]);
+  // similitud región-texto (coseno) y escala/sesgo de la ContrastiveHead
+  const rs = A4.region_text_similarity(G(['h', 'w', 'E'], [2, 3, 4]), Sq(['V', 'E'], [5, 4]));
+  assert.deepStrictEqual(J(rs.out.num), [6, 5]);
+  assert.strictEqual(rs.macs, 6 * 5 * 4);
+  assert.strictEqual(A4.scale_bias(rs.out).params, 2);
+  // DFL: 3 niveles con 4R canales → A×4, R pesos fijos, A·4·R MACs
+  const d = A4.dfl_decode([G(['a', 'b', '4R'], [2, 2, 64]), G(['a', 'b', '4R'], [1, 1, 64])], { R: 16 });
+  assert.deepStrictEqual(J(d.out.num), [5, 4]);
+  assert.strictEqual(d.params, 16);
+  assert.strictEqual(d.macs, 5 * 4 * 16);
+  assert.ok(d.detail.frozen);
+  assert.throws(() => A4.dfl_decode([G(['a', 'b', 'c'], [2, 2, 60])], { R: 16 }), /4·R/);
+  assert.strictEqual(A4.dist2bbox(d.out).params, 0);
+  assert.deepStrictEqual(J(A4.merge_level_logits([Sq(['n', 'V'], [4, 5]), G(['a', 'b', 'V'], [1, 1, 5])]).out.num), [5, 5]);
+  // codificador de texto offline: 0 en el grafo, costo en detail
+  const te = A4.offline_text_encoder(Sq(['V', '77'], [5, 77]), { E: 512, params: 10, macsPerPrompt: 7 });
+  assert.deepStrictEqual([te.params, te.macs, te.detail.macs, te.detail.params], [0, 0, 35, 10]);
+  assert.deepStrictEqual(J(te.out.num), [5, 512]);
+});
+
+test('F4 primitivas de Grounding DINO: fusión bidireccional, logits contrastivos, top-K, máscara de sub-oraciones, PE de cajas', () => {
+  const img = Sq(['N', 'D'], [6, 4]), txt = Sq(['T', 'D'], [3, 4]);
+  const bi = A4.bi_attention(img, txt, { E: 8, h: 2 });
+  assert.strictEqual(bi.params, 6 * 4 * 8 + 4 * 8 + 2 * 4);       // 6DE + 4E + 2D
+  assert.strictEqual(bi.macs, 3 * 6 * 4 * 8 + 3 * 3 * 4 * 8 + 3 * 6 * 3 * 8);   // 3NDE + 3TDE + 3NTE
+  assert.strictEqual(bi.detail.scoreMacs, 6 * 3 * 8);              // UNA matriz de scores (h·N·T·d = N·T·E)
+  assert.deepStrictEqual(J(bi.out.num), [6, 4]);
+  assert.deepStrictEqual(J(bi.detail.outText.num), [3, 4]);
+  assert.deepStrictEqual(J(A4.transpose_scores(A4.shape(['h', 'N', 'T'], [2, 6, 3], 'img', 'heads')).out.num), [2, 3, 6]);
+  const lg = A4.contrastive_logits(Sq(['Q', 'D'], [5, 4]), txt, { pad: 256 });
+  assert.deepStrictEqual(J(lg.out.num), [5, 3]);
+  assert.strictEqual(lg.macs, 5 * 3 * 4);
+  assert.strictEqual(lg.params, 0);
+  assert.strictEqual(lg.detail.padTo, 256);
+  assert.throws(() => A4.contrastive_logits(Sq(['Q', 'E'], [5, 5]), txt), /anchos/);
+  const tk = A4.topk_select(Sq(['N', 'T'], [6, 3]), { k: 2 });
+  assert.deepStrictEqual(J(tk.out.num), [2]);
+  assert.throws(() => A4.topk_select(Sq(['N', 'T'], [6, 3]), { k: 7 }), /mayor/);
+  assert.deepStrictEqual(J(A4.gather_rows(Sq(['N', '4'], [6, 4]), tk.out).out.num), [2, 4]);
+  const [m, pid] = A4.subsentence_mask(A4.shape(['T'], [5], 'txt', 'vec')).out;
+  assert.deepStrictEqual([J(m.num), J(pid.num)], [[5, 5], [5]]);
+  assert.deepStrictEqual(J(A4.sine_pos_1d({ rows: 5, D: 8 }).out.num), [5, 8]);
+  const pe = A4.box_sine_embed(Sq(['Q', '4'], [3, 4]), { D: 8 });
+  assert.deepStrictEqual(J(pe.out.num), [3, 16]);                 // 4 coordenadas × D/2
+  assert.deepStrictEqual(J(A4.encoder_proposals({ levels: [[2, 3], [1, 2]] }).out.num), [8, 4]);
+  assert.strictEqual(A4.layer_scale(img).params, 4);
+  assert.strictEqual(A4.token_mask(A4.shape(['h', 'T', 'T'], [2, 3, 3], 'txt', 'heads')).other, 18);
+  const ids = J(A4.primitives()).map((p) => p.id);
+  for (const id of ['silu', 'upsample_nearest', 'concat_channels', 'split_channels', 'adaptive_max_pool', 'layer_scale', 'subsentence_mask',
+    'sine_pos_1d', 'box_sine_embed', 'encoder_proposals', 'contrastive_logits', 'topk_select', 'gather_rows', 'transpose_scores', 'token_mask',
+    'text_guided_scores', 'max_over_text', 'maxsig_gate', 'head_modulate', 'region_text_similarity', 'scale_bias', 'dfl_decode', 'dist2bbox',
+    'merge_level_logits', 'offline_text_encoder', 'conv_bn_act', 'csp_bottleneck', 'c2f', 'sppf', 'max_sigmoid_attn', 't_csp_layer',
+    'image_pooling_attn', 'bi_attention']) {
+    assert.ok(ids.includes(id), id);
+    assert.strictEqual(typeof A4[id], 'function', id);
+  }
+});
+
+test('Grounding DINO-T @896×1344: 172,249,090 parámetros (HF − LayerNorm sin uso) y 459,478,198,272 MACs, por bloque', () => {
+  const r = A4.run('grounding-dino-t'), t = r.totals, n = t.byNode, q = r.quantities;
+  assert.strictEqual(t.params, 172249090);
+  assert.strictEqual(q.paramsHF, 172250626);                       // HF cuenta swin.layernorm (1,536), que no se usa
+  assert.strictEqual(t.macs, 459478198272);
+  assert.strictEqual(t.flops, 2 * t.macs);
+  // por bloque (= HF, crosscheck/expected/grounding-dino-t.json)
+  assert.deepStrictEqual([n['img-backbone'].params, n['img-proj'].params, n['txt-backbone'].params, n['txt-proj'].params, n.enhancer.params,
+    n['query-select'].params, n.decoder.params, n['dec-norm'].params, n['box-head'].params, n['contrastive-head'].params],
+  [27520506, 2117632, 108891648, 196864, 21905664, 429316, 11054336, 512, 132612, 0]);
+  // Swin-T sin cabeza ni LayerNorm final, con las 3 LayerNorm de salida: 28,288,354 − 769,000 − 1,536 + 2·(192 + 384 + 768)
+  assert.strictEqual(n['img-backbone'].params, 28288354 - 769000 - 1536 + 2 * (192 + 384 + 768));
+  // BERT-base sin pooler: embeddings + 12 capas
+  assert.strictEqual(n['txt-backbone'].params, 30522 * 768 + 512 * 768 + 2 * 768 + 2 * 768 + 12 * (4 * 768 * 768 + 4 * 768 + 2 * 768 * 3072 + 3072 + 768 + 4 * 768));
+  assert.strictEqual(q.bertPoolerParams, 768 * 768 + 768);
+  // niveles y tokens: 112×168 + 56×84 + 28×42 + 14×21
+  assert.deepStrictEqual([q.l1Tokens, q.l2Tokens, q.l3Tokens, q.l4Tokens], [18816, 4704, 1176, 294]);
+  assert.strictEqual(q.tokens, 24990);
+  // capa del enhancer: fusión (E = 1024, h/2 = 4) + texto (h/2, FFN 1024) + imagen deformable (FFN 2048)
+  const D = 256, E = 1024;
+  assert.strictEqual(q.fusionLayerParams, 6 * D * E + 4 * E + 2 * D + 2 * D + 2 * 2 * D);   // bi-atención + γ_v, γ_t + 2 LayerNorm
+  assert.strictEqual(q.enhLayerParams * 6, n.enhancer.params);
+  assert.strictEqual(t.byPath['enhancer>enh-layer>img-self'].params, 6 * (D * 3 * 128 + 3 * 128 + 2 * D * D + 2 * D));
+  // pesos compartidos: el refinamiento de cajas del decoder usa los de box-head; query_pos: un MLP, MACs × 6
+  assert.deepStrictEqual(J(r.ops.filter((o) => o.path.includes('box-refine') && o.params).map((o) => o.id)), []);
+  const rf = r.ops.find((o) => o.id === 'd-refine-fc1');
+  assert.strictEqual(rf.detail.sharedWith, 'box-head');
+  assert.strictEqual(rf.detail.paramsIfNotShared, D * D + D);
+  const rh = r.ops.find((o) => o.id === 'd-ref-fc1');
+  assert.strictEqual(rh.repeat, 1);
+  assert.strictEqual(rh.params, 512 * D + D);
+  assert.strictEqual(rh.macs, 6 * 900 * 512 * D);
+  assert.ok(rh.macArith.startsWith('6·(900·512·256)'));
+  // las cabezas de las 5 capas intermedias y encoder_logits (que HF calcula en cada forward) quedan fuera
+  assert.strictEqual(q.auxHeadsMacs, 5 * (900 * (2 * D * D + 4 * D) + 900 * 16 * D));
+  assert.strictEqual(q.encoderLogitsMacs, 900 * 16 * D);
+});
+
+test('Grounding DINO: ids y formas de SPEC §16.1 (nodos, prefijos i-/t-/q-, logits Q×T, boxes Q×4)', () => {
+  const r = A4.run('grounding-dino-t');
+  const sh = (id) => r.tensors[id].num.join('×');
+  for (const node of ['img-backbone', 'img-proj', 'txt-input', 'txt-backbone', 'txt-proj', 'enhancer', 'query-select', 'decoder', 'contrastive-head', 'box-head', 'matching', 'loss']) {
+    assert.ok(r.ops.some((o) => o.path[0] === node), node);
+  }
+  for (const node of ['img-self', 'txt-self', 'i2t', 't2i', 'img-ffn', 'txt-ffn']) assert.ok(r.ops.some((o) => o.path[0] === 'enhancer' && o.path[1] === 'enh-layer' && o.path[2] === node), node);
+  for (const node of ['self-attn', 'txt-cross', 'img-cross', 'ffn']) assert.ok(r.ops.some((o) => o.path[0] === 'decoder' && o.path[1] === 'dec-layer' && o.path[2] === node), node);
+  for (const id of r.order) {
+    if (/^(gt-|cost|assignment|loss|logits|boxes|hs$|box-)/.test(id)) continue;
+    assert.ok(/^[itq]-/.test(id), 'prefijo de flujo: ' + id);
+  }
+  assert.strictEqual(sh('i-img'), '896×1344×3');
+  assert.strictEqual(sh('i-patch-grid'), '224×336×96');
+  assert.deepStrictEqual([sh('i-c3'), sh('i-c4'), sh('i-c5')], ['112×168×192', '56×84×384', '28×42×768']);
+  assert.strictEqual(sh('i-src-l4'), '14×21×256');
+  assert.strictEqual(sh('i-mem-in'), '24990×256');
+  assert.strictEqual(sh('t-bert-out'), '16×768');
+  assert.strictEqual(sh('t-feat'), '16×256');
+  assert.strictEqual(sh('i-enh-fus-scores'), '4×24990×16');       // h/2 × N × T: la única matriz de la fusión
+  assert.strictEqual(sh('t-enh-t2i-scores'), '4×16×24990');
+  assert.strictEqual(sh('i-enh-i2t-q'), '24990×1024');
+  assert.strictEqual(sh('t-enh-self-scores'), '4×16×16');
+  assert.strictEqual(sh('i-enh-sampled'), '8×24990×16×32');
+  assert.strictEqual(sh('q-enc-logits'), '24990×16');
+  assert.strictEqual(sh('q-topk'), '900');
+  assert.deepStrictEqual([sh('q-ref0'), sh('q-tgt0'), sh('q-ref-pe'), sh('q-pos')], ['900×4', '900×256', '900×512', '900×256']);
+  assert.strictEqual(sh('q-self-scores'), '8×900×900');
+  assert.strictEqual(sh('q-txt-scores'), '8×900×16');
+  assert.strictEqual(sh('q-img-sampled'), '8×900×16×32');
+  assert.strictEqual(sh('logits'), '900×16');
+  assert.strictEqual(sh('boxes'), '900×4');
+  assert.deepStrictEqual(J(r.tensors.logits.sym), ['Q', 'T']);
+  assert.deepStrictEqual(J(r.tensors['i-enh-fus-scores'].sym), ['h/2', 'N', 'T']);
+  // la cabeza de clase no tiene pesos: los logits son queries × tokens del prompt
+  assert.strictEqual(r.ops.find((o) => o.id === 'contrastive-head').params, 0);
+  // where en cada op de las capas (la práctica nombra por contexto)
+  r.ops.filter((o) => o.repeat > 1).forEach((o) => assert.ok(Array.isArray(o.where) && o.where.length, o.id));
+});
+
+test('Grounding DINO: knobs T, Q y resolución; errores en español', () => {
+  const base = A4.run('grounding-dino-t');
+  const t64 = A4.run('grounding-dino-t', { T: 64 });
+  assert.strictEqual(t64.totals.params, base.totals.params);       // T no cambia parámetros
+  assert.ok(t64.totals.macs > base.totals.macs);
+  assert.strictEqual(t64.tensors.logits.num.join('×'), '900×64');
+  assert.ok(t64.notes.some((s) => /T = 64/.test(s)));
+  const q300 = A4.run('grounding-dino-t', { Q: 300 });
+  assert.strictEqual(base.totals.params - q300.totals.params, 600 * 256);   // tabla de contenido Q×D
+  const r = A4.run('grounding-dino-t', { res: 448 });
+  assert.strictEqual(r.quantities.tokens, 56 * 56 + 28 * 28 + 14 * 14 + 7 * 7);
+  assert.strictEqual(r.totals.params, base.totals.params);
+  assert.throws(() => A4.run('grounding-dino-t', { H: 800 }), /múltiplos de 224/);
+  assert.throws(() => A4.run('grounding-dino-t', { T: 300 }), /máximo es 256/);
+  assert.strictEqual(A4.run('grounding-dino-t', { res: 224 }).quantities.tokens, 28 * 28 + 14 * 14 + 7 * 7 + 4 * 4);   // 7/2 → 4 (stride 64, redondeo hacia arriba)
+  assert.throws(() => A4.run('grounding-dino-t', { res: 224, Q: 2000 }), /para elegirlas/);
+  assert.throws(() => A4.run('grounding-dino-t', { B: 2, nada: 1 }), /Knob inválido/);
+});
+
+test('Grounding DINO metrics: texto por imagen, fusión, memoria de scores con nombre y comparación con YOLOv8-L y DETR', () => {
+  const m = A4.metrics('grounding-dino-t'), r = A4.run('grounding-dino-t'), n = r.totals.byNode;
+  const N = 24990, T = 16, Q = 900;
+  assert.strictEqual(m.textEncoderMacs, n['txt-backbone'].macs + n['txt-proj'].macs);
+  assert.strictEqual(m.textEncoderParams, 108891648 + 196864);
+  assert.strictEqual(m.fusionAttnEntries, 4 * N * T);
+  assert.strictEqual(m.fusionAttnMem, 4 * N * T * 2);
+  assert.strictEqual(m.fusionScoreMacsLayer, 3 * N * T * 1024);
+  assert.strictEqual(m.fusionMacs, 6 * (3 * N * 256 * 1024 + 3 * T * 256 * 1024 + 3 * N * T * 1024));   // 3NDE + 3TDE + 3NTE por capa
+  assert.strictEqual(m.fusionMacs, 6 * A4.bi_attention(A4.shape(['N', 'D'], [N, 256]), A4.shape(['T', 'D'], [T, 256]), { E: 1024, h: 4 }).macs);
+  assert.strictEqual(m.decSelfAttnMem, 8 * Q * Q * 2);
+  assert.strictEqual(m.denseEncAttnMem, 8 * N * N * 2);
+  assert.strictEqual(m.samplingMacs, 6 * 5 * N * 128 * 32 + 6 * 5 * Q * 128 * 32);
+  assert.strictEqual(m.logitsElements, Q * T);
+  assert.strictEqual(m.logitsPaddedElements, Q * 256);
+  assert.strictEqual(m.attnMem, null);                             // no hay una matriz h×N×N
+  assert.strictEqual(m.yolov8Macs, A4.run('yolov8l-640').totals.macs);
+  assert.strictEqual(m.detrMacs, A4.run('detr-r50-800x1216').totals.macs);
+  assert.ok(m.macsVsYolov8 > 5 && m.macsVsYolov8 < 6);
+  const t256 = m.textScaling.find((x) => x.T === 256);
+  assert.strictEqual(t256.textEncoderMacs, m.textEncoderMacsMaxT);
+  assert.ok(m.scaling.every((s) => s.macs > 0));
+  assert.strictEqual(m.units.macsVsYolov8, 'ratio');
+});
+
+test('YOLOv8-L @640: 43,691,520 parámetros y 82,574,259,200 MACs (Ultralytics: 43.7M, 165.2 GFLOPs = 2 × MACs)', () => {
+  const r = A4.run('yolov8l-640'), t = r.totals, n = t.byNode, q = r.quantities;
+  assert.strictEqual(t.params, 43691520);
+  assert.strictEqual(t.macs, 82574259200);
+  assert.deepStrictEqual([n.backbone.params, n.neck.params, n['head-box'].params, n['head-cls'].params], [19808576, 18238464, 861136, 4783344]);
+  assert.strictEqual(q.dflParams, 16);
+  assert.strictEqual(q.tokens, 80 * 80 + 40 * 40 + 20 * 20);
+  const sh = (id) => r.tensors[id].num.join('×');
+  assert.deepStrictEqual([sh('c3'), sh('c4'), sh('c5')], ['80×80×256', '40×40×512', '20×20×512']);
+  assert.deepStrictEqual([sh('p3'), sh('p4'), sh('p5')], ['80×80×256', '40×40×512', '20×20×512']);
+  assert.deepStrictEqual([sh('boxes-p3'), sh('logits-p3'), sh('box-dist'), sh('scores')], ['80×80×64', '80×80×80', '8400×4', '8400×80']);
+  // C2f del stage 3 (256 → 256, n = 6, con atajo): c = 128
+  const c2f = r.ops.find((o) => o.id === 's3-c2f');
+  assert.strictEqual(c2f.params, (256 * 256 + 512) + 6 * (18 * 128 * 128 + 4 * 128) + (8 * 128 * 256 + 512));
+  const m = A4.metrics('yolov8l-640');
+  assert.strictEqual(m.backboneMacs + m.neckMacs + m.headMacs, t.macs);
+  assert.strictEqual(m.logitsElements, 8400 * 80);
+  assert.strictEqual(A4.run('yolov8l-640', { res: 1280 }).quantities.tokens, 4 * 8400);
+  assert.throws(() => A4.run('yolov8l-640', { res: 600 }), /múltiplo de 32/);
+});
+
+test('YOLO-World-L @640: 47,553,970 parámetros (sin CLIP) y 88,479,110,144 MACs; texto offline y vocabulario V', () => {
+  const r = A4.run('yolo-world-l-640'), t = r.totals, n = t.byNode, q = r.quantities, by = t.byPath;
+  assert.strictEqual(t.params, 47553970);
+  assert.strictEqual(t.macs, 88479110144);
+  assert.deepStrictEqual([n.backbone.params, n.neck.params, n['head-box'].params, n['head-text'].params], [19808576, 21767836, 861136, 5116422]);
+  assert.strictEqual(n.backbone.params, A4.run('yolov8l-640').totals.byNode.backbone.params);   // mismo backbone que YOLOv8-L
+  assert.strictEqual(by['neck>img-pool-attn'].params, 724992);
+  assert.strictEqual(q.v2Params, 46832050);                      // yolov8l-worldv2: sin image-pooling attention, BN en la cabeza
+  assert.strictEqual(q.contrastiveHeadParams, 3 * 2);
+  // T-CSPLayer del top-down P4 (1024 → 512, n = 3, E = 256, 8 cabezas): el C2f + 256·512 de cv2 + max-sigmoid
+  assert.strictEqual(by['neck>td-p4>t-csp'].params, 5576456);
+  assert.strictEqual(by['neck>td-p4>t-csp>max-sigmoid'].params, (512 * 256 + 256) + 8 + (9 * 256 * 256 + 512));
+  // codificador de texto: 0 en el grafo online, costo en detail y en metrics (CLIP ViT-B/32 de js/arch/clip.js)
+  const te = r.ops.find((o) => o.id === 'txt-encoder');
+  assert.deepStrictEqual([te.params, te.macs], [0, 0]);
+  const clip = A4.run('clip-vit-b32').totals.byNode;
+  assert.strictEqual(te.detail.params, clip['txt-encoder'].params + clip['txt-proj'].params);
+  assert.strictEqual(te.detail.macs, 80 * (clip['txt-encoder'].macs + clip['txt-proj'].macs));
+  const sh = (id) => r.tensors[id].num.join('×');
+  assert.deepStrictEqual([sh('vocab'), sh('vocab-upd'), sh('obj-emb-p3'), sh('logits-p3'), sh('logits-p5'), sh('scores')], ['80×512', '80×512', '80×80×512', '6400×80', '400×80', '8400×80']);
+  assert.deepStrictEqual([sh('td3-tg-scores'), sh('bu5-tg-scores'), sh('ipa-tokens'), sh('ipa-scores')], ['4×6400×80', '8×400×80', '27×256', '8×80×27']);
+  // la cabeza usa el vocabulario ORIGINAL; el bottom-up, el actualizado por la image-pooling attention
+  assert.ok(r.ops.find((o) => o.id === 'ht-p3-sim').in.includes('vocab'));
+  assert.ok(r.ops.find((o) => o.id === 'bu4-tg-guide').in.includes('vocab-upd'));
+  assert.ok(r.ops.find((o) => o.id === 'td4-tg-guide').in.includes('vocab'));
+  // V: los parámetros no cambian y los MACs son lineales en V
+  const m1 = A4.run('yolo-world-l-640', { V: 1 }).totals, m20 = A4.run('yolo-world-l-640', { V: 20 }).totals;
+  assert.strictEqual(m20.params, t.params);
+  assert.strictEqual((t.macs - m20.macs) / 60, (m20.macs - m1.macs) / 19);
+  const perV = (t.macs - m20.macs) / 60;
+  assert.strictEqual(perV, 512 * (256 + 128 + 256 + 256) + (1600 * 256 + 6400 * 128 + 1600 * 256 + 400 * 256) + 2 * 512 * 256 + 2 * 27 * 256 + 8400 * 512);
+});
+
+test('YOLO-World metrics: CLIP offline una vez por vocabulario vs costo online; fusión; logits por nivel; comparación', () => {
+  const m = A4.metrics('yolo-world-l-640'), r = A4.run('yolo-world-l-640');
+  assert.strictEqual(m.onlineTextMacs, 0);
+  assert.strictEqual(m.vocabTextMacs, 80 * m.promptTextMacs);
+  assert.strictEqual(m.textEncoderParams, A4.run('clip-vit-b32').totals.byNode['txt-encoder'].params + A4.run('clip-vit-b32').totals.byNode['txt-proj'].params);
+  assert.ok(m.vocabTextToOnline > 2 && m.vocabTextToOnline < 3);   // codificar 80 clases cuesta ≈ 2.7 imágenes, pero una sola vez
+  assert.strictEqual(m.fusionMacs, m.maxSigmoidMacs + m.ipaMacs);
+  assert.deepStrictEqual([m.logitsP3Elements, m.logitsP4Elements, m.logitsP5Elements, m.logitsElements], [6400 * 80, 1600 * 80, 400 * 80, 8400 * 80]);
+  assert.strictEqual(m.deltaParamsVsYolov8, r.totals.params - 43691520);
+  assert.strictEqual(m.gdinoTextMacs, A4.metrics('grounding-dino-t').textEncoderMacs);
+  assert.ok(m.gdinoToYoloWorldMacs > 5);
+  assert.deepStrictEqual(J(m.vocabScaling.map((x) => x.V)), [1, 20, 80, 365, 1203]);
+  assert.strictEqual(m.units.vocabTextToOnline, 'ratio');
+});
+
+test('F4 etiqueta + símbolo identifican una forma; byPath suma; aritmética; Quantities resuelve todas las claves', () => {
+  for (const id of ['grounding-dino-t', 'yolov8l-640', 'yolo-world-l-640']) {
+    const r = A4.run(id), t = r.totals;
+    const by = {};
+    for (const tid of r.order) {
+      const x = r.tensors[tid];
+      const k = x.label + '|' + String(x.tex).split('=')[0].trim();
+      (by[k] = by[k] || new Set()).add(x.num.join('×'));
+    }
+    for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+    assert.strictEqual(r.ops.reduce((s, o) => s + o.params * o.repeat, 0), t.params);
+    assert.strictEqual(Object.values(t.byPrim).reduce((s, x) => s + x.macs, 0), t.macs);
+    const check = (pp, want) => {
+      const kids = children(r, pp);
+      if (!kids.length) return;
+      const at = (k) => t.byPath[pp.concat([k]).join('>')];
+      assert.strictEqual(kids.reduce((s, k) => s + at(k).params, 0), want.params, id + ' params bajo ' + (pp.join('>') || 'raíz'));
+      assert.strictEqual(kids.reduce((s, k) => s + at(k).macs, 0), want.macs, id + ' MACs bajo ' + (pp.join('>') || 'raíz'));
+      kids.forEach((k) => check(pp.concat([k]), at(k)));
+    };
+    check([], t);
+    assert.strictEqual(A4.run(id), r, 'memoizado');
+    for (const tid of r.order) {
+      const x = r.tensors[tid];
+      if (x.producer) assert.ok(r.ops.find((o) => o.id === x.producer).out.includes(tid));
+      x.consumers.forEach((oid) => assert.ok(r.ops.find((o) => o.id === oid).in.includes(tid)));
+    }
+    for (const op of r.ops) {
+      if (op.params) assert.ok(op.paramArith.endsWith(A4.fmt.int(op.params)), id + ' ' + op.id + ' paramArith');
+      if (op.macs) assert.ok(op.macArith.endsWith(A4.fmt.int(op.macs)), id + ' ' + op.id + ' macArith');
+      assert.ok(!/undefined|NaN/.test(op.paramTex + op.macTex + op.shapeTex), id + ' ' + op.id + ' tex');
+    }
+    J(Q4.keys(id)).forEach((k) => assert.ok(Q4.get(id + '.' + k), id + '.' + k));
+  }
+  assert.strictEqual(Q4.get('grounding-dino-t.params.total').text, '172,249,090');
+  assert.strictEqual(Q4.get('grounding-dino-t.metrics.fusionAttnMem').text, '3.20 MB');
+  assert.strictEqual(Q4.get('yolo-world-l-640.metrics.vocabTextToOnline').text, '2.69');
+  assert.strictEqual(Q4.get('yolov8l-640.tensor.logits-p3.sym').text, '(H/8)×(W/8)×K');
+});

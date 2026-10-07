@@ -12,7 +12,8 @@ import vm from 'node:vm';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
-const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js'];
+const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
+  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -84,7 +85,8 @@ export function compareConfig(A, exp) {
   if (exp.flops_sampling_analytic !== undefined) {
     const samp = 2 * (p('deform_sample') + p('deform_weighted_sum'));
     push('flops[muestreo deformable, analítico]', samp, exp.flops_sampling_analytic, samp === exp.flops_sampling_analytic);
-    const counted = exp.flops_counted_torch - (exp.flops_aux_heads_torch || 0);
+    // Grounding DINO resta además los logits de las queries de contenido (encoder_logits, solo para la pérdida).
+    const counted = exp.flops_counted_torch - (exp.flops_aux_heads_torch || 0) - (exp.flops_encoder_logits_torch || 0);
     push('flops contados por torch (sin cabezas aux.)', t.flops - samp, counted, t.flops - samp === counted);
   }
   // batch_check (CLIP): con batch B, PyTorch = B × (total del calculador con ese B), porque el
@@ -112,6 +114,43 @@ export function compareConfig(A, exp) {
     const hasMask = !!r.tensors['s' + w.stage + '-b' + w.block + '-masked'];
     push(tag + ' mask', hasMask, !!w.attn_mask, hasMask === !!w.attn_mask);
   }
+  // Fase 4. flops_by_node: FLOPs de PyTorch por bloque (módulos de la referencia, ya con el muestreo deformable
+  // analítico sumado y las cabezas auxiliares restadas) ↔ 2·MACs de los nodos del calculador ('a+b' = suma).
+  for (const [key, ref] of Object.entries(exp.flops_by_node || {})) {
+    const calc = 2 * key.split('+').reduce((s, k) => s + (t.byNode[k] ? t.byNode[k].macs : NaN), 0);
+    push('flops[' + key + ']', calc, ref, calc === ref);
+  }
+  // flops_by_op_groups: operadores aten ↔ primitivas (solo modelos sin compuestas mixtas, p. ej. YOLO).
+  for (const grp of exp.flops_by_op_groups || []) {
+    const ref = sumOps(exp.flops_by_op_torch || {}, grp.ops);
+    const calc = 2 * grp.prims.reduce((s, k) => s + p(k), 0);
+    push('flops[' + grp.ops.join('+') + ']', calc, ref, calc === ref);
+  }
+  // override_checks: la misma referencia corrida con otro knob (T de Grounding DINO, V de YOLO-World).
+  for (const oc of exp.override_checks || []) {
+    const ro = A.run(exp.config_id, Object.assign({}, ov, oc.calc_overrides));
+    const tag = Object.entries(oc.calc_overrides).map(([k, v]) => k + '=' + v).join(',');
+    if (oc.params_total !== undefined) push('[' + tag + '] params_total', ro.totals.params, oc.params_total, ro.totals.params === oc.params_total);
+    push('[' + tag + '] flops_total', ro.totals.flops, oc.flops_total, flopsOk(ro.totals.flops, oc.flops_total));
+    for (const [id, shape] of Object.entries(oc.shapes || {})) {
+      const x = ro.tensors[id];
+      const c = x ? x.num.join('×') : '(sin tensor)';
+      push('[' + tag + '] shape[' + id + ']', c, shape.join('×'), c === shape.join('×'));
+    }
+  }
+  // swin_windows (Grounding DINO): ventana y shift de cada bloque del backbone Swin (HF SwinBackbone, always_partition).
+  for (const w of exp.swin_windows || []) {
+    const st = (r.config.stages || [])[w.stage - 1];
+    const tag = 'swin[s' + w.stage + '-b' + w.block + ']';
+    if (!st) { push(tag, null, w.window_size, false); continue; }
+    const shift = w.block % 2 === 0 ? st.shift : 0;
+    push(tag + ' M', r.config.M, w.window_size, r.config.M === w.window_size);
+    push(tag + ' shift', shift, w.shift_size, shift === w.shift_size);
+  }
+  // v2 (YOLO-World): parámetros de yolov8l-worldv2.yaml ↔ quantities.v2Params (sin image-pooling attention, BN en la cabeza).
+  if (exp.v2 && r.quantities.v2Params !== undefined) push('params v2 (' + exp.v2.yaml + ')', r.quantities.v2Params, exp.v2.params_total, r.quantities.v2Params === exp.v2.params_total);
+  // Grounding DINO: crudo de HF (con la LayerNorm sin uso de SwinBackbone) ↔ quantities.paramsHF.
+  if (exp.params_total_hf_raw !== undefined && r.quantities.paramsHF !== undefined) push('params HF crudos', r.quantities.paramsHF, exp.params_total_hf_raw, r.quantities.paramsHF === exp.params_total_hf_raw);
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -147,9 +186,9 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
-    const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
+    const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }
   }
   return true;

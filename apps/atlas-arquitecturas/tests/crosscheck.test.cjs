@@ -117,3 +117,58 @@ test('Deformable DETR: HF DeformableDetrForObjectDetection, muestreo analítico 
   assert.ok(r.exp.notes.some((n) => /grid_sample/.test(n)));
   assert.match(r.exp.source.ctor, /DeformableDetrForObjectDetection\._from_config\(DeformableDetrConfig\(/);
 });
+
+// ---------------------------------------------------------------- fase 4
+test('Grounding DINO: HF GroundingDinoForObjectDetection sin pesos ni tokenizer; LayerNorm sin uso restada; FLOPs por bloque exactos', async () => {
+  const r = await find('grounding-dino-t');
+  assert.strictEqual(r.exp.params_total, 172249090);
+  assert.strictEqual(r.exp.params_total_hf_raw, 172250626);
+  assert.strictEqual(r.exp.params_unused_swin_layernorm, 1536);
+  assert.strictEqual(r.exp.flops_total, r.exp.flops_counted_torch - r.exp.flops_aux_heads_torch - r.exp.flops_encoder_logits_torch + r.exp.flops_sampling_analytic);
+  assert.strictEqual(r.exp.flops_total, 2 * 459478198272);
+  assert.strictEqual(r.exp.msda_calls, 12);
+  assert.deepStrictEqual(r.exp.levels, [[112, 168], [56, 84], [28, 42], [14, 21]]);
+  assert.strictEqual(r.exp.text_input.T, 16);
+  assert.match(r.exp.source.ctor, /GroundingDinoForObjectDetection\._from_config\(GroundingDinoConfig\(\)/);
+  assert.strictEqual(r.exp.source.text.model_type, 'bert');
+  assert.strictEqual(r.exp.source.backbone.model_type, 'swin');
+  for (const w of ['flops[img-backbone]', 'flops[txt-backbone]', 'flops[enhancer]', 'flops[query-select]', 'flops[decoder]', 'flops[contrastive-head+box-head]',
+    'flops[muestreo deformable, analítico]', 'flops contados por torch (sin cabezas aux.)', '[T=64] flops_total', '[T=64] shape[logits]', 'params HF crudos',
+    'params[enhancer>enh-layer>i2t]', 'params[enhancer>enh-layer>t2i]', 'params[decoder>ref-head]']) {
+    assert.ok(r.checks.some((c) => c.what === w && c.ok), w);
+  }
+  // Swin: ventana 7 y shift 3 en los bloques impares de los 4 stages (SwinBackbone, always_partition)
+  assert.strictEqual(r.exp.swin_windows.length, 12);
+  assert.ok(r.exp.swin_windows.every((w) => w.window_size === 7 && w.shift_size === (w.block % 2 === 0 ? 3 : 0)));
+  assert.ok(r.checks.filter((c) => c.what.startsWith('swin[')).length === 24);
+  assert.ok(r.checks.filter((c) => c.what.startsWith('shape[')).length >= 120, 'pocas formas');
+  assert.deepStrictEqual(r.exp.shapes['i-enh-i2t-attn'], [4, 24990, 16]);
+  assert.deepStrictEqual(r.exp.shapes.logits, [900, 16]);
+  assert.ok(r.exp.notes.some((n) => /pooler/.test(n)) && r.exp.notes.some((n) => /grid_sample/.test(n)));
+});
+
+test('YOLOv8-L y YOLO-World-L: Ultralytics desde los YAML, sin pesos ni CLIP; parámetros, FLOPs por bloque y por operador exactos', async () => {
+  const y = await find('yolov8l-640');
+  assert.strictEqual(y.exp.params_total, 43691520);
+  assert.strictEqual(y.exp.flops_total, 165148518400);
+  assert.strictEqual(y.exp.source.lib, 'ultralytics');
+  assert.match(y.exp.source.ctor, /DetectionModel\('yolov8l\.yaml'/);
+  const w = await find('yolo-world-l-640');
+  assert.strictEqual(w.exp.params_total, 47553970);
+  assert.strictEqual(w.exp.flops_total, 176958220288);
+  assert.match(w.exp.source.ctor, /WorldModel\('yolov8l-world\.yaml'.*clip_model = None/);
+  assert.strictEqual(w.exp.v2.params_total, 46832050);
+  assert.strictEqual(w.exp.v2.contrastive_head, 'BNContrastiveHead');
+  for (const r of [y, w]) {
+    for (const k of ['flops[backbone]', 'flops[neck]', 'flops[head-box]', 'flops[aten.convolution]', 'flops[aten.addmm+aten.mm]', 'flops[aten.bmm]', 'params[head-box>dfl]']) {
+      assert.ok(r.checks.some((c) => c.what === k && c.ok), r.configId + ' ' + k);
+    }
+    assert.ok(r.exp.notes.some((n) => /SPPF/.test(n)));
+  }
+  for (const k of ['[V=20] flops_total', '[V=20] params_total', 'params v2 (yolov8l-worldv2.yaml)', 'params[neck>img-pool-attn]', 'params[neck>bu-p5>t-csp>max-sigmoid]', 'flops[head-text]']) {
+    assert.ok(w.checks.some((c) => c.what === k && c.ok), k);
+  }
+  assert.deepStrictEqual(w.exp.shapes['logits-p3'], [6400, 80]);
+  assert.deepStrictEqual(w.exp.shapes['td3-tg-scores'], [4, 6400, 80]);
+  assert.ok(w.exp.notes.some((n) => /ORIGINAL/.test(n)));
+});

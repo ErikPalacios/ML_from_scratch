@@ -1,0 +1,1439 @@
+{
+  "config_id": "yolo-world-l-640",
+  "model": "yolo-world",
+  "params_total": 47553970,
+  "params_by_module": {
+    "0:Conv": 1856,
+    "1:Conv": 73984,
+    "2:C2f": 279808,
+    "3:Conv": 295424,
+    "4:C2f": 2101248,
+    "5:Conv": 1180672,
+    "6:C2f": 8396800,
+    "7:Conv": 2360320,
+    "8:C2f": 4461568,
+    "9:SPPF": 656896,
+    "10:Upsample": 0,
+    "11:Concat": 0,
+    "12:C2fAttn": 5576456,
+    "13:Upsample": 0,
+    "14:Concat": 0,
+    "15:C2fAttn": 1493892,
+    "16:ImagePoolingAttn": 724992,
+    "17:Conv": 590336,
+    "18:Concat": 0,
+    "19:C2fAttn": 5445384,
+    "20:Conv": 2360320,
+    "21:Concat": 0,
+    "22:C2fAttn": 5576456,
+    "23:WorldDetect": 5977558
+  },
+  "params_by_node": {
+    "backbone": 19808576,
+    "neck": 21767836,
+    "head-box": 861136,
+    "head-text": 5116422
+  },
+  "params_by_path": {
+    "backbone>sppf": 656896,
+    "backbone>stage3>c2f": 2101248,
+    "head-box>dfl": 16,
+    "neck>td-p4>t-csp": 5576456,
+    "neck>td-p4>t-csp>max-sigmoid": 721672,
+    "neck>td-p3>t-csp": 1493892,
+    "neck>td-p3>t-csp>max-sigmoid": 213380,
+    "neck>bu-p4>t-csp": 5445384,
+    "neck>bu-p4>t-csp>max-sigmoid": 721672,
+    "neck>bu-p5>t-csp": 5576456,
+    "neck>bu-p5>t-csp>max-sigmoid": 721672,
+    "neck>img-pool-attn": 724992,
+    "head-text>p3>scale": 2,
+    "head-text>p4>scale": 2,
+    "head-text>p5>scale": 2
+  },
+  "shapes": {
+    "x-img": [
+      640,
+      640,
+      3
+    ],
+    "stem-out": [
+      320,
+      320,
+      64
+    ],
+    "s2-down": [
+      160,
+      160,
+      128
+    ],
+    "s2-out": [
+      160,
+      160,
+      128
+    ],
+    "s3-down": [
+      80,
+      80,
+      256
+    ],
+    "c3": [
+      80,
+      80,
+      256
+    ],
+    "s4-down": [
+      40,
+      40,
+      512
+    ],
+    "c4": [
+      40,
+      40,
+      512
+    ],
+    "s5-down": [
+      20,
+      20,
+      512
+    ],
+    "s5-out": [
+      20,
+      20,
+      512
+    ],
+    "c5": [
+      20,
+      20,
+      512
+    ],
+    "td4-up": [
+      40,
+      40,
+      512
+    ],
+    "td4-cat": [
+      40,
+      40,
+      1024
+    ],
+    "p4-td": [
+      40,
+      40,
+      512
+    ],
+    "td3-up": [
+      80,
+      80,
+      512
+    ],
+    "td3-cat": [
+      80,
+      80,
+      768
+    ],
+    "p3": [
+      80,
+      80,
+      256
+    ],
+    "bu4-down": [
+      40,
+      40,
+      256
+    ],
+    "bu4-cat": [
+      40,
+      40,
+      768
+    ],
+    "p4": [
+      40,
+      40,
+      512
+    ],
+    "bu5-down": [
+      20,
+      20,
+      512
+    ],
+    "bu5-cat": [
+      20,
+      20,
+      1024
+    ],
+    "p5": [
+      20,
+      20,
+      512
+    ],
+    "hb-p3-h1": [
+      80,
+      80,
+      64
+    ],
+    "hb-p3-h2": [
+      80,
+      80,
+      64
+    ],
+    "boxes-p3": [
+      80,
+      80,
+      64
+    ],
+    "ht-p3-h1": [
+      80,
+      80,
+      256
+    ],
+    "ht-p3-h2": [
+      80,
+      80,
+      256
+    ],
+    "obj-emb-p3": [
+      80,
+      80,
+      512
+    ],
+    "logits-p3": [
+      6400,
+      80
+    ],
+    "hb-p4-h1": [
+      40,
+      40,
+      64
+    ],
+    "hb-p4-h2": [
+      40,
+      40,
+      64
+    ],
+    "boxes-p4": [
+      40,
+      40,
+      64
+    ],
+    "ht-p4-h1": [
+      40,
+      40,
+      256
+    ],
+    "ht-p4-h2": [
+      40,
+      40,
+      256
+    ],
+    "obj-emb-p4": [
+      40,
+      40,
+      512
+    ],
+    "logits-p4": [
+      1600,
+      80
+    ],
+    "hb-p5-h1": [
+      20,
+      20,
+      64
+    ],
+    "hb-p5-h2": [
+      20,
+      20,
+      64
+    ],
+    "boxes-p5": [
+      20,
+      20,
+      64
+    ],
+    "ht-p5-h1": [
+      20,
+      20,
+      256
+    ],
+    "ht-p5-h2": [
+      20,
+      20,
+      256
+    ],
+    "obj-emb-p5": [
+      20,
+      20,
+      512
+    ],
+    "logits-p5": [
+      400,
+      80
+    ],
+    "box-dist": [
+      8400,
+      4
+    ],
+    "boxes": [
+      8400,
+      4
+    ],
+    "td4-tcsp-cv1": [
+      40,
+      40,
+      512
+    ],
+    "td4-tcsp-m": [
+      40,
+      40,
+      256
+    ],
+    "td4-tg-guide": [
+      80,
+      256
+    ],
+    "td4-tg-proj": [
+      40,
+      40,
+      256
+    ],
+    "td4-tg-out": [
+      40,
+      40,
+      256
+    ],
+    "td4-tcsp-cat": [
+      40,
+      40,
+      1536
+    ],
+    "td3-tcsp-cv1": [
+      80,
+      80,
+      256
+    ],
+    "td3-tcsp-m": [
+      80,
+      80,
+      128
+    ],
+    "td3-tg-guide": [
+      80,
+      128
+    ],
+    "td3-tg-proj": [
+      80,
+      80,
+      128
+    ],
+    "td3-tg-out": [
+      80,
+      80,
+      128
+    ],
+    "td3-tcsp-cat": [
+      80,
+      80,
+      768
+    ],
+    "bu4-tcsp-cv1": [
+      40,
+      40,
+      512
+    ],
+    "bu4-tcsp-m": [
+      40,
+      40,
+      256
+    ],
+    "bu4-tg-guide": [
+      80,
+      256
+    ],
+    "bu4-tg-proj": [
+      40,
+      40,
+      256
+    ],
+    "bu4-tg-out": [
+      40,
+      40,
+      256
+    ],
+    "bu4-tcsp-cat": [
+      40,
+      40,
+      1536
+    ],
+    "bu5-tcsp-cv1": [
+      20,
+      20,
+      512
+    ],
+    "bu5-tcsp-m": [
+      20,
+      20,
+      256
+    ],
+    "bu5-tg-guide": [
+      80,
+      256
+    ],
+    "bu5-tg-proj": [
+      20,
+      20,
+      256
+    ],
+    "bu5-tg-out": [
+      20,
+      20,
+      256
+    ],
+    "bu5-tcsp-cat": [
+      20,
+      20,
+      1536
+    ],
+    "ipa-p3-proj": [
+      80,
+      80,
+      256
+    ],
+    "ipa-p3-pool": [
+      3,
+      3,
+      256
+    ],
+    "ipa-p4-proj": [
+      40,
+      40,
+      256
+    ],
+    "ipa-p4-pool": [
+      3,
+      3,
+      256
+    ],
+    "ipa-p5-proj": [
+      20,
+      20,
+      256
+    ],
+    "ipa-p5-pool": [
+      3,
+      3,
+      256
+    ],
+    "ipa-q-ln": [
+      80,
+      512
+    ],
+    "ipa-q": [
+      80,
+      256
+    ],
+    "ipa-k-ln": [
+      27,
+      256
+    ],
+    "ipa-k": [
+      27,
+      256
+    ],
+    "ipa-v-ln": [
+      27,
+      256
+    ],
+    "ipa-v": [
+      27,
+      256
+    ],
+    "ipa-z": [
+      80,
+      256
+    ],
+    "ipa-o": [
+      80,
+      512
+    ],
+    "vocab-upd": [
+      80,
+      512
+    ],
+    "scores": [
+      8400,
+      80
+    ],
+    "vocab": [
+      80,
+      512
+    ],
+    "td4-tg-scores": [
+      8,
+      1600,
+      80
+    ],
+    "td4-tg-max": [
+      8,
+      1600
+    ],
+    "td3-tg-scores": [
+      4,
+      6400,
+      80
+    ],
+    "td3-tg-max": [
+      4,
+      6400
+    ],
+    "bu4-tg-scores": [
+      8,
+      1600,
+      80
+    ],
+    "bu4-tg-max": [
+      8,
+      1600
+    ],
+    "bu5-tg-scores": [
+      8,
+      400,
+      80
+    ],
+    "bu5-tg-max": [
+      8,
+      400
+    ],
+    "ipa-tokens": [
+      27,
+      256
+    ],
+    "ipa-scores": [
+      8,
+      80,
+      27
+    ]
+  },
+  "shapes_torch": {
+    "stem-out": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        320,
+        320
+      ]
+    },
+    "s2-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        160,
+        160
+      ]
+    },
+    "s2-out": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        160,
+        160
+      ]
+    },
+    "s3-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "c3": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "s4-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "c4": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "s5-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "s5-out": {
+      "module": "C2f",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "c5": {
+      "module": "SPPF",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "td4-up": {
+      "module": "Upsample",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "td4-cat": {
+      "module": "Concat",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        40,
+        40
+      ]
+    },
+    "p4-td": {
+      "module": "C2fAttn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "td3-up": {
+      "module": "Upsample",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        80,
+        80
+      ]
+    },
+    "td3-cat": {
+      "module": "Concat",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        768,
+        80,
+        80
+      ]
+    },
+    "p3": {
+      "module": "C2fAttn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "bu4-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "bu4-cat": {
+      "module": "Concat",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        768,
+        40,
+        40
+      ]
+    },
+    "p4": {
+      "module": "C2fAttn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "bu5-down": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "bu5-cat": {
+      "module": "Concat",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        20,
+        20
+      ]
+    },
+    "p5": {
+      "module": "C2fAttn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "hb-p3-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        80,
+        80
+      ]
+    },
+    "hb-p3-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        80,
+        80
+      ]
+    },
+    "boxes-p3": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        80,
+        80
+      ]
+    },
+    "ht-p3-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "ht-p3-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "obj-emb-p3": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        80,
+        80
+      ]
+    },
+    "logits-p3": {
+      "module": "ContrastiveHead",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        80,
+        80
+      ]
+    },
+    "hb-p4-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        40,
+        40
+      ]
+    },
+    "hb-p4-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        40,
+        40
+      ]
+    },
+    "boxes-p4": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        40,
+        40
+      ]
+    },
+    "ht-p4-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "ht-p4-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "obj-emb-p4": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "logits-p4": {
+      "module": "ContrastiveHead",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        40,
+        40
+      ]
+    },
+    "hb-p5-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        20,
+        20
+      ]
+    },
+    "hb-p5-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        20,
+        20
+      ]
+    },
+    "boxes-p5": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        20,
+        20
+      ]
+    },
+    "ht-p5-h1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "ht-p5-h2": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "obj-emb-p5": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "logits-p5": {
+      "module": "ContrastiveHead",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        20,
+        20
+      ]
+    },
+    "box-dist": {
+      "module": "DFL",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        4,
+        8400
+      ]
+    },
+    "boxes": {
+      "module": "WorldDetect",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        84,
+        8400
+      ]
+    },
+    "td4-tcsp-cv1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "td4-tcsp-m": {
+      "module": "Bottleneck",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "td4-tg-guide": {
+      "module": "Linear",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        256
+      ]
+    },
+    "td4-tg-proj": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "td4-tg-out": {
+      "module": "MaxSigmoidAttnBlock",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "td4-tcsp-cat": {
+      "module": "Conv",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        1536,
+        40,
+        40
+      ]
+    },
+    "td3-tcsp-cv1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "td3-tcsp-m": {
+      "module": "Bottleneck",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        80,
+        80
+      ]
+    },
+    "td3-tg-guide": {
+      "module": "Linear",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        128
+      ]
+    },
+    "td3-tg-proj": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        80,
+        80
+      ]
+    },
+    "td3-tg-out": {
+      "module": "MaxSigmoidAttnBlock",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        80,
+        80
+      ]
+    },
+    "td3-tcsp-cat": {
+      "module": "Conv",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        768,
+        80,
+        80
+      ]
+    },
+    "bu4-tcsp-cv1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        40,
+        40
+      ]
+    },
+    "bu4-tcsp-m": {
+      "module": "Bottleneck",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "bu4-tg-guide": {
+      "module": "Linear",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        256
+      ]
+    },
+    "bu4-tg-proj": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "bu4-tg-out": {
+      "module": "MaxSigmoidAttnBlock",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "bu4-tcsp-cat": {
+      "module": "Conv",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        1536,
+        40,
+        40
+      ]
+    },
+    "bu5-tcsp-cv1": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        20,
+        20
+      ]
+    },
+    "bu5-tcsp-m": {
+      "module": "Bottleneck",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "bu5-tg-guide": {
+      "module": "Linear",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        256
+      ]
+    },
+    "bu5-tg-proj": {
+      "module": "Conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "bu5-tg-out": {
+      "module": "MaxSigmoidAttnBlock",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "bu5-tcsp-cat": {
+      "module": "Conv",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        1536,
+        20,
+        20
+      ]
+    },
+    "ipa-p3-proj": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        80,
+        80
+      ]
+    },
+    "ipa-p3-pool": {
+      "module": "AdaptiveMaxPool2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        3,
+        3
+      ]
+    },
+    "ipa-p4-proj": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        40,
+        40
+      ]
+    },
+    "ipa-p4-pool": {
+      "module": "AdaptiveMaxPool2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        3,
+        3
+      ]
+    },
+    "ipa-p5-proj": {
+      "module": "Conv2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "ipa-p5-pool": {
+      "module": "AdaptiveMaxPool2d",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        3,
+        3
+      ]
+    },
+    "ipa-q-ln": {
+      "module": "LayerNorm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        512
+      ]
+    },
+    "ipa-q": {
+      "module": "Sequential",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        256
+      ]
+    },
+    "ipa-k-ln": {
+      "module": "LayerNorm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        27,
+        256
+      ]
+    },
+    "ipa-k": {
+      "module": "Sequential",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        27,
+        256
+      ]
+    },
+    "ipa-v-ln": {
+      "module": "LayerNorm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        27,
+        256
+      ]
+    },
+    "ipa-v": {
+      "module": "Sequential",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        27,
+        256
+      ]
+    },
+    "ipa-z": {
+      "module": "Linear",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        80,
+        256
+      ]
+    },
+    "ipa-o": {
+      "module": "Linear",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        512
+      ]
+    },
+    "vocab-upd": {
+      "module": "ImagePoolingAttn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        80,
+        512
+      ]
+    }
+  },
+  "not_hooked": {
+    "split / bottlenecks intermedios / gate / scale": "chunk, sigmoide y escalares sin módulo propio",
+    "prompts / txt-emb": "el codificador de texto no se construye (offline)",
+    "decode": "dist2bbox funcional (boxes = salida del Detect)"
+  },
+  "flops_total": 176958220288,
+  "flops_by_node": {
+    "backbone": 85603123200,
+    "neck": 62531289088,
+    "head-box": 3756288000,
+    "head-text": 25067520000
+  },
+  "flops_by_op_torch": {
+    "aten.convolution": 175866931200,
+    "aten.addmm": 122421248,
+    "aten.bmm": 968867840
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "conv2d",
+        "conv_bn_act",
+        "c2f",
+        "sppf",
+        "csp_bottleneck",
+        "dfl_decode"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm"
+      ],
+      "prims": [
+        "linear"
+      ]
+    },
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "text_guided_scores",
+        "region_text_similarity",
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "source": {
+    "lib": "ultralytics",
+    "ctor": "WorldModel('yolov8l-world.yaml', verbose=False)  # sin pesos; clip_model = None (no se llama set_classes)",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "ultralytics": "8.4.174"
+    }
+  },
+  "notes": [
+    "Ultralytics 8.4.174 construido desde el YAML incluido en el paquete (yolov8l-world.yaml, escala l: depth 1.0, width 1.0, max_channels 512 → canales 64, 128, 256, 512, 512), sin pesos y sin red (verificado con un proxy inválido).",
+    "Parámetros = sum(p.numel()): incluye los 16 pesos FIJOS de la DFL (conv 1×1 0…15, requires_grad = False) y las BatchNorm (γ, β; la BN no se fusiona con la conv porque no se llama a fuse()).",
+    "FLOPs = FlopCounterMode en eval (2 por MAC de convs, Linear y einsum/bmm), incluida la conv de la DFL al decodificar; el NMS va fuera del modelo. Ultralytics reporta 'GFLOPs' con thop = 2 × MACs: 165.1 a 640 para YOLOv8-L.",
+    "Ultralytics 8.4: SPPF.cv1 sin activación (act=False); el YOLOv8 original (8.0) la tenía. No cambia parámetros ni MACs.",
+    "YOLO-World: el codificador de texto (CLIP ViT-B/32) NO se construye: clip_model = None y los V embeddings (txt_feats, normalizados L2) se pasan a predict(). Así se cuenta el detector online; el costo de CLIP lo pone el calculador desde js/arch/clip.js (offline, una vez por vocabulario).",
+    "Ultralytics ↔ oficial (AILab-CVC/YOLO-World, mmyolo): C2fAttn = MaxSigmoidCSPLayerWithTwoConv (T-CSPLayer) y ImagePoolingAttn = ImagePoolingAttentionModule (3×3 por nivel desde P3, P4 top-down y C5). En los dos la cabeza usa el texto ORIGINAL (el neck no devuelve el actualizado) y los T-CSPLayers del bottom-up el actualizado. En la escala L la guía de texto tiene 256/128/256/256 canales y 8/4/8/8 cabezas (P5 recortado por max_channels 512): ningún T-CSPLayer necesita la conv 1×1 de embedding (C = E).",
+    "La DFL, las anclas sin caja (centros de celda) y la asignación TAL de YOLOv8 se mantienen; la pérdida de clase es la contrastiva región-texto (el paper: L_con + IoU + DFL)."
+  ],
+  "calc_overrides": {},
+  "v2": {
+    "yaml": "yolov8l-worldv2.yaml",
+    "params_total": 46832050,
+    "image_pooling_attn_params": 724992,
+    "contrastive_head": "BNContrastiveHead",
+    "note": "v2: sin ImagePoolingAttn y con BNContrastiveHead (BatchNorm2d(512) en el embedding de la región: +1,024 por nivel; la v1 usa ContrastiveHead con L2 + logit_scale y bias). quantities.v2Params del calculador = este número."
+  },
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "V": 20
+      },
+      "params_total": 47553970,
+      "flops_total": 176145061888,
+      "shapes": {
+        "scores": [
+          8400,
+          20
+        ]
+      },
+      "note": "misma referencia con V = 20: los parámetros no cambian; sí la guía de texto, la image-pooling attention y los logits"
+    }
+  ]
+}

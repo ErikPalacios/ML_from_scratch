@@ -51,6 +51,8 @@
 <script src="../js/arch/swin.js"></script>
 <script src="../js/arch/clip.js"></script>
 <script src="../js/arch/detr.js"></script>
+<script src="../js/arch/grounding-dino.js"></script>
+<script src="../js/arch/yolo-world.js"></script>
 <script src="../js/core/quantities.js"></script>
 <script src="../js/ui/dom.js"></script>
 <script src="../js/ui/math.js"></script>
@@ -64,6 +66,9 @@
 <script src="../js/ui/viz/hungarian.js"></script>
 <script src="../js/ui/viz/set-vs-nms.js"></script>
 <script src="../js/ui/viz/deformable-attention.js"></script>
+<script src="../js/ui/viz/open-vocab-head.js"></script>
+<script src="../js/ui/viz/query-selection.js"></script>
+<script src="../js/ui/viz/prompt-then-detect.js"></script>
 <script src="../js/content/catalog.js"></script>
 <script src="../js/content/diagrams/repaso.js"></script>
 <script src="../js/content/diagrams/vit.js"></script>
@@ -71,6 +76,8 @@
 <script src="../js/content/diagrams/swin.js"></script>
 <script src="../js/content/diagrams/clip.js"></script>
 <script src="../js/content/diagrams/detr.js"></script>
+<script src="../js/content/diagrams/grounding-dino.js"></script>
+<script src="../js/content/diagrams/yolo-world.js"></script>
 <script>
 (function () {
   'use strict';
@@ -94,7 +101,7 @@
   function btn(parent, label, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ad-btn'; b.textContent = label; b.onclick = fn; parent.appendChild(b); return b; }
 
   const only = P.get('only'), vizOnly = P.get('viz');
-  const ids = ['vit-overview', 'swin-overview', 'clip-overview', 'detr-overview', 'repaso-block', 'mapa-overview'];
+  const ids = ['vit-overview', 'swin-overview', 'clip-overview', 'detr-overview', 'grounding-dino-overview', 'yolo-world-overview', 'repaso-block', 'mapa-overview'];
 
   async function full(id, opts) {
     const s = sec(id, (ATLAS.diagram(id) || {}).title || '');

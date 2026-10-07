@@ -454,3 +454,46 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-group--train > .ad-group-label { fill: var(--ink); letter-spacing: .07em; text-transform: uppercase; font-size: 11.5px; }
 /* mazo de matrices de atención (glifo 'amat'): las de atrás, más tenues */
 .ad-face--deck { stroke-opacity: .55; }
+/* ---------------------------------------------------------------- fase 4: motor (Grounding DINO, YOLO-World) */
+/* carril "offline" (style:'offline'): el vocabulario de YOLO-World se codifica UNA vez, fuera de la inferencia */
+.ad-group--offline > .ad-frame, .ad-frame--offline { fill: color-mix(in srgb, var(--warn) 6%, var(--surface)); stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 9 3 2 3; }
+.ad-group--offline > .ad-group-label { fill: var(--ink); letter-spacing: .07em; text-transform: uppercase; font-size: 11.5px; }
+/* ---------------------------------------------------------------- fase 4: visualizaciones */
+/* query-selection: rejilla de tokens, seleccionados (top-K), caja ancla, barras y ranking */
+.viz-qs-grid { fill: none; stroke: var(--ink); stroke-opacity: .14; stroke-width: .6; }
+.viz-qs-sel { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+.viz-qs-anchor { fill: none; stroke: var(--mod-qry); stroke-width: 2; stroke-dasharray: 5 3; }
+.viz-qs-bar { fill: var(--op-fuse-soft); stroke: var(--op-fuse); stroke-width: 1; }
+.viz-qs-bar--max { fill: var(--op-fuse); }
+.viz-qs-rk { fill: var(--rule-strong); }
+.viz-qs-rk--on { fill: var(--op-fuse); }
+.viz-qs-cut { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 3 2; }
+/* open-vocab-head: regiones, matrices de puntajes de las dos cabezas, columna sin fila, entrada de texto */
+.viz-ov-form { gap: 6px; }
+.viz-ov-in { min-height: 28px; width: 11em; padding: 3px 8px; border: 1px solid var(--rule-strong); border-radius: var(--r-1, 3px); background: var(--surface); color: var(--ink); font: 500 12.5px/1 var(--font-mono); }
+.viz-ov-in:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.viz-ov-rbox { fill: none; stroke: var(--op-head); stroke-width: 1.8; }
+.viz-ov-rtag { fill: var(--op-head); }
+.viz-ov-rtxt { font: 600 10.5px var(--font-mono); fill: var(--surface); pointer-events: none; }
+.viz-ov-cell { stroke: var(--rule-strong); stroke-width: .8; }
+.viz-ov-cell--new { stroke: var(--accent); stroke-width: 1.6; }
+.viz-ov-best { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.viz-ov-v { font: 500 11px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; pointer-events: none; }
+.viz-ov-v--hi { font-weight: 700; }
+.viz-ov-new { fill: var(--accent-ink); }
+.viz-ov-hit { fill: transparent; }
+.viz-ov-nofila { fill: var(--surface-2); stroke: var(--bad); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.viz-cell-btn:focus-visible .viz-ov-cell, .viz-cell-btn:focus-visible .viz-ov-hit { stroke: var(--focus); stroke-width: 2.5; }
+/* prompt-then-detect: barras por parte (colores de operación / modalidad), carril offline y totales */
+.viz-ptd-bar { stroke-width: 1.2; }
+.viz-ptd--conv { fill: var(--op-conv-soft); stroke: var(--op-conv); }
+.viz-ptd--attn { fill: var(--op-attn-soft); stroke: var(--op-attn); }
+.viz-ptd--fuse { fill: var(--op-fuse-soft); stroke: var(--op-fuse); }
+.viz-ptd--head { fill: var(--op-head-soft); stroke: var(--op-head); }
+.viz-ptd--txt { fill: color-mix(in srgb, var(--mod-txt) 18%, var(--surface)); stroke: var(--mod-txt); }
+.viz-ptd--ghost { fill-opacity: .25; stroke-dasharray: 3 2; }
+.viz-ptd-lab { font: 600 10.5px var(--font-body); fill: var(--ink); pointer-events: none; }
+.viz-ptd-off { font: 700 10.5px var(--font-display); letter-spacing: .07em; fill: var(--ink); }
+.viz-ptd-tot--yw { fill: var(--op-conv); }
+.viz-ptd-tot--gd { fill: var(--op-attn); }
+.viz-cell-btn:focus-visible .viz-ptd-bar { stroke: var(--focus); stroke-width: 2.5; }

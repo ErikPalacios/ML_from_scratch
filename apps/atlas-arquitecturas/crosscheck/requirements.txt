@@ -7,3 +7,10 @@ transformers==5.19.0
 numpy==2.5.3
 # scipy: linear_sum_assignment de los ejercicios de DETR (matching húngaro) y su solución de referencia.
 scipy==1.18.1
+# ultralytics (fase 4): YOLOv8-L y YOLO-World-L desde los YAML del paquete, sin pesos ni CLIP (crosscheck/yolo_world.py).
+# Trae opencv-python, matplotlib, polars, psutil, requests y ultralytics-thop (versiones con que se generaron los JSON).
+ultralytics==8.4.174
+ultralytics-thop==2.2.2
+opencv-python==5.0.0.93
+matplotlib==3.11.2
+polars==2.0.0

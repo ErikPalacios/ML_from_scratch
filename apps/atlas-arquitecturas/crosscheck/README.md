@@ -37,6 +37,20 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   suma ponderada de las muestras, así que `flops_sampling_analytic` (5·N_q·h·L·K·d_h MACs por llamada, con las
   formas reales de cada llamada) se suma y las cabezas de las 5 capas intermedias (`flops_aux_heads_torch`,
   HF las aplica en cada forward) se restan: `flops_total = flops_counted_torch − aux + analítico`.
+- `grounding_dino.py` (fase 4): HF `GroundingDinoForObjectDetection._from_config(GroundingDinoConfig())` para
+  `grounding-dino-t` (896×1344, T = 16): Swin-T (`SwinConfig` por defecto, out_indices [2, 3, 4]) y BERT-base
+  (`BertConfig` por defecto) SIN pesos, sin hub y sin tokenizer (los ids del prompt se arman con los ids especiales
+  de BERT). `params_total` = HF − 1,536 (la `swin.layernorm` de SwinBackbone que el forward no usa;
+  `params_total_hf_raw` guarda el crudo). FLOPs: + muestreo deformable analítico (12 llamadas) − cabezas de las 5
+  capas intermedias − `encoder_logits` (solo pérdida). `flops_by_node` compara cada bloque (backbone de imagen,
+  proyección, BERT, enhancer, query selection, decoder, cabezas) y `override_checks` repite con T = 64;
+  `swin_windows` registra ventana y shift de cada bloque (SwinBackbone usa always_partition).
+- `yolo_world.py` (fase 4): Ultralytics 8.4.174 desde los YAML del paquete: `DetectionModel('yolov8l.yaml')` para
+  `yolov8l-640` y `WorldModel('yolov8l-world.yaml')` para `yolo-world-l-640`, sin pesos, sin CLIP (clip_model =
+  None; los V embeddings se pasan normalizados a mano) y sin red (YOLO_CONFIG_DIR temporal, YOLO_OFFLINE=1;
+  verificado con un proxy inválido). Exactos: parámetros (incluidos los 16 pesos fijos de la DFL), FLOPs, por bloque
+  (`flops_by_node`) y por operador aten (`flops_by_op_groups`). YOLO-World: `override_checks` con V = 20 y `v2`
+  (`yolov8l-worldv2.yaml`: sin image-pooling attention, BNContrastiveHead) ↔ `quantities.v2Params`.
 - Las configs de cada script (`CONFIGS`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que

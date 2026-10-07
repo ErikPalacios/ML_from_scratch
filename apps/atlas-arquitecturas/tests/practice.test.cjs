@@ -134,3 +134,35 @@ test('what-if: texto del cambio (H y W juntos, knobs con nombre) y métricas gen
   assert.strictEqual(d.scoreMacsShare, null);
   assert.ok(d.decSelfAttnMem > 0 && d.denseEncAttnMem > d.decSelfAttnMem);
 });
+
+test('fase 4: toda forma de Grounding DINO, YOLOv8 y YOLO-World sale de los datos de la tarjeta o de su etiqueta', () => {
+  let n = 0;
+  for (const cfg of ['grounding-dino-t', 'yolov8l-640', 'yolo-world-l-640']) {
+    const R = A.run(cfg);
+    const known = {};
+    P._factPairs(R.config).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
+    if (known.dh == null && known.D != null) known.dh = known.D / known.h;
+    for (const id of R.order) {
+      const t = R.tensors[id];
+      const text = (t.label || '') + ' ' + (t.tex || '');
+      t.sym.forEach((sym, i) => {
+        const str = String(sym);
+        if (/^\d+$/.test(str)) return;
+        const e = str.replace(/\bhLK\b/g, '(h*L*K)').replace(/\bLK\b/g, '(L*K)').replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh')
+          .replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+        const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+        if (ids.some((x) => !(x in known))) {
+          assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
+          return;
+        }
+        n++;
+        assert.strictEqual(Function(...Object.keys(known), 'return ' + e)(...Object.values(known)), t.num[i], cfg + ' ' + id + ': ' + str);
+      });
+    }
+  }
+  assert.ok(n > 800, 'se revisaron ' + n + ' dimensiones');
+  // datos de la tarjeta: Grounding DINO usa la notación de Deformable DETR (L niveles, K puntos) y C = 96 de Swin-T
+  const f = Object.fromEntries(P._factPairs(A.run('grounding-dino-t').config));
+  assert.deepStrictEqual([f.T, f.Q, f.L, f.K, f.C, f.D, f.N], [16, 900, 4, 4, 96, 256, 24990]);
+  assert.strictEqual(Object.fromEntries(P._factPairs(A.run('yolo-world-l-640').config)).V, 80);
+});
