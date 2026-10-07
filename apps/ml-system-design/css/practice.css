@@ -753,3 +753,55 @@
 .gl__add:not(:empty) { padding: 14px 16px; border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: var(--r-2); background: var(--surface); }
 .gl__row--mine > .gl__en { color: var(--accent-ink); }
 .gl__row--mine .gl__defhtml { white-space: normal; }
+
+/* Barra flotante (abajo a la derecha) y panel de notas que se despliega desde la izquierda */
+.nbar {
+  position: fixed; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 40;
+  display: inline-flex; gap: 0; border-radius: 999px; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--rule-strong); box-shadow: var(--shadow-pop);
+}
+.nbar[hidden] { display: none; }
+.nbar__btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 14px;
+  border: 0; background: none; color: var(--ink); font: 500 14px/1 var(--font-body); cursor: pointer;
+}
+.nbar__btn + .nbar__btn { border-left: 1px solid var(--rule); }
+.nbar__btn:hover { background: var(--surface-2); }
+.nbar__btn--add { background: var(--warn-soft); color: var(--warn); }
+.nbar__btn--add:hover { background: var(--warn-soft); filter: brightness(.97); }
+.nbar__btn .ico { width: 15px; height: 15px; }
+.nbar__n:not(:empty) { padding: 0 6px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; line-height: 18px; }
+.nbar__btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+
+.ndrawer {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 42;
+  width: min(420px, 92vw); display: flex; flex-direction: column;
+  background: var(--bg); border-right: 1px solid var(--rule-strong); box-shadow: var(--shadow-pop);
+  padding-top: env(safe-area-inset-top, 0px);
+  animation: ndrawer-in 200ms var(--ease);
+}
+.ndrawer[hidden] { display: none; }
+@keyframes ndrawer-in { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ndrawer { animation: none; } }
+.ndrawer__head { display: flex; align-items: flex-start; gap: 10px; padding: 16px 16px 12px 20px; border-bottom: 1px solid var(--rule); }
+.ndrawer__heading { flex: 1; min-width: 0; }
+.ndrawer__page { margin: 0 0 4px; }
+.ndrawer__title { font: 600 var(--fs-lg)/1.25 var(--font-display); outline: none; }
+.ndrawer__body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 14px 20px calc(80px + env(safe-area-inset-bottom, 0px)); }
+.ndrawer__add { margin-bottom: 16px; }
+.ndrawer__form { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--rule); border-left: 3px solid var(--warn); border-radius: var(--r-2); background: var(--surface); }
+.ndrawer__sel { width: 100%; }
+.ndrawer__grp { margin-top: 16px; display: grid; gap: 8px; }
+.ndrawer__h { margin: 0; font: 600 14.5px/1.35 var(--font-body); }
+.ndrawer__grp .note { border-left: 3px solid var(--warn); }
+.ndrawer__grp .note--term { border-left-color: var(--accent); }
+.ndrawer__empty { margin: 8px 0 0; }
+.ndrawer__all { margin: 20px 0 0; font-size: 14px; }
+@media (max-width: 767px) {
+  .ndrawer { z-index: 48; }
+  .nbar__btn { min-height: 44px; padding: 0 12px; }
+}
+/* En pantallas anchas el panel no tapa el texto: el contenido se recorre a la derecha. */
+@media (min-width: 1100px) {
+  html.notes-drawer-open .shell { margin-left: min(420px, 92vw); }
+}

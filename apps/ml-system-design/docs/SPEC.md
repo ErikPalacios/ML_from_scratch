@@ -324,6 +324,14 @@ store.backend() / store.onStatus(fn)
   appear in the glossary (row id `glosario.mio-<noteId>`, source chip "Mío"), in the search (types
   `note` / `myterm`) and as flashcards (`id: 'mio-<noteId>'`, kind `mio`, source `mis-notas`). User text
   is always rendered as text (escaped), never as HTML. Notes travel with export/import.
+  On pages with visible sections the shell calls `MSD.Notes.setPage({id, sections, current})`: a fixed
+  bar (bottom-right) with "Nota" (adds a note in the section being read) and "Ver notas (N)" opens a
+  non-modal panel from the left with the form (section selector, defaults to the current section) and
+  the page's notes grouped by section; ≥ 1100 px the content shifts right while it is open; Esc closes.
+  All note lists are "live": a change in one (section, panel, #mis-notas) repaints the others unless
+  you are typing in them.
+- **"En esta página" (right TOC) is collapsible**: its title is a toggle; collapsed it becomes a vertical
+  tab and the content column widens to `--content-wide` (big diagrams fit). Pref `tocCollapsed`.
 - **Search**: input at the top of the sidebar; results in a popover/list (keyboard navigable)
   over: page titles/summaries, section titles, glossary terms (en/es), flashcard questions.
   Uses `MSD.searchIndex()` (§5.6). Enter opens the first result. Flashcards rank below pages, sections

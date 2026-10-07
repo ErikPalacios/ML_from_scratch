@@ -592,16 +592,39 @@
       h('span', null, n ? h('span', { class: 'toc__n' }, pad2(n)) : null, s.title || s.id));
   }
 
+  // "En esta página" se puede plegar: plegado deja solo una pestaña y el contenido se ensancha
+  // (los diagramas grandes se ven completos). La preferencia se recuerda (pref 'tocCollapsed').
+  function applyTocCollapsed(collapsed) {
+    els.shell.classList.toggle('toc-collapsed', !!collapsed);
+    const t = els.toc.querySelector('.toc__toggle');
+    if (t) {
+      t.setAttribute('aria-expanded', String(!collapsed));
+      t.setAttribute('aria-label', collapsed ? 'Mostrar «En esta página»' : 'Ocultar «En esta página»');
+      t.title = collapsed ? 'Mostrar el índice de la página' : 'Ocultar el índice y ensanchar el contenido';
+    }
+  }
   function buildToc(p, numbered) {
     const secs = p.sections;
     els.toc.innerHTML = '';
-    els.toc.appendChild(h('p', { class: 'toc__title' }, 'En esta página'));
-    els.toc.appendChild(h('ol', { class: 'toc__list' }, secs.map((s, i) => h('li', { dataset: { sec: s.id } }, tocLink(p, s, numbered ? (s.num || i + 1) : 0)))));
-    els.toc.appendChild(h('div', { class: 'toc__foot' },
-      h('span', { class: 'toc__count' }),
-      h('br'),
-      h('a', { href: '#' + p.id, on: { click: (e) => { e.preventDefault(); root.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' }); } } }, 'Volver arriba')));
+    const toggle = h('button', {
+      type: 'button', class: 'toc__toggle', 'aria-controls': 'toc-body',
+      on: { click: () => {
+        const next = !els.shell.classList.contains('toc-collapsed');
+        store.setPref('tocCollapsed', next);
+        applyTocCollapsed(next);
+        // El ancho del contenido cambió: los diagramas se reacomodan con el resize.
+        try { root.dispatchEvent(new Event('resize')); } catch (e) { /* nada */ }
+      } },
+    }, h('span', { class: 'toc__toggle-ico', html: icon('chevron') }), h('span', { class: 'toc__title' }, 'En esta página'));
+    els.toc.appendChild(toggle);
+    els.toc.appendChild(h('div', { class: 'toc__body', id: 'toc-body' },
+      h('ol', { class: 'toc__list' }, secs.map((s, i) => h('li', { dataset: { sec: s.id } }, tocLink(p, s, numbered ? (s.num || i + 1) : 0)))),
+      h('div', { class: 'toc__foot' },
+        h('span', { class: 'toc__count' }),
+        h('br'),
+        h('a', { href: '#' + p.id, on: { click: (e) => { e.preventDefault(); root.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' }); } } }, 'Volver arriba'))));
     els.toc.hidden = false;
+    applyTocCollapsed(!!store.pref('tocCollapsed'));
   }
 
   function pageTocDisclosure(p) {
@@ -1029,6 +1052,12 @@
     els.shell.dataset.layout = layout;
     document.title = id === 'inicio' ? APP_NAME : pageTitle(id) + ' · ' + APP_NAME;
     if (S.page) { refreshReadMarks(); observeSections(); }
+    // Barra flotante de notas: solo en páginas con secciones visibles (módulos, casos abiertos, hojas).
+    if (MSD.Notes) safe(() => MSD.Notes.setPage(S.page && S.page.sections && S.page.sections.length ? {
+      id: S.page.id,
+      sections: S.page.sections.map((x) => ({ id: x.id, title: x.title })),
+      current: () => S.currentSec,
+    } : null));
   }
 
   function scrollToSection(r, smooth) {

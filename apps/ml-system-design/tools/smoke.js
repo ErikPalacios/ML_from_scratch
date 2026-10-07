@@ -617,6 +617,44 @@
     const yes = await waitFor(() => button('Sí, borrar', tcard), 800);
     yes.click();
     ok('mis notas: borrar quita la entrada', await waitFor(() => !store.getNote(term.id) && !$('#page .note[data-note="' + term.id + '"]'), 800));
+    // Barra flotante + panel izquierdo
+    await go('#m01');
+    const nbar = $('.nbar');
+    ok('barra de notas: visible en un módulo', visible(nbar));
+    const secs2 = MSD.getPage('m01').sections;
+    const target = secs2[2].id;
+    await go('#m01.' + target);
+    await sleep(150);
+    button('Nota', nbar).click();
+    const drawer = await waitFor(() => { const d = byId('notes-drawer'); return d && !d.hidden && d; }, 1000);
+    ok('panel: se abre desde la barra', !!drawer);
+    ok('panel: el formulario propone la sección que estás leyendo', $('.ndrawer__sel', drawer).value === target, $('.ndrawer__sel', drawer).value);
+    ok('panel: foco en el texto', document.activeElement === $('.notes-form__text', drawer));
+    $('.notes-form__text', drawer).value = 'Nota desde el panel';
+    button('Guardar', $('.ndrawer__add', drawer)).click();
+    ok('panel: la nota aparece en el panel', await waitFor(() => $$('.ndrawer__list .note', drawer).some((x) => txt($('.note__text', x)) === 'Nota desde el panel'), 1000));
+    ok('panel: y también al final de su sección', await waitFor(() => $$('#page section.sec[data-sec="' + target + '"] .notes__list .note').some((x) => txt($('.note__text', x)) === 'Nota desde el panel'), 1000));
+    ok('barra: el conteo de la página se actualiza', txt($('.nbar__n')) === String(store.listNotes({ page: 'm01' }).length));
+    checkOverflow('#m01 (panel de notas abierto)');
+    key('Escape', $('.ndrawer__title', drawer));
+    ok('panel: Esc lo cierra', await waitFor(() => byId('notes-drawer').hidden, 800));
+    await go('#practica');
+    ok('barra de notas: oculta fuera de las páginas de contenido', !visible($('.nbar')));
+    // "En esta página" plegable (solo existe con TOC visible, ≥ 1200 px)
+    await go('#m01');
+    const tg = $('#toc .toc__toggle');
+    if (tg && visible(tg)) {
+      const w0 = byId('page').getBoundingClientRect().width;
+      tg.click();
+      await sleep(80);
+      ok('índice: se pliega', byId('shell').classList.contains('toc-collapsed') && !visible($('#toc .toc__list')));
+      ok('índice: plegado, el contenido se ensancha', byId('page').getBoundingClientRect().width > w0 + 100, [w0, byId('page').getBoundingClientRect().width]);
+      ok('índice: se recuerda', store.pref('tocCollapsed') === true);
+      checkOverflow('#m01 (índice plegado)');
+      $('#toc .toc__toggle').click();
+      await sleep(80);
+      ok('índice: se despliega', !byId('shell').classList.contains('toc-collapsed') && visible($('#toc .toc__list')));
+    } else notes.indice_plegable = 'sin TOC en este ancho';
     // Limpieza: deja el estado como estaba
     store.listNotes().slice(before).forEach((n) => store.deleteNote(n.id));
     ok('notas: limpieza', store.listNotes().length === before);

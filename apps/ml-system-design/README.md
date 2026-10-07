@@ -80,6 +80,9 @@ con tu propia definición** (p. ej. qué es TLS o un load balancer). Las notas s
 y **Mis notas** (Parte 3 del índice) las junta todas, agrupadas por página, con búsqueda, edición y
 borrado. Tus términos salen también en el glosario (marcados «Mío»), en el buscador y como flashcards.
 No modifican el contenido del curso: se guardan con tu progreso y viajan con Exportar / importar.
+Mientras lees, la barra flotante de abajo a la derecha tiene **Nota** (agrega una nota en la sección
+que estás leyendo, sin volver al final) y **Ver notas**, que abre un panel a la izquierda con las notas
+de la página. El índice **En esta página** se puede plegar para darle más ancho al contenido.
 
 ## Cómo se guarda tu progreso
 

@@ -549,6 +549,23 @@ a.ucell:hover { transform: translateY(-2px); }
 
 /* TOC derecho y listas de secciones */
 .toc__title { margin: 0 0 12px; font: 600 12px/1.2 var(--font-display); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+/* "En esta página" plegable: el título es el botón; plegado queda una pestaña y el contenido se ensancha */
+.toc__toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%; margin: 0 0 12px; padding: 4px 0;
+  background: none; border: 0; cursor: pointer; text-align: left; color: var(--muted);
+}
+.toc__toggle .toc__title { margin: 0; }
+.toc__toggle:hover, .toc__toggle:hover .toc__title { color: var(--ink); }
+.toc__toggle-ico { display: flex; transition: transform var(--dur) var(--ease); transform: rotate(90deg); }
+.toc__toggle-ico .ico { width: 13px; height: 13px; }
+.toc-collapsed .toc__body { display: none; }
+.toc-collapsed .toc__toggle-ico { transform: rotate(180deg); }
+.toc-collapsed .toc__toggle {
+  writing-mode: vertical-rl; width: auto; padding: 12px 6px; gap: 8px;
+  border: 1px solid var(--rule); border-radius: var(--r-2); background: var(--surface-2);
+}
+.toc-collapsed .toc__toggle-ico { transform: rotate(270deg); }
+.shell.toc-collapsed:not([data-layout="wide"]) { grid-template-columns: minmax(0, var(--content-wide)) 36px; column-gap: 28px; }
 .toc__list { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--rule); }
 .toc__link {
   display: grid; grid-template-columns: 14px minmax(0, 1fr); column-gap: 6px; align-items: start;
