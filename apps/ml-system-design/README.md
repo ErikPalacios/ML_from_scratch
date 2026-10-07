@@ -73,10 +73,18 @@ Para subirla, usa una de estas dos formas:
 En la web el progreso se guarda **en el navegador de cada dispositivo** ("Guardado en este navegador").
 Para pasarlo del celular a la tablet o desde el Artifact, usa **Exportar / importar progreso**.
 
+## Tus notas
+
+Al final de cada sección hay un botón **Agregar nota**: escribe una duda, un resumen o un **término
+con tu propia definición** (p. ej. qué es TLS o un load balancer). Las notas se quedan en esa sección,
+y **Mis notas** (Parte 3 del índice) las junta todas, agrupadas por página, con búsqueda, edición y
+borrado. Tus términos salen también en el glosario (marcados «Mío»), en el buscador y como flashcards.
+No modifican el contenido del curso: se guardan con tu progreso y viajan con Exportar / importar.
+
 ## Cómo se guarda tu progreso
 
-El estado (secciones leídas, módulos completados, checklists, intentos con su texto, flashcards y
-preferencias) vive en memoria y se guarda en dos niveles. El pie de la barra lateral te dice cuál se
+El estado (secciones leídas, módulos completados, checklists, intentos con su texto, flashcards,
+tus notas y preferencias) vive en memoria y se guarda en dos niveles. El pie de la barra lateral te dice cuál se
 está usando:
 
 - **"Guardado en este navegador"**: `localStorage`, clave `msd.v1`. Es por navegador y por equipo: en
@@ -251,7 +259,7 @@ registra errores.
 index.html              documento; carga css/ y js/ en el orden de SPEC §2.1
 css/                    app.css (tokens, layout, bloques) · components.css (diagrama, código) · practice.css
 js/core/                registry.js (catálogo, registro, plantillas) · store.js (estado y guardado)
-js/ui/                  dom · blocks · diagram · code · practice · flashcards · reference
+js/ui/                  dom · blocks · diagram · code · practice · flashcards · reference · notes
 js/content/             catalog.js · reference-files.js (generado) · un archivo por módulo/caso
 js/app.js               router, barra lateral, búsqueda, páginas del shell
 reference/c01/          archivos reales del caso C01 (gateway FastAPI, Triton, K8s, monitoreo…)

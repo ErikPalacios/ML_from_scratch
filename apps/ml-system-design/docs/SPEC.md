@@ -200,11 +200,11 @@ drawer (focus-trapped, Esc closes, backdrop click closes). Sticky elements use
 - Modules: `m01`…`m15`. Cases: `c01`…`c13`.
 - Special pages: `inicio` (home/dashboard), `practica` (simulator hub: choose a case),
   `practica-cNN` (a running/finished practice session for case NN), `historial` (practice
-  history), `flashcards`, `glosario`, `ref-numeros`, `ref-herramientas`, `ref-comandos`,
+  history), `flashcards`, `mis-notas` (the user's own notes and terms), `glosario`, `ref-numeros`, `ref-herramientas`, `ref-comandos`,
   `buscar` (search results, optional).
 - Sidebar groups (in this order): **Inicio** · **Parte 1 — Fundamentos** (m01–m15) ·
   **Parte 2 — Casos de diseño** (c01–c13) · **Parte 3 — Práctica** (Simulador, Historial,
-  Flashcards) · **Parte 4 — Referencias** (Números que debes saber, Herramientas por categoría,
+  Flashcards, Mis notas) · **Parte 4 — Referencias** (Números que debes saber, Herramientas por categoría,
   Docker y kubectl, Glosario ES–EN). Each item shows its number, short title, and a state marker
   (done ✓ / progress ring / "Próx." pill for not-ready).
 
@@ -277,6 +277,13 @@ store.dueCards(cardIds) → ids due now (unseen count as due)
 // prefs
 store.pref(key) / store.setPref(key, value)   // theme:'system'|'light'|'dark', solutionRevealed:{caseId:true}, flashFilter, etc.
 // portability
+// notes (the user's own notes and glossary terms; js/ui/notes.js renders them)
+//   note = {id, kind:'note'|'term', page, section, term, text (≤ 4000 chars), createdAt, at, del}
+//   Stored in state.notes.items; a deletion keeps {del:true, at} without text so it wins on merge
+//   (newest `at` wins). In the Artifact they sync to their own doc data/users/<uid>/notes.
+store.listNotes({page?, section?, kind?}?) → live notes, oldest first
+store.getNote(id) / store.addNote({kind, page, section, term, text}) → note|null
+store.updateNote(id, {term?, text?, kind?}) → note|null / store.deleteNote(id)
 store.exportJSON() → string
 store.importJSON(str) → {ok, error?}          // validates shape, merges
 store.backend() / store.onStatus(fn)
@@ -310,6 +317,13 @@ store.backend() / store.onStatus(fn)
   (`meta.topics`), interview frequency, connections; for cases also the enunciado with a
   "Practicar este enunciado" button (practice works; solution pending) and a note:
   "Este contenido llega en una fase posterior. Pídelo cuando termines lo anterior."
+- **Mis notas** (js/ui/notes.js, `MSD.Notes`): every section rendered by `buildSection` ends with the
+  user's notes for it (a warm "sticky note" panel) and an "Agregar nota" button next to "Marcar como
+  leída"; the form saves a note or a **term** (term + own definition). `#mis-notas` lists everything
+  grouped by page (filter, edit, delete with an in-page confirmation, "Agregar término"). Own terms also
+  appear in the glossary (row id `glosario.mio-<noteId>`, source chip "Mío"), in the search (types
+  `note` / `myterm`) and as flashcards (`id: 'mio-<noteId>'`, kind `mio`, source `mis-notas`). User text
+  is always rendered as text (escaped), never as HTML. Notes travel with export/import.
 - **Search**: input at the top of the sidebar; results in a popover/list (keyboard navigable)
   over: page titles/summaries, section titles, glossary terms (en/es), flashcard questions.
   Uses `MSD.searchIndex()` (§5.6). Enter opens the first result. Flashcards rank below pages, sections

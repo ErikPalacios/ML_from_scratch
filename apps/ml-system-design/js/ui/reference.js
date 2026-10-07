@@ -57,10 +57,33 @@
   let mounted = null;
 
   // ================================================================== GLOSARIO
-  function renderGlossary(c, route) {
+  function renderGlossary(c, route, ctx) {
     const m = Object.assign({}, FALLBACK.glosario, meta('glosario'));
     c.appendChild(header({ eyebrow: ['Parte 4', 'Referencias'], title: m.title, en: m.titleEn, summary: m.summary }));
-    const terms = safe(() => MSD.glossary(), []).filter((t) => t && t.en);
+    // Tus términos (MSD.Notes) se mezclan con los del curso, con la marca "Mío".
+    const mine = safe(() => (MSD.Notes ? MSD.Notes.glossaryTerms() : []), []);
+    const terms = safe(() => MSD.glossary(), []).filter((t) => t && t.en).concat(mine)
+      .sort((a, b) => a.en.localeCompare(b.en, 'en', { sensitivity: 'base' }));
+    const addSlot = h('div', { class: 'gl__add' });
+    const addBtn = h('button', { type: 'button', class: 'btn btn--sm', 'aria-expanded': 'false', on: { click: () => {
+      if (addSlot.firstChild) { addSlot.innerHTML = ''; addBtn.setAttribute('aria-expanded', 'false'); return; }
+      const f = MSD.Notes.termForm({
+        onDone: (n) => {
+          if (ctx && typeof ctx.rerender === 'function') ctx.rerender();
+          if (ctx && typeof ctx.navigate === 'function') setTimeout(() => ctx.navigate('#glosario.mio-' + n.id), 0);
+        },
+        onCancel: () => { addSlot.innerHTML = ''; addBtn.setAttribute('aria-expanded', 'false'); addBtn.focus(); },
+      });
+      addSlot.appendChild(f);
+      addBtn.setAttribute('aria-expanded', 'true');
+      f.focusFirst();
+    } } }, h('span', { html: icon('note') }), 'Agregar mi término');
+    if (MSD.Notes) c.appendChild(h('div', { class: 'gl__mine' },
+      h('p', { class: 'muted small' }, mine.length
+        ? 'Incluye ' + mine.length + (mine.length === 1 ? ' término tuyo' : ' términos tuyos') + ' (marcados «Mío»). '
+        : 'Si te falta un término, agrégalo con tu propia definición. ',
+        h('a', { href: '#mis-notas' }, 'Ver mis notas')),
+      addBtn, addSlot));
     if (!terms.length) {
       c.appendChild(h('div', { class: 'px-empty' },
         h('p', { class: 'px-empty__t' }, 'El glosario está vacío'),
@@ -71,15 +94,17 @@
     const letterOf = (en) => { const L = norm(en).charAt(0).toUpperCase(); return /[A-Z]/.test(L) ? L : '#'; };
     const groups = new Map();
     const rows = terms.map((t) => {
-      const s = slug(t.en);
+      const s = t.mine ? t.slug : slug(t.en);
       const L = letterOf(t.en);
-      const tr = h('tr', { class: 'gl__row', id: 'glosario.' + s, tabindex: '-1', dataset: { slug: s } },
-        h('th', { scope: 'row', class: 'gl__en' }, h('span', { lang: 'en' }, t.en)),
+      const tr = h('tr', { class: 'gl__row' + (t.mine ? ' gl__row--mine' : ''), id: 'glosario.' + s, tabindex: '-1', dataset: { slug: s } },
+        h('th', { scope: 'row', class: 'gl__en' }, t.mine ? h('span', null, t.en) : h('span', { lang: 'en' }, t.en)),
         h('td', { class: 'gl__es', dataset: { label: 'Español' } }, t.es || '—'),
         h('td', { class: 'gl__def', dataset: { label: 'Definición' } },
           h('div', { class: 'gl__defhtml', html: String(t.def || '') }),
           t.say ? h('p', { class: 'gl__say' }, h('span', { class: 'gl__sayk' }, 'Cómo lo dirías'), h('q', { lang: 'en' }, t.say)) : null),
-        h('td', { class: 'gl__src', dataset: { label: 'Fuente' } }, (t.sources || []).map(srcChip)));
+        h('td', { class: 'gl__src', dataset: { label: 'Fuente' } }, t.mine
+          ? h('a', { class: 'chip chip--accent', href: t.href, title: 'Término tuyo: ábrelo donde lo escribiste' }, 'Mío')
+          : (t.sources || []).map(srcChip)));
       const row = { tr, L, hay: norm([t.en, t.es, strip(t.def), t.say].filter(Boolean).join(' ')) };
       if (!groups.has(L)) groups.set(L, { rows: [], tbody: null });
       groups.get(L).rows.push(row);
@@ -90,7 +115,7 @@
         h('tr', { class: 'gl__letter' }, h('th', { colspan: '4', scope: 'colgroup', id: 'glosario.letra-' + L.toLowerCase().replace('#', 'otros') }, L)),
         g.rows.map((r) => r.tr));
     });
-    if (MSD.Blocks && MSD.Blocks.decorate) rows.forEach((r) => MSD.Blocks.decorate(r.tr));
+    if (MSD.Blocks && MSD.Blocks.decorate) rows.forEach((r, i) => { if (!terms[i].mine) MSD.Blocks.decorate(r.tr); });
 
     const input = h('input', {
       type: 'search', class: 'input gl__input', id: 'gl-q', autocomplete: 'off', spellcheck: 'false',
@@ -242,7 +267,7 @@
     const id = (route && route.pageId) || 'glosario';
     const wrap = h('div', { class: 'px' });
     container.appendChild(wrap);
-    if (id === 'glosario') renderGlossary(wrap, route || {});
+    if (id === 'glosario') renderGlossary(wrap, route || {}, ctx);
     else renderSoonRef(wrap, id);
   }
 

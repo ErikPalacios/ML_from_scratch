@@ -1,10 +1,10 @@
 /* =============================================================================
    Ronda de Diseño ML — js/core/store.js
-   Estado del usuario (progreso, práctica, flashcards, preferencias, checklists)
+   Estado del usuario (progreso, práctica, flashcards, preferencias, checklists, notas)
    con persistencia en dos niveles (SPEC §4.4):
      1) localStorage 'msd.v1', siempre (cada acceso con try/catch; si falla, solo memoria);
      2) dentro de un Artifact de claude.ai: base de datos privada del usuario
-        (data/users/<uid>/state + subcolección attempts), con fusión por updatedAt.
+        (data/users/<uid>/state + subcolección attempts + data/users/<uid>/notes), con fusión por updatedAt.
    Sin DOM al cargar: también se carga en Node (tests/store.test.cjs).
    Todas las marcas de tiempo salen de Date.now() (los tests lo controlan).
    ========================================================================== */
@@ -17,6 +17,8 @@
   const DAY = 24 * 60 * MIN;
   const LEITNER_DAYS = [0, 1, 3, 7, 16];   // intervalo de cada caja de Leitner (días)
   const MAX_TEXT = 100000;                 // tope de texto por intento (≪ 256 KiB por documento)
+  const MAX_NOTE = 4000;                   // tope de texto por nota (todas viven en un solo documento)
+  const MAX_TERM = 120;                    // tope del nombre de un término propio
   const ID_RE = /^[A-Za-z0-9_\-.~:@+]{1,150}$/;   // segmento válido de ruta en la db
   const PREF_DEFAULTS = { theme: 'system', solutionRevealed: {} };
   // Tiempos (configurables solo para los tests): escritura local, pausa antes de sincronizar,
@@ -40,6 +42,7 @@
       prefs: { updatedAt: 0, values: {} },                     // values[key] = {v, at} (fusión por clave)
       checklists: { updatedAt: 0, items: {} },                 // items['c01|checklist|item'] = {on, at}
       lastLocation: { updatedAt: 0, hash: '' },
+      notes: { updatedAt: 0, items: {} },                      // items[id] = {id, kind:'note'|'term', page, section, term, text, createdAt, at, del}
       tomb: {},                                                // intentos borrados: id → ts (evita que "resuciten" al fusionar)
       attempts: {},                                            // id → intento (borradores y terminados)
     };
@@ -64,6 +67,27 @@
     if (!isObj(a.rubric)) delete out.rubric;
     if (!isObj(a.score)) delete out.score;
     return out;
+  }
+
+  // Nota o término propio. Las borradas quedan como {del:true} con su `at` (así el borrado gana al fusionar)
+  // y sin texto, para no ocupar espacio.
+  const PAGE_RE = /^[A-Za-z0-9_-]{1,40}$/;
+  function sanitizeNote(n, key) {
+    if (!isObj(n)) return null;
+    const id = typeof n.id === 'string' ? n.id : key;
+    if (typeof id !== 'string' || !ID_RE.test(id) || id === '.' || id === '..') return null;
+    const del = !!n.del;
+    return {
+      id,
+      kind: n.kind === 'term' ? 'term' : 'note',
+      page: typeof n.page === 'string' && PAGE_RE.test(n.page) ? n.page : '',
+      section: typeof n.section === 'string' && PAGE_RE.test(n.section) ? n.section : '',
+      term: del ? '' : (typeof n.term === 'string' ? n.term.trim().slice(0, MAX_TERM) : ''),
+      text: del ? '' : (typeof n.text === 'string' ? n.text.slice(0, MAX_NOTE) : ''),
+      createdAt: num(n.createdAt, 0),
+      at: num(n.at, 0),
+      del,
+    };
   }
 
   // Normaliza cualquier objeto (localStorage, db, importación) a un estado válido; descarta lo inválido.
@@ -110,6 +134,15 @@
     const ll = isObj(raw.lastLocation) ? raw.lastLocation : {};
     s.lastLocation = { updatedAt: num(ll.updatedAt, 0), hash: typeof ll.hash === 'string' && /^(#[A-Za-z0-9._~-]*)?$/.test(ll.hash) ? ll.hash : '' };
 
+    const nt = isObj(raw.notes) ? raw.notes : {};
+    s.notes.updatedAt = num(nt.updatedAt, 0);
+    if (isObj(nt.items)) {
+      for (const [k, n] of Object.entries(nt.items)) {
+        const x = sanitizeNote(n, k);
+        if (x) s.notes.items[x.id] = x;
+      }
+    }
+
     if (isObj(raw.tomb)) for (const [k, t] of Object.entries(raw.tomb)) if (typeof t === 'number') s.tomb[k] = t;
 
     if (isObj(raw.attempts)) {
@@ -152,6 +185,9 @@
     out.checklists.updatedAt = Math.max(base.checklists.updatedAt, inc.checklists.updatedAt);
 
     if (inc.lastLocation.updatedAt > out.lastLocation.updatedAt) out.lastLocation = clone(inc.lastLocation);
+
+    mergeMap(out.notes.items, inc.notes.items, (a, b) => b.at > a.at);
+    out.notes.updatedAt = Math.max(base.notes.updatedAt, inc.notes.updatedAt);
 
     for (const [k, t] of Object.entries(inc.tomb)) out.tomb[k] = Math.max(out.tomb[k] || 0, t);
     mergeMap(out.attempts, inc.attempts, (a, b) => b.updatedAt > a.updatedAt);
@@ -283,7 +319,7 @@
   }
 
   // ------------------------------------------------------------------ sincronización con la cuenta (Artifact)
-  let remote = null;   // { mainRef, col, docs: Map(key → {timer, dirty, writing, last, disabled, retried, parked, firstDirty}), dead }
+  let remote = null;   // { mainRef, col, notesRef, docs: Map(key → {timer, dirty, writing, last, disabled, retried, parked, firstDirty}), dead }
 
   function mainUpdatedAt(s) {
     let t = Math.max(s.progress.updatedAt, s.flash.updatedAt, s.prefs.updatedAt, s.checklists.updatedAt, s.lastLocation.updatedAt);
@@ -294,6 +330,7 @@
     return { v: 1, updatedAt: mainUpdatedAt(s), progress: s.progress, flash: s.flash, prefs: s.prefs, checklists: s.checklists, lastLocation: s.lastLocation, tomb: s.tomb };
   }
   function attemptBody(a) { return clone(a); }
+  function notesBody(s) { return { v: 1, updatedAt: s.notes.updatedAt, items: s.notes.items }; }
   const attemptKey = (id) => 'a:' + id;
 
   function docEntry(key) {
@@ -331,6 +368,7 @@
     let ref;
     try {
       if (key === 'main') { body = mainBody(state); ref = r.mainRef; }
+      else if (key === 'notes') { body = notesBody(state); ref = r.notesRef; }
       else {
         const id = key.slice(2);
         const a = state.attempts[id];
@@ -392,6 +430,8 @@
       if (!uid || typeof uid !== 'string') return;
       const mainRef = db.doc('data/users/' + uid + '/state');
       const col = mainRef.collection('attempts');
+      // Las notas van en su propio documento: si crecen mucho, no arrastran al estado principal.
+      const notesRef = db.doc('data/users/' + uid + '/notes');
       const readOnce = async (fn) => {
         try { return await fn(); }
         catch (e) {
@@ -401,6 +441,10 @@
       };
       const snap = await readOnce(() => mainRef.get());
       const qs = await readOnce(() => col.get());
+      // Sin documento de notas (o sin permiso de leerlo) se sigue sin notas remotas: no frena el resto.
+      let notesSnap = null;
+      try { notesSnap = await readOnce(() => notesRef.get()); } catch (e) { notesSnap = null; }
+      const remoteNotes = notesSnap && notesSnap.exists ? (notesSnap.data() || null) : null;
       const remoteMain = snap && snap.exists ? (snap.data() || {}) : null;
       const remoteAttempts = {};
       for (const ds of (qs && qs.docs) || []) {
@@ -408,15 +452,17 @@
         const a = sanitizeAttempt(ds.data(), ds.id);
         if (a) remoteAttempts[a.id] = a;
       }
-      const rs = sanitize(Object.assign({}, remoteMain || {}, { v: 1, attempts: remoteAttempts }));
+      const rs = sanitize(Object.assign({}, remoteMain || {}, { v: 1, attempts: remoteAttempts, notes: remoteNotes || {} }));
       const before = JSON.stringify(state);
       state = mergeInto(state, rs);
 
-      remote = { mainRef, col, docs: new Map(), dead: false };
+      remote = { mainRef, col, notesRef, docs: new Map(), dead: false };
       // Lo que ya está en la db cuenta como "escrito": solo se reescribe lo que cambió.
       docEntry('main').last = remoteMain ? JSON.stringify(mainBody(rs)) : null;
+      docEntry('notes').last = remoteNotes ? JSON.stringify(notesBody(rs)) : null;
       for (const a of Object.values(rs.attempts)) docEntry(attemptKey(a.id)).last = JSON.stringify(attemptBody(a));
       scheduleRemote('main');
+      if (Object.keys(state.notes.items).length) scheduleRemote('notes');
       for (const id of Object.keys(state.attempts)) scheduleRemote(attemptKey(id));
       for (const id of Object.keys(state.tomb)) if (rs.attempts[id]) scheduleRemote(attemptKey(id));
       emitStatus();
@@ -709,6 +755,59 @@
     commit('prefs');
   }
 
+  // ------------------------------------------------------------------ API: notas y términos propios
+  // listNotes({page, section, kind}?) → notas vivas (sin las borradas), en orden de creación.
+  function listNotes(filter) {
+    const f = isObj(filter) ? filter : {};
+    return Object.values(state.notes.items)
+      .filter((n) => !n.del && (!f.page || n.page === f.page) && (f.section === undefined || n.section === f.section) && (!f.kind || n.kind === f.kind))
+      .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))
+      .map((n) => clone(n));
+  }
+  function getNote(id) {
+    const n = state.notes.items[id];
+    return n && !n.del ? clone(n) : null;
+  }
+  function commitNotes() {
+    state.notes.updatedAt = now();
+    commit('notes', ['notes']);
+  }
+  // addNote({kind, page, section, term, text}) → la nota creada, o null si está vacía.
+  function addNote(o) {
+    // createdAt estrictamente creciente: dos notas en el mismo milisegundo conservan su orden.
+    let t = now();
+    for (const x of Object.values(state.notes.items)) if (x.createdAt >= t) t = x.createdAt + 1;
+    const id = 'n-' + t.toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+    const n = sanitizeNote(Object.assign({}, isObj(o) ? o : {}, { id, createdAt: t, at: t, del: false }), id);
+    if (!n || (n.kind === 'term' ? !n.term : !n.text.trim())) return null;
+    state.notes.items[id] = n;
+    commitNotes();
+    return clone(n);
+  }
+  // updateNote(id, {term, text, kind}) → la nota actualizada (null si no existe o está borrada).
+  function updateNote(id, patch) {
+    const cur = state.notes.items[id];
+    if (!cur || cur.del) return null;
+    const p = isObj(patch) ? patch : {};
+    const next = sanitizeNote(Object.assign({}, cur, {
+      term: 'term' in p ? p.term : cur.term,
+      text: 'text' in p ? p.text : cur.text,
+      kind: 'kind' in p ? p.kind : cur.kind,
+    }), id);
+    if (!next || (next.kind === 'term' ? !next.term : !next.text.trim())) return null;
+    if (next.term === cur.term && next.text === cur.text && next.kind === cur.kind) return clone(cur);
+    next.at = Math.max(now(), cur.at + 1);
+    state.notes.items[id] = next;
+    commitNotes();
+    return clone(next);
+  }
+  function deleteNote(id) {
+    const cur = state.notes.items[id];
+    if (!cur || cur.del) return;
+    state.notes.items[id] = Object.assign(sanitizeNote(cur, id), { term: '', text: '', del: true, at: Math.max(now(), cur.at + 1) });
+    commitNotes();
+  }
+
   // ------------------------------------------------------------------ API: portabilidad
   function exportJSON() {
     return JSON.stringify({ app: 'ronda-diseno-ml', v: 1, exportedAt: new Date(now()).toISOString(), state }, null, 2);
@@ -721,7 +820,7 @@
     if (!isObj(data)) return { ok: false, error: 'Se esperaba un objeto JSON (el respaldo empieza con {).' };
     const raw = isObj(data.state) ? data.state : data;
     if (raw.v !== 1) return { ok: false, error: 'No parece un respaldo de Ronda de Diseño ML (falta "v": 1).' };
-    const known = ['progress', 'flash', 'prefs', 'checklists', 'lastLocation', 'attempts'];
+    const known = ['progress', 'flash', 'prefs', 'checklists', 'lastLocation', 'attempts', 'notes'];
     if (!known.some((k) => k in raw)) return { ok: false, error: 'El respaldo no contiene progreso reconocible.' };
     for (const k of known) if (k in raw && !isObj(raw[k])) return { ok: false, error: 'Formato inválido en "' + k + '".' };
     const inc = sanitize(raw);
@@ -730,6 +829,7 @@
     scheduleLocal();
     if (remote) {
       scheduleRemote('main');
+      if (Object.keys(inc.notes.items).length) scheduleRemote('notes');
       for (const id of Object.keys(state.attempts)) scheduleRemote(attemptKey(id));
       for (const id of Object.keys(state.tomb)) scheduleRemote(attemptKey(id));
     }
@@ -739,6 +839,7 @@
       sections: Object.values(inc.progress.sections).filter((e) => e.read).length,
       attempts: Object.keys(inc.attempts).length,
       cards: Object.keys(inc.flash.cards).length,
+      notes: Object.values(inc.notes.items).filter((n) => !n.del).length,
     };
   }
 
@@ -784,6 +885,8 @@
     cardState, gradeCard, dueCards, flashStats,
     // preferencias
     pref, setPref,
+    // notas y términos propios
+    listNotes, getNote, addNote, updateNote, deleteNote,
     // portabilidad y estado del guardado
     exportJSON, importJSON, backend, onStatus,
     flush: flushAll,

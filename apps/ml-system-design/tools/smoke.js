@@ -93,8 +93,8 @@
   await step('arranque', async () => {
     ok('registro sin problemas', MSD.registryProblems().length === 0, MSD.registryProblems());
     ok('aviso de desarrollo oculto', byId('dev-banner').hidden);
-    ok('módulos del shell cargados', ['App', 'Blocks', 'Diagram', 'Code', 'Practice', 'Flashcards', 'Reference', 'store', 'dom'].every((k) => !!MSD[k]),
-      ['App', 'Blocks', 'Diagram', 'Code', 'Practice', 'Flashcards', 'Reference', 'store', 'dom'].filter((k) => !MSD[k]));
+    ok('módulos del shell cargados', ['App', 'Blocks', 'Diagram', 'Code', 'Practice', 'Flashcards', 'Reference', 'Notes', 'store', 'dom'].every((k) => !!MSD[k]),
+      ['App', 'Blocks', 'Diagram', 'Code', 'Practice', 'Flashcards', 'Reference', 'Notes', 'store', 'dom'].filter((k) => !MSD[k]));
     ok('m01 y c01 listos', MSD.getPage('m01').ready && MSD.getPage('c01').ready);
     ok('28 ítems en el índice', $$('#nav .nav__item').filter((a) => /^[mc]\d\d$/.test(a.dataset.id)).length === 28);
     notes.viewport = innerWidth + '×' + innerHeight + (drawerMode() ? ' (cajón)' : '') + (matchMedia('(prefers-color-scheme: dark)').matches ? ' oscuro' : ' claro');
@@ -539,6 +539,87 @@
       byId('drawer-close').click();
       ok('cajón: se cierra', await waitFor(() => !sb.classList.contains('is-open') && !byId('shell').inert, 800));
     }
+  });
+
+  // ------------------------------------------------------------------ 9b. mis notas: sección, término propio, página, glosario, búsqueda, flashcards
+  await step('mis notas', async () => {
+    const before = store.listNotes().length;
+    await go('#m01');
+    const secs = $$('#page section.sec');
+    ok('notas: botón «Agregar nota» en cada sección', secs.length > 0 && secs.every((x) => !!$('.notes-btn', x)));
+    const sec = secs[0];
+    const btn = $('.notes-btn', sec);
+    if (drawerMode()) btn.scrollIntoView({ block: 'center' });
+    btn.click();
+    const ta = await waitFor(() => $('.notes-form__text', sec), 1000);
+    ok('notas: abre el formulario con el foco en el texto', !!ta && document.activeElement === ta);
+    ta.value = 'Duda de prueba: <b>no</b> es HTML\nsegunda línea';
+    button('Guardar', $('.notes__form', sec)).click();
+    const card = await waitFor(() => $('.notes__list .note', sec), 1000);
+    ok('notas: la nota aparece en la sección', !!card && $('.note__text', card).textContent === 'Duda de prueba: <b>no</b> es HTML\nsegunda línea');
+    ok('notas: el texto se muestra como texto, no como HTML', !!card && !$('.note__text b', card));
+    ok('notas: guardada en el store', store.listNotes().length === before + 1);
+    ok('notas: el botón muestra el conteo', txt($('.notes-btn__n', sec)) === String(store.listNotes({ page: 'm01', section: sec.dataset.sec }).length));
+    // Término propio desde la misma sección
+    btn.click();
+    await waitFor(() => $('.notes__form .notes-form', sec), 1000);
+    button('Término para el glosario', sec).click();
+    const termIn = $('.notes__form .notes-form__term', sec);
+    ok('notas: el modo término pide el término', visible(termIn) && document.activeElement === termIn);
+    termIn.value = 'Zeta de prueba';
+    $('.notes__form .notes-form__text', sec).value = 'Definición propia de prueba.';
+    button('Guardar', $('.notes__form', sec)).click();
+    await waitFor(() => $$('.notes__list .note', sec).length >= 2, 1000);
+    const term = store.listNotes({ kind: 'term' }).find((n) => n.term === 'Zeta de prueba');
+    ok('notas: término guardado', !!term);
+    // Editar la nota
+    const first = $('.notes__list .note', sec);
+    button('Editar', first).click();
+    const eta = await waitFor(() => $('.notes-form__text', first), 800);
+    eta.value = 'Nota editada';
+    button('Guardar cambios', first).click();
+    ok('notas: editar actualiza el texto', await waitFor(() => txt($('.note__text', $('.notes__list .note', sec))) === 'Nota editada', 800));
+    checkOverflow('#m01 (con notas)');
+    // Página Mis notas + marcador del índice
+    await go('#mis-notas');
+    ok('mis notas: título', txt(byId('page-title')) === 'Mis notas');
+    ok('mis notas: lista las entradas', $$('#page .note').length === store.listNotes().length);
+    ok('mis notas: el índice muestra el conteo', txt($('#nav .nav__item[data-id="mis-notas"] .mk-count')) === String(store.listNotes().length));
+    const q = byId('mn-q');
+    q.value = 'zeta';
+    q.dispatchEvent(new Event('input', { bubbles: true }));
+    ok('mis notas: el filtro funciona', $$('#page .note').length === 1);
+    q.value = '';
+    q.dispatchEvent(new Event('input', { bubbles: true }));
+    checkOverflow('#mis-notas');
+    // Glosario: el término propio sale con la marca «Mío»
+    await go('#glosario.mio-' + term.id);
+    const row = await waitFor(() => byId('glosario.mio-' + term.id), 1000);
+    ok('glosario: el término propio está marcado «Mío»', !!row && txt($('.gl__src', row)) === 'Mío' && row.classList.contains('is-target'));
+    // Búsqueda
+    const inp = byId('search-input');
+    inp.value = 'zeta de prueba';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    ok('búsqueda: encuentra tu término', $$('#search-results .sres').some((r) => txt($('.sres__type', r)) === 'Mi término'));
+    inp.value = 'nota editada';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    ok('búsqueda: encuentra tu nota', $$('#search-results .sres').some((r) => txt($('.sres__type', r)) === 'Mi nota'));
+    inp.value = '';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    blur();
+    // Flashcards y exportar
+    ok('flashcards: tu término entra al mazo', MSD.Flashcards.visibleCards(store).some((c) => c.id === 'mio-' + term.id));
+    ok('exportar incluye las notas', !!JSON.parse(store.exportJSON()).state.notes.items[term.id]);
+    // Borrar desde Mis notas (con confirmación en la página, sin confirm())
+    await go('#mis-notas');
+    const tcard = $('#page .note[data-note="' + term.id + '"]');
+    button('Borrar', tcard).click();
+    const yes = await waitFor(() => button('Sí, borrar', tcard), 800);
+    yes.click();
+    ok('mis notas: borrar quita la entrada', await waitFor(() => !store.getNote(term.id) && !$('#page .note[data-note="' + term.id + '"]'), 800));
+    // Limpieza: deja el estado como estaba
+    store.listNotes().slice(before).forEach((n) => store.deleteNote(n.id));
+    ok('notas: limpieza', store.listNotes().length === before);
   });
 
   // ------------------------------------------------------------------ 10. ruta desconocida

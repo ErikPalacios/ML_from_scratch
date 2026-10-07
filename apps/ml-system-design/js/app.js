@@ -24,6 +24,7 @@
     practica: { title: 'Simulador de entrevista', short: 'Simulador', ico: 'practice', part: 3 },
     historial: { title: 'Historial de práctica', short: 'Historial', ico: 'list', part: 3 },
     flashcards: { title: 'Flashcards', short: 'Flashcards', ico: 'cards', part: 3 },
+    'mis-notas': { title: 'Mis notas', short: 'Mis notas', ico: 'note', part: 3 },
     'ref-numeros': { title: 'Números que debes saber', short: 'Números que debes saber', ico: 'ref', part: 4 },
     'ref-herramientas': { title: 'Herramientas por categoría', short: 'Herramientas por categoría', ico: 'ref', part: 4 },
     'ref-comandos': { title: 'Docker y kubectl', short: 'Docker y kubectl', ico: 'ref', part: 4 },
@@ -33,7 +34,7 @@
     { id: 'home', label: null, ids: ['inicio'] },
     { id: 'p1', label: 'Parte 1 — Fundamentos', ids: MODULE_IDS },
     { id: 'p2', label: 'Parte 2 — Casos de diseño', ids: CASE_IDS },
-    { id: 'p3', label: 'Parte 3 — Práctica', ids: ['practica', 'historial', 'flashcards'] },
+    { id: 'p3', label: 'Parte 3 — Práctica', ids: ['practica', 'historial', 'flashcards', 'mis-notas'] },
     { id: 'p4', label: 'Parte 4 — Referencias', ids: ['ref-numeros', 'ref-herramientas', 'ref-comandos', 'glosario'] },
   ];
   const STATE_LABEL = { done: 'completado', progress: 'en curso', ready: 'disponible', soon: 'próximamente' };
@@ -263,6 +264,7 @@
     const cards = visibleCardIds();
     const due = cards.length ? store.dueCards(cards).length : 0;
     const drafts = store.listAttempts({ includeDrafts: true }).filter((a) => a.status === 'draft');
+    const notesN = safe(() => store.listNotes().length, 0);
     els.nav.querySelectorAll('.nav__item').forEach((a) => {
       const id = a.dataset.id;
       const mk = a.querySelector('.nav__mk');
@@ -279,6 +281,9 @@
       } else if (id === 'flashcards' && due > 0) {
         html = '<span class="mk-count">' + due + '</span>';
         title += ' — ' + due + ' pendientes hoy';
+      } else if (id === 'mis-notas' && notesN > 0) {
+        html = '<span class="mk-count mk-count--notes">' + notesN + '</span>';
+        title += ' — ' + notesN + (notesN === 1 ? ' entrada' : ' entradas');
       } else if (id === 'practica' && drafts.length) {
         html = '<span class="mk-draft"></span>';
         title += ' — ' + drafts.length + (drafts.length === 1 ? ' borrador abierto' : ' borradores abiertos');
@@ -357,15 +362,16 @@
 
   // ------------------------------------------------------------------ búsqueda
   const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const TYPE_LABEL = { page: 'Página', section: 'Sección', term: 'Término', card: 'Tarjeta' };
+  const TYPE_LABEL = { page: 'Página', section: 'Sección', term: 'Término', card: 'Tarjeta', note: 'Mi nota', myterm: 'Mi término' };
   // Las tarjetas no suman bonos por título (sus preguntas son largas y taparían páginas y secciones)
   // y salen como máximo 3.
-  const TYPE_WEIGHT = { page: 40, section: 30, term: 20, card: 0 };
+  const TYPE_WEIGHT = { page: 40, section: 30, term: 20, card: 0, note: 35, myterm: 45 };
   const MAX_CARD_RESULTS = 3;
 
   function ensureIndex() {
     if (S.searchItems) return S.searchItems;
-    const idx = safe(() => MSD.searchIndex(), []);
+    // Tus notas y términos también se buscan (el índice se rehace cuando cambian).
+    const idx = safe(() => MSD.searchIndex(), []).concat(safe(() => (MSD.Notes ? MSD.Notes.searchItems() : []), []));
     S.searchItems = idx.map((e) => {
       const lab = e.type === 'page' ? label(e.id) : '';
       return Object.assign({}, e, { lab, nTitle: norm((lab ? lab + ' ' : '') + e.title), nText: norm(e.text) });
@@ -555,7 +561,7 @@
       if (r.ok) {
         msg.className = 'result-msg is-ok';
         const pl = (n, one, many) => n + ' ' + (n === 1 ? one : many);
-        msg.textContent = 'Importado y fusionado: ' + pl(r.sections, 'sección leída', 'secciones leídas') + ', ' + pl(r.attempts, 'intento', 'intentos') + ', ' + pl(r.cards, 'tarjeta', 'tarjetas') + '.';
+        msg.textContent = 'Importado y fusionado: ' + pl(r.sections, 'sección leída', 'secciones leídas') + ', ' + pl(r.attempts, 'intento', 'intentos') + ', ' + pl(r.cards, 'tarjeta', 'tarjetas') + ', ' + pl(r.notes || 0, 'nota', 'notas') + '.';
         importTa.value = '';
         exportTa.value = store.exportJSON();
       } else { msg.className = 'result-msg is-bad'; msg.textContent = r.error; }
@@ -567,7 +573,7 @@
       h('div', { class: 'modal__body' },
         h('section', { class: 'modal__sec' },
           h('h3', null, 'Exportar'),
-          h('p', null, 'Copia este respaldo y guárdalo (en un archivo .json o en tus notas). Incluye secciones leídas, intentos de práctica con su texto, flashcards y preferencias.'),
+          h('p', null, 'Copia este respaldo y guárdalo (en un archivo .json o en tus notas). Incluye secciones leídas, intentos de práctica con su texto, flashcards, tus notas y términos, y preferencias.'),
           exportTa,
           h('div', { class: 'modal__row' }, copyBtn, h('span', { class: 'muted small mono' }, kb + ' KB'))),
         h('section', { class: 'modal__sec' },
@@ -672,6 +678,7 @@
     }, h('span', { html: icon('check') }), h('span', null, read ? 'Leída' : 'Marcar como leída'));
     const body = h('div', { class: 'sec__body' });
     renderBlocks(s.blocks, body, { pageId: p.id, sectionId: s.id });
+    const notes = MSD.Notes ? safe(() => MSD.Notes.sectionBlock(p.id, s.id), null) : null;
     return h('section', { class: 'sec', id: sid, 'aria-labelledby': 'h-' + sid, dataset: { sec: s.id } },
       h('header', { class: 'sec__head' },
         n ? h('span', { class: 'sec__num', 'aria-hidden': 'true' }, pad2(n)) : null,
@@ -679,7 +686,8 @@
         prioChip(s.priority),
         s.titleEn ? h('p', { class: 'sec__en', lang: 'en' }, s.titleEn) : null),
       body,
-      h('footer', { class: 'sec__foot' }, btn));
+      notes ? notes.panel : null,
+      h('footer', { class: 'sec__foot' }, btn, notes ? notes.button : null));
   }
 
   function progressLine() {
@@ -1006,6 +1014,7 @@
         else layout = renderSoon(c, id);
       } else if (/^practica(-c\d\d)?$/.test(id) || id === 'historial') layout = delegate(c, 'Practice', r);
       else if (id === 'flashcards') layout = delegate(c, 'Flashcards', r);
+      else if (id === 'mis-notas') layout = delegate(c, 'Notes', r);
       else if (/^ref-(numeros|herramientas|comandos)$/.test(id) && (getPage(id) || {}).ready) layout = renderSheet(c, getPage(id));
       else if (id === 'glosario' || /^ref-(numeros|herramientas|comandos)$/.test(id)) layout = delegate(c, 'Reference', r, id === 'glosario' ? null : () => renderSoon(c, id));
       else layout = renderNotFound(c, r);
@@ -1098,12 +1107,13 @@
       syncThemeButtons(t);
     }
     if (only(['location', 'visit', 'prefs'])) return;
+    if (kinds.has('notes') || kinds.has('remote') || kinds.has('import')) S.searchItems = null;
     updateNavMarkers();
     renderSideUptime();
     if (kinds.has('progress')) refreshReadMarks();
     if (kinds.has('remote') || kinds.has('import')) {
       renderFoot();
-      const shellPage = S.route && (S.route.pageId === 'inicio' || isCourseId(S.route.pageId) || (S.page && S.page.kind === 'sheet'));
+      const shellPage = S.route && (S.route.pageId === 'inicio' || isCourseId(S.route.pageId) || (S.page && S.page.kind === 'sheet') || S.route.pageId === 'mis-notas' || S.route.pageId === 'glosario');
       const typing = isTextEntry(document.activeElement) && els.page.contains(document.activeElement);
       if (shellPage && !typing) rerender(false);
     }

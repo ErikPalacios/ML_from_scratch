@@ -457,3 +457,80 @@ test('sync: sin claude.use o con use() → null, se queda en local', async () =>
   await env2.advance(0);
   assert.strictEqual(env2.store.backend(), 'local', 'sin uid no hay sincronización');
 });
+
+test('notas: crear, editar, borrar y validar', async () => {
+  const ls = fakeStorage();
+  const env = makeEnv({ storage: ls });
+  const { store } = env;
+  const kinds = [];
+  store.subscribe((k) => kinds.push(k));
+  assert.strictEqual(store.addNote({ kind: 'note', page: 'm01', section: 'a', text: '   ' }), null, 'vacía no se guarda');
+  assert.strictEqual(store.addNote({ kind: 'term', page: 'm01', section: 'a', text: 'def sin término' }), null, 'término sin nombre no se guarda');
+  const n = store.addNote({ kind: 'note', page: 'm01', section: 'a', text: 'LB reparte requests entre réplicas' });
+  env.clock.t += 10;
+  const t = store.addNote({ kind: 'term', page: 'm01', section: 'b', term: '  TLS ', text: 'Cifra la conexión (el candado de HTTPS).' });
+  assert.ok(n && t);
+  assert.strictEqual(t.term, 'TLS', 'el término se recorta');
+  assert.ok(kinds.includes('notes'));
+  assert.strictEqual(store.listNotes().length, 2);
+  assert.strictEqual(store.listNotes({ page: 'm01', section: 'a' }).length, 1);
+  assert.strictEqual(store.listNotes({ kind: 'term' })[0].id, t.id);
+  // ids y páginas inválidas se descartan al normalizar
+  assert.strictEqual(store.addNote({ kind: 'note', page: '../x', section: 'a b', text: 'ok' }).page, '');
+  // texto largo se recorta a 4000
+  assert.strictEqual(store.updateNote(n.id, { text: 'x'.repeat(5000) }).text.length, 4000);
+  env.clock.t += 10;
+  store.updateNote(n.id, { text: 'LB = load balancer' });
+  assert.strictEqual(store.getNote(n.id).text, 'LB = load balancer');
+  assert.strictEqual(store.updateNote(n.id, { text: '' }), null, 'no se puede dejar vacía');
+  store.deleteNote(t.id);
+  assert.strictEqual(store.getNote(t.id), null);
+  assert.strictEqual(store.listNotes({ kind: 'term' }).length, 0);
+  await env.advance(300);
+  const saved = JSON.parse(ls.getItem('msd.v1'));
+  assert.strictEqual(saved.notes.items[t.id].del, true, 'el borrado queda como lápida');
+  assert.strictEqual(saved.notes.items[t.id].text, '', 'sin texto');
+  const env2 = makeEnv({ storage: ls });
+  assert.strictEqual(env2.store.getNote(n.id).text, 'LB = load balancer', 'sobrevive a recargar');
+});
+
+test('notas: fusión entre pestañas y por exportar/importar (gana lo más reciente; el borrado gana)', async () => {
+  const ls = fakeStorage();
+  const A = makeEnv({ storage: ls });
+  const B = makeEnv({ storage: ls });
+  const n = A.store.addNote({ kind: 'note', page: 'm01', section: 'a', text: 'v1' });
+  A.store.flush();
+  B.store.addNote({ kind: 'term', page: 'glosario', section: '', term: 'LB', text: 'load balancer' });
+  B.store.flush();
+  assert.strictEqual(B.store.listNotes().length, 2, 'B ve la nota de A');
+  // Exportar desde B e importar en un navegador nuevo con su propia versión más vieja de la nota.
+  const json = B.store.exportJSON();
+  const C = makeEnv({ storage: fakeStorage() });
+  const r = C.store.importJSON(json);
+  assert.ok(r.ok);
+  assert.strictEqual(r.notes, 2);
+  assert.strictEqual(C.store.listNotes().length, 2);
+  C.clock.t += 5000;
+  C.store.deleteNote(n.id);
+  const r2 = B.store.importJSON(C.store.exportJSON());
+  assert.ok(r2.ok);
+  assert.strictEqual(B.store.getNote(n.id), null, 'el borrado más reciente gana al importar');
+});
+
+test('notas: se sincronizan en su propio documento de la cuenta', async () => {
+  const NOTES = 'data/users/u_test/notes';
+  const remoteNotes = { v: 1, updatedAt: T0 - 1000, items: { 'n-remota': { id: 'n-remota', kind: 'term', page: 'm02', section: 'x', term: 'TLS', text: 'remota', createdAt: T0 - 1000, at: T0 - 1000, del: false } } };
+  const db = fakeDb({ [NOTES]: remoteNotes });
+  const env = makeEnv({ storage: fakeStorage(), claude: fakeClaude(db) });
+  await env.advance(0);
+  assert.strictEqual(env.store.backend(), 'account');
+  assert.strictEqual(env.store.getNote('n-remota').text, 'remota', 'trae las notas de la cuenta');
+  await env.advance(5000);
+  assert.strictEqual(db.log.filter(([, p]) => p === NOTES).length, 0, 'no reescribe notas que ya estaban al día');
+  const n = env.store.addNote({ kind: 'note', page: 'm01', section: 'a', text: 'local' });
+  await env.advance(2100);
+  assert.deepStrictEqual(db.log.filter(([, p]) => p === NOTES), [['set', NOTES]]);
+  assert.strictEqual(db.docs.get(NOTES).items[n.id].text, 'local');
+  const main = db.docs.get(MAIN) || {};
+  assert.ok(!('notes' in main), 'las notas no van en el documento principal');
+});

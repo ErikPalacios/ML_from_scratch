@@ -14,8 +14,8 @@
   const D = MSD.dom;
   const { h, icon } = D;
 
-  const KIND_LABEL = { concepto: 'Concepto', numero: 'Número', tradeoff: 'Trade-off', trampa: 'Trampa', frase: 'Frase en inglés' };
-  const KIND_ORDER = ['concepto', 'numero', 'tradeoff', 'trampa', 'frase'];
+  const KIND_LABEL = { concepto: 'Concepto', numero: 'Número', tradeoff: 'Trade-off', trampa: 'Trampa', frase: 'Frase en inglés', mio: 'Mi término' };
+  const KIND_ORDER = ['concepto', 'numero', 'tradeoff', 'trampa', 'frase', 'mio'];
   const GRADES = [
     { id: 'again', key: '1', label: 'Otra vez' },
     { id: 'hard', key: '2', label: 'Difícil' },
@@ -27,9 +27,14 @@
 
   const safe = (fn, dflt) => { try { const v = fn(); return v === undefined ? dflt : v; } catch (e) { return dflt; } };
   const reduced = () => (D.reducedMotion ? D.reducedMotion() : false);
-  const srcLabel = (s) => (/^[mc]\d\d$/.test(s) ? s.toUpperCase() : s === 'general' ? 'General'
+  const srcLabel = (s) => (/^[mc]\d\d$/.test(s) ? s.toUpperCase() : s === 'general' ? 'General' : s === 'mis-notas' ? 'Mis notas'
     : (safe(() => (MSD.catalog().items[s] || {}).short, null) || String(s)));
   const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+  // Mazo completo: las del curso + una por cada término tuyo con definición (MSD.Notes).
+  function allCards() {
+    return safe(() => MSD.flashcards(), []).concat(safe(() => (MSD.Notes ? MSD.Notes.cards() : []), [])).filter((c) => c && c.id);
+  }
 
   // Tarjetas de un caso listo cuya solución sigue tras la compuerta de práctica: no se reparten.
   function isLockedSource(store, src) {
@@ -40,7 +45,7 @@
     return !((store.pref('solutionRevealed') || {})[src]);
   }
   function visibleCards(store) {
-    return safe(() => MSD.flashcards(), []).filter((c) => c && c.id && !isLockedSource(store, c.source));
+    return allCards().filter((c) => !isLockedSource(store, c.source));
   }
 
   function isTextEntry(el) {
@@ -67,7 +72,7 @@
     if (mounted) { mounted.teardown(); mounted = null; }
     const store = (ctx && ctx.store) || MSD.store;
     const LEITNER = Array.isArray(store.LEITNER_DAYS) ? store.LEITNER_DAYS : [0, 1, 3, 7, 16];
-    const all = safe(() => MSD.flashcards(), []).filter((c) => c && c.id);
+    const all = allCards();
     const deck = all.filter((c) => !isLockedSource(store, c.source));
     const locked = {};
     all.forEach((c) => { if (isLockedSource(store, c.source)) locked[c.source] = (locked[c.source] || 0) + 1; });
