@@ -26,10 +26,15 @@ const head = [
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-title" content="Ronda ML">',
 ].join('\n');
-// el service worker solo se registra servido por http(s): con doble clic (file://) no aplica
+// el service worker solo se registra servido por http(s): con doble clic (file://) no aplica.
+// navigator.storage.persist() pide que el navegador no borre el progreso y las notas
+// (localStorage) cuando el dispositivo se queda sin espacio; si no lo concede, todo sigue igual.
 const register = `<script>
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persisted().then(function (p) { if (!p) return navigator.storage.persist(); }).catch(function () {});
 }
 </script>`;
 if (!/<\/title>/i.test(html) || !/<\/body>/i.test(html)) { console.error('[build-web] ERROR: el HTML no tiene </title> o </body>.'); process.exit(1); }
