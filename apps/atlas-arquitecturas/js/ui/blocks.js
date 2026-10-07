@@ -451,12 +451,14 @@
     const showP = b.params === true || (b.params !== false && total.params > 0);
     const showM = b.flops === true || (b.flops !== false && total.macs > 0);
     const page = safe(() => ATLAS.getPage(pageId), null);
-    const hasDiagram = page && arr(page.sections).some((s) => s.id === 'diagrama');
+    // El nodo puede vivir en otra sección (p. ej. el diagrama de Deformable DETR está en 'variantes').
+    const diagSection = (info.page === pageId && info.section) || 'diagrama';
+    const hasDiagram = page && arr(page.sections).some((s) => s.id === diagSection);
 
     const head = h('header', { class: 'opc__head' },
       info.op ? h('span', { class: 'opc__type' }, OP_TITLE[info.op] || info.op) : null,
       h('h3', { class: 'opc__title', html: b.title ? str(b.title) : info.label ? labelHtml(info.label) : str(b.block) }),
-      hasDiagram ? h('a', { class: 'opc__diag', href: nodeHrefFor(pageId, 'diagrama', b.block, info.diagram) }, h('span', { html: icon('diagram') }), 'Ver en el diagrama') : null);
+      hasDiagram ? h('a', { class: 'opc__diag', href: nodeHrefFor(pageId, diagSection, b.block, info.diagram) }, h('span', { html: icon('diagram') }), 'Ver en el diagrama') : null);
 
     const counts = [];
     const rows = ops.filter((o) => (showP && o.params) || (showM && o.macs));
@@ -691,6 +693,7 @@
     Dmlp: { label: 'MLP D_mlp', get: (r) => r.config && r.config.Dmlp, fmt: 'int' },
     P: { label: 'Patch P', get: (r) => r.config && r.config.P, fmt: 'int' },
     res: { label: 'Resolución', get: (r) => r.config && r.config.H ? r.config.H + '×' + (r.config.W || r.config.H) : null, fmt: 'raw' },
+    Q: { label: 'Object queries Q', get: (r) => r.config && r.config.Q, fmt: 'int' },
   };
   function resolveRunId(id) {
     const Ar = A();
@@ -716,7 +719,10 @@
       h('tbody', null, keys.map((k) => h('tr', null,
         h('th', { scope: 'row' }, (METRICS[k] && METRICS[k].label) || k),
         cols.map((c) => h('td', { class: 'num', title: c.run && METRICS[k] && METRICS[k].fmt === 'si' ? fmtInt(METRICS[k].get(c.run)) : null }, c.run ? cell(c.run, k) : h('span', { class: 'q-warn', title: c.error === 'no-arch' ? 'Falta la calculadora' : str(c.error) }, '?')))))));
-    return tableFigure('b-cmp', b.caption ? str(b.caption) : 'Comparación (configuración canónica)', table, 'Generado por la calculadora en la configuración canónica de cada modelo.');
+    const cfgList = arr(safe(() => A().configs(), []));
+    const allCanon = cols.every((c) => { const k = cfgList.find((x) => x && x.id === c.cfg); return !k || k.canonical; });
+    return tableFigure('b-cmp', b.caption ? str(b.caption) : (allCanon ? 'Comparación (configuración canónica)' : 'Comparación entre configuraciones'), table,
+      allCanon ? 'Generado por la calculadora en la configuración canónica de cada modelo.' : 'Generado por la calculadora en la configuración de cada columna.');
   };
 
   // ------------------------------------------------------------------ formulas: primitivas (§5.4, ref-formas)

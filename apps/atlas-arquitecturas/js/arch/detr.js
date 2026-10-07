@@ -326,7 +326,7 @@
   function headOps(g, hs, c, o) {
     const logits = g.op('class-head', A.linear(hs, { dout: o.classOut, doutSym: o.classSym }), {
       path: ['class-head'], out: 'logits', label: 'Cabeza de clase (Linear D → ' + o.classOut + ')', type: 'head', group: 'head',
-      outMeta: { label: 'Logits de clase por query' + (o.noObject ? ' (91 ids + ∅)' : ''), tex: 'z = h\\,W_{\\mathrm{cls}} + b' },
+      outMeta: { label: 'Logits de clase por query' + (o.noObject ? ' (' + c.classes + ' ids + ∅)' : ''), tex: 'z = h\\,W_{\\mathrm{cls}} + b' },
     });
     const BH = ['box-head'], WB = ['Cabeza de cajas'];
     const L = (m) => Object.assign({}, m, { label: 'Cabeza de cajas · ' + m.label });
@@ -344,12 +344,12 @@
 
   // Matching húngaro y pérdida (solo entrenamiento).
   function trainingOps(g, logits, boxes, c, o) {
-    const gl = g.input('gt-labels', A.shape(['G'], [c.G], null, 'vec'), { label: 'Entrenamiento · clases de los G objetos reales', tex: 'c_i' });
-    const gb = g.input('gt-boxes', A.shape(['G', '4'], [c.G, 4], null, 'seq'), { label: 'Entrenamiento · cajas de los G objetos reales', tex: 'b_i' });
+    const gl = g.input('gt-labels', A.shape(['G'], [c.G], null, 'vec'), { label: 'Entrenamiento · clases de los G objetos reales', tex: 'c_g' });
+    const gb = g.input('gt-boxes', A.shape(['G', '4'], [c.G, 4], null, 'seq'), { label: 'Entrenamiento · cajas de los G objetos reales', tex: 'b_g' });
     const W = ['Entrenamiento'];
     const cost = g.op('match-cost', A.hungarian_cost(logits, boxes, gl, gb, { wCls: c.costClass, wL1: c.costBbox, wGiou: c.costGiou, focal: !!o.focal }), {
       path: ['matching'], out: 'cost', where: W, label: 'Matriz de costos Q×G (clase + L1 + GIoU)', type: 'head', group: 'head',
-      outMeta: { label: 'Entrenamiento · matriz de costos query × objeto', tex: 'C_{ij} = -\\lambda_{\\mathrm{cls}}\\hat p_j(c_i) + \\lambda_{L1}\\lVert b_i - \\hat b_j\\rVert_1 - \\lambda_{\\mathrm{giou}}\\mathrm{GIoU}' },
+      outMeta: { label: 'Entrenamiento · matriz de costos query × objeto', tex: 'C_{qg} = -\\lambda_{\\mathrm{cls}}\\hat p_q(c_g) + \\lambda_{L1}\\lVert \\hat b_q - b_g\\rVert_1 - \\lambda_{\\mathrm{giou}}\\mathrm{GIoU}(\\hat b_q, b_g)' },
     });
     const asg = g.op('match-assign', A.hungarian_match(cost), {
       path: ['matching'], out: 'assignment', where: W, label: 'Asignación húngara uno a uno', type: 'head', group: 'head',
@@ -442,6 +442,7 @@
         encToCrossScore: enc / dcross,                       // = N/Q
         tokens2x: 4 * N, encScoreMacs2x: 16 * c.Lenc * enc,  // duplicar H y W: tokens ×4, scores ×16
         encAttnMem2x: 16 * h * N * N * by * B,
+        units: METRIC_UNITS,
       });
       out.scaling = RES_PAIRS.map(([H, W]) => {
         const m = A.run(r.id, { H, W, Q: c.Q, G: c.G });
@@ -632,6 +633,10 @@
       Object.assign(out, {
         // Sin término N²: el cruce scores ↔ lineales de un bloque denso no aplica (lo pondría el genérico).
         crossoverN: null, crossoverNProj: null, scoreToLinear: null,
+        // Las métricas genéricas de "scores" medirían solo la self-attention del decoder (h×Q×Q), y en
+        // un explorador o what-if se leerían como la matriz N×N: no aplican. Lo que sí hay va con su
+        // nombre: decSelfAttnMem / decSelfScoreMacs, samplingMacs, denseEncAttnMem.
+        attnMem: null, attnMemAllLayers: null, scoreMacs: null, scoreMacsShare: null,
         samplesPerQuery: S, keysPerQueryDense: N,
         encSamplingMacsLayer: encSamp, encSamplingMacs: c.Lenc * encSamp,
         decCrossSamplingMacsLayer: decSamp, decCrossSamplingMacs: c.Ldec * decSamp,
@@ -645,7 +650,9 @@
         encSampledMem: N * S * dh * by * B,                // h×N×LK×d_h (lo materializa la ruta PyTorch; el kernel CUDA no)
         encAttnWeightsMem: N * S * by * B,
         decSelfAttnMem: h * Q * Q * by * B,
-        tokens2x: 4 * N,
+        // Exacto (no 4·N): el nivel extra de stride 64 redondea hacia arriba (25×38 en vez de 4·13·19).
+        tokens2x: A.run(r.id, { H: 2 * c.H, W: 2 * c.W, Q: c.Q, G: c.G, points: c.points }).config.N,
+        units: METRIC_UNITS,
       });
       out.scaling = RES_PAIRS.map(([H, W]) => {
         const m = A.run(r.id, { H, W, Q: c.Q, G: c.G, points: c.points });
@@ -656,6 +663,10 @@
       return out;
     },
   });
+
+  // Unidades de las métricas que no siguen la convención de nombres (…Mem = bytes, …Share = fracción;
+  // js/core/quantities.js y js/ui/practice.js formatean por nombre y, si está, por este mapa).
+  const METRIC_UNITS = { encToCrossScore: 'ratio', denseToDeform: 'ratio', samplesPerQuery: 'count', keysPerQueryDense: 'count' };
 
   // ------------------------------------------------------------------ cantidades y métricas comunes
   function commonQuantities(c, r) {

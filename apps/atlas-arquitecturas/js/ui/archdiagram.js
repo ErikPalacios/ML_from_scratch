@@ -619,6 +619,17 @@
   const SUB_RE = /_(\{[^}]*\}|[A-Za-z0-9ℓ\u0370-\u03FF]+)/g;
   const subOf = (g) => (g[0] === '{' ? g.slice(1, -1) : g);
   function plainSub(s) { return String(s == null ? '' : s).replace(SUB_RE, (m, g) => subOf(g)); }
+  // Caption (html): los subíndices del spec (d_h, L_e, q_pos) como <sub>, como en las etiquetas del SVG;
+  // no toca las etiquetas html ni el texto dentro de <code> (p. ej. <code>ln_pre</code>).
+  const CAP_SUB_RE = /(^|[^A-Za-z0-9_])([A-Za-z\u0370-\u03FF])_(\{[^}]*\}|[A-Za-z0-9ℓ\u0370-\u03FF]+)/g;
+  function captionHtml(html) {
+    let code = 0;
+    return String(html).split(/(<[^>]+>)/).map((part) => {
+      if (part[0] === '<') { if (/^<code\b/i.test(part)) code++; else if (/^<\/code>/i.test(part)) code = Math.max(0, code - 1); return part; }
+      // solo símbolos de una letra (d_h, L_e, W_O, q_pos); identificadores como ln_post quedan tal cual
+      return code ? part : part.replace(CAP_SUB_RE, (m, pre, base, g) => pre + base + '<sub>' + subOf(g) + '</sub>');
+    }).join('');
+  }
   function htmlSub(s) { return esc(s).replace(SUB_RE, (m, g) => '<sub>' + subOf(g) + '</sub>'); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function strip(s) { return String(s || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim(); }
@@ -860,7 +871,7 @@
       if (isJoint(drawGlyph(gg, rt, gx, gy, id, t.mark, hint))) used.joint = true;
       if (rt.mod) used.mods.add(rt.mod); used.glyph = true;
       if (t.note) txt(gg, t.at.x * U, gy - gs.h - 7, qText(t.note, ctl, spec, cfg), 'ad-glyph-note', 'middle');
-      if (t.show !== 'glyph') {
+      if (t.show !== 'glyph' && !(ctl.blankHide && ctl.blankHide.nums.has(rt.num.join('×')))) {
         if (t.labelSide === 'below') shapeLabel(ctl, gg, rt, t.at.x * U, gy - 4, 'below', t.id);
         else if (t.labelSide === 'left') shapeLabel(ctl, gg, rt, gx - 2, gy - gs.h / 2, 'left', t.id);
         else shapeLabel(ctl, gg, rt, gx + gs.w, gy - gs.h / 2, 'right', t.id);
@@ -907,6 +918,7 @@
     let label = n.label || '';
     let sub = nodeSub(n, ctl, spec);
     if (slot && slot.ask === 'label') { label = ''; sub = ''; }
+    if (blankOp) sub = '';                       // la píldora del hueco ocupa el centro: sin sub debajo
     const hv = n.heads && run ? cfgPath(run.config, n.heads) : 0;
     if (CIRCLE_SHAPES[shape]) {
       const rr = Math.min(r.w, r.h) / 2;
@@ -1044,6 +1056,7 @@
   // (las que comparten un nodo con la del hueco), que si no darían la respuesta.
   function blankGiveaways(ctl, spec, run) {
     const out = new Set();
+    out.nums = new Set();
     if (ctl.mode !== 'blank' || !run) return out;
     const edges = spec.edges || [];
     const num = (e) => (e.tensor && run.tensors[e.tensor] ? run.tensors[e.tensor].num.join('×') : null);
@@ -1051,9 +1064,13 @@
       const sl = ctl.slots[sid];
       if (!sl || sl.ask !== 'shape') continue;
       const hits = edges.filter((e) => e.tensor && (sid === edgeKey(e) || sid === edgeKey(e) + '@' + e.tensor || sid === 'tensor:' + e.tensor) && (!sl.tensor || sl.tensor === e.tensor));
+      // la forma pedida no puede aparecer en ninguna otra arista ni glifo de la vista (antes solo se
+      // ocultaban las vecinas; en la cross-attention, la A de dos aristas más abajo la delataba)
       for (const h of hits) {
         const want = num(h);
-        for (const e of edges) if (e !== h && num(e) === want && (e.from === h.from || e.from === h.to || e.to === h.from || e.to === h.to)) out.add(edgeKey(e) + '@' + e.tensor);
+        if (!want) continue;
+        out.nums.add(want);
+        for (const e of edges) if (e !== h && num(e) === want) out.add(edgeKey(e) + '@' + e.tensor);
       }
     }
     return out;
@@ -1226,7 +1243,7 @@
         tg.setAttribute('data-edge-tag', ge.key);
         if (e.tensor) tg.setAttribute('data-tensor', e.tensor);
         const s = e.tag || 'K,V';
-        const tw = textW(s, 10.5, true) + 8;
+        const tw = textW(s, e.tagStyle === 'plain' ? 11.5 : 10.5, true) + 8;   // plain = 11.5 px en CSS
         // tagSide:'on' = la etiqueta va sobre la línea (nombra la arista); si no, al costado
         const off = e.tagSide === 'on' ? [0, 0] : la.vertical ? [-(tw / 2) - 8, 0] : [0, 12];
         S('rect', { x: r1(la.x + off[0] - tw / 2), y: r1(la.y + off[1] - 8), width: r1(tw), height: 15, rx: 3, class: 'ad-tag-bg' }, tg);
@@ -1329,9 +1346,12 @@
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
     if (used.train) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--train' }, s); }, 'Marco gris discontinuo: solo en entrenamiento');
     if (used.badge) item((s) => { S('rect', { x: 1, y: 3, width: 24, height: 10, rx: 5, class: 'ad-badge-bg' }, s); S('path', { d: 'M5,8m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M7,8h3.5M9.5,8v2', class: 'ad-key' }, s); }, 'Parámetros aprendibles');
-    if (opts && opts.withShapes !== false && view.spec.kind !== 'map') {
+    if ((!opts || opts.withShapes !== false) && view.spec.kind !== 'map') {   // antes "opts && …": nunca se mostraba
       const li = H('div', { class: 'ad-leg-item ad-leg-shape', role: 'listitem' }, wrap);
-      H('span', { class: 'ad-leg-mono', html: '<b>(N+1)×D</b> / 197×768' }, li);
+      // Ejemplo con la primera arista de datos con tensor de ESTA vista (antes: un ejemplo fijo de ViT).
+      const run = view.run, de = (view.spec.edges || []).find((e) => (e.kind || 'data') === 'data' && e.tensor && run && run.tensors[e.tensor]);
+      const ex = de ? run.tensors[de.tensor] : null;
+      H('span', { class: 'ad-leg-mono' }, li, ex ? '<b>' + htmlSub(shapeText(ex, 'sym')) + '</b> / ' + esc(shapeText(ex, 'num')) : '<b>N×D</b> / 197×768');
       H('span', { text: 'forma: símbolos / números (sin batch)' }, li);
     }
     return wrap;
@@ -1395,7 +1415,9 @@
       legendBox.hidden = !lo;
       ctl.bLeg.setAttribute('aria-pressed', String(!!lo));
     }
-    if (spec0.caption && ctl.mode === 'full') H('figcaption', { class: 'ad-caption', html: qResolve(spec0.caption, spec0.config) }, fig);
+    // Caption del spec (§7.1): el html va como contenido (4.º argumento de H). Cada vista expandida
+    // pone el suyo en mountView (si no tiene, queda el de la raíz).
+    const capEl = ctl.mode === 'full' ? H('figcaption', { class: 'ad-caption' }, fig) : null;
     if (ctl.mode === 'full') { alt = H('details', { class: 'ad-alt' }, fig); }
 
     // ---- vista actual
@@ -1419,6 +1441,7 @@
       // aria-label de nodos (necesita la vista actual para las formas)
       for (const n of spec.nodes || []) if (view.nodeEls[n.id] && spec.kind !== 'map' && !ctl.slots[n.id]) view.nodeEls[n.id].setAttribute('aria-label', nodeAria(ctl, n, view.run));
       if (legendBox) { legendBox.innerHTML = ''; legendBox.appendChild(legendEl(view)); }
+      if (capEl) { const cap = spec.caption || spec0.caption || ''; capEl.innerHTML = cap ? captionHtml(qResolve(cap, opts.config || spec.config || spec0.config)) : ''; capEl.hidden = !cap; }
       if (crumbs) renderCrumbs();
       if (alt) renderAlt();
       if (ctl.bBack) ctl.bBack.hidden = ctl.stack.length < 2;
@@ -1740,8 +1763,22 @@
       fig.classList.add('ad--panel');
       panel.querySelectorAll('[data-tex]').forEach((el) => texInto(el, el.getAttribute('data-tex'), false));
       if (!ctl.zoomed) { sizeViewport(); fit(false); }
+      fitTex(panel);
       const vh = root.innerWidth < 1024;
       if (vh) panel.scrollTop = 0;
+    }
+    // Fórmulas un poco más anchas que el panel (p. ej. el paramTex de un bottleneck de ResNet): se achica la
+    // fuente hasta el 80 % para que entren; si aún no entran, queda el scroll horizontal del contenedor.
+    function fitTex(scope) {
+      const go = () => scope.querySelectorAll('.ad-cost-tex, .ad-panel-tex').forEach((el) => {
+        const mj = el.querySelector('mjx-container');
+        if (!mj || !el.clientWidth) return;
+        el.style.fontSize = '';
+        const need = mj.scrollWidth || mj.getBoundingClientRect().width, have = el.clientWidth - 2;
+        if (need > have) el.style.fontSize = (parseFloat(root.getComputedStyle(el).fontSize) * Math.max(0.8, have / need)).toFixed(2) + 'px';
+      });
+      go();
+      if (root.requestAnimationFrame) root.requestAnimationFrame(go);
     }
     function costRow(box, o, which) {
       const p = H('div', { class: 'ad-cost-row' }, box);
@@ -2175,7 +2212,7 @@
     return bad;
   }
 
-  ATLAS.ArchDiagram = { render, legend, geometry, crossings, mapCheck, glyphSize, edgeKey, checkLabels, drawScene, UNIT: U, _route: routeEdge,
+  ATLAS.ArchDiagram = { render, legend, plainSub, geometry, crossings, mapCheck, glyphSize, edgeKey, checkLabels, drawScene, UNIT: U, _route: routeEdge,
     _routeMap: (spec) => { const g = geometry(spec); return mapCache && mapCache.get(spec) || g; } };
 
   // ============================================================ ATLAS.Viz (SPEC §7.8)
@@ -2256,14 +2293,15 @@
       S('rect', { x: r1(x), y: r1(y), width: r1(w), height: r1(h), class: 'viz-det-frame' }, g);
       return g;
     },
-    // Objetos de la escena sintética (orden de dibujo: el fondo primero). Los dos coches se solapan a
-    // propósito (IoU ≈ 0.5): el caso en que NMS con un umbral fijo borra un objeto real.
+    // Objetos de la escena sintética (orden de dibujo: el fondo primero). Los dos autos se solapan a
+    // propósito (IoU ≈ 0.62, más que el duplicado más flojo de set-vs-nms, 0.52): ningún umbral fijo de
+    // la NMS conserva los dos autos y a la vez borra todos los duplicados.
     DET_OBJECTS: [
       { icon: 'mountain', label: 'montaña', box: [0.62, 0.40, 0.32, 0.30] },
       { icon: 'house', label: 'casa', box: [0.18, 0.60, 0.20, 0.30] },
       { icon: 'tree', label: 'árbol', box: [0.38, 0.53, 0.11, 0.38] },
-      { icon: 'car', label: 'coche', box: [0.60, 0.80, 0.17, 0.15] },
-      { icon: 'car', label: 'coche', box: [0.65, 0.81, 0.17, 0.15] },
+      { icon: 'car', label: 'auto', box: [0.60, 0.80, 0.17, 0.15] },
+      { icon: 'car', label: 'auto', box: [0.63, 0.81, 0.17, 0.15] },
       { icon: 'sun', label: 'sol', box: [0.87, 0.16, 0.12, 0.18] },
       { icon: 'star', label: 'estrella', box: [0.10, 0.15, 0.08, 0.12] },
       { icon: 'boat', label: 'barco', box: [0.88, 0.62, 0.13, 0.17] },

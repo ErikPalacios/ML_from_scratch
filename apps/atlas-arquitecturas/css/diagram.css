@@ -269,7 +269,7 @@ html.ad-noscroll, html.ad-noscroll body { overflow: hidden; }
 .ad-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--fs-xs, 12px); color: var(--ink); }
 .ad-leg-item { display: inline-flex; align-items: center; gap: 6px; min-height: 20px; }
 .ad-leg-sw { flex: 0 0 auto; overflow: visible; }
-.ad-leg-mono { font-family: var(--font-mono); font-size: 11.5px; }
+.ad-leg-mono { font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
 .ad-leg-shape { color: var(--muted); }
 @media (max-width: 767px) {
   .ad-legend { gap: 6px; }

@@ -23,7 +23,9 @@
      cfg.<key>                         (valores de la config resuelta; enteros < 10,000 sin separador
                                         de miles, como en las formas: 'D = 1024' junto a '197×1024')
      metrics.<k>                       (ATLAS.Arch.metrics con B = 1, bf16; bytes con ATLAS.Arch.fmt.bytes,
-                                        unidades decimales: 1 KB = 1000 B → '931.4 KB', '173.1 MB')
+                                        unidades decimales: 1 KB = 1000 B → '931.4 KB', '173.1 MB'. Unidad por
+                                        el mapa metrics.units del modelo o por el nombre: …Mem, …Mem2x,
+                                        …MemAllLayers, …Cache = bytes; …Share = %; 'ratio' = 3 cifras)
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -126,12 +128,27 @@
       if (!Object.prototype.hasOwnProperty.call(m, parts[1])) return null;
       const v = m[parts[1]];
       if (typeof v !== 'number') return null;
-      if (/Mem$|Cache$|MemAllLayers$/.test(parts[1])) return num(v, f.bytes(v));
-      if (/Share$/.test(parts[1])) return num(v, f.pct(v));
+      // Unidad: la del mapa del modelo (metrics.units: {clave: 'bytes'|'pct'|'ratio'|'count'}) o, si no
+      // está, por el nombre: …Mem, …Mem2x, …MemAllLayers, …MemBatch, …Cache = bytes; …Share = fracción.
+      const unit = (m.units && m.units[parts[1]]) || metricUnitByName(parts[1]);
+      if (unit === 'bytes') return num(v, f.bytes(v));
+      if (unit === 'pct') return num(v, f.pct(v));
+      if (unit === 'ratio') return num(v, fRatio(v));
       if (parts[1] === 'scoreToLinear') return num(v, v.toFixed(2));
       return num(v, f.int(v));
     }
     return null;
+  }
+
+  function metricUnitByName(k) {
+    if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
+    if (/Share$/.test(k)) return 'pct';
+    return 'count';
+  }
+  // Cociente adimensional con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5'.
+  function fRatio(v) {
+    const x = Number(v.toPrecision(3));
+    return Math.abs(x) >= 1000 ? arch().fmt.int(x) : String(x);
   }
 
   function qty(v) {

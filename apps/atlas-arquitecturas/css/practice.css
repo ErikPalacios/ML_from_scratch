@@ -103,12 +103,14 @@
 .pxs__bar { display: flex; height: 14px; border-radius: var(--r-1); overflow: hidden; background: var(--rule); }
 .pxs__seg-a { background: var(--op-attn, var(--accent)); }
 .pxs__seg-l { background: var(--op-mlp, var(--ok)); }
+.pxs__seg-d { background: var(--op-fuse, var(--warn)); }   /* DETR: atención del decoder (cross/self) */
 .pxs__legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: var(--fs-sm); }
 .pxs__legend li { display: block; }
 .pxs__legend b { font-weight: 500; }
 .pxs__sw { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; transform: translateY(1px); }
 .pxs__sw--a { background: var(--op-attn, var(--accent)); }
 .pxs__sw--l { background: var(--op-mlp, var(--ok)); }
+.pxs__sw--d { background: var(--op-fuse, var(--warn)); }
 .pxs__mem { margin: 0; font-size: var(--fs-sm); line-height: 1.5; }
 .pxs__foot { margin: 0; line-height: 1.5; }
 

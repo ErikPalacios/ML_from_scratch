@@ -112,9 +112,11 @@
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, class: cls, 'text-anchor': anchor || null }, p); e.textContent = s; return e; };
       const refTxt = 'p̂ = (' + state.ref.map((v) => v.toFixed(2)).join(', ') + ')';
       const cnt = (state.head === 'all' ? M + ' cabezas × ' : '1 cabeza × ') + L + ' niveles × ' + K + ' puntos = ' + ((state.head === 'all' ? M : 1) * L * K) + ' muestras';
-      if (narrow) { t(svg, 8, 16, 'Una query: ' + refTxt, 'viz-t'); t(svg, 8, 30, 'el mismo punto en los ' + L + ' niveles', 'viz-s'); t(svg, 8, 43, cnt, 'viz-s'); }
+      // p̂ (p + U+0302) en IBM Plex Sans dibuja el acento después de la p: el símbolo va en un tspan mono
+      const tMono = (x, y, a, mono, b, cls) => { const e = t(svg, x, y, a, cls); const ts = V.svg('tspan', { class: 'viz-n' }, e); ts.textContent = mono; if (b) e.appendChild(document.createTextNode(b)); return e; };
+      if (narrow) { tMono(8, 16, 'Una query: ', refTxt, '', 'viz-t'); t(svg, 8, 30, 'el mismo punto en los ' + L + ' niveles', 'viz-s'); t(svg, 8, 43, cnt, 'viz-s'); }
       else {
-        t(svg, 8, 16, 'Una query: punto de referencia ' + refTxt + ' en los ' + L + ' niveles', 'viz-t');
+        tMono(8, 16, 'Una query: punto de referencia ', refTxt, ' en los ' + L + ' niveles', 'viz-t');
         t(svg, 8, 30, cnt + (state.head === 'all' ? '' : ' (de ' + M * L * K + ' de la query)'), 'viz-s');
       }
       const heads = state.head === 'all' ? Array.from({ length: M }, (_, m) => m) : [state.head];

@@ -5,8 +5,9 @@
    propone cajas; tras el umbral de confianza quedan varias por objeto (duplicados) y la NMS greedy
    por clase, con un umbral de IoU FIJO, decide cuáles sobreviven. Derecha, DETR: Q object queries →
    Q salidas, una caja por objeto y el resto ∅, sin NMS (el matching 1 a 1 del entrenamiento
-   castiga los duplicados). La escena tiene dos coches que se solapan (IoU ≈ 0.5): con un umbral
-   bajo, la NMS borra uno; con uno alto, sobreviven duplicados. No hay umbral que arregle las dos cosas.
+   castiga los duplicados). La escena tiene dos autos que se solapan (IoU ≈ 0.62) más que el duplicado
+   más flojo (0.52): con un umbral por debajo de 0.62 la NMS borra un auto; con uno de 0.52 o más
+   sobrevive algún duplicado. En ESTA escena ningún umbral arregla las dos cosas (probado de 0.20 a 0.95).
    Escena, cajas y confianzas: SINTÉTICAS ("ilustrativo"). Q y la resolución salen de la config de DETR;
    el número de candidatas densas se calcula con la resolución y los strides 8/16/32 (estilo YOLOv5:
    3 anclas por celda; YOLOv8, sin anclas: 1 por celda).
@@ -18,10 +19,12 @@
   const ATLAS = (root.ATLAS = root.ATLAS || {});
 
   // IoU de cada duplicado con la mejor caja de su objeto (exactos: caja del mismo tamaño desplazada).
-  // Ninguno por debajo de 0.5: con el umbral 0.45 de YOLOv5 la NMS los quita todos; con 0.6 sobreviven varios.
-  // Los del segundo coche se desplazan hacia el primero (la NMS los compara con la caja que quedó).
+  // Ninguno por debajo de 0.52: con el umbral 0.45 de YOLOv5 la NMS los quita todos; con 0.6 sobreviven varios.
+  // Los del segundo auto se desplazan hacia el primero (la NMS los compara con la caja que quedó).
   const DUP_IOU = [[0.71, 0.55], [0.83, 0.66, 0.52], [0.78, 0.61], [0.80, 0.58], [0.74, 0.62], [0.86, 0.69], [0.76], [0.81, 0.57], [0.7], [0.75]];
   const CONF_TH = 0.25, STRIDES = [8, 16, 32];
+  // 0.45 = YOLOv5, 0.7 = YOLOv8 (valores por defecto); 0.5 y 0.6 rodean el IoU de los dos autos
+  const IOU_CHIPS = [0.3, 0.45, 0.5, 0.6, 0.7, 0.8];
 
   function cfgNum(c, keys, d) { for (const k of keys) { const v = k.split('.').reduce((o, p) => (o == null ? o : o[p]), c); if (Number.isFinite(v)) return v; } return d; }
 
@@ -38,14 +41,14 @@
     const objs = V.DET_OBJECTS.slice(0, G);
     const cells = STRIDES.map((s) => Math.ceil(imgH / s) * Math.ceil(imgW / s));
     const nCells = cells.reduce((a, b) => a + b, 0);
-    const state = { step: params.step === 'raw' ? 'raw' : 'nms', iou: [0.3, 0.45, 0.6, 0.8].indexOf(+params.iou) >= 0 ? +params.iou : 0.45 };
+    const state = { step: params.step === 'raw' ? 'raw' : 'nms', iou: IOU_CHIPS.indexOf(+params.iou) >= 0 ? +params.iou : 0.45 };
 
     // ---- predicciones densas (tras el umbral de confianza): la mejor por objeto + duplicados
     const R = V.rng(19);
     const dense = [];
     objs.forEach((o, j) => {
       const b0 = o.box;
-      // el segundo coche (detrás) sale con algo menos de confianza: es el que la NMS borra
+      // el segundo auto (detrás) sale con algo menos de confianza: es el que la NMS borra
       const lead = o.icon === 'car' && objs.findIndex((x) => x.icon === 'car') !== j ? 0.81 : 0.88 + 0.07 * R();
       dense.push({ obj: j, label: o.label, box: b0.slice(), conf: lead, best: true });
       (DUP_IOU[j] || []).forEach((t, k) => {
@@ -89,13 +92,13 @@
     };
     const chips = [
       chipGroup('YOLO', [['raw', '1 · tras el umbral de confianza'], ['nms', '2 · tras NMS']], 'step'),
-      chipGroup('Umbral IoU de la NMS', [[0.3, '0.3'], [0.45, '0.45'], [0.6, '0.6'], [0.8, '0.8']], 'iou'),
+      chipGroup('Umbral IoU de la NMS', IOU_CHIPS.map((v) => [v, String(v)]), 'iou'),
     ];
     const stage = V.html('div', { class: 'viz-stage' }, wrap);
     const out = V.html('div', { class: 'viz-readout', 'aria-live': 'polite' }, wrap);
     V.html('p', { class: 'viz-note', text: 'Escena, cajas y confianzas ilustrativas (no son salidas de un YOLO ni de un DETR entrenados). ' +
       'Un detector denso propone cajas en cada celda de 3 grillas (strides 8, 16 y 32) y con varias anclas por celda: muchas cajas buenas caen sobre el mismo objeto, y la NMS (no entrenable, un umbral de IoU fijo) se queda con la de mayor confianza y borra las que se le solapan. ' +
-      'Con dos objetos de la misma clase que se solapan, un umbral bajo borra uno real y uno alto deja duplicados. DETR predice un conjunto: cada query da una caja o ∅, y el matching húngaro del entrenamiento asigna cada objeto a UNA sola query, así que los duplicados se castigan en la pérdida y no hace falta NMS. (YOLOv10 también quita la NMS con una asignación 1 a 1 en el entrenamiento.)' }, wrap);
+      'Con dos objetos de la misma clase que se solapan, un umbral bajo borra uno real y uno alto deja duplicados: en esta escena (autos con IoU 0.62, duplicados desde 0.52) ninguno de los umbrales arregla las dos cosas, y en general ningún umbral fijo funciona para todas las escenas. DETR predice un conjunto: cada query da una caja o ∅, y el matching húngaro del entrenamiento asigna cada objeto a UNA sola query, así que los duplicados se castigan en la pérdida y no hace falta NMS. (YOLOv10 también evita la NMS: entrena con asignación doble, uno a muchos y uno a uno, e infiere solo con su cabeza uno a uno.)' }, wrap);
 
     function draw() {
       chips.forEach((cs) => cs.forEach((b) => b.setAttribute('aria-pressed', String(state[b._k] === b._v))));
@@ -130,10 +133,21 @@
       // las borradas por la NMS, tenues (para ver qué quitó)
       if (state.step === 'nms') dense.forEach((dd, i) => { if (!keepSet.has(i)) { const r = px(dd.box, LX, TOP); V.svg('rect', { x: r.x, y: r.y, width: r.w, height: r.h, class: 'viz-nms-gone' }, svg); } });
       const dupSet = new Set(ev.dups);
-      keepIdx.slice().sort((a, b) => dense[a].conf - dense[b].conf).forEach((i) => {
+      const byConf = keepIdx.slice().sort((a, b) => dense[a].conf - dense[b].conf);
+      byConf.forEach((i) => {
         const dd = dense[i], r = px(dd.box, LX, TOP), dup = state.step === 'nms' && dupSet.has(i);
         V.svg('rect', { x: r.x, y: r.y, width: r.w, height: r.h, class: 'viz-nms-box' + (dup ? ' is-dup' : '') }, svg);
-        if (state.step === 'nms' || dd.best) t(svg, r.x + 2, r.y + 10, dd.conf.toFixed(2), 'viz-nms-conf' + (dup ? ' is-dup' : ''));
+      });
+      // confianzas: de mayor a menor, y solo si la etiqueta no pisa una ya escrita (con varios
+      // duplicados encima de los autos se volvían ilegibles)
+      const labs = [];
+      byConf.slice().reverse().forEach((i) => {
+        const dd = dense[i], r = px(dd.box, LX, TOP), dup = state.step === 'nms' && dupSet.has(i);
+        if (!(state.step === 'nms' || dd.best)) return;
+        const lr = { x: r.x + 1, y: r.y + 1, w: 24, h: 11 };
+        if (labs.some((b) => lr.x < b.x + b.w && b.x < lr.x + lr.w && lr.y < b.y + b.h && b.y < lr.y + lr.h)) return;
+        labs.push(lr);
+        t(svg, r.x + 2, r.y + 10, dd.conf.toFixed(2), 'viz-nms-conf' + (dup ? ' is-dup' : ''));
       });
       if (state.step === 'nms') objs.forEach((o, j) => {
         if (ev.found[j] >= 0) return;
@@ -154,11 +168,17 @@
       V.detScene(svg, RX, RTOP, S, IH, objs);
       const R2 = V.rng(5);
       const qIdx = []; while (qIdx.length < G) { const q = Math.floor(R2() * Q); if (qIdx.indexOf(q) < 0) qIdx.push(q); }
+      const qlabs = [];
+      const hitQ = (a) => qlabs.some((b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h);
       objs.forEach((o, j) => {
         const b = [o.box[0] + 0.01 * R2.normal(), o.box[1] + 0.01 * R2.normal(), o.box[2] * (1 + 0.03 * R2.normal()), o.box[3] * (1 + 0.03 * R2.normal())];
-        const r = px(b, RX, RTOP);
+        const r = px(b, RX, RTOP), s = 'q' + qIdx[j], w = s.length * 6 + 3;
         V.svg('rect', { x: r.x, y: r.y, width: r.w, height: r.h, class: 'viz-nms-qbox' }, svg);
-        t(svg, r.x + 2, r.y + 10, 'q' + qIdx[j], 'viz-nms-qtxt');
+        // arriba a la izquierda; si pisa otra etiqueta (los dos autos), abajo a la derecha de su caja
+        let lr = { x: r.x + 1, y: r.y + 1, w, h: 11 };
+        if (hitQ(lr)) lr = { x: r.x + r.w - w - 1, y: r.y + r.h - 12, w, h: 11 };
+        qlabs.push(lr);
+        t(svg, lr.x + 1, lr.y + 9, s, 'viz-nms-qtxt');
       });
       // las Q salidas: una celda por query (con objeto o ∅)
       t(svg, RX, stripY - 6, 'las ' + Q + ' salidas (una por query):', 'viz-s');
@@ -181,7 +201,7 @@
         kv('duplicados que quedan:', String(ev.dups.length));
       }
       const cars = objs.map((o, j) => j).filter((j) => objs[j].icon === 'car');
-      if (cars.length > 1) kv('IoU entre los dos coches:', B.iou(objs[cars[0]].box, objs[cars[1]].box).toFixed(2));
+      if (cars.length > 1) kv('IoU entre los dos autos:', B.iou(objs[cars[0]].box, objs[cars[1]].box).toFixed(2));
       kv('DETR:', Q + ' queries → ' + G + ' objetos + ' + (Q - G) + ' ∅, sin NMS');
     }
 

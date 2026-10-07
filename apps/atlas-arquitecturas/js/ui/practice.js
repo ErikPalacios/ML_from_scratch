@@ -172,12 +172,22 @@
     ctx: { label: 'Contexto', show: (v) => fInt(v) + ' tok' },
     T: { label: 'Tokens de texto T', show: (v) => fInt(v) },
     B: { label: 'Batch B', show: (v) => 'B = ' + fInt(v) },
+    // DETR / Deformable DETR: imagen no cuadrada (H, W), object queries Q y objetos anotados G.
+    H: { label: 'Alto H', show: (v) => 'H = ' + v },
+    W: { label: 'Ancho W', show: (v) => 'W = ' + v },
+    Q: { label: 'Object queries Q', show: (v) => 'Q = ' + fInt(v) },
+    G: { label: 'Objetos anotados G', show: (v) => 'G = ' + fInt(v) },
   };
   const knobLabel = (k) => (KNOBS[k] || {}).label || k;
   const knobShow = (k, v) => (KNOBS[k] && KNOBS[k].show ? KNOBS[k].show(v) : String(v));
   function changeText(change) {
-    const one = (k, v) => (k === 'res' ? 'resolución ' + knobShow(k, v) : KNOBS[k] && /=/.test(knobShow(k, v)) ? knobShow(k, v) : knobLabel(k) + ' = ' + knobShow(k, v));
-    return Object.keys(change || {}).map((k) => one(k, change[k])).join(' · ');
+    const c = change || {};
+    const one = (k, v) => (k === 'res' ? 'resolución ' + knobShow(k, v) : KNOBS[k] && /=/.test(knobShow(k, v)) ? knobLabel(k).replace(/\s+\S+$/, '').toLowerCase() + ' ' + knobShow(k, v) : knobLabel(k) + ' = ' + knobShow(k, v));
+    // Alto y ancho juntos: "imagen de 1600×2432 (H×W)", no "alto H = 1600 · ancho W = 2432".
+    const both = c.H != null && c.W != null;
+    const parts = both ? ['imagen de ' + c.H + '×' + c.W + ' (H×W)'] : [];
+    Object.keys(c).forEach((k) => { if (!(both && (k === 'H' || k === 'W'))) parts.push(one(k, c[k])); });
+    return parts.join(' · ');
   }
   function knobBase(cfg, key, values) {
     const c = cfg || {};
@@ -187,23 +197,88 @@
   }
 
   // Métricas: etiqueta, tipo de formato y nota. `notes` = nota por modelo (Swin: ventanas fijas, sin CLS;
-  // CLIP: torres por muestra y una parte conjunta del lote B).
+  // CLIP: torres por muestra y una parte conjunta del lote B; DETR: N = tokens de C5 sin CLS, y los scores
+  // mezclan el encoder (∝ N²) con el decoder (cross ∝ Q·N, self ∝ Q²); Deformable DETR: el encoder no
+  // tiene matriz N×N, así que los scores genéricos son solo los de la self-attention del decoder).
+  // kind: count · ops (MACs) · bytes · pct (fracción 0–1) · ratio (cociente adimensional, "×505").
   const METRICS = {
     tokens: { label: 'Tokens', kind: 'count', note: 'longitud de la secuencia (incluye CLS)',
-      notes: { swin: 'tokens del stage 1 (H/4 × W/4, sin CLS)', clip: 'torre de imagen: N + 1 (incluye CLS)' } },
+      notes: { swin: 'tokens del stage 1 (H/4 × W/4, sin CLS)', clip: 'torre de imagen: N + 1 (incluye CLS)',
+        detr: 'tokens del encoder: (H/32)·(W/32), sin CLS', 'deformable-detr': 'tokens de todos los niveles (Σ H_l·W_l, strides 8 a 64), sin CLS' } },
     patches: { label: 'Patches', kind: 'count' },
     params: { label: 'Parámetros', kind: 'count', note: 'pesos + biases' },
     macs: { label: 'MACs', kind: 'ops', note: 'matmuls y convs · FLOPs = 2 × MACs' },
     flops: { label: 'FLOPs', kind: 'ops', note: '= 2 × MACs' },
     attnMem: { label: 'Scores de atención', kind: 'bytes', note: 'h×N×N en fp16, una capa, B = 1',
-      notes: { swin: 'nW×h×M²×M² en fp16, el mayor bloque, B = 1', clip: 'h×N×N en fp16, una capa de la torre mayor, una muestra' } },
+      notes: { swin: 'nW×h×M²×M² en fp16, el mayor bloque, B = 1', clip: 'h×N×N en fp16, una capa de la torre mayor, una muestra',
+        detr: 'h×N×N del encoder en fp16, una capa, B = 1 (el mayor: cross es h×Q×N)',
+        'deformable-detr': 'no aplica: el encoder deformable no tiene matriz N×N (ver «Scores si el encoder fuera denso»)' } },
     actMem: { label: 'Activaciones', kind: 'bytes', note: 'fp16, B = 1', notes: { clip: 'fp16, las dos torres, una muestra' } },
     kvCache: { label: 'KV cache', kind: 'bytes', note: 'fp16, B = 1' },
+    attnMemAllLayers: { label: 'Scores de atención (todas las capas)', kind: 'bytes', note: 'fp16, B = 1 (entrenamiento sin recomputar)' },
+    actMemPerSample: { label: 'Activaciones por muestra', kind: 'bytes', note: 'fp16, sin los tensores del lote' },
+    paramMem: { label: 'Pesos en memoria', kind: 'bytes', note: 'parámetros × 2 bytes (fp16)' },
+    linearMacs: { label: 'MACs de las lineales de las capas', kind: 'ops', note: 'proyecciones Q, K, V, O y MLP' },
+    other: { label: 'Otras operaciones', kind: 'count', note: 'ops de normas, softmax y activaciones (no son MACs)' },
     scoreMacs: { label: 'MACs de QKᵀ y A·V', kind: 'ops', note: 'la parte que crece con N²',
-      notes: { swin: 'con ventanas M×M fijas crece ∝ N (lineal)' } },
+      notes: { swin: 'con ventanas M×M fijas crece ∝ N (lineal)',
+        detr: 'encoder (∝ N²) + decoder (cross ∝ Q·N, self ∝ Q²)',
+        'deformable-detr': 'no aplica: sin término N² (ver el muestreo deformable y la self-attention del decoder)' } },
     // Dos "partes de atención" distintas: siempre con su nombre completo (no se confunden).
     scoreMacsShare: { label: 'Atención (solo QKᵀ y A·V)', kind: 'pct', note: '% de los MACs totales; la parte ∝ N²',
-      notes: { swin: '% de los MACs totales; con ventanas fijas, lineal en N' } },
+      notes: { swin: '% de los MACs totales; con ventanas fijas, lineal en N',
+        detr: '% de los MACs: encoder (∝ N²) más decoder (cross ∝ Q·N, self ∝ Q²)',
+        'deformable-detr': 'no aplica: sin término N² (ver «Muestreo deformable»)' } },
+    // DETR: la atención separada por dónde ocurre (solo el encoder es ∝ N²).
+    encScoreMacs: { label: 'Encoder: MACs de QKᵀ y A·V', kind: 'ops', note: 'todas las capas del encoder; ∝ N²' },
+    encScoreMacsLayer: { label: 'Encoder: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·N²·D; ∝ N²' },
+    encScoreShare: { label: 'Encoder: QKᵀ y A·V', kind: 'pct', note: '% de los MACs totales; la única parte ∝ N²' },
+    decCrossScoreMacs: { label: 'Cross-attention: MACs de QKᵀ y A·V', kind: 'ops', note: 'las capas del decoder; ∝ Q·N' },
+    decCrossScoreMacsLayer: { label: 'Cross-attention: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·Q·N·D; ∝ Q·N' },
+    decCrossScoreShare: { label: 'Cross-attention: QKᵀ y A·V', kind: 'pct', note: '% de los MACs totales; ∝ Q·N' },
+    decSelfScoreMacs: { label: 'Self-attention del decoder: MACs de QKᵀ y A·V', kind: 'ops', note: 'las capas del decoder; ∝ Q²' },
+    decSelfScoreMacsLayer: { label: 'Self-attention del decoder: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·Q²·D; ∝ Q²' },
+    decSelfScoreShare: { label: 'Self-attention del decoder: QKᵀ y A·V', kind: 'pct', note: '% de los MACs totales; ∝ Q²' },
+    encAttnMem: { label: 'Scores del encoder', kind: 'bytes', note: 'h×N×N en fp16, una capa, B = 1' },
+    encAttnFp32Mem: { label: 'Scores del encoder (fp32)', kind: 'bytes', note: 'h×N×N en fp32, una capa, B = 1' },
+    encAttnMemAllLayers: { label: 'Scores del encoder (todas las capas)', kind: 'bytes', note: 'h×N×N × capas, fp16, B = 1 (entrenamiento sin recomputar)' },
+    encAttnMem2x: { label: 'Scores del encoder con H y W ×2', kind: 'bytes', note: 'tokens ×4 ⇒ h×N×N ×16; fp16, una capa, B = 1' },
+    decCrossAttnMem: { label: 'Scores de la cross-attention', kind: 'bytes', note: 'h×Q×N en fp16, una capa, B = 1' },
+    decSelfAttnMem: { label: 'Scores de la self-attention del decoder', kind: 'bytes', note: 'h×Q×Q en fp16, una capa, B = 1' },
+    encAttnEntries: { label: 'Entradas de scores del encoder', kind: 'count', note: 'h×N×N, una capa' },
+    decCrossAttnEntries: { label: 'Entradas de scores de la cross-attention', kind: 'count', note: 'h×Q×N, una capa' },
+    decSelfAttnEntries: { label: 'Entradas de scores de la self-attention del decoder', kind: 'count', note: 'h×Q×Q, una capa' },
+    encToCrossScore: { label: 'Scores del encoder / de la cross-attention', kind: 'ratio', note: 'por capa: N²/(Q·N) = N/Q' },
+    tokens2x: { label: 'Tokens con H y W ×2', kind: 'count', note: '≈ ×4 (un stride menos, como DC5)' },
+    encScoreMacs2x: { label: 'Encoder: QKᵀ y A·V con H y W ×2', kind: 'ops', note: 'tokens ×4 ⇒ ×16' },
+    backboneMacs: { label: 'MACs del backbone', kind: 'ops', note: 'ResNet-50 hasta C5' },
+    backboneMacsShare: { label: 'Backbone', kind: 'pct', note: '% de los MACs totales' },
+    inputProjMacs: { label: 'MACs de la proyección de entrada', kind: 'ops', note: 'conv 1×1 de C5 a D' },
+    encoderMacs: { label: 'MACs del encoder', kind: 'ops', note: 'todas sus capas' },
+    encoderMacsShare: { label: 'Encoder', kind: 'pct', note: '% de los MACs totales' },
+    decoderMacs: { label: 'MACs del decoder', kind: 'ops', note: 'todas sus capas' },
+    decoderMacsShare: { label: 'Decoder', kind: 'pct', note: '% de los MACs totales' },
+    headMacs: { label: 'MACs de las cabezas', kind: 'ops', note: 'clase + caja, sobre las Q queries' },
+    auxHeadsMacs: { label: 'MACs de las cabezas auxiliares', kind: 'ops', note: 'solo entrenamiento: las otras capas del decoder' },
+    queries: { label: 'Object queries Q', kind: 'count', note: 'predicciones por imagen (el máximo de detecciones)' },
+    costEntries: { label: 'Celdas de la matriz de costos', kind: 'count', note: 'Q×G, solo entrenamiento' },
+    // Deformable DETR: muestreo disperso (convención del calculador: 4 MACs por lectura bilineal + 1 de la suma ponderada).
+    samplesPerQuery: { label: 'Muestras por query', kind: 'count', note: 'h·L·K (cabezas × niveles × puntos)' },
+    keysPerQueryDense: { label: 'Keys por query si fuera densa', kind: 'count', note: '= N' },
+    encSamplingMacs: { label: 'Encoder: MACs del muestreo deformable', kind: 'ops', note: '5·N·hLK·d_h por capa (4 por lectura bilineal + 1 de la suma)' },
+    encSamplingMacsLayer: { label: 'Encoder: MACs del muestreo deformable (una capa)', kind: 'ops', note: '5·N·hLK·d_h; lineal en N' },
+    decCrossSamplingMacs: { label: 'Cross-attention: MACs del muestreo deformable', kind: 'ops', note: '5·Q·hLK·d_h por capa' },
+    decCrossSamplingMacsLayer: { label: 'Cross-attention: MACs del muestreo deformable (una capa)', kind: 'ops', note: '5·Q·hLK·d_h' },
+    samplingMacs: { label: 'MACs del muestreo deformable', kind: 'ops', note: 'encoder + cross-attention del decoder; convención del calculador' },
+    samplingShare: { label: 'Muestreo deformable', kind: 'pct', note: '% de los MACs; convención del calculador (los profilers no cuentan grid_sample)' },
+    denseEncScoreMacs: { label: 'Encoder denso: MACs de QKᵀ y A·V', kind: 'ops', note: 'si el encoder usara atención densa sobre los mismos N tokens; ∝ N²' },
+    denseEncScoreMacsLayer: { label: 'Encoder denso: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·N²·D' },
+    denseDecCrossScoreMacsLayer: { label: 'Cross-attention densa: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·Q·N·D' },
+    denseToDeform: { label: 'Atención densa / muestreo deformable', kind: 'ratio', note: 'por capa del encoder: 2N²D / (5·N·hLK·d_h)' },
+    denseEncAttnMem: { label: 'Scores si el encoder fuera denso', kind: 'bytes', note: 'h×N×N en fp16, una capa, B = 1' },
+    denseEncAttnFp32Mem: { label: 'Scores si el encoder fuera denso (fp32)', kind: 'bytes', note: 'h×N×N en fp32, una capa, B = 1' },
+    encSampledMem: { label: 'Values muestreados del encoder', kind: 'bytes', note: 'h×N×LK×d_h en fp16, una capa (la ruta PyTorch; el kernel CUDA no lo materializa)' },
+    encAttnWeightsMem: { label: 'Pesos de muestreo del encoder', kind: 'bytes', note: 'N×hLK en fp16, una capa, B = 1' },
     attnMacs: { label: 'MACs del bloque de atención (con proyecciones)', kind: 'ops', note: 'QKᵀ, A·V y proyecciones Q, K, V, O' },
     attnMacsShare: { label: 'Bloque de atención (con proyecciones)', kind: 'pct', note: '% de los MACs: QKᵀ, A·V y proyecciones Q, K, V, O' },
     // CLIP: la parte conjunta (depende del batch contrastivo B, no de la arquitectura)
@@ -217,6 +292,18 @@
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
   const metricLabel = (k) => (METRICS[metricKey(k)] || {}).label || k;
+  // Tipo de formato: el de METRICS; si la clave no está, por su nombre (las métricas que añade cada modelo
+  // siguen la convención …Mem/…Cache = bytes, …Share = fracción, …Macs = MACs; como js/core/quantities.js).
+  function metricKind(key) {
+    const k = metricKey(key);
+    if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
+    if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
+    if (/Share$/.test(k)) return 'pct';
+    if (/Macs(\d+x|Layer)?$/.test(k)) return 'ops';
+    return 'count';
+  }
+  // Cociente con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5', 16 → '16'.
+  const fRatio = (v) => { const x = Number(v.toPrecision(3)); return Math.abs(x) >= 1000 ? fInt(x) : String(x); };
   // Lee una métrica: número, {bytes}, o función (attnMem(dtype), kvCache(B, ctx, dtype)…).
   function metricValue(m, key) {
     if (!m) return null;
@@ -229,24 +316,26 @@
   }
   function fMetric(key, v) {
     if (v == null) return '—';
-    const kind = (METRICS[metricKey(key)] || {}).kind || 'count';
+    const kind = metricKind(key);
     if (kind === 'bytes') return fBytes(v);
     if (kind === 'ops') return fOps(v, metricKey(key) === 'flops' ? 'FLOPs' : 'MACs');
     if (kind === 'pct') return (Math.round(v * 1000) / 10).toFixed(1) + ' %';
+    if (kind === 'ratio') return '×' + fRatio(v);
     return v >= 1e6 ? fSi(v) : fInt(v);
   }
   // Comparación con la base: factor (×4) o, para porcentajes, diferencia en puntos.
   function fVsBase(key, v, b) {
     if (v == null || b == null) return '';
-    if (((METRICS[metricKey(key)] || {}).kind) === 'pct') { const d = (v - b) * 100; return Math.abs(d) < 0.05 ? 'base' : (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1) + ' pp vs base'; }
+    if (metricKind(key) === 'pct') { const d = (v - b) * 100; return Math.abs(d) < 0.05 ? 'base' : (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1) + ' pp vs base'; }
     if (!b) return '';
     return Math.abs(v / b - 1) < 0.0005 ? 'base' : fFactor(v / b) + ' vs base';
   }
-  const isChanged = (key, v, b) => v != null && b != null && (((METRICS[metricKey(key)] || {}).kind) === 'pct' ? Math.abs(v - b) >= 0.0005 : b !== 0 && Math.abs(v / b - 1) >= 0.0005);
+  const isChanged = (key, v, b) => v != null && b != null && (metricKind(key) === 'pct' ? Math.abs(v - b) >= 0.0005 : b !== 0 && Math.abs(v / b - 1) >= 0.0005);
   function fMetricExact(key, v) {
     if (v == null) return '';
-    const kind = (METRICS[metricKey(key)] || {}).kind || 'count';
+    const kind = metricKind(key);
     if (kind === 'pct') return (v * 100).toFixed(3) + ' %';
+    if (kind === 'ratio') return '×' + String(+v.toFixed(4));
     return fInt(v) + (kind === 'bytes' ? ' bytes' : '');
   }
   // Reparto de MACs: matriz de atención (QKᵀ + A·V, crece con N²) vs capas lineales (crecen con N).
@@ -463,10 +552,10 @@
     const cur = {};
     knobs.forEach((k) => { cur[k.key] = k.base; });
     let xKnob = knobs.length ? knobs[0].key : null;
-    const plottable = show.filter((k) => ((METRICS[k] || {}).kind) !== 'pct');
+    const plottable = show.filter((k) => metricKind(k) !== 'pct');
     // Gráfica: MACs si están; si no, la primera memoria (CLIP: la curva B² de la matriz de logits); si no, otra.
     let chartMetric = plottable.indexOf('macs') >= 0 ? 'macs'
-      : plottable.find((k) => ((METRICS[k] || {}).kind) === 'bytes') || plottable.find((k) => k !== 'params') || plottable[0] || show[0];
+      : plottable.find((k) => metricKind(k) === 'bytes') || plottable.find((k) => k !== 'params') || plottable[0] || show[0];
     const baseM = metrics(config, {});
     const overrides = (o) => { const ov = {}; knobs.forEach((k) => { const v = (o || cur)[k.key]; if (v !== k.base) ov[k.key] = v; }); return ov; };
 
@@ -589,7 +678,7 @@
       [y0, y1].forEach((v, i) => {
         const val = Math.exp(v);
         svg += '<line x1="' + L + '" y1="' + Y(v) + '" x2="' + (W - Rm) + '" y2="' + Y(v) + '" class="pxs__grid"/>';
-        svg += '<text x="' + (L - 6) + '" y="' + (Y(v) + (i ? 9 : -2)) + '" class="pxs__tick" text-anchor="end">' + esc(((METRICS[chartMetric] || {}).kind === 'ops') ? fSi(val) : fMetric(chartMetric, val)) + '</text>';   // eje: sin unidad (va en el título)
+        svg += '<text x="' + (L - 6) + '" y="' + (Y(v) + (i ? 9 : -2)) + '" class="pxs__tick" text-anchor="end">' + esc((metricKind(chartMetric) === 'ops') ? fSi(val) : fMetric(chartMetric, val)) + '</text>';   // eje: sin unidad (va en el título)
       });
       svg += '<polyline class="pxs__line" points="' + pts.map((p) => X(lx(p.x)).toFixed(1) + ',' + Y(Math.log(p.y)).toFixed(1)).join(' ') + '"/>';
       pts.forEach((p) => {
@@ -602,38 +691,73 @@
       chartEl.appendChild(h('figcaption', { class: 'pxs__cap mono' }, slopeTxt));
     }
 
+    // Segmentos del reparto de MACs según el modelo. Solo el encoder de DETR (y la atención global de
+    // ViT/CLIP) crece ∝ N²: en DETR el decoder (cross ∝ Q·N, self ∝ Q²) va en su propio segmento, y en
+    // Deformable DETR la atención es un muestreo disperso (∝ N·hLK), sin matriz N×N en el encoder.
+    function splitSegments(m) {
+      if (!m || !(m.macs > 0)) return null;
+      const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+      const rest = (used, label) => ({ cls: 'l', label, v: Math.max(0, m.macs - used) });
+      if (num(m.samplingMacs) != null) {
+        const samp = m.samplingMacs, dself = num(m.decSelfScoreMacs) || 0;
+        return { title: 'Dónde se va el cómputo: atención deformable vs el resto', segs: [
+          { cls: 'a', label: 'Muestreo deformable (encoder ∝ N·hLK, cross-attention ∝ Q·hLK; sin matriz N×N; convención del calculador)', v: samp },
+          { cls: 'd', label: 'Self-attention del decoder, solo QKᵀ y A·V (∝ Q²)', v: dself },
+          rest(samp + dself, 'Todo lo demás (backbone ResNet-50, proyecciones de entrada, offsets, pesos, proyecciones de value y salida, FFN y cabezas; ∝ N en el encoder y el backbone, ∝ Q en el decoder)'),
+        ] };
+      }
+      if (num(m.encScoreMacs) != null && num(m.decCrossScoreMacs) != null) {
+        const enc = m.encScoreMacs, dec = m.decCrossScoreMacs + (num(m.decSelfScoreMacs) || 0);
+        return { title: 'Dónde se va el cómputo: atención (solo QKᵀ y A·V) del encoder, del decoder y el resto', segs: [
+          { cls: 'a', label: 'Encoder, solo QKᵀ y A·V (crece ∝ N²)', v: enc },
+          { cls: 'd', label: 'Decoder, solo QKᵀ y A·V (cross ∝ Q·N, self ∝ Q²)', v: dec },
+          rest(enc + dec, 'Todo lo demás (backbone ResNet-50, proyección de entrada, proyecciones Q, K, V, O, FFN y cabezas; ∝ N en el encoder y el backbone, ∝ Q en el decoder)'),
+        ] };
+      }
+      const sp = attnSplit(m);
+      if (!sp) return null;
+      const windowed = m.windowScoreMacs != null;   // Swin: atención por ventanas de tamaño fijo
+      return { title: 'Dónde se va el cómputo: atención (solo QKᵀ y A·V) vs el resto', segs: [
+        { cls: 'a', label: windowed ? 'Atención, solo QKᵀ y A·V (con ventanas M×M fijas crece ∝ N·M², lineal en N)' : 'Atención, solo QKᵀ y A·V (crece ∝ N²)', v: sp.attn },
+        { cls: 'l', label: windowed ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding, patch merging y cabeza, ∝ N)'
+          : model === 'clip' ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, embeddings de patches y de texto, y proyecciones finales; ∝ N)'
+          : 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding y cabeza, ∝ N)', v: sp.linear },
+      ] };
+    }
     function paintSplit(m) {
       splitEl.innerHTML = '';
-      const sp = attnSplit(m);
-      const mem = metricValue(m, 'attnMem');
-      const windowed = !!(m && m.windowScoreMacs != null);   // Swin: atención por ventanas de tamaño fijo
+      const sp = splitSegments(m);
+      const windowed = !!(m && m.windowScoreMacs != null);
+      const deform = !!(m && typeof m.samplingMacs === 'number');
+      // Deformable DETR no tiene attnMem (sin matriz N×N): su mayor tensor de scores es el h×Q×Q del decoder.
+      const memKey = deform ? 'decSelfAttnMem' : 'attnMem';
+      const mem = metricValue(m, memKey);
+      const detrLike = !deform && !!(m && typeof m.encScoreMacs === 'number');
       if (!sp && mem == null) { splitEl.hidden = true; return; }
       splitEl.hidden = false;
-      splitEl.appendChild(h('p', { class: 'px-k' }, 'Dónde se va el cómputo: atención (solo QKᵀ y A·V) vs el resto'));
+      splitEl.appendChild(h('p', { class: 'px-k' }, sp ? sp.title : 'Dónde se va el cómputo'));
       if (sp) {
-        const a = Math.round(sp.share * 1000) / 10, l = Math.round((100 - a) * 10) / 10;
-        splitEl.appendChild(h('div', { class: 'pxs__bar', role: 'img', 'aria-label': 'Atención (solo QKᵀ y A·V) ' + a + ' %, todo lo demás ' + l + ' % de los MACs' },
-          h('span', { class: 'pxs__seg-a', style: { width: Math.max(a, 0.5) + '%' } }),
-          h('span', { class: 'pxs__seg-l', style: { width: Math.max(l, 0.5) + '%' } })));
-        const am = typeof m.attnMacsShare === 'number' ? Math.round(m.attnMacsShare * 1000) / 10 : null;
-        splitEl.appendChild(h('ul', { class: 'pxs__legend' },
-          h('li', null, h('i', { class: 'pxs__sw pxs__sw--a' }), h('span', null, windowed
-            ? 'Atención, solo QKᵀ y A·V (con ventanas M×M fijas crece ∝ N·M², lineal en N): '
-            : 'Atención, solo QKᵀ y A·V (crece ∝ N²): '), h('b', { class: 'mono' }, fOps(sp.attn) + ' · ' + a + ' %')),
-          h('li', null, h('i', { class: 'pxs__sw pxs__sw--l' }), h('span', null, windowed
-            ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding, patch merging y cabeza, ∝ N): '
-            : 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding y cabeza, ∝ N): '), h('b', { class: 'mono' }, fOps(sp.linear) + ' · ' + l + ' %'))));
+        const segs = sp.segs.map((x) => Object.assign({}, x, { pct: Math.round((x.v / m.macs) * 1000) / 10 }));
+        splitEl.appendChild(h('div', { class: 'pxs__bar', role: 'img', 'aria-label': segs.map((x) => x.label.replace(/ \(.*$/, '') + ' ' + x.pct + ' %').join(', ') + ' de los MACs' },
+          segs.map((x) => h('span', { class: 'pxs__seg-' + x.cls, style: { width: Math.max(x.pct, 0.5) + '%' } }))));
+        const am = typeof m.attnMacsShare === 'number' && !deform ? Math.round(m.attnMacsShare * 1000) / 10 : null;
+        splitEl.appendChild(h('ul', { class: 'pxs__legend' }, segs.map((x) =>
+          h('li', null, h('i', { class: 'pxs__sw pxs__sw--' + x.cls }), h('span', null, x.label + ': '), h('b', { class: 'mono' }, fOps(x.v) + ' · ' + x.pct + ' %')))));
         if (am != null) splitEl.appendChild(h('p', { class: 'pxs__mem muted small' },
           'Otra métrica, no la confundas: el bloque de atención (con proyecciones Q, K, V, O) es ', h('b', { class: 'mono' }, am + ' %'), ' de los MACs.'));
       }
       if (mem != null) {
-        const b = metricValue(baseM, 'attnMem');
+        const b = metricValue(baseM, memKey);
+        const dense = deform ? metricValue(m, 'denseEncAttnMem') : null;
         splitEl.appendChild(h('p', { class: 'pxs__mem' },
           windowed ? 'Scores de atención — el mayor tensor nW×h×M²×M² de un bloque, en fp16 (2 bytes), B = 1: '
             : model === 'clip' ? 'Scores de atención — tensor h×N×N de una capa de la torre mayor, en fp16 (2 bytes), una muestra (no depende de B): '
+            : detrLike ? 'Scores del encoder — tensor h×N×N de una capa, en fp16 (2 bytes), B = 1 (los de la cross-attention, h×Q×N, son menores): '
+            : deform ? 'Scores de la self-attention del decoder — tensor h×Q×Q de una capa, en fp16 (2 bytes), B = 1 (el encoder deformable no tiene matriz N×N): '
             : 'Scores de atención — tensor h×N×N en fp16 (2 bytes), una capa, B = 1: ', h('b', { class: 'mono', title: fInt(mem) + ' bytes' }, fBytes(mem)),
           b ? h('span', { class: 'mono muted' }, ' (' + fFactor(mem / b) + ' vs base)') : null,
-          '. FlashAttention no lo materializa completo en memoria.'));
+          dense != null ? h('span', null, '. Con atención densa sobre los mismos tokens, el encoder pesaría ', h('b', { class: 'mono', title: fInt(dense) + ' bytes' }, fBytes(dense)), ' por capa') : null,
+          deform ? '.' : '. FlashAttention no lo materializa completo en memoria.'));
       }
     }
 
@@ -737,7 +861,8 @@
     // Descripción para la lista (sin delatar la respuesta).
     const blankLabel = {};
     out.forEach((s) => { if (s.ask === 'label') blankLabel[s.id] = s.n; });
-    const nameOf = (nid) => (blankLabel[nid] ? 'hueco ' + blankLabel[nid] : '«' + ((nodes.find((x) => x.id === nid) || {}).label || nid) + '»');
+    const plain = (t) => (ATLAS.ArchDiagram && typeof ATLAS.ArchDiagram.plainSub === 'function' ? ATLAS.ArchDiagram.plainSub(t) : String(t)).replace(/\n/g, ' ');
+    const nameOf = (nid) => (blankLabel[nid] ? 'hueco ' + blankLabel[nid] : '«' + plain((nodes.find((x) => x.id === nid) || {}).label || nid) + '»');
     out.forEach((s) => {
       if (s.ask === 'shape') {
         const [a, b] = String(s.id).split('>');
@@ -876,12 +1001,56 @@
   }
 
   // ================================================================== DRILLS: formas y parámetros (§8.2)
-  const CFG_SYMS = [['H', 'H'], ['W', 'W'], ['C', 'C'], ['P', 'P'], ['D', 'D'], ['L', 'L'], ['h', 'h'], ['Dmlp', 'D_mlp'], ['K', 'K'], ['N', 'N'], ['T', 'T'], ['V', 'V'], ['M', 'M'], ['Q', 'Q']];
-  function cfgFacts(cfg) {
+  const CFG_SYMS = [['H', 'H'], ['W', 'W'], ['C', 'C'], ['P', 'P'], ['D', 'D'], ['L', 'L'], ['h', 'h'], ['Dmlp', 'D_mlp'], ['K', 'K'], ['N', 'N'], ['T', 'T'], ['V', 'V'], ['M', 'M'], ['Q', 'Q'], ['G', 'G']];
+  // Datos de la config que necesita un drill de formas: cada símbolo de las formas debe salir de aquí o
+  // del texto de la pregunta. DETR: K = clases (los logits son Q×(K+1)), G = objetos anotados del
+  // ejemplo, C_5 = canales del mapa C5 del backbone ResNet. Deformable DETR usa la notación del paper:
+  // L niveles, K puntos por nivel y K_cls clases.
+  // CLIP: los datos dependen de la torre (side = 'img' | 'txt' | 'joint', ver sideOfOps): la de texto
+  // tiene su propio ancho D_t, sus cabezas y su MLP; la parte conjunta usa B y E. Swin: cabezas por stage.
+  function factPairs(cfg, side) {
     const c = cfg || {};
+    const pick = (list) => list.filter(([, v]) => v != null);
+    if (c.Dt != null) {
+      if (side === 'txt') return pick([['T', c.T], ['V', c.V], ['D_t', c.Dt], ['h', c.ht], ['D_mlp', c.Dmlpt], ['L_t', c.Lt], ['E', c.E], ['B', c.B]]);
+      if (side === 'joint') return pick([['D', c.D], ['D_t', c.Dt], ['E', c.E], ['B', c.B]]);
+      return pick([['H', c.H], ['W', c.W], ['P', c.P], ['D', c.D], ['L', c.L], ['h', c.h], ['D_mlp', c.Dmlp], ['N', c.N], ['E', c.E], ['B', c.B]]);
+    }
+    const out = CFG_SYMS.filter(([k]) => typeof c[k] === 'number').map(([k, s]) => [s, c[k]]);
+    const has = (sym) => out.some(([x]) => x === sym);
+    if (Array.isArray(c.heads) && !has('h')) out.push(['h', c.heads.join(' / ') + ' (por stage)']);
+    if (Array.isArray(c.heads) && typeof c.dh === 'number') out.push(['d_h', c.dh]);
+    if (typeof c.levels === 'number' && typeof c.points === 'number') {
+      if (!has('L')) out.push(['L', c.levels]);
+      if (!has('K')) out.push(['K', c.points]);
+      if (typeof c.classes === 'number') out.push(['K_cls', c.classes]);
+    } else if (typeof c.classes === 'number' && !has('K')) out.push(['K', c.classes]);
+    if (typeof c.D === 'number' && Array.isArray(c.widths) && c.widths.length && typeof c.expansion === 'number') out.push(['C_5', c.widths[c.widths.length - 1] * c.expansion]);
+    return out;
+  }
+  // Torre de las ops (CLIP): 'img' (img-encoder, img-proj…), 'txt' (txt-…) o 'joint' (similitud, pérdida, lote).
+  function sideOfOps(ops) {
+    const heads = (ops || []).map((o) => String(((o && o.path) || [])[0] || ''));
+    if (!heads.length) return null;
+    if (heads.every((p) => /^txt/.test(p))) return 'txt';
+    if (heads.every((p) => /^img/.test(p))) return 'img';
+    return heads.some((p) => /^(txt|img)/.test(p)) ? null : 'joint';
+  }
+  // Torre de un drill (forma: la op que produce el tensor; parámetros: las ops del nodo).
+  function drillSide(R, cand) {
+    if (!R || !cand) return null;
+    if (cand.kind === 'shape') {
+      const t = R.tensors[cand.tensor];
+      const op = t && (R.ops || []).find((x) => x.id === t.producer);
+      return op ? sideOfOps([op]) : null;
+    }
+    const np = safe(() => nodeParams(R, cand.model, cand.node), null);
+    return np ? sideOfOps(np.ops) : null;
+  }
+  function cfgFacts(cfg, side) {
     // Dimensiones sin separador de miles (D_mlp = 3072), como en las formas y en {{cfg.*}}.
-    const dim = (v) => (Number.isInteger(v) && Math.abs(v) < 10000 ? String(v) : fInt(v));
-    return CFG_SYMS.filter(([k]) => typeof c[k] === 'number').map(([k, s]) => h('span', { class: 'pxd__fact mono' }, s + ' = ' + dim(c[k])));
+    const dim = (v) => (typeof v !== 'number' ? String(v) : Number.isInteger(v) && Math.abs(v) < 10000 ? String(v) : fInt(v));
+    return factPairs(cfg, side).map(([s, v]) => h('span', { class: 'pxd__fact mono' }, s + ' = ' + dim(v)));
   }
   // ------------------------------------------------------------------ drills de parámetros
   // Un drill de parámetros pregunta por un nodo de un diagrama y su respuesta es EXACTAMENTE lo que ese
@@ -927,7 +1096,11 @@
     for (let i = 0; i < ws[0].length; i++) { const v = ws[0][i]; if (ws.every((w) => w[i] === v)) out.push(v); else break; }
     return out;
   }
-  const plainLabel = (t) => String(t == null ? '' : t).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  // Etiqueta de diagrama como texto plano (el prompt escapa HTML y no compone TeX): 'q_{pos}' y
+  // 'q_{\\mathrm{pos}}' → 'q_pos'.
+  const plainLabel = (t) => String(t == null ? '' : t).replace(/\n/g, ' ')
+    .replace(/_\{\\(?:mathrm|text|rm)\{([^{}]*)\}\}/g, '_$1').replace(/_\{([^{}\\]*)\}/g, '_$1')
+    .replace(/\s+/g, ' ').trim();
   function nodeParams(R, model, ref) {
     const loc = locateParamsNode(model, R, ref);
     if (!loc || !loc.ops.length) return null;
@@ -951,21 +1124,34 @@
     const blocks = new Set(all.map((o) => (Array.isArray(o.where) && o.where[1]) || ''));
     const pairUnit = isSwin && (blocks.size > 1 || group);
     const txt = all.some((o) => (o.path || []).indexOf('txt-encoder') >= 0);
-    const sym = txt ? (cfg.Lt === rep ? 'L_t = ' + rep : '' + rep) : (cfg.L === rep && !isSwin ? 'L = ' + rep : '' + rep);
-    const repMax = Math.max(...all.map((o) => o.repeat || 1));
+    // Símbolo del número de capas (CLIP: L_t en la torre de texto; DETR: L_enc / L_dec).
+    const inPath = (id) => all.every((o) => (o.path || []).indexOf(id) >= 0);
+    const layerSym = txt ? (cfg.Lt != null ? ['L_t', cfg.Lt] : null)
+      : cfg.Lenc != null && inPath('encoder') ? ['L_enc', cfg.Lenc]
+      : cfg.Ldec != null && inPath('decoder') ? ['L_dec', cfg.Ldec]
+      : cfg.L != null && !isSwin ? ['L', cfg.L] : null;
+    const sym = layerSym && layerSym[1] === rep ? layerSym[0] + ' = ' + rep : '' + rep;
+    // ¿El repeat mayor es de verdad el número de capas? (En el backbone ResNet de DETR el mayor repeat
+    // es el de los bottlenecks de un stage: 5 en layer3, que no son "capas" del bloque.)
+    const repIsLayers = layerSym && layerSym[1] === rep;
     let qual = '';
-    if (group) qual = isSwin ? ' (el stage completo: los ' + rep + ' pares)' : ' (completo: las ' + sym + ' capas)';
-    else if (mixed) qual = isSwin ? '' : ' (entero: con las ' + (txt ? (cfg.Lt === repMax ? 'L_t = ' : '') : (cfg.L === repMax ? 'L = ' : '')) + repMax + ' capas)';
+    if (group) qual = isSwin ? ' (el stage completo: los ' + rep + ' pares)' : repIsLayers ? ' (completo: las ' + sym + ' capas)' : ' (completo)';
+    else if (mixed) qual = isSwin ? '' : repIsLayers ? ' (entero: con las ' + sym + ' capas)' : ' (entero)';
     else if (rep > 1) qual = isSwin
       ? (pairUnit ? ' (una sola pareja de bloques; hay ' + rep + ')' : ' (un solo bloque; el stage tiene ' + rep + ' pares)')
       : ' (una sola capa; hay ' + sym + ')';
     // Nombre: el del diagrama (o el de la op hoja), con el contexto que falte (stage/bloque, torre).
-    let base = plainLabel(loc.group ? (loc.group.label || loc.node.label) : loc.node ? loc.node.label : loc.op.label);
+    // node.drillLabel / group.drillLabel: nombre para el drill cuando la etiqueta del diagrama es corta ('Clase').
+    let base = plainLabel(loc.group ? (loc.group.drillLabel || loc.group.label || loc.node.label) : loc.node ? (loc.node.drillLabel || loc.node.label) : loc.op.label);
     const low = (x) => String(x).toLowerCase();
-    let ctxParts = commonWhere(all).filter((w) => low(base).indexOf(low(w)) < 0);
+    // Sin paréntesis ni puntuación al comparar: 'Backbone (ResNet-50)' ya está en 'Backbone ResNet-50'.
+    const norm = (x) => low(x).replace(/[()[\],:·]/g, ' ').replace(/\s+/g, ' ').trim();
+    let ctxParts = commonWhere(all).filter((w) => norm(base).indexOf(norm(w)) < 0);
     // "Patch merging" con contexto "Patch merging 2 (stage 2 → 3)": basta el contexto.
     const lead = ctxParts.findIndex((w) => low(w).indexOf(low(base)) === 0);
     if (lead >= 0) { base = ctxParts[lead]; ctxParts = ctxParts.filter((_, i) => i !== lead); }
+    // "W-MSA" con contexto "bloque 1 (W-MSA)": el paréntesis del contexto sobra ("bloque 1 · W-MSA").
+    ctxParts = ctxParts.map((w) => { const pm = w.match(/^(.*\S)\s*\(([^()]*)\)$/); return pm && norm(pm[2]) === norm(base) ? pm[1] : w; });
     // "LayerNorm 1 (W-MSA)" con contexto "bloque 1 (W-MSA)": el paréntesis sobra.
     const par = ctxParts.length ? base.match(/^(.*\S)\s*\(([^()]*)\)$/) : null;
     if (par && low(ctxParts.join(' ')).indexOf(low(par[2].split(/[ ,:]/)[0])) >= 0) base = par[1];
@@ -1135,7 +1321,7 @@
       const top = h('div', { class: 'pxd__meta' },
         modelName && o.showModel ? h('span', { class: 'chip chip--accent' }, modelName) : null,
         h('span', { class: 'chip' }, R.label || cfgLabel(cur.config)),
-        h('span', { class: 'pxd__facts' }, cfgFacts(R.config)));
+        h('span', { class: 'pxd__facts' }, cfgFacts(R.config, drillSide(R, cur))));
       let qHtml, hint, expected, diag, hl, grade = null, isShape = cur.kind === 'shape';
       if (isShape) {
         const t = R.tensors[cur.tensor];
@@ -1318,7 +1504,7 @@
   // aplicados al valor; todas con el mismo formateador (fMetric) y redondeo.
   function valueOptions(ask, bv, av, seed) {
     const r = av / bv;
-    const isCount = ((METRICS[metricKey(ask)] || {}).kind || 'count') === 'count';
+    const isCount = metricKind(ask) === 'count';
     const fix = (x) => (isCount ? Math.round(x) : x);
     const right = fMetric(ask, fix(av));
     const cands = [bv, av * r, bv * Math.sqrt(r), av * 2, av / 2, av * 4, av / 4].map(fix).filter((x) => x > 0 && isFinite(x));
@@ -1392,7 +1578,7 @@
     const numeric = item.mode === 'numeric' || item.numeric === true;
     // Con opciones del autor, se pregunta lo que ellas expresan (factores) salvo expect explícito.
     const expectValue = (Array.isArray(item.options) && item.options.length && !numeric) ? false : asksValue(item, qHtml);
-    const askKind = (METRICS[ask] || {}).kind || 'count';
+    const askKind = metricKind(ask);
     const fb = h('p', { class: 'pxd__fb', 'aria-live': 'polite' });
     const expl = h('div', { class: 'pxw__expl', hidden: true });
     let done = false;
@@ -1424,7 +1610,7 @@
             h('th', { scope: 'row' }, metricLabel(k)),
             h('td', { class: 'mono num', title: fMetricExact(k, b) }, fMetric(k, b)),
             h('td', { class: 'mono num', title: fMetricExact(k, a) }, fMetric(k, a)),
-            h('td', { class: 'mono num' }, ((METRICS[k] || {}).kind) === 'pct' ? fVsBase(k, a, b).replace(' vs base', '') : b ? fFactor(a / b) : '—'));
+            h('td', { class: 'mono num' }, metricKind(k) === 'pct' ? fVsBase(k, a, b).replace(' vs base', '') : b ? fFactor(a / b) : '—'));
         })))));
       const sb = attnSplit(base), sa = attnSplit(alt);
       if (sb && sa) expl.appendChild(h('p', { class: 'muted small' }, 'Atención (solo QKᵀ y A·V), en % de los MACs: ' + Math.round(sb.share * 1000) / 10 + ' % → ' + Math.round(sa.share * 1000) / 10 + ' %.'
@@ -1709,5 +1895,6 @@
     _blankKey: blankKey, _drillCandidates: drillCandidates, _factorOptions: factorOptions,
     _valueOptions: valueOptions, _fFactorOpt: fFactorOpt, _parseFactor: parseFactor, _parseBytes: parseBytes,
     _parseNum: parseNum, _gradeParams: gradeParams, _nodeParams: nodeParams, _asksValue: asksValue,
+    _changeText: changeText, _factPairs: factPairs, _drillFacts: (R, cand) => factPairs(R.config, drillSide(R, cand)), _metricKind: metricKind, _metricLabel: (k) => metricLabel(k), _metricNote: (k, model) => metricNote(k, model), _fMetric: fMetric,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

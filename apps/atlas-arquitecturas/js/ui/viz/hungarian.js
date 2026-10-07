@@ -104,10 +104,11 @@
     ];
     const stage = V.html('div', { class: 'viz-stage' }, wrap);
     const out = V.html('div', { class: 'viz-readout', 'aria-live': 'polite' }, wrap);
-    V.html('p', { class: 'viz-note', text: 'Escena, cajas y probabilidades ilustrativas (generadas por código, no por un DETR entrenado); Q, G y los pesos λ son los de la config. ' +
-      'Costo de emparejar la query i con el objeto j: C = λ_cls·(−p̂ᵢ(cⱼ)) + λ_L1·‖bᵢ − bⱼ‖₁ + λ_giou·(−GIoU(bᵢ, bⱼ)), con λ = (' + lam.cls + ', ' + lam.l1 + ', ' + lam.giou + '). ' +
+    // html: subíndices como <sub>; p̂ en mono (en IBM Plex Sans el acento combinado cae después de la p)
+    V.html('p', { class: 'viz-note' }, wrap, 'Escena, cajas y probabilidades ilustrativas (generadas por código, no por un DETR entrenado); Q, G y los pesos λ son los de la config. ' +
+      'Costo de emparejar la query i con el objeto j: C = λ<sub>cls</sub>·(−<span style="font-family:var(--font-mono)">p̂</span><sub>i</sub>(c<sub>j</sub>)) + λ<sub>L1</sub>·‖b<sub>i</sub> − b<sub>j</sub>‖<sub>1</sub> + λ<sub>giou</sub>·(−GIoU(b<sub>i</sub>, b<sub>j</sub>)), con λ = (' + lam.cls + ', ' + lam.l1 + ', ' + lam.giou + '). ' +
       'El algoritmo húngaro elige las G parejas que minimizan la suma (cada objeto con una query distinta). No es diferenciable: se calcula sin gradiente en cada paso, por imagen, y la pérdida se aplica después sobre esas parejas. ' +
-      'Las queries sin pareja tienen como objetivo la clase ∅ ("no object"), con peso ' + eos + ' en la cross-entropy. Un duplicado (buena caja sobre un objeto ya tomado) pierde contra la query que mejor lo explica y se entrena hacia ∅: por eso DETR no necesita NMS.' }, wrap);
+      'Las queries sin pareja tienen como objetivo la clase ∅ ("no object"), con peso ' + eos + ' en la cross-entropy. Un duplicado (buena caja sobre un objeto ya tomado) pierde contra la query que mejor lo explica y se entrena hacia ∅: por eso DETR no necesita NMS.');
 
     const SEED = 20200526;
     function draw() {
@@ -154,30 +155,46 @@
 
       // ---- imagen con los G objetos (cajas de verdad) y las cajas de las filas mostradas
       const IX = 8, IY = 34;
-      t(svg, IX, 16, narrow ? 'Imagen sintética: ' + G + ' objetos anotados' : 'Imagen (' + fmt.int(imgH) + '×' + fmt.int(imgW) + ', escena sintética): ' + G + ' objetos anotados', 'viz-t');
+      t(svg, IX, 16, narrow ? 'Imagen sintética: ' + G + ' objetos anotados' : 'Imagen (' + imgH + '×' + imgW + ', escena sintética): ' + G + ' objetos anotados', 'viz-t');
       t(svg, IX, 29, state.model === 'init' ? 'al inicio, las queries dan cajas parecidas cerca del centro' : 'sólidas: objetos · punteadas: queries de la tabla', 'viz-s');
       V.detScene(svg, IX, IY, IW, IH, objs);
       const px = (b) => { const r = B.xyxy(b); return { x: IX + r[0] * IW, y: IY + r[1] * IH, w: (r[2] - r[0]) * IW, h: (r[3] - r[1]) * IH }; };
+      // etiquetas de los objetos primero (posiciones): arriba a la izquierda; si chocan con otra (los dos
+      // autos), debajo de la caja. Las etiquetas de las queries que caerían encima de una de ellas, o de
+      // otra etiqueta de query, no se dibujan (la caja punteada y la tabla ya las identifican).
+      const hitIn = (list, a) => list.some((b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h);
+      const tags = [];
+      const placed = [];
+      objs.forEach((o, j) => {
+        const r = px(o.box), lab = 'g' + (j + 1) + ' ' + o.label, lw = lab.length * 6.4 + 6;
+        let tg = { x: r.x, y: r.y - 13, w: lw, h: 13, lab };
+        if (hitIn(placed, tg)) tg = { x: r.x + r.w - lw, y: r.y + r.h, w: lw, h: 13, lab };
+        placed.push(tg); tags[j] = tg;
+      });
       const predG = V.svg('g', { class: 'viz-hung-preds' }, svg);
       const shownRows = compact ? rows.filter((q) => shown.objOf[q] >= 0 || preds[q].role === 'dup') : rows;
+      const qLabs = [];
+      // las emparejadas primero: si dos etiquetas chocan, gana la de la query con pareja
+      const order = shownRows.slice().sort((a, b) => (shown.objOf[b] >= 0) - (shown.objOf[a] >= 0));
       for (const q of shownRows) {
         const r = px(preds[q].box), m = shown.objOf[q] >= 0;
         const sel = state.cell && state.cell.q === q;
         V.svg('rect', { x: r.x, y: r.y, width: r.w, height: r.h, class: 'viz-hung-pbox' + (m ? ' is-m' : preds[q].role === 'dup' ? ' is-dup' : '') + (sel ? ' is-sel' : ''), 'data-q': q }, predG);
-        if (!compact || m) t(predG, r.x + 2, r.y + r.h - 3, 'q' + q + (m ? '' : ' ∅'), 'viz-hung-plab' + (m ? ' is-m' : ''));
       }
-      const tags = [];
+      for (const q of order) {
+        const r = px(preds[q].box), m = shown.objOf[q] >= 0;
+        if (compact && !m) continue;
+        const s = 'q' + q + (m ? '' : ' ∅');
+        const lr = { x: r.x + 1, y: r.y + r.h - 12, w: s.length * 6 + 3, h: 11 };
+        if (hitIn(placed, lr) || hitIn(qLabs, lr)) continue;
+        qLabs.push(lr);
+        t(predG, r.x + 2, r.y + r.h - 3, s, 'viz-hung-plab' + (m ? ' is-m' : ''));
+      }
       objs.forEach((o, j) => {
-        const r = px(o.box), sel = state.cell && state.cell.j === j;
+        const r = px(o.box), sel = state.cell && state.cell.j === j, tg = tags[j];
         V.svg('rect', { x: r.x, y: r.y, width: r.w, height: r.h, class: 'viz-hung-gbox' + (sel ? ' is-sel' : ''), 'data-j': j }, svg);
-        const lab = 'g' + (j + 1) + ' ' + o.label, lw = lab.length * 6.4 + 6;
-        // etiqueta arriba a la izquierda; si choca con otra (los dos coches), debajo de la caja
-        const hit = (a) => tags.some((b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h);
-        let tg = { x: r.x, y: r.y - 13, w: lw, h: 13 };
-        if (hit(tg)) tg = { x: r.x + r.w - lw, y: r.y + r.h, w: lw, h: 13 };
-        tags.push(tg);
-        V.svg('rect', { x: tg.x, y: tg.y, width: lw, height: 13, class: 'viz-hung-gtag' + (sel ? ' is-sel' : ''), 'data-j': j }, svg);
-        t(svg, tg.x + 3, tg.y + 10, lab, 'viz-hung-gtxt');
+        V.svg('rect', { x: tg.x, y: tg.y, width: tg.w, height: 13, class: 'viz-hung-gtag' + (sel ? ' is-sel' : ''), 'data-j': j }, svg);
+        t(svg, tg.x + 3, tg.y + 10, tg.lab, 'viz-hung-gtxt');
       });
 
       // ---- matriz de costos Q×G (filas = queries, columnas = objetos)

@@ -1082,8 +1082,10 @@ for (const { where, href } of links) {
 {
   const CTRL = /[\x08\x09\x0B\x0C\x0D]/;
   const CTRL_NAME = { '\x08': 'retroceso (\\b de \\beta, \\bar…)', '\x09': 'tabulador (\\t de \\top, \\times, \\tau…)', '\x0B': 'tab vertical (\\v de \\vec…)', '\x0C': 'salto de página (\\f de \\frac…)', '\x0D': 'retorno de carro (\\r de \\right, \\rho…)' };
-  // Comandos que nunca son palabras de prosa: sin "\" delante son LaTeX roto en cualquier parte.
-  const NEVER_PROSE = /(^|[^\\A-Za-z])(cdot|cdots|ldots|mathrm|mathbf|mathit|mathcal|operatorname|boldsymbol|sqrt\{|frac\{|sum_|prod_)/;
+  // Comandos que nunca son palabras de prosa: sin "\" delante son LaTeX roto en cualquier parte (también
+  // fuera de \( … \): sin R`…` los delimitadores pierden su barra y quedan como "( … )"). No cuentan
+  // dentro de un identificador: "linear_sum_assignment" o "np.cumsum_" no son \sum_ (antes: falso positivo).
+  const NEVER_PROSE = /(^|[^\\A-Za-z0-9_])(cdot|cdots|ldots|mathrm|mathbf|mathit|mathcal|operatorname|boldsymbol|sqrt\{|frac\{|sum_(?![a-z]{2})|prod_(?![a-z]{2}))/;
   // Dentro de \( … \) / \[ … \] (o en un campo tex): también estas, tras "(" o espacio.
   const IN_MATH = /(^|[\s(])(cdot|frac|sqrt|mathbf|mathrm|top|times|sum|ell|approx|operatorname|infty|alpha|beta|gamma|sigma|lambda|epsilon)\b/;
   const SKIP_KEYS = new Set(['code', 'id', 't', 'model', 'config', 'configs', 'diagram', 'href', 'family', 'kind', 'ref', 'src', 'arxiv', 'url', 'parent', 'parentNode', 'expand']);
