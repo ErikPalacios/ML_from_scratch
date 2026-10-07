@@ -39,6 +39,16 @@
      l2_normalize, stack_batch, similarity_logits, logit_scale, contrastive_loss. Las primitivas de
      atención aceptan una dimensión delantera de ventanas (nW×…); layouts nuevos 'windows'
      (nW×M²×C), 'winheads' (nW×h×M²×d_h) y 'mat' (B×B). conv2d acepta `floor` (redondeo de PyTorch).
+   - Fase 3 (DETR, Deformable DETR): frozen_batchnorm2d (γ, β y estadísticas congeladas = buffers),
+     group_norm, sigmoid, sine_pos_encoding (PE 2-D seno/coseno, buffer), level_embed, add_level_embed,
+     flatten_levels, learned_queries, zeros_init, split_qkv_heads (Q, K, V con largos distintos),
+     multihead_attention y cross_attention (compuestas; Q de una secuencia, K/V de otra; posición opcional
+     solo en Q y K), reference_points (rejilla de puntos de referencia por nivel), deform_sample
+     (muestreo bilineal: 4 MACs por canal y punto), deform_weighted_sum (suma ponderada de los puntos
+     muestreados), deformable_attention (compuesta: lineal en tokens, sin término N_q·N_k), ref_offset
+     (suma inverse_sigmoid(ref) a la caja), box_mlp (compuesta), hungarian_cost (matriz Q×G),
+     hungarian_match y set_prediction_loss (solo "otros"). conv_bn y bottleneck aceptan `frozenBN`
+     (sin la opción, el resultado es exactamente el de la fase 2).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -98,7 +108,9 @@
   function pct(x, decimals) { return (x * 100).toFixed(decimals === undefined ? 1 : decimals) + ' %'; }
 
   // Símbolos: texto plano y LaTeX.
-  const SYM_TEX = { D_mlp: 'D_{\\mathrm{mlp}}', d_h: 'd_h', 'P^2C': 'P^2C', nW: 'n_W', 'M²': 'M^2', D_t: 'D_t' };
+  const SYM_TEX = { D_mlp: 'D_{\\mathrm{mlp}}', d_h: 'd_h', 'P^2C': 'P^2C', nW: 'n_W', 'M²': 'M^2', D_t: 'D_t',
+    // Fase 3 (Deformable DETR): h cabezas, L niveles, K puntos por cabeza y nivel (notación del paper, salvo h).
+    'hLK·2': 'hLK\\cdot 2', K_cls: 'K_{\\mathrm{cls}}' };
   function symTexAtom(s) {
     s = String(s);
     if (SYM_TEX[s]) return SYM_TEX[s];
@@ -160,7 +172,9 @@
 
   // Costos elementwise por elemento (≈) para "otros".
   const OTHER = { bias: 1, add: 1, scale: 1, layernorm: 5, rmsnorm: 4, softmax: 5, gelu: 8,
-    batchnorm: 5, relu: 1, mask: 1, l2norm: 3 };
+    batchnorm: 5, relu: 1, mask: 1, l2norm: 3,
+    // Fase 3: BN congelada = escala + desplazamiento; GroupNorm como LayerNorm; sigmoide; PE seno/coseno.
+    frozenbn: 2, groupnorm: 5, sigmoid: 4, sinpos: 3 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -489,6 +503,171 @@
     });
   }
 
+  // ---- Fase 3 (DETR, Deformable DETR): primitivas elementales -----------------------------
+  // frozen_batchnorm2d (DETR y Deformable DETR, código oficial y HF): BatchNorm con γ, β, media y varianza
+  // CONGELADAS, guardadas como buffers (4C): 0 parámetros. En inferencia es x·escala + desplazamiento.
+  function frozen_batchnorm2d(x) {
+    const C = x.num[x.num.length - 1];
+    return result('frozen_batchnorm2d', [x], plain(x), {
+      params: 0, other: elems(x) * OTHER.frozenbn,
+      detail: { C, buffers: 4 * C, affine: 2 * C, note: 'γ, β, running_mean y running_var son buffers (4C): 0 parámetros; una BatchNorm normal tendría 2C parámetros' },
+    });
+  }
+
+  // group_norm: γ y β por canal (2C parámetros); normaliza por grupos de canales. o.groups (32 en Deformable DETR).
+  function group_norm(x, o) {
+    const C = x.num[x.num.length - 1], Cs = x.sym[x.sym.length - 1];
+    return result('group_norm', [x], plain(x), {
+      paramTerms: [[2, C]], paramTex: texScale(2, Cs), other: elems(x) * OTHER.groupnorm, detail: { C, groups: (o && o.groups) || 32 },
+    });
+  }
+
+  // sigmoid: elementwise (cajas normalizadas a [0, 1], puntos de referencia).
+  const sigmoid = (x) => elementwise('sigmoid', x, OTHER.sigmoid);
+
+  // sine_pos_encoding (DETR): codificación posicional 2-D FIJA (seno/coseno de y y de x, D/2 canales por
+  // eje, temperatura 10,000, coordenadas normalizadas a [0, 2π]). Buffer calculado: 0 parámetros.
+  // Sin entrada de datos (solo depende del tamaño de la rejilla). o = {H, W} o {levels:[[H,W],…]}, D,
+  // rowsSym='N', Dsym='D'. Con varios niveles (Deformable DETR) devuelve los niveles concatenados.
+  function sine_pos_encoding(o) {
+    const lv = o.levels || [[o.H, o.W]];
+    const rows = lv.reduce((s, hw) => s + hw[0] * hw[1], 0);
+    const out = shape([o.rowsSym || 'N', o.Dsym || 'D'], [rows, o.D], o.mod || 'img', 'seq');
+    return result('sine_pos_encoding', [], out, {
+      other: rows * o.D * OTHER.sinpos,
+      detail: { levels: lv.map((x) => x.slice()), D: o.D, perAxis: o.D / 2, temperature: o.temperature || 10000, normalize: o.normalize !== false, buffer: true,
+        note: 'PE(y, x) = [sin/cos(y/T^{2i/(D/2)}), sin/cos(x/T^{2i/(D/2)})]: buffer, no parámetro' },
+    });
+  }
+
+  // level_embed (Deformable DETR): tabla aprendida L×D, un vector por nivel de la pirámide (se suma a la PE).
+  function level_embed(o) {
+    const out = shape([o.Lsym || 'L', o.Dsym || 'D'], [o.L, o.D], o.mod || 'img', 'seq');
+    return result('level_embed', [], out, { paramTerms: [[o.L, o.D]], paramTex: texProd([o.Lsym || 'L', o.Dsym || 'D']), detail: { L: o.L, D: o.D } });
+  }
+
+  // add_level_embed: PE (N×D, niveles concatenados) + el vector de su nivel (tabla L×D) → N×D.
+  function add_level_embed(pos, table, o) {
+    if (pos.num[1] !== table.num[1]) throw new Error('add_level_embed: anchos distintos.');
+    return result('add_level_embed', [pos, table], plain(pos), { other: elems(pos) * OTHER.add, detail: { levels: (o && o.levels) || null } });
+  }
+
+  // flatten_levels (Deformable DETR): aplana y concatena las rejillas de cada nivel: Σ H_l·W_l × C.
+  function flatten_levels(grids, o) {
+    const C = grids[0].num[2];
+    grids.forEach((g) => { if (g.num[2] !== C) throw new Error('flatten_levels: canales distintos entre niveles.'); });
+    const rows = grids.reduce((s, g) => s + g.num[0] * g.num[1], 0);
+    return result('flatten_levels', grids, shape((o && o.sym) || ['N', grids[0].sym[2]], [rows, C], grids[0].mod, 'seq'), {
+      detail: { levels: grids.map((g) => [g.num[0], g.num[1]]), tokens: grids.map((g) => g.num[0] * g.num[1]) },
+    });
+  }
+
+  // learned_queries (DETR): Q vectores aprendidos ("object queries" = query_pos, Q×D). o.split (Deformable
+  // DETR): una tabla Q×2D que se parte en query_pos y tgt (dos salidas Q×D). Sin entrada de datos.
+  function learned_queries(o) {
+    const Qs = o.Qsym || 'Q', Ds = o.Dsym || 'D';
+    const mk = () => shape([Qs, Ds], [o.Q, o.D], o.mod || 'qry', 'seq');
+    const split = !!o.split;
+    return result('learned_queries', [], split ? [mk(), mk()] : mk(), {
+      paramTerms: [[o.Q, split ? 2 * o.D : o.D]], paramTex: split ? symTexFactor(Qs) + '\\cdot ' + texScale(2, Ds) : texProd([Qs, Ds]),
+      detail: { Q: o.Q, D: o.D, split },
+    });
+  }
+
+  // zeros_init (DETR): la entrada del decoder empieza en ceros (Q×D); la identidad de cada query está
+  // en query_pos, que se suma en cada capa. 0 parámetros.
+  function zeros_init(o) {
+    return result('zeros_init', [], shape([o.rowsSym || 'Q', o.Dsym || 'D'], [o.rows, o.D], o.mod || 'qry', 'seq'), { detail: { rows: o.rows, D: o.D } });
+  }
+
+  // split_qkv_heads: Q (N_q×D), K y V (N_k×D) ya proyectados → h×N_q×d_h, h×N_k×d_h, h×N_k×d_h.
+  // A diferencia de split_heads, Q y K/V pueden tener largos distintos (cross-attention).
+  function split_qkv_heads(q, k, v, o) {
+    const h = o.h;
+    if (q.num[1] !== k.num[1] || k.num[1] !== v.num[1]) throw new Error('split_qkv_heads: Q, K y V con anchos distintos.');
+    if (k.num[0] !== v.num[0]) throw new Error('split_qkv_heads: K y V deben tener el mismo largo.');
+    if (q.num[1] % h !== 0) throw new Error('split_qkv_heads: D = ' + q.num[1] + ' no es divisible por h = ' + h + '.');
+    const dh = q.num[1] / h;
+    const mk = (x) => shape([o.hSym || 'h', x.sym[0], o.dhSym || 'd_h'], [h, x.num[0], dh], x.mod, 'heads');
+    return result('split_qkv_heads', [q, k, v], [mk(q), mk(k), mk(v)], { detail: { h, dh, Nq: q.num[0], Nk: k.num[0] } });
+  }
+
+  // reference_points (Deformable DETR, encoder): el centro normalizado de cada token de cada nivel, repetido
+  // para los L niveles (N×L×2). Calculado, sin parámetros ni MACs. o = {levels:[[H,W],…], rowsSym, Lsym}
+  function reference_points(o) {
+    const lv = o.levels, L = lv.length;
+    const rows = lv.reduce((s, hw) => s + hw[0] * hw[1], 0);
+    return result('reference_points', [], shape([o.rowsSym || 'N', o.Lsym || 'L', '2'], [rows, L, 2], o.mod || 'img', 'seq'), {
+      other: rows * L * 2 * 2, detail: { levels: lv.map((x) => x.slice()) },
+    });
+  }
+
+  // deform_sample (Deformable DETR): para cada query, cabeza, nivel y punto, interpola bilinealmente el
+  // value (4 vecinos) en ref + Δ. value N_v×D, offsets N_q×(hLK·2) [, ref] → h×N_q×LK×d_h.
+  // MACs 4·h·N_q·L·K·d_h (4 multiplica-acumula por canal y punto); las coordenadas y los 4 pesos
+  // bilineales por punto van a "otros". FlopCounterMode NO lo cuenta (grid_sample): analítico.
+  function deform_sample(value, offsets, ref, o) {
+    const h = o.h, L = o.L, K = o.K, D = value.num[1], Nq = offsets.num[0];
+    if (D % h !== 0) throw new Error('deform_sample: D no es divisible por h.');
+    if (offsets.num[1] !== h * L * K * 2) throw new Error('deform_sample: los offsets deben tener h·L·K·2 = ' + (h * L * K * 2) + ' canales.');
+    const dh = D / h, Qs = offsets.sym[0];
+    const out = shape([o.hSym || 'h', Qs, 'LK', 'd_h'], [h, Nq, L * K, dh], offsets.mod, 'heads');
+    return result('deform_sample', [value, offsets, ref], out, {
+      macTerms: [[4, h, Nq, L, K, dh]], macTex: '4\\,' + texProd(['h', Qs]) + '\\cdot LK\\cdot d_h',
+      other: h * Nq * L * K * 10,
+      detail: { h, L, K, dh, Nq, Nv: value.num[0], samples: h * L * K, note: 'bilineal: 4 vecinos por punto; sin término N_q·N_v' },
+    });
+  }
+
+  // deform_weighted_sum: Σ_{l,k} A·v(muestra) por cabeza y concatena: h×N_q×LK×d_h, pesos N_q×hLK → N_q×D.
+  // MACs h·N_q·L·K·d_h (= N_q·LK·D), el análogo de A·V pero con LK = 16 claves en vez de N.
+  function deform_weighted_sum(sampled, weights, o) {
+    const [h, Nq, LK, dh] = sampled.num;
+    if (weights.num[0] !== Nq || weights.num[1] !== h * LK) throw new Error('deform_weighted_sum: pesos incompatibles (' + weights.num.join('×') + ').');
+    const out = shape([sampled.sym[1], (o && o.Dsym) || 'D'], [Nq, h * dh], sampled.mod, 'seq');
+    return result('deform_weighted_sum', [sampled, weights], out, {
+      macTerms: [[h, Nq, LK, dh]], macTex: texProd(['h', sampled.sym[1]]) + '\\cdot LK\\cdot d_h', detail: { h, Nq, LK, dh },
+    });
+  }
+
+  // ref_offset (Deformable DETR): caja = MLP(hs) + inverse_sigmoid(ref) en (cx, cy) antes de la sigmoide.
+  function ref_offset(x, ref) {
+    return result('ref_offset', [x, ref], plain(x), { other: ref.num[0] * ref.num[1] * 5, detail: { note: 'Δ + σ⁻¹(ref) en cx, cy' } });
+  }
+
+  // hungarian_cost (DETR, solo entrenamiento): matriz de costos Q×G entre predicciones y objetos reales:
+  // C = λ_cls·(−p̂(c)) + λ_L1·‖b − b̂‖₁ + λ_giou·(−GIoU). Sin parámetros ni MACs ("otros" ≈).
+  // o = {wCls, wL1, wGiou, focal}
+  function hungarian_cost(logits, boxes, gtLabels, gtBoxes, o) {
+    const Q = logits.num[0], C = logits.num[1], G = gtBoxes.num[0];
+    o = o || {};
+    const out = shape([logits.sym[0], gtBoxes.sym[0]], [Q, G], null, 'seq');
+    return result('hungarian_cost', [logits, boxes, gtLabels, gtBoxes], out, {
+      other: Q * C * OTHER.softmax + Q * G * 45,
+      detail: { Q, G, classes: C, entries: Q * G, wCls: o.wCls, wL1: o.wL1, wGiou: o.wGiou, focal: !!o.focal },
+    });
+  }
+
+  // hungarian_match: asignación uno a uno de costo mínimo (scipy linear_sum_assignment): G pares
+  // (query, objeto); las Q − G queries restantes → "no object" (∅). ≈ Q·G·min(Q, G) operaciones.
+  function hungarian_match(cost) {
+    const [Q, G] = cost.num;
+    return result('hungarian_match', [cost], shape([cost.sym[1], '2'], [G, 2], null, 'seq'), {
+      other: Q * G * Math.min(Q, G), detail: { Q, G, matched: G, unmatched: Q - G },
+    });
+  }
+
+  // set_prediction_loss (DETR): CE de clase sobre las Q queries (∅ con peso eos) + L1 + GIoU sobre las G
+  // emparejadas. o = {wCe, wL1, wGiou, eos, focal}. → escalar. Solo "otros".
+  function set_prediction_loss(logits, boxes, assign, gtLabels, gtBoxes, o) {
+    const Q = logits.num[0], C = logits.num[1], G = gtBoxes.num[0];
+    o = o || {};
+    return result('set_prediction_loss', [logits, boxes, assign, gtLabels, gtBoxes], shape(['1'], [1], null, 'vec'), {
+      other: Q * C * OTHER.softmax + G * 45,
+      detail: { Q, G, wCe: o.wCe, wL1: o.wL1, wGiou: o.wGiou, eos: o.eos, focal: !!o.focal },
+    });
+  }
+
   // ---- compuestas (para fórmulas, tablas y pruebas; los modelos usan las elementales en el grafo)
   function composite(prim, x, parts, out, o) {
     return {
@@ -557,14 +736,15 @@
 
   // ---- Fase 2: compuestas ---------------------------------------------------------------
   // conv_bn: conv (sin sesgo) → BatchNorm (→ ReLU). o = opciones de conv2d + {relu=true}. Redondeo floor.
+  // o.frozenBN (fase 3, DETR): la BN es frozen_batchnorm2d (buffers): solo cuentan los pesos de la conv.
   function conv_bn(x, o) {
     const cv = conv2d(x, Object.assign({ floor: true, s: 1 }, o, { bias: false }));   // stride 1 por defecto (no el de patchify)
-    const bn = batchnorm2d(cv.out);
+    const bn = o.frozenBN ? frozen_batchnorm2d(cv.out) : batchnorm2d(cv.out);
     const parts = [cv, bn];
     if (o.relu !== false) parts.push(relu(bn.out));
     return composite('conv_bn', x, parts, parts[parts.length - 1].out, {
-      paramTex: 'k^2\\,C_{in}\\,C_{out} + 2C_{out}', macTex: 'H_o\\,W_o\\,C_{out}\\,k^2\\,C_{in}',
-      detail: { k: o.k, s: o.s || 1, relu: o.relu !== false },
+      paramTex: o.frozenBN ? 'k^2\\,C_{in}\\,C_{out}' : 'k^2\\,C_{in}\\,C_{out} + 2C_{out}', macTex: 'H_o\\,W_o\\,C_{out}\\,k^2\\,C_{in}',
+      detail: Object.assign({ k: o.k, s: o.s || 1, relu: o.relu !== false }, o.frozenBN ? { frozenBN: true } : {}),
     });
   }
 
@@ -572,22 +752,25 @@
   //   1×1 (C_in→w) → BN → ReLU → 3×3 s (w→w) → BN → ReLU → 1×1 (w→4w) → BN, + atajo, → ReLU.
   //   Atajo = identidad, o proyección 1×1 s (C_in→4w) + BN cuando cambian canales o resolución.
   // o = {width, cout=4·width, stride=1, project}
+  // o.frozenBN (fase 3): todas sus BN congeladas (buffers), como el backbone de DETR.
   function bottleneck(x, o) {
     const w = o.width, cout = o.cout || 4 * w, s = o.stride || 1;
     const project = o.project !== undefined ? o.project : (s !== 1 || x.num[2] !== cout);
-    const a = conv_bn(x, { k: 1, cout: w });
-    const b = conv_bn(a.out, { k: 3, s, p: 1, cout: w });
-    const c = conv_bn(b.out, { k: 1, cout, relu: false });
+    const fz = o.frozenBN ? { frozenBN: true } : {};
+    const a = conv_bn(x, Object.assign({ k: 1, cout: w }, fz));
+    const b = conv_bn(a.out, Object.assign({ k: 3, s, p: 1, cout: w }, fz));
+    const c = conv_bn(b.out, Object.assign({ k: 1, cout, relu: false }, fz));
     const parts = [a, b, c];
     let sc = x;
-    if (project) { const d = conv_bn(x, { k: 1, s, cout, relu: false }); parts.push(d); sc = d.out; }
+    if (project) { const d = conv_bn(x, Object.assign({ k: 1, s, cout, relu: false }, fz)); parts.push(d); sc = d.out; }
     const ad = residual_add(sc, c.out);
     const r = relu(ad.out);
     parts.push(ad, r);
     return composite('bottleneck', x, parts, r.out, {
-      paramTex: 'C_{in}w + 9w^2 + 4w^2 + 2(6w)' + (project ? ' + 4w\\,C_{in} + 8w' : ''),
+      paramTex: o.frozenBN ? 'C_{in}w + 9w^2 + 4w^2' + (project ? ' + 4w\\,C_{in}' : '')
+        : 'C_{in}w + 9w^2 + 4w^2 + 2(6w)' + (project ? ' + 4w\\,C_{in} + 8w' : ''),
       macTex: 'H\\,W\\,C_{in}w + H_o W_o (9w^2 + 4w^2)' + (project ? ' + H_o W_o\\,4w\\,C_{in}' : ''),
-      detail: { width: w, cout, stride: s, project },
+      detail: Object.assign({ width: w, cout, stride: s, project }, fz),
     });
   }
 
@@ -655,6 +838,103 @@
     });
   }
 
+  // ---- Fase 3: compuestas -------------------------------------------------------------------
+  // multihead_attention (nn.MultiheadAttention de DETR): Q, K y V con entradas propias y largos N_q, N_k.
+  //   [+ posición en Q y en K, nunca en V] → W_Q, W_K, W_V → cabezas → QKᵀ → escala → softmax → ·V →
+  //   concatenar → W_O. o = {h, bias=true, Dsym, qPos, kPos (formas), prim}
+  // Parámetros 4D² + 4D. MACs 2·N_q·D² + 2·N_k·D² + 2·N_q·N_k·D (= 4ND² + 2N²D si N_q = N_k = N).
+  function multihead_attention(qIn, kIn, vIn, o) {
+    o = o || {};
+    const D = qIn.num[1], Ds = o.Dsym || qIn.sym[1], bias = o.bias !== false;
+    const parts = [];
+    let qx = qIn, kx = kIn;
+    if (o.qPos) { const a = add(qIn, o.qPos); parts.push(a); qx = a.out; }
+    if (o.kPos) {
+      if (kIn === qIn && o.kPos === o.qPos) kx = qx;            // q = k = x + pos: una sola suma
+      else { const a = add(kIn, o.kPos); parts.push(a); kx = a.out; }
+    }
+    const qp = linear(qx, { dout: D, doutSym: Ds, bias });
+    const kp = linear(kx, { dout: D, doutSym: Ds, bias });
+    const vp = linear(vIn, { dout: D, doutSym: Ds, bias });
+    const sp = split_qkv_heads(qp.out, kp.out, vp.out, { h: o.h });
+    const [q, k, v] = sp.out;
+    const sc = attention_scores(q, k);
+    const sl = scale(sc.out);
+    const sm = softmax(sl.out);
+    const ws = attention_weighted_sum(sm.out, v);
+    const mg = merge_heads(ws.out, { Dsym: Ds });
+    const pj = linear(mg.out, { dout: D, doutSym: Ds, bias });
+    parts.push(qp, kp, vp, sp, sc, sl, sm, ws, mg, pj);
+    const n = symTexFactor(qIn.sym[0]), m = symTexFactor(kIn.sym[0]), d = symTexFactor(Ds);
+    const self = qIn.sym[0] === kIn.sym[0] && qIn.num[0] === kIn.num[0];
+    const r = composite(o.prim || 'multihead_attention', qIn, parts, pj.out, {
+      paramTex: '4' + d + '^2' + (bias ? ' + 4' + d : ''),
+      macTex: self ? '4\\,' + n + '\\,' + d + '^2 + 2\\,' + n + '^2\\,' + d
+        : '2\\,' + n + '\\,' + d + '^2 + 2\\,' + m + '\\,' + d + '^2 + 2\\,' + n + '\\,' + m + '\\,' + d,
+      detail: { h: o.h, dh: D / o.h, Nq: qIn.num[0], Nk: kIn.num[0], scoreMacs: sc.macs + ws.macs, posQ: !!o.qPos, posK: !!o.kPos, posV: false },
+    });
+    r.inputs = [qIn, kIn, vIn, o.qPos, o.kPos].filter((t, i, a) => t && a.indexOf(t) === i);
+    return r;
+  }
+
+  // cross_attention (decoder de DETR): Q de las queries (N_q = Q filas), K y V de la memoria del encoder
+  // (N_k = N filas, largo distinto). o.qPos = query_pos, o.kPos = PE de la memoria (V sin posición).
+  function cross_attention(xq, mem, o) {
+    return multihead_attention(xq, mem, mem, Object.assign({}, o, { prim: 'cross_attention' }));
+  }
+
+  // deformable_attention (Deformable DETR, MSDeformAttn): cada query mira solo h·L·K puntos muestreados
+  // alrededor de su punto de referencia en los L niveles (K por cabeza y nivel), no las N_v claves.
+  //   [q + pos] → Δ = Linear(D → hLK·2), A = softmax_{LK}(Linear(D → hLK)); V = Linear(D → D) sobre el
+  //   value; muestreo bilineal de V en ref + Δ; Σ A·V muestreado; W_O.
+  // o = {h, L, K, qPos, ref (forma), Dsym}. Parámetros D·3hLK + 3hLK + 2D² + 2D.
+  // MACs N_q·D·3hLK + N_v·D² + N_q·D² + 5·N_q·hLK·d_h: LINEAL en tokens (sin término N_q·N_v).
+  function deformable_attention(xq, valueIn, o) {
+    const D = xq.num[1], Ds = o.Dsym || xq.sym[1], h = o.h, L = o.L, K = o.K, S = h * L * K;
+    const parts = [];
+    let q = xq;
+    if (o.qPos) { const a = add(xq, o.qPos); parts.push(a); q = a.out; }
+    const vp = linear(valueIn, { dout: D, doutSym: Ds });
+    const off = linear(q, { dout: 2 * S, doutSym: 'hLK·2' });
+    const aw = linear(q, { dout: S, doutSym: 'hLK' });
+    const sm = softmax(aw.out);
+    const smp = deform_sample(vp.out, off.out, o.ref || null, { h, L, K });
+    const ws = deform_weighted_sum(smp.out, sm.out, { Dsym: Ds });
+    const pj = linear(ws.out, { dout: D, doutSym: Ds });
+    parts.push(vp, off, aw, sm, smp, ws, pj);
+    const n = symTexFactor(xq.sym[0]), m = symTexFactor(valueIn.sym[0]), d = symTexFactor(Ds);
+    const r = composite('deformable_attention', xq, parts, pj.out, {
+      paramTex: d + '\\cdot 3hLK + 3hLK + 2' + d + '^2 + 2' + d,
+      macTex: n + '\\,' + d + '\\cdot 3hLK + ' + m + '\\,' + d + '^2 + ' + n + '\\,' + d + '^2 + 5\\,' + n + '\\,hLK\\,d_h',
+      detail: { h, L, K, samples: S, Nq: xq.num[0], Nv: valueIn.num[0], samplingMacs: smp.macs + ws.macs,
+        denseScoreMacs: 2 * xq.num[0] * valueIn.num[0] * D, note: 'sin término N_q·N_v: cada query lee hLK puntos' },
+    });
+    r.inputs = [xq, valueIn, o.qPos, o.ref].filter((t, i, a) => t && a.indexOf(t) === i);
+    return r;
+  }
+
+  // box_mlp (DETR): MLP de 3 capas D → D → D → 4 con ReLU entre capas, + sigmoide: (cx, cy, w, h) en [0, 1].
+  // o = {layers=3, hidden=D, out=4}. Parámetros 2(D² + D) + 4D + 4 con 3 capas.
+  function box_mlp(x, o) {
+    o = o || {};
+    const n = o.layers || 3, D = x.num[x.num.length - 1], Hd = o.hidden || D, out = o.out || 4;
+    const parts = [];
+    let t = x;
+    for (let i = 0; i < n; i++) {
+      const last = i === n - 1;
+      const l = linear(t, { dout: last ? out : Hd, doutSym: last ? String(out) : x.sym[x.sym.length - 1] });
+      parts.push(l); t = l.out;
+      if (!last) { const a = relu(t); parts.push(a); t = a.out; }
+    }
+    const sg = sigmoid(t); parts.push(sg);
+    const d = symTexFactor(x.sym[x.sym.length - 1]), q = symTexFactor(x.sym[0]);
+    return composite('box_mlp', x, parts, sg.out, {
+      paramTex: (n - 1) + '(' + d + '^2 + ' + d + ') + ' + out + d + ' + ' + out,
+      macTex: q + '\\,(' + (n - 1) + d + '^2 + ' + out + d + ')',
+      detail: { layers: n, hidden: Hd, out },
+    });
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -663,6 +943,10 @@
     batchnorm2d, relu, maxpool2d, global_avg_pool, conv_bn, bottleneck, cyclic_shift, window_partition,
     window_reverse, rel_pos_bias, attn_mask, causal_mask, window_attention, patch_concat, patch_merging,
     causal_self_attention, pick_token, l2_normalize, stack_batch, similarity_logits, logit_scale, contrastive_loss,
+    // Fase 3
+    frozen_batchnorm2d, group_norm, sigmoid, sine_pos_encoding, level_embed, add_level_embed, flatten_levels,
+    learned_queries, zeros_init, split_qkv_heads, reference_points, deform_sample, deform_weighted_sum, ref_offset,
+    hungarian_cost, hungarian_match, set_prediction_loss, multihead_attention, cross_attention, deformable_attention, box_mlp,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -710,6 +994,28 @@
     { id: 'similarity_logits', name: 'Matriz de similitud', paramTex: '0', macTex: 'B^2 E', outTex: 'B\\times E,\\ B\\times E \\to B\\times B', note: 'I·Tᵀ: B² pares; la diagonal son los positivos y el resto B−1 negativos por fila.' },
     { id: 'logit_scale', name: 'Temperatura aprendida', paramTex: '1', macTex: '0', outTex: 'B\\times B \\to B\\times B', note: 'Multiplica por e^t (init 1/0.07, tope 100).' },
     { id: 'contrastive_loss', name: 'Pérdida contrastiva (InfoNCE simétrica)', paramTex: '0', macTex: '0', outTex: 'B\\times B \\to 1', note: 'Promedio de la CE por filas (imagen→texto) y por columnas (texto→imagen).' },
+    // Fase 3 (DETR, Deformable DETR)
+    { id: 'frozen_batchnorm2d', name: 'BatchNorm congelada (FrozenBN)', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'γ, β, media y varianza fijas, guardadas como buffers (4C): el backbone de DETR no las entrena. Una BatchNorm normal tendría 2C parámetros.' },
+    { id: 'group_norm', name: 'GroupNorm', paramTex: '2C', macTex: '0', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'Normaliza por grupos de canales (32 en Deformable DETR); no depende del batch.' },
+    { id: 'sigmoid', name: 'Sigmoide', paramTex: '0', macTex: '0', outTex: 'Q\\times 4 \\to Q\\times 4', note: 'Cajas (cx, cy, w, h) normalizadas a [0, 1].' },
+    { id: 'sine_pos_encoding', name: 'Posición 2-D seno/coseno', paramTex: '0', macTex: '0', outTex: '\\to N\\times D', note: 'D/2 canales para y y D/2 para x (temperatura 10,000). Fija: buffer, no parámetro. DETR la suma a Q y K en cada atención, nunca a V.' },
+    { id: 'level_embed', name: 'Embedding de nivel', paramTex: 'L\\,D', macTex: '0', outTex: '\\to L\\times D', note: 'Un vector aprendido por nivel de la pirámide: le dice a la atención de qué escala viene cada token.' },
+    { id: 'add_level_embed', name: 'Suma del embedding de nivel', paramTex: '0', macTex: '0', outTex: 'N\\times D,\\ L\\times D \\to N\\times D', note: 'Cada token recibe el vector de su nivel.' },
+    { id: 'flatten_levels', name: 'Aplanar niveles', paramTex: '0', macTex: '0', outTex: '\\{H_l\\times W_l\\times D\\} \\to (\\textstyle\\sum_l H_lW_l)\\times D', note: 'Concatena los tokens de todos los niveles en una sola secuencia.' },
+    { id: 'learned_queries', name: 'Object queries aprendidas', paramTex: 'Q\\,D', macTex: '0', outTex: '\\to Q\\times D', note: 'Q vectores aprendidos (query_pos): cada uno es un "slot" que terminará respondiendo por un objeto o por ∅. Deformable DETR aprende Q×2D (query_pos y la entrada).' },
+    { id: 'zeros_init', name: 'Entrada del decoder en ceros', paramTex: '0', macTex: '0', outTex: '\\to Q\\times D', note: 'DETR arranca el decoder en ceros; la identidad de cada query entra por query_pos en cada capa.' },
+    { id: 'split_qkv_heads', name: 'Separar Q, K, V en cabezas', paramTex: '0', macTex: '0', outTex: 'N_q\\times D,\\ N_k\\times D \\to h\\times N_q\\times d_h,\\ h\\times N_k\\times d_h', note: 'Como split_heads, pero Q y K/V pueden tener largos distintos (cross-attention).' },
+    { id: 'multihead_attention', name: 'Multi-head attention (Q, K, V separados)', paramTex: '4D^2 + 4D', macTex: '2N_qD^2 + 2N_kD^2 + 2N_qN_kD', outTex: 'N_q\\times D,\\ N_k\\times D \\to N_q\\times D', note: 'nn.MultiheadAttention. En DETR la posición se suma a Q y a K, nunca a V.' },
+    { id: 'cross_attention', name: 'Cross-attention', paramTex: '4D^2 + 4D', macTex: '2QD^2 + 2ND^2 + 2QND', outTex: 'Q\\times D,\\ N\\times D \\to Q\\times D', note: 'Q desde las queries del decoder, K y V desde la memoria del encoder (largos distintos): los scores son h×Q×N.' },
+    { id: 'reference_points', name: 'Puntos de referencia', paramTex: '0', macTex: '0', outTex: '\\to N\\times L\\times 2', note: 'Encoder de Deformable DETR: el centro normalizado de cada token, en cada nivel. En el decoder salen de Linear(D → 2) + sigmoide sobre query_pos.' },
+    { id: 'deform_sample', name: 'Muestreo bilineal (deformable)', paramTex: '0', macTex: '4\\,h\\,N_q\\,LK\\,d_h', outTex: 'N_v\\times D,\\ N_q\\times hLK{\\cdot}2 \\to h\\times N_q\\times LK\\times d_h', note: 'Interpola el value en ref + Δ (4 vecinos por punto). grid_sample: FlopCounterMode no lo cuenta (MACs analíticos).' },
+    { id: 'deform_weighted_sum', name: 'Suma ponderada de las muestras', paramTex: '0', macTex: 'h\\,N_q\\,LK\\,d_h', outTex: 'h\\times N_q\\times LK\\times d_h \\to N_q\\times D', note: 'El análogo de A·V con LK = 16 claves por cabeza en vez de N.' },
+    { id: 'deformable_attention', name: 'Atención deformable multi-escala', paramTex: 'D\\cdot 3hLK + 3hLK + 2D^2 + 2D', macTex: 'N_qD\\cdot 3hLK + N_vD^2 + N_qD^2 + 5N_q\\,hLK\\,d_h', outTex: 'N_q\\times D,\\ N_v\\times D \\to N_q\\times D', note: 'Offsets (hLK·2) y pesos (hLK) salen de la query; cada query lee hLK puntos: lineal en tokens, sin término N_q·N_v.' },
+    { id: 'ref_offset', name: 'Caja relativa a la referencia', paramTex: '0', macTex: '0', outTex: 'Q\\times 4,\\ Q\\times 2 \\to Q\\times 4', note: 'Deformable DETR predice la caja como Δ + σ⁻¹(ref) antes de la sigmoide.' },
+    { id: 'box_mlp', name: 'Cabeza de cajas (MLP 3 capas)', paramTex: '2(D^2 + D) + 4D + 4', macTex: 'Q\\,(2D^2 + 4D)', outTex: 'Q\\times D \\to Q\\times 4', note: 'D → D → D → 4 con ReLU y sigmoide final: (cx, cy, w, h) normalizados.' },
+    { id: 'hungarian_cost', name: 'Matriz de costos del matching', paramTex: '0', macTex: '0', outTex: 'Q\\times (K{+}1),\\ Q\\times 4,\\ G \\to Q\\times G', note: 'C = λ_cls(−p̂(c)) + λ_L1‖b − b̂‖₁ + λ_giou(−GIoU) para cada par (query, objeto). Solo entrenamiento.' },
+    { id: 'hungarian_match', name: 'Matching húngaro', paramTex: '0', macTex: '0', outTex: 'Q\\times G \\to G\\times 2', note: 'Asignación uno a uno de costo mínimo: G queries emparejadas, Q − G → ∅. Por eso DETR no necesita NMS.' },
+    { id: 'set_prediction_loss', name: 'Pérdida de conjunto', paramTex: '0', macTex: '0', outTex: '\\to 1', note: 'CE de clase sobre las Q queries (∅ con peso reducido) + L1 + GIoU sobre las emparejadas.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -921,6 +1227,9 @@
     split_heads: 1, merge_heads: 1, flatten: 1, window_partition: 1, window_reverse: 1, cyclic_shift: 1,
     pool_cls: 1, pick_token: 1, stack_batch: 1, pos_embed_learned: 1,
     attention_scores: 1, scale: 1, rel_pos_bias: 1, attn_mask: 1, causal_mask: 1,
+    // Fase 3: vistas (split_qkv_heads, flatten_levels), tablas de parámetros (learned_queries, level_embed) y
+    // tensores constantes calculados (PE seno/coseno, ceros, puntos de referencia del encoder).
+    split_qkv_heads: 1, flatten_levels: 1, learned_queries: 1, level_embed: 1, sine_pos_encoding: 1, zeros_init: 1, reference_points: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).

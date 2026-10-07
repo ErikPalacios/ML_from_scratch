@@ -12,7 +12,7 @@ import vm from 'node:vm';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
-const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js'];
+const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -48,6 +48,14 @@ export function compareConfig(A, exp) {
     const c = x ? x.num.join('×') : '(sin tensor)';
     push('shape[' + id + ']', c, shape.join('×'), c === shape.join('×'));
   }
+  // Conteos derivados (DETR): parámetros entrenables del código oficial (congela conv1 y layer1) y buffers de BN.
+  if (exp.params_official_trainable !== undefined) {
+    const c = r.quantities.trainableParams;
+    push('params oficiales entrenables', c, exp.params_official_trainable, c === exp.params_official_trainable);
+  }
+  if (exp.buffers_total !== undefined && r.quantities.bnBuffers !== undefined) {
+    push('buffers de BN', r.quantities.bnBuffers, exp.buffers_total, r.quantities.bnBuffers === exp.buffers_total);
+  }
   const flopsOk = (calc, ref) => rel(calc, ref) <= FLOP_TOL;
   push('flops_total', t.flops, exp.flops_total, flopsOk(t.flops, exp.flops_total),
     'FlopCounterMode = 2 × MACs de matmuls/convs; diferencia ' + (100 * rel(t.flops, exp.flops_total)).toFixed(4) + ' %');
@@ -59,7 +67,9 @@ export function compareConfig(A, exp) {
   const p = (k) => (t.byPrim[k] ? t.byPrim[k].macs : 0);
   if (Object.keys(by).length) {
     const conv = sumOps(by, ['aten.convolution']);
-    if (conv || p('conv2d')) push('flops[convolution]', 2 * p('conv2d'), conv, 2 * p('conv2d') === conv);
+    // conv_bn y bottleneck (backbone de DETR como bloques compuestos) son convs.
+    const convCalc = 2 * (p('conv2d') + p('conv_bn') + p('bottleneck'));
+    if (conv || convCalc) push('flops[convolution]', convCalc, conv, convCalc === conv);
     const lin = sumOps(by, ['aten.addmm', 'aten.mm']);
     // mm incluye la matriz de similitud de CLIP (I·Tᵀ).
     const linCalc = 2 * (p('linear') + p('classifier_head') + p('similarity_logits'));
@@ -68,6 +78,14 @@ export function compareConfig(A, exp) {
       'aten._scaled_dot_product_efficient_attention', 'aten._scaled_dot_product_flash_attention', 'aten._scaled_dot_product_cudnn_attention']);
     push('flops[bmm/sdpa]', 2 * (p('attention_scores') + p('attention_weighted_sum')), att,
       2 * (p('attention_scores') + p('attention_weighted_sum')) === att);
+  }
+  // Deformable DETR: el muestreo (grid_sample + suma ponderada) no lo cuenta FlopCounterMode. El JSON trae
+  // el analítico (con las formas reales de cada llamada) y lo contado por torch sin las cabezas auxiliares.
+  if (exp.flops_sampling_analytic !== undefined) {
+    const samp = 2 * (p('deform_sample') + p('deform_weighted_sum'));
+    push('flops[muestreo deformable, analítico]', samp, exp.flops_sampling_analytic, samp === exp.flops_sampling_analytic);
+    const counted = exp.flops_counted_torch - (exp.flops_aux_heads_torch || 0);
+    push('flops contados por torch (sin cabezas aux.)', t.flops - samp, counted, t.flops - samp === counted);
   }
   // batch_check (CLIP): con batch B, PyTorch = B × (total del calculador con ese B), porque el
   // calculador cuenta por par (la similitud, B·E por par).
@@ -129,7 +147,7 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }

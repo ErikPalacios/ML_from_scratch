@@ -403,3 +403,54 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-group--batch > .ad-group-label { fill: var(--ink); }
 /* ejes de la matriz B×B: franja de la modalidad de filas (izquierda) y columnas (arriba) */
 .ad-axis { stroke: var(--mc); stroke-width: 1; }
+
+/* ---------------------------------------------------------------- fase 3: visualizaciones de DETR */
+/* escena de detección sintética (íconos de ATLAS.Viz sin su fondo) */
+.viz-det-sky { fill: color-mix(in srgb, var(--mod-img) 10%, var(--surface)); }
+.viz-det-ground { fill: color-mix(in srgb, var(--op-mlp) 12%, var(--surface)); }
+.viz-det-frame { fill: none; stroke: var(--ink); stroke-width: 1; }
+.viz-det-scene .viz-icon-bg { display: none; }
+/* hungarian: cajas de objetos (sólidas, tinta) y de queries (punteadas, color de queries) */
+.viz-hung-gbox { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+.viz-hung-gtag { fill: var(--ink); stroke: none; }
+.viz-hung-gtxt { font: 600 10.5px var(--font-mono); fill: var(--surface); pointer-events: none; }
+.viz-hung-gbox.is-sel { stroke: var(--accent); stroke-width: 3; }
+.viz-hung-gtag.is-sel { fill: var(--accent); }
+.viz-hung-pbox { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-hung-pbox.is-m { stroke: var(--mod-qry); stroke-width: 2; stroke-dasharray: 5 3; }
+.viz-hung-pbox.is-sel { stroke: var(--accent); stroke-width: 3; stroke-dasharray: none; }
+.viz-hung-plab { font: 600 10px var(--font-mono); fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.viz-hung-plab.is-m { fill: var(--mod-qry); }
+.viz-hung-cell { stroke: none; }
+.viz-hung-m { fill: none; stroke: var(--ink); stroke-width: 2.4; }
+.viz-cell-btn:focus-visible .viz-hung-m { stroke: var(--focus); stroke-width: 3; }
+.viz-hung-pbox:not(.is-m):not(.is-dup):not(.is-sel) { stroke-opacity: .55; }
+.viz-hung-pbox.is-dup { stroke: var(--ink); stroke-opacity: .75; }
+/* set-vs-nms: cajas densas (YOLO), borradas, duplicados, objetos perdidos; salidas de DETR */
+.viz-nms-grid { fill: none; stroke: var(--ink); stroke-opacity: .12; stroke-width: .6; }
+.viz-nms-box { fill: none; stroke: var(--op-conv); stroke-width: 1.6; }
+.viz-nms-box.is-dup { stroke: var(--warn); stroke-width: 2.4; stroke-dasharray: 5 2; }
+.viz-nms-gone { fill: none; stroke: var(--muted); stroke-opacity: .6; stroke-width: 1; stroke-dasharray: 1.5 2.5; }
+.viz-nms-lost { fill: none; stroke: var(--bad); stroke-width: 2.4; stroke-dasharray: 6 3; }
+.viz-nms-losttxt { font: 700 10.5px var(--font-mono); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-nms-conf { font: 600 9.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-nms-conf.is-dup { fill: var(--ink); }
+.viz-nms-qbox { fill: none; stroke: var(--mod-qry); stroke-width: 2; }
+.viz-nms-qtxt { font: 600 10px var(--font-mono); fill: var(--mod-qry); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-nms-q { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-nms-q.is-obj { fill: var(--mod-qry); stroke: var(--mod-qry); }
+/* deformable-attention: rejilla de tokens por nivel, punto de referencia, rayos y muestras por cabeza */
+.viz-deform-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-deform-map .viz-det-scene { opacity: .55; }
+.viz-deform-grid { fill: none; stroke: var(--ink); stroke-opacity: .16; stroke-width: .6; }
+.viz-deform-ray { stroke-width: 1; stroke-opacity: .7; }
+.viz-deform-pt { stroke: var(--surface); stroke-width: 1; fill-opacity: .9; }
+.viz-deform-ref { stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; }
+.viz-deform-hit { fill: transparent; cursor: crosshair; }
+.viz-deform-bar { stroke: none; }
+/* ---------------------------------------------------------------- fase 3: motor (DETR) */
+/* carril "solo entrenamiento" (style:'train'): marco gris discontinuo sobre --surface-2 */
+.ad-group--train > .ad-frame, .ad-frame--train { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 6 4; }
+.ad-group--train > .ad-group-label { fill: var(--ink); letter-spacing: .07em; text-transform: uppercase; font-size: 11.5px; }
+/* mazo de matrices de atención (glifo 'amat'): las de atrás, más tenues */
+.ad-face--deck { stroke-opacity: .55; }

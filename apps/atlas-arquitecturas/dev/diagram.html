@@ -50,6 +50,7 @@
 <script src="../js/arch/resnet.js"></script>
 <script src="../js/arch/swin.js"></script>
 <script src="../js/arch/clip.js"></script>
+<script src="../js/arch/detr.js"></script>
 <script src="../js/core/quantities.js"></script>
 <script src="../js/ui/dom.js"></script>
 <script src="../js/ui/math.js"></script>
@@ -60,12 +61,16 @@
 <script src="../js/ui/viz/shifted-windows.js"></script>
 <script src="../js/ui/viz/similarity-matrix.js"></script>
 <script src="../js/ui/viz/zero-shot.js"></script>
+<script src="../js/ui/viz/hungarian.js"></script>
+<script src="../js/ui/viz/set-vs-nms.js"></script>
+<script src="../js/ui/viz/deformable-attention.js"></script>
 <script src="../js/content/catalog.js"></script>
 <script src="../js/content/diagrams/repaso.js"></script>
 <script src="../js/content/diagrams/vit.js"></script>
 <script src="../js/content/diagrams/mapa.js"></script>
 <script src="../js/content/diagrams/swin.js"></script>
 <script src="../js/content/diagrams/clip.js"></script>
+<script src="../js/content/diagrams/detr.js"></script>
 <script>
 (function () {
   'use strict';
@@ -89,7 +94,7 @@
   function btn(parent, label, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ad-btn'; b.textContent = label; b.onclick = fn; parent.appendChild(b); return b; }
 
   const only = P.get('only'), vizOnly = P.get('viz');
-  const ids = ['vit-overview', 'swin-overview', 'clip-overview', 'repaso-block', 'mapa-overview'];
+  const ids = ['vit-overview', 'swin-overview', 'clip-overview', 'detr-overview', 'repaso-block', 'mapa-overview'];
 
   async function full(id, opts) {
     const s = sec(id, (ATLAS.diagram(id) || {}).title || '');

@@ -416,16 +416,24 @@
   // (64 → 10, 197 → 26, 768 → 46, 3072 → 66 px).
   const extD = (n) => clamp(10 * Math.log2(Math.max(2, n)) - 50, 6, 72);
   const DEPTH = [0.55, -0.42];                   // proyección isométrica de la profundidad
+  // Matrices de atención (fase 3, hint.glyph:'amat'): log más empinado para que 950 vs 100 se vea ≈ 2×
+  // (950 → 53, 400 → 43, 100 → 27, 7 → 6 px): la de cross-attention de DETR (100×950) se ve ancha y baja.
+  const extM = (n) => clamp(8 * Math.log2(Math.max(2, n)) - 26, 6, 64);
   // Disposición del glifo (§7.3) + extensiones de la fase 2:
   //   'mat'     matriz cuadrada B×B (logits de CLIP): cara frontal cuadrada con la diagonal marcada
   //   'windows' nW×M²×C (ventanas de Swin como lote): pila de min(nW, 8) rebanadas M²×C
   //   'winheads' nW×h×M²×d_h: pila de min(h, 8) rebanadas M²×d_h (las nW ventanas, implícitas)
   //   'fmap'    (solo con hint.glyph:'fmap') H×W×C con la cara en escala LINEAL (hint.px px por token)
   //             y la rejilla de ventanas M×M (hint.win) dibujada encima: la jerarquía de Swin a la vista
+  // fase 3 (DETR):
+  //   'mat'     también rectangular (filas × columnas, p. ej. el costo Q×G); hint.diag:false = sin diagonal
+  //   'amat'    (solo con hint.glyph:'amat') h×N×M: un mazo de min(h, 8) matrices planas N×M (filas = queries,
+  //             columnas = keys), con hint.axes = {rows, cols}: 8×950×950 cuadrada, 8×100×950 ancha y baja
   // hint = la entrada de spec.tensors (o refTensors): {glyph, px, win}.
   function layoutOf(t, hint) {
     const num = (t && t.num) || [], sym = (t && t.sym) || [];
     if (hint && hint.glyph === 'matrix') return 'mat';
+    if (hint && hint.glyph === 'amat' && num.length === 3) return 'amat';
     if (hint && hint.glyph === 'fmap' && num.length === 3) return 'fmap';
     const lay = t && t.layout;
     if (lay === 'mat' || lay === 'windows' || lay === 'winheads') return lay;
@@ -441,7 +449,8 @@
     if (lay === 'vec') return { lay, w: 6, h: 6, d: extD(num[0] || 2) };
     if (lay === 'fmap') { const px = (hint && hint.pxEff) || (hint && hint.px) || 2; return { lay, w: Math.max(6, (num[1] || 2) * px), h: Math.max(6, (num[0] || 2) * px), d: extD(num[2] || 2), win: hint && hint.win, gridH: num[0], gridW: num[1] }; }
     if (lay === 'grid') return { lay, w: ext(num[1] || 2), h: ext(num[0] || 2), d: extD(num[2] || 2) };
-    if (lay === 'mat') { const s = ext(num[0] || 2); return { lay, w: s, h: s, d: 4 }; }
+    if (lay === 'mat') return { lay, w: ext(num[1] || num[0] || 2), h: ext(num[0] || 2), d: 4 };
+    if (lay === 'amat') return { lay, w: extM(num[2] || 2), h: extM(num[1] || 2), d: 0, n: Math.min(num[0] || 1, 8), heads: num[0] };
     if (lay === 'windows') return { lay: 'heads', w: ext(num[1] || 2), h: 4, d: extD(num[2] || 2), n: Math.min(num[0] || 1, 8), heads: num[0] };
     if (lay === 'winheads') return { lay: 'heads', w: ext(num[2] || 2), h: 4, d: extD(num[3] || 2), n: Math.min(num[1] || 1, 8), heads: num[1] };
     if (lay === 'heads') return { lay, w: ext(num[1] || 2), h: 4, d: extD(num[2] || 2), n: Math.min(num[0] || 1, 8), heads: num[0] };
@@ -450,6 +459,7 @@
   function glyphSize(t, hint) {
     const g = glyphDims(t, hint);
     const dx = g.d * DEPTH[0], dy = -g.d * DEPTH[1];
+    if (g.lay === 'amat') return { w: g.w + (g.n - 1) * 3, h: g.h + (g.n - 1) * 3 };
     const stack = g.lay === 'heads' ? (g.n - 1) * 4 : 0;
     return { w: g.w + dx, h: g.h + dy + stack };
   }
@@ -645,7 +655,8 @@
   function drawGlyph(parent, t, x, y, id, mark, hint) {
     const g = glyphDims(t, hint);
     const mod = (hint && hint.mod) || (t && t.mod) || (g.lay === 'mat' ? 'joint' : 'img');
-    const grp = S('g', { class: 'ad-glyph ad-mod--' + mod + (mod === 'qry' ? ' ad-glyph--outline' : '') }, parent);
+    // las matrices de atención ('amat') con filas = queries van rellenas (el contorno punteado se perdía en el mazo)
+    const grp = S('g', { class: 'ad-glyph ad-mod--' + mod + (mod === 'qry' && g.lay !== 'amat' ? ' ad-glyph--outline' : '') }, parent);
     const fill = 'url(#' + id + '-tx-' + mod + ')';
     const box = (bx, by, w, h, d) => {
       const dx = d * DEPTH[0], dy = d * DEPTH[1];
@@ -656,6 +667,10 @@
     };
     if (g.lay === 'heads') {
       for (let i = g.n - 1; i >= 0; i--) box(x, y - i * 4, g.w, g.h, g.d);
+    } else if (g.lay === 'amat') {
+      // mazo de h matrices planas (una por cabeza), la de delante abajo a la izquierda
+      for (let i = g.n - 1; i >= 1; i--) S('rect', { x: r1(x + i * 3), y: r1(y - g.h - i * 3), width: r1(g.w), height: r1(g.h), class: 'ad-face ad-face--deck', fill }, grp);
+      S('rect', { x: r1(x), y: r1(y - g.h), width: r1(g.w), height: r1(g.h), class: 'ad-face ad-face--front', fill }, grp);
     } else box(x, y, g.w, g.h, g.d);
     if (g.lay === 'seq' && t && t.num && t.num[0] > 1) {
       // marcas de tokens sobre la cara frontal (hasta 12)
@@ -665,19 +680,22 @@
       S('path', { d, class: 'ad-tokmarks' }, grp);
       if (mark === 'first') S('rect', { x: r1(x), y: r1(y - g.h), width: r1(step), height: r1(g.h), class: 'ad-tokfirst' }, grp);
     }
-    if (g.lay === 'mat') {
-      // matriz: rejilla tenue (hasta 8×8) y la diagonal (los pares positivos de la pérdida contrastiva)
-      const k = Math.min((t.num && t.num[0]) || 2, 8), st = g.w / k;
+    if (g.lay === 'mat' || g.lay === 'amat') {
+      // matriz: rejilla tenue (hasta 8×8) y, en la cuadrada de CLIP, la diagonal (los pares positivos)
+      const nr = g.lay === 'amat' ? (t.num && t.num[1]) : (t.num && t.num[0]), nc = g.lay === 'amat' ? (t.num && t.num[2]) : (t.num && (t.num[1] || t.num[0]));
+      const kr = Math.min(nr || 2, 8), kc = Math.min(nc || 2, 8);
       let d = '';
-      for (let i = 1; i < k; i++) d += 'M' + P([x + i * st, y]) + 'V' + r1(y - g.h) + 'M' + P([x, y - i * st]) + 'H' + r1(x + g.w);
+      for (let i = 1; i < kc; i++) d += 'M' + P([x + i * g.w / kc, y]) + 'V' + r1(y - g.h);
+      for (let i = 1; i < kr; i++) d += 'M' + P([x, y - i * g.h / kr]) + 'H' + r1(x + g.w);
       if (d) S('path', { d, class: 'ad-tokmarks' }, grp);
-      S('path', { d: 'M' + P([x, y - g.h]) + 'L' + P([x + g.w, y]), class: 'ad-matdiag' }, grp);
+      if (g.lay === 'mat' && !(hint && hint.diag === false)) S('path', { d: 'M' + P([x, y - g.h]) + 'L' + P([x + g.w, y]), class: 'ad-matdiag' }, grp);
       // hint.axes = {rows:'img', cols:'txt'}: franja de la modalidad de las filas a la izquierda y de las
       // columnas arriba (con su textura), para leer qué eje es qué sin el texto
       const ax = hint && hint.axes;
       if (ax) {
         if (ax.rows) S('rect', { x: r1(x - 7), y: r1(y - g.h), width: 5, height: r1(g.h), class: 'ad-axis ad-mod--' + ax.rows, fill: 'url(#' + id + '-tx-' + ax.rows + ')' }, parent);
-        if (ax.cols) S('rect', { x: r1(x), y: r1(y - g.h - 7), width: r1(g.w), height: 5, class: 'ad-axis ad-mod--' + ax.cols, fill: 'url(#' + id + '-tx-' + ax.cols + ')' }, parent);
+        // en el mazo 'amat' las columnas van debajo (arriba están las cartas de las otras cabezas)
+        if (ax.cols) S('rect', { x: r1(x), y: r1(g.lay === 'amat' ? y + 2 : y - g.h - 7), width: r1(g.w), height: 5, class: 'ad-axis ad-mod--' + ax.cols, fill: 'url(#' + id + '-tx-' + ax.cols + ')' }, parent);
       }
     }
     if (g.lay === 'fmap' && g.win && g.gridW > g.win) {
@@ -769,7 +787,9 @@
       const r = geo.groups[g.id];
       // style:'batch' = marco discontinuo de la parte "con lote" (CLIP: donde las formas pasan a llevar B)
       if (g.style === 'batch') used.batch = true;
-      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : ''), 'data-group': g.id }, L.groups);
+      // style:'train' = carril de "solo entrenamiento" (DETR: matching húngaro y pérdida), marco discontinuo gris
+      if (g.style === 'train') used.train = true;
+      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : '') + (g.style === 'train' ? ' ad-group--train' : ''), 'data-group': g.id }, L.groups);
       if (g.repeat) {
         used.repeat = true;
         S('rect', { x: r.x + 10, y: r.y + 10, width: r.w, height: r.h, rx: 6, class: 'ad-stack' }, gg);
@@ -1307,6 +1327,7 @@
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
+    if (used.train) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--train' }, s); }, 'Marco gris discontinuo: solo en entrenamiento');
     if (used.badge) item((s) => { S('rect', { x: 1, y: 3, width: 24, height: 10, rx: 5, class: 'ad-badge-bg' }, s); S('path', { d: 'M5,8m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M7,8h3.5M9.5,8v2', class: 'ad-key' }, s); }, 'Parámetros aprendibles');
     if (opts && opts.withShapes !== false && view.spec.kind !== 'map') {
       const li = H('div', { class: 'ad-leg-item ad-leg-shape', role: 'listitem' }, wrap);
@@ -1967,7 +1988,8 @@
       const fwd = k === 'ArrowRight' || k === 'ArrowDown', back = k === 'ArrowLeft' || k === 'ArrowUp';
       if (!fwd && !back) return;
       ev.preventDefault();
-      const edges = (ctl.view.spec.edges || []).filter((e) => (e.kind || 'data') === 'data' || ctl.view.spec.kind === 'map');
+      // flechas: por las aristas con forma (data, y desde la fase 3 también cross/query/skip: la memoria de DETR)
+      const edges = (ctl.view.spec.edges || []).filter((e) => SHAPED[e.kind || 'data'] || ctl.view.spec.kind === 'map');
       const goEdge = (e) => {
         const el = edgeEl(e);
         if (el && el.hasAttribute('tabindex')) { el.focus({ preventScroll: false }); showTipAt({ edge: edgeKey(e), tensor: e.tensor, el }); return true; }
@@ -2181,7 +2203,76 @@
       u.normal = () => { let x = 0, y = 0; while (!x) x = u(); while (!y) y = u(); return Math.sqrt(-2 * Math.log(x)) * Math.cos(2 * Math.PI * y); };
       return u;
     },
+    // ---- fase 3 (DETR): cajas normalizadas [cx, cy, w, h] ∈ [0, 1] (como las predice DETR)
+    box: {
+      xyxy: (b) => [b[0] - b[2] / 2, b[1] - b[3] / 2, b[0] + b[2] / 2, b[1] + b[3] / 2],
+      area: (b) => Math.max(0, b[2]) * Math.max(0, b[3]),
+      iou(a, b) { const A = boxXY(a), B = boxXY(b); const i = ovl(A, B); const u = a[2] * a[3] + b[2] * b[3] - i; return u > 0 ? i / u : 0; },
+      // GIoU (Rezatofighi et al. 2019): IoU − |C \ (A ∪ B)| / |C|, C = la caja mínima que encierra a ambas. ∈ (−1, 1]
+      giou(a, b) {
+        const A = boxXY(a), B = boxXY(b); const i = ovl(A, B); const u = a[2] * a[3] + b[2] * b[3] - i;
+        const c = (Math.max(A[2], B[2]) - Math.min(A[0], B[0])) * (Math.max(A[3], B[3]) - Math.min(A[1], B[1]));
+        return (u > 0 ? i / u : 0) - (c > 0 ? (c - u) / c : 0);
+      },
+      l1: (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) + Math.abs(a[3] - b[3]),
+    },
+    // Asignación óptima 1 a 1 (algoritmo húngaro, O(n²·m), potenciales): cost = n filas × m columnas con n ≤ m.
+    // Devuelve col[i] = columna asignada a la fila i (cada columna a lo sumo una vez) y el costo total.
+    hungarian(cost) {
+      const n = cost.length, m = n ? cost[0].length : 0;
+      if (!n) return { col: [], total: 0 };
+      if (n > m) throw new Error('hungarian: hace falta filas ≤ columnas');
+      const INF = 1e18, u = new Array(n + 1).fill(0), v = new Array(m + 1).fill(0), p = new Array(m + 1).fill(0), way = new Array(m + 1).fill(0);
+      for (let i = 1; i <= n; i++) {
+        p[0] = i; let j0 = 0;
+        const minv = new Array(m + 1).fill(INF), used = new Array(m + 1).fill(false);
+        do {
+          used[j0] = true; const i0 = p[j0]; let delta = INF, j1 = 0;
+          for (let j = 1; j <= m; j++) if (!used[j]) {
+            const cur = cost[i0 - 1][j - 1] - u[i0] - v[j];
+            if (cur < minv[j]) { minv[j] = cur; way[j] = j0; }
+            if (minv[j] < delta) { delta = minv[j]; j1 = j; }
+          }
+          for (let j = 0; j <= m; j++) { if (used[j]) { u[p[j]] += delta; v[j] -= delta; } else minv[j] -= delta; }
+          j0 = j1;
+        } while (p[j0] !== 0);
+        do { const j1 = way[j0]; p[j0] = p[j1]; j0 = j1; } while (j0);
+      }
+      const col = new Array(n).fill(-1);
+      for (let j = 1; j <= m; j++) if (p[j]) col[p[j] - 1] = j - 1;
+      return { col, total: col.reduce((s, j, i) => s + cost[i][j], 0) };
+    },
+    // Escena de detección procedural (sin imágenes externas): fondo + objetos de DET_OBJECTS con sus cajas
+    // (normalizadas). (x, y, w, h) = rectángulo de la imagen en px. Devuelve el grupo.
+    detScene(parent, x, y, w, h, objects) {
+      const g = S('g', { class: 'viz-det-scene' }, parent);
+      S('rect', { x: r1(x), y: r1(y), width: r1(w), height: r1(h), class: 'viz-det-sky' }, g);
+      S('rect', { x: r1(x), y: r1(y + h * 0.66), width: r1(w), height: r1(h * 0.34), class: 'viz-det-ground' }, g);
+      for (const o of objects) {
+        const b = boxXY(o.box);
+        const og = S('g', { transform: 'translate(' + r1(x + b[0] * w) + ',' + r1(y + b[1] * h) + ') scale(' + r1((b[2] - b[0]) * w / 40 * 1000) / 1000 + ',' + r1((b[3] - b[1]) * h / 40 * 1000) / 1000 + ')' }, g);
+        drawIcon(og, o.icon, 0, 0, 40);
+      }
+      S('rect', { x: r1(x), y: r1(y), width: r1(w), height: r1(h), class: 'viz-det-frame' }, g);
+      return g;
+    },
+    // Objetos de la escena sintética (orden de dibujo: el fondo primero). Los dos coches se solapan a
+    // propósito (IoU ≈ 0.5): el caso en que NMS con un umbral fijo borra un objeto real.
+    DET_OBJECTS: [
+      { icon: 'mountain', label: 'montaña', box: [0.62, 0.40, 0.32, 0.30] },
+      { icon: 'house', label: 'casa', box: [0.18, 0.60, 0.20, 0.30] },
+      { icon: 'tree', label: 'árbol', box: [0.38, 0.53, 0.11, 0.38] },
+      { icon: 'car', label: 'coche', box: [0.60, 0.80, 0.17, 0.15] },
+      { icon: 'car', label: 'coche', box: [0.65, 0.81, 0.17, 0.15] },
+      { icon: 'sun', label: 'sol', box: [0.87, 0.16, 0.12, 0.18] },
+      { icon: 'star', label: 'estrella', box: [0.10, 0.15, 0.08, 0.12] },
+      { icon: 'boat', label: 'barco', box: [0.88, 0.62, 0.13, 0.17] },
+      { icon: 'fish', label: 'pez', box: [0.44, 0.88, 0.12, 0.09] },
+      { icon: 'star', label: 'estrella', box: [0.30, 0.12, 0.07, 0.11] },
+    ],
   };
+  function boxXY(b) { return [b[0] - b[2] / 2, b[1] - b[3] / 2, b[0] + b[2] / 2, b[1] + b[3] / 2]; }
+  function ovl(A, B) { return Math.max(0, Math.min(A[2], B[2]) - Math.max(A[0], B[0])) * Math.max(0, Math.min(A[3], B[3]) - Math.max(A[1], B[1])); }
 
   // Íconos procedurales (sin imágenes externas) para las visualizaciones de CLIP: (x, y) esquina, size lado.
   // Colores de los tokens del tema (var(--…)), así que cambian con el tema sin redibujar.

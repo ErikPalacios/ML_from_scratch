@@ -27,6 +27,16 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   y `clip-vit-l14-336`. El calculador cuenta por par imagen-texto: la referencia corre con B = 1
   (`calc_overrides: {B: 1}` en el JSON) y una segunda pasada con B = 4 (`batch_check`) verifica
   B × (totales) = PyTorch.
+- `detr.py` (fase 3): HF `DetrForObjectDetection._from_config(DetrConfig(...))` para `detr-r50-800x1216` y
+  `detr-r50-640`, y `DeformableDetrForObjectDetection._from_config(DeformableDetrConfig(...))` para
+  `deformable-detr-r50`, construidos en código (backbone timm `resnet50` con `use_pretrained_backbone=False`,
+  atención `eager`, sin hub). La BatchNorm del backbone es `FrozenBatchNorm2d` en HF y en el código oficial
+  (γ, β, media y varianza = buffers): el mismo conteo de parámetros; el JSON trae además
+  `params_official_trainable` (el oficial congela conv1 y layer1). DETR con `auxiliary_loss=False` (cabezas
+  solo sobre la salida final): FLOPs exactos. Deformable DETR: FlopCounterMode no cuenta `grid_sample` ni la
+  suma ponderada de las muestras, así que `flops_sampling_analytic` (5·N_q·h·L·K·d_h MACs por llamada, con las
+  formas reales de cada llamada) se suma y las cabezas de las 5 capas intermedias (`flops_aux_heads_torch`,
+  HF las aplica en cada forward) se restan: `flops_total = flops_counted_torch − aux + analítico`.
 - Las configs de cada script (`CONFIGS`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que

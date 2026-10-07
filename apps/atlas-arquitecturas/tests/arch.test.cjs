@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/core/quantities.js'];
+const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js', 'js/core/quantities.js'];
 function load() {
   const ctx = vm.createContext({});
   for (const f of FILES) vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
@@ -380,7 +380,7 @@ test('fmt', () => {
 });
 
 test('configs, models y primitives', () => {
-  assert.deepStrictEqual(J(A.models()).sort(), ['clip', 'resnet', 'swin', 'transformer', 'vit']);
+  assert.deepStrictEqual(J(A.models()).sort(), ['clip', 'deformable-detr', 'detr', 'resnet', 'swin', 'transformer', 'vit']);
   const v = J(A.configs('vit'));
   assert.deepStrictEqual(v.map((c) => c.id), ['vit-b16-224', 'vit-s16-224', 'vit-l16-224', 'vit-h14-224', 'vit-b16-384', 'vit-b32-224']);
   assert.deepStrictEqual(v.filter((c) => c.canonical).map((c) => c.id), ['vit-b16-224']);
@@ -925,4 +925,301 @@ test('Swin y CLIP: etiqueta + símbolo de cada tensor identifican una sola forma
   assert.strictEqual(JSON.stringify(c.ops.find((o) => o.id === 't-qkv').where), JSON.stringify(['Torre de texto']));
   assert.strictEqual(A.run('vit-b16-224').tensors.q.label, 'Queries por cabeza');   // ViT sin cambios
   assert.strictEqual(A.run('vit-b16-224').ops.find((o) => o.id === 'qkv').where, undefined);
+});
+
+// ================================================================ Fase 3: DETR y Deformable DETR
+test('F3 frozen_batchnorm2d, group_norm, sigmoid y conv_bn/bottleneck con frozenBN (sin la opción: igual que la fase 2)', () => {
+  const x = S(['H', 'W', 'C'], [4, 4, 8], 'grid');
+  const f = A.frozen_batchnorm2d(x);
+  assert.strictEqual(f.params, 0);
+  assert.strictEqual(f.detail.buffers, 4 * 8);                // γ, β, media y varianza: buffers
+  assert.strictEqual(f.other, 4 * 4 * 8 * 2);
+  assert.strictEqual(A.group_norm(x, { groups: 4 }).params, 16);
+  assert.strictEqual(A.sigmoid(S(['Q', '4'], [3, 4])).other, 12 * 4);
+  const img = S(['H', 'W', 'C'], [8, 8, 3], 'grid');
+  const a = A.conv_bn(img, { k: 3, p: 1, cout: 4 }), b = A.conv_bn(img, { k: 3, p: 1, cout: 4, frozenBN: true });
+  assert.strictEqual(a.params, 9 * 3 * 4 + 8);
+  assert.strictEqual(b.params, 9 * 3 * 4);
+  assert.strictEqual(a.macs, b.macs);
+  assert.strictEqual(a.detail.frozenBN, undefined);          // sin la opción el resultado no cambia
+  const y = S(['H', 'W', 'C'], [8, 8, 16], 'grid');
+  const n = A.bottleneck(y, { width: 4, cout: 16, stride: 2, project: true });
+  const fz = A.bottleneck(y, { width: 4, cout: 16, stride: 2, project: true, frozenBN: true });
+  assert.strictEqual(n.params - fz.params, 2 * (4 + 4 + 16 + 16));   // γ, β de las 4 BN
+  assert.strictEqual(n.macs, fz.macs);
+  assert.strictEqual(n.paramFormula, 'C_{in}w + 9w^2 + 4w^2 + 2(6w) + 4w\\,C_{in} + 8w');
+});
+
+test('F3 PE seno/coseno, niveles, queries, ceros, split_qkv_heads con largos distintos y puntos de referencia', () => {
+  const p = A.sine_pos_encoding({ H: 2, W: 3, D: 8 });
+  assert.deepStrictEqual(J(p.out.num), [6, 8]);
+  assert.strictEqual(p.params, 0);
+  assert.ok(p.detail.buffer);
+  assert.strictEqual(p.detail.perAxis, 4);
+  assert.deepStrictEqual(J(A.sine_pos_encoding({ levels: [[2, 3], [1, 2]], D: 8 }).out.num), [8, 8]);
+  assert.strictEqual(A.level_embed({ L: 4, D: 8 }).params, 32);
+  const g1 = S(['h', 'w', 'D'], [2, 3, 8], 'grid'), g2 = S(['h', 'w', 'D'], [1, 2, 8], 'grid');
+  assert.deepStrictEqual(J(A.flatten_levels([g1, g2]).out.num), [8, 8]);
+  const lq = A.learned_queries({ Q: 5, D: 8 });
+  assert.strictEqual(lq.params, 40);
+  assert.strictEqual(lq.out.mod, 'qry');
+  const ls = A.learned_queries({ Q: 5, D: 8, split: true });
+  assert.strictEqual(ls.params, 80);
+  assert.strictEqual(ls.out.length, 2);
+  assert.strictEqual(A.zeros_init({ rows: 5, D: 8 }).params, 0);
+  const q = S(['Q', 'D'], [3, 8]), k = S(['N', 'D'], [5, 8]);
+  const sp = A.split_qkv_heads(q, k, k, { h: 2 });
+  assert.deepStrictEqual(J(sp.out.map((t) => t.num)), [[2, 3, 4], [2, 5, 4], [2, 5, 4]]);
+  assert.throws(() => A.split_qkv_heads(q, k, q, { h: 2 }), /mismo largo/);
+  assert.throws(() => A.split_qkv_heads(q, k, k, { h: 3 }), /divisible/);
+  assert.deepStrictEqual(J(A.reference_points({ levels: [[2, 3], [1, 2]] }).out.num), [8, 2, 2]);
+});
+
+test('F3 multihead_attention y cross_attention: 4D² + 4D; 2N_qD² + 2N_kD² + 2N_qN_kD; posición solo en Q y K', () => {
+  const x = S(['N', 'D'], [5, 4]);
+  const self = A.multihead_attention(x, x, x, { h: 2 });
+  const ref = A.mhsa(x, { h: 2 });
+  assert.strictEqual(self.params, ref.params);
+  assert.strictEqual(self.macs, ref.macs);
+  assert.strictEqual(self.macFormula, ref.macFormula);
+  const q = S(['Q', 'D'], [3, 4]);
+  const c = A.cross_attention(q, x, { h: 2 });
+  assert.strictEqual(c.prim, 'cross_attention');
+  assert.strictEqual(c.params, 4 * (16 + 4));
+  assert.strictEqual(c.macs, 2 * 3 * 16 + 2 * 5 * 16 + 2 * 3 * 5 * 4);   // 376
+  assert.deepStrictEqual(J(c.out.num), [3, 4]);
+  assert.strictEqual(c.macFormula, '2\\,Q\\,D^2 + 2\\,N\\,D^2 + 2\\,Q\\,N\\,D');
+  // scores h×Q×N
+  const sc = c.detail.parts.find((p) => p.prim === 'attention_scores');
+  assert.strictEqual(sc.macs, 2 * 3 * 5 * 2);
+  // posición: solo sumas ("otros"), no cambia parámetros ni MACs; q = k = x + pos se suma una vez
+  const pos = S(['N', 'D'], [5, 4]);
+  const sp = A.multihead_attention(x, x, x, { h: 2, qPos: pos, kPos: pos });
+  assert.strictEqual(sp.macs, self.macs);
+  assert.strictEqual(sp.other - self.other, 5 * 4);
+  assert.ok(sp.detail.posQ && sp.detail.posK && !sp.detail.posV);
+  const cp = A.cross_attention(q, x, { h: 2, qPos: S(['Q', 'D'], [3, 4]), kPos: pos });
+  assert.strictEqual(cp.other - c.other, 3 * 4 + 5 * 4);
+});
+
+test('F3 deformable_attention: D·3hLK + 3hLK + 2D² + 2D parámetros, MACs lineales en tokens (sin N_q·N_v)', () => {
+  const q = S(['Q', 'D'], [3, 4]), v = S(['N', 'D'], [7, 4]);
+  const d = A.deformable_attention(q, v, { h: 2, L: 2, K: 1 });   // hLK = 4
+  assert.strictEqual(d.params, 4 * 12 + 12 + 2 * 16 + 2 * 4);     // 100
+  // value 7·16 + offsets 3·4·8 + pesos 3·4·4 + muestreo 4·2·3·2·1·2 + suma 2·3·2·2 + salida 3·16
+  assert.strictEqual(d.macs, 112 + 96 + 48 + 96 + 24 + 48);       // 424
+  assert.strictEqual(d.detail.samplingMacs, 96 + 24);             // 5·N_q·hLK·d_h
+  const smp = A.deform_sample(A.linear(v, { dout: 4 }).out, S(['Q', 'hLK·2'], [3, 8]), null, { h: 2, L: 2, K: 1 });
+  assert.deepStrictEqual(J(smp.out.num), [2, 3, 2, 2]);
+  assert.strictEqual(smp.macArith, '4·2·3·2·1·2 = 96');
+  assert.throws(() => A.deform_sample(v, S(['Q', 'x'], [3, 6]), null, { h: 2, L: 2, K: 1 }), /h·L·K·2/);
+  // duplicar N_v solo duplica la proyección del value (no hay término N_q·N_v)
+  const d2 = A.deformable_attention(q, S(['N', 'D'], [14, 4]), { h: 2, L: 2, K: 1 });
+  assert.strictEqual(d2.macs - d.macs, 7 * 16);
+  // duplicar N_q (= N_v, encoder) duplica todo: lineal
+  const e1 = A.deformable_attention(v, v, { h: 2, L: 2, K: 1 }), e2 = A.deformable_attention(S(['N', 'D'], [14, 4]), S(['N', 'D'], [14, 4]), { h: 2, L: 2, K: 1 });
+  assert.strictEqual(e2.macs, 2 * e1.macs);
+  assert.strictEqual(e1.detail.denseScoreMacs, 2 * 7 * 7 * 4);
+});
+
+test('F3 box_mlp, ref_offset, matching húngaro y pérdida: Q×G, G×2, escalar, sin parámetros ni MACs', () => {
+  const hs = S(['Q', 'D'], [5, 4]);
+  const b = A.box_mlp(hs);
+  assert.strictEqual(b.params, 2 * (16 + 4) + 16 + 4);
+  assert.strictEqual(b.macs, 5 * (2 * 16 + 16));
+  assert.deepStrictEqual(J(b.out.num), [5, 4]);
+  assert.strictEqual(A.ref_offset(S(['Q', '4'], [5, 4]), S(['Q', '2'], [5, 2])).params, 0);
+  const lg = S(['Q', 'K+1'], [5, 3]), bx = S(['Q', '4'], [5, 4]), gl = A.shape(['G'], [2], null, 'vec'), gb = S(['G', '4'], [2, 4]);
+  const c = A.hungarian_cost(lg, bx, gl, gb, { wCls: 1, wL1: 5, wGiou: 2 });
+  assert.deepStrictEqual(J(c.out.num), [5, 2]);
+  assert.deepStrictEqual(J(c.out.sym), ['Q', 'G']);
+  assert.strictEqual(c.params + c.macs, 0);
+  const m = A.hungarian_match(c.out);
+  assert.deepStrictEqual(J(m.out.num), [2, 2]);
+  assert.strictEqual(m.detail.unmatched, 3);
+  assert.deepStrictEqual(J(A.set_prediction_loss(lg, bx, m.out, gl, gb, {}).out.num), [1]);
+  const ids = J(A.primitives()).map((p) => p.id);
+  for (const id of ['frozen_batchnorm2d', 'sine_pos_encoding', 'learned_queries', 'split_qkv_heads', 'multihead_attention', 'cross_attention',
+    'deform_sample', 'deform_weighted_sum', 'deformable_attention', 'box_mlp', 'hungarian_cost', 'hungarian_match', 'set_prediction_loss']) {
+    assert.ok(ids.includes(id), id);
+    assert.strictEqual(typeof A[id], 'function', id);
+  }
+});
+
+test('DETR-R50 @800×1216: 41,524,768 parámetros (HF = oficial, FrozenBN) y 91,932,364,800 MACs', () => {
+  const r = A.run('detr-r50-800x1216');
+  const t = r.totals, n = t.byNode, D = 256, Dm = 2048;
+  assert.strictEqual(t.params, 41524768);
+  assert.strictEqual(t.macs, 91932364800);
+  // backbone: solo las convs (25,557,032 de torchvision − fc 2,049,000 − γ/β 53,120)
+  assert.strictEqual(n.backbone.params, 25557032 - 2049000 - 53120);
+  assert.strictEqual(n['input-proj'].params, 2048 * D + D);
+  assert.strictEqual(n.queries.params, 100 * D);
+  assert.strictEqual(n['class-head'].params, D * 92 + 92);
+  assert.strictEqual(n['box-head'].params, 2 * (D * D + D) + 4 * D + 4);
+  assert.strictEqual(n['dec-norm'].params, 2 * D);
+  // capa del encoder (post-LN): 4D² + 4D + 2D·D_mlp + D_mlp + D + 2·2D
+  const enc = 4 * D * D + 4 * D + 2 * D * Dm + Dm + D + 4 * D;
+  assert.strictEqual(enc, 1315072);
+  assert.strictEqual(n.encoder.params, 6 * enc);
+  // capa del decoder: dos atenciones + FFN + 3 LayerNorm
+  const dec = 2 * (4 * D * D + 4 * D) + 2 * D * Dm + Dm + D + 6 * D;
+  assert.strictEqual(n.decoder.params, 6 * dec);
+  const q = r.quantities;
+  assert.strictEqual(q.trainableParams, 41302368);            // lo que imprime el código oficial (conv1 y layer1 congelados)
+  assert.strictEqual(q.frozenParamsOfficial, 9408 + 212992);
+  assert.strictEqual(q.bnBuffers, 4 * 26560);                  // = buffers_total de HF
+  assert.strictEqual(q.paramsWithTrainableBN, 41524768 + 53120);
+  assert.strictEqual(q.auxHeadsMacs, 5 * (100 * D * 92 + 100 * (2 * D * D + 4 * D)));
+  // flag frozenBN = false: γ y β como parámetros (+53,120, el conteo de torchvision)
+  const def = A.model('detr');
+  const cfg = def.resolve(Object.assign({}, def.configs['detr-r50-800x1216'], { frozenBN: false }));
+  const ops = def.build(cfg, A)._data().ops;
+  assert.strictEqual(ops.reduce((s, o) => s + o.params * o.repeat, 0), 41524768 + 53120);
+  // 640×640: mismos parámetros (la PE es fija), 400 tokens
+  const s = A.run('detr-r50-640');
+  assert.strictEqual(s.totals.params, 41524768);
+  assert.strictEqual(s.quantities.tokens, 400);
+  assert.strictEqual(s.totals.macs, 38560153600);
+});
+
+test('DETR: ids y formas de SPEC §15.1 (tensores, nodos y paths)', () => {
+  const r = A.run('detr-r50-800x1216');
+  const sh = (id) => r.tensors[id].num.join('×');
+  const want = { 'x-img': '800×1216×3', c5: '25×38×2048', proj: '25×38×256', 'memory-in': '950×256', pos: '950×256',
+    'e-q': '8×950×32', 'e-k': '8×950×32', 'e-v': '8×950×32', 'e-scores': '8×950×950', 'e-attn': '8×950×950', memory: '950×256',
+    'query-pos': '100×256', tgt0: '100×256', 'd-self-scores': '8×100×100', 'd-cross-scores': '8×100×950', 'd-cross-q': '8×100×32',
+    'd-cross-k': '8×950×32', 'd-cross-attn': '8×100×950', hs: '100×256', logits: '100×92', boxes: '100×4', cost: '100×7',
+    assignment: '7×2', loss: '1' };
+  for (const [id, s] of Object.entries(want)) assert.strictEqual(sh(id), s, id);
+  assert.deepStrictEqual(J(r.tensors['d-cross-scores'].sym), ['h', 'Q', 'N']);
+  assert.deepStrictEqual(J(r.tensors.cost.sym), ['Q', 'G']);
+  assert.deepStrictEqual(J(r.tensors.logits.sym), ['Q', 'K+1']);
+  assert.strictEqual(r.tensors['query-pos'].mod, 'qry');
+  const n = r.totals.byNode, p = r.totals.byPath;
+  for (const id of ['backbone', 'input-proj', 'pos-enc', 'flatten', 'encoder', 'enc-layer', 'queries', 'decoder', 'dec-layer', 'dec-norm',
+    'class-head', 'box-head', 'matching', 'loss']) assert.ok(n[id], 'nodo ' + id);
+  for (const id of ['self-attn', 'res1', 'ln1', 'ffn', 'res2', 'ln2', 'add-pos']) assert.ok(p['encoder>enc-layer>' + id], 'enc-layer › ' + id);
+  for (const id of ['self-attn', 'res1', 'ln1', 'cross-attn', 'res2', 'ln2', 'ffn', 'res3', 'ln3', 'add-qpos']) assert.ok(p['decoder>dec-layer>' + id], 'dec-layer › ' + id);
+  for (const at of ['encoder>enc-layer>self-attn', 'decoder>dec-layer>self-attn', 'decoder>dec-layer>cross-attn']) {
+    for (const id of ['q-proj', 'k-proj', 'v-proj', 'split', 'scores', 'scale', 'softmax', 'weighted-sum', 'merge', 'proj']) assert.ok(p[at + '>' + id], at + ' › ' + id);
+  }
+  const op = (id) => r.ops.find((o) => o.id === id);
+  // la posición entra a Q y K, nunca a V; en la cross-attention Q viene de las queries y K/V de la memoria
+  assert.deepStrictEqual(J(op('e-q-proj').in), ['e-qk-in']);
+  assert.deepStrictEqual(J(op('e-k-proj').in), ['e-qk-in']);
+  assert.deepStrictEqual(J(op('e-v-proj').in), ['memory-in']);
+  assert.deepStrictEqual(J(op('e-add-pos').in), ['memory-in', 'pos']);
+  assert.deepStrictEqual(J(op('d-self-v-proj').in), ['tgt0']);
+  assert.deepStrictEqual(J(op('d-cross-q-proj').in), ['d-cross-q-in']);
+  assert.deepStrictEqual(J(op('d-cross-add-qpos').in), ['d-ln1', 'query-pos']);
+  assert.deepStrictEqual(J(op('d-cross-k-proj').in), ['d-cross-k-in']);
+  assert.deepStrictEqual(J(op('d-cross-add-pos').in), ['memory', 'pos']);
+  assert.deepStrictEqual(J(op('d-cross-v-proj').in), ['memory']);
+  assert.strictEqual(op('e-scores').repeat, 6);
+  assert.strictEqual(op('d-cross-scores').repeat, 6);
+  assert.strictEqual(op('class-head').repeat, 1);
+  assert.deepStrictEqual(J(op('e-q-proj').path), ['encoder', 'enc-layer', 'self-attn', 'q-proj']);
+  assert.deepStrictEqual(J(op('d-cross-k-proj').path), ['decoder', 'dec-layer', 'cross-attn', 'k-proj']);
+  assert.deepStrictEqual(J(op('match-cost').path), ['matching']);
+  // post-LN: la LayerNorm va DESPUÉS de cada residual
+  assert.deepStrictEqual(J(op('e-ln1').in), ['e-r1']);
+  assert.deepStrictEqual(J(op('e-ln2').out), ['memory']);
+  assert.deepStrictEqual(J(op('d-ln3').out), ['d-out']);
+  assert.deepStrictEqual(J(op('dec-norm').in), ['d-out']);
+  // sin parámetros: PE, ceros, matching y pérdida
+  for (const id of ['pos-enc', 'tgt-init', 'match-cost', 'match-assign', 'loss']) assert.strictEqual(op(id).params + op(id).macs, 0, id);
+  assert.deepStrictEqual(J(r.ops.find((o) => o.id === 'l2-b1').where), ['Backbone (ResNet-50)']);
+  assert.deepStrictEqual(J(op('d-cross-scores').where), ['Decoder', 'cross-attention']);
+  assert.strictEqual(r.tensors['d-cross-q'].label, 'Decoder · cross-attention · Queries por cabeza');
+  assert.strictEqual(r.tensors['e-q'].label, 'Encoder · self-attention · Queries por cabeza');
+});
+
+test('DETR metrics: scores del encoder vs cross/self del decoder, memoria 950×950 y escala con la resolución', () => {
+  const m = A.metrics('detr-r50-800x1216');
+  const N = 950, Q = 100, D = 256;
+  assert.strictEqual(m.encScoreMacsLayer, 2 * N * N * D);
+  assert.strictEqual(m.decCrossScoreMacsLayer, 2 * Q * N * D);
+  assert.strictEqual(m.decSelfScoreMacsLayer, 2 * Q * Q * D);
+  assert.strictEqual(m.encScoreMacs + m.decCrossScoreMacs + m.decSelfScoreMacs, m.scoreMacs);   // = los MACs de QKᵀ + A·V del grafo
+  assert.strictEqual(m.encToCrossScore, N / Q);
+  assert.strictEqual(m.encAttnMem, 8 * N * N * 2);              // 14.44 MB en bf16, una capa
+  assert.strictEqual(m.attnMem, m.encAttnMem);                  // el mayor tensor de scores es el del encoder
+  assert.strictEqual(m.encAttnFp32Mem, 8 * N * N * 4);
+  assert.strictEqual(m.decCrossAttnMem, 8 * Q * N * 2);
+  assert.strictEqual(m.backboneMacs + m.inputProjMacs + m.encoderMacs + m.decoderMacs + m.headMacs, m.macs);
+  // encoder ∝ (HW/32²)²: duplicar el lado → tokens ×4, scores ×16
+  const s = (H, W) => m.scaling.find((x) => x.H === H && x.W === W);
+  assert.strictEqual(s(1024, 1024).tokens, 4 * s(512, 512).tokens);
+  assert.strictEqual(s(1024, 1024).encScoreMacs, 16 * s(512, 512).encScoreMacs);
+  assert.strictEqual(s(1024, 1024).decCrossScoreMacs, 4 * s(512, 512).decCrossScoreMacs);
+  assert.strictEqual(s(800, 1216).macs, m.macs);
+  assert.strictEqual(m.encScoreMacs2x, 16 * m.encScoreMacs);
+  // knobs
+  assert.strictEqual(A.run('detr-r50-800x1216', { res: 1024 }).quantities.tokens, 1024);
+  assert.strictEqual(A.run('detr-r50-800x1216', { Q: 300 }).totals.byNode.queries.params, 300 * D);
+  assert.strictEqual(A.run('detr-r50-800x1216', { G: 20 }).tensors.cost.num.join('×'), '100×20');
+  assert.throws(() => A.run('detr-r50-800x1216', { H: 810 }), /múltiplo de 32/);
+  assert.throws(() => A.run('detr-r50-800x1216', { G: 200 }), /G ≤ Q/);
+  assert.strictEqual(A.run('detr-r50-640', { res: 800 }).label, 'DETR-R50 @ 800×800');
+});
+
+test('Deformable DETR-R50: 40,069,665 parámetros, 4 niveles (20,197 tokens) y 187,717,110,784 MACs', () => {
+  const r = A.run('deformable-detr-r50');
+  const t = r.totals, n = t.byNode, q = r.quantities, D = 256;
+  assert.strictEqual(t.params, 40069665);
+  assert.strictEqual(t.macs, 187717110784);
+  assert.deepStrictEqual([q.l1Tokens, q.l2Tokens, q.l3Tokens, q.l4Tokens], [15200, 3800, 950, 247]);
+  assert.strictEqual(q.tokens, 20197);
+  assert.strictEqual(r.tensors['src-l4'].num.join('×'), '13×19×256');   // conv 3×3 s2 sobre C5 (25×38)
+  assert.strictEqual(n['input-proj'].params, (512 + 1024 + 2048) * D + 3 * D + 9 * 2048 * D + D + 4 * 2 * D);
+  assert.strictEqual(q.msdaParams, D * 3 * 128 + 3 * 128 + 2 * D * D + 2 * D);   // 230,272
+  assert.strictEqual(n.queries.params, 300 * 2 * D);
+  assert.strictEqual(n['class-head'].params, D * 91 + 91);
+  assert.strictEqual(q.trainableParams, 40069665 - 222400);
+  const sh = (id) => r.tensors[id].num.join('×');
+  assert.strictEqual(sh('e-offsets'), '20197×256');
+  assert.strictEqual(sh('e-aw'), '20197×128');
+  assert.strictEqual(sh('e-sampled'), '8×20197×16×32');
+  assert.strictEqual(sh('e-ref'), '20197×4×2');
+  assert.strictEqual(sh('d-cross-sampled'), '8×300×16×32');
+  assert.strictEqual(sh('d-cross-value'), '20197×256');
+  assert.strictEqual(sh('d-self-scores'), '8×300×300');
+  assert.strictEqual(sh('logits'), '300×91');
+  // ninguna atención densa en el encoder ni en la cross-attention: solo la self-attention del decoder tiene scores
+  assert.deepStrictEqual(J(r.ops.filter((o) => o.prim === 'attention_scores').map((o) => o.id)), ['d-self-scores']);
+  const m = A.metrics('deformable-detr-r50');
+  assert.strictEqual(m.encSamplingMacsLayer, 5 * 20197 * 128 * 32);
+  assert.strictEqual(m.samplingMacs, t.byPrim.deform_sample.macs + t.byPrim.deform_weighted_sum.macs);
+  assert.strictEqual(m.denseEncAttnMem, 8 * 20197 * 20197 * 2);  // 6.53 GB por capa si fuera densa
+  assert.strictEqual(m.denseEncScoreMacsLayer, 2 * 20197 * 20197 * D);
+  assert.strictEqual(m.crossoverN, null);
+  // lineal en tokens: el muestreo del encoder escala como N
+  const s1 = m.scaling.find((x) => x.H === 512), s2 = m.scaling.find((x) => x.H === 1024 && x.W === 1024);
+  assert.strictEqual(s2.encSamplingMacs / s1.encSamplingMacs, s2.tokens / s1.tokens);
+  assert.ok(s2.denseEncScoreMacs / s1.denseEncScoreMacs > 15);
+  assert.strictEqual(A.run('deformable-detr-r50', { points: 8 }).quantities.samples, 8 * 4 * 8);
+});
+
+test('DETR y Deformable DETR: etiqueta + símbolo identifican una forma; Quantities resuelve todas sus claves', () => {
+  for (const id of ['detr-r50-800x1216', 'detr-r50-640', 'deformable-detr-r50']) {
+    const r = A.run(id);
+    const by = {};
+    for (const tid of r.order) {
+      const t = r.tensors[tid];
+      const k = t.label + '|' + String(t.tex).split('=')[0].trim();
+      (by[k] = by[k] || new Set()).add(t.num.join('×'));
+    }
+    for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+    J(Q.keys(id)).forEach((k) => assert.ok(Q.get(id + '.' + k), id + '.' + k));
+  }
+  assert.strictEqual(Q.get('detr-r50-800x1216.params.total').text, '41,524,768');
+  assert.strictEqual(Q.get('detr-r50-800x1216.tensor.d-cross-scores.shape').text, '8×100×950');
+  assert.strictEqual(Q.get('detr-r50-800x1216.tensor.memory-in.sym').text, 'N×D');
+  assert.strictEqual(Q.get('detr-r50-800x1216.metrics.encAttnMem').text, '14.4 MB');
+  assert.strictEqual(Q.get('detr-r50-800x1216.quantities.trainableParams').text, '41,302,368');
+  assert.strictEqual(Q.get('deformable-detr-r50.metrics.denseEncAttnMem').text, '6.53 GB');
+  assert.strictEqual(Q.get('deformable-detr-r50.tokens').text, '20,197');
+  assert.strictEqual(A.canonical('detr'), 'detr-r50-800x1216');
+  assert.strictEqual(A.canonical('deformable-detr'), 'deformable-detr-r50');
 });

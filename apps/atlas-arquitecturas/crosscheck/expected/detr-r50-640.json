@@ -1,0 +1,848 @@
+{
+  "config_id": "detr-r50-640",
+  "model": "detr",
+  "params_total": 41524768,
+  "params_by_module": {
+    "backbone": 23454912,
+    "query_position_embeddings": 25600,
+    "input_projection": 524544,
+    "encoder": 7890432,
+    "decoder": 9473024,
+    "class_labels_classifier": 23644,
+    "bbox_predictor": 132612
+  },
+  "params_by_node": {
+    "backbone": 23454912,
+    "stem": 9408,
+    "input-proj": 524544,
+    "pos-enc": 0,
+    "encoder": 7890432,
+    "enc-layer": 7890432,
+    "queries": 25600,
+    "decoder": 9472512,
+    "dec-layer": 9472512,
+    "dec-norm": 512,
+    "class-head": 23644,
+    "box-head": 132612,
+    "layer1": 212992,
+    "layer2": 1212416,
+    "layer3": 7077888,
+    "layer4": 14942208
+  },
+  "params_by_path": {
+    "encoder>enc-layer>self-attn": 1579008,
+    "encoder>enc-layer>self-attn>q-proj": 394752,
+    "encoder>enc-layer>self-attn>v-proj": 394752,
+    "encoder>enc-layer>self-attn>proj": 394752,
+    "encoder>enc-layer>ffn": 6305280,
+    "encoder>enc-layer>ln1": 3072,
+    "encoder>enc-layer>ln2": 3072,
+    "decoder>dec-layer>self-attn": 1579008,
+    "decoder>dec-layer>cross-attn": 1579008,
+    "decoder>dec-layer>cross-attn>k-proj": 394752,
+    "decoder>dec-layer>ffn": 6305280,
+    "decoder>dec-layer>ln1": 3072,
+    "decoder>dec-layer>ln2": 3072,
+    "decoder>dec-layer>ln3": 3072,
+    "box-head>fc1": 65792,
+    "box-head>fc3": 1028
+  },
+  "buffers_total": 106240,
+  "params_official_trainable": 41302368,
+  "params_official_frozen": 222400,
+  "shapes": {
+    "x-img": [
+      640,
+      640,
+      3
+    ],
+    "stem-out": [
+      320,
+      320,
+      64
+    ],
+    "pool-out": [
+      160,
+      160,
+      64
+    ],
+    "l1-b1-out": [
+      160,
+      160,
+      256
+    ],
+    "c2": [
+      160,
+      160,
+      256
+    ],
+    "l2-b1-out": [
+      80,
+      80,
+      512
+    ],
+    "c3": [
+      80,
+      80,
+      512
+    ],
+    "l3-b1-out": [
+      40,
+      40,
+      1024
+    ],
+    "c4": [
+      40,
+      40,
+      1024
+    ],
+    "l4-b1-out": [
+      20,
+      20,
+      2048
+    ],
+    "c5": [
+      20,
+      20,
+      2048
+    ],
+    "proj": [
+      20,
+      20,
+      256
+    ],
+    "memory-in": [
+      400,
+      256
+    ],
+    "e-qk-in": [
+      400,
+      256
+    ],
+    "e-r1": [
+      400,
+      256
+    ],
+    "e-ln1": [
+      400,
+      256
+    ],
+    "e-r2": [
+      400,
+      256
+    ],
+    "memory": [
+      400,
+      256
+    ],
+    "tgt0": [
+      100,
+      256
+    ],
+    "d-qk-in": [
+      100,
+      256
+    ],
+    "d-r1": [
+      100,
+      256
+    ],
+    "d-ln1": [
+      100,
+      256
+    ],
+    "d-cross-q-in": [
+      100,
+      256
+    ],
+    "d-cross-k-in": [
+      400,
+      256
+    ],
+    "d-r2": [
+      100,
+      256
+    ],
+    "d-ln2": [
+      100,
+      256
+    ],
+    "d-r3": [
+      100,
+      256
+    ],
+    "d-out": [
+      100,
+      256
+    ],
+    "hs": [
+      100,
+      256
+    ],
+    "logits": [
+      100,
+      92
+    ],
+    "box-h1": [
+      100,
+      256
+    ],
+    "box-h2": [
+      100,
+      256
+    ],
+    "box-raw": [
+      100,
+      4
+    ],
+    "e-qp": [
+      400,
+      256
+    ],
+    "e-kp": [
+      400,
+      256
+    ],
+    "e-vp": [
+      400,
+      256
+    ],
+    "e-z": [
+      400,
+      256
+    ],
+    "e-o": [
+      400,
+      256
+    ],
+    "d-self-qp": [
+      100,
+      256
+    ],
+    "d-self-kp": [
+      100,
+      256
+    ],
+    "d-self-vp": [
+      100,
+      256
+    ],
+    "d-self-z": [
+      100,
+      256
+    ],
+    "d-self-o": [
+      100,
+      256
+    ],
+    "d-cross-qp": [
+      100,
+      256
+    ],
+    "d-cross-kp": [
+      400,
+      256
+    ],
+    "d-cross-vp": [
+      400,
+      256
+    ],
+    "d-cross-z": [
+      100,
+      256
+    ],
+    "d-cross-o": [
+      100,
+      256
+    ],
+    "e-u": [
+      400,
+      2048
+    ],
+    "e-g": [
+      400,
+      2048
+    ],
+    "e-f": [
+      400,
+      256
+    ],
+    "d-u": [
+      100,
+      2048
+    ],
+    "d-g": [
+      100,
+      2048
+    ],
+    "d-f": [
+      100,
+      256
+    ],
+    "pos": [
+      400,
+      256
+    ],
+    "query-pos": [
+      100,
+      256
+    ],
+    "e-attn": [
+      8,
+      400,
+      400
+    ],
+    "d-self-attn": [
+      8,
+      100,
+      100
+    ],
+    "d-cross-attn": [
+      8,
+      100,
+      400
+    ],
+    "boxes": [
+      100,
+      4
+    ]
+  },
+  "shapes_torch": {
+    "stem-out": {
+      "module": "model.backbone.model.act1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        320,
+        320
+      ]
+    },
+    "pool-out": {
+      "module": "model.backbone.model.maxpool",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        160,
+        160
+      ]
+    },
+    "l1-b1-out": {
+      "module": "model.backbone.model.layer1.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        160,
+        160
+      ]
+    },
+    "c2": {
+      "module": "model.backbone.model.layer1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        160,
+        160
+      ]
+    },
+    "l2-b1-out": {
+      "module": "model.backbone.model.layer2.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        80,
+        80
+      ]
+    },
+    "c3": {
+      "module": "model.backbone.model.layer2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        80,
+        80
+      ]
+    },
+    "l3-b1-out": {
+      "module": "model.backbone.model.layer3.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        40,
+        40
+      ]
+    },
+    "c4": {
+      "module": "model.backbone.model.layer3",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        40,
+        40
+      ]
+    },
+    "l4-b1-out": {
+      "module": "model.backbone.model.layer4.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2048,
+        20,
+        20
+      ]
+    },
+    "c5": {
+      "module": "model.backbone.model.layer4",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2048,
+        20,
+        20
+      ]
+    },
+    "proj": {
+      "module": "model.input_projection",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        20,
+        20
+      ]
+    },
+    "memory-in": {
+      "module": "model.encoder.layers.0",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "e-qk-in": {
+      "module": "model.encoder.layers.0.self_attn.q_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "e-r1": {
+      "module": "model.encoder.layers.0.self_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "e-ln1": {
+      "module": "model.encoder.layers.0.self_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "e-r2": {
+      "module": "model.encoder.layers.0.final_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "memory": {
+      "module": "model.encoder.layers.5",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "tgt0": {
+      "module": "model.decoder.layers.0",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-qk-in": {
+      "module": "model.decoder.layers.0.self_attn.q_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-r1": {
+      "module": "model.decoder.layers.0.self_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-ln1": {
+      "module": "model.decoder.layers.0.self_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-cross-q-in": {
+      "module": "model.decoder.layers.0.encoder_attn.q_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-cross-k-in": {
+      "module": "model.decoder.layers.0.encoder_attn.k_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "d-r2": {
+      "module": "model.decoder.layers.0.encoder_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-ln2": {
+      "module": "model.decoder.layers.0.encoder_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-r3": {
+      "module": "model.decoder.layers.0.final_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-out": {
+      "module": "model.decoder.layers.5",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "hs": {
+      "module": "model.decoder.layernorm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "logits": {
+      "module": "class_labels_classifier",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        92
+      ]
+    },
+    "box-h1": {
+      "module": "bbox_predictor.layers.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "box-h2": {
+      "module": "bbox_predictor.layers.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "box-raw": {
+      "module": "bbox_predictor.layers.2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        4
+      ]
+    },
+    "e-qp": {
+      "module": "model.encoder.layers.0.self_attn.q_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "e-kp": {
+      "module": "model.encoder.layers.0.self_attn.k_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "e-vp": {
+      "module": "model.encoder.layers.0.self_attn.v_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "e-z": {
+      "module": "model.encoder.layers.0.self_attn.o_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "e-o": {
+      "module": "model.encoder.layers.0.self_attn.o_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "d-self-qp": {
+      "module": "model.decoder.layers.0.self_attn.q_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-self-kp": {
+      "module": "model.decoder.layers.0.self_attn.k_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-self-vp": {
+      "module": "model.decoder.layers.0.self_attn.v_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-self-z": {
+      "module": "model.decoder.layers.0.self_attn.o_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-self-o": {
+      "module": "model.decoder.layers.0.self_attn.o_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-cross-qp": {
+      "module": "model.decoder.layers.0.encoder_attn.q_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-cross-kp": {
+      "module": "model.decoder.layers.0.encoder_attn.k_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "d-cross-vp": {
+      "module": "model.decoder.layers.0.encoder_attn.v_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "d-cross-z": {
+      "module": "model.decoder.layers.0.encoder_attn.o_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "d-cross-o": {
+      "module": "model.decoder.layers.0.encoder_attn.o_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    },
+    "e-u": {
+      "module": "model.encoder.layers.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        2048
+      ]
+    },
+    "e-g": {
+      "module": "model.encoder.layers.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        2048
+      ]
+    },
+    "e-f": {
+      "module": "model.encoder.layers.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        400,
+        256
+      ]
+    },
+    "d-u": {
+      "module": "model.decoder.layers.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        2048
+      ]
+    },
+    "d-g": {
+      "module": "model.decoder.layers.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        2048
+      ]
+    },
+    "d-f": {
+      "module": "model.decoder.layers.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        100,
+        256
+      ]
+    }
+  },
+  "not_hooked": {
+    "pos": "DetrSinePositionEmbedding devuelve [1, D, H/32, W/32]; se registra aplanada (N×D) desde su forward hook",
+    "query-pos": "es el peso de query_position_embeddings (Q×D): se registra su forma",
+    "e-q / e-k / e-v, d-*-q/k/v, *-scores, *-scores-scaled, *-z-heads": "view + transpose y torch.matmul dentro de eager_attention_forward (sin módulo); *-attn se toman de output_attentions=True",
+    "e-g / d-g": "nn.ReLU registrado como activation_fn: sí se engancha",
+    "box-a1 / box-a2 / boxes": "relu funcional dentro de DetrMLPPredictionHead; boxes = pred_boxes",
+    "cost / assignment / loss / gt-*": "solo entrenamiento (necesita labels y scipy): no se ejecuta; Q×G y G×2 son triviales",
+    "flatten": "flatten(2).transpose(1, 2) dentro de DetrModel.forward: memory-in se toma como entrada de encoder.layers.0"
+  },
+  "flops_total": 77120307200,
+  "flops_by_op": {
+    "aten.addmm": 8524595200,
+    "aten.bmm": 1290240000,
+    "aten.convolution": 67148185600,
+    "aten.mm": 157286400
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "DetrForObjectDetection._from_config(DetrConfig(**{'num_labels': 91, 'd_model': 256, 'encoder_layers': 6, 'decoder_layers': 6, 'encoder_attention_heads': 8, 'decoder_attention_heads': 8, 'activation_function': 'relu', 'position_embedding_type': 'sine', 'encoder_ffn_dim': 2048, 'decoder_ffn_dim': 2048, 'auxiliary_loss': False, 'num_queries': 100}), attn_implementation='eager')",
+    "backbone": {
+      "model_type": "timm_backbone",
+      "backbone": "resnet50",
+      "use_pretrained_backbone": false,
+      "out_indices": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "num_channels": 3
+    },
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Construido en código (sin hub ni pesos): backbone timm resnet50 (use_pretrained_backbone=False), el mismo ResNet-50 v1.5 que torchvision (stride en la 3×3).",
+    "BatchNorm del backbone: HF la reemplaza por DetrFrozenBatchNorm2d (weight, bias, running_mean y running_var son buffers: buffers_total = 4·26,560 = 106,240), igual que el código oficial (FrozenBatchNorm2d de facebookresearch/detr). Por eso HF y el oficial dan el mismo número de parámetros; con BatchNorm normal (torchvision) serían +53,120 (γ, β). El calculador sigue al oficial (cfg.frozenBN = true).",
+    "El código oficial imprime los parámetros con requires_grad (n_parameters en main.py): congela conv1 y layer1 del backbone → params_official_trainable = params_total − params_official_frozen.",
+    "Q, K y V separados (HF q_proj/k_proj/v_proj); el oficial usa nn.MultiheadAttention con in_proj fusionado (3D×D + 3D): mismos conteos. La posición se suma a Q y K (nunca a V) en las 12 atenciones.",
+    "auxiliary_loss=False: HF aplica las cabezas solo a la salida final. El código oficial las aplica a las 6 salidas del decoder en cada forward (pérdidas auxiliares; en inferencia usa la última): el calculador predice con la última (repeat 1) e informa la diferencia en quantities.auxHeadsMacs.",
+    "FlopCounterMode cuenta convs, Linear y las matmuls de la atención eager (QKᵀ, A·V) a 2 FLOPs por MAC; FrozenBN, ReLU, LayerNorm, softmax, la PE seno/coseno y las sumas de posición no cuentan.",
+    "El matching húngaro y la pérdida (solo entrenamiento, con labels y scipy) no se ejecutan; no tienen MACs.",
+    "Formas sin batch; rejillas H×W×C (PyTorch: C×H×W)."
+  ]
+}

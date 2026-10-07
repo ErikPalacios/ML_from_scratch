@@ -19,7 +19,7 @@ test('hay un JSON de referencia por cada config del calculador', async () => {
 test('parámetros, formas y FLOPs coinciden con PyTorch (timm / HF / torchvision / nn.TransformerEncoderLayer)', async () => {
   const { compareAll } = await load();
   const results = compareAll(ROOT);
-  assert.ok(results.length >= 17, 'se esperaban ≥ 17 configs (fase 1 + Swin, ResNet-50, CLIP)');
+  assert.ok(results.length >= 20, 'se esperaban ≥ 20 configs (fase 1 + Swin, ResNet-50, CLIP + DETR, Deformable DETR)');
   for (const r of results) {
     const fails = r.checks.filter((c) => !c.ok).map((c) => c.what + ': calc ' + c.calc + ' ≠ ref ' + c.ref);
     assert.deepStrictEqual(fails, [], r.configId);
@@ -79,4 +79,41 @@ test('CLIP: HF CLIPModel construido en código, totales por par (B = 1) y batch_
   assert.strictEqual(b.exp.params_total, 149620737);
   assert.deepStrictEqual(b.exp.batch_check.shapes.logits, [4, 4]);
   assert.ok(b.exp.notes.some((n) => /OpenAI/.test(n)));
+});
+
+// ---------------------------------------------------------------- fase 3
+test('DETR: HF DetrForObjectDetection construido en código, FrozenBN = buffers (como el oficial), FLOPs exactos', async () => {
+  for (const id of ['detr-r50-800x1216', 'detr-r50-640']) {
+    const r = await find(id);
+    assert.strictEqual(r.exp.params_total, 41524768, id);
+    assert.strictEqual(r.exp.buffers_total, 106240, id);                // 4·26,560: γ, β, media y varianza congeladas
+    assert.strictEqual(r.exp.params_official_trainable, 41302368, id);  // el n_parameters del código oficial
+    assert.strictEqual(r.exp.source.backbone.use_pretrained_backbone, false);
+    assert.match(r.exp.source.ctor, /DetrForObjectDetection\._from_config\(DetrConfig\(/);
+    assert.match(r.exp.source.ctor, /'auxiliary_loss': False/);
+    for (const w of ['params oficiales entrenables', 'buffers de BN', 'flops[convolution]', 'flops[addmm+mm]', 'flops[bmm/sdpa]']) {
+      assert.ok(r.checks.some((c) => c.what === w && c.ok), id + ' ' + w);
+    }
+    assert.ok(r.checks.filter((c) => c.what.startsWith('shape[')).length >= 50, id + ' con pocas formas');
+    assert.ok(r.exp.notes.some((n) => /FrozenBatchNorm2d/.test(n)));
+  }
+  const c = await find('detr-r50-800x1216');
+  assert.strictEqual(c.exp.flops_total, 2 * 91932364800);
+  assert.deepStrictEqual(c.exp.shapes['e-attn'], [8, 950, 950]);
+  assert.deepStrictEqual(c.exp.shapes['d-cross-attn'], [8, 100, 950]);
+  assert.deepStrictEqual(c.exp.shapes.c5, [25, 38, 2048]);
+});
+
+test('Deformable DETR: HF DeformableDetrForObjectDetection, muestreo analítico y cabezas auxiliares restadas', async () => {
+  const r = await find('deformable-detr-r50');
+  assert.strictEqual(r.exp.params_total, 40069665);
+  assert.deepStrictEqual(r.exp.levels, [[100, 152], [50, 76], [25, 38], [13, 19]]);
+  assert.strictEqual(r.exp.msda_calls, 12);                             // 6 del encoder + 6 de la cross-attention
+  assert.strictEqual(r.exp.flops_total, r.exp.flops_counted_torch - r.exp.flops_aux_heads_torch + r.exp.flops_sampling_analytic);
+  assert.strictEqual(r.exp.flops_total, 2 * 187717110784);
+  assert.ok(r.checks.some((c) => c.what === 'flops[muestreo deformable, analítico]' && c.ok));
+  assert.ok(r.checks.some((c) => c.what === 'flops contados por torch (sin cabezas aux.)' && c.ok));
+  assert.deepStrictEqual(r.exp.shapes['e-sampled'], [8, 20197, 16, 32]);
+  assert.ok(r.exp.notes.some((n) => /grid_sample/.test(n)));
+  assert.match(r.exp.source.ctor, /DeformableDetrForObjectDetection\._from_config\(DeformableDetrConfig\(/);
 });
