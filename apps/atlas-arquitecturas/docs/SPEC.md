@@ -830,3 +830,100 @@ Kinds: `recap` (counts in progress), `model` (11-section page), `card` (map card
 - Map relation edges (`catalog.relations`): `[{from, to, kind:'hereda'|'usa'|'contrasta'|'reemplaza', label?}]`,
   e.g. `{from:'vit', to:'swin', kind:'hereda'}`, `{from:'clip', to:'llava', kind:'usa', label:'ViT-L/14 como encoder'}`,
   `{from:'yolo', to:'detr', kind:'contrasta', label:'sin anchors ni NMS'}`.
+
+## 14. Phase 2 shared facts — Swin + CLIP (every F2 agent MUST use exactly these)
+
+Lessons from Phase 1 that apply to every content/diagram agent: every string with LaTeX is a
+`String.raw` (R``) literal; architectural numbers only via `{{…}}` or generated blocks; deep links to a
+non-unique node use `~diagramId.nodeId`; memory in decimal units (`ATLAS.Arch.fmt.bytes`), compute as
+GMACs/GFLOPs (`fmt.ops`); "attention share" always says which one; Q/K/V edges tagged; flashcard and
+section ids are permanent. Interview questions in English (`followups` `q`), answers in Spanish, with
+an optional `say` (English phrasing of the senior answer).
+
+### 14.1 Swin Transformer — page `swin`, model `swin`
+Paper: Liu et al., *Swin Transformer: Hierarchical Vision Transformer using Shifted Windows*, ICCV 2021
+(Marr Prize), arXiv:2103.14030. Canonical config **`swin-t-224`**: 224×224×3, patch P=4 (conv 4×4
+stride 4 + LayerNorm, "patch partition + linear embedding"), C=96, depths [2,2,6,2], heads [3,6,12,24]
+(d_h = 32 everywhere), window M=7, MLP ratio 4, qkv bias, relative position bias table
+((2M−1)²×h per block, a parameter; the index is a buffer), patch merging = concat 2×2 neighbours
+(4C) → LayerNorm(4C) → Linear 4C→2C **without bias**, final LayerNorm → global average pool → Linear
+768→1000. Reference implementation for the cross-check: timm `swin_tiny_patch4_window7_224`
+(pretrained=False). Other configs: `swin-s-224` (depths [2,2,18,2]), `swin-b-224` (C=128, heads
+[4,8,16,32]), `swin-b-384` (M=12). Rule to handle and explain: when a stage's feature map is not
+larger than the window (stage 4 of Swin-T: 7×7 with M=7), there is a single window and **no shift**
+(timm sets shift 0) — verify against timm and say it on the page.
+Stage resolutions (Swin-T @224): 56×56×96 → 28×28×192 → 14×14×384 → 7×7×768 (strides 4, 8, 16, 32 —
+the same strides as ResNet's C2…C5; this is the bridge).
+Ids (the arch agent may add more, never rename; full list documented at the top of js/arch/swin.js):
+- overview `swin-overview` nodes: `input`, `patch-embed`, `stage1`…`stage4` (groups, repeat = depth/2
+  block pairs), `merge1`…`merge3`, `final-ln`, `pool`, `head`, `output`.
+- stage-1 block pair `swin-block-pair` (stage-1 numbers): `w-ln1`, `w-msa`, `w-res1`, `w-ln2`, `w-mlp`,
+  `w-res2`, `sw-ln1`, `sw-msa`, `sw-res1`, `sw-ln2`, `sw-mlp`, `sw-res2`.
+- `swin-wmsa` / `swin-swmsa` (expanded attention, stage 1): `partition`, `qkv`, `split`, `scores`,
+  `scale`, `bias` (relative position bias add), `softmax`, `weighted-sum`, `merge`, `proj`, `reverse`;
+  the shifted variant adds `shift` (cyclic shift by ⌊M/2⌋), `mask` (attention mask add), `unshift`.
+- `swin-patch-merging` (merge1 numbers): `concat`, `ln`, `reduce`.
+- Tensor ids follow `s{k}-b{j}-<name>` for block j (1-based) of stage k with names `in ln1 shift win
+  qkv q k v scores scaled biased masked attn z proj unwin unshift r1 ln2 u g f out` (shift/masked/unshift
+  only in shifted blocks), stage outputs `s{k}-out`, merging `m{k}-concat m{k}-ln m{k}-out`, plus
+  `x-img x-patch-grid x-embed x-ln pooled logits`. Window tensors are laid out `nW×M²×C` (stage 1:
+  64×49×96) and heads `nW×h×M²×d_h` (64×3×49×32).
+- `metrics()` must report, per stage, tokens, windows and attention-score MACs, and the comparison with
+  global attention at the same resolution (the "linear vs quadratic in tokens" argument with numbers).
+
+### 14.2 ResNet-50 — calculator only (no page; anchor for the bridge)
+Model `resnet`, config `resnet50-224` (He et al., *Deep Residual Learning for Image Recognition*, CVPR
+2016, arXiv:1512.03385; reference torchvision `resnet50()`, weights=None). Ids: nodes `stem`, `maxpool`,
+`layer1`…`layer4`, `pool`, `head`; tensors `x-img stem-out pool-out c2 c3 c4 c5 pooled logits`
+(c2 56×56×256, c3 28×28×512, c4 14×14×1024, c5 7×7×2048). BatchNorm params (γ, β) count; running stats
+are buffers. Used by `compare` blocks and the Swin bridge.
+
+### 14.3 CLIP — page `clip`, model `clip`
+Paper: Radford et al., *Learning Transferable Visual Models From Natural Language Supervision*, ICML
+2021, arXiv:2103.00020 (400M image-text pairs "WIT"; batch 32,768; 32 epochs; learned temperature
+initialised to 0.07, logit scale clipped at 100 — verify each figure against the paper before quoting).
+Canonical **`clip-vit-b16`**: image tower = ViT-B/16 @224 with CLIP's differences (patch conv **without
+bias**, `ln_pre` after adding positions, `ln_post` on the CLS token only, then projection 768→512
+**without bias**); text tower = 12 layers, width 512, 8 heads, D_mlp 2048, vocab 49,408 (BPE),
+context 77, learned positions, **causal mask**, final LayerNorm, features taken at the **EOT token**
+(highest token id), projection 512→512 without bias; joint embedding E=512, both L2-normalised;
+learned scalar `logit_scale`. Activation is QuickGELU in the original weights (x·σ(1.702x)) — counts
+don't change. Reference implementation for the cross-check: HF `transformers.CLIPModel(CLIPConfig(...))`
+built in code (no hub download). Other configs: `clip-vit-b32`, `clip-vit-l14` (image 24 layers ×
+1024, 16 heads; text 12 × 768, 12 heads; E=768), `clip-vit-l14-336` (used later by LLaVA-1.5).
+Batch: the per-sample towers are shown without batch; the contrastive part has an explicit batch knob
+`B` (default 32,768 = the paper's; values [8, 256, 4096, 32768]) for tensors `img-batch` (B×E),
+`txt-batch` (B×E), `logits` (B×B); `metrics()` reports the B×B logits memory and the number of
+negatives per sample (B−1).
+Ids:
+- overview `clip-overview` nodes: `img-input`, `img-encoder` (expand `clip-image-encoder`),
+  `img-proj`, `img-norm`, `txt-input`, `txt-encoder` (expand `clip-text-encoder`), `txt-proj`,
+  `txt-norm`, `similarity`, `temperature`, `loss`.
+- `clip-image-encoder`: `patch-embed`, `cls`, `pos-embed`, `add-pos`, `ln-pre`, `enc-layer`, `pool-cls`,
+  `ln-post`; `clip-text-encoder`: `tokens`, `tok-embed`, `pos-embed`, `add-pos`, `enc-layer`, `ln-final`,
+  `pick-eot`. Layer internals reuse the ViT layer node ids (`ln1 mhsa res1 ln2 mlp res2`, MHSA
+  `qkv split scores scale softmax weighted-sum merge proj`, the text one adds `mask`).
+- Op paths start with `img-encoder` or `txt-encoder`. Tensor ids: image tower prefix `i-` (`i-img
+  i-patch-grid i-patches i-cls-cat i-x0 i-ln-pre`, layer tensors `i-h-ln1 … i-x-out`, `i-cls i-cls-ln
+  i-emb i-emb-norm`), text tower prefix `t-` (`t-ids t-tok t-x0`, layer tensors `t-h-ln1 … t-x-out` incl.
+  `t-scores t-masked t-attn`, `t-ln-final t-eot t-emb t-emb-norm`), joint `img-batch txt-batch logits loss`.
+
+### 14.4 Visualizations (diagram agent)
+`shifted-windows` (stage-1-like grid at a readable size: windows, cyclic shift by ⌊M/2⌋, the 9 regions
+and the attention mask; toggle regular / shifted; numbers from the calculator), `similarity-matrix`
+(B×B cosine similarities × logit scale, row softmax = image→text CE, column softmax = text→image CE,
+the diagonal as positives; small B with synthetic labelled data marked "ilustrativo", plus the real
+B=32,768 numbers from `metrics()`), `zero-shot` (prompts "a photo of a {label}." → text embeddings as
+classifier weights; synthetic, labelled "ilustrativo").
+
+### 14.5 Ownership in Phase 2
+- **arch**: js/arch/primitives.js (new primitives only; don't change existing outputs), js/arch/swin.js,
+  js/arch/clip.js, js/arch/resnet.js, tests/arch.test.cjs (append), crosscheck/{swin,clip,resnet}.py +
+  expected/*.json, tests/crosscheck.test.cjs (extend), js/core/quantities.js only if a new key type is
+  needed; also fix `metrics().actMem` double counting (Phase 1 leftover).
+- **diagram**: js/ui/archdiagram.js + css/diagram.css (extensions only: e.g. B×B glyphs, two parallel
+  towers, window grids), js/ui/viz/{shifted-windows,similarity-matrix,zero-shot}.js,
+  js/content/diagrams/{swin,clip}.js, dev/diagram.html.
+- **content-swin**: js/content/swin.js. **content-clip**: js/content/clip.js.
+- **orchestrator**: index.html script lines (already added, with empty stubs), catalog roadmap status,
+  SPEC, integration.
