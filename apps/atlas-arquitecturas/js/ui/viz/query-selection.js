@@ -7,6 +7,7 @@
    posicional; la parte de contenido es aprendida (como en DINO).
    Escena, rejilla y similitudes: SINTÉTICAS ("ilustrativo"). Los números reales (N tokens de imagen en los
    niveles, T, Q y el costo de la matriz N×T) salen de ATLAS.Arch.run(config) y de metrics().
+   Pantallas angostas (< 640 px): el panel de la fila y el ranking va debajo de la rejilla.
    params: { config:'grounding-dino-t', prompt:'cat-dog'|'cat'|'dog-car'|'zebra', k:<n>, cell:<i> }
    No toca el DOM al cargar.
    ========================================================================== */
@@ -120,13 +121,23 @@
       const lo = -0.3, hi = 1.0;
 
       stage.innerHTML = '';
-      const cs = 22, IX = 12, IY = 40, IW = GC * cs, IH = GR * cs;
-      const RX = IX + IW + 34, RW = 384;
-      const Wd = RX + RW + 12, Hh = IY + IH + 34;
-      const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + Wd + ' ' + Hh, style: 'max-width:' + Wd + 'px;min-width:' + Math.min(Wd, 640) + 'px', role: 'group',
+      // pantallas angostas (< 640 px): el panel derecho (fila de similitudes y ranking) va DEBAJO de la rejilla
+      const sw = stage.clientWidth || 900;
+      const narrow = sw < 640;
+      lastNarrow = narrow;
+      const IX = narrow ? 6 : 12, IY = 40;
+      const cs = narrow ? Math.max(13, Math.min(20, Math.floor((Math.min(sw, 420) - 2 * IX - 4) / GC))) : 22;
+      const IW = GC * cs, IH = GR * cs;
+      const legRows = narrow ? 2 : 2;
+      const RY = narrow ? IY + IH + 16 + legRows * 16 + 18 : 0;     // origen vertical del panel derecho
+      const RX = narrow ? IX : IX + IW + 34, RW = narrow ? Math.max(IW, 280) : 384;
+      const nT = PROMPTS[state.prompt].toks.length;
+      const Wd = narrow ? RX + RW + 6 : RX + RW + 12;
+      const Hh = narrow ? RY + IY + 30 + nT * 22 + 70 + 24 : Math.max(IY + IH + 16 + legRows * 16 + 8, IY + 30 + nT * 22 + 70 + 24);
+      const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + Wd + ' ' + Hh, style: 'max-width:' + Wd + 'px' + (narrow ? '' : ';min-width:' + Math.min(Wd, 640) + 'px'), role: 'group',
         'aria-label': 'Selección de queries con el prompt "' + P.text + '": se eligen los ' + state.k + ' tokens de imagen con mayor similitud máxima al texto.' }, stage);
-      t(svg, IX, 16, '1 · Tokens de imagen × tokens de texto → máx por token', 'viz-t');
-      t(svg, IX, 31, 'color = máx de sim(img, txt) · contorno = top-' + state.k, 'viz-s');
+      t(svg, IX, 16, narrow ? '1 · Imagen × texto → máx por token' : '1 · Tokens de imagen × tokens de texto → máx por token', 'viz-t');
+      t(svg, IX, 31, (narrow ? 'color = máx sim · contorno = top-' : 'color = máx de sim(img, txt) · contorno = top-') + state.k, 'viz-s');
       V.detScene(svg, IX, IY, IW, IH, OBJECTS);
       // mapa de calor del puntaje (color de fusión: imagen × texto)
       const grid = V.svg('g', { tabindex: 0, role: 'grid', 'aria-label': 'Tokens de imagen: flechas para moverse, Enter para elegir' }, svg);
@@ -167,27 +178,29 @@
       t(svg, IX + 68, LY + 9, 'alta', 'viz-s');
       V.svg('rect', { x: IX + 106, y: LY, width: 12, height: 10, class: 'viz-qs-sel' }, svg);
       t(svg, IX + 122, LY + 9, 'top-' + state.k + ' → query', 'viz-s');
-      V.svg('rect', { x: IX + 226, y: LY, width: 14, height: 10, class: 'viz-qs-anchor' }, svg);
-      t(svg, IX + 244, LY + 9, 'su caja → posición inicial', 'viz-s');
+      // segunda fila: qué aporta cada token elegido a su query (la caja) y qué no (el contenido es aprendido)
+      const LY2 = LY + 16;
+      V.svg('rect', { x: IX, y: LY2, width: 14, height: 10, class: 'viz-qs-anchor' }, svg);
+      t(svg, IX + 18, LY2 + 9, narrow ? 'su caja → posición; contenido: aprendido' : 'su caja → parte posicional · el contenido de la query es una tabla aprendida', 'viz-s');
 
       // ---- derecha: fila de similitudes del token elegido y el ranking
-      t(svg, RX, 16, '2 · Fila del token (' + (cr + 1) + ', ' + (cc + 1) + ')', 'viz-t');
-      t(svg, RX, 31, 'sim con cada token de "' + P.text + '"', 'viz-s');
+      t(svg, RX, RY + 16, '2 · Fila del token (' + (cr + 1) + ', ' + (cc + 1) + ')', 'viz-t');
+      t(svg, RX, RY + 31, 'sim con cada token de "' + P.text + '"', 'viz-s');
       const row = S[state.cell], vmax = Math.max(0.6, ...row.map(Math.abs));
-      const zx = RX + 70, bw = 110;
+      const zx = RX + (narrow ? 58 : 70), bw = narrow ? Math.floor((RW - 58 - 92) / 2) : 110;
       P.toks.forEach((tk, j) => {
-        const y = IY + 4 + j * 22;
+        const y = RY + IY + 4 + j * 22;
         const isMax = j === arg[state.cell];
-        t(svg, RX + 62, y + 12, tk, SPECIAL[tk] ? 'viz-s' : 'viz-n', 'end');
+        t(svg, zx - 8, y + 12, tk, SPECIAL[tk] ? 'viz-s' : 'viz-n', 'end');
         V.svg('rect', { x: zx, y: y + 3, width: 2 * bw, height: 13, rx: 2, class: 'viz-zs-track' }, svg);
         const v = row[j], w = bw * Math.abs(v) / vmax;
         V.svg('rect', { x: v >= 0 ? zx + bw : zx + bw - w, y: y + 3, width: Math.max(1, w), height: 13, rx: 2, class: isMax ? 'viz-qs-bar viz-qs-bar--max' : 'viz-qs-bar' }, svg);
         t(svg, zx + 2 * bw + 4, y + 13, (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + (isMax ? ' ← máx' : ''), isMax ? 'viz-n' : 'viz-s');
       });
-      V.svg('path', { d: 'M' + (zx + bw) + ' ' + (IY + 2) + 'V' + (IY + 6 + P.toks.length * 22), class: 'viz-ln', 'stroke-dasharray': '2 2' }, svg);
+      V.svg('path', { d: 'M' + (zx + bw) + ' ' + (RY + IY + 2) + 'V' + (RY + IY + 6 + P.toks.length * 22), class: 'viz-ln', 'stroke-dasharray': '2 2' }, svg);
       // ranking: los NT puntajes ordenados, con el corte en K
-      const KY = IY + 30 + P.toks.length * 22, KH = 70, KW = RW - 90;
-      t(svg, RX, KY - 6, '3 · Los ' + NT + ' puntajes, ordenados: corte en K = ' + state.k, 'viz-t');
+      const KY = RY + IY + 30 + P.toks.length * 22, KH = 70, KW = RW - (narrow ? 12 : 90);
+      t(svg, RX, KY - 6, narrow ? '3 · Los ' + NT + ' puntajes, ordenados' : '3 · Los ' + NT + ' puntajes, ordenados: corte en K = ' + state.k, 'viz-t');
       const bwk = KW / NT;
       order.forEach((i, rnk) => {
         const a = Math.min(1, Math.max(0, (score[i] - lo) / (hi - lo)));
@@ -220,8 +233,15 @@
     }
     function t(p, x, y, s, cls, anchor) { const e = V.svg('text', { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, class: cls, 'text-anchor': anchor || null }, p); e.textContent = s; return e; }
 
+    let lastNarrow = null;
     draw();
-    return { destroy() { wrap.remove(); } };
+    // redibuja si el ancho cruza el umbral (o si el primer dibujo se hizo sin ancho medido)
+    let ro = null;
+    if (root.ResizeObserver) {
+      ro = new ResizeObserver(() => { const nar = (stage.clientWidth || 900) < 640; if (stage.clientWidth && nar !== lastNarrow) draw(); });
+      ro.observe(stage);
+    }
+    return { destroy() { if (ro) ro.disconnect(); wrap.remove(); } };
   }
 
   if (ATLAS.Viz) ATLAS.Viz.register('query-selection', render);

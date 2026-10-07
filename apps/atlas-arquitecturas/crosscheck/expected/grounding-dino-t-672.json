@@ -1,0 +1,2604 @@
+{
+  "config_id": "grounding-dino-t-672",
+  "model": "grounding-dino",
+  "params_total": 172249090,
+  "params_total_hf_raw": 172250626,
+  "params_unused_swin_layernorm": 1536,
+  "params_by_module": {
+    "backbone": 27522042,
+    "input_proj_vision": 2116608,
+    "text_backbone": 108891648,
+    "text_projection": 196864,
+    "query_position_embeddings": 230400,
+    "encoder": 21905664,
+    "decoder": 11187460,
+    "enc_output": 65792,
+    "enc_output_norm": 512,
+    "encoder_output_bbox_embed": 132612,
+    "level_embed": 1024,
+    "bbox_embed (compartido)": 132612
+  },
+  "params_by_node": {
+    "img-backbone": 27520506,
+    "img-proj": 2117632,
+    "txt-backbone": 108891648,
+    "txt-proj": 196864,
+    "enhancer": 21905664,
+    "query-select": 429316,
+    "decoder": 11054336,
+    "dec-norm": 512,
+    "box-head": 132612,
+    "contrastive-head": 0
+  },
+  "params_by_path": {
+    "img-backbone>patch-embed": 4896,
+    "img-backbone>out-norm": 2688,
+    "enhancer>enh-layer>i2t": 6312960,
+    "enhancer>enh-layer>t2i": 3154944,
+    "enhancer>enh-layer>txt-self": 1579008,
+    "enhancer>enh-layer>txt-ffn": 3153408,
+    "enhancer>enh-layer>img-self": 1381632,
+    "enhancer>enh-layer>img-ffn": 6305280,
+    "decoder>ref-head": 197120,
+    "decoder>dec-layer>self-attn": 1579008,
+    "decoder>dec-layer>txt-cross": 1579008,
+    "decoder>dec-layer>img-cross": 1381632,
+    "decoder>dec-layer>ffn": 6305280,
+    "query-select>content": 230400,
+    "query-select>enc-box": 132612,
+    "txt-backbone>embeddings": 23837184,
+    "txt-backbone>bert-layer": 85054464,
+    "img-backbone>stage1": 224694,
+    "img-backbone>merge1": 74496,
+    "img-backbone>stage2": 891756,
+    "img-backbone>merge2": 296448,
+    "img-backbone>stage3": 10658952,
+    "img-backbone>merge3": 1182720,
+    "img-backbone>stage4": 14183856
+  },
+  "text_input": {
+    "T": 16,
+    "input_ids": [
+      101,
+      2000,
+      2001,
+      1012,
+      2002,
+      2003,
+      1012,
+      2004,
+      2005,
+      1012,
+      2006,
+      2007,
+      1012,
+      2008,
+      1012,
+      102
+    ],
+    "note": "ids de BERT armados a mano ([CLS]=101, [SEP]=102, '.'=1012): sin tokenizer ni descargas"
+  },
+  "levels": [
+    [
+      84,
+      84
+    ],
+    [
+      42,
+      42
+    ],
+    [
+      21,
+      21
+    ],
+    [
+      11,
+      11
+    ]
+  ],
+  "msda_calls": 12,
+  "msda_encoder_call": {
+    "value": [
+      1,
+      9382,
+      8,
+      32
+    ],
+    "sampling_locations": [
+      1,
+      9382,
+      8,
+      4,
+      4,
+      2
+    ],
+    "attention_weights": [
+      1,
+      9382,
+      8,
+      4,
+      4
+    ]
+  },
+  "msda_decoder_call": {
+    "value": [
+      1,
+      9382,
+      8,
+      32
+    ],
+    "sampling_locations": [
+      1,
+      900,
+      8,
+      4,
+      4,
+      2
+    ],
+    "attention_weights": [
+      1,
+      900,
+      8,
+      4,
+      4
+    ]
+  },
+  "swin_windows": [
+    {
+      "stage": 1,
+      "block": 1,
+      "window_size": 7,
+      "shift_size": 0
+    },
+    {
+      "stage": 1,
+      "block": 2,
+      "window_size": 7,
+      "shift_size": 3
+    },
+    {
+      "stage": 2,
+      "block": 1,
+      "window_size": 7,
+      "shift_size": 0
+    },
+    {
+      "stage": 2,
+      "block": 2,
+      "window_size": 7,
+      "shift_size": 3
+    },
+    {
+      "stage": 3,
+      "block": 1,
+      "window_size": 7,
+      "shift_size": 0
+    },
+    {
+      "stage": 3,
+      "block": 2,
+      "window_size": 7,
+      "shift_size": 3
+    },
+    {
+      "stage": 3,
+      "block": 3,
+      "window_size": 7,
+      "shift_size": 0
+    },
+    {
+      "stage": 3,
+      "block": 4,
+      "window_size": 7,
+      "shift_size": 3
+    },
+    {
+      "stage": 3,
+      "block": 5,
+      "window_size": 7,
+      "shift_size": 0
+    },
+    {
+      "stage": 3,
+      "block": 6,
+      "window_size": 7,
+      "shift_size": 3
+    },
+    {
+      "stage": 4,
+      "block": 1,
+      "window_size": 7,
+      "shift_size": 0
+    },
+    {
+      "stage": 4,
+      "block": 2,
+      "window_size": 7,
+      "shift_size": 3
+    }
+  ],
+  "shapes": {
+    "i-img": [
+      672,
+      672,
+      3
+    ],
+    "i-patch-grid": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-in": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b1-ln1": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b1-r1": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b1-ln2": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b1-u": [
+      168,
+      168,
+      384
+    ],
+    "i-s1-b1-g": [
+      168,
+      168,
+      384
+    ],
+    "i-s1-b1-f": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b2-ln1": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b2-r1": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b2-ln2": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b2-u": [
+      168,
+      168,
+      384
+    ],
+    "i-s1-b2-g": [
+      168,
+      168,
+      384
+    ],
+    "i-s1-b2-f": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-b1-out": [
+      168,
+      168,
+      96
+    ],
+    "i-s1-out": [
+      168,
+      168,
+      96
+    ],
+    "i-m1-out": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b1-ln1": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b1-r1": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b1-ln2": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b1-u": [
+      84,
+      84,
+      768
+    ],
+    "i-s2-b1-g": [
+      84,
+      84,
+      768
+    ],
+    "i-s2-b1-f": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b2-ln1": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b2-r1": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b2-ln2": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b2-u": [
+      84,
+      84,
+      768
+    ],
+    "i-s2-b2-g": [
+      84,
+      84,
+      768
+    ],
+    "i-s2-b2-f": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-b1-out": [
+      84,
+      84,
+      192
+    ],
+    "i-s2-out": [
+      84,
+      84,
+      192
+    ],
+    "i-m2-out": [
+      42,
+      42,
+      384
+    ],
+    "i-c3": [
+      84,
+      84,
+      192
+    ],
+    "i-s3-b1-ln1": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-b1-r1": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-b1-ln2": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-b1-u": [
+      42,
+      42,
+      1536
+    ],
+    "i-s3-b1-g": [
+      42,
+      42,
+      1536
+    ],
+    "i-s3-b1-f": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-b2-ln1": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-b2-r1": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-b2-ln2": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-b2-u": [
+      42,
+      42,
+      1536
+    ],
+    "i-s3-b2-g": [
+      42,
+      42,
+      1536
+    ],
+    "i-s3-b2-f": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-b1-out": [
+      42,
+      42,
+      384
+    ],
+    "i-s3-out": [
+      42,
+      42,
+      384
+    ],
+    "i-m3-out": [
+      21,
+      21,
+      768
+    ],
+    "i-c4": [
+      42,
+      42,
+      384
+    ],
+    "i-s4-b1-ln1": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-b1-r1": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-b1-ln2": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-b1-u": [
+      21,
+      21,
+      3072
+    ],
+    "i-s4-b1-g": [
+      21,
+      21,
+      3072
+    ],
+    "i-s4-b1-f": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-b2-ln1": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-b2-r1": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-b2-ln2": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-b2-u": [
+      21,
+      21,
+      3072
+    ],
+    "i-s4-b2-g": [
+      21,
+      21,
+      3072
+    ],
+    "i-s4-b2-f": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-b1-out": [
+      21,
+      21,
+      768
+    ],
+    "i-s4-out": [
+      21,
+      21,
+      768
+    ],
+    "i-c5": [
+      21,
+      21,
+      768
+    ],
+    "i-src-l1-conv": [
+      84,
+      84,
+      256
+    ],
+    "i-src-l1": [
+      84,
+      84,
+      256
+    ],
+    "i-src-l2-conv": [
+      42,
+      42,
+      256
+    ],
+    "i-src-l2": [
+      42,
+      42,
+      256
+    ],
+    "i-src-l3-conv": [
+      21,
+      21,
+      256
+    ],
+    "i-src-l3": [
+      21,
+      21,
+      256
+    ],
+    "i-src-l4-conv": [
+      11,
+      11,
+      256
+    ],
+    "i-src-l4": [
+      11,
+      11,
+      256
+    ],
+    "t-tok": [
+      16,
+      768
+    ],
+    "t-e-pos": [
+      16,
+      768
+    ],
+    "t-e-type": [
+      16,
+      768
+    ],
+    "t-x0": [
+      16,
+      768
+    ],
+    "t-attn": [
+      16,
+      768
+    ],
+    "t-r1": [
+      16,
+      768
+    ],
+    "t-ln1": [
+      16,
+      768
+    ],
+    "t-ffn": [
+      16,
+      768
+    ],
+    "t-r2": [
+      16,
+      768
+    ],
+    "t-bert-out": [
+      16,
+      768
+    ],
+    "t-feat": [
+      16,
+      256
+    ],
+    "i-mem-in": [
+      9382,
+      256
+    ],
+    "i-pos": [
+      9382,
+      256
+    ],
+    "i-ref": [
+      9382,
+      4,
+      2
+    ],
+    "i-enh-fus-ln": [
+      9382,
+      256
+    ],
+    "t-enh-fus-ln": [
+      16,
+      256
+    ],
+    "i-enh-i2t-q": [
+      9382,
+      1024
+    ],
+    "t-enh-i2t-k": [
+      16,
+      1024
+    ],
+    "t-enh-i2t-v": [
+      16,
+      1024
+    ],
+    "i-enh-t2i-v": [
+      9382,
+      1024
+    ],
+    "i-enh-i2t-z": [
+      9382,
+      1024
+    ],
+    "i-enh-i2t-o": [
+      9382,
+      256
+    ],
+    "t-enh-t2i-z": [
+      16,
+      1024
+    ],
+    "t-enh-t2i-o": [
+      16,
+      256
+    ],
+    "t-enh-fused": [
+      16,
+      256
+    ],
+    "i-enh-fused": [
+      9382,
+      256
+    ],
+    "t-enh-qk-in": [
+      16,
+      256
+    ],
+    "t-enh-self-qp": [
+      16,
+      256
+    ],
+    "t-enh-self-kp": [
+      16,
+      256
+    ],
+    "t-enh-self-vp": [
+      16,
+      256
+    ],
+    "t-enh-self-z": [
+      16,
+      256
+    ],
+    "t-enh-self-o": [
+      16,
+      256
+    ],
+    "t-enh-r1": [
+      16,
+      256
+    ],
+    "t-enh-ln1": [
+      16,
+      256
+    ],
+    "t-enh-u": [
+      16,
+      1024
+    ],
+    "t-enh-f": [
+      16,
+      256
+    ],
+    "t-enh-r2": [
+      16,
+      256
+    ],
+    "t-memory": [
+      16,
+      256
+    ],
+    "i-enh-q-in": [
+      9382,
+      256
+    ],
+    "i-enh-value": [
+      9382,
+      256
+    ],
+    "i-enh-offsets": [
+      9382,
+      256
+    ],
+    "i-enh-aw-logits": [
+      9382,
+      128
+    ],
+    "i-enh-z": [
+      9382,
+      256
+    ],
+    "i-enh-o": [
+      9382,
+      256
+    ],
+    "i-enh-r1": [
+      9382,
+      256
+    ],
+    "i-enh-ln1": [
+      9382,
+      256
+    ],
+    "i-enh-u": [
+      9382,
+      2048
+    ],
+    "i-enh-f": [
+      9382,
+      256
+    ],
+    "i-enh-r2": [
+      9382,
+      256
+    ],
+    "i-memory": [
+      9382,
+      256
+    ],
+    "q-cand-proj": [
+      9382,
+      256
+    ],
+    "q-cand": [
+      9382,
+      256
+    ],
+    "q-enc-box-h1": [
+      9382,
+      256
+    ],
+    "q-enc-box-h2": [
+      9382,
+      256
+    ],
+    "q-enc-delta": [
+      9382,
+      4
+    ],
+    "q-ref-pe": [
+      900,
+      512
+    ],
+    "q-ref-h": [
+      900,
+      256
+    ],
+    "q-pos": [
+      900,
+      256
+    ],
+    "q-qk-in": [
+      900,
+      256
+    ],
+    "q-self-qp": [
+      900,
+      256
+    ],
+    "q-self-kp": [
+      900,
+      256
+    ],
+    "q-self-vp": [
+      900,
+      256
+    ],
+    "q-self-z": [
+      900,
+      256
+    ],
+    "q-self-o": [
+      900,
+      256
+    ],
+    "q-r1": [
+      900,
+      256
+    ],
+    "q-ln1": [
+      900,
+      256
+    ],
+    "q-txt-q-in": [
+      900,
+      256
+    ],
+    "q-txt-qp": [
+      900,
+      256
+    ],
+    "q-txt-kp": [
+      16,
+      256
+    ],
+    "q-txt-vp": [
+      16,
+      256
+    ],
+    "q-txt-z": [
+      900,
+      256
+    ],
+    "q-txt-o": [
+      900,
+      256
+    ],
+    "q-r2": [
+      900,
+      256
+    ],
+    "q-ln2": [
+      900,
+      256
+    ],
+    "q-img-q-in": [
+      900,
+      256
+    ],
+    "q-img-value": [
+      9382,
+      256
+    ],
+    "q-img-offsets": [
+      900,
+      256
+    ],
+    "q-img-aw-logits": [
+      900,
+      128
+    ],
+    "q-img-z": [
+      900,
+      256
+    ],
+    "q-img-o": [
+      900,
+      256
+    ],
+    "q-r3": [
+      900,
+      256
+    ],
+    "q-ln3": [
+      900,
+      256
+    ],
+    "q-u": [
+      900,
+      2048
+    ],
+    "q-f": [
+      900,
+      256
+    ],
+    "q-r4": [
+      900,
+      256
+    ],
+    "q-out": [
+      900,
+      256
+    ],
+    "hs": [
+      900,
+      256
+    ],
+    "q-refine-h1": [
+      900,
+      256
+    ],
+    "q-refine-h2": [
+      900,
+      256
+    ],
+    "q-refine-delta": [
+      900,
+      4
+    ],
+    "t-ids": [
+      16
+    ],
+    "t-mask": [
+      16,
+      16
+    ],
+    "t-pos-ids": [
+      16
+    ],
+    "i-level-table": [
+      4,
+      256
+    ],
+    "q-tgt0": [
+      900,
+      256
+    ],
+    "q-ref0": [
+      900,
+      4
+    ],
+    "q-enc-boxes": [
+      9382,
+      4
+    ],
+    "q-enc-logits": [
+      9382,
+      16
+    ],
+    "logits": [
+      900,
+      16
+    ],
+    "boxes": [
+      900,
+      4
+    ],
+    "i-enh-i2t-attn": [
+      4,
+      9382,
+      16
+    ],
+    "t-enh-t2i-attn": [
+      4,
+      16,
+      9382
+    ],
+    "t-enh-self-attn": [
+      4,
+      16,
+      16
+    ],
+    "q-self-attn": [
+      8,
+      900,
+      900
+    ],
+    "q-txt-attn": [
+      8,
+      900,
+      16
+    ],
+    "i-enh-aw": [
+      9382,
+      128
+    ],
+    "i-enh-sampled": [
+      8,
+      9382,
+      16,
+      32
+    ],
+    "q-img-aw": [
+      900,
+      128
+    ],
+    "q-img-sampled": [
+      8,
+      900,
+      16,
+      32
+    ]
+  },
+  "shapes_torch": {
+    "i-patch-grid": {
+      "module": "model.backbone.conv_encoder.model.swin.embeddings.patch_embeddings.projection",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        96,
+        168,
+        168
+      ]
+    },
+    "i-s1-in": {
+      "module": "model.backbone.conv_encoder.model.swin.embeddings",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b1-ln1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.0.layernorm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b1-r1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.0.layernorm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b1-ln2": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.0.layernorm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b1-u": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        384
+      ]
+    },
+    "i-s1-b1-g": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        384
+      ]
+    },
+    "i-s1-b1-f": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b2-ln1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.1.layernorm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b2-r1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.1.layernorm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b2-ln2": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.1.layernorm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b2-u": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.1.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        384
+      ]
+    },
+    "i-s1-b2-g": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.1.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        384
+      ]
+    },
+    "i-s1-b2-f": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.1.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-b1-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-s1-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.blocks.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        28224,
+        96
+      ]
+    },
+    "i-m1-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.0.downsample",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b1-ln1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.0.layernorm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b1-r1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.0.layernorm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b1-ln2": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.0.layernorm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b1-u": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        768
+      ]
+    },
+    "i-s2-b1-g": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        768
+      ]
+    },
+    "i-s2-b1-f": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b2-ln1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.1.layernorm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b2-r1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.1.layernorm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b2-ln2": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.1.layernorm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b2-u": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.1.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        768
+      ]
+    },
+    "i-s2-b2-g": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.1.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        768
+      ]
+    },
+    "i-s2-b2-f": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.1.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-b1-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s2-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.blocks.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-m2-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.1.downsample",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-c3": {
+      "module": "model.backbone.conv_encoder.model.hidden_states_norms.stage2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        7056,
+        192
+      ]
+    },
+    "i-s3-b1-ln1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.0.layernorm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-b1-r1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.0.layernorm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-b1-ln2": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.0.layernorm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-b1-u": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        1536
+      ]
+    },
+    "i-s3-b1-g": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        1536
+      ]
+    },
+    "i-s3-b1-f": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-b2-ln1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.1.layernorm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-b2-r1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.1.layernorm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-b2-ln2": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.1.layernorm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-b2-u": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.1.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        1536
+      ]
+    },
+    "i-s3-b2-g": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.1.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        1536
+      ]
+    },
+    "i-s3-b2-f": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.1.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-b1-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s3-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.blocks.5",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-m3-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.2.downsample",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-c4": {
+      "module": "model.backbone.conv_encoder.model.hidden_states_norms.stage3",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1764,
+        384
+      ]
+    },
+    "i-s4-b1-ln1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.0.layernorm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-b1-r1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.0.layernorm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-b1-ln2": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.0.layernorm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-b1-u": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        3072
+      ]
+    },
+    "i-s4-b1-g": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        3072
+      ]
+    },
+    "i-s4-b1-f": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-b2-ln1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.1.layernorm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-b2-r1": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.1.layernorm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-b2-ln2": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.1.layernorm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-b2-u": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.1.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        3072
+      ]
+    },
+    "i-s4-b2-g": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.1.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        3072
+      ]
+    },
+    "i-s4-b2-f": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.1.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-b1-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-s4-out": {
+      "module": "model.backbone.conv_encoder.model.swin.encoder.layers.3.blocks.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-c5": {
+      "module": "model.backbone.conv_encoder.model.hidden_states_norms.stage4",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        441,
+        768
+      ]
+    },
+    "i-src-l1-conv": {
+      "module": "model.input_proj_vision.0.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        84,
+        84
+      ]
+    },
+    "i-src-l1": {
+      "module": "model.input_proj_vision.0.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        84,
+        84
+      ]
+    },
+    "i-src-l2-conv": {
+      "module": "model.input_proj_vision.1.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        42,
+        42
+      ]
+    },
+    "i-src-l2": {
+      "module": "model.input_proj_vision.1.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        42,
+        42
+      ]
+    },
+    "i-src-l3-conv": {
+      "module": "model.input_proj_vision.2.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        21,
+        21
+      ]
+    },
+    "i-src-l3": {
+      "module": "model.input_proj_vision.2.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        21,
+        21
+      ]
+    },
+    "i-src-l4-conv": {
+      "module": "model.input_proj_vision.3.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        11,
+        11
+      ]
+    },
+    "i-src-l4": {
+      "module": "model.input_proj_vision.3.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        11,
+        11
+      ]
+    },
+    "t-tok": {
+      "module": "model.text_backbone.embeddings.word_embeddings",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-e-pos": {
+      "module": "model.text_backbone.embeddings.position_embeddings",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-e-type": {
+      "module": "model.text_backbone.embeddings.token_type_embeddings",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-x0": {
+      "module": "model.text_backbone.embeddings.LayerNorm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-attn": {
+      "module": "model.text_backbone.encoder.layer.0.attention.output.dense",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-r1": {
+      "module": "model.text_backbone.encoder.layer.0.attention.output.LayerNorm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-ln1": {
+      "module": "model.text_backbone.encoder.layer.0.attention.output.LayerNorm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-ffn": {
+      "module": "model.text_backbone.encoder.layer.0.output.dense",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-r2": {
+      "module": "model.text_backbone.encoder.layer.0.output.LayerNorm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-bert-out": {
+      "module": "model.text_backbone.encoder.layer.11",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        768
+      ]
+    },
+    "t-feat": {
+      "module": "model.text_projection",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "i-mem-in": {
+      "module": "model.encoder.layers.0",
+      "hook": "('kw', 'vision_features')",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-pos": {
+      "module": "model.encoder.layers.0",
+      "hook": "('kw', 'vision_position_embedding')",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-ref": {
+      "module": "model.encoder.layers.0",
+      "hook": "('kw', 'reference_points')",
+      "torch_shape": [
+        1,
+        9382,
+        4,
+        2
+      ]
+    },
+    "i-enh-fus-ln": {
+      "module": "model.encoder.layers.0.fusion_layer.layer_norm_vision",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "t-enh-fus-ln": {
+      "module": "model.encoder.layers.0.fusion_layer.layer_norm_text",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "i-enh-i2t-q": {
+      "module": "model.encoder.layers.0.fusion_layer.attn.vision_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        1024
+      ]
+    },
+    "t-enh-i2t-k": {
+      "module": "model.encoder.layers.0.fusion_layer.attn.text_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        1024
+      ]
+    },
+    "t-enh-i2t-v": {
+      "module": "model.encoder.layers.0.fusion_layer.attn.values_text_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        1024
+      ]
+    },
+    "i-enh-t2i-v": {
+      "module": "model.encoder.layers.0.fusion_layer.attn.values_vision_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        1024
+      ]
+    },
+    "i-enh-i2t-z": {
+      "module": "model.encoder.layers.0.fusion_layer.attn.out_vision_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        9382,
+        1024
+      ]
+    },
+    "i-enh-i2t-o": {
+      "module": "model.encoder.layers.0.fusion_layer.attn.out_vision_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "t-enh-t2i-z": {
+      "module": "model.encoder.layers.0.fusion_layer.attn.out_text_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        16,
+        1024
+      ]
+    },
+    "t-enh-t2i-o": {
+      "module": "model.encoder.layers.0.fusion_layer.attn.out_text_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-fused": {
+      "module": "model.encoder.layers.0.text_enhancer_layer",
+      "hook": "('kw', 'hidden_states')",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "i-enh-fused": {
+      "module": "model.encoder.layers.0.deformable_layer",
+      "hook": "('kw', 'hidden_states')",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "t-enh-qk-in": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.self_attn.query",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-self-qp": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.self_attn.query",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-self-kp": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.self_attn.key",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-self-vp": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.self_attn.value",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-self-z": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.self_attn.out_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-self-o": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.self_attn.out_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-r1": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.layer_norm_before",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-ln1": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.layer_norm_before",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-u": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        1024
+      ]
+    },
+    "t-enh-f": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-enh-r2": {
+      "module": "model.encoder.layers.0.text_enhancer_layer.layer_norm_after",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "t-memory": {
+      "module": "model.encoder.layers.5.text_enhancer_layer.layer_norm_after",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "i-enh-q-in": {
+      "module": "model.encoder.layers.0.deformable_layer.self_attn.sampling_offsets",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-enh-value": {
+      "module": "model.encoder.layers.0.deformable_layer.self_attn.value_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-enh-offsets": {
+      "module": "model.encoder.layers.0.deformable_layer.self_attn.sampling_offsets",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-enh-aw-logits": {
+      "module": "model.encoder.layers.0.deformable_layer.self_attn.attention_weights",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        128
+      ]
+    },
+    "i-enh-z": {
+      "module": "model.encoder.layers.0.deformable_layer.self_attn.output_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-enh-o": {
+      "module": "model.encoder.layers.0.deformable_layer.self_attn.output_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-enh-r1": {
+      "module": "model.encoder.layers.0.deformable_layer.self_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-enh-ln1": {
+      "module": "model.encoder.layers.0.deformable_layer.self_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-enh-u": {
+      "module": "model.encoder.layers.0.deformable_layer.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        2048
+      ]
+    },
+    "i-enh-f": {
+      "module": "model.encoder.layers.0.deformable_layer.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-enh-r2": {
+      "module": "model.encoder.layers.0.deformable_layer.final_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "i-memory": {
+      "module": "model.encoder.layers.5.deformable_layer.final_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "q-cand-proj": {
+      "module": "model.enc_output",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "q-cand": {
+      "module": "model.enc_output_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "q-enc-box-h1": {
+      "module": "model.encoder_output_bbox_embed.layers.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "q-enc-box-h2": {
+      "module": "model.encoder_output_bbox_embed.layers.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "q-enc-delta": {
+      "module": "model.encoder_output_bbox_embed.layers.2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        4
+      ]
+    },
+    "q-ref-pe": {
+      "module": "model.decoder.reference_points_head",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        512
+      ]
+    },
+    "q-ref-h": {
+      "module": "model.decoder.reference_points_head.layers.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-pos": {
+      "module": "model.decoder.reference_points_head",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-qk-in": {
+      "module": "model.decoder.layers.0.self_attn.query",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-self-qp": {
+      "module": "model.decoder.layers.0.self_attn.query",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-self-kp": {
+      "module": "model.decoder.layers.0.self_attn.key",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-self-vp": {
+      "module": "model.decoder.layers.0.self_attn.value",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-self-z": {
+      "module": "model.decoder.layers.0.self_attn.out_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-self-o": {
+      "module": "model.decoder.layers.0.self_attn.out_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-r1": {
+      "module": "model.decoder.layers.0.self_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-ln1": {
+      "module": "model.decoder.layers.0.self_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-txt-q-in": {
+      "module": "model.decoder.layers.0.encoder_attn_text.query",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-txt-qp": {
+      "module": "model.decoder.layers.0.encoder_attn_text.query",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-txt-kp": {
+      "module": "model.decoder.layers.0.encoder_attn_text.key",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "q-txt-vp": {
+      "module": "model.decoder.layers.0.encoder_attn_text.value",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        16,
+        256
+      ]
+    },
+    "q-txt-z": {
+      "module": "model.decoder.layers.0.encoder_attn_text.out_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-txt-o": {
+      "module": "model.decoder.layers.0.encoder_attn_text.out_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-r2": {
+      "module": "model.decoder.layers.0.encoder_attn_text_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-ln2": {
+      "module": "model.decoder.layers.0.encoder_attn_text_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-img-q-in": {
+      "module": "model.decoder.layers.0.encoder_attn.sampling_offsets",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-img-value": {
+      "module": "model.decoder.layers.0.encoder_attn.value_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        9382,
+        256
+      ]
+    },
+    "q-img-offsets": {
+      "module": "model.decoder.layers.0.encoder_attn.sampling_offsets",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-img-aw-logits": {
+      "module": "model.decoder.layers.0.encoder_attn.attention_weights",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        128
+      ]
+    },
+    "q-img-z": {
+      "module": "model.decoder.layers.0.encoder_attn.output_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-img-o": {
+      "module": "model.decoder.layers.0.encoder_attn.output_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-r3": {
+      "module": "model.decoder.layers.0.encoder_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-ln3": {
+      "module": "model.decoder.layers.0.encoder_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-u": {
+      "module": "model.decoder.layers.0.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        2048
+      ]
+    },
+    "q-f": {
+      "module": "model.decoder.layers.0.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-r4": {
+      "module": "model.decoder.layers.0.final_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-out": {
+      "module": "model.decoder.layers.5",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "hs": {
+      "module": "model.decoder.layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-refine-h1": {
+      "module": "'Linear'",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-refine-h2": {
+      "module": "'Linear'",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        256
+      ]
+    },
+    "q-refine-delta": {
+      "module": "'Linear'",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        900,
+        4
+      ]
+    }
+  },
+  "not_hooked": {
+    "i-s{k}-b{j}-attn": "la atención por ventanas de HF devuelve las ventanas (nW×M²×C) antes de revertir la partición",
+    "i-patch-* / i-pos-sine / i-level-table / i-flatten": "PE seno/coseno (buffer), level_embed (parámetro L×D) y el aplanado: sin módulo propio",
+    "t-ids / t-type-ids / t-mask / t-pos-ids": "entradas y la máscara de sub-oraciones: se calculan con generate_masks_with_special_tokens_and_transfer_map",
+    "t-x-pos / t-x-sum / t-pos": "sumas dentro de BertEmbeddings y la PE seno/coseno del texto (sin módulo)",
+    "*-q / *-k / *-v / *-scores / *-scaled / *-attn / *-z-heads (fusión, texto, decoder)": "view/transpose y matmul sin módulo; los pesos de atención salen de output_attentions",
+    "i-enh-aw / i-enh-sampled / q-img-aw / q-img-sampled": "softmax y grid_sample dentro de MultiScaleDeformableAttention: se derivan de las formas de cada llamada (msda_*_call)",
+    "q-proposals / q-enc-logits / q-enc-boxes / q-topk / q-ref0-logit / q-ref0 / q-tgt0": "query selection funcional dentro de GroundingDinoModel.forward: enc_outputs_class, enc_outputs_coord_logits, init_reference_points y query_position_embeddings",
+    "logits": "HF rellena hasta max_text_len = 256 columnas con −∞; la forma del calculador es la de las T columnas reales",
+    "cost / assignment / loss / gt-*": "solo entrenamiento (necesita labels): no se ejecuta"
+  },
+  "flops_total": 363362670592,
+  "flops_counted_torch": 362068867072,
+  "flops_aux_heads_torch": 1225728000,
+  "flops_encoder_logits_torch": 7372800,
+  "flops_sampling_analytic": 2526904320,
+  "flops_sampling_encoder": 2305720320,
+  "flops_sampling_decoder": 221184000,
+  "flops_by_node": {
+    "img-backbone": 80816375808,
+    "img-proj": 1642070016,
+    "txt-backbone": 2727346176,
+    "txt-proj": 6291456,
+    "enhancer": 240559620096,
+    "query-select": 3785224192,
+    "decoder": 33580597248,
+    "contrastive-head+box-head": 245145600
+  },
+  "flops_by_op_torch": {
+    "aten.addmm": 343784468480,
+    "aten.bmm": 13260867584,
+    "aten.convolution": 1902182400,
+    "aten.mm": 3121348608
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "GroundingDinoForObjectDetection._from_config(GroundingDinoConfig(), attn_implementation='eager')  # backbone_config = SwinConfig(out_indices=[2, 3, 4]) y text_config = BertConfig() por defecto, sin pesos",
+    "backbone": {
+      "model_type": "swin",
+      "embed_dim": 96,
+      "depths": [
+        2,
+        2,
+        6,
+        2
+      ],
+      "num_heads": [
+        3,
+        6,
+        12,
+        24
+      ],
+      "window_size": 7,
+      "out_indices": [
+        2,
+        3,
+        4
+      ]
+    },
+    "text": {
+      "model_type": "bert",
+      "hidden_size": 768,
+      "num_hidden_layers": 12,
+      "num_attention_heads": 12,
+      "intermediate_size": 3072,
+      "vocab_size": 30522,
+      "max_position_embeddings": 512
+    },
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Construido en código, sin hub, sin pesos y sin tokenizer: SwinConfig (Swin-T: C = 96, profundidades [2, 2, 6, 2], cabezas [3, 6, 12, 24], ventana 7, out_indices [2, 3, 4]) y BertConfig (bert-base: 12 × 768, 12 cabezas, FFN 3072, vocabulario 30,522) por defecto. Atención eager.",
+    "params_total = params_total_hf_raw − 1,536: HF SwinBackbone conserva swin.layernorm (LayerNorm(768)) que su forward no usa (cada salida pasa por hidden_states_norms). El código oficial no tiene esa LayerNorm, pero su BERT es un BertModel CON pooler (768·768 + 768 = 590,592, congelado y sin uso); HF construye BERT sin pooler.",
+    "El MLP de cajas (bbox_embed) es UN módulo: refina la caja en cada capa del decoder y es la cabeza de cajas (decoder_bbox_embed_share = True). La cabeza contrastiva no tiene parámetros: logits = query · token de texto, rellenados con −∞ hasta max_text_len = 256 columnas (la forma del calculador es la de las T reales). La query selection usa otra copia del MLP de cajas (two_stage_bbox_embed_share = False, como la config oficial SwinT_OGC).",
+    "Swin: HF SwinBackbone usa always_partition = True: ninguna ventana se recorta y los bloques impares tienen shift 3 aun en el stage 4 (swin_windows). 896×1344 hace que los 4 stages (224×336 … 28×42) sean múltiplos de 7: sin padding.",
+    "FLOPs: FlopCounterMode no cuenta grid_sample ni la suma ponderada de las muestras de la atención deformable: flops_sampling_analytic = Σ por llamada 2·5·N_q·h·L·K·d_h (12 llamadas: 6 del encoder sobre N tokens y 6 del decoder sobre Q). HF aplica las cabezas a las 6 salidas del decoder y calcula encoder_logits (queries de contenido × texto) en cada forward: se restan (flops_aux_heads_torch, flops_encoder_logits_torch; medidos con FlopCounterMode sobre los mismos módulos). flops_total = flops_counted_torch − aux − encoder_logits + muestreo.",
+    "flops_by_node: FLOPs por módulo de HF con los mismos ajustes (el refinamiento de cajas del decoder cuenta dentro del decoder; la query selection = enc_output + encoder_output_bbox_embed + encoder_output_class_embed − encoder_logits).",
+    "Formas sin batch; rejillas H×W×C (PyTorch: C×H×W; Swin de HF trabaja con secuencias H·W×C, que aquí se escriben como rejilla)."
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "T": 64
+      },
+      "flops_total": 389801187328,
+      "shapes": {
+        "logits": [
+          900,
+          64
+        ],
+        "t-feat": [
+          64,
+          256
+        ]
+      },
+      "note": "misma referencia con T = 64 tokens: cambian BERT, la fusión y los logits; los parámetros no"
+    }
+  ]
+}

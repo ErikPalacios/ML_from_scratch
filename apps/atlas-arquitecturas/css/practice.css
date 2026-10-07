@@ -66,6 +66,8 @@
 .pxs { container: pxs / inline-size; display: grid; gap: 14px; }
 .pxs__head { display: grid; gap: 6px; }
 .pxs__cfg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; }
+/* config no cuadrada (Grounding DINO-T @ 896×1344): el explorador usa imágenes cuadradas y lo dice */
+.pxs__base { margin: 0; }
 .pxs__knobs { display: grid; gap: 10px; }
 .pxs__knob { display: grid; grid-template-columns: 112px minmax(0, 1fr); align-items: center; gap: 6px 12px; }
 .pxs__knob:has(.pxs__range) { grid-template-columns: 112px minmax(0, 1fr) auto; }
@@ -104,6 +106,10 @@
 .pxs__seg-a { background: var(--op-attn, var(--accent)); }
 .pxs__seg-l { background: var(--op-mlp, var(--ok)); }
 .pxs__seg-d { background: var(--op-fuse, var(--warn)); }   /* DETR: atención del decoder (cross/self) */
+/* Fase 4: backbone (convs/Swin), texto y cabezas */
+.pxs__seg-b { background: var(--op-conv, var(--accent)); }
+.pxs__seg-t { background: var(--op-embed, var(--accent)); }
+.pxs__seg-h { background: var(--op-head, var(--warn)); }
 .pxs__legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: var(--fs-sm); }
 .pxs__legend li { display: block; }
 .pxs__legend b { font-weight: 500; }
@@ -111,6 +117,9 @@
 .pxs__sw--a { background: var(--op-attn, var(--accent)); }
 .pxs__sw--l { background: var(--op-mlp, var(--ok)); }
 .pxs__sw--d { background: var(--op-fuse, var(--warn)); }
+.pxs__sw--b { background: var(--op-conv, var(--accent)); }
+.pxs__sw--t { background: var(--op-embed, var(--accent)); }
+.pxs__sw--h { background: var(--op-head, var(--warn)); }
 .pxs__mem { margin: 0; font-size: var(--fs-sm); line-height: 1.5; }
 .pxs__foot { margin: 0; line-height: 1.5; }
 

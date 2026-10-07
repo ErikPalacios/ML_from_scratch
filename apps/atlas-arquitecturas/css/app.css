@@ -1101,7 +1101,10 @@ mjx-container[display="true"] { max-width: 100%; overflow-x: auto; overflow-y: h
 .opc__io-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 12px; align-items: baseline; }
 .opc__io-row dt { font: 600 11.5px/1.6 var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .opc__io-row dd { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; min-width: 0; }
-.opc__shape { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 14.5px; }
+.opc__shape { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-size: 14.5px; max-width: 100%; min-width: 0; }
+/* el nombre del tensor puede ser una fórmula larga (la matriz de costos de DETR, C_qg = …): desplaza dentro de
+   la tarjeta en vez de ensanchar la página a 375 px */
+.opc__tname { max-width: 100%; min-width: 0; overflow-x: auto; overflow-y: hidden; }
 .opc__shape.is-missing { color: var(--bad); }
 .opc__sym { color: var(--muted); }
 .opc__eq { color: var(--muted); }

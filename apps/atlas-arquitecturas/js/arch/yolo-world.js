@@ -35,7 +35,9 @@
 
    metrics() (además de las genéricas; B = 1, bf16). Unidades: …Macs = MACs, …Mem = bytes, …Share = fracción,
    …Params = parámetros; ratios (units = 'ratio'): vocabTextToOnline, macsVsYolov8, gdinoToYoloWorldMacs,
-   detrToYoloWorldMacs, yoloWorldToYolov8Macs, detrToYolov8Macs; conteos: anchors, vocabSize, logits*Elements.
+   detrToYoloWorldMacs, yoloWorldToYolov8Macs, detrToYolov8Macs, gdino672ToYoloWorldMacs, gdino448ToYoloWorldMacs (Grounding
+   DINO-T @ 672×672 y @ 448×448, configs grounding-dino-t-672 / -448, contra esta config; gdino672Macs / gdino448Macs);
+   conteos: anchors, vocabSize, logits*Elements. units también marca 'macs' / 'params' donde el nombre no lo dice.
      las dos: backboneMacs/-MacsShare/-Params, neckMacs/-MacsShare/-Params, headMacs/-MacsShare/-Params, boxHeadMacs,
        anchors (A), logitsElements, logitsMem, scaling [{res, anchors, macs}]
      YOLOv8: yoloWorldMacs, yoloWorldParams, yoloWorldToYolov8Macs, detrMacs, detrParams (detr-r50-640), detrToYolov8Macs
@@ -437,7 +439,8 @@
         ipaParams: by['neck>img-pool-attn'].params, ipaMacs: by['neck>img-pool-attn'].macs,
         contrastiveHeadParams: r.ops.filter((o) => o.prim === 'scale_bias').reduce((a, o) => a + o.params, 0),
         textEncoderParams: ct.params, promptTextMacs: ct.macs, vocabTextMacs: c.V * ct.macs, clipT: ct.T,
-        // v2 (yolov8l-worldv2.yaml): sin image-pooling attention y con BN en la cabeza contrastiva (2·512 por nivel; sin el escalar s).
+        // v2 (yolov8l-worldv2.yaml): sin image-pooling attention y con BN en la cabeza contrastiva (BNContrastiveHead:
+        // +2·512 por nivel; conserva bias y logit_scale, como la cabeza de v1).
         v2Params: r.totals.params - by['neck>img-pool-attn'].params + 3 * 2 * c.E,
       };
       c.levelShapes.forEach(([a, b], i) => { q['p' + (i + 3) + 'Cells'] = a * b; q['p' + (i + 3) + 'Side'] = a; q['logitsP' + (i + 3) + 'Elements'] = a * b * c.V; });
@@ -468,6 +471,10 @@
         const gt = gd.totals.byNode['txt-backbone'].macs + gd.totals.byNode['txt-proj'].macs;
         Object.assign(out, { gdinoMacs: gd.totals.macs, gdinoParams: gd.totals.params, gdinoTextMacs: gt, gdinoToYoloWorldMacs: gd.totals.macs / t.macs });
       }
+      // Grounding DINO-T a escala parecida (mismo modelo): 672×672 ≈ la resolución de YOLO-World-L @ 640; 448×448 ≈ sus MACs.
+      const gd672 = ref('grounding-dino-t-672'), gd448 = ref('grounding-dino-t-448');
+      if (gd672) Object.assign(out, { gdino672Macs: gd672.totals.macs, gdino672ToYoloWorldMacs: gd672.totals.macs / t.macs });
+      if (gd448) Object.assign(out, { gdino448Macs: gd448.totals.macs, gdino448ToYoloWorldMacs: gd448.totals.macs / t.macs });
       if (detr) Object.assign(out, { detrMacs: detr.totals.macs, detrParams: detr.totals.params, detrToYoloWorldMacs: detr.totals.macs / t.macs });
       out.vocabScaling = [1, 20, 80, 365, 1203].map((V) => {
         const m = V === c.V ? r : A.run(r.id, { V, res: c.H });
@@ -479,5 +486,7 @@
   });
 
   const UNITS = { anchors: 'count', vocabSize: 'count', logitsElements: 'count', logitsP3Elements: 'count', logitsP4Elements: 'count', logitsP5Elements: 'count',
-    vocabTextToOnline: 'ratio', macsVsYolov8: 'ratio', gdinoToYoloWorldMacs: 'ratio', detrToYoloWorldMacs: 'ratio', yoloWorldToYolov8Macs: 'ratio', detrToYolov8Macs: 'ratio' };
+    vocabTextToOnline: 'ratio', macsVsYolov8: 'ratio', gdinoToYoloWorldMacs: 'ratio', detrToYoloWorldMacs: 'ratio', yoloWorldToYolov8Macs: 'ratio', detrToYolov8Macs: 'ratio',
+    gdino672ToYoloWorldMacs: 'ratio', gdino448ToYoloWorldMacs: 'ratio', gdino672Macs: 'macs', gdino448Macs: 'macs', gdinoMacs: 'macs', gdinoTextMacs: 'macs',
+    deltaMacsVsYolov8: 'macs', deltaParamsVsYolov8: 'params' };
 })(typeof window !== 'undefined' ? window : globalThis);

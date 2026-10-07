@@ -145,9 +145,11 @@
     if (/Share$/.test(k)) return 'pct';
     return 'count';
   }
-  // Cociente adimensional con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5'.
+  // Cociente adimensional con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5'. Si el redondeo da un
+  // entero de una cifra que NO es exacto (1.004), se escriben 2 decimales ('1.00'): "1" leería como idéntico.
   function fRatio(v) {
     const x = Number(v.toPrecision(3));
+    if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2);
     return Math.abs(x) >= 1000 ? arch().fmt.int(x) : String(x);
   }
 

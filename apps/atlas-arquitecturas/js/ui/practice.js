@@ -139,8 +139,12 @@
     const A = Arch();
     if (!A || typeof A.metrics !== 'function') throw new Error('El calculador no expone ATLAS.Arch.metrics.');
     // fp16 explícito: la memoria de scores se reporta en fp16 (SPEC §6.2); B = 1 por defecto.
-    return A.metrics(cfg, Object.assign({ dtype: 'fp16' }, ov || {}));
+    const m = A.metrics(cfg, Object.assign({ dtype: 'fp16' }, ov || {}));
+    // El mapa `units` del modelo ({clave: 'ratio'|'count'|'bytes'|'pct'|'macs'|'params'}) manda sobre el nombre.
+    if (m && m.units && typeof m.units === 'object') Object.assign(ARCH_UNITS, m.units);
+    return m;
   }
+  const ARCH_UNITS = {};
   // Knobs del modelo (SPEC §6.4 `knobs`). ATLAS.Arch.knobs(model) si existe; si no, lo que haya.
   function modelKnobs(model) {
     const A = Arch();
@@ -189,10 +193,13 @@
     Object.keys(c).forEach((k) => { if (!(both && (k === 'H' || k === 'W'))) parts.push(one(k, c[k])); });
     return parts.join(' · ');
   }
+  // Valor base de un knob en la config. `res` es el lado de una imagen CUADRADA: si la config no es
+  // cuadrada (Grounding DINO-T @ 896×1344) no hay base en la serie (null) y el explorador elige una
+  // cuadrada (renderScaling) en vez de colar 896×1344 como si fuera "896".
   function knobBase(cfg, key, values) {
     const c = cfg || {};
+    if (key === 'res') return c.res != null ? c.res : (c.H != null && c.H === c.W ? c.H : null);
     if (c[key] != null) return c[key];
-    if (key === 'res' && c.H != null) return c.H;
     return values && values.length ? values[0] : null;
   }
 
@@ -203,8 +210,12 @@
   // kind: count · ops (MACs) · bytes · pct (fracción 0–1) · ratio (cociente adimensional, "×505").
   const METRICS = {
     tokens: { label: 'Tokens', kind: 'count', note: 'longitud de la secuencia (incluye CLS)',
+      labels: { 'grounding-dino': 'Tokens de imagen N', 'yolo-world': 'Celdas A (P3–P5)', yolov8: 'Celdas A (P3–P5)' },
       notes: { swin: 'tokens del stage 1 (H/4 × W/4, sin CLS)', clip: 'torre de imagen: N + 1 (incluye CLS)',
-        detr: 'tokens del encoder: (H/32)·(W/32), sin CLS', 'deformable-detr': 'tokens de todos los niveles (Σ H_l·W_l, strides 8 a 64), sin CLS' } },
+        detr: 'tokens del encoder: (H/32)·(W/32), sin CLS', 'deformable-detr': 'tokens de todos los niveles (Σ H_l·W_l, strides 8 a 64), sin CLS',
+        'grounding-dino': 'tokens de imagen de los 4 niveles (Σ H_l·W_l, strides 8 a 64), sin CLS; el texto (T) va aparte',
+        'yolo-world': 'puntos de anclaje A = Σ h·w de P3–P5 (strides 8, 16, 32; 8,400 a 640): celdas de la rejilla, no una secuencia',
+        yolov8: 'puntos de anclaje A = Σ h·w de P3–P5 (strides 8, 16, 32; 8,400 a 640): celdas de la rejilla, no una secuencia' } },
     patches: { label: 'Patches', kind: 'count' },
     params: { label: 'Parámetros', kind: 'count', note: 'pesos + biases' },
     macs: { label: 'MACs', kind: 'ops', note: 'matmuls y convs · FLOPs = 2 × MACs' },
@@ -212,7 +223,9 @@
     attnMem: { label: 'Scores de atención', kind: 'bytes', note: 'h×N×N en fp16, una capa, B = 1',
       notes: { swin: 'nW×h×M²×M² en fp16, el mayor bloque, B = 1', clip: 'h×N×N en fp16, una capa de la torre mayor, una muestra',
         detr: 'h×N×N del encoder en fp16, una capa, B = 1 (el mayor: cross es h×Q×N)',
-        'deformable-detr': 'no aplica: el encoder deformable no tiene matriz N×N (ver «Scores si el encoder fuera denso»)' } },
+        'deformable-detr': 'no aplica: el encoder deformable no tiene matriz N×N (ver «Scores si el encoder fuera denso»)',
+        'grounding-dino': 'no aplica: el encoder de imagen es deformable (ver «Scores de la fusión imagen ↔ texto», h/2×N×T)',
+        'yolo-world': 'no aplica: no hay atención h×N×N (convs; la max-sigmoid es por celda y palabra)', yolov8: 'no aplica: YOLOv8 es solo convs' } },
     actMem: { label: 'Activaciones', kind: 'bytes', note: 'fp16, B = 1', notes: { clip: 'fp16, las dos torres, una muestra' } },
     kvCache: { label: 'KV cache', kind: 'bytes', note: 'fp16, B = 1' },
     attnMemAllLayers: { label: 'Scores de atención (todas las capas)', kind: 'bytes', note: 'fp16, B = 1 (entrenamiento sin recomputar)' },
@@ -223,12 +236,14 @@
     scoreMacs: { label: 'MACs de QKᵀ y A·V', kind: 'ops', note: 'la parte que crece con N²',
       notes: { swin: 'con ventanas M×M fijas crece ∝ N (lineal)',
         detr: 'encoder (∝ N²) + decoder (cross ∝ Q·N, self ∝ Q²)',
-        'deformable-detr': 'no aplica: sin término N² (ver el muestreo deformable y la self-attention del decoder)' } },
+        'deformable-detr': 'no aplica: sin término N² (ver el muestreo deformable y la self-attention del decoder)',
+        'grounding-dino': 'no aplica: sin término N² (ver la fusión imagen ↔ texto y el muestreo deformable)', 'yolo-world': 'no aplica: sin atención densa', yolov8: 'no aplica: solo convs' } },
     // Dos "partes de atención" distintas: siempre con su nombre completo (no se confunden).
     scoreMacsShare: { label: 'Atención (solo QKᵀ y A·V)', kind: 'pct', note: '% de los MACs totales; la parte ∝ N²',
       notes: { swin: '% de los MACs totales; con ventanas fijas, lineal en N',
         detr: '% de los MACs: encoder (∝ N²) más decoder (cross ∝ Q·N, self ∝ Q²)',
-        'deformable-detr': 'no aplica: sin término N² (ver «Muestreo deformable»)' } },
+        'deformable-detr': 'no aplica: sin término N² (ver «Muestreo deformable»)',
+        'grounding-dino': 'no aplica: sin término N² (ver «Fusión imagen ↔ texto»)', 'yolo-world': 'no aplica: sin atención densa', yolov8: 'no aplica: solo convs' } },
     // DETR: la atención separada por dónde ocurre (solo el encoder es ∝ N²).
     encScoreMacs: { label: 'Encoder: MACs de QKᵀ y A·V', kind: 'ops', note: 'todas las capas del encoder; ∝ N²' },
     encScoreMacsLayer: { label: 'Encoder: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·N²·D; ∝ N²' },
@@ -251,16 +266,101 @@
     encToCrossScore: { label: 'Scores del encoder / de la cross-attention', kind: 'ratio', note: 'por capa: N²/(Q·N) = N/Q' },
     tokens2x: { label: 'Tokens con H y W ×2', kind: 'count', note: '≈ ×4 (un stride menos, como DC5)' },
     encScoreMacs2x: { label: 'Encoder: QKᵀ y A·V con H y W ×2', kind: 'ops', note: 'tokens ×4 ⇒ ×16' },
-    backboneMacs: { label: 'MACs del backbone', kind: 'ops', note: 'ResNet-50 hasta C5' },
+    backboneMacs: { label: 'MACs del backbone', kind: 'ops', note: 'ResNet-50 hasta C5',
+      notes: { 'yolo-world': 'CSPDarknet de YOLOv8-L hasta P5 (con SPPF)', yolov8: 'CSPDarknet hasta P5 (con SPPF)' } },
     backboneMacsShare: { label: 'Backbone', kind: 'pct', note: '% de los MACs totales' },
     inputProjMacs: { label: 'MACs de la proyección de entrada', kind: 'ops', note: 'conv 1×1 de C5 a D' },
     encoderMacs: { label: 'MACs del encoder', kind: 'ops', note: 'todas sus capas' },
     encoderMacsShare: { label: 'Encoder', kind: 'pct', note: '% de los MACs totales' },
     decoderMacs: { label: 'MACs del decoder', kind: 'ops', note: 'todas sus capas' },
     decoderMacsShare: { label: 'Decoder', kind: 'pct', note: '% de los MACs totales' },
-    headMacs: { label: 'MACs de las cabezas', kind: 'ops', note: 'clase + caja, sobre las Q queries' },
+    headMacs: { label: 'MACs de las cabezas', kind: 'ops', note: 'clase + caja, sobre las Q queries',
+      notes: { 'grounding-dino': 'cabeza contrastiva (query · token, sin pesos) + MLP de cajas, sobre las Q queries',
+        'yolo-world': 'cajas + texto (embedding de región · vocabulario) en P3–P5, cada celda', yolov8: 'cajas + clases en P3–P5, cada celda (desacopladas)' } },
     auxHeadsMacs: { label: 'MACs de las cabezas auxiliares', kind: 'ops', note: 'solo entrenamiento: las otras capas del decoder' },
     queries: { label: 'Object queries Q', kind: 'count', note: 'predicciones por imagen (el máximo de detecciones)' },
+    // ---- Fase 4: Grounding DINO (texto en cada imagen, fusión imagen ↔ texto, reparto por bloque)
+    imageTokens: { label: 'Tokens de imagen N', kind: 'count', note: 'Σ H_l·W_l de los 4 niveles (strides 8 a 64)' },
+    textTokens: { label: 'Tokens de texto T', kind: 'count', note: 'el prompt en WordPiece, con [CLS] y [SEP]' },
+    textEncoderMacs: { label: 'MACs del texto (BERT + proyección)', kind: 'ops', note: 'se pagan en CADA imagen: el prompt entra junto con la imagen' },
+    textEncoderParams: { label: 'Parámetros del codificador de texto', kind: 'count', note: 'BERT-base + proyección 768 → D',
+      notes: { 'yolo-world': 'CLIP ViT-B/32 (torre de texto) + proyección; corre offline: fuera del total' } },
+    textEncoderMacsShare: { label: 'Texto (BERT + proyección)', kind: 'pct', note: '% de los MACs por imagen' },
+    textEncoderMacsMaxT: { label: 'MACs del texto con T = 256', kind: 'ops', note: 'el máximo de tokens (max_text_len)' },
+    fusionMacs: { label: 'MACs de la fusión imagen ↔ texto', kind: 'ops', note: 'i2t + t2i de las 6 capas del feature enhancer',
+      notes: { 'yolo-world': 'max-sigmoid de los 4 T-CSPLayers + image-pooling attention' } },
+    fusionMacsShare: { label: 'Fusión imagen ↔ texto', kind: 'pct', note: '% de los MACs totales' },
+    fusionMacsLayer: { label: 'MACs de la fusión (una capa)', kind: 'ops', note: 'proyecciones a E = D_mlp/2 + la matriz h/2×N×T' },
+    fusionScoreMacsLayer: { label: 'Fusión: MACs de la matriz y los A·V (una capa)', kind: 'ops', note: '3·N·T·E: la parte que crece con N·T' },
+    fusionAttnEntries: { label: 'Entradas de scores de la fusión', kind: 'count', note: 'h/2×N×T, una capa' },
+    fusionAttnMem: { label: 'Scores de la fusión imagen ↔ texto', kind: 'bytes', note: 'h/2×N×T en fp16, una capa, B = 1 (una sola matriz para i2t y t2i)' },
+    imgBackboneMacs: { label: 'MACs del backbone de imagen', kind: 'ops', note: 'Swin-T hasta C5' },
+    imgBackboneMacsShare: { label: 'Backbone de imagen (Swin-T)', kind: 'pct', note: '% de los MACs totales' },
+    enhancerMacs: { label: 'MACs del feature enhancer', kind: 'ops', note: 'sus 6 capas: fusión, self-attention deformable de la imagen y del texto, FFN' },
+    enhancerMacsShare: { label: 'Feature enhancer', kind: 'pct', note: '% de los MACs totales' },
+    querySelectMacs: { label: 'MACs de la query selection', kind: 'ops', note: 'puntúa los N tokens contra el texto y toma los Q mejores' },
+    querySelectMacsShare: { label: 'Query selection', kind: 'pct', note: '% de los MACs totales' },
+    decTextScoreMacs: { label: 'Cross-attention de texto: MACs de QKᵀ y A·V', kind: 'ops', note: 'las capas del decoder; ∝ Q·T' },
+    decTextAttnMem: { label: 'Scores de la cross-attention de texto', kind: 'bytes', note: 'h×Q×T en fp16, una capa, B = 1' },
+    txtSelfAttnMem: { label: 'Scores de la self-attention del texto', kind: 'bytes', note: 'h/2×T×T en fp16, una capa, B = 1' },
+    logitsElements: { label: 'Logits', kind: 'count', note: 'puntuaciones de salida',
+      labels: { 'grounding-dino': 'Logits Q×T', 'yolo-world': 'Logits A×V', yolov8: 'Logits A×K' },
+      notes: { 'grounding-dino': 'una puntuación por query y token de texto (HF rellena hasta Q×256)', 'yolo-world': 'una puntuación por celda y palabra (P3–P5)', yolov8: 'una puntuación por celda y clase (P3–P5)' } },
+    logitsPaddedElements: { label: 'Logits rellenados (HF)', kind: 'count', note: 'Q×256: HF rellena hasta max_text_len con −∞' },
+    bytesPerElement: { label: 'Bytes por elemento', kind: 'count', note: 'del dtype' },
+    // comparación entre detectores: cada uno en SU configuración salvo que la etiqueta diga otra cosa
+    yolov8Macs: { label: 'MACs de YOLOv8-L', kind: 'ops', note: 'YOLOv8-L @ 640', notes: { 'yolo-world': 'YOLOv8-L a la misma resolución' } },
+    yolov8Params: { label: 'Parámetros de YOLOv8-L', kind: 'count', note: '' },
+    macsVsYolov8: { label: 'MACs / YOLOv8-L', kind: 'ratio', note: 'cada uno en su config (Grounding DINO-T @ 896×1344, YOLOv8-L @ 640: resoluciones distintas)',
+      notes: { 'yolo-world': 'a la misma resolución: lo que cuesta el texto (T-CSPLayers, IPA y cabeza de texto)' } },
+    paramsVsYolov8: { label: 'Parámetros / YOLOv8-L', kind: 'ratio', note: 'no depende de la resolución' },
+    detrMacs: { label: 'MACs de DETR-R50', kind: 'ops', note: 'DETR-R50 @ 800×1216', notes: { 'yolo-world': 'DETR-R50 @ 640', yolov8: 'DETR-R50 @ 640' } },
+    detrParams: { label: 'Parámetros de DETR-R50', kind: 'count', note: '' },
+    macsVsDetr: { label: 'MACs / DETR-R50', kind: 'ratio', note: 'cada uno en su config (896×1344 vs 800×1216)' },
+    paramsVsDetr: { label: 'Parámetros / DETR-R50', kind: 'ratio', note: 'no depende de la resolución' },
+    yoloWorldMacs: { label: 'MACs de YOLO-World-L', kind: 'ops', note: 'YOLO-World-L @ 640, V = 80', notes: { yolov8: 'YOLO-World-L a la misma resolución, V = 80' } },
+    yoloWorldParams: { label: 'Parámetros de YOLO-World-L', kind: 'count', note: 'sin CLIP (offline)' },
+    macsVsYoloWorld: { label: 'MACs / YOLO-World-L', kind: 'ratio', note: 'cada uno en su config (esta vs 640×640): buena parte es resolución; compara con «a 672×672»' },
+    paramsVsYoloWorld: { label: 'Parámetros / YOLO-World-L', kind: 'ratio', note: 'sin CLIP (offline) en YOLO-World; no depende de la resolución' },
+    macsAt672: { label: 'MACs a 672×672', kind: 'ops', note: 'el mismo modelo a ≈ la resolución de YOLO-World-L @ 640' },
+    macsAt448: { label: 'MACs a 448×448', kind: 'ops', note: 'el mismo modelo, imagen cuadrada de 448' },
+    macsVsYoloWorldAt672: { label: 'MACs a 672×672 / YOLO-World-L @ 640', kind: 'ratio', note: 'a escala parecida: la diferencia que sí es de arquitectura' },
+    macsVsYoloWorldAt448: { label: 'MACs a 448×448 / YOLO-World-L @ 640', kind: 'ratio', note: 'a 448×448 Grounding DINO-T cuesta ≈ lo mismo' },
+    // ---- Fase 4: YOLOv8 / YOLO-World (backbone · neck · cabezas; texto offline; fusión en el neck)
+    backboneParams: { label: 'Parámetros del backbone', kind: 'count', note: 'CSPDarknet (YOLOv8-L)' },
+    neckMacs: { label: 'MACs del neck', kind: 'ops', note: 'PAN-FPN con C2f', notes: { 'yolo-world': 'RepVL-PAN: T-CSPLayers (C2f + max-sigmoid) e image-pooling attention' } },
+    neckMacsShare: { label: 'Neck', kind: 'pct', note: '% de los MACs totales' },
+    neckParams: { label: 'Parámetros del neck', kind: 'count', note: '' },
+    headMacsShare: { label: 'Cabezas', kind: 'pct', note: '% de los MACs totales' },
+    headParams: { label: 'Parámetros de las cabezas', kind: 'count', note: 'P3–P5' },
+    boxHeadMacs: { label: 'MACs de la cabeza de cajas', kind: 'ops', note: '4·reg_max canales por celda (DFL)' },
+    anchors: { label: 'Celdas A (P3–P5)', kind: 'count', note: 'Σ h·w de P3–P5: un punto de anclaje por celda' },
+    vocabSize: { label: 'Vocabulario V', kind: 'count', note: 'palabras o clases del prompt' },
+    promptTextMacs: { label: 'MACs de CLIP por prompt', kind: 'ops', note: 'torre de texto con 77 tokens; offline' },
+    vocabTextMacs: { label: 'MACs de codificar el vocabulario', kind: 'ops', note: 'V prompts por CLIP: una vez por vocabulario (offline)' },
+    onlineTextMacs: { label: 'MACs del texto por imagen', kind: 'ops', note: '0: el vocabulario ya está codificado' },
+    vocabTextToOnline: { label: 'Codificar el vocabulario / una imagen', kind: 'ratio', note: 'se paga una vez; después, 0 por imagen' },
+    maxSigmoidMacs: { label: 'MACs de la max-sigmoid attention', kind: 'ops', note: 'los 4 T-CSPLayers; ∝ celdas·V' },
+    ipaMacs: { label: 'MACs de la image-pooling attention', kind: 'ops', note: '27 tokens de imagen (3×3 de 3 niveles) actualizan el texto' },
+    tcspMacs: { label: 'MACs de los T-CSPLayers', kind: 'ops', note: 'convs C2f + max-sigmoid' },
+    tcspMacsShare: { label: 'T-CSPLayers', kind: 'pct', note: '% de los MACs totales' },
+    logitsP3Elements: { label: 'Logits en P3', kind: 'count', note: '(H/8)·(W/8) celdas × V' },
+    logitsP4Elements: { label: 'Logits en P4', kind: 'count', note: '(H/16)·(W/16) celdas × V' },
+    logitsP5Elements: { label: 'Logits en P5', kind: 'count', note: '(H/32)·(W/32) celdas × V' },
+    regionTextMacs: { label: 'MACs de la similitud región-texto', kind: 'ops', note: 'A×E · E×V: la cabeza contrastiva' },
+    deltaParamsVsYolov8: { label: 'Parámetros extra sobre YOLOv8-L', kind: 'count', note: 'max-sigmoid + IPA + rama de texto de la cabeza' },
+    deltaMacsVsYolov8: { label: 'MACs extra sobre YOLOv8-L', kind: 'ops', note: 'a la misma resolución' },
+    gdinoMacs: { label: 'MACs de Grounding DINO-T', kind: 'ops', note: 'Grounding DINO-T @ 896×1344, T = 16' },
+    gdinoParams: { label: 'Parámetros de Grounding DINO-T', kind: 'count', note: 'con BERT' },
+    gdinoTextMacs: { label: 'MACs del texto de Grounding DINO-T', kind: 'ops', note: 'BERT + proyección, en cada imagen' },
+    gdinoToYoloWorldMacs: { label: 'Grounding DINO-T / YOLO-World-L (MACs)', kind: 'ratio', note: 'Grounding DINO-T @ 896×1344 vs esta config: resoluciones distintas' },
+    gdino672Macs: { label: 'MACs de Grounding DINO-T @ 672×672', kind: 'ops', note: '≈ la resolución de YOLO-World-L @ 640' },
+    gdino448Macs: { label: 'MACs de Grounding DINO-T @ 448×448', kind: 'ops', note: '' },
+    gdino672ToYoloWorldMacs: { label: 'Grounding DINO-T @ 672×672 / YOLO-World-L (MACs)', kind: 'ratio', note: 'a escala parecida: la diferencia que sí es de arquitectura' },
+    gdino448ToYoloWorldMacs: { label: 'Grounding DINO-T @ 448×448 / YOLO-World-L (MACs)', kind: 'ratio', note: '≈ los mismos MACs' },
+    detrToYoloWorldMacs: { label: 'DETR-R50 / YOLO-World-L (MACs)', kind: 'ratio', note: 'DETR-R50 @ 640' },
+    yoloWorldToYolov8Macs: { label: 'YOLO-World-L / YOLOv8-L (MACs)', kind: 'ratio', note: 'a la misma resolución' },
+    detrToYolov8Macs: { label: 'DETR-R50 / YOLOv8-L (MACs)', kind: 'ratio', note: 'DETR-R50 @ 640' },
     costEntries: { label: 'Celdas de la matriz de costos', kind: 'count', note: 'Q×G, solo entrenamiento' },
     // Deformable DETR: muestreo disperso (convención del calculador: 4 MACs por lectura bilineal + 1 de la suma ponderada).
     samplesPerQuery: { label: 'Muestras por query', kind: 'count', note: 'h·L·K (cabezas × niveles × puntos)' },
@@ -283,7 +383,9 @@
     attnMacsShare: { label: 'Bloque de atención (con proyecciones)', kind: 'pct', note: '% de los MACs: QKᵀ, A·V y proyecciones Q, K, V, O' },
     // CLIP: la parte conjunta (depende del batch contrastivo B, no de la arquitectura)
     negatives: { label: 'Negativos por muestra', kind: 'count', note: 'B − 1' },
-    logitsMem: { label: 'Matriz de logits B×B', kind: 'bytes', note: 'B² valores, 2 bytes cada uno (bf16)' },
+    logitsMem: { label: 'Matriz de logits B×B', kind: 'bytes', note: 'B² valores, 2 bytes cada uno (bf16)',
+      labels: { 'grounding-dino': 'Logits Q×T', 'yolo-world': 'Logits A×V', yolov8: 'Logits A×K' },
+      notes: { 'grounding-dino': 'una puntuación por query y token de texto; fp16, B = 1', 'yolo-world': 'una puntuación por celda y palabra; fp16, B = 1', yolov8: 'una puntuación por celda y clase; fp16, B = 1' } },
     logitsMacs: { label: 'MACs de la matriz B×B', kind: 'ops', note: 'B²·E, el lote completo' },
     logitsMacsShare: { label: 'Matriz B×B en el forward del lote', kind: 'pct', note: '% de los MACs del lote (torres × B + B²·E)' },
     embBatchMem: { label: 'Embeddings del lote', kind: 'bytes', note: '2·B·E valores (imagen y texto), bf16' },
@@ -291,11 +393,15 @@
   };
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
-  const metricLabel = (k) => (METRICS[metricKey(k)] || {}).label || k;
+  // Etiqueta: la del modelo (labels[model]: «Celdas A» en YOLO) o la general.
+  const metricLabel = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.labels && model && m.labels[model]) || m.label || k; };
+  const UNIT_KIND = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count' };
   // Tipo de formato: el de METRICS; si la clave no está, por su nombre (las métricas que añade cada modelo
   // siguen la convención …Mem/…Cache = bytes, …Share = fracción, …Macs = MACs; como js/core/quantities.js).
   function metricKind(key) {
     const k = metricKey(key);
+    // Primero el mapa `units` del modelo (lo registra metrics()); luego METRICS; luego el nombre.
+    if (ARCH_UNITS[k] && UNIT_KIND[ARCH_UNITS[k]]) return UNIT_KIND[ARCH_UNITS[k]];
     if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
     if (/Share$/.test(k)) return 'pct';
@@ -303,7 +409,8 @@
     return 'count';
   }
   // Cociente con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5', 16 → '16'.
-  const fRatio = (v) => { const x = Number(v.toPrecision(3)); return Math.abs(x) >= 1000 ? fInt(x) : String(x); };
+  // Si el redondeo da un entero de una cifra que no es exacto (1.004), 2 decimales: '×1.00', no '×1'.
+  const fRatio = (v) => { const x = Number(v.toPrecision(3)); if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2); return Math.abs(x) >= 1000 ? fInt(x) : String(x); };
   // Lee una métrica: número, {bytes}, o función (attnMem(dtype), kvCache(B, ctx, dtype)…).
   function metricValue(m, key) {
     if (!m) return null;
@@ -542,28 +649,39 @@
     const knobs = (Array.isArray(block.knobs) && block.knobs.length ? block.knobs : Object.keys(mk).map((k) => ({ key: k })))
       .map((k) => {
         const values = (Array.isArray(k.values) && k.values.length ? k.values : (mk[k.key] || [])).slice();
-        const base = knobBase(cfg, k.key, values);
+        let base = knobBase(cfg, k.key, values);
+        // Sin base en la serie (resolución de una config no cuadrada): la base del explorador es la
+        // cuadrada de lado H (o la primera), y ese valor se manda siempre como override (forced).
+        let forced = false;
+        if (base == null && values.length) {
+          base = values.indexOf(cfg.H) >= 0 ? cfg.H : values.slice().sort((a, b) => a - b)[0];
+          forced = true;
+        }
         if (base != null && values.indexOf(base) < 0) values.push(base);
         values.sort((a, b) => a - b);
-        return { key: k.key, label: k.label || knobLabel(k.key), values, base };
+        return { key: k.key, label: k.label || knobLabel(k.key), values, base, forced };
       })
       .filter((k) => k.values.length > 0);
     const show = (Array.isArray(block.show) && block.show.length ? block.show : ['tokens', 'params', 'macs', 'attnMem']).map(metricKey);
     const cur = {};
     knobs.forEach((k) => { cur[k.key] = k.base; });
     let xKnob = knobs.length ? knobs[0].key : null;
+    const overrides = (o) => { const ov = {}; knobs.forEach((k) => { const v = (o || cur)[k.key]; if (v !== k.base || k.forced) ov[k.key] = v; }); return ov; };
+    // Base de las comparaciones: la config con los knobs base (con la cuadrada forzada, si la hay).
+    // Se calcula antes de clasificar las métricas: metrics() registra el mapa `units` del modelo.
+    const baseM = metrics(config, overrides());
+    const forcedKnob = knobs.find((k) => k.forced);
     const plottable = show.filter((k) => metricKind(k) !== 'pct');
     // Gráfica: MACs si están; si no, la primera memoria (CLIP: la curva B² de la matriz de logits); si no, otra.
     let chartMetric = plottable.indexOf('macs') >= 0 ? 'macs'
       : plottable.find((k) => metricKind(k) === 'bytes') || plottable.find((k) => k !== 'params') || plottable[0] || show[0];
-    const baseM = metrics(config, {});
-    const overrides = (o) => { const ov = {}; knobs.forEach((k) => { const v = (o || cur)[k.key]; if (v !== k.base) ov[k.key] = v; }); return ov; };
 
     const wrap = h('div', { class: 'pxs' });
     el.appendChild(wrap);
     const head = h('div', { class: 'pxs__head' },
       h('p', { class: 'px-k' }, 'Explorador de escalado'),
-      h('p', { class: 'pxs__cfg' }, h('span', { class: 'chip' }, cfgLabel(config)), h('span', { class: 'muted small' }, 'Cambia un knob: todo se recalcula con el calculador.')));
+      h('p', { class: 'pxs__cfg' }, h('span', { class: 'chip' }, cfgLabel(config)), h('span', { class: 'muted small' }, 'Cambia un knob: todo se recalcula con el calculador.')),
+      forcedKnob ? h('p', { class: 'pxs__base muted small' }, 'La config es de ' + cfg.H + '×' + cfg.W + ' (no cuadrada); aquí todas las imágenes son cuadradas y la base («vs base») es ' + knobShow(forcedKnob.key, forcedKnob.base) + '.') : null);
     const knobsEl = h('div', { class: 'pxs__knobs' });
     const knobNote = h('p', { class: 'pxs__knote muted small', 'aria-live': 'polite', hidden: true });
     const cardsEl = h('div', { class: 'pxs__cards', 'aria-live': 'polite' });
@@ -606,7 +724,7 @@
         } else {
           row.appendChild(h('div', { class: 'fchips', role: 'group', 'aria-labelledby': lid }, k.values.map((v) => {
             const why = cur[k.key] === v ? null : invalidReason(k.key, v);
-            const tip = why ? 'No disponible con los demás knobs: ' + why : v === k.base ? 'Valor de la config canónica' : null;
+            const tip = why ? 'No disponible con los demás knobs: ' + why : v === k.base ? (k.forced ? 'Base del explorador (la config es de ' + cfg.H + '×' + cfg.W + ')' : 'Valor de la config canónica') : null;
             // aria-disabled (no disabled): sigue enfocable y el motivo se lee/ve al tocarlo.
             return h('button', { type: 'button', class: 'fchip mono' + (v === k.base ? ' is-base' : '') + (why ? ' is-off' : ''), 'aria-pressed': String(cur[k.key] === v),
               'aria-disabled': why ? 'true' : null, title: tip,
@@ -633,7 +751,7 @@
       show.forEach((k) => {
         const v = metricValue(m, k), b = metricValue(baseM, k);
         cardsEl.appendChild(h('div', { class: 'pxs__card' + (k === chartMetric ? ' is-chart' : '') },
-          h('span', { class: 'pxs__ck' }, metricLabel(k)),
+          h('span', { class: 'pxs__ck' }, metricLabel(k, model)),
           h('span', { class: 'pxs__cv mono', title: fMetricExact(k, v) }, fMetric(k, v)),
           h('span', { class: 'pxs__cr mono' + (isChanged(k, v, b) ? ' is-changed' : '') }, fVsBase(k, v, b)),
           metricNote(k, model) ? h('span', { class: 'pxs__cn' }, metricNote(k, model)) : null));
@@ -655,8 +773,8 @@
         if (y != null && y > 0 && x > 0) pts.push({ x, y, on: x === cur[k.key] });
       });
       const seg = h('div', { class: 'seg pxs__seg', role: 'group', 'aria-label': 'Métrica de la gráfica' }, plottable.map((mk2) =>
-        h('button', { type: 'button', 'aria-pressed': String(mk2 === chartMetric), on: { click: () => { chartMetric = mk2; paint(); const b = chartEl.querySelector('[data-m="' + mk2 + '"]'); if (b) b.focus(); } }, dataset: { m: mk2 } }, metricLabel(mk2))));
-      chartEl.appendChild(h('div', { class: 'pxs__chead' }, h('span', { class: 'px-k' }, metricLabel(chartMetric) + ' vs ' + k.label + ' (log-log)'), seg));
+        h('button', { type: 'button', 'aria-pressed': String(mk2 === chartMetric), on: { click: () => { chartMetric = mk2; paint(); const b = chartEl.querySelector('[data-m="' + mk2 + '"]'); if (b) b.focus(); } }, dataset: { m: mk2 } }, metricLabel(mk2, model))));
+      chartEl.appendChild(h('div', { class: 'pxs__chead' }, h('span', { class: 'px-k' }, metricLabel(chartMetric, model) + ' vs ' + k.label + ' (log-log)'), seg));
       if (pts.length < 2) { chartEl.appendChild(h('p', { class: 'muted small' }, 'No hay suficientes puntos válidos para graficar.')); return; }
       const W = 360, H = 170, L = 52, Rm = 14, T = 12, B = 30;
       const lx = (x) => Math.log(x), xs = pts.map((p) => lx(p.x)), ys = pts.map((p) => Math.log(p.y));
@@ -666,7 +784,7 @@
       const X = (v) => L + ((v - x0) / (x1 - x0 || 1)) * (W - L - Rm);
       const Y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
       const slope = (ys[ys.length - 1] - ys[0]) / ((xs[xs.length - 1] - xs[0]) || 1);
-      let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="pxs__svg" role="img" aria-label="' + esc(metricLabel(chartMetric) + ' según ' + k.label + ': ' + pts.map((p) => knobShow(k.key, p.x) + ' → ' + fMetric(chartMetric, p.y)).join('; ')) + '" preserveAspectRatio="xMidYMid meet">';
+      let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="pxs__svg" role="img" aria-label="' + esc(metricLabel(chartMetric, model) + ' según ' + k.label + ': ' + pts.map((p) => knobShow(k.key, p.x) + ' → ' + fMetric(chartMetric, p.y)).join('; ')) + '" preserveAspectRatio="xMidYMid meet">';
       // rejilla y ejes
       svg += '<line x1="' + L + '" y1="' + (H - B) + '" x2="' + (W - Rm) + '" y2="' + (H - B) + '" class="pxs__axis"/>';
       svg += '<line x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (H - B) + '" class="pxs__axis"/>';
@@ -686,11 +804,24 @@
       });
       svg += '</svg>';
       chartEl.appendChild(h('div', { class: 'pxs__plot', html: svg }));
-      const slopeTxt = Math.abs(slope) < 0.02 ? 'casi constante: no depende de ' + k.label
-        : 'pendiente ≈ ' + slope.toFixed(2) + ' → ' + metricLabel(chartMetric) + ' ∝ ' + (k.key === 'res' ? 'res' : k.key) + '^' + slope.toFixed(1) + ' (×2 en ' + k.label + ' ⇒ ' + fFactor(Math.pow(2, slope)) + ')';
+      // Pendiente baja ≠ constante: YOLO-World con V de 80 a 1203 sube ×1.09 (solo los términos ∝ V).
+      // Se decide por el factor total entre el primer y el último punto, no solo por la pendiente.
+      const p0 = pts[0], p1 = pts[pts.length - 1], total = p1.y / p0.y;
+      const span = ' de ' + knobShow(k.key, p0.x) + ' a ' + knobShow(k.key, p1.x);
+      const why = slopeWhy(k.key, chartMetric);
+      const slopeTxt = Math.abs(total - 1) < 0.0005 ? 'constante: no depende de ' + k.label
+        : Math.abs(slope) < 0.1 ? 'crece poco: ' + fFactor(total) + span + (why ? ' — ' + why : '')
+        : 'pendiente ≈ ' + slope.toFixed(2) + ' → ' + metricLabel(chartMetric, model) + ' ∝ ' + (k.key === 'res' ? 'res' : k.key) + '^' + slope.toFixed(1) + ' (×2 en ' + k.label + ' ⇒ ' + fFactor(Math.pow(2, slope)) + ')';
       chartEl.appendChild(h('figcaption', { class: 'pxs__cap mono' }, slopeTxt));
     }
 
+    // Por qué una curva crece poco (knob con efecto pequeño sobre los MACs), según el modelo.
+    function slopeWhy(key, metric) {
+      if (metricKind(metric) !== 'ops') return '';
+      if (key === 'V' && model === 'yolo-world') return 'solo crecen los términos ∝ V: la similitud región-texto de la cabeza y la guía de texto del neck (max-sigmoid e IPA); backbone, convs y cabeza de cajas no dependen de V';
+      if (key === 'T' && model === 'grounding-dino') return 'solo crecen BERT, la fusión (la matriz h/2×N×T y sus A·V), la cross-attention de texto y los logits Q×T; Swin, la atención deformable y las FFN no dependen de T';
+      return '';
+    }
     // Segmentos del reparto de MACs según el modelo. Solo el encoder de DETR (y la atención global de
     // ViT/CLIP) crece ∝ N²: en DETR el decoder (cross ∝ Q·N, self ∝ Q²) va en su propio segmento, y en
     // Deformable DETR la atención es un muestreo disperso (∝ N·hLK), sin matriz N×N en el encoder.
@@ -698,6 +829,37 @@
       if (!m || !(m.macs > 0)) return null;
       const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
       const rest = (used, label) => ({ cls: 'l', label, v: Math.max(0, m.macs - used) });
+      // Grounding DINO: Swin-T · BERT · feature enhancer · decoder · cabezas (y el resto: proyección de
+      // imagen y query selection). Dentro del enhancer se nombran la fusión y el muestreo deformable.
+      if (num(m.imgBackboneMacs) != null && num(m.enhancerMacs) != null && num(m.textEncoderMacs) != null) {
+        const segs = [
+          { cls: 'b', label: 'Backbone de imagen Swin-T (∝ H·W)', v: m.imgBackboneMacs },
+          { cls: 't', label: 'Texto: BERT + proyección (∝ T, en cada imagen)', v: m.textEncoderMacs },
+          { cls: 'a', label: 'Feature enhancer (6 capas: fusión imagen ↔ texto ∝ N·T, self-attention deformable ∝ N, texto, FFN)', v: m.enhancerMacs },
+          { cls: 'd', label: 'Decoder (6 capas sobre las Q queries)', v: num(m.decoderMacs) || 0 },
+          { cls: 'h', label: 'Cabezas (contrastiva + cajas)', v: num(m.headMacs) || 0 },
+        ];
+        const used = segs.reduce((a, x) => a + x.v, 0);
+        segs.push(rest(used, 'Resto (proyección de imagen a D y query selection)'));
+        const extra = [];
+        if (num(m.fusionMacs) != null) extra.push('Dentro del enhancer: fusión imagen ↔ texto ' + fOps(m.fusionMacs) + ' (' + (Math.round((m.fusionMacs / m.macs) * 1000) / 10) + ' % del total)'
+          + (num(m.encSamplingMacs) != null ? ', muestreo deformable ' + fOps(m.encSamplingMacs) + ' (' + (Math.round((m.encSamplingMacs / m.macs) * 1000) / 10) + ' %)' : '') + '.');
+        return { title: 'Dónde se va el cómputo: Swin-T, BERT, feature enhancer, decoder y cabezas', segs, extra, noAttnNote: true };
+      }
+      // YOLOv8 / YOLO-World: backbone · neck · cabezas (sin atención densa).
+      if (num(m.neckMacs) != null && num(m.backboneMacs) != null && num(m.anchors) != null) {
+        const yw = model === 'yolo-world';
+        const segs = [
+          { cls: 'b', label: 'Backbone CSPDarknet hasta P5 (∝ H·W)', v: m.backboneMacs },
+          { cls: 'd', label: yw ? 'Neck RepVL-PAN (T-CSPLayers con max-sigmoid + image-pooling attention; ∝ H·W, la guía de texto ∝ V)' : 'Neck PAN-FPN con C2f (∝ H·W)', v: m.neckMacs },
+          { cls: 'h', label: yw ? 'Cabezas en P3–P5: cajas + texto (embedding de región · vocabulario, ∝ A·V)' : 'Cabezas en P3–P5: cajas + clases (∝ A)', v: num(m.headMacs) || 0 },
+        ];
+        const used = segs.reduce((a, x) => a + x.v, 0);
+        if (m.macs - used > 0.0005 * m.macs) segs.push(rest(used, 'Resto'));
+        const extra = [];
+        if (yw && num(m.fusionMacs) != null) extra.push('Fusión con el texto dentro del neck (max-sigmoid + IPA): ' + fOps(m.fusionMacs) + ' (' + (Math.round((m.fusionMacs / m.macs) * 1000) / 10) + ' %). El codificador de texto (CLIP) corre offline: 0 por imagen.');
+        return { title: 'Dónde se va el cómputo: backbone, neck y cabezas', segs, extra, noAttnNote: true };
+      }
       if (num(m.samplingMacs) != null) {
         const samp = m.samplingMacs, dself = num(m.decSelfScoreMacs) || 0;
         return { title: 'Dónde se va el cómputo: atención deformable vs el resto', segs: [
@@ -729,20 +891,24 @@
       const sp = splitSegments(m);
       const windowed = !!(m && m.windowScoreMacs != null);
       const deform = !!(m && typeof m.samplingMacs === 'number');
+      // Grounding DINO: el tensor de scores que crece con la imagen es el de la fusión (h/2×N×T).
+      const fusionMem = !!(m && typeof m.fusionAttnMem === 'number');
       // Deformable DETR no tiene attnMem (sin matriz N×N): su mayor tensor de scores es el h×Q×Q del decoder.
-      const memKey = deform ? 'decSelfAttnMem' : 'attnMem';
+      const memKey = fusionMem ? 'fusionAttnMem' : deform ? 'decSelfAttnMem' : 'attnMem';
       const mem = metricValue(m, memKey);
       const detrLike = !deform && !!(m && typeof m.encScoreMacs === 'number');
       if (!sp && mem == null) { splitEl.hidden = true; return; }
       splitEl.hidden = false;
       splitEl.appendChild(h('p', { class: 'px-k' }, sp ? sp.title : 'Dónde se va el cómputo'));
       if (sp) {
-        const segs = sp.segs.map((x) => Object.assign({}, x, { pct: Math.round((x.v / m.macs) * 1000) / 10 }));
-        splitEl.appendChild(h('div', { class: 'pxs__bar', role: 'img', 'aria-label': segs.map((x) => x.label.replace(/ \(.*$/, '') + ' ' + x.pct + ' %').join(', ') + ' de los MACs' },
+        // Un segmento que no llega a 0.05 % se escribe "< 0.1 %" (las cabezas de Grounding DINO), no "0 %".
+        const segs = sp.segs.map((x) => { const p = Math.round((x.v / m.macs) * 1000) / 10; return Object.assign({}, x, { pct: p, pctTxt: p === 0 && x.v > 0 ? '< 0.1' : String(p) }); });
+        splitEl.appendChild(h('div', { class: 'pxs__bar', role: 'img', 'aria-label': segs.map((x) => x.label.replace(/ \(.*$/, '') + ' ' + x.pctTxt + ' %').join(', ') + ' de los MACs' },
           segs.map((x) => h('span', { class: 'pxs__seg-' + x.cls, style: { width: Math.max(x.pct, 0.5) + '%' } }))));
-        const am = typeof m.attnMacsShare === 'number' && !deform ? Math.round(m.attnMacsShare * 1000) / 10 : null;
+        const am = typeof m.attnMacsShare === 'number' && !deform && !sp.noAttnNote ? Math.round(m.attnMacsShare * 1000) / 10 : null;
         splitEl.appendChild(h('ul', { class: 'pxs__legend' }, segs.map((x) =>
-          h('li', null, h('i', { class: 'pxs__sw pxs__sw--' + x.cls }), h('span', null, x.label + ': '), h('b', { class: 'mono' }, fOps(x.v) + ' · ' + x.pct + ' %')))));
+          h('li', null, h('i', { class: 'pxs__sw pxs__sw--' + x.cls }), h('span', null, x.label + ': '), h('b', { class: 'mono' }, fOps(x.v) + ' · ' + x.pctTxt + ' %')))));
+        (sp.extra || []).forEach((t) => splitEl.appendChild(h('p', { class: 'pxs__mem muted small' }, t)));
         if (am != null) splitEl.appendChild(h('p', { class: 'pxs__mem muted small' },
           'Otra métrica, no la confundas: el bloque de atención (con proyecciones Q, K, V, O) es ', h('b', { class: 'mono' }, am + ' %'), ' de los MACs.'));
       }
@@ -752,6 +918,7 @@
         splitEl.appendChild(h('p', { class: 'pxs__mem' },
           windowed ? 'Scores de atención — el mayor tensor nW×h×M²×M² de un bloque, en fp16 (2 bytes), B = 1: '
             : model === 'clip' ? 'Scores de atención — tensor h×N×N de una capa de la torre mayor, en fp16 (2 bytes), una muestra (no depende de B): '
+            : fusionMem ? 'Scores de la fusión imagen ↔ texto — tensor h/2×N×T de una capa (uno solo para i2t y t2i), en fp16 (2 bytes), B = 1; crece con N·T (el encoder de imagen es deformable, sin matriz N×N): '
             : detrLike ? 'Scores del encoder — tensor h×N×N de una capa, en fp16 (2 bytes), B = 1 (los de la cross-attention, h×Q×N, son menores): '
             : deform ? 'Scores de la self-attention del decoder — tensor h×Q×Q de una capa, en fp16 (2 bytes), B = 1 (el encoder deformable no tiene matriz N×N): '
             : 'Scores de atención — tensor h×N×N en fp16 (2 bytes), una capa, B = 1: ', h('b', { class: 'mono', title: fInt(mem) + ' bytes' }, fBytes(mem)),
@@ -1119,15 +1286,19 @@
     const lnParams = ops.filter((o) => o.prim === 'layernorm' || o.prim === 'rmsnorm').reduce((a, o) => a + o.params * times(o), 0);
     // Unidad de repetición: Swin repite PARES de bloques (W-MSA + SW-MSA); el resto, capas. El símbolo
     // sale de la torre (CLIP: L para la imagen, L_t para el texto), nunca de cfg.L a ciegas.
+    // Grounding DINO lleva un Swin-T de backbone (cfg.stages), pero sus capas de BERT, del enhancer y del
+    // decoder son capas, no pares: la unidad "par" solo vale para las ops de Swin (modelo swin o img-backbone).
     const cfg = R.config || {};
-    const isSwin = Array.isArray(cfg.stages);
-    const blocks = new Set(all.map((o) => (Array.isArray(o.where) && o.where[1]) || ''));
+    const isSwin = Array.isArray(cfg.stages) && (model === 'swin' || all.every((o) => ((o.path || [])[0]) === 'img-backbone'));
+    const blockOf = (o) => (Array.isArray(o.where) ? o.where.find((w) => /^bloque /.test(String(w))) : null) || '';
+    const blocks = new Set(all.map(blockOf));
     const pairUnit = isSwin && (blocks.size > 1 || group);
-    const txt = all.some((o) => (o.path || []).indexOf('txt-encoder') >= 0);
-    // Símbolo del número de capas (CLIP: L_t en la torre de texto; DETR: L_enc / L_dec).
     const inPath = (id) => all.every((o) => (o.path || []).indexOf(id) >= 0);
+    const txt = all.some((o) => (o.path || []).indexOf('txt-encoder') >= 0) || inPath('txt-backbone');
+    // Símbolo del número de capas (CLIP: L_t en la torre de texto; DETR: L_enc / L_dec; Grounding DINO:
+    // L_t en BERT, L_enc en el feature enhancer, L_dec en el decoder).
     const layerSym = txt ? (cfg.Lt != null ? ['L_t', cfg.Lt] : null)
-      : cfg.Lenc != null && inPath('encoder') ? ['L_enc', cfg.Lenc]
+      : cfg.Lenc != null && (inPath('encoder') || inPath('enhancer')) ? ['L_enc', cfg.Lenc]
       : cfg.Ldec != null && inPath('decoder') ? ['L_dec', cfg.Ldec]
       : cfg.L != null && !isSwin ? ['L', cfg.L] : null;
     const sym = layerSym && layerSym[1] === rep ? layerSym[0] + ' = ' + rep : '' + rep;
@@ -1148,13 +1319,23 @@
     const norm = (x) => low(x).replace(/[()[\],:·]/g, ' ').replace(/\s+/g, ' ').trim();
     let ctxParts = commonWhere(all).filter((w) => norm(base).indexOf(norm(w)) < 0);
     // "Patch merging" con contexto "Patch merging 2 (stage 2 → 3)": basta el contexto.
-    const lead = ctxParts.findIndex((w) => low(w).indexOf(low(base)) === 0);
+    // También "Imagen → texto" con contexto "fusión: imagen → texto" (Grounding DINO): basta el contexto.
+    // Y "Patch merging (concat 2×2 → …)" con contexto "Patch merging 1 (stage 1 → 2)" (op suelta de Grounding DINO).
+    const headOf = (x) => norm(x).replace(/\s+\d+(\s.*)?$/, '');
+    const leadOf = () => ctxParts.findIndex((w) => low(w).indexOf(low(base)) === 0 || (' ' + norm(w) + ' ').indexOf(' ' + norm(base) + ' ') >= 0
+      || (/\d/.test(w) && headOf(w) === norm(String(base).replace(/\s*\(.*\)$/, ''))));
+    const lead = leadOf();
     if (lead >= 0) { base = ctxParts[lead]; ctxParts = ctxParts.filter((_, i) => i !== lead); }
     // "W-MSA" con contexto "bloque 1 (W-MSA)": el paréntesis del contexto sobra ("bloque 1 · W-MSA").
     ctxParts = ctxParts.map((w) => { const pm = w.match(/^(.*\S)\s*\(([^()]*)\)$/); return pm && norm(pm[2]) === norm(base) ? pm[1] : w; });
     // "LayerNorm 1 (W-MSA)" con contexto "bloque 1 (W-MSA)": el paréntesis sobra.
     const par = ctxParts.length ? base.match(/^(.*\S)\s*\(([^()]*)\)$/) : null;
-    if (par && low(ctxParts.join(' ')).indexOf(low(par[2].split(/[ ,:]/)[0])) >= 0) base = par[1];
+    if (par && low(ctxParts.join(' ')).indexOf(low(par[2].split(/[ ,:]/)[0])) >= 0) {
+      base = par[1];
+      // "Self-attention (texto)" con contexto "texto: self-attention": sin el paréntesis, basta el contexto.
+      const l2 = leadOf();
+      if (l2 >= 0) { base = ctxParts[l2]; ctxParts = ctxParts.filter((_, i) => i !== l2); }
+    }
     const label = (ctxParts.length ? ctxParts.join(' · ') + ' · ' : '') + base;
     return { ops, total, group: whole, perLayer: !whole && rep > 1, repeat: rep, biases, lnParams, label, qual,
       unit: pairUnit ? 'par' : isSwin ? 'bloque' : 'capa', diagram: loc.diagram ? loc.diagram.id : null,
@@ -1558,6 +1739,7 @@
   //   factor de cambio. Si falta, «¿Cuántos…?» / «¿Cuánto…?» en la pregunta implica 'value'.
   function renderWhatIfItem(item, host, o) {
     const cfg = o.config;
+    const wm = modelOfConfig(cfg);
     const ask = metricKey(item.ask || 'macs');
     const base = metrics(cfg, {});
     let alt, err = null;
@@ -1567,13 +1749,13 @@
     const head = h('div', { class: 'pxd__meta' },
       o.showModel ? h('span', { class: 'chip chip--accent' }, o.showModel) : null,
       h('span', { class: 'chip' }, cfgLabel(cfg)), h('span', { class: 'chip chip--warn' }, changeText(item.change)));
-    const qHtml = fill(item.q || ('¿Qué pasa con ' + metricLabel(ask).toLowerCase() + ' si ' + changeText(item.change) + '?'), o.pageCtx);
+    const qHtml = fill(item.q || ('¿Qué pasa con ' + metricLabel(ask, wm).toLowerCase() + ' si ' + changeText(item.change) + '?'), o.pageCtx);
     const q = h('div', { class: 'pxw__q', html: qHtml });
     card.append(head, q);
     decorate(q);
     if (err) { warnBox(card, err.message || String(err)); return card; }
     const bv = metricValue(base, ask), av = metricValue(alt, ask);
-    if (bv == null || av == null) { warnBox(card, 'El calculador no da «' + metricLabel(ask) + '» para ' + cfgLabel(cfg) + '.'); return card; }
+    if (bv == null || av == null) { warnBox(card, 'El calculador no da «' + metricLabel(ask, wm) + '» para ' + cfgLabel(cfg) + '.'); return card; }
     const r = av / bv;
     const numeric = item.mode === 'numeric' || item.numeric === true;
     // Con opciones del autor, se pregunta lo que ellas expresan (factores) salvo expect explícito.
@@ -1607,7 +1789,7 @@
         h('tbody', null, rows.map((k) => {
           const b = metricValue(base, k), a = metricValue(alt, k);
           return h('tr', { class: k === ask ? 'is-ask' : null },
-            h('th', { scope: 'row' }, metricLabel(k)),
+            h('th', { scope: 'row' }, metricLabel(k, wm)),
             h('td', { class: 'mono num', title: fMetricExact(k, b) }, fMetric(k, b)),
             h('td', { class: 'mono num', title: fMetricExact(k, a) }, fMetric(k, a)),
             h('td', { class: 'mono num' }, metricKind(k) === 'pct' ? fVsBase(k, a, b).replace(' vs base', '') : b ? fFactor(a / b) : '—'));
@@ -1649,7 +1831,7 @@
           finish(op.ok, op.text);
         } } }, op.text));
       card.appendChild(h('div', { class: 'pxw__opts', role: 'group', 'aria-labelledby': gid },
-        h('span', { class: 'sr-only', id: gid }, expectValue ? 'Opciones: nuevo valor de ' + metricLabel(ask) : 'Opciones: factor de cambio en ' + metricLabel(ask)), btns));
+        h('span', { class: 'sr-only', id: gid }, expectValue ? 'Opciones: nuevo valor de ' + metricLabel(ask, wm) : 'Opciones: factor de cambio en ' + metricLabel(ask, wm)), btns));
     } else {
       const inp = h('input', { type: 'text', class: 'input pxd__in mono', id: uid('pxw-in'), autocomplete: 'off', spellcheck: 'false', inputmode: 'decimal',
         placeholder: expectValue ? (askKind === 'bytes' ? 'p. ej. 3.7 MB' : 'nuevo valor, p. ej. 785') : 'factor, p. ej. 4 o 1/4' });
@@ -1895,6 +2077,6 @@
     _blankKey: blankKey, _drillCandidates: drillCandidates, _factorOptions: factorOptions,
     _valueOptions: valueOptions, _fFactorOpt: fFactorOpt, _parseFactor: parseFactor, _parseBytes: parseBytes,
     _parseNum: parseNum, _gradeParams: gradeParams, _nodeParams: nodeParams, _asksValue: asksValue,
-    _changeText: changeText, _factPairs: factPairs, _drillFacts: (R, cand) => factPairs(R.config, drillSide(R, cand)), _metricKind: metricKind, _metricLabel: (k) => metricLabel(k), _metricNote: (k, model) => metricNote(k, model), _fMetric: fMetric,
+    _changeText: changeText, _factPairs: factPairs, _drillFacts: (R, cand) => factPairs(R.config, drillSide(R, cand)), _metricKind: metricKind, _metricLabel: (k, model) => metricLabel(k, model), _metricNote: (k, model) => metricNote(k, model), _fMetric: fMetric, _knobBase: knobBase,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

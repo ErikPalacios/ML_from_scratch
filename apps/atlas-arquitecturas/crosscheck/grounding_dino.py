@@ -1,6 +1,6 @@
 """Cross-check de Grounding DINO (SPEC §9.3, §16.1): HF transformers GroundingDinoForObjectDetection construido en
 código con Swin-T y BERT-base SIN pesos (SwinConfig y BertConfig por defecto, sin hub, sin tokenizer: los ids del
-prompt se arman a mano con los ids especiales de BERT). Escribe crosscheck/expected/grounding-dino-t.json.
+prompt se arman a mano con los ids especiales de BERT). Escribe crosscheck/expected/grounding-dino-t.json (896×1344) y grounding-dino-t-672 / -448 (mismo modelo, cuadradas).
 
 Uso: .venv/bin/python crosscheck/grounding_dino.py [configId ...]
 
@@ -24,7 +24,7 @@ from transformers.models.grounding_dino.modeling_grounding_dino import generate_
 from common import CUSTOM, n_params, versions, write_expected
 
 # configId → (H, W, T). Debe coincidir con js/arch/grounding-dino.js.
-CONFIGS = {"grounding-dino-t": (896, 1344, 16)}
+CONFIGS = {"grounding-dino-t": (896, 1344, 16), "grounding-dino-t-672": (672, 672, 16), "grounding-dino-t-448": (448, 448, 16)}
 T_CHECK = 64            # segunda pasada con otro largo de texto (override_checks)
 CLS, SEP, DOT = 101, 102, 1012
 

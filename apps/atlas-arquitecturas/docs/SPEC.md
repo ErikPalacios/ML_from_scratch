@@ -1009,7 +1009,9 @@ Phase 1–3 lessons apply (§14 intro; plus: diagram captions render — screens
 views → `scope`/`opsExact`/`costOf` and qualified deep links; byte metrics via `fmt.bytes`; labels with
 context prefixes so drills are unambiguous; practice METRICS need labels for every new metric shown).
 The page pair's thesis: **open-vocabulary detection** — the class head becomes a dot product with text
-embeddings; the two models sit at opposite ends of accuracy vs latency.
+embeddings; the two models sit at opposite ends of **deep fusion / phrase grounding vs fixed vocabulary
+/ latency** (not "accuracy vs speed": YOLO-World-L beats Grounding DINO-T/L on LVIS minival, Grounding
+DINO wins on COCO).
 
 ### 16.1 Grounding DINO — page `grounding-dino`, model `grounding-dino`
 Paper: Liu et al., *Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object
@@ -1024,8 +1026,8 @@ deformable self-attention; text: self-attention; image→text and text→image c
 tokens; positional part from the selected boxes, content part learned), **cross-modality decoder** 6
 layers (self-attention, text cross-attention, image deformable cross-attention, FFN), **contrastive
 classification head** (query · text-token similarity → logits over text tokens, not fixed classes;
-max-text-len 256) + box MLP. Training: focal loss on contrastive logits + L1 + GIoU, DINO contrastive
-denoising, sub-sentence text representation (attention mask so unrelated category names don't attend to
+max-text-len 256) + box MLP. Training: focal loss on contrastive logits + L1 + GIoU (contrastive
+denoising only in MM-Grounding-DINO, not in the paper's model), sub-sentence text representation (attention mask so unrelated category names don't attend to
 each other) — verify every detail against the paper and code before quoting.
 Reference implementation for the cross-check: HF `GroundingDinoForObjectDetection(GroundingDinoConfig(...))`
 built in code with non-pretrained Swin/BERT configs (no hub downloads). Params exact; deformable /
@@ -1079,3 +1081,69 @@ per-image text pass, with calculator numbers).
 - **content-gdino**: js/content/grounding-dino.js. **content-yoloworld**: js/content/yolo-world.js.
 - **orchestrator**: index.html lines + stubs, catalog (canonical ids, roadmap status), SPEC, integration;
   practice.js METRICS labels for new metrics if the arch agent lists them (or a fixer).
+
+## 17. Phase 5 shared facts — SAM + SAM 2 (every F5 agent MUST use exactly these)
+
+Phase 1–4 lessons apply (§14 intro, §16 intro). Thesis: **segmentation as a promptable query** —
+a heavy image encoder runs once; a light decoder answers each prompt in milliseconds; SAM 2 adds a
+**memory** so the same prompt follows an object through a video (bridge to tracking, F14).
+
+### 17.1 SAM — page `sam`, model `sam`
+Paper: Kirillov et al., *Segment Anything*, ICCV 2023, arXiv:2304.02643 (repo facebookresearch/segment-anything).
+Canonical **`sam-vit-h-1024`**: input 1024×1024×3 (long side resized to 1024, padded) → image encoder
+**ViT-H/16** MAE-pretrained (32 blocks, D=1280, 16 heads, windowed attention 14×14 with 4 global
+blocks, relative position embeddings) → 64×64×1280 → neck (1×1 conv → LN → 3×3 conv → LN) → image
+embedding **64×64×256**. Prompt encoder: points/boxes → random-Fourier positional encoding + learned
+type embeddings (sparse tokens); masks → conv downsampling to 64×64×256 added to the image embedding
+(else a learned "no-mask" embedding). Mask decoder: **two-way transformer** (2 layers, 256, 8 heads,
+MLP 2048, cross-attention with an internal downsample to 128): token self-attn → token→image
+cross-attn → MLP → image→token cross-attn; final token→image attention; output tokens = 4 mask tokens
+(1 single-mask + 3 multimask for ambiguity) + 1 IoU token; upscaling by 2 transposed convs to
+256×256×32; per-mask-token hypernetwork MLP → dot product → masks 256×256 (upsampled to the image);
+IoU head predicts mask quality. Training: SA-1B (11M images, 1.1B masks) built by a 3-stage data
+engine; loss focal:dice 20:1 + IoU MSE; interactive training with sampled prompts — verify every number.
+Other configs: `sam-vit-l-1024` (24 blocks, 1024), `sam-vit-b-1024` (12 blocks, 768); knobs `res`,
+`P` (points), `masks` (1 or 3). Reference: HF `SamModel(SamConfig(...))` built in code (no hub).
+Ids: overview `sam-overview` nodes `image`, `img-encoder` (expand `sam-encoder`), `neck`, `img-emb`,
+`prompts`, `prompt-enc`, `mask-in` (dense prompt), `mask-decoder` (expand `sam-mask-decoder`),
+`masks`, `iou`; `sam-encoder`: `patch-embed`, `pos-embed`, `win-blocks`, `global-blocks` (groups
+showing the 14×14 windows vs global layout), `neck`; `sam-mask-decoder`: `tokens` (output + prompt
+tokens), `two-way` (expand `sam-two-way`), `final-attn`, `upscale`, `hypernet`, `dot`, `iou-head`;
+`sam-two-way`: `tok-self`, `tok2img`, `mlp`, `img2tok`. Tensors: `x-img`, `patches`, `enc-out`
+(64×64×1280), `img-emb` (64×64×256), `sparse` (P×256), `dense` (64×64×256), `tokens` (5+P)×256,
+`up-emb` (256×256×32), `masks` (3×256×256), `iou` (3).
+
+### 17.2 SAM 2 — page `sam2`, model `sam2`
+Paper: Ravi et al., *SAM 2: Segment Anything in Images and Videos*, ICLR 2025, arXiv:2408.00714
+(repo facebookresearch/sam2; SAM 2.1 checkpoints share the architecture). Canonical **`sam2-hiera-l`**
+(Hiera-L image encoder, MAE-pretrained, hierarchical with stages at strides 4/8/16/32; FPN neck →
+256-d features; stride-16 features go to memory attention, strides 4 and 8 are high-resolution skips
+into the mask decoder), **memory attention** (4 transformer blocks: self-attn, cross-attn to the
+memory bank's spatial memories + object pointers, MLP; RoPE in attention), **memory encoder**
+(downsampled predicted mask + image embedding → light convs → 64-d memory features), **memory bank**
+(FIFO of up to N=6 recent frames + up to M prompted frames; object pointers = projected mask-decoder
+output tokens), mask decoder as SAM's + an **occlusion** head. Other configs: `sam2-hiera-t`,
+`sam2-hiera-s`, `sam2-hiera-bplus` (no "+" in ids). Knobs: `res`, `memFrames` (N), `ptrs` (object
+pointers). Reference: HF `Sam2Model(Sam2Config(...))` (and the video model if needed) built in code;
+params exact; FLOPs per frame with N memories (state how many) — verify every detail.
+Ids: overview `sam2-overview` (one frame t with the memory loop visible: `frame`, `img-encoder`
+(Hiera, expand optional), `fpn`, `memory-attn` (group ×4, expand `sam2-memory-attn`), `prompts`,
+`prompt-enc`, `mask-decoder`, `occlusion`, `masks`, `memory-encoder`, `memory-bank`, `obj-ptrs`, plus a
+recurrent edge to frame t+1 drawn as `control`/`skip`); `sam2-memory-attn`: `self-attn`,
+`cross-mem`, `mlp`.
+
+### 17.3 Visualizations
+`prompt-to-mask` (synthetic scene: click a point / drag a box → the 3 multimask outputs with predicted
+IoU, ambiguity explained; labelled "ilustrativo"), `windowed-global` (SAM's ViT-H: which blocks are
+windowed 14×14 vs global; cost per block from the calculator), `memory-bank` (timeline of video
+frames: prompted frames, FIFO recent memories, object pointers, occlusion; memory sizes from the
+calculator).
+
+### 17.4 Ownership in Phase 5
+- **arch**: js/arch/primitives.js (new primitives only), js/arch/sam.js (models `sam` and `sam2`),
+  tests, crosscheck/sam.py + expected JSONs, requirements pins.
+- **diagram**: engine extensions (only if needed), js/ui/viz/{prompt-to-mask,windowed-global,memory-bank}.js,
+  js/content/diagrams/{sam,sam2}.js, dev/diagram.html.
+- **content-sam**: js/content/sam.js. **content-sam2**: js/content/sam2.js.
+- **orchestrator**: index.html + stubs, catalog (canonical ids `sam-vit-h-1024`, `sam2-hiera-l`;
+  roadmap status), SPEC, practice METRICS labels for new metrics, integration.

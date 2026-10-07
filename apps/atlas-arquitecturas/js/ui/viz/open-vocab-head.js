@@ -11,6 +11,7 @@
    ("kitten", "gato") caen cerca; "animal" o "pet" entre gato y perro; una palabra desconocida, en una
    dirección al azar (coseno ≈ 0 con todo). α y β: valores ilustrativos. K, el ancho de los embeddings y
    los parámetros de cada cabeza salen del calculador (yolov8l-640 y yolo-world-l-640).
+   Pantallas angostas (< 640 px): la escena arriba y las dos cabezas debajo, a todo el ancho.
    params: { config:'yolo-world-l-640', anchor:'yolov8l-640', words:['person','car','dog','cat'] }
    No toca el DOM al cargar.
    ========================================================================== */
@@ -122,11 +123,18 @@
       const TXT = state.words.map(textEmb);
       const SF = scores(WFIX, false), ST = scores(TXT, true);
       stage.innerHTML = '';
-      const IX = 10, IY = 40, IW = 250, IH = 190;
-      const MX = IX + IW + 70, cw = 62, rh = 30;
-      const nW = state.words.length;
-      const Wd = MX + Math.max(FIXED.length + 2, nW) * cw + 20, Hh = IY + 28 + 2 * OBJECTS.length * rh + 82;
-      const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + Wd + ' ' + Hh, style: 'max-width:' + Wd + 'px;min-width:' + Math.min(Wd, 620) + 'px', role: 'group',
+      // pantallas angostas (< 640 px): la escena arriba y las dos cabezas debajo, a todo el ancho
+      const sw = stage.clientWidth || 900;
+      const narrow = sw < 640;
+      lastNarrow = narrow;
+      const nW = state.words.length, nCols = Math.max(FIXED.length + 2, nW);
+      const avail = Math.min(sw, 420) - 12;
+      const IX = narrow ? 6 : 10, IY = 40, IW = narrow ? Math.min(250, avail - 2) : 250, IH = Math.round(IW * 190 / 250);
+      const MX = narrow ? IX + 28 : IX + IW + 70, cw = narrow ? Math.max(34, Math.floor((avail - 28) / nCols)) : 62, rh = narrow ? 26 : 30;
+      const H0 = narrow ? IY + IH + 26 : 0;                                // las cabezas empiezan debajo de la escena
+      const Wd = narrow ? Math.max(MX + nCols * cw + 8, IX + IW + 8) : MX + nCols * cw + 20;
+      const Hh = narrow ? H0 + IY + 28 + 2 * OBJECTS.length * rh + 90 : IY + 28 + 2 * OBJECTS.length * rh + 82;
+      const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + Wd + ' ' + Hh, style: 'max-width:' + Wd + 'px' + (narrow ? '' : ';min-width:' + Math.min(Wd, 620) + 'px'), role: 'group',
         'aria-label': 'Cabeza de clases fija frente a cabeza de texto: ' + nW + ' palabras en el vocabulario abierto.' }, stage);
       t(svg, IX, 16, 'Regiones detectadas', 'viz-t');
       t(svg, IX, 31, 'un embedding por región', 'viz-s');
@@ -141,31 +149,37 @@
         t(svg, x0 + 4, y0 - 3, lab, 'viz-ov-rtxt');
       });
       // flechas región → cabezas
-      const y1 = IY + 28, y2 = y1 + OBJECTS.length * rh + 70;
-      V.svg('path', { d: 'M' + (IX + IW + 6) + ' ' + (IY + IH / 2) + 'H' + (MX - 46) + 'V' + (y1 + OBJECTS.length * rh / 2) + 'H' + (MX - 34), class: 'viz-ln' }, svg);
-      V.svg('path', { d: 'M' + (MX - 46) + ' ' + (IY + IH / 2) + 'V' + (y2 + OBJECTS.length * rh / 2) + 'H' + (MX - 34), class: 'viz-ln' }, svg);
-      [y1, y2].forEach((y) => V.svg('path', { d: 'M' + (MX - 28) + ' ' + (y + OBJECTS.length * rh / 2) + 'l-7 -4v8z', class: 'viz-head' }, svg));
+      const y1 = H0 + IY + 28, y2 = y1 + OBJECTS.length * rh + 70;
+      if (!narrow) {
+        V.svg('path', { d: 'M' + (IX + IW + 6) + ' ' + (IY + IH / 2) + 'H' + (MX - 46) + 'V' + (y1 + OBJECTS.length * rh / 2) + 'H' + (MX - 34), class: 'viz-ln' }, svg);
+        V.svg('path', { d: 'M' + (MX - 46) + ' ' + (IY + IH / 2) + 'V' + (y2 + OBJECTS.length * rh / 2) + 'H' + (MX - 34), class: 'viz-ln' }, svg);
+        [y1, y2].forEach((y) => V.svg('path', { d: 'M' + (MX - 28) + ' ' + (y + OBJECTS.length * rh / 2) + 'l-7 -4v8z', class: 'viz-head' }, svg));
+      }
+      const TX = narrow ? IX : MX - 26;                                    // x de los títulos de cada cabeza
 
       // ---- cabeza fija
-      t(svg, MX - 26, y1 - 30, 'Cabeza fija (detector clásico): K = ' + K + ' filas aprendidas', 'viz-t');
-      t(svg, MX - 26, y1 - 16, 'logit = W · e + b → sigmoide (W: K×D)', 'viz-s');
+      // la rejilla dibuja regiones en filas y clases/palabras en COLUMNAS (cada columna = una fila de W)
+      t(svg, TX, y1 - 30, narrow ? 'Cabeza fija: K = ' + K + ' clases aprendidas' : 'Cabeza fija (detector clásico): K = ' + K + ' clases aprendidas', 'viz-t');
+      t(svg, TX, y1 - 16, narrow ? 'logit = W·e + b → sigmoide (W: K×D)' : 'logit = W·e + b → sigmoide · columna = fila de W (K×D)', 'viz-s');
       FIXED.forEach((c, j) => t(svg, MX + j * cw + cw / 2, y1 - 3, c, 'viz-n', 'middle'));
-      t(svg, MX + FIXED.length * cw + cw / 2, y1 - 3, '… ' + (K - FIXED.length) + ' más', 'viz-s', 'middle');
+      t(svg, MX + FIXED.length * cw + cw / 2, y1 - 3, (narrow ? '…' : '… ') + (K - FIXED.length) + (narrow ? '' : ' más'), 'viz-s', 'middle');
       grid(svg, SF, MX, y1, cw, rh, FIXED.map(() => false), 'fija');
       if (state.added && !FIXED.some((c) => fold(c) === fold(state.added))) {
         const gx = MX + (FIXED.length + 1) * cw + 4;
         if (gx + cw < Wd) {
           V.svg('rect', { x: gx, y: y1 + 2, width: cw - 6, height: OBJECTS.length * rh - 4, rx: 3, class: 'viz-ov-nofila' }, svg);
-          t(svg, gx + (cw - 6) / 2, y1 - 3, state.added, 'viz-s', 'middle');
-          t(svg, gx + (cw - 6) / 2, y1 + OBJECTS.length * rh / 2 + 4, 'sin fila', 'viz-n', 'middle');
+          t(svg, gx + (cw - 6) / 2, y1 - 3, cw < 60 && state.added.length > 5 ? state.added.slice(0, 4) + '…' : state.added, 'viz-s', 'middle');
+          if (cw < 60) { t(svg, gx + (cw - 6) / 2, y1 + OBJECTS.length * rh / 2 - 3, 'sin', 'viz-n', 'middle'); t(svg, gx + (cw - 6) / 2, y1 + OBJECTS.length * rh / 2 + 11, 'fila', 'viz-n', 'middle'); }
+          else t(svg, gx + (cw - 6) / 2, y1 + OBJECTS.length * rh / 2 + 4, 'sin fila', 'viz-n', 'middle');
         }
       }
       // ---- cabeza de texto
-      t(svg, MX - 26, y2 - 30, 'Cabeza de texto: filas = encoder de texto(palabra)', 'viz-t');
-      t(svg, MX - 26, y2 - 16, 'logit = α · cos(e, t) + β → sigmoide · ' + nW + ' palabras', 'viz-s');
+      t(svg, TX, y2 - 30, narrow ? 'Cabeza de texto: columna = encoder(palabra)' : 'Cabeza de texto: una columna por palabra = encoder de texto(palabra)', 'viz-t');
+      t(svg, TX, y2 - 16, (narrow ? 'logit = α·cos(e, t) + β · ' : 'logit = α · cos(e, t) + β → sigmoide · ') + nW + ' palabras', 'viz-s');
       state.words.forEach((w, j) => {
         const b = V.svg('g', { class: 'viz-cell-btn', tabindex: 0, role: 'button', 'aria-label': 'Quitar la palabra ' + w }, svg);
-        const lab = w.length > 9 ? w.slice(0, 8) + '…' : w;
+        const maxc = narrow ? Math.max(3, Math.floor((cw - 14) / 6.6)) : 9;
+        const lab = w.length > maxc ? w.slice(0, maxc - 1) + '…' : w;
         t(b, MX + j * cw + cw / 2, y2 - 3, lab + ' ×', fold(w) === fold(state.added || '') ? 'viz-n viz-ov-new' : 'viz-n', 'middle');
         V.svg('rect', { x: MX + j * cw + 2, y: y2 - 15, width: cw - 4, height: 16, class: 'viz-ov-hit' }, b);
         const rm = () => { if (state.words.length <= 1) return; state.words.splice(j, 1); if (fold(state.added || '') === fold(w)) state.added = null; state.msg = ''; draw(); };
@@ -190,7 +204,7 @@
           const g = V.svg('g', { class: 'viz-cell-btn', tabindex: 0, role: 'img', 'aria-label': 'Cabeza ' + which + ', región ' + (i + 1) + ', columna ' + (j + 1) + ': coseno ' + v.c.toFixed(2) + ', puntaje ' + v.s.toFixed(2) }, svg);
           V.svg('rect', { x: X + j * cw + 2, y: Y + i * rh + 2, width: cw - 4, height: rh - 4, rx: 3, class: 'viz-ov-cell' + (isNew[j] ? ' viz-ov-cell--new' : ''),
             style: 'fill:color-mix(in srgb, var(--op-head) ' + Math.round(6 + 39 * v.s) + '%, var(--surface))' }, g);
-          t(g, X + j * cw + cw / 2, Y + i * rh + rh / 2 + 4, v.s.toFixed(2), v.s >= 0.5 ? 'viz-ov-v viz-ov-v--hi' : 'viz-ov-v', 'middle');
+          t(g, X + j * cw + cw / 2, Y + i * rh + rh / 2 + 4, cw < 44 ? v.s.toFixed(2).replace(/^0/, '') : v.s.toFixed(2), v.s >= 0.5 ? 'viz-ov-v viz-ov-v--hi' : 'viz-ov-v', 'middle');
           if (j === best && v.s >= 0.5) V.svg('rect', { x: X + j * cw + 1, y: Y + i * rh + 1, width: cw - 2, height: rh - 2, rx: 3, class: 'viz-ov-best' }, g);
         });
       });
@@ -206,15 +220,22 @@
       const qn = (run && run.quantities) || {};
       if (fixP) rk('cabeza fija de ' + ((base && base.label) || anchorId) + ' (conv 1×1 final, 3 niveles, K = ' + K + '):', fmt.int(fixP) + ' parámetros atados a esas K clases');
       if (qn.contrastiveHeadParams != null) rk('cabeza de texto de ' + ((run && run.label) || cfgId) + ' (α, β):', fmt.int(qn.contrastiveHeadParams) + ' parámetros');
-      if (vc) rk('vocabulario:', vc.join('×') + ' = ' + fmt.int(vc[0] * vc[1]) + ' números, calculados una vez' + (qn.promptTextMacs ? ' (' + fmt.si(qn.promptTextMacs) + ' MACs por palabra)' : ''));
+      if (vc) rk('vocabulario:', vc.join('×') + ' = ' + fmt.int(vc[0] * vc[1]) + ' números, calculados una vez' + (qn.promptTextMacs ? ' (' + fmt.si(qn.promptTextMacs) + ' MACs por palabra, rellenada a ' + (qn.clipT || 77) + ' tokens como en Ultralytics; el repo oficial rellena al nombre más largo y cuesta varias veces menos)' : ''));
       else if (c.V) rk('vocabulario:', 'V = ' + c.V + ' embeddings de texto');
       rk('clase nueva:', 'fija → re-entrenar · texto → 1 pasada del encoder de texto');
     }
     function argmax(a) { let b = 0; for (let i = 1; i < a.length; i++) if (a[i] > a[b]) b = i; return b; }
     function t(p, x, y, s, cls, anchor) { const e = V.svg('text', { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, class: cls, 'text-anchor': anchor || null }, p); e.textContent = s; return e; }
 
+    let lastNarrow = null;
     draw();
-    return { destroy() { wrap.remove(); } };
+    // redibuja si el ancho cruza el umbral (o si el primer dibujo se hizo sin ancho medido)
+    let ro = null;
+    if (root.ResizeObserver) {
+      ro = new ResizeObserver(() => { const nar = (stage.clientWidth || 900) < 640; if (stage.clientWidth && nar !== lastNarrow) draw(); });
+      ro.observe(stage);
+    }
+    return { destroy() { if (ro) ro.disconnect(); wrap.remove(); } };
   }
   let uid = 0;
 

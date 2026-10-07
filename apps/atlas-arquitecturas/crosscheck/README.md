@@ -38,7 +38,8 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   formas reales de cada llamada) se suma y las cabezas de las 5 capas intermedias (`flops_aux_heads_torch`,
   HF las aplica en cada forward) se restan: `flops_total = flops_counted_torch − aux + analítico`.
 - `grounding_dino.py` (fase 4): HF `GroundingDinoForObjectDetection._from_config(GroundingDinoConfig())` para
-  `grounding-dino-t` (896×1344, T = 16): Swin-T (`SwinConfig` por defecto, out_indices [2, 3, 4]) y BERT-base
+  `grounding-dino-t` (896×1344, T = 16) y el mismo modelo a 672×672 y 448×448 (`grounding-dino-t-672`, `-448`, para
+  comparar con YOLO-World-L @ 640 a escala parecida): Swin-T (`SwinConfig` por defecto, out_indices [2, 3, 4]) y BERT-base
   (`BertConfig` por defecto) SIN pesos, sin hub y sin tokenizer (los ids del prompt se arman con los ids especiales
   de BERT). `params_total` = HF − 1,536 (la `swin.layernorm` de SwinBackbone que el forward no usa;
   `params_total_hf_raw` guarda el crudo). FLOPs: + muestreo deformable analítico (12 llamadas) − cabezas de las 5

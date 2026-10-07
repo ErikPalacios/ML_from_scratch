@@ -802,8 +802,21 @@
     const isMap = spec.kind === 'map';
 
     // ---- grupos
+    // práctica: un grupo cuyos bloques son todos huecos de nombre no muestra su título ("Feature enhancer"
+    // alrededor del hueco de la capa del enhancer sería la respuesta)
+    const slotOnlyGroup = (r) => {
+      if (ctl.mode !== 'blank' || !r) return false;
+      const inside = (spec.nodes || []).filter((n) => {
+        const nr = geo.nodes[n.id];
+        if (!nr || n.op === 'io') return false;
+        const cx = nr.x + nr.w / 2, cy = nr.y + nr.h / 2;
+        return cx > r.x && cx < r.x + r.w && cy > r.y && cy < r.y + r.h;
+      });
+      return inside.length > 0 && inside.every((n) => { const s = slotFor(ctl, n.id); return s && s.ask === 'label'; });
+    };
     for (const g of spec.groups || []) {
       const r = geo.groups[g.id];
+      const hideTitle = slotOnlyGroup(r);
       // style:'batch' = marco discontinuo de la parte "con lote" (CLIP: donde las formas pasan a llevar B)
       if (g.style === 'batch') used.batch = true;
       // style:'train' = carril de "solo entrenamiento" (DETR: matching húngaro y pérdida), marco discontinuo gris
@@ -825,7 +838,7 @@
       }
       S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: 6, class: 'ad-frame' }, gg);
       if (g.modality) { used.mods.add(g.modality); S('rect', { x: r.x, y: r.y + 6, width: 4, height: r.h - 12, class: 'ad-stripe ad-mod--' + g.modality }, gg); }
-      if (g.label) {
+      if (g.label && !hideTitle) {
         const right = /right$/.test(g.labelPos || '');
         // títulos de región: encima de las aristas (capa de etiquetas) y con halo
         const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10, (g.labelPos || '').indexOf('bottom') === 0 ? r.y + r.h - 8 : r.y + 17, qText(g.label, ctl, spec), g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
@@ -840,7 +853,7 @@
         // total del bloque repetido (byNode); repeat.totalLabel = plantilla con {t}; sin línea si se repite 1 vez
         if (tn && ctl.mode !== 'blank' && !ctl.quiz && v !== 1) { const c = nodeCost(run, tn); if (c.total && c.total.params) txt(gg, r.x + r.w - 10, r.y + (tag.indexOf('_') >= 0 ? 34 : 31), String(g.repeat.totalLabel || '= {t} en total').replace('{t}', fsi(c.total.params)), 'ad-group-total', 'end'); }
       }
-      if (g.label2) txt(gg, r.x + 10, r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub');
+      if (g.label2 && !hideTitle) txt(gg, r.x + 10, r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub');
     }
 
     // ---- nodos
@@ -882,7 +895,10 @@
       if (rt.mod) used.mods.add(rt.mod); used.glyph = true;
       if (t.note) txt(gg, t.at.x * U, gy - gs.h - 7, qText(t.note, ctl, spec, cfg), 'ad-glyph-note', 'middle');
       if (t.show !== 'glyph' && !(ctl.blankHide && ctl.blankHide.nums.has(rt.num.join('×')))) {
-        if (t.labelSide === 'below') shapeLabel(ctl, gg, rt, t.at.x * U, gy - 4, 'below', t.id);
+        // en el mazo 'amat' la franja de modalidad de las columnas va DEBAJO del glifo (y + 2 … y + 7):
+        // la forma baja 7 px para no quedar encima de esas marcas
+        const axPad = t.glyph === 'amat' && t.axes && t.axes.cols ? 7 : 0;
+        if (t.labelSide === 'below') shapeLabel(ctl, gg, rt, t.at.x * U, gy - 4 + axPad, 'below', t.id);
         else if (t.labelSide === 'left') shapeLabel(ctl, gg, rt, gx - 2, gy - gs.h / 2, 'left', t.id);
         else shapeLabel(ctl, gg, rt, gx + gs.w, gy - gs.h / 2, 'right', t.id);
       }
@@ -890,6 +906,10 @@
     // ---- anotaciones (spec.notes): texto corto fijo en la grilla, p. ej. "stride 4" o el título de una
     // tira de comparación. Admite {{…}} del calculador (los números nunca se escriben a mano).
     for (const nt of spec.notes || []) {
+      // práctica (diagrama en blanco) y figuras de los drills: las notas suelen nombrar lo que se pregunta
+      // ("filas: queries · columnas: tokens del texto", "P3: 6,400 celdas…"); solo quedan los títulos y
+      // las marcadas keepInBlank
+      if ((ctl.mode === 'blank' || ctl.quiz) && !nt.keepInBlank && nt.cls !== 'title') continue;
       const s = strip(qResolve(nt.text, (ctl.opts && ctl.opts.config) || spec.config));
       if (!s) continue;
       // swatch: muestra de modalidad antes del texto (p. ej. "filas: imágenes" con la franja de --mod-img)
@@ -976,7 +996,9 @@
         }
         lines.forEach((ln, i) => txt(g, cx, y0 + i * 15, ln, 'ad-label', 'middle'));
         if (sub) txt(g, cx, y0 + lines.length * 15 + 0.5, sub, 'ad-sub', 'middle');
-        if (n.mini) drawMini(g, n.mini, r, used);
+        // un hueco que pide el NOMBRE del bloque no muestra su esquema en miniatura: los chips
+        // ("top-down: T-CSP ×2", "imagen ← texto"…) darían la respuesta
+        if (n.mini && !(slot && slot.ask === 'label')) drawMini(g, n.mini, r, used);
       }
       if (cost && cost.params > 0 && ctl.mode !== 'blank' && !ctl.quiz) {
         used.badge = true;

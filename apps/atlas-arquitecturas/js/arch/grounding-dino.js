@@ -42,7 +42,8 @@
 
    metrics() (además de las genéricas; B = 1 y bf16 por defecto). Unidades: …Macs = MACs, …Mem = bytes, …Share =
    fracción de los MACs totales, …Params = parámetros, ratios (units = 'ratio'): macsVsYolov8, paramsVsYolov8,
-   macsVsDetr, paramsVsDetr, macsVsYoloWorld; conteos: fusionAttnEntries, logitsElements, logitsPaddedElements,
+   macsVsDetr, paramsVsDetr, macsVsYoloWorld, paramsVsYoloWorld, macsVsYoloWorldAt672, macsVsYoloWorldAt448 (el mismo modelo a
+   672×672 y 448×448 contra YOLO-World-L @ 640; macsAt672 / macsAt448 son sus MACs); conteos: fusionAttnEntries, logitsElements, logitsPaddedElements,
    queries, imageTokens, textTokens.
      texto (se paga en CADA imagen): textEncoderMacs (BERT + proyección, T tokens), textEncoderParams,
        textEncoderMacsShare, textEncoderMacsMaxT (con T = 256)
@@ -518,7 +519,8 @@
     const WF = W('fusión imagen ↔ texto'), tf = FE + 'fusión · ';
     const iN = op('e-fus-ln-img', A.layernorm(img), ['fus-ln-img'], { out: 'i-enh-fus-ln', where: WF, label: 'LayerNorm de la imagen (antes de la fusión)', type: 'norm', group: 'norm', outMeta: L({ label: 'imagen normalizada', tex: '\\mathrm{LN}(v)' }, tf) });
     const tN = op('e-fus-ln-txt', A.layernorm(txt), ['fus-ln-txt'], { out: 't-enh-fus-ln', where: WF, label: 'LayerNorm del texto (antes de la fusión)', type: 'norm', group: 'norm', outMeta: L({ label: 'texto normalizado', tex: '\\mathrm{LN}(t)' }, tf) });
-    const i2 = ['i2t'], WI = W('fusión: imagen → texto'), ti = FE + 'imagen → texto · ';
+    // Flechas = sentido de la información, como el diagrama: i2t actualiza la imagen con el texto (imagen ← texto).
+    const i2 = ['i2t'], WI = W('fusión: imagen ← texto'), ti = FE + 'imagen ← texto · ';
     const Es = 'D_mlp/2';
     const q = op('e-i2t-q-proj', A.linear(iN, { dout: E, doutSym: Es }), i2.concat(['q-proj']), { out: 'i-enh-i2t-q', where: WI, label: 'Q desde la imagen (Linear D → D_mlp/2)', type: 'embed', group: 'attn', outMeta: L({ label: 'Q de la imagen', tex: 'vW_Q' }, ti) });
     const k = op('e-i2t-k-proj', A.linear(tN, { dout: E, doutSym: Es }), i2.concat(['k-proj']), { out: 't-enh-i2t-k', where: WI, label: 'K desde el texto (Linear D → D_mlp/2)', type: 'embed', group: 'attn', outMeta: L({ label: 'K del texto', tex: 'tW_K' }, ti) });
@@ -535,7 +537,7 @@
     const mi = op('e-i2t-merge', sym(A.merge_heads(zi, { Dsym: Es }), ['N', Es]), i2.concat(['merge']), { out: 'i-enh-i2t-z', where: WI, label: 'Concatenar cabezas', type: 'tensorop', group: 'attn', outMeta: L({ label: 'cabezas concatenadas', tex: 'Z' }, ti) });
     const oi = op('e-i2t-out-proj', A.linear(mi, { dout: c.D, doutSym: 'D' }), i2.concat(['out-proj']), { out: 'i-enh-i2t-o', where: WI, label: 'Proyección de salida (D_mlp/2 → D)', type: 'embed', group: 'attn', outMeta: L({ label: 'Δ de la imagen', tex: '\\Delta v' }, ti) });
     const gi = op('e-i2t-gamma', A.layer_scale(oi), i2.concat(['gamma']), { out: 'i-enh-i2t-g', where: WI, label: 'Layer scale γ_v (init 1e-4)', type: 'tensorop', group: 'attn', outMeta: L({ label: 'Δ escalado por γ_v', tex: '\\gamma_v\\,\\Delta v' }, ti) });
-    const t2 = ['t2i'], WT = W('fusión: texto → imagen'), tt = FE + 'texto → imagen · ';
+    const t2 = ['t2i'], WT = W('fusión: texto ← imagen'), tt = FE + 'texto ← imagen · ';
     const vi = op('e-t2i-v-proj', A.linear(iN, { dout: E, doutSym: Es }), t2.concat(['v-proj']), { out: 'i-enh-t2i-v', where: WT, label: 'V desde la imagen (Linear D → D_mlp/2)', type: 'embed', group: 'attn', outMeta: L({ label: 'V de la imagen', tex: 'vW_V^{v}' }, tt) });
     const vih = op('e-t2i-split', A.split_heads(vi, { h: hf, hSym: 'h/2', dhSym: String(E / hf) }), t2.concat(['split']), { out: 'i-enh-t2i-vh', where: WT, label: 'Separar en h/2 = ' + hf + ' cabezas', type: 'tensorop', group: 'attn', outMeta: L({ label: 'V de la imagen por cabeza', tex: 'V^{v}' }, tt) });
     const tr = op('e-t2i-transpose', A.transpose_scores(ss), t2.concat(['transpose']), { out: 't-enh-t2i-scores', where: WT, label: 'Los mismos scores, transpuestos (texto × imagen)', type: 'tensorop', group: 'attn', outMeta: L({ label: 'scores texto × imagen (transpuestos)', tex: '(QK^\\top)^\\top' }, tt) });
@@ -687,6 +689,12 @@
     configs: {
       'grounding-dino-t': Object.assign({}, base, { label: 'Grounding DINO-T @ 896×1344', H: 896, W: 1344, canonical: true,
         source: 'Liu et al. 2023/2024 (Grounding DINO-T: Swin-T + BERT-base, feature enhancer de 6 capas, query selection guiada por lenguaje, decoder cross-modal de 6 capas, 900 queries) y código oficial IDEA-Research/GroundingDINO; 896×1344 para que los 4 stages de Swin sean múltiplos de la ventana 7 (sin padding); cross-check HF GroundingDinoForObjectDetection(GroundingDinoConfig(...))' }),
+      // Mismo modelo a resoluciones cuadradas (múltiplos de 224) para comparar con YOLO-World-L @ 640 a escala parecida:
+      // 672×672 ≈ la misma resolución; 448×448 ≈ los mismos MACs. Los parámetros no cambian.
+      'grounding-dino-t-672': Object.assign({}, base, { label: 'Grounding DINO-T @ 672×672', H: 672, W: 672,
+        source: 'El mismo Grounding DINO-T (pesos idénticos) a 672×672: la resolución más cercana a 640 que deja los 4 stages de Swin múltiplos de la ventana 7 (21×21 en el stage 4). Para comparar con YOLO-World-L @ 640 a igual escala; cross-check HF GroundingDinoForObjectDetection(GroundingDinoConfig(...)) a 672×672' }),
+      'grounding-dino-t-448': Object.assign({}, base, { label: 'Grounding DINO-T @ 448×448', H: 448, W: 448,
+        source: 'El mismo Grounding DINO-T (pesos idénticos) a 448×448 (múltiplo de 224): a esta escala cuesta ≈ lo mismo que YOLO-World-L @ 640. Cross-check HF GroundingDinoForObjectDetection(GroundingDinoConfig(...)) a 448×448' }),
     },
     knobs: { T: [4, 16, 64, 256], res: [448, 672, 896, 1120], H: [448, 672, 896, 1120, 1344], W: [672, 896, 1344, 1568, 2016], Q: [300, 900], G: [1, 3, 7, 20] },
     resPairs: RES_PAIRS.map((p) => p.slice()),
@@ -833,7 +841,14 @@
       };
       if (y8) Object.assign(out, { yolov8Macs: y8.totals.macs, yolov8Params: y8.totals.params, macsVsYolov8: t.macs / y8.totals.macs, paramsVsYolov8: t.params / y8.totals.params });
       if (detr) Object.assign(out, { detrMacs: detr.totals.macs, detrParams: detr.totals.params, macsVsDetr: t.macs / detr.totals.macs, paramsVsDetr: t.params / detr.totals.params });
-      if (yw) Object.assign(out, { yoloWorldMacs: yw.totals.macs, yoloWorldParams: yw.totals.params, macsVsYoloWorld: t.macs / yw.totals.macs });
+      if (yw) {
+        // A escala parecida: el mismo modelo (mismos T, Q y G) a 672×672 (≈ la resolución de YOLO-World-L @ 640) y a 448×448.
+        const at = (res) => (c.H === res && c.W === res ? r : A.run(r.id, { H: res, W: res, T: c.T, Q: c.Q, G: c.G }));
+        const m672 = at(672), m448 = at(448);
+        Object.assign(out, { yoloWorldMacs: yw.totals.macs, yoloWorldParams: yw.totals.params, macsVsYoloWorld: t.macs / yw.totals.macs, paramsVsYoloWorld: t.params / yw.totals.params,
+          macsAt672: m672.totals.macs, macsAt448: m448.totals.macs,
+          macsVsYoloWorldAt672: m672.totals.macs / yw.totals.macs, macsVsYoloWorldAt448: m448.totals.macs / yw.totals.macs });
+      }
       out.scaling = RES_PAIRS.map(([H, W]) => {
         const m = A.run(r.id, { H, W, T: c.T, Q: Math.min(c.Q, 900), G: c.G });
         const nn = m.totals.byNode;
@@ -851,5 +866,7 @@
 
   // Unidades de las métricas que no siguen la convención de nombres (…Mem = bytes, …Share = fracción).
   const METRIC_UNITS = { macsVsYolov8: 'ratio', paramsVsYolov8: 'ratio', macsVsDetr: 'ratio', paramsVsDetr: 'ratio', macsVsYoloWorld: 'ratio',
+    paramsVsYoloWorld: 'ratio', macsVsYoloWorldAt672: 'ratio', macsVsYoloWorldAt448: 'ratio', macsAt672: 'macs', macsAt448: 'macs',
+    textEncoderMacsMaxT: 'macs', samplingShare: 'pct', fusionAttnMem: 'bytes',
     fusionAttnEntries: 'count', logitsElements: 'count', logitsPaddedElements: 'count', queries: 'count', imageTokens: 'count', textTokens: 'count' };
 })(typeof window !== 'undefined' ? window : globalThis);

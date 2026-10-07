@@ -1,7 +1,7 @@
 /* Atlas de Arquitecturas — tests/practice.test.cjs
    Drills de práctica (SPEC §8.2) sobre todos los modelos: la respuesta de cada drill de parámetros es
    lo que su diagrama muestra para el nodo, cada drill de formas se puede responder con su texto y los
-   datos de la tarjeta, y las métricas de DETR tienen etiqueta y formato. */
+   datos de la tarjeta, y las métricas de DETR y de la fase 4 tienen etiqueta y formato. */
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -20,7 +20,7 @@ function load() {
 }
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr'];
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world'];
 const diagrams = ATLAS.diagrams();
 
 // Lo que el diagrama escribe para un nodo (archdiagram.js nodeCost): por capa si todas las ops se
@@ -165,4 +165,80 @@ test('fase 4: toda forma de Grounding DINO, YOLOv8 y YOLO-World sale de los dato
   const f = Object.fromEntries(P._factPairs(A.run('grounding-dino-t').config));
   assert.deepStrictEqual([f.T, f.Q, f.L, f.K, f.C, f.D, f.N], [16, 900, 4, 4, 96, 256, 24990]);
   assert.strictEqual(Object.fromEntries(P._factPairs(A.run('yolo-world-l-640').config)).V, 80);
+});
+
+test('fase 4: drills de parámetros de Grounding DINO con capas (no pares de Swin) y su símbolo', () => {
+  const R = A.run('grounding-dino-t');
+  const prompts = P._drillCandidates([{ model: 'grounding-dino', configs: ['grounding-dino-t'], pool: 'all' }], ['params'])
+    .map((c) => { const np = P._nodeParams(R, 'grounding-dino', c.node); return { id: c.id, np, prompt: np.label + np.qual }; });
+  assert.ok(prompts.length > 30, prompts.length + ' drills');
+  for (const { id, np, prompt } of prompts) {
+    // "pares" / "stage" solo para las ops del backbone Swin-T
+    if (!/img-backbone|merge/.test(id) && !/Swin/.test(np.label)) {
+      assert.ok(!/pares|pareja|el stage/.test(prompt), id + ': «' + prompt + '»');
+      assert.notStrictEqual(np.unit, 'par', id);
+    }
+  }
+  const by = Object.fromEntries(prompts.map((x) => [x.id.split(':')[1], x]));
+  assert.match(by.enhancer.prompt, /L_enc = 6/);
+  assert.match(by.decoder.prompt, /L_dec = 6/);
+  assert.match(by['txt-backbone'].prompt, /L_t = 12/);
+  assert.strictEqual(by['txt-self'].prompt, 'Feature enhancer · texto: self-attention (una sola capa; hay L_enc = 6)');
+  // Swin sigue con su unidad de pares
+  const S = A.run('swin-t-224');
+  const sw = P._drillCandidates([{ model: 'swin', configs: ['swin-t-224'], pool: 'all' }], ['params']).map((c) => P._nodeParams(S, 'swin', c.node));
+  assert.ok(sw.some((np) => np.unit === 'par' || /pares/.test(np.qual)));
+});
+
+test('fase 4: métricas con etiqueta, tipo (units del calculador) y formato', () => {
+  const skip = /^(id|B|bytesPerElement|crossover|scoreToLinear)/;
+  for (const cfg of ['grounding-dino-t', 'grounding-dino-t-672', 'yolo-world-l-640', 'yolov8l-640']) {
+    const model = A.run(cfg).model;
+    const m = A.metrics(cfg, {});
+    for (const k of Object.keys(m)) {
+      if (typeof m[k] !== 'number' || skip.test(k)) continue;
+      assert.notStrictEqual(P._metricLabel(k, model), k, cfg + ': sin etiqueta: ' + k);
+      // el mapa units del calculador manda
+      const u = m.units && m.units[k];
+      const want = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count' }[u];
+      if (want) assert.strictEqual(P._metricKind(k), want, cfg + ' ' + k);
+    }
+  }
+  for (const k of ['macsVsYolov8', 'paramsVsYolov8', 'macsVsDetr', 'paramsVsDetr', 'macsVsYoloWorld', 'paramsVsYoloWorld', 'macsVsYoloWorldAt672', 'macsVsYoloWorldAt448',
+    'vocabTextToOnline', 'gdinoToYoloWorldMacs', 'gdino672ToYoloWorldMacs', 'gdino448ToYoloWorldMacs', 'detrToYoloWorldMacs', 'yoloWorldToYolov8Macs', 'detrToYolov8Macs']) assert.strictEqual(P._metricKind(k), 'ratio', k);
+  for (const k of ['fusionMacsShare', 'textEncoderMacsShare', 'samplingShare', 'enhancerMacsShare', 'neckMacsShare']) assert.strictEqual(P._metricKind(k), 'pct', k);
+  for (const k of ['fusionAttnMem', 'decTextAttnMem', 'txtSelfAttnMem']) assert.strictEqual(P._metricKind(k), 'bytes', k);
+  for (const k of ['textEncoderMacsMaxT', 'gdino672Macs', 'macsAt672', 'deltaMacsVsYolov8']) assert.strictEqual(P._metricKind(k), 'ops', k);
+  const g = A.metrics('grounding-dino-t', {}), y = A.metrics('yolo-world-l-640', {});
+  assert.match(P._fMetric('macsVsYolov8', g.macsVsYolov8), /^×5\.\d+$/);
+  assert.strictEqual(P._fMetric('gdino448ToYoloWorldMacs', y.gdino448ToYoloWorldMacs), '×1.00');
+  assert.strictEqual(P._fMetric('gdino672ToYoloWorldMacs', y.gdino672ToYoloWorldMacs), '×2.05');
+  assert.match(P._fMetric('fusionAttnMem', g.fusionAttnMem), /MB$/);
+  // tokens: nota y etiqueta por modelo (sin «incluye CLS»)
+  assert.match(P._metricNote('tokens', 'grounding-dino'), /4 niveles.*sin CLS/);
+  for (const md of ['yolo-world', 'yolov8']) {
+    assert.match(P._metricNote('tokens', md), /P3–P5/);
+    assert.doesNotMatch(P._metricNote('tokens', md), /CLS\)/);
+    assert.strictEqual(P._metricLabel('tokens', md), 'Celdas A (P3–P5)');
+  }
+  // cantidades en prosa: el cociente casi entero lleva 2 decimales; los demás, 3 cifras
+  const Q = ATLAS.Quantities;
+  assert.strictEqual(Q.get('yolo-world-l-640.metrics.gdino448ToYoloWorldMacs').text, '1.00');
+  assert.strictEqual(Q.get('grounding-dino-t-672.metrics.macsVsYoloWorld').text, '2.05');
+  assert.strictEqual(Q.get('grounding-dino-t.metrics.macsVsYoloWorldAt672').text, '2.05');
+  assert.strictEqual(Q.get('grounding-dino-t-672.macs.totalG').text, '181.68 G');
+});
+
+test('fase 4: configs a resolución comparable y base cuadrada del explorador', () => {
+  // mismo modelo (mismos parámetros) a 672×672 y 448×448; la canónica sigue siendo 896×1344
+  assert.strictEqual(A.canonical('grounding-dino'), 'grounding-dino-t');
+  const t = A.run('grounding-dino-t'), t672 = A.run('grounding-dino-t-672'), t448 = A.run('grounding-dino-t-448');
+  assert.deepStrictEqual([t672.totals.params, t448.totals.params], [t.totals.params, t.totals.params]);
+  assert.strictEqual(t672.totals.macs, A.run('grounding-dino-t', { res: 672 }).totals.macs);
+  assert.deepStrictEqual([t672.config.N, t448.config.N], [9382, 4165]);
+  // knobBase: la resolución de una config no cuadrada no tiene base en la serie cuadrada
+  assert.strictEqual(P._knobBase(t.config, 'res', [448, 672, 896, 1120]), null);
+  assert.strictEqual(P._knobBase(t672.config, 'res', [448, 672, 896, 1120]), 672);
+  assert.strictEqual(P._knobBase(A.run('swin-t-224').config, 'res', [224, 384]), 224);
+  assert.strictEqual(P._knobBase(A.run('yolo-world-l-640').config, 'res', [320, 640]), 640);
 });
