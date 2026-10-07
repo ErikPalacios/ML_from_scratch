@@ -9,7 +9,10 @@
    config (56×56, 28×28, 14×14, 7×7 con M = 7 en Swin-T). Los números (tokens, ventanas, M,
    puntuaciones por cabeza, la comparación con atención global) salen del calculador
    (ATLAS.Arch.run / metrics); la rejilla 8×8 se marca "ilustrativo".
-   Toca (o enfoca y pulsa Enter) una ventana para ver su máscara. No toca el DOM al cargar.
+   Toca (o enfoca y pulsa Enter) una ventana para ver su máscara. Las ventanas se nombran por posición
+   (fila, columna) y las regiones del roll como r0…r8, para no confundir unas con otras.
+   Con < 600 px de ancho los paneles se apilan en vertical (la máscara no queda fuera de la pantalla).
+   No toca el DOM al cargar.
    params: { config:'swin-t-224', grid:'demo'|1|2|3|4 (etapa), mode:'regular'|'shifted' }
    ========================================================================== */
 (function (root) {
@@ -82,6 +85,8 @@
       return Object.assign({ demo: false }, stages.find((s) => s.k === state.grid) || stages[0]);
     }
 
+    const winName = (wi, wj) => '(fila ' + (wi + 1) + ', col ' + (wj + 1) + ')';
+    let lastNarrow = null;
     function draw() {
       bMode.forEach((b) => b.setAttribute('aria-pressed', String(b._m === state.mode)));
       bGrid.forEach((b) => b.setAttribute('aria-pressed', String(b._g === state.grid)));
@@ -89,21 +94,34 @@
       tag.hidden = !g.demo;
       const H = g.res, M = g.M, n = H / M, s = state.mode === 'shifted' ? g.shift : 0;
       const shifted = state.mode === 'shifted' && s > 0;
+      const noShift = state.mode === 'shifted' && s === 0;   // SW-MSA en un mapa de una sola ventana (stage 4)
       if (state.win == null || state.win >= n * n) state.win = shifted ? n * n - 1 : 0;   // por defecto: la ventana de la esquina (4 regiones)
       stage.innerHTML = '';
+      const narrow = (stage.clientWidth || wrap.clientWidth || 800) < 600;
+      lastNarrow = narrow;
       const S = 228;                                   // lado de cada panel (px)
       const cs = S / H;                                // lado de un token
-      const PAD = 8, TOP = 50, GAP = 70;
+      const PAD = 8, TT = 50, GAP = 96, GAPV = 104;     // TT = alto de los títulos de panel
       const MS = Math.min(S, Math.max(176, M * M * 4)); // lado de la máscara
-      const W = PAD + S + GAP + (shifted ? S + GAP : 0) + Math.max(MS, 262) + PAD;
-      const Hh = TOP + Math.max(S, MS + 40) + 8;
-      const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' ' + Hh, style: 'max-width:' + W + 'px;min-width:' + Math.min(W, 600) + 'px', role: 'group',
+      const KEYH = 64;                                 // pie de la máscara: conteo + leyenda de colores
+      // posiciones (x, y = esquina superior izquierda del panel)
+      const pA = { x: PAD, y: TT };
+      const pB = shifted ? (narrow ? { x: PAD, y: pA.y + S + GAPV } : { x: pA.x + S + GAP, y: TT }) : null;
+      const prev = pB || pA;
+      const pC = narrow ? { x: PAD, y: prev.y + S + GAPV } : { x: prev.x + S + GAP, y: TT };
+      const W = narrow ? PAD + Math.max(S, MS, 262) + PAD : pC.x + Math.max(MS, 262) + PAD;
+      const Hh = narrow ? pC.y + MS + KEYH : TT + Math.max(S, MS + KEYH) + 8;
+      const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' ' + Hh, style: 'max-width:' + W + 'px' + (narrow ? '' : ';min-width:' + Math.min(W, 600) + 'px'), role: 'group',
         'aria-label': (shifted ? 'Ventanas desplazadas' : 'Ventanas regulares') + ' sobre un mapa de ' + H + '×' + H + ' tokens con M = ' + M }, stage);
+      const title = (p, a, b) => { txt(svg, p.x, p.y - 34, a, 'viz-t'); txt(svg, p.x, p.y - 17, b, 'viz-s'); };
+      const link = (p, q, label, label2) => (narrow ? arrowV(svg, p.x + S / 2, p.y + S + 6, q.y - 50, label, label2) : arrow(svg, p.x + S + 8, p.y + S / 2, q.x - 8, label, label2));
 
       // ---------- panel A: partición sobre el mapa original
-      const ax = PAD, ay = TOP;
-      txt(svg, ax, 16, shifted ? '1 · Ventanas corridas ⌊M/2⌋ = ' + s : '1 · Ventanas regulares M×M', 'viz-t');
-      txt(svg, ax, 33, shifted ? 'sin roll: ' + (n + 1) + '×' + (n + 1) + ' ventanas desiguales' : n + '×' + n + ' = ' + n * n + ' ventanas de ' + M + '×' + M + ' tokens', 'viz-s');
+      const ax = pA.x, ay = pA.y;
+      const nw = n * n + (n * n === 1 ? ' ventana' : ' ventanas');
+      if (shifted) title(pA, '1 · Ventanas corridas ⌊M/2⌋ = ' + s, 'sin roll: ' + (n + 1) + '×' + (n + 1) + ' ventanas desiguales');
+      else if (noShift) title(pA, '1 · SW-MSA sin desplazamiento: una sola ventana', 'el mapa (' + H + '×' + H + ') cabe en una ventana: shift 0');
+      else title(pA, '1 · Ventanas regulares M×M', n + '×' + n + ' = ' + nw + ' de ' + M + '×' + M + ' tokens');
       if (shifted) drawRegions(svg, ax, ay, cs, H, M, s, false);
       else V.svg('rect', { x: ax, y: ay, width: S, height: S, class: 'viz-sw-r0' }, svg);
       tokenGrid(svg, ax, ay, cs, H);
@@ -111,17 +129,15 @@
       let d = '';
       const cuts = shifted ? [s].concat(range(n - 1).map((i) => s + (i + 1) * M)) : range(n - 1).map((i) => (i + 1) * M);
       for (const c of cuts) d += 'M' + (ax + c * cs) + ' ' + ay + 'V' + (ay + S) + 'M' + ax + ' ' + (ay + c * cs) + 'H' + (ax + S);
-      V.svg('path', { d, class: 'viz-sw-win' }, svg);
+      if (d) V.svg('path', { d, class: 'viz-sw-win' }, svg);
       V.svg('rect', { x: ax, y: ay, width: S, height: S, class: 'viz-sw-frame' }, svg);
       if (!shifted) windowButtons(svg, ax, ay, cs, n, M, false);
 
       // ---------- panel B: tras el roll (solo SW-MSA)
-      let mx = ax + S + GAP;
       if (shifted) {
-        const bx = mx, by = TOP;
-        arrow(svg, ax + S + 8, ay + S / 2, bx - 8, 'roll', '(−' + s + ', −' + s + ')');
-        txt(svg, bx, 16, '2 · Desplazamiento cíclico', 'viz-t');
-        txt(svg, bx, 33, 'otra vez ' + n + '×' + n + ' ventanas regulares', 'viz-s');
+        const bx = pB.x, by = pB.y;
+        link(pA, pB, 'roll', '(−' + s + ', −' + s + ')');
+        title(pB, '2 · Desplazamiento cíclico', 'otra vez ' + n + '×' + n + ' ventanas regulares');
         drawRegions(svg, bx, by, cs, H, M, s, true);
         tokenGrid(svg, bx, by, cs, H);
         let d2 = '';
@@ -129,18 +145,16 @@
         V.svg('path', { d: d2, class: 'viz-sw-win' }, svg);
         V.svg('rect', { x: bx, y: by, width: S, height: S, class: 'viz-sw-frame' }, svg);
         windowButtons(svg, bx, by, cs, n, M, true);
-        mx = bx + S + GAP;
-        arrow(svg, bx + S + 8, by + S / 2, mx - 8, 'máscara');
-      } else arrow(svg, ax + S + 8, ay + S / 2, mx - 8, 'atención', 'por ventana');
+        link(pB, pC, 'máscara');
+      } else link(pA, pC, 'atención', 'por ventana');
 
       // ---------- panel C: máscara de la ventana elegida (M² × M²)
       const wi = Math.floor(state.win / n), wj = state.win % n;
       const toks = [];
       for (let a = 0; a < M; a++) for (let b = 0; b < M; b++) toks.push(shifted ? regionRolled(wi * M + a, wj * M + b, H, M, s) : 0);
       const L = M * M, mc = MS / L;
-      const cy = TOP;
-      txt(svg, mx, 16, (shifted ? '3' : '2') + ' · Máscara de la ventana ' + (state.win + 1), 'viz-t');
-      txt(svg, mx, 33, 'M²×M² = ' + L + '×' + L + ' (fila = query)', 'viz-s');
+      const mx = pC.x, cy = pC.y;
+      title(pC, (shifted ? '3' : '2') + ' · Máscara de la ventana ' + (n * n === 1 ? '(la única)' : winName(wi, wj)), 'M²×M² = ' + L + '×' + L + ' (fila = query, col = key)');
       let allowed = 0;
       let dOn = '', dOff = '';
       for (let p = 0; p < L; p++) for (let q = 0; q < L; q++) {
@@ -154,12 +168,26 @@
       V.svg('rect', { x: mx, y: cy, width: MS, height: MS, class: 'viz-sw-frame' }, svg);
       const regs = Array.from(new Set(toks)).sort();
       txt(svg, mx, cy + MS + 18, allowed === L * L ? 'todo permitido: ' + fmt.int(L * L) + ' pares' : 'permitidos ' + fmt.int(allowed) + ' de ' + fmt.int(L * L), 'viz-n');
-      txt(svg, mx, cy + MS + 34, allowed === L * L ? (shifted ? 'una sola región' : 'sin máscara') : 'regiones ' + regs.join(', ') + '; el resto, −100', 'viz-s');
+      txt(svg, mx, cy + MS + 34, allowed === L * L ? (shifted ? 'una sola región' : 'sin máscara') : 'regiones ' + regs.map((r) => 'r' + r).join(', ') + ' en esta ventana', 'viz-s');
+      // leyenda de colores de la máscara (no solo en el texto)
+      const ky = cy + MS + 44;
+      V.svg('rect', { x: mx, y: ky, width: 11, height: 11, class: 'viz-mask-on' }, svg);
+      txt(svg, mx + 16, ky + 9.5, shifted ? 'misma región: +0' : 'permitido: +0', 'viz-s');
+      if (shifted) {
+        V.svg('rect', { x: mx + 136, y: ky, width: 11, height: 11, class: 'viz-mask-off' }, svg);
+        txt(svg, mx + 152, ky + 9.5, 'distinta: −100', 'viz-s');
+      }
 
-      readout(g, n, s, shifted, allowed, L);
+      readout(g, n, s, shifted, allowed, L, wi, wj);
+    }
+    // el ancho del contenedor decide la disposición (horizontal / vertical): se redibuja al cruzar 600 px
+    let ro = null;
+    if (root.ResizeObserver) {
+      ro = new ResizeObserver(() => { const nar = (stage.clientWidth || 800) < 600; if (lastNarrow !== null && nar !== lastNarrow) draw(); });
+      ro.observe(stage);
     }
 
-    function readout(g, n, s, shifted, allowed, L) {
+    function readout(g, n, s, shifted, allowed, L, wi, wj) {
       out.innerHTML = '';
       const kv = (k, v) => { const sp = V.html('span', null, out); sp.innerHTML = k + ' <b>' + v + '</b>'; };
       const T = g.res * g.res;
@@ -171,12 +199,12 @@
       const win = n * n * L * L, glob = T * T;
       const t = g.scoresT;
       if (t && t.num && !g.demo) kv('QKᵀ (calculador):', fmt.shape(t, 'sym') + ' = ' + fmt.shape(t, 'num'));
-      kv('puntuaciones por cabeza:', fmt.int(win) + ' (ventanas) vs ' + fmt.int(glob) + ' (global) → ' + (glob / win).toFixed(glob / win >= 10 ? 0 : 1) + '× menos');
+      kv('puntuaciones por cabeza:', fmt.int(win) + ' (ventanas) vs ' + fmt.int(glob) + ' (global)' + (glob > win ? ' → ' + (glob / win).toFixed(glob / win >= 10 ? 0 : 1) + '× menos' : ': iguales (una sola ventana = atención global)'));
       const ps = met && met.stages && !g.demo ? met.stages[g.k - 1] : null;
       if (ps && ps.scoreMacs != null && ps.globalScoreMacs != null) kv('MACs de QKᵀ + A·V por bloque (calculador):', fmt.si(ps.scoreMacs) + ' vs ' + fmt.si(ps.globalScoreMacs) + ' con atención global');
-      if (shifted) kv('ventana ' + (state.win + 1) + ':', fmt.int(allowed) + ' de ' + fmt.int(L * L) + ' pares permitidos');
+      if (shifted) kv('ventana ' + winName(wi, wj) + ':', fmt.int(allowed) + ' de ' + fmt.int(L * L) + ' pares permitidos');
       const how = shifted
-        ? ' Colores y números = las 9 regiones del roll (como el img_mask de timm): solo se atienden entre sí los tokens de la misma región; el resto recibe −100 antes de la softmax. Las ventanas que mezclan regiones son las del borde derecho e inferior tras el roll.'
+        ? ' Colores y etiquetas r0…r8 = las 9 regiones del roll (como el img_mask de timm): solo se atienden entre sí los tokens de la misma región; el resto recibe −100 antes de la softmax. Las ventanas que mezclan regiones son las del borde derecho e inferior tras el roll.'
         : ' Cada token atiende solo a los M² tokens de su ventana: el costo de QKᵀ crece lineal con el número de tokens (M fijo), no cuadrático.';
       note.textContent = (g.demo
         ? 'Rejilla ilustrativa de 8×8 tokens con M = 4, como la Fig. 2 del paper: con el desplazamiento quedan 3×3 = 9 ventanas desiguales; el roll las vuelve 2×2.'
@@ -192,7 +220,7 @@
         const reg = 3 * bi + bj;
         const x = x0 + c0 * cs, y = y0 + r0 * cs, w = (c1 - c0) * cs, h = (r1_ - r0) * cs;
         V.svg('rect', { x: r1(x), y: r1(y), width: r1(w), height: r1(h), class: 'viz-sw-r viz-sw-r' + reg }, svg);
-        if (w >= 13 && h >= 13) txt(svg, x + w / 2, y + h / 2 + 4, String(reg), 'viz-sw-rl', 'middle');
+        if (w >= 16 && h >= 13) txt(svg, x + w / 2, y + h / 2 + 4, 'r' + reg, 'viz-sw-rl', 'middle');
       }
     }
     function tokenGrid(svg, x0, y0, cs, H) {
@@ -206,7 +234,7 @@
       for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
         const k = i * n + j;
         const gEl = V.svg('g', { class: 'viz-cell-btn viz-sw-wbtn' + (k === state.win ? ' is-hl' : ''), tabindex: 0, role: 'button',
-          'aria-pressed': String(k === state.win), 'aria-label': 'Ventana ' + (k + 1) + ' (fila ' + (i + 1) + ', columna ' + (j + 1) + ')' + (rolled ? ' tras el roll' : '') }, svg);
+          'aria-pressed': String(k === state.win), 'aria-label': 'Ventana de la fila ' + (i + 1) + ', columna ' + (j + 1) + (rolled ? ', tras el roll' : '') }, svg);
         V.svg('rect', { x: r1(x0 + j * ws), y: r1(y0 + i * ws), width: r1(ws), height: r1(ws), fill: 'transparent' }, gEl);
         V.svg('rect', { x: r1(x0 + j * ws + 1), y: r1(y0 + i * ws + 1), width: r1(ws - 2), height: r1(ws - 2), class: 'viz-sw-sel' }, gEl);
         const pick = () => { if (state.win !== k) { state.win = k; draw(); refocus(k); } };
@@ -221,12 +249,18 @@
       txt(svg, (x0 + x1) / 2, y - 8, label, 'viz-s', 'middle');
       if (label2) txt(svg, (x0 + x1) / 2, y + 17, label2, 'viz-s', 'middle');
     }
+    function arrowV(svg, x, y0, y1, label, label2) {
+      V.svg('path', { d: 'M' + x + ' ' + y0 + 'V' + (y1 - 6), class: 'viz-ln' }, svg);
+      V.svg('path', { d: 'M' + x + ' ' + y1 + 'l-4 -7h8z', class: 'viz-head' }, svg);
+      txt(svg, x + 10, (y0 + y1) / 2 - 3, label, 'viz-s');
+      if (label2) txt(svg, x + 10, (y0 + y1) / 2 + 11, label2, 'viz-s');
+    }
     function txt(p, x, y, s, cls, anchor) { const t = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); t.textContent = s; return t; }
     function range(k) { return Array.from({ length: Math.max(0, k) }, (_, i) => i); }
     function r1(v) { return Math.round(v * 10) / 10; }
 
     draw();
-    return { destroy() { wrap.remove(); } };
+    return { destroy() { if (ro) ro.disconnect(); wrap.remove(); } };
   }
 
   if (ATLAS.Viz) ATLAS.Viz.register('shifted-windows', render);

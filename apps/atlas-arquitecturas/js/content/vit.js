@@ -161,7 +161,7 @@
             in: ['qkv'], out: ['q', 'k', 'v'],
             what: R`Corta ${sh('qkv')} en Q, K, V y reparte las D columnas de cada uno en h grupos de d<sub>h</sub>: cada uno queda ${sh('q')}. Es un <code>reshape</code> + <code>permute</code>, sin parámetros ni MACs.`,
             why: R`Cada cabeza trabaja en su propio subespacio de d<sub>h</sub> dimensiones con el mismo costo total que una sola cabeza de ancho D. Trampa típica: hacer <code>q.view(h, N+1, d_h)</code> directo desde <code>(N+1, D)</code>. Corre sin error, pero mete en una misma cabeza columnas de tokens distintos, y el modelo aprende mal sin avisar. Lo correcto es <code>view(N+1, h, d_h).transpose(0, 1)</code>. Si entrenas desde cero, agrupar <code>(N+1, 3, h, d_h)</code> o <code>(N+1, h, 3, d_h)</code> da igual (es otra parametrización de la misma capa); con un checkpoint preentrenado, el orden tiene que coincidir con el que se usó al entrenar.` },
-          { t: 'op', block: 'scores', model: 'vit', title: 'Puntuaciones QKᵀ / √d_h',
+          { t: 'op', block: 'scores', model: 'vit', title: 'Puntuaciones QKᵀ / √dₕ',
             tex: R`\mathbf{S}_i = \frac{\mathbf{Q}_i\mathbf{K}_i^\top}{\sqrt{d_h}}\ \in\ \mathbb{R}^{(N+1)\times(N+1)},\qquad i = 1..h`,
             in: ['q', 'k'], out: ['scores'], flops: true,
             what: R`Producto punto de cada consulta con cada clave, por cabeza: ${sh('q')} · ${sh('k')}ᵀ → ${sh('scores')}. La fila j dice cuánto se parece la consulta del token j a la clave de cada token.`,

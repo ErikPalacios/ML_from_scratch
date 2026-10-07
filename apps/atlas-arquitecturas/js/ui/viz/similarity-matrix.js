@@ -7,7 +7,11 @@
    es el promedio de las dos. Debajo, los números reales del lote del paper (B = 32,768) desde
    ATLAS.Arch.run / metrics (memoria de la matriz de logits, negativos por muestra B − 1).
    Pasa el cursor (o enfoca) una celda para ver su similitud, su logit y su probabilidad.
-   params: { config:'clip-vit-b16', B:6 (2–8, ilustrativo), view:'cos'|'row'|'col', scale:'init'|'max' }
+   Modelo: "entrenado" (imagen y texto de un par comparten la dirección de su concepto) o "aleatorio (inicio)"
+   (vectores independientes: la diagonal no destaca y L ≈ ln B, el punto de partida que la pérdida empuja).
+   La pérdida L se muestra en el SVG junto a ln B.
+   params: { config:'clip-vit-b16', B:8 (2–8, ilustrativo), view:'cos'|'row'|'col', scale:'init'|'max',
+             model:'trained'|'random' }
    No toca el DOM al cargar.
    ========================================================================== */
 (function (root) {
@@ -22,9 +26,12 @@
 
   // Embeddings sintéticos: un vector base por concepto, imagen y texto = base + ruido distinto, L2-normalizados.
   // "sun" y "star" comparten parte de su base (un negativo difícil, como pasa con datos reales).
-  function embeddings(names, E, seed) {
+  function embeddings(names, E, seed, random) {
     const R = ATLAS.Viz.rng(seed);
     const vec = () => Array.from({ length: E }, () => R.normal());
+    const norm0 = (v) => { const L = Math.hypot(...v) || 1; return v.map((x) => x / L); };
+    // modelo al azar (inicio del entrenamiento): sin relación entre la imagen y el texto de un par
+    if (random) return { img: names.map(() => norm0(vec())), txt: names.map(() => norm0(vec())) };
     const base = {};
     for (const n of ATLAS.Viz.ICONS) base[n] = vec();
     const shared = vec();
@@ -48,7 +55,7 @@
     const scaleMax = c.logitScaleMax || 100;
     const knobB = (A.model && run && A.model(run.model).knobs && A.model(run.model).knobs.B) || [8, 256, 4096, 32768];
     const state = {
-      B: clampB(params.B || 6), view: ['cos', 'row', 'col'].indexOf(params.view) >= 0 ? params.view : 'row',
+      B: clampB(params.B || 8), model: params.model === 'random' ? 'random' : 'trained', view: ['cos', 'row', 'col'].indexOf(params.view) >= 0 ? params.view : 'row',
       scale: params.scale === 'max' ? 'max' : 'init', cell: null, realB: c.B || knobB[knobB.length - 1],
     };
     function clampB(b) { return Math.max(2, Math.min(8, Math.round(b))); }
@@ -68,16 +75,18 @@
     const chipsB = chipGroup('Lote (demo)', [[4, 'B = 4'], [6, 'B = 6'], [8, 'B = 8']], 'B');
     const chipsV = chipGroup('Ver', [['cos', 'coseno'], ['row', 'softmax por fila'], ['col', 'softmax por columna']], 'view');
     const chipsS = chipGroup('Escala', [['init', '1/τ = 1/' + tau0], ['max', 'tope ' + scaleMax]], 'scale');
+    const chipsM = chipGroup('Modelo', [['trained', 'entrenado'], ['random', 'aleatorio (inicio)']], 'model');
     const stage = V.html('div', { class: 'viz-stage' }, wrap);
     const out = V.html('div', { class: 'viz-readout', 'aria-live': 'polite' }, wrap);
     const real = V.html('div', { class: 'viz-real' }, wrap);
-    V.html('p', { class: 'viz-note', text: 'Lote, íconos y embeddings ilustrativos (generados por código, no por un CLIP entrenado). Fila = imagen, columna = texto; la diagonal son los pares correctos. Softmax por fila = pérdida imagen→texto; por columna = texto→imagen; CLIP promedia las dos.' }, wrap);
+    V.html('p', { class: 'viz-note', text: 'Lote, íconos y embeddings ilustrativos (generados por código, no por un CLIP entrenado). Fila = imagen, columna = texto; la diagonal son los pares correctos. Softmax por fila = pérdida imagen→texto; por columna = texto→imagen; CLIP promedia las dos. "Aleatorio (inicio)": sin entrenar, la diagonal no destaca y L ≈ ln B; entrenar es bajar L desde ahí. Con B = 8, el sol y la estrella (conceptos parecidos) son el negativo difícil.' }, wrap);
 
     function draw() {
-      [chipsB, chipsV, chipsS].forEach((cs) => cs.forEach((b) => b.setAttribute('aria-pressed', String(state[b._k] === b._v))));
+      [chipsB, chipsV, chipsS, chipsM].forEach((cs) => cs.forEach((b) => b.setAttribute('aria-pressed', String(state[b._k] === b._v))));
       const B = state.B;
       const names = V.ICONS.slice(0, B);
-      const { img, txt } = embeddings(names, 16, 20210226);
+      // E = 512 dimensiones (como CLIP; no se dibujan): con vectores al azar los cosenos quedan cerca de 0
+      const { img, txt } = embeddings(names, 512, 20210226, state.model === 'random');
       const s = state.scale === 'max' ? scaleMax : 1 / tau0;
       const cos = img.map((u) => txt.map((v) => dot(u, v)));
       const logits = cos.map((row) => row.map((x) => x * s));
@@ -89,12 +98,13 @@
       const M = state.view === 'cos' ? cos : state.view === 'row' ? rowP : colP;
 
       stage.innerHTML = '';
-      const cs = 44, IX = 64, TOP = 92, ML = IX + 8;
-      const W = ML + B * cs + 110, Hh = TOP + B * cs + 30;
+      const cs = 44, IX = 64, TOP = 112, ML = IX + 8;
+      const W = ML + B * cs + 110, Hh = TOP + B * cs + (state.view === 'col' ? 46 : 30);
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' ' + Hh, style: 'max-width:' + W + 'px;min-width:' + Math.min(W, 600) + 'px', role: 'group',
         'aria-label': 'Matriz de ' + B + '×' + B + ' entre imágenes (filas) y textos (columnas): ' + (state.view === 'cos' ? 'similitud coseno' : state.view === 'row' ? 'softmax por fila' : 'softmax por columna') }, stage);
       t(svg, 8, 16, state.view === 'cos' ? 'cos(imagen i, texto j): embeddings con norma 1' : state.view === 'row' ? 'softmax por fila de s·cos: p(texto j | imagen i)' : 'softmax por columna de s·cos: p(imagen i | texto j)', 'viz-t');
       t(svg, 8, 31, 's = ' + fmtS(s) + ' · logits = s·Î·T̂ᵀ (B×B)', 'viz-s');
+      t(svg, 8, 48, 'L = ' + L.toFixed(3) + '  (ln B = ' + Math.log(B).toFixed(2) + ': lo que da un modelo que no distingue)', 'viz-n');
       // encabezados: columnas = textos (girados), filas = imágenes (íconos)
       names.forEach((n, j) => {
         const x = ML + j * cs + cs / 2;
@@ -118,7 +128,7 @@
       t(svg, lx, TOP - 10, state.view === 'col' ? '' : '−log p(i, i)', 'viz-s');
       if (state.view !== 'col') lossRow.forEach((l, i) => t(svg, lx, TOP + i * cs + cs / 2 + 4, l.toFixed(2), 'viz-n'));
       if (state.view === 'col') {
-        t(svg, 8, TOP + B * cs + 18, '−log p(j, j)', 'viz-s');
+        t(svg, ML, TOP + B * cs + 36, '↑ −log p(j, j): pérdida de cada columna', 'viz-s');
         lossCol.forEach((l, j) => t(svg, ML + j * cs + cs / 2, TOP + B * cs + 18, l.toFixed(2), 'viz-n', 'middle'));
       }
       state.last = { cos, logits, rowP, colP, names, s, L, Lr, Lc };
@@ -131,7 +141,7 @@
       const kv = (k, v) => { const sp = V.html('span', null, out); sp.innerHTML = k + ' <b>' + v + '</b>'; };
       const S = state.last; if (!S) return;
       kv('B =', state.B + ' (demo)');
-      kv('negativos por imagen:', String(state.B - 1));
+      kv(state.view === 'col' ? 'negativos por texto:' : 'negativos por imagen:', String(state.B - 1));
       const cl = state.cell;
       if (cl) {
         kv('I' + (cl.i + 1) + ' · T' + (cl.j + 1) + ':', 'cos ' + S.cos[cl.i][cl.j].toFixed(3) + ' → logit ' + S.logits[cl.i][cl.j].toFixed(2) + ' → p fila ' + S.rowP[cl.i][cl.j].toFixed(3) + ' · p columna ' + S.colP[cl.i][cl.j].toFixed(3));
@@ -139,6 +149,7 @@
       kv('L(img→txt) =', S.Lr.toFixed(3));
       kv('L(txt→img) =', S.Lc.toFixed(3));
       kv('L = promedio =', S.L.toFixed(3) + ' (s = ' + fmtS(S.s) + ')');
+      kv('ln B =', Math.log(state.B).toFixed(3) + (state.model === 'random' ? ' (modelo al azar: L ≈ ln B)' : ''));
     }
 
     // Números reales del calculador para el lote de verdad (no ilustrativos).

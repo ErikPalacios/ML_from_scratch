@@ -106,10 +106,11 @@
     let [fs, ts] = autoSides(spec.direction || 'lr', a, b);
     if (e.fromSide) fs = e.fromSide;
     if (e.toSide) ts = e.toSide;
-    const A = attach(a, fs, e.fromAt), B = attach(b, ts, e.toAt);
+    // fromPt (u): la arista sale de un punto de otra (p. ej. una residual que se bifurca del flujo de datos)
+    const A = e.fromPt ? [e.fromPt[0] * U, e.fromPt[1] * U] : attach(a, fs, e.fromAt), B = attach(b, ts, e.toAt);
     const targets = (e.via || []).map((v) => [v[0] * U, v[1] * U]).concat([B]);
     const pts = [A];
-    let heading = NORMAL[fs];
+    let heading = e.fromPt ? (dirOf(A, targets[0]) || NORMAL[fs]) : NORMAL[fs];
     targets.forEach((q, i) => {
       const p = pts[pts.length - 1];
       const last = i === targets.length - 1;
@@ -438,7 +439,7 @@
     const lay = layoutOf(t, hint);
     // un vector de D = una rebanada de token del glifo N×D (la D va en el mismo eje de profundidad)
     if (lay === 'vec') return { lay, w: 6, h: 6, d: extD(num[0] || 2) };
-    if (lay === 'fmap') { const px = (hint && hint.px) || 2; return { lay, w: Math.max(6, (num[1] || 2) * px), h: Math.max(6, (num[0] || 2) * px), d: extD(num[2] || 2), win: hint && hint.win, gridH: num[0], gridW: num[1] }; }
+    if (lay === 'fmap') { const px = (hint && hint.pxEff) || (hint && hint.px) || 2; return { lay, w: Math.max(6, (num[1] || 2) * px), h: Math.max(6, (num[0] || 2) * px), d: extD(num[2] || 2), win: hint && hint.win, gridH: num[0], gridW: num[1] }; }
     if (lay === 'grid') return { lay, w: ext(num[1] || 2), h: ext(num[0] || 2), d: extD(num[2] || 2) };
     if (lay === 'mat') { const s = ext(num[0] || 2); return { lay, w: s, h: s, d: 4 }; }
     if (lay === 'windows') return { lay: 'heads', w: ext(num[1] || 2), h: 4, d: extD(num[2] || 2), n: Math.min(num[0] || 1, 8), heads: num[0] };
@@ -534,6 +535,15 @@
     const by = run && run.totals && run.totals.byNode && run.totals.byNode[node.costOf || node.id];
     return { ops, params, macs, rep, total: (!node.opsExact && !node.scope && by) || { params: ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
   }
+
+  // Unidad de un nodo repetido: node.badgeUnit ('por par' en los stages de Swin) o 'por capa'; con el plural
+  // de la repetición ("× 3 pares"). La usan la insignia, el tooltip, el panel y el texto alternativo.
+  const REP_WORD = { 'por capa': 'capas', 'por par': 'pares', 'por bloque': 'bloques' };
+  function unitOf(n) { return (n && n.badgeUnit) || 'por capa'; }
+  function repTimes(n, rep) { const w = REP_WORD[unitOf(n)]; return '× ' + rep + (w ? ' ' + w : ''); }
+  // Ops que el calculador cuenta "por par" dentro de un lote (la matriz B×B de CLIP: detail.perPair):
+  // sus MACs son una fila de la matriz; detail.batchMacs = la matmul de todo el lote.
+  function perPairOf(ops) { const o = (ops || []).find((x) => x.detail && x.detail.perPair); return o ? o.detail : null; }
 
   // Valor de config por ruta: 'h', 'heads.0' o 'heads[0]' (cabezas por etapa en Swin).
   function cfgPath(cfg, key) {
@@ -662,6 +672,13 @@
       for (let i = 1; i < k; i++) d += 'M' + P([x + i * st, y]) + 'V' + r1(y - g.h) + 'M' + P([x, y - i * st]) + 'H' + r1(x + g.w);
       if (d) S('path', { d, class: 'ad-tokmarks' }, grp);
       S('path', { d: 'M' + P([x, y - g.h]) + 'L' + P([x + g.w, y]), class: 'ad-matdiag' }, grp);
+      // hint.axes = {rows:'img', cols:'txt'}: franja de la modalidad de las filas a la izquierda y de las
+      // columnas arriba (con su textura), para leer qué eje es qué sin el texto
+      const ax = hint && hint.axes;
+      if (ax) {
+        if (ax.rows) S('rect', { x: r1(x - 7), y: r1(y - g.h), width: 5, height: r1(g.h), class: 'ad-axis ad-mod--' + ax.rows, fill: 'url(#' + id + '-tx-' + ax.rows + ')' }, parent);
+        if (ax.cols) S('rect', { x: r1(x), y: r1(y - g.h - 7), width: r1(g.w), height: 5, class: 'ad-axis ad-mod--' + ax.cols, fill: 'url(#' + id + '-tx-' + ax.cols + ')' }, parent);
+      }
     }
     if (g.lay === 'fmap' && g.win && g.gridW > g.win) {
       // rejilla de ventanas M×M sobre la cara frontal (8×8 ventanas en la etapa 1 de Swin-T, 1 en la 4)
@@ -673,6 +690,8 @@
     }
     return grp;
   }
+
+  const isJoint = (grp) => /\bad-mod--joint\b/.test(grp.getAttribute('class') || '');
 
   // ------------------------------------------------------------ escena procedural (sin imágenes externas)
   function drawScene(parent, x, y, w, h, grid) {
@@ -748,7 +767,9 @@
     // ---- grupos
     for (const g of spec.groups || []) {
       const r = geo.groups[g.id];
-      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : ''), 'data-group': g.id }, L.groups);
+      // style:'batch' = marco discontinuo de la parte "con lote" (CLIP: donde las formas pasan a llevar B)
+      if (g.style === 'batch') used.batch = true;
+      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : ''), 'data-group': g.id }, L.groups);
       if (g.repeat) {
         used.repeat = true;
         S('rect', { x: r.x + 10, y: r.y + 10, width: r.w, height: r.h, rx: 6, class: 'ad-stack' }, gg);
@@ -764,7 +785,7 @@
       S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: 6, class: 'ad-frame' }, gg);
       if (g.modality) { used.mods.add(g.modality); S('rect', { x: r.x, y: r.y + 6, width: 4, height: r.h - 12, class: 'ad-stripe ad-mod--' + g.modality }, gg); }
       if (g.label) {
-        const right = g.labelPos === 'bottom-right';
+        const right = /right$/.test(g.labelPos || '');
         // títulos de región: encima de las aristas (capa de etiquetas) y con halo
         const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10, (g.labelPos || '').indexOf('bottom') === 0 ? r.y + r.h - 8 : r.y + 17, qText(g.label, ctl, spec), g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
         if (g.region && String(g.label).length * 7.0 > regionTitleMax(r)) { lt.setAttribute('textLength', r1(regionTitleMax(r))); lt.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
@@ -776,7 +797,7 @@
         const tn = g.repeat.totalOf && (spec.nodes || []).find((x) => x.id === g.repeat.totalOf);
         txt(gg, r.x + r.w - 10, r.y + 17, tag, 'ad-group-tag', 'end');
         // total del bloque repetido (byNode); repeat.totalLabel = plantilla con {t}; sin línea si se repite 1 vez
-        if (tn && ctl.mode !== 'blank' && !ctl.quiz && v !== 1) { const c = nodeCost(run, tn); if (c.total && c.total.params) txt(gg, r.x + r.w - 10, r.y + 31, String(g.repeat.totalLabel || '= {t} en total').replace('{t}', fsi(c.total.params)), 'ad-group-total', 'end'); }
+        if (tn && ctl.mode !== 'blank' && !ctl.quiz && v !== 1) { const c = nodeCost(run, tn); if (c.total && c.total.params) txt(gg, r.x + r.w - 10, r.y + (tag.indexOf('_') >= 0 ? 34 : 31), String(g.repeat.totalLabel || '= {t} en total').replace('{t}', fsi(c.total.params)), 'ad-group-total', 'end'); }
       }
       if (g.label2) txt(gg, r.x + 10, r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub');
     }
@@ -808,11 +829,15 @@
       if (!t.at || t.at.edge || !rt) continue;
       const gg = S('g', { class: 'ad-tensor' + (ref ? ' ad-tensor--ref' : ''), 'data-tensor-glyph': t.id, 'data-config': cfg }, L.labels);
       // win: 'M' = tamaño de ventana tomado de la config (rejilla de ventanas sobre la cara del glifo)
-      const hint = typeof t.win === 'string' ? Object.assign({}, t, { win: cfgPath((cfg ? runFor(cfg) : run).config, t.win) }) : t;
+      const hcfg = (cfg ? runFor(cfg) : run).config;
+      let hint = typeof t.win === 'string' ? Object.assign({}, t, { win: cfgPath(hcfg, t.win) }) : t;
+      // pxFit = {key, w}: px por token = min(px, w / config[key]); la misma escala para toda la tira (p. ej. los
+      // 4 stages de Swin a 384 no invaden el marco del stage 1), sin cambiar la config canónica
+      if (t.pxFit) { const side = cfgPath(hcfg, t.pxFit.key); if (side > 0) hint = Object.assign({}, hint, { pxEff: Math.min(t.px || 2, t.pxFit.w / side) }); }
       const gs = glyphSize(rt, hint);
       // (x, y) = centro inferior del glifo; nota opcional encima y forma a la derecha o debajo
       const gx = t.at.x * U - gs.w / 2, gy = t.at.y * U;
-      drawGlyph(gg, rt, gx, gy, id, t.mark, hint);
+      if (isJoint(drawGlyph(gg, rt, gx, gy, id, t.mark, hint))) used.joint = true;
       if (rt.mod) used.mods.add(rt.mod); used.glyph = true;
       if (t.note) txt(gg, t.at.x * U, gy - gs.h - 7, qText(t.note, ctl, spec, cfg), 'ad-glyph-note', 'middle');
       if (t.show !== 'glyph') {
@@ -826,7 +851,10 @@
     for (const nt of spec.notes || []) {
       const s = strip(qResolve(nt.text, (ctl.opts && ctl.opts.config) || spec.config));
       if (!s) continue;
-      const te = txt(L.labels, nt.x * U, nt.y * U, s, nt.cls === 'title' ? 'ad-ref-label' : 'ad-note-txt' + (nt.cls === 'ink' ? ' ad-note-txt--ink' : ''), nt.anchor || null);
+      // swatch: muestra de modalidad antes del texto (p. ej. "filas: imágenes" con la franja de --mod-img)
+      if (nt.swatch) S('rect', { x: r1(nt.x * U), y: r1(nt.y * U - 8.5), width: 9, height: 9, class: 'ad-axis ad-mod--' + nt.swatch, fill: nt.swatch === 'joint' ? 'var(--op-fuse-soft)' : 'url(#' + id + '-tx-' + nt.swatch + ')' }, L.labels);
+      if (nt.swatch === 'joint') S('path', { d: 'M' + P([nt.x * U, nt.y * U - 8.5]) + 'l9,9', class: 'ad-matdiag' }, L.labels);
+      const te = txt(L.labels, nt.x * U + (nt.swatch ? 13 : 0), nt.y * U, s, nt.cls === 'title' ? 'ad-ref-label' : 'ad-note-txt' + (nt.cls === 'ink' ? ' ad-note-txt--ink' : ''), nt.anchor || null);
       te.setAttribute('data-note', nt.id || '');
     }
     ctl.building = null;
@@ -1170,7 +1198,7 @@
     if (kind === 'contrasta') { const p0 = ge.pts[0], p1 = ge.pts[ge.pts.length - 1]; S('circle', { cx: r1(p0[0]), cy: r1(p0[1]), r: 2.4, class: 'ad-end' }, g); S('circle', { cx: r1(p1[0]), cy: r1(p1[1]), r: 2.4, class: 'ad-end' }, g); }
     if (isMap) g.setAttribute('aria-label', (MAP_KIND_SENT[kind] ? MAP_KIND_SENT[kind](mapName(e.from), mapName(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' (' + e.label + ')' : ''));
     if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? e.tag + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num') + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
-    if (e.dot) { const dp = ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
+    if (e.dot) { const dp = e.fromPt ? ge.pts[0] : ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
     if (kind === 'cross' || e.tag) {
       const la = labelAnchor(ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
       if (la) {
@@ -1197,11 +1225,12 @@
         if (tk && tk.show !== 'label') {
           const gs = glyphSize(t, tk);
           let gx, gy;
-          if (la.side === 'right') { gx = la.x + 9; gy = la.y + gs.h / 2; lx = gx + gs.w; }
+          // con ejes (franja de filas a la izquierda del glifo) se separa un poco más de la línea
+          if (la.side === 'right') { gx = la.x + (tk.axes ? 14 : 9); gy = la.y + gs.h / 2; lx = gx + gs.w; }
           else if (la.side === 'left') { gx = la.x - 9 - gs.w; gy = la.y + gs.h / 2; lx = gx; }
           else if (la.side === 'below') { gx = la.x - gs.w / 2; gy = la.y + 8 + gs.h; ly = gy; }
           else { gx = la.x - gs.w / 2; gy = la.y - 7; ly = gy - gs.h + 2; }
-          drawGlyph(g, t, gx, gy, ctl.id, tk.mark, tk);
+          if (isJoint(drawGlyph(g, t, gx, gy, ctl.id, tk.mark, tk))) used.joint = true;
           used.glyph = true;
         }
         if (!tk || tk.show !== 'glyph') {
@@ -1251,6 +1280,7 @@
         S('rect', { x: 3, y: 3, width: 20, height: 10, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-l' + m.id + '-tx-' + m.id + ')' }, g);
       }, 'Tensor: ' + m.title.toLowerCase());
     }
+    if (used.joint) item((s) => { const g = S('g', { class: 'ad-glyph ad-mod--joint' }, s); S('rect', { x: 3, y: 3, width: 20, height: 10, class: 'ad-face ad-face--front', fill: 'var(--op-fuse-soft)' }, g); S('path', { d: 'M3 3L23 13', class: 'ad-matdiag' }, g); }, 'Tensor conjunto (lote B×B)');
     const ek = ATLAS.EDGE_KINDS || [];
     for (const k of ek) {
       if (!used.edges.has(k.id)) continue;
@@ -1276,6 +1306,7 @@
     }
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
+    if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
     if (used.badge) item((s) => { S('rect', { x: 1, y: 3, width: 24, height: 10, rx: 5, class: 'ad-badge-bg' }, s); S('path', { d: 'M5,8m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M7,8h3.5M9.5,8v2', class: 'ad-key' }, s); }, 'Parámetros aprendibles');
     if (opts && opts.withShapes !== false && view.spec.kind !== 'map') {
       const li = H('div', { class: 'ad-leg-item ad-leg-shape', role: 'listitem' }, wrap);
@@ -1416,9 +1447,9 @@
         const parts = [];
         if (io.in.length) parts.push('Entra: ' + io.in.map((t) => plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num')).join(', '));
         if (io.out.length) parts.push('Sale: ' + io.out.map((t) => plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num')).join(', '));
-        if (run && n.op !== 'io') { const c = nodeCost(run, n); if (c.params) parts.push('Parámetros: ' + fint(c.params) + (c.rep > 1 ? ' por capa' : '')); if (c.macs) parts.push('MACs: ' + fint(c.macs) + (c.rep > 1 ? ' por capa' : '')); }
+        if (run && n.op !== 'io') { const c = nodeCost(run, n); const pp = perPairOf(c.ops); if (c.params) parts.push('Parámetros: ' + fint(c.params) + (c.rep > 1 ? ' ' + unitOf(n) : '')); if (c.macs) parts.push('MACs: ' + fint(c.macs) + (c.rep > 1 ? ' ' + unitOf(n) : '') + (pp ? ' por par (lote de B = ' + fint(pp.B) + ': ' + fint(pp.batchMacs) + ')' : '')); }
         if (n.expand) parts.push('Se abre en: ' + ((ATLAS.diagram(n.expand) || {}).title || n.expand));
-        dd.innerHTML = esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, spec.config) : '');
+        dd.innerHTML = esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, opts.config || spec.config) : '');
       }
     }
 
@@ -1457,7 +1488,10 @@
       if (fig.classList.contains('ad--fs')) { vp.style.height = ''; return; }
       if (view.spec.kind === 'map' && isMobile() && ctl.mode === 'full') { vp.style.height = Math.round(Math.min((root.innerHeight || 800) * 0.7, 560)) + 'px'; return; }
       const s = Math.min(capScale(), cw / (view.width + 24));
-      const maxH = Math.max(260, (root.innerHeight || 900) * (isMobile() ? 0.72 : 0.92));
+      // Diagramas verticales altos (tb) en escritorio: ajustados al ANCHO, con un viewport de hasta 1.5 pantallas
+      // (la página se desplaza). Ajustarlos al alto dejaba las etiquetas en ≈ 8 px (Swin, 96×136 u).
+      const tall = !isMobile() && view.spec.direction === 'tb' && ctl.mode !== 'mini';
+      const maxH = Math.max(260, (root.innerHeight || 900) * (isMobile() ? 0.72 : tall ? 1.5 : 0.92));
       vp.style.height = Math.round(clamp((view.height + 24) * s, 160, maxH)) + 'px';
     }
     function content() { const v = ctl.view; return { x: -12, y: -12, w: v.width + 24, h: v.height + 24 }; }
@@ -1591,8 +1625,10 @@
         if (io.in.length || io.out.length) h += '<div class="ad-tip-io">' + io.in.map(shp).join(', ') + (io.in.length && io.out.length ? ' <span aria-hidden="true">→</span> ' : '') + io.out.map(shp).join(', ') + '</div>';
         if (run && n.op !== 'io') {
           const c = nodeCost(run, n);
-          if (c.params || c.macs) h += '<div class="ad-tip-cost">' + (c.params ? 'Parámetros <b>' + fint(c.params) + '</b>' : 'Sin parámetros') + (c.macs ? ' · MACs <b>' + fsi(c.macs) + '</b>' : '') + (c.rep > 1 ? ' <span class="ad-muted">por capa (× ' + c.rep + ')</span>' : '') + '</div>';
+          if (c.params || c.macs) h += '<div class="ad-tip-cost">' + (c.params ? 'Parámetros <b>' + fint(c.params) + '</b>' : 'Sin parámetros') + (c.macs ? ' · MACs <b>' + fsi(c.macs) + '</b>' : '') + (c.rep > 1 ? ' <span class="ad-muted">' + unitOf(n) + ' (' + repTimes(n, c.rep) + ')</span>' : '') + '</div>';
           else h += '<div class="ad-tip-cost ad-muted">Sin parámetros ni MACs de matmul</div>';
+          const pp = perPairOf(c.ops);
+          if (pp && c.macs) h += '<div class="ad-tip-cost ad-muted">MACs por par (una fila de la matriz); el lote de B = ' + fint(pp.B) + ' entero: <b>' + fsi(pp.batchMacs) + '</b></div>';
         }
         h += '<div class="ad-tip-hint">' + (n.expand && ctl.mode === 'full' ? 'Clic: detalle · doble clic o + : abrir bloque' : ctl.mode === 'full' ? 'Clic o Enter: detalle' : '') + '</div>';
         return h;
@@ -1647,7 +1683,7 @@
         H('a', { class: 'ad-btn ad-btn--primary', href, text: page && page.ready ? 'Abrir página' : it && it.kind === 'card' ? 'Ver tarjeta' : 'Ver qué viene' }, panel);
       } else {
         if (n.sub) H('p', { class: 'ad-panel-sub' }, panel, htmlSub(nodeSub(n, ctl)));
-        if (n.note) H('div', { class: 'ad-panel-note' }, panel, qResolve(n.note, spec.config));
+        if (n.note) H('div', { class: 'ad-panel-note' }, panel, qResolve(n.note, opts.config || spec.config));
         if (n.tex) texInto(H('div', { class: 'ad-panel-tex' }, panel), n.tex, true);
         const io = nodeIO(view, n.id, run);
         if (io.in.length || io.out.length) {
@@ -1661,16 +1697,18 @@
           if (!c.ops.length) H('p', { class: 'ad-muted', text: 'Sin operaciones del calculador asociadas.' }, box);
           const withP = c.ops.filter((o) => o.params), withM = c.ops.filter((o) => o.macs);
           if (withP.length) {
-            H('h5', { text: 'Parámetros' + (c.rep > 1 ? ' (por capa)' : '') }, box);
+            H('h5', { text: 'Parámetros' + (c.rep > 1 ? ' (' + unitOf(n) + ')' : '') }, box);
             for (const o of withP) costRow(box, o, 'param');
             if (withP.length > 1) H('p', { class: 'ad-panel-sum' }, box, 'Total: <b>' + fint(c.params) + '</b>');
           } else if (c.ops.length) H('p', { class: 'ad-muted', text: 'Sin parámetros aprendibles.' }, box);
           if (withM.length) {
-            H('h5', { text: 'MACs' + (c.rep > 1 ? ' (por capa)' : '') }, box);
+            const pp = perPairOf(c.ops);
+            H('h5', { text: 'MACs' + (c.rep > 1 ? ' (' + unitOf(n) + ')' : pp ? ' (por par)' : '') }, box);
             for (const o of withM) costRow(box, o, 'mac');
             if (withM.length > 1) H('p', { class: 'ad-panel-sum' }, box, 'Total: <b>' + fint(c.macs) + '</b> (= ' + fsi(c.macs) + ' MACs, ' + fsi(2 * c.macs) + ' FLOPs)');
+            if (pp) H('p', { class: 'ad-panel-sum' }, box, 'Por par: una fila de la matriz B×B. El lote entero (B = ' + fint(pp.B) + '): <b>' + fint(pp.batchMacs) + '</b> MACs (= ' + fsi(pp.batchMacs) + ').');
           }
-          if (c.rep > 1) H('p', { class: 'ad-panel-sum' }, box, 'En el modelo (× ' + c.rep + '): <b>' + fint(c.total.params) + '</b> parámetros · <b>' + fsi(c.total.macs) + '</b> MACs');
+          if (c.rep > 1) H('p', { class: 'ad-panel-sum' }, box, 'En el modelo (' + repTimes(n, c.rep) + '): <b>' + fint(c.total.params) + '</b> parámetros · <b>' + fsi(c.total.macs) + '</b> MACs');
         }
         const acts = H('div', { class: 'ad-panel-acts' }, panel);
         if (n.expand && ATLAS.diagram(n.expand)) { const b = H('button', { type: 'button', class: 'ad-btn ad-btn--primary', text: 'Abrir bloque' }, acts); b.addEventListener('click', () => expandTo(n.expand, n.id)); }

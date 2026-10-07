@@ -24,8 +24,12 @@
     id: 'clip-overview', model: 'clip', config: C, kind: 'arch',
     title: 'CLIP — vista general',
     caption: 'Dos torres que no se tocan hasta el final: la imagen (izquierda) y el texto (derecha) se codifican por separado, se proyectan al mismo espacio de E dimensiones y se normalizan. Recién ahí se apila el lote de B pares y se comparan todos contra todos: una matriz B×B cuya diagonal son los pares correctos. Las formas de las torres son por muestra; las del final, del lote.',
-    grid: { w: 86, h: 100 }, direction: 'tb', maxCrossings: 0,
+    grid: { w: 86, h: 109 }, direction: 'tb', maxCrossings: 0,
     mobileFocus: ['img-encoder', 'txt-encoder', 'similarity'],
+    // marco discontinuo: desde aquí abajo las formas llevan el lote B (arriba, una muestra)
+    groups: [
+      { id: 'batch', style: 'batch', label: 'Lote: B pares (B = {{cfg.B}})', labelPos: 'bottom-right', x: 2, y: 56.5, w: 82, h: 51.5 },
+    ],
     nodes: [
       { id: 'img-input', op: 'io', label: 'Imagen', image: true, x: 13, y: 1, w: 14, h: 13,
         note: 'Una imagen RGB, H×W×3. Cada imagen del lote viene con su texto (el par).' },
@@ -40,18 +44,18 @@
         tex: 'f_T(t) = \\mathrm{LN}(\\mathrm{TF}_{causal}(t))_{[EOT]}',
         note: 'Un transformer de ' + q('cfg.Lt') + ' capas de ancho D_t = ' + q('cfg.Dt') + ' con máscara causal (como un decoder de lenguaje, sin generar nada). El vector del token [EOT] resume la frase. Ábrelo para verlo.' },
       { id: 'img-proj', op: 'embed', label: 'Proyección W_i', sub: 'Linear D → E', x: 10, y: 38, w: 20, h: 5,
-        tex: 'I_e = W_i\\, f_I(x),\\; W_i \\in \\mathbb{R}^{E\\times D}', note: 'Lleva el vector de la imagen al espacio conjunto de E = ' + q('cfg.E') + ' dimensiones. Sin sesgo.' },
+        tex: 'I_e = f_I(x)\\, W_i,\\; W_i \\in \\mathbb{R}^{D\\times E}', note: 'Lleva el vector de la imagen al espacio conjunto de E = ' + q('cfg.E') + ' dimensiones. Sin sesgo.' },
       { id: 'txt-proj', op: 'embed', label: 'Proyección W_t', sub: 'Linear D_t → E', x: 52, y: 38, w: 20, h: 5,
-        tex: 'T_e = W_t\\, f_T(t),\\; W_t \\in \\mathbb{R}^{E\\times D_t}', note: 'Lleva el vector del texto al mismo espacio de E dimensiones. Sin sesgo.' },
-      { id: 'img-norm', op: 'norm', symbol: 'sphere', label: 'Normalizar (L2)', x: 9, y: 50, w: 22, h: 4.5,
+        tex: 'T_e = f_T(t)\\, W_t,\\; W_t \\in \\mathbb{R}^{D_t\\times E}', note: 'Lleva el vector del texto al mismo espacio de E dimensiones. Sin sesgo.' },
+      { id: 'img-norm', op: 'norm', symbol: 'sphere', label: 'Normalizar (L2)', x: 10, y: 50, w: 20, h: 4.5,
         tex: '\\hat I = I_e / \\lVert I_e \\rVert_2', note: 'Divide por la norma: todos los embeddings quedan en la esfera unidad, así el producto punto es el coseno. Sin parámetros. Aquí se apilan las B imágenes del lote.' },
-      { id: 'txt-norm', op: 'norm', symbol: 'sphere', label: 'Normalizar (L2)', x: 51, y: 50, w: 22, h: 4.5,
+      { id: 'txt-norm', op: 'norm', symbol: 'sphere', label: 'Normalizar (L2)', x: 52, y: 50, w: 20, h: 4.5,
         tex: '\\hat T = T_e / \\lVert T_e \\rVert_2', note: 'Igual para el texto. Aquí se apilan los B textos del lote.' },
-      { id: 'similarity', op: 'fuse', label: 'Similitud coseno', sub: 'todas contra todas', x: 27, y: 66, w: 28, h: 6,
+      { id: 'similarity', op: 'fuse', label: 'Similitud coseno', sub: 'todas contra todas', x: 27, y: 68, w: 28, h: 6,
         tex: 'S = \\hat I\\, \\hat T^{\\top} \\in \\mathbb{R}^{B\\times B}', note: 'Una sola matmul compara cada imagen con cada texto del lote: B×B similitudes. La diagonal son los pares correctos; el resto, B − 1 negativos por fila. Es el único lugar donde las dos modalidades se encuentran.' },
-      { id: 'temperature', op: 'head', label: 'Escala eᵗ', sub: '= 1/τ, aprendida', x: 31, y: 78, w: 20, h: 5,
+      { id: 'temperature', op: 'head', label: 'Escala eᵗ', sub: '= 1/τ, aprendida', x: 31, y: 80, w: 20, h: 5,
         tex: '\\text{logits} = S\\cdot e^{t},\\; e^{t_0} = 1/0.07,\\; e^{t} \\le 100', note: 'Un único escalar aprendido (la inversa de la temperatura τ) multiplica todas las similitudes: controla qué tan "afilada" es la softmax. Empieza en 1/0.07 y se recorta a 100.' },
-      { id: 'loss', op: 'head', label: 'Pérdida contrastiva', sub: 'CE simétrica', x: 29, y: 92, w: 24, h: 6,
+      { id: 'loss', op: 'head', label: 'Pérdida contrastiva', sub: 'CE por filas + por columnas', x: 26, y: 100, w: 30, h: 6,
         tex: '\\begin{aligned} L &= \\tfrac12\\big[\\mathrm{CE}(\\text{logits}, y) + \\mathrm{CE}(\\text{logits}^{\\top}, y)\\big] \\\\ y &= (0, 1, \\dots, B{-}1) \\end{aligned}',
         note: 'Cross-entropy por filas (cada imagen debe elegir su texto entre los B) y por columnas (cada texto su imagen), promediadas. Las etiquetas son la diagonal: no hace falta anotar clases.' },
     ],
@@ -59,11 +63,16 @@
       { id: 'i-img', at: { edge: 'img-input>img-encoder' }, show: 'both' },
       { id: 'img-batch', at: { edge: 'img-norm>similarity' }, show: 'both' },
       { id: 'txt-batch', at: { edge: 'txt-norm>similarity' }, show: 'both' },
-      { id: 'logits', at: { edge: 'temperature>loss' }, show: 'both' },
+      // filas = imágenes (franja --mod-img a la izquierda), columnas = textos (franja --mod-txt arriba)
+      { id: 'logits', at: { edge: 'temperature>loss' }, show: 'both', axes: { rows: 'img', cols: 'txt' } },
     ],
     notes: [
       { x: 41, y: 25.2, text: 'torres', anchor: 'middle' },
       { x: 41, y: 27.0, text: 'independientes', anchor: 'middle' },
+      { x: 41, y: 55.6, text: '↑ por muestra · ↓ por lote', cls: 'ink', anchor: 'middle' },
+      { x: 51.9, y: 95.6, text: 'filas: imágenes', swatch: 'img' },
+      { x: 51.9, y: 97.4, text: 'columnas: textos', swatch: 'txt' },
+      { x: 51.9, y: 99.2, text: 'diagonal: par correcto (objetivo)', swatch: 'joint' },
     ],
     edges: [
       { from: 'img-input', to: 'img-encoder', kind: 'data', tensor: 'i-img' },
@@ -72,8 +81,8 @@
       { from: 'txt-encoder', to: 'txt-proj', kind: 'data', tensor: 't-eot' },
       { from: 'img-proj', to: 'img-norm', kind: 'data', tensor: 'i-emb' },
       { from: 'txt-proj', to: 'txt-norm', kind: 'data', tensor: 't-emb' },
-      { from: 'img-norm', to: 'similarity', kind: 'data', tensor: 'img-batch', fromSide: 'bottom', toSide: 'top', toAt: 0.3, midY: 62, labelSeg: 0 },
-      { from: 'txt-norm', to: 'similarity', kind: 'data', tensor: 'txt-batch', fromSide: 'bottom', toSide: 'top', toAt: 0.7, midY: 62, labelSeg: 0 },
+      { from: 'img-norm', to: 'similarity', kind: 'data', tensor: 'img-batch', fromSide: 'bottom', toSide: 'top', toAt: 0.3, midY: 64, labelSeg: 0 },
+      { from: 'txt-norm', to: 'similarity', kind: 'data', tensor: 'txt-batch', fromSide: 'bottom', toSide: 'top', toAt: 0.7, midY: 64, labelSeg: 0 },
       { from: 'similarity', to: 'temperature', kind: 'data', tensor: 'sims' },
       { from: 'temperature', to: 'loss', kind: 'data', tensor: 'logits' },
     ],
@@ -131,7 +140,7 @@
         mini: { items: [{ label: 'LN', op: 'norm' }, { label: 'MHSA', op: 'attn' }, { sym: 'add' }, { label: 'LN', op: 'norm' }, { label: 'MLP', op: 'mlp' }, { sym: 'add' }], res: [[0, 2], [3, 5]] },
         tex: "\\begin{aligned} z'_\\ell &= \\mathrm{MSA}(\\mathrm{LN}(z_{\\ell-1})) + z_{\\ell-1} \\\\ z_\\ell &= \\mathrm{MLP}(\\mathrm{LN}(z'_\\ell)) + z'_\\ell \\end{aligned}",
         note: 'La misma capa pre-LN de ViT (con QuickGELU en los pesos originales: mismos conteos). Ábrela.' },
-      { id: 'pool-cls', op: 'tensorop', shape: 'pool', label: 'Tomar [CLS]', labelPos: 'left', x: 29, y: 85, w: 4, h: 4, tex: 'y = z_L^{0}', note: 'Se queda con el token 0. En CLIP esto pasa ANTES de la LayerNorm final.' },
+      { id: 'pool-cls', op: 'tensorop', shape: 'pill', symbol: 'pick', label: 'Tomar [CLS]', x: 20, y: 85, w: 22, h: 4, tex: 'y = z_L^{0}', note: 'Se queda con el token 0. En CLIP esto pasa ANTES de la LayerNorm final.' },
       { id: 'ln-post', op: 'norm', label: 'LayerNorm del [CLS]', flag: '≠ timm', x: 19, y: 95, w: 24, h: 4, tex: '\\mathrm{LN}_{post}(y)', note: 'La LayerNorm final (<code>ln_post</code>) se aplica solo al vector del [CLS] (en timm ViT: LayerNorm sobre todos los tokens y después tomar el [CLS]). Como LN es por token, el resultado es el mismo; el orden cambia qué se calcula.' },
       { id: 'out', op: 'io', label: 'Hacia W_i', x: 23, y: 106, w: 16, h: 4, note: 'El vector de la imagen va a la proyección W_i (D → E).' },
     ]),
@@ -141,14 +150,14 @@
       { id: 'i-cls', at: { edge: 'pool-cls>ln-post' }, show: 'both' },
     ],
     edges: [
-      { from: 'in', to: 'patch-embed', kind: 'data', tensor: 'i-img' },
+      { from: 'in', to: 'patch-embed', kind: 'data', tensor: 'i-img', labelSide: 'left' },
       { from: 'patch-embed', to: 'cls', kind: 'data', tensor: 'i-patches' },
       { from: 'cls', to: 'add-pos', kind: 'data', tensor: 'i-cls-cat' },
       { from: 'pos-embed', to: 'add-pos', kind: 'data', tensor: 'i-e-pos', fromSide: 'right', toSide: 'left', labelSide: 'above' },
-      { from: 'add-pos', to: 'ln-pre', kind: 'data', tensor: 'i-x0' },
+      { from: 'add-pos', to: 'ln-pre', kind: 'data', tensor: 'i-x0', labelSide: 'left' },
       { from: 'ln-pre', to: 'enc-layer', kind: 'data', tensor: 'i-ln-pre', labelT: 0.3 },
       { from: 'enc-layer', to: 'pool-cls', kind: 'data', tensor: 'i-x-out', labelT: 0.72 },
-      { from: 'pool-cls', to: 'ln-post', kind: 'data', tensor: 'i-cls' },
+      { from: 'pool-cls', to: 'ln-post', kind: 'data', tensor: 'i-cls', labelSide: 'left' },
       { from: 'ln-post', to: 'out', kind: 'data', tensor: 'i-cls-ln' },
     ],
     legend: 'auto',
@@ -158,7 +167,7 @@
   ATLAS.registerDiagram(Object.assign({
     id: 'clip-text-encoder', model: 'clip', config: C, kind: 'arch',
     title: 'Encoder de texto de CLIP', parent: 'clip-overview', parentNode: 'txt-encoder',
-    caption: 'Tokens BPE → tabla de embeddings + posiciones → capas pre-LN con máscara causal → LayerNorm final → el vector del token [EOT] (el último: por la máscara, el único que vio toda la frase).',
+    caption: 'Tokens BPE → tabla de embeddings + posiciones → capas pre-LN con máscara causal → LayerNorm final → el vector del token [EOT] (el último token real, antes del relleno: por la máscara, el único que vio toda la frase).',
     grid: { w: 62, h: 88 }, direction: 'tb', maxCrossings: 0,
     groups: [
       { id: 'encoder', label: 'Transformer (causal)', x: 10, y: 36, w: 42, h: 16, repeat: { sym: 'L_t', from: 'Lt', totalOf: 'enc-layer' }, modality: 'txt' },
@@ -242,6 +251,9 @@
     const img = tw === 'img', p = img ? 'i-' : 't-', scope = img ? 'img-encoder' : 'txt-encoder';
     const d = img ? 0 : 9;                          // la máscara (solo texto) empuja todo 9 u hacia abajo
     const D = img ? 'D' : 'D_t';
+    // Pasillo de V. Imagen: fuera del mazo de cabezas (marco más angosto), forma a la derecha. Texto: dentro del
+    // mazo, forma a la izquierda, y entre la máscara y el pasillo, el triángulo causal (arista de control).
+    const vx = img ? 56 : 60.5;
     const nodes = [
       { id: 'in', op: 'io', label: 'Entrada (tras LN 1)', x: 21, y: 1, w: 18, h: 4, note: 'Los tokens normalizados por la LayerNorm 1.' },
       { id: 'qkv', op: 'embed', label: 'Proyección Q, K, V', sub: 'Linear ' + D + ' → 3' + D, x: 16, y: 9, w: 28, h: 5, tex: '[\\,Q\\;K\\;V\\,] = X\\,W_{QKV} + b', note: 'Una matmul fusionada D → 3D, con sesgo.' },
@@ -249,8 +261,10 @@
       { id: 'scores', op: 'attn', label: 'Q · Kᵀ', sub: 'producto punto entre todos los pares', x: 12, y: 35, w: 36, h: 5, tex: 'S = QK^\\top', note: img ? 'Cada token contra todos: (N+1)² por cabeza.' : 'Se calcula la matriz T×T completa; la máscara anula después el triángulo superior.' },
       { id: 'scale', op: 'attn', label: '÷ √d_h', shape: 'pill', x: 20, y: 49, w: 20, h: 4, tex: 'S/\\sqrt{d_h}', note: 'Escala estándar.' },
     ].concat(img ? [] : [
-      { id: 'mask', op: 'attn', shape: 'pill', symbol: 'mask', label: '+ máscara causal', x: 17, y: 57, w: 26, h: 4,
+      { id: 'mask', op: 'attn', shape: 'pill', symbol: 'mask', label: '+ máscara causal', x: 18, y: 57, w: 24, h: 4,
         tex: 'S_{ij} \\leftarrow -\\infty \\;\\text{si}\\; j > i', note: 'Pone −∞ en las posiciones futuras (j > i): tras la softmax pesan 0. Sin parámetros ni MACs; con T = ' + q('cfg.T') + ' se usan T(T+1)/2 de los T² pares.' },
+      { id: 'mask-src', op: 'io', label: 'Triángulo causal', sub: 'T×T, fijo', subNum: '{{cfg.T}}×{{cfg.T}}, fijo', x: 44, y: 56.75, w: 15.5, h: 4.5,
+        note: 'La máscara causal es una constante: una matriz T×T con 0 en j ≤ i y −∞ en j > i (triángulo superior). Se construye una vez (un buffer, no un parámetro) y la comparten todas las cabezas y todas las capas.' },
     ]).concat([
       { id: 'softmax', op: 'attn', label: 'softmax', sub: 'por fila', x: 20, y: 57 + d, w: 20, h: 5, tex: 'A = \\mathrm{softmax}(\\cdot)', note: 'Cada fila suma 1.' },
       { id: 'weighted-sum', op: 'attn', label: 'A · V', sub: 'promedio ponderado de los values', x: 12, y: 72 + d, w: 36, h: 5, tex: '\\mathrm{head}_i = A_i V_i', note: 'Mezcla los values con los pesos.' },
@@ -263,12 +277,14 @@
       { from: 'qkv', to: 'split', kind: 'data', tensor: p + 'qkv' },
       { from: 'split', to: 'scores', kind: 'data', tensor: p + 'q', fromSide: 'bottom', fromAt: 0.0625, toSide: 'top', toAt: 0.1111, labelSide: 'left', labelT: 0.3, tag: 'Q', tagStyle: 'plain', tagSide: 'on', tagT: 0.78 },
       { from: 'split', to: 'scores', kind: 'data', tensor: p + 'k', fromSide: 'bottom', toSide: 'top', labelT: 0.3, tag: 'K', tagStyle: 'plain', tagSide: 'on', tagT: 0.78 },
-      { from: 'split', to: 'weighted-sum', kind: 'data', tensor: p + 'v', fromSide: 'right', toSide: 'right', via: [[54, 21], [54, 74.5 + d]], labelT: 0.62, tag: 'V', tagStyle: 'plain', tagSide: 'on', tagT: 0.1 },
+      // la forma de V va a la izquierda del pasillo (a la derecha cruzaba el mazo de cabezas)
+      { from: 'split', to: 'weighted-sum', kind: 'data', tensor: p + 'v', fromSide: 'right', toSide: 'right', via: [[vx, 21], [vx, 74.5 + d]], labelT: img ? 0.62 : 0.34, labelSide: img ? 'right' : 'left', tag: 'V', tagStyle: 'plain', tagSide: 'on', tagSeg: 0, tagT: 0.75 },
       { from: 'scores', to: 'scale', kind: 'data', tensor: p + 'scores' },
     ].concat(img ? [
       { from: 'scale', to: 'softmax', kind: 'data', tensor: p + 'scores-scaled' },
     ] : [
       { from: 'scale', to: 'mask', kind: 'data', tensor: p + 'scores-scaled' },
+      { from: 'mask-src', to: 'mask', kind: 'control', fromSide: 'left', toSide: 'right' },
       { from: 'mask', to: 'softmax', kind: 'data', tensor: p + 'masked' },
     ]).concat([
       { from: 'softmax', to: 'weighted-sum', kind: 'data', tensor: p + 'attn' },
@@ -284,7 +300,7 @@
         : 'La misma MHSA con un paso más entre la escala y la softmax: la máscara causal (−∞ sobre el futuro). La matriz T×T se calcula entera; la máscara solo anula pesos.',
       grid: { w: 72, h: 111 + d }, direction: 'tb', maxCrossings: 0,
       groups: [
-        { id: 'heads', label: 'Las h cabezas, en paralelo', labelPos: 'bottom-right', heads: img ? 'h' : 'ht', headsSym: 'h', x: 8, y: 31, w: 58, h: 49 + d },
+        { id: 'heads', label: 'Las h cabezas, en paralelo', labelPos: 'bottom-right', heads: img ? 'h' : 'ht', headsSym: 'h', x: 8, y: 31, w: img ? 44 : 58, h: 49 + d },
       ],
       nodes: scoped(scope, nodes),
       tensors: [

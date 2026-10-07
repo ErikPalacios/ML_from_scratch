@@ -50,6 +50,9 @@
        -ln2 · -u · -g · -f · y la salida: s{k}-b1-out (bloque 1) / s{k}-out (bloque 2 = salida del
        par; tras el último par, salida del stage) ·
      m{k}-concat · m{k}-ln · m{k}-out (k = 1..3) · x-ln · pooled · logits.
+   Etiquetas (solo texto): los tensores de bloque llevan "Stage k · bloque j (W-MSA|SW-MSA) · …" y los
+   del merging "Patch merging k · …"; las ops llevan op.where = ['Stage k', 'bloque j (…)'] o
+   ['Patch merging k (stage k → k+1)'] para que la práctica las nombre sin ambigüedad.
    Diferencias con la lista de SPEC §14.1 (añadidos/ajustes, nada renombrado):
      - `s{k}-b{j}-z-heads` (añadido): salida de A·V por cabeza (nW×h×M²×d_h), como `z-heads` en ViT;
        `s{k}-b{j}-z` = cabezas concatenadas (nW×M²×C).
@@ -63,7 +66,9 @@
   const A = ATLAS.Arch;
   if (!A || !A.defineModel) throw new Error('swin.js necesita js/arch/primitives.js antes.');
 
-  // paperParamsM / paperGFLOPs: Tabla 1(a) del paper (provenance 'paper'; sus "FLOPs" son MACs).
+  // paperParamsM / paperGFLOPs: Tabla 1(a) del paper tal como está impresa (provenance 'paper'; sus "FLOPs"
+  // son MACs). Ojo: Swin-T imprime 29M aunque el conteo exacto es 28,288,354 (redondea a 28): el test
+  // acepta |calculador − paper| ≤ 1M.
   const base = { Cin: 3, P: 4, M: 7, mlpRatio: 4, K: 1000, qkvBias: true, projBias: true, mlpBias: true };
   const cfg = (o) => Object.assign({}, base, o);
   const T_DEPTHS = [2, 2, 6, 2], S_DEPTHS = [2, 2, 18, 2];
@@ -84,9 +89,9 @@
       authors: 'Liu et al.', venue: 'ICCV 2021 (Marr Prize)', year: 2021, arxiv: '2103.14030',
     },
     configs: {
-      'swin-t-224': cfg({ label: 'Swin-T @ 224', H: 224, W: 224, C: 96, depths: T_DEPTHS, heads: [3, 6, 12, 24], canonical: true, paperParamsM: 28, paperGFLOPs: 4.5,
+      'swin-t-224': cfg({ label: 'Swin-T @ 224', H: 224, W: 224, C: 96, depths: T_DEPTHS, heads: [3, 6, 12, 24], canonical: true, paperParamsM: 29, paperGFLOPs: 4.5,
         timm: 'swin_tiny_patch4_window7_224',
-        source: 'Liu et al. 2021, §3.3 (variantes: Swin-T C = 96, profundidades {2, 2, 6, 2}) y Tabla 1(a) (28M, 4.5G); timm swin_tiny_patch4_window7_224' }),
+        source: 'Liu et al. 2021, §3.3 (variantes: Swin-T C = 96, profundidades {2, 2, 6, 2}) y Tabla 1(a) (29M, 4.5G; el conteo exacto de timm es 28.29M, que la Tabla 1 de ConvNeXt redondea a 28M); timm swin_tiny_patch4_window7_224' }),
       'swin-s-224': cfg({ label: 'Swin-S @ 224', H: 224, W: 224, C: 96, depths: S_DEPTHS, heads: [3, 6, 12, 24], paperParamsM: 50, paperGFLOPs: 8.7,
         timm: 'swin_small_patch4_window7_224',
         source: 'Liu et al. 2021, §3.3 (Swin-S: C = 96, profundidades {2, 2, 18, 2}) y Tabla 1(a) (50M, 8.7G); timm swin_small_patch4_window7_224' }),
@@ -250,9 +255,13 @@
     const pBlock = (name) => [S, nb + w + '-' + name];
     const pMsa = (inner) => (k === 1 ? [S, w + '-msa', inner] : [S, nb + w + '-msa']);
     const pMlp = (inner) => (k === 1 ? [S, w + '-mlp', inner] : [S, nb + w + '-mlp']);
-    const L = (meta) => Object.assign({ perLayer: true }, meta);
-    const op = (id, res, path, extra) => g.op(pre + id, res, Object.assign({ path, repeat: rep }, extra));
-    const kind = j === 1 ? 'W-MSA' : (shift ? 'SW-MSA' : 'W-MSA (sin desplazamiento: una sola ventana)');
+    const L = (meta) => Object.assign({ perLayer: true }, meta, { label: tagLabel + meta.label });
+    const op = (id, res, path, extra) => g.op(pre + id, res, Object.assign({ path, repeat: rep, where }, extra));
+    const kind = j === 1 ? 'W-MSA' : (shift ? 'SW-MSA' : 'W-MSA, sin desplazamiento: una sola ventana');
+    // Contexto para mostrar (practica, tooltips): las etiquetas de tensor llevan stage y bloque, porque
+    // los mismos nombres se repiten en los 8 bloques (ids sin cambios).
+    const where = ['Stage ' + k, 'bloque ' + j + ' (' + (j === 1 ? 'W-MSA' : shift ? 'SW-MSA' : 'W-MSA sin desplazamiento') + ')'];
+    const tagLabel = where.join(' · ') + ' · ';
     const winSym = st.clamped ? { nWSym: String(st.windows), tokSym: String(st.windowTokens), Msym: String(st.M) } : { nWSym: 'nW', tokSym: 'M²', Msym: 'M' };
 
     const ln1 = op('ln1', A.layernorm(x), pBlock('ln1'), { out: pre + 'ln1', label: 'LayerNorm 1 (' + kind + ')', type: 'norm', group: 'norm', outMeta: L({ label: 'Entrada normalizada', tex: '\\mathrm{LN}_1(z)' }) });
@@ -297,7 +306,7 @@
     return op('res2', A.residual_add(r1, f), pBlock('res2'), {
       out: outId, label: 'Residual 2', type: 'tensorop', group: 'resid',
       outMeta: j === 1
-        ? L({ label: 'Salida del bloque W-MSA', tex: 'z_{\\ell}' })
+        ? L({ label: 'Salida del bloque', tex: 'z_{\\ell}' })
         : { label: 'Salida del stage ' + k, tex: 'z_{' + k + '}', perLayer: false, note: 'Salida de cada par de bloques; tras el último par es la salida del stage.' },
     });
   }
@@ -306,16 +315,18 @@
   function patchMerging(g, x, prev, st) {
     const m = prev.k, id = 'm' + m + '-';
     const node = (name) => (m === 1 ? ['merge1', name] : ['merge' + m, id + name]);
+    const where = ['Patch merging ' + m + ' (stage ' + m + ' → ' + (m + 1) + ')'];
+    const tl = 'Patch merging ' + m + ' · ';
     const cc = g.op(id + 'concat', A.patch_concat(x, { outSym: [st.sideSym, st.sideSymW, mulSym(4, prev.Csym)] }), {
-      path: node('concat'), out: id + 'concat', label: 'Concatenar vecinos 2×2', type: 'tensorop', group: 'embed',
-      outMeta: { label: 'Vecinos 2×2 concatenados', tex: '[z_{00};z_{10};z_{01};z_{11}]' },
+      path: node('concat'), out: id + 'concat', label: 'Concatenar vecinos 2×2', type: 'tensorop', group: 'embed', where,
+      outMeta: { label: tl + 'vecinos 2×2 concatenados', tex: '[z_{00};z_{10};z_{01};z_{11}]' },
     });
     const ln = g.op(id + 'ln', A.layernorm(cc), {
-      path: node('ln'), out: id + 'ln', label: 'LayerNorm(4C)', type: 'norm', group: 'norm',
-      outMeta: { label: 'Concatenación normalizada', tex: '\\mathrm{LN}(\\cdot)' },
+      path: node('ln'), out: id + 'ln', label: 'LayerNorm(4C)', type: 'norm', group: 'norm', where,
+      outMeta: { label: tl + 'concatenación normalizada', tex: '\\mathrm{LN}(\\cdot)' },
     });
     return g.op(id + 'reduce', A.linear(ln, { dout: st.C, doutSym: st.Csym, bias: false }), {
-      path: node('reduce'), out: id + 'out', label: 'Linear 4C → 2C (sin sesgo)', type: 'embed', group: 'embed',
+      path: node('reduce'), out: id + 'out', label: 'Linear 4C → 2C (sin sesgo)', type: 'embed', group: 'embed', where,
       outMeta: { label: 'Entrada del stage ' + st.k, tex: 'z' },
     });
   }

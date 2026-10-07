@@ -577,12 +577,14 @@ test('F2 atención causal, pick_token, L2, batch, similitud, temperatura y pérd
 // ================================================================ Fase 2: Swin
 const SWIN_IDS_S1B2 = ['ln1', 'shift', 'win', 'qkv', 'q', 'k', 'v', 'scores', 'scaled', 'biased', 'masked', 'attn', 'z-heads', 'z', 'proj', 'unwin', 'unshift', 'r1', 'ln2', 'u', 'g', 'f'];
 
-test('Swin-T @224: 28,288,354 parámetros (timm) y 4,490,566,656 MACs (paper: 28M, 4.5G)', () => {
+test('Swin-T @224: 28,288,354 parámetros (timm) y 4,490,566,656 MACs (paper, Tabla 1(a): 29M, 4.5G)', () => {
   const r = A.run('swin-t-224');
   assert.strictEqual(r.totals.params, 28288354);
   assert.strictEqual(r.totals.macs, 4490566656);
   assert.strictEqual(A.fmt.si(r.totals.macs), '4.49 G');
-  assert.strictEqual(Math.round(r.totals.params / 1e6), r.config.paperParamsM);
+  // La Tabla 1(a) imprime 29M para Swin-T (28.29M exactos): se acepta ±1M respecto del valor impreso.
+  assert.strictEqual(r.config.paperParamsM, 29);
+  assert.ok(Math.abs(r.totals.params / 1e6 - r.config.paperParamsM) <= 1);
   assert.strictEqual(Math.round(r.totals.macs / 1e8) / 10, r.config.paperGFLOPs);   // los "FLOPs" del paper son MACs
   assert.strictEqual(r.quantities.tokens, 3136);
   const n = r.totals.byNode;
@@ -595,7 +597,7 @@ test('Swin-T @224: 28,288,354 parámetros (timm) y 4,490,566,656 MACs (paper: 28
   assert.strictEqual(r.quantities.biasParamsS1Block, 507);
   for (const id of ['swin-s-224', 'swin-b-224', 'swin-b-384']) {
     const x = A.run(id);
-    assert.strictEqual(Math.round(x.totals.params / 1e6), x.config.paperParamsM, id);
+    assert.ok(Math.abs(x.totals.params / 1e6 - x.config.paperParamsM) <= 1, id + ' parámetros ≈ paper (±1M)');
     assert.ok(Math.abs(x.totals.macs / 1e9 / x.config.paperGFLOPs - 1) < 0.005, id + ' MACs ≈ "FLOPs" del paper (±0.5 %)');
   }
 });
@@ -839,8 +841,19 @@ test('CLIP metrics: memoria de la matriz B×B, negativos por muestra, costo del 
   const s = A.metrics('clip-vit-b16', { B: 256, dtype: 'fp32' });
   assert.strictEqual(s.negatives, 255);
   assert.strictEqual(s.logitsMem, 256 * 256 * 4);
-  assert.strictEqual(s.attnMem, 12 * 197 * 197 * 4 * 256);        // el mayor tensor de scores (imagen), × B
-  assert.ok(A.metrics('clip-vit-b16', { B: 8 }).actMem < m.actMem);
+  // Las torres son por muestra (B = 1): el mayor tensor de scores es el de la imagen, sin × B.
+  assert.strictEqual(m.attnMem, 12 * 197 * 197 * 2);
+  assert.strictEqual(A.fmt.bytes(m.attnMem), '931.4 KB');
+  assert.strictEqual(m.imgAttnMem, m.attnMem);
+  assert.strictEqual(m.txtAttnMem, 8 * 77 * 77 * 2);
+  assert.strictEqual(m.attnMemAllLayers, 12 * m.imgAttnMem + 12 * m.txtAttnMem);
+  assert.strictEqual(s.attnMem, 12 * 197 * 197 * 4);               // no depende de B
+  assert.strictEqual(s.attnMemBatch, 12 * 197 * 197 * 4 * 256);    // el lote entero, aparte
+  const b32 = A.metrics('clip-vit-b32');
+  assert.strictEqual(b32.imgAttnMem, 12 * 50 * 50 * 2);
+  assert.strictEqual(b32.attnMem, b32.txtAttnMem);                 // en B/32 el mayor es el del texto
+  assert.strictEqual(A.metrics('clip-vit-b16', { B: 8 }).actMem, m.actMem);   // por muestra
+  assert.ok(A.metrics('clip-vit-b16', { B: 8 }).actMemBatch < m.actMemBatch);
 });
 
 // ================================================================ actMem (arreglo de la fase 1)
@@ -858,7 +871,10 @@ test('actMem: cada tensor guardado una vez, sin vistas, sin tablas de parámetro
   assert.ok(sw.actMem > 0);
   const c1 = A.metrics('clip-vit-b16', { B: 1 }), c2 = A.metrics('clip-vit-b16', { B: 2 });
   const joint = (B) => (2 * B * 512 + 2 * B * B + 1) * 2;          // img-batch, txt-batch, sims, logits, loss
-  assert.strictEqual(c2.actMem - joint(2), 2 * (c1.actMem - joint(1)));
+  assert.strictEqual(c2.actMemBatch - joint(2), 2 * (c1.actMemBatch - joint(1)));
+  // actMem de CLIP: las torres, una muestra (img-batch/txt-batch son vistas apiladas; sí cuentan sims, logits, loss)
+  assert.strictEqual(c1.actMem, c1.actMemBatch - (2 * 1 * 1 + 1) * 2);
+  assert.strictEqual(c2.actMem, c1.actMem);
 });
 
 test('Quantities: claves de Swin, CLIP y ResNet', () => {
@@ -885,4 +901,28 @@ test('Quantities: claves de Swin, CLIP y ResNet', () => {
   assert.strictEqual(Q.get('clip-vit-b16.node.img-encoder.params').text, '85,799,424');
   assert.strictEqual(Q.get('resnet50-224.tensor.c5.shape').text, '7×7×2048');
   for (const id of ['swin-t-224', 'clip-vit-b16', 'resnet50-224']) J(Q.keys(id)).forEach((k) => assert.ok(Q.get(id + '.' + k), id + '.' + k));
+});
+
+// ================================================================ Fase 2: etiquetas sin ambigüedad (práctica)
+test('Swin y CLIP: etiqueta + símbolo de cada tensor identifican una sola forma; op.where nombra stage/bloque o torre', () => {
+  for (const id of ['swin-t-224', 'swin-s-224', 'swin-b-384', 'clip-vit-b16', 'clip-vit-l14']) {
+    const r = A.run(id);
+    const by = {};
+    for (const tid of r.order) {
+      const t = r.tensors[tid];
+      const k = t.label + '|' + String(t.tex).split('=')[0].trim();
+      (by[k] = by[k] || new Set()).add(t.num.join('×'));
+    }
+    for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+  }
+  const s = A.run('swin-t-224');
+  assert.strictEqual(s.tensors['s2-b1-qkv'].label, 'Stage 2 · bloque 1 (W-MSA) · Q, K y V concatenados');
+  assert.strictEqual(JSON.stringify(s.ops.find((o) => o.id === 's3-b2-qkv').where), JSON.stringify(['Stage 3', 'bloque 2 (SW-MSA)']));
+  assert.ok(!/\(\(|\)\)/.test(s.ops.find((o) => o.id === 's4-b2-ln1').label), 'sin paréntesis dobles');
+  const c = A.run('clip-vit-b16');
+  assert.strictEqual(c.tensors['i-q'].label, 'Torre de imagen · Queries por cabeza');
+  assert.strictEqual(c.tensors['t-q'].label, 'Torre de texto · Queries por cabeza');
+  assert.strictEqual(JSON.stringify(c.ops.find((o) => o.id === 't-qkv').where), JSON.stringify(['Torre de texto']));
+  assert.strictEqual(A.run('vit-b16-224').tensors.q.label, 'Queries por cabeza');   // ViT sin cambios
+  assert.strictEqual(A.run('vit-b16-224').ops.find((o) => o.id === 'qkv').where, undefined);
 });

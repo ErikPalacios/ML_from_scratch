@@ -171,7 +171,7 @@
     P: { label: 'Patch P', show: (v) => 'P = ' + v },
     ctx: { label: 'Contexto', show: (v) => fInt(v) + ' tok' },
     T: { label: 'Tokens de texto T', show: (v) => fInt(v) },
-    B: { label: 'Batch B', show: (v) => 'B = ' + v },
+    B: { label: 'Batch B', show: (v) => 'B = ' + fInt(v) },
   };
   const knobLabel = (k) => (KNOBS[k] || {}).label || k;
   const knobShow = (k, v) => (KNOBS[k] && KNOBS[k].show ? KNOBS[k].show(v) : String(v));
@@ -186,22 +186,35 @@
     return values && values.length ? values[0] : null;
   }
 
-  // Métricas: etiqueta, tipo de formato y nota.
+  // Métricas: etiqueta, tipo de formato y nota. `notes` = nota por modelo (Swin: ventanas fijas, sin CLS;
+  // CLIP: torres por muestra y una parte conjunta del lote B).
   const METRICS = {
-    tokens: { label: 'Tokens', kind: 'count', note: 'longitud de la secuencia (incluye CLS)' },
+    tokens: { label: 'Tokens', kind: 'count', note: 'longitud de la secuencia (incluye CLS)',
+      notes: { swin: 'tokens del stage 1 (H/4 × W/4, sin CLS)', clip: 'torre de imagen: N + 1 (incluye CLS)' } },
     patches: { label: 'Patches', kind: 'count' },
     params: { label: 'Parámetros', kind: 'count', note: 'pesos + biases' },
     macs: { label: 'MACs', kind: 'ops', note: 'matmuls y convs · FLOPs = 2 × MACs' },
     flops: { label: 'FLOPs', kind: 'ops', note: '= 2 × MACs' },
-    attnMem: { label: 'Scores de atención', kind: 'bytes', note: 'h×N×N en fp16, una capa, B = 1' },
-    actMem: { label: 'Activaciones', kind: 'bytes', note: 'fp16, B = 1' },
+    attnMem: { label: 'Scores de atención', kind: 'bytes', note: 'h×N×N en fp16, una capa, B = 1',
+      notes: { swin: 'nW×h×M²×M² en fp16, el mayor bloque, B = 1', clip: 'h×N×N en fp16, una capa de la torre mayor, una muestra' } },
+    actMem: { label: 'Activaciones', kind: 'bytes', note: 'fp16, B = 1', notes: { clip: 'fp16, las dos torres, una muestra' } },
     kvCache: { label: 'KV cache', kind: 'bytes', note: 'fp16, B = 1' },
-    scoreMacs: { label: 'MACs de QKᵀ y A·V', kind: 'ops', note: 'la parte que crece con N²' },
+    scoreMacs: { label: 'MACs de QKᵀ y A·V', kind: 'ops', note: 'la parte que crece con N²',
+      notes: { swin: 'con ventanas M×M fijas crece ∝ N (lineal)' } },
     // Dos "partes de atención" distintas: siempre con su nombre completo (no se confunden).
-    scoreMacsShare: { label: 'Atención (solo QKᵀ y A·V)', kind: 'pct', note: '% de los MACs totales; la parte ∝ N²' },
+    scoreMacsShare: { label: 'Atención (solo QKᵀ y A·V)', kind: 'pct', note: '% de los MACs totales; la parte ∝ N²',
+      notes: { swin: '% de los MACs totales; con ventanas fijas, lineal en N' } },
     attnMacs: { label: 'MACs del bloque de atención (con proyecciones)', kind: 'ops', note: 'QKᵀ, A·V y proyecciones Q, K, V, O' },
     attnMacsShare: { label: 'Bloque de atención (con proyecciones)', kind: 'pct', note: '% de los MACs: QKᵀ, A·V y proyecciones Q, K, V, O' },
+    // CLIP: la parte conjunta (depende del batch contrastivo B, no de la arquitectura)
+    negatives: { label: 'Negativos por muestra', kind: 'count', note: 'B − 1' },
+    logitsMem: { label: 'Matriz de logits B×B', kind: 'bytes', note: 'B² valores, 2 bytes cada uno (bf16)' },
+    logitsMacs: { label: 'MACs de la matriz B×B', kind: 'ops', note: 'B²·E, el lote completo' },
+    logitsMacsShare: { label: 'Matriz B×B en el forward del lote', kind: 'pct', note: '% de los MACs del lote (torres × B + B²·E)' },
+    embBatchMem: { label: 'Embeddings del lote', kind: 'bytes', note: '2·B·E valores (imagen y texto), bf16' },
+    batchMacs: { label: 'MACs del lote', kind: 'ops', note: 'forward de los B pares' },
   };
+  const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
   const metricLabel = (k) => (METRICS[metricKey(k)] || {}).label || k;
   // Lee una métrica: número, {bytes}, o función (attnMem(dtype), kvCache(B, ctx, dtype)…).
@@ -260,22 +273,6 @@
     const ds = diagramsOf(model);
     return ds.find((d) => (d.edges || []).some((e) => e.tensor === tid)) || ds.find((d) => tensorInDiagram(d, tid)) || null;
   }
-  function diagramForNode(model, nid) { return diagramsOf(model).find((d) => (d.nodes || []).some((n) => n.id === nid) || (d.groups || []).some((g) => g.id === nid)) || null; }
-  function nodeLabel(model, nid) {
-    for (const d of diagramsOf(model)) {
-      const n = (d.nodes || []).find((x) => x.id === nid) || (d.groups || []).find((x) => x.id === nid);
-      if (n && n.label) return n.label;
-    }
-    return null;
-  }
-  // Nombre de un bloque: el del diagrama; si no hay diagrama, el de la op hoja con ese nodo.
-  function blockLabel(model, R, nid) {
-    const l = nodeLabel(model, nid);
-    if (l) return l;
-    const op = (R && R.ops || []).find((o) => o.node === nid && (o.path || [])[(o.path || []).length - 1] === nid);
-    return op ? op.label : null;
-  }
-  function isGroup(model, nid) { return diagramsOf(model).some((d) => (d.groups || []).some((g) => g.id === nid)); }
   function mountMini(figEl, diagramId, hl) {
     const AD = ATLAS.ArchDiagram;
     if (!AD || typeof AD.render !== 'function' || !diagramId) return null;
@@ -467,7 +464,9 @@
     knobs.forEach((k) => { cur[k.key] = k.base; });
     let xKnob = knobs.length ? knobs[0].key : null;
     const plottable = show.filter((k) => ((METRICS[k] || {}).kind) !== 'pct');
-    let chartMetric = plottable.indexOf('macs') >= 0 ? 'macs' : plottable.find((k) => k !== 'params') || plottable[0] || show[0];
+    // Gráfica: MACs si están; si no, la primera memoria (CLIP: la curva B² de la matriz de logits); si no, otra.
+    let chartMetric = plottable.indexOf('macs') >= 0 ? 'macs'
+      : plottable.find((k) => ((METRICS[k] || {}).kind) === 'bytes') || plottable.find((k) => k !== 'params') || plottable[0] || show[0];
     const baseM = metrics(config, {});
     const overrides = (o) => { const ov = {}; knobs.forEach((k) => { const v = (o || cur)[k.key]; if (v !== k.base) ov[k.key] = v; }); return ov; };
 
@@ -548,7 +547,7 @@
           h('span', { class: 'pxs__ck' }, metricLabel(k)),
           h('span', { class: 'pxs__cv mono', title: fMetricExact(k, v) }, fMetric(k, v)),
           h('span', { class: 'pxs__cr mono' + (isChanged(k, v, b) ? ' is-changed' : '') }, fVsBase(k, v, b)),
-          (METRICS[k] || {}).note ? h('span', { class: 'pxs__cn' }, METRICS[k].note) : null));
+          metricNote(k, model) ? h('span', { class: 'pxs__cn' }, metricNote(k, model)) : null));
       });
       paintChart(m);
       paintSplit(m);
@@ -585,7 +584,7 @@
       pts.forEach((p) => {
         const px = X(lx(p.x));
         svg += '<line x1="' + px + '" y1="' + T + '" x2="' + px + '" y2="' + (H - B) + '" class="pxs__grid"/>';
-        svg += '<text x="' + px + '" y="' + (H - B + 16) + '" class="pxs__tick" text-anchor="middle">' + esc(String(p.x)) + '</text>';
+        svg += '<text x="' + px + '" y="' + (H - B + 16) + '" class="pxs__tick" text-anchor="middle">' + esc(p.x >= 10000 ? fInt(p.x) : String(p.x)) + '</text>';
       });
       [y0, y1].forEach((v, i) => {
         const val = Math.exp(v);
@@ -607,6 +606,7 @@
       splitEl.innerHTML = '';
       const sp = attnSplit(m);
       const mem = metricValue(m, 'attnMem');
+      const windowed = !!(m && m.windowScoreMacs != null);   // Swin: atención por ventanas de tamaño fijo
       if (!sp && mem == null) { splitEl.hidden = true; return; }
       splitEl.hidden = false;
       splitEl.appendChild(h('p', { class: 'px-k' }, 'Dónde se va el cómputo: atención (solo QKᵀ y A·V) vs el resto'));
@@ -617,15 +617,21 @@
           h('span', { class: 'pxs__seg-l', style: { width: Math.max(l, 0.5) + '%' } })));
         const am = typeof m.attnMacsShare === 'number' ? Math.round(m.attnMacsShare * 1000) / 10 : null;
         splitEl.appendChild(h('ul', { class: 'pxs__legend' },
-          h('li', null, h('i', { class: 'pxs__sw pxs__sw--a' }), h('span', null, 'Atención, solo QKᵀ y A·V (crece ∝ N²): '), h('b', { class: 'mono' }, fOps(sp.attn) + ' · ' + a + ' %')),
-          h('li', null, h('i', { class: 'pxs__sw pxs__sw--l' }), h('span', null, 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding y cabeza, ∝ N): '), h('b', { class: 'mono' }, fOps(sp.linear) + ' · ' + l + ' %'))));
+          h('li', null, h('i', { class: 'pxs__sw pxs__sw--a' }), h('span', null, windowed
+            ? 'Atención, solo QKᵀ y A·V (con ventanas M×M fijas crece ∝ N·M², lineal en N): '
+            : 'Atención, solo QKᵀ y A·V (crece ∝ N²): '), h('b', { class: 'mono' }, fOps(sp.attn) + ' · ' + a + ' %')),
+          h('li', null, h('i', { class: 'pxs__sw pxs__sw--l' }), h('span', null, windowed
+            ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding, patch merging y cabeza, ∝ N): '
+            : 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding y cabeza, ∝ N): '), h('b', { class: 'mono' }, fOps(sp.linear) + ' · ' + l + ' %'))));
         if (am != null) splitEl.appendChild(h('p', { class: 'pxs__mem muted small' },
           'Otra métrica, no la confundas: el bloque de atención (con proyecciones Q, K, V, O) es ', h('b', { class: 'mono' }, am + ' %'), ' de los MACs.'));
       }
       if (mem != null) {
         const b = metricValue(baseM, 'attnMem');
         splitEl.appendChild(h('p', { class: 'pxs__mem' },
-          'Scores de atención — tensor h×N×N en fp16 (2 bytes), una capa, B = 1: ', h('b', { class: 'mono', title: fInt(mem) + ' bytes' }, fBytes(mem)),
+          windowed ? 'Scores de atención — el mayor tensor nW×h×M²×M² de un bloque, en fp16 (2 bytes), B = 1: '
+            : model === 'clip' ? 'Scores de atención — tensor h×N×N de una capa de la torre mayor, en fp16 (2 bytes), una muestra (no depende de B): '
+            : 'Scores de atención — tensor h×N×N en fp16 (2 bytes), una capa, B = 1: ', h('b', { class: 'mono', title: fInt(mem) + ' bytes' }, fBytes(mem)),
           b ? h('span', { class: 'mono muted' }, ' (' + fFactor(mem / b) + ' vs base)') : null,
           '. FlashAttention no lo materializa completo en memoria.'));
       }
@@ -877,19 +883,96 @@
     const dim = (v) => (Number.isInteger(v) && Math.abs(v) < 10000 ? String(v) : fInt(v));
     return CFG_SYMS.filter(([k]) => typeof c[k] === 'number').map(([k, s]) => h('span', { class: 'pxd__fact mono' }, s + ' = ' + dim(c[k])));
   }
-  // Parámetros de un nodo: si es un grupo con repeat → todo el grupo (×repeat); si no → una instancia.
-  function nodeParams(R, model, nid) {
-    const ops = (R.ops || []).filter((o) => (o.path || []).indexOf(nid) >= 0 || o.node === nid).filter((o) => (o.params || 0) > 0);
+  // ------------------------------------------------------------------ drills de parámetros
+  // Un drill de parámetros pregunta por un nodo de un diagrama y su respuesta es EXACTAMENTE lo que ese
+  // diagrama muestra para el nodo (archdiagram.js nodeOps/nodeCost; blocks.js opsOfNode): las ops se
+  // eligen con node.ops, costOf, scope y opsExact, porque desde la fase 2 hay ids de nodo repetidos (las
+  // dos torres de CLIP, W-MSA y SW-MSA en Swin). Por instancia si todas las ops se repiten igual (una
+  // capa, un par de bloques); el total (Σ op × repeat) si mezclan repeticiones (una torre entera). Los
+  // grupos con repeat.totalOf preguntan por el total que el diagrama escribe ("= 85.1 M en total").
+  function opsOfDiagramNode(R, n) {
+    const ids = n.ops || [];
+    const pid = n.costOf || n.id;
+    return (R.ops || []).filter((o) => ids.indexOf(o.id) >= 0 || (!n.opsExact && o.path && o.path.indexOf(pid) >= 0 && (!n.scope || o.path.indexOf(n.scope) >= 0)));
+  }
+  // ref: {diagram, node} | {diagram, group} | id de nodo (el primer diagrama del modelo que lo tiene) |
+  // {op}: una op hoja cuyo nodo no está en ningún diagrama (única op con ese nodo).
+  function locateParamsNode(model, R, ref) {
+    const ds = diagramsOf(model);
+    if (ref && typeof ref === 'object' && ref.op) {
+      const op = (R.ops || []).find((o) => o.id === ref.op);
+      return op ? { op, ops: [op] } : null;
+    }
+    const r = typeof ref === 'string' ? { node: ref } : (ref || {});
+    const list = r.diagram ? ds.filter((d) => d.id === r.diagram) : ds;
+    for (const d of list) {
+      if (r.node) {
+        const n = (d.nodes || []).find((x) => x && x.id === r.node && x.op !== 'io');
+        if (n) return { diagram: d, node: n, ops: opsOfDiagramNode(R, n) };
+      }
+      const gid = r.group || (typeof ref === 'string' ? ref : null);
+      if (gid) {
+        const g = (d.groups || []).find((x) => x && x.id === gid);
+        const tn = g && g.repeat && g.repeat.totalOf && (d.nodes || []).find((x) => x && x.id === g.repeat.totalOf);
+        if (tn) return { diagram: d, group: g, node: tn, ops: opsOfDiagramNode(R, tn) };
+      }
+    }
+    return null;
+  }
+  // Contexto común de las ops (op.where del calculador): ['Stage 2', 'bloque 1 (W-MSA)'] o ['Torre de texto'].
+  function commonWhere(ops) {
+    const ws = ops.map((o) => (Array.isArray(o.where) ? o.where : []));
+    if (!ws.length || ws.some((w) => !w.length)) return [];
+    const out = [];
+    for (let i = 0; i < ws[0].length; i++) { const v = ws[0][i]; if (ws.every((w) => w[i] === v)) out.push(v); else break; }
+    return out;
+  }
+  const plainLabel = (t) => String(t == null ? '' : t).replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  function nodeParams(R, model, ref) {
+    const loc = locateParamsNode(model, R, ref);
+    if (!loc || !loc.ops.length) return null;
+    const all = loc.ops;
+    const ops = all.filter((o) => (o.params || 0) > 0);
     if (!ops.length) return null;
-    const group = isGroup(model, nid);
-    const rep = Math.max(...ops.map((o) => o.repeat || 1));
-    const times = (o) => (group ? (o.repeat || 1) : 1);
+    const rep = Math.max(...all.map((o) => o.repeat || 1));
+    const mixed = all.some((o) => (o.repeat || 1) !== rep);
+    const group = !!loc.group;
+    const whole = group || mixed;                 // total del modelo para ese bloque (Σ op × repeat)
+    const times = (o) => (whole ? (o.repeat || 1) : 1);
     const total = ops.reduce((a, o) => a + o.params * times(o), 0);
     // Errores típicos de conteo: olvidar los biases de linear/conv, o los γ y β de LayerNorm.
     const biasOf = (o) => (o.detail && o.detail.bias ? (o.detail.dout || o.detail.cout || 0) : 0);
     const biases = ops.reduce((a, o) => a + biasOf(o) * times(o), 0);
     const lnParams = ops.filter((o) => o.prim === 'layernorm' || o.prim === 'rmsnorm').reduce((a, o) => a + o.params * times(o), 0);
-    return { ops, total, group, perLayer: !group && rep > 1, repeat: rep, biases, lnParams };
+    // Unidad de repetición: Swin repite PARES de bloques (W-MSA + SW-MSA); el resto, capas. El símbolo
+    // sale de la torre (CLIP: L para la imagen, L_t para el texto), nunca de cfg.L a ciegas.
+    const cfg = R.config || {};
+    const isSwin = Array.isArray(cfg.stages);
+    const blocks = new Set(all.map((o) => (Array.isArray(o.where) && o.where[1]) || ''));
+    const pairUnit = isSwin && (blocks.size > 1 || group);
+    const txt = all.some((o) => (o.path || []).indexOf('txt-encoder') >= 0);
+    const sym = txt ? (cfg.Lt === rep ? 'L_t = ' + rep : '' + rep) : (cfg.L === rep && !isSwin ? 'L = ' + rep : '' + rep);
+    const repMax = Math.max(...all.map((o) => o.repeat || 1));
+    let qual = '';
+    if (group) qual = isSwin ? ' (el stage completo: los ' + rep + ' pares)' : ' (completo: las ' + sym + ' capas)';
+    else if (mixed) qual = isSwin ? '' : ' (entero: con las ' + (txt ? (cfg.Lt === repMax ? 'L_t = ' : '') : (cfg.L === repMax ? 'L = ' : '')) + repMax + ' capas)';
+    else if (rep > 1) qual = isSwin
+      ? (pairUnit ? ' (una sola pareja de bloques; hay ' + rep + ')' : ' (un solo bloque; el stage tiene ' + rep + ' pares)')
+      : ' (una sola capa; hay ' + sym + ')';
+    // Nombre: el del diagrama (o el de la op hoja), con el contexto que falte (stage/bloque, torre).
+    let base = plainLabel(loc.group ? (loc.group.label || loc.node.label) : loc.node ? loc.node.label : loc.op.label);
+    const low = (x) => String(x).toLowerCase();
+    let ctxParts = commonWhere(all).filter((w) => low(base).indexOf(low(w)) < 0);
+    // "Patch merging" con contexto "Patch merging 2 (stage 2 → 3)": basta el contexto.
+    const lead = ctxParts.findIndex((w) => low(w).indexOf(low(base)) === 0);
+    if (lead >= 0) { base = ctxParts[lead]; ctxParts = ctxParts.filter((_, i) => i !== lead); }
+    // "LayerNorm 1 (W-MSA)" con contexto "bloque 1 (W-MSA)": el paréntesis sobra.
+    const par = ctxParts.length ? base.match(/^(.*\S)\s*\(([^()]*)\)$/) : null;
+    if (par && low(ctxParts.join(' ')).indexOf(low(par[2].split(/[ ,:]/)[0])) >= 0) base = par[1];
+    const label = (ctxParts.length ? ctxParts.join(' · ') + ' · ' : '') + base;
+    return { ops, total, group: whole, perLayer: !whole && rep > 1, repeat: rep, biases, lnParams, label, qual,
+      unit: pairUnit ? 'par' : isSwin ? 'bloque' : 'capa', diagram: loc.diagram ? loc.diagram.id : null,
+      node: loc.node ? loc.node.id : null };
   }
   // Califica un conteo de parámetros (SPEC §8.2). Exacto = correcto. Redondeado = correcto si cuadra
   // hasta la última cifra escrita (máx. ±1 %). Pero la tolerancia nunca llega a la mitad de los biases:
@@ -918,6 +1001,46 @@
     }
     return { ok: false, value: n };
   }
+  // Candidatos de parámetros de una config: cada nodo (no io) de cada diagrama del modelo, cada grupo con
+  // repeat.totalOf (si se repite más de una vez) y, para ops hoja con params cuyo nodo no está en ningún
+  // diagrama, la op (solo si es la única con ese nodo; id cfg:<nodo>:params, como antes). Sin duplicados (mismas ops, misma unidad, mismo
+  // nombre). Id estable: cfg:<nodo>:params; si el id de nodo se repite entre diagramas, cfg:<diagrama>><nodo>:params.
+  function paramsCandidates(src, cfg, R) {
+    const ds = diagramsOf(src.model);
+    const count = {};
+    ds.forEach((d) => { (d.nodes || []).concat(d.groups || []).forEach((n) => { if (n && n.id) count[n.id] = (count[n.id] || 0) + 1; }); });
+    const out = [], seen = new Set(), seenOps = new Set();
+    const push = (ref, key) => {
+      const np = nodeParams(R, src.model, ref);
+      if (!np || !(np.total > 0)) return;
+      const opSig = np.ops.map((o) => o.id).sort().join(',') + '|' + np.group;
+      const sig = opSig + '|' + np.label;
+      // una op hoja que ya pregunta un nodo de diagrama (mismas ops con params) no se repite
+      if (seen.has(sig) || (ref.op && seenOps.has(opSig))) return;
+      seen.add(sig); seenOps.add(opSig);
+      out.push({ kind: 'params', model: src.model, pageId: src.pageId, config: cfg, node: ref, id: cfg + ':' + key + ':params' });
+    };
+    const key = (d, id) => (count[id] > 1 ? d.id + '>' + id : id);
+    ds.forEach((d) => {
+      (d.nodes || []).forEach((n) => { if (n && n.id && n.op !== 'io') push({ diagram: d.id, node: n.id }, key(d, n.id)); });
+      (d.groups || []).forEach((g) => {
+        if (!g || !g.repeat || !g.repeat.totalOf) return;
+        const tn = (d.nodes || []).find((x) => x && x.id === g.repeat.totalOf);
+        const ops = tn ? opsOfDiagramNode(R, tn) : [];
+        if (ops.length && Math.max(...ops.map((o) => o.repeat || 1)) > 1) push({ diagram: d.id, group: g.id }, key(d, g.id));
+      });
+    });
+    const inDiagram = new Set();
+    ds.forEach((d) => (d.nodes || []).forEach((n) => n && n.id && inDiagram.add(n.id)));
+    const byNode = {};
+    (R.ops || []).forEach((o) => { (byNode[o.node] = byNode[o.node] || []).push(o); });
+    Object.keys(byNode).forEach((nid) => {
+      const list = byNode[nid];
+      if (inDiagram.has(nid) || list.length !== 1 || !((list[0].params || 0) > 0)) return;
+      push({ op: list[0].id }, nid);   // el id de nodo no está en ningún diagrama: no choca
+    });
+    return out;
+  }
   function drillCandidates(sources, kinds) {
     const out = [];
     sources.forEach((src) => {
@@ -926,23 +1049,18 @@
         const R = safe(() => run(cfg), null);
         if (!R) return;
         if (kinds.indexOf('shape') >= 0) {
-          const pool = Array.isArray(src.pool) ? src.pool : (R.order || Object.keys(R.tensors || {}));
+          // pool 'all': los tensores que aparecen en algún diagrama del modelo (así siempre hay figura y
+          // contexto); un pool explícito (lista de ids) se respeta tal cual.
+          const ds = diagramsOf(src.model);
+          const pool = Array.isArray(src.pool) ? src.pool
+            : (R.order || Object.keys(R.tensors || {})).filter((tid) => !ds.length || ds.some((d) => tensorInDiagram(d, tid)));
           pool.forEach((tid) => {
             const t = R.tensors[tid];
             if (!t || !t.producer || !(t.num || []).length) return;   // las entradas no se preguntan
             out.push({ kind: 'shape', model: src.model, pageId: src.pageId, config: cfg, tensor: tid, id: cfg + ':' + tid + ':shape' });
           });
         }
-        if (kinds.indexOf('params') >= 0) {
-          const nids = new Set();
-          (R.ops || []).forEach((o) => (o.path || [o.node]).forEach((n) => n && nids.add(n)));
-          nids.forEach((nid) => {
-            if (!blockLabel(src.model, R, nid)) return;   // solo bloques con nombre (diagrama u op hoja)
-            const np = nodeParams(R, src.model, nid);
-            if (!np || np.total <= 0) return;
-            out.push({ kind: 'params', model: src.model, pageId: src.pageId, config: cfg, node: nid, id: cfg + ':' + nid + ':params' });
-          });
-        }
+        if (kinds.indexOf('params') >= 0) paramsCandidates(src, cfg, R).forEach((c) => out.push(c));
       });
       if (kinds.indexOf('whatif') >= 0) (src.whatifs || []).forEach((w) => out.push(Object.assign({ kind: 'whatif', model: src.model, pageId: src.pageId }, w)));
     });
@@ -1034,13 +1152,10 @@
       } else {
         const np = nodeParams(R, cur.model, cur.node);
         expected = np.total;
-        const lab = blockLabel(cur.model, R, cur.node) || cur.node;
-        const Lsym = R.config && R.config.L != null ? 'L = ' + R.config.L : '×' + np.repeat;
-        qHtml = '¿Cuántos parámetros tiene <b>' + esc(lab) + '</b>' + (np.perLayer ? ' (una sola capa; hay ' + esc(Lsym) + ')' : np.group && np.repeat > 1 ? ' (completo, las ' + np.repeat + ' capas)' : '') + '?';
+        qHtml = '¿Cuántos parámetros tiene <b>' + esc(np.label) + '</b>' + esc(np.qual) + '?';
         hint = 'Pesos y biases. Exacto, o redondeado hasta la cifra que escribas (7.09M; máx. ±1 %); olvidar los biases cuenta como error. Miles con coma, espacio o punto (7,087,872 · 7 087 872 · 7.087.872: el punto es de miles solo si separa grupos de 3 cifras y no hay sufijo); decimales con punto o coma (7.09M · 7,09 M).';
-        const d = diagramForNode(cur.model, cur.node);
-        diag = d && d.id;
-        hl = d ? { nodes: [cur.node], edges: [], tensors: [] } : null;
+        diag = np.diagram;
+        hl = np.diagram && np.node ? { nodes: [np.node], edges: [], tensors: [] } : null;
       }
       const qid = uid('pxd-q');
       const inp = h('input', { type: 'text', class: 'input pxd__in mono', id: uid('pxd-in'), autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
@@ -1124,7 +1239,11 @@
           h('tbody', null, rows),
           h('tfoot', null, h('tr', null, h('th', { colspan: '2' }, 'Total'), h('td', { class: 'mono num' }, fInt(np.total)), np.group && np.repeat > 1 ? h('td') : null)))));
         if (np.ops.length > 12) el2.appendChild(h('p', { class: 'muted small' }, '… y ' + (np.ops.length - 12) + ' operaciones más.'));
-        if (np.perLayer) el2.appendChild(h('p', { class: 'muted small' }, 'Todo el modelo tiene ' + np.repeat + ' capas iguales: ' + fInt(np.total * np.repeat) + ' en total.'));
+        if (np.perLayer) el2.appendChild(h('p', { class: 'muted small' }, np.unit === 'capa'
+          ? 'Hay ' + np.repeat + ' capas iguales: ' + fInt(np.total * np.repeat) + ' en total.'
+          : np.unit === 'par'
+            ? 'El stage tiene ' + np.repeat + ' pares iguales: ' + fInt(np.total * np.repeat) + ' en total.'
+            : 'El stage tiene ' + np.repeat + ' pares, uno de estos bloques en cada uno: ' + fInt(np.total * np.repeat) + ' en total.'));
         if (np.biases > 0) {
           const share = (np.biases / np.total) * 100;
           el2.appendChild(h('p', { class: 'pxd__bias small' },

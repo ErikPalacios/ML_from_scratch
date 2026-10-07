@@ -383,6 +383,11 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-zs-bar { fill: var(--op-head-soft); stroke: var(--op-head); stroke-width: 1.2; }
 .viz-zs-bar--best { fill: var(--op-head); }
 .viz-cell-btn:focus-visible .viz-zs-track { stroke: var(--focus); stroke-width: 2.5; }
+.viz-zs-row { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-zs-row--best { stroke: var(--ink); stroke-width: 1.4; }
+.viz-zs-bus { stroke: var(--mod-img); stroke-width: 1.8; }
+.viz-zs-dot { fill: var(--surface); stroke: var(--ink); stroke-width: 1.2; }
+.viz-zs-dot-c { fill: var(--ink); }
 /* ---------------------------------------------------------------- fase 2: glifos del motor */
 .ad-matdiag { stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
 .ad-winmarks { fill: none; stroke: var(--mc); stroke-width: 1.1; stroke-opacity: .9; }
@@ -393,3 +398,8 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-flag-bg { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1; }
 .ad-flag-txt { font: 700 10px var(--font-mono); fill: var(--ink); }
 .ad-mod--joint { --mc: var(--op-fuse); }
+/* parte con lote (CLIP): marco discontinuo en el color de fusión */
+.ad-group--batch > .ad-frame, .ad-frame--batch { fill: color-mix(in srgb, var(--op-fuse) 4%, transparent); stroke: var(--op-fuse); stroke-width: 1.4; stroke-dasharray: 7 4; }
+.ad-group--batch > .ad-group-label { fill: var(--ink); }
+/* ejes de la matriz B×B: franja de la modalidad de filas (izquierda) y columnas (arriba) */
+.ad-axis { stroke: var(--mc); stroke-width: 1; }

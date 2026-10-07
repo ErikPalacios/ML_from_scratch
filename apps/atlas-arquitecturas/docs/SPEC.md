@@ -930,3 +930,75 @@ classifier weights; synthetic, labelled "ilustrativo").
 - **content-swin**: js/content/swin.js. **content-clip**: js/content/clip.js.
 - **orchestrator**: index.html script lines (already added, with empty stubs), catalog roadmap status,
   SPEC, integration.
+
+## 15. Phase 3 shared facts — DETR (+ Deformable DETR brief) (every F3 agent MUST use exactly these)
+
+Phase 1–2 lessons (§14 intro) apply. The page's thesis: **detection as set prediction** — the direct
+contrast with YOLO (dense grid + anchors + NMS vs 100 learned queries + Hungarian matching, no NMS).
+
+### 15.1 DETR — page `detr`, model `detr`
+Paper: Carion et al., *End-to-End Object Detection with Transformers*, ECCV 2020, arXiv:2005.12872;
+official code facebookresearch/detr. Canonical config **`detr-r50-800x1216`**: input 800×1216×3 (DETR
+resizes the short side to 800, long side ≤ 1333; 1216 is chosen so every stride divides exactly) →
+ResNet-50 backbone (C5: 25×38×2048, stride 32; **FrozenBatchNorm** in the official code = buffers, not
+parameters — verify and state which count the page follows) → input projection 1×1 conv 2048→256 →
+flatten to 950 tokens → fixed 2-D sine positional encoding (256, added to Q and K in every attention,
+never to V) → encoder 6 layers (d=256, 8 heads, FFN 2048, ReLU, **post-LN** as in the official code) →
+decoder 6 layers with **100 object queries** (learned `query_pos` 100×256, decoder input starts at
+zeros), each layer = self-attention among queries → cross-attention (Q from queries, K/V from the
+950-token memory) → FFN, post-LN, final decoder LayerNorm shared by the auxiliary outputs → heads per
+query: class Linear 256→92 (91 COCO ids + "no object") and box MLP 256→256→256→4 + sigmoid
+(cx, cy, w, h normalised). Training: Hungarian matching with cost λ_cls·(−p̂(c)) + λ_L1·L1 +
+λ_giou·(−GIoU) and loss CE (no-object weight 0.1) + L1 + GIoU, weights (1, 5, 2), auxiliary losses at
+every decoder layer — verify every value against the paper/code before quoting. Second config
+**`detr-r50-640`** (640×640 → 20×20 = 400 tokens) for the side-by-side with YOLO at 640.
+Reference implementation for the cross-check: HF `DetrForObjectDetection(DetrConfig(...))` built in
+code with a non-pretrained backbone (no hub download); if HF's parameter count differs from the
+official one (e.g. BN as parameters vs frozen buffers, or q/k/v layout), record both in the JSON notes
+and make the calculator follow the official repo, with a flag to reproduce HF's count.
+Knobs: `res` pairs (800×1216, 640×640, 1024×1024…; must be multiples of 32), `Q` (number of queries:
+100, 300), `G` (ground-truth objects in the example image, default 7 — only for the matching cost
+matrix Q×G).
+Ids:
+- overview `detr-overview` nodes: `input`, `backbone`, `input-proj`, `pos-enc`, `flatten`,
+  `encoder` (group, repeat 6) with `enc-layer` (expand `detr-enc-layer`), `queries`, `decoder` (group,
+  repeat 6) with `dec-layer` (expand `detr-dec-layer`), `dec-norm`, `class-head`, `box-head`, `output`,
+  `matching` (training only), `loss` (training only).
+- `detr-enc-layer`: `self-attn` (expand `detr-enc-attn`), `res1`, `ln1`, `ffn`, `res2`, `ln2`, plus
+  `add-pos` (pos added to Q and K only).
+- `detr-dec-layer`: `self-attn`, `res1`, `ln1`, `cross-attn` (expand `detr-cross-attn`), `res2`, `ln2`,
+  `ffn`, `res3`, `ln3`, plus `add-qpos`.
+- attention views: `q-proj`, `k-proj`, `v-proj`, `split`, `scores`, `scale`, `softmax`, `weighted-sum`,
+  `merge`, `proj` (cross-attention: Q edge from the decoder stream, K/V edges from the memory, `cross`
+  edge style).
+- Tensors: `x-img`, `c5`, `proj`, `memory-in` (950×256), `pos` (950×256), encoder layer `e-…`
+  (`e-q e-k e-v e-scores e-attn …`), `memory` (950×256), `query-pos` (100×256), `tgt0` (100×256),
+  decoder layer `d-…` (`d-self-scores` 8×100×100, `d-cross-scores` 8×100×950, …), `hs` (100×256),
+  `logits` (100×92), `boxes` (100×4), `cost` (Q×G), `loss`.
+- `metrics()`: encoder self-attention vs decoder cross-attention vs decoder self-attention score MACs,
+  memory of the 950×950 encoder attention, and how they scale with resolution (encoder ∝ (HW/32²)²).
+
+### 15.2 Deformable DETR — inside the `detr` page (variants + one op card + one viz), model `deformable-detr`
+Paper: Zhu et al., *Deformable DETR: Deformable Transformers for End-to-End Object Detection*, ICLR
+2021, arXiv:2010.04159. Config `deformable-detr-r50` (multi-scale C3–C5 + one extra stride-64 level =
+4 levels, d=256, 8 heads, K=4 sampling points per head per level, 300 queries, 6+6 layers). Calculator:
+primitive `deformable_attention` (sampling offsets Linear d→M·L·K·2, attention weights Linear d→M·L·K,
+value Linear d→d, output Linear d→d; MACs linear in tokens: no N² term). Cross-check params (and shapes
+where hookable) with HF `DeformableDetrModel` built in code; FLOPs may be analytic only if the
+grid-sample path isn't counted by FlopCounterMode — say so in the JSON notes. Training: 50 epochs vs
+DETR's 500 — verify.
+
+### 15.3 Visualizations
+`hungarian` (Q×G cost matrix split into its class / L1 / GIoU terms, the optimal one-to-one assignment,
+unmatched queries → ∅; synthetic boxes labelled "ilustrativo"; numbers of Q and G from the config),
+`set-vs-nms` (YOLO-style dense predictions with duplicates removed by NMS vs DETR's queries producing
+one box per object — the bridge figure), `deformable-attention` (a reference point, K sampling points per
+head across 4 levels with weights; synthetic, labelled).
+
+### 15.4 Ownership in Phase 3
+- **arch**: js/arch/primitives.js (new primitives only), js/arch/detr.js (both models), tests,
+  crosscheck/detr.py + expected/*.json, crosscheck tests.
+- **diagram**: engine extensions (only if needed), js/ui/viz/{hungarian,set-vs-nms,deformable-attention}.js,
+  js/content/diagrams/detr.js, dev/diagram.html.
+- **content-detr**: js/content/detr.js (the whole page incl. the Deformable DETR material).
+- **orchestrator**: index.html lines + stubs, catalog roadmap, SPEC, integration.

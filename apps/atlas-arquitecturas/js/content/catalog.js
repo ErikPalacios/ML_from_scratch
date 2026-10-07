@@ -77,7 +77,7 @@
     topics: [
       'Notación Atlas ↔ Laboratorio (T↔N, d↔D, d_k↔d_h, d_ff↔D_mlp)',
       'Scaled dot-product attention con N = 5, D = 8, h = 2',
-      'Por qué se divide entre √d_h',
+      'Por qué se divide entre √dₕ',
       'Multi-head como subespacios en paralelo (mismos parámetros que una sola cabeza)',
       'Las tres máscaras: bidireccional, causal y cross-attention',
       'Pre-LN vs post-LN',

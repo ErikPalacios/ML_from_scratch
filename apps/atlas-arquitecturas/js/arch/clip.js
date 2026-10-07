@@ -56,6 +56,10 @@
    t-scores-scaled (salida de `scale`, como en ViT), i-z-heads, t-z-heads y `sims` (similitudes coseno
    B×B antes de la temperatura; `logits` = sims·e^t).
    Config: imagen H, W, P, D, L, h, Dmlp; texto T, V, Dt, Lt, ht, Dmlpt; E; B.
+   Notación (Fig. 3 del paper, la misma del diagrama): I_f = f_I(x) ∈ ℝ^D (i-cls-ln), I_e = I_f·W_i con
+   W_i ∈ ℝ^{D×E} (i-emb), Î = I_e/‖I_e‖ (i-emb-norm); igual T_f, T_e = T_f·W_t, T̂ para el texto.
+   Etiquetas de tensor de las torres con prefijo "Torre de imagen · " / "Torre de texto · " y op.where
+   = ['Torre de imagen'] / ['Torre de texto'] (las dos torres repiten nombres; ids sin cambios).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -101,7 +105,7 @@
       if (c.H % c.P !== 0) throw new Error('CLIP: la resolución ' + c.H + ' no es divisible por el patch P = ' + c.P + '.');
       const N = (c.H / c.P) * (c.W / c.P);
       if (N !== N0) {
-        notes.push('Position embeddings de imagen interpolados: de ' + (N0 + 1) + '×' + c.D + ' a ' + (N + 1) + '×' + c.D + ' (como CLIP ViT-L/14 → @336).');
+        notes.push('Position embeddings de imagen interpolados: de ' + (N0 + 1) + '×' + c.D + ' a ' + (N + 1) + '×' + c.D + (N > N0 ? ' (como CLIP ViT-L/14 → @336).' : '.'));
         c.label = 'CLIP ViT-' + (c.D === 1024 ? 'L' : 'B') + '/' + c.P + (c.H !== 224 ? ' @ ' + c.H : '');
       }
       c._notes = notes;
@@ -123,95 +127,97 @@
     build(c, A) {
       const g = A.graph(c);
       // ---------------- torre de imagen
-      const IE = ['img-encoder'];
+      // Contexto para mostrar: las dos torres repiten nombres (Q, LayerNorm 1, Posición…), así que las
+      // etiquetas de tensor y op.where dicen la torre. Ids sin cambios.
+      const IE = ['img-encoder'], WI = ['Torre de imagen'], TI = 'Torre de imagen · ';
       const img = g.input('i-img', A.shape(['H', 'W', '3'], [c.H, c.W, c.Cin], 'img', 'grid'), { label: 'Imagen de entrada', tex: 'x' });
       const grid = g.op('i-patch-embed', A.conv2d(img, { k: c.P, s: c.P, cout: c.D, coutSym: 'D', kSym: 'P', outSym: ['H/P', 'W/P'], bias: false, macTex: 'N\\cdot D\\cdot P^2\\cdot 3' }), {
-        path: IE.concat(['patch-embed', 'conv']), out: 'i-patch-grid', label: 'Patch embedding (conv P×P, stride P, sin sesgo)', type: 'conv', group: 'embed',
-        outMeta: { label: 'Rejilla de parches embebidos', tex: 'X_{\\mathrm{grid}}' },
+        where: WI, path: IE.concat(['patch-embed', 'conv']), out: 'i-patch-grid', label: 'Patch embedding (conv P×P, stride P, sin sesgo)', type: 'conv', group: 'embed',
+        outMeta: { label: TI + 'rejilla de parches embebidos', tex: 'X_{\\mathrm{grid}}' },
       });
       const xp = g.op('i-patch-flatten', A.flatten(grid, { sym: ['N', 'D'] }), {
-        path: IE.concat(['patch-embed', 'flatten']), out: 'i-patches', label: 'Aplanar la rejilla', type: 'tensorop', group: 'embed',
-        outMeta: { label: 'Patches embebidos', tex: 'X_p E' },
+        where: WI, path: IE.concat(['patch-embed', 'flatten']), out: 'i-patches', label: 'Aplanar la rejilla', type: 'tensorop', group: 'embed',
+        outMeta: { label: TI + 'patches embebidos', tex: 'X_p E' },
       });
       const xc = g.op('i-cls', A.cls_token(xp, { outSym: 'N+1' }), {
-        path: IE.concat(['cls']), out: 'i-cls-cat', label: 'Token CLS (class embedding)', type: 'embed', group: 'embed',
-        outMeta: { label: 'CLS + patches', tex: '[x_{\\mathrm{cls}};\\,X_p E]' },
+        where: WI, path: IE.concat(['cls']), out: 'i-cls-cat', label: 'Token CLS (class embedding)', type: 'embed', group: 'embed',
+        outMeta: { label: TI + 'CLS + patches', tex: '[x_{\\mathrm{cls}};\\,X_p E]' },
       });
       const ep = g.op('i-pos-embed', A.pos_embed_learned({ rows: c.N + 1, rowsSym: 'N+1', D: c.D, mod: 'img' }), {
-        path: IE.concat(['pos-embed']), out: 'i-e-pos', label: 'Position embeddings aprendidos', type: 'embed', group: 'embed',
-        outMeta: { label: 'Tabla de posición', tex: 'E_{\\mathrm{pos}}' },
+        where: WI, path: IE.concat(['pos-embed']), out: 'i-e-pos', label: 'Position embeddings aprendidos', type: 'embed', group: 'embed',
+        outMeta: { label: TI + 'tabla de posición', tex: 'E_{\\mathrm{pos}}' },
       });
       const x0 = g.op('i-add-pos', A.add(xc, ep), {
-        path: IE.concat(['add-pos']), out: 'i-x0', label: 'Suma de posición', type: 'tensorop', group: 'embed',
-        outMeta: { label: 'Tokens con posición', tex: 'x_0' },
+        where: WI, path: IE.concat(['add-pos']), out: 'i-x0', label: 'Suma de posición', type: 'tensorop', group: 'embed',
+        outMeta: { label: TI + 'tokens con posición', tex: 'x_0' },
       });
       const xpre = g.op('i-ln-pre', A.layernorm(x0), {
-        path: IE.concat(['ln-pre']), out: 'i-ln-pre', label: 'LayerNorm previo (ln_pre)', type: 'norm', group: 'norm',
-        outMeta: { label: 'Entrada al encoder (tras ln_pre)', tex: '\\mathrm{LN}_{\\mathrm{pre}}(x_0)' },
+        where: WI, path: IE.concat(['ln-pre']), out: 'i-ln-pre', label: 'LayerNorm previo (ln_pre)', type: 'norm', group: 'norm',
+        outMeta: { label: TI + 'entrada al encoder (tras ln_pre)', tex: '\\mathrm{LN}_{\\mathrm{pre}}(x_0)' },
       });
       const ixL = A.preLnLayer(g, xpre, {
-        prefix: IE.concat(['enc-layer']), L: c.L, h: c.h, Dmlp: c.Dmlp, tid: 'i-', oid: 'i-',
+        prefix: IE.concat(['enc-layer']), L: c.L, h: c.h, Dmlp: c.Dmlp, tid: 'i-', oid: 'i-', where: WI, labelPrefix: TI,
         actLabel: 'QuickGELU', actTex: 'U\\,\\sigma(1.702\\,U)',
       });
       const icls = g.op('i-pool-cls', A.pool_cls(ixL), {
-        path: IE.concat(['pool-cls']), out: 'i-cls', label: 'Tomar el token CLS', type: 'tensorop', group: 'head',
-        outMeta: { label: 'Vector del CLS', tex: 'x_L^{\\mathrm{cls}}' },
+        where: WI, path: IE.concat(['pool-cls']), out: 'i-cls', label: 'Tomar el token CLS', type: 'tensorop', group: 'head',
+        outMeta: { label: TI + 'vector del CLS', tex: 'x_L^{\\mathrm{cls}}' },
       });
       const icln = g.op('i-ln-post', A.layernorm(icls), {
-        path: IE.concat(['ln-post']), out: 'i-cls-ln', label: 'LayerNorm posterior (ln_post, solo el CLS)', type: 'norm', group: 'norm',
-        outMeta: { label: 'CLS normalizado', tex: '\\mathrm{LN}_{\\mathrm{post}}(\\cdot)' },
+        where: WI, path: IE.concat(['ln-post']), out: 'i-cls-ln', label: 'LayerNorm posterior (ln_post, solo el CLS)', type: 'norm', group: 'norm',
+        outMeta: { label: TI + 'CLS normalizado (salida de la torre)', tex: 'I_f = f_I(x) = \\mathrm{LN}_{\\mathrm{post}}(x_L^{\\mathrm{cls}})' },
       });
       const iemb = g.op('img-proj', A.linear(icln, { dout: c.E, doutSym: 'E', bias: false }), {
         path: ['img-proj'], out: 'i-emb', label: 'Proyección de imagen D → E (sin sesgo)', type: 'embed', group: 'head',
-        outMeta: { label: 'Embedding de imagen', tex: 'I_f = y\\,W_i' },
+        outMeta: { label: 'Embedding de imagen (proyectado, D → E)', tex: 'I_e = I_f\\,W_i' },
       });
       const inrm = g.op('img-norm', A.l2_normalize(iemb), {
         path: ['img-norm'], out: 'i-emb-norm', label: 'Normalización L2', type: 'tensorop', group: 'head',
-        outMeta: { label: 'Embedding de imagen unitario', tex: 'I_e = I_f/\\lVert I_f\\rVert' },
+        outMeta: { label: 'Embedding de imagen unitario', tex: '\\hat I = I_e/\\lVert I_e\\rVert_2' },
       });
       const ib = g.op('img-stack', A.stack_batch(inrm, { B: c.B }), {
         path: ['img-norm'], out: 'img-batch', label: 'Lote de B imágenes', type: 'tensorop', group: 'head', batched: true,
-        outMeta: { label: 'Embeddings de imagen del lote', tex: 'I_e \\in \\mathbb{R}^{B\\times E}', batched: true },
+        outMeta: { label: 'Embeddings de imagen del lote', tex: '\\hat I \\in \\mathbb{R}^{B\\times E}', batched: true },
       });
 
       // ---------------- torre de texto
-      const TE = ['txt-encoder'];
+      const TE = ['txt-encoder'], WT = ['Torre de texto'], TT = 'Torre de texto · ';
       const ids = g.input('t-ids', A.shape(['T'], [c.T], 'txt', 'vec'), { label: 'Ids de tokens (BPE, con SOT y EOT)', tex: 't' });
       const tok = g.op('t-tok-embed', A.embedding_lookup(ids, { V: c.V, D: c.Dt, Dsym: 'D_t' }), {
-        path: TE.concat(['tok-embed']), out: 't-tok', label: 'Token embedding (V × D_t)', type: 'embed', group: 'embed',
-        outMeta: { label: 'Embeddings de tokens', tex: 'E_{\\mathrm{tok}}[t]' },
+        where: WT, path: TE.concat(['tok-embed']), out: 't-tok', label: 'Token embedding (V × D_t)', type: 'embed', group: 'embed',
+        outMeta: { label: TT + 'embeddings de tokens', tex: 'E_{\\mathrm{tok}}[t]' },
       });
       const tep = g.op('t-pos-embed', A.pos_embed_learned({ rows: c.T, rowsSym: 'T', D: c.Dt, Dsym: 'D_t', mod: 'txt' }), {
-        path: TE.concat(['pos-embed']), out: 't-e-pos', label: 'Position embeddings aprendidos', type: 'embed', group: 'embed',
-        outMeta: { label: 'Tabla de posición del texto', tex: 'E_{\\mathrm{pos}}' },
+        where: WT, path: TE.concat(['pos-embed']), out: 't-e-pos', label: 'Position embeddings aprendidos', type: 'embed', group: 'embed',
+        outMeta: { label: TT + 'tabla de posición del texto', tex: 'E_{\\mathrm{pos}}' },
       });
       const tx0 = g.op('t-add-pos', A.add(tok, tep), {
-        path: TE.concat(['add-pos']), out: 't-x0', label: 'Suma de posición', type: 'tensorop', group: 'embed',
-        outMeta: { label: 'Entrada al encoder de texto', tex: 'x_0' },
+        where: WT, path: TE.concat(['add-pos']), out: 't-x0', label: 'Suma de posición', type: 'tensorop', group: 'embed',
+        outMeta: { label: TT + 'entrada al encoder de texto', tex: 'x_0' },
       });
       const txL = A.preLnLayer(g, tx0, {
-        prefix: TE.concat(['enc-layer']), L: c.Lt, h: c.ht, Dmlp: c.Dmlpt, tid: 't-', oid: 't-', maskOp: true,
+        prefix: TE.concat(['enc-layer']), L: c.Lt, h: c.ht, Dmlp: c.Dmlpt, tid: 't-', oid: 't-', maskOp: true, where: WT, labelPrefix: TT,
         actLabel: 'QuickGELU', actTex: 'U\\,\\sigma(1.702\\,U)',
       });
       const tln = g.op('t-ln-final', A.layernorm(txL), {
-        path: TE.concat(['ln-final']), out: 't-ln-final', label: 'LayerNorm final', type: 'norm', group: 'norm',
-        outMeta: { label: 'Salida normalizada', tex: '\\mathrm{LN}(x_L)' },
+        where: WT, path: TE.concat(['ln-final']), out: 't-ln-final', label: 'LayerNorm final', type: 'norm', group: 'norm',
+        outMeta: { label: TT + 'salida normalizada', tex: '\\mathrm{LN}(x_L)' },
       });
       const teot = g.op('t-pick-eot', A.pick_token(tln, { index: 'EOT (id más alto de la secuencia)' }), {
-        path: TE.concat(['pick-eot']), out: 't-eot', label: 'Tomar el token EOT', type: 'tensorop', group: 'head',
-        outMeta: { label: 'Vector del EOT', tex: 'x_L^{\\mathrm{eot}}' },
+        where: WT, path: TE.concat(['pick-eot']), out: 't-eot', label: 'Tomar el token EOT', type: 'tensorop', group: 'head',
+        outMeta: { label: TT + 'vector del EOT (salida de la torre)', tex: 'T_f = f_T(t) = x_L^{\\mathrm{eot}}' },
       });
       const temb = g.op('txt-proj', A.linear(teot, { dout: c.E, doutSym: 'E', bias: false }), {
         path: ['txt-proj'], out: 't-emb', label: 'Proyección de texto D_t → E (sin sesgo)', type: 'embed', group: 'head',
-        outMeta: { label: 'Embedding de texto', tex: 'T_f = y\\,W_t' },
+        outMeta: { label: 'Embedding de texto (proyectado, D_t → E)', tex: 'T_e = T_f\\,W_t' },
       });
       const tnrm = g.op('txt-norm', A.l2_normalize(temb), {
         path: ['txt-norm'], out: 't-emb-norm', label: 'Normalización L2', type: 'tensorop', group: 'head',
-        outMeta: { label: 'Embedding de texto unitario', tex: 'T_e = T_f/\\lVert T_f\\rVert' },
+        outMeta: { label: 'Embedding de texto unitario', tex: '\\hat T = T_e/\\lVert T_e\\rVert_2' },
       });
       const tb = g.op('txt-stack', A.stack_batch(tnrm, { B: c.B }), {
         path: ['txt-norm'], out: 'txt-batch', label: 'Lote de B textos', type: 'tensorop', group: 'head', batched: true,
-        outMeta: { label: 'Embeddings de texto del lote', tex: 'T_e \\in \\mathbb{R}^{B\\times E}', batched: true },
+        outMeta: { label: 'Embeddings de texto del lote', tex: '\\hat T \\in \\mathbb{R}^{B\\times E}', batched: true },
       });
 
       // ---------------- parte conjunta (por par: ver la cabecera)
@@ -219,13 +225,13 @@
       const sims = g.op('similarity', sim, {
         path: ['similarity'], out: 'sims', label: 'Similitudes coseno I_e·T_eᵀ (B×B)', type: 'fuse', group: 'head', batched: true,
         macTex: 'B\\cdot E\\;\\text{por par}\\;(B^2E\\ \\text{el lote})',
-        outMeta: { label: 'Similitudes coseno del lote', tex: 'I_e T_e^\\top', batched: true },
+        outMeta: { label: 'Similitudes coseno del lote', tex: '\\hat I\\,\\hat T^\\top', batched: true },
       });
       const ls = A.logit_scale(sims);
       ls.other = c.B;   // por par: una fila
       const logits = g.op('temperature', ls, {
         path: ['temperature'], out: 'logits', label: 'Temperatura aprendida (× e^t, tope 100)', type: 'head', group: 'head', batched: true,
-        outMeta: { label: 'Logits del lote', tex: 'e^{t}\\, I_e T_e^\\top', batched: true },
+        outMeta: { label: 'Logits del lote', tex: 'e^{t}\\, \\hat I\\,\\hat T^\\top', batched: true },
       });
       const lo = A.contrastive_loss(logits);
       lo.other = Math.round(lo.other / c.B);   // por par
@@ -253,9 +259,23 @@
     },
 
     // metrics(): memoria de la matriz B×B (fp32 y bf16), negativos por muestra y costo del lote.
+    // Las torres son POR MUESTRA (B = 1): attnMem, attnMemAllLayers y actMem no se multiplican por el B
+    // del lote contrastivo (32,768); las versiones del lote completo van en *Batch. Lo que sí depende de
+    // B (la matriz B×B, los embeddings del lote) está en logits*, embBatchMem y negatives.
     metrics(c, r, o) {
       const q = r.quantities, B = c.B;
+      const sc = r.ops.filter((op) => op.prim === 'attention_scores');
+      const el = (op) => r.tensors[op.out[0]].elements;
+      const tower = (p) => sc.filter((op) => op.path[0] === p);
+      const maxEl = (ops) => ops.reduce((m, op) => Math.max(m, el(op)), 0);
+      const attnMem = maxEl(sc) * o.by;
+      const attnMemAllLayers = sc.reduce((s, op) => s + el(op) * op.repeat, 0) * o.by;
       return {
+        attnMem, attnMemAllLayers,                           // por muestra, el mayor de UNA capa / todas las capas
+        imgAttnMem: maxEl(tower('img-encoder')) * o.by, txtAttnMem: maxEl(tower('txt-encoder')) * o.by,
+        attnMemBatch: attnMem * B, attnMemAllLayersBatch: attnMemAllLayers * B,
+        actMem: o.actMemPerSample,                          // activaciones de las dos torres, una muestra
+        actMemBatch: o.actMemBatch,                          // el lote entero: torres × B + tensores del lote
         negatives: B - 1, negativesPerSample: B - 1, logitsElements: B * B,
         logitsMem: B * B * o.by, logitsFp32Mem: B * B * 4, logitsBf16Mem: B * B * 2,
         logitsMacs: B * B * c.E, towerMacs: q.towerMacs, imgMacs: q.imgMacs, txtMacs: q.txtMacs,

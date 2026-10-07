@@ -760,6 +760,9 @@
           detail: res.detail || {},
         });
         if (o.batched) ops[ops.length - 1].batched = true;   // sus MACs ya incluyen el batch B
+        // where: contexto para mostrar (de lo general a lo particular), p. ej. ['Stage 2', 'bloque 1 (W-MSA)']
+        // o ['Torre de texto']; lo usa la práctica para nombrar sin ambigüedad. No cambia ningún número.
+        if (Array.isArray(o.where) && o.where.length) ops[ops.length - 1].where = o.where.slice();
         return handles.length === 1 ? handles[0] : handles;
       },
       _data() { return { tensors, order, ops }; },
@@ -770,8 +773,10 @@
   // prefix = path de nodos que contiene la capa (p. ej. ['encoder','enc-layer']).
   // o = {L, h, Dmlp, qkvBias, projBias, mlpBias, causal, outId='x-out',
   //      tid='' (prefijo de ids de tensor: 'i-' → 'i-h-ln1'), oid='' (prefijo de ids de op),
-  //      maskOp (máscara causal como op propia, nodo 'mask', tensor '<tid>masked'), actLabel}
-  // Sin tid/oid/maskOp el resultado es exactamente el de la fase 1.
+  //      maskOp (máscara causal como op propia, nodo 'mask', tensor '<tid>masked'), actLabel,
+  //      where (contexto de las ops, p. ej. ['Torre de imagen']), labelPrefix (prefijo de las etiquetas
+  //      de tensor, p. ej. 'Torre de imagen · ')}
+  // Sin tid/oid/maskOp/where/labelPrefix el resultado es exactamente el de la fase 1.
   function preLnLayer(g, x, o) {
     const P = o.prefix || ['enc-layer'];
     const rep = o.L || 1;
@@ -779,7 +784,14 @@
     const D = x.num[1], Ds = x.sym[1];
     const at = P.concat(['mhsa']), ml = P.concat(['mlp']);
     const T = (n) => (o.tid || '') + n, O = (n) => (o.oid || '') + n;
-    const op = (id, res, path, extra) => g.op(O(id), res, Object.assign({ path, repeat: rep }, extra));
+    const pre = o.labelPrefix || '';
+    const tag = (m) => (pre && m && m.label ? Object.assign({}, m, { label: pre + m.label }) : m);
+    const op = (id, res, path, extra) => {
+      const e = Object.assign({ path, repeat: rep }, extra);
+      if (o.where) e.where = o.where;
+      if (pre && e.outMeta) e.outMeta = Array.isArray(e.outMeta) ? e.outMeta.map(tag) : tag(e.outMeta);
+      return g.op(O(id), res, e);
+    };
     const sepMask = !!o.maskOp;
 
     const hln1 = op('ln1', layernorm(x), P.concat(['ln1']), { out: T('h-ln1'), label: 'LayerNorm 1', type: 'norm', group: 'norm', outMeta: L({ label: 'Entrada normalizada (LN 1)', tex: '\\mathrm{LN}_1(x)' }) });
@@ -956,6 +968,7 @@
       attnMem: attnMemLayer,                    // bytes: el mayor tensor de scores de UNA capa, ×B (FlashAttention no lo materializa)
       attnMemAllLayers: attnMemAll,             // si se guardan los de todas las capas (entrenamiento sin recomputar)
       actMem: (actElems * B + actElemsBatched) * by,  // ≈ entrenamiento: activaciones guardadas del forward
+      actMemPerSample: actElems * by,           // lo mismo para una muestra, sin los tensores del lote (CLIP)
       paramMem: t.params * by,
       kvCache: null,
     };
@@ -969,7 +982,7 @@
       const ctx = ov.ctx || out.tokens;
       out.kvCache = 2 * layers * ctx * cfg.D * by * B;  // K y V de cada capa
     }
-    if (def.metrics) Object.assign(out, def.metrics(cfg, r, { B, by, dtype }));
+    if (def.metrics) Object.assign(out, def.metrics(cfg, r, { B, by, dtype, actMemPerSample: out.actMemPerSample, actMemBatch: out.actMem }));
     return out;
   }
   function bytesOf(dtype) { return DTYPE_BYTES[dtype]; }

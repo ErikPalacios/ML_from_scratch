@@ -46,7 +46,7 @@
         blocks: [
           { t: 'p', html: `Sigue los números antes que las letras. Entran ${q('N')} tokens de ${q('D')} dimensiones (${q('tensor.x0.shape')}). Una sola multiplicación por una matriz de D×3D (${q('op.qkv.paramArith')} parámetros) los convierte en queries, keys y values pegados (${q('tensor.qkv.shape')}). Eso se corta en ${q('h')} cabezas de ${q('dh')} columnas (${q('tensor.q.shape')} para Q, igual para K y V). Cada cabeza compara cada query con cada key: una matriz de scores de ${q('tensor.scores.shape')}. El softmax por filas la vuelve pesos que suman 1, y esos pesos promedian los values (${q('tensor.z-heads.shape')}). Se pegan las cabezas (${q('tensor.z.shape')}) y una última proyección W<sub>O</sub> mezcla la información de las dos (${q('tensor.o.shape')}).` },
           { t: 'math', display: true, tex: R`\mathrm{Attention}(Q,K,V)=\mathrm{softmax}\!\left(\frac{QK^\top}{\sqrt{d_h}}\right)V,\qquad Q=XW_Q,\;K=XW_K,\;V=XW_V`, caption: 'Por cabeza: Q, K, V ∈ ℝ^{N×d_h}; scores ∈ ℝ^{N×N}; salida ∈ ℝ^{N×d_h}.' },
-          { t: 'archdiagram', diagram: 'repaso-block', caption: 'Un bloque pre-LN del juguete. Abre la MHSA para ver Q, K, V, la división en cabezas, QKᵀ/√d_h, softmax, A·V y W_O; las formas de las aristas salen del calculador.' },
+          { t: 'archdiagram', diagram: 'repaso-block', caption: 'Un bloque pre-LN del juguete. Abre la MHSA para ver Q, K, V, la división en cabezas, QKᵀ/√dₕ, softmax, A·V y W_O; las formas de las aristas salen del calculador.' },
           { t: 'op', block: 'qkv', model: 'transformer', title: 'Proyección Q, K, V', tex: R`[Q\;K\;V] = \mathrm{LN}_1(x)\,W_{QKV} + b_{QKV},\quad W_{QKV}\in\mathbb{R}^{D\times 3D}`,
             in: ['h-ln1'], out: ['qkv'],
             what: `Cada token se proyecta tres veces: qué busca (query), cómo se anuncia (key) y qué entrega si lo eligen (value). Las tres matrices D×D se guardan pegadas en una sola de D×3D.`,
@@ -55,7 +55,7 @@
             in: ['qkv'], out: ['q', 'k', 'v'],
             what: `Un reshape sin parámetros ni MACs: las ${q('D')} columnas de Q se reparten en ${q('h')} grupos de ${q('dh')}. Lo mismo para K y V.`,
             why: `Cada cabeza trabaja en su propio subespacio y hace su propio softmax: puede fijarse en tokens distintos que otra cabeza (<a href="lab:paso-8">paso 8 del Laboratorio</a>).` },
-          { t: 'op', block: 'scores', model: 'transformer', title: 'Scores QKᵀ / √d_h', tex: R`S = \frac{QK^\top}{\sqrt{d_h}}\in\mathbb{R}^{h\times N\times N}`,
+          { t: 'op', block: 'scores', model: 'transformer', title: 'Scores QKᵀ / √dₕ', tex: R`S = \frac{QK^\top}{\sqrt{d_h}}\in\mathbb{R}^{h\times N\times N}`,
             in: ['q', 'k'], out: ['scores'],
             what: `Producto punto de cada query con cada key, por cabeza: ${q('tensor.scores.shape')}. Cuesta ${q('op.scores.macArith')} MACs. Luego se divide entre √d<sub>h</sub> (el paso <code>scale</code>, sin MACs).`,
             why: `Es la única operación que mezcla tokens entre sí, y la que crece como N². Por qué se divide entre √d<sub>h</sub> está en la sección siguiente. En el Laboratorio: <a href="lab:paso-9">paso 9</a> (scores) y <a href="lab:paso-10">paso 10</a> (escala).` },
@@ -80,7 +80,7 @@
       },
       // ======================================================== 3
       {
-        id: 'raiz-dh', title: 'Por qué se divide entre √d_h', titleEn: 'Why scale by √d_h', priority: 'core',
+        id: 'raiz-dh', title: 'Por qué se divide entre √dₕ', titleEn: 'Why scale by √dₕ', priority: 'core',
         blocks: [
           { t: 'p', html: R`Supón que, al inicializar, cada componente de q y de k es independiente con media 0 y varianza 1. El score \(q\cdot k=\sum_{i=1}^{d_h} q_i k_i\) es una suma de d<sub>h</sub> términos de varianza 1: su varianza es d<sub>h</sub>. En el juguete d<sub>h</sub> = ${q('dh')} y la desviación estándar es 2; en ViT-B/16 d<sub>h</sub> = ${qv('dh')} y la desviación estándar es 8. Scores de ±16 dentro de un softmax dan una fila casi one-hot: e<sup>16</sup> ≈ 9 millones contra e<sup>0</sup> = 1.` },
           { t: 'math', display: true, tex: R`\operatorname{Var}(q\cdot k)=d_h\quad\Rightarrow\quad\operatorname{Var}\!\left(\frac{q\cdot k}{\sqrt{d_h}}\right)=1`, caption: 'Con componentes independientes, media 0 y varianza 1.' },
@@ -199,14 +199,14 @@
     flashcards: [
       { id: 'repaso-atencion-01', kind: 'formula', q: 'Escribe la scaled dot-product attention.', a: R`\(\mathrm{softmax}(QK^\top/\sqrt{d_h})\,V\), con Q, K, V de N×d<sub>h</sub> por cabeza.` },
       { id: 'repaso-atencion-02', kind: 'forma', q: 'Juguete N = 5, D = 8, h = 2: formas de qkv, de Q por cabeza y de los scores.', a: `${q('tensor.qkv.shape')} → ${q('tensor.q.shape')} → ${q('tensor.scores.shape')}.` },
-      { id: 'repaso-atencion-03', kind: 'concepto', q: '¿Por qué se divide entre √d_h?', a: 'Con componentes de varianza 1, q·k tiene varianza d<sub>h</sub>. Sin escala, los scores son grandes, el softmax se satura (casi one-hot) y su gradiente se anula. Con 1/√d<sub>h</sub> la varianza vuelve a ≈ 1.' },
+      { id: 'repaso-atencion-03', kind: 'concepto', q: '¿Por qué se divide entre √d<sub>h</sub>?', a: 'Con componentes de varianza 1, q·k tiene varianza d<sub>h</sub>. Sin escala, los scores son grandes, el softmax se satura (casi one-hot) y su gradiente se anula. Con 1/√d<sub>h</sub> la varianza vuelve a ≈ 1.' },
       { id: 'repaso-atencion-04', kind: 'trampa', q: '¿Agregar cabezas (con D fijo) agrega parámetros a la atención?', a: `No: W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>, W<sub>O</sub> siguen siendo D×D (${q('attnParamsLayer')} parámetros en el juguete). Lo que crece es la matriz de scores h×N×N.` },
       { id: 'repaso-atencion-05', kind: 'conteo', q: 'MACs de QKᵀ y de A·V en una capa, en función de N y D.', a: R`\(h\cdot N^2\cdot d_h = N^2 D\) cada uno; juntos \(2N^2D\). En el juguete: ` + q('scoreMacsLayer') + '.' },
       { id: 'repaso-atencion-06', kind: 'formula', q: '¿En qué N se igualan los MACs cuadráticos con los lineales de un bloque?', a: R`\(2N^2D = N(4D^2+2D\,D_{\mathrm{mlp}})\Rightarrow N^*=2D+D_{\mathrm{mlp}}\), que con D<sub>mlp</sub> = 4D es N = 6D. ViT-B/16: ` + qv('crossoverN') + ' contra ' + qv('tokens') + ' tokens.' },
       { id: 'repaso-atencion-07', kind: 'concepto', q: 'Las tres máscaras y dónde aparece cada una.', a: 'Bidireccional (encoders: BERT, ViT); causal, j ≤ i (decoders: GPT, Llama); cross-attention, Q de un flujo y K, V de otro (decoder de T5/Whisper, DETR, Stable Diffusion).' },
       { id: 'repaso-atencion-08', kind: 'forma', q: 'En cross-attention con N_q queries y N_kv keys, ¿qué forma tiene la matriz de scores por cabeza?', a: 'N<sub>q</sub>×N<sub>kv</sub>: rectangular. No es cuadrada ni lleva máscara causal.' },
       { id: 'repaso-atencion-09', kind: 'tradeoff', q: 'Pre-LN vs post-LN: ¿qué cambia y qué implica?', a: 'Pre-LN normaliza dentro de la rama y deja el residual como identidad: entrena estable con muchas capas y necesita una LN final. Post-LN normaliza después de la suma: necesita warmup y es más inestable en profundidad.' },
-      { id: 'repaso-atencion-10', kind: 'trampa', q: '¿La escala 1/√d_h es para evitar overflow en el softmax?', a: 'No. El softmax se calcula restando el máximo de la fila y es estable igual. La escala evita la saturación (gradientes ≈ 0) al inicio del entrenamiento.' },
+      { id: 'repaso-atencion-10', kind: 'trampa', q: '¿La escala 1/√d<sub>h</sub> es para evitar overflow en el softmax?', a: 'No. El softmax se calcula restando el máximo de la fila y es estable igual. La escala evita la saturación (gradientes ≈ 0) al inicio del entrenamiento.' },
       { id: 'repaso-atencion-11', kind: 'trampa', q: 'Con máscara causal, ¿se ahorran la mitad de los MACs de QKᵀ?', a: `En una implementación ingenua, no: se calculan todos los scores y luego se tapan (${qc('maskedScores')} de ${qc('scoreEntries')} en el juguete). FlashAttention sí se salta los bloques completamente enmascarados.` },
       { id: 'repaso-atencion-12', kind: 'trampa', q: 'Si en MACs dominan las capas lineales, ¿la atención deja de ser un problema de memoria?', a: `No. La matriz de scores ocupa h·N² valores por capa (${qv('metrics.attnMem')} en bf16 por capa en ViT-B/16 @ 224) y crece con N². FlashAttention evita materializarla.` },
       { id: 'repaso-atencion-13', kind: 'concepto', q: 'Encoder-only, decoder-only, encoder-decoder: máscara y objetivo de cada uno.', a: 'Encoder-only: bidireccional, MLM o clasificación (BERT, ViT). Decoder-only: causal, next-token (GPT, Llama). Encoder-decoder: bidireccional + causal con cross-attention, seq2seq (T5, Whisper).' },

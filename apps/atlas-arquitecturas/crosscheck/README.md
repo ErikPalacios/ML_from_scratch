@@ -9,9 +9,25 @@ npm run crosscheck          # regenera expected/*.json y compara (sale con 1 si 
 node tools/crosscheck-compare.mjs --no-regen   # solo compara con los JSON versionados
 ```
 
+Scripts y configs (cada uno escribe `expected/<configId>.json`):
+
 - `vit.py`: timm `create_model(..., pretrained=False, num_classes=1000)` para cada config `vit-*`, y
   HF `ViTForImageClassification(ViTConfig(...))` como segunda referencia.
 - `transformer.py`: `torch.nn.TransformerEncoderLayer(8, 2, 32, norm_first=True)` para `toy-n5-d8*`.
+- `swin.py` (fase 2): timm `SwinTransformer` sin pesos para `swin-t-224` (`swin_tiny_patch4_window7_224`),
+  `swin-s-224` (`swin_small_…_224`), `swin-b-224` (`swin_base_…_224`) y `swin-b-384`
+  (`swin_base_patch4_window12_384`, M = 12). Atención explícita (`fused_attn = False`) para enganchar
+  el softmax; las ventanas van en el eje del batch, así que con B = 1 la forma [nW, M², C] ya es la
+  del calculador. El JSON registra ventana y shift de cada bloque (`windows`): la regla de timm de una
+  sola ventana sin shift cuando el lado del mapa no supera M (stage 4 a 224 con M = 7; a 384 con M = 12).
+- `resnet.py` (fase 2): torchvision `resnet50(weights=None)` para `resnet50-224` (v1.5: stride en la
+  3×3 del bottleneck; BatchNorm cuenta γ y β, las running stats son buffers).
+- `clip.py` (fase 2): HF `transformers.CLIPModel._from_config(CLIPConfig(...))` construido en código
+  (sin hub, sin pesos; QuickGELU, atención `eager`) para `clip-vit-b16`, `clip-vit-b32`, `clip-vit-l14`
+  y `clip-vit-l14-336`. El calculador cuenta por par imagen-texto: la referencia corre con B = 1
+  (`calc_overrides: {B: 1}` en el JSON) y una segunda pasada con B = 4 (`batch_check`) verifica
+  B × (totales) = PyTorch.
+- Las configs de cada script (`CONFIGS`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que
   torch no trae para `_scaled_dot_product_flash_attention_for_cpu`).

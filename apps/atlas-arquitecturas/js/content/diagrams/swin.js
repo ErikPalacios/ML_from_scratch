@@ -16,6 +16,10 @@
   const ATLAS = (root.ATLAS = root.ATLAS || {});
   const C = 'swin-t-224';
   const q = (k) => '{{' + C + '.' + k + '}}';
+  // Clave relativa: se resuelve con la config con la que se dibuja (dev ?cfg=, check-shapes con las 4 configs).
+  // Solo en el texto dibujado (anotaciones, notas de glifo, etiqueta de grupo). Las notas de nodo (panel) y los
+  // recorridos usan q (config canónica): el validador exige el prefijo de config en esos campos.
+  const qr = (k) => '{{' + k + '}}';
   const PAGE = { page: 'swin', section: 'diagrama' };
 
   // ------------------------------------------------------------------ (a) vista general
@@ -23,22 +27,24 @@
   // tira de ResNet-50 con los mismos strides (el puente con la página anterior).
   const STAGE_Y = [27, 55, 83, 111];               // y de cada grupo (h = 13)
   const MERGE_Y = [46, 74, 102];
-  const stageNode = (k) => ({
+  // Stage 4: el mapa (7×7 a 224, 12×12 a 384) cabe en una sola ventana, así que el segundo bloque no desplaza
+  // (shift 0, como timm): se dibuja como dos W-MSA, sin la contradicción "SW-MSA · shift 0".
+  const stageNode = (k) => { const b2 = k === 4 ? 'W-MSA' : 'SW-MSA'; return {
     id: 'stage' + k, op: 'attn', style: 'block', badgeTotal: true, badgeUnit: 'por par',
-    label: 'Stage ' + k + ': W-MSA + SW-MSA', x: 4, y: STAGE_Y[k - 1] + 4.5, w: 32, h: 7.5,
+    label: k === 4 ? 'Stage 4: W-MSA ×2' : 'Stage ' + k + ': W-MSA + SW-MSA', x: 4, y: STAGE_Y[k - 1] + 4.5, w: 32, h: 7.5,
     expand: k === 1 ? 'swin-block-pair' : undefined,
-    flag: k === 4 ? 'shift ' + q('s4Shift') : undefined,
+    flag: k === 4 ? 'sin shift' : undefined,
     mini: { items: [{ label: 'W-MSA', op: 'attn' }, { sym: 'add' }, { label: 'MLP', op: 'mlp' }, { sym: 'add' },
-      { label: 'SW-MSA', op: 'attn' }, { sym: 'add' }, { label: 'MLP', op: 'mlp' }, { sym: 'add' }], res: [[0, 1], [2, 3], [4, 5], [6, 7]] },
-    tex: "\\begin{aligned} \\hat z^{\\ell} &= \\text{W-MSA}(\\mathrm{LN}(z^{\\ell-1})) + z^{\\ell-1} \\\\ z^{\\ell} &= \\mathrm{MLP}(\\mathrm{LN}(\\hat z^{\\ell})) + \\hat z^{\\ell} \\\\ \\hat z^{\\ell+1} &= \\text{SW-MSA}(\\mathrm{LN}(z^{\\ell})) + z^{\\ell} \\\\ z^{\\ell+1} &= \\mathrm{MLP}(\\mathrm{LN}(\\hat z^{\\ell+1})) + \\hat z^{\\ell+1} \\end{aligned}",
+      { label: b2, op: 'attn' }, { sym: 'add' }, { label: 'MLP', op: 'mlp' }, { sym: 'add' }], res: [[0, 1], [2, 3], [4, 5], [6, 7]] },
+    tex: "\\begin{aligned} \\hat z^{\\ell} &= \\text{W-MSA}(\\mathrm{LN}(z^{\\ell-1})) + z^{\\ell-1} \\\\ z^{\\ell} &= \\mathrm{MLP}(\\mathrm{LN}(\\hat z^{\\ell})) + \\hat z^{\\ell} \\\\ \\hat z^{\\ell+1} &= \\text{" + b2 + "}(\\mathrm{LN}(z^{\\ell})) + z^{\\ell} \\\\ z^{\\ell+1} &= \\mathrm{MLP}(\\mathrm{LN}(\\hat z^{\\ell+1})) + \\hat z^{\\ell+1} \\end{aligned}",
     note: k === 1
       ? 'Un par de bloques pre-LN: el primero con atención en ventanas regulares (W-MSA), el segundo con ventanas desplazadas (SW-MSA). La LayerNorm antes de cada sub-bloque se omite en el resumen. La forma no cambia dentro de la etapa: ' + q('tensor.x-embed.shape') + '. Ábrelo para ver el par por dentro.'
       : k === 4
         ? 'Último stage: el mapa de ' + q('s4Res') + '×' + q('s4Res') + ' cabe en una sola ventana de ' + q('s4Window') + '×' + q('s4Window') + ', así que el segundo bloque NO desplaza (shift ' + q('s4Shift') + ', como timm): es un W-MSA más. Cada token ya ve a todos los demás.'
         : 'Igual que el par del stage 1 (ábrelo allí), con ' + q('s' + k + 'C') + ' canales, h = ' + q('s' + k + 'Heads') + ' cabezas de d_h = ' + q('dh') + ' y ' + q('s' + k + 'Windows') + ' ventanas de ' + q('s' + k + 'Window') + '×' + q('s' + k + 'Window') + '.',
-  });
+  }; };
   const mergeNode = (k) => ({
-    id: 'merge' + k, op: 'embed', label: 'Patch merging', sub: '2×2 vecinos → 4C → LN → 2C', x: 8, y: MERGE_Y[k - 1], w: 24, h: 5,
+    id: 'merge' + k, op: 'embed', label: 'Patch merging', sub: '2×2 vecinos → 4C → LN → 2C', x: 7, y: MERGE_Y[k - 1], w: 26, h: 5,
     expand: k === 1 ? 'swin-patch-merging' : undefined,
     tex: '\\begin{aligned} z\' &= [z_{00};z_{10};z_{01};z_{11}] \\in \\mathbb{R}^{\\frac{H}{2}\\times\\frac{W}{2}\\times 4C} \\\\ z\'\' &= \\mathrm{LN}(z\')\\,W,\\; W \\in \\mathbb{R}^{4C\\times 2C} \\end{aligned}',
     note: 'Baja la resolución a la mitad y duplica los canales, como una conv de stride 2 en una CNN: junta cada 2×2 tokens vecinos (4C canales), normaliza y proyecta a 2C con una Linear sin sesgo.' + (k === 1 ? ' Ábrelo para ver las formas.' : ''),
@@ -56,7 +62,7 @@
     title: 'Swin — vista general (jerarquía)',
     caption: 'Imagen → tokens de 4×4 px → 4 stages; entre stages, patch merging (resolución ÷2, canales ×2). A la derecha, la salida de cada stage a escala con su rejilla de ventanas M×M, y la de ResNet-50 con los mismos strides: Swin entrega la misma pirámide C2…C5. Toca un bloque para ver su costo; abre el stage 1 o el primer patch merging para ver su interior.',
     grid: { w: 96, h: 136 }, direction: 'tb', maxCrossings: 0,
-    mobileFocus: ['patch-embed', 'stage1', 'merge1'],
+    mobileFocus: ['input', 'patch-embed', 'stage1', 'merge1'],
     groups: [1, 2, 3, 4].map(stageGroup),
     nodes: [
       { id: 'input', op: 'io', label: 'Imagen', image: true, imageGrid: 0, x: 13, y: 1, w: 14, h: 11,
@@ -76,13 +82,15 @@
     tensors: [
       { id: 'x-img', at: { edge: 'input>patch-embed' }, show: 'both' },
     ].concat(STAGE_GLYPH.map(([k, y]) => ({ id: 's' + k + '-out', at: { x: 50, y }, glyph: 'fmap', px: 2, win: 'M', labelSide: 'below',
-      note: q('s' + k + 'Windows') + (k === 4 ? ' ventana' : ' ventanas') + ' · shift ' + q('s' + k + 'Shift') }))),
+      // 2 px por token a 224 (56 → 112 px); a 384 (96 tokens) se reduce para toda la tira y no invade el stage 1
+      pxFit: { key: 'stages.0.side', w: 112 },
+      note: qr('s' + k + 'Windows') + (k === 4 ? ' ventana' : ' ventanas') + ' · shift ' + qr('s' + k + 'Shift') }))),
     refTensors: RESNET_GLYPH.map(([id, y]) => ({ config: 'resnet50-224', id, at: { x: 84, y }, glyph: 'fmap', px: 2, labelSide: 'below', note: id.toUpperCase() })),
     notes: [
-      { x: 50, y: 2.6, text: q('label') + ' · salida de cada stage', cls: 'title', anchor: 'middle' },
+      { x: 50, y: 2.6, text: qr('label') + ' · salida de cada stage', cls: 'title', anchor: 'middle' },
       { x: 84, y: 2.6, text: '{{resnet50-224.label}}', cls: 'title', anchor: 'middle' },
       { x: 67, y: 5.2, text: 'a escala: lado ∝ resolución · profundidad ∝ log C', anchor: 'middle' },
-    ].concat([1, 2, 3, 4].map((k, i) => ({ x: 67, y: [34, 62, 90, 118][i], text: '← stride ' + q('s' + k + 'Stride') + ' →', cls: 'ink', anchor: 'middle' }))),
+    ].concat([1, 2, 3, 4].map((k, i) => ({ x: 67, y: [34, 62, 90, 118][i], text: '← stride ' + qr('s' + k + 'Stride') + ' →', cls: 'ink', anchor: 'middle' }))),
     edges: [
       { from: 'input', to: 'patch-embed', kind: 'data', tensor: 'x-img' },
       { from: 'patch-embed', to: 'stage1', kind: 'data', tensor: 'x-embed', labelT: 0.3 },
@@ -93,7 +101,7 @@
       { from: 'stage3', to: 'merge3', kind: 'data', tensor: 's3-out', labelT: 0.65 },
       { from: 'merge3', to: 'stage4', kind: 'data', tensor: 'm3-out', labelT: 0.25 },
       { from: 'stage4', to: 'final-ln', kind: 'data', tensor: 's4-out', labelT: 0.7 },
-      { from: 'final-ln', to: 'pool', kind: 'data', tensor: 'x-ln' },
+      { from: 'final-ln', to: 'pool', kind: 'data', tensor: 'x-ln', labelT: 0.6 },
       { from: 'pool', to: 'head', kind: 'data', tensor: 'pooled' },
       { from: 'head', to: 'output', kind: 'data', tensor: 'logits' },
     ],
@@ -165,7 +173,7 @@
   ATLAS.registerDiagram(Object.assign({
     id: 'swin-block-pair', model: 'swin', config: C, kind: 'arch',
     title: 'Par de bloques Swin (stage 1)', parent: 'swin-overview', parentNode: 'stage1',
-    caption: 'Dos bloques pre-LN seguidos: el primero con ventanas regulares (W-MSA), el segundo con ventanas desplazadas (SW-MSA). La salida del bloque 1 sube por el centro hasta el bloque 2. Las líneas discontinuas son las residuales. Entra y sale la misma forma: por eso los bloques van de a pares.',
+    caption: 'Dos bloques pre-LN seguidos: el primero con ventanas regulares (W-MSA), el segundo con ventanas desplazadas (SW-MSA). La salida del bloque 1 sube por el centro hasta el bloque 2. Las líneas discontinuas son las residuales. Entra y sale la misma forma: por eso los bloques van en pares.',
     grid: { w: 91, h: 88 }, direction: 'tb', maxCrossings: 0,
     groups: [
       { id: 'pair', x: 3, y: 7, w: 84, h: 69, modality: 'img',
@@ -192,7 +200,9 @@
       { from: 'w-mlp', to: 'w-res2', kind: 'data', tensor: 's1-b1-f' },
       // la salida del bloque 1 sube por el pasillo central (x = 45) hasta el bloque 2
       { from: 'w-res2', to: 'sw-ln1', kind: 'data', tensor: 's1-b1-out', fromSide: 'bottom', toSide: 'top', via: [[22, 72], [45, 72], [45, 11.5], [64, 11.5]], labelSide: 'below', labelSeg: 1 },
-      { from: 'w-res2', to: 'sw-res1', kind: 'residual', fromSide: 'right', toSide: 'right', via: [[41, 67], [41, 10], [84, 10], [84, 37]], dot: true },
+      // residual del bloque 2: se bifurca del flujo de datos donde gira hacia LayerNorm 1 (el punto), igual que la
+      // del bloque 1, y baja por la derecha hasta Residual 1
+      { from: 'w-res2', to: 'sw-res1', kind: 'residual', fromPt: [64, 11.5], toSide: 'right', via: [[84, 11.5], [84, 37]], dot: true },
       // columna derecha: las residuales van por la derecha, así que las formas van a la izquierda
       { from: 'sw-ln1', to: 'sw-msa', kind: 'data', tensor: 's1-b2-ln1', labelSide: 'left' },
       { from: 'sw-msa', to: 'sw-res1', kind: 'data', tensor: 's1-b2-unshift', labelSide: 'left' },
@@ -212,6 +222,9 @@
   // Q y K suben por el pasillo 1 hasta QKᵀ; V baja y entra en A·V; la salida de A·V sube por el pasillo 2.
   function msaSpec(shifted) {
     const b = shifted ? 's1-b2-' : 's1-b1-';
+    // SW-MSA: la columna 3 se corre X3 u a la derecha para dejar sitio, junto a la máscara, a su origen (la
+    // máscara de regiones precalculada, una arista de control)
+    const X3 = shifted ? 17 : 0;
     const ops = (id) => ({ ops: [b + id], opsExact: true });
     const stack = (items, y0, gap) => { let y = y0; return items.map((it) => { const o = Object.assign({}, it, { y }); y += it.h + gap; return o; }); };
     const c1 = stack([
@@ -243,16 +256,16 @@
     ]), 5, shifted ? 4 : 4.5);
     const wsY = c2[c2.length - 1].y;
     const c3 = stack([
-      Object.assign({ id: 'merge', op: 'tensorop', shape: 'concat', label: 'Concatenar', labelPos: 'right', x: 104, w: 4, h: 4,
+      Object.assign({ id: 'merge', op: 'tensorop', shape: 'concat', label: 'Concatenar', labelPos: 'right', x: 104 + X3, w: 4, h: 4,
         tex: 'n_W\\times h\\times M^2\\times d_h \\to n_W\\times M^2\\times C', note: 'Pone las h cabezas una al lado de otra (h·d_h = C).' }, ops('merge')),
-      Object.assign({ id: 'proj', op: 'embed', label: 'Proyección W_O', sub: 'Linear C → C', x: 93, w: 26, h: 5, tex: 'O = Z W_O + b', note: 'Mezcla las cabezas; C·C + C parámetros, compartidos por todas las ventanas.' }, ops('proj')),
-      Object.assign({ id: 'reverse', op: 'tensorop', shape: 'pill', symbol: 'window', label: 'Revertir ventanas', x: 93, w: 26, h: 4,
+      Object.assign({ id: 'proj', op: 'embed', label: 'Proyección W_O', sub: 'Linear C → C', x: 93 + X3, w: 26, h: 5, tex: 'O = Z W_O + b', note: 'Mezcla las cabezas; C·C + C parámetros, compartidos por todas las ventanas.' }, ops('proj')),
+      Object.assign({ id: 'reverse', op: 'tensorop', shape: 'pill', symbol: 'window', label: 'Revertir ventanas', x: 93 + X3, w: 26, h: 4,
         tex: 'n_W\\times M^2\\times C \\to \\tfrac{H}{4}\\times\\tfrac{W}{4}\\times C', note: 'Devuelve cada ventana a su lugar en el mapa. Reshape, sin parámetros.' }, ops('reverse')),
     ].concat(shifted ? [
-      Object.assign({ id: 'unshift', op: 'tensorop', shape: 'pill', symbol: 'roll', label: 'Roll +⌊M/2⌋', x: 93, w: 26, h: 4,
+      Object.assign({ id: 'unshift', op: 'tensorop', shape: 'pill', symbol: 'roll', label: 'Roll +⌊M/2⌋', x: 93 + X3, w: 26, h: 4,
         tex: '\\mathrm{roll}(z,\\ (\\lfloor M/2\\rfloor, \\lfloor M/2\\rfloor))', note: 'Deshace el desplazamiento: cada token vuelve a su posición original antes de la residual.' }, ops('unshift')),
     ] : []).concat([
-      { id: 'out', op: 'io', label: 'Hacia la residual 1', x: 96, w: 20, h: 4, note: 'Vuelve al bloque, donde se suma con su entrada.' },
+      { id: 'out', op: 'io', label: 'Hacia la residual 1', x: 96 + X3, w: 20, h: 4, note: 'Vuelve al bloque, donde se suma con su entrada.' },
     ]), 5, 4.5);
     const nodes = c1.concat(c2, c3);
     const by = (id) => nodes.find((n) => n.id === id);
@@ -266,10 +279,12 @@
     }
     edges.push(
       // Q y K: salen por la derecha de "Dividir", suben por el pasillo 1 y entran por la izquierda de QKᵀ
-      { from: 'split', to: 'scores', kind: 'data', tensor: b + 'q', fromSide: 'right', fromAt: 0.3, toSide: 'left', toAt: 0.3, midX: 32,
-        labelSeg: -1, labelSide: 'above', tag: 'Q', tagStyle: 'plain', tagSide: 'on', tagSeg: 0, tagT: 0.5 },
+      // (las etiquetas Q y K van en los tramos verticales, a distinta altura; la forma de K, a la derecha de su
+      // tramo vertical: debajo del tramo de arriba cruzaba el mazo de cabezas)
+      { from: 'split', to: 'scores', kind: 'data', tensor: b + 'q', fromSide: 'right', fromAt: 0.3, toSide: 'left', toAt: 0.3, midX: 31,
+        labelSeg: -1, labelSide: 'above', tag: 'Q', tagStyle: 'plain', tagSide: 'on', tagSeg: 1, tagT: 0.6 },
       { from: 'split', to: 'scores', kind: 'data', tensor: b + 'k', fromSide: 'right', fromAt: 0.7, toSide: 'left', toAt: 0.7, midX: 35,
-        labelSeg: -1, labelSide: 'below', tag: 'K', tagStyle: 'plain', tagSide: 'on', tagSeg: 0, tagT: 0.5 },
+        labelSeg: 1, labelSide: 'right', labelT: 0.45, tag: 'K', tagStyle: 'plain', tagSide: 'on', tagSeg: 1, tagT: 0.85 },
       // V baja y entra por la izquierda de A·V
       { from: 'split', to: 'weighted-sum', kind: 'data', tensor: b + 'v', fromSide: 'bottom', toSide: 'left', via: [[16, sy(ws, 0.5)]],
         tag: 'V', tagStyle: 'plain', tagSide: 'on', tagSeg: 0, tagT: 0.45 },
@@ -278,7 +293,15 @@
     const t2 = { scale: b + 'scores', bias: b + 'scaled', mask: b + 'biased', softmax: shifted ? b + 'masked' : b + 'biased', 'weighted-sum': b + 'attn' };
     for (let i = 1; i < c2ids.length; i++) edges.push({ from: c2ids[i - 1], to: c2ids[i], kind: 'data', tensor: t2[c2ids[i]] });
     // salida de A·V: sube por el pasillo 2 hasta "Concatenar"
-    edges.push({ from: 'weighted-sum', to: 'merge', kind: 'data', tensor: b + 'z-heads', fromSide: 'right', toSide: 'left', via: [[89, sy(ws, 0.5)], [89, 7]], labelSeg: -1, labelSide: 'above' });
+    edges.push({ from: 'weighted-sum', to: 'merge', kind: 'data', tensor: b + 'z-heads', fromSide: 'right', toSide: 'left', via: [[89 + X3, sy(ws, 0.5)], [89 + X3, 7]], labelSeg: -1, labelSide: 'above' });
+    if (shifted) {
+      // la máscara no se calcula en el bloque: es un tensor fijo nW×M²×M² (por resolución), común a las h cabezas
+      const mk = by('mask');
+      nodes.push({ id: 'mask-src', op: 'io', label: 'Máscara de regiones', sub: 'nW×M²×M², fija', subNum: '{{s1Windows}}×{{s1WindowTokens}}×{{s1WindowTokens}}, fija',
+        x: 85.5, y: mk.y - 0.5, w: 19.5, h: 5,
+        note: 'Se calcula una sola vez por resolución (un buffer, no un parámetro): para cada una de las nW = ' + q('s1Windows') + ' ventanas, una matriz M²×M² = ' + q('s1WindowTokens') + '×' + q('s1WindowTokens') + ' con 0 si los dos tokens son de la misma región del roll y −100 si no. Se suma igual en las h cabezas (se difunde sobre h).' });
+      edges.push({ from: 'mask-src', to: 'mask', kind: 'control', fromSide: 'left', toSide: 'right' });
+    }
     const c3ids = c3.map((n) => n.id);
     const t3 = { proj: b + 'z', reverse: b + 'proj', unshift: b + 'unwin', out: shifted ? b + 'unshift' : b + 'unwin' };
     for (let i = 1; i < c3ids.length; i++) edges.push({ from: c3ids[i - 1], to: c3ids[i], kind: 'data', tensor: t3[c3ids[i]] });
@@ -290,13 +313,16 @@
       caption: shifted
         ? 'Igual que W-MSA con tres pasos más: roll del mapa antes de partir, máscara entre regiones antes de la softmax y roll inverso al final. Se lee por columnas: preparar → las nW × h cabezas → volver al mapa.'
         : 'Se lee por columnas: partir el mapa en nW ventanas de M×M y proyectar Q, K, V → en cada ventana y cabeza, QKᵀ/√d_h + sesgo relativo, softmax y A·V → concatenar, W_O y devolver las ventanas a su lugar.',
-      grid: { w: 125, h }, direction: 'tb', maxCrossings: 0,
+      grid: { w: 125 + X3, h }, direction: 'tb', maxCrossings: 0,
       groups: [
-        { id: 'heads', label: q('s1Windows') + ' ventanas × h cabezas', labelPos: 'bottom-right', heads: 'heads.0', headsSym: 'h', x: 46, y: 2, w: 38, h: wsY + 5 + 4 - 2 + 1 },
+        { id: 'heads', label: qr('s1Windows') + ' ventanas × h cabezas', labelPos: 'bottom-right', heads: 'heads.0', headsSym: 'h', x: 46, y: 2, w: 38, h: wsY + 5 + 4 - 2 + 1 },
       ],
       nodes,
       tensors: [
         { id: b + 'win', at: { edge: 'partition>qkv' }, show: 'both' },
+        // la matriz de scores y la de atención como pila de matrices M²×M² pequeñas (una por cabeza; × nW ventanas)
+        { id: b + 'scores', at: { edge: 'scores>scale' }, show: 'both' },
+        { id: b + 'attn', at: { edge: 'softmax>weighted-sum' }, show: 'both' },
       ],
       edges,
       legend: 'auto',
