@@ -415,17 +415,39 @@
   // (64 → 10, 197 → 26, 768 → 46, 3072 → 66 px).
   const extD = (n) => clamp(10 * Math.log2(Math.max(2, n)) - 50, 6, 72);
   const DEPTH = [0.55, -0.42];                   // proyección isométrica de la profundidad
-  function glyphDims(t) {
+  // Disposición del glifo (§7.3) + extensiones de la fase 2:
+  //   'mat'     matriz cuadrada B×B (logits de CLIP): cara frontal cuadrada con la diagonal marcada
+  //   'windows' nW×M²×C (ventanas de Swin como lote): pila de min(nW, 8) rebanadas M²×C
+  //   'winheads' nW×h×M²×d_h: pila de min(h, 8) rebanadas M²×d_h (las nW ventanas, implícitas)
+  //   'fmap'    (solo con hint.glyph:'fmap') H×W×C con la cara en escala LINEAL (hint.px px por token)
+  //             y la rejilla de ventanas M×M (hint.win) dibujada encima: la jerarquía de Swin a la vista
+  // hint = la entrada de spec.tensors (o refTensors): {glyph, px, win}.
+  function layoutOf(t, hint) {
+    const num = (t && t.num) || [], sym = (t && t.sym) || [];
+    if (hint && hint.glyph === 'matrix') return 'mat';
+    if (hint && hint.glyph === 'fmap' && num.length === 3) return 'fmap';
+    const lay = t && t.layout;
+    if (lay === 'mat' || lay === 'windows' || lay === 'winheads') return lay;
+    if (num.length === 4) return 'winheads';
+    if (num.length === 2 && num[0] === num[1] && sym[0] && sym[0] === sym[1] && lay !== 'seq') return 'mat';
+    if (num.length === 3 && /^n_?W/.test(String(sym[0] || ''))) return lay === 'heads' ? 'heads' : 'windows';
+    return lay || (num.length === 3 ? 'grid' : num.length === 1 ? 'vec' : 'seq');
+  }
+  function glyphDims(t, hint) {
     const num = (t && t.num) || [];
-    const lay = (t && t.layout) || (num.length === 3 ? 'grid' : num.length === 1 ? 'vec' : 'seq');
+    const lay = layoutOf(t, hint);
     // un vector de D = una rebanada de token del glifo N×D (la D va en el mismo eje de profundidad)
     if (lay === 'vec') return { lay, w: 6, h: 6, d: extD(num[0] || 2) };
+    if (lay === 'fmap') { const px = (hint && hint.px) || 2; return { lay, w: Math.max(6, (num[1] || 2) * px), h: Math.max(6, (num[0] || 2) * px), d: extD(num[2] || 2), win: hint && hint.win, gridH: num[0], gridW: num[1] }; }
     if (lay === 'grid') return { lay, w: ext(num[1] || 2), h: ext(num[0] || 2), d: extD(num[2] || 2) };
+    if (lay === 'mat') { const s = ext(num[0] || 2); return { lay, w: s, h: s, d: 4 }; }
+    if (lay === 'windows') return { lay: 'heads', w: ext(num[1] || 2), h: 4, d: extD(num[2] || 2), n: Math.min(num[0] || 1, 8), heads: num[0] };
+    if (lay === 'winheads') return { lay: 'heads', w: ext(num[2] || 2), h: 4, d: extD(num[3] || 2), n: Math.min(num[1] || 1, 8), heads: num[1] };
     if (lay === 'heads') return { lay, w: ext(num[1] || 2), h: 4, d: extD(num[2] || 2), n: Math.min(num[0] || 1, 8), heads: num[0] };
     return { lay: 'seq', w: ext(num[0] || 2), h: 6, d: extD(num[1] || 2) };
   }
-  function glyphSize(t) {
-    const g = glyphDims(t);
+  function glyphSize(t, hint) {
+    const g = glyphDims(t, hint);
     const dx = g.d * DEPTH[0], dy = -g.d * DEPTH[1];
     const stack = g.lay === 'heads' ? (g.n - 1) * 4 : 0;
     return { w: g.w + dx, h: g.h + dy + stack };
@@ -488,17 +510,51 @@
     return n.sub || '';
   }
 
+  // node.costOf = id de path del calculador que el nodo representa (p. ej. el bloque dentro del grupo
+  // stage1 cuesta lo de path 'stage1'): ops y byNode se toman de ese id en vez del id del nodo.
+  // node.scope = id de path que además debe aparecer (p. ej. 'img-encoder' o 'txt-encoder' en CLIP, donde
+  // las dos torres comparten ids de nodo: enc-layer, ln1, qkv…). node.opsExact = solo las ops de node.ops.
   function nodeOps(run, node) {
     if (!run) return [];
     const ids = node.ops || [];
-    return run.ops.filter((o) => ids.indexOf(o.id) >= 0 || (o.path && o.path.indexOf(node.id) >= 0 && !(node.opsExact)));
+    const pid = node.costOf || node.id;
+    return run.ops.filter((o) => ids.indexOf(o.id) >= 0 || (!node.opsExact && o.path && o.path.indexOf(pid) >= 0 && (!node.scope || o.path.indexOf(node.scope) >= 0)));
   }
   function nodeCost(run, node) {
     const ops = nodeOps(run, node);
     let params = 0, macs = 0, rep = 1;
     for (const o of ops) { params += o.params || 0; macs += o.macs || 0; rep = Math.max(rep, o.repeat || 1); }
-    const by = run && run.totals && run.totals.byNode && run.totals.byNode[node.id];
-    return { ops, params, macs, rep, total: by || { params: ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
+    // nodo compuesto con ops de distinta repetición (p. ej. una torre entera de CLIP: embeddings ×1 + capas ×L):
+    // "por capa" no tiene sentido; se muestra el total (Σ op × repeat)
+    if (ops.some((o) => (o.repeat || 1) !== rep)) {
+      params = ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0);
+      macs = ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0);
+      rep = 1;
+    }
+    const by = run && run.totals && run.totals.byNode && run.totals.byNode[node.costOf || node.id];
+    return { ops, params, macs, rep, total: (!node.opsExact && !node.scope && by) || { params: ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
+  }
+
+  // Valor de config por ruta: 'h', 'heads.0' o 'heads[0]' (cabezas por etapa en Swin).
+  function cfgPath(cfg, key) {
+    if (!cfg || key == null) return undefined;
+    let v = cfg;
+    for (const k of String(key).replace(/\[(\d+)\]/g, '.$1').split('.')) { if (v == null) return undefined; v = v[k]; }
+    return v;
+  }
+  // Texto corto del spec (etiquetas de grupo, notas de glifo) con {{…}} del calculador, sin HTML.
+  function qText(s, ctl, spec, cfg) {
+    if (!s || String(s).indexOf('{{') < 0) return s;
+    return strip(qResolve(s, cfg || (ctl && ctl.opts && ctl.opts.config) || (spec && spec.config)));
+  }
+
+  // Valor de un grupo repetido: config[from] (o config[from][index] si es una lista, p. ej. depths de
+  // Swin), dividido por div (pares de bloques W-MSA + SW-MSA: depth / 2). raw = sin dividir.
+  function repeatValue(cfg, rep, raw) {
+    let v = cfg ? cfg[rep.from || rep.sym] : undefined;
+    if (Array.isArray(v)) v = v[rep.index || 0];
+    if (!raw && rep.div && Number.isFinite(v)) v = v / rep.div;
+    return v;
   }
 
   // ============================================================ DOM helpers (solo en render)
@@ -570,14 +626,15 @@
     pat('aud', (p) => { S('path', { d: 'M1.5 0V6M4.5 0V6', class: 'ad-tx-ln ad-mod--aud' }, p); });
     pat('lat', (p) => { [[1, 1], [4, 2], [2, 4.5], [5, 5]].forEach(([x, y]) => S('rect', { x, y, width: 0.9, height: 0.9, class: 'ad-tx-dot ad-mod--lat' }, p)); });
     pat('qry', () => {});
+    pat('joint', () => {});   // tensores conjuntos (matriz B×B de CLIP): color de fusión, sin textura
     return d;
   }
 
   // ------------------------------------------------------------ glifo isométrico
   // (x, y) = esquina inferior izquierda de la cara frontal.
-  function drawGlyph(parent, t, x, y, id, mark) {
-    const g = glyphDims(t);
-    const mod = (t && t.mod) || 'img';
+  function drawGlyph(parent, t, x, y, id, mark, hint) {
+    const g = glyphDims(t, hint);
+    const mod = (hint && hint.mod) || (t && t.mod) || (g.lay === 'mat' ? 'joint' : 'img');
     const grp = S('g', { class: 'ad-glyph ad-mod--' + mod + (mod === 'qry' ? ' ad-glyph--outline' : '') }, parent);
     const fill = 'url(#' + id + '-tx-' + mod + ')';
     const box = (bx, by, w, h, d) => {
@@ -597,6 +654,22 @@
       for (let i = 1; i < k; i++) d += 'M' + P([x + i * step, y]) + 'V' + r1(y - g.h);
       S('path', { d, class: 'ad-tokmarks' }, grp);
       if (mark === 'first') S('rect', { x: r1(x), y: r1(y - g.h), width: r1(step), height: r1(g.h), class: 'ad-tokfirst' }, grp);
+    }
+    if (g.lay === 'mat') {
+      // matriz: rejilla tenue (hasta 8×8) y la diagonal (los pares positivos de la pérdida contrastiva)
+      const k = Math.min((t.num && t.num[0]) || 2, 8), st = g.w / k;
+      let d = '';
+      for (let i = 1; i < k; i++) d += 'M' + P([x + i * st, y]) + 'V' + r1(y - g.h) + 'M' + P([x, y - i * st]) + 'H' + r1(x + g.w);
+      if (d) S('path', { d, class: 'ad-tokmarks' }, grp);
+      S('path', { d: 'M' + P([x, y - g.h]) + 'L' + P([x + g.w, y]), class: 'ad-matdiag' }, grp);
+    }
+    if (g.lay === 'fmap' && g.win && g.gridW > g.win) {
+      // rejilla de ventanas M×M sobre la cara frontal (8×8 ventanas en la etapa 1 de Swin-T, 1 en la 4)
+      const nx = g.gridW / g.win, ny = g.gridH / g.win;
+      let d = '';
+      for (let i = 1; i < nx; i++) d += 'M' + P([x + i * g.w / nx, y]) + 'V' + r1(y - g.h);
+      for (let i = 1; i < ny; i++) d += 'M' + P([x, y - i * g.h / ny]) + 'H' + r1(x + g.w);
+      S('path', { d, class: 'ad-winmarks' }, grp);
     }
     return grp;
   }
@@ -633,6 +706,25 @@
     else if (shape === 'split') d = 'M' + P([cx - k, cy]) + 'H' + r1(cx - k * 0.1) + 'M' + P([cx - k * 0.1, cy]) + 'L' + P([cx + k, cy - k * 0.8]) + 'M' + P([cx - k * 0.1, cy]) + 'H' + r1(cx + k) + 'M' + P([cx - k * 0.1, cy]) + 'L' + P([cx + k, cy + k * 0.8]);
     else if (shape === 'pool') d = 'M' + P([cx - k, cy - k * 0.6]) + 'L' + P([cx, cy + k * 0.3]) + 'L' + P([cx + k, cy - k * 0.6]) + 'M' + P([cx - k * 0.8, cy + k * 0.8]) + 'H' + r1(cx + k * 0.8);
     else if (shape === 'flatten') d = 'M' + P([cx - k, cy - k * 0.6]) + 'H' + r1(cx + k) + 'M' + P([cx - k, cy]) + 'H' + r1(cx + k) + 'M' + P([cx - k, cy + k * 0.6]) + 'H' + r1(cx + k);
+    // fase 2 (Swin, CLIP): ventanas, roll cíclico, máscara, fusión 2×2, normalizar a la esfera
+    else if (shape === 'window' || shape === 'merge') {
+      // 'window' = rejilla partida en 2×2 ventanas; 'merge' = 2×2 vecinos → 1 (cuadro interior)
+      d = 'M' + P([cx - k, cy - k]) + 'H' + r1(cx + k) + 'V' + r1(cy + k) + 'H' + r1(cx - k) + 'Z' + 'M' + P([cx, cy - k]) + 'V' + r1(cy + k) + 'M' + P([cx - k, cy]) + 'H' + r1(cx + k);
+      if (shape === 'merge') d += 'M' + P([cx + k * 1.25, cy]) + 'h' + r1(k * 0.5);
+    } else if (shape === 'roll') {
+      // flecha circular (desplazamiento cíclico)
+      const rr = k * 0.95;
+      d = 'M' + P([cx + rr, cy]) + 'A' + r1(rr) + ',' + r1(rr) + ' 0 1,1 ' + P([cx, cy - rr]) + 'M' + P([cx, cy - rr]) + 'l' + r1(k * 0.55) + ',' + r1(-k * 0.35) + 'M' + P([cx, cy - rr]) + 'l' + r1(k * 0.45) + ',' + r1(k * 0.45);
+    } else if (shape === 'mask') {
+      // matriz con el triángulo superior tachado (máscara causal / de regiones)
+      d = 'M' + P([cx - k, cy - k]) + 'H' + r1(cx + k) + 'V' + r1(cy + k) + 'H' + r1(cx - k) + 'Z' + 'M' + P([cx - k, cy - k]) + 'L' + P([cx + k, cy + k]) + 'M' + P([cx, cy - k]) + 'L' + P([cx + k, cy]) + 'M' + P([cx - k * 0.5, cy - k]) + 'L' + P([cx + k, cy + k * 0.5]) + 'M' + P([cx + k * 0.5, cy - k]) + 'L' + P([cx + k, cy - k * 0.5]);
+    } else if (shape === 'sphere') {
+      // ‖x‖ = 1: círculo con un radio
+      d = 'M' + P([cx + k, cy]) + 'A' + r1(k) + ',' + r1(k) + ' 0 1,1 ' + P([cx - k, cy]) + 'A' + r1(k) + ',' + r1(k) + ' 0 1,1 ' + P([cx + k, cy]) + 'M' + P([cx, cy]) + 'L' + P([cx + k * 0.7, cy - k * 0.7]);
+    } else if (shape === 'pick') {
+      // elegir un token: secuencia con una celda marcada
+      d = 'M' + P([cx - k, cy - k * 0.45]) + 'H' + r1(cx + k) + 'V' + r1(cy + k * 0.45) + 'H' + r1(cx - k) + 'Z' + 'M' + P([cx - k * 0.33, cy - k * 0.45]) + 'V' + r1(cy + k * 0.45) + 'M' + P([cx + k * 0.33, cy - k * 0.45]) + 'V' + r1(cy + k * 0.45) + 'M' + P([cx + k * 0.66, cy - k * 1.0]) + 'V' + r1(cy - k * 0.6);
+    }
     S('path', { d, class: 'ad-sym' }, parent);
   }
 
@@ -664,28 +756,29 @@
       }
       if (g.heads) {
         used.heads = true;
-        const hv = (run && run.config && run.config[g.heads]) || 0;
+        const hv = (run && cfgPath(run.config, g.heads)) || 0;
         const n = Math.min(Math.max(hv, 1), 8);
         for (let i = n - 1; i >= 1; i--) S('rect', { x: r.x + i * 3, y: r.y - i * 3, width: r.w, height: r.h, rx: 6, class: 'ad-deck' }, gg);
-        txt(gg, r.x + r.w + (n - 1) * 3 - 4, r.y - (n - 1) * 3 - 6, g.heads + ' = ' + hv, 'ad-group-tag', 'end');
+        txt(gg, r.x + r.w + (n - 1) * 3 - 4, r.y - (n - 1) * 3 - 6, (g.headsSym || g.heads) + ' = ' + hv, 'ad-group-tag', 'end');
       }
       S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: 6, class: 'ad-frame' }, gg);
       if (g.modality) { used.mods.add(g.modality); S('rect', { x: r.x, y: r.y + 6, width: 4, height: r.h - 12, class: 'ad-stripe ad-mod--' + g.modality }, gg); }
       if (g.label) {
         const right = g.labelPos === 'bottom-right';
         // títulos de región: encima de las aristas (capa de etiquetas) y con halo
-        const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10, (g.labelPos || '').indexOf('bottom') === 0 ? r.y + r.h - 8 : r.y + 17, g.label, g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
+        const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10, (g.labelPos || '').indexOf('bottom') === 0 ? r.y + r.h - 8 : r.y + 17, qText(g.label, ctl, spec), g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
         if (g.region && String(g.label).length * 7.0 > regionTitleMax(r)) { lt.setAttribute('textLength', r1(regionTitleMax(r))); lt.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
       }
       if (g.repeat && run) {
-        const v = run.config[g.repeat.from || g.repeat.sym];
-        let tag = '× ' + (g.repeat.sym || 'L') + ' = ' + v;
+        const v = repeatValue(run.config, g.repeat);
+        let tag = g.repeat.tag ? String(g.repeat.tag).replace('{v}', v).replace('{pl}', v === 1 ? '' : 'es').replace('{raw}', repeatValue(run.config, g.repeat, true)) : '× ' + (g.repeat.sym || 'L') + ' = ' + v;
         // repeat.totalOf: parámetros del nodo repetido en todo el modelo (byNode del calculador)
         const tn = g.repeat.totalOf && (spec.nodes || []).find((x) => x.id === g.repeat.totalOf);
         txt(gg, r.x + r.w - 10, r.y + 17, tag, 'ad-group-tag', 'end');
-        if (tn && ctl.mode !== 'blank' && !ctl.quiz) { const c = nodeCost(run, tn); if (c.total && c.total.params) txt(gg, r.x + r.w - 10, r.y + 31, '= ' + fsi(c.total.params) + ' en total', 'ad-group-total', 'end'); }
+        // total del bloque repetido (byNode); repeat.totalLabel = plantilla con {t}; sin línea si se repite 1 vez
+        if (tn && ctl.mode !== 'blank' && !ctl.quiz && v !== 1) { const c = nodeCost(run, tn); if (c.total && c.total.params) txt(gg, r.x + r.w - 10, r.y + 31, String(g.repeat.totalLabel || '= {t} en total').replace('{t}', fsi(c.total.params)), 'ad-group-total', 'end'); }
       }
-      if (g.label2) txt(gg, r.x + 10, r.y + 31, g.label2, 'ad-group-sub');
+      if (g.label2) txt(gg, r.x + 10, r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub');
     }
 
     // ---- nodos
@@ -703,21 +796,38 @@
       const el = drawEdge(ctl, L, ge, run, used, tensorAt, isMap);
       if (el) edgeEls.push(el);
     });
-    // ---- glifos sueltos (at:{x,y})
-    for (const t of spec.tensors || []) {
-      if (!t.at || t.at.edge || !run || !run.tensors[t.id]) continue;
-      const rt = run.tensors[t.id];
-      const gg = S('g', { class: 'ad-tensor', 'data-tensor-glyph': t.id }, L.labels);
-      const gs = glyphSize(rt);
+    // ---- glifos sueltos (at:{x,y}); refTensors = los mismos, pero de OTRA config (p. ej. ResNet-50
+    // junto a Swin para comparar c2…c5): el grupo lleva data-config y checkLabels usa esa config.
+    const loose = (spec.tensors || []).map((t) => ({ t, rt: run && run.tensors[t.id], cfg: null }));
+    for (const t of spec.refTensors || []) {
+      let rr = null;
+      try { rr = runFor(t.config); } catch (e) { rr = null; }
+      loose.push({ t, rt: rr && rr.tensors[t.id], cfg: t.config, ref: true });
+    }
+    for (const { t, rt, cfg, ref } of loose) {
+      if (!t.at || t.at.edge || !rt) continue;
+      const gg = S('g', { class: 'ad-tensor' + (ref ? ' ad-tensor--ref' : ''), 'data-tensor-glyph': t.id, 'data-config': cfg }, L.labels);
+      // win: 'M' = tamaño de ventana tomado de la config (rejilla de ventanas sobre la cara del glifo)
+      const hint = typeof t.win === 'string' ? Object.assign({}, t, { win: cfgPath((cfg ? runFor(cfg) : run).config, t.win) }) : t;
+      const gs = glyphSize(rt, hint);
       // (x, y) = centro inferior del glifo; nota opcional encima y forma a la derecha o debajo
       const gx = t.at.x * U - gs.w / 2, gy = t.at.y * U;
-      drawGlyph(gg, rt, gx, gy, id, t.mark);
-      used.mods.add(rt.mod || 'img'); used.glyph = true;
-      if (t.note) txt(gg, t.at.x * U, gy - gs.h - 7, t.note, 'ad-glyph-note', 'middle');
+      drawGlyph(gg, rt, gx, gy, id, t.mark, hint);
+      if (rt.mod) used.mods.add(rt.mod); used.glyph = true;
+      if (t.note) txt(gg, t.at.x * U, gy - gs.h - 7, qText(t.note, ctl, spec, cfg), 'ad-glyph-note', 'middle');
       if (t.show !== 'glyph') {
         if (t.labelSide === 'below') shapeLabel(ctl, gg, rt, t.at.x * U, gy - 4, 'below', t.id);
+        else if (t.labelSide === 'left') shapeLabel(ctl, gg, rt, gx - 2, gy - gs.h / 2, 'left', t.id);
         else shapeLabel(ctl, gg, rt, gx + gs.w, gy - gs.h / 2, 'right', t.id);
       }
+    }
+    // ---- anotaciones (spec.notes): texto corto fijo en la grilla, p. ej. "stride 4" o el título de una
+    // tira de comparación. Admite {{…}} del calculador (los números nunca se escriben a mano).
+    for (const nt of spec.notes || []) {
+      const s = strip(qResolve(nt.text, (ctl.opts && ctl.opts.config) || spec.config));
+      if (!s) continue;
+      const te = txt(L.labels, nt.x * U, nt.y * U, s, nt.cls === 'title' ? 'ad-ref-label' : 'ad-note-txt' + (nt.cls === 'ink' ? ' ad-note-txt--ink' : ''), nt.anchor || null);
+      te.setAttribute('data-note', nt.id || '');
     }
     ctl.building = null;
     return { svg, geo, used, nodeEls, edgeEls, run, spec, width: W, height: Hh };
@@ -749,7 +859,7 @@
     let label = n.label || '';
     let sub = nodeSub(n, ctl, spec);
     if (slot && slot.ask === 'label') { label = ''; sub = ''; }
-    const hv = n.heads && run && run.config ? run.config[n.heads] : 0;
+    const hv = n.heads && run ? cfgPath(run.config, n.heads) : 0;
     if (CIRCLE_SHAPES[shape]) {
       const rr = Math.min(r.w, r.h) / 2;
       const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
@@ -769,7 +879,7 @@
         used.heads = true;
         const k = Math.min(hv, 8);
         for (let i = k - 1; i >= 1; i--) S('rect', { x: r.x + i * 3, y: r.y - i * 3, width: r.w, height: r.h, rx: 4, class: 'ad-box ad-box--deck' }, g);
-        txt(g, r.x + r.w + (k - 1) * 3 + 4, r.y - (k - 1) * 3 + 4, n.heads + ' = ' + hv, 'ad-heads-tag');
+        txt(g, r.x + r.w + (k - 1) * 3 + 4, r.y - (k - 1) * 3 + 4, (n.headsSym || n.heads) + ' = ' + hv, 'ad-heads-tag');
       }
       if (n.parallel > 1) {
         for (let i = Math.min(n.parallel, 4) - 1; i >= 1; i--) S('rect', { x: r.x + i * 4, y: r.y + i * 4, width: r.w, height: r.h, rx: 4, class: 'ad-box ad-box--deck' }, g);
@@ -778,7 +888,7 @@
       if (n.modality) S('rect', { x: r.x + 1, y: r.y + 4, width: 3.5, height: r.h - 8, class: 'ad-stripe ad-mod--' + n.modality }, g);
       if (n.image && run && run.config) {
         const pad = 6, side = Math.min(r.w - 2 * pad, r.h - 2 * pad - (label ? 16 : 0));
-        const grid = run.config.P ? Math.round(run.config.H / run.config.P) : 0;
+        const grid = n.imageGrid != null ? n.imageGrid : run.config.P ? Math.round(run.config.H / run.config.P) : 0;
         drawScene(g, r.x + (r.w - side) / 2, r.y + pad, side, side, grid);
         if (label) txt(g, r.x + r.w / 2, r.y + r.h - 7, label, 'ad-label', 'middle');
       } else {
@@ -802,7 +912,7 @@
         used.badge = true;
         // badgeTotal: en un bloque repetido, "por capa · total" (ambos del calculador)
         // (el total del bloque repetido va en la etiqueta "× L" del grupo: repeat.totalOf)
-        const s = n.badgeTotal && cost.rep > 1 ? fsi(cost.params) + ' por capa' : fsi(cost.params);
+        const s = n.badgeTotal && cost.rep > 1 ? fsi(cost.params) + ' ' + (n.badgeUnit || 'por capa') : fsi(cost.params);
         const bw = textW(s, 10.5, true) + 18;
         // insignia de parámetros arriba a la izquierda, entera por encima del borde: la derecha de cada nodo la
         // ocupan las etiquetas de forma de la arista que llega (y la pila de cabezas). badgePos:'right' la mueve.
@@ -812,6 +922,14 @@
         S('rect', { x: r1(bx), y: by, width: r1(bw), height: 15, rx: 7.5, class: 'ad-badge-bg' }, b);
         S('path', { d: 'M' + P([bx + 6, by + 7.5]) + 'm-2.2,0a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0M' + P([bx + 8.2, by + 7.5]) + 'h3.6M' + P([bx + 10.6, by + 7.5]) + 'v2.2', class: 'ad-key' }, b);
         txt(b, bx + 14, by + 11.3, s, 'ad-badge-txt');
+      }
+      const flag = n.flag && ctl.mode !== 'blank' ? qText(n.flag, ctl, spec) : '';
+      if (flag) {
+        // marca corta arriba a la derecha (p. ej. "≠ ViT"): diferencias de un modelo frente a su base
+        const fw = textW(flag, 10, true) + 10;
+        const fl = S('g', { class: 'ad-flag' }, g);
+        S('rect', { x: r1(r.x + r.w - fw - 4), y: r.y - 8, width: r1(fw), height: 14, rx: 3, class: 'ad-flag-bg' }, fl);
+        txt(fl, r.x + r.w - 4 - fw / 2, r.y + 2.6, flag, 'ad-flag-txt', 'middle');
       }
       if (n.expand && ctl.mode === 'full') {
         const ex = S('g', { class: 'ad-expand-mark' }, g);
@@ -1068,7 +1186,7 @@
       }
     }
     if (t && SHAPED[kind]) {
-      used.mods.add(t.mod || 'img');
+      if (t.mod) used.mods.add(t.mod);
       const la = labelAnchor(ge.pts, e);
       const tk = tensorAt[ge.key + '@' + e.tensor] || tensorAt[ge.key];
       const hide = ctl.hideShapes === true || (Array.isArray(ctl.hideShapes) && ctl.hideShapes.indexOf(e.tensor) >= 0) || (ctl.blankHide && ctl.blankHide.has(ge.key + '@' + e.tensor));
@@ -1077,13 +1195,13 @@
       } else if (la && !hide && e.label !== false) {
         let lx = la.x, ly = la.y;
         if (tk && tk.show !== 'label') {
-          const gs = glyphSize(t);
+          const gs = glyphSize(t, tk);
           let gx, gy;
           if (la.side === 'right') { gx = la.x + 9; gy = la.y + gs.h / 2; lx = gx + gs.w; }
           else if (la.side === 'left') { gx = la.x - 9 - gs.w; gy = la.y + gs.h / 2; lx = gx; }
           else if (la.side === 'below') { gx = la.x - gs.w / 2; gy = la.y + 8 + gs.h; ly = gy; }
           else { gx = la.x - gs.w / 2; gy = la.y - 7; ly = gy - gs.h + 2; }
-          drawGlyph(g, t, gx, gy, ctl.id, tk.mark);
+          drawGlyph(g, t, gx, gy, ctl.id, tk.mark, tk);
           used.glyph = true;
         }
         if (!tk || tk.show !== 'glyph') {
@@ -1245,6 +1363,7 @@
       vp.insertBefore(view.svg, vp.firstChild);
       ctl.view = view;
       fig.setAttribute('data-view', id);
+      fig.setAttribute('data-config', opts.config || spec.config || '');
       // aria-label de nodos (necesita la vista actual para las formas)
       for (const n of spec.nodes || []) if (view.nodeEls[n.id] && spec.kind !== 'map' && !ctl.slots[n.id]) view.nodeEls[n.id].setAttribute('aria-label', nodeAria(ctl, n, view.run));
       if (legendBox) { legendBox.innerHTML = ''; legendBox.appendChild(legendEl(view)); }
@@ -1279,7 +1398,7 @@
       let s = plainSub((n && n.label ? n.label.replace(/\n/g, ' ') : sp.title) || sp.id);
       const grp = !repShown && parentSpec && n && (parentSpec.groups || []).find((g) => g.repeat && inside(n, g));
       let rep = false;
-      if (grp) { try { const r = ctl.runFor(parentSpec); s += ' × ' + r.config[grp.repeat.from || grp.repeat.sym]; rep = true; } catch (e) { /* sin número */ } }
+      if (grp && grp.repeat.crumb !== false) { try { const r = ctl.runFor(parentSpec); s += ' × ' + repeatValue(r.config, grp.repeat); rep = true; } catch (e) { /* sin número */ } }
       return { text: s, rep };
     }
 
@@ -1984,10 +2103,11 @@
     for (const f of figs) {
       const spec = ATLAS.diagram(f.getAttribute('data-view') || f.getAttribute('data-diagram'));
       if (!spec || !spec.config) continue;
-      const run = runFor(spec.config);
+      const run = runFor(f.getAttribute('data-config') || spec.config);
       f.querySelectorAll('[data-edge] .ad-shape-num, [data-edge] .ad-shape-sym, [data-tensor-glyph] .ad-shape-num, [data-tensor-glyph] .ad-shape-sym').forEach((tEl) => {
         const id = tEl.getAttribute('data-tensor');
-        const t = run.tensors[id];
+        const refCfg = tEl.closest('[data-config]') && tEl.closest('[data-config]').getAttribute('data-config');
+        const t = (refCfg && refCfg !== (f.getAttribute('data-config') || spec.config) ? runFor(refCfg) : run).tensors[id];
         const want = t ? plainSub(shapeText(t, tEl.classList.contains('ad-shape-num') ? 'num' : 'sym')) : '(tensor desconocido)';
         if (tEl.textContent !== want) bad.push({ diagram: spec.id, edge: (tEl.closest('[data-edge]') || {}).getAttribute ? tEl.closest('[data-edge]').getAttribute('data-edge') : null, tensor: id, got: tEl.textContent, want });
       });
@@ -2014,5 +2134,31 @@
     svg: (tag, attrs, parent) => S(tag, attrs, parent),
     html: (tag, attrs, parent, inner) => H(tag, attrs, parent, inner),
     scene: drawScene,
+    icon: drawIcon,
+    ICONS: ['house', 'tree', 'sun', 'boat', 'mountain', 'fish', 'car', 'star'],
+    // generador pseudoaleatorio con semilla (mulberry32) y normal estándar: datos ilustrativos reproducibles
+    rng(seed) {
+      let a = (seed >>> 0) || 1;
+      const u = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+      u.normal = () => { let x = 0, y = 0; while (!x) x = u(); while (!y) y = u(); return Math.sqrt(-2 * Math.log(x)) * Math.cos(2 * Math.PI * y); };
+      return u;
+    },
   };
+
+  // Íconos procedurales (sin imágenes externas) para las visualizaciones de CLIP: (x, y) esquina, size lado.
+  // Colores de los tokens del tema (var(--…)), así que cambian con el tema sin redibujar.
+  function drawIcon(parent, name, x, y, size) {
+    const g = S('g', { class: 'viz-icon viz-icon--' + name, transform: 'translate(' + r1(x) + ',' + r1(y) + ') scale(' + r1(size / 40 * 100) / 100 + ')' }, parent);
+    S('rect', { x: 0, y: 0, width: 40, height: 40, rx: 4, class: 'viz-icon-bg' }, g);
+    const p = (d, fill, extra) => S('path', Object.assign({ d, fill, stroke: 'none' }, extra || {}), g);
+    if (name === 'house') { p('M8 20L20 9L32 20Z', 'var(--op-attn)'); p('M11 20H29V33H11Z', 'var(--op-conv)'); p('M18 25H23V33H18Z', 'var(--surface)'); }
+    else if (name === 'tree') { p('M18 24H22V34H18Z', 'var(--op-conv)'); S('circle', { cx: 20, cy: 17, r: 10, fill: 'var(--op-mlp)' }, g); }
+    else if (name === 'sun') { S('circle', { cx: 20, cy: 20, r: 7.5, fill: 'var(--warn)' }, g); p('M20 5V10M20 30V35M5 20H10M30 20H35M9.4 9.4L12.9 12.9M27.1 27.1L30.6 30.6M9.4 30.6L12.9 27.1M27.1 12.9L30.6 9.4', 'none', { stroke: 'var(--warn)', 'stroke-width': 2.4, 'stroke-linecap': 'round' }); }
+    else if (name === 'boat') { p('M7 26H33L28 33H12Z', 'var(--op-conv)'); p('M20 7V25H9Z', 'var(--op-embed)'); p('M22 11V25H31Z', 'var(--mod-img)'); }
+    else if (name === 'mountain') { p('M4 33L16 12L24 24L28 18L37 33Z', 'var(--muted)'); p('M16 12L20.2 19.4L17.6 18L15.4 20L13 17.3Z', 'var(--surface)'); }
+    else if (name === 'fish') { p('M8 20C13 11 25 11 30 20C25 29 13 29 8 20Z', 'var(--op-head)'); p('M30 20L37 13V27Z', 'var(--op-head)'); S('circle', { cx: 14, cy: 18, r: 1.8, fill: 'var(--surface)' }, g); }
+    else if (name === 'car') { p('M6 27V21L11 20L15 14H26L31 20L35 21V27Z', 'var(--op-attn)'); S('circle', { cx: 13, cy: 28, r: 3.6, fill: 'var(--ink)' }, g); S('circle', { cx: 28, cy: 28, r: 3.6, fill: 'var(--ink)' }, g); p('M16.5 16H20V20H13.8Z', 'var(--surface)'); }
+    else if (name === 'star') { p('M20 6L24 16H35L26 22.5L29.5 33L20 26.5L10.5 33L14 22.5L5 16H16Z', 'var(--warn)'); }
+    return g;
+  }
 })(typeof window !== 'undefined' ? window : globalThis);

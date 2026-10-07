@@ -14,17 +14,31 @@
 
    Contrato de run(configId) = SPEC §6.7. Añadidos compatibles (no rompen el contrato):
    - op: también `node` (= último de path), `type` (paleta §3.1), `group` (embed|attn|mlp|norm|
-     head|resid), `detail`. tensor: también `elements`. totals: también `byGroup`;
-     byNode[id] también trae `other`. Resultado: también `overrides` y `notes` (avisos, p. ej.
-     interpolación de position embeddings).
+     head|resid|act), `detail`, `batched` (CLIP: op de la parte conjunta). tensor: también `elements`
+     y `batched` (ya incluye el batch B). totals: también `byGroup` y `byPath` (clave = path unido
+     con '>', p. ej. 'txt-encoder>enc-layer': separa nodos que repiten id en dos lugares, como las
+     dos torres de CLIP o W-MSA/SW-MSA de Swin); byNode[id] también trae `other`.
+     Resultado: también `overrides` y `notes` (avisos, p. ej. interpolación de position embeddings).
    - run(configId, overrides?) acepta knobs (memoizado por configId + overrides).
    - metrics(configId, overrides) acepta además `B`, `dtype` ('fp32'|'fp16'|'bf16'|'fp8'|'int8') y
-     `ctx` (largo para kvCache) dentro de overrides (no cambian la arquitectura, solo los bytes).
-     attnMem/actMem/kvCache se devuelven como números (bytes) para esos B y dtype (por defecto
-     B=1, bf16). kvCache = null en modelos sin máscara causal.
+     `ctx` (largo para kvCache) dentro de overrides (no cambian la arquitectura, solo los bytes;
+     salvo en un modelo que declare B como knob — CLIP —, donde B también cambia los tensores
+     conjuntos y su valor por defecto es el de la config). attnMem/actMem/kvCache se devuelven como
+     números (bytes) para esos B y dtype (por defecto B=1, bf16). kvCache = null en modelos sin
+     máscara causal. attnMem = el mayor tensor de scores de una capa; attnMemAllLayers = todos.
+     actMem (≈, entrenamiento) = cada tensor materializado del forward una vez por repetición de su
+     op, SIN vistas/movimientos (split/merge de cabezas, flatten, partición de ventanas, roll),
+     SIN tablas de parámetros (e-pos) y SIN los scores previos al softmax (QKᵀ, escalados, con
+     sesgo o máscara: el backward no los guarda). Cada modelo puede añadir claves (def.metrics).
    - Primitivas extra `scale` (×1/√d_h), `add` (suma no residual), `flatten` (rejilla → secuencia).
    - Tensores extra respecto de SPEC §13.1 (añadidos, nada renombrado): `e-pos` (tabla de posición)
      y `scores-scaled` (salida del nodo `scale`). Ver la cabecera de js/arch/vit.js.
+   - Fase 2 (Swin, ResNet, CLIP): batchnorm2d, relu, maxpool2d, global_avg_pool, conv_bn,
+     bottleneck, cyclic_shift, window_partition, window_reverse, rel_pos_bias, attn_mask,
+     causal_mask, window_attention, patch_concat, patch_merging, causal_self_attention, pick_token,
+     l2_normalize, stack_batch, similarity_logits, logit_scale, contrastive_loss. Las primitivas de
+     atención aceptan una dimensión delantera de ventanas (nW×…); layouts nuevos 'windows'
+     (nW×M²×C), 'winheads' (nW×h×M²×d_h) y 'mat' (B×B). conv2d acepta `floor` (redondeo de PyTorch).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -84,7 +98,7 @@
   function pct(x, decimals) { return (x * 100).toFixed(decimals === undefined ? 1 : decimals) + ' %'; }
 
   // Símbolos: texto plano y LaTeX.
-  const SYM_TEX = { D_mlp: 'D_{\\mathrm{mlp}}', d_h: 'd_h', 'P^2C': 'P^2C' };
+  const SYM_TEX = { D_mlp: 'D_{\\mathrm{mlp}}', d_h: 'd_h', 'P^2C': 'P^2C', nW: 'n_W', 'M²': 'M^2', D_t: 'D_t' };
   function symTexAtom(s) {
     s = String(s);
     if (SYM_TEX[s]) return SYM_TEX[s];
@@ -100,6 +114,12 @@
   // En un producto de fórmula: (N+1)\cdot D.
   function symTexFactor(s) { const t = symTexAtom(s); return compound(s) ? '(' + t + ')' : t; }
   const texProd = (syms) => syms.map(symTexFactor).join('\\cdot ');
+  // k·sym en LaTeX: 2·D → '2D'; 2·2C → '4C'; 2·64 → '128' (símbolos que empiezan por un entero).
+  function texScale(k, sym) {
+    const m = String(sym).match(/^(\d+)(.*)$/);
+    if (m && !compound(sym)) return String(k * parseInt(m[1], 10)) + symTexAtom(m[2]);
+    return k + symTexFactor(sym);
+  }
 
   function shapeStr(t, mode) {
     if (!t) return '';
@@ -139,7 +159,8 @@
   const elems = (t) => prod(t.num);
 
   // Costos elementwise por elemento (≈) para "otros".
-  const OTHER = { bias: 1, add: 1, scale: 1, layernorm: 5, rmsnorm: 4, softmax: 5, gelu: 8 };
+  const OTHER = { bias: 1, add: 1, scale: 1, layernorm: 5, rmsnorm: 4, softmax: 5, gelu: 8,
+    batchnorm: 5, relu: 1, mask: 1, l2norm: 3 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -187,10 +208,11 @@
     if (x.num.length !== 3) throw new Error('conv2d espera una entrada H×W×C.');
     const [H, W, C] = x.num, [, , Cs] = x.sym;
     const k = o.k, s = o.s || o.k, p = o.p || 0, bias = o.bias !== false;
-    if ((H + 2 * p - k) % s !== 0 || (W + 2 * p - k) % s !== 0) {
+    // o.floor: redondeo hacia abajo como PyTorch (ResNet: 7×7 s2 p3 sobre 224 → 112). Sin floor, exige divisibilidad.
+    if (!o.floor && ((H + 2 * p - k) % s !== 0 || (W + 2 * p - k) % s !== 0)) {
       throw new Error('conv2d: la resolución ' + H + '×' + W + ' no es divisible por el stride ' + s + ' (con kernel ' + k + ').');
     }
-    const Ho = (H + 2 * p - k) / s + 1, Wo = (W + 2 * p - k) / s + 1;
+    const Ho = Math.floor((H + 2 * p - k) / s) + 1, Wo = Math.floor((W + 2 * p - k) / s) + 1;
     const cout = o.cout, coutSym = o.coutSym || String(cout), kSym = o.kSym || String(k);
     const outSym = o.outSym || [String(Ho), String(Wo)];
     const out = shape([outSym[0], outSym[1], coutSym], [Ho, Wo, cout], o.mod || x.mod, 'grid');
@@ -210,7 +232,7 @@
     const affine2 = prim === 'layernorm';
     return result(prim, [x], plain(x), {
       paramTerms: affine2 ? [[2, D]] : [[D]],
-      paramTex: affine2 ? '2' + symTexFactor(Ds) : symTexFactor(Ds),
+      paramTex: affine2 ? texScale(2, Ds) : symTexFactor(Ds),
       other: elems(x) * OTHER[prim],
       detail: { D, eps: (o && o.eps) || null },
     });
@@ -274,43 +296,56 @@
     return result('flatten', [x], shape(sym, [h * w, c], x.mod, 'seq'), {});
   }
 
+  // Las primitivas de atención aceptan dimensiones delanteras opcionales (ventanas de Swin: nW×…):
+  // split_heads nW×N×3D → 3 × [nW×h×N×d_h]; con entrada 2-D el resultado es el de siempre.
   // split_heads: N×(parts·D) → parts × [h×N×d_h]. o = {h, parts=1, hSym='h', dhSym='d_h'}
   function split_heads(x, o) {
     const parts = o.parts || 1, h = o.h;
-    const [N, W] = x.num, Ns = x.sym[0];
+    const nd = x.num.length;
+    const lead = x.num.slice(0, nd - 2), leadSym = x.sym.slice(0, nd - 2);
+    const N = x.num[nd - 2], W = x.num[nd - 1], Ns = x.sym[nd - 2];
     if (W % parts !== 0) throw new Error('split_heads: ' + W + ' no es divisible en ' + parts + ' partes.');
     const D = W / parts;
     if (D % h !== 0) throw new Error('split_heads: D = ' + D + ' no es divisible por h = ' + h + '.');
     const dh = D / h;
-    const mk = () => shape([o.hSym || 'h', Ns, o.dhSym || 'd_h'], [h, N, dh], x.mod, 'heads');
+    const mk = () => shape(leadSym.concat([o.hSym || 'h', Ns, o.dhSym || 'd_h']), lead.concat([h, N, dh]), x.mod, lead.length ? 'winheads' : 'heads');
     const outs = Array.from({ length: parts }, mk);
     return result('split_heads', [x], parts === 1 ? outs[0] : outs, { detail: { h, dh, parts } });
   }
 
-  // merge_heads: h×N×d_h → N×D (concatenar cabezas).
+  // merge_heads: h×N×d_h → N×D (concatenar cabezas). Con ventanas: nW×h×N×d_h → nW×N×D.
   function merge_heads(z, o) {
-    const [h, N, dh] = z.num;
-    return result('merge_heads', [z], shape([z.sym[1], (o && o.Dsym) || 'D'], [N, h * dh], z.mod, 'seq'), { detail: { h, dh } });
+    const nd = z.num.length;
+    const lead = z.num.slice(0, nd - 3), leadSym = z.sym.slice(0, nd - 3);
+    const h = z.num[nd - 3], N = z.num[nd - 2], dh = z.num[nd - 1];
+    return result('merge_heads', [z], shape(leadSym.concat([z.sym[nd - 2], (o && o.Dsym) || 'D']), lead.concat([N, h * dh]), z.mod, lead.length ? 'windows' : 'seq'), { detail: { h, dh } });
   }
 
   // attention_scores: Q (h×Nq×d_h) · Kᵀ (h×d_h×Nk) → h×Nq×Nk. MACs h·Nq·Nk·d_h (= Nq·Nk·D).
+  // Con ventanas: nW×h×M²×d_h → nW×h×M²×M², MACs nW·h·M²·M²·d_h (= H·W·M²·C).
   function attention_scores(q, k) {
-    const [h, Nq, dh] = q.num, Nk = k.num[1];
-    if (k.num[0] !== h || k.num[2] !== dh) throw new Error('attention_scores: Q y K con cabezas o d_h distintos.');
-    const out = shape([q.sym[0], q.sym[1], k.sym[1]], [h, Nq, Nk], q.mod, 'heads');
+    const nd = q.num.length;
+    const lead = q.num.slice(0, nd - 3), leadSym = q.sym.slice(0, nd - 3);
+    const [h, Nq, dh] = q.num.slice(nd - 3), Nk = k.num[nd - 2];
+    if (k.num.length !== nd || k.num[nd - 3] !== h || k.num[nd - 1] !== dh || lead.some((v, i) => k.num[i] !== v)) throw new Error('attention_scores: Q y K con cabezas o d_h distintos.');
+    const qs = q.sym.slice(nd - 3);
+    const out = shape(leadSym.concat([qs[0], qs[1], k.sym[nd - 2]]), lead.concat([h, Nq, Nk]), q.mod, lead.length ? 'winheads' : 'heads');
     return result('attention_scores', [q, k], out, {
-      macTerms: [[h, Nq, Nk, dh]], macTex: texProd([q.sym[0], q.sym[1], k.sym[1], q.sym[2]]),
-      detail: { h, Nq, Nk, dh, note: 'h·N·N·d_h = N²·D' },
+      macTerms: [lead.concat([h, Nq, Nk, dh])], macTex: texProd(leadSym.concat([qs[0], qs[1], k.sym[nd - 2], qs[2]])),
+      detail: Object.assign({ h, Nq, Nk, dh, note: 'h·N·N·d_h = N²·D' }, lead.length ? { windows: prod(lead) } : {}),
     });
   }
 
   // attention_weighted_sum: A (h×Nq×Nk) · V (h×Nk×d_h) → h×Nq×d_h.
   function attention_weighted_sum(a, v) {
-    const [h, Nq, Nk] = a.num, dh = v.num[2];
-    if (v.num[0] !== h || v.num[1] !== Nk) throw new Error('attention_weighted_sum: A y V incompatibles.');
-    const out = shape([a.sym[0], a.sym[1], v.sym[2]], [h, Nq, dh], a.mod, 'heads');
+    const nd = a.num.length;
+    const lead = a.num.slice(0, nd - 3), leadSym = a.sym.slice(0, nd - 3);
+    const [h, Nq, Nk] = a.num.slice(nd - 3), dh = v.num[nd - 1];
+    if (v.num.length !== nd || v.num[nd - 3] !== h || v.num[nd - 2] !== Nk) throw new Error('attention_weighted_sum: A y V incompatibles.');
+    const as = a.sym.slice(nd - 3);
+    const out = shape(leadSym.concat([as[0], as[1], v.sym[nd - 1]]), lead.concat([h, Nq, dh]), a.mod, lead.length ? 'winheads' : 'heads');
     return result('attention_weighted_sum', [a, v], out, {
-      macTerms: [[h, Nq, Nk, dh]], macTex: texProd([a.sym[0], a.sym[1], a.sym[2], v.sym[2]]),
+      macTerms: [lead.concat([h, Nq, Nk, dh])], macTex: texProd(leadSym.concat([as[0], as[1], as[2], v.sym[nd - 1]])),
       detail: { h, Nq, Nk, dh },
     });
   }
@@ -325,6 +360,133 @@
     const r = linear(x, { dout: o.K, doutSym: o.Ksym || 'K', bias: o.bias !== false, mod: x.mod });
     r.prim = 'classifier_head';
     return r;
+  }
+
+  // ---- Fase 2 (Swin, ResNet, CLIP): primitivas elementales ------------------------------
+  // batchnorm2d: γ y β por canal (2C parámetros). Media y varianza móviles (y el contador) son buffers.
+  function batchnorm2d(x) {
+    const C = x.num[x.num.length - 1], Cs = x.sym[x.sym.length - 1];
+    return result('batchnorm2d', [x], plain(x), {
+      paramTerms: [[2, C]], paramTex: texScale(2, Cs), other: elems(x) * OTHER.batchnorm,
+      detail: { C, buffers: 2 * C + 1, note: 'running_mean y running_var (2C) + num_batches_tracked: buffers, no parámetros' },
+    });
+  }
+  const relu = (x) => elementwise('relu', x, OTHER.relu);
+
+  // maxpool2d: ventana k×k, stride s, padding p; redondeo hacia abajo (PyTorch). o = {k, s=k, p=0, outSym}
+  function maxpool2d(x, o) {
+    const [H, W, C] = x.num, k = o.k, s = o.s || o.k, p = o.p || 0;
+    const Ho = Math.floor((H + 2 * p - k) / s) + 1, Wo = Math.floor((W + 2 * p - k) / s) + 1;
+    const os = o.outSym || [String(Ho), String(Wo)];
+    return result('maxpool2d', [x], shape([os[0], os[1], x.sym[2]], [Ho, Wo, C], x.mod, 'grid'), {
+      other: Ho * Wo * C * k * k, detail: { k, s, p, Ho, Wo },
+    });
+  }
+
+  // global_avg_pool: H×W×C → C (promedio espacial; ≈ 1 suma por elemento).
+  function global_avg_pool(x) {
+    const [H, W, C] = x.num;
+    return result('global_avg_pool', [x], shape([x.sym[2]], [C], x.mod, 'vec'), { other: H * W * C, detail: { H, W, C } });
+  }
+
+  // cyclic_shift (Swin): torch.roll de la rejilla H×W×C por −⌊M/2⌋ en filas y columnas (o +⌊M/2⌋ si inverse).
+  // Mueve tokens, no calcula: 0 parámetros, 0 MACs.
+  function cyclic_shift(x, o) {
+    return result('cyclic_shift', [x], plain(x), { detail: { shift: o.s, inverse: !!o.inverse } });
+  }
+
+  // window_partition (Swin): H×W×C → nW×M²×C, nW = (H/M)·(W/M) ventanas de M×M tokens.
+  // o = {M, nWSym='nW', tokSym='M²'}
+  function window_partition(x, o) {
+    const [H, W, C] = x.num, M = o.M;
+    if (H % M !== 0 || W % M !== 0) throw new Error('window_partition: la rejilla ' + H + '×' + W + ' no es divisible por la ventana M = ' + M + '.');
+    const nW = (H / M) * (W / M);
+    return result('window_partition', [x], shape([o.nWSym || 'nW', o.tokSym || 'M²', x.sym[2]], [nW, M * M, C], x.mod, 'windows'), {
+      detail: { M, nW, H, W },
+    });
+  }
+
+  // window_reverse (Swin): nW×M²×C → H×W×C (inversa de window_partition). o = {H, W, M, outSym:[hs, ws]}
+  function window_reverse(x, o) {
+    const [nW, MM, C] = x.num;
+    if (nW * MM !== o.H * o.W) throw new Error('window_reverse: ' + nW + '×' + MM + ' tokens no llenan una rejilla ' + o.H + '×' + o.W + '.');
+    return result('window_reverse', [x], shape([o.outSym[0], o.outSym[1], x.sym[2]], [o.H, o.W, C], x.mod, 'grid'), { detail: { M: o.M, nW } });
+  }
+
+  // rel_pos_bias (Swin): scores + B, con B tomado de una tabla aprendida (2M−1)²×h (parámetro) mediante
+  // un índice de posición relativa M²×M² (buffer). Suma elementwise.
+  function rel_pos_bias(x, o) {
+    const M = o.M, h = o.h, Ms = o.Msym || 'M', hs = o.hSym || 'h';
+    const t = '(2' + Ms + '-1)^2';
+    return result('rel_pos_bias', [x], plain(x), {
+      paramTerms: [[2 * M - 1, 2 * M - 1, h]], paramTex: t + '\\cdot ' + symTexFactor(hs),
+      other: elems(x) * OTHER.add, detail: { M, h, table: [(2 * M - 1) * (2 * M - 1), h], index: [M * M, M * M] },
+    });
+  }
+
+  // attn_mask (Swin, SW-MSA): suma una máscara fija nW×M²×M² (0 / −100) que impide atender entre
+  // regiones que el desplazamiento cíclico juntó en la misma ventana. Buffer: 0 parámetros.
+  function attn_mask(x) {
+    return result('attn_mask', [x], plain(x), { other: elems(x) * OTHER.mask, detail: { note: 'máscara = buffer (no parámetro)' } });
+  }
+
+  // causal_mask: pone −∞ sobre el triángulo superior de los scores (texto de CLIP, decoders).
+  // No cambia parámetros ni MACs: una implementación ingenua calcula igual los N² scores.
+  function causal_mask(x) {
+    const N = x.num[x.num.length - 1], rows = x.num[x.num.length - 2];
+    const heads = elems(x) / (N * rows);
+    return result('causal_mask', [x], plain(x), {
+      other: elems(x) * OTHER.mask,
+      detail: { used: heads * rows * (rows + 1) / 2, masked: heads * rows * (rows - 1) / 2 },
+    });
+  }
+
+  // patch_concat (Swin, patch merging): concatena los 2×2 vecinos: H×W×C → H/2×W/2×4C. o.outSym = [hs, ws, cs]
+  function patch_concat(x, o) {
+    const [H, W, C] = x.num;
+    if (H % 2 !== 0 || W % 2 !== 0) throw new Error('patch_concat: la rejilla ' + H + '×' + W + ' no es par.');
+    const os = (o && o.outSym) || [x.sym[0] + '/2', x.sym[1] + '/2', '4' + x.sym[2]];
+    return result('patch_concat', [x], shape(os, [H / 2, W / 2, 4 * C], x.mod, 'grid'), { detail: { H, W, C } });
+  }
+
+  // pick_token: toma una fila de una secuencia T×D → D (CLIP texto: el token EOT). o.index = descripción
+  function pick_token(x, o) {
+    return result('pick_token', [x], shape([x.sym[x.sym.length - 1]], [x.num[x.num.length - 1]], x.mod, 'vec'), { detail: { index: (o && o.index) || null } });
+  }
+
+  // l2_normalize: x / ‖x‖₂ por fila (≈ 3 ops por elemento). Sin parámetros.
+  function l2_normalize(x) {
+    return result('l2_normalize', [x], plain(x), { other: elems(x) * OTHER.l2norm });
+  }
+
+  // stack_batch: apila B vectores de una muestra: E → B×E (el resto del grafo es por muestra).
+  function stack_batch(x, o) {
+    const out = shape([o.Bsym || 'B', x.sym[0]], [o.B, x.num[0]], x.mod, 'seq');
+    return result('stack_batch', [x], out, { detail: { B: o.B } });
+  }
+
+  // similarity_logits (CLIP): I (B×E) · Tᵀ (E×B) → B×B. MACs B·B·E.
+  function similarity_logits(a, b) {
+    const [B1, E] = a.num, [B2, E2] = b.num;
+    if (E !== E2) throw new Error('similarity_logits: dimensiones de embedding distintas (' + E + ' y ' + E2 + ').');
+    const out = shape([a.sym[0], b.sym[0]], [B1, B2], null, 'mat');
+    return result('similarity_logits', [a, b], out, {
+      macTerms: [[B1, B2, E]], macTex: texProd([a.sym[0], b.sym[0], a.sym[1]]), detail: { B: B1, E },
+    });
+  }
+
+  // logit_scale (CLIP): multiplica por e^t, con t un escalar aprendido (1 parámetro; init 1/0.07, tope 100).
+  function logit_scale(x) {
+    return result('logit_scale', [x], plain(x), { paramTerms: [[1]], paramTex: '1', other: elems(x) * OTHER.scale, detail: { init: 1 / 0.07, max: 100 } });
+  }
+
+  // contrastive_loss (CLIP, InfoNCE simétrica): ½·[CE por filas (imagen→texto) + CE por columnas
+  // (texto→imagen)], etiquetas = la diagonal. B×B → escalar. Solo "otros": 2 softmax de B² + 2B.
+  function contrastive_loss(x) {
+    const B = x.num[0];
+    return result('contrastive_loss', [x], shape(['1'], [1], null, 'vec'), {
+      other: 2 * B * B * OTHER.softmax + 2 * B, detail: { B, negatives: B - 1 },
+    });
   }
 
   // ---- compuestas (para fórmulas, tablas y pruebas; los modelos usan las elementales en el grafo)
@@ -393,10 +555,114 @@
     return r;
   }
 
+  // ---- Fase 2: compuestas ---------------------------------------------------------------
+  // conv_bn: conv (sin sesgo) → BatchNorm (→ ReLU). o = opciones de conv2d + {relu=true}. Redondeo floor.
+  function conv_bn(x, o) {
+    const cv = conv2d(x, Object.assign({ floor: true, s: 1 }, o, { bias: false }));   // stride 1 por defecto (no el de patchify)
+    const bn = batchnorm2d(cv.out);
+    const parts = [cv, bn];
+    if (o.relu !== false) parts.push(relu(bn.out));
+    return composite('conv_bn', x, parts, parts[parts.length - 1].out, {
+      paramTex: 'k^2\\,C_{in}\\,C_{out} + 2C_{out}', macTex: 'H_o\\,W_o\\,C_{out}\\,k^2\\,C_{in}',
+      detail: { k: o.k, s: o.s || 1, relu: o.relu !== false },
+    });
+  }
+
+  // bottleneck (ResNet-50, torchvision v1.5: el stride va en la 3×3):
+  //   1×1 (C_in→w) → BN → ReLU → 3×3 s (w→w) → BN → ReLU → 1×1 (w→4w) → BN, + atajo, → ReLU.
+  //   Atajo = identidad, o proyección 1×1 s (C_in→4w) + BN cuando cambian canales o resolución.
+  // o = {width, cout=4·width, stride=1, project}
+  function bottleneck(x, o) {
+    const w = o.width, cout = o.cout || 4 * w, s = o.stride || 1;
+    const project = o.project !== undefined ? o.project : (s !== 1 || x.num[2] !== cout);
+    const a = conv_bn(x, { k: 1, cout: w });
+    const b = conv_bn(a.out, { k: 3, s, p: 1, cout: w });
+    const c = conv_bn(b.out, { k: 1, cout, relu: false });
+    const parts = [a, b, c];
+    let sc = x;
+    if (project) { const d = conv_bn(x, { k: 1, s, cout, relu: false }); parts.push(d); sc = d.out; }
+    const ad = residual_add(sc, c.out);
+    const r = relu(ad.out);
+    parts.push(ad, r);
+    return composite('bottleneck', x, parts, r.out, {
+      paramTex: 'C_{in}w + 9w^2 + 4w^2 + 2(6w)' + (project ? ' + 4w\\,C_{in} + 8w' : ''),
+      macTex: 'H\\,W\\,C_{in}w + H_o W_o (9w^2 + 4w^2)' + (project ? ' + H_o W_o\\,4w\\,C_{in}' : ''),
+      detail: { width: w, cout, stride: s, project },
+    });
+  }
+
+  // window_attention (Swin W-MSA / SW-MSA) sobre una rejilla H×W×C:
+  //   [shift] → partición nW×M²×C → qkv → cabezas → QKᵀ → escala → + sesgo relativo → [máscara] →
+  //   softmax → ·V → concatenar → proyección → revertir partición → [unshift].
+  // o = {M, h, shift=0, qkvBias=true, projBias=true}
+  // Parámetros 4C² + 4C + (2M−1)²·h. MACs H·W·4C² + 2·H·W·M²·C (vs 2·(HW)²·C de la atención global).
+  function window_attention(x, o) {
+    const [H, W, C] = x.num, M = o.M;
+    const parts = [];
+    let t = x;
+    if (o.shift) { const sh = cyclic_shift(t, { s: o.shift }); parts.push(sh); t = sh.out; }
+    const wp = window_partition(t, { M }); parts.push(wp);
+    const qkv = linear(wp.out, { dout: 3 * C, doutSym: '3' + x.sym[2], bias: o.qkvBias !== false }); parts.push(qkv);
+    const sp = split_heads(qkv.out, { h: o.h, parts: 3 }); parts.push(sp);
+    const [q, k, v] = sp.out;
+    const sc = attention_scores(q, k); parts.push(sc);
+    const sl = scale(sc.out); parts.push(sl);
+    const bi = rel_pos_bias(sl.out, { M, h: o.h }); parts.push(bi);
+    let pre = bi.out;
+    if (o.shift) { const mk = attn_mask(pre); parts.push(mk); pre = mk.out; }
+    const sm = softmax(pre); parts.push(sm);
+    const ws = attention_weighted_sum(sm.out, v); parts.push(ws);
+    const mg = merge_heads(ws.out, { Dsym: x.sym[2] }); parts.push(mg);
+    const pj = linear(mg.out, { dout: C, doutSym: x.sym[2], bias: o.projBias !== false }); parts.push(pj);
+    const rv = window_reverse(pj.out, { H, W, M, outSym: [x.sym[0], x.sym[1]] }); parts.push(rv);
+    let out = rv.out;
+    if (o.shift) { const us = cyclic_shift(out, { s: o.shift, inverse: true }); parts.push(us); out = us.out; }
+    return composite('window_attention', x, parts, out, {
+      paramTex: '4C^2 + 4C + (2M-1)^2 h', macTex: '4\\,HW\\,C^2 + 2\\,HW\\,M^2\\,C',
+      detail: { M, h: o.h, shift: o.shift || 0, nW: (H / M) * (W / M), globalScoreMacs: 2 * H * W * H * W * C, windowScoreMacs: 2 * H * W * M * M * C },
+    });
+  }
+
+  // patch_merging (Swin): concat 2×2 (H×W×C → H/2×W/2×4C) → LayerNorm(4C) → Linear 4C→2C SIN sesgo.
+  // Parámetros 8C + 8C². Los tokens bajan ×4 y los canales suben ×2.
+  function patch_merging(x, o) {
+    const C = x.num[2];
+    const cc = patch_concat(x, o);
+    const ln = layernorm(cc.out);
+    const rd = linear(ln.out, { dout: 2 * C, doutSym: (o && o.coutSym) || ('2' + x.sym[2]), bias: false });
+    return composite('patch_merging', x, [cc, ln, rd], rd.out, {
+      paramTex: '8C + 8C^2', macTex: '\\tfrac{H}{2}\\tfrac{W}{2}\\cdot 4C\\cdot 2C',
+    });
+  }
+
+  // causal_self_attention: MHSA con máscara causal. Mismos parámetros y MACs que la bidireccional:
+  // la máscara es una operación sobre el tensor de scores (solo "otros").
+  function causal_self_attention(x, o) {
+    const D = x.num[1], Ds = (o && o.Dsym) || x.sym[1];
+    const qkv = linear(x, { dout: 3 * D, doutSym: '3' + Ds, bias: o.qkvBias !== false });
+    const sp = split_heads(qkv.out, { h: o.h, parts: 3 });
+    const [q, k, v] = sp.out;
+    const sc = attention_scores(q, k);
+    const sl = scale(sc.out);
+    const mk = causal_mask(sl.out);
+    const sm = softmax(mk.out);
+    const ws = attention_weighted_sum(sm.out, v);
+    const mg = merge_heads(ws.out, { Dsym: Ds });
+    const pj = linear(mg.out, { dout: D, doutSym: Ds, bias: o.projBias !== false });
+    const ref = mhsa(x, o);
+    return composite('causal_self_attention', x, [qkv, sp, sc, sl, mk, sm, ws, mg, pj], pj.out, {
+      paramTex: ref.paramFormula, macTex: ref.macFormula, detail: { h: o.h, dh: D / o.h, used: mk.detail.used, masked: mk.detail.masked },
+    });
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
     attention_weighted_sum, mhsa, mlp, add, residual_add, transformer_block, pool_cls, classifier_head,
+    // Fase 2
+    batchnorm2d, relu, maxpool2d, global_avg_pool, conv_bn, bottleneck, cyclic_shift, window_partition,
+    window_reverse, rel_pos_bias, attn_mask, causal_mask, window_attention, patch_concat, patch_merging,
+    causal_self_attention, pick_token, l2_normalize, stack_batch, similarity_logits, logit_scale, contrastive_loss,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -423,6 +689,27 @@
     { id: 'transformer_block', name: 'Bloque transformer (pre-LN)', paramTex: '4D^2 + 2D\\,D_{\\mathrm{mlp}} + D_{\\mathrm{mlp}} + 9D', macTex: 'N(4D^2 + 2D\\,D_{\\mathrm{mlp}}) + 2N^2D', outTex: 'N\\times D \\to N\\times D', note: 'Con D_mlp = 4D: 12D² + 13D parámetros y 12ND² + 2N²D MACs. Los dos términos se igualan en N = 6D.' },
     { id: 'pool_cls', name: 'Pooling CLS', paramTex: '0', macTex: '0', outTex: '(N{+}1)\\times D \\to D', note: 'Toma la fila del token CLS.' },
     { id: 'classifier_head', name: 'Cabeza de clasificación', paramTex: 'D\\,K + K', macTex: 'D\\,K', outTex: 'D \\to K', note: 'Un Linear sobre el vector del CLS.' },
+    // Fase 2 (Swin, ResNet, CLIP)
+    { id: 'batchnorm2d', name: 'BatchNorm', paramTex: '2C', macTex: '0', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'γ y β por canal; media y varianza móviles son buffers. En inferencia se funde con la conv anterior.' },
+    { id: 'relu', name: 'ReLU', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'max(0, x); 1 op por elemento en "otros".' },
+    { id: 'maxpool2d', name: 'Max pooling', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to H_o\\times W_o\\times C', note: 'ResNet: 3×3, stride 2, padding 1 (112 → 56).' },
+    { id: 'global_avg_pool', name: 'Global average pooling', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to C', note: 'Promedio espacial: Swin y ResNet clasifican así (no hay token CLS).' },
+    { id: 'conv_bn', name: 'Conv + BN (+ ReLU)', paramTex: 'k^2\\,C_{in}\\,C_{out} + 2C_{out}', macTex: 'H_o\\,W_o\\,C_{out}\\,k^2\\,C_{in}', outTex: 'H\\times W\\times C_{in} \\to H_o\\times W_o\\times C_{out}', note: 'La conv no lleva sesgo: el β de la BN lo hace redundante.' },
+    { id: 'bottleneck', name: 'Bloque bottleneck (ResNet-50)', paramTex: 'C_{in}w + 13w^2 + 12w\;(+\\,4wC_{in} + 8w)', macTex: 'HWC_{in}w + H_oW_o\\,13w^2\;(+\\,H_oW_o\\,4wC_{in})', outTex: 'H\\times W\\times C_{in} \\to H_o\\times W_o\\times 4w', note: '1×1 reduce a w, 3×3 (con el stride), 1×1 expande a 4w; atajo identidad o proyección 1×1 + BN (entre paréntesis).' },
+    { id: 'cyclic_shift', name: 'Desplazamiento cíclico', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'torch.roll por ⌊M/2⌋: las ventanas del bloque siguiente cruzan los bordes de las anteriores.' },
+    { id: 'window_partition', name: 'Partición en ventanas', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to n_W\\times M^2\\times C', note: 'n_W = HW/M². Las ventanas se procesan como un lote.' },
+    { id: 'window_reverse', name: 'Revertir ventanas', paramTex: '0', macTex: '0', outTex: 'n_W\\times M^2\\times C \\to H\\times W\\times C', note: 'Inversa de la partición.' },
+    { id: 'rel_pos_bias', name: 'Sesgo de posición relativa', paramTex: '(2M-1)^2\\,h', macTex: '0', outTex: 'n_W\\times h\\times M^2\\times M^2 \\to \\text{igual}', note: 'Tabla aprendida (parámetro) indexada por un índice M²×M² (buffer); se suma a los scores.' },
+    { id: 'attn_mask', name: 'Máscara de SW-MSA', paramTex: '0', macTex: '0', outTex: 'n_W\\times h\\times M^2\\times M^2 \\to \\text{igual}', note: 'Tras el desplazamiento, una ventana junta regiones no vecinas: la máscara (buffer, −100) les impide atenderse.' },
+    { id: 'causal_mask', name: 'Máscara causal', paramTex: '0', macTex: '0', outTex: 'h\\times T\\times T \\to h\\times T\\times T', note: 'El token t solo atiende a 1…t. No cambia parámetros ni MACs.' },
+    { id: 'window_attention', name: 'Atención por ventanas (W-MSA / SW-MSA)', paramTex: '4C^2 + 4C + (2M-1)^2 h', macTex: '4HW\\,C^2 + 2HW\\,M^2 C', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'Lineal en los tokens HW (vs 2(HW)²C de la global): el ahorro es HW/M².' },
+    { id: 'patch_merging', name: 'Patch merging', paramTex: '8C + 8C^2', macTex: '\\tfrac{HW}{4}\\cdot 4C\\cdot 2C', outTex: 'H\\times W\\times C \\to \\tfrac{H}{2}\\times\\tfrac{W}{2}\\times 2C', note: 'Concat 2×2 → LayerNorm(4C) → Linear 4C→2C sin sesgo: tokens ÷4, canales ×2 (como un stride 2).' },
+    { id: 'causal_self_attention', name: 'Self-attention causal', paramTex: '4D^2 + 4D', macTex: '4ND^2 + 2N^2D', outTex: 'N\\times D \\to N\\times D', note: 'Mismos conteos que la bidireccional; la máscara solo cambia qué scores se usan.' },
+    { id: 'pick_token', name: 'Tomar un token', paramTex: '0', macTex: '0', outTex: 'T\\times D \\to D', note: 'CLIP texto: la fila del token EOT.' },
+    { id: 'l2_normalize', name: 'Normalización L2', paramTex: '0', macTex: '0', outTex: 'E \\to E', note: 'x/‖x‖: el producto punto pasa a ser similitud coseno.' },
+    { id: 'similarity_logits', name: 'Matriz de similitud', paramTex: '0', macTex: 'B^2 E', outTex: 'B\\times E,\\ B\\times E \\to B\\times B', note: 'I·Tᵀ: B² pares; la diagonal son los positivos y el resto B−1 negativos por fila.' },
+    { id: 'logit_scale', name: 'Temperatura aprendida', paramTex: '1', macTex: '0', outTex: 'B\\times B \\to B\\times B', note: 'Multiplica por e^t (init 1/0.07, tope 100).' },
+    { id: 'contrastive_loss', name: 'Pérdida contrastiva (InfoNCE simétrica)', paramTex: '0', macTex: '0', outTex: 'B\\times B \\to 1', note: 'Promedio de la CE por filas (imagen→texto) y por columnas (texto→imagen).' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -440,6 +727,7 @@
         perLayer: !!meta.perLayer, elements: elems(sh),
       };
       if (meta.note) tensors[id].note = meta.note;
+      if (meta.batched) tensors[id].batched = true;   // ya incluye el batch B (CLIP: parte conjunta)
       order.push(id);
       return Object.assign(plain(sh), { id });
     }
@@ -471,46 +759,59 @@
           shapeTex: res.shapeTex, type: o.type || 'tensorop', group: o.group || 'other',
           detail: res.detail || {},
         });
+        if (o.batched) ops[ops.length - 1].batched = true;   // sus MACs ya incluyen el batch B
         return handles.length === 1 ? handles[0] : handles;
       },
       _data() { return { tensors, order, ops }; },
     };
   }
 
-  // Bloque pre-LN reutilizable (ViT, transformer de juguete). Ids de SPEC §13.1/13.2.
+  // Bloque pre-LN reutilizable (ViT, transformer de juguete, torres de CLIP). Ids de SPEC §13.1/13.2.
   // prefix = path de nodos que contiene la capa (p. ej. ['encoder','enc-layer']).
-  // o = {L, h, Dmlp, qkvBias, projBias, mlpBias, causal, outId='x-out'}
+  // o = {L, h, Dmlp, qkvBias, projBias, mlpBias, causal, outId='x-out',
+  //      tid='' (prefijo de ids de tensor: 'i-' → 'i-h-ln1'), oid='' (prefijo de ids de op),
+  //      maskOp (máscara causal como op propia, nodo 'mask', tensor '<tid>masked'), actLabel}
+  // Sin tid/oid/maskOp el resultado es exactamente el de la fase 1.
   function preLnLayer(g, x, o) {
     const P = o.prefix || ['enc-layer'];
     const rep = o.L || 1;
     const L = (meta) => Object.assign({ perLayer: true }, meta);
     const D = x.num[1], Ds = x.sym[1];
     const at = P.concat(['mhsa']), ml = P.concat(['mlp']);
-    const op = (id, res, path, extra) => g.op(id, res, Object.assign({ path, repeat: rep }, extra));
+    const T = (n) => (o.tid || '') + n, O = (n) => (o.oid || '') + n;
+    const op = (id, res, path, extra) => g.op(O(id), res, Object.assign({ path, repeat: rep }, extra));
+    const sepMask = !!o.maskOp;
 
-    const hln1 = op('ln1', layernorm(x), P.concat(['ln1']), { out: 'h-ln1', label: 'LayerNorm 1', type: 'norm', group: 'norm', outMeta: L({ label: 'Entrada normalizada (LN 1)', tex: '\\mathrm{LN}_1(x)' }) });
-    const qkv = op('qkv', linear(hln1, { dout: 3 * D, doutSym: '3' + Ds, bias: o.qkvBias !== false }), at.concat(['qkv']), { out: 'qkv', label: 'Proyección Q, K, V', type: 'embed', group: 'attn', outMeta: L({ label: 'Q, K y V concatenados', tex: '[Q\\;K\\;V]' }) });
+    const hln1 = op('ln1', layernorm(x), P.concat(['ln1']), { out: T('h-ln1'), label: 'LayerNorm 1', type: 'norm', group: 'norm', outMeta: L({ label: 'Entrada normalizada (LN 1)', tex: '\\mathrm{LN}_1(x)' }) });
+    const qkv = op('qkv', linear(hln1, { dout: 3 * D, doutSym: '3' + Ds, bias: o.qkvBias !== false }), at.concat(['qkv']), { out: T('qkv'), label: 'Proyección Q, K, V', type: 'embed', group: 'attn', outMeta: L({ label: 'Q, K y V concatenados', tex: '[Q\\;K\\;V]' }) });
     const [q, k, v] = op('split', split_heads(qkv, { h: o.h, parts: 3 }), at.concat(['split']), {
-      out: ['q', 'k', 'v'], label: 'Separar en cabezas', type: 'tensorop', group: 'attn',
+      out: [T('q'), T('k'), T('v')], label: 'Separar en cabezas', type: 'tensorop', group: 'attn',
       outMeta: [L({ label: 'Queries por cabeza', tex: 'Q' }), L({ label: 'Keys por cabeza', tex: 'K' }), L({ label: 'Values por cabeza', tex: 'V' })],
     });
-    const sc = op('scores', attention_scores(q, k), at.concat(['scores']), { out: 'scores', label: 'Producto QKᵀ', type: 'attn', group: 'attn', outMeta: L({ label: 'Scores sin escalar', tex: 'QK^\\top' }) });
-    const ss = op('scale', scale(sc, { causal: !!o.causal }), at.concat(['scale']), {
-      out: 'scores-scaled', label: o.causal ? 'Escala 1/√d_h + máscara causal' : 'Escala 1/√d_h', type: 'attn', group: 'attn',
-      outMeta: L({ label: o.causal ? 'Scores escalados y enmascarados' : 'Scores escalados', tex: o.causal ? 'QK^\\top/\\sqrt{d_h} + M' : 'QK^\\top/\\sqrt{d_h}' }),
+    const sc = op('scores', attention_scores(q, k), at.concat(['scores']), { out: T('scores'), label: 'Producto QKᵀ', type: 'attn', group: 'attn', outMeta: L({ label: 'Scores sin escalar', tex: 'QK^\\top' }) });
+    const inScale = !!o.causal && !sepMask;
+    let ss = op('scale', scale(sc, { causal: inScale }), at.concat(['scale']), {
+      out: T('scores-scaled'), label: inScale ? 'Escala 1/√d_h + máscara causal' : 'Escala 1/√d_h', type: 'attn', group: 'attn',
+      outMeta: L({ label: inScale ? 'Scores escalados y enmascarados' : 'Scores escalados', tex: inScale ? 'QK^\\top/\\sqrt{d_h} + M' : 'QK^\\top/\\sqrt{d_h}' }),
     });
-    const a = op('softmax', softmax(ss), at.concat(['softmax']), { out: 'attn', label: 'Softmax por fila', type: 'attn', group: 'attn', outMeta: L({ label: 'Pesos de atención', tex: 'A' }) });
-    const zh = op('weighted-sum', attention_weighted_sum(a, v), at.concat(['weighted-sum']), { out: 'z-heads', label: 'Suma ponderada A·V', type: 'attn', group: 'attn', outMeta: L({ label: 'Salida por cabeza', tex: 'AV' }) });
-    const z = op('merge', merge_heads(zh, { Dsym: Ds }), at.concat(['merge']), { out: 'z', label: 'Concatenar cabezas', type: 'tensorop', group: 'attn', outMeta: L({ label: 'Cabezas concatenadas', tex: 'Z' }) });
-    const ov = op('proj', linear(z, { dout: D, doutSym: Ds, bias: o.projBias !== false }), at.concat(['proj']), { out: 'o', label: 'Proyección de salida W_O', type: 'embed', group: 'attn', outMeta: L({ label: 'Salida de la atención', tex: 'O = ZW_O' }) });
-    const r1 = op('res1', residual_add(x, ov), P.concat(['res1']), { out: 'r1', label: 'Residual 1', type: 'tensorop', group: 'resid', outMeta: L({ label: 'x + atención', tex: "x'" }) });
-    const hln2 = op('ln2', layernorm(r1), P.concat(['ln2']), { out: 'h-ln2', label: 'LayerNorm 2', type: 'norm', group: 'norm', outMeta: L({ label: 'Entrada normalizada (LN 2)', tex: "\\mathrm{LN}_2(x')" }) });
-    const u = op('fc1', linear(hln2, { dout: o.Dmlp, doutSym: 'D_mlp', bias: o.mlpBias !== false }), ml.concat(['fc1']), { out: 'u', label: 'MLP: capa 1 (expansión)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Capa oculta del MLP', tex: 'U = \\mathrm{LN}_2(x\')W_1 + b_1' }) });
-    const gg = op('gelu', gelu(u), ml.concat(['gelu']), { out: 'g', label: 'GELU', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Activación', tex: '\\mathrm{GELU}(U)' }) });
-    const f = op('fc2', linear(gg, { dout: D, doutSym: Ds, bias: o.mlpBias !== false }), ml.concat(['fc2']), { out: 'f', label: 'MLP: capa 2 (proyección)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Salida del MLP', tex: 'F' }) });
+    if (sepMask) {
+      ss = op('mask', causal_mask(ss), at.concat(['mask']), {
+        out: T('masked'), label: 'Máscara causal', type: 'attn', group: 'attn',
+        outMeta: L({ label: 'Scores enmascarados (−∞ sobre el futuro)', tex: 'QK^\\top/\\sqrt{d_h} + M_{\\mathrm{causal}}' }),
+      });
+    }
+    const a = op('softmax', softmax(ss), at.concat(['softmax']), { out: T('attn'), label: 'Softmax por fila', type: 'attn', group: 'attn', outMeta: L({ label: 'Pesos de atención', tex: 'A' }) });
+    const zh = op('weighted-sum', attention_weighted_sum(a, v), at.concat(['weighted-sum']), { out: T('z-heads'), label: 'Suma ponderada A·V', type: 'attn', group: 'attn', outMeta: L({ label: 'Salida por cabeza', tex: 'AV' }) });
+    const z = op('merge', merge_heads(zh, { Dsym: Ds }), at.concat(['merge']), { out: T('z'), label: 'Concatenar cabezas', type: 'tensorop', group: 'attn', outMeta: L({ label: 'Cabezas concatenadas', tex: 'Z' }) });
+    const ov = op('proj', linear(z, { dout: D, doutSym: Ds, bias: o.projBias !== false }), at.concat(['proj']), { out: T('o'), label: 'Proyección de salida W_O', type: 'embed', group: 'attn', outMeta: L({ label: 'Salida de la atención', tex: 'O = ZW_O' }) });
+    const r1 = op('res1', residual_add(x, ov), P.concat(['res1']), { out: T('r1'), label: 'Residual 1', type: 'tensorop', group: 'resid', outMeta: L({ label: 'x + atención', tex: "x'" }) });
+    const hln2 = op('ln2', layernorm(r1), P.concat(['ln2']), { out: T('h-ln2'), label: 'LayerNorm 2', type: 'norm', group: 'norm', outMeta: L({ label: 'Entrada normalizada (LN 2)', tex: "\\mathrm{LN}_2(x')" }) });
+    const u = op('fc1', linear(hln2, { dout: o.Dmlp, doutSym: 'D_mlp', bias: o.mlpBias !== false }), ml.concat(['fc1']), { out: T('u'), label: 'MLP: capa 1 (expansión)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Capa oculta del MLP', tex: 'U = \\mathrm{LN}_2(x\')W_1 + b_1' }) });
+    const gg = op('gelu', gelu(u), ml.concat(['gelu']), { out: T('g'), label: o.actLabel || 'GELU', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Activación', tex: o.actTex || '\\mathrm{GELU}(U)' }) });
+    const f = op('fc2', linear(gg, { dout: D, doutSym: Ds, bias: o.mlpBias !== false }), ml.concat(['fc2']), { out: T('f'), label: 'MLP: capa 2 (proyección)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Salida del MLP', tex: 'F' }) });
     // res2 produce x_ℓ; tras la última de las L repeticiones es x_L (de ahí el id 'x-out').
     return op('res2', residual_add(r1, f), P.concat(['res2']), {
-      out: o.outId || 'x-out', label: 'Residual 2', type: 'tensorop', group: 'resid',
+      out: o.outId || T('x-out'), label: 'Residual 2', type: 'tensorop', group: 'resid',
       outMeta: { label: 'Salida del encoder (x_L)', tex: 'x_L', perLayer: false, note: 'Salida de cada capa x_ℓ; tras la capa L es x_L.' },
     });
   }
@@ -536,13 +837,15 @@
     return models[m];
   }
 
-  const NON_ARCH = ['B', 'dtype', 'ctx'];   // no cambian la arquitectura (solo bytes)
+  const NON_ARCH = ['B', 'dtype', 'ctx'];   // no cambian la arquitectura (solo bytes)…
+  // …salvo que el modelo los declare como knob (CLIP: B cambia los tensores conjuntos B×E y B×B).
+  const nonArch = (def) => NON_ARCH.filter((k) => !(def.knobs && k in def.knobs));
 
   function resolve(configId, overrides) {
     const def = modelOf(configId);
     const base = Object.assign({}, def.configs[configId]);
     const ov = Object.assign({}, overrides || {});
-    NON_ARCH.forEach((k) => delete ov[k]);
+    nonArch(def).forEach((k) => delete ov[k]);
     for (const key of Object.keys(ov)) {
       if (!def.knobs || !(key in def.knobs)) throw new Error('Knob inválido "' + key + '" para el modelo "' + def.id + '". Válidos: ' + Object.keys(def.knobs || {}).join(', ') + '.');
       const v = ov[key];
@@ -554,7 +857,7 @@
 
   function memoKey(configId, overrides) {
     const ov = Object.assign({}, overrides || {});
-    NON_ARCH.forEach((k) => delete ov[k]);
+    nonArch(modelOf(configId)).forEach((k) => delete ov[k]);
     return configId + '|' + Object.keys(ov).sort().map((k) => k + '=' + ov[k]).join(',');
   }
 
@@ -567,7 +870,9 @@
     if (!g || typeof g._data !== 'function') throw new Error('El modelo "' + def.id + '" no devolvió un grafo en build().');
     const { tensors, order, ops } = g._data();
 
-    const totals = { params: 0, macs: 0, flops: 0, other: 0, byNode: {}, byPrim: {}, byGroup: {} };
+    // byPath: como byNode pero con la ruta completa ('img-encoder>enc-layer'): distingue nodos con el
+    // mismo id en dos lugares (las dos torres de CLIP; W-MSA y SW-MSA de Swin, que comparten 'qkv', …).
+    const totals = { params: 0, macs: 0, flops: 0, other: 0, byNode: {}, byPath: {}, byPrim: {}, byGroup: {} };
     const bump = (map, k, op) => {
       const e = map[k] || (map[k] = { params: 0, macs: 0, other: 0 });
       e.params += op.params * op.repeat; e.macs += op.macs * op.repeat; e.other += op.other * op.repeat;
@@ -577,6 +882,7 @@
       totals.macs += op.macs * op.repeat;
       totals.other += op.other * op.repeat;
       new Set(op.path).forEach((n) => bump(totals.byNode, n, op));
+      op.path.forEach((n, i) => bump(totals.byPath, op.path.slice(0, i + 1).join('>'), op));
       bump(totals.byPrim, op.prim, op);
       bump(totals.byGroup, op.group, op);
     }
@@ -596,30 +902,50 @@
 
   const DTYPE_BYTES = { fp32: 4, tf32: 4, fp16: 2, bf16: 2, fp8: 1, int8: 1 };
 
+  // Tensores que NO cuentan como activaciones guardadas en actMem: vistas y movimientos de datos
+  // (reshape/permute/roll: no los guarda el backward), tablas de parámetros (no son activaciones) y
+  // los scores previos al softmax (temporales: el backward de softmax usa su salida A; el de QKᵀ, Q y K).
+  const NOT_SAVED = {
+    split_heads: 1, merge_heads: 1, flatten: 1, window_partition: 1, window_reverse: 1, cyclic_shift: 1,
+    pool_cls: 1, pick_token: 1, stack_batch: 1, pos_embed_learned: 1,
+    attention_scores: 1, scale: 1, rel_pos_bias: 1, attn_mask: 1, causal_mask: 1,
+  };
+
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).
   function metrics(configId, overrides) {
     const ov = overrides || {};
     const dtype = ov.dtype || 'bf16';
-    const B = ov.B === undefined ? 1 : ov.B;
     if (!DTYPE_BYTES[dtype]) throw new Error('dtype desconocido: "' + dtype + '". Válidos: ' + Object.keys(DTYPE_BYTES).join(', ') + '.');
-    if (!Number.isInteger(B) || B <= 0) throw new Error('B debe ser un entero positivo.');
+    if (ov.B !== undefined && (!Number.isInteger(ov.B) || ov.B <= 0)) throw new Error('B debe ser un entero positivo.');
+    const def = modelOf(configId);
     const r = run(configId, ov);
-    const by = bytesOf(dtype);
     const cfg = r.config, t = r.totals;
+    // B por defecto 1; en modelos con knob B (CLIP) el de la config (32,768).
+    const B = ov.B !== undefined ? ov.B : (def.knobs && 'B' in def.knobs && cfg.B ? cfg.B : 1);
+    const by = bytesOf(dtype);
+    const opById = {};
+    r.ops.forEach((op) => { opById[op.id] = op; });
     const isScore = (op) => op.prim === 'attention_scores' || op.prim === 'attention_weighted_sum';
     const scoreMacs = r.ops.filter(isScore).reduce((s, op) => s + op.macs * op.repeat, 0);
     const attnMacs = (t.byGroup.attn || { macs: 0 }).macs;
     // Lineales dentro de las capas (proyecciones de atención + MLP).
-    const linearMacs = r.ops.filter((op) => op.prim === 'linear' && (op.path.indexOf('mhsa') >= 0 || op.path.indexOf('mlp') >= 0))
+    const linearMacs = r.ops.filter((op) => op.prim === 'linear' && (op.group === 'attn' || op.group === 'mlp'))
       .reduce((s, op) => s + op.macs * op.repeat, 0);
-    const scoreT = r.order.map((id) => r.tensors[id]).find((x) => x.id === 'scores');
+    // Tensores de scores h×N×N (uno por op attention_scores): el mayor de una capa, y todos.
+    const scoreTs = r.ops.filter((op) => op.prim === 'attention_scores').map((op) => ({ t: r.tensors[op.out[0]], rep: op.repeat }));
+    const attnMemLayer = scoreTs.reduce((m, x) => Math.max(m, x.t.elements), 0) * by * B;
+    const attnMemAll = scoreTs.reduce((s, x) => s + x.t.elements * x.rep, 0) * by * B;
     const layers = cfg.L || 1;
-    const attnMemLayer = scoreT ? scoreT.elements * by * B : 0;
-    // Activaciones (≈, entrenamiento): todos los tensores del forward guardados para el backward.
-    const actElems = r.order.reduce((s, id) => {
+    // Activaciones (≈, entrenamiento): cada tensor materializado del forward, una vez por repetición de
+    // la op que lo produce; sin vistas, sin tablas de parámetros ni scores previos al softmax (NOT_SAVED).
+    let actElems = 0, actElemsBatched = 0;
+    for (const id of r.order) {
       const x = r.tensors[id];
-      return s + x.elements * (x.perLayer ? layers : 1);
-    }, 0);
+      const prod = x.producer ? opById[x.producer] : null;
+      if (prod && NOT_SAVED[prod.prim]) continue;
+      const n = x.elements * (prod ? prod.repeat : 1);
+      if (x.batched) actElemsBatched += n; else actElems += n;
+    }
     const out = {
       id: configId, overrides: Object.assign({}, ov), B, dtype, bytesPerElement: by,
       tokens: r.quantities.tokens,
@@ -627,9 +953,9 @@
       attnMacs, attnMacsShare: t.macs ? attnMacs / t.macs : 0,
       scoreMacs, scoreMacsShare: t.macs ? scoreMacs / t.macs : 0,
       linearMacs,
-      attnMem: attnMemLayer,                    // bytes: tensor h×N×N de UNA capa, ×B (FlashAttention no lo materializa)
-      attnMemAllLayers: attnMemLayer * layers,  // si se guardan las L capas (entrenamiento sin recomputar)
-      actMem: actElems * by * B,                // ≈ entrenamiento: todas las activaciones del forward
+      attnMem: attnMemLayer,                    // bytes: el mayor tensor de scores de UNA capa, ×B (FlashAttention no lo materializa)
+      attnMemAllLayers: attnMemAll,             // si se guardan los de todas las capas (entrenamiento sin recomputar)
+      actMem: (actElems * B + actElemsBatched) * by,  // ≈ entrenamiento: activaciones guardadas del forward
       paramMem: t.params * by,
       kvCache: null,
     };
@@ -643,6 +969,7 @@
       const ctx = ov.ctx || out.tokens;
       out.kvCache = 2 * layers * ctx * cfg.D * by * B;  // K y V de cada capa
     }
+    if (def.metrics) Object.assign(out, def.metrics(cfg, r, { B, by, dtype }));
     return out;
   }
   function bytesOf(dtype) { return DTYPE_BYTES[dtype]; }

@@ -47,6 +47,9 @@
 <script src="../js/arch/primitives.js"></script>
 <script src="../js/arch/transformer.js"></script>
 <script src="../js/arch/vit.js"></script>
+<script src="../js/arch/resnet.js"></script>
+<script src="../js/arch/swin.js"></script>
+<script src="../js/arch/clip.js"></script>
 <script src="../js/core/quantities.js"></script>
 <script src="../js/ui/dom.js"></script>
 <script src="../js/ui/math.js"></script>
@@ -54,14 +57,19 @@
 <script src="../js/ui/viz/patchify.js"></script>
 <script src="../js/ui/viz/attention-map.js"></script>
 <script src="../js/ui/viz/attention-masks.js"></script>
+<script src="../js/ui/viz/shifted-windows.js"></script>
+<script src="../js/ui/viz/similarity-matrix.js"></script>
+<script src="../js/ui/viz/zero-shot.js"></script>
 <script src="../js/content/catalog.js"></script>
 <script src="../js/content/diagrams/repaso.js"></script>
 <script src="../js/content/diagrams/vit.js"></script>
 <script src="../js/content/diagrams/mapa.js"></script>
+<script src="../js/content/diagrams/swin.js"></script>
+<script src="../js/content/diagrams/clip.js"></script>
 <script>
 (function () {
   'use strict';
-  // Parámetros de la URL para capturas: ?only=<diagrama>&expand=<id>&walk=<paso>&panel=<nodo>&mode=mini|blank&viz=<nombre>&theme=dark
+  // Parámetros de la URL para capturas: ?only=<diagrama>&expand=<id>&walk=<paso>&panel=<nodo>&mode=mini|blank&viz=<nombre>&vp=<json params de la viz>&theme=dark
   const P = new URLSearchParams(location.search);
   const theme = P.get('theme');
   const setTheme = (t) => { if (t) document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); };
@@ -81,7 +89,7 @@
   function btn(parent, label, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ad-btn'; b.textContent = label; b.onclick = fn; parent.appendChild(b); return b; }
 
   const only = P.get('only'), vizOnly = P.get('viz');
-  const ids = ['vit-overview', 'repaso-block', 'mapa-overview'];
+  const ids = ['vit-overview', 'swin-overview', 'clip-overview', 'repaso-block', 'mapa-overview'];
 
   async function full(id, opts) {
     const s = sec(id, (ATLAS.diagram(id) || {}).title || '');
@@ -101,7 +109,8 @@
     if (vizOnly) {
       const s = sec('Visualización: ' + vizOnly);
       const host = document.createElement('div'); s.appendChild(host);
-      ctl.viz = ATLAS.Viz.render(vizOnly, host, P.get('cfg') ? { config: P.get('cfg') } : {}, {});
+      const vp = Object.assign(P.get('vp') ? JSON.parse(P.get('vp')) : {}, P.get('cfg') ? { config: P.get('cfg') } : {});
+      ctl.viz = ATLAS.Viz.render(vizOnly, host, vp, {});
       return;
     }
     if (only) {
@@ -121,7 +130,7 @@
       if (P.get('hl')) dg.highlight({ nodes: P.get('hl').split(','), edges: [], tensors: [] });
       return;
     }
-    for (const id of ids) if (ATLAS.diagram(id)) await full(id, id === 'vit-overview' ? { walk: 'forward' } : {});
+    for (const id of ids) if (ATLAS.diagram(id)) await full(id, (ATLAS.diagram(id).walks || []).length ? { walk: 'forward' } : {});
     // modo mini (drills) y modo blank (práctica)
     let s = sec('Modo mini', 'Sin barra ni panel; resaltado de un tensor (como en los drills).');
     let host = document.createElement('div'); host.className = 'dv-mini'; s.appendChild(host);

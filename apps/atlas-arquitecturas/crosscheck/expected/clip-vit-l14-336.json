@@ -1,0 +1,507 @@
+{
+  "config_id": "clip-vit-l14-336",
+  "model": "clip",
+  "calc_overrides": {
+    "B": 1
+  },
+  "params_total": 427944193,
+  "params_by_module": {
+    "text_model": 123060480,
+    "vision_model": 303507456,
+    "visual_projection": 786432,
+    "text_projection": 589824,
+    "logit_scale": 1
+  },
+  "params_by_path": {
+    "img-encoder": 303507456,
+    "img-encoder>patch-embed": 602112,
+    "img-encoder>cls": 1024,
+    "img-encoder>pos-embed": 590848,
+    "img-encoder>ln-pre": 2048,
+    "img-encoder>enc-layer": 302309376,
+    "img-encoder>enc-layer>mhsa": 100761600,
+    "img-encoder>enc-layer>mhsa>qkv": 75571200,
+    "img-encoder>enc-layer>mhsa>proj": 25190400,
+    "img-encoder>enc-layer>mlp": 201449472,
+    "img-encoder>ln-post": 2048,
+    "img-proj": 786432,
+    "txt-encoder": 123060480,
+    "txt-encoder>tok-embed": 37945344,
+    "txt-encoder>pos-embed": 59136,
+    "txt-encoder>enc-layer": 85054464,
+    "txt-encoder>enc-layer>mhsa": 28348416,
+    "txt-encoder>enc-layer>mhsa>qkv": 21261312,
+    "txt-encoder>enc-layer>mlp": 56669184,
+    "txt-encoder>ln-final": 1536,
+    "txt-proj": 589824,
+    "temperature": 1
+  },
+  "shapes": {
+    "i-img": [
+      336,
+      336,
+      3
+    ],
+    "t-ids": [
+      77
+    ],
+    "i-patch-grid": [
+      24,
+      24,
+      1024
+    ],
+    "i-x0": [
+      577,
+      1024
+    ],
+    "i-ln-pre": [
+      577,
+      1024
+    ],
+    "i-h-ln1": [
+      577,
+      1024
+    ],
+    "i-z": [
+      577,
+      1024
+    ],
+    "i-o": [
+      577,
+      1024
+    ],
+    "i-r1": [
+      577,
+      1024
+    ],
+    "i-h-ln2": [
+      577,
+      1024
+    ],
+    "i-u": [
+      577,
+      4096
+    ],
+    "i-g": [
+      577,
+      4096
+    ],
+    "i-f": [
+      577,
+      1024
+    ],
+    "i-x-out": [
+      577,
+      1024
+    ],
+    "i-cls": [
+      1024
+    ],
+    "i-cls-ln": [
+      1024
+    ],
+    "i-emb": [
+      768
+    ],
+    "t-tok": [
+      77,
+      768
+    ],
+    "t-x0": [
+      77,
+      768
+    ],
+    "t-h-ln1": [
+      77,
+      768
+    ],
+    "t-z": [
+      77,
+      768
+    ],
+    "t-o": [
+      77,
+      768
+    ],
+    "t-r1": [
+      77,
+      768
+    ],
+    "t-h-ln2": [
+      77,
+      768
+    ],
+    "t-u": [
+      77,
+      3072
+    ],
+    "t-g": [
+      77,
+      3072
+    ],
+    "t-f": [
+      77,
+      768
+    ],
+    "t-x-out": [
+      77,
+      768
+    ],
+    "t-ln-final": [
+      77,
+      768
+    ],
+    "t-eot": [
+      768
+    ],
+    "t-emb": [
+      768
+    ],
+    "i-attn": [
+      16,
+      577,
+      577
+    ],
+    "t-attn": [
+      12,
+      77,
+      77
+    ],
+    "i-e-pos": [
+      577,
+      1024
+    ],
+    "t-e-pos": [
+      77,
+      768
+    ],
+    "img-batch": [
+      1,
+      768
+    ],
+    "txt-batch": [
+      1,
+      768
+    ],
+    "logits": [
+      1,
+      1
+    ]
+  },
+  "shapes_torch": {
+    "i-patch-grid": {
+      "module": "vision_model.embeddings.patch_embedding",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        24,
+        24
+      ]
+    },
+    "i-x0": {
+      "module": "vision_model.pre_layrnorm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-ln-pre": {
+      "module": "vision_model.pre_layrnorm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-h-ln1": {
+      "module": "vision_model.encoder.layers.0.layer_norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-z": {
+      "module": "vision_model.encoder.layers.0.self_attn.out_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-o": {
+      "module": "vision_model.encoder.layers.0.self_attn.out_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-r1": {
+      "module": "vision_model.encoder.layers.0.layer_norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-h-ln2": {
+      "module": "vision_model.encoder.layers.0.layer_norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-u": {
+      "module": "vision_model.encoder.layers.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        577,
+        4096
+      ]
+    },
+    "i-g": {
+      "module": "vision_model.encoder.layers.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        577,
+        4096
+      ]
+    },
+    "i-f": {
+      "module": "vision_model.encoder.layers.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-x-out": {
+      "module": "vision_model.encoder.layers.23",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        577,
+        1024
+      ]
+    },
+    "i-cls": {
+      "module": "vision_model.post_layernorm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        1024
+      ]
+    },
+    "i-cls-ln": {
+      "module": "vision_model.post_layernorm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024
+      ]
+    },
+    "i-emb": {
+      "module": "visual_projection",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        768
+      ]
+    },
+    "t-tok": {
+      "module": "text_model.embeddings.token_embedding",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-x0": {
+      "module": "text_model.embeddings",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-h-ln1": {
+      "module": "text_model.encoder.layers.0.layer_norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-z": {
+      "module": "text_model.encoder.layers.0.self_attn.out_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-o": {
+      "module": "text_model.encoder.layers.0.self_attn.out_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-r1": {
+      "module": "text_model.encoder.layers.0.layer_norm2",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-h-ln2": {
+      "module": "text_model.encoder.layers.0.layer_norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-u": {
+      "module": "text_model.encoder.layers.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        3072
+      ]
+    },
+    "t-g": {
+      "module": "text_model.encoder.layers.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        3072
+      ]
+    },
+    "t-f": {
+      "module": "text_model.encoder.layers.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-x-out": {
+      "module": "text_model.encoder.layers.11",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-ln-final": {
+      "module": "text_model.final_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        77,
+        768
+      ]
+    },
+    "t-eot": {
+      "module": "text_projection",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        768
+      ]
+    },
+    "t-emb": {
+      "module": "text_projection",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        768
+      ]
+    }
+  },
+  "not_hooked": {
+    "i-qkv / t-qkv": "HF separa q_proj, k_proj y v_proj (3 × (D² + D)): mismos parámetros y MACs que el qkv fusionado del calculador (params_by_path …>qkv = suma de los tres)",
+    "i-q / i-k / i-v": "q_proj(x).view(...).transpose(1, 2) dentro de CLIPAttention (sin módulo con esa forma)",
+    "i-scores / i-scores-scaled / t-masked": "torch.matmul(q, kᵀ) · scaling (+ máscara causal en texto) dentro de eager_attention_forward",
+    "i-attn / t-attn": "se toman de output_attentions=True (pesos tras el softmax)",
+    "i-cls-cat / i-patches": "torch.cat / flatten dentro de CLIPVisionEmbeddings.forward",
+    "img-batch / txt-batch / logits": "salidas image_embeds, text_embeds y logits_per_image del modelo"
+  },
+  "flops_total": 395219473920,
+  "flops_by_op": {
+    "aten.addmm": 361576267776,
+    "aten.bmm": 32946819072,
+    "aten.convolution": 693633024,
+    "aten.mm": 2754048
+  },
+  "batch_check": {
+    "B": 4,
+    "flops_total": 1580877914112,
+    "flops_by_op": {
+      "aten.addmm": 1446305071104,
+      "aten.bmm": 131787276288,
+      "aten.convolution": 2774532096,
+      "aten.mm": 11034624
+    },
+    "shapes": {
+      "img-batch": [
+        4,
+        768
+      ],
+      "txt-batch": [
+        4,
+        768
+      ],
+      "logits": [
+        4,
+        4
+      ]
+    }
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "CLIPModel._from_config(CLIPConfig(text_config={'hidden_size': 768, 'intermediate_size': 3072, 'num_hidden_layers': 12, 'num_attention_heads': 12, 'vocab_size': 49408, 'max_position_embeddings': 77, 'hidden_act': 'quick_gelu'}, vision_config={'hidden_size': 1024, 'intermediate_size': 4096, 'num_hidden_layers': 24, 'num_attention_heads': 16, 'image_size': 336, 'patch_size': 14, 'num_channels': 3, 'hidden_act': 'quick_gelu'}, projection_dim=768), attn_implementation='eager')",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Construido en código (sin hub ni pesos). Los parámetros coinciden con los del código original de OpenAI (clip.model.CLIP): conv1 sin sesgo, class_embedding, ln_pre, ln_post, proj y text_projection como matrices sin sesgo, logit_scale (1 parámetro). OpenAI fusiona Q, K, V (nn.MultiheadAttention.in_proj); HF los separa: mismos conteos.",
+    "Activación QuickGELU (x·σ(1.702x)) como en los pesos originales; no cambia parámetros ni MACs.",
+    "Totales del calculador POR PAR: la matriz de similitud cuenta B·E MACs por par. Con batch B, PyTorch mide B·(torres) + B²·E = B × (total del calculador con ese B): registro principal con B = 1 y batch_check con B = 4.",
+    "La máscara causal del texto no cambia los FLOPs contados (eager calcula los T² scores completos).",
+    "FlopCounterMode cuenta solo matmuls/convs a 2 FLOPs por MAC; normas, softmax, QuickGELU, la normalización L2, e^t y la pérdida no cuentan (el calculador los pone en 'otros').",
+    "El paper no da una tabla de FLOPs por modelo; Tabla 20 da las arquitecturas (anchos, capas, cabezas, E)."
+  ]
+}

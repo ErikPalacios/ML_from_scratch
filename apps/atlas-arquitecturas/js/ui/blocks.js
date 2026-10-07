@@ -115,17 +115,27 @@
   }
 
   // Ops que pertenecen a un nodo del diagrama (por path; también op.node o el propio id).
-  function opsOfNode(r, nodeId, extraIds) {
-    const extra = arr(extraIds);
-    return arr(r.ops).filter((o) => o && ((Array.isArray(o.path) && o.path.indexOf(nodeId) >= 0) || o.node === nodeId || o.id === nodeId || extra.indexOf(o.id) >= 0));
+  // Respeta las mismas marcas que el diagrama (archdiagram.js nodeOps): costOf, scope y opsExact, porque
+  // desde la fase 2 hay ids de nodo repetidos (las dos torres de CLIP; W-MSA y SW-MSA en Swin).
+  // El bloque op puede afinar con `scope` (p. ej. 'txt-encoder') o elegir el diagrama con `diagram`.
+  function opsOfNode(r, nodeId, info, scopeOverride) {
+    info = info || {};
+    const extra = arr(info.ops);
+    const pid = info.costOf || nodeId;
+    const scope = scopeOverride || info.scope || null;
+    return arr(r.ops).filter((o) => o && (extra.indexOf(o.id) >= 0 || (!info.opsExact && (
+      (Array.isArray(o.path) && o.path.indexOf(pid) >= 0) || o.node === pid || o.id === pid) &&
+      (!scope || (Array.isArray(o.path) && o.path.indexOf(scope) >= 0)))));
   }
   // Etiqueta / tipo de un nodo del diagrama del modelo (para títulos y colores de los bloques generados).
-  function nodeInfo(model, nodeId) {
-    const all = safe(() => Object.values(ATLAS.diagrams()), []);
+  function nodeInfo(model, nodeId, diagramId) {
+    let all = safe(() => Object.values(ATLAS.diagrams()), []);
+    if (diagramId) all = all.filter((d) => d && d.id === diagramId).concat(all.filter((d) => d && d.id !== diagramId));
     for (const d of all) {
       if (!d || (model && d.model && d.model !== model)) continue;
       const n = arr(d.nodes).find((x) => x && x.id === nodeId);
-      if (n) return { label: n.label || nodeId, op: n.op || null, sub: n.sub || '', ops: arr(n.ops), diagram: d.id, page: d.page, section: d.section };
+      if (n) return { label: n.label || nodeId, op: n.op || null, sub: n.sub || '', ops: arr(n.ops), costOf: n.costOf || null,
+        scope: n.scope || null, opsExact: !!n.opsExact, diagram: d.id, page: d.page, section: d.section };
     }
     for (const d of all) {   // grupos (p. ej. 'encoder' con repeat L)
       if (!d || (model && d.model && d.model !== model)) continue;
@@ -429,12 +439,12 @@
     if (!res.run) return archError('op', res, b);
     const r = res.run;
     const model = b.model || r.model || (ctx && ctx.model);
-    const info = nodeInfo(model, b.block) || {};
-    const ops = opsOfNode(r, b.block, info.ops);
+    const info = nodeInfo(model, b.block, b.diagram) || {};
+    const ops = opsOfNode(r, b.block, info, b.scope);
     const pageId = (ctx && ctx.pageId) || '';
     const sectionId = (ctx && ctx.sectionId) || 'operaciones';
     const perCall = ops.reduce((s, o) => ({ p: s.p + (o.params || 0), m: s.m + (o.macs || 0) }), { p: 0, m: 0 });
-    const byNode = r.totals && r.totals.byNode && r.totals.byNode[b.block];
+    const byNode = !info.opsExact && !info.scope && !b.scope && !info.costOf && r.totals && r.totals.byNode && r.totals.byNode[b.block];
     const total = byNode || ops.reduce((s, o) => ({ params: s.params + (o.params || 0) * (o.repeat || 1), macs: s.macs + (o.macs || 0) * (o.repeat || 1) }), { params: 0, macs: 0 });
     const reps = Array.from(new Set(ops.map((o) => o.repeat || 1)));
     const rep = reps.length === 1 ? reps[0] : null;

@@ -309,7 +309,10 @@ note`), plus:
 - `{t:'math', tex, display?:true, caption?}` — LaTeX via `ATLAS.MathTex`. Inline LaTeX inside any html
   field with `\( … \)`.
 - `{t:'op', block:'<diagram node id>', model, title, tex, in:[tensorId], out:[tensorId], what:html,
-  why:html, params?:true, flops?:true}` — the per-block card of section 4. Shapes, parameter and MAC
+  why:html, params?:true, flops?:true, diagram?:'<diagram id>', scope?:'<path id>'}` — the per-block card of section 4.
+  `diagram` picks which diagram's node to read when the id repeats (e.g. `qkv` in `swin-wmsa` and
+  `swin-swmsa`); `scope` restricts the ops to a path id (e.g. `txt-encoder` in CLIP). The card honours
+  the node's `costOf` / `scope` / `opsExact` marks exactly like the diagram tooltip. Shapes, parameter and MAC
   counts are pulled from the calculator by tensor/node id; the author writes only prose and LaTeX.
 - `{t:'trace', model, config?, from?, to?}` — the numeric walk: a generated table of every tensor in
   forward order (step, op, formula, symbolic shape, numeric shape, elements, note). Clicking a row

@@ -344,3 +344,52 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-tip-p { margin-top: 3px; color: var(--ink); }
 /* fórmulas: desplazamiento solo horizontal (sin barra vertical por los descendentes de MathJax) */
 .ad-cost-tex, .ad-panel-tex { overflow-y: hidden; padding: 2px 0; }
+
+/* ---------------------------------------------------------------- fase 2: visualizaciones de Swin y CLIP */
+.viz-head { fill: var(--muted); }
+/* shifted-windows: 9 regiones del roll (relleno suave + borde fuerte + número: no solo color) */
+.viz-sw-r { stroke-width: 1.2; }
+.viz-sw-r0 { fill: var(--surface-2); stroke: var(--muted); }
+.viz-sw-r1 { fill: var(--op-embed-soft); stroke: var(--op-embed); }
+.viz-sw-r2 { fill: var(--op-attn-soft); stroke: var(--op-attn); }
+.viz-sw-r3 { fill: var(--op-mlp-soft); stroke: var(--op-mlp); }
+.viz-sw-r4 { fill: var(--op-conv-soft); stroke: var(--op-conv); }
+.viz-sw-r5 { fill: var(--op-fuse-soft); stroke: var(--op-fuse); }
+.viz-sw-r6 { fill: var(--op-head-soft); stroke: var(--op-head); }
+.viz-sw-r7 { fill: color-mix(in srgb, var(--mod-txt) 20%, var(--surface)); stroke: var(--mod-txt); }
+.viz-sw-r8 { fill: color-mix(in srgb, var(--mod-act) 20%, var(--surface)); stroke: var(--mod-act); }
+.viz-sw-rl { font: 700 11px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.viz-sw-tok { fill: none; stroke: var(--ink); stroke-opacity: .14; stroke-width: .6; pointer-events: none; }
+.viz-sw-win { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.viz-sw-frame { fill: none; stroke: var(--ink); stroke-width: 1.5; pointer-events: none; }
+.viz-sw-sel { fill: none; stroke: transparent; stroke-width: 3; }
+.viz-sw-wbtn:hover .viz-sw-sel { stroke: var(--focus); stroke-opacity: .5; }
+.viz-sw-wbtn.is-hl .viz-sw-sel { stroke: var(--accent); }
+.viz-sw-wbtn:focus-visible .viz-sw-sel { stroke: var(--focus); stroke-width: 3.5; }
+/* similarity-matrix */
+.viz-sim-cell { stroke: none; }
+.viz-sim-v { font: 600 11px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.viz-sim-pos { fill: none; stroke: var(--ink); stroke-width: 2.2; }
+.viz-sim-hit { fill: none; stroke: none; }
+.viz-cell-btn:focus-visible .viz-sim-hit, .viz-cell-btn:focus-visible .viz-sim-pos { stroke: var(--focus); stroke-width: 3; }
+.viz-real { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--rule); }
+.viz-real .viz-controls { margin-bottom: 4px; }
+/* íconos procedurales */
+.viz-icon-bg { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+/* zero-shot */
+.viz-zs-w { stroke: none; }
+.viz-zs-best { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+.viz-zs-track { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-zs-bar { fill: var(--op-head-soft); stroke: var(--op-head); stroke-width: 1.2; }
+.viz-zs-bar--best { fill: var(--op-head); }
+.viz-cell-btn:focus-visible .viz-zs-track { stroke: var(--focus); stroke-width: 2.5; }
+/* ---------------------------------------------------------------- fase 2: glifos del motor */
+.ad-matdiag { stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
+.ad-winmarks { fill: none; stroke: var(--mc); stroke-width: 1.1; stroke-opacity: .9; }
+.ad-tensor--ref .ad-face { stroke-dasharray: 3 2; }
+.ad-ref-label { font: 600 11px var(--font-display); letter-spacing: .06em; text-transform: uppercase; fill: var(--muted); }
+.ad-note-txt { font: 500 11px var(--font-mono); fill: var(--muted); }
+.ad-note-txt--ink { fill: var(--ink); font-weight: 600; }
+.ad-flag-bg { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1; }
+.ad-flag-txt { font: 700 10px var(--font-mono); fill: var(--ink); }
+.ad-mod--joint { --mc: var(--op-fuse); }
