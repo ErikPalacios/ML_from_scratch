@@ -1002,3 +1002,80 @@ head across 4 levels with weights; synthetic, labelled).
   js/content/diagrams/detr.js, dev/diagram.html.
 - **content-detr**: js/content/detr.js (the whole page incl. the Deformable DETR material).
 - **orchestrator**: index.html lines + stubs, catalog roadmap, SPEC, integration.
+
+## 16. Phase 4 shared facts — Grounding DINO + YOLO-World (every F4 agent MUST use exactly these)
+
+Phase 1–3 lessons apply (§14 intro; plus: diagram captions render — screenshot them; node ids repeat across
+views → `scope`/`opsExact`/`costOf` and qualified deep links; byte metrics via `fmt.bytes`; labels with
+context prefixes so drills are unambiguous; practice METRICS need labels for every new metric shown).
+The page pair's thesis: **open-vocabulary detection** — the class head becomes a dot product with text
+embeddings; the two models sit at opposite ends of accuracy vs latency.
+
+### 16.1 Grounding DINO — page `grounding-dino`, model `grounding-dino`
+Paper: Liu et al., *Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object
+Detection*, ECCV 2024, arXiv:2303.05499 (official repo IDEA-Research/GroundingDINO). Canonical config
+**`grounding-dino-t`**: input **896×1344×3** (chosen so every Swin stage is an exact multiple of the 7×7
+window — no padding; say so on the page; DINO-style training uses short side 800), Swin-T image
+backbone (reuse js/arch/swin.js pieces) giving multi-scale features (stages 2–4 + one extra stride-64
+level = 4 levels, each projected to d=256), BERT-base text backbone (12 layers, 768, 12 heads, vocab
+30,522; text length knob `T`, default 16, max 256) + linear 768→256, **feature enhancer** 6 layers (image:
+deformable self-attention; text: self-attention; image→text and text→image cross-attention; FFNs),
+**language-guided query selection** (900 queries = top-900 image tokens by max similarity to the text
+tokens; positional part from the selected boxes, content part learned), **cross-modality decoder** 6
+layers (self-attention, text cross-attention, image deformable cross-attention, FFN), **contrastive
+classification head** (query · text-token similarity → logits over text tokens, not fixed classes;
+max-text-len 256) + box MLP. Training: focal loss on contrastive logits + L1 + GIoU, DINO contrastive
+denoising, sub-sentence text representation (attention mask so unrelated category names don't attend to
+each other) — verify every detail against the paper and code before quoting.
+Reference implementation for the cross-check: HF `GroundingDinoForObjectDetection(GroundingDinoConfig(...))`
+built in code with non-pretrained Swin/BERT configs (no hub downloads). Params exact; deformable /
+grid-sample MACs analytic (as in §15.2). Knobs: `T` (text tokens), `res` pairs (multiples of 224 for
+clean Swin windows), `Q`.
+Ids: overview `grounding-dino-overview` nodes `img-input`, `img-backbone` (Swin-T), `img-proj`,
+`txt-input`, `txt-backbone` (BERT), `txt-proj`, `enhancer` (group ×6, expand `gdino-enhancer-layer`),
+`query-select`, `decoder` (group ×6, expand `gdino-decoder-layer`), `contrastive-head`, `box-head`,
+`output`, `matching`, `loss`; enhancer layer: `img-self` (deformable), `txt-self`, `i2t` (image queries
+text), `t2i` (text queries image), `img-ffn`, `txt-ffn` + norms/residuals; decoder layer: `self-attn`,
+`txt-cross`, `img-cross` (deformable), `ffn` + norms. Tensor prefixes: image stream `i-…`, text stream
+`t-…`, queries/decoder `q-…`, outputs `logits` (Q×T), `boxes` (Q×4).
+
+### 16.2 YOLO-World — page `yolo-world`, model `yolo-world` (+ anchor `yolov8`)
+Paper: Cheng et al., *YOLO-World: Real-Time Open-Vocabulary Object Detection*, CVPR 2024,
+arXiv:2401.17270 (official repo AILab-CVC/YOLO-World, built on mmyolo). Canonical **`yolo-world-l-640`**:
+640×640×3 → YOLOv8-L backbone (CSPDarknet with C2f) → **RepVL-PAN** (text-guided CSPLayer T-CSPLayer
+with max-sigmoid attention injecting text into image features; image-pooling attention updating text
+embeddings) → per-level heads: box regression (DFL) + **region-text contrastive head** (object
+embeddings · L2-normalised text embeddings, with learnable scale/shift) over a vocabulary of `V` classes
+(knob, default 80) whose embeddings come from the **CLIP ViT-B/32 text encoder** (reuse js/arch/clip.js
+text tower for its cost) computed once offline — "prompt-then-detect": the vocabulary becomes
+re-parameterised weights, so inference doesn't run the text encoder. Loss: region-text contrastive +
+IoU + DFL. Verify every detail (incl. which parts the v2 release removed) against the paper and code.
+Anchor model **`yolov8`**, config `yolov8l-640` (Ultralytics YOLOv8-L, the user's familiar baseline):
+calculator only, no page; used by `compare` blocks and the bridge.
+Cross-check: install `ultralytics` into the dev venv **only if** building `yolov8l.yaml` /
+`yolov8l-world.yaml` from YAML needs no downloads (no weights, no CLIP weights); count params and FLOPs of
+the detector without the text encoder; record any architecture difference between Ultralytics'
+YOLO-World and the paper/official mmyolo version in the JSON notes. If a clean build isn't possible,
+fall back to analytic counts verified against the published parameter tables, and say so.
+Ids: overview `yolo-world-overview` nodes `input`, `backbone` (expand optional), `neck` (RepVL-PAN, expand
+`yw-repvl-pan`), `txt-encoder` (offline, CLIP text), `vocab` (V×512 embeddings), `head-box`,
+`head-text`, `output`, plus a visual "offline / online" split; RepVL-PAN view: `t-csp` (T-CSPLayer with
+max-sigmoid attention), `img-pool-attn`, upsample/downsample paths at strides 8/16/32. Tensors: `x-img`,
+`c3 c4 c5` (strides 8/16/32), `p3 p4 p5`, `vocab`, `obj-emb-*`, `logits-*` (HW×V per level), `boxes-*`.
+
+### 16.3 Visualizations
+`open-vocab-head` (fixed-class linear head vs text-embedding head: logits = region · text; add a new
+class by typing a word — synthetic embeddings, labelled "ilustrativo"), `query-selection` (Grounding DINO:
+image tokens ranked by max similarity to text tokens, top-K become decoder queries), `prompt-then-detect`
+(YOLO-World: offline vocabulary → weights; online cost without the text encoder vs Grounding DINO's
+per-image text pass, with calculator numbers).
+
+### 16.4 Ownership in Phase 4
+- **arch**: js/arch/primitives.js (new primitives only), js/arch/grounding-dino.js, js/arch/yolo-world.js
+  (incl. the `yolov8` anchor), tests, crosscheck/{grounding_dino,yolo_world}.py + expected JSONs,
+  requirements.txt (pin anything installed).
+- **diagram**: engine extensions (only if needed), js/ui/viz/{open-vocab-head,query-selection,prompt-then-detect}.js,
+  js/content/diagrams/{grounding-dino,yolo-world}.js, dev/diagram.html.
+- **content-gdino**: js/content/grounding-dino.js. **content-yoloworld**: js/content/yolo-world.js.
+- **orchestrator**: index.html lines + stubs, catalog (canonical ids, roadmap status), SPEC, integration;
+  practice.js METRICS labels for new metrics if the arch agent lists them (or a fixer).
