@@ -74,6 +74,7 @@ test('enlaces lab:paso-<n>: apuntan al paso que nombra el texto', { skip: !exist
     2: 'fwd.embed', 3: 'fwd.posenc', 4: 'fwd.L0.ln1', 5: 'fwd.L0.attn.q', 8: 'fwd.L0.attn.split',
     9: 'fwd.L0.attn.h0.scores', 10: 'fwd.L0.attn.h0.scale', 11: 'fwd.L0.attn.h0.mask', 12: 'fwd.L0.attn.h0.softmax',
     13: 'fwd.L0.attn.h0.context', 19: 'fwd.L0.attn.concat', 20: 'fwd.L0.attn.proj', 21: 'fwd.L0.res1', 31: 'bwd.ce',
+    6: 'fwd.L0.attn.k', 23: 'fwd.L0.ffn1', 26: 'fwd.L0.res2', 27: 'fwd.lnf', 28: 'fwd.logits', 30: 'loss.ce',
   };
   const used = new Set();
   const dir = join(ROOT, 'js', 'content');

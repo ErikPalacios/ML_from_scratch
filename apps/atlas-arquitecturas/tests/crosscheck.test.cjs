@@ -172,3 +172,43 @@ test('YOLOv8-L y YOLO-World-L: Ultralytics desde los YAML, sin pesos ni CLIP; pa
   assert.deepStrictEqual(w.exp.shapes['td3-tg-scores'], [4, 6400, 80]);
   assert.ok(w.exp.notes.some((n) => /ORIGINAL/.test(n)));
 });
+
+// ---------------------------------------------------------------- fase 6
+test('LLM: HF LlamaForCausalLM / MixtralForCausalLM en el dispositivo meta; prefill, decode con KV cache y what-if nKV exactos', async () => {
+  const want = { 'llama3-8b': [8030261248, 32938104193024, 17156800512], 'llama3-70b': [70553706496, 295674138591232, 149740847104],
+    'llama2-7b': [6738415616, 29261612187648, 15361638400], 'mixtral-8x7b': [46702792704, 54417235640320, 27644657664] };
+  for (const [id, [params, flops, decFlops]] of Object.entries(want)) {
+    const r = await find(id);
+    assert.strictEqual(r.exp.params_total, params, id);
+    assert.strictEqual(r.exp.flops_total, flops, id);
+    assert.deepStrictEqual([r.exp.T, r.exp.ctx], [2048, 4096], id);
+    assert.match(r.exp.source.ctor, /with torch\.device\('meta'\)/);
+    assert.match(r.exp.source.ctor, /tie_word_embeddings=False/);
+    const dec = r.exp.override_checks.find((o) => o.calc_overrides.decode === 1);
+    assert.strictEqual(dec.flops_total, decFlops, id + ' decode');
+    for (const k of ['flops[attn]', 'flops[ffn]', 'flops[lm-head]', 'flops[aten.mm]', 'flops[aten.bmm]', '[T=64] flops_total', '[T=64] flops_total (sdpa)',
+      '[decode=1,ctx=4096] flops_total', '[decode=1,ctx=4096] shape[k-ctx]', '[decode=1,ctx=4096] shape[attn]', 'metrics[kvBytesPerToken]', 'metrics[activeParams]',
+      'params[embed]', 'params[lm-head]', 'params[k-proj]', 'params[ffn]']) {
+      assert.ok(r.checks.some((c) => c.what === k && c.ok), id + ' ' + k);
+    }
+    assert.deepStrictEqual(dec.shapes.attn, [id === 'llama3-70b' ? 64 : 32, 1, 4096], id);
+    assert.ok(r.exp.notes.some((n) => /máscara causal NO divide/.test(n)), id);
+    assert.ok(r.exp.notes.some((n) => /meta/.test(n)), id);
+  }
+  const l3 = await find('llama3-8b');
+  assert.deepStrictEqual(l3.exp.shapes['k-rope'], [8, 2048, 128]);
+  assert.deepStrictEqual(l3.exp.shapes.attn, [32, 2048, 2048]);
+  assert.strictEqual(l3.exp.metrics_checks.kvBytesPerToken, 131072);     // DynamicCache de HF: 2·32·8·128 elementos × 2 bytes
+  for (const k of ['[nKV=32] params_total', '[nKV=32] flops_total', '[nKV=1] params_total', '[nKV=1] shape[k-rope]']) assert.ok(l3.checks.some((c) => c.what === k && c.ok), k);
+  assert.ok(l3.exp.notes.some((n) => /128,256/.test(n)));
+  const mx = await find('mixtral-8x7b');
+  assert.strictEqual(mx.exp.metrics_checks.activeParams, 12879925248);
+  assert.strictEqual(mx.exp.source.experts_implementation, 'batched_mm');
+  assert.ok(mx.exp.moe_impl_check.eager_equals_batched_mm && mx.exp.moe_impl_check.grouped_mm_undercounts);
+  assert.ok(mx.checks.some((c) => c.what === 'moe[eager = batched_mm en FlopCounterMode]' && c.ok));
+  for (const k of ['flops[router]', 'flops[experts]', 'params[router]', 'params[experts]', '[decode=1,ctx=4096] shape[x-routed]']) assert.ok(mx.checks.some((c) => c.what === k && c.ok), k);
+  assert.deepStrictEqual(mx.exp.shapes.gate, [4096, 14336]);              // 2T filas enrutadas
+  assert.ok(mx.exp.notes.some((n) => /gate_up_proj/.test(n)));
+  const l2 = await find('llama2-7b');
+  assert.ok(l2.exp.notes.some((n) => /MHA/.test(n)));
+});

@@ -13,7 +13,7 @@ import vm from 'node:vm';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
-  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js'];
+  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -132,6 +132,8 @@ export function compareConfig(A, exp) {
     const tag = Object.entries(oc.calc_overrides).map(([k, v]) => k + '=' + v).join(',');
     if (oc.params_total !== undefined) push('[' + tag + '] params_total', ro.totals.params, oc.params_total, ro.totals.params === oc.params_total);
     push('[' + tag + '] flops_total', ro.totals.flops, oc.flops_total, flopsOk(ro.totals.flops, oc.flops_total));
+    // Fase 6 (LLM): el mismo forward con sdpa (la fórmula de sdpa de FlopCounterMode no tiene término causal).
+    if (oc.flops_total_sdpa !== undefined) push('[' + tag + '] flops_total (sdpa)', ro.totals.flops, oc.flops_total_sdpa, flopsOk(ro.totals.flops, oc.flops_total_sdpa));
     for (const [id, shape] of Object.entries(oc.shapes || {})) {
       const x = ro.tensors[id];
       const c = x ? x.num.join('×') : '(sin tensor)';
@@ -184,6 +186,14 @@ export function compareConfig(A, exp) {
     push('sam2[punteros]', r.config.ptrs, exp.frame.object_pointers, r.config.ptrs === exp.frame.object_pointers);
   }
   if (exp.dead_matmul_check) push('sam2[producto descartado de HF, verificado con un forward parcheado]', exp.dead_matmul_check.image_features_minus_dead, exp.dead_matmul_check.image_features_patched, !!exp.dead_matmul_check.ok);
+  // Fase 6 (LLM). metrics_checks: métricas del calculador ↔ valores medidos en PyTorch (bytes de la KV cache por token
+  // leídos de la DynamicCache de HF en bf16, parámetros activos de Mixtral contados sobre los módulos de expertos).
+  if (exp.metrics_checks) {
+    const m = A.metrics(exp.config_id, ov);
+    for (const [k, ref] of Object.entries(exp.metrics_checks)) push('metrics[' + k + ']', m[k], ref, m[k] === ref);
+  }
+  // moe_impl_check (Mixtral diminuto con pesos reales): experts eager (bucle por experto) = batched_mm en FlopCounterMode.
+  if (exp.moe_impl_check) push('moe[eager = batched_mm en FlopCounterMode]', exp.moe_impl_check.flops.batched_mm, exp.moe_impl_check.flops.eager, !!exp.moe_impl_check.eager_equals_batched_mm);
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -219,7 +229,7 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }

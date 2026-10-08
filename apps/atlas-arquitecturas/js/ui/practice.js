@@ -190,6 +190,12 @@
   // Mismo knob, otro significado según el modelo: en SAM, P son clics del prompt (el patch es 16).
   const KNOBS_BY_MODEL = {
     sam: { P: { label: 'Clics P', show: (v) => 'P = ' + v, phrase: (v) => 'P = ' + v + (v === 1 ? ' clic' : ' clics') } },
+    llm: {
+      T: { label: 'Tokens del prompt T', show: (v) => 'T = ' + fInt(v), phrase: (v) => 'un prompt de ' + fInt(v) + ' tokens' },
+      ctx: { label: 'Contexto ctx', show: (v) => fInt(v) + ' tok', phrase: (v) => fInt(v) + ' tokens de contexto en la cache' },
+      bits: { label: 'Bits de los pesos y la KV', show: (v) => v + ' bits', phrase: (v) => 'pesos y KV a ' + v + ' bits' },
+      nKV: { label: 'Cabezas KV n_KV', show: (v) => 'n_KV = ' + v, phrase: (v) => 'n_KV = ' + v + (v === 1 ? ' (MQA)' : '') },
+    },
   };
   const knobDef = (k, model) => (model && KNOBS_BY_MODEL[model] && KNOBS_BY_MODEL[model][k]) || KNOBS[k] || null;
   const knobLabel = (k, model) => (knobDef(k, model) || {}).label || k;
@@ -232,7 +238,8 @@
         'yolo-world': 'puntos de anclaje A = Σ h·w de P3–P5 (strides 8, 16, 32; 8,400 a 640): celdas de la rejilla, no una secuencia',
         yolov8: 'puntos de anclaje A = Σ h·w de P3–P5 (strides 8, 16, 32; 8,400 a 640): celdas de la rejilla, no una secuencia',
         sam: '(H/16)·(W/16) tokens del ViT (64×64 a 1024), sin CLS',
-        sam2: '(H/16)·(W/16) tokens de Hiera a stride 16 (los que leen la memory attention y el decoder), sin CLS; el stage 1 tiene 16× más' } },
+        sam2: '(H/16)·(W/16) tokens de Hiera a stride 16 (los que leen la memory attention y el decoder), sin CLS; el stage 1 tiene 16× más',
+        llm: 'tokens del prompt (T), sin CLS' } },
     patches: { label: 'Patches', kind: 'count' },
     params: { label: 'Parámetros', kind: 'count', note: 'pesos + biases' },
     macs: { label: 'MACs', kind: 'ops', note: 'matmuls y convs · FLOPs = 2 × MACs' },
@@ -246,7 +253,7 @@
         sam: 'h×N×N de un bloque global del ViT en fp16, B = 1 (los bloques con ventanas: 25×h×196×196)',
         sam2: 'el mayor tensor de scores de una capa en fp16, B = 1: un bloque global de Hiera (stage 3) o la cross-attention a la memoria (1×N×Nₘ)' } },
     actMem: { label: 'Activaciones', kind: 'bytes', note: 'fp16, B = 1', notes: { clip: 'fp16, las dos torres, una muestra' } },
-    kvCache: { label: 'KV cache', kind: 'bytes', note: 'fp16, B = 1' },
+    kvCache: { label: 'KV cache', kind: 'bytes', note: 'fp16, B = 1', notes: { llm: 'bf16, B = 1, ctx = T tokens (lo que escribe el prefill)' } },
     attnMemAllLayers: { label: 'Scores de atención (todas las capas)', kind: 'bytes', note: 'fp16, B = 1 (entrenamiento sin recomputar)' },
     actMemPerSample: { label: 'Activaciones por muestra', kind: 'bytes', note: 'fp16, sin los tensores del lote' },
     paramMem: { label: 'Pesos en memoria', kind: 'bytes', note: 'parámetros × 2 bytes (fp16)' },
@@ -485,6 +492,63 @@
     frameVsSamH: { label: 'Frame / SAM ViT-H (MACs)', kind: 'ratio', note: 'un frame en régimen vs una imagen con un clic' },
     imgEncoderVsSamH: { label: 'Encoder de imagen / el de SAM ViT-H (MACs)', kind: 'ratio', note: 'Hiera + FPN vs ViT-H + neck' },
     paramsVsSamH: { label: 'Parámetros / SAM ViT-H', kind: 'ratio', note: '' },
+    // Fase 6 (LLM): inferencia. intensity = FLOPs por byte movido; rate = tokens/s (estimado de roofline).
+    kvBytesPerToken: { label: 'KV cache por token', kind: 'bytes', note: '2·L·n_kv·d_h·bytes (K y V de todas las capas)' },
+    kvBytesPerTokenLayer: { label: 'KV cache por token y capa', kind: 'bytes', note: '2·n_kv·d_h·bytes' },
+    kvCacheBytes: { label: 'KV cache', kind: 'bytes', note: 'por token × ctx × B, a los bits elegidos' },
+    kvBytesPerTokenMHA: { label: 'KV por token si fuera MHA', kind: 'bytes', note: 'n_kv = n_heads' },
+    kvCacheBytesMHA: { label: 'KV cache si fuera MHA', kind: 'bytes', note: 'n_kv = n_heads' },
+    kvCacheBytesMQA: { label: 'KV cache si fuera MQA', kind: 'bytes', note: 'n_kv = 1' },
+    kvSavingVsMHA: { label: 'Ahorro de KV vs MHA', kind: 'ratio', note: 'n_heads / n_kv' },
+    kvCacheVsWeights: { label: 'KV cache / pesos', kind: 'ratio', note: 'cuando pasa de ×1, la cache ya pesa más que el modelo' },
+    weightBytes: { label: 'Pesos en memoria', kind: 'bytes', note: 'parámetros × bits / 8' },
+    weightBytes16: { label: 'Pesos a 16 bits', kind: 'bytes', note: 'bf16/fp16' },
+    weightBytes8: { label: 'Pesos a 8 bits', kind: 'bytes', note: 'INT8/FP8, sin las escalas' },
+    weightBytes4: { label: 'Pesos a 4 bits', kind: 'bytes', note: 'INT4, sin las escalas' },
+    activeWeightBytes: { label: 'Pesos activos por token', kind: 'bytes', note: 'MoE: solo los expertos elegidos' },
+    totalParams: { label: 'Parámetros totales', kind: 'count', note: 'todo lo que vive en memoria' },
+    activeParams: { label: 'Parámetros activos por token', kind: 'count', note: 'MoE: compartidos + top-k expertos; denso = totales' },
+    activeParamsShare: { label: 'Activos / totales', kind: 'pct', note: '' },
+    embedParams: { label: 'Embedding de entrada', kind: 'count', note: 'V×d' },
+    lmHeadParams: { label: 'LM head', kind: 'count', note: 'd×V (sin atar al embedding)' },
+    attnParams: { label: 'Atención (todas las capas)', kind: 'count', note: 'Q, K, V, O' },
+    ffnParams: { label: 'FFN (todas las capas)', kind: 'count', note: 'SwiGLU: gate, up, down (MoE: todos los expertos + router)' },
+    normParams: { label: 'RMSNorms', kind: 'count', note: 'solo la escala γ' },
+    layerParams: { label: 'Parámetros por capa', kind: 'count', note: '' },
+    attnParamsLayer: { label: 'Atención por capa', kind: 'count', note: 'd·(n_h + 2·n_kv)·d_h + n_h·d_h·d' },
+    ffnParamsLayer: { label: 'FFN por capa', kind: 'count', note: '3·d·d_ff (MoE: × expertos + router)' },
+    embedParamsShare: { label: 'Embedding + LM head', kind: 'pct', note: '% de los parámetros' },
+    attnParamsShare: { label: 'Atención', kind: 'pct', note: '% de los parámetros' },
+    ffnParamsShare: { label: 'FFN', kind: 'pct', note: '% de los parámetros' },
+    normParamsShare: { label: 'Normas', kind: 'pct', note: '% de los parámetros' },
+    routerParams: { label: 'Routers', kind: 'count', note: 'd×E por capa' },
+    expertParams: { label: 'Un experto', kind: 'count', note: '3·d·d_ff' },
+    expertsParamsShare: { label: 'Expertos', kind: 'pct', note: '% de los parámetros' },
+    prefillMacs: { label: 'MACs del prefill', kind: 'ops', note: 'T tokens en paralelo, todas las capas' },
+    prefillMacsPerToken: { label: 'MACs del prefill por token', kind: 'ops', note: '≈ parámetros sin embedding + el término de atención' },
+    prefillMacsLastLogits: { label: 'Prefill con logits solo del último token', kind: 'ops', note: 'lo que hace un servidor real: la LM head corre 1 vez' },
+    prefillScoreMacs: { label: 'Prefill: QKᵀ y A·V', kind: 'ops', note: 'la matriz T×T completa (como la cuentan HF y sdpa)' },
+    prefillScoreMacsCausal: { label: 'Prefill: QKᵀ y A·V útiles', kind: 'ops', note: 'solo el triángulo causal (≈ la mitad)' },
+    prefillScoreMacsShare: { label: 'Prefill: parte de atención', kind: 'pct', note: '% de los MACs del prefill' },
+    decodeMacsPerToken: { label: 'MACs por token en decode', kind: 'ops', note: '1 token leyendo ctx de K/V' },
+    decodeScoreMacs: { label: 'Decode: QKᵀ y A·V', kind: 'ops', note: '∝ ctx' },
+    decodeLinearMacs: { label: 'Decode: capas lineales', kind: 'ops', note: '≈ parámetros activos sin embedding' },
+    decodeScoreMacsShare: { label: 'Decode: parte de atención', kind: 'pct', note: '% de los MACs por token; crece con ctx' },
+    decodeFlopsPerParam: { label: 'FLOPs por parámetro (decode)', kind: 'ratio', note: 'la regla dice ≈ 2' },
+    prefillBytes: { label: 'Bytes movidos en el prefill', kind: 'bytes', note: 'pesos + KV escrita' },
+    decodeBytesPerStep: { label: 'Bytes leídos por paso de decode', kind: 'bytes', note: 'pesos + KV cache' },
+    decodeWeightBytesRead: { label: 'Decode: pesos leídos', kind: 'bytes', note: 'una vez por paso, para todo el lote' },
+    decodeKvBytesRead: { label: 'Decode: KV leída', kind: 'bytes', note: 'ctx × B × KV por token' },
+    arithmeticIntensityPrefill: { label: 'Intensidad aritmética del prefill', kind: 'intensity', note: 'FLOPs / bytes movidos' },
+    arithmeticIntensityDecode: { label: 'Intensidad aritmética del decode', kind: 'intensity', note: 'FLOPs / bytes movidos; ≈ B con ctx corto' },
+    ridgePoint: { label: 'Punto de quiebre de la GPU', kind: 'intensity', note: 'pico de FLOPs / ancho de banda (H100 SXM ≈)' },
+    decodeTokPerSecUpperBound: { label: 'Decode: tokens/s del lote (≈ tope)', kind: 'rate', note: 'estimado de roofline, sin overhead de kernels' },
+    decodeTokPerSecPerSeq: { label: 'Decode: tokens/s por secuencia (≈ tope)', kind: 'rate', note: 'estimado de roofline' },
+    prefillTokPerSecUpperBound: { label: 'Prefill: tokens/s (≈ tope)', kind: 'rate', note: 'estimado de roofline' },
+    maxBatchInHbm: { label: 'Lote máximo que cabe en HBM', kind: 'count', note: '(HBM − pesos) / KV por secuencia (≈, sin activaciones)' },
+    decodeExpertsReadPerLayer: { label: 'Expertos leídos por capa', kind: 'ratio', note: 'esperado con ruteo uniforme y el lote B' },
+    experts: { label: 'Expertos E', kind: 'count', note: '' },
+    topk: { label: 'Expertos por token k', kind: 'count', note: '' },
   };
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
@@ -496,6 +560,7 @@
   function metricKind(key) {
     const k = metricKey(key);
     // Primero el mapa `units` del modelo (lo registra metrics()); luego METRICS; luego el nombre.
+    if (METRICS[k] && (METRICS[k].kind === 'intensity' || METRICS[k].kind === 'rate')) return METRICS[k].kind;   // formato propio, gana a units
     if (ARCH_UNITS[k] && UNIT_KIND[ARCH_UNITS[k]]) return UNIT_KIND[ARCH_UNITS[k]];
     if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
@@ -523,6 +588,8 @@
     if (kind === 'ops') return fOps(v, metricKey(key) === 'flops' ? 'FLOPs' : 'MACs');
     if (kind === 'pct') return (Math.round(v * 1000) / 10).toFixed(1) + ' %';
     if (kind === 'ratio') return '×' + fRatio(v);
+    if (kind === 'intensity') return fRatio(v) + ' FLOPs/B';
+    if (kind === 'rate') return '≈ ' + fRatio(v) + ' tok/s';
     return v >= 1e6 ? fSi(v) : fInt(v);
   }
   // Comparación con la base: factor (×4) o, para porcentajes, diferencia en puntos.
@@ -538,6 +605,8 @@
     const kind = metricKind(key);
     if (kind === 'pct') return (v * 100).toFixed(3) + ' %';
     if (kind === 'ratio') return '×' + String(+v.toFixed(4));
+    if (kind === 'intensity') return String(+v.toFixed(4)) + ' FLOPs/B';
+    if (kind === 'rate') return String(+v.toFixed(2)) + ' tok/s';
     return fInt(v) + (kind === 'bytes' ? ' bytes' : '');
   }
   // Reparto de MACs: matriz de atención (QKᵀ + A·V, crece con N²) vs capas lineales (crecen con N).
@@ -1066,6 +1135,7 @@
       { cls: 'a', label: windowed ? 'Atención, solo QKᵀ y A·V (con ventanas M×M fijas crece ∝ N·M², lineal en N)' : 'Atención, solo QKᵀ y A·V (crece ∝ N²)', v: sp.attn },
       { cls: 'l', label: windowed ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding, patch merging y cabeza, ∝ N)'
         : model === 'clip' ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, embeddings de patches y de texto, y proyecciones finales; ∝ N)'
+        : model === 'llm' ? 'Todo lo demás (proyecciones Q, K, V, O, FFN SwiGLU y LM head; ∝ T)'
         : 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding y cabeza, ∝ N)', v: sp.linear },
     ] };
   }

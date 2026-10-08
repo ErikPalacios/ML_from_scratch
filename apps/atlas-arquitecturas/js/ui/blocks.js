@@ -697,6 +697,12 @@
     memFrames: { label: 'Frames recientes N_r', get: (r) => r.config && r.config.memFrames, fmt: 'int' },
     res: { label: 'Resolución', get: (r) => r.config && r.config.H ? r.config.H + '×' + (r.config.W || r.config.H) : null, fmt: 'raw' },
     Q: { label: 'Object queries Q', get: (r) => r.config && r.config.Q, fmt: 'int' },
+    // LLM (fase 6): G = cabezas de KV en el calculador (nKV es su alias de perilla).
+    nKV: { label: 'Cabezas KV n_KV (G)', get: (r) => r.config && (r.config.G != null ? r.config.G : r.config.nKV), fmt: 'int' },
+    G: { label: 'Cabezas KV n_KV (G)', get: (r) => r.config && (r.config.G != null ? r.config.G : r.config.nKV), fmt: 'int' },
+    V: { label: 'Vocabulario V', get: (r) => r.config && r.config.V, fmt: 'int' },
+    activeParams: { label: 'Parámetros activos por token', get: (r) => r.quantities && r.quantities.activeParams, fmt: 'int' },
+    kvBytesPerToken: { label: 'KV cache por token', get: (r) => r.quantities && r.quantities.kvBytesPerToken, fmt: 'bytes' },
   };
   function resolveRunId(id) {
     const Ar = A();
@@ -724,6 +730,7 @@
       if (v == null && !m) v = safe(() => (r.quantities && r.quantities[k] != null ? r.quantities[k] : r.config && r.config[k]), null);
       if (v == null) return '—';
       if (typeof v !== 'number') return String(v);
+      if (m && m.fmt === 'bytes') { const f = A() && A().fmt; return f && f.bytes ? f.bytes(v) : fmtInt(v) + ' B'; }
       return (m && m.fmt === 'si') ? (m.unit ? fmtOps(v, m.unit) : fmtSi(v)) : fmtInt(v);   // "17.56 GMACs", como en la prosa
     };
     const table = h('table', { class: 'dtable dtable--num cmp' },

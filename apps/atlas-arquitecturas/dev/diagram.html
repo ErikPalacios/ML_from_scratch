@@ -54,6 +54,7 @@
 <script src="../js/arch/grounding-dino.js"></script>
 <script src="../js/arch/yolo-world.js"></script>
 <script src="../js/arch/sam.js"></script>
+<script src="../js/arch/llm.js"></script>
 <script src="../js/core/quantities.js"></script>
 <script src="../js/ui/dom.js"></script>
 <script src="../js/ui/math.js"></script>
@@ -73,6 +74,10 @@
 <script src="../js/ui/viz/prompt-to-mask.js"></script>
 <script src="../js/ui/viz/windowed-global.js"></script>
 <script src="../js/ui/viz/memory-bank.js"></script>
+<script src="../js/ui/viz/kv-cache.js"></script>
+<script src="../js/ui/viz/rope.js"></script>
+<script src="../js/ui/viz/roofline.js"></script>
+<script src="../js/ui/viz/moe-router.js"></script>
 <script src="../js/content/catalog.js"></script>
 <script src="../js/content/diagrams/repaso.js"></script>
 <script src="../js/content/diagrams/vit.js"></script>
@@ -84,6 +89,8 @@
 <script src="../js/content/diagrams/yolo-world.js"></script>
 <script src="../js/content/diagrams/sam.js"></script>
 <script src="../js/content/diagrams/sam2.js"></script>
+<script src="../js/content/diagrams/llm-decoder.js"></script>
+<script src="../js/content/diagrams/llm-inferencia.js"></script>
 <script>
 (function () {
   'use strict';
@@ -107,7 +114,7 @@
   function btn(parent, label, fn) { const b = document.createElement('button'); b.type = 'button'; b.className = 'ad-btn'; b.textContent = label; b.onclick = fn; parent.appendChild(b); return b; }
 
   const only = P.get('only'), vizOnly = P.get('viz');
-  const ids = ['vit-overview', 'swin-overview', 'clip-overview', 'detr-overview', 'grounding-dino-overview', 'yolo-world-overview', 'sam-overview', 'sam2-overview', 'repaso-block', 'mapa-overview'];
+  const ids = ['vit-overview', 'swin-overview', 'clip-overview', 'detr-overview', 'grounding-dino-overview', 'yolo-world-overview', 'sam-overview', 'sam2-overview', 'llm-decoder-overview', 'llm-inference-overview', 'repaso-block', 'mapa-overview'];
 
   async function full(id, opts) {
     const s = sec(id, (ATLAS.diagram(id) || {}).title || '');

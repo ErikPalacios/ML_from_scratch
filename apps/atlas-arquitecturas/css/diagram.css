@@ -578,3 +578,88 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-wg-bar { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1; }
 .viz-wg-bar.is-score { fill: color-mix(in srgb, var(--op-attn) 45%, var(--surface)); }
 .viz-wg-bar.is-sel { stroke: var(--ink); stroke-width: 1.8; }
+
+/* ---------------------------------------------------------------- fase 6: visualizaciones (LLM) */
+/* rope: un reloj por par (q rotado m·θ, k rotado n·θ, ángulo entre ambos) y la curva q·k(m − n) */
+.viz-rope-stage:focus-visible, .viz-moe-stage:focus-visible, .viz-kv-stage:focus-visible, .viz-rl-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-rope-pos { min-width: 3.6em; text-align: center; font: 600 12.5px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-rope-face { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-rope-axis { fill: none; stroke: var(--rule-strong); stroke-width: .8; }
+.viz-rope-vec { fill: none; stroke-width: 2.4; stroke-linecap: round; }
+.viz-rope-q { stroke: var(--op-attn); fill: var(--op-attn); }
+.viz-rope-k { stroke: var(--op-embed); fill: var(--op-embed); }
+.viz-rope-q0, .viz-rope-k0 { stroke-width: 1.2; stroke-dasharray: 2 2.5; opacity: .9; }
+.viz-rope-q0 { stroke: var(--op-attn); fill: none; }
+.viz-rope-k0 { stroke: var(--op-embed); fill: none; }
+.viz-rope-head { stroke: none; }
+.viz-rope-head.viz-rope-q0, .viz-rope-head.viz-rope-k0 { fill: none; stroke-width: 1; stroke-dasharray: none; }
+.viz-rope-arc { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.viz-rope-box { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-rope-curve { fill: none; stroke: var(--op-attn); stroke-width: 2; stroke-linejoin: round; }
+.viz-rope-cur { stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 3 2.5; }
+.viz-rope-dot { fill: var(--ink); stroke: var(--surface); stroke-width: 1.5; }
+/* moe-router: tokens → expertos (grosor ∝ peso), probabilidades del token elegido, carga por experto */
+.viz-moe-ln { fill: none; stroke: var(--op-mlp); stroke-opacity: .35; }
+.viz-moe-ln.is-sel { stroke: var(--ink); stroke-opacity: 1; }
+.viz-moe-ln.is-drop { stroke: var(--bad); stroke-opacity: .8; stroke-dasharray: 4 3; }
+.viz-moe-tokbox { fill: color-mix(in srgb, var(--mod-txt) 12%, var(--surface)); stroke: var(--mod-txt); stroke-width: 1; }
+.viz-moe-tok.is-sel .viz-moe-tokbox { stroke: var(--ink); stroke-width: 2.2; }
+.viz-moe-toktxt { font: 500 11.5px var(--font-mono); fill: var(--ink); pointer-events: none; }
+.viz-cell-btn:focus-visible .viz-moe-tokbox { stroke: var(--focus); stroke-width: 2.5; }
+.viz-moe-ebox { fill: var(--op-mlp-soft); stroke: var(--op-mlp); stroke-width: 1.2; }
+.viz-moe-exp.is-on .viz-moe-ebox { fill: var(--op-mlp); }
+.viz-moe-etxt { font: 600 11px var(--font-mono); fill: var(--ink); }
+.viz-moe-exp.is-on .viz-moe-etxt { fill: var(--surface); }
+.viz-moe-track { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-moe-bar { fill: var(--op-mlp-soft); stroke: var(--op-mlp); stroke-width: 1; }
+.viz-moe-bar.is-on { fill: var(--op-mlp); }
+.viz-moe-load { fill: color-mix(in srgb, var(--op-mlp) 45%, var(--surface)); stroke: var(--op-mlp); stroke-width: 1; }
+.viz-moe-over { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 3 2; }
+.viz-moe-ideal { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.viz-moe-cap { stroke: var(--bad); stroke-width: 1.6; }
+.viz-moe-captxt { font: 600 11px var(--font-mono); fill: var(--bad); }
+/* ---------------------------------------------------------------- fase 6: motor (LLM) */
+/* agrupación GQA (node.kvGroups): cartas de query → una barra K,V compartida por grupo */
+.ad-gqa-q { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1; }
+.ad-gqa-kv { fill: var(--op-embed-soft); stroke: var(--op-embed); stroke-width: 1.2; }
+.ad-gqa-ln { fill: none; stroke: var(--muted); stroke-width: .8; }
+.ad-gqa-kvtxt { font: 600 8.5px var(--font-mono); fill: var(--ink); }
+.ad-gqa-more { font: 600 10px var(--font-mono); fill: var(--ink); }
+.ad-gqa-cap { font: 500 10.5px var(--font-mono); fill: var(--ink); }
+/* expertos MoE (node.experts): k encendidos de n */
+.ad-exp { fill: var(--surface); stroke: var(--op-mlp); stroke-width: 1.1; }
+.ad-exp.is-on { fill: var(--op-mlp); }
+.ad-exp-txt { font: 600 9.5px var(--font-mono); fill: var(--ink); }
+.ad-exp-txt.is-on { fill: var(--surface); }
+/* filas de un almacén (node.rows): el caché que crece; la fila nueva en acento */
+.ad-row { fill: var(--surface); stroke: var(--oc, var(--muted)); stroke-width: .9; }
+.ad-row.is-new { fill: var(--accent); stroke: var(--accent); }
+.ad-rows .ad-row { --oc: var(--muted); }
+.ad-row-txt { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+/* roofline: zonas (memoria / cómputo), techo, codo y los puntos de prefill y decode */
+.viz-rl-mem { fill: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.viz-rl-comp { fill: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.viz-rl-grid { fill: none; stroke: var(--rule); stroke-width: .8; }
+.viz-rl-box { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-rl-roof { fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linejoin: round; }
+.viz-rl-ridge { fill: none; stroke: var(--ink); stroke-width: 1.1; stroke-dasharray: 4 3; }
+.viz-rl-zone { font: 700 10.5px var(--font-display); letter-spacing: .07em; text-transform: uppercase; fill: var(--muted); }
+.viz-rl-pt circle { stroke: var(--surface); stroke-width: 2; }
+.viz-rl-pt.is-prefill circle { fill: var(--accent); }
+.viz-rl-pt.is-decode circle { fill: var(--warn); }
+.viz-rl-lab { font: 600 11.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; }
+/* kv-cache: tokens del prompt / generados / el nuevo; filas del caché por capa (ancho ∝ n_kv) y barras de bytes */
+.viz-kv-tok { stroke-width: 1; }
+.viz-kv-tok.is-prompt { fill: color-mix(in srgb, var(--mod-txt) 12%, var(--surface)); stroke: var(--mod-txt); }
+.viz-kv-tok.is-gen { fill: var(--surface-2); stroke: var(--muted); }
+.viz-kv-tok.is-new { fill: var(--accent); stroke: var(--accent); }
+.viz-kv-toktxt { font: 500 11px var(--font-mono); fill: var(--ink); pointer-events: none; }
+.viz-kv-toktxt.is-new { fill: var(--on-accent, #fff); font-weight: 700; }
+.viz-kv-row { stroke-width: .8; }
+.viz-kv-row.is-prompt { fill: var(--op-embed-soft); stroke: var(--op-embed); }
+.viz-kv-row.is-gen { fill: var(--surface-2); stroke: var(--muted); }
+.viz-kv-row.is-new { fill: var(--accent); stroke: var(--accent); }
+.viz-kv-heads { fill: none; stroke: var(--surface); stroke-width: .7; }
+.viz-kv-dots { font: 700 18px var(--font-mono); fill: var(--ink); }
+.viz-kv-bar { fill: var(--op-embed-soft); stroke: var(--op-embed); stroke-width: 1; }
+.viz-kv-bar.is-on { fill: var(--op-embed); }

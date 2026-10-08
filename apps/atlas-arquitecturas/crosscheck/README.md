@@ -64,6 +64,19 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   se mide con pre-hooks y se resta (`flops_hf_dead_matmul`; en Hiera-T se verifica con un forward parcheado,
   `dead_matmul_check`). `hiera_blocks` registra ancho, ventana, q-pooling y cabezas de cada bloque; `override_checks` en
   Hiera-T con memFrames = 3 y ptrs = 8 (otro modelo: num_maskmem = 4). Parámetros y FLOPs exactos (diferencia 0).
+- `llm.py` (fase 6): HF `LlamaForCausalLM(LlamaConfig(...))` para `llama3-8b`, `llama3-70b` y `llama2-7b`, y
+  `MixtralForCausalLM(MixtralConfig(...))` para `mixtral-8x7b`, construidos en código **en el dispositivo meta** (sin pesos
+  ni memoria, sin hub; dimensiones de los `config.json` de HF y de los papers). Parámetros exactos y FLOPs con
+  `FlopCounterMode` sobre tensores meta con **todas** las capas (no se extrapola): prefill de T = 2048 tokens (logits T×V,
+  como HF sin `logits_to_keep`) y `override_checks` con T = 64 (también con sdpa: la fórmula de sdpa de torch no tiene término
+  causal, mismo total), un paso de decode con una `DynamicCache` de ctx − 1 = 4,095 filas meta (`{decode: 1, ctx: 4096}`) y, en
+  Llama 3 8B, los what-if `nKV = 32` (MHA) y `nKV = 1` (MQA) con otro `num_key_value_heads`. Los tensores meta no permiten
+  construir la máscara causal (`.item()`): se pasa una máscara 4-D de ceros ya armada (no cambia FLOPs). Formas: hooks de
+  módulos + parches de `apply_rotary_pos_emb` (q/k por cabeza antes y después de RoPE), `output_attentions` (A) y la caché
+  (V por cabeza, K/V de todo el contexto en decode). Mixtral con `experts_implementation = 'batched_mm'` (bmm sobre las 2T
+  filas enrutadas, funciona en meta); `moe_impl_check` verifica en un Mixtral diminuto con pesos reales que la implementación
+  eager (bucle por experto) da los mismos FLOPs y que `grouped_mm` no se cuenta. `metrics_checks`: bytes de la KV cache por
+  token medidos en la `DynamicCache` (bf16) y parámetros activos de Mixtral (total − 6/8 de los expertos).
 - Las configs de cada script (`CONFIGS`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que

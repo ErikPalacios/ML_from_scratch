@@ -736,7 +736,7 @@ function checkBlock(where, b, page, ids, pctx) {
       (b.items || []).forEach((it, i) => {
         const wi = where + '[' + i + ']';
         if (!it || !it.q || !it.change || typeof it.change !== 'object') { err(wi, 'necesita q y change'); return; }
-        if (!['tokens', 'params', 'macs', 'attnMem', 'kv'].includes(it.ask)) err(wi, 'ask debe ser tokens | params | macs | attnMem | kv');
+        if (typeof it.ask !== 'string' || !it.ask) err(wi, 'ask debe ser una métrica de ATLAS.Arch.metrics (tokens, params, macs, attnMem, kv, kvCacheBytes…)');
         checkHtml(wi + '.q', it.q); if (it.explain) checkHtml(wi + '.explain', it.explain, true);
         if (Arch && cfg) {
           const m = metricsOk(wi, cfg, it.change);

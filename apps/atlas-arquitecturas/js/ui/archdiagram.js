@@ -475,6 +475,14 @@
     if (!A || typeof A.run !== 'function') throw new Error('El calculador (ATLAS.Arch) no está cargado.');
     return A.run(configId);
   }
+  // fase 6: edge.ov / node.ov = knobs del calculador SOLO para esa arista o ese nodo (p. ej. {decode: 1}: el carril de
+  // decode de la inferencia LLM, con formas de 1 token, dentro de un diagrama cuya config es el prefill). Mismo id de config.
+  function ovRun(run, ov) {
+    if (!ov || !run) return run;
+    const A = arch();
+    try { return A.run(run.id, Object.assign({}, run.overrides || {}, ov)); } catch (e) { return run; }
+  }
+  const edgeRun = (run, e) => (e && e.ov ? ovRun(run, e.ov) : run);
   function shapeText(t, mode) {
     const A = arch();
     if (A && A.fmt && typeof A.fmt.shape === 'function') return A.fmt.shape(t, mode);
@@ -519,7 +527,7 @@
   function nodeSub(n, ctl, spec) {
     if (n.subNum && ctl && ctl.showNumbers && ctl.mode !== 'blank') {
       const cfg = (ctl.opts && ctl.opts.config) || (spec && spec.config) || (ctl.view && ctl.view.spec && ctl.view.spec.config);
-      const v = strip(qResolve(n.subNum, cfg));
+      const v = String(n.subNum).split('\n').map((ln) => strip(qResolve(ln, cfg))).join('\n');
       if (v && v.indexOf('{{') < 0 && v.indexOf('¿') < 0) return v;
     }
     return n.sub || '';
@@ -546,6 +554,7 @@
     return run.ops.filter((o) => ids.indexOf(o.id) >= 0 || (!node.opsExact && o.path && o.path.indexOf(pid) >= 0 && (!node.scope || o.path.indexOf(node.scope) >= 0) && !ex.some((x) => o.path.indexOf(x) >= 0)));
   }
   function nodeCost(run, node) {
+    if (node && node.ov) run = ovRun(run, node.ov);
     const ops = nodeOps(run, node);
     let params = 0, macs = 0, rep = 1;
     for (const o of ops) { params += o.params || 0; macs += o.macs || 0; rep = Math.max(rep, o.repeat || 1); }
@@ -853,7 +862,9 @@
       if (g.label && !hideTitle) {
         const right = /right$/.test(g.labelPos || '');
         // títulos de región: encima de las aristas (capa de etiquetas) y con halo
-        const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10, (g.labelPos || '').indexOf('bottom') === 0 ? r.y + r.h - 8 : r.y + 17, qText(g.label, ctl, spec), g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
+        // fase 6: abajo y con label2 (carril de decode de la inferencia LLM), el título sube una línea y label2 va debajo
+        const bottomL = (g.labelPos || '').indexOf('bottom') === 0, sub2 = bottomL && g.label2 && !(lane && (ctl.mode === 'blank' || ctl.quiz));
+        const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10, bottomL ? r.y + r.h - (sub2 ? 22 : 8) : r.y + 17, qText(g.label, ctl, spec), g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
         if (g.region && String(g.label).length * 7.0 > regionTitleMax(r)) { lt.setAttribute('textLength', r1(regionTitleMax(r))); lt.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
       }
       if (g.repeat && run) {
@@ -874,7 +885,10 @@
         }
       }
       // el subtítulo de un carril (costos que nombran sus bloques: "encoder + neck: …") no va en la práctica
-      if (g.label2 && !hideTitle && !(lane && (ctl.mode === 'blank' || ctl.quiz))) txt(gg, r.x + 10, r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub');
+      if (g.label2 && !hideTitle && !(lane && (ctl.mode === 'blank' || ctl.quiz))) {
+        const bl = (g.labelPos || '').indexOf('bottom') === 0, rt = /right$/.test(g.labelPos || '');
+        txt(gg, rt ? r.x + r.w - 10 : r.x + 10, bl ? r.y + r.h - 8 : r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub', rt ? 'end' : null);
+      }
     }
 
     // ---- nodos
@@ -1027,7 +1041,10 @@
         if (label) txt(g, r.x + r.w / 2, r.y + r.h - 7, label, 'ad-label', 'middle');
       } else {
         const lines = String(label).split('\n').filter(Boolean);
-        const miniH = n.mini ? 22 : 0;
+        // fase 6: kvGroups / experts / rows ocupan la parte de abajo del bloque (como mini): el texto sube
+        const hideInner = slot && slot.ask === 'label';
+        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : 0;
+        const miniH = n.mini ? 22 : innerH;
         // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
         const subs = sub ? String(sub).split('\n') : [];
         const total = lines.length * 15 + subs.length * 13;
@@ -1044,6 +1061,11 @@
         // un hueco que pide el NOMBRE del bloque no muestra su esquema en miniatura: los chips
         // ("top-down: T-CSP ×2", "imagen ← texto"…) darían la respuesta
         if (n.mini && !(slot && slot.ask === 'label')) drawMini(g, n.mini, r, used);
+        if (!hideInner && run && run.config) {
+          if (n.kvGroups) drawKvGroups(g, n.kvGroups, r, run.config, used);
+          else if (n.experts) drawExperts(g, n.experts, r, run.config, used);
+          else if (n.rows && store) drawStoreRows(g, n.rows, r, used, ctl, spec);
+        }
       }
       if (cost && cost.params > 0 && ctl.mode !== 'blank' && !ctl.quiz) {
         used.badge = true;
@@ -1115,6 +1137,75 @@
     }
   }
 
+  // ------------------------------------------------------------ fase 6 (LLM): agrupación GQA, expertos MoE, filas de un caché
+  // node.kvGroups = {q:'h', kv:'nKV'} (claves de la config): dentro del bloque, n_kv grupos; cada uno con sus h/n_kv
+  // cartas de query (Q) que bajan a UNA barra K,V compartida. MHA (n_kv = h) = grupos de 1; MQA (n_kv = 1) = un grupo.
+  // Hasta 8 grupos dibujados (con "…" si hay más) y una línea con la cuenta de la config.
+  const KVG_H = 50, EXP_H = 36;
+  const ROWS_H = (o) => Math.min(o.n || 5, 8) * 6 + 10;
+  function gqaWords(cfg, o) {
+    const hq = cfgPath(cfg, o.q || 'h'), hk = cfgPath(cfg, o.kv || 'nKV');
+    if (!(hq > 0 && hk > 0)) return null;
+    const per = hq / hk;
+    const text = per === 1 ? hq + ' Q y ' + hk + ' K,V: uno a uno (MHA)' : hk === 1 ? 'las ' + hq + ' Q comparten 1 K,V (MQA)' : per + ' Q comparten cada K,V · ' + hk + ' grupos (GQA)';
+    return { hq, hk, per, text };
+  }
+  function drawKvGroups(g, o, r, cfg, used) {
+    const w = gqaWords(cfg, o);
+    if (!w) return;
+    used.gqa = true;
+    const gg = S('g', { class: 'ad-gqa' }, g);
+    const x0 = r.x + 10, x1 = r.x + r.w - 10, yQ = r.y + r.h - KVG_H + 2, yK = yQ + 17, gap = 7;
+    const more = w.hk > 8, nd = Math.min(w.hk, 8);
+    const cellW = (x1 - x0 - (nd - 1) * gap) / nd;
+    for (let i = 0; i < nd; i++) {
+      const cx = x0 + i * (cellW + gap);
+      if (more && i === nd - 1) { txt(gg, cx + cellW / 2, yK + 4, '… ' + w.hk, 'ad-gqa-more', 'middle'); continue; }
+      const nq = Math.max(1, Math.min(w.per, Math.floor((cellW + 1.5) / 4.5)));
+      const qW = (cellW - (nq - 1) * 1.5) / nq;
+      const kvx = cx + cellW / 2;
+      for (let j = 0; j < nq; j++) {
+        const qx = cx + j * (qW + 1.5);
+        S('path', { d: 'M' + P([qx + qW / 2, yQ + 9]) + 'L' + P([kvx, yK - 0.5]), class: 'ad-gqa-ln' }, gg);
+        S('rect', { x: r1(qx), y: r1(yQ), width: r1(qW), height: 9, rx: 1.5, class: 'ad-gqa-q' }, gg);
+      }
+      if (nq < w.per) txt(gg, cx + cellW, yQ - 2, '×' + w.per, 'ad-gqa-more', 'end');
+      S('rect', { x: r1(cx), y: r1(yK), width: r1(cellW), height: 10, rx: 2, class: 'ad-gqa-kv' }, gg);
+      if (cellW >= 26) txt(gg, kvx, yK + 8, 'K,V', 'ad-gqa-kvtxt', 'middle');
+    }
+    txt(gg, r.x + r.w / 2, yK + 23, w.text, 'ad-gqa-cap', 'middle');
+  }
+  // node.experts = {n:'nExperts', k:'topK', lit:[i, j]}: una fila de n cajas (los FFN expertos) con k encendidas
+  // (cuáles, ilustrativo: depende de cada token) y la cuenta "top-k de n" de la config.
+  function drawExperts(g, o, r, cfg, used) {
+    const E = cfgPath(cfg, o.n || 'nExperts'), K = cfgPath(cfg, o.k || 'topK');
+    if (!(E > 0)) return;
+    used.experts = true;
+    const lit = new Set((o.lit || Array.from({ length: K || 0 }, (_, i) => i)).slice(0, K || 0));
+    const gg = S('g', { class: 'ad-exps' }, g);
+    const nd = Math.min(E, 16), gap = 4, x0 = r.x + 10, x1 = r.x + r.w - 10, y = r.y + r.h - EXP_H + 2;
+    const bw = (x1 - x0 - (nd - 1) * gap) / nd;
+    for (let i = 0; i < nd; i++) {
+      const on = lit.has(i);
+      S('rect', { x: r1(x0 + i * (bw + gap)), y: r1(y), width: r1(bw), height: 15, rx: 2, class: 'ad-exp' + (on ? ' is-on' : '') }, gg);
+      if (bw >= 12) txt(gg, x0 + i * (bw + gap) + bw / 2, y + 11, String(i), 'ad-exp-txt' + (on ? ' is-on' : ''), 'middle');
+    }
+    txt(gg, r.x + r.w / 2, y + 29, String(o.caption || 'top-{k} de {n} por token').replace('{k}', K).replace('{n}', E), 'ad-gqa-cap', 'middle');
+  }
+  // node.rows = {n, add, label} en un almacén (style:'store'): n filas (una por token ya guardado) y las `add` últimas
+  // resaltadas (lo que se agrega en este paso), con una etiqueta corta (p. ej. "+1 fila por token").
+  function drawStoreRows(g, o, r, used, ctl, spec) {
+    used.rows = true;
+    const n = Math.min(o.n || 5, 8), add = Math.min(o.add == null ? 1 : o.add, n);
+    const gg = S('g', { class: 'ad-rows' }, g);
+    const w = Math.min(r.w * 0.42, 120), x = r.x + 14, yb = r.y + r.h - 9;
+    for (let i = 0; i < n; i++) {
+      const isNew = i >= n - add;
+      S('rect', { x: r1(x), y: r1(yb - (n - i) * 6), width: r1(w), height: 4.2, rx: 1, class: 'ad-row' + (isNew ? ' is-new' : '') }, gg);
+    }
+    if (o.label) txt(gg, x + w + 7, yb - 3 * add + 2, qText(o.label, ctl, spec), 'ad-row-txt');
+  }
+
   function drawMapNode(ctl, parent, n, r, used) {
     const it = (ATLAS.catalog && ATLAS.catalog() && ATLAS.catalog().items && ATLAS.catalog().items[n.id]) || null;
     const page = ATLAS.getPage ? ATLAS.getPage(n.id) : null;
@@ -1136,7 +1227,7 @@
     out.nums = new Set();
     if (ctl.mode !== 'blank' || !run) return out;
     const edges = spec.edges || [];
-    const num = (e) => (e.tensor && run.tensors[e.tensor] ? run.tensors[e.tensor].num.join('×') : null);
+    const num = (e) => { const er = edgeRun(run, e); return e.tensor && er.tensors[e.tensor] ? er.tensors[e.tensor].num.join('×') : null; };
     for (const sid in ctl.slots) {
       const sl = ctl.slots[sid];
       if (!sl || sl.ask !== 'shape') continue;
@@ -1161,6 +1252,8 @@
     const io = nodeIO(ctl.cur(), n.id, run);
     if (io.in.length) parts.push('entrada ' + io.in.map((t) => shapeText(t, 'num')).join(', '));
     if (io.out.length) parts.push('salida ' + io.out.map((t) => shapeText(t, 'num')).join(', '));
+    if (n.kvGroups && run) { const w = gqaWords(run.config, n.kvGroups); if (w) parts.push(w.text); }
+    if (n.experts && run) { const E = cfgPath(run.config, n.experts.n || 'nExperts'), K = cfgPath(run.config, n.experts.k || 'topK'); if (E) parts.push(K + ' de ' + E + ' expertos por token'); }
     if (n.expand) parts.push('se puede abrir');
     return parts.join('; ');
   }
@@ -1169,9 +1262,10 @@
     const ins = [], outs = [];
     if (!run || !view) return { in: ins, out: outs };
     for (const e of view.spec.edges || []) {
-      if (!e.tensor || !run.tensors[e.tensor]) continue;
-      if (e.to === nodeId && ins.indexOf(run.tensors[e.tensor]) < 0) ins.push(run.tensors[e.tensor]);
-      if (e.from === nodeId && outs.indexOf(run.tensors[e.tensor]) < 0) outs.push(run.tensors[e.tensor]);
+      const er = edgeRun(run, e);
+      if (!e.tensor || !er.tensors[e.tensor]) continue;
+      if (e.to === nodeId && ins.indexOf(er.tensors[e.tensor]) < 0) ins.push(er.tensors[e.tensor]);
+      if (e.from === nodeId && outs.indexOf(er.tensors[e.tensor]) < 0) outs.push(er.tensors[e.tensor]);
     }
     return { in: ins, out: outs };
   }
@@ -1282,10 +1376,10 @@
     const kind = ge.kind;
     used.edges.add(kind);
     if (isMap && MAP_KINDS.indexOf(kind) >= 0) used.map.add(kind);
-    const t = e.tensor && run ? run.tensors[e.tensor] : null;
+    const t = e.tensor && run ? edgeRun(run, e).tensors[e.tensor] : null;
     let slot = (e.tensor && slotFor(ctl, ge.key + '@' + e.tensor)) || slotFor(ctl, ge.key) || (e.tensor && slotFor(ctl, 'tensor:' + e.tensor));
     if (slot && slot.tensor && e.tensor && slot.tensor !== e.tensor) slot = null;   // aristas paralelas (q y k): solo la del tensor pedido
-    const g = S('g', { class: 'ad-edge ad-edge--' + kind, 'data-edge': ge.key, 'data-kind': kind, 'data-tensor': e.tensor || null,
+    const g = S('g', { class: 'ad-edge ad-edge--' + kind, 'data-edge': ge.key, 'data-kind': kind, 'data-tensor': e.tensor || null, 'data-ov': e.ov ? JSON.stringify(e.ov) : null,
       tabindex: (t || isMap) && ctl.mode !== 'blank' ? -1 : null, role: t ? 'button' : null }, L.edges);
     const headSize = kind === 'control' ? 5 : 7;
     let d;
@@ -1421,6 +1515,12 @@
       item((s) => { const g = S('g', { class: 'ad-mapnode ad-mapnode--' + st }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 5, class: 'ad-box' }, g); }, label);
     }
     if (used.store) item((s) => { const g = S('g', { class: 'ad-op--io' }, s); S('path', { d: 'M5,4V12A8,2.6 0 0 0 21,12V4', class: 'ad-box' }, g); S('ellipse', { cx: 13, cy: 4, rx: 8, ry: 2.6, class: 'ad-box' }, g); }, 'Cilindro: almacén (guarda tensores para pasos siguientes; no es una operación)');
+    // fase 6: agrupación GQA, expertos MoE y filas de un caché
+    if (used.gqa) {
+      item((s) => { S('rect', { x: 3, y: 3, width: 6, height: 7, rx: 1, class: 'ad-gqa-q' }, s); S('rect', { x: 11, y: 3, width: 6, height: 7, rx: 1, class: 'ad-gqa-q' }, s); S('path', { d: 'M6 10L13 13M14 10L13 13', class: 'ad-gqa-ln' }, s); S('rect', { x: 3, y: 13, width: 20, height: 3, rx: 1, class: 'ad-gqa-kv' }, s); }, 'Cabezas de query (Q) que comparten una cabeza K,V (un grupo)');
+    }
+    if (used.experts) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-exp' + (i === 1 || i === 2 ? ' is-on' : '') }, s)); }, 'Expertos (FFN): encendidos = los top-k elegidos para un token');
+    if (used.rows) item((s) => { const g = S('g', { class: 'ad-rows' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 3, y, width: 20, height: 3, rx: 1, class: 'ad-row' + (i === 2 ? ' is-new' : '') }, g)); }, 'Filas del caché (una por token; la resaltada se agrega en este paso)');
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
@@ -1765,7 +1865,7 @@
         const e = (spec.edges || []).find((x) => edgeKey(x) === target.edge && (!target.tensor || x.tensor === target.tensor));
         if (!e) return '';
         if (spec.kind === 'map') return '<div class="ad-tip-t">' + esc(MAP_KIND_SENT[e.kind] ? MAP_KIND_SENT[e.kind](mapLabel(e.from), mapLabel(e.to)) : e.kind) + '</div>' + (e.label ? '<div class="ad-tip-sub">' + esc(e.label) + '</div>' : '');
-        const t = e.tensor && run && run.tensors[e.tensor];
+        const t = e.tensor && run && edgeRun(run, e).tensors[e.tensor];
         if (!t || slotFor(ctl, edgeKey(e)) || slotFor(ctl, edgeKey(e) + '@' + e.tensor)) return '';
         const els = (t.num || []).reduce((a, b) => a * b, 1);
         return '<div class="ad-tip-t">' + esc(t.label || e.tensor) + '</div>' + (t.tex ? '<div class="ad-tip-tex" data-tex="' + esc(t.tex + ' \\in \\mathbb{R}^{' + shapeTexOf(t) + '}') + '"></div>' : '')
@@ -2296,7 +2396,9 @@
       f.querySelectorAll('[data-edge] .ad-shape-num, [data-edge] .ad-shape-sym, [data-tensor-glyph] .ad-shape-num, [data-tensor-glyph] .ad-shape-sym').forEach((tEl) => {
         const id = tEl.getAttribute('data-tensor');
         const refCfg = tEl.closest('[data-config]') && tEl.closest('[data-config]').getAttribute('data-config');
-        const t = (refCfg && refCfg !== (f.getAttribute('data-config') || spec.config) ? runFor(refCfg) : run).tensors[id];
+        const ovEl = tEl.closest('[data-ov]');
+        const base = refCfg && refCfg !== (f.getAttribute('data-config') || spec.config) ? runFor(refCfg) : run;
+        const t = (ovEl ? ovRun(base, JSON.parse(ovEl.getAttribute('data-ov'))) : base).tensors[id];
         const want = t ? plainSub(shapeText(t, tEl.classList.contains('ad-shape-num') ? 'num' : 'sym')) : '(tensor desconocido)';
         if (tEl.textContent !== want) bad.push({ diagram: spec.id, edge: (tEl.closest('[data-edge]') || {}).getAttribute ? tEl.closest('[data-edge]').getAttribute('data-edge') : null, tensor: id, got: tEl.textContent, want });
       });

@@ -1936,3 +1936,349 @@ test('F5 etiqueta + símbolo identifican una forma; byPath suma; aritmética; Qu
   assert.strictEqual(Q5.get('sam2-hiera-l.params.total').text, '224,446,642');
   assert.strictEqual(Q5.get('sam2-hiera-l.metrics.memoryBankMem').text, '7.35 MB');
 });
+
+// ---------------------------------------------------------------- fase 6 (LLM decoder: Llama 3, Llama 2, Mixtral)
+// Contexto propio con todos los modelos hasta la fase 6.
+const ATLAS6 = (function () {
+  const ctx = vm.createContext({});
+  for (const f of FILES.filter((x) => x !== 'js/core/quantities.js').concat(['js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/core/quantities.js'])) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  }
+  return vm.runInContext('ATLAS', ctx);
+})();
+const A6 = ATLAS6.Arch, Q6 = ATLAS6.Quantities;
+const S6 = (sym, num, layout) => A6.shape(sym, num, 'txt', layout || 'seq');
+const LLM = ['llama3-8b', 'llama3-70b', 'llama2-7b', 'mixtral-8x7b'];
+
+test('F6 el modelo llm y las primitivas nuevas no cambian ningún resultado de las fases 1–5', () => {
+  for (const c of A5.configs()) {
+    const a = A5.run(c.id).totals, b = A6.run(c.id).totals;
+    assert.deepStrictEqual([b.params, b.macs, b.other], [a.params, a.macs, a.other], c.id);
+    const ma = A5.metrics(c.id, {}), mb = A6.metrics(c.id, {});
+    assert.deepStrictEqual([mb.attnMem, mb.actMem, mb.kvCache], [ma.attnMem, ma.actMem, ma.kvCache], c.id + ' metrics');
+  }
+  assert.ok(J(A6.models()).includes('llm'));
+  assert.strictEqual(A6.canonical('llm'), 'llama3-8b');
+  assert.deepStrictEqual(J(A6.configs('llm').map((c) => c.id)), LLM);
+  // MHA sin cambios: attention_scores con las mismas cabezas da el mismo detail de siempre (sin kvHeads)
+  const q = A6.shape(['h', 'N', 'd_h'], [2, 5, 4], 'txt', 'heads');
+  assert.strictEqual(A6.attention_scores(q, q).detail.kvHeads, undefined);
+});
+
+test('F6 primitivas: RoPE, cabezas GQA/MQA/MHA, scores y A·V con K/V compartidas, SwiGLU, LM head, KV cache', () => {
+  // RoPE: sin parámetros ni MACs; ≈ 3 ops por elemento; d_h par
+  const qh = A6.shape(['h', 'T', 'd_h'], [4, 6, 8], 'txt', 'heads');
+  const rp = A6.rope(qh, { theta: 500000 });
+  assert.deepStrictEqual([rp.params, rp.macs, rp.other, J(rp.out.num), rp.detail.pairs, rp.detail.theta], [0, 0, 4 * 6 * 8 * 3, [4, 6, 8], 4, 500000]);
+  assert.throws(() => A6.rope(A6.shape(['h', 'T', 'd'], [1, 2, 3], 'txt', 'heads')), /par/);
+  // split GQA: h = 8 cabezas de Q, G = 2 de K/V (grupos de 4); MQA (G = 1) y MHA (G = h)
+  const q = S6(['T', 'D'], [5, 32]), k = S6(['T', 'G·d_h'], [5, 8]), v = S6(['T', 'G·d_h'], [5, 8]);
+  const sp = A6.split_gqa_heads(q, k, v, { h: 8, G: 2 });
+  assert.deepStrictEqual(J(sp.out.map((x) => x.num)), [[8, 5, 4], [2, 5, 4], [2, 5, 4]]);
+  assert.deepStrictEqual(J(sp.out.map((x) => x.sym)), [['h', 'T', 'd_h'], ['G', 'T', 'd_h'], ['G', 'T', 'd_h']]);
+  assert.deepStrictEqual([sp.detail.groups, sp.detail.kind], [4, 'GQA']);
+  assert.strictEqual(A6.split_gqa_heads(q, S6(['T', 'd_h'], [5, 4]), S6(['T', 'd_h'], [5, 4]), { h: 8, G: 1 }).detail.kind, 'MQA');
+  assert.strictEqual(A6.split_gqa_heads(q, S6(['T', 'D'], [5, 32]), S6(['T', 'D'], [5, 32]), { h: 8, G: 8 }).detail.kind, 'MHA');
+  assert.throws(() => A6.split_gqa_heads(q, k, v, { h: 8, G: 3 }), /divisible/);
+  assert.throws(() => A6.split_gqa_heads(q, S6(['T', 'x'], [5, 12]), v, { h: 8, G: 2 }), /G·d_h/);
+  // scores y A·V: MACs h·T·S·d_h (los mismos que MHA); la cabeza KV g sirve a h/G cabezas de query
+  const sc = A6.attention_scores(sp.out[0], sp.out[1]);
+  assert.deepStrictEqual([J(sc.out.num), sc.macs, sc.detail.kvHeads, sc.detail.groups], [[8, 5, 5], 8 * 5 * 5 * 4, 2, 4]);
+  const ws = A6.attention_weighted_sum(A6.softmax(sc.out).out, sp.out[2]);
+  assert.deepStrictEqual([J(ws.out.num), ws.macs, ws.detail.groups], [[8, 5, 4], 8 * 5 * 5 * 4, 4]);
+  assert.throws(() => A6.attention_scores(sp.out[0], A6.shape(['G', 'T', 'd_h'], [3, 5, 4], 'txt', 'heads')), /cabezas/);
+  // SwiGLU: 3 matrices sin sesgo; mul = 1 op por elemento
+  const x = S6(['T', 'D'], [5, 32]);
+  const sw = A6.swiglu(x, { Dmlp: 48 });
+  assert.deepStrictEqual([sw.params, sw.macs, J(sw.out.num)], [3 * 32 * 48, 3 * 5 * 32 * 48, [5, 32]]);
+  assert.strictEqual(A6.mul(S6(['T', 'F'], [5, 48]), S6(['T', 'F'], [5, 48])).other, 5 * 48);
+  assert.throws(() => A6.mul(S6(['T', 'F'], [5, 48]), S6(['T', 'F'], [5, 47])), /formas distintas/);
+  // LM head: D·V sin sesgo; atada al embedding = 0 parámetros propios, mismos MACs
+  const lm = A6.lm_head(x, { V: 100 });
+  assert.deepStrictEqual([lm.prim, lm.params, lm.macs, J(lm.out.sym)], ['lm_head', 3200, 5 * 32 * 100, ['T', 'V']]);
+  assert.deepStrictEqual([A6.lm_head(x, { V: 100, tied: true }).params, A6.lm_head(x, { V: 100, tied: true }).macs], [0, 16000]);
+  const st = A6.sample_token(lm.out, {});
+  assert.deepStrictEqual([J(st.out.num), st.params, st.macs], [[1], 0, 0]);
+  // KV cache: (S−1) filas guardadas + 1 nueva
+  const kv = A6.kv_append(A6.shape(['G', 'ctx-1', 'd_h'], [2, 9, 4], 'txt', 'heads'), A6.shape(['G', '1', 'd_h'], [2, 1, 4], 'txt', 'heads'), { sym: 'ctx' });
+  assert.deepStrictEqual([J(kv.out.num), J(kv.out.sym), kv.params, kv.macs], [[2, 10, 4], ['G', 'ctx', 'd_h'], 0, 0]);
+  assert.throws(() => A6.kv_append(A6.shape(['G', 'S', 'd'], [2, 9, 4], 'txt', 'heads'), A6.shape(['G', '1', 'd'], [3, 1, 4], 'txt', 'heads')), /cabezas/);
+});
+
+test('F6 compuestas: gqa_attention 2D² + 2D·G·d_h, llama_block, moe_ffn (parámetros ∝ E, MACs ∝ k)', () => {
+  const D = 32, T = 5, h = 8, G = 2, dh = 4, F = 48;
+  const x = S6(['T', 'D'], [T, D]);
+  const at = A6.gqa_attention(x, { h, G });
+  assert.strictEqual(at.params, 2 * D * D + 2 * D * G * dh);
+  assert.strictEqual(at.macs, T * (2 * D * D + 2 * D * G * dh) + 2 * T * T * D);
+  assert.strictEqual(at.detail.kvPerToken, 2 * G * dh);
+  const mha = A6.gqa_attention(x, { h, G: h });
+  assert.strictEqual(mha.params, 4 * D * D);                       // G = h: igual que MHA sin sesgos
+  assert.strictEqual(mha.macs - at.macs, T * 2 * D * (h - G) * dh); // solo cambian W_K y W_V
+  const bl = A6.llama_block(x, { h, G, Dmlp: F });
+  assert.strictEqual(bl.params, 2 * D * D + 2 * D * G * dh + 3 * D * F + 2 * D);
+  assert.strictEqual(bl.macs, T * (2 * D * D + 2 * D * G * dh + 3 * D * F) + 2 * T * T * D);
+  // MoE: router D·E + 3·E·D·F parámetros; MACs T·D·E + 3·k·T·D·F
+  const E = 8, k = 2;
+  const mo = A6.moe_ffn(x, { E, k, Dmlp: F });
+  assert.strictEqual(mo.params, D * E + 3 * E * D * F);
+  assert.strictEqual(mo.macs, T * D * E + 3 * k * T * D * F);
+  assert.deepStrictEqual([mo.detail.activeExpertParams, mo.detail.totalExpertParams], [3 * k * D * F, 3 * E * D * F]);
+  const el = A6.expert_linear(S6(['2T', 'D'], [10, D]), { E, dout: F, doutSym: 'D_mlp' });
+  assert.deepStrictEqual([el.params, el.macs, el.paramArith], [E * D * F, 10 * D * F, '8·32·48 = 12,288']);
+  const tk = A6.moe_topk(S6(['T', 'E'], [T, E]), { k });
+  assert.deepStrictEqual(J(tk.out.map((o) => o.num)), [[T, k], [T, k]]);
+  assert.throws(() => A6.moe_topk(S6(['T', 'E'], [T, E]), { k: 9 }), /entre 1 y E/);
+  assert.throws(() => A6.moe_combine(S6(['2T', 'D'], [9, D]), S6(['T', 'k'], [T, k])), /k·T/);
+  const ids = J(A6.primitives()).map((p) => p.id);
+  for (const id of ['rope', 'split_gqa_heads', 'mul', 'lm_head', 'sample_token', 'kv_append', 'moe_router', 'moe_topk', 'expert_linear', 'moe_combine',
+    'swiglu', 'gqa_attention', 'llama_block', 'moe_ffn']) {
+    assert.ok(ids.includes(id), id);
+    assert.strictEqual(typeof A6[id], 'function', id);
+  }
+});
+
+test('Llama 3 8B: 8,030,261,248 parámetros (HF = 8.03B) y 16,469,052,096,512 MACs de prefill con T = 2048, por bloque', () => {
+  const r = A6.run('llama3-8b'), t = r.totals, n = t.byNode, q = r.quantities, c = r.config;
+  const D = 4096, L = 32, h = 32, G = 8, dh = 128, F = 14336, V = 128256, T = 2048;
+  assert.strictEqual(t.params, 8030261248);
+  assert.strictEqual(q.layerParams, 2 * D * D + 2 * D * G * dh + 3 * D * F + 2 * D);    // 218,112,000
+  assert.strictEqual(q.layerParams, 218112000);
+  assert.deepStrictEqual([n.embed.params, n['lm-head'].params, n['final-norm'].params], [V * D, V * D, D]);
+  assert.strictEqual(t.params, L * q.layerParams + 2 * V * D + D);
+  assert.deepStrictEqual([q.qProjParamsLayer, q.kProjParamsLayer, q.vProjParamsLayer, q.oProjParamsLayer], [D * D, D * G * dh, D * G * dh, D * D]);
+  assert.strictEqual(q.ffnParamsLayer, 3 * D * F);
+  // MACs: T·(L·(lineales por token) + D·V) + L·2·h·T²·d_h (QKᵀ y A·V completos: la máscara no divide el conteo)
+  assert.strictEqual(t.macs, T * (L * (2 * D * D + 2 * D * G * dh + 3 * D * F) + D * V) + L * 2 * h * T * T * dh);
+  assert.strictEqual(t.macs, 16469052096512);
+  assert.strictEqual(t.flops, 32938104193024);                // = FlopCounterMode de HF (crosscheck/expected/llama3-8b.json)
+  assert.deepStrictEqual([c.T, c.ctx, c.B, c.bits, c.G, c.nKV, c.groupSize, c.attnKind, c.Dkv], [2048, 4096, 1, 16, 8, 8, 4, 'GQA', 1024]);
+  // dónde viven los 8B: FFN 70 %, atención 17 %, embedding + LM head 13 %
+  const m = A6.metrics('llama3-8b', {});
+  assert.ok(Math.abs(m.ffnParamsShare - 0.702) < 0.001 && Math.abs(m.attnParamsShare - 0.167) < 0.001 && Math.abs(m.embedParamsShare - 0.131) < 0.001);
+  assert.ok(Math.abs(m.ffnParamsShare + m.attnParamsShare + m.embedParamsShare + m.normParamsShare - 1) < 1e-12);
+});
+
+test('Llama 3 70B, Llama 2 7B y Mixtral 8×7B: parámetros = HF; Mixtral 12,879,925,248 activos de 46,702,792,704', () => {
+  const p = (id) => A6.run(id).totals.params;
+  assert.deepStrictEqual(LLM.map(p), [8030261248, 70553706496, 6738415616, 46702792704]);
+  const l2 = A6.run('llama2-7b');
+  assert.deepStrictEqual([l2.config.attnKind, l2.config.G, l2.config.V], ['MHA', 32, 32000]);
+  assert.strictEqual(l2.quantities.layerParams, 4 * 4096 * 4096 + 3 * 4096 * 11008 + 2 * 4096);
+  const mx = A6.run('mixtral-8x7b'), q = mx.quantities, D = 4096, F = 14336, L = 32;
+  assert.strictEqual(q.expertParams, 3 * D * F);
+  assert.strictEqual(q.routerParams, L * D * 8);
+  assert.strictEqual(q.activeParams, 12879925248);
+  assert.strictEqual(q.activeParams, mx.totals.params - 6 * L * 3 * D * F);
+  assert.deepStrictEqual([mx.config.nExperts, mx.config.topK, mx.config.E, mx.config.topk], [8, 2, 8, 2]);
+  // MACs por token del FFN MoE: router + 2 expertos (no 8)
+  assert.strictEqual(mx.totals.byNode.ffn.macs, 2048 * L * (D * 8 + 2 * 3 * D * F));
+  const m = A6.metrics('mixtral-8x7b', {});
+  assert.ok(Math.abs(m.activeParamsShare - 0.2758) < 0.001);
+  assert.ok(m.expertsParamsShare > 0.96);
+});
+
+test('llm: ids y formas de SPEC §18.1 (nodos, tensores, paths) en prefill; MoE en Mixtral', () => {
+  const r = A6.run('llama3-8b'), n = r.totals.byNode;
+  const T = 2048;
+  for (const id of ['embed', 'blocks', 'block', 'final-norm', 'lm-head', 'sample', 'norm1', 'attn', 'res1', 'norm2', 'ffn', 'res2',
+    'q-proj', 'k-proj', 'v-proj', 'rope', 'split', 'scores', 'mask', 'scale', 'softmax', 'weighted-sum', 'merge', 'o-proj',
+    'gate-proj', 'up-proj', 'silu', 'mul', 'down-proj']) assert.ok(n[id], 'nodo ' + id);
+  const sh = (id) => r.tensors[id].num.join('×');
+  const want = { ids: '2048', x0: T + '×4096', 'h-norm1': T + '×4096', q: T + '×4096', k: T + '×1024', v: T + '×1024', 'q-rope': '32×2048×128', 'k-rope': '8×2048×128',
+    scores: '32×2048×2048', attn: '32×2048×2048', z: T + '×4096', o: T + '×4096', r1: T + '×4096', 'h-norm2': T + '×4096', gate: T + '×14336', up: T + '×14336',
+    act: T + '×14336', prod: T + '×14336', f: T + '×4096', 'x-out': T + '×4096', 'x-norm': T + '×4096', logits: T + '×128256', 'next-token': '1',
+    'q-heads': '32×2048×128', 'k-heads': '8×2048×128', 'v-heads': '8×2048×128', 'scores-scaled': '32×2048×2048', masked: '32×2048×2048', 'z-heads': '32×2048×128' };
+  for (const [id, s] of Object.entries(want)) assert.strictEqual(sh(id), s, id);
+  assert.deepStrictEqual(J(r.tensors.k.sym), ['T', 'G·d_h']);
+  assert.deepStrictEqual(J(r.tensors['k-rope'].sym), ['G', 'T', 'd_h']);
+  assert.deepStrictEqual(J(r.tensors.logits.sym), ['T', 'V']);
+  const op = (id) => r.ops.find((o) => o.id === id);
+  assert.deepStrictEqual(J(op('q-proj').path), ['blocks', 'block', 'attn', 'q-proj']);
+  assert.deepStrictEqual(J(op('rope-k').path), ['blocks', 'block', 'attn', 'rope']);
+  assert.deepStrictEqual(J(op('gate-proj').path), ['blocks', 'block', 'ffn', 'gate-proj']);
+  assert.deepStrictEqual(J(op('norm1').path), ['blocks', 'block', 'norm1']);
+  assert.deepStrictEqual([op('q-proj').repeat, op('embed').repeat, op('lm-head').repeat], [32, 1, 1]);
+  assert.deepStrictEqual(J(op('scores').in), ['q-rope', 'k-rope']);
+  assert.deepStrictEqual(J(op('weighted-sum').in), ['attn', 'v-heads']);
+  assert.strictEqual(op('mask').prim, 'causal_mask');
+  // Mixtral: router, top-k, expertos (filas enrutadas 2T), combine
+  const mx = A6.run('mixtral-8x7b'), mn = mx.totals.byNode;
+  for (const id of ['router', 'topk', 'experts', 'combine', 'dispatch', 'gate-proj', 'down-proj']) assert.ok(mn[id], 'Mixtral nodo ' + id);
+  const ms = (id) => mx.tensors[id].num.join('×');
+  assert.deepStrictEqual(['router-logits', 'topk-weights', 'x-routed', 'gate', 'expert-out', 'f'].map(ms), ['2048×8', '2048×2', '4096×4096', '4096×14336', '4096×4096', '2048×4096']);
+  assert.deepStrictEqual(J(mx.tensors.gate.sym), ['2T', 'D_mlp']);
+  assert.deepStrictEqual(J(mx.ops.find((o) => o.id === 'gate-proj').path), ['blocks', 'block', 'ffn', 'experts', 'gate-proj']);
+  assert.strictEqual(mn.experts.params, 32 * 8 * 3 * 4096 * 14336);
+});
+
+test('llm decode: 1 token, la atención lee ctx filas de la KV cache; MACs = lineales por token + 2·L·h·ctx·d_h', () => {
+  const d = A6.run('llama3-8b', { decode: 1 }), p = A6.run('llama3-8b');
+  const L = 32, h = 32, dh = 128, ctx = 4096;
+  assert.strictEqual(d.config.Tq, 1);
+  assert.match(d.label, /decode \(ctx = 4,096\)/);
+  const sh = (id) => d.tensors[id].num.join('×');
+  assert.deepStrictEqual(['ids', 'x0', 'q', 'k', 'q-rope', 'k-rope', 'k-past', 'k-ctx', 'v-ctx', 'scores', 'attn', 'z', 'logits'].map(sh),
+    ['1', '1×4096', '1×4096', '1×1024', '32×1×128', '8×1×128', '8×4095×128', '8×4096×128', '8×4096×128', '32×1×4096', '32×1×4096', '1×4096', '1×128256']);
+  assert.deepStrictEqual(J(d.tensors['k-ctx'].sym), ['G', 'ctx', 'd_h']);
+  assert.ok(!d.ops.some((o) => o.id === 'mask'), 'sin máscara en decode');
+  assert.deepStrictEqual(J(d.ops.find((o) => o.id === 'kv-append-k').path), ['blocks', 'block', 'attn', 'kv-cache']);
+  assert.strictEqual(d.totals.params, p.totals.params);
+  const lin = (p.totals.macs - L * 2 * h * 2048 * 2048 * dh) / 2048;
+  assert.strictEqual(d.totals.macs, lin + 2 * L * h * ctx * dh);
+  assert.strictEqual(d.totals.flops, 17156800512);           // = HF con DynamicCache (override_checks del JSON)
+  assert.strictEqual(p.quantities.decodeMacsPerToken, d.totals.macs);
+  assert.strictEqual(p.quantities.decodeLinearMacs, lin);
+  for (const id of LLM) {
+    const pr = A6.run(id), dc = A6.run(id, { decode: 1, ctx: 8192 });
+    assert.strictEqual(A6.run(id, { ctx: 8192 }).quantities.decodeMacsPerToken, dc.totals.macs, id);
+    assert.strictEqual(pr.quantities.prefillMacs, pr.totals.macs, id);
+    assert.strictEqual(dc.quantities.prefillMacs, pr.totals.macs, id + ' prefill analítico desde el grafo decode');
+  }
+  assert.throws(() => A6.run('llama3-8b', { decode: 1, ctx: 1 }), /ctx debe ser ≥ 2/);
+  assert.throws(() => A6.run('llama3-8b', { decode: 2 }), /decode debe ser 1/);
+});
+
+test('llm knobs: nKV (MHA/GQA/MQA what-if), T, bits, ctx más allá del entrenamiento; errores en español', () => {
+  const base = A6.run('llama3-8b');
+  const mha = A6.run('llama3-8b', { nKV: 32 }), mqa = A6.run('llama3-8b', { nKV: 1 });
+  assert.strictEqual(mha.totals.params - base.totals.params, 32 * 2 * 4096 * (4096 - 1024));
+  assert.deepStrictEqual([mha.totals.params, mqa.totals.params], [8835567616, 7795380224]);     // = HF con num_key_value_heads = 32 / 1
+  assert.deepStrictEqual([mha.config.attnKind, mqa.config.attnKind], ['MHA', 'MQA']);
+  assert.match(mha.label, /MHA \(n_kv = 32\)/);
+  assert.ok(mha.notes.some((x) => /What-if/.test(x)));
+  // la KV cache escala con G; los MACs de QKᵀ y A·V no
+  const km = (ov) => A6.metrics('llama3-8b', ov).kvBytesPerToken;
+  assert.deepStrictEqual([km({ nKV: 32 }), km({}), km({ nKV: 1 })], [524288, 131072, 16384]);
+  const sc = (r) => r.ops.filter((o) => o.prim === 'attention_scores' || o.prim === 'attention_weighted_sum').reduce((s, o) => s + o.macs * o.repeat, 0);
+  assert.strictEqual(sc(mha), sc(base));
+  assert.strictEqual(A6.run('llama3-8b', { T: 64 }).totals.flops, 962743762944);   // = HF con T = 64
+  assert.throws(() => A6.run('llama3-8b', { nKV: 5 }), /no divide/);
+  assert.throws(() => A6.run('llama3-8b', { bits: 3 }), /bits debe ser 4, 8, 16 o 32/);
+  assert.throws(() => A6.run('llama3-8b', { res: 224 }), /Knob inválido/);
+  assert.ok(A6.run('llama3-8b', { ctx: 131072 }).notes.some((x) => /131,072 con escalado de RoPE/.test(x)));
+  assert.ok(A6.run('llama2-7b', { T: 8192 }).notes.some((x) => /supera el contexto de entrenamiento/.test(x)));
+  // bits no cambia la arquitectura (mismos params y MACs), solo los bytes
+  assert.deepStrictEqual([A6.run('llama3-8b', { bits: 4 }).totals.params, A6.run('llama3-8b', { bits: 4 }).totals.macs], [base.totals.params, base.totals.macs]);
+});
+
+test('llm metrics: KV cache, pesos por bits, intensidad aritmética prefill ≫ ridge ≫ decode, cotas de tokens/s (≈)', () => {
+  const m = A6.metrics('llama3-8b', {});
+  const L = 32, G = 8, dh = 128;
+  assert.strictEqual(m.kvBytesPerToken, 2 * L * G * dh * 2);                 // 131,072 B = 128 KiB por token en bf16
+  assert.strictEqual(m.kvCacheBytes, 131072 * 4096);
+  assert.strictEqual(m.kvCache, m.kvCacheBytes);
+  assert.strictEqual(m.kvCacheBytesMHA, 4 * m.kvCacheBytes);
+  assert.strictEqual(m.kvSavingVsMHA, 4);
+  assert.strictEqual(A6.metrics('llama3-8b', { ctx: 8192, B: 8 }).kvCacheBytes, 131072 * 8192 * 8);
+  assert.strictEqual(A6.metrics('llama3-8b', { bits: 8 }).kvBytesPerToken, 65536);
+  assert.strictEqual(A6.metrics('llama2-7b', {}).kvBytesPerToken, 524288);   // MHA: 4× Llama 3 8B
+  assert.deepStrictEqual([m.weightBytes, m.weightBytes8, m.weightBytes4], [2 * 8030261248, 8030261248, 4015130624]);
+  assert.strictEqual(A6.metrics('llama3-8b', { bits: 4 }).weightBytes, 4015130624);
+  // bytes por paso de decode (B = 1) = pesos menos la tabla de embedding + 1 fila + KV leída
+  const q = A6.run('llama3-8b').quantities;
+  assert.strictEqual(m.decodeBytesPerStep, (8030261248 - q.embedParams) * 2 + 4096 * 2 + 131072 * 4096);
+  assert.strictEqual(m.decodeKvBytesRead, 131072 * 4096);
+  // intensidad: decode ≈ 1 FLOP/B (memoria), prefill ≈ 2000 FLOP/B (cómputo); ridge H100 ≈ 295
+  assert.ok(m.arithmeticIntensityDecode > 1 && m.arithmeticIntensityDecode < 1.2, String(m.arithmeticIntensityDecode));
+  assert.ok(m.arithmeticIntensityPrefill > 2000, String(m.arithmeticIntensityPrefill));
+  assert.ok(Math.abs(m.ridgePoint - 989 / 3.35) < 1e-9);
+  assert.deepStrictEqual([m.decodeBound, m.prefillBound], ['memoria', 'cómputo']);
+  // cota de decode con B = 1 = bandwidth / bytes (limitada por memoria); el doble de ancho de banda, el doble de tokens/s
+  assert.ok(Math.abs(m.decodeTokPerSecUpperBound - 3.35e12 / m.decodeBytesPerStep) < 1e-9);
+  const m2 = A6.metrics('llama3-8b', { bandwidth: 6.7e12 });
+  assert.ok(Math.abs(m2.decodeTokPerSecUpperBound / m.decodeTokPerSecUpperBound - 2) < 1e-12);
+  assert.strictEqual(m2.bandwidth, 6.7e12);
+  assert.throws(() => A6.metrics('llama3-8b', { bandwidth: -1 }), /bandwidth debe ser un número positivo/);
+  // batch: la intensidad de decode crece con B (los pesos se leen una vez por paso)
+  const bs = m.batchScaling;
+  assert.ok(bs.every((x, i) => i === 0 || x.intensity > bs[i - 1].intensity));
+  assert.ok(bs.every((x, i) => i === 0 || x.tokPerSec > bs[i - 1].tokPerSec));
+  assert.strictEqual(A6.metrics('llama3-8b', { B: 32 }).arithmeticIntensityDecode, bs.find((x) => x.B === 32).intensity);
+  // ctx: la KV leída crece y los tokens/s bajan
+  assert.ok(m.ctxScaling.every((x, i) => i === 0 || x.tokPerSec < m.ctxScaling[i - 1].tokPerSec));
+  // memoria: secuencias de 4096 tokens que caben en 80 GB después de los pesos; 70B en bf16 no cabe en una GPU
+  assert.strictEqual(m.maxBatchInHbm, Math.floor((80e9 - 2 * 8030261248) / (131072 * 4096)));
+  assert.strictEqual(A6.metrics('llama3-70b', {}).maxBatchInHbm, 0);
+  // causal: el trabajo útil de QKᵀ y A·V es T(T+1)/2 de las T² entradas
+  assert.ok(Math.abs(m.prefillScoreMacsCausal / m.prefillScoreMacs - 2049 / 4096) < 1e-12);
+  assert.strictEqual(m.prefillMacsLastLogits, m.prefillMacs - 2047 * 4096 * 128256);
+  // "2 FLOPs por parámetro y token" (más los scores con ctx = 4096; la tabla de embedding no calcula)
+  assert.ok(m.decodeFlopsPerParam > 1.8 && m.decodeFlopsPerParam < 2.2);
+  assert.strictEqual(2 * m.decodeLinearMacs, 2 * (8030261248 - q.embedParams - 65 * 4096));   // lineales = 1 MAC por peso (sin normas)
+  // cruce scores vs lineales: T = D + G·d_h + 1.5·D_mlp
+  assert.strictEqual(m.crossoverN, 4096 + 1024 + 1.5 * 14336);
+  // Mixtral: decode lee solo 2 expertos por capa con B = 1; con B = 8 casi todos
+  const mx = A6.metrics('mixtral-8x7b', {}), mq = A6.run('mixtral-8x7b').quantities;
+  assert.strictEqual(mx.decodeExpertsReadPerLayer, 2);
+  assert.ok(A6.metrics('mixtral-8x7b', { B: 8 }).decodeExpertsReadPerLayer > 7);
+  assert.strictEqual(mx.decodeWeightBytesRead, (mq.activeParams - mq.embedParams) * 2 + 4096 * 2);
+  // quantities y metrics usan el mismo modelo de costo
+  for (const id of LLM) for (const ov of [{}, { B: 8, ctx: 8192, bits: 8 }]) {
+    const mm = A6.metrics(id, ov), qq = A6.run(id, ov).quantities;
+    for (const k of ['kvCacheBytes', 'weightBytes', 'decodeMacsPerToken', 'decodeBytesPerStep', 'prefillBytes', 'arithmeticIntensityDecode', 'arithmeticIntensityPrefill', 'decodeTokPerSecUpperBound', 'prefillMacs']) {
+      assert.ok(Math.abs(mm[k] - qq[k]) <= 1e-9 * Math.abs(mm[k]), id + ' ' + JSON.stringify(ov) + ' ' + k + ': ' + mm[k] + ' vs ' + qq[k]);
+    }
+  }
+});
+
+test('llm metrics: unidades conocidas por la práctica, toda …Macs con unidad; Quantities formatea bytes y MACs', () => {
+  const allowed = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params'];
+  for (const id of LLM) {
+    const m = A6.metrics(id, {});
+    for (const [k, u] of Object.entries(m.units)) assert.ok(allowed.includes(u), id + ' ' + k + ': ' + u);
+    for (const k of Object.keys(m)) {
+      if (typeof m[k] !== 'number') continue;
+      if (/Macs$|Bytes|Params$|PerSec|Intensity/.test(k) && !/^(attnMacs|scoreMacs)$/.test(k)) assert.ok(m.units[k], id + ' ' + k + ' sin unidad');
+      assert.ok(isFinite(m[k]), id + ' ' + k);
+    }
+  }
+  assert.strictEqual(Q6.get('llama3-8b.metrics.kvBytesPerToken').text, '131.1 KB');
+  assert.strictEqual(Q6.get('llama3-8b.metrics.kvCacheBytes').text, '536.9 MB');
+  assert.strictEqual(Q6.get('llama3-8b.metrics.weightBytes').text, '16.1 GB');
+  assert.strictEqual(Q6.get('llama3-8b.metrics.decodeMacsPerToken').text, '8.58 GMACs');
+  assert.strictEqual(Q6.get('llama3-8b.metrics.kvSavingVsMHA').text, '4');
+  assert.strictEqual(Q6.get('llama3-8b.params.total').text, '8,030,261,248');
+  assert.strictEqual(Q6.get('mixtral-8x7b.activeParams').text, '12,879,925,248');
+  assert.strictEqual(Q6.get('llama3-8b.tensor.k.sym').text, 'T×G·d_h');
+  assert.strictEqual(Q6.get('llama3-8b.cfg.G').text, '8');
+});
+
+test('F6 etiqueta + símbolo identifican una forma; byPath suma; aritmética; where; Quantities resuelve todas las claves', () => {
+  for (const id of LLM) {
+    for (const ov of [{}, { decode: 1 }, { nKV: 1 }]) {
+      const r = A6.run(id, ov), t = r.totals;
+      const by = {};
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        const k = x.label + '|' + String(x.tex).split('=')[0].trim();
+        (by[k] = by[k] || new Set()).add(x.num.join('×'));
+      }
+      for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.params * o.repeat, 0), t.params);
+      assert.strictEqual(Object.values(t.byPrim).reduce((s, x) => s + x.macs, 0), t.macs);
+      const check = (pp, want) => {
+        const kids = children(r, pp);
+        if (!kids.length) return;
+        const at = (k) => t.byPath[pp.concat([k]).join('>')];
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).params, 0), want.params, id + ' params bajo ' + (pp.join('>') || 'raíz'));
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).macs, 0), want.macs, id + ' MACs bajo ' + (pp.join('>') || 'raíz'));
+        kids.forEach((k) => check(pp.concat([k]), at(k)));
+      };
+      check([], t);
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        if (x.producer) assert.ok(r.ops.find((o) => o.id === x.producer).out.includes(tid));
+        x.consumers.forEach((oid) => assert.ok(r.ops.find((o) => o.id === oid).in.includes(tid)));
+      }
+      for (const op of r.ops) {
+        if (op.params) assert.ok(op.paramArith.endsWith(A6.fmt.int(op.params)), id + ' ' + op.id + ' paramArith');
+        if (op.macs) assert.ok(op.macArith.endsWith(A6.fmt.int(op.macs)), id + ' ' + op.id + ' macArith');
+        assert.ok(!/undefined|NaN/.test(op.paramTex + op.macTex + op.shapeTex), id + ' ' + op.id + ' tex');
+        assert.ok(Array.isArray(op.where) && op.where.length, id + ' ' + op.id + ' sin where');
+      }
+    }
+    assert.strictEqual(A6.run(id), A6.run(id), 'memoizado');
+    J(Q6.keys(id)).forEach((k) => assert.ok(Q6.get(id + '.' + k), id + '.' + k));
+  }
+});

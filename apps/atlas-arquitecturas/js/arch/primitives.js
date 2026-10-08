@@ -62,6 +62,14 @@
      broadcast_embed, idle_params (parámetros del modelo que el forward no usa: sin tensores ni MACs), rope_2d, take_rows,
      grouped_linear (hipernetwork), hyper_dot, mask_select, pick_mask, upsample_bilinear, to_grid, split_tokens, repeat_rows,
      add_temporal_embed, pos_embed_grid, window_pos_embed y gate_embed. Ninguna cambia el resultado de las fases 1–4.
+   - Fase 6 (LLM decoder: Llama 3, Llama 2, Mixtral): rope (RoPE 1-D por cabeza, θ configurable), split_gqa_heads (Q en h
+     cabezas, K y V en G cabezas KV: GQA/MQA/MHA), mul (producto elementwise de SwiGLU), lm_head (Linear D → V sin sesgo),
+     sample_token (última fila de los logits → siguiente token), kv_append (KV cache: filas pasadas + la nueva), moe_router,
+     moe_topk, expert_linear (pesos de E expertos, MACs solo de las filas enrutadas), moe_combine; compuestas swiglu,
+     gqa_attention, llama_block y moe_ffn. attention_scores y attention_weighted_sum aceptan además K/V con MENOS cabezas
+     que Q (GQA: h divisible por G; cada cabeza KV la comparten h/G cabezas de query; MACs h·N_q·N_k·d_h, iguales que MHA):
+     con las mismas cabezas el resultado es exactamente el de antes. NON_ARCH suma 'bandwidth', 'peakFlops' y 'hbmBytes'
+     (entradas de hardware de metrics(), no knobs) y def.metrics recibe también `overrides`. Ninguna cambia las fases 1–5.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -193,7 +201,9 @@
     // Fase 4: SiLU (x·σ(x)) ≈ sigmoide + producto.
     silu: 4,
     // Fase 5: interpolación bilineal (4 vecinos) y bicúbica (16), rotación RoPE (q·cos + rot(q)·sin).
-    bilinear: 4, bicubic: 16, rope: 3 };
+    bilinear: 4, bicubic: 16, rope: 3,
+    // Fase 6: producto elementwise (SwiGLU: SiLU(gate) ⊙ up), top-k del router (≈ 1 comparación por logit).
+    mul: 1, topk: 1 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -360,12 +370,15 @@
     const nd = q.num.length;
     const lead = q.num.slice(0, nd - 3), leadSym = q.sym.slice(0, nd - 3);
     const [h, Nq, dh] = q.num.slice(nd - 3), Nk = k.num[nd - 2];
-    if (k.num.length !== nd || k.num[nd - 3] !== h || k.num[nd - 1] !== dh || lead.some((v, i) => k.num[i] !== v)) throw new Error('attention_scores: Q y K con cabezas o d_h distintos.');
+    // Fase 6 (GQA): K puede tener G cabezas con h divisible por G; cada cabeza de K la usan h/G cabezas de Q.
+    const hk = k.num[nd - 3];
+    if (k.num.length !== nd || !(hk > 0 && h % hk === 0) || k.num[nd - 1] !== dh || lead.some((v, i) => k.num[i] !== v)) throw new Error('attention_scores: Q y K con cabezas o d_h distintos.');
     const qs = q.sym.slice(nd - 3);
     const out = shape(leadSym.concat([qs[0], qs[1], k.sym[nd - 2]]), lead.concat([h, Nq, Nk]), q.mod, lead.length ? 'winheads' : 'heads');
     return result('attention_scores', [q, k], out, {
       macTerms: [lead.concat([h, Nq, Nk, dh])], macTex: texProd(leadSym.concat([qs[0], qs[1], k.sym[nd - 2], qs[2]])),
-      detail: Object.assign({ h, Nq, Nk, dh, note: 'h·N·N·d_h = N²·D' }, lead.length ? { windows: prod(lead) } : {}),
+      detail: Object.assign({ h, Nq, Nk, dh, note: 'h·N·N·d_h = N²·D' }, lead.length ? { windows: prod(lead) } : {},
+        hk !== h ? { kvHeads: hk, groups: h / hk, note: 'GQA: cada cabeza de K la comparten h/G cabezas de Q; MACs h·N_q·N_k·d_h, como MHA' } : {}),
     });
   }
 
@@ -374,12 +387,13 @@
     const nd = a.num.length;
     const lead = a.num.slice(0, nd - 3), leadSym = a.sym.slice(0, nd - 3);
     const [h, Nq, Nk] = a.num.slice(nd - 3), dh = v.num[nd - 1];
-    if (v.num.length !== nd || v.num[nd - 3] !== h || v.num[nd - 2] !== Nk) throw new Error('attention_weighted_sum: A y V incompatibles.');
+    const hv = v.num[nd - 3];   // fase 6 (GQA): V con G cabezas, h divisible por G
+    if (v.num.length !== nd || !(hv > 0 && h % hv === 0) || v.num[nd - 2] !== Nk) throw new Error('attention_weighted_sum: A y V incompatibles.');
     const as = a.sym.slice(nd - 3);
     const out = shape(leadSym.concat([as[0], as[1], v.sym[nd - 1]]), lead.concat([h, Nq, dh]), a.mod, lead.length ? 'winheads' : 'heads');
     return result('attention_weighted_sum', [a, v], out, {
       macTerms: [lead.concat([h, Nq, Nk, dh])], macTex: texProd(leadSym.concat([as[0], as[1], as[2], v.sym[nd - 1]])),
-      detail: { h, Nq, Nk, dh },
+      detail: Object.assign({ h, Nq, Nk, dh }, hv !== h ? { kvHeads: hv, groups: h / hv } : {}),
     });
   }
 
@@ -1155,6 +1169,117 @@
     return result('gate_embed', [x], plain(x), { paramTerms: [[D]], paramTex: symTexFactor(Ds), other: 3 * elems(x), detail: { D, mode: (o && o.mode) || 'replace' } });
   }
 
+  // ---- Fase 6 (LLM decoder: Llama, Mixtral): primitivas elementales -----------------------
+  // rope (RoPE 1-D, Su et al. 2021): rota cada par de canales (2i, 2i+1) de cada cabeza por el ángulo m·θ_i, con
+  // θ_i = base^(−2i/d_h) y m la posición del token. Sin parámetros (cos/sin son buffers) ni MACs de matmul: ≈ 3 ops
+  // por elemento (q·cos + rot(q)·sin). La forma no cambia. o = {theta=10000, pos0=0 (posición del primer token; en
+  // decode = ctx − 1), positions}
+  function rope(x, o) {
+    o = o || {};
+    const nd = x.num.length, dh = x.num[nd - 1], rows = x.num[nd - 2];
+    if (dh % 2 !== 0) throw new Error('rope: d_h = ' + dh + ' debe ser par (rota pares de canales).');
+    return result('rope', [x], plain(x), {
+      other: elems(x) * OTHER.rope,
+      detail: { theta: o.theta || 10000, dh, pairs: dh / 2, positions: rows, pos0: o.pos0 || 0, scaling: o.scaling || null,
+        note: 'q_m·k_n depende solo de m − n: la posición relativa entra en el producto punto, sin tabla aprendida' },
+    });
+  }
+
+  // split_gqa_heads (GQA): Q (N×h·d_h) → h×N×d_h; K y V (S×G·d_h) → G×S×d_h. G cabezas KV, h divisible por G (cada
+  // cabeza KV la comparten h/G cabezas de query). G = h es MHA; G = 1 es MQA. Reshape + transpose: sin costo.
+  // o = {h, G, hSym='h', gSym='G', dhSym='d_h'}
+  function split_gqa_heads(q, k, v, o) {
+    const h = o.h, G = o.G;
+    if (!(G > 0) || h % G !== 0) throw new Error('split_gqa_heads: h = ' + h + ' no es divisible por G = ' + G + ' cabezas KV.');
+    if (q.num[1] % h !== 0) throw new Error('split_gqa_heads: el ancho de Q (' + q.num[1] + ') no es divisible por h = ' + h + '.');
+    const dh = q.num[1] / h;
+    if (k.num[1] !== G * dh || v.num[1] !== G * dh) throw new Error('split_gqa_heads: K y V deben tener G·d_h = ' + (G * dh) + ' canales.');
+    if (k.num[0] !== v.num[0]) throw new Error('split_gqa_heads: K y V deben tener el mismo largo.');
+    const mk = (x, n, ns) => shape([ns, x.sym[0], o.dhSym || 'd_h'], [n, x.num[0], dh], x.mod, 'heads');
+    const hs = o.hSym || 'h', gs = o.gSym || 'G';
+    return result('split_gqa_heads', [q, k, v], [mk(q, h, hs), mk(k, G, gs), mk(v, G, gs)], {
+      detail: { h, G, dh, groups: h / G, kind: G === h ? 'MHA' : (G === 1 ? 'MQA' : 'GQA') },
+    });
+  }
+
+  // mul: producto elementwise de dos tensores de la misma forma (SwiGLU: SiLU(gate) ⊙ up). 1 op por elemento.
+  function mul(a, b) {
+    if (shapeStr(a) !== shapeStr(b)) throw new Error('Producto elementwise con formas distintas: ' + shapeStr(a) + ' y ' + shapeStr(b) + '.');
+    return result('mul', [a, b], plain(a), { other: elems(a) * OTHER.mul });
+  }
+
+  // lm_head: Linear D → V sin sesgo sobre cada fila (logits del vocabulario). o = {V, Vsym='V', tied=false}
+  // Con embeddings atados (tied) la matriz es la del embedding: 0 parámetros propios (los MACs no cambian).
+  function lm_head(x, o) {
+    const r = linear(x, { dout: o.V, doutSym: o.Vsym || 'V', bias: false, mod: x.mod });
+    r.prim = 'lm_head';
+    if (o.tied) { r.params = 0; r.paramFormula = '0\\ (\\text{atada al embedding})'; r.paramArith = '0'; }
+    r.detail = Object.assign({}, r.detail, { tied: !!o.tied });
+    return r;
+  }
+
+  // sample_token: la última fila de los logits (T×V) → softmax con temperatura → siguiente id (greedy, top-k o top-p).
+  // Sin parámetros ni MACs; ≈ softmax de V más una pasada de selección. → vector de 1.
+  function sample_token(logits, o) {
+    const V = logits.num[logits.num.length - 1];
+    return result('sample_token', [logits], shape(['1'], [1], logits.mod, 'vec'), {
+      other: V * (OTHER.softmax + 1), detail: { V, row: 'última', strategy: (o && o.strategy) || 'greedy / top-k / top-p' },
+    });
+  }
+
+  // kv_append (KV cache, decode): concatena las filas guardadas (G×P×d_h) y la(s) nueva(s) (G×n×d_h) → G×(P+n)×d_h.
+  // Mover datos: 0 parámetros, 0 MACs. o.sym = símbolo del largo resultante.
+  function kv_append(past, nw, o) {
+    const nd = past.num.length;
+    if (nw.num.length !== nd || past.num[nd - 1] !== nw.num[nd - 1] || past.num[nd - 3] !== nw.num[nd - 3]) throw new Error('kv_append: la caché y la fila nueva no coinciden en cabezas o d_h.');
+    const P = past.num[nd - 2], n = nw.num[nd - 2];
+    const sym = past.sym.slice(); sym[nd - 2] = (o && o.sym) || (past.sym[nd - 2] + '+' + nw.sym[nd - 2]);
+    const num = past.num.slice(); num[nd - 2] = P + n;
+    return result('kv_append', [past, nw], shape(sym, num, past.mod, past.layout), { detail: { past: P, added: n, total: P + n } });
+  }
+
+  // moe_router (Mixtral): Linear D → E sin sesgo: un logit por experto y por token.
+  function moe_router(x, o) {
+    const r = linear(x, { dout: o.E, doutSym: o.Esym || 'E', bias: false, mod: x.mod });
+    r.prim = 'moe_router';
+    r.detail = Object.assign({}, r.detail, { E: o.E });
+    return r;
+  }
+
+  // moe_topk (Mixtral): softmax sobre los E logits, se quedan los k mayores y sus pesos se renormalizan a suma 1
+  // (equivale a softmax sobre los k logits elegidos). T×E → pesos T×k y ids T×k. Solo "otros".
+  function moe_topk(logits, o) {
+    const [T, E] = logits.num, k = o.k;
+    if (!(k > 0 && k <= E)) throw new Error('moe_topk: k = ' + k + ' debe estar entre 1 y E = ' + E + '.');
+    const mk = () => shape([logits.sym[0], String(k)], [T, k], logits.mod, 'seq');
+    return result('moe_topk', [logits], [mk(), mk()], {
+      other: T * E * (OTHER.softmax + OTHER.topk) + T * k, detail: { E, k, renorm: true, note: 'softmax → top-k → renormalizar (= softmax de los k logits elegidos)' },
+    });
+  }
+
+  // expert_linear (MoE): las S filas enrutadas (S = k·T pares token-experto) pasan por el Linear de SU experto.
+  // Parámetros = los E expertos (E·D_in·D_out; todos ocupan memoria); MACs = solo las filas enrutadas, S·D_in·D_out
+  // (cada token paga k expertos, no E). o = {E, Esym='E', dout, doutSym}
+  function expert_linear(x, o) {
+    const [S, din] = x.num, [Ss, dinSym] = x.sym, dout = o.dout, doutSym = o.doutSym || String(dout);
+    const Es = o.Esym || 'E';
+    return result('expert_linear', [x], shape([Ss, doutSym], [S, dout], o.mod || x.mod, 'seq'), {
+      paramTerms: [[o.E, din, dout]], paramTex: texProd([Es, dinSym, doutSym]),
+      macTerms: [[S, din, dout]], macTex: texProd([Ss, dinSym, doutSym]),
+      detail: { E: o.E, din, dout, rows: S, note: 'pesos de los E expertos; MACs solo de las filas enrutadas' },
+    });
+  }
+
+  // moe_combine (MoE): suma ponderada por token de las k salidas de experto: (k·T)×D, pesos T×k → T×D.
+  // Elementwise (k productos y sumas por canal): "otros", sin MACs de matmul.
+  function moe_combine(y, w, o) {
+    const [S, D] = y.num, [T, k] = w.num;
+    if (S !== T * k) throw new Error('moe_combine: ' + S + ' filas no son k·T = ' + (k * T) + '.');
+    return result('moe_combine', [y, w], shape([w.sym[0], y.sym[1]], [T, D], y.mod, 'seq'), {
+      other: 2 * S * D, detail: { k, T, D, note: 'y = Σ_j p_j · Experto_j(x) sobre los k expertos elegidos' },
+    });
+  }
+
   // ---- compuestas (para fórmulas, tablas y pruebas; los modelos usan las elementales en el grafo)
   function composite(prim, x, parts, out, o) {
     return {
@@ -1596,6 +1721,86 @@
     return r;
   }
 
+  // ---- Fase 6: compuestas -------------------------------------------------------------------
+  // swiglu (FFN de Llama/Mixtral, Shazeer 2020): down(SiLU(x·W_gate) ⊙ (x·W_up)), sin sesgos.
+  // Parámetros 3·D·D_mlp; MACs 3·N·D·D_mlp. o = {Dmlp, DmlpSym='D_mlp'}
+  function swiglu(x, o) {
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1], Ms = o.DmlpSym || 'D_mlp';
+    const g = linear(x, { dout: o.Dmlp, doutSym: Ms, bias: false });
+    const u = linear(x, { dout: o.Dmlp, doutSym: Ms, bias: false });
+    const a = silu(g.out);
+    const m = mul(a.out, u.out);
+    const d = linear(m.out, { dout: D, doutSym: Ds, bias: false });
+    const dd = symTexFactor(Ds), mm = symTexFactor(Ms), n = symTexFactor(x.sym[0]);
+    return composite('swiglu', x, [g, u, a, m, d], d.out, {
+      paramTex: '3\\,' + dd + '\\,' + mm, macTex: '3\\,' + n + '\\,' + dd + '\\,' + mm,
+      detail: { Dmlp: o.Dmlp, note: 'Tres matrices (gate, up, down) en vez de dos: Llama usa D_mlp ≈ 8D/3·(redondeo) para igualar parámetros con un MLP 4D.' },
+    });
+  }
+
+  // gqa_attention (Llama): W_Q (D → h·d_h), W_K y W_V (D → G·d_h), RoPE en Q y K, QKᵀ/√d_h + máscara causal, softmax,
+  // ·V, W_O (h·d_h → D); sin sesgos. G = cabezas KV (G = h: MHA; G = 1: MQA). o = {h, G, theta}
+  // Parámetros 2D·h·d_h + 2D·G·d_h (= 2D² + 2D·G·d_h con h·d_h = D). MACs N(2D² + 2D·G·d_h) + 2N²D (máscara sin ahorro).
+  function gqa_attention(x, o) {
+    const D = x.num[1], Ds = x.sym[1], h = o.h, G = o.G, dh = o.dh || D / h;
+    const q = linear(x, { dout: h * dh, doutSym: Ds, bias: false });
+    const k = linear(x, { dout: G * dh, doutSym: 'G·d_h', bias: false });
+    const v = linear(x, { dout: G * dh, doutSym: 'G·d_h', bias: false });
+    const sp = split_gqa_heads(q.out, k.out, v.out, { h, G });
+    const rq = rope(sp.out[0], { theta: o.theta }), rk = rope(sp.out[1], { theta: o.theta });
+    const sc = attention_scores(rq.out, rk.out);
+    const sl = scale(sc.out);
+    const mk = causal_mask(sl.out);
+    const sm = softmax(mk.out);
+    const ws = attention_weighted_sum(sm.out, sp.out[2]);
+    const mg = merge_heads(ws.out, { Dsym: Ds });
+    const pj = linear(mg.out, { dout: D, doutSym: Ds, bias: false });
+    const d = symTexFactor(Ds), n = symTexFactor(x.sym[0]);
+    return composite('gqa_attention', x, [q, k, v, sp, rq, rk, sc, sl, mk, sm, ws, mg, pj], pj.out, {
+      paramTex: '2' + d + '^2 + 2\\,' + d + '\\,G\\,d_h', macTex: n + '\\,(2' + d + '^2 + 2\\,' + d + '\\,G\\,d_h) + 2\\,' + n + '^2\\,' + d,
+      detail: { h, G, dh, groups: h / G, kind: G === h ? 'MHA' : (G === 1 ? 'MQA' : 'GQA'), kvPerToken: 2 * G * dh },
+    });
+  }
+
+  // llama_block (pre-norm con RMSNorm): x + Attn(RMSNorm(x)); luego + SwiGLU(RMSNorm(·)).
+  // Parámetros 2D² + 2D·G·d_h + 3D·D_mlp + 2D. o = {h, G, Dmlp, theta}
+  function llama_block(x, o) {
+    const n1 = rmsnorm(x);
+    const at = gqa_attention(n1.out, o);
+    const r1 = residual_add(x, at.out);
+    const n2 = rmsnorm(r1.out);
+    const ff = swiglu(n2.out, o);
+    const r2 = residual_add(r1.out, ff.out);
+    const d = symTexFactor(x.sym[1]), n = symTexFactor(x.sym[0]);
+    return composite('llama_block', x, [n1, at, r1, n2, ff, r2], r2.out, {
+      paramTex: '2' + d + '^2 + 2\\,' + d + '\\,G\\,d_h + 3\\,' + d + '\\,D_{\\mathrm{mlp}} + 2' + d,
+      macTex: n + '\\,(2' + d + '^2 + 2\\,' + d + '\\,G\\,d_h + 3\\,' + d + '\\,D_{\\mathrm{mlp}}) + 2\\,' + n + '^2\\,' + d,
+      detail: { note: 'Sin sesgos; dos RMSNorm (solo γ, D parámetros cada una).' },
+    });
+  }
+
+  // moe_ffn (Mixtral): router D → E, top-k, cada token pasa por k expertos SwiGLU y se combinan con los pesos del router.
+  // Parámetros D·E + 3·E·D·D_mlp; MACs N·D·E + 3·k·N·D·D_mlp (solo los k expertos activos de cada token).
+  // o = {E, k, Dmlp}
+  function moe_ffn(x, o) {
+    const D = x.num[1], Ds = x.sym[1], Ms = o.DmlpSym || 'D_mlp', k = o.k;
+    const rs = String(k) + x.sym[0];
+    const rt = moe_router(x, { E: o.E });
+    const tk = moe_topk(rt.out, { k });
+    const dp = repeat_rows(x, { k, sym: rs });
+    const g = expert_linear(dp.out, { E: o.E, dout: o.Dmlp, doutSym: Ms });
+    const u = expert_linear(dp.out, { E: o.E, dout: o.Dmlp, doutSym: Ms });
+    const a = silu(g.out);
+    const m = mul(a.out, u.out);
+    const dn = expert_linear(m.out, { E: o.E, dout: D, doutSym: Ds });
+    const cb = moe_combine(dn.out, tk.out[0]);
+    const d = symTexFactor(Ds), n = symTexFactor(x.sym[0]);
+    return composite('moe_ffn', x, [rt, tk, dp, g, u, a, m, dn, cb], cb.out, {
+      paramTex: d + '\\,E + 3\\,E\\,' + d + '\\,D_{\\mathrm{mlp}}', macTex: n + '\\,' + d + '\\,E + 3\\,k\\,' + n + '\\,' + d + '\\,D_{\\mathrm{mlp}}',
+      detail: { E: o.E, k, activeExpertParams: 3 * k * D * o.Dmlp, totalExpertParams: 3 * o.E * D * o.Dmlp },
+    });
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -1617,6 +1822,9 @@
     conv_transpose2d, depthwise_conv2d, window_partition_pad, window_unpartition, decomposed_rel_pos, query_pool, coord_grid, fourier_pe,
     append_pad_point, type_embed, learned_tokens, broadcast_embed, idle_params, rope_2d, take_rows, grouped_linear, hyper_dot, mask_select,
     pick_mask, upsample_bilinear, to_grid, split_tokens, repeat_rows, add_temporal_embed, pos_embed_grid, window_pos_embed, gate_embed,
+    // Fase 6
+    rope, split_gqa_heads, mul, lm_head, sample_token, kv_append, moe_router, moe_topk, expert_linear, moe_combine,
+    swiglu, gqa_attention, llama_block, moe_ffn,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -1748,6 +1956,21 @@
     { id: 'pos_embed_grid', name: 'Posición absoluta (rejilla)', paramTex: 'h\\,w\\,D', macTex: '0', outTex: '\\to h\\times w\\times D', note: 'SAM: 64×64×1280 aprendida (5.2 M parámetros en ViT-H); sin token CLS.' },
     { id: 'window_pos_embed', name: 'Posición por ventanas (Hiera)', paramTex: 'C\\,(b^2 + w_0^2)', macTex: '0', outTex: '\\to h\\times w\\times C', note: 'Fondo b×b interpolado + tabla de una ventana repetida en mosaico (Bolya et al. 2023).' },
     { id: 'gate_embed', name: 'Embedding de "no objeto"', paramTex: 'D', macTex: '0', outTex: 'N\\times D \\to N\\times D', note: 'SAM 2: si el objeto está ocluido, el puntero pasa a ser un vector aprendido y la memoria recibe un embedding de oclusión.' },
+    // Fase 6 (LLM decoder: Llama 3, Llama 2, Mixtral)
+    { id: 'rope', name: 'RoPE (posición rotatoria)', paramTex: '0', macTex: '0', outTex: 'h\\times T\\times d_h \\to h\\times T\\times d_h', note: 'Rota cada par de canales de cada cabeza por m·θ_i (θ_i = base^{−2i/d_h}; base 500,000 en Llama 3): q_m·k_n solo depende de m − n. Sin parámetros; se aplica a Q y K, nunca a V.' },
+    { id: 'split_gqa_heads', name: 'Separar en cabezas (GQA)', paramTex: '0', macTex: '0', outTex: 'T\\times hd_h,\\ T\\times Gd_h \\to h\\times T\\times d_h,\\ G\\times T\\times d_h', note: 'Q en h cabezas; K y V en G cabezas KV, cada una compartida por h/G cabezas de query (G = h: MHA; G = 1: MQA).' },
+    { id: 'mul', name: 'Producto elementwise', paramTex: '0', macTex: '0', outTex: 'N\\times D_{\\mathrm{mlp}} \\to N\\times D_{\\mathrm{mlp}}', note: 'SwiGLU: SiLU(gate) ⊙ up, la compuerta multiplicativa.' },
+    { id: 'lm_head', name: 'LM head', paramTex: 'D\\,V', macTex: 'T\\,D\\,V', outTex: 'T\\times D \\to T\\times V', note: 'Linear sin sesgo al vocabulario (en Llama 3 8B, V = 128,256: 525 M parámetros). Con embeddings atados comparte la matriz del embedding. En decode solo corre sobre 1 fila.' },
+    { id: 'sample_token', name: 'Muestrear el siguiente token', paramTex: '0', macTex: '0', outTex: 'T\\times V \\to 1', note: 'La última fila de los logits → softmax con temperatura → greedy, top-k o top-p. El token elegido es la entrada del siguiente paso de decode.' },
+    { id: 'kv_append', name: 'Añadir a la KV cache', paramTex: '0', macTex: '0', outTex: 'G\\times (S{-}1)\\times d_h,\\ G\\times 1\\times d_h \\to G\\times S\\times d_h', note: 'Decode: la K y la V del token nuevo se agregan a las guardadas; la atención lee las S filas. Crece 2·L·G·d_h·bytes por token.' },
+    { id: 'moe_router', name: 'Router MoE', paramTex: 'D\\,E', macTex: 'T\\,D\\,E', outTex: 'T\\times D \\to T\\times E', note: 'Linear sin sesgo: un logit por experto (E = 8 en Mixtral).' },
+    { id: 'moe_topk', name: 'Top-k del router', paramTex: '0', macTex: '0', outTex: 'T\\times E \\to T\\times k,\\ T\\times k', note: 'Softmax, los k mayores (k = 2 en Mixtral) y sus pesos renormalizados. Entrenar con una pérdida auxiliar de balanceo evita que todo vaya a pocos expertos.' },
+    { id: 'expert_linear', name: 'Linear por experto', paramTex: 'E\\,D_{in}\\,D_{out}', macTex: 'kT\\,D_{in}\\,D_{out}', outTex: 'kT\\times D_{in} \\to kT\\times D_{out}', note: 'Memoria: los E expertos. Cómputo: solo las kT filas enrutadas (cada token paga k expertos, no E).' },
+    { id: 'moe_combine', name: 'Combinar expertos', paramTex: '0', macTex: '0', outTex: 'kT\\times D,\\ T\\times k \\to T\\times D', note: 'y = Σ_j p_j·Experto_j(x): suma ponderada por los pesos del router.' },
+    { id: 'swiglu', name: 'FFN SwiGLU', paramTex: '3D\\,D_{\\mathrm{mlp}}', macTex: '3T\\,D\\,D_{\\mathrm{mlp}}', outTex: 'T\\times D \\to T\\times D', note: 'down(SiLU(xW_gate) ⊙ xW_up), sin sesgos: tres matrices. Llama 3 8B: D_mlp = 14,336 = 3.5D.' },
+    { id: 'gqa_attention', name: 'Atención GQA (Llama)', paramTex: '2D^2 + 2D\\,G\\,d_h', macTex: 'T(2D^2 + 2D\\,G\\,d_h) + 2T^2D', outTex: 'T\\times D \\to T\\times D', note: 'W_Q y W_O de D×D; W_K y W_V de D×G·d_h. Con G = 8 de 32, K y V (y la KV cache) son 4× más chicas que en MHA; los MACs de QKᵀ y A·V no cambian.' },
+    { id: 'llama_block', name: 'Bloque decoder (Llama)', paramTex: '2D^2 + 2D\\,G\\,d_h + 3D\\,D_{\\mathrm{mlp}} + 2D', macTex: 'T(2D^2 + 2D\\,G\\,d_h + 3D\\,D_{\\mathrm{mlp}}) + 2T^2D', outTex: 'T\\times D \\to T\\times D', note: 'Pre-norm con RMSNorm, atención GQA con RoPE, FFN SwiGLU, sin sesgos. Llama 3 8B: 218 M parámetros por bloque, 81 % en la FFN.' },
+    { id: 'moe_ffn', name: 'FFN MoE (Mixtral)', paramTex: 'D\\,E + 3E\\,D\\,D_{\\mathrm{mlp}}', macTex: 'T\\,D\\,E + 3kT\\,D\\,D_{\\mathrm{mlp}}', outTex: 'T\\times D \\to T\\times D', note: 'E expertos SwiGLU y un router top-k: parámetros ∝ E, cómputo por token ∝ k. Mixtral 8×7B: 46.7 B totales, 12.9 B activos por token.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -1887,7 +2110,8 @@
     return models[m];
   }
 
-  const NON_ARCH = ['B', 'dtype', 'ctx'];   // no cambian la arquitectura (solo bytes)…
+  // Fase 6: 'bandwidth', 'peakFlops' y 'hbmBytes' son entradas de hardware de metrics() (cotas ≈ de tokens/s y memoria).
+  const NON_ARCH = ['B', 'dtype', 'ctx', 'bandwidth', 'peakFlops', 'hbmBytes'];   // no cambian la arquitectura (solo bytes)…
   // …salvo que el modelo los declare como knob (CLIP: B cambia los tensores conjuntos B×E y B×B).
   const nonArch = (def) => NON_ARCH.filter((k) => !(def.knobs && k in def.knobs));
 
@@ -1970,6 +2194,8 @@
     // repetido) y el sesgo descompuesto previo al softmax.
     window_partition_pad: 1, window_unpartition: 1, decomposed_rel_pos: 1, take_rows: 1, to_grid: 1, split_tokens: 1, repeat_rows: 1,
     mask_select: 1, learned_tokens: 1, pos_embed_grid: 1, window_pos_embed: 1, coord_grid: 1, broadcast_embed: 1, append_pad_point: 1,
+    // Fase 6: vista de cabezas (GQA), concatenación con la KV cache (inferencia) y el id muestreado.
+    split_gqa_heads: 1, kv_append: 1, sample_token: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).
@@ -2031,7 +2257,7 @@
       const ctx = ov.ctx || out.tokens;
       out.kvCache = 2 * layers * ctx * cfg.D * by * B;  // K y V de cada capa
     }
-    if (def.metrics) Object.assign(out, def.metrics(cfg, r, { B, by, dtype, actMemPerSample: out.actMemPerSample, actMemBatch: out.actMem }));
+    if (def.metrics) Object.assign(out, def.metrics(cfg, r, { B, by, dtype, actMemPerSample: out.actMemPerSample, actMemBatch: out.actMem, overrides: Object.assign({}, ov) }));
     return out;
   }
   function bytesOf(dtype) { return DTYPE_BYTES[dtype]; }

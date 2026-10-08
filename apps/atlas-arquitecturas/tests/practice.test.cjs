@@ -20,7 +20,7 @@ function load() {
 }
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2'];
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm'];
 const diagrams = ATLAS.diagrams();
 
 // Lo que el diagrama escribe para un nodo (archdiagram.js nodeCost): por capa si todas las ops se
@@ -348,4 +348,44 @@ test('fase 5: drills de SAM 2 sin prompts repetidos con respuestas distintas; el
   const np = P._nodeParams(R, 'sam2', { op: 'me-ds1-conv' }) || P._drillCandidates([{ model: 'sam2', configs: ['sam2-hiera-l'], pool: 'all' }], ['params'])
     .map((c) => P._nodeParams(R, 'sam2', c.node)).find((x) => x.ops.some((o) => o.id === 'me-ds1-conv'));
   assert.match(np.label, /1 → 4/);
+});
+
+test('fase 6: toda forma del modelo llm (prefill y decode, denso y MoE) sale de los datos de la tarjeta o de su etiqueta; units conocidas', () => {
+  let n = 0;
+  for (const cfg of ['llama3-8b', 'llama3-70b', 'llama2-7b', 'mixtral-8x7b']) {
+    for (const ov of [{}, { decode: 1 }]) {
+      const R = A.run(cfg, ov);
+      const known = {};
+      P._factPairs(R.config).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
+      if (known.dh == null && known.D != null) known.dh = known.D / known.h;
+      for (const id of R.order) {
+        const t = R.tensors[id];
+        const text = (t.label || '') + ' ' + (t.tex || '');
+        t.sym.forEach((sym, i) => {
+          const str = String(sym);
+          if (/^\d+$/.test(str)) return;
+          const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+          const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+          if (ids.some((x) => !(x in known))) {
+            // decode: ctx (contexto de la KV cache) va en la etiqueta del tensor con su número
+            const v = ids.includes('ctx') ? Function('ctx', 'return ' + e.replace(/[A-Za-z_]+(?<!ctx)\b/g, (m) => (m in known ? known[m] : m)))(R.config.ctx) : t.num[i];
+            assert.strictEqual(v, t.num[i], cfg + ' ' + id + ': ' + str);
+            assert.ok(new RegExp('\\b' + (ids.includes('ctx') ? A.fmt.int(R.config.ctx) : t.num[i]) + '\\b').test(text) || ids.includes('ctx') && /ctx/.test(R.label), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
+            return;
+          }
+          n++;
+          assert.strictEqual(Function(...Object.keys(known), 'return ' + e)(...Object.values(known)), t.num[i], cfg + ' ' + id + ': ' + str);
+        });
+      }
+    }
+  }
+  assert.ok(n > 300, 'se revisaron ' + n + ' dimensiones');
+  // datos de la tarjeta (genéricos): G = cabezas KV (grupos de GQA) sale de la config
+  const f = Object.fromEntries(P._factPairs(A.run('llama3-8b').config));
+  assert.deepStrictEqual([f.D, f.L, f.h, f.G, f.D_mlp, f.T, f.V], [4096, 32, 32, 8, 14336, 2048, 128256]);
+  // el mapa units del calculador solo usa unidades que la práctica sabe formatear
+  for (const cfg of ['llama3-8b', 'mixtral-8x7b']) {
+    const m = A.metrics(cfg, {});
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
+  }
 });
