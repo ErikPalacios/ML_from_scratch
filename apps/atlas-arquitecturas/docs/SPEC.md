@@ -1206,3 +1206,73 @@ experts; load balancing; synthetic, labelled).
   js/content/diagrams/{llm-decoder,llm-inferencia}.js, dev/diagram.html.
 - **content-llm-decoder**: js/content/llm-decoder.js. **content-llm-inferencia**: js/content/llm-inferencia.js.
 - **orchestrator**: index.html + stubs, catalog, SPEC, practice METRICS labels, integration.
+
+## 19. Phase 7 shared facts — LLaVA + Qwen2-VL (every F7 agent MUST use exactly these)
+
+Phase 1–6 lessons apply. Thesis: **a VLM = vision encoder + projector + the decoder you already know
+(F6)**; what differs between VLMs is *how images become tokens* (how many, at what resolution, with
+what positions) and what is trained when. Every number below is a starting point: verify against the
+HF configs / papers and cite; if something differs, the source wins and the deviation is documented.
+Reuse existing calculators (CLIP ViT-L/14 from js/arch/clip.js / vit.js, the Llama-style decoder from
+js/arch/llm.js) — compose, don't duplicate.
+
+### 19.1 LLaVA — page `llava`, model `llava`
+Papers: Liu et al., *Visual Instruction Tuning*, NeurIPS 2023, arXiv:2304.08485; Liu et al.,
+*Improved Baselines with Visual Instruction Tuning* (LLaVA-1.5), CVPR 2024, arXiv:2310.03744.
+Canonical **`llava15-7b`**: vision tower CLIP ViT-L/14 @ 336 (24 layers, D 1024, 16 heads; features from
+the **penultimate layer**, CLS dropped → **576 tokens × 1024**), projector **2-layer MLP with GELU**
+(1024 → 4096 → 4096), LLM Vicuna-7B v1.5 (= Llama 2 7B architecture: 32 layers, 4096, 32 heads MHA,
+FFN 11,008, vocab 32,000; HF llava-hf adds the `<image>` token / padding — say which count you use).
+Image tokens replace the `<image>` placeholder in the prompt. Training: stage 1 feature alignment
+(≈558K image–caption pairs, only the projector trains), stage 2 visual instruction tuning (≈665K mix,
+projector + LLM train, vision tower frozen) — verify numbers. Other configs: `llava15-13b`; optional
+`llava-next-7b` (AnyRes: grid of 336 crops + a downsized base image, up to ≈2,880 visual tokens —
+verify) for the token-count contrast. Knobs: `T` (text tokens), `res` (only meaningful for AnyRes),
+`images`.
+Ids: `llava-overview` nodes `image`, `vision-encoder` (group, expand → link to the CLIP/ViT views
+rather than redrawing), `select-layer`, `projector` (expand `llava-projector`: `fc1`, `gelu`, `fc2`),
+`text`, `embed`, `merge` (visual tokens spliced at `<image>`), `llm` (group ×L, same block ids as
+F6 `llm-block`), `lm-head`, `answer`; plus a training view `llava-training` (stage 1 vs stage 2 with
+frozen/trained marks). Tensors: `pixels`, `vis-feats` (576×1024), `vis-tokens` (576×4096), `text-emb`,
+`prompt` ((576+T)×4096), `logits`.
+
+### 19.2 Qwen2-VL — page `qwen2-vl`, model `qwen2-vl`
+Paper: Wang et al., *Qwen2-VL: Enhancing Vision-Language Model's Perception of the World at Any
+Resolution*, arXiv:2409.12191 (2024). Trap: Qwen-VL (2023, arXiv:2308.12966, fixed 448 + Q-Former-like
+resampler to 256 tokens) ≠ Qwen2-VL. Canonical **`qwen2-vl-7b`**: ViT ≈675M (patch 14, D 1280, 32
+layers, 16 heads, MLP ×4, **2-D RoPE** in the ViT, no absolute PE; **temporal patch 2** — an image is
+duplicated to 2 frames), **merger**: 2×2 neighbouring patches concatenated (4·1280) → MLP → LLM width
+3584; LLM Qwen2-7B (28 layers, hidden 3584, 28 Q heads / 4 KV heads, FFN 18,944, vocab ≈152K, RoPE
+θ 1e6) with **M-RoPE** (rotary dims split into temporal/height/width sections — HF `mrope_section`
+[16, 24, 24]; text tokens use the same id on the three axes). **Dynamic resolution**: image resized to
+multiples of 28 within min/max pixels; visual tokens = (H/28)·(W/28) per image (e.g. 812×812 → 29·29 = 841; in prose always via the
+calculator, never hand-typed). Video: frames sampled (2 fps in the paper),
+merged in pairs on the temporal axis. Configs: `qwen2-vl-7b` (canonical), `qwen2-vl-2b`, optional
+`qwen2-vl-72b`. Knobs: `H`, `W` (multiples of 28), `frames`, `T`.
+Ids: `qwen2vl-overview` nodes `image`, `patchify` (14×14×2 patches), `vision-encoder` (group ×32,
+expand `qwen2vl-vit-block` with `rope2d`), `merger` (expand `qwen2vl-merger`: `group2x2`, `ln`, `fc1`,
+`gelu`, `fc2`), `text`, `embed`, `merge`, `llm` (group ×L), `lm-head`, `answer`; `mrope` node/expansion
+showing (t, h, w) ids for text vs image tokens.
+
+### 19.3 Metrics (calculator)
+`visualTokens`, `textTokens`, `promptTokens`, `visualShare` (of the prompt), params split
+`visionParams` / `projectorParams` / `llmParams`, MACs split `visionMacs` / `projectorMacs` /
+`llmPrefillMacs`, `prefillShareFromImage` (share of prefill MACs due to visual tokens incl. the vision
+tower), `kvBytesPerImage` (visual tokens × KV bytes per token at bf16), TTFT estimate only as a roofline
+"≈" with explicit hardware (reuse llm.js conventions), and for Qwen2-VL `tokensAt(H, W)` scaling lists.
+
+### 19.4 Visualizations
+`visual-tokens` (image size → number of visual tokens: LLaVA-1.5 fixed 576 vs AnyRes vs Qwen2-VL
+dynamic; draggable size; counts from the calculator), `mrope` (a prompt with text + an image + text:
+the (t, h, w) position ids each token gets; synthetic image, labelled), `vlm-token-cost` (prefill MACs
+and KV bytes: image vs text share as the image grows or the number of images increases).
+
+### 19.5 Ownership in Phase 7
+- **arch**: js/arch/primitives.js (new primitives only), js/arch/vlm.js (models `llava`, `qwen2-vl`;
+  compose clip/vit/llm builders), tests, crosscheck/vlm.py + expected JSONs (HF
+  `LlavaForConditionalGeneration(LlavaConfig(...))`, `Qwen2VLForConditionalGeneration(Qwen2VLConfig(...))`
+  on the meta device; params exact; FLOPs within 0.5 % or exact).
+- **diagram**: engine extensions, js/ui/viz/{visual-tokens,mrope,vlm-token-cost}.js,
+  js/content/diagrams/{llava,qwen2-vl}.js, dev/diagram.html.
+- **content-llava**: js/content/llava.js. **content-qwen2-vl**: js/content/qwen2-vl.js.
+- **orchestrator**: index.html + stubs, catalog, SPEC, practice METRICS labels, integration.
