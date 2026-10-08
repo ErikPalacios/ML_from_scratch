@@ -1599,3 +1599,323 @@ test('F4 etiqueta + símbolo identifican una forma; byPath suma; aritmética; Qu
   assert.strictEqual(Q4.get('yolo-world-l-640.metrics.vocabTextToOnline').text, '2.69');
   assert.strictEqual(Q4.get('yolov8l-640.tensor.logits-p3.sym').text, '(H/8)×(W/8)×K');
 });
+
+// ---------------------------------------------------------------- fase 5 (SAM, SAM 2)
+// Contexto propio con todos los modelos hasta la fase 5 (los de arriba no cargan sam.js).
+const ATLAS5 = (function () {
+  const ctx = vm.createContext({});
+  for (const f of FILES.filter((x) => x !== 'js/core/quantities.js').concat(['js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/core/quantities.js'])) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  }
+  return vm.runInContext('ATLAS', ctx);
+})();
+const A5 = ATLAS5.Arch, Q5 = ATLAS5.Quantities;
+const G5 = (sym, num) => A5.shape(sym, num, 'img', 'grid');
+const S5 = (sym, num, layout) => A5.shape(sym, num, 'img', layout || 'seq');
+
+test('F5 los modelos nuevos no cambian ningún resultado de las fases 1–4', () => {
+  for (const c of A4.configs()) {
+    const a = A4.run(c.id).totals, b = A5.run(c.id).totals;
+    assert.deepStrictEqual([b.params, b.macs, b.other], [a.params, a.macs, a.other], c.id);
+  }
+  assert.deepStrictEqual(J(A5.models()).sort(), ['clip', 'deformable-detr', 'detr', 'grounding-dino', 'resnet', 'sam', 'sam2', 'swin', 'transformer', 'vit', 'yolo-world', 'yolov8']);
+  assert.deepStrictEqual([A5.canonical('sam'), A5.canonical('sam2')], ['sam-vit-h-1024', 'sam2-hiera-l']);
+  assert.deepStrictEqual(J(A5.configs('sam').map((c) => c.id)), ['sam-vit-h-1024', 'sam-vit-l-1024', 'sam-vit-b-1024']);
+  assert.deepStrictEqual(J(A5.configs('sam2').map((c) => c.id)), ['sam2-hiera-l', 'sam2-hiera-bplus', 'sam2-hiera-s', 'sam2-hiera-t']);
+});
+
+test('F5 primitivas: ConvTranspose, depthwise, ventanas con relleno, posición relativa descompuesta, q-pooling', () => {
+  // ConvTranspose 2×2 stride 2: 3×4×8 → 6×8×2; parámetros 4·8·2 + 2; MACs H·W·k²·Cin·Cout (por píxel de entrada)
+  const ct = A5.conv_transpose2d(G5(['h', 'w', '8'], [3, 4, 8]), { k: 2, cout: 2, coutSym: '2' });
+  assert.deepStrictEqual(J(ct.out.num), [6, 8, 2]);
+  assert.strictEqual(ct.params, 4 * 8 * 2 + 2);
+  assert.strictEqual(ct.macs, 3 * 4 * 4 * 8 * 2);
+  assert.strictEqual(ct.macs, 6 * 8 * 8 * 2);               // = H_o·W_o·Cin·Cout con k = s
+  // depthwise 7×7 sobre 5×5×4: 49·4 + 4 parámetros, H·W·C·49 MACs (sin el factor C_in)
+  const dw = A5.depthwise_conv2d(G5(['h', 'w', 'C'], [5, 5, 4]), { k: 7 });
+  assert.deepStrictEqual([dw.params, dw.macs], [49 * 4 + 4, 25 * 4 * 49]);
+  assert.throws(() => A5.depthwise_conv2d(G5(['h', 'w', 'C'], [5, 5, 4]), { k: 7, p: 0 }), /same/);
+  // 64×64 con M = 14 → relleno a 70×70: 25 ventanas de 196 (4,900 tokens); unpartition recorta
+  const x = G5(['H/16', 'W/16', 'D'], [64, 64, 8]);
+  const wp = A5.window_partition_pad(x, { M: 14 });
+  assert.deepStrictEqual(J(wp.out.num), [25, 196, 8]);
+  assert.deepStrictEqual([wp.detail.Hp, wp.detail.padTokens], [70, 4900 - 4096]);
+  assert.deepStrictEqual(J(A5.window_unpartition(wp.out, { H: 64, W: 64, M: 14 }).out.num), [64, 64, 8]);
+  assert.throws(() => A5.window_unpartition(wp.out, { H: 64, W: 64, M: 7 }), /7×7/);
+  // posición relativa descompuesta: tablas (2S−1)×d_h por eje; MACs 2·nW·h·S²·S·d_h
+  const q = A5.shape(['nW', 'h', 'M²', 'd_h'], [25, 2, 196, 5], 'img', 'winheads');
+  const sc = A5.shape(['nW', 'h', 'M²', 'M²'], [25, 2, 196, 196], 'img', 'winheads');
+  const rp = A5.decomposed_rel_pos(sc, q, { S: 14, Ssym: 'M' });
+  assert.strictEqual(rp.params, 2 * 27 * 5);
+  assert.strictEqual(rp.macs, 2 * 25 * 2 * 196 * 14 * 5);
+  assert.strictEqual(rp.paramFormula, '2\\,(2M-1)\\,d_h');
+  assert.ok(rp.detail.fullTableIfNotDecomposed > rp.params / 2);   // (2S−1)² vs 2·(2S−1)
+  assert.throws(() => A5.decomposed_rel_pos(sc, q, { S: 13 }), /rejilla/);
+  // q-pooling: 64 queries por ventana → 16 (K y V no cambian)
+  const qp = A5.query_pool(A5.shape(['nW', 'h', '64', 'd_h'], [4, 2, 64, 3], 'img', 'winheads'), {});
+  assert.deepStrictEqual(J(qp.out.num), [4, 2, 16, 3]);
+  assert.strictEqual(qp.macs, 0);
+  assert.throws(() => A5.query_pool(A5.shape(['h', '9', 'd'], [1, 9, 3], 'img', 'heads'), {}), /stride/);
+});
+
+test('F5 primitivas del prompt y del decoder: Fourier, relleno, tipos, tokens, hipernetwork, selección', () => {
+  const pts = S5(['P', '2'], [3, 2]);
+  const pad = A5.append_pad_point(pts, { sym: 'P+1' });
+  assert.deepStrictEqual(J(pad.out.num), [4, 2]);
+  const fp = A5.fourier_pe(pad.out, { F: 128, Dsym: 'C' });
+  assert.deepStrictEqual([J(fp.out.num), fp.params, fp.macs], [[4, 256], 0, 4 * 2 * 128]);   // G 2×128 = buffer
+  const grid = A5.coord_grid({ H: 4, W: 4 });
+  assert.deepStrictEqual(J(A5.fourier_pe(grid.out, { F: 8 }).out.num), [4, 4, 16]);
+  assert.strictEqual(A5.fourier_pe(grid.out, { F: 8 }).macs, 16 * 2 * 8);
+  assert.strictEqual(A5.type_embed(fp.out, { rows: 5, D: 256 }).params, 5 * 256);
+  assert.strictEqual(A5.learned_tokens({ rows: 5, D: 256 }).params, 1280);
+  assert.deepStrictEqual(J(A5.broadcast_embed({ H: 4, W: 4, D: 8 }).out.num), [4, 4, 8]);
+  assert.strictEqual(A5.broadcast_embed({ H: 4, W: 4, D: 8 }).params, 8);
+  const idle = A5.idle_params({ paramTerms: [[2, 2, 1, 4], [4]], what: 'x' });
+  assert.deepStrictEqual([idle.params, idle.macs, J(idle.out)], [20, 0, []]);
+  assert.strictEqual(idle.paramArith, '2·2·1·4 + 4 = 20');
+  // RoPE: sin parámetros ni MACs; excluye los tokens finales (punteros)
+  const rk = A5.rope_2d(A5.shape(['1', 'N_m', 'C'], [1, 10, 4], 'img', 'heads'), { exclude: 2 });
+  assert.deepStrictEqual([rk.params, rk.macs, rk.other, rk.detail.rotated], [0, 0, 8 * 4 * 3, 8]);
+  // hipernetwork: un Linear distinto por token: R·(D_in·D_out + D_out)
+  const gl = A5.grouped_linear(S5(['4', 'C'], [4, 8]), { dout: 2, doutSym: 'C/4' });
+  assert.deepStrictEqual([gl.params, gl.macs], [4 * (8 * 2 + 2), 4 * 8 * 2]);
+  const hd = A5.hyper_dot(S5(['4', 'c'], [4, 2]), G5(['h', 'w', 'c'], [3, 5, 2]));
+  assert.deepStrictEqual([J(hd.out.num), hd.macs], [[4, 3, 5], 4 * 2 * 3 * 5]);
+  assert.throws(() => A5.hyper_dot(S5(['4', 'c'], [4, 3]), G5(['h', 'w', 'c'], [3, 5, 2])), /canales/);
+  assert.deepStrictEqual(J(A5.mask_select(hd.out, { start: 1, count: 3 }).out.num), [3, 3, 5]);
+  assert.deepStrictEqual(J(A5.mask_select(A5.shape(['4'], [4]), { start: 1, count: 3 }).out.num), [3]);
+  assert.deepStrictEqual(J(A5.pick_mask(A5.mask_select(hd.out, { start: 1, count: 3 }).out, A5.shape(['3'], [3])).out.num), [3, 5, 1]);
+  assert.deepStrictEqual(J(A5.take_rows(S5(['7', 'C'], [7, 8]), { start: 0, count: 1, vec: true }).out.num), [8]);
+  assert.throws(() => A5.take_rows(S5(['7', 'C'], [7, 8]), { start: 5, count: 4 }), /rango/);
+  assert.deepStrictEqual(J(A5.to_grid(S5(['N', 'C'], [12, 2]), { H: 3, W: 4 }).out.num), [3, 4, 2]);
+  assert.deepStrictEqual(J(A5.split_tokens(S5(['16', 'C'], [16, 256]), { parts: 4 }).out.num), [64, 64]);
+  assert.deepStrictEqual(J(A5.repeat_rows(S5(['16', '64'], [16, 64]), { k: 4 }).out.num), [64, 64]);
+  assert.strictEqual(A5.add_temporal_embed(S5(['7·N', '64'], [28, 64]), { rows: 7, D: 64 }).params, 448);
+  assert.strictEqual(A5.pos_embed_grid({ H: 64, W: 64, D: 1280 }).params, 5242880);
+  assert.strictEqual(A5.window_pos_embed({ H: 16, W: 16, C: 144, bkg: 7, win: 8 }).params, 144 * (49 + 64));
+  assert.strictEqual(A5.gate_embed(S5(['N', '64'], [4, 64])).params, 64);
+  assert.deepStrictEqual(J(A5.upsample_bilinear(G5(['h', 'w', '1'], [4, 4, 1]), { H: 16, W: 16 }).out.num), [16, 16, 1]);
+  const ids = J(A5.primitives()).map((p) => p.id);
+  for (const id of ['conv_transpose2d', 'depthwise_conv2d', 'window_partition_pad', 'window_unpartition', 'decomposed_rel_pos', 'query_pool', 'coord_grid',
+    'fourier_pe', 'append_pad_point', 'type_embed', 'learned_tokens', 'broadcast_embed', 'idle_params', 'rope_2d', 'take_rows', 'grouped_linear', 'hyper_dot',
+    'mask_select', 'pick_mask', 'upsample_bilinear', 'to_grid', 'split_tokens', 'repeat_rows', 'add_temporal_embed', 'pos_embed_grid', 'window_pos_embed', 'gate_embed']) {
+    assert.ok(ids.includes(id), id);
+    assert.strictEqual(typeof A5[id], 'function', id);
+  }
+});
+
+test('SAM ViT-H @1024: 641,090,608 parámetros (oficial = HF − 256) y 2,982,353,766,912 MACs, por bloque', () => {
+  const r = A5.run('sam-vit-h-1024'), t = r.totals, n = t.byNode, q = r.quantities;
+  assert.strictEqual(t.params, 641090608);
+  assert.strictEqual(q.paramsHF, 641090864);                 // HF: matriz gaussiana 2×128 como Parameter
+  assert.strictEqual(t.macs, 2982353766912);
+  assert.deepStrictEqual([n['img-encoder'].params, n['prompt-enc'].params, n['mask-decoder'].params], [637026048, 6220, 4058340]);
+  // bloque: 12D² + 13D (qkv con sesgo, proj, 2 LN, MLP 4D) + tablas relativas 2·(2S−1)·d_h
+  const D = 1280, dh = 80;
+  assert.strictEqual(q.winBlockParams, 12 * D * D + 13 * D + 2 * 27 * dh);
+  assert.strictEqual(q.globalBlockParams, 12 * D * D + 13 * D + 2 * 127 * dh);
+  assert.deepStrictEqual([q.relPosWinParams, q.relPosGlobalParams], [4320, 20320]);
+  assert.deepStrictEqual([q.Lw, q.Lg, q.nW, q.padTokens], [28, 4, 25, 4900]);
+  assert.strictEqual(q.posEmbedParams, 64 * 64 * 1280);
+  // decoder: la parte cara son las cross-attention sobre los 4,096 tokens; el upscaling y el producto son pequeños
+  assert.strictEqual(q.decoderMacsPerPrompt, 1812351488);
+  assert.strictEqual(q.dotMacs, 4 * 32 * 256 * 256);
+  assert.strictEqual(r.ops.find((o) => o.id === 'md-out-tokens').params, 5 * 256);
+  // las otras dos configs: mismo decoder y prompt encoder
+  for (const [id, p] of [['sam-vit-l-1024', 312342832], ['sam-vit-b-1024', 93735472]]) {
+    const s = A5.run(id);
+    assert.strictEqual(s.totals.params, p, id);
+    assert.deepStrictEqual([s.totals.byNode['prompt-enc'].params, s.totals.byNode['mask-decoder'].params], [6220, 4058340], id);
+  }
+});
+
+test('SAM: ids y formas de SPEC §17.1 (nodos, tensores, paths) y parámetros sin uso del prompt de máscara', () => {
+  const r = A5.run('sam-vit-h-1024');
+  const shape = (id) => r.tensors[id].num.join('×');
+  for (const [id, s] of [['x-img', '1024×1024×3'], ['patches', '64×64×1280'], ['enc-out', '64×64×1280'], ['img-emb', '64×64×256'], ['sparse', '2×256'],
+    ['dense', '64×64×256'], ['tokens', '7×256'], ['up-emb', '256×256×32'], ['masks', '3×256×256'], ['iou', '3'], ['w-win', '25×196×1280'], ['g-scores', '16×4096×4096'],
+    ['tw-t2i-scores', '8×7×4096'], ['tw-i2t-scores', '8×4096×7'], ['hyper-in', '4×32'], ['masks-all', '4×256×256']]) assert.strictEqual(shape(id), s, id);
+  assert.deepStrictEqual(J(r.tensors.tokens.sym), ['5+P+1', 'C']);
+  assert.deepStrictEqual(J(r.tensors.sparse.sym), ['P+1', 'C']);
+  const top = new Set(r.ops.map((o) => o.path[0]));
+  assert.deepStrictEqual([...top].sort(), ['img-encoder', 'mask-decoder', 'prompt-enc']);
+  const kids = (p) => J(children(r, p)).sort();
+  assert.deepStrictEqual(kids(['img-encoder']), ['global-blocks', 'neck', 'patch-embed', 'pos-embed', 'win-blocks']);
+  for (const k of ['tokens', 'two-way', 'final-attn', 'upscale', 'hypernet', 'dot', 'iou-head']) assert.ok(kids(['mask-decoder']).includes(k), k);
+  assert.deepStrictEqual(kids(['mask-decoder', 'two-way']), ['img2tok', 'mlp', 'tok-self', 'tok2img']);
+  assert.ok(kids(['prompt-enc']).includes('mask-in'));
+  // repeticiones: 28 bloques con ventanas, 4 globales, 2 capas two-way
+  assert.strictEqual(r.ops.find((o) => o.id === 'w-qkv').repeat, 28);
+  assert.strictEqual(r.ops.find((o) => o.id === 'g-qkv').repeat, 4);
+  assert.strictEqual(r.ops.find((o) => o.id === 'tw-fc1').repeat, 2);
+  // el prompt de máscara existe pero no corre sin máscara de entrada: params sí, MACs y tensores no
+  const idle = r.ops.find((o) => o.id === 'mask-embed-idle');
+  assert.deepStrictEqual([idle.params, idle.macs, J(idle.out), J(idle.in)], [4684, 0, [], []]);
+  assert.strictEqual(r.quantities.maskEmbedParams, 4684);
+  // cross-attention del decoder con el ancho interno C/2 = 128 (downsample ×2)
+  assert.deepStrictEqual(J(r.tensors['tw-t2i-kp'].sym), ['N', 'C/2']);
+  assert.strictEqual(r.ops.find((o) => o.id === 'tw-t2i-k-proj').params, 256 * 128 + 128);
+});
+
+test('SAM: knobs P, masks, maskIn y resolución; errores en español', () => {
+  const base = A5.run('sam-vit-h-1024');
+  const p3 = A5.run('sam-vit-h-1024', { P: 3 });
+  assert.deepStrictEqual([p3.tensors.sparse.num[0], p3.tensors.tokens.num[0]], [4, 9]);
+  assert.strictEqual(p3.totals.params, base.totals.params);
+  assert.strictEqual(p3.quantities.encoderMacs, base.quantities.encoderMacs);      // codificar una vez
+  assert.ok(p3.quantities.decoderMacsPerPrompt > base.quantities.decoderMacsPerPrompt);
+  const m1 = A5.run('sam-vit-h-1024', { masks: 1 });
+  assert.deepStrictEqual([m1.tensors.masks.num.join('×'), m1.tensors.iou.num.join('×')], ['1×256×256', '1']);
+  assert.strictEqual(m1.totals.macs, base.totals.macs);                            // las 4 máscaras se calculan igual
+  const mi = A5.run('sam-vit-h-1024', { maskIn: 1 });
+  assert.strictEqual(mi.totals.params, base.totals.params);                       // mismos pesos: cambia qué rama corre
+  assert.deepStrictEqual(J(mi.tensors['mask-input'].num), [256, 256, 1]);
+  assert.strictEqual(mi.tensors.dense.producer, 'me-conv3');
+  assert.strictEqual(mi.ops.find((o) => o.id === 'no-mask-idle').params, 256);
+  const r5 = A5.run('sam-vit-h-1024', { res: 512 });
+  assert.strictEqual(r5.totals.params, base.totals.params - 1280 * (4096 - 1024) - 4 * 2 * (127 - 63) * 80);
+  assert.ok(r5.notes.some((s) => /Resolución 512/.test(s)));
+  assert.deepStrictEqual([r5.config.nW, r5.config.padTokens], [9, 9 * 196]);
+  assert.throws(() => A5.run('sam-vit-h-1024', { masks: 2 }), /masks debe ser 1/);
+  assert.throws(() => A5.run('sam-vit-h-1024', { res: 1000 }), /divisible/);
+  assert.throws(() => A5.run('sam-vit-h-1024', { boxes: 1 }), /Knob inválido/);
+});
+
+test('SAM metrics: codificar una vez, decodificar por prompt; ventanas vs global por bloque', () => {
+  const m = A5.metrics('sam-vit-h-1024', {});
+  assert.strictEqual(m.encoderMacs, 2980541415424);
+  assert.strictEqual(m.decoderMacsPerPrompt, 1812351488);
+  assert.ok(Math.abs(m.breakEvenPrompts - 1644.57) < 0.01);
+  assert.ok(m.encoderMacsShare > 0.99);
+  assert.strictEqual(m.imgEmbMem, 64 * 64 * 256 * 2);
+  assert.strictEqual(m.winAttnMem, 25 * 16 * 196 * 196 * 2);
+  assert.strictEqual(m.globalAttnMem, 16 * 4096 * 4096 * 2);
+  assert.strictEqual(m.attnMem, m.globalAttnMem);                                  // el mayor tensor de scores
+  assert.ok(m.globalToWinScoreMacs > 16 && m.globalToWinScoreMacs < 17);
+  assert.ok(Math.abs(m.padOverhead - 804 / 4096) < 1e-12);
+  assert.strictEqual(m.decoderMacsWithBox, A5.run('sam-vit-h-1024', { P: 2 }).quantities.decoderMacsPerPrompt);
+  assert.deepStrictEqual(J(m.promptScaling.map((x) => x.tokens)), [7, 8, 11, 16]);
+  assert.ok(m.promptScaling.every((x, i, a) => i === 0 || x.decoderMacs > a[i - 1].decoderMacs));
+  assert.strictEqual(m.units.breakEvenPrompts, 'ratio');
+  const b = A5.metrics('sam-vit-b-1024', {});
+  assert.ok(b.encoderMacsVsVitH > 0.15 && b.encoderMacsVsVitH < 0.17);
+  assert.strictEqual(b.decoderMacsPerPrompt, m.decoderMacsPerPrompt);              // mismo decoder
+  // bf16 por defecto; fp32 duplica los bytes
+  assert.strictEqual(A5.metrics('sam-vit-h-1024', { dtype: 'fp32' }).globalAttnMem, 2 * m.globalAttnMem);
+});
+
+test('SAM 2 Hiera-L: 224,446,642 parámetros (HF Sam2VideoModel = oficial) y 1,221,837,227,776 MACs por frame (7 memorias, 16 punteros)', () => {
+  const r = A5.run('sam2-hiera-l'), t = r.totals, n = t.byNode, q = r.quantities;
+  assert.strictEqual(t.params, 224446642);
+  assert.strictEqual(t.macs, 1221837227776);
+  assert.strictEqual(q.hieraFpnParams, 212703280);                                  // HF vision_encoder
+  assert.strictEqual(n['memory-attn'].params, 5922304 + 2 * 256);                   // + no_mem_embed y no_mem_pos_enc (sin uso)
+  assert.strictEqual(n['memory-encoder'].params, 1384608 + 64);                     // + embedding de oclusión espacial
+  assert.strictEqual(n['mask-decoder'].params + n.occlusion.params, 4215109);
+  assert.deepStrictEqual([q.nMem, q.ptrs, q.Nm, q.memTokens, q.ptrTokens], [7, 16, 28736, 28672, 64]);
+  for (const [id, p] of [['sam2-hiera-bplus', 80850178], ['sam2-hiera-s', 46060354], ['sam2-hiera-t', 38962498]]) assert.strictEqual(A5.run(id).totals.params, p, id);
+  // Hiera-L: stages [2, 6, 36, 4], ventanas [8, 4, 16, 8]; los 3 bloques globales caen en el stage 3
+  const st = r.config.stages;
+  assert.deepStrictEqual(J(st.map((s) => [s.side, s.C, s.h, s.globalBlocks])), [[256, 144, 2, 0], [128, 288, 4, 0], [64, 576, 8, 3], [32, 1152, 16, 0]]);
+  assert.deepStrictEqual(J(st[2].groups.map((g) => [g.kind, g.rep, g.ws])), [['q', 1, 4], ['w', 32, 16], ['g', 3, 0]]);
+  // q-pooling: ventanas de 4×4 del stage 2 → 2×2 en la salida; las queries bajan ×4, las keys no
+  assert.deepStrictEqual([r.tensors['h3-q-q-pooled'].num.join('×'), r.tensors['h3-q-k'].num.join('×')], ['1024×8×4×72', '1024×8×16×72']);
+  assert.strictEqual(r.tensors['ma-cross-scores'].num.join('×'), '1×4096×28736');
+  assert.strictEqual(r.tensors.tokens.num.join('×'), '8×256');                       // 6 de salida + punto vacío + relleno
+  assert.deepStrictEqual(J(r.tensors.memory.sym), ['7·N+4·16', '64']);
+});
+
+test('SAM 2: ids de SPEC §17.2, knobs memFrames y ptrs, errores', () => {
+  const r = A5.run('sam2-hiera-l');
+  const top = new Set(r.ops.map((o) => o.path[0]));
+  for (const k of ['img-encoder', 'fpn', 'memory-attn', 'prompt-enc', 'mask-decoder', 'occlusion', 'memory-encoder', 'memory-bank', 'obj-ptrs']) assert.ok(top.has(k), k);
+  assert.ok(['self-attn', 'cross-mem', 'mlp'].every((k) => children(r, ['memory-attn']).includes(k)));
+  assert.strictEqual(r.ops.find((o) => o.id === 'ma-cross-k-proj').repeat, 4);
+  assert.strictEqual(r.ops.find((o) => o.id === 'ma-cross-k-proj').params, 64 * 256 + 256);
+  for (const id of ['x-img', 'fpn-s16', 'pix-mem', 'masks', 'iou', 'obj-score', 'obj-ptr', 'mem-out', 'memory']) assert.ok(r.tensors[id], id);
+  const n2 = A5.run('sam2-hiera-l', { memFrames: 2 });
+  assert.strictEqual(n2.totals.params, r.totals.params - 4 * 64);                     // num_maskmem 7 → 3
+  assert.strictEqual(n2.config.Nm, 3 * 4096 + 64);
+  assert.ok(n2.notes.some((s) => /num_maskmem = 3/.test(s)));
+  const p4 = A5.run('sam2-hiera-l', { ptrs: 4 });
+  assert.strictEqual(p4.totals.params, r.totals.params);
+  assert.strictEqual(p4.config.Nm, 7 * 4096 + 16);
+  // la memory attention crece lineal en los tokens de memoria (las proyecciones de K y V y los scores)
+  const d = (a, b) => a.quantities.memAttnMacs - b.quantities.memAttnMacs;
+  const perTok = 4 * (2 * 64 * 256 + 2 * 4096 * 256);
+  assert.strictEqual(d(r, n2), 4 * 4096 * perTok);
+  assert.strictEqual(d(r, p4), 48 * perTok + 12 * 256 * 64);                          // + la proyección temporal de 12 punteros
+  assert.ok(A5.run('sam2-hiera-l', { ptrs: 20 }).notes.some((s) => /max_obj_ptrs_in_encoder/.test(s)));
+  assert.throws(() => A5.run('sam2-hiera-l', { res: 1000 }), /múltiplo de 32/);
+  assert.throws(() => A5.run('sam2-hiera-l', { P: 1 }), /Knob inválido/);
+});
+
+test('SAM 2 metrics: costo por frame con N memorias, banco de memoria en bytes, comparación con SAM ViT-H', () => {
+  const m = A5.metrics('sam2-hiera-l', {});
+  assert.strictEqual(m.frameMacs, 1221837227776);
+  assert.strictEqual(m.imgEncoderMacs + m.memAttnMacs + m.memEncoderMacs + m.decoderMacs + m.objPtrMacs, m.frameMacs);
+  assert.strictEqual(m.memTokens, 28736);
+  assert.strictEqual(m.memPerFrameMem, 4096 * 64 * 2);
+  assert.strictEqual(m.memoryBankMem, 2 * 7 * 4096 * 64 * 2 + 16 * 256 * 2);
+  assert.strictEqual(m.memCrossAttnMem, 4096 * 28736 * 2);
+  assert.strictEqual(m.memToImgEmb, 0.25);
+  assert.strictEqual(m.firstFrameMacs, m.frameMacs - m.memAttnMacs);
+  assert.ok(m.frameVsSamH > 0.4 && m.frameVsSamH < 0.42);
+  assert.strictEqual(m.crossoverN, null);
+  assert.deepStrictEqual(J(m.memScaling.map((x) => x.memTokens)), [2, 3, 5, 7, 9].map((k) => k * 4096 + 64));
+  assert.ok(m.memScaling.every((x, i, a) => i === 0 || x.macs > a[i - 1].macs));
+  assert.deepStrictEqual(J(m.stages.map((s) => s.globalBlocks)), [0, 0, 3, 0]);
+  assert.strictEqual(m.units.memoryBankMem, 'bytes');
+  // por objeto seguido: todo menos el codificador de imagen (compartido entre objetos)
+  assert.strictEqual(m.perObjectMacs, m.memAttnMacs + m.decoderMacs + m.memEncoderMacs + m.objPtrMacs);
+  assert.strictEqual(m.objScaling[3].macs, m.imgEncoderMacs + 8 * m.perObjectMacs);
+  assert.strictEqual(m.units.perObjectMacs, 'macs');
+  // métricas con unidad 'macs' en prosa: formato único fmt.ops
+  assert.strictEqual(Q5.get('sam2-hiera-l.metrics.perObjectMacs').text, '310.43 GMACs');
+  assert.strictEqual(Q5.get('sam-vit-h-1024.metrics.decoderMacsPerPrompt').text, '1.81 GMACs');
+  assert.strictEqual(Q5.get('sam-vit-h-1024.metrics.encoderParams').text, '637,026,048');
+});
+
+test('F5 etiqueta + símbolo identifican una forma; byPath suma; aritmética; Quantities resuelve todas las claves', () => {
+  for (const id of ['sam-vit-h-1024', 'sam-vit-b-1024', 'sam2-hiera-l', 'sam2-hiera-t']) {
+    for (const ov of [{}, id.startsWith('sam2') ? { memFrames: 2 } : { maskIn: 1 }]) {
+      const r = A5.run(id, ov), t = r.totals;
+      const by = {};
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        const k = x.label + '|' + String(x.tex).split('=')[0].trim();
+        (by[k] = by[k] || new Set()).add(x.num.join('×'));
+      }
+      for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.params * o.repeat, 0), t.params);
+      assert.strictEqual(Object.values(t.byPrim).reduce((s, x) => s + x.macs, 0), t.macs);
+      const check = (pp, want) => {
+        const kids = children(r, pp);
+        if (!kids.length) return;
+        const at = (k) => t.byPath[pp.concat([k]).join('>')];
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).params, 0), want.params, id + ' params bajo ' + (pp.join('>') || 'raíz'));
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).macs, 0), want.macs, id + ' MACs bajo ' + (pp.join('>') || 'raíz'));
+        kids.forEach((k) => check(pp.concat([k]), at(k)));
+      };
+      check([], t);
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        if (x.producer) assert.ok(r.ops.find((o) => o.id === x.producer).out.includes(tid));
+        x.consumers.forEach((oid) => assert.ok(r.ops.find((o) => o.id === oid).in.includes(tid)));
+      }
+      for (const op of r.ops) {
+        if (op.params) assert.ok(op.paramArith.endsWith(A5.fmt.int(op.params)), id + ' ' + op.id + ' paramArith');
+        if (op.macs) assert.ok(op.macArith.endsWith(A5.fmt.int(op.macs)), id + ' ' + op.id + ' macArith');
+        assert.ok(!/undefined|NaN/.test(op.paramTex + op.macTex + op.shapeTex), id + ' ' + op.id + ' tex');
+        assert.ok(Array.isArray(op.where) && op.where.length, id + ' ' + op.id + ' sin where');
+      }
+    }
+    assert.strictEqual(A5.run(id), A5.run(id), 'memoizado');
+    J(Q5.keys(id)).forEach((k) => assert.ok(Q5.get(id + '.' + k), id + '.' + k));
+  }
+  assert.strictEqual(Q5.get('sam-vit-h-1024.params.total').text, '641,090,608');
+  assert.strictEqual(Q5.get('sam-vit-h-1024.tensor.tokens.sym').text, '(5+P+1)×C');
+  assert.strictEqual(Q5.get('sam2-hiera-l.params.total').text, '224,446,642');
+  assert.strictEqual(Q5.get('sam2-hiera-l.metrics.memoryBankMem').text, '7.35 MB');
+});

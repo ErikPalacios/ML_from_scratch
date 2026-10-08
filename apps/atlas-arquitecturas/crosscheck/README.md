@@ -52,6 +52,18 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   verificado con un proxy inválido). Exactos: parámetros (incluidos los 16 pesos fijos de la DFL), FLOPs, por bloque
   (`flops_by_node`) y por operador aten (`flops_by_op_groups`). YOLO-World: `override_checks` con V = 20 y `v2`
   (`yolov8l-worldv2.yaml`: sin image-pooling attention, BNContrastiveHead) ↔ `quantities.v2Params`.
+- `sam.py` (fase 5): HF `SamModel._from_config(SamConfig(vision_config=...))` para `sam-vit-h-1024`, `sam-vit-l-1024` y
+  `sam-vit-b-1024` (hiperparámetros de `build_sam.py` oficial) y `Sam2VideoModel._from_config(Sam2VideoConfig(...))` para
+  `sam2-hiera-l`, `-bplus`, `-s` y `-t` (Hiera de `configs/sam2.1/*.yaml`), sin hub ni pesos, atención eager. SAM: 1 clic sin
+  caja (+ punto de relleno), sin máscara de entrada, multimask; `params_total` = HF − 256 (la matriz gaussiana 2×128 de la PE
+  de Fourier es Parameter en HF y buffer en el oficial); `override_checks` en ViT-B con P = 3, masks = 1 y maskIn = 1; el JSON
+  registra ventanas con relleno (`sam_windows`: 64 → 70, 25 ventanas) y tablas relativas (`rel_pos_tables`). SAM 2: UN frame
+  de seguimiento en régimen estacionario (frame 20 de una sesión de 21: frame 0 con prompt, 1…19 seguidos; 7 memorias de
+  64×64×64 + 16 punteros = 28,736 tokens de memoria), medido por fases (`get_image_features`, `_run_single_frame_inference`,
+  `_encode_new_memory`). HF `Sam2MultiScaleAttention` calcula un producto (query·scale)@keyᵀ que descarta (el oficial no):
+  se mide con pre-hooks y se resta (`flops_hf_dead_matmul`; en Hiera-T se verifica con un forward parcheado,
+  `dead_matmul_check`). `hiera_blocks` registra ancho, ventana, q-pooling y cabezas de cada bloque; `override_checks` en
+  Hiera-T con memFrames = 3 y ptrs = 8 (otro modelo: num_maskmem = 4). Parámetros y FLOPs exactos (diferencia 0).
 - Las configs de cada script (`CONFIGS`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que

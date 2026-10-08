@@ -130,7 +130,7 @@
       { id: 'up4', op: 'tensorop', shape: 'pill', label: '↑ ×2', costOf: 'upsample', scope: 'td-p4', x: 95, y: 12, w: 10, h: 4, tex: '\\mathrm{nearest}(\\times 2)', note: 'Sube la resolución ×2 (vecino más cercano). Sin parámetros.' },
       { id: 'cat4', op: 'tensorop', shape: 'concat', label: 'Concatenar', labelPos: 'left', costOf: 'concat', scope: 'td-p4', x: 60, y: 12, w: 4, h: 4, tex: '[\\uparrow C_5;\\, C_4]', note: 'Une los canales del nivel de arriba (subido) con los del backbone.' },
       { id: 'txt-td4', op: 'io', modality: 'txt', label: 'texto', x: 38, y: 21, w: 10, h: 4.5, note: 'Los V embeddings del vocabulario (los mismos para toda imagen).' },
-      { id: 't-csp', op: 'fuse', label: 'T-CSPLayer', sub: 'top-down · P4', scope: 'td-p4', x: 52, y: 22, w: 20, h: 7,
+      { id: 't-csp', op: 'fuse', label: 'T-CSPLayer', sub: 'top-down · P4', scope: 'td-p4', badgePos: 'right', x: 52, y: 22, w: 20, h: 7,
         tex: 'X\' = X \\cdot \\sigma\\big(\\max_{v} (X W_x)(t_v W_t)^{\\top}\\big)', note: tcspNote },
       { id: 'up3', op: 'tensorop', shape: 'pill', label: '↑ ×2', costOf: 'upsample', scope: 'td-p3', x: 37, y: 33, w: 12, h: 4, tex: '\\mathrm{nearest}(\\times 2)', note: 'Sube P4 (top-down) al tamaño de C3.' },
       { id: 'cat3', op: 'tensorop', shape: 'concat', label: 'Concatenar', labelPos: 'left', costOf: 'concat', scope: 'td-p3', x: 20, y: 33, w: 4, h: 4, tex: '[\\uparrow P_4;\\, C_3]', note: 'Une P4 subido con C3.' },
@@ -153,7 +153,8 @@
       { id: 'p5-out', op: 'io', modality: 'img', label: 'P5 → cabezas', x: 85, y: 97, w: 18, h: 5, note: 'Stride 32: objetos grandes.' },
     ],
     tensors: [
-      { id: 'td4-tg-scores', at: { x: 40, y: 14 }, show: 'both', labelSide: 'below', glyph: 'amat', axes: { rows: 'img', cols: 'txt' }, note: 'píxel × clase' },
+      // los scores píxel × clase del T-CSPLayer top-down (P4), pegados a su bloque con una línea guía
+      { id: 'td4-tg-scores', at: { x: 44, y: 19.5 }, show: 'both', labelSide: 'left', glyph: 'amat', axes: { rows: 'img', cols: 'txt' }, note: 'píxel × clase', leader: { node: 't-csp', side: 'top', at: 0.12 } },
     ],
     notes: [
       { x: 1, y: 74.6, text: '← top-down (P5 → P3)' },
@@ -161,9 +162,9 @@
     ],
     edges: [
       { from: 'c5-in', to: 'up4', kind: 'data', tensor: 'c5', fromAt: 0.2778, toAt: 0.5, labelSide: 'left' },
-      { from: 'up4', to: 'cat4', kind: 'data', tensor: 'td4-up', fromSide: 'left', toSide: 'right' },
-      { from: 'c4-in', to: 'cat4', kind: 'data', tensor: 'c4', labelSide: 'left' },
-      { from: 'cat4', to: 't-csp', kind: 'data', tensor: 'td4-cat' },
+      { from: 'up4', to: 'cat4', kind: 'data', tensor: 'td4-up', fromSide: 'left', toSide: 'right', labelSide: 'below', labelT: 0.3 },
+      { from: 'c4-in', to: 'cat4', kind: 'data', tensor: 'c4', labelSide: 'right' },
+      { from: 'cat4', to: 't-csp', kind: 'data', tensor: 'td4-cat', labelT: 0.35 },
       { from: 'txt-td4', to: 't-csp', kind: 'control', tensor: 'vocab', fromSide: 'right', toSide: 'left', toAt: 0.2 },
       { from: 't-csp', to: 'up3', kind: 'data', tensor: 'p4-td', fromSide: 'left', toSide: 'top', fromAt: 0.8, labelSeg: 1, labelSide: 'left' },
       { from: 'up3', to: 'cat3', kind: 'data', tensor: 'td3-up', fromSide: 'left', toSide: 'right', labelSide: 'below' },

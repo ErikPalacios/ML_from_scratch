@@ -24,6 +24,10 @@
            total (× L) se muestra bajo "× L = n". Etiquetas con subíndices TeX: "z_{ℓ−1}", "W_O".
      arista: tag, tagStyle:'plain' (neutra), tagSide:'on' (sobre la línea), tagT.
      tensors[]: at:{edge} o at:{x, y} (centro inferior, u) + note (texto encima) + labelSide:'below'.
+     fase 5: tensors[].leader = {node, side, at} (línea guía del glifo suelto a su bloque); node.costExclude = [ids
+           de path] (ops que no cuentan en la insignia: el neck dentro del encoder de SAM); group.style:'lane' +
+           tone (warn|accent|head|fuse|muted) + legend (carriles "una vez por imagen" / "por prompt"; su label2 no
+           va en la práctica) y group.hideInBlank (título oculto en la práctica).
    Verificación en navegador: ATLAS.ArchDiagram.checkLabels(rootEl) → [{edge, tensor, got, want}] (vacío = OK).
 
    Reglas: las formas de las aristas salen SIEMPRE de ATLAS.Arch.run (nunca del spec). Los colores son
@@ -525,6 +529,8 @@
   // stage1 cuesta lo de path 'stage1'): ops y byNode se toman de ese id en vez del id del nodo.
   // node.scope = id de path que además debe aparecer (p. ej. 'img-encoder' o 'txt-encoder' en CLIP, donde
   // las dos torres comparten ids de nodo: enc-layer, ln1, qkv…). node.opsExact = solo las ops de node.ops.
+  // node.costExclude = ids de path que NO cuentan (fase 5: el encoder de SAM sin su neck, que es otro nodo; la
+  // memory attention de SAM 2 sin la entrada/salida ×1, para que la insignia sea "por capa").
   // node.costRef = {config, nodes:[…]}: el costo sale de OTRA config (fase 4: el encoder de texto de CLIP que
   // YOLO-World corre offline; en su propio grafo vale 0). node.costNote = aclaración en el tooltip y el panel.
   function nodeOps(run, node) {
@@ -536,7 +542,8 @@
     if (!run) return [];
     const ids = node.ops || [];
     const pid = node.costOf || node.id;
-    return run.ops.filter((o) => ids.indexOf(o.id) >= 0 || (!node.opsExact && o.path && o.path.indexOf(pid) >= 0 && (!node.scope || o.path.indexOf(node.scope) >= 0)));
+    const ex = node.costExclude || [];
+    return run.ops.filter((o) => ids.indexOf(o.id) >= 0 || (!node.opsExact && o.path && o.path.indexOf(pid) >= 0 && (!node.scope || o.path.indexOf(node.scope) >= 0) && !ex.some((x) => o.path.indexOf(x) >= 0)));
   }
   function nodeCost(run, node) {
     const ops = nodeOps(run, node);
@@ -550,7 +557,7 @@
       rep = 1;
     }
     const by = !node.costRef && run && run.totals && run.totals.byNode && run.totals.byNode[node.costOf || node.id];
-    return { ops, params, macs, rep, total: (!node.opsExact && !node.scope && by) || { params: ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
+    return { ops, params, macs, rep, total: (!node.opsExact && !node.scope && !node.costExclude && by) || { params: ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
   }
 
   // Unidad de un nodo repetido: node.badgeUnit ('por par' en los stages de Swin) o 'por capa'; con el plural
@@ -816,14 +823,19 @@
     };
     for (const g of spec.groups || []) {
       const r = geo.groups[g.id];
-      const hideTitle = slotOnlyGroup(r);
+      // group.hideInBlank: título que nombra un bloque que la práctica pregunta ("Memoria entre frames" junto al banco)
+      const hideTitle = slotOnlyGroup(r) || (ctl.mode === 'blank' && !!g.hideInBlank);
       // style:'batch' = marco discontinuo de la parte "con lote" (CLIP: donde las formas pasan a llevar B)
       if (g.style === 'batch') used.batch = true;
       // style:'train' = carril de "solo entrenamiento" (DETR: matching húngaro y pérdida), marco discontinuo gris
       if (g.style === 'train') used.train = true;
       // style:'offline' = carril "offline" (YOLO-World: el vocabulario se codifica una vez, antes de la inferencia)
       if (g.style === 'offline') used.offline = true;
-      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : '') + (g.style === 'train' ? ' ad-group--train' : '') + (g.style === 'offline' ? ' ad-group--offline' : ''), 'data-group': g.id }, L.groups);
+      // fase 5: style:'lane' = carril de "cuándo corre" (SAM: una vez por imagen / por prompt; SAM 2: por frame),
+      // con tone (warn|accent|head|fuse|muted: tokens del tema) y legend = el texto de su entrada en la leyenda
+      const lane = g.style === 'lane';
+      if (lane) (used.lanes = used.lanes || new Map()).set(g.legend || g.label || g.id, g.tone || 'muted');
+      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : '') + (g.style === 'train' ? ' ad-group--train' : '') + (g.style === 'offline' ? ' ad-group--offline' : '') + (lane ? ' ad-group--lane ad-tone--' + (g.tone || 'muted') : ''), 'data-group': g.id }, L.groups);
       if (g.repeat) {
         used.repeat = true;
         S('rect', { x: r.x + 10, y: r.y + 10, width: r.w, height: r.h, rx: 6, class: 'ad-stack' }, gg);
@@ -853,7 +865,8 @@
         // total del bloque repetido (byNode); repeat.totalLabel = plantilla con {t}; sin línea si se repite 1 vez
         if (tn && ctl.mode !== 'blank' && !ctl.quiz && v !== 1) { const c = nodeCost(run, tn); if (c.total && c.total.params) txt(gg, r.x + r.w - 10, r.y + (tag.indexOf('_') >= 0 ? 34 : 31), String(g.repeat.totalLabel || '= {t} en total').replace('{t}', fsi(c.total.params)), 'ad-group-total', 'end'); }
       }
-      if (g.label2 && !hideTitle) txt(gg, r.x + 10, r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub');
+      // el subtítulo de un carril (costos que nombran sus bloques: "encoder + neck: …") no va en la práctica
+      if (g.label2 && !hideTitle && !(lane && (ctl.mode === 'blank' || ctl.quiz))) txt(gg, r.x + 10, r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub');
     }
 
     // ---- nodos
@@ -902,6 +915,10 @@
         else if (t.labelSide === 'left') shapeLabel(ctl, gg, rt, gx - 2, gy - gs.h / 2, 'left', t.id);
         else shapeLabel(ctl, gg, rt, gx + gs.w, gy - gs.h / 2, 'right', t.id);
       }
+      // fase 5: leader = {node, side, at} — línea fina punteada del glifo al bloque que lo produce o usa
+      // (un glifo suelto entre columnas se leía como un tensor sin dueño)
+      // (la caja del glifo incluye su nota de arriba: la línea no la tacha)
+      if (t.leader && geo.nodes[t.leader.node]) { const top = gy - gs.h - (t.note ? 18 : 0); drawLeader(gg, [gx, top, gs.w, gy - top], geo.nodes[t.leader.node], t.leader); }
     }
     // ---- anotaciones (spec.notes): texto corto fijo en la grilla, p. ej. "stride 4" o el título de una
     // tira de comparación. Admite {{…}} del calculador (los números nunca se escriben a mano).
@@ -920,6 +937,17 @@
     }
     ctl.building = null;
     return { svg, geo, used, nodeEls, edgeEls, run, spec, width: W, height: Hh };
+  }
+
+  // Línea guía de un glifo suelto a su bloque: del punto del contorno del glifo más cercano al punto de
+  // anclaje del bloque (lado + at, como las aristas), con un punto en el extremo del bloque. box = [x, y, w, h] px.
+  function drawLeader(parent, box, r, ld) {
+    const B = attach(r, ld.side || 'left', ld.at);
+    const A = [clamp(B[0], box[0], box[0] + box[2]), clamp(B[1], box[1], box[1] + box[3])];
+    const lg = S('g', { class: 'ad-leader' }, parent);
+    S('path', { d: 'M' + P(A) + 'L' + P(B), class: 'ad-leader-ln' }, lg);
+    S('circle', { cx: r1(B[0]), cy: r1(B[1]), r: 2.2, class: 'ad-leader-dot' }, lg);
+    return lg;
   }
 
   function blueprint(w, h) {
@@ -1378,6 +1406,7 @@
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
     if (used.train) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--train' }, s); }, 'Marco gris discontinuo: solo en entrenamiento');
     if (used.offline) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--offline' }, s); }, 'Marco ámbar: offline (una vez, antes de la inferencia)');
+    if (used.lanes) for (const [label, tone] of used.lanes) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--lane ad-tone--' + tone }, s); }, label);
     if (used.badge) item((s) => { S('rect', { x: 1, y: 3, width: 24, height: 10, rx: 5, class: 'ad-badge-bg' }, s); S('path', { d: 'M5,8m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M7,8h3.5M9.5,8v2', class: 'ad-key' }, s); }, 'Parámetros aprendibles');
     if ((!opts || opts.withShapes !== false) && view.spec.kind !== 'map') {   // antes "opts && …": nunca se mostraba
       const li = H('div', { class: 'ad-leg-item ad-leg-shape', role: 'listitem' }, wrap);
@@ -2127,7 +2156,9 @@
       const ids = spec && isMobile() && ctl.mode === 'full' && !fig.classList.contains('ad--fs') ? spec.mobileFocus : null;
       const rs = (ids || []).map((id) => ctl.view.geo.nodes[id] || ctl.view.geo.groups[id]).filter(Boolean);
       if (!rs.length) { fit(false); return; }
-      const x0 = Math.min(...rs.map((r) => r.x)), y0 = Math.min(...rs.map((r) => r.y)), x1 = Math.max(...rs.map((r) => r.x + r.w)), y1 = Math.max(...rs.map((r) => r.y + r.h));
+      // mobileFocusPad (u): margen extra arriba a la izquierda (p. ej. para que entre el título de un carril)
+      const mp = (spec.mobileFocusPad || 0) * U;
+      const x0 = Math.min(...rs.map((r) => r.x)) - mp, y0 = Math.min(...rs.map((r) => r.y)) - mp, x1 = Math.max(...rs.map((r) => r.x + r.w)), y1 = Math.max(...rs.map((r) => r.y + r.h));
       setVB(rectVB({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }));
     }
     ctl.initialView = initialView;

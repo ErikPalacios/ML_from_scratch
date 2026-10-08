@@ -497,3 +497,83 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-ptd-tot--yw { fill: var(--op-conv); }
 .viz-ptd-tot--gd { fill: var(--op-attn); }
 .viz-cell-btn:focus-visible .viz-ptd-bar { stroke: var(--focus); stroke-width: 2.5; }
+
+/* ---------------------------------------------------------------- fase 5: motor (SAM, SAM 2) */
+/* carriles de "cuándo corre" (style:'lane' + tone): SAM "una vez por imagen" / "por prompt"; SAM 2 "por frame" */
+.ad-tone--warn { --tone: var(--warn); }
+.ad-tone--accent { --tone: var(--accent); }
+.ad-tone--head { --tone: var(--op-head); }
+.ad-tone--fuse { --tone: var(--op-fuse); }
+.ad-tone--muted { --tone: var(--muted); }
+.ad-group--lane > .ad-frame, .ad-frame--lane { fill: color-mix(in srgb, var(--tone) 5%, var(--surface)); stroke: var(--tone); stroke-width: 1.4; stroke-dasharray: 9 3 2 3; }
+.ad-group--lane > .ad-group-label { fill: var(--ink); letter-spacing: .07em; text-transform: uppercase; font-size: 11.5px; }
+.ad-group--lane > .ad-group-sub { fill: var(--ink); }
+/* línea guía de un glifo suelto a su bloque (tensors[].leader) */
+.ad-leader-ln { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2.5; }
+.ad-leader-dot { fill: var(--muted); }
+/* ---------------------------------------------------------------- fase 5: visualizaciones */
+/* prompt-to-mask: escena sintética (colores fijos de "foto", como la escena procedural de ViT), máscara elegida
+   (acento + el resto atenuado), puntos +/−, caja, tarjetas de las 3 salidas con su IoU predicho */
+.viz-p2m-sky { fill: #A9CBE8; } .viz-p2m-grass { fill: #8DB36F; } .viz-p2m-sun { fill: #F4C95D; }
+.viz-p2m-wall { fill: #E2C8A0; } .viz-p2m-roof { fill: #A8452F; } .viz-p2m-door { fill: #6B4F35; } .viz-p2m-glass { fill: #DCEBF5; stroke: #5D6B78; stroke-width: .8; }
+.viz-p2m-trunk { fill: #6B4F35; } .viz-p2m-leaf { fill: #3F7A4A; }
+.viz-p2m-car { fill: #3E6FB0; } .viz-p2m-wheel { fill: #2A2F36; }
+.viz-p2m-dim { fill: var(--surface); fill-opacity: .72; }
+.viz-p2m-mask { fill: var(--accent); fill-opacity: .22; }
+.viz-p2m-mask.is-strong { fill-opacity: .28; }
+.viz-p2m-flood { flood-color: var(--accent); flood-opacity: 1; }
+.viz-p2m-box { fill: none; stroke: var(--ink); stroke-width: 2; stroke-dasharray: 6 3; }
+.viz-p2m-pt circle { stroke: var(--surface); stroke-width: 2; }
+.viz-p2m-pt path { stroke: var(--surface); stroke-width: 2; stroke-linecap: round; }
+.viz-p2m-pt.is-pos circle { fill: var(--ok); }
+.viz-p2m-pt.is-neg circle { fill: var(--bad); }
+.viz-p2m-corner { fill: var(--ink); }
+.viz-p2m-cursor { stroke: var(--ink); stroke-width: 2; }
+.viz-p2m-hit { fill: transparent; cursor: crosshair; }
+.viz-p2m-hit:focus-visible { outline: none; stroke: var(--focus); stroke-width: 3; }
+.viz-p2m-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-p2m-empty { fill: var(--surface-2); }
+.viz-p2m-best { fill: none; stroke: var(--accent); stroke-width: 2.4; }
+.viz-p2m-card.is-off { opacity: .55; }
+.viz-p2m-iou { fill: var(--op-head-soft); stroke: var(--op-head); stroke-width: 1; }
+.viz-p2m-iou.is-best { fill: var(--op-head); }
+.viz-p2m-enc { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1.2; }
+.viz-p2m-dec { fill: var(--op-head-soft); stroke: var(--op-head); stroke-width: 1.2; }
+.viz-cell-btn:focus-visible .viz-p2m-frame { stroke: var(--focus); stroke-width: 2.5; }
+/* memory-bank: frames del video (pasados, actual, futuros), memorias (prompt / FIFO / sin objeto), punteros, oclusión */
+.viz-mb-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-mb-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-mb-frame.is-t { stroke: var(--accent); stroke-width: 2.6; }
+.viz-mb-f.is-future { opacity: .4; }
+.viz-mb-f { cursor: pointer; }
+.viz-mb-car.is-masked .viz-p2m-car, .viz-mb-car.is-masked .viz-p2m-wheel { stroke: var(--accent); stroke-width: 1.6; }
+.viz-mb-mem { stroke-width: 1.2; }
+.viz-mb-mem.is-cond { fill: var(--op-fuse); stroke: var(--op-fuse); }
+.viz-mb-mem.is-recent { fill: var(--op-fuse-soft); stroke: var(--op-fuse); }
+.viz-mb-mem.is-noobj { fill: var(--surface); stroke-dasharray: 2.5 1.5; }
+.viz-mb-ptr { fill: var(--op-head); stroke: var(--surface); stroke-width: 1; }
+.viz-mb-ptr.is-noobj { fill: var(--surface); stroke: var(--op-head); stroke-width: 1.4; }
+.viz-mb-occl { fill: none; stroke: var(--bad); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.viz-mb-arc { fill: none; stroke: var(--op-fuse); stroke-width: 1.2; stroke-opacity: .7; }
+.viz-mb-arc.is-cond { stroke-width: 2; stroke-opacity: 1; }
+.viz-mb-arrow { fill: var(--op-fuse); }
+/* windowed-global: pila de bloques (con ventanas / G = global), rejilla de tokens con relleno y ventanas, alcance de un token */
+.viz-wg-stack, .viz-wg-grid { outline: none; }
+.viz-wg-stack:focus-visible .viz-wg-b.is-sel .viz-wg-cell, .viz-wg-grid:focus-visible .viz-wg-img { stroke: var(--focus); stroke-width: 3; }
+.viz-wg-b { cursor: pointer; }
+.viz-wg-cell { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1; }
+.viz-wg-b.is-global .viz-wg-cell { fill: var(--op-attn); }
+.viz-wg-b.is-sel .viz-wg-cell { stroke: var(--ink); stroke-width: 2.4; }
+.viz-wg-ico { fill: none; stroke: var(--op-attn); stroke-width: 1; }
+.viz-wg-g { font: 700 11px var(--font-mono); fill: var(--surface); pointer-events: none; }
+.viz-wg-img { fill: color-mix(in srgb, var(--mod-img) 10%, var(--surface)); stroke: var(--mod-img); stroke-width: 1.2; }
+.viz-wg-pad { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 3 2; }
+.viz-wg-reach { fill: var(--op-attn); fill-opacity: .22; }
+.viz-wg-tok { fill: none; stroke: var(--ink); stroke-opacity: .1; stroke-width: .5; pointer-events: none; }
+.viz-wg-win { fill: none; stroke: var(--op-attn); stroke-width: 1.6; pointer-events: none; }
+.viz-wg-winrect { fill: none; stroke: var(--op-attn); stroke-width: 2; pointer-events: none; }
+.viz-wg-q { fill: var(--ink); }
+.viz-wg-hit { fill: transparent; cursor: crosshair; }
+.viz-wg-bar { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1; }
+.viz-wg-bar.is-score { fill: color-mix(in srgb, var(--op-attn) 45%, var(--surface)); }
+.viz-wg-bar.is-sel { stroke: var(--ink); stroke-width: 1.8; }

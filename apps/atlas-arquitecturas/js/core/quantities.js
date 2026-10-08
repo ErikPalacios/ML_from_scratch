@@ -25,7 +25,8 @@
      metrics.<k>                       (ATLAS.Arch.metrics con B = 1, bf16; bytes con ATLAS.Arch.fmt.bytes,
                                         unidades decimales: 1 KB = 1000 B → '931.4 KB', '173.1 MB'. Unidad por
                                         el mapa metrics.units del modelo o por el nombre: …Mem, …Mem2x,
-                                        …MemAllLayers, …Cache = bytes; …Share = %; 'ratio' = 3 cifras)
+                                        …MemAllLayers, …Cache = bytes; …Share = %; 'ratio' = 3 cifras;
+                                        'macs' = fmt.ops, p. ej. '1.81 GMACs' — solo por el mapa units)
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -134,6 +135,8 @@
       if (unit === 'bytes') return num(v, f.bytes(v));
       if (unit === 'pct') return num(v, f.pct(v));
       if (unit === 'ratio') return num(v, fRatio(v));
+      // 'macs' (mapa units del modelo): cómputo con el formato único de la app (fmt.ops): '1.81 GMACs', '2.98 TMACs'.
+      if (unit === 'macs') return num(v, f.ops(v));
       if (parts[1] === 'scoreToLinear') return num(v, v.toFixed(2));
       return num(v, f.int(v));
     }

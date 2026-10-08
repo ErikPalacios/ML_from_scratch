@@ -20,7 +20,7 @@ function load() {
 }
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world'];
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2'];
 const diagrams = ATLAS.diagrams();
 
 // Lo que el diagrama escribe para un nodo (archdiagram.js nodeCost): por capa si todas las ops se
@@ -241,4 +241,40 @@ test('fase 4: configs a resolución comparable y base cuadrada del explorador', 
   assert.strictEqual(P._knobBase(t672.config, 'res', [448, 672, 896, 1120]), 672);
   assert.strictEqual(P._knobBase(A.run('swin-t-224').config, 'res', [224, 384]), 224);
   assert.strictEqual(P._knobBase(A.run('yolo-world-l-640').config, 'res', [320, 640]), 640);
+});
+
+test('fase 5: toda forma de SAM y SAM 2 sale de los datos de la tarjeta o de su etiqueta; tipos de métrica por units', () => {
+  let n = 0;
+  for (const cfg of ['sam-vit-h-1024', 'sam-vit-b-1024', 'sam2-hiera-l', 'sam2-hiera-t']) {
+    const R = A.run(cfg);
+    const known = {};
+    P._factPairs(R.config).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
+    if (known.dh == null && known.D != null) known.dh = known.D / known.h;
+    for (const id of R.order) {
+      const t = R.tensors[id];
+      const text = (t.label || '') + ' ' + (t.tex || '');
+      t.sym.forEach((sym, i) => {
+        const str = String(sym);
+        if (/^\d+$/.test(str)) return;
+        const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/²/g, '**2').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+        const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+        if (ids.some((x) => !(x in known))) {
+          assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
+          return;
+        }
+        n++;
+        assert.strictEqual(Function(...Object.keys(known), 'return ' + e)(...Object.values(known)), t.num[i], cfg + ' ' + id + ': ' + str);
+      });
+    }
+  }
+  assert.ok(n > 1500, 'se revisaron ' + n + ' dimensiones');
+  const f = Object.fromEntries(P._factPairs(A.run('sam-vit-h-1024').config));
+  assert.deepStrictEqual([f.P, f.C, f.D, f.M, f.N, f.h], [1, 256, 1280, 14, 4096, 16]);
+  // el mapa units del calculador solo usa unidades que la práctica sabe formatear, y cubre toda métrica numérica
+  // cuyo nombre no basta (…Mem = bytes, …Share = %, el resto = conteo)
+  for (const cfg of ['sam-vit-h-1024', 'sam2-hiera-l']) {
+    const m = A.metrics(cfg, {});
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
+    for (const k of Object.keys(m)) if (typeof m[k] === 'number' && /Macs$/.test(k) && !/^(attnMacs|scoreMacs|linearMacs)$/.test(k)) assert.ok(m.units[k], cfg + ' ' + k + ' sin unidad');
+  }
 });

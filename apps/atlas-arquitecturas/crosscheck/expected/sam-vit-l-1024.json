@@ -1,0 +1,552 @@
+{
+  "config_id": "sam-vit-l-1024",
+  "model": "sam",
+  "params_total": 312342832,
+  "params_total_hf_raw": 312343088,
+  "params_fourier_gaussian_hf": 256,
+  "params_by_module": {
+    "shared_image_embedding": 256,
+    "vision_encoder": 308278272,
+    "prompt_encoder": 6476,
+    "mask_decoder": 4058340
+  },
+  "params_by_node": {
+    "img-encoder": 308278272,
+    "prompt-enc": 6220,
+    "mask-decoder": 4058340
+  },
+  "params_by_path": {
+    "img-encoder>patch-embed": 787456,
+    "img-encoder>pos-embed": 4194304,
+    "img-encoder>win-blocks": 251993600,
+    "img-encoder>global-blocks": 50449920,
+    "img-encoder>neck": 852992,
+    "prompt-enc>mask-in": 4940,
+    "prompt-enc>type-embed": 1280,
+    "mask-decoder>tokens": 1280,
+    "mask-decoder>two-way": 3159040,
+    "mask-decoder>final-attn": 132224,
+    "mask-decoder>upscale": 73952,
+    "mask-decoder>hypernet": 559232,
+    "mask-decoder>iou-head": 132612
+  },
+  "rel_pos_tables": {
+    "window": [
+      27,
+      64
+    ],
+    "global": [
+      127,
+      64
+    ]
+  },
+  "sam_windows": {
+    "window_size": 14,
+    "grid": 64,
+    "num_windows": 25,
+    "padded_tokens": 4900,
+    "global_attn_indexes": [
+      5,
+      11,
+      17,
+      23
+    ]
+  },
+  "prompt": {
+    "points": 1,
+    "boxes": 0,
+    "mask_input": false,
+    "multimask_output": true,
+    "note": "1 clic positivo sin caja: el prompt encoder añade el punto de relleno (2 tokens dispersos)"
+  },
+  "shapes": {
+    "x-img": [
+      1024,
+      1024,
+      3
+    ],
+    "patches": [
+      64,
+      64,
+      1024
+    ],
+    "w-ln1": [
+      64,
+      64,
+      1024
+    ],
+    "w-win": [
+      25,
+      196,
+      1024
+    ],
+    "w-qkv": [
+      25,
+      196,
+      3072
+    ],
+    "w-attn": [
+      25,
+      16,
+      196,
+      196
+    ],
+    "w-o": [
+      25,
+      196,
+      1024
+    ],
+    "w-ln2": [
+      64,
+      64,
+      1024
+    ],
+    "w-u": [
+      64,
+      64,
+      4096
+    ],
+    "w-out": [
+      64,
+      64,
+      1024
+    ],
+    "g-ln1": [
+      64,
+      64,
+      1024
+    ],
+    "g-qkv": [
+      4096,
+      3072
+    ],
+    "g-attn": [
+      16,
+      4096,
+      4096
+    ],
+    "g-u": [
+      64,
+      64,
+      4096
+    ],
+    "enc-out": [
+      64,
+      64,
+      1024
+    ],
+    "neck-c1": [
+      64,
+      64,
+      256
+    ],
+    "img-emb": [
+      64,
+      64,
+      256
+    ],
+    "sparse": [
+      2,
+      256
+    ],
+    "dense": [
+      64,
+      64,
+      256
+    ],
+    "tokens": [
+      7,
+      256
+    ],
+    "tw-self-attn": [
+      8,
+      7,
+      7
+    ],
+    "tw-t2i-attn": [
+      8,
+      7,
+      4096
+    ],
+    "tw-i2t-attn": [
+      8,
+      4096,
+      7
+    ],
+    "tw-u": [
+      7,
+      2048
+    ],
+    "tw-keys": [
+      4096,
+      256
+    ],
+    "fa-attn": [
+      8,
+      7,
+      4096
+    ],
+    "tok-out": [
+      7,
+      256
+    ],
+    "up-c1": [
+      128,
+      128,
+      64
+    ],
+    "up-c2": [
+      256,
+      256,
+      32
+    ],
+    "hn-h1": [
+      4,
+      256
+    ],
+    "iou-all": [
+      4
+    ],
+    "masks": [
+      3,
+      256,
+      256
+    ],
+    "iou": [
+      3
+    ],
+    "img-pe": [
+      64,
+      64,
+      256
+    ]
+  },
+  "shapes_torch": {
+    "patches": {
+      "module": "vision_encoder.patch_embed",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1024
+      ]
+    },
+    "w-ln1": {
+      "module": "vision_encoder.layers.0.layer_norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1024
+      ]
+    },
+    "w-win": {
+      "module": "vision_encoder.layers.0.attn",
+      "hook": "in",
+      "torch_shape": [
+        25,
+        14,
+        14,
+        1024
+      ]
+    },
+    "w-qkv": {
+      "module": "vision_encoder.layers.0.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        25,
+        14,
+        14,
+        3072
+      ]
+    },
+    "w-attn": {
+      "module": "vision_encoder.layers.0.attn",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        400,
+        196,
+        196
+      ]
+    },
+    "w-o": {
+      "module": "vision_encoder.layers.0.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        25,
+        14,
+        14,
+        1024
+      ]
+    },
+    "w-ln2": {
+      "module": "vision_encoder.layers.0.layer_norm2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1024
+      ]
+    },
+    "w-u": {
+      "module": "vision_encoder.layers.0.mlp.lin1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        4096
+      ]
+    },
+    "w-out": {
+      "module": "vision_encoder.layers.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1024
+      ]
+    },
+    "g-ln1": {
+      "module": "vision_encoder.layers.5.layer_norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1024
+      ]
+    },
+    "g-qkv": {
+      "module": "vision_encoder.layers.5.attn.qkv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        3072
+      ]
+    },
+    "g-attn": {
+      "module": "vision_encoder.layers.5.attn",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        16,
+        4096,
+        4096
+      ]
+    },
+    "g-u": {
+      "module": "vision_encoder.layers.5.mlp.lin1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        4096
+      ]
+    },
+    "enc-out": {
+      "module": "vision_encoder.layers.23",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1024
+      ]
+    },
+    "neck-c1": {
+      "module": "vision_encoder.neck.conv1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        64,
+        64
+      ]
+    },
+    "img-emb": {
+      "module": "vision_encoder.neck",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        64,
+        64
+      ]
+    },
+    "sparse": {
+      "module": "prompt_encoder",
+      "hook": "('out', 0)",
+      "torch_shape": [
+        1,
+        1,
+        2,
+        256
+      ]
+    },
+    "dense": {
+      "module": "prompt_encoder",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        256,
+        64,
+        64
+      ]
+    },
+    "tokens": {
+      "module": "mask_decoder.transformer",
+      "hook": "('kw', 'point_embeddings')",
+      "torch_shape": [
+        1,
+        1,
+        7,
+        256
+      ]
+    },
+    "tw-self-attn": {
+      "module": "mask_decoder.transformer.layers.0.self_attn",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        8,
+        7,
+        7
+      ]
+    },
+    "tw-t2i-attn": {
+      "module": "mask_decoder.transformer.layers.0.cross_attn_token_to_image",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        8,
+        7,
+        4096
+      ]
+    },
+    "tw-i2t-attn": {
+      "module": "mask_decoder.transformer.layers.0.cross_attn_image_to_token",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        8,
+        4096,
+        7
+      ]
+    },
+    "tw-u": {
+      "module": "mask_decoder.transformer.layers.0.mlp.lin1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1,
+        7,
+        2048
+      ]
+    },
+    "tw-keys": {
+      "module": "mask_decoder.transformer.layers.0",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        1,
+        4096,
+        256
+      ]
+    },
+    "fa-attn": {
+      "module": "mask_decoder.transformer.final_attn_token_to_image",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        8,
+        7,
+        4096
+      ]
+    },
+    "tok-out": {
+      "module": "mask_decoder.transformer",
+      "hook": "('out', 0)",
+      "torch_shape": [
+        1,
+        1,
+        7,
+        256
+      ]
+    },
+    "up-c1": {
+      "module": "mask_decoder.upscale_conv1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        128,
+        128
+      ]
+    },
+    "up-c2": {
+      "module": "mask_decoder.upscale_conv2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        32,
+        256,
+        256
+      ]
+    },
+    "hn-h1": {
+      "module": "mask_decoder.output_hypernetworks_mlps.0.proj_in",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1,
+        256
+      ]
+    },
+    "iou-all": {
+      "module": "mask_decoder.iou_prediction_head",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1,
+        4
+      ]
+    }
+  },
+  "flops_total": 2989305009152,
+  "flops_by_node": {
+    "img-encoder": 2985680306176,
+    "prompt-enc": 2098176,
+    "mask-decoder": 3622604800
+  },
+  "flops_by_op_torch": {
+    "aten.mm": 807404544,
+    "aten.convolution": 14227079168,
+    "aten.addmm": 2610711693312,
+    "aten.bmm": 363558832128
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "SamModel._from_config(SamConfig(vision_config={'hidden_size': 1024, 'num_hidden_layers': 24, 'num_attention_heads': 16, 'global_attn_indexes': [5, 11, 17, 23], 'image_size': 1024}, prompt_encoder_config={'image_size': 1024}), attn_implementation='eager')",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Construido en código, sin hub ni pesos: SamConfig con los hiperparámetros de build_sam.py oficial (ventana 14, rel-pos, neck 256, decoder two-way de 2 capas × 8 cabezas, MLP 2048). Atención eager.",
+    "params_total = params_total_hf_raw − 256: HF registra la matriz gaussiana 2×128 de la PE de Fourier (shared_image_embedding.positional_embedding, la misma que usa el prompt encoder) como nn.Parameter; en el código oficial (PositionEmbeddingRandom) es un buffer. El resto coincide módulo a módulo.",
+    "El forward de referencia: imagen 1024×1024 en ceros, 1 clic positivo, sin caja (→ + 1 punto de relleno), sin máscara de entrada (→ embedding no-mask), multimask_output=True. FlopCounterMode cuenta las einsum de la posición relativa descompuesta y el producto por la matriz gaussiana (puntos y rejilla densa de 64×64).",
+    "Bloques con ventanas: la rejilla de 64×64 se rellena a 70×70 (25 ventanas de 14×14 = 4,900 tokens); qkv, la atención y la proyección también corren sobre el relleno. Las tablas relativas miden (2·14−1)×d_h (ventana) y (2·64−1)×d_h (global).",
+    "Las 4 máscaras se calculan siempre (multimask o no); la salida se corta después. Las máscaras salen a 256×256 (logits); el procesador las interpola a la imagen original (fuera del modelo).",
+    "Formas sin batch; rejillas H×W×C (PyTorch: C×H×W; el ViT de SAM ya trabaja en B×H×W×C)."
+  ]
+}

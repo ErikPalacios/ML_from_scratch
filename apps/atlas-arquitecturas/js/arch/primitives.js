@@ -56,6 +56,12 @@
      dfl_decode, dist2bbox, merge_level_logits, offline_text_encoder (0 en el grafo online; costo en detail); compuestas conv_bn_act (Conv de Ultralytics), csp_bottleneck, c2f,
      sppf, max_sigmoid_attn, t_csp_layer, image_pooling_attn y bi_attention. Un '·' dentro de un símbolo se escribe
      \cdot en LaTeX. Ninguna cambia el resultado de las fases 1–3.
+   - Fase 5 (SAM, SAM 2): conv_transpose2d (k = s), depthwise_conv2d, window_partition_pad / window_unpartition (ventanas con
+     relleno y recorte, como SAM y Hiera), decomposed_rel_pos (posición relativa por eje de MViTv2: 2·(2S−1)·d_h parámetros),
+     query_pool (Hiera), coord_grid, fourier_pe (PE aleatoria de SAM, G = buffer), append_pad_point, type_embed, learned_tokens,
+     broadcast_embed, idle_params (parámetros del modelo que el forward no usa: sin tensores ni MACs), rope_2d, take_rows,
+     grouped_linear (hipernetwork), hyper_dot, mask_select, pick_mask, upsample_bilinear, to_grid, split_tokens, repeat_rows,
+     add_temporal_embed, pos_embed_grid, window_pos_embed y gate_embed. Ninguna cambia el resultado de las fases 1–4.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -185,7 +191,9 @@
     // Fase 3: BN congelada = escala + desplazamiento; GroupNorm como LayerNorm; sigmoide; PE seno/coseno.
     frozenbn: 2, groupnorm: 5, sigmoid: 4, sinpos: 3,
     // Fase 4: SiLU (x·σ(x)) ≈ sigmoide + producto.
-    silu: 4 };
+    silu: 4,
+    // Fase 5: interpolación bilineal (4 vecinos) y bicúbica (16), rotación RoPE (q·cos + rot(q)·sin).
+    bilinear: 4, bicubic: 16, rope: 3 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -887,6 +895,266 @@
     });
   }
 
+  // ---- Fase 5 (SAM, SAM 2): primitivas elementales ----------------------------------------
+  // conv_transpose2d (decoder de SAM, upscaling): kernel k, stride s = k (sin solapamiento): H×W×C_in →
+  // (H·s)×(W·s)×C_out. Parámetros k²·C_in·C_out + C_out; MACs H·W·k²·C_in·C_out (cada píxel de ENTRADA
+  // reparte C_in·C_out MACs en sus k² salidas; = H_o·W_o·C_in·C_out cuando k = s). o = {k=2, cout, coutSym, outSym, bias=true}
+  function conv_transpose2d(x, o) {
+    if (x.num.length !== 3) throw new Error('conv_transpose2d espera una entrada H×W×C.');
+    const [H, W, C] = x.num, Cs = x.sym[2], k = o.k || 2, s = o.s || k, bias = o.bias !== false;
+    const Ho = (H - 1) * s + k, Wo = (W - 1) * s + k;
+    const cout = o.cout, coutSym = o.coutSym || String(cout);
+    const os = o.outSym || [String(Ho), String(Wo)];
+    return result('conv_transpose2d', [x], shape([os[0], os[1], coutSym], [Ho, Wo, cout], o.mod || x.mod, 'grid'), {
+      paramTerms: [[k, k, C, cout]].concat(bias ? [[cout]] : []),
+      paramTex: symTexFactor(String(k)) + '^2\\cdot ' + symTexFactor(Cs) + '\\cdot ' + symTexFactor(coutSym) + (bias ? ' + ' + symTexFactor(coutSym) : ''),
+      macTerms: [[H, W, k, k, C, cout]],
+      macTex: texProd([x.sym[0], x.sym[1]]) + '\\cdot ' + k + '^2\\cdot ' + symTexFactor(Cs) + '\\cdot ' + symTexFactor(coutSym),
+      other: bias ? Ho * Wo * cout * OTHER.bias : 0,
+      detail: { k, s, Ho, Wo, cin: C, cout, bias, transposed: true },
+    });
+  }
+
+  // depthwise_conv2d (fuser del memory encoder de SAM 2, bloque ConvNeXt): un filtro k×k por canal (groups = C),
+  // stride 1, padding p: H×W×C → H×W×C. Parámetros k²·C + C; MACs H·W·C·k² (sin el factor C_in de una conv densa).
+  function depthwise_conv2d(x, o) {
+    const [H, W, C] = x.num, Cs = x.sym[2], k = o.k, p = o.p !== undefined ? o.p : Math.floor(k / 2), bias = o.bias !== false;
+    const Ho = H + 2 * p - k + 1, Wo = W + 2 * p - k + 1;
+    if (Ho !== H || Wo !== W) throw new Error('depthwise_conv2d: el calculador solo modela padding "same" (p = ⌊k/2⌋).');
+    return result('depthwise_conv2d', [x], plain(x), {
+      paramTerms: [[k, k, C]].concat(bias ? [[C]] : []),
+      paramTex: k + '^2\\cdot ' + symTexFactor(Cs) + (bias ? ' + ' + symTexFactor(Cs) : ''),
+      macTerms: [[H, W, C, k, k]], macTex: texProd([x.sym[0], x.sym[1], Cs]) + '\\cdot ' + k + '^2',
+      other: bias ? H * W * C * OTHER.bias : 0, detail: { k, p, groups: C, depthwise: true },
+    });
+  }
+
+  // window_partition_pad (SAM y Hiera): como window_partition, pero RELLENA con ceros hasta un múltiplo de M
+  // (F.pad de HF / oficial): H×W×C → nW×M²×C con nW = ⌈H/M⌉·⌈W/M⌉. Los tokens de relleno también pasan por
+  // qkv, la atención y la proyección (cuestan MACs). o = {M, nWSym, tokSym}
+  function window_partition_pad(x, o) {
+    const [H, W, C] = x.num, M = o.M;
+    const Hp = Math.ceil(H / M) * M, Wp = Math.ceil(W / M) * M, nW = (Hp / M) * (Wp / M);
+    return result('window_partition_pad', [x], shape([o.nWSym || String(nW), o.tokSym || String(M * M), x.sym[2]], [nW, M * M, C], x.mod, 'windows'), {
+      detail: { M, nW, H, W, Hp, Wp, padTokens: Hp * Wp - H * W, note: Hp * Wp > H * W ? 'relleno de ' + H + '×' + W + ' a ' + Hp + '×' + Wp : 'sin relleno' },
+    });
+  }
+
+  // window_unpartition (SAM y Hiera): nW×M²×C → H×W×C, recortando el relleno. o = {H, W, M, outSym:[hs, ws]}
+  function window_unpartition(x, o) {
+    const [nW, MM, C] = x.num, M = o.M;
+    if (MM !== M * M) throw new Error('window_unpartition: ventanas de ' + MM + ' tokens no son de ' + M + '×' + M + '.');
+    if (nW !== Math.ceil(o.H / M) * Math.ceil(o.W / M)) throw new Error('window_unpartition: ' + nW + ' ventanas no cubren una rejilla ' + o.H + '×' + o.W + ' con M = ' + M + '.');
+    const os = o.outSym || [String(o.H), String(o.W)];
+    return result('window_unpartition', [x], shape([os[0], os[1], x.sym[2]], [o.H, o.W, C], x.mod, 'grid'), { detail: { M, nW, crop: nW * MM - o.H * o.W } });
+  }
+
+  // decomposed_rel_pos (SAM, de MViTv2): sesgo de posición relativa DESCOMPUESTO por eje. Tablas aprendidas
+  // R_h, R_w de (2S−1)×d_h (S = lado de la ventana, o del mapa en un bloque global); bias[y,x,y',x'] =
+  // q_{yx}·R_h[y−y'] + q_{yx}·R_w[x−x'] (dos einsum) y se suma a los scores. Parámetros 2·(2S−1)·d_h;
+  // MACs 2·nW·h·S²·S·d_h (las dos einsum: cada query contra S filas y S columnas, no S²). Entradas: scores, Q.
+  // o = {S, Ssym='S'}
+  function decomposed_rel_pos(scores, q, o) {
+    const nd = q.num.length, S = o.S, Ss = o.Ssym || String(S);
+    const lead = q.num.slice(0, nd - 3), leadSym = q.sym.slice(0, nd - 3);
+    const [h, N, dh] = q.num.slice(nd - 3);
+    if (N !== S * S) throw new Error('decomposed_rel_pos: ' + N + ' queries no forman una rejilla ' + S + '×' + S + '.');
+    const dhs = q.sym[nd - 1], hs = q.sym[nd - 3];
+    return result('decomposed_rel_pos', [scores, q], plain(scores), {
+      paramTerms: [[2, 2 * S - 1, dh]], paramTex: '2\\,(2' + symTexFactor(Ss) + '-1)\\,' + symTexFactor(dhs),
+      macTerms: [[2].concat(lead, [h, N, S, dh])], macTex: '2\\,' + texProd(leadSym.concat([hs, q.sym[nd - 2], Ss, dhs])),
+      other: elems(scores) * OTHER.add + 2 * prod(lead) * h * N * S,
+      detail: { S, h, dh, tables: [[2 * S - 1, dh], [2 * S - 1, dh]], perTable: (2 * S - 1) * dh, windows: prod(lead) || 1,
+        fullTableIfNotDecomposed: (2 * S - 1) * (2 * S - 1) * dh, note: 'q·R_h y q·R_w (einsum) y suma a los scores; sin la tabla 2-D (2S−1)² de Swin' },
+    });
+  }
+
+  // query_pool (Hiera, primer bloque de los stages 2–4): max-pool 2×2 de las queries DENTRO de cada ventana:
+  // nW×h×M²×d_h → nW×h×(M/2)²×d_h. Las keys y values no se reducen: QKᵀ es (M/2)²×M² por ventana. ≈ 1 op por elemento.
+  function query_pool(q, o) {
+    const nd = q.num.length, s = (o && o.s) || 2;
+    const lead = q.num.slice(0, nd - 3), leadSym = q.sym.slice(0, nd - 3);
+    const [h, N, dh] = q.num.slice(nd - 3), M = Math.round(Math.sqrt(N));
+    if (M * M !== N || M % s !== 0) throw new Error('query_pool: ' + N + ' tokens por ventana no se reducen con stride ' + s + '.');
+    const m = M / s;
+    return result('query_pool', [q], shape(leadSym.concat([q.sym[nd - 3], (o && o.tokSym) || String(m * m), q.sym[nd - 1]]), lead.concat([h, m * m, dh]), q.mod, q.layout), {
+      other: elems(q), detail: { s, M, m, kind: 'max' },
+    });
+  }
+
+  // coord_grid (SAM, PE densa): centros normalizados de una rejilla h×w ((i+½)/h, (j+½)/w): h×w×2. Calculado.
+  function coord_grid(o) {
+    const os = o.sym || [String(o.H), String(o.W)];
+    return result('coord_grid', [], shape([os[0], os[1], '2'], [o.H, o.W, 2], o.mod || 'img', 'grid'), { other: o.H * o.W * 4, detail: { H: o.H, W: o.W } });
+  }
+
+  // fourier_pe (SAM, PositionEmbeddingRandom): coordenadas en [0,1]² → 2·c − 1 → (·) G (matriz gaussiana 2×F
+  // FIJA: buffer en el oficial) → [sin(2π·), cos(2π·)]: …×2 → …×2F. MACs filas·2·F (el producto por G);
+  // sin/cos en "otros". o = {F=128, Dsym}
+  function fourier_pe(x, o) {
+    const F = (o && o.F) || 128, nd = x.num.length;
+    if (x.num[nd - 1] !== 2) throw new Error('fourier_pe espera coordenadas (…×2).');
+    const rows = elems(x) / 2, rowsSym = x.sym.slice(0, nd - 1);
+    const out = shape(rowsSym.concat([(o && o.Dsym) || String(2 * F)]), x.num.slice(0, nd - 1).concat([2 * F]), x.mod, x.layout);
+    return result('fourier_pe', [x], out, {
+      macTerms: [x.num.slice(0, nd - 1).concat([2, F])], macTex: texProd(rowsSym) + '\\cdot 2\\cdot ' + F,
+      other: rows * (4 + 2 * F * OTHER.sinpos), detail: { F, gaussian: [2, F], buffer: true, note: 'G ~ N(0, 1) fija (registrada como buffer en el código oficial)' },
+    });
+  }
+
+  // append_pad_point (SAM, prompt encoder): sin caja, se añade un punto de relleno (etiqueta −1, "not a point"):
+  // P×2 → (P+1)×2. Sin costo. o.sym = símbolo del largo resultante.
+  function append_pad_point(x, o) {
+    return result('append_pad_point', [x], shape([(o && o.sym) || (x.sym[0] + '+1'), x.sym[1]], [x.num[0] + 1, x.num[1]], x.mod, 'seq'), { detail: { padLabel: -1 } });
+  }
+
+  // type_embed (SAM, prompt encoder): suma a cada token disperso el embedding aprendido de su tipo (punto
+  // positivo, negativo, esquina superior-izquierda / inferior-derecha de la caja, "not a point"). Tabla rows×D.
+  // o = {rows, D, Dsym}
+  function type_embed(x, o) {
+    const Ds = o.Dsym || x.sym[x.sym.length - 1];
+    return result('type_embed', [x], plain(x), {
+      paramTerms: [[o.rows, o.D]], paramTex: o.rows + '\\cdot ' + symTexFactor(Ds), other: elems(x) * OTHER.add, detail: { rows: o.rows, D: o.D, kinds: o.kinds || null },
+    });
+  }
+
+  // learned_tokens (decoder de SAM): tokens de salida aprendidos (IoU, máscaras, objeto en SAM 2): tabla rows×D.
+  function learned_tokens(o) {
+    const out = shape([o.rowsSym || String(o.rows), o.Dsym || 'D'], [o.rows, o.D], o.mod || 'qry', 'seq');
+    return result('learned_tokens', [], out, { paramTerms: [[o.rows, o.D]], paramTex: texProd([o.rowsSym || String(o.rows), o.Dsym || 'D']), detail: { rows: o.rows, D: o.D, kinds: o.kinds || null } });
+  }
+
+  // broadcast_embed (SAM, "no-mask"): un vector aprendido (D parámetros) repetido en cada posición h×w×D.
+  function broadcast_embed(o) {
+    const os = o.sym || [String(o.H), String(o.W), o.Dsym || 'D'];
+    return result('broadcast_embed', [], shape(os, [o.H, o.W, o.D], o.mod || 'img', 'grid'), { paramTerms: [[o.D]], paramTex: symTexFactor(os[2]), detail: { D: o.D, H: o.H, W: o.W } });
+  }
+
+  // idle_params: parámetros del modelo que ESTE forward no usa (p. ej. las convs del prompt de máscara cuando
+  // no hay máscara de entrada). Cuentan en el total del modelo (= sum(p.numel())), 0 MACs, sin tensores.
+  // o = {paramTerms | params, paramTex, what}
+  function idle_params(o) {
+    return result('idle_params', [], [], {
+      paramTerms: o.paramTerms, params: o.paramTerms ? undefined : o.params, paramTex: o.paramTex,
+      detail: { idle: true, what: o.what || null, note: 'parámetros sin uso en este forward (se usan con otro tipo de prompt o de frame)' },
+    });
+  }
+
+  // rope_2d (SAM 2, memory attention): RoPE axial 2-D sobre Q o K (rotación por pares con cos/sin de la fila
+  // y la columna del token). Sin parámetros ni MACs de matmul: ≈ 3 ops por elemento rotado. o.exclude = filas
+  // finales sin rotar (los tokens de punteros de objeto en la cross-attention), o.repeat = la rejilla se repite
+  // (K de varias memorias: rope_k_repeat).
+  function rope_2d(x, o) {
+    o = o || {};
+    const nd = x.num.length, rows = x.num[nd - 2], ex = o.exclude || 0;
+    const per = elems(x) / rows;
+    return result('rope_2d', [x], plain(x), { other: (rows - ex) * per * OTHER.rope, detail: { rotated: rows - ex, excluded: ex, repeat: o.repeat || 1, theta: o.theta || 10000 } });
+  }
+
+  // take_rows: filas [start, start + count) de una secuencia (vista). o.vec: con count = 1 devuelve un vector.
+  function take_rows(x, o) {
+    const n = o.count, D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1];
+    if (o.start + n > x.num[0]) throw new Error('take_rows: filas fuera de rango.');
+    const out = o.vec && n === 1 ? shape([Ds], [D], o.mod || x.mod, 'vec') : shape([o.sym || String(n), Ds], [n, D], o.mod || x.mod, 'seq');
+    return result('take_rows', [x], out, { detail: { start: o.start, count: n } });
+  }
+
+  // grouped_linear (decoder de SAM, hipernetwork): una capa Linear DISTINTA por fila (cada token de máscara
+  // tiene su MLP): R×D_in → R×D_out. Parámetros R·(D_in·D_out + D_out); MACs R·D_in·D_out.
+  function grouped_linear(x, o) {
+    const [R, din] = x.num, [Rs, dinSym] = x.sym, dout = o.dout, doutSym = o.doutSym || String(dout), bias = o.bias !== false;
+    return result('grouped_linear', [x], shape([Rs, doutSym], [R, dout], o.mod || x.mod, 'seq'), {
+      paramTerms: [[R, din, dout]].concat(bias ? [[R, dout]] : []),
+      paramTex: symTexFactor(Rs) + '\\,(' + texProd([dinSym, doutSym]) + (bias ? ' + ' + symTexFactor(doutSym) : '') + ')',
+      macTerms: [[R, din, dout]], macTex: texProd([Rs, dinSym, doutSym]),
+      other: bias ? R * dout : 0, detail: { groups: R, din, dout, bias },
+    });
+  }
+
+  // hyper_dot (decoder de SAM): máscara k = (salida de la hipernetwork k) · (embedding ampliado en cada píxel):
+  // K×c, H×W×c → K×H×W. MACs K·c·H·W.
+  function hyper_dot(hyper, up) {
+    const [K, c] = hyper.num, [H, W, c2] = up.num;
+    if (c !== c2) throw new Error('hyper_dot: canales distintos (' + c + ' y ' + c2 + ').');
+    return result('hyper_dot', [hyper, up], shape([hyper.sym[0], up.sym[0], up.sym[1]], [K, H, W], 'img', 'grid'), {
+      macTerms: [[K, c, H, W]], macTex: texProd([hyper.sym[0], hyper.sym[1], up.sym[0], up.sym[1]]), detail: { K, c, H, W },
+    });
+  }
+
+  // mask_select (decoder de SAM): multimask → las 3 máscaras de ambigüedad (tokens 1–3) o la única (token 0).
+  // K×H×W → n×H×W (o vector K → n). Vista. o = {start, count}
+  function mask_select(x, o) {
+    const n = o.count;
+    const out = x.num.length === 1 ? shape([String(n)], [n], x.mod, 'vec') : shape([String(n)].concat(x.sym.slice(1)), [n].concat(x.num.slice(1)), x.mod, x.layout);
+    return result('mask_select', [x], out, { detail: { start: o.start, count: n } });
+  }
+
+  // pick_mask (SAM 2): la máscara con mayor IoU predicho (argmax) como rejilla h×w×1. Entradas: máscaras n×h×w, IoU n.
+  function pick_mask(masks, iou) {
+    const [n, H, W] = masks.num;
+    return result('pick_mask', [masks, iou], shape([masks.sym[1], masks.sym[2], '1'], [H, W, 1], masks.mod, 'grid'), { other: n, detail: { from: n, rule: 'argmax del IoU predicho' } });
+  }
+
+  // upsample_bilinear (SAM 2): interpolación bilineal de una rejilla a H×W (≈ 4 ops por salida). o = {H, W, outSym}
+  function upsample_bilinear(x, o) {
+    const os = o.outSym || [String(o.H), String(o.W)];
+    return result('upsample_bilinear', [x], shape([os[0], os[1], x.sym[2]], [o.H, o.W, x.num[2]], x.mod, 'grid'), { other: o.H * o.W * x.num[2] * OTHER.bilinear, detail: { from: [x.num[0], x.num[1]], mode: 'bilinear' } });
+  }
+
+  // to_grid: secuencia (h·w)×C → rejilla h×w×C (inversa de flatten; vista). o = {H, W, sym:[hs, ws]}
+  function to_grid(x, o) {
+    if (x.num[0] !== o.H * o.W) throw new Error('to_grid: ' + x.num[0] + ' tokens no forman una rejilla ' + o.H + '×' + o.W + '.');
+    const os = o.sym || [String(o.H), String(o.W)];
+    return result('to_grid', [x], shape([os[0], os[1], x.sym[1]], [o.H, o.W, x.num[1]], x.mod, 'grid'), {});
+  }
+
+  // split_tokens (SAM 2, punteros de objeto): cada vector de D se parte en p tokens de D/p: R×D → (p·R)×(D/p). Vista.
+  function split_tokens(x, o) {
+    const [R, D] = x.num, p = o.parts;
+    if (D % p !== 0) throw new Error('split_tokens: ' + D + ' no se divide en ' + p + ' partes.');
+    return result('split_tokens', [x], shape([o.sym || (p + '·' + x.sym[0]), o.dSym || String(D / p)], [p * R, D / p], x.mod, 'seq'), { detail: { parts: p } });
+  }
+
+  // repeat_rows (SAM 2): repite cada fila k veces (repeat_interleave): R×c → (k·R)×c. Vista expandida.
+  function repeat_rows(x, o) {
+    const k = o.k;
+    return result('repeat_rows', [x], shape([o.sym || (k + '·' + x.sym[0]), x.sym[1]], [k * x.num[0], x.num[1]], x.mod, 'seq'), { detail: { k } });
+  }
+
+  // add_temporal_embed (SAM 2, banco de memoria): a la PE espacial de cada memoria se le suma el vector aprendido de
+  // su distancia temporal (tabla rows×D: una fila por posición del FIFO; los frames con prompt usan la última).
+  function add_temporal_embed(pos, o) {
+    return result('add_temporal_embed', [pos], plain(pos), {
+      paramTerms: [[o.rows, o.D]], paramTex: (o.rowsTex || String(o.rows)) + '\\cdot ' + symTexFactor(o.Dsym || String(o.D)), other: elems(pos) * OTHER.add,
+      detail: { rows: o.rows, D: o.D, frames: o.frames || null },
+    });
+  }
+
+  // pos_embed_grid (SAM, ViT): posición absoluta aprendida como rejilla h×w×D (sin CLS): h·w·D parámetros.
+  function pos_embed_grid(o) {
+    const os = o.sym || [String(o.H), String(o.W), o.Dsym || 'D'];
+    return result('pos_embed_grid', [], shape(os, [o.H, o.W, o.D], o.mod || 'img', 'grid'), {
+      paramTerms: [[o.H, o.W, o.D]], paramTex: texProd(os), detail: { H: o.H, W: o.W, D: o.D },
+    });
+  }
+
+  // window_pos_embed (Hiera de SAM 2, "windowed positional embedding"): una tabla de fondo b×b×C interpolada
+  // (bicúbica) al mapa h×w + una tabla de ventana w0×w0×C repetida en mosaico. Parámetros C·(b² + w0²).
+  function window_pos_embed(o) {
+    const os = o.sym || [String(o.H), String(o.W), o.Csym || 'C'];
+    return result('window_pos_embed', [], shape(os, [o.H, o.W, o.C], o.mod || 'img', 'grid'), {
+      paramTerms: [[o.C, o.bkg, o.bkg], [o.C, o.win, o.win]], paramTex: symTexFactor(os[2]) + '\\,(' + o.bkg + '^2 + ' + o.win + '^2)',
+      other: o.H * o.W * o.C * (OTHER.bicubic + OTHER.add), detail: { bkg: o.bkg, win: o.win, interp: 'bicubic', tile: o.H / o.win },
+    });
+  }
+
+  // gate_embed (SAM 2, oclusión): x·λ + (1 − λ)·e, con λ = [objeto visible] y e un vector aprendido (D): si el
+  // objeto no aparece, el puntero (o la memoria) se reemplaza por (o se le suma) un embedding de "no objeto".
+  function gate_embed(x, o) {
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1];
+    return result('gate_embed', [x], plain(x), { paramTerms: [[D]], paramTex: symTexFactor(Ds), other: 3 * elems(x), detail: { D, mode: (o && o.mode) || 'replace' } });
+  }
+
   // ---- compuestas (para fórmulas, tablas y pruebas; los modelos usan las elementales en el grafo)
   function composite(prim, x, parts, out, o) {
     return {
@@ -1345,6 +1613,10 @@
     box_sine_embed, encoder_proposals, contrastive_logits, topk_select, gather_rows, transpose_scores, token_mask,
     text_guided_scores, max_over_text, maxsig_gate, head_modulate, region_text_similarity, scale_bias, dfl_decode, dist2bbox,
     merge_level_logits, offline_text_encoder, conv_bn_act, csp_bottleneck, c2f, sppf, max_sigmoid_attn, t_csp_layer, image_pooling_attn, bi_attention,
+    // Fase 5
+    conv_transpose2d, depthwise_conv2d, window_partition_pad, window_unpartition, decomposed_rel_pos, query_pool, coord_grid, fourier_pe,
+    append_pad_point, type_embed, learned_tokens, broadcast_embed, idle_params, rope_2d, take_rows, grouped_linear, hyper_dot, mask_select,
+    pick_mask, upsample_bilinear, to_grid, split_tokens, repeat_rows, add_temporal_embed, pos_embed_grid, window_pos_embed, gate_embed,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -1448,6 +1720,34 @@
     { id: 't_csp_layer', name: 'T-CSPLayer (C2f guiado por texto)', paramTex: '\\text{C2f} + cC_{out} + \\text{max-sigmoid}', macTex: '\\text{C2f} + 9HWc^2 + HWVE + 512VE', outTex: 'H\\times W\\times C_{in},\\ V\\times 512 \\to H\\times W\\times C_{out}', note: 'El C2f del neck con una rama extra de max-sigmoid attention: el vocabulario entra en la RepVL-PAN.' },
     { id: 'image_pooling_attn', name: 'Image-pooling attention', paramTex: '\\textstyle\\sum_l C_lE + \\ldots', macTex: '\\textstyle\\sum_l H_lW_lC_lE + 4VE\\cdot 128 + \\ldots', outTex: '\\{H_l\\times W_l\\times C_l\\},\\ V\\times 512 \\to V\\times 512', note: 'YOLO-World v1: cada embedding de texto atiende a 27 tokens de imagen (3×3 por nivel) y se actualiza (residual). La v2 la quitó.' },
     { id: 'bi_attention', name: 'Atención bidireccional imagen ↔ texto', paramTex: '6DE + 4E + 2D', macTex: '3NDE + 3TDE + 3NTE', outTex: 'N\\times D,\\ T\\times D \\to N\\times D,\\ T\\times D', note: 'Fusión del feature enhancer de Grounding DINO: una matriz de scores N×T por cabeza, softmax por filas (imagen→texto) y por columnas (texto→imagen).' },
+    // Fase 5 (SAM, SAM 2)
+    { id: 'conv_transpose2d', name: 'ConvTranspose2d (k = s)', paramTex: 'k^2\\,C_{in}\\,C_{out} + C_{out}', macTex: 'H\\,W\\,k^2\\,C_{in}\\,C_{out}', outTex: 'H\\times W\\times C_{in} \\to kH\\times kW\\times C_{out}', note: 'Upscaling del decoder de SAM (×2 dos veces: de 64×64 a 256×256). Con k = s no hay solapamiento: cada píxel de entrada pinta un bloque k×k.' },
+    { id: 'depthwise_conv2d', name: 'Conv depthwise', paramTex: 'k^2 C + C', macTex: 'H\\,W\\,C\\,k^2', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'Un filtro por canal (groups = C): C veces más barata que una conv densa. Bloque ConvNeXt del memory encoder de SAM 2.' },
+    { id: 'window_partition_pad', name: 'Partición en ventanas (con relleno)', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to n_W\\times M^2\\times C', note: 'Rellena con ceros hasta múltiplo de M: 64×64 con M = 14 → 70×70 = 25 ventanas (4,900 tokens, 20 % más que 4,096). El relleno también cuesta MACs.' },
+    { id: 'window_unpartition', name: 'Deshacer ventanas (recortar)', paramTex: '0', macTex: '0', outTex: 'n_W\\times M^2\\times C \\to H\\times W\\times C', note: 'Inversa de la partición: reordena y recorta el relleno.' },
+    { id: 'decomposed_rel_pos', name: 'Posición relativa descompuesta', paramTex: '2\\,(2S-1)\\,d_h', macTex: '2\\,h\\,S^2\\cdot S\\,d_h', outTex: 'h\\times S^2\\times S^2 \\to h\\times S^2\\times S^2', note: 'SAM (de MViTv2): q·R_h[Δy] + q·R_w[Δx] sumado a los scores. Tablas por eje de (2S−1)×d_h: S = 14 en bloques con ventanas, S = 64 en los globales.' },
+    { id: 'query_pool', name: 'Q-pooling (Hiera)', paramTex: '0', macTex: '0', outTex: 'h\\times M^2\\times d_h \\to h\\times (M/2)^2\\times d_h', note: 'Max-pool 2×2 de las queries en el primer bloque de cada stage: la salida tiene ¼ de los tokens; K y V no se reducen.' },
+    { id: 'coord_grid', name: 'Rejilla de coordenadas', paramTex: '0', macTex: '0', outTex: '\\to h\\times w\\times 2', note: 'Centros normalizados de cada celda de la rejilla del embedding (para la PE densa de SAM).' },
+    { id: 'fourier_pe', name: 'PE de Fourier aleatoria', paramTex: '0', macTex: 'N\\cdot 2\\cdot F', outTex: 'N\\times 2 \\to N\\times 2F', note: 'SAM: [sin, cos](2π·(2c − 1)·G) con G 2×128 gaussiana FIJA (buffer). Codifica igual clics, esquinas de caja y la rejilla de la imagen.' },
+    { id: 'append_pad_point', name: 'Punto de relleno', paramTex: '0', macTex: '0', outTex: 'P\\times 2 \\to (P{+}1)\\times 2', note: 'Sin caja, SAM añade un punto "not a point" (etiqueta −1): P clics dan P + 1 tokens dispersos.' },
+    { id: 'type_embed', name: 'Embedding de tipo de prompt', paramTex: '5D', macTex: '0', outTex: 'N\\times D \\to N\\times D', note: 'Suma el vector aprendido del tipo: punto positivo, negativo, esquina 1 y 2 de la caja, o "not a point".' },
+    { id: 'learned_tokens', name: 'Tokens de salida aprendidos', paramTex: 'R\\,D', macTex: '0', outTex: '\\to R\\times D', note: 'SAM: 1 token de IoU + 4 de máscara; SAM 2 añade el de objeto (oclusión).' },
+    { id: 'broadcast_embed', name: 'Embedding repetido', paramTex: 'D', macTex: '0', outTex: '\\to h\\times w\\times D', note: 'SAM sin máscara de entrada: el "no-mask embedding" aprendido se suma en cada posición del embedding de imagen.' },
+    { id: 'idle_params', name: 'Parámetros sin uso en este forward', paramTex: 'n', macTex: '0', outTex: '—', note: 'Cuentan en el total del modelo pero no corren en este tipo de frame/prompt (p. ej. las convs del prompt de máscara).' },
+    { id: 'rope_2d', name: 'RoPE 2-D', paramTex: '0', macTex: '0', outTex: 'N\\times d \\to N\\times d', note: 'SAM 2, memory attention: rota pares de canales según la fila y la columna del token. Sin parámetros ni MACs de matmul.' },
+    { id: 'take_rows', name: 'Tomar filas', paramTex: '0', macTex: '0', outTex: 'N\\times D \\to n\\times D', note: 'Vista: separa el token de IoU, los de máscara, el de objeto.' },
+    { id: 'grouped_linear', name: 'Linear por token (pesos distintos)', paramTex: 'R\\,(D_{in}D_{out} + D_{out})', macTex: 'R\\,D_{in}\\,D_{out}', outTex: 'R\\times D_{in} \\to R\\times D_{out}', note: 'Hipernetwork de SAM: cada uno de los 4 tokens de máscara tiene su propio MLP.' },
+    { id: 'hyper_dot', name: 'Producto hipernetwork · embedding', paramTex: '0', macTex: 'K\\,c\\,H\\,W', outTex: 'K\\times c,\\ H\\times W\\times c \\to K\\times H\\times W', note: 'Máscara k(x, y) = w_k · e(x, y): los pesos los genera el token de máscara (una "conv 1×1 dinámica").' },
+    { id: 'mask_select', name: 'Selección de máscaras', paramTex: '0', macTex: '0', outTex: '4\\times H\\times W \\to 3\\times H\\times W', note: 'multimask: tokens 1–3 (ambigüedad: parte, objeto, todo); si no, el token 0.' },
+    { id: 'pick_mask', name: 'Mejor máscara (argmax IoU)', paramTex: '0', macTex: '0', outTex: '3\\times h\\times w \\to h\\times w\\times 1', note: 'SAM 2 en video: se queda con la máscara de mayor IoU predicho para la salida, la memoria y el puntero.' },
+    { id: 'upsample_bilinear', name: 'Interpolación bilineal', paramTex: '0', macTex: '0', outTex: 'h\\times w\\times C \\to H\\times W\\times C', note: 'Sin MACs de matmul (≈ 4 ops por salida, en "otros").' },
+    { id: 'to_grid', name: 'Secuencia → rejilla', paramTex: '0', macTex: '0', outTex: 'hw\\times C \\to h\\times w\\times C', note: 'Vista (inversa de flatten).' },
+    { id: 'split_tokens', name: 'Partir vectores en tokens', paramTex: '0', macTex: '0', outTex: 'R\\times D \\to pR\\times D/p', note: 'SAM 2: cada puntero de objeto (256) se vuelve 4 tokens de 64, el ancho de la memoria.' },
+    { id: 'repeat_rows', name: 'Repetir filas', paramTex: '0', macTex: '0', outTex: 'R\\times c \\to kR\\times c', note: 'Vista expandida (repeat_interleave).' },
+    { id: 'add_temporal_embed', name: 'Embedding temporal de la memoria', paramTex: 'n_{mem}\\,D_m', macTex: '0', outTex: 'N\\times D_m \\to N\\times D_m', note: 'SAM 2: un vector aprendido por posición del FIFO de memorias (num_maskmem = 7 filas de 64).' },
+    { id: 'pos_embed_grid', name: 'Posición absoluta (rejilla)', paramTex: 'h\\,w\\,D', macTex: '0', outTex: '\\to h\\times w\\times D', note: 'SAM: 64×64×1280 aprendida (5.2 M parámetros en ViT-H); sin token CLS.' },
+    { id: 'window_pos_embed', name: 'Posición por ventanas (Hiera)', paramTex: 'C\\,(b^2 + w_0^2)', macTex: '0', outTex: '\\to h\\times w\\times C', note: 'Fondo b×b interpolado + tabla de una ventana repetida en mosaico (Bolya et al. 2023).' },
+    { id: 'gate_embed', name: 'Embedding de "no objeto"', paramTex: 'D', macTex: '0', outTex: 'N\\times D \\to N\\times D', note: 'SAM 2: si el objeto está ocluido, el puntero pasa a ser un vector aprendido y la memoria recibe un embedding de oclusión.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -1665,6 +1965,11 @@
     // Fase 4: vistas (split_channels, transpose_scores), constantes calculadas (máscara de sub-oraciones, PE 1-D, cajas
     // ancla) y scores previos a la reducción / al softmax (token_mask, text_guided_scores: el max solo guarda índices).
     split_channels: 1, transpose_scores: 1, subsentence_mask: 1, sine_pos_1d: 1, encoder_proposals: 1, token_mask: 1, text_guided_scores: 1,
+    // Fase 5: vistas y movimientos (ventanas con relleno, filas, rejilla, punteros partidos, repetición, selección), tablas de
+    // parámetros y constantes (tokens aprendidos, posición absoluta y por ventanas, rejilla de coordenadas, no-mask
+    // repetido) y el sesgo descompuesto previo al softmax.
+    window_partition_pad: 1, window_unpartition: 1, decomposed_rel_pos: 1, take_rows: 1, to_grid: 1, split_tokens: 1, repeat_rows: 1,
+    mask_select: 1, learned_tokens: 1, pos_embed_grid: 1, window_pos_embed: 1, coord_grid: 1, broadcast_embed: 1, append_pad_point: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).

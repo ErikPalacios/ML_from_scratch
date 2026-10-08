@@ -1147,3 +1147,62 @@ calculator).
 - **content-sam**: js/content/sam.js. **content-sam2**: js/content/sam2.js.
 - **orchestrator**: index.html + stubs, catalog (canonical ids `sam-vit-h-1024`, `sam2-hiera-l`;
   roadmap status), SPEC, practice METRICS labels for new metrics, integration.
+
+## 18. Phase 6 shared facts — LLM decoder + LLM inference (every F6 agent MUST use exactly these)
+
+Phase 1–5 lessons apply. Two pages share one calculator model `llm`. The Laboratorio Transformer
+already teaches the vanilla decoder from scratch (link `lab:` tabs/steps instead of re-teaching it);
+these pages add the **modern** decoder (Llama-style) and the **inference** engineering interviewers ask.
+
+### 18.1 `llm-decoder` — the architecture (model `llm`)
+Paper: *The Llama 3 Herd of Models*, arXiv:2407.21783 (2024). Canonical **`llama3-8b`**: 32 layers,
+d=4096, 32 query heads, **8 KV heads (GQA, groups of 4)**, d_h=128, **SwiGLU** FFN hidden 14,336,
+vocab 128,256, **RoPE** θ=500,000, **RMSNorm** (pre-norm, ε 1e-5), untied input embedding and LM head,
+no biases, context 8,192 (3.1: 128K with RoPE scaling — say which). Other configs: `llama3-70b`
+(80 layers, 8192, 64 heads, 8 KV, FFN 28,672), `llama2-7b` (MHA: 32 heads / 32 KV, FFN 11,008, vocab
+32,000, ctx 4,096) for the MHA vs GQA contrast, `mixtral-8x7b` (32 layers, 4096, 32/8 heads, **MoE: 8
+experts × SwiGLU 14,336, top-2 router**, vocab 32,000, RoPE θ=1e6) — verify every number against the
+papers/HF configs. Knobs: `T` (prompt tokens), `ctx` (context used), `B` (batch), `bits` (16/8/4),
+`nKV` (for what-ifs: 32/8/1 = MHA/GQA/MQA).
+Reference: HF `LlamaForCausalLM(LlamaConfig(...))` / `MixtralForCausalLM(MixtralConfig(...))` built
+in code **on the meta device** (no weights in memory) for exact params; FLOPs via FlopCounterMode on a
+small-L instance (layers are identical — extrapolate exactly and say so) or on meta tensors if it works.
+Ids: overview `llm-decoder-overview` nodes `tokens`, `embed`, `blocks` (group ×L) with `block` (expand
+`llm-block`), `final-norm`, `lm-head`, `logits`, `sample`; `llm-block`: `norm1`, `attn` (expand
+`llm-gqa`), `res1`, `norm2`, `ffn` (expand `llm-swiglu`), `res2`; `llm-gqa`: `q-proj`, `k-proj`,
+`v-proj`, `rope`, `split`, `scores`, `mask` (causal, control edge), `scale`, `softmax`,
+`weighted-sum`, `merge`, `o-proj` (show the 8 KV heads each shared by 4 query heads); `llm-swiglu`:
+`gate-proj`, `up-proj`, `silu`, `mul`, `down-proj`. Tensors: `ids` (T), `x0` (T×d), layer tensors
+`h-norm1 q k v q-rope k-rope scores attn z o r1 h-norm2 gate up act prod f x-out`, `x-norm`,
+`logits` (T×V; at decode 1×V).
+
+### 18.2 `llm-inferencia` — inference engineering (same model `llm`)
+Topics: **prefill vs decode** (prefill: T tokens in parallel, compute-bound; decode: 1 token per step,
+memory-bandwidth-bound — arithmetic intensity with numbers), **KV cache** (bytes = 2·L·n_kv·d_h·bytes ×
+ctx × B; GQA/MQA shrink it; growth per token), **PagedAttention / continuous batching** (Kwon et al.,
+SOSP 2023, arXiv:2309.06180), **quantization** (weight bytes at 16/8/4 bits; weight-only vs W8A8;
+GPTQ / AWQ — verify citations; KV-cache quantization), **MoE** (Mixtral 8×7B: total vs active params
+per token, router top-2, capacity/load balancing — Jiang et al., arXiv:2401.04088), **speculative
+decoding** (Leviathan et al. 2023 — verify), FlashAttention (link the ViT page section). Metrics the
+calculator must provide: `kvBytesPerToken`, `kvCacheBytes(ctx,B,bits)`, `weightBytes(bits)`,
+`prefillMacs(T)`, `decodeMacsPerToken(ctx)`, `arithmeticIntensityPrefill/Decode`, `activeParams`
+(MoE), and an estimate `decodeTokPerSecUpperBound(bandwidth)` clearly labelled as an estimate with
+the bandwidth as an explicit input (e.g. 3.35 TB/s H100 SXM — say "≈" and cite the spec sheet).
+Ids: `llm-inference-overview` (prefill lane: T tokens → all layers → KV cache written; decode lane:
+1 token → reads the cache → appends 1 row → next token; the cache drawn growing) and `moe-block`
+(`router`, `topk`, `experts` (deck of 8), `combine`).
+
+### 18.3 Visualizations
+`kv-cache` (decode steps: the cache grows one row per token per layer; bytes from the calculator; GQA
+vs MHA toggle), `rope` (2-D pairs rotated by position·θ_i; relative-position property q·k depends on
+m−n; synthetic), `roofline` (arithmetic intensity of prefill vs decode against a GPU's compute/bandwidth
+ridge point; hardware numbers labelled with their source), `moe-router` (tokens routed to top-2 of 8
+experts; load balancing; synthetic, labelled).
+
+### 18.4 Ownership in Phase 6
+- **arch**: js/arch/primitives.js (new primitives only: rmsnorm exists? reuse; rope, gqa, swiglu,
+  moe, lm_head…), js/arch/llm.js, tests, crosscheck/llm.py + expected JSONs.
+- **diagram**: engine extensions, js/ui/viz/{kv-cache,rope,roofline,moe-router}.js,
+  js/content/diagrams/{llm-decoder,llm-inferencia}.js, dev/diagram.html.
+- **content-llm-decoder**: js/content/llm-decoder.js. **content-llm-inferencia**: js/content/llm-inferencia.js.
+- **orchestrator**: index.html + stubs, catalog, SPEC, practice METRICS labels, integration.

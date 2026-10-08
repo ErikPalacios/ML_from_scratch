@@ -13,7 +13,7 @@ import vm from 'node:vm';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
-  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js'];
+  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -151,6 +151,39 @@ export function compareConfig(A, exp) {
   if (exp.v2 && r.quantities.v2Params !== undefined) push('params v2 (' + exp.v2.yaml + ')', r.quantities.v2Params, exp.v2.params_total, r.quantities.v2Params === exp.v2.params_total);
   // Grounding DINO: crudo de HF (con la LayerNorm sin uso de SwinBackbone) ↔ quantities.paramsHF.
   if (exp.params_total_hf_raw !== undefined && r.quantities.paramsHF !== undefined) push('params HF crudos', r.quantities.paramsHF, exp.params_total_hf_raw, r.quantities.paramsHF === exp.params_total_hf_raw);
+  // Fase 5 (SAM). sam_windows: ventanas con relleno del ViT; rel_pos_tables: filas de las tablas relativas (2S−1)×d_h.
+  const sw = exp.sam_windows;
+  if (sw) {
+    const cf = r.config;
+    push('sam[ventana M]', cf.M, sw.window_size, cf.M === sw.window_size);
+    push('sam[ventanas con relleno]', cf.nW, sw.num_windows, cf.nW === sw.num_windows);
+    push('sam[tokens con relleno]', cf.padTokens, sw.padded_tokens, cf.padTokens === sw.padded_tokens);
+    push('sam[bloques globales]', cf.globals.join(','), sw.global_attn_indexes.join(','), cf.globals.join(',') === sw.global_attn_indexes.join(','));
+  }
+  if (exp.rel_pos_tables && r.quantities.relPosWinRows !== undefined) {
+    const q = r.quantities, dh = r.config.dh;
+    push('rel-pos[ventana]', q.relPosWinRows + '×' + dh, exp.rel_pos_tables.window.join('×'), q.relPosWinRows + '×' + dh === exp.rel_pos_tables.window.join('×'));
+    push('rel-pos[global]', q.relPosGlobalRows + '×' + dh, exp.rel_pos_tables.global.join('×'), q.relPosGlobalRows + '×' + dh === exp.rel_pos_tables.global.join('×'));
+  }
+  // Fase 5 (SAM 2). hiera_blocks: ancho, ventana (0 = global) y q-pooling de cada bloque de Hiera ↔ los grupos del calculador.
+  if (exp.hiera_blocks && r.config.stages) {
+    const blocks = [];
+    for (const st of r.config.stages) {
+      for (const gr of st.groups) for (const i of gr.idx) blocks[i] = { dim: gr.inC, dim_out: st.C, window_size: gr.ws, q: gr.kind === 'q', heads: st.h };
+    }
+    for (const b of exp.hiera_blocks) {
+      const c = blocks[b.block];
+      const calc = c ? [c.dim, c.dim_out, c.window_size, c.q ? 'q' : '-', c.heads].join('/') : null;
+      const ref = [b.dim, b.dim_out, b.window_size, b.query_stride ? 'q' : '-', b.heads].join('/');
+      push('hiera[b' + b.block + '] dim/dim_out/ventana/q-pool/cabezas', calc, ref, calc === ref);
+    }
+  }
+  if (exp.frame && r.config.Nm !== undefined) {
+    push('sam2[tokens de memoria]', r.config.Nm, exp.frame.memory_tokens, r.config.Nm === exp.frame.memory_tokens);
+    push('sam2[memorias espaciales]', r.config.nMem, exp.frame.spatial_memories, r.config.nMem === exp.frame.spatial_memories);
+    push('sam2[punteros]', r.config.ptrs, exp.frame.object_pointers, r.config.ptrs === exp.frame.object_pointers);
+  }
+  if (exp.dead_matmul_check) push('sam2[producto descartado de HF, verificado con un forward parcheado]', exp.dead_matmul_check.image_features_minus_dead, exp.dead_matmul_check.image_features_patched, !!exp.dead_matmul_check.ok);
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -186,7 +219,7 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }
