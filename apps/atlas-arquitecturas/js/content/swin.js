@@ -413,7 +413,7 @@
             ['Grounding DINO (Liu et al., ECCV 2024, arXiv:2303.05499)', 'Detector de vocabulario abierto con backbone Swin-T (o Swin-L) y fusión con texto.', '<a href="#grounding-dino">Grounding DINO</a>'],
             ['Mask2Former (Cheng et al., CVPR 2022, arXiv:2112.01527)', 'Segmentación universal tipo DETR; sus mejores resultados usan Swin-L como backbone.', '<a href="#detr">DETR</a> (familia)'],
           ] },
-          { t: 'callout', kind: 'connect', html: R`<p>Patrón para el resto del Atlas: cuando un detector o segmentador dice "backbone Swin-T", lo que entrega son los cuatro mapas de esta página a strides 4–32. Lo vas a ver en <a href="#grounding-dino">Grounding DINO</a> y, como contraste jerárquico sin ventanas, en <a href="#sam2">SAM 2</a> con Hiera.</p>` },
+          { t: 'callout', kind: 'connect', html: R`<p>Patrón para el resto del Atlas: cuando un detector o segmentador dice "backbone Swin-T", lo que entrega son los cuatro mapas de esta página a strides 4–32. Lo vas a ver en <a href="#grounding-dino">Grounding DINO</a> y, como contraste jerárquico con ventanas <b>sin</b> desplazar (más unos pocos bloques globales), en <a href="#sam2">SAM 2</a> con Hiera.</p>` },
         ],
       },
 

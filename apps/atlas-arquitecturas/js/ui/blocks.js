@@ -691,7 +691,10 @@
     L: { label: 'Capas L', get: (r) => r.config && r.config.L, fmt: 'int' },
     h: { label: 'Heads h', get: (r) => r.config && r.config.h, fmt: 'int' },
     Dmlp: { label: 'MLP D_mlp', get: (r) => r.config && r.config.Dmlp, fmt: 'int' },
-    P: { label: 'Patch P', get: (r) => r.config && r.config.P, fmt: 'int' },
+    // En SAM, P son clics del prompt (el patch es 16); en SAM 2, el P de la página son punteros de objeto.
+    P: { label: 'Patch P', labels: { sam: 'Clics P' }, get: (r) => r.config && r.config.P, fmt: 'int' },
+    ptrs: { label: 'Punteros de objeto P', get: (r) => r.config && r.config.ptrs, fmt: 'int' },
+    memFrames: { label: 'Frames recientes N_r', get: (r) => r.config && r.config.memFrames, fmt: 'int' },
     res: { label: 'Resolución', get: (r) => r.config && r.config.H ? r.config.H + '×' + (r.config.W || r.config.H) : null, fmt: 'raw' },
     Q: { label: 'Object queries Q', get: (r) => r.config && r.config.Q, fmt: 'int' },
   };
@@ -705,6 +708,16 @@
     if (!A()) return missingComponent('calculadora', 'js/arch/primitives.js (ATLAS.Arch)');
     const cols = arr(b.models).map((id) => { const cfg = resolveRunId(id); return Object.assign({ id, cfg }, run(cfg)); });
     const keys = arr(b.rows).length ? arr(b.rows) : ['params', 'tokens', 'macs'];
+    // Etiqueta de la fila: la del modelo si todas las columnas son de ese modelo (SAM: «Clics P»).
+    const colModels = cols.map((c) => (c.run && c.run.model) || null);
+    const rowLabel = (k) => {
+      const m = METRICS[k];
+      if (!m) return k;
+      const ms = Array.from(new Set(colModels));
+      if (m.labels && ms.length === 1 && m.labels[ms[0]]) return m.labels[ms[0]];
+      if (m.labels && ms.some((x) => m.labels[x])) return m.label + ' (' + ms.filter((x) => m.labels[x]).map((x) => 'en ' + x.toUpperCase() + ', ' + m.labels[x].replace(/\s+\S+$/, '').toLowerCase()).join('; ') + ')';   // «Patch P (en SAM, clics)»
+      return m.label;
+    };
     const cell = (r, k) => {
       const m = METRICS[k];
       let v = m ? safe(() => m.get(r), null) : null;
@@ -717,7 +730,7 @@
       h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Métrica'), cols.map((c) => h('th', { scope: 'col', class: 'num' },
         c.run ? h('a', { href: '#' + (c.run.model || c.id) }, str(c.run.label || c.cfg)) : str(c.id))))),
       h('tbody', null, keys.map((k) => h('tr', null,
-        h('th', { scope: 'row' }, (METRICS[k] && METRICS[k].label) || k),
+        h('th', { scope: 'row' }, rowLabel(k)),
         cols.map((c) => h('td', { class: 'num', title: c.run && METRICS[k] && METRICS[k].fmt === 'si' ? fmtInt(METRICS[k].get(c.run)) : null }, c.run ? cell(c.run, k) : h('span', { class: 'q-warn', title: c.error === 'no-arch' ? 'Falta la calculadora' : str(c.error) }, '?')))))));
     const cfgList = arr(safe(() => A().configs(), []));
     const allCanon = cols.every((c) => { const k = cfgList.find((x) => x && x.id === c.cfg); return !k || k.canonical; });

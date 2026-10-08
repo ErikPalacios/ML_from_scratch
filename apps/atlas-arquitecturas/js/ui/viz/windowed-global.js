@@ -93,9 +93,9 @@
       const stackY = 40, stackRows = Math.ceil(s.L / perRow);
       const gridY = stackY + stackRows * (bh + 18) + 30;
       const GS = narrow ? Math.min(SW, 300) : 280;           // lado de la rejilla de tokens (incluido el relleno)
-      const RX = narrow ? X0 : X0 + GS + 40, RY = narrow ? gridY + GS + 56 : gridY + 22;
+      const RX = narrow ? X0 : X0 + GS + 40, RY = narrow ? gridY + GS + 70 : gridY + 22;
       const W = narrow ? SW + 16 : Math.max(SW + 16, RX + 330);
-      const Hh = narrow ? RY + 190 : Math.max(gridY + GS + 40, RY + 200);
+      const Hh = narrow ? RY + 200 : Math.max(gridY + GS + 40, RY + 210);
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' ' + Hh, style: 'max-width:' + W + 'px', role: 'group', 'aria-label': 'Encoder de ' + s.L + ' bloques; globales: ' + s.gl.map((i) => i + 1).join(', ') + '. Bloque ' + (state.block + 1) + ': ' + (isG ? 'global' : 'con ventanas de ' + s.win + '×' + s.win) }, stage);
       const t = (p, x, y, str, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); e.textContent = str; return e; };
       t(svg, X0, 15, narrow ? 'La pila: ' + s.L + ' bloques, ' + s.gl.length + ' globales' : 'La pila: ' + s.L + ' bloques, ' + s.gl.length + ' globales (' + s.gl.map((i) => i + 1).join(', ') + '), el resto con ventanas de ' + s.win + '×' + s.win, 'viz-t');
@@ -163,7 +163,10 @@
         draw();
         const g2 = stage.querySelector('.viz-wg-grid'); if (g2) g2.focus({ preventScroll: true });
       });
-      t(svg, GX, GY + span * cs + 16, isG ? 'el token atiende a los ' + fmt.int(s.G * s.G) + ' tokens' : 'el token atiende a los ' + s.win * s.win + ' de su ventana (' + s.nW + '×' + s.nW + ' = ' + s.nW * s.nW + ' ventanas)', 'viz-s');
+      // en el teléfono, en dos líneas (no cabe en 375 px)
+      if (isG) t(svg, GX, GY + span * cs + 16, 'el token atiende a los ' + fmt.int(s.G * s.G) + ' tokens', 'viz-s');
+      else if (narrow) { t(svg, GX, GY + span * cs + 16, 'el token atiende a los ' + s.win * s.win + ' de su ventana', 'viz-s'); t(svg, GX, GY + span * cs + 30, '(' + s.nW + '×' + s.nW + ' = ' + s.nW * s.nW + ' ventanas)', 'viz-s'); }
+      else t(svg, GX, GY + span * cs + 16, 'el token atiende a los ' + s.win * s.win + ' de su ventana (' + s.nW + '×' + s.nW + ' = ' + s.nW * s.nW + ' ventanas)', 'viz-s');
       // costos del calculador
       costs(svg, t, s, isG, RX, RY, narrow ? SW : W - RX - 8, narrow);
       readout(s, isG);
@@ -180,14 +183,19 @@
         V.svg('rect', { x, y: yy + 6, width: Math.max(1.5, r1(w * v / mx)), height: 12, rx: 2, class: cls }, svg);
         t(svg, x + w, yy, fmt.si(v) + ' MACs', 'viz-n', 'end');
       };
+      // filas separadas 30 px (antes 26: cada rótulo tocaba la barra de arriba)
       row(y + 8, 'con ventanas: QKᵀ y A·V', s.wc.score, 'viz-wg-bar is-score' + (isG ? '' : ' is-sel'));
-      row(y + 34, 'con ventanas: bloque entero', s.wc.all, 'viz-wg-bar' + (isG ? '' : ' is-sel'));
-      row(y + 66, 'global: QKᵀ y A·V', s.gc.score, 'viz-wg-bar is-score is-global' + (isG ? ' is-sel' : ''));
-      row(y + 92, 'global: bloque entero', s.gc.all, 'viz-wg-bar is-global' + (isG ? ' is-sel' : ''));
+      row(y + 38, 'con ventanas: bloque entero', s.wc.all, 'viz-wg-bar' + (isG ? '' : ' is-sel'));
+      row(y + 74, 'global: QKᵀ y A·V', s.gc.score, 'viz-wg-bar is-score is-global' + (isG ? ' is-sel' : ''));
+      row(y + 104, 'global: bloque entero', s.gc.all, 'viz-wg-bar is-global' + (isG ? ' is-sel' : ''));
       const nG = s.gl.length, nWb = s.L - nG;
       const real = nWb * s.wc.all + nG * s.gc.all, allG = s.L * s.gc.all;
-      t(svg, x, y + 128, 'encoder: ' + nWb + '·' + fmt.si(s.wc.all) + ' + ' + nG + '·' + fmt.si(s.gc.all) + ' = ' + fmt.si(real) + ' MACs', 'viz-n');
-      t(svg, x, y + 144, 'si los ' + s.L + ' fueran globales: ' + fmt.si(allG) + ' (' + (allG / real).toFixed(2) + '×)', 'viz-s');
+      // solo los bloques (sin patch embedding ni neck: por eso no es el total del encoder de la vista general)
+      const sum = 'los ' + s.L + ' bloques: ' + nWb + '·' + fmt.si(s.wc.all) + ' + ' + nG + '·' + fmt.si(s.gc.all);
+      // en el teléfono, el resultado en su propia línea (no cabe en 375 px)
+      if (narrow) { t(svg, x, y + 140, sum, 'viz-n'); t(svg, x, y + 156, '= ' + fmt.si(real) + ' MACs', 'viz-n'); }
+      else t(svg, x, y + 140, sum + ' = ' + fmt.si(real) + ' MACs', 'viz-n');
+      t(svg, x, y + (narrow ? 172 : 156), 'si los ' + s.L + ' fueran globales: ' + fmt.si(allG) + ' (' + (allG / real).toFixed(2) + '×)', 'viz-s');
     }
 
     function readout(s, isG) {

@@ -1786,7 +1786,9 @@ test('SAM metrics: codificar una vez, decodificar por prompt; ventanas vs global
   const m = A5.metrics('sam-vit-h-1024', {});
   assert.strictEqual(m.encoderMacs, 2980541415424);
   assert.strictEqual(m.decoderMacsPerPrompt, 1812351488);
-  assert.ok(Math.abs(m.breakEvenPrompts - 1644.57) < 0.01);
+  assert.ok(Math.abs(m.encoderToDecoder - 1644.57) < 0.01);
+  assert.strictEqual(m.breakEvenPrompts, 1645);                                      // entero: = quantities.breakEvenPrompts
+  assert.strictEqual(m.breakEvenPrompts, A5.run('sam-vit-h-1024').quantities.breakEvenPrompts);
   assert.ok(m.encoderMacsShare > 0.99);
   assert.strictEqual(m.imgEmbMem, 64 * 64 * 256 * 2);
   assert.strictEqual(m.winAttnMem, 25 * 16 * 196 * 196 * 2);
@@ -1797,7 +1799,12 @@ test('SAM metrics: codificar una vez, decodificar por prompt; ventanas vs global
   assert.strictEqual(m.decoderMacsWithBox, A5.run('sam-vit-h-1024', { P: 2 }).quantities.decoderMacsPerPrompt);
   assert.deepStrictEqual(J(m.promptScaling.map((x) => x.tokens)), [7, 8, 11, 16]);
   assert.ok(m.promptScaling.every((x, i, a) => i === 0 || x.decoderMacs > a[i - 1].decoderMacs));
-  assert.strictEqual(m.units.breakEvenPrompts, 'ratio');
+  assert.strictEqual(m.units.breakEvenPrompts, 'count');
+  assert.strictEqual(Q5.get('sam-vit-h-1024.metrics.breakEvenPrompts').text, '1,645');
+  assert.strictEqual(Q5.get('sam-vit-h-1024.metrics.encoderToDecoder').text, '1,645');           // cociente ≥ 1000: entero redondeado
+  // reparto del encoder: ventanas + globales + patch embed/posición + neck = encoder
+  assert.strictEqual(m.winBlocksMacs + m.globalBlocksMacs + m.patchEmbedMacs + m.neckMacs, m.encoderMacs);
+  assert.strictEqual(m.winBlocksMacs, 28 * m.winBlockMacs);
   const b = A5.metrics('sam-vit-b-1024', {});
   assert.ok(b.encoderMacsVsVitH > 0.15 && b.encoderMacsVsVitH < 0.17);
   assert.strictEqual(b.decoderMacsPerPrompt, m.decoderMacsPerPrompt);              // mismo decoder
@@ -1866,6 +1873,16 @@ test('SAM 2 metrics: costo por frame con N memorias, banco de memoria en bytes, 
   assert.deepStrictEqual(J(m.memScaling.map((x) => x.memTokens)), [2, 3, 5, 7, 9].map((k) => k * 4096 + 64));
   assert.ok(m.memScaling.every((x, i, a) => i === 0 || x.macs > a[i - 1].macs));
   assert.deepStrictEqual(J(m.stages.map((s) => s.globalBlocks)), [0, 0, 3, 0]);
+  assert.strictEqual(m.hieraMacs + m.fpnMacs + m.hiresMacs, m.imgEncoderMacs);
+  // stages[]: ventanas con relleno, igual que las ops (B+ stage 3: 64 → 70 con ventanas de 14, 25 ventanas)
+  for (const id of ['sam2-hiera-l', 'sam2-hiera-bplus', 'sam2-hiera-s', 'sam2-hiera-t']) {
+    const R2 = A5.run(id), m2 = A5.metrics(id, {});
+    for (const s of m2.stages) {
+      const ops = R2.ops.filter((o) => o.id === 'h' + s.k + '-w-scores' || o.id === 'h' + s.k + '-w-weighted-sum');
+      if (ops.length) assert.strictEqual(s.winScoreMacs, ops.reduce((a, o) => a + o.macs, 0), id + ' stage ' + s.k);
+    }
+  }
+  assert.strictEqual(A5.metrics('sam2-hiera-bplus', {}).stages[2].winScoreMacs, 2 * 25 * Math.pow(14, 4) * 448);
   assert.strictEqual(m.units.memoryBankMem, 'bytes');
   // por objeto seguido: todo menos el codificador de imagen (compartido entre objetos)
   assert.strictEqual(m.perObjectMacs, m.memAttnMacs + m.decoderMacs + m.memEncoderMacs + m.objPtrMacs);

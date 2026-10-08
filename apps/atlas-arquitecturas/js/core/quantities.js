@@ -153,7 +153,8 @@
   function fRatio(v) {
     const x = Number(v.toPrecision(3));
     if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2);
-    return Math.abs(x) >= 1000 ? arch().fmt.int(x) : String(x);
+    // ≥ 1000: el entero redondeado (1,644.57 → '1,645'), no 3 cifras ('1,640'): coincide con los conteos redondeados.
+    return Math.abs(x) >= 1000 ? arch().fmt.int(Math.round(v)) : String(x);
   }
 
   function qty(v) {

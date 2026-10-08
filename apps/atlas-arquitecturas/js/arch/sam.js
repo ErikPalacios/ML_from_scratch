@@ -34,8 +34,8 @@
    modelo real los globales son los índices 7, 15, 23, 31 — el último bloque es global —; two-way ×2; memory attention ×4).
 
    Knobs. sam: res (512…1280; cambia la posición absoluta (H/16)²·D y las tablas relativas globales (2H/16−1)·d_h), P (clics),
-   masks (1 | 3), maskIn (1 = máscara previa como prompt denso). sam2: res (múltiplo de 32), memFrames (N recientes; cambia
-   num_maskmem = N + 1 y la tabla temporal (N+1)×64), ptrs (punteros leídos; > 16 supera el máximo oficial y se avisa).
+   masks (1 | 3), maskIn (1 = máscara previa como prompt denso). sam2: res (múltiplo de 32), memFrames (N_r frames recientes;
+   cambia num_maskmem = N_r + 1 y la tabla temporal (N_r+1)×64), ptrs (P punteros leídos; > 16 supera el máximo oficial y se avisa).
 
    ---------------------------------------------------------------- SAM: nodos (path) y ops
    Vista `sam-overview`: path[0] ∈ img-encoder (contiene el neck), prompt-enc (contiene mask-in), mask-decoder. Los nodos
@@ -119,21 +119,23 @@
    Unidades en metrics.units (macs | params | pct | ratio | bytes | count); …Mem = bytes, …Share = fracción.
    sam: encoderMacs, decoderMacsPerPrompt (prompt encoder + decoder), promptEncMacs, maskDecoderMacs, decoderMacsWithBox,
      encoderParams, decoderParams, encoderMacsShare, decoderMacsShare, encoderParamsShare, encoderToDecoder, breakEvenPrompts
-     (prompts por pasada del codificador a los que el decoder iguala su costo), imgEmbMem · winBlockMacs, globalBlockMacs,
+     (prompts por pasada del codificador a los que el decoder iguala su costo; entero, = quantities.breakEvenPrompts), imgEmbMem · winBlockMacs, globalBlockMacs,
      globalToWinBlockMacs, winScoreMacs, globalScoreMacs (QKᵀ + A·V + rel-pos por bloque), globalToWinScoreMacs, winAttnMem,
-     globalAttnMem, globalToWinAttnMem, winBlocks, globalBlocks, globalBlocksMacsShare, relPosWinParams, relPosGlobalParams,
+     globalAttnMem, globalToWinAttnMem, winBlocks, globalBlocks, globalBlocksMacsShare, winBlocksMacs, globalBlocksMacs, neckMacs, patchEmbedMacs (reparto
+     del encoder: patch embed + posición), relPosWinParams, relPosGlobalParams,
      padTokens, padOverhead, allGlobalEncoderMacs, allGlobalToActual · decTokens, decT2iAttnMem, decSelfAttnMem, imageTokens ·
      vitHEncoderMacs, encoderMacsVsVitH, paramsVsVitH (L y B) · listas promptScaling [{P, tokens, decoderMacs, macs}],
      resScaling [{res, tokens, encoderMacs, decoderMacs, globalAttnMem}].
    sam2: frameMacs, perObjectMacs (todo menos el codificador de imagen: memory attention + punteros + decoder + oclusión +
-     memory encoder, por objeto seguido), perObjectMacsShare, imgEncoderMacs (Hiera + FPN + conv_s0/s1), imgEncoderMacsShare,
+     memory encoder, por objeto seguido), perObjectMacsShare, imgEncoderMacs (Hiera + FPN + conv_s0/s1 = hieraMacs + fpnMacs + hiresMacs), imgEncoderMacsShare,
      memAttnMacs, memAttnMacsShare, memEncoderMacs, memEncoderMacsShare, decoderMacs, decoderMacsShare, objPtrMacs,
      firstFrameMacs (frame con prompt inicial: sin memory attention), memCrossScoreMacs, memSelfScoreMacs, memCrossAttnMem,
      memSelfAttnMem, memTokens, spatialMemTokens, ptrTokens, memFramesUsed, ptrsUsed · banco: memPerFrameMem, memBankFeatMem,
      memBankPosMem, memBankPtrMem, memoryBankMem, memToImgEmb, imgEmbMem · hieraGlobalBlocks, hieraBlocks · samHMacs,
      frameVsSamH, imgEncoderVsSamH, paramsVsSamH · listas memScaling [{memFrames, memTokens, macs, memAttnMacs, memCrossAttnMem,
      memoryBankMem}], ptrScaling [{ptrs, memTokens, memAttnMacs}], objScaling [{objects, macs}], stages [{k, side, tokens, C,
-     h, depth, window, globalBlocks, winScoreMacs, globalScoreMacs, winAttnMem, globalAttnMem}]. crossoverN = null.
+     h, depth, window, globalBlocks, winScoreMacs, globalScoreMacs, winAttnMem, globalAttnMem}] (por bloque normal del stage:
+     ventanas CON relleno, ⌈side/ws⌉² ventanas de ws² tokens, como las ops; el bloque de q-pooling no entra). crossoverN = null.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -372,7 +374,7 @@
     if (ov.maskIn !== undefined) c.maskIn = ov.maskIn;
     if (c.H !== res0) notes.push('Resolución ' + c.H + ': la posición absoluta (' + c.H / 16 + '×' + c.H / 16 + '×D) y las tablas relativas de los bloques globales (2·' + c.H / 16 + '−1 filas) cambian de tamaño (los pesos de 1024 se interpolan).');
     if (['res', 'P', 'masks', 'maskIn'].some((k) => ov[k] !== undefined)) {
-      c.label = 'SAM ViT-' + c.size + ' @ ' + c.H + (c.P !== 1 ? ' · P = ' + c.P : '') + (c.masks !== 3 ? ' · 1 máscara' : '') + (c.maskIn ? ' · con máscara de entrada' : '');
+      c.label = 'SAM ViT-' + c.size + ' @ ' + c.H + (c.P !== 1 ? ' · ' + c.P + ' clics' : '') + (c.masks !== 3 ? ' · 1 máscara' : '') + (c.maskIn ? ' · con máscara de entrada' : '');
     }
     c._notes = notes;
     return c;
@@ -554,7 +556,7 @@
       // codificar una vez, decodificar por prompt
       encoderMacs: q.encoderMacs, encoderParams: q.encoderParams, encoderMacsShare: q.encoderMacs / t.macs,
       decoderMacsPerPrompt: dec, decoderParams: q.promptDecoderParams, promptEncMacs: q.promptEncMacs, maskDecoderMacs: q.maskDecoderMacs,
-      decoderMacsShare: dec / t.macs, encoderToDecoder: q.encoderMacs / dec, breakEvenPrompts: q.encoderMacs / dec,
+      decoderMacsShare: dec / t.macs, encoderToDecoder: q.encoderMacs / dec, breakEvenPrompts: Math.round(q.encoderMacs / dec),   // = quantities.breakEvenPrompts
       decoderMacsWithBox: decOf(at({ P: c.P + 1 })),            // P clics + 1 caja = P + 2 tokens (sin relleno), como P + 1 clics
       imgEmbMem: c.N * c.C * by * B,                             // el embedding que se guarda por imagen (64×64×256)
       encoderParamsShare: q.encoderParams / t.params,
@@ -563,6 +565,7 @@
       winScoreMacs: winScore, globalScoreMacs: globScore, globalToWinScoreMacs: globScore / winScore,
       winAttnMem, globalAttnMem, globalToWinAttnMem: globalAttnMem / winAttnMem,
       winBlocks: c.Lw, globalBlocks: c.Lg, globalBlocksMacsShare: q.globalBlocksMacs / q.encoderMacs,
+      winBlocksMacs: q.winBlocksMacs, globalBlocksMacs: q.globalBlocksMacs, neckMacs: q.neckMacs, patchEmbedMacs: q.encoderMacs - q.winBlocksMacs - q.globalBlocksMacs - q.neckMacs,   // reparto del encoder (patch embed + posición)
       relPosWinParams: q.relPosWinParams, relPosGlobalParams: q.relPosGlobalParams,
       padTokens: c.padTokens, padOverhead: c.padTokens / c.N - 1,
       allGlobalEncoderMacs: allGlobal, allGlobalToActual: allGlobal / q.encoderMacs,
@@ -585,11 +588,12 @@
     encoderMacs: 'macs', decoderMacsPerPrompt: 'macs', promptEncMacs: 'macs', maskDecoderMacs: 'macs', decoderMacsWithBox: 'macs',
     encoderParams: 'params', decoderParams: 'params', relPosWinParams: 'params', relPosGlobalParams: 'params',
     encoderMacsShare: 'pct', decoderMacsShare: 'pct', encoderParamsShare: 'pct', globalBlocksMacsShare: 'pct', padOverhead: 'pct',
-    encoderToDecoder: 'ratio', breakEvenPrompts: 'ratio', globalToWinBlockMacs: 'ratio', globalToWinScoreMacs: 'ratio', globalToWinAttnMem: 'ratio',
+    encoderToDecoder: 'ratio', globalToWinBlockMacs: 'ratio', globalToWinScoreMacs: 'ratio', globalToWinAttnMem: 'ratio',
     allGlobalToActual: 'ratio', encoderMacsVsVitH: 'ratio', paramsVsVitH: 'ratio',
     winBlockMacs: 'macs', globalBlockMacs: 'macs', winScoreMacs: 'macs', globalScoreMacs: 'macs', allGlobalEncoderMacs: 'macs', vitHEncoderMacs: 'macs',
     imgEmbMem: 'bytes', winAttnMem: 'bytes', globalAttnMem: 'bytes', decT2iAttnMem: 'bytes', decSelfAttnMem: 'bytes',
-    winBlocks: 'count', globalBlocks: 'count', padTokens: 'count', decTokens: 'count', imageTokens: 'count',
+    winBlocks: 'count', globalBlocks: 'count', padTokens: 'count', decTokens: 'count', imageTokens: 'count', breakEvenPrompts: 'count',
+    winBlocksMacs: 'macs', globalBlocksMacs: 'macs', neckMacs: 'macs', patchEmbedMacs: 'macs',
   };
 
   // ================================================================== SAM 2
@@ -617,10 +621,10 @@
     if (ov.res !== undefined) { c.H = ov.res; c.W = ov.res; }
     if (ov.memFrames !== undefined) c.memFrames = ov.memFrames;
     if (ov.ptrs !== undefined) c.ptrs = ov.ptrs;
-    if (c.memFrames !== n0) notes.push('memFrames = ' + c.memFrames + ' memorias recientes (la config usa ' + n0 + '): num_maskmem = ' + (c.memFrames + 1) + ', así que la tabla temporal de la memoria pasa a ' + (c.memFrames + 1) + '×64 parámetros y la cross-attention ve ' + (c.memFrames + c.condFrames) + ' memorias.');
-    if (c.ptrs > c.maxPtrs) notes.push('ptrs = ' + c.ptrs + ' supera el máximo del modelo oficial (max_obj_ptrs_in_encoder = ' + c.maxPtrs + ').');
+    if (c.memFrames !== n0) notes.push('Nᵣ = ' + c.memFrames + ' frames recientes (memFrames; la config usa ' + n0 + '): num_maskmem = ' + (c.memFrames + 1) + ', así que la tabla temporal de la memoria pasa a ' + (c.memFrames + 1) + '×64 parámetros y la cross-attention ve ' + (c.memFrames + c.condFrames) + ' memorias.');
+    if (c.ptrs > c.maxPtrs) notes.push('P = ' + c.ptrs + ' punteros (ptrs) supera el máximo del modelo oficial (max_obj_ptrs_in_encoder = ' + c.maxPtrs + ').');
     if (['res', 'memFrames', 'ptrs'].some((k) => ov[k] !== undefined)) {
-      c.label = 'SAM 2 Hiera-' + c.size + ' @ ' + c.H + (c.memFrames !== n0 ? ' · N = ' + c.memFrames : '') + (c.ptrs !== p0 ? ' · ' + c.ptrs + ' punteros' : '');
+      c.label = 'SAM 2 Hiera-' + c.size + ' @ ' + c.H + (c.memFrames !== n0 ? ' · Nᵣ = ' + c.memFrames : '') + (c.ptrs !== p0 ? ' · ' + c.ptrs + ' punteros' : '');
     }
     c._notes = notes;
     return c;
@@ -820,9 +824,9 @@
     const ch = c.dsChannels;
     for (let i = 1; i < ch.length; i++) {
       const f = Math.pow(2, i), sym = ['H/' + f, 'W/' + f];
-      x = op('me-ds' + i + '-conv', A.conv2d(x, { k: 3, s: 2, p: 1, cout: ch[i], coutSym: String(ch[i]), outSym: sym, floor: true }), 'downsampler', WD, { out: 'me-ds' + i + '-c', label: 'Conv 3×3 stride 2 (' + ch[i - 1] + ' → ' + ch[i] + ')', type: 'conv', group: 'embed', outMeta: { label: TE + 'máscara reducida ÷' + f, tex: 'm_' + i } });
-      x = op('me-ds' + i + '-ln', A.layernorm(x), 'downsampler', WD, { out: 'me-ds' + i + '-n', label: 'LayerNorm2d', type: 'norm', group: 'norm', outMeta: { label: TE + 'máscara reducida ÷' + f + ', normalizada', tex: '\\mathrm{LN}(m_' + i + ')' } });
-      x = op('me-ds' + i + '-gelu', A.gelu(x), 'downsampler', WD, { out: 'me-ds' + i + '-a', label: 'GELU', type: 'mlp', group: 'embed', outMeta: { label: TE + 'máscara reducida ÷' + f + ', activada', tex: '\\mathrm{GELU}(\\cdot)' } });
+      x = op('me-ds' + i + '-conv', A.conv2d(x, { k: 3, s: 2, p: 1, cout: ch[i], coutSym: String(ch[i]), outSym: sym, floor: true }), 'downsampler', WD, { out: 'me-ds' + i + '-c', label: 'Conv ' + i + ': 3×3 stride 2, ' + ch[i - 1] + ' → ' + ch[i] + ' canales', type: 'conv', group: 'embed', outMeta: { label: TE + 'máscara reducida ÷' + f, tex: 'm_' + i } });
+      x = op('me-ds' + i + '-ln', A.layernorm(x), 'downsampler', WD, { out: 'me-ds' + i + '-n', label: 'LayerNorm2d ' + i + ' (' + ch[i] + ' canales)', type: 'norm', group: 'norm', outMeta: { label: TE + 'máscara reducida ÷' + f + ', normalizada', tex: '\\mathrm{LN}(m_' + i + ')' } });
+      x = op('me-ds' + i + '-gelu', A.gelu(x), 'downsampler', WD, { out: 'me-ds' + i + '-a', label: 'GELU ' + i, type: 'mlp', group: 'embed', outMeta: { label: TE + 'máscara reducida ÷' + f + ', activada', tex: '\\mathrm{GELU}(\\cdot)' } });
     }
     const mm = op('me-ds-final', A.conv2d(x, { k: 1, cout: c.C, coutSym: 'C', outSym: ['H/16', 'W/16'] }), 'downsampler', WD, { out: 'mem-mask', label: 'Conv 1×1 (' + ch[ch.length - 1] + ' → C)', type: 'conv', group: 'embed', outMeta: { label: TE + 'máscara embebida (stride 16)', tex: 'D_m' } });
     const WF = ['Memory encoder', 'fusión rasgos + máscara'];
@@ -931,6 +935,7 @@
       crossoverN: null, crossoverNProj: null, scoreToLinear: null,
       frameMacs: t.macs,
       imgEncoderMacs: q.imgEncoderMacs, imgEncoderMacsShare: q.imgEncoderMacs / t.macs,
+      hieraMacs: q.hieraMacs, fpnMacs: q.fpnMacs, hiresMacs: q.hiresMacs,   // imgEncoderMacs = Hiera + FPN + conv_s0/s1 (compartidos entre objetos)
       memAttnMacs: q.memAttnMacs, memAttnMacsShare: q.memAttnMacs / t.macs,
       memEncoderMacs: q.memEncoderMacs, memEncoderMacsShare: q.memEncoderMacs / t.macs,
       decoderMacs: q.decoderMacs, decoderMacsShare: q.decoderMacs / t.macs, objPtrMacs: q.objPtrMacs,
@@ -956,7 +961,7 @@
     out.ptrScaling = [1, 4, 8, 16].map((P) => { const m = P === c.ptrs ? r : at({ ptrs: P }); return { ptrs: P, memTokens: m.config.Nm, memAttnMacs: m.quantities.memAttnMacs }; });
     out.stages = c.stages.map((st) => ({
       k: st.k, side: st.side, tokens: st.side * st.side, C: st.C, h: st.h, depth: st.depth, window: st.ws, globalBlocks: st.globalBlocks,
-      winScoreMacs: 2 * st.side * st.side * st.ws * st.ws * st.C, globalScoreMacs: 2 * Math.pow(st.side, 4) * st.C,
+      winScoreMacs: 2 * Math.pow(Math.ceil(st.side / st.ws), 2) * Math.pow(st.ws, 4) * st.C, globalScoreMacs: 2 * Math.pow(st.side, 4) * st.C,
       winAttnMem: Math.pow(Math.ceil(st.side / st.ws), 2) * st.h * Math.pow(st.ws, 4) * by * B, globalAttnMem: st.h * Math.pow(st.side, 4) * by * B,
     }));
     return out;
@@ -964,7 +969,7 @@
 
   const SAM2_UNITS = {
     frameMacs: 'macs', perObjectMacs: 'macs', imgEncoderMacs: 'macs', memAttnMacs: 'macs', memEncoderMacs: 'macs', decoderMacs: 'macs', objPtrMacs: 'macs', firstFrameMacs: 'macs',
-    memCrossScoreMacs: 'macs', memSelfScoreMacs: 'macs', samHMacs: 'macs',
+    memCrossScoreMacs: 'macs', memSelfScoreMacs: 'macs', samHMacs: 'macs', hieraMacs: 'macs', fpnMacs: 'macs', hiresMacs: 'macs',
     imgEncoderMacsShare: 'pct', perObjectMacsShare: 'pct', memAttnMacsShare: 'pct', memEncoderMacsShare: 'pct', decoderMacsShare: 'pct',
     memCrossAttnMem: 'bytes', memSelfAttnMem: 'bytes', memPerFrameMem: 'bytes', memBankFeatMem: 'bytes', memBankPosMem: 'bytes', memBankPtrMem: 'bytes',
     memoryBankMem: 'bytes', imgEmbMem: 'bytes',

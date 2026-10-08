@@ -120,7 +120,9 @@
     try { base = A.run(cfgId); } catch (e) { base = null; }
     const cfg = (base && base.config) || {};
     const res = cfg.res || cfg.H || 1024;
-    const state = { tool: ['pos', 'neg', 'box'].indexOf(params.tool) >= 0 ? params.tool : 'pos', pts: [], box: null, drag: null, cursor: [0.5, 0.5], boxStart: null, prompts: 0 };
+    const state = { tool: ['pos', 'neg', 'box'].indexOf(params.tool) >= 0 ? params.tool : 'pos', pts: [], box: null, drag: null, cursor: [0.5, 0.5], boxStart: null, prompts: 0, decSum: 0 };
+    // cada prompt evaluado suma SU costo de decoder (con sus tokens), no el del último × n
+    function countPrompt() { state.prompts++; const d = decMacs(runP(Math.max(2, sparseCount()))); state.decSum += Number.isFinite(d) ? d : 0; }
 
     // Costo por prompt del calculador. Knob P = puntos (sin caja se agrega 1 de relleno: P + 1 tokens). Una caja son
     // 2 tokens (sus esquinas, sin relleno): mismo número de tokens que P = tokens − 1, y el decoder solo depende de eso.
@@ -157,7 +159,7 @@
     const stage = V.html('div', { class: 'viz-stage' }, wrap);
     const out = V.html('div', { class: 'viz-readout', 'aria-live': 'polite' }, wrap);
     V.html('p', { class: 'viz-note' }, wrap, 'Ilustrativo: la escena, las máscaras (regiones dibujadas a mano, no una red) y los IoU predichos (una regla simple). ' +
-      'Lo que sí es de SAM: un punto es ambiguo (¿la puerta, la fachada o la casa?), así que el decoder tiene 3 tokens de máscara para 3 hipótesis (subparte, parte, objeto) y una cabeza que predice el IoU de cada una; ' +
+      'Lo que sí es de SAM: un punto es ambiguo (¿la puerta, la fachada o la casa?), así que el decoder tiene 3 tokens de máscara para 3 hipótesis (subparte, parte, objeto; el orden de las 3 no está fijado en el modelo) y una cabeza que predice el IoU de cada una; ' +
       'si hace falta una sola, se toma la de mayor IoU predicho. Con más de un punto o con una caja el prompt ya no es ambiguo y SAM usa el otro token de máscara (el primero de los 4), el de una sola máscara. ' +
       'Los MACs son del calculador (' + cfgId + '): el encoder de imagen corre una vez por imagen; cada prompt solo paga el prompt encoder y el decoder. El paper reporta ≈ 50 ms por prompt en CPU, en el navegador, con el embedding ya calculado.');
 
@@ -166,7 +168,7 @@
       state.pts = (p.pts || []).map((q) => ({ x: q[0], y: q[1], pos: !!q[2] }));
       state.box = p.box ? p.box.slice() : null;
       state.boxStart = null;
-      state.prompts++;
+      countPrompt();
       draw();
     }
 
@@ -289,6 +291,8 @@
       V.svg('rect', { x: 0, y: 0, width: S, height: S }, cp);
       const scG = V.svg('g', { 'clip-path': 'url(#' + uid + '-cp)' }, sc);
       scene(scG, S);
+      // IoU con 3 decimales cuando dos máscaras distintas empatan a 2 (si no, "0.89 vs 0.89" y gana una)
+      const fIou = (m) => (o.masks.some((x) => x !== m && x.iou !== m.iou && x.iou.toFixed(2) === m.iou.toFixed(2)) ? m.iou.toFixed(3) : m.iou.toFixed(2));
       const bestI = o.masks.length ? o.masks.reduce((bi, m, i) => (m.iou > o.masks[bi].iou ? i : bi), 0) : -1;
       const ovG = V.svg('g', null, scG);
       drawPrompts(scG, S);
@@ -317,7 +321,7 @@
         const m = o.masks[i];
         const active = slots.indexOf(i) >= 0 && m;
         const card = V.svg('g', { class: 'viz-cell-btn viz-p2m-card' + (active ? '' : ' is-off') + (i === bestI ? ' is-best' : ''), transform: 'translate(' + r1(x) + ',' + r1(y) + ')', tabindex: active ? 0 : -1, role: active ? 'button' : 'img',
-          'aria-label': active ? 'Máscara ' + (i + 1) + ': ' + REG[m.id].name + (o.multi ? ' (' + LEVEL[i] + ')' : '') + ', IoU predicho ' + m.iou.toFixed(2) + (i === bestI ? ', la mejor' : '') : 'Salida ' + (i + 1) + ' sin usar' }, svg);
+          'aria-label': active ? 'Máscara ' + (i + 1) + ': ' + REG[m.id].name + (o.multi ? ' (' + LEVEL[i] + ')' : '') + ', IoU predicho ' + fIou(m) + (i === bestI ? ', la mejor' : '') : 'Salida ' + (i + 1) + ' sin usar' }, svg);
         const cpi = V.svg('clipPath', { id: uid + '-c' + i }, defs);
         V.svg('rect', { x: 0, y: 0, width: TS, height: TS }, cpi);
         const tg = V.svg('g', { 'clip-path': 'url(#' + uid + '-c' + i + ')' }, card);
@@ -330,7 +334,7 @@
           const bw = TS * m.iou;
           V.svg('rect', { x: 0, y: TS + 22, width: TS, height: 8, rx: 2, class: 'viz-zs-track' }, card);
           V.svg('rect', { x: 0, y: TS + 22, width: r1(bw), height: 8, rx: 2, class: 'viz-p2m-iou' + (i === bestI ? ' is-best' : '') }, card);
-          t(card, 0, TS + 44, (m.dup || narrow ? 'IoU ' : 'IoU pred. ') + m.iou.toFixed(2) + (m.dup ? ' · igual' : ''), i === bestI && o.multi ? 'viz-n' : 'viz-s');
+          t(card, 0, TS + 44, (m.dup || narrow ? 'IoU ' : 'IoU pred. ') + fIou(m) + (m.dup ? ' · igual' : ''), i === bestI && o.multi ? 'viz-n' : 'viz-s');
           card.addEventListener('pointerenter', () => showMask(i));
           card.addEventListener('pointerleave', () => showMask(null));
           card.addEventListener('focus', () => showMask(i));
@@ -346,16 +350,17 @@
       const P = Math.max(2, sparseCount());
       const rp = runP(P);
       const enc = encMacs(base), dec = decMacs(rp), n = Math.max(1, state.prompts);
+      const decTot = state.decSum > 0 ? state.decSum : n * dec;
       t(svg, x, y, narrow ? 'Costo (del calculador)' : 'Costo (del calculador): el encoder una vez, el decoder por prompt', 'viz-t');
       if (!enc) { t(svg, x, y + 16, 'calculador sin datos de ' + cfgId, 'viz-s'); return; }
-      const tot = enc + n * dec;
+      const tot = enc + decTot;
       const bar = (yy, v, cls, lab) => {
         V.svg('rect', { x, y: yy, width: w, height: 14, rx: 2, class: 'viz-zs-track' }, svg);
         V.svg('rect', { x, y: yy, width: Math.max(1.5, r1(w * v / tot)), height: 14, rx: 2, class: cls }, svg);
         t(svg, x, yy + 27, lab, 'viz-s');
       };
       bar(y + 10, enc, 'viz-p2m-enc', (narrow ? 'encoder + neck: ' : 'encoder de imagen + neck: ') + fmt.si(enc) + ' MACs · una vez' + (narrow ? '' : ' por imagen'));
-      bar(y + 48, n * dec, 'viz-p2m-dec', narrow ? n + ' × decoder (' + P + ' tokens): ' + fmt.si(n * dec) + ' MACs' : n + ' prompt' + (n === 1 ? '' : 's') + ' × decoder (' + P + ' tokens de prompt): ' + fmt.si(n * dec) + ' MACs');
+      bar(y + 48, decTot, 'viz-p2m-dec', narrow ? n + ' × decoder: ' + fmt.si(decTot) + ' MACs' : n + ' prompt' + (n === 1 ? '' : 's') + ' × decoder (cada uno con sus tokens; el último, ' + P + '): ' + fmt.si(decTot) + ' MACs');
       t(svg, x, y + 98, (narrow ? '1 prompt = ' : 'un prompt cuesta ') + fmt.si(dec) + ' MACs = 1/' + fmt.int(Math.round(enc / Math.max(1, dec))) + ' del encoder', 'viz-n');
     }
 
@@ -400,7 +405,7 @@
       });
     }
     function focusHit() { const h = stage.querySelector('.viz-p2m-hit'); if (h) h.focus({ preventScroll: true }); }
-    function setBox(a, b) { state.box = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; state.boxStart = null; state.prompts++; draw(); }
+    function setBox(a, b) { state.box = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; state.boxStart = null; countPrompt(); draw(); }
     function place(p) {
       if (state.tool === 'box') {
         if (!state.boxStart) { state.boxStart = p; draw(); return; }
@@ -408,7 +413,7 @@
       }
       // los puntos se acumulan (con la caja, si la hay): más de un prompt = una sola máscara; "limpiar" vuelve a empezar
       state.pts.push({ x: p[0], y: p[1], pos: state.tool === 'pos' });
-      state.prompts++;
+      countPrompt();
       draw();
     }
 

@@ -278,3 +278,74 @@ test('fase 5: toda forma de SAM y SAM 2 sale de los datos de la tarjeta o de su 
     for (const k of Object.keys(m)) if (typeof m[k] === 'number' && /Macs$/.test(k) && !/^(attnMacs|scoreMacs|linearMacs)$/.test(k)) assert.ok(m.units[k], cfg + ' ' + k + ' sin unidad');
   }
 });
+
+test('fase 5: knobs, métricas, «Dónde se va el cómputo» y datos de la tarjeta de SAM / SAM 2 con la notación de su página', () => {
+  // knobs por modelo: en SAM, P son clics; los knobs de SAM 2 tienen nombre y símbolo
+  assert.strictEqual(P._knobLabel('P', 'sam'), 'Clics P');
+  assert.strictEqual(P._knobLabel('P', 'vit'), 'Patch P');
+  assert.strictEqual(P._knobLabel('memFrames', 'sam2'), 'Frames recientes Nᵣ');
+  assert.strictEqual(P._knobShow('memFrames', 12, 'sam2'), 'Nᵣ = 12');
+  assert.strictEqual(P._knobLabel('ptrs', 'sam2'), 'Punteros de objeto P');
+  assert.strictEqual(P._knobLabel('maskIn', 'sam'), 'Máscara previa como prompt');
+  assert.strictEqual(P._changeText({ P: 10 }, 'sam'), 'P = 10 clics');
+  assert.strictEqual(P._changeText({ memFrames: 12 }, 'sam2'), 'Nᵣ = 12 frames recientes');
+  assert.doesNotMatch(P._changeText({ P: 10 }, 'sam'), /[Pp]atch/);
+  // métricas: toda clave numérica tiene etiqueta, y su tipo es el del mapa units del calculador
+  const skip = /^(id|B|bytesPerElement|crossover|scoreToLinear)/;
+  const UK = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count' };
+  for (const cfg of ['sam-vit-h-1024', 'sam-vit-b-1024', 'sam2-hiera-l', 'sam2-hiera-t']) {
+    const model = A.run(cfg).model, m = A.metrics(cfg, {});
+    for (const k of Object.keys(m)) {
+      if (typeof m[k] !== 'number' || skip.test(k)) continue;
+      assert.notStrictEqual(P._metricLabel(k, model), k, cfg + ': sin etiqueta: ' + k);
+      const u = m.units && m.units[k];
+      if (UK[u]) assert.strictEqual(P._metricKind(k), UK[u], cfg + ' ' + k);
+    }
+    assert.doesNotMatch(P._metricNote('tokens', model), /incluye CLS/);
+    assert.match(P._metricNote('tokens', model), /sin CLS/);
+  }
+  const ms = A.metrics('sam-vit-h-1024', {}), m2 = A.metrics('sam2-hiera-l', {});
+  assert.strictEqual(P._fMetric('breakEvenPrompts', ms.breakEvenPrompts), '1,645');
+  assert.strictEqual(P._fMetric('encoderToDecoder', ms.encoderToDecoder), '×1,645');
+  assert.strictEqual(P._fMetric('globalToWinAttnMem', ms.globalToWinAttnMem), '×17.5');
+  assert.strictEqual(P._fMetric('padOverhead', ms.padOverhead), '19.6 %');
+  assert.strictEqual(P._fMetric('memoryBankMem', m2.memoryBankMem), '7.35 MB');
+  assert.strictEqual(P._fMetric('memToImgEmb', m2.memToImgEmb), '×0.25');
+  assert.strictEqual(P._metricLabel('decoderMacsPerPrompt', 'sam'), 'MACs por prompt (prompt encoder + decoder)');
+  // reparto del cómputo: los segmentos suman el total y nombran lo que corre por prompt / por objeto
+  for (const [cfg, model, re] of [['sam-vit-h-1024', 'sam', /por prompt/], ['sam2-hiera-l', 'sam2', /por objeto/], ['sam2-hiera-t', 'sam2', /por objeto/]]) {
+    const m = A.metrics(cfg, { dtype: 'fp16' });
+    const sp = P._splitSegments(m, model);
+    assert.ok(sp && sp.segs.length >= 5, cfg);
+    assert.match(sp.title, re);
+    assert.ok(Math.abs(sp.segs.reduce((a, x) => a + x.v, 0) - m.macs) <= 0.0005 * m.macs, cfg + ': los segmentos no suman los MACs');
+    assert.ok(sp.segs.every((x) => !/QKᵀ y A·V\) vs el resto/.test(x.label)));
+  }
+  // datos de la tarjeta: SAM separa patch (16) de clics (P); SAM 2 no muestra P = 0 (clics): P = punteros
+  const fs = P._factPairs(A.run('sam-vit-h-1024').config), f2 = P._factPairs(A.run('sam2-hiera-l').config);
+  const by = (fp) => Object.fromEntries(fp.map(([s, v, n]) => [s, { v, n }]));
+  assert.deepStrictEqual([by(fs).patch.v, by(fs).P.v, by(fs).P.n], [16, 1, 'clic']);
+  const b2 = by(f2);
+  assert.deepStrictEqual([b2.P.v, b2.C_m.v, b2.N_r.v, b2.N_p.v, b2.L_m.v, b2.h.v, b2.D.v, b2.D_mlp.v], [16, 64, 6, 1, 4, 2, 144, 2048]);
+  assert.match(b2.h.n, /stage 1/);
+  assert.match(b2.D_mlp.n, /memory attention/);
+  assert.strictEqual(b2.L.v, '2 / 6 / 36 / 4');
+});
+
+test('fase 5: drills de SAM 2 sin prompts repetidos con respuestas distintas; el paréntesis numérico no se pierde', () => {
+  for (const cfg of ['sam-vit-h-1024', 'sam-vit-l-1024', 'sam-vit-b-1024', 'sam2-hiera-l', 'sam2-hiera-bplus', 'sam2-hiera-s', 'sam2-hiera-t']) {
+    const R = A.run(cfg), model = R.model;
+    const seen = {};
+    for (const c of P._drillCandidates([{ model, configs: [cfg], pool: 'all' }], ['shape', 'params'])) {
+      let prompt, ans;
+      if (c.kind === 'params') { const np = P._nodeParams(R, model, c.node); prompt = 'P:' + np.label + np.qual; ans = np.total; }
+      else { const t = R.tensors[c.tensor]; prompt = 'S:' + t.label + '|' + t.tex; ans = t.num.join('×'); }
+      if (seen[prompt] != null) assert.strictEqual(String(seen[prompt]), String(ans), cfg + ': «' + prompt + '» pregunta dos cosas distintas');
+      seen[prompt] = ans;
+    }
+  }
+  const R = A.run('sam2-hiera-l');
+  const np = P._nodeParams(R, 'sam2', { op: 'me-ds1-conv' }) || P._drillCandidates([{ model: 'sam2', configs: ['sam2-hiera-l'], pool: 'all' }], ['params'])
+    .map((c) => P._nodeParams(R, 'sam2', c.node)).find((x) => x.ops.some((o) => o.id === 'me-ds1-conv'));
+  assert.match(np.label, /1 → 4/);
+});

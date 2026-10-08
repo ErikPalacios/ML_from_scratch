@@ -181,12 +181,27 @@
     W: { label: 'Ancho W', show: (v) => 'W = ' + v },
     Q: { label: 'Object queries Q', show: (v) => 'Q = ' + fInt(v) },
     G: { label: 'Objetos anotados G', show: (v) => 'G = ' + fInt(v) },
+    // SAM / SAM 2 (knobs que solo tienen esos modelos)
+    masks: { label: 'Máscaras de salida', show: (v) => (v === 1 ? '1 máscara' : v + ' máscaras'), phrase: (v) => (v === 1 ? 'una sola máscara de salida' : v + ' máscaras de salida (multimask)') },
+    maskIn: { label: 'Máscara previa como prompt', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con la máscara previa como prompt' : 'sin máscara previa') },
+    memFrames: { label: 'Frames recientes Nᵣ', sym: 'Nᵣ', show: (v) => 'Nᵣ = ' + v, phrase: (v) => 'Nᵣ = ' + v + ' frames recientes' },
+    ptrs: { label: 'Punteros de objeto P', sym: 'P', show: (v) => 'P = ' + v, phrase: (v) => 'P = ' + v + (v === 1 ? ' puntero de objeto' : ' punteros de objeto') },
   };
-  const knobLabel = (k) => (KNOBS[k] || {}).label || k;
-  const knobShow = (k, v) => (KNOBS[k] && KNOBS[k].show ? KNOBS[k].show(v) : String(v));
-  function changeText(change) {
+  // Mismo knob, otro significado según el modelo: en SAM, P son clics del prompt (el patch es 16).
+  const KNOBS_BY_MODEL = {
+    sam: { P: { label: 'Clics P', show: (v) => 'P = ' + v, phrase: (v) => 'P = ' + v + (v === 1 ? ' clic' : ' clics') } },
+  };
+  const knobDef = (k, model) => (model && KNOBS_BY_MODEL[model] && KNOBS_BY_MODEL[model][k]) || KNOBS[k] || null;
+  const knobLabel = (k, model) => (knobDef(k, model) || {}).label || k;
+  const knobShow = (k, v, model) => { const d = knobDef(k, model); return d && d.show ? d.show(v) : String(v); };
+  function changeText(change, model) {
     const c = change || {};
-    const one = (k, v) => (k === 'res' ? 'resolución ' + knobShow(k, v) : KNOBS[k] && /=/.test(knobShow(k, v)) ? knobLabel(k).replace(/\s+\S+$/, '').toLowerCase() + ' ' + knobShow(k, v) : knobLabel(k) + ' = ' + knobShow(k, v));
+    const one = (k, v) => {
+      const d = knobDef(k, model);
+      if (k === 'res') return 'resolución ' + knobShow(k, v, model);
+      if (d && d.phrase) return d.phrase(v);
+      return d && /=/.test(knobShow(k, v, model)) ? knobLabel(k, model).replace(/\s+\S+$/, '').toLowerCase() + ' ' + knobShow(k, v, model) : knobLabel(k, model) + ' = ' + knobShow(k, v, model);
+    };
     // Alto y ancho juntos: "imagen de 1600×2432 (H×W)", no "alto H = 1600 · ancho W = 2432".
     const both = c.H != null && c.W != null;
     const parts = both ? ['imagen de ' + c.H + '×' + c.W + ' (H×W)'] : [];
@@ -210,12 +225,14 @@
   // kind: count · ops (MACs) · bytes · pct (fracción 0–1) · ratio (cociente adimensional, "×505").
   const METRICS = {
     tokens: { label: 'Tokens', kind: 'count', note: 'longitud de la secuencia (incluye CLS)',
-      labels: { 'grounding-dino': 'Tokens de imagen N', 'yolo-world': 'Celdas A (P3–P5)', yolov8: 'Celdas A (P3–P5)' },
+      labels: { 'grounding-dino': 'Tokens de imagen N', 'yolo-world': 'Celdas A (P3–P5)', yolov8: 'Celdas A (P3–P5)', sam: 'Tokens del encoder N', sam2: 'Tokens a stride 16 N' },
       notes: { swin: 'tokens del stage 1 (H/4 × W/4, sin CLS)', clip: 'torre de imagen: N + 1 (incluye CLS)',
         detr: 'tokens del encoder: (H/32)·(W/32), sin CLS', 'deformable-detr': 'tokens de todos los niveles (Σ H_l·W_l, strides 8 a 64), sin CLS',
         'grounding-dino': 'tokens de imagen de los 4 niveles (Σ H_l·W_l, strides 8 a 64), sin CLS; el texto (T) va aparte',
         'yolo-world': 'puntos de anclaje A = Σ h·w de P3–P5 (strides 8, 16, 32; 8,400 a 640): celdas de la rejilla, no una secuencia',
-        yolov8: 'puntos de anclaje A = Σ h·w de P3–P5 (strides 8, 16, 32; 8,400 a 640): celdas de la rejilla, no una secuencia' } },
+        yolov8: 'puntos de anclaje A = Σ h·w de P3–P5 (strides 8, 16, 32; 8,400 a 640): celdas de la rejilla, no una secuencia',
+        sam: '(H/16)·(W/16) tokens del ViT (64×64 a 1024), sin CLS',
+        sam2: '(H/16)·(W/16) tokens de Hiera a stride 16 (los que leen la memory attention y el decoder), sin CLS; el stage 1 tiene 16× más' } },
     patches: { label: 'Patches', kind: 'count' },
     params: { label: 'Parámetros', kind: 'count', note: 'pesos + biases' },
     macs: { label: 'MACs', kind: 'ops', note: 'matmuls y convs · FLOPs = 2 × MACs' },
@@ -225,7 +242,9 @@
         detr: 'h×N×N del encoder en fp16, una capa, B = 1 (el mayor: cross es h×Q×N)',
         'deformable-detr': 'no aplica: el encoder deformable no tiene matriz N×N (ver «Scores si el encoder fuera denso»)',
         'grounding-dino': 'no aplica: el encoder de imagen es deformable (ver «Scores de la fusión imagen ↔ texto», h/2×N×T)',
-        'yolo-world': 'no aplica: no hay atención h×N×N (convs; la max-sigmoid es por celda y palabra)', yolov8: 'no aplica: YOLOv8 es solo convs' } },
+        'yolo-world': 'no aplica: no hay atención h×N×N (convs; la max-sigmoid es por celda y palabra)', yolov8: 'no aplica: YOLOv8 es solo convs',
+        sam: 'h×N×N de un bloque global del ViT en fp16, B = 1 (los bloques con ventanas: 25×h×196×196)',
+        sam2: 'el mayor tensor de scores de una capa en fp16, B = 1: un bloque global de Hiera (stage 3) o la cross-attention a la memoria (1×N×Nₘ)' } },
     actMem: { label: 'Activaciones', kind: 'bytes', note: 'fp16, B = 1', notes: { clip: 'fp16, las dos torres, una muestra' } },
     kvCache: { label: 'KV cache', kind: 'bytes', note: 'fp16, B = 1' },
     attnMemAllLayers: { label: 'Scores de atención (todas las capas)', kind: 'bytes', note: 'fp16, B = 1 (entrenamiento sin recomputar)' },
@@ -237,13 +256,16 @@
       notes: { swin: 'con ventanas M×M fijas crece ∝ N (lineal)',
         detr: 'encoder (∝ N²) + decoder (cross ∝ Q·N, self ∝ Q²)',
         'deformable-detr': 'no aplica: sin término N² (ver el muestreo deformable y la self-attention del decoder)',
-        'grounding-dino': 'no aplica: sin término N² (ver la fusión imagen ↔ texto y el muestreo deformable)', 'yolo-world': 'no aplica: sin atención densa', yolov8: 'no aplica: solo convs' } },
+        'grounding-dino': 'no aplica: sin término N² (ver la fusión imagen ↔ texto y el muestreo deformable)', 'yolo-world': 'no aplica: sin atención densa', yolov8: 'no aplica: solo convs',
+        sam: 'encoder + decoder: las ventanas crecen ∝ N, los 4 bloques globales ∝ N² (sin la posición relativa)',
+        sam2: 'Hiera (ventanas ∝ N, globales ∝ N²) + memory attention (cross ∝ N·Nₘ) + decoder' } },
     // Dos "partes de atención" distintas: siempre con su nombre completo (no se confunden).
     scoreMacsShare: { label: 'Atención (solo QKᵀ y A·V)', kind: 'pct', note: '% de los MACs totales; la parte ∝ N²',
       notes: { swin: '% de los MACs totales; con ventanas fijas, lineal en N',
         detr: '% de los MACs: encoder (∝ N²) más decoder (cross ∝ Q·N, self ∝ Q²)',
         'deformable-detr': 'no aplica: sin término N² (ver «Muestreo deformable»)',
-        'grounding-dino': 'no aplica: sin término N² (ver «Fusión imagen ↔ texto»)', 'yolo-world': 'no aplica: sin atención densa', yolov8: 'no aplica: solo convs' } },
+        'grounding-dino': 'no aplica: sin término N² (ver «Fusión imagen ↔ texto»)', 'yolo-world': 'no aplica: sin atención densa', yolov8: 'no aplica: solo convs',
+        sam: '% de los MACs: encoder (ventanas ∝ N, 4 globales ∝ N²) + decoder', sam2: '% de los MACs: Hiera + memory attention (cross ∝ N·Nₘ) + decoder' } },
     // DETR: la atención separada por dónde ocurre (solo el encoder es ∝ N²).
     encScoreMacs: { label: 'Encoder: MACs de QKᵀ y A·V', kind: 'ops', note: 'todas las capas del encoder; ∝ N²' },
     encScoreMacsLayer: { label: 'Encoder: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·N²·D; ∝ N²' },
@@ -259,7 +281,7 @@
     encAttnMemAllLayers: { label: 'Scores del encoder (todas las capas)', kind: 'bytes', note: 'h×N×N × capas, fp16, B = 1 (entrenamiento sin recomputar)' },
     encAttnMem2x: { label: 'Scores del encoder con H y W ×2', kind: 'bytes', note: 'tokens ×4 ⇒ h×N×N ×16; fp16, una capa, B = 1' },
     decCrossAttnMem: { label: 'Scores de la cross-attention', kind: 'bytes', note: 'h×Q×N en fp16, una capa, B = 1' },
-    decSelfAttnMem: { label: 'Scores de la self-attention del decoder', kind: 'bytes', note: 'h×Q×Q en fp16, una capa, B = 1' },
+    decSelfAttnMem: { label: 'Scores de la self-attention del decoder', kind: 'bytes', note: 'h×Q×Q en fp16, una capa, B = 1', notes: { sam: 'h×T×T de los tokens del decoder en fp16, una capa, B = 1' } },
     encAttnEntries: { label: 'Entradas de scores del encoder', kind: 'count', note: 'h×N×N, una capa' },
     decCrossAttnEntries: { label: 'Entradas de scores de la cross-attention', kind: 'count', note: 'h×Q×N, una capa' },
     decSelfAttnEntries: { label: 'Entradas de scores de la self-attention del decoder', kind: 'count', note: 'h×Q×Q, una capa' },
@@ -270,17 +292,17 @@
       notes: { 'yolo-world': 'CSPDarknet de YOLOv8-L hasta P5 (con SPPF)', yolov8: 'CSPDarknet hasta P5 (con SPPF)' } },
     backboneMacsShare: { label: 'Backbone', kind: 'pct', note: '% de los MACs totales' },
     inputProjMacs: { label: 'MACs de la proyección de entrada', kind: 'ops', note: 'conv 1×1 de C5 a D' },
-    encoderMacs: { label: 'MACs del encoder', kind: 'ops', note: 'todas sus capas' },
-    encoderMacsShare: { label: 'Encoder', kind: 'pct', note: '% de los MACs totales' },
-    decoderMacs: { label: 'MACs del decoder', kind: 'ops', note: 'todas sus capas' },
-    decoderMacsShare: { label: 'Decoder', kind: 'pct', note: '% de los MACs totales' },
+    encoderMacs: { label: 'MACs del encoder', kind: 'ops', note: 'todas sus capas', notes: { sam: 'ViT + neck: una vez por imagen, sirve a todos los prompts' } },
+    encoderMacsShare: { label: 'Encoder', kind: 'pct', note: '% de los MACs totales', notes: { sam: '% de los MACs con un prompt (ViT + neck, una vez por imagen)' } },
+    decoderMacs: { label: 'MACs del decoder', kind: 'ops', note: 'todas sus capas', notes: { sam2: 'prompt encoder + decoder + cabeza de oclusión, por objeto (sin las convs de alta resolución, que se comparten)' } },
+    decoderMacsShare: { label: 'Decoder', kind: 'pct', note: '% de los MACs totales', notes: { sam: '% de los MACs: prompt encoder + decoder, un prompt', sam2: '% del frame: prompt encoder + decoder + oclusión, por objeto' } },
     headMacs: { label: 'MACs de las cabezas', kind: 'ops', note: 'clase + caja, sobre las Q queries',
       notes: { 'grounding-dino': 'cabeza contrastiva (query · token, sin pesos) + MLP de cajas, sobre las Q queries',
         'yolo-world': 'cajas + texto (embedding de región · vocabulario) en P3–P5, cada celda', yolov8: 'cajas + clases en P3–P5, cada celda (desacopladas)' } },
     auxHeadsMacs: { label: 'MACs de las cabezas auxiliares', kind: 'ops', note: 'solo entrenamiento: las otras capas del decoder' },
     queries: { label: 'Object queries Q', kind: 'count', note: 'predicciones por imagen (el máximo de detecciones)' },
     // ---- Fase 4: Grounding DINO (texto en cada imagen, fusión imagen ↔ texto, reparto por bloque)
-    imageTokens: { label: 'Tokens de imagen N', kind: 'count', note: 'Σ H_l·W_l de los 4 niveles (strides 8 a 64)' },
+    imageTokens: { label: 'Tokens de imagen N', kind: 'count', note: 'Σ H_l·W_l de los 4 niveles (strides 8 a 64)', notes: { sam: '(H/16)·(W/16): las keys de imagen del decoder' } },
     textTokens: { label: 'Tokens de texto T', kind: 'count', note: 'el prompt en WordPiece, con [CLS] y [SEP]' },
     textEncoderMacs: { label: 'MACs del texto (BERT + proyección)', kind: 'ops', note: 'se pagan en CADA imagen: el prompt entra junto con la imagen' },
     textEncoderParams: { label: 'Parámetros del codificador de texto', kind: 'count', note: 'BERT-base + proyección 768 → D',
@@ -328,7 +350,7 @@
     macsVsYoloWorldAt448: { label: 'MACs a 448×448 / YOLO-World-L @ 640', kind: 'ratio', note: 'a 448×448 Grounding DINO-T cuesta ≈ lo mismo' },
     // ---- Fase 4: YOLOv8 / YOLO-World (backbone · neck · cabezas; texto offline; fusión en el neck)
     backboneParams: { label: 'Parámetros del backbone', kind: 'count', note: 'CSPDarknet (YOLOv8-L)' },
-    neckMacs: { label: 'MACs del neck', kind: 'ops', note: 'PAN-FPN con C2f', notes: { 'yolo-world': 'RepVL-PAN: T-CSPLayers (C2f + max-sigmoid) e image-pooling attention' } },
+    neckMacs: { label: 'MACs del neck', kind: 'ops', note: 'PAN-FPN con C2f', notes: { 'yolo-world': 'RepVL-PAN: T-CSPLayers (C2f + max-sigmoid) e image-pooling attention', sam: 'conv 1×1 (D → C) + conv 3×3 (C → C), sin sesgo' } },
     neckMacsShare: { label: 'Neck', kind: 'pct', note: '% de los MACs totales' },
     neckParams: { label: 'Parámetros del neck', kind: 'count', note: '' },
     headMacsShare: { label: 'Cabezas', kind: 'pct', note: '% de los MACs totales' },
@@ -390,6 +412,79 @@
     logitsMacsShare: { label: 'Matriz B×B en el forward del lote', kind: 'pct', note: '% de los MACs del lote (torres × B + B²·E)' },
     embBatchMem: { label: 'Embeddings del lote', kind: 'bytes', note: '2·B·E valores (imagen y texto), bf16' },
     batchMacs: { label: 'MACs del lote', kind: 'ops', note: 'forward de los B pares' },
+    // ---- Fase 5: SAM (codificar una vez por imagen, decodificar por prompt; ventanas vs bloques globales)
+    encoderParams: { label: 'Parámetros del encoder', kind: 'count', note: 'ViT + neck' },
+    encoderParamsShare: { label: 'Encoder (parámetros)', kind: 'pct', note: '% de los parámetros del modelo' },
+    decoderParams: { label: 'Parámetros del prompt encoder + decoder', kind: 'count', note: 'lo que corre por prompt (el mismo en H, L y B)' },
+    decoderMacsPerPrompt: { label: 'MACs por prompt (prompt encoder + decoder)', kind: 'ops', note: 'cada clic, con el embedding de imagen ya calculado' },
+    promptEncMacs: { label: 'MACs del prompt encoder', kind: 'ops', note: 'Fourier de los puntos y de la rejilla densa' },
+    maskDecoderMacs: { label: 'MACs del decoder de máscaras', kind: 'ops', note: 'two-way ×2, atención final, upscaling y cabezas' },
+    decoderMacsWithBox: { label: 'MACs por prompt con caja', kind: 'ops', note: 'P clics + 1 caja (2 esquinas, sin punto de relleno)' },
+    encoderToDecoder: { label: 'Encoder / un prompt (MACs)', kind: 'ratio', note: 'cuántos prompts cuestan lo mismo que el encoder' },
+    breakEvenPrompts: { label: 'Prompts para igualar un encoder', kind: 'count', note: 'prompts por imagen a los que el decoder acumula lo que costó el encoder' },
+    imgEmbMem: { label: 'Embedding de imagen', kind: 'bytes', note: '64×64×C en fp16: lo que se cachea por imagen', notes: { sam2: 'rasgos de stride 16 (64×64×C) en fp16, por frame' } },
+    winBlockMacs: { label: 'MACs de un bloque con ventanas', kind: 'ops', note: 'un bloque, sobre el relleno 64 → 70 (25 ventanas de 14×14)' },
+    globalBlockMacs: { label: 'MACs de un bloque global', kind: 'ops', note: 'un bloque, atención sobre los N tokens' },
+    globalToWinBlockMacs: { label: 'Bloque global / bloque con ventanas (MACs)', kind: 'ratio', note: 'las lineales son iguales; cambia la parte de atención' },
+    winScoreMacs: { label: 'Ventanas: MACs de QKᵀ, A·V y posición relativa (un bloque)', kind: 'ops', note: 'nW·h·M²·M²·d_h por producto; ∝ N' },
+    globalScoreMacs: { label: 'Global: MACs de QKᵀ, A·V y posición relativa (un bloque)', kind: 'ops', note: 'h·N²·d_h por producto; ∝ N²' },
+    globalToWinScoreMacs: { label: 'Global / ventanas: QKᵀ, A·V y posición relativa', kind: 'ratio', note: 'por bloque' },
+    winAttnMem: { label: 'Scores de un bloque con ventanas', kind: 'bytes', note: 'nW×h×M²×M² en fp16 (25 ventanas de 196 tokens), B = 1' },
+    globalAttnMem: { label: 'Scores de un bloque global', kind: 'bytes', note: 'h×N×N en fp16, B = 1 (si se materializa: sin FlashAttention)' },
+    globalToWinAttnMem: { label: 'Scores: bloque global / con ventanas', kind: 'ratio', note: 'por bloque, fp16' },
+    winBlocks: { label: 'Bloques con ventanas', kind: 'count', note: 'L − 4' },
+    globalBlocks: { label: 'Bloques globales', kind: 'count', note: '4 en H, L y B' },
+    winBlocksMacs: { label: 'MACs de los bloques con ventanas', kind: 'ops', note: 'todos (L − 4 bloques)' },
+    globalBlocksMacs: { label: 'MACs de los bloques globales', kind: 'ops', note: 'los 4' },
+    patchEmbedMacs: { label: 'MACs del patch embedding', kind: 'ops', note: 'conv 16×16 stride 16 (+ posición)' },
+    globalBlocksMacsShare: { label: 'Bloques globales (en el encoder)', kind: 'pct', note: '% de los MACs del encoder' },
+    relPosWinParams: { label: 'Posición relativa de un bloque con ventanas', kind: 'count', note: '2 tablas de (2M − 1)×d_h' },
+    relPosGlobalParams: { label: 'Posición relativa de un bloque global', kind: 'count', note: '2 tablas de (2·H/16 − 1)×d_h' },
+    padTokens: { label: 'Tokens con relleno (ventanas)', kind: 'count', note: 'nW·M²: la rejilla 64×64 se rellena a 70×70' },
+    padOverhead: { label: 'Relleno de las ventanas', kind: 'pct', note: '% de tokens extra en cada bloque con ventanas' },
+    allGlobalEncoderMacs: { label: 'MACs del encoder si todo fuera global', kind: 'ops', note: 'los L bloques con atención global' },
+    allGlobalToActual: { label: 'Todo global / real (MACs del encoder)', kind: 'ratio', note: 'las lineales dominan: las ventanas ahorran poco en MACs, mucho en memoria' },
+    decTokens: { label: 'Tokens del decoder T', kind: 'count', note: '5 aprendidos + P clics + 1 de relleno' },
+    decT2iAttnMem: { label: 'Scores tokens → imagen del decoder', kind: 'bytes', note: 'h×T×N en fp16, una capa, B = 1' },
+    vitHEncoderMacs: { label: 'MACs del encoder de SAM ViT-H', kind: 'ops', note: 'a 1024' },
+    encoderMacsVsVitH: { label: 'Encoder / el de SAM ViT-H (MACs)', kind: 'ratio', note: 'a la misma resolución' },
+    paramsVsVitH: { label: 'Parámetros / SAM ViT-H', kind: 'ratio', note: '' },
+    // ---- Fase 5: SAM 2 (frame en régimen con el banco lleno; por objeto seguido; banco de memoria)
+    frameMacs: { label: 'MACs por frame (un objeto)', kind: 'ops', note: 'frame en régimen: banco lleno (Nₚ + Nᵣ memorias y P punteros)' },
+    firstFrameMacs: { label: 'MACs del primer frame (con prompt)', kind: 'ops', note: 'banco vacío: sin memory attention' },
+    imgEncoderMacs: { label: 'MACs del encoder de imagen', kind: 'ops', note: 'Hiera + FPN + convs de alta resolución: una vez por frame, se comparten entre objetos' },
+    imgEncoderMacsShare: { label: 'Encoder de imagen (Hiera + FPN)', kind: 'pct', note: '% del frame (un objeto)' },
+    hieraMacs: { label: 'MACs de Hiera', kind: 'ops', note: 'los 4 stages, sin el FPN' },
+    fpnMacs: { label: 'MACs del FPN', kind: 'ops', note: 'laterales 1×1 a C y top-down' },
+    hiresMacs: { label: 'MACs de las convs de alta resolución', kind: 'ops', note: 'conv_s0 y conv_s1 del decoder: una vez por frame' },
+    memAttnMacs: { label: 'MACs de la memory attention', kind: 'ops', note: 'Lₘ = 4 capas (self, cross a la memoria y MLP) + la posición de los punteros' },
+    memAttnMacsShare: { label: 'Memory attention', kind: 'pct', note: '% del frame (un objeto); crece con Nᵣ' },
+    memEncoderMacs: { label: 'MACs del memory encoder', kind: 'ops', note: 'downsampler de la máscara + fusión + 2 bloques ConvNeXt' },
+    memEncoderMacsShare: { label: 'Memory encoder', kind: 'pct', note: '% del frame (un objeto)' },
+    objPtrMacs: { label: 'MACs del MLP del puntero', kind: 'ops', note: 'token de la máscara elegida → puntero de C' },
+    perObjectMacs: { label: 'MACs por objeto seguido', kind: 'ops', note: 'todo menos el encoder de imagen: memory attention, decoder, puntero y memory encoder' },
+    perObjectMacsShare: { label: 'Parte por objeto', kind: 'pct', note: '% del frame que se repite por cada objeto extra' },
+    memCrossScoreMacs: { label: 'Cross-attention a la memoria: MACs de QKᵀ y A·V', kind: 'ops', note: 'las Lₘ capas; ∝ N·Nₘ' },
+    memSelfScoreMacs: { label: 'Self-attention del frame: MACs de QKᵀ y A·V', kind: 'ops', note: 'las Lₘ capas de memory attention; ∝ N²' },
+    memCrossAttnMem: { label: 'Scores de la cross-attention a la memoria', kind: 'bytes', note: '1×N×Nₘ en fp16 (1 cabeza), una capa, B = 1' },
+    memSelfAttnMem: { label: 'Scores de la self-attention del frame', kind: 'bytes', note: '1×N×N en fp16 (1 cabeza), una capa, B = 1' },
+    memTokens: { label: 'Tokens de memoria Nₘ', kind: 'count', note: '(Nₚ + Nᵣ)·N + 4·P' },
+    spatialMemTokens: { label: 'Tokens de memoria espacial', kind: 'count', note: '(Nₚ + Nᵣ)·N' },
+    ptrTokens: { label: 'Tokens de punteros', kind: 'count', note: '4·P: cada puntero de C = 256 se parte en 4 de Cₘ = 64' },
+    memFramesUsed: { label: 'Memorias espaciales leídas', kind: 'count', note: 'Nₚ + Nᵣ' },
+    ptrsUsed: { label: 'Punteros leídos P', kind: 'count', note: 'los del frame con prompt + los de hasta 15 frames anteriores' },
+    memPerFrameMem: { label: 'Memoria de un frame', kind: 'bytes', note: 'N×Cₘ en fp16 (sin su posición)' },
+    memBankFeatMem: { label: 'Banco: memorias espaciales', kind: 'bytes', note: '(Nₚ + Nᵣ)·N×Cₘ en fp16' },
+    memBankPosMem: { label: 'Banco: posición de las memorias', kind: 'bytes', note: 'se guarda con cada memoria; fp16' },
+    memBankPtrMem: { label: 'Banco: punteros', kind: 'bytes', note: 'P×C en fp16' },
+    memoryBankMem: { label: 'Banco de memoria por objeto', kind: 'bytes', note: 'memorias + posiciones + punteros, fp16' },
+    memToImgEmb: { label: 'Canales: memoria / embedding (Cₘ / C)', kind: 'ratio', note: '64 / 256: la memoria se comprime ×4' },
+    hieraGlobalBlocks: { label: 'Bloques globales de Hiera', kind: 'count', note: 'todos en el stage 3' },
+    hieraBlocks: { label: 'Bloques de Hiera', kind: 'count', note: 'suma de los 4 stages' },
+    samHMacs: { label: 'MACs de SAM ViT-H (un prompt)', kind: 'ops', note: 'a 1024' },
+    frameVsSamH: { label: 'Frame / SAM ViT-H (MACs)', kind: 'ratio', note: 'un frame en régimen vs una imagen con un clic' },
+    imgEncoderVsSamH: { label: 'Encoder de imagen / el de SAM ViT-H (MACs)', kind: 'ratio', note: 'Hiera + FPN vs ViT-H + neck' },
+    paramsVsSamH: { label: 'Parámetros / SAM ViT-H', kind: 'ratio', note: '' },
   };
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
@@ -410,7 +505,7 @@
   }
   // Cociente con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5', 16 → '16'.
   // Si el redondeo da un entero de una cifra que no es exacto (1.004), 2 decimales: '×1.00', no '×1'.
-  const fRatio = (v) => { const x = Number(v.toPrecision(3)); if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2); return Math.abs(x) >= 1000 ? fInt(x) : String(x); };
+  const fRatio = (v) => { const x = Number(v.toPrecision(3)); if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2); return Math.abs(x) >= 1000 ? fInt(Math.round(v)) : String(x); };   // ≥ 1000: entero redondeado (1,645, no 1,640)
   // Lee una métrica: número, {bytes}, o función (attnMem(dtype), kvCache(B, ctx, dtype)…).
   function metricValue(m, key) {
     if (!m) return null;
@@ -597,6 +692,7 @@
         h('p', { class: 'pxp__t', id: titleId }, o.title),
         h('button', { type: 'button', class: 'pxp__x', 'aria-label': 'Cerrar', html: icon('close'), on: { click: () => closePop(true) } })),
       o.subtitle ? h('p', { class: 'pxp__sub' }, o.subtitle) : null,
+      o.hint ? h('p', { class: 'pxp__hint' }, 'Pista: ' + o.hint) : null,
       h('div', { class: 'pxp__list', role: 'menu', 'aria-labelledby': titleId }, btns),
       clear);
     host.appendChild(el);
@@ -659,7 +755,7 @@
         }
         if (base != null && values.indexOf(base) < 0) values.push(base);
         values.sort((a, b) => a - b);
-        return { key: k.key, label: k.label || knobLabel(k.key), values, base, forced };
+        return { key: k.key, label: k.label || knobLabel(k.key, model), values, base, forced };
       })
       .filter((k) => k.values.length > 0);
     const show = (Array.isArray(block.show) && block.show.length ? block.show : ['tokens', 'params', 'macs', 'attnMem']).map(metricKey);
@@ -681,7 +777,7 @@
     const head = h('div', { class: 'pxs__head' },
       h('p', { class: 'px-k' }, 'Explorador de escalado'),
       h('p', { class: 'pxs__cfg' }, h('span', { class: 'chip' }, cfgLabel(config)), h('span', { class: 'muted small' }, 'Cambia un knob: todo se recalcula con el calculador.')),
-      forcedKnob ? h('p', { class: 'pxs__base muted small' }, 'La config es de ' + cfg.H + '×' + cfg.W + ' (no cuadrada); aquí todas las imágenes son cuadradas y la base («vs base») es ' + knobShow(forcedKnob.key, forcedKnob.base) + '.') : null);
+      forcedKnob ? h('p', { class: 'pxs__base muted small' }, 'La config es de ' + cfg.H + '×' + cfg.W + ' (no cuadrada); aquí todas las imágenes son cuadradas y la base («vs base») es ' + knobShow(forcedKnob.key, forcedKnob.base, model) + '.') : null);
     const knobsEl = h('div', { class: 'pxs__knobs' });
     const knobNote = h('p', { class: 'pxs__knote muted small', 'aria-live': 'polite', hidden: true });
     const cardsEl = h('div', { class: 'pxs__cards', 'aria-live': 'polite' });
@@ -705,20 +801,20 @@
         const row = h('div', { class: 'pxs__knob' }, h('span', { class: 'pxs__kl', id: lid }, k.label));
         if (k.values.length > 7) {
           const idx = Math.max(0, k.values.indexOf(cur[k.key]));
-          const out = h('output', { class: 'pxs__kv mono' }, knobShow(k.key, cur[k.key]));
+          const out = h('output', { class: 'pxs__kv mono' }, knobShow(k.key, cur[k.key], model));
           const rg = h('input', { type: 'range', class: 'pxs__range', min: '0', max: String(k.values.length - 1), step: '1', value: String(idx), 'aria-labelledby': lid,
-            'aria-valuetext': knobShow(k.key, cur[k.key]),
+            'aria-valuetext': knobShow(k.key, cur[k.key], model),
             on: { input: (e) => {
               const v = k.values[+e.target.value];
               const why = invalidReason(k.key, v);
               if (why) {
                 // combinación inválida: se queda en el último valor válido y se explica por qué
-                noteKnob(knobShow(k.key, v) + ' no está disponible con los demás knobs. ' + why);
+                noteKnob(knobShow(k.key, v, model) + ' no está disponible con los demás knobs. ' + why);
                 e.target.value = String(Math.max(0, k.values.indexOf(cur[k.key])));
                 return;
               }
               noteKnob(null);
-              cur[k.key] = v; xKnob = k.key; out.textContent = knobShow(k.key, cur[k.key]); e.target.setAttribute('aria-valuetext', out.textContent); paint();
+              cur[k.key] = v; xKnob = k.key; out.textContent = knobShow(k.key, cur[k.key], model); e.target.setAttribute('aria-valuetext', out.textContent); paint();
             } } });
           row.append(rg, out);
         } else {
@@ -729,11 +825,11 @@
             return h('button', { type: 'button', class: 'fchip mono' + (v === k.base ? ' is-base' : '') + (why ? ' is-off' : ''), 'aria-pressed': String(cur[k.key] === v),
               'aria-disabled': why ? 'true' : null, title: tip,
               on: { click: () => {
-                if (why) { noteKnob(knobShow(k.key, v) + ' no está disponible con los demás knobs. ' + why); return; }
+                if (why) { noteKnob(knobShow(k.key, v, model) + ' no está disponible con los demás knobs. ' + why); return; }
                 noteKnob(null);
                 cur[k.key] = v; xKnob = k.key; paintKnobs(); paint(); const b = knobsEl.querySelector('[data-k="' + k.key + '"][data-v="' + v + '"]'); if (b) b.focus();
               } }, dataset: { k: k.key, v } },
-            knobShow(k.key, v));
+            knobShow(k.key, v, model));
           })));
         }
         knobsEl.appendChild(row);
@@ -784,7 +880,7 @@
       const X = (v) => L + ((v - x0) / (x1 - x0 || 1)) * (W - L - Rm);
       const Y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
       const slope = (ys[ys.length - 1] - ys[0]) / ((xs[xs.length - 1] - xs[0]) || 1);
-      let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="pxs__svg" role="img" aria-label="' + esc(metricLabel(chartMetric, model) + ' según ' + k.label + ': ' + pts.map((p) => knobShow(k.key, p.x) + ' → ' + fMetric(chartMetric, p.y)).join('; ')) + '" preserveAspectRatio="xMidYMid meet">';
+      let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="pxs__svg" role="img" aria-label="' + esc(metricLabel(chartMetric, model) + ' según ' + k.label + ': ' + pts.map((p) => knobShow(k.key, p.x, model) + ' → ' + fMetric(chartMetric, p.y)).join('; ')) + '" preserveAspectRatio="xMidYMid meet">';
       // rejilla y ejes
       svg += '<line x1="' + L + '" y1="' + (H - B) + '" x2="' + (W - Rm) + '" y2="' + (H - B) + '" class="pxs__axis"/>';
       svg += '<line x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (H - B) + '" class="pxs__axis"/>';
@@ -807,11 +903,11 @@
       // Pendiente baja ≠ constante: YOLO-World con V de 80 a 1203 sube ×1.09 (solo los términos ∝ V).
       // Se decide por el factor total entre el primer y el último punto, no solo por la pendiente.
       const p0 = pts[0], p1 = pts[pts.length - 1], total = p1.y / p0.y;
-      const span = ' de ' + knobShow(k.key, p0.x) + ' a ' + knobShow(k.key, p1.x);
+      const span = ' de ' + knobShow(k.key, p0.x, model) + ' a ' + knobShow(k.key, p1.x, model);
       const why = slopeWhy(k.key, chartMetric);
       const slopeTxt = Math.abs(total - 1) < 0.0005 ? 'constante: no depende de ' + k.label
         : Math.abs(slope) < 0.1 ? 'crece poco: ' + fFactor(total) + span + (why ? ' — ' + why : '')
-        : 'pendiente ≈ ' + slope.toFixed(2) + ' → ' + metricLabel(chartMetric, model) + ' ∝ ' + (k.key === 'res' ? 'res' : k.key) + '^' + slope.toFixed(1) + ' (×2 en ' + k.label + ' ⇒ ' + fFactor(Math.pow(2, slope)) + ')';
+        : 'pendiente ≈ ' + slope.toFixed(2) + ' → ' + metricLabel(chartMetric, model) + ' ∝ ' + (k.key === 'res' ? 'res' : (knobDef(k.key, model) || {}).sym || k.key) + '^' + slope.toFixed(1) + ' (×2 en ' + k.label + ' ⇒ ' + fFactor(Math.pow(2, slope)) + ')';
       chartEl.appendChild(h('figcaption', { class: 'pxs__cap mono' }, slopeTxt));
     }
 
@@ -819,73 +915,13 @@
     function slopeWhy(key, metric) {
       if (metricKind(metric) !== 'ops') return '';
       if (key === 'V' && model === 'yolo-world') return 'solo crecen los términos ∝ V: la similitud región-texto de la cabeza y la guía de texto del neck (max-sigmoid e IPA); backbone, convs y cabeza de cajas no dependen de V';
+      if (key === 'P' && model === 'sam') return 'solo crecen el prompt encoder y el decoder (P + 1 tokens dispersos); el encoder no ve el prompt y es casi todo el cómputo';
+      if (key === 'memFrames' && model === 'sam2') return 'solo crece la memory attention: la cross-attention a la memoria (QKᵀ, A·V) y las proyecciones de K y V, ∝ Nᵣ; Hiera, FPN y decoder no dependen de Nᵣ';
+      if (key === 'ptrs' && model === 'sam2') return 'cada puntero agrega solo 4 tokens de memoria frente a los N = 4,096 de cada frame';
       if (key === 'T' && model === 'grounding-dino') return 'solo crecen BERT, la fusión (la matriz h/2×N×T y sus A·V), la cross-attention de texto y los logits Q×T; Swin, la atención deformable y las FFN no dependen de T';
       return '';
     }
-    // Segmentos del reparto de MACs según el modelo. Solo el encoder de DETR (y la atención global de
-    // ViT/CLIP) crece ∝ N²: en DETR el decoder (cross ∝ Q·N, self ∝ Q²) va en su propio segmento, y en
-    // Deformable DETR la atención es un muestreo disperso (∝ N·hLK), sin matriz N×N en el encoder.
-    function splitSegments(m) {
-      if (!m || !(m.macs > 0)) return null;
-      const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
-      const rest = (used, label) => ({ cls: 'l', label, v: Math.max(0, m.macs - used) });
-      // Grounding DINO: Swin-T · BERT · feature enhancer · decoder · cabezas (y el resto: proyección de
-      // imagen y query selection). Dentro del enhancer se nombran la fusión y el muestreo deformable.
-      if (num(m.imgBackboneMacs) != null && num(m.enhancerMacs) != null && num(m.textEncoderMacs) != null) {
-        const segs = [
-          { cls: 'b', label: 'Backbone de imagen Swin-T (∝ H·W)', v: m.imgBackboneMacs },
-          { cls: 't', label: 'Texto: BERT + proyección (∝ T, en cada imagen)', v: m.textEncoderMacs },
-          { cls: 'a', label: 'Feature enhancer (6 capas: fusión imagen ↔ texto ∝ N·T, self-attention deformable ∝ N, texto, FFN)', v: m.enhancerMacs },
-          { cls: 'd', label: 'Decoder (6 capas sobre las Q queries)', v: num(m.decoderMacs) || 0 },
-          { cls: 'h', label: 'Cabezas (contrastiva + cajas)', v: num(m.headMacs) || 0 },
-        ];
-        const used = segs.reduce((a, x) => a + x.v, 0);
-        segs.push(rest(used, 'Resto (proyección de imagen a D y query selection)'));
-        const extra = [];
-        if (num(m.fusionMacs) != null) extra.push('Dentro del enhancer: fusión imagen ↔ texto ' + fOps(m.fusionMacs) + ' (' + (Math.round((m.fusionMacs / m.macs) * 1000) / 10) + ' % del total)'
-          + (num(m.encSamplingMacs) != null ? ', muestreo deformable ' + fOps(m.encSamplingMacs) + ' (' + (Math.round((m.encSamplingMacs / m.macs) * 1000) / 10) + ' %)' : '') + '.');
-        return { title: 'Dónde se va el cómputo: Swin-T, BERT, feature enhancer, decoder y cabezas', segs, extra, noAttnNote: true };
-      }
-      // YOLOv8 / YOLO-World: backbone · neck · cabezas (sin atención densa).
-      if (num(m.neckMacs) != null && num(m.backboneMacs) != null && num(m.anchors) != null) {
-        const yw = model === 'yolo-world';
-        const segs = [
-          { cls: 'b', label: 'Backbone CSPDarknet hasta P5 (∝ H·W)', v: m.backboneMacs },
-          { cls: 'd', label: yw ? 'Neck RepVL-PAN (T-CSPLayers con max-sigmoid + image-pooling attention; ∝ H·W, la guía de texto ∝ V)' : 'Neck PAN-FPN con C2f (∝ H·W)', v: m.neckMacs },
-          { cls: 'h', label: yw ? 'Cabezas en P3–P5: cajas + texto (embedding de región · vocabulario, ∝ A·V)' : 'Cabezas en P3–P5: cajas + clases (∝ A)', v: num(m.headMacs) || 0 },
-        ];
-        const used = segs.reduce((a, x) => a + x.v, 0);
-        if (m.macs - used > 0.0005 * m.macs) segs.push(rest(used, 'Resto'));
-        const extra = [];
-        if (yw && num(m.fusionMacs) != null) extra.push('Fusión con el texto dentro del neck (max-sigmoid + IPA): ' + fOps(m.fusionMacs) + ' (' + (Math.round((m.fusionMacs / m.macs) * 1000) / 10) + ' %). El codificador de texto (CLIP) corre offline: 0 por imagen.');
-        return { title: 'Dónde se va el cómputo: backbone, neck y cabezas', segs, extra, noAttnNote: true };
-      }
-      if (num(m.samplingMacs) != null) {
-        const samp = m.samplingMacs, dself = num(m.decSelfScoreMacs) || 0;
-        return { title: 'Dónde se va el cómputo: atención deformable vs el resto', segs: [
-          { cls: 'a', label: 'Muestreo deformable (encoder ∝ N·hLK, cross-attention ∝ Q·hLK; sin matriz N×N; convención del calculador)', v: samp },
-          { cls: 'd', label: 'Self-attention del decoder, solo QKᵀ y A·V (∝ Q²)', v: dself },
-          rest(samp + dself, 'Todo lo demás (backbone ResNet-50, proyecciones de entrada, offsets, pesos, proyecciones de value y salida, FFN y cabezas; ∝ N en el encoder y el backbone, ∝ Q en el decoder)'),
-        ] };
-      }
-      if (num(m.encScoreMacs) != null && num(m.decCrossScoreMacs) != null) {
-        const enc = m.encScoreMacs, dec = m.decCrossScoreMacs + (num(m.decSelfScoreMacs) || 0);
-        return { title: 'Dónde se va el cómputo: atención (solo QKᵀ y A·V) del encoder, del decoder y el resto', segs: [
-          { cls: 'a', label: 'Encoder, solo QKᵀ y A·V (crece ∝ N²)', v: enc },
-          { cls: 'd', label: 'Decoder, solo QKᵀ y A·V (cross ∝ Q·N, self ∝ Q²)', v: dec },
-          rest(enc + dec, 'Todo lo demás (backbone ResNet-50, proyección de entrada, proyecciones Q, K, V, O, FFN y cabezas; ∝ N en el encoder y el backbone, ∝ Q en el decoder)'),
-        ] };
-      }
-      const sp = attnSplit(m);
-      if (!sp) return null;
-      const windowed = m.windowScoreMacs != null;   // Swin: atención por ventanas de tamaño fijo
-      return { title: 'Dónde se va el cómputo: atención (solo QKᵀ y A·V) vs el resto', segs: [
-        { cls: 'a', label: windowed ? 'Atención, solo QKᵀ y A·V (con ventanas M×M fijas crece ∝ N·M², lineal en N)' : 'Atención, solo QKᵀ y A·V (crece ∝ N²)', v: sp.attn },
-        { cls: 'l', label: windowed ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding, patch merging y cabeza, ∝ N)'
-          : model === 'clip' ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, embeddings de patches y de texto, y proyecciones finales; ∝ N)'
-          : 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding y cabeza, ∝ N)', v: sp.linear },
-      ] };
-    }
+    const splitSegments = (m) => splitSegmentsOf(m, model);
     function paintSplit(m) {
       splitEl.innerHTML = '';
       const sp = splitSegments(m);
@@ -894,7 +930,10 @@
       // Grounding DINO: el tensor de scores que crece con la imagen es el de la fusión (h/2×N×T).
       const fusionMem = !!(m && typeof m.fusionAttnMem === 'number');
       // Deformable DETR no tiene attnMem (sin matriz N×N): su mayor tensor de scores es el h×Q×Q del decoder.
-      const memKey = fusionMem ? 'fusionAttnMem' : deform ? 'decSelfAttnMem' : 'attnMem';
+      // SAM: un bloque global del ViT (h×N×N); SAM 2: la cross-attention a la memoria (1×N×N_m), la que crece con N_r.
+      const samMem = model === 'sam' && !!(m && typeof m.globalAttnMem === 'number');
+      const sam2Mem = model === 'sam2' && !!(m && typeof m.memCrossAttnMem === 'number');
+      const memKey = fusionMem ? 'fusionAttnMem' : deform ? 'decSelfAttnMem' : samMem ? 'globalAttnMem' : sam2Mem ? 'memCrossAttnMem' : 'attnMem';
       const mem = metricValue(m, memKey);
       const detrLike = !deform && !!(m && typeof m.encScoreMacs === 'number');
       if (!sp && mem == null) { splitEl.hidden = true; return; }
@@ -916,7 +955,9 @@
         const b = metricValue(baseM, memKey);
         const dense = deform ? metricValue(m, 'denseEncAttnMem') : null;
         splitEl.appendChild(h('p', { class: 'pxs__mem' },
-          windowed ? 'Scores de atención — el mayor tensor nW×h×M²×M² de un bloque, en fp16 (2 bytes), B = 1: '
+          samMem ? 'Scores de un bloque global del ViT — tensor h×N×N en fp16 (2 bytes), B = 1 (los de un bloque con ventanas, 25×h×196×196, son ' + fBytes(m.winAttnMem) + '): '
+            : sam2Mem ? 'Scores de la cross-attention a la memoria — tensor 1×N×Nₘ de una capa (1 cabeza), en fp16 (2 bytes), B = 1; crece con Nᵣ: '
+            : windowed ? 'Scores de atención — el mayor tensor nW×h×M²×M² de un bloque, en fp16 (2 bytes), B = 1: '
             : model === 'clip' ? 'Scores de atención — tensor h×N×N de una capa de la torre mayor, en fp16 (2 bytes), una muestra (no depende de B): '
             : fusionMem ? 'Scores de la fusión imagen ↔ texto — tensor h/2×N×T de una capa (uno solo para i2t y t2i), en fp16 (2 bytes), B = 1; crece con N·T (el encoder de imagen es deformable, sin matriz N×N): '
             : detrLike ? 'Scores del encoder — tensor h×N×N de una capa, en fp16 (2 bytes), B = 1 (los de la cross-attention, h×Q×N, son menores): '
@@ -931,6 +972,102 @@
     paintKnobs();
     paint();
     return { el: wrap, destroy() { wrap.remove(); } };
+  }
+
+  // Segmentos del reparto de MACs según el modelo. Solo el encoder de DETR (y la atención global de
+  // ViT/CLIP) crece ∝ N²: en DETR el decoder (cross ∝ Q·N, self ∝ Q²) va en su propio segmento, y en
+  // Deformable DETR la atención es un muestreo disperso (∝ N·hLK), sin matriz N×N en el encoder.
+  function splitSegmentsOf(m, model) {
+    if (!m || !(m.macs > 0)) return null;
+    const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+    const rest = (used, label) => ({ cls: 'l', label, v: Math.max(0, m.macs - used) });
+    // Grounding DINO: Swin-T · BERT · feature enhancer · decoder · cabezas (y el resto: proyección de
+    // imagen y query selection). Dentro del enhancer se nombran la fusión y el muestreo deformable.
+    if (num(m.imgBackboneMacs) != null && num(m.enhancerMacs) != null && num(m.textEncoderMacs) != null) {
+      const segs = [
+        { cls: 'b', label: 'Backbone de imagen Swin-T (∝ H·W)', v: m.imgBackboneMacs },
+        { cls: 't', label: 'Texto: BERT + proyección (∝ T, en cada imagen)', v: m.textEncoderMacs },
+        { cls: 'a', label: 'Feature enhancer (6 capas: fusión imagen ↔ texto ∝ N·T, self-attention deformable ∝ N, texto, FFN)', v: m.enhancerMacs },
+        { cls: 'd', label: 'Decoder (6 capas sobre las Q queries)', v: num(m.decoderMacs) || 0 },
+        { cls: 'h', label: 'Cabezas (contrastiva + cajas)', v: num(m.headMacs) || 0 },
+      ];
+      const used = segs.reduce((a, x) => a + x.v, 0);
+      segs.push(rest(used, 'Resto (proyección de imagen a D y query selection)'));
+      const extra = [];
+      if (num(m.fusionMacs) != null) extra.push('Dentro del enhancer: fusión imagen ↔ texto ' + fOps(m.fusionMacs) + ' (' + (Math.round((m.fusionMacs / m.macs) * 1000) / 10) + ' % del total)'
+        + (num(m.encSamplingMacs) != null ? ', muestreo deformable ' + fOps(m.encSamplingMacs) + ' (' + (Math.round((m.encSamplingMacs / m.macs) * 1000) / 10) + ' %)' : '') + '.');
+      return { title: 'Dónde se va el cómputo: Swin-T, BERT, feature enhancer, decoder y cabezas', segs, extra, noAttnNote: true };
+    }
+    // YOLOv8 / YOLO-World: backbone · neck · cabezas (sin atención densa).
+    if (num(m.neckMacs) != null && num(m.backboneMacs) != null && num(m.anchors) != null) {
+      const yw = model === 'yolo-world';
+      const segs = [
+        { cls: 'b', label: 'Backbone CSPDarknet hasta P5 (∝ H·W)', v: m.backboneMacs },
+        { cls: 'd', label: yw ? 'Neck RepVL-PAN (T-CSPLayers con max-sigmoid + image-pooling attention; ∝ H·W, la guía de texto ∝ V)' : 'Neck PAN-FPN con C2f (∝ H·W)', v: m.neckMacs },
+        { cls: 'h', label: yw ? 'Cabezas en P3–P5: cajas + texto (embedding de región · vocabulario, ∝ A·V)' : 'Cabezas en P3–P5: cajas + clases (∝ A)', v: num(m.headMacs) || 0 },
+      ];
+      const used = segs.reduce((a, x) => a + x.v, 0);
+      if (m.macs - used > 0.0005 * m.macs) segs.push(rest(used, 'Resto'));
+      const extra = [];
+      if (yw && num(m.fusionMacs) != null) extra.push('Fusión con el texto dentro del neck (max-sigmoid + IPA): ' + fOps(m.fusionMacs) + ' (' + (Math.round((m.fusionMacs / m.macs) * 1000) / 10) + ' %). El codificador de texto (CLIP) corre offline: 0 por imagen.');
+      return { title: 'Dónde se va el cómputo: backbone, neck y cabezas', segs, extra, noAttnNote: true };
+    }
+    const pctOf = (v) => Math.round((v / m.macs) * 1000) / 10;
+    // SAM: el encoder (una vez por imagen) frente a lo que corre en cada prompt.
+    if (model === 'sam' && num(m.winBlocksMacs) != null && num(m.globalBlocksMacs) != null && num(m.decoderMacsPerPrompt) != null) {
+      const segs = [
+        { cls: 'b', label: 'Encoder: los ' + m.winBlocks + ' bloques con ventanas 14×14 (∝ N, con el relleno a múltiplos de 14)', v: m.winBlocksMacs },
+        { cls: 'a', label: 'Encoder: los ' + m.globalBlocks + ' bloques globales (la atención crece ∝ N²)', v: m.globalBlocksMacs },
+        { cls: 't', label: 'Encoder: patch embedding y neck', v: (num(m.patchEmbedMacs) || 0) + (num(m.neckMacs) || 0) },
+        { cls: 'd', label: 'Prompt encoder (por prompt)', v: num(m.promptEncMacs) || 0 },
+        { cls: 'h', label: 'Decoder de máscaras (por prompt)', v: num(m.maskDecoderMacs) || 0 },
+      ];
+      const used = segs.reduce((a, x) => a + x.v, 0);
+      if (m.macs - used > 0.0005 * m.macs) segs.push(rest(used, 'Resto'));
+      const extra = ['El encoder corre una vez por imagen; cada prompt cuesta ' + fOps(m.decoderMacsPerPrompt) + ' (prompt encoder + decoder)'
+        + (num(m.breakEvenPrompts) != null ? ': el encoder equivale a ' + fInt(m.breakEvenPrompts) + ' prompts' : '') + '. Con k prompts sobre la misma imagen: ' + fOps(m.encoderMacs) + ' + k × ' + fOps(m.decoderMacsPerPrompt) + '.'];
+      return { title: 'Dónde se va el cómputo: encoder (una vez por imagen) vs prompt encoder y decoder (por prompt)', segs, extra, noAttnNote: true };
+    }
+    // SAM 2: lo que se comparte entre objetos (Hiera + FPN) frente a lo que corre por objeto seguido.
+    if (model === 'sam2' && num(m.hieraMacs) != null && num(m.memAttnMacs) != null && num(m.perObjectMacs) != null) {
+      const segs = [
+        { cls: 'b', label: 'Hiera (una vez por frame; se comparte entre objetos)', v: m.hieraMacs },
+        { cls: 't', label: 'FPN y convs de alta resolución (por frame; compartidos)', v: (num(m.fpnMacs) || 0) + (num(m.hiresMacs) || 0) },
+        { cls: 'a', label: 'Memory attention (por objeto; la cross-attention a la memoria crece ∝ N·Nₘ)', v: m.memAttnMacs },
+        { cls: 'h', label: 'Prompt encoder, decoder, oclusión y puntero (por objeto)', v: (num(m.decoderMacs) || 0) + (num(m.objPtrMacs) || 0) },
+        { cls: 'd', label: 'Memory encoder (por objeto)', v: num(m.memEncoderMacs) || 0 },
+      ];
+      const used = segs.reduce((a, x) => a + x.v, 0);
+      if (m.macs - used > 0.0005 * m.macs) segs.push(rest(used, 'Resto'));
+      const extra = ['Por objeto seguido: ' + fOps(m.perObjectMacs) + ' (' + pctOf(m.perObjectMacs) + ' % del frame). Con k objetos: ' + fOps(m.imgEncoderMacs) + ' + k × ' + fOps(m.perObjectMacs) + '.'
+        + (num(m.memCrossScoreMacs) != null ? ' Dentro de la memory attention, QKᵀ y A·V de la cross-attention a la memoria: ' + fOps(m.memCrossScoreMacs) + ' (' + pctOf(m.memCrossScoreMacs) + ' %).' : '')];
+      return { title: 'Dónde se va el cómputo: encoder compartido (por frame) vs la parte por objeto', segs, extra, noAttnNote: true };
+    }
+    if (num(m.samplingMacs) != null) {
+      const samp = m.samplingMacs, dself = num(m.decSelfScoreMacs) || 0;
+      return { title: 'Dónde se va el cómputo: atención deformable vs el resto', segs: [
+        { cls: 'a', label: 'Muestreo deformable (encoder ∝ N·hLK, cross-attention ∝ Q·hLK; sin matriz N×N; convención del calculador)', v: samp },
+        { cls: 'd', label: 'Self-attention del decoder, solo QKᵀ y A·V (∝ Q²)', v: dself },
+        rest(samp + dself, 'Todo lo demás (backbone ResNet-50, proyecciones de entrada, offsets, pesos, proyecciones de value y salida, FFN y cabezas; ∝ N en el encoder y el backbone, ∝ Q en el decoder)'),
+      ] };
+    }
+    if (num(m.encScoreMacs) != null && num(m.decCrossScoreMacs) != null) {
+      const enc = m.encScoreMacs, dec = m.decCrossScoreMacs + (num(m.decSelfScoreMacs) || 0);
+      return { title: 'Dónde se va el cómputo: atención (solo QKᵀ y A·V) del encoder, del decoder y el resto', segs: [
+        { cls: 'a', label: 'Encoder, solo QKᵀ y A·V (crece ∝ N²)', v: enc },
+        { cls: 'd', label: 'Decoder, solo QKᵀ y A·V (cross ∝ Q·N, self ∝ Q²)', v: dec },
+        rest(enc + dec, 'Todo lo demás (backbone ResNet-50, proyección de entrada, proyecciones Q, K, V, O, FFN y cabezas; ∝ N en el encoder y el backbone, ∝ Q en el decoder)'),
+      ] };
+    }
+    const sp = attnSplit(m);
+    if (!sp) return null;
+    const windowed = m.windowScoreMacs != null;   // Swin: atención por ventanas de tamaño fijo
+    return { title: 'Dónde se va el cómputo: atención (solo QKᵀ y A·V) vs el resto', segs: [
+      { cls: 'a', label: windowed ? 'Atención, solo QKᵀ y A·V (con ventanas M×M fijas crece ∝ N·M², lineal en N)' : 'Atención, solo QKᵀ y A·V (crece ∝ N²)', v: sp.attn },
+      { cls: 'l', label: windowed ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding, patch merging y cabeza, ∝ N)'
+        : model === 'clip' ? 'Todo lo demás (proyecciones Q, K, V, O, MLP, embeddings de patches y de texto, y proyecciones finales; ∝ N)'
+        : 'Todo lo demás (proyecciones Q, K, V, O, MLP, patch embedding y cabeza, ∝ N)', v: sp.linear },
+    ] };
   }
 
   // ================================================================== DIAGRAMA EN BLANCO (§8.1)
@@ -1004,6 +1141,9 @@
         }
       }
       if (!slot) return;
+      // Pista opcional del autor (slots:[{…, hint:'…'}]): desambigua huecos con el mismo predecesor; se ve en la
+      // lista y en el popover, nunca delata la respuesta por sí sola (la escribe el autor).
+      if (typeof s.hint === 'string' && s.hint.trim()) slot.hint = s.hint.trim();
       // Opciones del autor: ids de nodo / op / formas, o textos literales.
       let opts;
       if (Array.isArray(s.options) && s.options.length) {
@@ -1109,11 +1249,11 @@
         if (dg && typeof dg.setSlot === 'function' && painted[s.id] !== st + '|' + txt) { painted[s.id] = st + '|' + txt; safe(() => dg.setSlot(s.id, txt, st)); }
         const val = filled[s.id] != null ? textOf(s, filled[s.id]) : null;
         const btn = h('button', { type: 'button', class: 'pxb__pick' + (val ? '' : ' is-empty') + (s.ask === 'shape' ? ' mono' : ''), 'aria-haspopup': 'dialog',
-          'aria-label': 'Hueco ' + s.n + ': ' + s.desc + '. ' + (val ? 'Respuesta: ' + val : 'Sin responder'),
+          'aria-label': 'Hueco ' + s.n + ': ' + s.desc + '. ' + (s.hint ? 'Pista: ' + s.hint + '. ' : '') + (val ? 'Respuesta: ' + val : 'Sin responder'),
           on: { click: (e) => pick(s.id, e.currentTarget, e.currentTarget) } }, val || 'Elegir…');
         list.appendChild(h('li', { class: 'pxb__row is-' + st, dataset: { slot: s.id } },
           h('span', { class: 'pxb__n mono', 'aria-hidden': 'true' }, String(s.n)),
-          h('span', { class: 'pxb__desc' }, s.desc),
+          h('span', { class: 'pxb__desc' }, s.desc, s.hint ? h('span', { class: 'pxb__hint' }, 'Pista: ' + s.hint) : null),
           btn,
           checked ? h('span', { class: 'pxb__mark', 'aria-hidden': 'true', html: st === 'ok' ? icon('check') : icon('close') }) : null,
           checked && st !== 'ok' && showSol ? h('span', { class: 'pxb__sol' }, 'Correcta: ', h('b', { class: s.ask === 'shape' ? 'mono' : null }, s.correct.text)) : null));
@@ -1138,7 +1278,7 @@
       };
       openPicker({
         host: wrap, anchor: anchor || listBtn, returnTo: (returnTo && returnTo.focus ? returnTo : listBtn), refocus,
-        title: 'Hueco ' + s.n, subtitle: s.desc, options: s.options, current: filled[s.id],
+        title: 'Hueco ' + s.n, subtitle: s.desc, hint: s.hint || null, options: s.options, current: filled[s.id],
         onPick: (id) => {
           if (id == null) delete filled[s.id]; else filled[s.id] = id;
           sCall(store, 'setBlankSlot', did, s.id, id == null ? null : id);
@@ -1175,9 +1315,22 @@
   // L niveles, K puntos por nivel y K_cls clases.
   // CLIP: los datos dependen de la torre (side = 'img' | 'txt' | 'joint', ver sideOfOps): la de texto
   // tiene su propio ancho D_t, sus cabezas y su MLP; la parte conjunta usa B y E. Swin: cabezas por stage.
+  // SAM y SAM 2 usan la notación de su página: cada par es [símbolo, valor, nota?] y la nota se muestra
+  // junto al dato ("P = 1 (clic)"): en SAM, P son clics y el patch (16) va aparte; en SAM 2, P son los
+  // punteros de objeto (no hay clics en el frame de seguimiento), D y h son los del stage 1 (las formas
+  // dicen 2D, 4h…), D_mlp es el MLP de la memory attention (el de Hiera es 4× el ancho del stage).
   function factPairs(cfg, side) {
     const c = cfg || {};
     const pick = (list) => list.filter(([, v]) => v != null);
+    if (c.memDim != null && Array.isArray(c.depths)) {
+      return pick([['H', c.H], ['W', c.W], ['D', c.D, 'stage 1; luego 2D, 4D, 8D'], ['h', c.h, 'stage 1; luego 2h, 4h, 8h'], ['d_h', c.dh, 'igual en los 4 stages'],
+        ['L', c.depths.join(' / '), 'bloques por stage'], ['N', c.N], ['C', c.C], ['C_m', c.memDim], ['N_r', c.memFrames, 'frames recientes'], ['N_p', c.condFrames, 'frames con prompt'],
+        ['P', c.ptrs, 'punteros de objeto'], ['L_m', c.Lmem, 'capas de memory attention'], ['D_mlp', c.Dmlp, 'MLP de la memory attention']]);
+    }
+    if (c.patch != null && c.nTok != null && Array.isArray(c.globals)) {
+      return pick([['H', c.H], ['W', c.W], ['patch', c.patch], ['D', c.D], ['L', c.L], ['h', c.h], ['D_mlp', c.Dmlp], ['N', c.N], ['M', c.M, 'ventana'], ['C', c.C],
+        ['P', c.P, c.P === 1 ? 'clic' : 'clics']]);
+    }
     if (c.Dt != null) {
       if (side === 'txt') return pick([['T', c.T], ['V', c.V], ['D_t', c.Dt], ['h', c.ht], ['D_mlp', c.Dmlpt], ['L_t', c.Lt], ['E', c.E], ['B', c.B]]);
       if (side === 'joint') return pick([['D', c.D], ['D_t', c.Dt], ['E', c.E], ['B', c.B]]);
@@ -1217,7 +1370,7 @@
   function cfgFacts(cfg, side) {
     // Dimensiones sin separador de miles (D_mlp = 3072), como en las formas y en {{cfg.*}}.
     const dim = (v) => (typeof v !== 'number' ? String(v) : Number.isInteger(v) && Math.abs(v) < 10000 ? String(v) : fInt(v));
-    return factPairs(cfg, side).map(([s, v]) => h('span', { class: 'pxd__fact mono' }, s + ' = ' + dim(v)));
+    return factPairs(cfg, side).map(([s, v, note]) => h('span', { class: 'pxd__fact mono' }, s + ' = ' + dim(v), note ? h('span', { class: 'pxd__fnote' }, ' (' + note + ')') : null));
   }
   // ------------------------------------------------------------------ drills de parámetros
   // Un drill de parámetros pregunta por un nodo de un diagrama y su respuesta es EXACTAMENTE lo que ese
@@ -1329,8 +1482,12 @@
     // "W-MSA" con contexto "bloque 1 (W-MSA)": el paréntesis del contexto sobra ("bloque 1 · W-MSA").
     ctxParts = ctxParts.map((w) => { const pm = w.match(/^(.*\S)\s*\(([^()]*)\)$/); return pm && norm(pm[2]) === norm(base) ? pm[1] : w; });
     // "LayerNorm 1 (W-MSA)" con contexto "bloque 1 (W-MSA)": el paréntesis sobra.
+    // La primera palabra del paréntesis tiene que estar en el contexto como palabra entera y con letras:
+    // "Conv 3×3 stride 2 (1 → 4)" con contexto "downsampler de la máscara (÷16)" conserva su paréntesis.
     const par = ctxParts.length ? base.match(/^(.*\S)\s*\(([^()]*)\)$/) : null;
-    if (par && low(ctxParts.join(' ')).indexOf(low(par[2].split(/[ ,:]/)[0])) >= 0) {
+    const tok0 = par ? par[2].split(/[ ,:]/)[0] : '';
+    const wordIn = (hay, w) => new RegExp('(^|[^\\p{L}\\p{N}])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^\\p{L}\\p{N}])', 'iu').test(hay);
+    if (par && /\p{L}/u.test(tok0) && wordIn(ctxParts.join(' '), tok0)) {
       base = par[1];
       // "Self-attention (texto)" con contexto "texto: self-attention": sin el paréntesis, basta el contexto.
       const l2 = leadOf();
@@ -1748,8 +1905,8 @@
     host.appendChild(card);
     const head = h('div', { class: 'pxd__meta' },
       o.showModel ? h('span', { class: 'chip chip--accent' }, o.showModel) : null,
-      h('span', { class: 'chip' }, cfgLabel(cfg)), h('span', { class: 'chip chip--warn' }, changeText(item.change)));
-    const qHtml = fill(item.q || ('¿Qué pasa con ' + metricLabel(ask, wm).toLowerCase() + ' si ' + changeText(item.change) + '?'), o.pageCtx);
+      h('span', { class: 'chip' }, cfgLabel(cfg)), h('span', { class: 'chip chip--warn' }, changeText(item.change, wm)));
+    const qHtml = fill(item.q || ('¿Qué pasa con ' + metricLabel(ask, wm).toLowerCase() + ' si ' + changeText(item.change, wm) + '?'), o.pageCtx);
     const q = h('div', { class: 'pxw__q', html: qHtml });
     card.append(head, q);
     decorate(q);
@@ -1785,7 +1942,7 @@
       if (rows.indexOf(ask) < 0) rows.unshift(ask);
       expl.appendChild(h('div', { class: 'pxd__tablewrap' }, h('table', { class: 'pxw__table' },
         h('caption', { class: 'sr-only' }, 'Las dos corridas del calculador lado a lado'),
-        h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Métrica'), h('th', { scope: 'col', class: 'num' }, cfgLabel(cfg)), h('th', { scope: 'col', class: 'num' }, 'con ' + changeText(item.change)), h('th', { scope: 'col', class: 'num' }, 'Factor'))),
+        h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Métrica'), h('th', { scope: 'col', class: 'num' }, cfgLabel(cfg)), h('th', { scope: 'col', class: 'num' }, 'con ' + changeText(item.change, wm)), h('th', { scope: 'col', class: 'num' }, 'Factor'))),
         h('tbody', null, rows.map((k) => {
           const b = metricValue(base, k), a = metricValue(alt, k);
           return h('tr', { class: k === ask ? 'is-ask' : null },
@@ -2077,6 +2234,6 @@
     _blankKey: blankKey, _drillCandidates: drillCandidates, _factorOptions: factorOptions,
     _valueOptions: valueOptions, _fFactorOpt: fFactorOpt, _parseFactor: parseFactor, _parseBytes: parseBytes,
     _parseNum: parseNum, _gradeParams: gradeParams, _nodeParams: nodeParams, _asksValue: asksValue,
-    _changeText: changeText, _factPairs: factPairs, _drillFacts: (R, cand) => factPairs(R.config, drillSide(R, cand)), _metricKind: metricKind, _metricLabel: (k, model) => metricLabel(k, model), _metricNote: (k, model) => metricNote(k, model), _fMetric: fMetric, _knobBase: knobBase,
+    _changeText: changeText, _knobLabel: knobLabel, _knobShow: knobShow, _splitSegments: splitSegmentsOf, _factPairs: factPairs, _drillFacts: (R, cand) => factPairs(R.config, drillSide(R, cand)), _metricKind: metricKind, _metricLabel: (k, model) => metricLabel(k, model), _metricNote: (k, model) => metricNote(k, model), _fMetric: fMetric, _knobBase: knobBase,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

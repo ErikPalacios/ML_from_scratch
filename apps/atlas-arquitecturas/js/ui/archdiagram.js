@@ -859,11 +859,19 @@
       if (g.repeat && run) {
         const v = repeatValue(run.config, g.repeat);
         let tag = g.repeat.tag ? String(g.repeat.tag).replace('{v}', v).replace('{pl}', v === 1 ? '' : 'es').replace('{raw}', repeatValue(run.config, g.repeat, true)) : '× ' + (g.repeat.sym || 'L') + ' = ' + v;
-        // repeat.totalOf: parámetros del nodo repetido en todo el modelo (byNode del calculador)
-        const tn = g.repeat.totalOf && (spec.nodes || []).find((x) => x.id === g.repeat.totalOf);
-        txt(gg, r.x + r.w - 10, r.y + 17, tag, 'ad-group-tag', 'end');
-        // total del bloque repetido (byNode); repeat.totalLabel = plantilla con {t}; sin línea si se repite 1 vez
-        if (tn && ctl.mode !== 'blank' && !ctl.quiz && v !== 1) { const c = nodeCost(run, tn); if (c.total && c.total.params) txt(gg, r.x + r.w - 10, r.y + (tag.indexOf('_') >= 0 ? 34 : 31), String(g.repeat.totalLabel || '= {t} en total').replace('{t}', fsi(c.total.params)), 'ad-group-total', 'end'); }
+        // repeat.totalOf: parámetros del nodo repetido en todo el modelo (byNode del calculador); una lista de
+        // ids suma sus totales (fase 5: la etapa del ViT de SAM = bloques con ventanas + bloque global)
+        const tns = [].concat(g.repeat.totalOf || []).map((id) => (spec.nodes || []).find((x) => x.id === id)).filter(Boolean);
+        // repeat.tagPos:'bottom' = la etiqueta "× v" abajo a la derecha (un grupo dentro de otro: la de arriba
+        // chocaría con la pila de cabezas del bloque)
+        const bottom = g.repeat.tagPos === 'bottom';
+        txt(gg, r.x + r.w - 10, bottom ? r.y + r.h - 8 : r.y + 17, tag, 'ad-group-tag', 'end');
+        // total del bloque repetido (byNode); repeat.totalLabel = plantilla con {t} (y {{…}} del calculador);
+        // sin línea si se repite 1 vez
+        if (tns.length && ctl.mode !== 'blank' && !ctl.quiz && v !== 1) {
+          const tot = tns.reduce((a, tn) => { const c = nodeCost(run, tn); return a + ((c.total && c.total.params) || 0); }, 0);
+          if (tot) txt(gg, r.x + r.w - 10, bottom ? r.y + r.h - 22 : r.y + (tag.indexOf('_') >= 0 ? 34 : 32), String(qText(g.repeat.totalLabel || '= {t} en total', ctl, spec)).replace('{t}', fsi(tot)), 'ad-group-total', 'end');
+        }
       }
       // el subtítulo de un carril (costos que nombran sus bloques: "encoder + neck: …") no va en la práctica
       if (g.label2 && !hideTitle && !(lane && (ctl.mode === 'blank' || ctl.quiz))) txt(gg, r.x + 10, r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub');
@@ -1002,7 +1010,15 @@
       if (n.parallel > 1) {
         for (let i = Math.min(n.parallel, 4) - 1; i >= 1; i--) S('rect', { x: r.x + i * 4, y: r.y + i * 4, width: r.w, height: r.h, rx: 4, class: 'ad-box ad-box--deck' }, g);
       }
-      S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: shape === 'pill' ? Math.min(r.h / 2, 12) : 4, class: 'ad-box' }, g);
+      // style:'store' = almacén (cilindro): guarda tensores entre pasos (el banco de memoria de SAM 2); no es una
+      // operación. Su color sigue siendo el de su op (p. ej. embed: sus únicos parámetros son una tabla).
+      const store = n.style === 'store' && !blankOp;
+      const ry = store ? Math.min(6, r.h * 0.12) : 0;
+      if (store) {
+        used.store = true;
+        S('path', { d: 'M' + P([r.x, r.y + ry]) + 'V' + r1(r.y + r.h - ry) + 'A' + r1(r.w / 2) + ',' + r1(ry) + ' 0 0 0 ' + P([r.x + r.w, r.y + r.h - ry]) + 'V' + r1(r.y + ry), class: 'ad-box ad-box--store' }, g);
+        S('ellipse', { cx: r1(r.x + r.w / 2), cy: r1(r.y + ry), rx: r1(r.w / 2), ry: r1(ry), class: 'ad-box ad-box--store' }, g);
+      } else S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: shape === 'pill' ? Math.min(r.h / 2, 12) : 4, class: 'ad-box' }, g);
       if (n.modality) S('rect', { x: r.x + 1, y: r.y + 4, width: 3.5, height: r.h - 8, class: 'ad-stripe ad-mod--' + n.modality }, g);
       if (n.image && run && run.config) {
         const pad = 6, side = Math.min(r.w - 2 * pad, r.h - 2 * pad - (label ? 16 : 0));
@@ -1012,9 +1028,10 @@
       } else {
         const lines = String(label).split('\n').filter(Boolean);
         const miniH = n.mini ? 22 : 0;
-        const subLines = sub ? 1 : 0;
-        const total = lines.length * 15 + subLines * 13;
-        let y0 = r.y + (r.h - miniH) / 2 - total / 2 + 11;
+        // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
+        const subs = sub ? String(sub).split('\n') : [];
+        const total = lines.length * 15 + subs.length * 13;
+        let y0 = r.y + ry + (r.h - ry - miniH) / 2 - total / 2 + 11;
         let cx = r.x + r.w / 2;
         if (n.symbol) {
           // símbolo de operación de tensor a la izquierda, texto centrado en el resto
@@ -1023,7 +1040,7 @@
           cx = r.x + (2 * sr + 8) + (r.w - (2 * sr + 8)) / 2;
         }
         lines.forEach((ln, i) => txt(g, cx, y0 + i * 15, ln, 'ad-label', 'middle'));
-        if (sub) txt(g, cx, y0 + lines.length * 15 + 0.5, sub, 'ad-sub', 'middle');
+        subs.forEach((sl, i) => txt(g, cx, y0 + lines.length * 15 + 0.5 + i * 13, sl, 'ad-sub', 'middle'));
         // un hueco que pide el NOMBRE del bloque no muestra su esquema en miniatura: los chips
         // ("top-down: T-CSP ×2", "imagen ← texto"…) darían la respuesta
         if (n.mini && !(slot && slot.ask === 'label')) drawMini(g, n.mini, r, used);
@@ -1140,7 +1157,7 @@
 
   function nodeAria(ctl, n, run) {
     const parts = [plainSub(n.label || n.id)];
-    if (n.sub) parts.push(plainSub(nodeSub(n, ctl)));
+    if (n.sub) parts.push(plainSub(nodeSub(n, ctl)).replace(/\n/g, ' '));
     const io = nodeIO(ctl.cur(), n.id, run);
     if (io.in.length) parts.push('entrada ' + io.in.map((t) => shapeText(t, 'num')).join(', '));
     if (io.out.length) parts.push('salida ' + io.out.map((t) => shapeText(t, 'num')).join(', '));
@@ -1311,7 +1328,6 @@
       }
     }
     if (t && SHAPED[kind]) {
-      if (t.mod) used.mods.add(t.mod);
       const la = labelAnchor(ge.pts, e);
       const tk = tensorAt[ge.key + '@' + e.tensor] || tensorAt[ge.key];
       const hide = ctl.hideShapes === true || (Array.isArray(ctl.hideShapes) && ctl.hideShapes.indexOf(e.tensor) >= 0) || (ctl.blankHide && ctl.blankHide.has(ge.key + '@' + e.tensor));
@@ -1328,6 +1344,9 @@
           else if (la.side === 'below') { gx = la.x - gs.w / 2; gy = la.y + 8 + gs.h; ly = gy; }
           else { gx = la.x - gs.w / 2; gy = la.y - 7; ly = gy - gs.h + 2; }
           if (isJoint(drawGlyph(g, t, gx, gy, ctl.id, tk.mark, tk))) used.joint = true;
+          // la leyenda lista una modalidad solo si se dibuja un glifo (o una franja) de ella: las formas
+          // escritas de las aristas no la muestran (fase 5: "queries aprendidas" sin ningún glifo azul)
+          if (t.mod) used.mods.add(t.mod);
           used.glyph = true;
         }
         if (!tk || tk.show !== 'glyph') {
@@ -1401,6 +1420,7 @@
       if (!used.map.has('state-' + st)) continue;
       item((s) => { const g = S('g', { class: 'ad-mapnode ad-mapnode--' + st }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 5, class: 'ad-box' }, g); }, label);
     }
+    if (used.store) item((s) => { const g = S('g', { class: 'ad-op--io' }, s); S('path', { d: 'M5,4V12A8,2.6 0 0 0 21,12V4', class: 'ad-box' }, g); S('ellipse', { cx: 13, cy: 4, rx: 8, ry: 2.6, class: 'ad-box' }, g); }, 'Cilindro: almacén (guarda tensores para pasos siguientes; no es una operación)');
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
@@ -1955,10 +1975,14 @@
     function stopPlay() { const w = ctl.walk; if (w && w.timer) { clearInterval(w.timer); w.timer = null; } if (ctl.bPlay) { ctl.bPlay.innerHTML = '▶'; ctl.bPlay.setAttribute('aria-label', 'Reproducir'); } }
 
     // ---- pantalla completa (overlay CSS, no Fullscreen API)
+    function onDocEsc(ev) { if (ev.key === 'Escape' && !ev.defaultPrevented && fig.classList.contains('ad--fs') && !fig.contains(ev.target)) toggleFull(false); }
     function toggleFull(force) {
       const on = force != null ? force : !fig.classList.contains('ad--fs');
       fig.classList.toggle('ad--fs', on);
       document.documentElement.classList.toggle('ad-noscroll', on);
+      // Escape cierra la pantalla completa aunque el foco no esté dentro de la figura (fase 5, revisión n21)
+      document.removeEventListener('keydown', onDocEsc);
+      if (on) document.addEventListener('keydown', onDocEsc);
       if (ctl.bFull) ctl.bFull.setAttribute('aria-pressed', String(on));
       sizeViewport(); fit(false);
     }
@@ -2232,6 +2256,7 @@
         clearTimeout(ctl.hintTimer);
         if (ro) ro.disconnect();
         for (const [el, ev, fn, o] of ctl.listeners) el.removeEventListener(ev, fn, o);
+        document.removeEventListener('keydown', onDocEsc);
         document.documentElement.classList.remove('ad-noscroll');
         if (fig.parentNode) fig.parentNode.removeChild(fig);
       },

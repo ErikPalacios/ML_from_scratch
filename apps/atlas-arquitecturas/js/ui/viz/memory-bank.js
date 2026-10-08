@@ -56,14 +56,15 @@
     // qué lee la memory attention en el frame t — la selección del código oficial (sam2_base.py,
     // _prepare_memory_conditioned_features): todos los frames con prompt (salvo t; al propagar un video ya
     // anotado, también los posteriores a t), más la ventana fija t−1 … t−Nᵣ, saltando los que tuvieron prompt (ya
-    // están; no se buscan más atrás). Punteros: los de los frames con prompt ANTERIORES a t y los de t−1 … t−(P−1)
-    // sin prompt, hasta P en total.
+    // están; no se buscan más atrás). Punteros: los de TODOS los frames con prompt anteriores a t, más los de
+    // t−1 … t−(P−1) sin prompt (max_obj_ptrs_in_encoder = P): sin tope total, así que con 2 o más prompts en el
+    // pasado pueden ser más de P.
     function memoryAt(t) {
       const cond = Array.from(state.prompted).filter((f) => f !== t).sort((a, b) => a - b);
       const recent = [];
       for (let f = t - 1; f >= Math.max(0, t - N); f--) if (!state.prompted.has(f)) recent.push(f);
-      const ptr = cond.filter((f) => f < t).slice(-PTRS);
-      for (let f = t - 1; f >= Math.max(0, t - (PTRS - 1)) && ptr.length < PTRS; f--) if (!state.prompted.has(f)) ptr.push(f);
+      const ptr = cond.filter((f) => f < t);
+      for (let f = t - 1; f >= Math.max(0, t - (PTRS - 1)); f--) if (!state.prompted.has(f)) ptr.push(f);
       return { cond, recent: recent.sort((a, b) => a - b), ptr: ptr.sort((a, b) => a - b) };
     }
 
@@ -84,8 +85,8 @@
     bReset.addEventListener('click', () => { state.prompted = new Set([0]); draw(); });
     const stage = V.html('div', { class: 'viz-stage viz-mb-stage', tabindex: 0, role: 'group', 'aria-label': 'Línea de tiempo del video; flechas izquierda y derecha: cambiar el frame actual; Enter: poner o quitar un clic en ese frame' }, wrap);
     const out = V.html('div', { class: 'viz-readout', 'aria-live': 'polite' }, wrap);
-    V.html('p', { class: 'viz-note' }, wrap, 'Ilustrativo: la escena (un auto que pasa detrás de un árbol) y qué frames tienen un clic. Lo de SAM 2: la memory attention del frame t lee las memorias de los Nₚ frames con prompt (todos; al propagar un video ya anotado, también los posteriores a t) y las de los frames t−1 … t−' + N + ' (Nᵣ = ' + N + ': una ventana que avanza con t; un frame de esa ventana que tuvo prompt ya está entre los Nₚ y no se reemplaza por uno más viejo), más hasta ' + PTRS + ' punteros de objeto (uno por frame, del token de salida del decoder: los de frames con prompt anteriores a t y los de los frames recientes). Es la selección del código oficial (sam2_base.py). ' +
-      'Cuando el objeto está tapado, la cabeza de oclusión dice "no está": la máscara sale vacía y su memoria se guarda marcada como "sin objeto" (en SAM 2.1, con un embedding aprendido). Así, cuando el auto reaparece, las memorias de antes de la oclusión siguen en la cola y lo recuperan. Los tamaños y los MACs son del calculador (' + cfgId + ').');
+    V.html('p', { class: 'viz-note' }, wrap, 'Ilustrativo: la escena (un auto que pasa detrás de un árbol) y qué frames tienen un clic. Lo de SAM 2: la memory attention del frame t lee las memorias de los Nₚ frames con prompt (todos; al propagar un video ya anotado, también los posteriores a t) y las de los frames t−1 … t−' + N + ' (Nᵣ = ' + N + ': una ventana que avanza con t; un frame de esa ventana que tuvo prompt ya está entre los Nₚ y no se reemplaza por uno más viejo), más los punteros de objeto (uno por frame, del token de salida del decoder): los de todos los frames con prompt anteriores a t y los de hasta ' + (PTRS - 1) + ' frames anteriores sin prompt (' + PTRS + ' con un solo prompt; sin tope total). Los frames que solo aportan su puntero llevan un arco punteado. Es la selección del código oficial (sam2_base.py). ' +
+      'Cuando el objeto está tapado, la cabeza de oclusión dice "no está": la máscara sale vacía y su memoria y su puntero se guardan marcados como "sin objeto" (en SAM 2.1, con embeddings aprendidos). Cuando el auto reaparece: si la oclusión duró menos de Nᵣ frames, las memorias de antes siguen en la cola y lo recuperan; si duró más, quedan los frames con prompt y los punteros. Los tamaños y los MACs son del calculador (' + cfgId + ').');
 
     let lastNarrow = null;
     function draw() {
@@ -134,6 +135,12 @@
           const fx = pos(f).x + FW / 2, dpt = Math.min(52, 10 + 0.08 * Math.abs(tx - fx));
           V.svg('path', { d: 'M' + r1(fx) + ' ' + r1(y0) + 'C' + r1(fx) + ' ' + r1(y0 + dpt) + ' ' + r1(tx - 6) + ' ' + r1(y0 + dpt) + ' ' + r1(tx - 2) + ' ' + r1(y0 + 3), class: 'viz-mb-arc' + (mem.cond.includes(f) ? ' is-cond' : '') }, arcs);
         }
+        // frames que solo aportan su puntero (sin memoria espacial en la ventana): arco fino punteado desde el punto
+        for (const f of mem.ptr) {
+          if (mem.cond.includes(f) || mem.recent.includes(f)) continue;
+          const fx = pos(f).x + FW / 2, dpt = Math.min(44, 8 + 0.06 * Math.abs(tx - fx));
+          V.svg('path', { d: 'M' + r1(fx) + ' ' + r1(y0 - 3) + 'C' + r1(fx) + ' ' + r1(y0 + dpt) + ' ' + r1(tx - 6) + ' ' + r1(y0 + dpt) + ' ' + r1(tx - 2) + ' ' + r1(y0 + 3), class: 'viz-mb-arc is-ptr' }, arcs);
+        }
         V.svg('path', { d: 'M' + r1(tx - 5) + ' ' + r1(y0 + 7) + 'L' + r1(tx) + ' ' + r1(y0 - 1) + 'L' + r1(tx + 3) + ' ' + r1(y0 + 8) + 'Z', class: 'viz-mb-arrow' }, arcs);
         t(svg, tx, y0 + 64, '↑ todo esto entra a la memory attention de t', 'viz-s', tx > W * 0.65 ? 'end' : tx < W * 0.3 ? 'start' : 'middle');
       }
@@ -148,7 +155,7 @@
       leg2((x, y) => V.svg('rect', { x, y, width: 14, height: 7, rx: 2, class: 'viz-mb-mem is-recent' }, svg), 'memoria reciente (Nᵣ ≤ ' + N + ')', ly2);
       if (narrow) lx = X0;
       const ly3 = narrow ? ly + 32 : ly;
-      leg2((x, y) => V.svg('circle', { cx: x + 7, cy: y + 4, r: 3.2, class: 'viz-mb-ptr' }, svg), 'puntero (≤ ' + PTRS + ')', ly3);
+      leg2((x, y) => V.svg('circle', { cx: x + 7, cy: y + 4, r: 3.2, class: 'viz-mb-ptr' }, svg), narrow ? 'puntero (prompt + ≤ ' + (PTRS - 1) + ' recientes)' : 'puntero (prompt + ≤ ' + (PTRS - 1) + ' recientes; arco punteado: solo puntero)', ly3);
       if (narrow) lx = X0;
       const ly4 = narrow ? ly + 48 : ly + 18;
       lx = X0;
@@ -159,7 +166,11 @@
       if (c && c.macs) {
         if (narrow) { t(svg, X0, sy, 'memory attention en t:', 'viz-t'); t(svg, X0, sy + 15, (mem.cond.length + mem.recent.length) + ' memorias espaciales + ' + mem.ptr.length + ' punteros', 'viz-s'); }
         else t(svg, X0, sy, 'memory attention en t: ' + (mem.cond.length + mem.recent.length) + ' memorias espaciales + ' + mem.ptr.length + ' punteros', 'viz-t');
-        t(svg, X0, sy + (narrow ? 31 : 16), (c.tensor ? 'K, V de la memoria: ' + A.fmt.shape(c.tensor, 'sym') + ' = ' + A.fmt.shape(c.tensor, 'num') + ' · ' : '') + fmt.si(c.macs) + ' MACs', 'viz-n');
+        // en el teléfono, en dos líneas (la forma y los MACs no caben en 375 px)
+        if (narrow) {
+          if (c.tensor) t(svg, X0, sy + 31, 'K, V: ' + A.fmt.shape(c.tensor, 'sym') + ' = ' + A.fmt.shape(c.tensor, 'num'), 'viz-n');
+          t(svg, X0, sy + (c.tensor ? 47 : 31), fmt.si(c.macs) + ' MACs', 'viz-n');
+        } else t(svg, X0, sy + 16, (c.tensor ? 'K, V de la memoria: ' + A.fmt.shape(c.tensor, 'sym') + ' = ' + A.fmt.shape(c.tensor, 'num') + ' · ' : '') + fmt.si(c.macs) + ' MACs', 'viz-n');
       } else t(svg, X0, sy, 'calculador sin datos de la memory attention (' + cfgId + ')', 'viz-s');
       readout(mem, c);
     }
@@ -185,7 +196,7 @@
       const kv = (k, v) => { const sp = V.html('span', null, out); sp.innerHTML = k + ' <b>' + v + '</b>'; };
       kv('frames con prompt que lee t:', mem.cond.length ? mem.cond.join(', ') : '—');
       kv('ventana t−1 … t−' + N + ':', mem.recent.length ? mem.recent.join(', ') : '—');
-      kv('punteros:', mem.ptr.length + ' (≤ ' + PTRS + ')');
+      kv('punteros:', mem.ptr.length + ' (los de prompt + hasta ' + (PTRS - 1) + ' recientes)');
       if (hiddenAt(state.t)) kv('en t:', 'el auto está tapado → máscara vacía, memoria "sin objeto"');
       if (c && c.metrics && Number.isFinite(c.metrics.memoryBankMem)) kv('memoria leída (bf16, con posiciones):', fmt.bytes(c.metrics.memoryBankMem));
     }
