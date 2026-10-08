@@ -71,6 +71,11 @@
      con las mismas cabezas el resultado es exactamente el de antes. NON_ARCH suma 'bandwidth', 'peakFlops' y 'hbmBytes'
      (entradas de hardware de metrics(), no knobs) y def.metrics recibe también `overrides`. Ninguna cambia las fases 1–5.
      Revisión de la fase 6: fmt.si y fmt.ops suman el prefijo P (10¹⁵): solo cambia el texto de valores ≥ 10¹⁵.
+   - Fase 7 (VLM: LLaVA, Qwen2-VL): repeat_frames, patch_embed_3d (Conv3d de Qwen2-VL), flatten_nd, segment_rows (atención por
+     segmento del ViT de Qwen2-VL en video), group_tokens (merge 2×2), splice_tokens (los tokens visuales reemplazan a <image>),
+     mrope (M-RoPE) y mrope_ids; graph.has(id); importGraph(g, src, o) compone un modelo con el grafo de otro (el decoder de
+     llm.js dentro del VLM) sin duplicar su constructor; preLnLayer acepta hSym, dhSym, DmlpSym, rope, outMeta y entradas con
+     dimensiones delanteras (todas opcionales). Ninguna cambia el resultado de las fases 1–6.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -1282,6 +1287,95 @@
     });
   }
 
+
+  // ---- Fase 7 (VLM: LLaVA, Qwen2-VL): primitivas elementales ------------------------------
+  // repeat_frames (Qwen2-VL): una imagen se repite k veces en el eje temporal para llenar el parche temporal de k frames
+  // (temporal_patch_size = 2): H×W×C → k×H×W×C. Copia de datos: sin parámetros ni MACs. o = {k, sym}
+  function repeat_frames(x, o) {
+    const k = o.k;
+    return result('repeat_frames', [x], shape([o.sym || String(k)].concat(x.sym), [k].concat(x.num), x.mod, 'grid'), { detail: { k, note: 'la imagen se duplica para llenar el parche temporal' } });
+  }
+
+  // patch_embed_3d (Qwen2-VL): Conv3d con kernel = stride = k_t×P×P sobre F×H×W×C (sin sesgo en Qwen2-VL):
+  // → (F/k_t)×(H/P)×(W/P)×D. Parámetros k_t·P²·C·D; MACs (F/k_t)(H/P)(W/P)·D·k_t·P²·C (= un Linear de k_t·P²·C → D por
+  // parche 3-D). o = {kt, k, cout, coutSym, kSym='P', outSym:[ts, hs, ws], bias=false, squeeze (si F/k_t = 1, salida H/P×W/P×D)}
+  function patch_embed_3d(x, o) {
+    if (x.num.length !== 4) throw new Error('patch_embed_3d espera una entrada F×H×W×C.');
+    const [F, H, W, C] = x.num, Cs = x.sym[3], kt = o.kt, k = o.k, bias = !!o.bias;
+    if (F % kt !== 0) throw new Error('patch_embed_3d: F = ' + F + ' frames no es múltiplo del parche temporal k_t = ' + kt + '.');
+    if (H % k !== 0 || W % k !== 0) throw new Error('patch_embed_3d: la imagen ' + H + '×' + W + ' no es divisible por el parche P = ' + k + '.');
+    const To = F / kt, Ho = H / k, Wo = W / k, cout = o.cout, cs = o.coutSym || String(cout);
+    const os = o.outSym || [String(To), String(Ho), String(Wo)];
+    const sq = o.squeeze && To === 1;
+    const out = sq ? shape([os[1], os[2], cs], [Ho, Wo, cout], o.mod || x.mod, 'grid') : shape([os[0], os[1], os[2], cs], [To, Ho, Wo, cout], o.mod || x.mod, 'grid');
+    const kk = 'k_t\\,' + symTexFactor(o.kSym || 'P') + '^2\\,' + symTexFactor(Cs);
+    return result('patch_embed_3d', [x], out, {
+      paramTerms: [[kt, k, k, C, cout]].concat(bias ? [[cout]] : []),
+      paramTex: kk + '\\,' + symTexFactor(cs) + (bias ? ' + ' + symTexFactor(cs) : ''),
+      macTerms: [[To, Ho, Wo, cout, kt, k, k, C]],
+      macTex: o.macTex || (texProd(sq ? [os[1], os[2], cs] : [os[0], os[1], os[2], cs]) + '\\cdot ' + kk),
+      other: bias ? To * Ho * Wo * cout : 0,
+      detail: { kt, k, To, Ho, Wo, cin: C, cout, bias, patchDim: kt * k * k * C, note: 'Conv3d k = s = k_t×P×P: un Linear de k_t·P²·C → D sobre cada parche 3-D' },
+    });
+  }
+
+  // flatten_nd: rejilla (t×)h×w×C → secuencia (t·h·w)×C (todas las dimensiones delanteras; vista). o.sym = [tokens, canales]
+  function flatten_nd(x, o) {
+    const nd = x.num.length, c = x.num[nd - 1];
+    const n = prod(x.num.slice(0, nd - 1));
+    const sym = (o && o.sym) || [x.sym.slice(0, nd - 1).join('·'), x.sym[nd - 1]];
+    return result('flatten', [x], shape(sym, [n, c], x.mod, 'seq'), { detail: { from: x.num.slice() } });
+  }
+
+  // segment_rows: secuencia (k·R)×C → k×R×C (vista): k segmentos independientes (Qwen2-VL: la atención del ViT no cruza
+  // de un par de frames a otro; cu_seqlens). o = {k, sym:[ks, rs]}
+  function segment_rows(x, o) {
+    const [S, C] = x.num, k = o.k;
+    if (S % k !== 0) throw new Error('segment_rows: ' + S + ' filas no se dividen en ' + k + ' segmentos.');
+    const sy = o.sym || [String(k), String(S / k)];
+    return result('segment_rows', [x], shape([sy[0], sy[1], x.sym[1]], [k, S / k, C], x.mod, 'windows'), { detail: { segments: k, rows: S / k } });
+  }
+
+  // group_tokens (merger de Qwen2-VL): cada k filas consecutivas (los 2×2 parches vecinos, que el procesador ya dejó
+  // juntos) se concatenan en una: R×C → (R/k)×(k·C). Vista (reshape): sin parámetros ni MACs. o = {k, sym, dSym}
+  function group_tokens(x, o) {
+    const [R, C] = x.num, k = o.k;
+    if (R % k !== 0) throw new Error('group_tokens: ' + R + ' filas no se agrupan de a ' + k + '.');
+    return result('group_tokens', [x], shape([o.sym || (x.sym[0] + '/' + k), o.dSym || (k + x.sym[1])], [R / k, k * C], x.mod, 'seq'), { detail: { k, note: 'reshape: los k vecinos se concatenan en el canal' } });
+  }
+
+  // splice_tokens (VLM): los tokens visuales (N_img×D, de `copies` imágenes) reemplazan al marcador <image> en el prompt:
+  // T×D (texto) y N_img×D → (N+T)×D con N = copies·N_img. Mover datos: sin parámetros ni MACs. o = {copies=1, sym, at}
+  function splice_tokens(text, vis, o) {
+    o = o || {};
+    if (text.num[1] !== vis.num[1]) throw new Error('splice_tokens: anchos distintos (' + text.num[1] + ' y ' + vis.num[1] + '): falta el proyector.');
+    const n = (o.copies || 1) * vis.num[0];
+    return result('splice_tokens', [text, vis], shape([o.sym || ('N+' + text.sym[0]), text.sym[1]], [n + text.num[0], text.num[1]], 'txt', 'seq'), {
+      detail: { visual: n, text: text.num[0], copies: o.copies || 1, at: o.at || 'posición del marcador <image>' },
+    });
+  }
+
+  // mrope (Qwen2-VL, M-RoPE): RoPE con 3 ids de posición por token (t, h, w): las d_h/2 frecuencias se reparten en
+  // secciones (mrope_section [16, 24, 24]) y cada sección rota con el id de su eje. Texto: t = h = w (= RoPE 1-D).
+  // Sin parámetros ni MACs; mismo costo elementwise que RoPE. o = {theta, sections}
+  function mrope(x, o) {
+    o = o || {};
+    const nd = x.num.length, dh = x.num[nd - 1], sec = o.sections || [];
+    if (dh % 2 !== 0) throw new Error('mrope: d_h = ' + dh + ' debe ser par.');
+    if (sec.length && sec.reduce((a, b) => a + b, 0) !== dh / 2) throw new Error('mrope: las secciones ' + sec.join('+') + ' no suman d_h/2 = ' + dh / 2 + '.');
+    return result('mrope', [x], plain(x), {
+      other: elems(x) * OTHER.rope,
+      detail: { theta: o.theta || 10000, dh, pairs: dh / 2, sections: sec.slice(), axes: ['t', 'h', 'w'],
+        note: 'cada sección de frecuencias rota con el id de su eje (t, h, w); en el texto los tres ids son iguales' },
+    });
+  }
+
+  // mrope_ids (Qwen2-VL): los ids de posición (t, h, w) de cada token del prompt: 3×S enteros (buffer calculado de la
+  // estructura del prompt y la rejilla de la imagen; sin parámetros ni MACs). o = {S, sym, span}
+  function mrope_ids(o) {
+    return result('mrope_ids', [], shape(['3', o.sym || String(o.S)], [3, o.S], 'txt', 'seq'), { detail: { span: o.span || null, note: o.note || '' } });
+  }
+
   // ---- compuestas (para fórmulas, tablas y pruebas; los modelos usan las elementales en el grafo)
   function composite(prim, x, parts, out, o) {
     return {
@@ -1827,6 +1921,8 @@
     // Fase 6
     rope, split_gqa_heads, mul, lm_head, sample_token, kv_append, moe_router, moe_topk, expert_linear, moe_combine,
     swiglu, gqa_attention, llama_block, moe_ffn,
+    // Fase 7
+    repeat_frames, patch_embed_3d, flatten_nd, segment_rows, group_tokens, splice_tokens, mrope, mrope_ids,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -1973,6 +2069,13 @@
     { id: 'gqa_attention', name: 'Atención GQA (Llama)', paramTex: '2D^2 + 2D\\,G\\,d_h', macTex: 'T(2D^2 + 2D\\,G\\,d_h) + 2T^2D', outTex: 'T\\times D \\to T\\times D', note: 'W_Q y W_O de D×D; W_K y W_V de D×G·d_h. Con G = 8 de 32, K y V (y la KV cache) son 4× más chicas que en MHA; los MACs de QKᵀ y A·V no cambian.' },
     { id: 'llama_block', name: 'Bloque decoder (Llama)', paramTex: '2D^2 + 2D\\,G\\,d_h + 3D\\,D_{\\mathrm{mlp}} + 2D', macTex: 'T(2D^2 + 2D\\,G\\,d_h + 3D\\,D_{\\mathrm{mlp}}) + 2T^2D', outTex: 'T\\times D \\to T\\times D', note: 'Pre-norm con RMSNorm, atención GQA con RoPE, FFN SwiGLU, sin sesgos. Llama 3 8B: 218 M parámetros por bloque, 81 % en la FFN.' },
     { id: 'moe_ffn', name: 'FFN MoE (Mixtral)', paramTex: 'D\\,E + 3E\\,D\\,D_{\\mathrm{mlp}}', macTex: 'T\\,D\\,E + 3kT\\,D\\,D_{\\mathrm{mlp}}', outTex: 'T\\times D \\to T\\times D', note: 'E expertos SwiGLU y un router top-k: parámetros ∝ E, cómputo por token ∝ k. Mixtral 8×7B: 46.7 B totales, 12.9 B activos por token.' },
+    // Fase 7 (VLM: LLaVA, Qwen2-VL)
+    { id: 'repeat_frames', name: 'Repetir la imagen en el tiempo', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to 2\\times H\\times W\\times C', note: 'Qwen2-VL: el parche es de 2 frames (temporal_patch_size = 2); una imagen se duplica para usar el mismo patchify que el video.' },
+    { id: 'patch_embed_3d', name: 'Patch embedding 3-D (Conv3d)', paramTex: 'k_t\\,P^2\\,C\\,D', macTex: '\\tfrac{F}{k_t}\\tfrac{H}{P}\\tfrac{W}{P}\\,D\\,k_t\\,P^2\\,C', outTex: 'F\\times H\\times W\\times C \\to \\tfrac{F}{k_t}\\times \\tfrac{H}{P}\\times \\tfrac{W}{P}\\times D', note: 'Kernel = stride = 2×14×14: cada parche 3-D (2 frames × 14 × 14 × 3 = 1,176 números) pasa por un Linear a D. Sin sesgo en Qwen2-VL.' },
+    { id: 'group_tokens', name: 'Agrupar 2×2 parches (merger)', paramTex: '0', macTex: '0', outTex: 'N_p\\times D_v \\to \\tfrac{N_p}{4}\\times 4D_v', note: 'Qwen2-VL: los 4 parches vecinos de cada bloque 2×2 se concatenan en un vector de 4D_v; el MLP del merger lo lleva al ancho del LLM. 4× menos tokens visuales.' },
+    { id: 'splice_tokens', name: 'Insertar los tokens visuales en el prompt', paramTex: '0', macTex: '0', outTex: 'T\\times D,\\ N\\times D \\to (N{+}T)\\times D', note: 'Los N tokens visuales (ya proyectados al ancho D del LLM) reemplazan al marcador <image>: para el LLM son tokens más del prompt.' },
+    { id: 'mrope', name: 'M-RoPE (RoPE multimodal)', paramTex: '0', macTex: '0', outTex: 'h\\times S\\times d_h \\to h\\times S\\times d_h', note: 'Qwen2-VL: cada token tiene 3 ids (t, h, w); las d_h/2 frecuencias se reparten en secciones (16, 24, 24) y cada una rota con el id de su eje. En el texto los tres ids son iguales: es RoPE 1-D.' },
+    { id: 'mrope_ids', name: 'Ids de posición (t, h, w)', paramTex: '0', macTex: '0', outTex: '\\to 3\\times S', note: 'Texto: t = h = w = posición; imagen: t fijo, h y w = fila y columna en la rejilla de tokens (tras el merge 2×2). El texto que sigue continúa desde el máximo + 1.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -1999,6 +2102,7 @@
       cfg,
       input(id, sh, meta) { return addTensor(id, sh, meta, null); },
       tensor(id) { const t = tensors[id]; if (!t) throw new Error('Tensor desconocido: ' + id); return Object.assign(plain(t), { id }); },
+      has(id) { return !!tensors[id]; },   // fase 7 (importGraph)
       // op(id, resultadoDePrimitiva, {path|node, out, outMeta, label, repeat, type, group, in?})
       op(id, res, o) {
         o = o || {};
@@ -2040,11 +2144,15 @@
   //      where (contexto de las ops, p. ej. ['Torre de imagen']), labelPrefix (prefijo de las etiquetas
   //      de tensor, p. ej. 'Torre de imagen · ')}
   // Sin tid/oid/maskOp/where/labelPrefix el resultado es exactamente el de la fase 1.
+  // Fase 7 (VLM), todas opcionales y sin efecto si se omiten: hSym / dhSym / DmlpSym (símbolos de las cabezas, d_h y el
+  // MLP: la torre de visión de un VLM usa h_v, d_v y 4D_v para no chocar con los del LLM), rope (función ({op, T, at, L},
+  // q, k) → [q', k'] que inserta la rotación entre split y scores: RoPE 2-D del ViT de Qwen2-VL), outMeta (metadatos del
+  // tensor de salida) y entradas con dimensiones delanteras (segmentos × N × D: atención por segmento, como las ventanas).
   function preLnLayer(g, x, o) {
     const P = o.prefix || ['enc-layer'];
     const rep = o.L || 1;
     const L = (meta) => Object.assign({ perLayer: true }, meta);
-    const D = x.num[1], Ds = x.sym[1];
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1];
     const at = P.concat(['mhsa']), ml = P.concat(['mlp']);
     const T = (n) => (o.tid || '') + n, O = (n) => (o.oid || '') + n;
     const pre = o.labelPrefix || '';
@@ -2059,10 +2167,11 @@
 
     const hln1 = op('ln1', layernorm(x), P.concat(['ln1']), { out: T('h-ln1'), label: 'LayerNorm 1', type: 'norm', group: 'norm', outMeta: L({ label: 'Entrada normalizada (LN 1)', tex: '\\mathrm{LN}_1(x)' }) });
     const qkv = op('qkv', linear(hln1, { dout: 3 * D, doutSym: '3' + Ds, bias: o.qkvBias !== false }), at.concat(['qkv']), { out: T('qkv'), label: 'Proyección Q, K, V', type: 'embed', group: 'attn', outMeta: L({ label: 'Q, K y V concatenados', tex: '[Q\\;K\\;V]' }) });
-    const [q, k, v] = op('split', split_heads(qkv, { h: o.h, parts: 3 }), at.concat(['split']), {
+    let [q, k, v] = op('split', split_heads(qkv, { h: o.h, parts: 3, hSym: o.hSym, dhSym: o.dhSym }), at.concat(['split']), {
       out: [T('q'), T('k'), T('v')], label: 'Separar en cabezas', type: 'tensorop', group: 'attn',
       outMeta: [L({ label: 'Queries por cabeza', tex: 'Q' }), L({ label: 'Keys por cabeza', tex: 'K' }), L({ label: 'Values por cabeza', tex: 'V' })],
     });
+    if (o.rope) [q, k] = o.rope({ op, T, at, L }, q, k);
     const sc = op('scores', attention_scores(q, k), at.concat(['scores']), { out: T('scores'), label: 'Producto QKᵀ', type: 'attn', group: 'attn', outMeta: L({ label: 'Scores sin escalar', tex: 'QK^\\top' }) });
     const inScale = !!o.causal && !sepMask;
     let ss = op('scale', scale(sc, { causal: inScale }), at.concat(['scale']), {
@@ -2081,14 +2190,69 @@
     const ov = op('proj', linear(z, { dout: D, doutSym: Ds, bias: o.projBias !== false }), at.concat(['proj']), { out: T('o'), label: 'Proyección de salida W_O', type: 'embed', group: 'attn', outMeta: L({ label: 'Salida de la atención', tex: 'O = ZW_O' }) });
     const r1 = op('res1', residual_add(x, ov), P.concat(['res1']), { out: T('r1'), label: 'Residual 1', type: 'tensorop', group: 'resid', outMeta: L({ label: 'x + atención', tex: "x'" }) });
     const hln2 = op('ln2', layernorm(r1), P.concat(['ln2']), { out: T('h-ln2'), label: 'LayerNorm 2', type: 'norm', group: 'norm', outMeta: L({ label: 'Entrada normalizada (LN 2)', tex: "\\mathrm{LN}_2(x')" }) });
-    const u = op('fc1', linear(hln2, { dout: o.Dmlp, doutSym: 'D_mlp', bias: o.mlpBias !== false }), ml.concat(['fc1']), { out: T('u'), label: 'MLP: capa 1 (expansión)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Capa oculta del MLP', tex: 'U = \\mathrm{LN}_2(x\')W_1 + b_1' }) });
+    const u = op('fc1', linear(hln2, { dout: o.Dmlp, doutSym: o.DmlpSym || 'D_mlp', bias: o.mlpBias !== false }), ml.concat(['fc1']), { out: T('u'), label: 'MLP: capa 1 (expansión)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Capa oculta del MLP', tex: 'U = \\mathrm{LN}_2(x\')W_1 + b_1' }) });
     const gg = op('gelu', gelu(u), ml.concat(['gelu']), { out: T('g'), label: o.actLabel || 'GELU', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Activación', tex: o.actTex || '\\mathrm{GELU}(U)' }) });
     const f = op('fc2', linear(gg, { dout: D, doutSym: Ds, bias: o.mlpBias !== false }), ml.concat(['fc2']), { out: T('f'), label: 'MLP: capa 2 (proyección)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Salida del MLP', tex: 'F' }) });
     // res2 produce x_ℓ; tras la última de las L repeticiones es x_L (de ahí el id 'x-out').
     return op('res2', residual_add(r1, f), P.concat(['res2']), {
       out: o.outId || T('x-out'), label: 'Residual 2', type: 'tensorop', group: 'resid',
-      outMeta: { label: 'Salida del encoder (x_L)', tex: 'x_L', perLayer: false, note: 'Salida de cada capa x_ℓ; tras la capa L es x_L.' },
+      outMeta: o.outMeta || { label: 'Salida del encoder (x_L)', tex: 'x_L', perLayer: false, note: 'Salida de cada capa x_ℓ; tras la capa L es x_L.' },
     });
+  }
+
+
+  // importGraph (fase 7): compone un modelo con el grafo de OTRO (p. ej. el decoder de js/arch/llm.js dentro de un VLM) sin
+  // duplicar su constructor: copia las ops de src = otroGrafo._data() (o un resultado de run) con sus números, etiquetas,
+  // fórmulas y repeticiones. o = {
+  //   skip: [opIds] que no se importan; inputs: {idOrigen: idDestino} (tensores que ya existen en g);
+  //   opId(id), tensorId(id): renombrar; path(p), where(w): nuevo path / contexto; sym: {símbolo: nuevo} en las formas;
+  //   tex(s): reescribe fórmulas TeX (mismo cambio de símbolos); label(l): etiqueta de cada tensor importado;
+  //   replace(op, ins): null o {res, in?, label?} para cambiar una op (sesgos de Qwen2, M-RoPE…) }
+  // Las entradas sin productor que no estén en `inputs` se crean con g.input. Devuelve {idOrigen: handle} de las salidas.
+  function importGraph(g, src, o) {
+    o = o || {};
+    const skip = new Set(o.skip || []);
+    const imap = o.inputs || {};
+    const tid = (id) => (imap[id] !== undefined ? imap[id] : (o.tensorId ? o.tensorId(id) : id));
+    const sm = o.sym || {};
+    const msym = (s) => (sm[s] !== undefined ? sm[s] : s);
+    const mshape = (t) => shape(t.sym.map(msym), t.num.slice(), t.mod, t.layout);
+    const tex = o.tex || ((s) => s);
+    const lab = o.label || ((l) => l);
+    const meta = (t) => {
+      const m = { label: lab(t.label), tex: t.tex, perLayer: t.perLayer };
+      if (t.note) m.note = t.note;
+      if (t.batched) m.batched = true;
+      return m;
+    };
+    const handles = {};
+    for (const op of src.ops) {
+      if (skip.has(op.id)) continue;
+      const ins = op.in.map((id) => {
+        const nid = tid(id);
+        if (!g.has(nid)) g.input(nid, mshape(src.tensors[id]), meta(src.tensors[id]));
+        return nid;
+      });
+      const outIds = op.out.map(tid);
+      const rp = o.replace ? o.replace(op, ins.map((id) => g.tensor(id))) : null;
+      let res;
+      if (rp) res = rp.res;
+      else {
+        const outs = op.out.map((id) => mshape(src.tensors[id]));
+        res = { prim: op.prim, inputs: [], out: outs.length === 1 ? outs[0] : outs, params: op.params, macs: op.macs, other: op.other,
+          paramFormula: tex(op.paramTex), macFormula: tex(op.macTex), paramArith: op.paramArith, macArith: op.macArith,
+          shapeTex: tex(op.shapeTex), detail: op.detail };
+      }
+      const e = { path: o.path ? o.path(op.path.slice()) : op.path.slice(), in: (rp && rp.in) || ins, out: outIds.length === 1 ? outIds[0] : outIds,
+        outMeta: op.out.map((id) => meta(src.tensors[id])), label: (rp && rp.label) || op.label, repeat: op.repeat, type: op.type, group: op.group };
+      if (outIds.length === 1) e.outMeta = e.outMeta[0];
+      const w = o.where ? o.where((op.where || []).slice()) : op.where;
+      if (w && w.length) e.where = w;
+      if (op.batched) e.batched = true;
+      const h = g.op(o.opId ? o.opId(op.id) : op.id, res, e);
+      (Array.isArray(h) ? h : [h]).forEach((x, i) => { handles[op.out[i]] = x; });
+    }
+    return handles;
   }
 
   // ------------------------------------------------------------------ modelos y configs
@@ -2198,6 +2362,8 @@
     mask_select: 1, learned_tokens: 1, pos_embed_grid: 1, window_pos_embed: 1, coord_grid: 1, broadcast_embed: 1, append_pad_point: 1,
     // Fase 6: vista de cabezas (GQA), concatenación con la KV cache (inferencia) y el id muestreado.
     split_gqa_heads: 1, kv_append: 1, sample_token: 1,
+    // Fase 7: vistas (repetir la imagen en el tiempo, segmentos, agrupar 2×2) y los ids de posición de M-RoPE (constante).
+    repeat_frames: 1, segment_rows: 1, group_tokens: 1, mrope_ids: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).
@@ -2281,7 +2447,7 @@
   function model(id) { const d = models[id]; if (!d) throw new Error('Modelo desconocido: "' + id + '".'); return d; }
 
   const A = Object.assign(ATLAS.Arch || {}, PRIMS, {
-    shape, graph, preLnLayer, defineModel, run, metrics, resolve, fmt, primitives,
+    shape, graph, preLnLayer, importGraph, defineModel, run, metrics, resolve, fmt, primitives,
     configs, models: () => Object.keys(models), model, hasConfig: (id) => !!configIndex[id],
     canonical: (mid) => { const c = configs(mid).find((x) => x.canonical); return c ? c.id : null; },
     DTYPE_BYTES: Object.assign({}, DTYPE_BYTES), OTHER_COST: Object.assign({}, OTHER),

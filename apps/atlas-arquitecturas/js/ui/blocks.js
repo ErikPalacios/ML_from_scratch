@@ -703,6 +703,13 @@
     V: { label: 'Vocabulario V', get: (r) => r.config && r.config.V, fmt: 'int' },
     activeParams: { label: 'Parámetros activos por token', get: (r) => r.quantities && r.quantities.activeParams, fmt: 'int' },
     kvBytesPerToken: { label: 'KV cache por token', get: (r) => r.quantities && r.quantities.kvBytesPerToken, fmt: 'bytes' },
+    // VLMs (fase 7): de metrics() si no están en quantities.
+    visualTokens: { label: 'Tokens visuales N', get: (r) => vlmMetric(r, 'visualTokens'), fmt: 'int' },
+    kvBytesPerImage: { label: 'KV cache por imagen', get: (r) => vlmMetric(r, 'kvBytesPerImage'), fmt: 'bytes' },
+    visionMacs: { label: 'MACs de la torre de visión', get: (r) => vlmMetric(r, 'visionMacs'), fmt: 'si', unit: 'MACs' },
+    llmPrefillMacs: { label: 'MACs del prefill del LLM', get: (r) => vlmMetric(r, 'llmPrefillMacs'), fmt: 'si', unit: 'MACs' },
+    visionParams: { label: 'Parámetros de visión', get: (r) => vlmMetric(r, 'visionParams'), fmt: 'si' },
+    llmParams: { label: 'Parámetros del LLM', get: (r) => vlmMetric(r, 'llmParams'), fmt: 'si' },
     // Revisión de la fase 6: bits de los pesos y de la KV cache por separado; pesos INT-k con embedding y LM head en 16 bits.
     bits: { label: 'Bits de los pesos', get: (r) => r.config && r.config.bits, fmt: 'int' },
     kvBits: { label: 'Bits de la KV cache', get: (r) => r.config && r.config.kvBits, fmt: 'int' },
@@ -714,6 +721,11 @@
     if (!Ar) return null;
     const isCfg = typeof Ar.configs === 'function' && arr(safe(() => Ar.configs(), [])).some((c) => c && c.id === id);
     return isCfg ? id : canonicalFor(id) || id;
+  }
+  function vlmMetric(r, k) {
+    if (r.quantities && r.quantities[k] != null) return r.quantities[k];
+    const m = safe(() => A().metrics(r.id, r.overrides || {}), null);
+    return m && typeof m[k] === 'number' ? m[k] : null;
   }
   R.compare = (b, ctx) => {
     if (!A()) return missingComponent('calculadora', 'js/arch/primitives.js (ATLAS.Arch)');

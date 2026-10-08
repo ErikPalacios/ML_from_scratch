@@ -202,6 +202,7 @@
   // Mismo knob, otro significado según el modelo: en SAM, P son clics del prompt (el patch es 16).
   const KNOBS_BY_MODEL = {
     sam: { P: { label: 'Clics P', show: (v) => 'P = ' + v, phrase: (v) => 'P = ' + v + (v === 1 ? ' clic' : ' clics') } },
+    llava: { images: { label: 'Imágenes en el prompt', show: (v) => v + (v === 1 ? ' imagen' : ' imágenes'), phrase: (v) => v + (v === 1 ? ' imagen' : ' imágenes') + ' en el prompt' } },
     llm: {
       T: { label: 'Tokens del prompt T', show: (v) => 'T = ' + fInt(v), phrase: (v) => 'un prompt de ' + fInt(v) + ' tokens' },
       ctx: { label: 'Contexto ctx', show: (v) => fInt(v) + ' tok', phrase: (v) => fInt(v) + ' tokens de contexto en la cache' },
@@ -323,7 +324,7 @@
     queries: { label: 'Object queries Q', kind: 'count', note: 'predicciones por imagen (el máximo de detecciones)' },
     // ---- Fase 4: Grounding DINO (texto en cada imagen, fusión imagen ↔ texto, reparto por bloque)
     imageTokens: { label: 'Tokens de imagen N', kind: 'count', note: 'Σ H_l·W_l de los 4 niveles (strides 8 a 64)', notes: { sam: '(H/16)·(W/16): las keys de imagen del decoder' } },
-    textTokens: { label: 'Tokens de texto T', kind: 'count', note: 'el prompt en WordPiece, con [CLS] y [SEP]' },
+    textTokens: { label: 'Tokens de texto T', kind: 'count', note: 'el prompt en WordPiece, con [CLS] y [SEP]', notes: { llava: 'tokens de texto del prompt (sin el marcador de imagen)', 'qwen2-vl': 'tokens de texto del prompt' } },
     textEncoderMacs: { label: 'MACs del texto (BERT + proyección)', kind: 'ops', note: 'se pagan en CADA imagen: el prompt entra junto con la imagen' },
     textEncoderParams: { label: 'Parámetros del codificador de texto', kind: 'count', note: 'BERT-base + proyección 768 → D',
       notes: { 'yolo-world': 'CLIP ViT-B/32 (torre de texto) + proyección; corre offline: fuera del total' } },
@@ -567,6 +568,27 @@
     maxBatchInHbm: { label: 'Lote máximo que cabe en HBM', kind: 'count', note: '(HBM − pesos) / KV por secuencia (≈, sin activaciones; H100 de 80 GB)' },
     decodeExpertsReadPerLayer: { label: 'Expertos leídos por capa', kind: 'avg', note: 'esperado con ruteo uniforme y el lote B: E·(1 − ((E−k)/E)^B)' },
     experts: { label: 'Expertos E', kind: 'count', note: '' },
+    // Fase 7 (VLMs): tokens visuales y su costo.
+    visualTokens: { label: 'Tokens visuales N', kind: 'count', note: 'los que entran al LLM por imagen', notes: { llava: '576 a 336 px (CLS fuera)', 'qwen2-vl': '(H/28)·(W/28) por imagen, tras el merge 2×2' } },
+    promptTokens: { label: 'Tokens del prompt (N + T)', kind: 'count', note: 'visuales + texto' },
+    visualShare: { label: 'Parte visual del prompt', kind: 'pct', note: '% de los tokens del prompt que son de imagen' },
+    prefillShareFromImage: { label: 'Prefill debido a la imagen', kind: 'pct', note: '% de los MACs del prefill: torre de visión + projector + los N tokens en el LLM' },
+    kvBytesPerImage: { label: 'KV cache por imagen', kind: 'bytes', note: 'N tokens × KV por token (bf16)' },
+    kvBytesPrompt: { label: 'KV cache del prompt', kind: 'bytes', note: '(N + T) × KV por token (bf16)' },
+    visionMacs: { label: 'MACs de la torre de visión', kind: 'ops', note: 'ViT completo (LLaVA corre las 24 capas aunque usa la penúltima)' },
+    visionMacsUsed: { label: 'MACs de visión que se usan', kind: 'ops', note: 'hasta la capa de la que salen las features' },
+    visionMacsDiscarded: { label: 'MACs de visión desperdiciados', kind: 'ops', note: 'la última capa de CLIP: HF la corre y la descarta' },
+    llmPrefillMacs: { label: 'MACs del prefill del LLM (N + T filas)', kind: 'ops', note: '' },
+    projectorMacs: { label: 'MACs del projector / merger', kind: 'ops', note: '' },
+    imageMacs: { label: 'MACs debidos a la imagen', kind: 'ops', note: 'visión + projector + los N tokens en el LLM' },
+    visionParams: { label: 'Parámetros de la torre de visión', kind: 'count', note: '' },
+    projectorParams: { label: 'Parámetros del projector / merger', kind: 'count', note: '' },
+    llmParams: { label: 'Parámetros del LLM', kind: 'count', note: '' },
+    visualModuleParams: { label: 'Parámetros de visión + projector', kind: 'count', note: '' },
+    visionParamsShare: { label: 'Visión', kind: 'pct', note: '% de los parámetros' },
+    visionMacsShare: { label: 'Visión: % del prefill', kind: 'pct', note: '% de los MACs del prefill' },
+    ttftMs: { label: 'TTFT (≈ cota inferior, ms)', kind: 'count', note: 'roofline en H100, sin overhead' },
+    ttftTextOnlyMs: { label: 'TTFT sin imagen (≈ ms)', kind: 'count', note: 'roofline en H100' },
     topk: { label: 'Expertos por token k', kind: 'count', note: '' },
   };
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
@@ -1472,6 +1494,12 @@
       if (typeof c.classes === 'number') out.push(['K_cls', c.classes]);
     } else if (typeof c.classes === 'number' && !has('K')) out.push(['K', c.classes]);
     if (typeof c.D === 'number' && Array.isArray(c.widths) && c.widths.length && typeof c.expansion === 'number') out.push(['C_5', c.widths[c.widths.length - 1] * c.expansion]);
+    // Fase 7 (VLMs): la torre de visión tiene sus propios símbolos (D_v, h_v…) además de los del LLM.
+    if (typeof c.Dv === 'number') {
+      [['D_v', c.Dv, 'ancho de la torre de visión'], ['h_v', c.hv, 'cabezas de la torre de visión'], ['d_v', c.dv, 'dim. por cabeza de la visión'],
+        ['L_v', c.Lv, 'capas de la torre de visión'], ['N_p', c.Np, 'patches de la imagen'], ['F', c.F, 'frames']]
+        .forEach(([sym, v, note]) => { if (typeof v === 'number' && !has(sym)) out.push([sym, v, note]); });
+    }
     return out;
   }
   // Torre de las ops (CLIP): 'img' (img-encoder, img-proj…), 'txt' (txt-…) o 'joint' (similitud, pérdida, lote).

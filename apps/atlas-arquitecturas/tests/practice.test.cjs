@@ -20,8 +20,12 @@ function load() {
 }
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm'];
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl'];
 const diagrams = ATLAS.diagrams();
+// Fase 7 (VLM): símbolos de la torre de visión que la tarjeta de datos debe mostrar además de los genéricos (H, W, C, P, D, L,
+// h, D_mlp, N, T, V, G): D_v, h_v, d_v, L_v, N_p y, en Qwen2-VL, F (frames). Mientras practice.js (factPairs) no los incluya,
+// las barridas de formas los toman de aquí (mismos nombres que js/arch/vlm.js).
+const vlmFacts = (cfg) => (cfg && cfg.Dv != null ? { D_v: cfg.Dv, h_v: cfg.hv, d_v: cfg.dv, L_v: cfg.Lv, N_p: cfg.Np, F: cfg.F } : {});
 
 // Lo que el diagrama escribe para un nodo (archdiagram.js nodeCost): por capa si todas las ops se
 // repiten igual; Σ op × repeat si mezclan repeticiones; el total si es un grupo con repeat.totalOf.
@@ -77,6 +81,7 @@ test('drills de formas: cada dimensión sale de los datos de la tarjeta o del te
       const t = Rc.tensors[c.tensor];
       const known = {};
       P._drillFacts(Rc, c).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
+      Object.entries(vlmFacts(Rc.config)).forEach(([s, v]) => { if (!(s in known)) known[s] = v; });
       known.dh = known.d_h != null ? known.d_h : (known.D != null ? known.D : known.D_t) / known.h;
       // Swin: cabezas y ventanas del stage que nombra la etiqueta (datos: H, M y h por stage)
       const st = (Rc.config.stages || []).find((s) => new RegExp('Stage ' + s.k + '\\b').test(t.label || ''));
@@ -459,4 +464,41 @@ test('fase 6 (revisión): ov en huecos y drills de formas, configs de decode, hu
   assert.strictEqual(P._metricKind('decodeExpertsReadPerLayer'), 'avg');
   assert.match(P._fMetric('decodeExpertsReadPerLayer', A.metrics('mixtral-8x7b', { B: 8 }).decodeExpertsReadPerLayer), /^≈ 7\.2( de 8)?$/);
   assert.match(P._fMetric('decodeExpertsReadPerLayer', 2), /^2( de 8)?$/);
+});
+
+test('fase 7: toda forma de LLaVA y Qwen2-VL (imagen, varias imágenes, video) sale de los datos de la tarjeta (+ los de la torre de visión); units conocidas', () => {
+  let n = 0;
+  const cases = [['llava15-7b', [{}, { images: 2 }]], ['llava15-13b', [{}]], ['qwen2-vl-7b', [{}, { frames: 4 }, { H: 448, W: 672 }]], ['qwen2-vl-2b', [{}]], ['qwen2-vl-72b', [{}]]];
+  for (const [cfg, ovs] of cases) {
+    for (const ov of ovs) {
+      const R = A.run(cfg, ov);
+      const known = {};
+      P._factPairs(R.config).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
+      Object.entries(vlmFacts(R.config)).forEach(([s, v]) => { if (!(s in known)) known[s] = v; });
+      known.dh = R.config.dh;
+      for (const id of R.order) {
+        const t = R.tensors[id];
+        const text = (t.label || '') + ' ' + (t.tex || '');
+        t.sym.forEach((sym, i) => {
+          const str = String(sym);
+          if (/^\d+$/.test(str)) return;
+          const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+          const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+          if (ids.some((x) => !(x in known))) {
+            assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
+            return;
+          }
+          n++;
+          // h, D_mlp y d_h son los del LLM; la torre de visión usa h_v, 4D_v y d_v (no deben aparecer los del LLM en la torre)
+          assert.strictEqual(Function(...Object.keys(known), 'return ' + e)(...Object.values(known)), t.num[i], cfg + ' ' + id + ': ' + str);
+        });
+      }
+    }
+    const m = A.metrics(cfg, {});
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
+  }
+  assert.ok(n > 400, 'se revisaron ' + n + ' dimensiones');
+  // datos genéricos de la tarjeta: D, L, h, G, D_mlp del LLM; N = tokens visuales; T = de texto
+  const f = Object.fromEntries(P._factPairs(A.run('qwen2-vl-7b').config));
+  assert.deepStrictEqual([f.D, f.L, f.h, f.G, f.D_mlp, f.N, f.T, f.H, f.W, f.P], [3584, 28, 28, 4, 18944, 841, 64, 812, 812, 14]);
 });

@@ -669,3 +669,71 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-kv-dots { font: 700 18px var(--font-mono); fill: var(--ink); }
 .viz-kv-bar { fill: var(--op-embed-soft); stroke: var(--op-embed); stroke-width: 1; }
 .viz-kv-bar.is-on { fill: var(--op-embed); }
+/* ---------------------------------------------------------------- fase 7: motor (VLM) */
+/* tira de tokens del prompt (node.strip): tramos con la textura de su modalidad, ancho ∝ tokens */
+.ad-strip-seg { stroke-width: 1.2; }
+.ad-strip-n { font: 600 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+/* ids de posición de M-RoPE (node.posIds): fila por eje; en la imagen, h y w varían (resaltados) */
+.ad-pos-ax { font: 700 10.5px var(--font-mono); fill: var(--muted); }
+.ad-pos-n { font: 500 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-pos-n.is-var { font-weight: 700; fill: var(--accent-ink); }
+.ad-pos-brace { fill: none; stroke: var(--mod-img); stroke-width: 1.2; }
+.ad-pos-cap { font: 500 9.5px var(--font-mono); fill: var(--muted); }
+/* capas del encoder con la toma (node.layers): la capa de la que salen las features y las que no se usan */
+.ad-layer { fill: var(--surface); stroke: var(--op-attn); stroke-width: 1; }
+.ad-layer.is-tap { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.ad-layer.is-off { fill: var(--surface-2); stroke: var(--muted); stroke-dasharray: 2.5 2; }
+.ad-layer-n { font: 600 9.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-layer-n.is-off { fill: var(--muted); font-weight: 500; }
+.ad-layer-cap { font: 600 9.5px var(--font-mono); fill: var(--muted); }
+.ad-layer-cap.is-tap { fill: var(--accent-ink); }
+/* congelado / entrena (node.train) */
+.ad-frozen-ln { stroke: var(--muted); stroke-opacity: .35; stroke-width: 1.2; }
+.ad-frozen-hatch { stroke: none; pointer-events: none; }
+.ad-train-bg { stroke-width: 1.2; }
+.ad-train--frozen .ad-train-bg { fill: var(--surface-2); stroke: var(--muted); }
+.ad-train--on .ad-train-bg { fill: var(--accent-soft); stroke: var(--accent); }
+.ad-train-ico { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.ad-train-txt { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+/* CLS descartado (glifo mark:'dropfirst') */
+.ad-tokdrop { fill: var(--surface); stroke: var(--muted); stroke-width: .9; stroke-dasharray: 2 1.5; }
+.ad-tokdrop-x { stroke: var(--bad); stroke-width: 1.3; stroke-linecap: round; }
+.ad-xref-mark .ad-expand-ico { stroke: var(--ink); }
+/* ---------------------------------------------------------------- fase 7: visualizaciones (VLM) */
+.viz-mrope-stage:focus-visible, .viz-vt-stage:focus-visible, .viz-vtc-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* mrope: una columna por token (chip + ids t, h, w + el id de RoPE 1-D); la imagen partida en tokens */
+.viz-mrope-tok { stroke-width: 1; }
+.viz-mrope-tok.is-txt { fill: color-mix(in srgb, var(--mod-txt) 12%, var(--surface)); stroke: var(--mod-txt); }
+.viz-mrope-tok.is-img { fill: color-mix(in srgb, var(--mod-img) 16%, var(--surface)); stroke: var(--mod-img); }
+.viz-mrope-toktxt { font: 500 10px var(--font-mono); fill: var(--ink); pointer-events: none; }
+.viz-mrope-ax { font: 700 11px var(--font-mono); fill: var(--ink); }
+.viz-mrope-id.is-var { fill: var(--accent-ink); font-weight: 700; }
+.viz-mrope-patch { fill: transparent; stroke: #FFFFFF; stroke-opacity: .85; stroke-width: 1; cursor: pointer; }
+.viz-mrope-patch.is-sel { fill: var(--accent); fill-opacity: .35; stroke: var(--ink); stroke-opacity: 1; stroke-width: 2.4; }
+.viz-mrope-col { cursor: pointer; }
+/* visual-tokens: imagen original con asa, rejillas de tokens por estrategia, recortes de AnyRes, barras */
+.viz-vt-sliders { gap: 6px 14px; }
+.viz-vt-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-vt-sl input[type="range"] { width: 120px; accent-color: var(--accent); }
+.viz-vt-out { min-width: 4.6em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-vt-max { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 3 2; }
+.viz-vt-knob { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.viz-vt-hit { fill: transparent; cursor: nwse-resize; touch-action: none; }
+.viz-vt-handle { touch-action: none; }
+.viz-vt-stage { touch-action: pan-y; }
+.viz-vt-panbg { fill: var(--surface); stroke: var(--rule); stroke-width: 1; }
+.viz-vt-pad { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-vt-grid { fill: none; stroke: #FFFFFF; stroke-opacity: .7; stroke-width: .6; }
+.viz-vt-crop { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+.viz-vt-frame { fill: none; stroke: var(--ink); stroke-width: 1; }
+.viz-vt-big { font: 700 20px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-vt-bar { fill: var(--mod-img); }
+/* vlm-token-cost: partes del prefill y del KV cache (imagen en colores de visión, texto en el de texto) y la curva */
+.viz-vtc-seg { stroke: var(--surface); stroke-width: 1; }
+.viz-vtc-seg.is-vis { fill: var(--op-attn); }
+.viz-vtc-seg.is-proj { fill: var(--op-embed); }
+.viz-vtc-seg.is-llmimg { fill: var(--mod-img); }
+.viz-vtc-seg.is-llmtxt { fill: var(--mod-txt); }
+.viz-vtc-line { fill: none; stroke: var(--mod-img); stroke-width: 2; stroke-linejoin: round; }
+.viz-vtc-pt { fill: var(--surface); stroke: var(--mod-img); stroke-width: 1.6; cursor: pointer; }
+.viz-vtc-pt.is-on { fill: var(--mod-img); stroke: var(--ink); }

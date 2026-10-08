@@ -13,7 +13,7 @@ import vm from 'node:vm';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
-  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js'];
+  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -194,6 +194,16 @@ export function compareConfig(A, exp) {
   }
   // moe_impl_check (Mixtral diminuto con pesos reales): experts eager (bucle por experto) = batched_mm en FlopCounterMode.
   if (exp.moe_impl_check) push('moe[eager = batched_mm en FlopCounterMode]', exp.moe_impl_check.flops.batched_mm, exp.moe_impl_check.flops.eager, !!exp.moe_impl_check.eager_equals_batched_mm);
+  // Fase 7 (VLM). anyres_checks: tokens de LLaVA-NeXT con la regla de HF (LlavaNextProcessor) ↔ ATLAS.Arch.vlm.llavaNextTokens;
+  // smart_resize_checks: smart_resize de Qwen2VLImageProcessor ↔ ATLAS.Arch.vlm.smartResize (lados múltiplos de 28).
+  for (const a of exp.anyres_checks || []) {
+    const c = A.vlm.llavaNextTokens(a.H, a.W).tokens;
+    push('anyres[' + a.H + '×' + a.W + '] tokens', c, a.tokens, c === a.tokens);
+  }
+  for (const a of exp.smart_resize_checks || []) {
+    const z = A.vlm.smartResize(a.h, a.w), c = z.H + '×' + z.W, ref = a.H + '×' + a.W;
+    push('smart_resize[' + a.h + '×' + a.w + ']', c, ref, c === ref);
+  }
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -229,7 +239,7 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }

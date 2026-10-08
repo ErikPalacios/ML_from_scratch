@@ -2335,3 +2335,273 @@ test('F6 etiqueta + símbolo identifican una forma; byPath suma; aritmética; wh
     J(Q6.keys(id)).forEach((k) => assert.ok(Q6.get(id + '.' + k), id + '.' + k));
   }
 });
+
+// ---------------------------------------------------------------- fase 7 (VLM: LLaVA-1.5, Qwen2-VL)
+// Contexto propio con todos los modelos hasta la fase 7 (vlm.js compone el decoder de llm.js: va después).
+const ATLAS7 = (function () {
+  const ctx = vm.createContext({});
+  for (const f of FILES.filter((x) => x !== 'js/core/quantities.js').concat(['js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/core/quantities.js'])) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  }
+  return vm.runInContext('ATLAS', ctx);
+})();
+const A7 = ATLAS7.Arch, Q7 = ATLAS7.Quantities;
+const LLAVA = ['llava15-7b', 'llava15-13b'], QWEN = ['qwen2-vl-7b', 'qwen2-vl-2b', 'qwen2-vl-72b'];
+const S7 = (sym, num, mod, layout) => A7.shape(sym, num, mod || 'img', layout || 'seq');
+
+test('F7 los modelos llava / qwen2-vl y las primitivas nuevas no cambian ningún resultado de las fases 1–6', () => {
+  for (const c of A6.configs()) {
+    const a = A6.run(c.id).totals, b = A7.run(c.id).totals;
+    assert.deepStrictEqual([b.params, b.macs, b.other], [a.params, a.macs, a.other], c.id);
+    const ma = A6.metrics(c.id, {}), mb = A7.metrics(c.id, {});
+    assert.deepStrictEqual([mb.attnMem, mb.actMem, mb.kvCache, mb.decodeMacsPerToken], [ma.attnMem, ma.actMem, ma.kvCache, ma.decodeMacsPerToken], c.id + ' metrics');
+  }
+  assert.ok(J(A7.models()).includes('llava') && J(A7.models()).includes('qwen2-vl'));
+  assert.strictEqual(A7.canonical('llava'), 'llava15-7b');
+  assert.strictEqual(A7.canonical('qwen2-vl'), 'qwen2-vl-7b');
+  assert.deepStrictEqual(J(A7.configs('llava').map((c) => c.id)), LLAVA);
+  assert.deepStrictEqual(J(A7.configs('qwen2-vl').map((c) => c.id)), QWEN);
+  // preLnLayer sin las opciones nuevas: la capa de ViT de siempre (símbolos h, d_h, D_mlp)
+  const r = A7.run('vit-b16-224');
+  assert.deepStrictEqual(J(r.tensors.q.sym), ['h', 'N+1', 'd_h']);
+  assert.deepStrictEqual(J(r.tensors.u.sym), ['N+1', 'D_mlp']);
+});
+
+test('F7 primitivas: repeat_frames, patch_embed_3d, flatten_nd, segment_rows, group_tokens, splice_tokens, mrope, mrope_ids', () => {
+  // imagen 28×42×3 → 2 frames → Conv3d 2×14×14 a D = 8: 2·3 parches, k_t·P²·C·D parámetros sin sesgo
+  const img = S7(['H', 'W', 'C'], [28, 42, 3], 'img', 'grid');
+  const fr = A7.repeat_frames(img, { k: 2, sym: '2' });
+  assert.deepStrictEqual([J(fr.out.num), J(fr.out.sym), fr.params, fr.macs], [[2, 28, 42, 3], ['2', 'H', 'W', 'C'], 0, 0]);
+  const pe = A7.patch_embed_3d(fr.out, { kt: 2, k: 14, cout: 8, coutSym: 'D_v', outSym: ['F/2', 'H/P', 'W/P'], squeeze: true });
+  assert.deepStrictEqual([J(pe.out.num), J(pe.out.sym), pe.params, pe.macs, pe.detail.patchDim], [[2, 3, 8], ['H/P', 'W/P', 'D_v'], 2 * 14 * 14 * 3 * 8, 6 * 8 * 2 * 14 * 14 * 3, 1176]);
+  assert.ok(pe.paramArith.endsWith(A7.fmt.int(pe.params)) && pe.macArith.endsWith(A7.fmt.int(pe.macs)));
+  // video de 4 frames: 2 parches temporales (sin squeeze)
+  const vid = A7.patch_embed_3d(S7(['F', 'H', 'W', 'C'], [4, 28, 28, 3], 'img', 'grid'), { kt: 2, k: 14, cout: 8, squeeze: true });
+  assert.deepStrictEqual(J(vid.out.num), [2, 2, 2, 8]);
+  assert.throws(() => A7.patch_embed_3d(S7(['F', 'H', 'W', 'C'], [3, 28, 28, 3], 'img', 'grid'), { kt: 2, k: 14, cout: 8 }), /múltiplo/);
+  assert.throws(() => A7.patch_embed_3d(fr.out.num ? S7(['F', 'H', 'W', 'C'], [2, 30, 28, 3], 'img', 'grid') : null, { kt: 2, k: 14, cout: 8 }), /divisible/);
+  const fl = A7.flatten_nd(vid.out, { sym: ['N_p', 'D_v'] });
+  assert.deepStrictEqual([fl.prim, J(fl.out.num)], ['flatten', [8, 8]]);
+  const sg = A7.segment_rows(fl.out, { k: 2, sym: ['F/2', 'H/P·W/P'] });
+  assert.deepStrictEqual([J(sg.out.num), sg.out.layout], [[2, 4, 8], 'windows']);
+  assert.throws(() => A7.segment_rows(fl.out, { k: 3 }), /segmentos/);
+  // atención por segmento: scores 2×h×4×4 (sin término entre segmentos)
+  const qh = A7.split_heads(A7.linear(sg.out, { dout: 24, bias: false }).out, { h: 2, parts: 3 }).out;
+  assert.strictEqual(A7.attention_scores(qh[0], qh[1]).macs, 2 * 2 * 4 * 4 * 4);
+  // merge 2×2: R×C → R/4 × 4C (vista)
+  const gp = A7.group_tokens(fl.out, { k: 4, sym: 'N', dSym: '4D_v' });
+  assert.deepStrictEqual([J(gp.out.num), J(gp.out.sym), gp.params, gp.macs], [[2, 32], ['N', '4D_v'], 0, 0]);
+  assert.throws(() => A7.group_tokens(S7(['R', 'C'], [6, 8]), { k: 4 }), /agrupan/);
+  // splice: T×D + copies·N×D → (N+T)×D; anchos distintos = falta el proyector
+  const te = S7(['T', 'D'], [5, 16], 'txt'), vt = S7(['N_p', 'D'], [9, 16]);
+  const sp = A7.splice_tokens(te, vt, { copies: 2, sym: 'N+T' });
+  assert.deepStrictEqual([J(sp.out.num), J(sp.out.sym), sp.detail.visual, sp.params, sp.macs], [[23, 16], ['N+T', 'D'], 18, 0, 0]);
+  assert.throws(() => A7.splice_tokens(te, S7(['N', 'D_v'], [9, 8])), /proyector/);
+  // M-RoPE: secciones que suman d_h/2; mismo costo que RoPE
+  const hq = S7(['h', 'S', 'd_h'], [2, 7, 128], 'txt', 'heads');
+  const mr = A7.mrope(hq, { theta: 1e6, sections: [16, 24, 24] });
+  assert.deepStrictEqual([mr.params, mr.macs, mr.other, J(mr.detail.sections)], [0, 0, A7.rope(hq, {}).other, [16, 24, 24]]);
+  assert.throws(() => A7.mrope(hq, { sections: [16, 24, 23] }), /suman/);
+  const ids = A7.mrope_ids({ S: 7, sym: 'N+T', span: 5 });
+  assert.deepStrictEqual([J(ids.out.num), J(ids.out.sym), ids.detail.span], [[3, 7], ['3', 'N+T'], 5]);
+});
+
+test('F7 importGraph: el decoder de llm.js dentro de otro grafo, con los mismos números; preLnLayer con símbolos y RoPE', () => {
+  const def = A7.model('llm');
+  const cf = def.resolve(Object.assign({}, def.configs['llama2-7b'], { T: 16, label: 'x' }));
+  const src = def.build(cf, A7)._data();
+  const g = A7.graph({});
+  g.input('prompt', S7(['S', 'D'], [16, 4096], 'txt'));
+  A7.importGraph(g, src, { skip: ['embed'], inputs: { x0: 'prompt' }, sym: { T: 'S' }, path: (p) => ['llm'].concat(p) });
+  const d = g._data();
+  const want = src.ops.filter((o) => o.id !== 'embed');
+  assert.strictEqual(d.ops.length, want.length);
+  assert.strictEqual(d.ops.reduce((s, o) => s + o.params * o.repeat, 0), want.reduce((s, o) => s + o.params * o.repeat, 0));
+  assert.strictEqual(d.ops.reduce((s, o) => s + o.macs * o.repeat, 0), want.reduce((s, o) => s + o.macs * o.repeat, 0));
+  assert.deepStrictEqual(J(d.tensors.q.sym), ['S', 'D']);
+  assert.deepStrictEqual(J(d.ops.find((o) => o.id === 'q-proj').path), ['llm', 'blocks', 'block', 'attn', 'q-proj']);
+  assert.deepStrictEqual(J(d.ops.find((o) => o.id === 'norm1').in), ['prompt']);
+  // preLnLayer con hSym/dhSym/DmlpSym, rope y entrada con segmentos
+  const g2 = A7.graph({});
+  const x = g2.input('x', S7(['k', 'N', 'D_v'], [2, 4, 8]));
+  let roped = 0;
+  A7.preLnLayer(g2, x, { prefix: ['enc'], L: 3, h: 2, Dmlp: 32, hSym: 'h_v', dhSym: 'd_v', DmlpSym: '4D_v', tid: 'v-', oid: 'v-',
+    rope: (hp, q, k) => { roped++; return [hp.op('rq', A7.rope_2d(q), hp.at.concat(['rope2d']), { out: hp.T('q-rope') }), hp.op('rk', A7.rope_2d(k), hp.at.concat(['rope2d']), { out: hp.T('k-rope') })]; } });
+  const d2 = g2._data();
+  assert.strictEqual(roped, 1);
+  assert.deepStrictEqual(J(d2.tensors['v-q'].sym), ['k', 'h_v', 'N', 'd_v']);
+  assert.deepStrictEqual(J(d2.tensors['v-u'].sym), ['k', 'N', '4D_v']);
+  assert.deepStrictEqual(J(d2.ops.find((o) => o.id === 'v-scores').in), ['v-q-rope', 'v-k-rope']);
+  assert.strictEqual(d2.ops.find((o) => o.id === 'v-scores').macs, 2 * 2 * 4 * 4 * 4);
+});
+
+test('F7 LLaVA-1.5: anclas de HF (params exactos), penúltima capa, proyector, prompt 576 + T, y el LLM = el de llm.js', () => {
+  const r = A7.run('llava15-7b'), q = r.quantities, n = r.totals.byNode;
+  assert.strictEqual(r.totals.params, 7063427072);
+  assert.strictEqual(r.totals.flops, 9078220357632);
+  assert.strictEqual(A7.run('llava15-13b').totals.params, 13351494656);
+  // torre CLIP ViT-L/14 @ 336 (a mano): conv sin sesgo + CLS + posición 577·1024 + ln_pre + 24 capas de 12D² + 13D + ln_post
+  const D = 1024, layer = 12 * D * D + 13 * D;
+  assert.strictEqual(q.visionParams, 14 * 14 * 3 * D + D + 577 * D + 2 * D + 24 * layer + 2 * D);
+  assert.strictEqual(q.visionParams, 303507456);
+  assert.strictEqual(n['last-layer'].params, layer);
+  assert.strictEqual(q.projectorParams, (1024 * 4096 + 4096) + (4096 * 4096 + 4096));
+  // el LLM es Llama 2 7B (llm.js) con 64 filas más de vocabulario en embedding y LM head
+  assert.strictEqual(q.llmParams, A7.run('llama2-7b').totals.params + 2 * 64 * 4096);
+  assert.strictEqual(q.llmPrefillMacs, A7.run('llama2-7b', { T: 640 }).totals.macs + 640 * 4096 * 64);
+  // formas
+  const sh = (id) => J(r.tensors[id].num).join('×');
+  assert.deepStrictEqual(['pixels', 'v-patch-grid', 'v-x-out', 'vis-feats', 'vis-tokens', 'text-emb', 'prompt', 'logits'].map(sh),
+    ['336×336×3', '24×24×1024', '577×1024', '576×1024', '576×4096', '64×4096', '640×4096', '640×32064']);
+  assert.deepStrictEqual(J(r.tensors.prompt.sym), ['N+T', 'D']);
+  assert.deepStrictEqual(J(r.tensors.q.sym), ['N+T', 'D']);
+  assert.deepStrictEqual(J(r.tensors['v-q'].sym), ['h_v', 'N_p+1', 'd_v']);
+  assert.deepStrictEqual([q.visualTokens, q.textTokens, q.promptTokens, q.featureLayer], [576, 64, 640, 23]);
+  // la capa 24 y ln_post: se cuentan (HF los corre) pero sus salidas no van a ningún lado
+  assert.deepStrictEqual(J(r.tensors['v-cls-ln'].consumers), []);
+  assert.deepStrictEqual(J(r.tensors['v-x-out'].consumers).sort(), ['select-layer', 'vis-last-layer'].sort());
+  assert.strictEqual(r.ops.find((o) => o.id === 'vis-ln1').repeat, 23);
+  assert.strictEqual(q.visionMacsDiscarded, n['last-layer'].macs);
+  assert.strictEqual(q.visionMacsUsed + q.visionMacsDiscarded, q.visionMacs);
+  // knobs: 2 imágenes = torre y proyector ×2, prompt 1152 + T; T cambia solo el LLM
+  const r2 = A7.run('llava15-7b', { images: 2 });
+  assert.deepStrictEqual([r2.config.N, r2.tensors.prompt.num[0], r2.quantities.visionMacs], [1152, 1216, 2 * q.visionMacs]);
+  assert.strictEqual(A7.run('llava15-7b', { T: 256 }).quantities.visionMacs, q.visionMacs);
+  assert.match(A7.run('llava15-7b', { T: 4000 }).notes.join(' '), /contexto/);
+});
+
+test('F7 Qwen2-VL: anclas de HF, patchify 3-D, merger 2×2, M-RoPE, Qwen2 con sesgo en QKV, tokens dinámicos y video', () => {
+  const r = A7.run('qwen2-vl-7b'), q = r.quantities, n = r.totals.byNode;
+  assert.deepStrictEqual([r.totals.params, r.totals.flops], [8291375616, 19298051809280]);
+  assert.strictEqual(A7.run('qwen2-vl-2b').totals.params, 2208985600);
+  assert.strictEqual(A7.run('qwen2-vl-72b').totals.params, 73405560320);
+  // ViT ≈ 675M (paper): patchify + 32 bloques + merger (a mano)
+  const Dv = 1280, blk = 2 * Dv + (Dv * 3 * Dv + 3 * Dv) + (Dv * Dv + Dv) + 2 * Dv + (Dv * 4 * Dv + 4 * Dv) + (4 * Dv * Dv + Dv);
+  const merger = 2 * Dv + (4 * Dv * 4 * Dv + 4 * Dv) + (4 * Dv * 3584 + 3584);
+  assert.strictEqual(n.patchify.params, 2 * 14 * 14 * 3 * Dv);
+  assert.strictEqual(n['vision-encoder'].params, 32 * blk);
+  assert.strictEqual(n.merger.params, merger);
+  assert.strictEqual(q.visualModuleParams, 675759104);
+  // Qwen2: sesgo en Q, K, V (no en O)
+  const op = (id) => r.ops.find((o) => o.id === id);
+  assert.deepStrictEqual([op('q-proj').params, op('k-proj').params, op('o-proj').params], [3584 * 3584 + 3584, 3584 * 512 + 512, 3584 * 3584]);
+  assert.deepStrictEqual([op('rope-q').prim, J(op('rope-q').in)], ['mrope', ['q-heads', 'pos-ids']]);
+  // 2B: embeddings atados → LM head sin parámetros propios
+  assert.strictEqual(A7.run('qwen2-vl-2b').totals.byNode['lm-head'].params, 0);
+  // formas: 812×812 → 58×58 = 3,364 parches → 841 tokens; prompt 841 + 64
+  const sh = (rr, id) => J(rr.tensors[id].num).join('×');
+  assert.deepStrictEqual(['v-frames', 'v-patch-grid', 'v-patches', 'v-scores', 'vis-feats', 'v-grouped', 'vis-tokens', 'pos-ids', 'prompt', 'k', 'logits'].map((id) => sh(r, id)),
+    ['2×812×812×3', '58×58×1280', '3364×1280', '16×3364×3364', '3364×1280', '841×5120', '841×3584', '3×905', '905×3584', '905×512', '905×152064']);
+  assert.deepStrictEqual([q.visualTokens, q.patches, q.posSpan, q.imagePosSpan], [841, 3364, 64 + 29, 29]);
+  // tokens = (H/28)(W/28): no cuadradas; múltiplos de 28 obligatorios; límites de píxeles
+  const r2 = A7.run('qwen2-vl-7b', { H: 448, W: 672 });
+  assert.deepStrictEqual([r2.config.N, sh(r2, 'v-patch-grid'), r2.config.posSpan], [16 * 24, '32×48×1280', 64 + 24]);
+  assert.throws(() => A7.run('qwen2-vl-7b', { H: 500 }), /múltiplos de 28.*504×812/);
+  assert.throws(() => A7.run('qwen2-vl-7b', { H: 28, W: 28 }), /min_pixels/);
+  assert.throws(() => A7.run('qwen2-vl-7b', { frames: 3 }), /par/);
+  // video de 4 frames: 2 parches temporales, atención por par de frames (segmentos), el LLM ve 2·841 tokens
+  const v = A7.run('qwen2-vl-7b', { frames: 4 });
+  assert.deepStrictEqual([sh(v, 'pixels'), sh(v, 'v-patch-grid'), sh(v, 'v-x-seg'), sh(v, 'v-scores'), sh(v, 'vis-feats'), v.config.N],
+    ['4×812×812×3', '2×58×58×1280', '2×3364×1280', '2×16×3364×3364', '6728×1280', 1682]);
+  assert.strictEqual(v.ops.find((o) => o.id === 'vis-scores').macs, 2 * 3364 * 3364 * 1280);
+  assert.strictEqual(v.totals.flops, 2 * v.totals.macs);
+  // smart_resize (Python round: mitad al par) y el conteo de tokens
+  const sr = A7.vlm.smartResize;
+  assert.deepStrictEqual(J([sr(812, 812), sr(480, 640), sr(70, 70), sr(37, 50), sr(4000, 3000)]),
+    [{ H: 812, W: 812 }, { H: 476, W: 644 }, { H: 56, W: 56 }, { H: 56, W: 84 }, { H: 4004, W: 2996 }]);
+  assert.deepStrictEqual([A7.vlm.pyRound(2.5), A7.vlm.pyRound(3.5), A7.vlm.pyRound(2.4)], [2, 4, 2]);
+  assert.strictEqual(A7.vlm.qwenTokens(476, 644).tokens, 17 * 23);
+});
+
+test('F7 métricas: unidades conocidas, tokens y reparto del prefill, KV por imagen, roofline ≈, listas de escala', () => {
+  const OK = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params'];
+  for (const id of LLAVA.concat(QWEN)) {
+    const m = A7.metrics(id, {}), q = A7.run(id).quantities;
+    for (const [k, u] of Object.entries(m.units)) assert.ok(OK.includes(u), id + ' ' + k + ': ' + u);
+    for (const k of ['visualTokens', 'textTokens', 'promptTokens', 'visualShare', 'visionParams', 'projectorParams', 'llmParams', 'visionMacs', 'projectorMacs',
+      'llmPrefillMacs', 'prefillShareFromImage', 'kvBytesPerImage', 'kvBytesPerToken', 'ttftMs', 'decodeMacsPerToken']) {
+      assert.strictEqual(typeof m[k], 'number', id + ' ' + k);
+      assert.ok(m.units[k], id + ' ' + k + ' sin unidad');
+    }
+    assert.strictEqual(m.visionParams + m.projectorParams + m.llmParams, m.totalParams, id);
+    assert.strictEqual(m.visionMacs + m.projectorMacs + m.llmPrefillMacs, m.prefillMacs, id);
+    assert.strictEqual(m.llmMacsFromImage + m.llmMacsTextOnly, m.llmPrefillMacs, id);
+    assert.ok(m.prefillShareFromImage > 0.85 && m.prefillShareFromImage < 1, id + ' ' + m.prefillShareFromImage);
+    assert.strictEqual(m.visualShare, q.visualTokens / q.promptTokens);
+    assert.strictEqual(m.kvBytesPerImage, m.visualTokensPerImage * m.kvBytesPerToken);
+    assert.ok(m.ttftMs > m.ttftTextOnlyMs && m.ttftBound === 'cómputo', id);
+    assert.ok(m.decodeTokPerSecUpperBound > 0 && isFinite(m.decodeTokPerSecUpperBound));
+    Object.keys(m).filter((k) => typeof m[k] === 'number' && /Macs$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'macs', id + ' ' + k));
+  }
+  const l = A7.metrics('llava15-7b', {}), qw = A7.metrics('qwen2-vl-7b', {});
+  // KV de LLaVA 7B (MHA, 32 capas): 2·32·32·128·2 B = 512 KiB por token → 576 tokens = 302 MB por imagen
+  assert.deepStrictEqual([l.kvBytesPerToken, l.kvBytesPerImage], [524288, 576 * 524288]);
+  assert.deepStrictEqual([qw.kvBytesPerToken, qw.kvBytesPerImage], [57344, 841 * 57344]);    // Qwen2 7B: GQA con 4 KV
+  // decode tras el prompt = un paso del decoder de llm.js con ctx = N + T + 1 (la imagen ya está en la KV cache)
+  assert.strictEqual(l.decodeMacsPerToken, A7.run('llama2-7b', { decode: 1, ctx: 641 }).totals.macs + 4096 * 64);
+  // listas
+  assert.deepStrictEqual(J(l.imagesScaling.map((x) => x.visualTokens)), [576, 1152, 2304, 4608]);
+  assert.ok(l.imagesScaling.every((x, i, a) => !i || x.prefillMacs > a[i - 1].prefillMacs));
+  assert.deepStrictEqual(J(l.anyresTokensAt.slice(0, 2).map((x) => [x.tokens, x.tokensPaper])), [[1176, 1728], [2928, 2880]]);
+  assert.ok(l.fixedTokensAt.every((x) => x.visualTokens === 576));
+  assert.deepStrictEqual(J(qw.tokensAt.map((x) => x.visualTokens)), [64, 256, 576, 841, 1296, 2304, 16 * 29, 29 * 16]);
+  assert.deepStrictEqual(J(qw.framesScaling.map((x) => x.visualTokens)), [841, 1682, 3364, 6728]);
+  assert.deepStrictEqual(J(qw.textScaling.map((x) => x.promptTokens)), [857, 905, 1097, 1865]);
+  // Quantities: claves de la fase 7 en prosa
+  assert.strictEqual(Q7.get('llava15-7b.quantities.visualTokens').value, 576);
+  assert.strictEqual(Q7.get('qwen2-vl-7b.tensor.prompt.sym').text, '(N+T)×D');
+  assert.strictEqual(Q7.get('qwen2-vl-7b.tensor.v-grouped.shape').text, '841×5120');
+  assert.strictEqual(Q7.get('llava15-7b.params.total').text, '7,063,427,072');
+});
+
+test('F7 etiqueta + símbolo identifican una forma; byPath suma; aritmética; where; Quantities resuelve todas las claves', () => {
+  const cases = LLAVA.map((id) => [id, [{}, { images: 2 }]]).concat(QWEN.map((id) => [id, [{}, { frames: 4 }, { H: 448, W: 672 }]]));
+  for (const [id, ovs] of cases) {
+    for (const ov of ovs) {
+      const r = A7.run(id, ov), t = r.totals;
+      const by = {};
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        const k = x.label + '|' + String(x.tex).split('=')[0].trim();
+        (by[k] = by[k] || new Set()).add(x.num.join('×'));
+      }
+      for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.params * o.repeat, 0), t.params);
+      assert.strictEqual(Object.values(t.byPrim).reduce((s, x) => s + x.macs, 0), t.macs);
+      const check = (pp, want) => {
+        const kids = children(r, pp);
+        if (!kids.length) return;
+        const at = (k) => t.byPath[pp.concat([k]).join('>')];
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).params, 0), want.params, id + ' params bajo ' + (pp.join('>') || 'raíz'));
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).macs, 0), want.macs, id + ' MACs bajo ' + (pp.join('>') || 'raíz'));
+        kids.forEach((k) => check(pp.concat([k]), at(k)));
+      };
+      check([], t);
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        if (x.producer) assert.ok(r.ops.find((o) => o.id === x.producer).out.includes(tid));
+        x.consumers.forEach((oid) => assert.ok(r.ops.find((o) => o.id === oid).in.includes(tid)));
+      }
+      for (const o of r.ops) {
+        if (o.params) assert.ok(o.paramArith.endsWith(A7.fmt.int(o.params)), id + ' ' + o.id + ' paramArith');
+        if (o.macs) assert.ok(o.macArith.endsWith(A7.fmt.int(o.macs)), id + ' ' + o.id + ' macArith');
+        assert.ok(!/undefined|NaN/.test(o.paramTex + o.macTex + o.shapeTex), id + ' ' + o.id + ' tex');
+        assert.ok(Array.isArray(o.where) && o.where.length, id + ' ' + o.id + ' sin where');
+        // el decoder importado no conserva una T aislada en sus fórmulas (T → N+T)
+        if (o.path[0] === 'llm' || o.path[0] === 'lm-head') {
+          const tx = (o.macTex + ' ' + o.shapeTex).replace(/\(N(\{\+\}|\+)T\)/g, '');
+          assert.ok(!/(^|[^A-Za-z\\{_])T(?![A-Za-z_])/.test(tx), id + ' ' + o.id + ': ' + o.macTex + ' | ' + o.shapeTex);
+          assert.ok(/N\{\+\}T/.test(o.shapeTex) || !/T/.test(o.shapeTex), id + ' ' + o.id + ' shapeTex');
+        }
+      }
+      // etiquetas con contexto: visión, proyector/merger, LLM
+      for (const tid of r.order) {
+        const x = r.tensors[tid], p = x.producer && r.ops.find((o) => o.id === x.producer);
+        if (p && p.path[0] === 'vision-encoder' && /^v-/.test(tid)) assert.match(x.label, /^Visión · /, id + ' ' + tid);
+        if (p && p.path[0] === 'llm') assert.match(x.label, /^LLM · /, id + ' ' + tid);
+      }
+    }
+    assert.strictEqual(A7.run(id), A7.run(id), 'memoizado');
+    J(Q7.keys(id)).forEach((k) => assert.ok(Q7.get(id + '.' + k), id + '.' + k));
+  }
+});

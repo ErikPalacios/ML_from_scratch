@@ -223,3 +223,25 @@ test('LLM: HF LlamaForCausalLM / MixtralForCausalLM en el dispositivo meta; pref
     assert.strictEqual(r.exp.metrics_checks.kvBytesPerToken, 131072, id);
   }
 });
+
+// ---------------------------------------------------------------- fase 7
+test('VLM: HF Llava / Qwen2VL en meta con todas las capas; capa 24 de CLIP contada; AnyRes y smart_resize de HF', async () => {
+  for (const id of ['llava15-7b', 'llava15-13b', 'qwen2-vl-7b', 'qwen2-vl-2b', 'qwen2-vl-72b']) {
+    const r = await find(id);
+    assert.match(r.exp.source.ctor, /torch\.device\('meta'\)/, id);
+    assert.ok(r.checks.some((c) => c.what === 'metrics[kvBytesPerToken]' && c.ok), id);
+    assert.ok(r.checks.some((c) => c.what === 'metrics[visualTokens]' && c.ok), id);
+  }
+  const l = await find('llava15-7b');
+  assert.strictEqual(l.exp.params_total, 7063427072);
+  assert.ok(l.exp.notes.some((n) => /hidden_states\[−2\]/.test(n) && /capa 24/.test(n)));
+  assert.ok(l.checks.some((c) => c.what === 'flops[last-layer]' && c.ok));
+  assert.ok(l.checks.filter((c) => c.what.startsWith('anyres[') && c.ok).length >= 8);
+  const q = await find('qwen2-vl-7b');
+  assert.strictEqual(q.exp.params_total, 8291375616);
+  assert.strictEqual(q.exp.metrics_checks.visualModuleParams, 675759104);
+  assert.deepStrictEqual(q.exp.shapes['pos-ids'], [3, 905]);
+  assert.ok(q.checks.filter((c) => c.what.startsWith('smart_resize[') && c.ok).length >= 10);
+  assert.ok(q.checks.some((c) => c.what === '[frames=4] flops_total' && c.ok));
+  assert.strictEqual((await find('qwen2-vl-2b')).exp.params_by_node['lm-head'], 0);
+});

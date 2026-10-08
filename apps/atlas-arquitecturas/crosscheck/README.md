@@ -77,7 +77,21 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   filas enrutadas, funciona en meta); `moe_impl_check` verifica en un Mixtral diminuto con pesos reales que la implementación
   eager (bucle por experto) da los mismos FLOPs y que `grouped_mm` no se cuenta. `metrics_checks`: bytes de la KV cache por
   token medidos en la `DynamicCache` (bf16) y parámetros activos de Mixtral (total − 6/8 de los expertos).
-- Las configs de cada script (`CONFIGS`) deben coincidir con las de `js/arch/<modelo>.js`.
+- `vlm.py` (fase 7): HF `LlavaForConditionalGeneration(LlavaConfig(vision_config=CLIPVisionConfig(...), text_config=LlamaConfig(...)))`
+  para `llava15-7b` y `llava15-13b`, y `Qwen2VLForConditionalGeneration(Qwen2VLConfig(text_config=..., vision_config=...))` para
+  `qwen2-vl-7b`, `qwen2-vl-2b` (embeddings atados) y `qwen2-vl-72b`, construidos en código **en el dispositivo meta** (sin pesos
+  ni hub; dimensiones de los `config.json` de llava-hf y Qwen). Parámetros y FLOPs exactos con `FlopCounterMode` sobre todas las
+  capas (visión, proyector/merger, LLM y LM head; atención eager). LLaVA: 1 imagen de 336×336 (576 tokens) + T = 64; HF corre
+  las 24 capas de CLIP y toma `hidden_states[−2]` sin el CLS, así que la capa 24 y `post_layernorm` se cuentan (el calculador
+  las tiene como `vis-last-layer` / `ln-post`); `override_checks` con T = 256 e `images = 2`; `anyres_checks`: tokens de
+  LLaVA-NeXT con `LlavaNextProcessor._get_number_of_features` ↔ `ATLAS.Arch.vlm.llavaNextTokens`. Qwen2-VL: imagen de
+  812×812 (3,364 parches → 841 tokens) + T = 64; `override_checks` (7B) con 448×672, 1344×1344, T = 256 y un video de 4 frames
+  (`pixel_values_videos`, atención del ViT por par de frames); `smart_resize_checks`: `smart_resize` del procesador ↔
+  `ATLAS.Arch.vlm.smartResize`. Parches para meta que no cambian FLOPs: `torch_compilable_check` (cuenta de marcadores con
+  `.item()`) → no-op, los ids de posición del ViT se calculan en CPU y se mueven a meta, máscara 4-D de ceros y `position_ids`
+  dados (Qwen2-VL: 3×1×S, cuya forma 3×S se verifica en `rotary_emb`). `metrics_checks`: bytes de KV por token (DynamicCache,
+  bf16), tokens visuales, parámetros del proyector / merger y del módulo `visual`.
+- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que
   torch no trae para `_scaled_dot_product_flash_attention_for_cpu`).

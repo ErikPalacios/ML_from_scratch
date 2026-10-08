@@ -688,6 +688,9 @@
     pat('lat', (p) => { [[1, 1], [4, 2], [2, 4.5], [5, 5]].forEach(([x, y]) => S('rect', { x, y, width: 0.9, height: 0.9, class: 'ad-tx-dot ad-mod--lat' }, p)); });
     pat('qry', () => {});
     pat('joint', () => {});   // tensores conjuntos (matriz B×B de CLIP): color de fusión, sin textura
+    // fase 7: rayado diagonal de un bloque congelado (node.train:'frozen')
+    const fzp = S('pattern', { id: id + '-tx-frozen', patternUnits: 'userSpaceOnUse', width: 7, height: 7, patternTransform: 'rotate(45)' }, d);
+    S('path', { d: 'M0 0V7', class: 'ad-frozen-ln' }, fzp);
     return d;
   }
 
@@ -720,6 +723,8 @@
       for (let i = 1; i < k; i++) d += 'M' + P([x + i * step, y]) + 'V' + r1(y - g.h);
       S('path', { d, class: 'ad-tokmarks' }, grp);
       if (mark === 'first') S('rect', { x: r1(x), y: r1(y - g.h), width: r1(step), height: r1(g.h), class: 'ad-tokfirst' }, grp);
+      // fase 7: mark:'dropfirst' = el primer token (CLS) tachado: se descarta
+      if (mark === 'dropfirst') { const fx = x - step - 3; S('rect', { x: r1(fx), y: r1(y - g.h), width: r1(step), height: r1(g.h), class: 'ad-tokdrop' }, grp); S('path', { d: 'M' + P([fx, y - g.h]) + 'L' + P([fx + step, y]) + 'M' + P([fx + step, y - g.h]) + 'L' + P([fx, y]), class: 'ad-tokdrop-x' }, grp); }
     }
     if (g.lay === 'mat' || g.lay === 'amat') {
       // matriz: rejilla tenue (hasta 8×8) y, en la cuadrada de CLIP, la diagonal (los pares positivos)
@@ -1049,7 +1054,8 @@
         const lines = String(label).split('\n').filter(Boolean);
         // fase 6: kvGroups / experts / rows ocupan la parte de abajo del bloque (como mini): el texto sube
         const hideInner = slot && slot.ask === 'label';
-        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : 0;
+        // fase 7: strip (tira de tokens), posIds (ids de M-RoPE) y layers (capas con la toma) también van abajo
+        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : 0;
         const miniH = n.mini ? 22 : innerH;
         // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
         const subs = sub ? String(sub).split('\n') : [];
@@ -1071,7 +1077,10 @@
           if (n.kvGroups) drawKvGroups(g, n.kvGroups, r, run.config, used);
           else if (n.experts) drawExperts(g, n.experts, r, run.config, used);
           else if (n.rows && store) drawStoreRows(g, n.rows, r, used, ctl, spec);
+          else if (n.strip) drawStrip(g, n.strip, r, run, used, ctl, spec);
+          else if (n.layers) drawLayers(g, n.layers, r, run, used);
         }
+        if (!hideInner && n.posIds) drawPosIds(g, n.posIds, r, used, ctl);
       }
       if (cost && cost.params > 0 && ctl.mode !== 'blank' && !ctl.quiz) {
         used.badge = true;
@@ -1088,7 +1097,9 @@
         S('path', { d: 'M' + P([bx + 6, by + 7.5]) + 'm-2.2,0a2.2,2.2 0 1,0 4.4,0a2.2,2.2 0 1,0 -4.4,0M' + P([bx + 8.2, by + 7.5]) + 'h3.6M' + P([bx + 10.6, by + 7.5]) + 'v2.2', class: 'ad-key' }, b);
         txt(b, bx + 14, by + 11.3, s, 'ad-badge-txt');
       }
-      const flag = n.flag && ctl.mode !== 'blank' ? qText(n.flag, ctl, spec) : '';
+      // fase 7: congelado / entrena (en la práctica también: es parte de la figura, no la respuesta de un hueco de nombre)
+      if (n.train && !(slot && slot.ask === 'label')) drawTrain(g, n, r, used, ctl);
+      const flag = n.flag && ctl.mode !== 'blank' && !n.train ? qText(n.flag, ctl, spec) : '';
       if (flag) {
         // marca corta arriba a la derecha (p. ej. "≠ ViT"): diferencias de un modelo frente a su base
         const fw = textW(flag, 10, true) + 10;
@@ -1099,6 +1110,15 @@
       if (n.expand && ctl.mode === 'full') {
         const ex = S('g', { class: 'ad-expand-mark' }, g);
         S('path', { d: 'M' + P([r.x + r.w - 12, r.y + r.h - 4]) + 'h8v-8', class: 'ad-expand-ico' }, ex);
+      }
+      // fase 7: node.xref = [{href, label}] enlaces a vistas de OTRA página (el encoder de CLIP, el bloque del LLM): flecha ↗
+      // arriba a la derecha (por dentro); los botones van en el panel de detalle
+      if (n.xref && n.xref.length && ctl.mode === 'full') {
+        used.xref = true;
+        // arriba a la derecha, por dentro (abajo a la derecha va la marca de "se abre"; abajo, las filas internas)
+        const xr = r.x + r.w - 13, yb = r.y + 13;
+        const xm = S('g', { class: 'ad-xref-mark' }, g);
+        S('path', { d: 'M' + P([xr, yb]) + 'l8,-8M' + P([xr + 3, yb - 8]) + 'h5v5', class: 'ad-expand-ico' }, xm);
       }
     }
     if (slot) drawSlot(ctl, g, n.id, r, slot, shape);
@@ -1212,6 +1232,175 @@
     if (o.label) txt(gg, x + w + 7, yb - 3 * add + 2, qText(o.label, ctl, spec), 'ad-row-txt');
   }
 
+  // ------------------------------------------------------------ fase 7 (VLM): tira de tokens, ids de M-RoPE, capas con toma,
+  // marcas de entrenamiento y enlaces a otras páginas
+  // Número del calculador por clave (nunca escrito a mano en el spec):
+  //   'cfg.X' (config resuelta) · 'metrics.X' (ATLAS.Arch.metrics de la misma corrida) · 'q.X' (run.quantities) ·
+  //   'tensor.ID.i' (dimensión i del tensor) · un número literal solo para ejemplos ilustrativos.
+  const metricsMemo = (typeof WeakMap === 'function') ? new WeakMap() : null;
+  function metricsOf(run) {
+    if (!run) return null;
+    if (metricsMemo && metricsMemo.has(run)) return metricsMemo.get(run);
+    let m = null;
+    try { const A = arch(); m = A && typeof A.metrics === 'function' ? A.metrics(run.id, run.overrides || undefined) : null; } catch (e) { m = null; }
+    if (metricsMemo) metricsMemo.set(run, m);
+    return m;
+  }
+  function numKey(run, key) {
+    if (typeof key === 'number') return key;
+    if (!run || key == null) return undefined;
+    const parts = String(key).split('.'), ns = parts[0], rest = parts.slice(1);
+    let v;
+    if (ns === 'cfg') v = cfgPath(run.config, rest.join('.'));
+    else if (ns === 'metrics') { const m = metricsOf(run); v = m ? cfgPath(m, rest.join('.')) : undefined; }
+    else if (ns === 'q') v = run.quantities ? run.quantities[rest.join('.')] : undefined;
+    else if (ns === 'tensor') { const t = run.tensors && run.tensors[rest[0]]; v = t && t.num ? t.num[+(rest[1] || 0)] : undefined; }
+    return Number.isFinite(v) ? v : undefined;
+  }
+
+  // node.strip = {segs:[{mod:'txt'|'img', n:<clave>, label}], caption}: el prompt como una tira de tokens, cada tramo con
+  // ancho ∝ su número de tokens (lineal: los 576 de la imagen se ven dominar el prompt), la textura de su modalidad y su
+  // cuenta debajo. caption admite {{…}} del calculador. Los tramos de menos de 30 px se ensanchan (sin mentir en la cuenta).
+  const STRIP_H = 46;
+  function stripSegs(o, run) {
+    // frac: el tramo es una fracción de la clave (texto antes / después de <image> cuando el calculador solo da el total T;
+    // esos tramos llevan count:false: no se inventa la partición, solo el total va en el caption)
+    const segs = (o.segs || []).map((s) => { const v = numKey(run, s.n); return Object.assign({}, s, { v: Number.isFinite(v) ? v * (s.frac || 1) : v }); });
+    return segs.every((s) => Number.isFinite(s.v) && s.v >= 0) ? segs : null;
+  }
+  function drawStrip(g, o, r, run, used, ctl, spec) {
+    const segs = stripSegs(o, run);
+    if (!segs) return;
+    used.strip = true;
+    const gg = S('g', { class: 'ad-strip' }, g);
+    const x0 = r.x + 10, W = r.w - 20, y = r.y + r.h - STRIP_H + 1, bh = 16, gap = 2;
+    const tot = segs.reduce((a, s) => a + s.v, 0) || 1;
+    const avail = W - gap * (segs.length - 1), minW = Math.min(30, avail / segs.length);
+    let ws = segs.map((s) => avail * s.v / tot);
+    const small = ws.map((w) => w < minW);
+    const fixed = small.reduce((a, s) => a + (s ? minW : 0), 0), big = ws.reduce((a, w, i) => a + (small[i] ? 0 : w), 0);
+    ws = ws.map((w, i) => (small[i] ? minW : big > 0 ? w * (avail - fixed) / big : w));
+    let x = x0;
+    segs.forEach((s, i) => {
+      const w = ws[i], mod = s.mod || 'txt';
+      used.mods.add(mod);
+      const sg = S('g', { class: 'ad-glyph ad-mod--' + mod }, gg);
+      S('rect', { x: r1(x), y: r1(y), width: r1(w), height: bh, class: 'ad-face ad-face--front ad-strip-seg', fill: 'url(#' + ctl.id + '-tx-' + mod + ')' }, sg);
+      // marcas de token (hasta 1 cada 3 px): densidad ∝ tokens, como las marcas de un glifo
+      const k = Math.min(s.v, Math.floor(w / 3));
+      if (k > 1 && k <= 48) { let d = ''; for (let j = 1; j < k; j++) d += 'M' + P([x + j * w / k, y]) + 'V' + r1(y + bh); S('path', { d, class: 'ad-tokmarks' }, sg); }
+      const lab = s.count === false ? (s.label || '') : fint(s.v) + (s.label ? ' ' + s.label : '');
+      const short = s.count === false ? '' : fint(s.v);
+      const fits = textW(lab, 10, true) < w + gap;
+      txt(gg, x + w / 2, y + bh + 11, fits ? lab : short, 'ad-strip-n', 'middle');
+      x += w + gap;
+    });
+    if (o.caption) txt(gg, r.x + r.w / 2, y + bh + 24, qText(o.caption, ctl, spec), 'ad-gqa-cap', 'middle');
+  }
+
+  // node.posIds = {segs:[{kind:'txt', n, words?}, {kind:'img', gh, gw, gt?}]}: ids de posición de M-RoPE (t, h, w) de un
+  // prompt corto ILUSTRATIVO: el texto lleva el mismo id en los 3 ejes; los tokens de imagen comparten t y varían h y w;
+  // el texto de después sigue en max(id) + 1. Misma regla que get_rope_index de HF (Qwen2-VL), sin la escala temporal.
+  function mropeIds(segs) {
+    const out = [];
+    let st = 0;
+    for (const s of segs || []) {
+      if (s.kind === 'img' || s.kind === 'video') {
+        const gt = s.gt || 1, gh = s.gh || 1, gw = s.gw || 1;
+        for (let ti = 0; ti < gt; ti++) for (let hi = 0; hi < gh; hi++) for (let wi = 0; wi < gw; wi++) out.push({ kind: 'img', t: st + ti, h: st + hi, w: st + wi, ti, hi, wi, seg: s });
+        st += Math.max(gt, gh, gw);
+      } else {
+        const n = s.n || (s.words || []).length || 1;
+        for (let i = 0; i < n; i++) out.push({ kind: 'txt', t: st + i, h: st + i, w: st + i, word: s.words && s.words[i], seg: s });
+        st += n;
+      }
+    }
+    return out;
+  }
+  const POS_H = 70;
+  function drawPosIds(g, o, r, used, ctl) {
+    const ids = mropeIds(o.segs);
+    if (!ids.length) return;
+    used.posIds = true;
+    used.mods.add('txt'); used.mods.add('img');
+    const gg = S('g', { class: 'ad-posids' }, g);
+    const lx = r.x + 12, x0 = r.x + 28, W = r.w - 40, n = ids.length;
+    const cw = Math.min(26, W / n), y0 = r.y + r.h - POS_H + 4;
+    const xs = (i) => x0 + (W - cw * n) / 2 + i * cw;
+    ['t', 'h', 'w'].forEach((ax, j) => txt(gg, lx, y0 + 30 + j * 13, ax, 'ad-pos-ax'));
+    ids.forEach((p, i) => {
+      const x = xs(i), mod = p.kind === 'img' ? 'img' : 'txt';
+      const sg = S('g', { class: 'ad-glyph ad-mod--' + mod }, gg);
+      S('rect', { x: r1(x + 1), y: r1(y0 + 6), width: r1(cw - 2), height: 12, rx: 1.5, class: 'ad-face ad-face--front', fill: 'url(#' + ctl.id + '-tx-' + mod + ')' }, sg);
+      ['t', 'h', 'w'].forEach((ax, j) => {
+        const same = p.kind === 'txt' || ax === 't';
+        txt(gg, x + cw / 2, y0 + 30 + j * 13, String(p[ax]), 'ad-pos-n' + (p.kind === 'img' && !same ? ' is-var' : ''), 'middle');
+      });
+    });
+    // llave bajo los tokens de imagen
+    const firstImg = ids.findIndex((p) => p.kind === 'img');
+    if (firstImg >= 0) {
+      let lastImg = firstImg; while (lastImg + 1 < n && ids[lastImg + 1].kind === 'img') lastImg++;
+      const a = xs(firstImg) + 1, b = xs(lastImg) + cw - 1, seg = ids[firstImg].seg;
+      S('path', { d: 'M' + P([a, y0 + 3]) + 'V' + r1(y0 + 1) + 'H' + r1(b) + 'V' + r1(y0 + 3), class: 'ad-pos-brace' }, gg);
+      txt(gg, (a + b) / 2, y0 - 2, 'imagen ' + (seg.gh || 1) + '×' + (seg.gw || 1) + ' tokens', 'ad-pos-cap', 'middle');
+    }
+  }
+
+  // node.layers = {L:<clave>, tap:<clave o número negativo>, label?}: la pila de capas de un encoder en una fila, con la capa
+  // de la que se toman las features resaltada ("toma") y las que quedan después atenuadas ("no se usa"). LLaVA: la penúltima.
+  const LAYERS_H = 34;
+  // capa de la toma (1-based): un índice negativo cuenta desde el final como hidden_states[−k] (−2 = la penúltima capa)
+  function tapOf(run, o, L) { const t = numKey(run, o.tap); return Number.isFinite(t) && t < 0 ? L + t + 1 : t; }
+  function drawLayers(g, o, r, run, used) {
+    const L = numKey(run, o.L);
+    const tap = tapOf(run, o, L);
+    if (!(L > 0) || !(tap > 0)) return;
+    used.layers = true;
+    const gg = S('g', { class: 'ad-layers' }, g);
+    const head = Math.min(3, L), tail = Math.min(4, L - head);
+    const cells = [];
+    for (let i = 1; i <= head; i++) cells.push(i);
+    if (L > head + tail) cells.push(null);
+    for (let i = L - tail + 1; i <= L; i++) if (i > head) cells.push(i);
+    const x0 = r.x + 12, W = r.w - 24, y = r.y + r.h - LAYERS_H + 2, ch = 13;
+    const cw = W / cells.length;
+    cells.forEach((c, i) => {
+      const x = x0 + i * cw;
+      if (c == null) { txt(gg, x + cw / 2, y + 10, '…', 'ad-layer-n', 'middle'); return; }
+      const cls = c === tap ? ' is-tap' : c > tap ? ' is-off' : '';
+      S('rect', { x: r1(x + 1.5), y: r1(y), width: r1(cw - 3), height: ch, rx: 2, class: 'ad-layer' + cls }, gg);
+      txt(gg, x + cw / 2, y + 9.8, String(c), 'ad-layer-n' + cls, 'middle');
+      // solo la toma lleva texto (las capas que no se usan van atenuadas y punteadas; la leyenda lo explica)
+      if (c === tap) txt(gg, x + cw / 2, y + ch + 11, o.tapLabel || 'toma', 'ad-layer-cap is-tap', 'middle');
+    });
+  }
+
+  // node.train = 'frozen' | 'trained': píldora arriba a la derecha (congelado / entrena) y, si está congelado, un rayado
+  // tenue sobre el bloque. La leyenda explica las dos.
+  function drawTrain(g, n, r, used, ctl) {
+    const fz = n.train === 'frozen';
+    used[fz ? 'frozen' : 'trained'] = true;
+    if (fz) S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: 4, class: 'ad-frozen-hatch', fill: 'url(#' + ctl.id + '-tx-frozen)' }, g);
+    const label = fz ? 'congelado' : 'entrena';
+    const w = textW(label, 10.5, true) + 24, x = r.x + r.w - w - 4, y = r.y - 8;
+    const pg = S('g', { class: 'ad-train ' + (fz ? 'ad-train--frozen' : 'ad-train--on') }, g);
+    S('rect', { x: r1(x), y, width: r1(w), height: 15, rx: 7.5, class: 'ad-train-bg' }, pg);
+    trainIcon(pg, fz, x + 9, y + 7.5);
+    txt(pg, x + 17, y + 11.3, label, 'ad-train-txt');
+  }
+  function trainIcon(p, fz, cx, cy) {
+    if (fz) {
+      // copo: tres líneas cruzadas
+      let d = '';
+      for (let i = 0; i < 3; i++) { const a = Math.PI * i / 3, dx = 4.2 * Math.cos(a), dy = 4.2 * Math.sin(a); d += 'M' + P([cx - dx, cy - dy]) + 'L' + P([cx + dx, cy + dy]); }
+      S('path', { d, class: 'ad-train-ico' }, p);
+    } else {
+      // gradiente: flecha hacia abajo sobre una barra (los pesos se actualizan)
+      S('path', { d: 'M' + P([cx, cy - 4.2]) + 'V' + r1(cy + 2.4) + 'M' + P([cx - 2.8, cy - 0.2]) + 'L' + P([cx, cy + 2.6]) + 'L' + P([cx + 2.8, cy - 0.2]) + 'M' + P([cx - 3.8, cy + 4.4]) + 'H' + r1(cx + 3.8), class: 'ad-train-ico' }, p);
+    }
+  }
+
   function drawMapNode(ctl, parent, n, r, used) {
     const it = (ATLAS.catalog && ATLAS.catalog() && ATLAS.catalog().items && ATLAS.catalog().items[n.id]) || null;
     const page = ATLAS.getPage ? ATLAS.getPage(n.id) : null;
@@ -1260,7 +1449,11 @@
     if (io.out.length) parts.push('salida ' + io.out.map((t) => shapeText(t, 'num')).join(', '));
     if (n.kvGroups && run) { const w = gqaWords(run.config, n.kvGroups); if (w) parts.push(w.text); }
     if (n.experts && run) { const E = cfgPath(run.config, n.experts.n || 'nExperts'), K = cfgPath(run.config, n.experts.k || 'topK'); if (E) parts.push(K + ' de ' + E + ' expertos por token'); }
+    if (n.train) parts.push(n.train === 'frozen' ? 'congelado' : 'entrena');
+    if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ')); }
+    if (n.layers && run) { const L = numKey(run, n.layers.L); const tp = tapOf(run, n.layers, L); if (L && tp) parts.push('features de la capa ' + tp + ' de ' + L); }
     if (n.expand) parts.push('se puede abrir');
+    if (n.xref && n.xref.length) parts.push('con enlace a otra página');
     return parts.join('; ');
   }
 
@@ -1497,7 +1690,7 @@
     const mods = ATLAS.MODALITIES || [];
     const lid = view.legendDefsId;
     for (const m of mods) {
-      if (!used.mods.has(m.id) || !used.glyph) continue;
+      if (!used.mods.has(m.id) || !(used.glyph || used.strip || used.posIds)) continue;
       item((s) => {
         defs(s, lid + '-l' + m.id);
         const g = S('g', { class: 'ad-glyph ad-mod--' + m.id + (m.id === 'qry' ? ' ad-glyph--outline' : '') }, s);
@@ -1535,6 +1728,13 @@
     }
     if (used.experts) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-exp' + (i === 1 || i === 2 ? ' is-on' : '') }, s)); }, 'Expertos (FFN): encendidos = los top-k elegidos para un token');
     if (used.rows) item((s) => { const g = S('g', { class: 'ad-rows' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 3, y, width: 20, height: 3, rx: 1, class: 'ad-row' + (i === 2 ? ' is-new' : '') }, g)); }, 'Filas del caché (una por token; la resaltada se agrega en este paso)');
+    // fase 7: tira de tokens, ids de M-RoPE, capas con toma, congelado / entrena, enlaces
+    if (used.strip) item((s) => { defs(s, lid + '-lstrip'); const a = S('g', { class: 'ad-glyph ad-mod--txt' }, s); S('rect', { x: 2, y: 4, width: 6, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-txt)' }, a); const b = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-img)' }, b); }, 'Tira del prompt: ancho ∝ número de tokens (texto rayado, imagen liso)');
+    if (used.posIds) item((s) => { const t = S('text', { x: 13, y: 12, 'text-anchor': 'middle', class: 'ad-pos-n is-var' }, s); t.textContent = 't h w'; }, 'Ids de posición (t, h, w) de M-RoPE: ilustrativo');
+    if (used.layers) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-layer' + (i === 2 ? ' is-tap' : i === 3 ? ' is-off' : '') }, s)); }, 'Capas del encoder: resaltada = de la que se toman las features; atenuada = no se usa');
+    if (used.frozen) item((s) => { const g = S('g', { class: 'ad-train ad-train--frozen' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, true, 13, 8); }, 'Congelado: sus pesos no se actualizan en esta etapa');
+    if (used.trained) item((s) => { const g = S('g', { class: 'ad-train ad-train--on' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, false, 13, 8); }, 'Entrena: sus pesos se actualizan en esta etapa');
+    if (used.xref) item((s) => { S('path', { d: 'M8 13l9,-9M11 4h6v6', class: 'ad-expand-ico', style: 'stroke:var(--ink)' }, s); }, 'Enlace: se ve por dentro en otra página');
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
@@ -1700,6 +1900,9 @@
         if (run && n.op !== 'io') { const c = nodeCost(run, n); const pp = perPairOf(c.ops); if (c.params) parts.push('Parámetros: ' + fint(c.params) + (c.rep > 1 ? ' ' + unitOf(n) : '')); if (c.macs) parts.push('MACs: ' + fint(c.macs) + (c.rep > 1 ? ' ' + unitOf(n) : '') + (pp ? ' por par (lote de B = ' + fint(pp.B) + ': ' + fint(pp.batchMacs) + ')' : '')); }
         if (n.costNote) parts.push(strip(qResolve(n.costNote, opts.config || spec.config)));
         if (n.expand) parts.push('Se abre en: ' + ((ATLAS.diagram(n.expand) || {}).title || n.expand));
+        if (n.train) parts.push(n.train === 'frozen' ? 'Congelado en esta etapa' : 'Entrena en esta etapa');
+        if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('Prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ') + (n.strip.caption ? ' (' + qText(n.strip.caption, ctl, spec) + ')' : '')); }
+        if (n.posIds) parts.push('Ids (t, h, w): ' + mropeIds(n.posIds.segs).map((q) => '(' + q.t + ',' + q.h + ',' + q.w + ')').join(' '));
         dd.innerHTML = esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, opts.config || spec.config) : '');
       }
     }
@@ -1882,7 +2085,7 @@
           if (pp && c.macs) h += '<div class="ad-tip-cost ad-muted">MACs por par (una fila de la matriz); el lote de B = ' + fint(pp.B) + ' entero: <b>' + fsi(pp.batchMacs) + '</b></div>';
           if (n.costNote) h += '<div class="ad-tip-cost ad-muted">' + esc(qText(n.costNote, ctl, spec)) + '</div>';
         }
-        h += '<div class="ad-tip-hint">' + (n.expand && ctl.mode === 'full' ? 'Clic: detalle · doble clic o + : abrir bloque' : ctl.mode === 'full' ? 'Clic o Enter: detalle' : '') + '</div>';
+        h += '<div class="ad-tip-hint">' + (n.expand && ctl.mode === 'full' ? 'Clic: detalle · doble clic o + : abrir bloque' : ctl.mode === 'full' ? 'Clic o Enter: detalle' + (n.xref && n.xref.length ? ' (con enlace: ' + esc(n.xref[0].label) + ')' : '') : '') + '</div>';
         return h;
       }
       if (target.edge) {
@@ -1965,6 +2168,7 @@
         }
         const acts = H('div', { class: 'ad-panel-acts' }, panel);
         if (n.expand && ATLAS.diagram(n.expand)) { const b = H('button', { type: 'button', class: 'ad-btn ad-btn--primary', text: 'Abrir bloque' }, acts); b.addEventListener('click', () => expandTo(n.expand, n.id)); }
+        for (const xr of n.xref || []) H('a', { class: 'ad-btn' + (n.expand ? '' : ' ad-btn--primary'), href: xr.href, text: xr.label }, acts);
         if (spec.page && run && n.op !== 'io') H('a', { class: 'ad-btn', href: '#' + spec.page + '.operaciones', text: 'Ver en Operaciones' }, acts);
       }
       panel.hidden = false;
@@ -2434,7 +2638,7 @@
     return bad;
   }
 
-  ATLAS.ArchDiagram = { render, legend, plainSub, geometry, crossings, mapCheck, glyphSize, edgeKey, checkLabels, drawScene, UNIT: U, _route: routeEdge,
+  ATLAS.ArchDiagram = { render, legend, plainSub, geometry, crossings, mapCheck, glyphSize, edgeKey, checkLabels, drawScene, mropeIds, numKey, UNIT: U, _route: routeEdge,
     _routeMap: (spec) => { const g = geometry(spec); return mapCache && mapCache.get(spec) || g; } };
 
   // ============================================================ ATLAS.Viz (SPEC §7.8)
