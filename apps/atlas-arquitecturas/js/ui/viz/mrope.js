@@ -81,7 +81,9 @@
       const nRows = Math.ceil(ids.length / perRow);
       const rowH = 18 + 4 * 15 + 14;
       const imgY = narrow ? 52 : 50, tblY = narrow ? imgY + imgH + 34 : 40;
-      const Hh = Math.max(tblY + nRows * rowH + 6, narrow ? 0 : imgY + imgH + 46);
+      // alto: lo que ocupe más, la tabla o la imagen (+ la línea "t = …" de cada tiempo de un video); antes +46 fijo dejaba
+      // ≈ 100 px vacíos debajo de la tabla
+      const Hh = Math.max(tblY + nRows * rowH + 6, narrow ? 0 : imgY + imgH + (gt > 1 ? 22 : 10));
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' ' + Hh, style: 'max-width:' + W + 'px', role: 'img', 'aria-label': ariaOf(ids, gh, gw, gt) }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); e.textContent = s; return e; };
       t(svg, 8, 15, narrow ? 'Ids por token: M-RoPE (t, h, w) y RoPE 1-D' : 'Ids de posición por token: (t, h, w) con M-RoPE · 1-D con RoPE común', 'viz-t');

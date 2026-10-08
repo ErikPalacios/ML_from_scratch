@@ -33,8 +33,9 @@
    Proyector: MLP de 2 capas con GELU, 1024 → 4096 → 4096, con sesgos (mlp2x_gelu). Vocabulario 32,064 = los 32,000 de Vicuna
    + el token <image> (32000), <pad> (32001) y relleno a múltiplo de 64 que agrega llava-hf (el checkpoint original
    liuhaotian/llava-v1.5-7b tiene 32,000: 2·64·D = 524,288 parámetros menos en 7B). Knobs: T (tokens de texto), images
-   (imágenes en el prompt: la torre de visión y el proyector corren `images` veces — op.repeat × images —, las formas de la
-   torre son POR IMAGEN). Sin config AnyRes (LLaVA-NeXT): metrics().anyresTokensAt da el conteo con la regla de HF.
+   (imágenes en el prompt: la torre de visión y el proyector corren `images` veces — op.repeat × images, así que los MACs
+   escalan —, pero sus pesos son los mismos: op.paramRepeat = 1 (capas: L_v − 1) y los parámetros NO cambian con images;
+   las formas de la torre son POR IMAGEN). Sin config AnyRes (LLaVA-NeXT): metrics().anyresTokensAt da el conteo con la regla de HF.
    Ops (path) — vista `llava-overview`:
      image (tensor pixels H×W×C)
      vis-patch-embed   vision-encoder › patch-embed › conv      pixels → v-patch-grid (H/P×W/P×D_v)
@@ -123,6 +124,24 @@
    (count), bandwidth, peakFlops (count), hardwareSource; crossoverN (count). Listas: LLaVA imagesScaling, textScaling,
    anyresTokensAt; Qwen2-VL tokensAt, framesScaling, textScaling. ATLAS.Arch.vlm = {smartResize, qwenTokens,
    llavaNextTokens} para la viz (tamaño arbitrario → tokens).
+
+   ---------------------------------------------------------------- cantidades con nombre para la prosa (quantities)
+   Qwen2-VL (iguales en 2B / 7B / 72B; smart_resize de HF, factor 28; formas resized* y grid* como texto ALTO × ANCHO):
+     sufijo        entrada (alto × ancho)          presupuesto (min_pixels–max_pixels)        resized      tokens  parches
+     720p          720 × 1280 (foto 1280×720)      default del checkpoint: 4–16,384 tokens·28²  728×1288      1,196    4,784
+     1080p         1080 × 1920                     default                                      1092×1932     2,691   10,764
+     1080pBudget   1080 × 1920                     256–1280 tokens·28² (sugerido en la card)    728×1316      1,222    4,888
+     4k            2160 × 3840                     default                                      2156×3836    10,549   42,196
+     4kBudget      2160 × 3840                     256–1280 tokens·28²                          728×1316      1,222    4,888
+     A4            3508 × 2480 (A4 a 300 dpi)      default                                      3500×2492    11,125   44,500
+     A4Budget      3508 × 2480                     256–1280 tokens·28²                          1176×840      1,260    5,040
+     A4Low         3508 × 2480                     256–256 tokens·28²                           532×364         247      988
+     RobotView     480 × 640 (cámara 640×480)      default                                      476×644         391    1,564
+   Claves: tokens<sufijo>, patches<sufijo>, resized<sufijo> ('728×1288'), grid<sufijo> ('26×46', rejilla de tokens alto ×
+   ancho); tokensRobot3 = 3 · tokensRobotView (tres vistas por paso de control) = 1,173.
+   LLaVA (LLaVA-NeXT-7B con la regla de HF, llavaNextTokens; tamaños ALTO × ANCHO): anyresTokens336 (336×336 → 1,176),
+   anyresTokens640x480 (alto 640 × ancho 480 → 2,352), anyresTokens480x640 (alto 480 × ancho 640, la foto apaisada → 2,340),
+   anyresTokens672 (672×672 o más → 2,928, el máximo).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -202,7 +221,7 @@
     const notes = [];
     ['T', 'images'].forEach((k) => { if (ov[k] !== undefined) c[k] = ov[k]; });
     if (c.images > 1) {
-      notes.push(c.images + ' imágenes: la torre de visión y el proyector corren ' + c.images + ' veces (op.repeat × ' + c.images + '; formas por imagen) y el prompt lleva ' + fint(c.images * 576) + ' tokens visuales. LLaVA-1.5 se entrenó con una imagen por conversación.');
+      notes.push(c.images + ' imágenes: la torre de visión y el proyector corren ' + c.images + ' veces con los mismos pesos (MACs × ' + c.images + ', parámetros × 1; formas por imagen) y el prompt lleva ' + fint(c.images * 576) + ' tokens visuales. LLaVA-1.5 se entrenó con una imagen por conversación.');
       c.label += ' · ' + c.images + ' imágenes';
     }
     const S = c.images * (c.H / c.P) * (c.W / c.P) + c.T;
@@ -225,7 +244,7 @@
   function llavaBuild(c, A) {
     const g = A.graph(c);
     const I = c.images, VE = ['vision-encoder'], WV = ['Encoder de visión (' + c.visionLabel + ')'], TV = 'Visión · ';
-    const vop = (id, res, path, extra) => g.op(id, res, Object.assign({ path: VE.concat(path), repeat: I, where: WV }, extra));
+    const vop = (id, res, path, extra) => g.op(id, res, Object.assign({ path: VE.concat(path), repeat: I, paramRepeat: 1, where: WV }, extra));
     const pi = I > 1 ? ' (por imagen)' : '';
     const img = g.input('pixels', shp(['H', 'W', 'C'], [c.H, c.W, c.C], 'img', 'grid'), { label: 'Imagen de entrada (redimensionada a ' + c.H + '×' + c.W + ')' + pi, tex: 'x' });
     const grid = vop('vis-patch-embed', A.conv2d(img, { k: c.P, s: c.P, cout: c.Dv, coutSym: 'D_v', kSym: 'P', outSym: ['H/P', 'W/P'], bias: false, macTex: 'N_p\\cdot D_v\\cdot P^2\\cdot C' }), ['patch-embed', 'conv'], {
@@ -242,7 +261,7 @@
       outMeta: { label: TV + 'entrada al encoder (tras ln_pre)' + pi, tex: '\\mathrm{LN}_{\\mathrm{pre}}(x_0)' } });
     const Lu = c.Lv - 1;
     const xs = A.preLnLayer(g, xpre, {
-      prefix: VE.concat(['enc-layer']), L: Lu * I, h: c.hv, Dmlp: c.Dmlpv, tid: 'v-', oid: 'vis-', where: WV, labelPrefix: TV,
+      prefix: VE.concat(['enc-layer']), L: Lu * I, paramL: Lu, h: c.hv, Dmlp: c.Dmlpv, tid: 'v-', oid: 'vis-', where: WV, labelPrefix: TV,
       actLabel: 'QuickGELU', actTex: 'U\\,\\sigma(1.702\\,U)', hSym: 'h_v', dhSym: 'd_v', DmlpSym: '4D_v',
       outMeta: { label: 'salida de la capa ' + Lu + ' (la penúltima: hidden states [−2])' + pi, tex: 'x_{L_v-1}', perLayer: false, note: 'Las features de LLaVA salen de aquí (vision_feature_layer = −2).' },
     });
@@ -258,11 +277,11 @@
       outMeta: { label: TV + 'CLS normalizado (pooler_output; no se usa)', tex: '\\mathrm{LN}_{\\mathrm{post}}' } });
     // penúltima capa sin el CLS
     const vf = g.op('select-layer', A.take_rows(xs, { start: 1, count: c.Np, sym: 'N_p' }), {
-      path: ['select-layer'], repeat: I, out: 'vis-feats', where: ['Selección de features'], label: 'Penúltima capa, sin el CLS (' + fint(c.Np) + ' parches)', type: 'tensorop', group: 'embed',
+      path: ['select-layer'], repeat: I, paramRepeat: 1, out: 'vis-feats', where: ['Selección de features'], label: 'Penúltima capa, sin el CLS (' + fint(c.Np) + ' parches)', type: 'tensorop', group: 'embed',
       outMeta: { label: 'Features visuales (' + fint(c.Np) + ' × ' + c.Dv + ', penúltima capa sin CLS)' + pi, tex: 'Z_v' } });
     // proyector MLP de 2 capas
     const WP = ['Proyector (MLP de 2 capas, GELU)'], TP = 'Proyector · ';
-    const pop = (id, res, node, extra) => g.op(id, res, Object.assign({ path: ['projector', node], repeat: I, where: WP }, extra));
+    const pop = (id, res, node, extra) => g.op(id, res, Object.assign({ path: ['projector', node], repeat: I, paramRepeat: 1, where: WP }, extra));
     const ph = pop('proj-fc1', A.linear(vf, { dout: c.D, doutSym: 'D', bias: c.projBias }), 'fc1', { out: 'proj-h', label: 'Proyector: capa 1 (D_v → D)', type: 'mlp', group: 'mlp',
       outMeta: { label: TP + 'capa oculta (D = ' + c.D + ')' + pi, tex: 'Z_vW_1 + b_1' } });
     const pa = pop('proj-gelu', A.gelu(ph), 'gelu', { out: 'proj-act', label: 'GELU', type: 'mlp', group: 'mlp', outMeta: { label: TP + 'activación GELU' + pi, tex: '\\mathrm{GELU}(\\cdot)' } });
@@ -304,7 +323,7 @@
     let h = pyRound(height / factor) * factor, w = pyRound(width / factor) * factor;
     if (h * w > maxP) {
       const beta = Math.sqrt((height * width) / maxP);
-      h = Math.floor(height / beta / factor) * factor; w = Math.floor(width / beta / factor) * factor;
+      h = Math.max(factor, Math.floor(height / beta / factor) * factor); w = Math.max(factor, Math.floor(width / beta / factor) * factor);
     } else if (h * w < minP) {
       const beta = Math.sqrt(minP / (height * width));
       h = Math.ceil(height * beta / factor) * factor; w = Math.ceil(width * beta / factor) * factor;
@@ -315,6 +334,28 @@
   function qwenTokens(H, W, frames) {
     const t = !frames || frames === 1 ? 1 : frames / 2;
     return { patches: t * (H / 14) * (W / 14), tokens: t * (H / 28) * (W / 28), t, gridH: H / 28, gridW: W / 28 };
+  }
+
+  // Tamaños con nombre para la prosa ({{tokens720p}}, {{resized4k}}…): entrada alto × ancho en píxeles → smart_resize con el
+  // presupuesto dado (por defecto el del checkpoint, [min_pixels, max_pixels] = [4, 16,384] tokens·28²). No dependen de la
+  // config (el ViT y el procesador son los mismos en 2B / 7B / 72B). Ver la tabla del encabezado.
+  const BUDGET_1280 = { minPixels: 256 * 784, maxPixels: 1280 * 784 };   // presupuesto sugerido en la model card: 256–1280 tokens
+  const BUDGET_256 = { minPixels: 256 * 784, maxPixels: 256 * 784 };     // tope de 256 tokens
+  const NAMED_SIZES = [
+    // [sufijo, alto, ancho, presupuesto]
+    ['720p', 720, 1280], ['1080p', 1080, 1920], ['1080pBudget', 1080, 1920, BUDGET_1280],
+    ['4k', 2160, 3840], ['4kBudget', 2160, 3840, BUDGET_1280],
+    ['A4', 3508, 2480], ['A4Budget', 3508, 2480, BUDGET_1280], ['A4Low', 3508, 2480, BUDGET_256],
+    ['RobotView', 480, 640],
+  ];
+  function namedSizes() {
+    const q = {};
+    for (const [k, h, w, o] of NAMED_SIZES) {
+      const r = smartResize(h, w, o), t = qwenTokens(r.H, r.W, 1);
+      q['tokens' + k] = t.tokens; q['patches' + k] = t.patches; q['resized' + k] = r.H + '×' + r.W; q['grid' + k] = t.gridH + '×' + t.gridW;
+    }
+    q.tokensRobot3 = 3 * q.tokensRobotView;   // tres vistas por paso de control
+    return q;
   }
 
   function qwenApply(c, ov) {
@@ -465,7 +506,9 @@
     };
     if (r.model === 'llava') Object.assign(q, { images: c.images, featureLayer: c.Lv - 1 });
     else Object.assign(q, { frames: c.frames, F: c.F, t: c.t, gridH: c.H / 28, gridW: c.W / 28, posSpan: c.posSpan, imagePosSpan: c.imagePosSpan,
-      visualModuleParams: p.visionParams + p.projectorParams });
+      visualModuleParams: p.visionParams + p.projectorParams }, namedSizes());
+    if (r.model === 'llava') Object.assign(q, { anyresTokens336: llavaNextTokens(336, 336).tokens, anyresTokens640x480: llavaNextTokens(640, 480).tokens,
+      anyresTokens480x640: llavaNextTokens(480, 640).tokens, anyresTokens672: llavaNextTokens(672, 672).tokens });
     return q;
   }
 

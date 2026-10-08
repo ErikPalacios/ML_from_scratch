@@ -203,6 +203,8 @@
   const KNOBS_BY_MODEL = {
     sam: { P: { label: 'Clics P', show: (v) => 'P = ' + v, phrase: (v) => 'P = ' + v + (v === 1 ? ' clic' : ' clics') } },
     llava: { images: { label: 'Imágenes en el prompt', show: (v) => v + (v === 1 ? ' imagen' : ' imágenes'), phrase: (v) => v + (v === 1 ? ' imagen' : ' imágenes') + ' en el prompt' } },
+    // Qwen2-VL: frames = 1 es una imagen (se duplica a 2 frames); un video de F frames da F/2 parches temporales.
+    'qwen2-vl': { frames: { label: 'Frames del video F', sym: 'F', show: (v) => (v === 1 ? '1 (imagen)' : v + ' frames'), phrase: (v) => (v === 1 ? 'una imagen' : 'un video de ' + v + ' frames') } },
     llm: {
       T: { label: 'Tokens del prompt T', show: (v) => 'T = ' + fInt(v), phrase: (v) => 'un prompt de ' + fInt(v) + ' tokens' },
       ctx: { label: 'Contexto ctx', show: (v) => fInt(v) + ' tok', phrase: (v) => fInt(v) + ' tokens de contexto en la cache' },
@@ -573,7 +575,13 @@
     promptTokens: { label: 'Tokens del prompt (N + T)', kind: 'count', note: 'visuales + texto' },
     visualShare: { label: 'Parte visual del prompt', kind: 'pct', note: '% de los tokens del prompt que son de imagen' },
     prefillShareFromImage: { label: 'Prefill debido a la imagen', kind: 'pct', note: '% de los MACs del prefill: torre de visión + projector + los N tokens en el LLM' },
-    kvBytesPerImage: { label: 'KV cache por imagen', kind: 'bytes', note: 'N tokens × KV por token (bf16)' },
+    kvBytesPerImage: { label: 'KV cache por imagen', kind: 'bytes', note: 'N tokens × KV por token (bf16)', notes: { 'qwen2-vl': 'N tokens × KV por token (bf16); en un video, el clip entero' } },
+    visualTokensPerImage: { label: 'Tokens visuales por imagen', kind: 'count', note: '', notes: { llava: '576 por imagen a 336 px', 'qwen2-vl': 'una imagen; en un video, el clip entero' } },
+    llmMacsFromImage: { label: 'MACs del LLM por la imagen', kind: 'ops', note: 'prefill del LLM con N + T filas menos con T' },
+    llmMacsTextOnly: { label: 'MACs del LLM solo con el texto', kind: 'ops', note: 'prefill del LLM con las T filas de texto' },
+    posSpan: { label: 'Posiciones M-RoPE ocupadas', kind: 'count', note: 'texto + max(alto, ancho) de la rejilla de la imagen' },
+    crossoverN: { label: 'Largo donde la atención iguala a las lineales', kind: 'count', note: 'filas a partir de las que QKᵀ + A·V cuestan más que las proyecciones y la FFN (por capa)' },
+    scoreToLinear: { label: 'Atención / lineales', kind: 'ratio', note: 'MACs de QKᵀ + A·V sobre los de las lineales, por capa' },
     kvBytesPrompt: { label: 'KV cache del prompt', kind: 'bytes', note: '(N + T) × KV por token (bf16)' },
     visionMacs: { label: 'MACs de la torre de visión', kind: 'ops', note: 'ViT completo (LLaVA corre las 24 capas aunque usa la penúltima)' },
     visionMacsUsed: { label: 'MACs de visión que se usan', kind: 'ops', note: 'hasta la capa de la que salen las features' },
@@ -1211,14 +1219,15 @@
     [off1, swap, trans.length ? trans : other, other, swap, off1].forEach(take);
     return out.slice(0, 3);
   }
-  function labelPool(model, spec, exceptLabel) {
-    const seen = new Set([String(exceptLabel || '').toLowerCase()]);
+  function labelPool(model, spec, exceptLabel, configId) {
+    const seen = new Set([String(fillLabel(exceptLabel || '', configId)).toLowerCase()]);
     const out = [];
     const ds = [spec].concat(diagramsOf(model).filter((d) => d.id !== spec.id));
     ds.forEach((d) => (d.nodes || []).forEach((n) => {
-      const k = String(n.label || '').toLowerCase();
+      const text = fillLabel(n.label || '', configId);
+      const k = String(text).toLowerCase();
       if (!n.label || seen.has(k) || n.op === 'io') return;
-      seen.add(k); out.push({ id: n.id, text: n.label, local: d.id === spec.id });
+      seen.add(k); out.push({ id: n.id, text, local: d.id === spec.id });
     }));
     return out;
   }
@@ -1261,10 +1270,11 @@
           const pool = shuffle((ATLAS.OP_TYPES || []).filter((o) => o.id !== 'io' && o.id !== n.op).map((o) => ({ id: o.id, text: o.title })), r);
           slot = { id: n.id, ask, correct: { id: n.op, text: opTitle(n.op) }, pool };
         } else {
-          const pool = labelPool(model, spec, n.label);
+          const cid = R && R.id;
+          const pool = labelPool(model, spec, n.label, cid);
           // primero los del mismo diagrama (más difíciles), luego los de otros
           const local = shuffle(pool.filter((p) => p.local), r), other = shuffle(pool.filter((p) => !p.local), r);
-          slot = { id: n.id, ask, correct: { id: n.id, text: n.label }, pool: local.slice(0, 2).concat(other, local.slice(2)) };
+          slot = { id: n.id, ask, correct: { id: n.id, text: fillLabel(n.label, cid) }, pool: local.slice(0, 2).concat(other, local.slice(2)) };
         }
       }
       if (!slot) return;
@@ -1277,7 +1287,7 @@
         opts = s.options.map((o) => {
           if (o && typeof o === 'object') return { id: String(o.id != null ? o.id : o.text), text: String(o.text != null ? o.text : o.id), mono: slot.ask === 'shape' };
           const str = String(o);
-          if (slot.ask === 'label') { const n = nodes.find((x) => x.id === str); return n ? { id: n.id, text: n.label } : { id: 'txt:' + str, text: str }; }
+          if (slot.ask === 'label') { const n = nodes.find((x) => x.id === str); return n ? { id: n.id, text: fillLabel(n.label, R && R.id) } : { id: 'txt:' + str, text: str }; }
           if (slot.ask === 'op') return { id: str, text: opTitle(str) };
           const k = str.replace(/\s*[x×*]\s*/g, '×');
           return { id: k, text: k, mono: true };
@@ -1296,7 +1306,7 @@
     const blankLabel = {};
     out.forEach((s) => { if (s.ask === 'label') blankLabel[s.id] = s.n; });
     const plain = (t) => (ATLAS.ArchDiagram && typeof ATLAS.ArchDiagram.plainSub === 'function' ? ATLAS.ArchDiagram.plainSub(t) : String(t)).replace(/\n/g, ' ');
-    const nameOf = (nid) => (blankLabel[nid] ? 'hueco ' + blankLabel[nid] : '«' + plain((nodes.find((x) => x.id === nid) || {}).label || nid) + '»');
+    const nameOf = (nid) => (blankLabel[nid] ? 'hueco ' + blankLabel[nid] : '«' + plain(fillLabel((nodes.find((x) => x.id === nid) || {}).label || nid, R && R.id)) + '»');
     // Huecos de nombre: "después de X" (arista de entrada); si otro hueco tiene la misma descripción (dos bloques que
     // salen de «Tokens») o no hay entrada (la máscara entra por control), "antes de Y" (arista de salida). slots[i].desc
     // del autor manda (texto plano, no debe delatar la respuesta).
@@ -1497,7 +1507,7 @@
     // Fase 7 (VLMs): la torre de visión tiene sus propios símbolos (D_v, h_v…) además de los del LLM.
     if (typeof c.Dv === 'number') {
       [['D_v', c.Dv, 'ancho de la torre de visión'], ['h_v', c.hv, 'cabezas de la torre de visión'], ['d_v', c.dv, 'dim. por cabeza de la visión'],
-        ['L_v', c.Lv, 'capas de la torre de visión'], ['N_p', c.Np, 'patches de la imagen'], ['F', c.F, 'frames']]
+        ['L_v', c.Lv, 'capas de la torre de visión'], ['N_p', c.Np, c.frames > 1 ? 'patches del video entero (todos los pares de frames)' : c.images != null ? 'patches de UNA imagen (sin CLS)' : 'patches de la imagen'], ['F', c.F, 'frames']]
         .forEach(([sym, v, note]) => { if (typeof v === 'number' && !has(sym)) out.push([sym, v, note]); });
     }
     return out;
@@ -1575,17 +1585,29 @@
   const plainLabel = (t) => String(t == null ? '' : t).replace(/\n/g, ' ')
     .replace(/_\{\\(?:mathrm|text|rm)\{([^{}]*)\}\}/g, '_$1').replace(/_\{([^{}\\]*)\}/g, '_$1')
     .replace(/\s+/g, ' ').trim();
+  // Etiqueta de diagrama con {{…}} del calculador ('LLM decoder ({{cfg.llmLabel}})') → texto plano con los valores de la
+  // config del drill (sin HTML ni entidades: el prompt escapa al mostrar).
+  const unent = (x) => x.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  function fillLabel(t, configId) {
+    const s0 = String(t == null ? '' : t);
+    if (s0.indexOf('{{') < 0 || !configId) return s0;
+    return unent(fill(s0, { config: configId }).replace(/<[^>]*>/g, ''));
+  }
+  // Copias de los pesos de una op (op.paramRepeat, fase 7: LLaVA con varias imágenes corre la torre `images` veces con los
+  // mismos pesos); por defecto op.repeat.
+  const pRep = (o) => (o && o.paramRepeat != null ? o.paramRepeat : (o && o.repeat) || 1);
   function nodeParams(R, model, ref) {
     const loc = locateParamsNode(model, R, ref);
     if (!loc || !loc.ops.length) return null;
     const all = loc.ops;
     const ops = all.filter((o) => (o.params || 0) > 0);
     if (!ops.length) return null;
-    const rep = Math.max(...all.map((o) => o.repeat || 1));
-    const mixed = all.some((o) => (o.repeat || 1) !== rep);
+    // repeticiones de los PESOS (paramRepeat): con pesos compartidos (LLaVA con varias imágenes) no es el repeat de los MACs
+    const rep = Math.max(...all.map(pRep));
+    const mixed = all.some((o) => pRep(o) !== rep);
     const group = !!loc.group;
-    const whole = group || mixed;                 // total del modelo para ese bloque (Σ op × repeat)
-    const times = (o) => (whole ? (o.repeat || 1) : 1);
+    const whole = group || mixed;                 // total del modelo para ese bloque (Σ op × paramRepeat)
+    const times = (o) => (whole ? pRep(o) : 1);
     const total = ops.reduce((a, o) => a + o.params * times(o), 0);
     // Errores típicos de conteo: olvidar los biases de linear/conv, o los γ y β de LayerNorm.
     const biasOf = (o) => (o.detail && o.detail.bias ? (o.detail.dout || o.detail.cout || 0) : 0);
@@ -1607,6 +1629,8 @@
     const layerSym = txt ? (cfg.Lt != null ? ['L_t', cfg.Lt] : null)
       : cfg.Lenc != null && (inPath('encoder') || inPath('enhancer')) ? ['L_enc', cfg.Lenc]
       : cfg.Ldec != null && inPath('decoder') ? ['L_dec', cfg.Ldec]
+      // Fase 7 (VLM): la torre de visión tiene su propio número de capas (L_v), distinto del L del LLM.
+      : cfg.Lv != null && inPath('vision-encoder') ? ['L_v', cfg.Lv]
       : cfg.L != null && !isSwin ? ['L', cfg.L] : null;
     const sym = layerSym && layerSym[1] === rep ? layerSym[0] + ' = ' + rep : '' + rep;
     // ¿El repeat mayor es de verdad el número de capas? (En el backbone ResNet de DETR el mayor repeat
@@ -1618,9 +1642,14 @@
     else if (rep > 1) qual = isSwin
       ? (pairUnit ? ' (una sola pareja de bloques; hay ' + rep + ')' : ' (un solo bloque; el stage tiene ' + rep + ' pares)')
       : ' (una sola capa; hay ' + sym + ')';
+    // LLaVA: la capa repetida del ViT cuenta L_v − 1 = 23 (hasta la penúltima, de donde salen las features); la 24 es otra
+    // op (la que HF calcula y descarta). Todas tienen los mismos parámetros: la pregunta es por UNA capa de las L_v = 24.
+    const vlmVis = cfg.Lv != null && inPath('vision-encoder');
+    if (vlmVis && !group && !mixed && rep === cfg.Lv - 1) qual = ' (una sola capa; la torre tiene L_v = ' + cfg.Lv + ': las ' + rep + ' hasta la penúltima, de donde salen las features, y la ' + cfg.Lv + ', que HF calcula y descarta)';
+    if (vlmVis && !group && mixed && model === 'llava') qual = ' (entero: embeddings, las L_v = ' + cfg.Lv + ' capas —también la ' + cfg.Lv + ', que se descarta— y ln_post)';
     // Nombre: el del diagrama (o el de la op hoja), con el contexto que falte (stage/bloque, torre).
     // node.drillLabel / group.drillLabel: nombre para el drill cuando la etiqueta del diagrama es corta ('Clase').
-    let base = plainLabel(loc.group ? (loc.group.drillLabel || loc.group.label || loc.node.label) : loc.node ? (loc.node.drillLabel || loc.node.label) : loc.op.label);
+    let base = plainLabel(fillLabel(loc.group ? (loc.group.drillLabel || loc.group.label || loc.node.label) : loc.node ? (loc.node.drillLabel || loc.node.label) : loc.op.label, R.id));
     const low = (x) => String(x).toLowerCase();
     // Sin paréntesis ni puntuación al comparar: 'Backbone (ResNet-50)' ya está en 'Backbone ResNet-50'.
     const norm = (x) => low(x).replace(/[()[\],:·]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1654,6 +1683,19 @@
       const lastCtx = ctxParts[ctxParts.length - 1];
       const wb = norm(base).split(' '), wc = norm(lastCtx).split(' ');
       if (wb.length > 1 && wb[0] === wc[0] && wb.slice(1).some((w) => !wordIn(lastCtx, w))) { base = lastCtx; ctxParts = ctxParts.slice(0, -1); }
+    }
+    // Fase 7 (VLM): un grupo repetido (todas las capas del ViT o del LLM) se nombra por lo que cuenta exactamente: solo las
+    // capas, sin lo que el resto de la página llama "el ViT" (patchify + capas + merger, ≈ 675M) o "el LLM" (con embedding
+    // y LM head). Sin contexto: el nombre ya lo dice todo.
+    if (group && !mixed && cfg.Lv != null && !loc.group.drillLabel && (vlmVis || inPath('llm'))) {
+      ctxParts = [];
+      if (vlmVis) {
+        base = 'Encoder de visión';
+        qual = ' (solo las ' + sym + ' capas del ViT, ' + (model === 'llava' ? 'sin patch embedding, CLS, posición ni la capa ' + cfg.Lv + ')' : 'sin patchify ni merger)');
+      } else {
+        base = 'LLM decoder' + (cfg.llmLabel ? ' (' + cfg.llmLabel + ')' : '');
+        qual = ' (solo las ' + sym + ' capas, sin embedding, norma final ni LM head)';
+      }
     }
     const label = (ctxParts.length ? ctxParts.join(' · ') + ' · ' : '') + base;
     return { ops, total, group: whole, perLayer: !whole && rep > 1, repeat: rep, biases, lnParams, label, qual,

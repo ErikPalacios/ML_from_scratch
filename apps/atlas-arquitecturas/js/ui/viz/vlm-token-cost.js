@@ -5,7 +5,8 @@
    - MACs del prefill: encoder de visión · proyector (o merger) · LLM sobre los tokens visuales · LLM sobre el texto;
    - KV cache del prompt: la parte de las imágenes (kvBytesPerImage × imágenes) y la del texto.
    Y una curva: la fracción del prefill que viene de la imagen (prefillShareFromImage) al crecer la imagen (Qwen2-VL:
-   lado en píxeles) o el número de imágenes (LLaVA-1.5: 576 tokens cada una), con el punto actual.
+   lado en píxeles) o el número de imágenes (LLaVA-1.5: 576 tokens cada una), con el punto actual; el eje x es
+   proporcional al knob.
    Lo único que no es del calculador: nada (las configs y los knobs son los del calculador; la curva es una barrida de
    metrics()).
    params: { model:'qwen2-vl'|'llava', side:812 (Qwen2-VL), images:1 (LLaVA), T:128 }
@@ -38,6 +39,8 @@
     function met(st) {
       try { return A.metrics(MODELS[st.model].cfg, ovOf(st)); } catch (e) { return null; }
     }
+    // porcentaje: "<1 %" en vez de un 0 % que no es cero (el merger de Qwen2-VL, ≈ 0.4 % del prefill)
+    const pct = (v, tot) => { const f = tot > 0 ? 100 * v / tot : 0; return f > 0 && f < 1 ? '<1 %' : Math.round(f) + ' %'; };
     const num = (m, ...ks) => { for (const k of ks) if (m && Number.isFinite(m[k])) return m[k]; return null; };
 
     const wrap = V.html('div', { class: 'viz viz-vtc' }, el);
@@ -93,7 +96,7 @@
         // leyenda debajo: una línea por parte en el teléfono, en fila en ancho
         let lx2 = lx;
         parts.forEach((p) => {
-          const s = p.label + ' ' + (tot > 0 ? Math.round(100 * p.v / tot) : 0) + ' %';
+          const s = p.label + ' ' + pct(p.v, tot);
           if (narrow) { y += 14; V.svg('rect', { x: lx, y: r1(y - 9), width: 9, height: 9, class: 'viz-vtc-seg ' + p.cls }, svg); t(svg, lx + 13, y, s, 'viz-s'); }
           else { V.svg('rect', { x: r1(lx2), y: r1(y + 4), width: 9, height: 9, class: 'viz-vtc-seg ' + p.cls }, svg); t(svg, lx2 + 13, y + 13, s, 'viz-s'); lx2 += 13 + s.length * 6.6 + 18; }
         });
@@ -107,7 +110,7 @@
         { v: llmTxt || 0, label: 'LLM: texto', cls: 'is-llmtxt' },
       ], total, ops);
       if (kvTxt != null) stack('KV cache del prompt (16 bits)', [
-        { v: kvImg, label: 'imágenes', cls: 'is-llmimg' },
+        { v: kvImg, label: nImg === 1 ? 'imagen' : 'imágenes', cls: 'is-llmimg' },
         { v: kvTxt, label: 'texto', cls: 'is-llmtxt' },
       ], kvImg + kvTxt, fmt.bytes);
       // curva: fracción del prefill que viene de la imagen al barrer el knob
@@ -118,7 +121,9 @@
         t(svg, lx, y + 4, narrow ? 'prefill por la imagen, según ' + (state.model === 'qwen2-vl' ? 'el lado' : 'las imágenes') : 'parte del prefill que viene de la imagen, según ' + (state.model === 'qwen2-vl' ? 'el lado (px)' : 'las imágenes'), 'viz-s');
         V.svg('rect', { x: cx0, y: cy0, width: cw2, height: ch, class: 'viz-rl-box' }, svg);
         [0, 50, 100].forEach((v) => { const yy = cy0 + ch - ch * v / 100; t(svg, cx0 - 5, yy + 4, v + ' %', 'viz-s', 'end'); if (v && v < 100) V.svg('path', { d: 'M' + cx0 + ' ' + r1(yy) + 'H' + r1(cx0 + cw2), class: 'viz-rl-grid' }, svg); });
-        const X = (i) => cx0 + 10 + i * (cw2 - 20) / (pts.length - 1), Y = (s) => cy0 + ch - ch * s;
+        // x proporcional al knob (lado en px o número de imágenes), no equiespaciado: una escala pareja doblaba la curva
+        const xa = pts[0].x, xb = pts[pts.length - 1].x;
+        const X = (i) => cx0 + 10 + (pts[i].x - xa) / ((xb - xa) || 1) * (cw2 - 20), Y = (s) => cy0 + ch - ch * s;
         V.svg('path', { d: pts.map((p, i) => (i ? 'L' : 'M') + r1(X(i)) + ' ' + r1(Y(p.s))).join(''), class: 'viz-vtc-line' }, svg);
         pts.forEach((p, i) => {
           const cur = state.model === 'qwen2-vl' ? p.x === state.side : p.x === state.images;
@@ -144,7 +149,7 @@
       kv('prefill:', ops(x.total));
       if (Number.isFinite(x.share)) kv('por la imagen:', Math.round(100 * x.share) + ' %');
       if (x.kvTxt != null) kv('KV cache del prompt:', fmt.bytes(x.kvImg + x.kvTxt));
-      note.innerHTML = 'Todo del calculador (' + MODELS[state.model].title + ', con los knobs de la imagen y el texto). La imagen paga dos veces: el encoder de visión la procesa entera y, después, sus tokens entran al LLM como cualquier otro token (MACs del prefill, atención cuadrática y KV cache). ' +
+      note.innerHTML = 'Todo del calculador (' + MODELS[state.model].title + (state.model === 'qwen2-vl' ? ': una imagen; se cambian su lado y el texto' : ': se cambian el número de imágenes y el texto; el tamaño no es un knob, cada imagen se lleva a 336×336') + '). La imagen paga dos veces: el encoder de visión la procesa entera y, después, sus tokens entran al LLM como cualquier otro token (MACs del prefill, atención cuadrática y KV cache). ' +
         (state.model === 'qwen2-vl' ? 'En Qwen2-VL los tokens crecen con el área de la imagen: el doble de lado ≈ el cuádruple de tokens.' : 'En LLaVA-1.5 cada imagen son siempre los mismos tokens: el costo crece con el número de imágenes, no con su tamaño.');
     }
 

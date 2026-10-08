@@ -2103,7 +2103,10 @@
       input(id, sh, meta) { return addTensor(id, sh, meta, null); },
       tensor(id) { const t = tensors[id]; if (!t) throw new Error('Tensor desconocido: ' + id); return Object.assign(plain(t), { id }); },
       has(id) { return !!tensors[id]; },   // fase 7 (importGraph)
-      // op(id, resultadoDePrimitiva, {path|node, out, outMeta, label, repeat, type, group, in?})
+      // op(id, resultadoDePrimitiva, {path|node, out, outMeta, label, repeat, paramRepeat?, type, group, in?})
+      // paramRepeat (fase 7): cuántas copias DISTINTAS de los pesos hay (por defecto = repeat). Difiere cuando la misma
+      // op corre varias veces con pesos compartidos: la torre de visión de LLaVA con `images` > 1 corre images veces
+      // (MACs × repeat) pero sus pesos existen una sola vez (parámetros × paramRepeat).
       op(id, res, o) {
         o = o || {};
         if (opIds.has(id)) throw new Error('Operación "' + id + '" definida dos veces.');
@@ -2119,7 +2122,7 @@
         ins.forEach((tid) => tensors[tid].consumers.push(id));
         ops.push({
           id, prim: res.prim, label: o.label || id, path, node: path[path.length - 1],
-          in: ins, out: outIds, repeat: o.repeat || 1,
+          in: ins, out: outIds, repeat: o.repeat || 1, paramRepeat: o.paramRepeat != null ? o.paramRepeat : (o.repeat || 1),
           params: res.params, macs: res.macs, other: res.other,
           paramTex: o.paramTex || res.paramFormula, paramArith: res.paramArith,
           macTex: o.macTex || res.macFormula, macArith: res.macArith,
@@ -2148,9 +2151,12 @@
   // MLP: la torre de visión de un VLM usa h_v, d_v y 4D_v para no chocar con los del LLM), rope (función ({op, T, at, L},
   // q, k) → [q', k'] que inserta la rotación entre split y scores: RoPE 2-D del ViT de Qwen2-VL), outMeta (metadatos del
   // tensor de salida) y entradas con dimensiones delanteras (segmentos × N × D: atención por segmento, como las ventanas).
+  // paramL (opcional): copias distintas de los pesos (op.paramRepeat) cuando L cuenta además ejecuciones con pesos
+  // compartidos (LLaVA con images > 1: L = capas × imágenes, paramL = capas). Por defecto = L.
   function preLnLayer(g, x, o) {
     const P = o.prefix || ['enc-layer'];
     const rep = o.L || 1;
+    const prep = o.paramL || rep;
     const L = (meta) => Object.assign({ perLayer: true }, meta);
     const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1];
     const at = P.concat(['mhsa']), ml = P.concat(['mlp']);
@@ -2158,7 +2164,7 @@
     const pre = o.labelPrefix || '';
     const tag = (m) => (pre && m && m.label ? Object.assign({}, m, { label: pre + m.label }) : m);
     const op = (id, res, path, extra) => {
-      const e = Object.assign({ path, repeat: rep }, extra);
+      const e = Object.assign({ path, repeat: rep, paramRepeat: prep }, extra);
       if (o.where) e.where = o.where;
       if (pre && e.outMeta) e.outMeta = Array.isArray(e.outMeta) ? e.outMeta.map(tag) : tag(e.outMeta);
       return g.op(O(id), res, e);
@@ -2244,7 +2250,7 @@
           shapeTex: tex(op.shapeTex), detail: op.detail };
       }
       const e = { path: o.path ? o.path(op.path.slice()) : op.path.slice(), in: (rp && rp.in) || ins, out: outIds.length === 1 ? outIds[0] : outIds,
-        outMeta: op.out.map((id) => meta(src.tensors[id])), label: (rp && rp.label) || op.label, repeat: op.repeat, type: op.type, group: op.group };
+        outMeta: op.out.map((id) => meta(src.tensors[id])), label: (rp && rp.label) || op.label, repeat: op.repeat, paramRepeat: op.paramRepeat, type: op.type, group: op.group };
       if (outIds.length === 1) e.outMeta = e.outMeta[0];
       const w = o.where ? o.where((op.where || []).slice()) : op.where;
       if (w && w.length) e.where = w;
@@ -2301,6 +2307,10 @@
     return configId + '|' + Object.keys(ov).sort().map((k) => k + '=' + ov[k]).join(',');
   }
 
+  // Copias de los pesos de una op (op.paramRepeat; por defecto op.repeat). Los totales de parámetros usan esto; los MACs,
+  // op.repeat. Úsalo en la UI en vez de params × repeat.
+  function paramRep(op) { return op && op.paramRepeat != null ? op.paramRepeat : (op && op.repeat) || 1; }
+
   function run(configId, overrides) {
     const key = memoKey(configId, overrides);
     if (memo[key]) return memo[key];
@@ -2315,10 +2325,10 @@
     const totals = { params: 0, macs: 0, flops: 0, other: 0, byNode: {}, byPath: {}, byPrim: {}, byGroup: {} };
     const bump = (map, k, op) => {
       const e = map[k] || (map[k] = { params: 0, macs: 0, other: 0 });
-      e.params += op.params * op.repeat; e.macs += op.macs * op.repeat; e.other += op.other * op.repeat;
+      e.params += op.params * paramRep(op); e.macs += op.macs * op.repeat; e.other += op.other * op.repeat;
     };
     for (const op of ops) {
-      totals.params += op.params * op.repeat;
+      totals.params += op.params * paramRep(op);
       totals.macs += op.macs * op.repeat;
       totals.other += op.other * op.repeat;
       new Set(op.path).forEach((n) => bump(totals.byNode, n, op));
@@ -2447,7 +2457,7 @@
   function model(id) { const d = models[id]; if (!d) throw new Error('Modelo desconocido: "' + id + '".'); return d; }
 
   const A = Object.assign(ATLAS.Arch || {}, PRIMS, {
-    shape, graph, preLnLayer, importGraph, defineModel, run, metrics, resolve, fmt, primitives,
+    shape, graph, preLnLayer, importGraph, defineModel, run, metrics, resolve, fmt, primitives, paramRep,
     configs, models: () => Object.keys(models), model, hasConfig: (id) => !!configIndex[id],
     canonical: (mid) => { const c = configs(mid).find((x) => x.canonical); return c ? c.id : null; },
     DTYPE_BYTES: Object.assign({}, DTYPE_BYTES), OTHER_COST: Object.assign({}, OTHER),

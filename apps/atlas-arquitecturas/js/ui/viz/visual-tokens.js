@@ -95,7 +95,9 @@
       const ow = state.W * k, oh = state.H * k;
       const panW = narrow ? W - 16 : (W - 16 - box - 30) / 3, panH = narrow ? 150 : 210, drawH = narrow ? 92 : 128;
       const y0 = 40, py0 = narrow ? y0 + box + 30 : y0;
-      const Hh = narrow ? py0 + 3 * (panH + 10) + 6 : y0 + Math.max(box, panH) + 12;
+      // rejillas de más de 32 tokens por lado: una línea cada k tokens (el mismo k en los dos ejes); el pie lo dice
+      const gridK = Math.max(1, ...infos.filter((x) => x.ok && x.m.id !== 'anyres').map((x) => (x.cells ? Math.ceil(Math.max(x.cells[0], x.cells[1]) / 32) : Math.ceil(x.grid / 32))));
+      const Hh = (narrow ? py0 + 3 * (panH + 10) + 6 : y0 + Math.max(box, panH) + 12) + (gridK > 1 ? 14 : 0);
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' ' + Hh, style: 'max-width:' + W + 'px', role: 'img', 'aria-label': ariaOf(infos) }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); e.textContent = s; return e; };
       t(svg, 8, 15, narrow ? 'Imagen de ' + state.W + '×' + state.H + ' px → ¿tokens?' : 'Una imagen de ' + state.W + '×' + state.H + ' px → ¿cuántos tokens para el LLM?', 'viz-t');
@@ -134,6 +136,7 @@
         if (x.ok) V.svg('rect', { x: r1(bx), y: r1(by + (narrow ? 36 : 20)), width: r1(Math.max(1.5, bw * x.tokens / tmax)), height: 8, class: 'viz-vt-bar' }, g);
       });
       readout(infos);
+      if (gridK > 1) t(svg, W - 8, Hh - 4, 'rejilla: una línea cada ' + gridK + ' tokens', 'viz-s', 'end');
     }
 
     // dibujo de cada estrategia dentro de (X, Y, w, h); la geometría es la que devolvió el calculador
@@ -169,8 +172,9 @@
       V.svg('text', { x: r1(bx + bw / 2), y: r1(by - 4), class: 'viz-s', 'text-anchor': 'middle' }, g).textContent = 'base';
     }
     function gridLines(V, g, x, y, w, h, nr, nc, cls) {
-      // hasta 32 líneas por eje (más serían una mancha): si hay más, una cada k tokens
-      const kr = Math.max(1, Math.ceil(nr / 32)), kc = Math.max(1, Math.ceil(nc / 32));
+      // hasta 32 líneas por eje (más serían una mancha): si hay más, una cada k tokens, el MISMO k en los dos ejes (una
+      // celda dibujada = k×k tokens; con k distintos las celdas dejaban de ser cuadradas); el pie lo avisa (gridNote)
+      const k = Math.max(1, Math.ceil(nr / 32), Math.ceil(nc / 32)), kr = k, kc = k;
       let d = '';
       for (let i = kc; i < nc; i += kc) d += 'M' + r1(x + i * w / nc) + ' ' + r1(y) + 'V' + r1(y + h);
       for (let i = kr; i < nr; i += kr) d += 'M' + r1(x) + ' ' + r1(y + i * h / nr) + 'H' + r1(x + w);

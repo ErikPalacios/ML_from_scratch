@@ -2466,6 +2466,24 @@ test('F7 LLaVA-1.5: anclas de HF (params exactos), penúltima capa, proyector, p
   // knobs: 2 imágenes = torre y proyector ×2, prompt 1152 + T; T cambia solo el LLM
   const r2 = A7.run('llava15-7b', { images: 2 });
   assert.deepStrictEqual([r2.config.N, r2.tensors.prompt.num[0], r2.quantities.visionMacs], [1152, 1216, 2 * q.visionMacs]);
+  // revisión F7: los pesos de la torre y del proyector son los MISMOS para cada imagen: parámetros × 1, MACs × images
+  for (const [cid, P] of [['llava15-7b', 7063427072], ['llava15-13b', 13351494656]]) {
+    const r1 = A7.run(cid);
+    for (const images of [2, 4]) {
+      const ri = A7.run(cid, { images }), m = A7.metrics(cid, { images });
+      assert.strictEqual(ri.totals.params, P, cid + ' images=' + images);
+      assert.deepStrictEqual(['vision-encoder', 'projector', 'enc-layer', 'last-layer', 'llm'].map((k) => ri.totals.byNode[k].params),
+        ['vision-encoder', 'projector', 'enc-layer', 'last-layer', 'llm'].map((k) => r1.totals.byNode[k].params), cid + ' byNode');
+      assert.strictEqual(ri.totals.byPath['vision-encoder>enc-layer>mhsa>qkv'].params, r1.totals.byPath['vision-encoder>enc-layer>mhsa>qkv'].params);
+      assert.deepStrictEqual([m.totalParams, m.visionParams, m.projectorParams, m.weightBytes], [P, 303507456, r1.quantities.projectorParams, 2 * P]);
+      assert.strictEqual(ri.quantities.visionMacs, images * r1.quantities.visionMacs);
+      assert.strictEqual(ri.ops.find((o) => o.id === 'vis-qkv').repeat, 23 * images);
+      assert.strictEqual(ri.ops.find((o) => o.id === 'vis-qkv').paramRepeat, 23);
+      assert.strictEqual(ri.ops.find((o) => o.id === 'proj-fc1').paramRepeat, 1);
+    }
+  }
+  assert.strictEqual(A7.paramRep({ repeat: 5 }), 5);
+  assert.strictEqual(A7.paramRep({ repeat: 5, paramRepeat: 1 }), 1);
   assert.strictEqual(A7.run('llava15-7b', { T: 256 }).quantities.visionMacs, q.visionMacs);
   assert.match(A7.run('llava15-7b', { T: 4000 }).notes.join(' '), /contexto/);
 });
@@ -2511,6 +2529,17 @@ test('F7 Qwen2-VL: anclas de HF, patchify 3-D, merger 2×2, M-RoPE, Qwen2 con se
     [{ H: 812, W: 812 }, { H: 476, W: 644 }, { H: 56, W: 56 }, { H: 56, W: 84 }, { H: 4004, W: 2996 }]);
   assert.deepStrictEqual([A7.vlm.pyRound(2.5), A7.vlm.pyRound(3.5), A7.vlm.pyRound(2.4)], [2, 4, 2]);
   assert.strictEqual(A7.vlm.qwenTokens(476, 644).tokens, 17 * 23);
+  // max(factor, …) en la rama de max_pixels (HF): sin él, el lado corto sería 0
+  assert.deepStrictEqual(J(sr(5600, 28, { minPixels: 784, maxPixels: 7840 })), { H: 1232, W: 28 });
+  // cantidades con nombre de la prosa (alto × ancho; HF smart_resize, verificado en crosscheck/vlm.py)
+  const nq = A7.run('qwen2-vl-2b').quantities;
+  assert.deepStrictEqual(J(['720p', '1080p', '1080pBudget', '4k', '4kBudget', 'A4', 'A4Budget', 'A4Low', 'RobotView'].map((k) => [nq['tokens' + k], nq['patches' + k], nq['resized' + k]])), [
+    [1196, 4784, '728×1288'], [2691, 10764, '1092×1932'], [1222, 4888, '728×1316'], [10549, 42196, '2156×3836'], [1222, 4888, '728×1316'],
+    [11125, 44500, '3500×2492'], [1260, 5040, '1176×840'], [247, 988, '532×364'], [391, 1564, '476×644']]);
+  assert.deepStrictEqual([nq.grid720p, nq.tokensRobot3], ['26×46', 1173]);
+  assert.strictEqual(A7.run('qwen2-vl-72b').quantities.tokens4k, nq.tokens4k);
+  const lq = A7.run('llava15-7b').quantities;
+  assert.deepStrictEqual([lq.anyresTokens336, lq.anyresTokens640x480, lq.anyresTokens480x640, lq.anyresTokens672], [1176, 2352, 2340, 2928]);
 });
 
 test('F7 métricas: unidades conocidas, tokens y reparto del prefill, KV por imagen, roofline ≈, listas de escala', () => {
@@ -2566,7 +2595,9 @@ test('F7 etiqueta + símbolo identifican una forma; byPath suma; aritmética; wh
         (by[k] = by[k] || new Set()).add(x.num.join('×'));
       }
       for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
-      assert.strictEqual(r.ops.reduce((s, o) => s + o.params * o.repeat, 0), t.params);
+      // parámetros × paramRepeat (pesos compartidos entre imágenes), MACs × repeat
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.params * A7.paramRep(o), 0), t.params);
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.macs * o.repeat, 0), t.macs);
       assert.strictEqual(Object.values(t.byPrim).reduce((s, x) => s + x.macs, 0), t.macs);
       const check = (pp, want) => {
         const kids = children(r, pp);

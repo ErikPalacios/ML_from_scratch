@@ -234,9 +234,10 @@ def run_llava(config_id):
     shapes["pixels"] = [336, 336, 3]
     shapes["text-ids"] = [T_DEFAULT]
     oc = []
-    for ov in ({"T": 256}, {"images": 2}):
+    # varias imágenes: la torre y el proyector corren `images` veces con los MISMOS pesos (FLOPs × images, parámetros iguales)
+    for ov in ({"T": 256}, {"images": 2}, {"images": 4}):
         f2, _, _, sh2, _, _ = llava_forward(model, ov.get("T", T_DEFAULT), images=ov.get("images", 1), record=False, c=c)
-        oc.append({"calc_overrides": ov, "flops_total": f2})
+        oc.append({"calc_overrides": ov, "params_total": params_total, "flops_total": f2})
     notes = [
         "Modelo construido en código en el dispositivo meta (sin pesos ni hub; dimensiones del config.json de " + c["hf"] + "): parámetros exactos con sum(p.numel()).",
         f"FLOPs = FlopCounterMode sobre tensores meta con todas las capas: una imagen de 336×336 (576 tokens visuales) + T = {T_DEFAULT} tokens de texto = {S} filas en el LLM; logits sobre las {S} filas (sin logits_to_keep).",
@@ -382,11 +383,22 @@ def run_qwen(config_id):
                                   ({"H": 1344, "W": 1344}, (1344, 1344, 1, T_DEFAULT))):
             f2, _, _, sh2, _, _, _ = qwen_forward(model, c, h, w, T, frames=fr, record=True)
             keep = {k: sh2[k] for k in ("v-patches", "vis-feats", "v-grouped", "vis-tokens", "prompt", "pos-ids", "logits", "v-q-rope") if k in sh2}
-            oc.append({"calc_overrides": ov, "flops_total": f2, "shapes": keep})
+            oc.append({"calc_overrides": ov, "params_total": params_total, "flops_total": f2, "shapes": keep})
     resize = []
     for h, w in [[812, 812], [480, 640], [1080, 1920], [300, 400], [2000, 3000], [37, 50], [1024, 768], [4000, 3000], [1023, 1023], [70, 70], [42, 42]]:
         hh, ww = smart_resize(h, w, factor=28, min_pixels=MIN_PIXELS, max_pixels=MAX_PIXELS)
         resize.append({"h": h, "w": w, "H": int(hh), "W": int(ww)})
+    # tamaños con nombre de la prosa (quantities tokens720p… de js/arch/vlm.js) con su presupuesto, y un caso extremo que pasa
+    # por el max(factor, …) de la rama de max_pixels (5600×28 con un tope de 10 tokens: sin el max, el ancho sería 0)
+    B1280, B256 = (256 * 784, 1280 * 784), (256 * 784, 256 * 784)
+    for h, w, mm in [[720, 1280, None], [1080, 1920, None], [1080, 1920, B1280], [2160, 3840, None], [2160, 3840, B1280], [3508, 2480, None],
+                     [3508, 2480, B1280], [3508, 2480, B256], [480, 640, None], [5600, 28, (784, 7840)]]:
+        mn, mx = mm or (MIN_PIXELS, MAX_PIXELS)
+        hh, ww = smart_resize(h, w, factor=28, min_pixels=mn, max_pixels=mx)
+        e = {"h": h, "w": w, "H": int(hh), "W": int(ww)}
+        if mm:
+            e.update(min_pixels=mn, max_pixels=mx)
+        resize.append(e)
     notes = [
         "Modelo construido en código en el dispositivo meta (sin pesos ni hub; dimensiones del config.json de " + c["hf"] + "): parámetros exactos con sum(p.numel())"
         + (" (embeddings atados: la matriz V×D cuenta una vez; el LM head no suma parámetros)." if c["tied"] else "."),
@@ -396,7 +408,7 @@ def run_qwen(config_id):
         "Qwen2: W_Q, W_K, W_V con sesgo; W_O, la FFN y el LM head sin sesgo; RMSNorm ε 1e-6; RoPE θ 1e6 con M-RoPE (mrope_section [16, 24, 24]).",
         "Parches para meta (no cambian FLOPs): torch_compilable_check → no-op; get_vision_position_ids calculado en CPU y movido a meta; cu_seqlens en CPU (la atención del ViT se parte por par de frames); máscara 4-D de ceros; position_ids 3×1×S de ceros (la forma 3×S es la que recibe rotary_emb).",
         "Video (override frames = 4): pixel_values_videos con video_grid_thw = [2, H/14, W/14]: 2 parches temporales; la atención del ViT es por par de frames (cu_seqlens = repeat_interleave(h·w, t)) y el LLM ve 2·(H/28)(W/28) tokens.",
-        "smart_resize_checks: smart_resize de Qwen2VLImageProcessor (factor 28, min_pixels 3,136, max_pixels 12,845,056 del preprocessor_config.json) ↔ ATLAS.Arch.vlm.smartResize (redondeo de Python: mitad al par).",
+        "smart_resize_checks: smart_resize de Qwen2VLImageProcessor (factor 28, min_pixels 3,136, max_pixels 12,845,056 del preprocessor_config.json, o el presupuesto min_pixels/max_pixels de la entrada) ↔ ATLAS.Arch.vlm.smartResize (redondeo de Python: mitad al par; max(factor, …) en la rama de max_pixels).",
         "M-RoPE: con la imagen en el prompt, el texto siguiente continúa desde el máximo id + 1; el código original de Qwen2-VL usa max(t, h, w) de la rejilla y HF 5.19 max(h, w) (iguales para una imagen). No cambia FLOPs.",
     ]
     data = {

@@ -61,7 +61,7 @@ test('drills de parámetros: respuesta = lo que muestra el diagrama; prompt sin 
       const m = prompt.match(/las (?:[A-Za-z_]+ = )?(\d+) capas/);
       if (m) {
         const cf = R.config;
-        assert.ok([cf.L, cf.Lt, cf.Lenc, cf.Ldec].indexOf(+m[1]) >= 0, c.id + ': «' + prompt + '»');
+        assert.ok([cf.L, cf.Lt, cf.Lenc, cf.Ldec, cf.Lv].indexOf(+m[1]) >= 0, c.id + ': «' + prompt + '»');
       }
     }
   }

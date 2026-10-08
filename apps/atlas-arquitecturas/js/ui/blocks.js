@@ -45,6 +45,8 @@
 
   // ------------------------------------------------------------------ calculadora (ATLAS.Arch) — acceso defensivo
   const A = () => ATLAS.Arch || null;
+  // copias de los pesos de una op (op.paramRepeat, fase 7; por defecto op.repeat): los parámetros se multiplican por esto
+  const pRep = (o) => (o && o.paramRepeat != null ? o.paramRepeat : (o && o.repeat) || 1);
   function fmtInt(n) {
     const f = A() && A().fmt;
     if (f && typeof f.int === 'function') { const v = safe(() => f.int(n), null); if (v != null) return v; }
@@ -445,9 +447,12 @@
     const sectionId = (ctx && ctx.sectionId) || 'operaciones';
     const perCall = ops.reduce((s, o) => ({ p: s.p + (o.params || 0), m: s.m + (o.macs || 0) }), { p: 0, m: 0 });
     const byNode = !info.opsExact && !info.scope && !b.scope && !info.costOf && r.totals && r.totals.byNode && r.totals.byNode[b.block];
-    const total = byNode || ops.reduce((s, o) => ({ params: s.params + (o.params || 0) * (o.repeat || 1), macs: s.macs + (o.macs || 0) * (o.repeat || 1) }), { params: 0, macs: 0 });
+    const total = byNode || ops.reduce((s, o) => ({ params: s.params + (o.params || 0) * pRep(o), macs: s.macs + (o.macs || 0) * (o.repeat || 1) }), { params: 0, macs: 0 });
     const reps = Array.from(new Set(ops.map((o) => o.repeat || 1)));
     const rep = reps.length === 1 ? reps[0] : null;
+    // pesos compartidos (fase 7: LLaVA con varias imágenes): las copias de los pesos (paramRepeat) ≠ ejecuciones (repeat)
+    const preps = Array.from(new Set(ops.map(pRep)));
+    const prep = preps.length === 1 ? preps[0] : null;
     const showP = b.params === true || (b.params !== false && total.params > 0);
     const showM = b.flops === true || (b.flops !== false && total.macs > 0);
     const page = safe(() => ATLAS.getPage(pageId), null);
@@ -477,7 +482,7 @@
       counts.push(h('div', { class: 'scroll-x opc__scroll', tabindex: '0', role: 'region', 'aria-label': 'Conteo de ' + strip(b.title || labelText(info.label) || b.block) + ' (desplazable)' }, table));
       }
       const sum = [];
-      if (showP) sum.push(h('span', { class: 'opc__sum-item' }, h('span', { class: 'opc__k' }, 'Parámetros'), h('b', { class: 'mono' }, fmtInt(rep && rep > 1 ? perCall.p : total.params)), rep && rep > 1 ? h('span', { class: 'muted' }, ' por capa · × ' + rep + ' = ', h('b', { class: 'mono' }, fmtInt(total.params))) : null));
+      if (showP) sum.push(h('span', { class: 'opc__sum-item' }, h('span', { class: 'opc__k' }, 'Parámetros'), h('b', { class: 'mono' }, fmtInt(prep && prep > 1 ? perCall.p : total.params)), prep && prep > 1 ? h('span', { class: 'muted' }, ' por capa · × ' + prep + ' = ', h('b', { class: 'mono' }, fmtInt(total.params))) : null));
       if (showM) sum.push(h('span', { class: 'opc__sum-item' }, h('span', { class: 'opc__k' }, 'MACs'), h('b', { class: 'mono' }, fmtInt(rep && rep > 1 ? perCall.m : total.macs)), rep && rep > 1 ? h('span', { class: 'muted' }, ' por capa · × ' + rep + ' = ', h('b', { class: 'mono' }, fmtOps(total.macs))) : h('span', { class: 'muted mono' }, ' (' + fmtOps(total.macs) + ')')));
       if (other > 0) sum.push(h('span', { class: 'opc__sum-item muted' }, h('span', { class: 'opc__k' }, 'Otros (≈)'), h('span', { class: 'mono' }, fmtSi(other)), ' elementwise, fuera del total de MACs'));
       counts.push(h('div', { class: 'opc__sum' }, sum));
@@ -594,7 +599,7 @@
       let g = byKey.get(key);
       if (!g) { g = { key, ops: [], params: 0, macs: 0 }; byKey.set(key, g); groups.push(g); }
       g.ops.push(o);
-      g.params += (o.params || 0) * (o.repeat || 1);
+      g.params += (o.params || 0) * pRep(o);
       g.macs += (o.macs || 0) * (o.repeat || 1);
     }
     return groups;
@@ -610,7 +615,8 @@
     const valKey = which === 'params' ? 'params' : 'macs';
     const ops = g.ops.filter((o) => o[valKey] > 0 && o[texKey]);
     if (!ops.length) return h('span', { class: 'muted' }, '—');
-    const reps = Array.from(new Set(ops.map((o) => o.repeat || 1)));
+    const nRep = (o) => (which === 'params' ? pRep(o) : o.repeat || 1);
+    const reps = Array.from(new Set(ops.map(nRep)));
     const rep = reps.length === 1 && reps[0] > 1 ? reps[0] : 0;
     if (ops.length <= 2) {
       const body = ops.map((o) => o[texKey]).join(' + ');
@@ -619,7 +625,7 @@
     return h('details', { class: 'ptab__det' },
       h('summary', null, (rep ? '× ' + rep + ' · ' : '') + ops.length + ' operaciones'),
       h('ul', null, ops.map((o) => h('li', null, h('span', { class: 'ptab__oplabel' }, str(o.label || o.id)), ' ', h('span', { class: 'ptab__tex' }, tex(o[texKey])),
-        h('span', { class: 'mono muted' }, ' = ' + fmtInt(o[valKey]) + ((o.repeat || 1) > 1 ? ' × ' + o.repeat : ''))))));
+        h('span', { class: 'mono muted' }, ' = ' + fmtInt(o[valKey]) + (nRep(o) > 1 ? ' × ' + nRep(o) : ''))))));
   }
   const pct = (x, tot) => (tot > 0 ? (x / tot * 100) : 0);
   const pctTxt = (x, tot) => { const p = pct(x, tot); return p === 0 ? '0 %' : p < 0.1 ? '< 0.1 %' : p.toFixed(1) + ' %'; };
@@ -710,6 +716,15 @@
     llmPrefillMacs: { label: 'MACs del prefill del LLM', get: (r) => vlmMetric(r, 'llmPrefillMacs'), fmt: 'si', unit: 'MACs' },
     visionParams: { label: 'Parámetros de visión', get: (r) => vlmMetric(r, 'visionParams'), fmt: 'si' },
     llmParams: { label: 'Parámetros del LLM', get: (r) => vlmMetric(r, 'llmParams'), fmt: 'si' },
+    projectorParams: { label: 'Parámetros del proyector / merger', get: (r) => vlmMetric(r, 'projectorParams'), fmt: 'si' },
+    visualModuleParams: { label: 'Parámetros de visión + proyector', get: (r) => vlmMetric(r, 'visualModuleParams'), fmt: 'si' },
+    promptTokens: { label: 'Tokens del prompt (N + T)', get: (r) => vlmMetric(r, 'promptTokens'), fmt: 'int' },
+    kvBytesPrompt: { label: 'KV cache del prompt', get: (r) => vlmMetric(r, 'kvBytesPrompt'), fmt: 'bytes' },
+    visualShare: { label: 'Parte visual del prompt', get: (r) => vlmMetric(r, 'visualShare'), fmt: 'pct' },
+    prefillShareFromImage: { label: 'Prefill debido a la imagen', get: (r) => vlmMetric(r, 'prefillShareFromImage'), fmt: 'pct' },
+    visionMacsShare: { label: 'Visión: % del prefill', get: (r) => vlmMetric(r, 'visionMacsShare'), fmt: 'pct' },
+    Dv: { label: 'Ancho de la visión D_v', get: (r) => r.config && r.config.Dv, fmt: 'int' },
+    Lv: { label: 'Capas de la visión L_v', get: (r) => r.config && r.config.Lv, fmt: 'int' },
     // Revisión de la fase 6: bits de los pesos y de la KV cache por separado; pesos INT-k con embedding y LM head en 16 bits.
     bits: { label: 'Bits de los pesos', get: (r) => r.config && r.config.bits, fmt: 'int' },
     kvBits: { label: 'Bits de la KV cache', get: (r) => r.config && r.config.kvBits, fmt: 'int' },
@@ -748,6 +763,7 @@
       if (v == null) return '—';
       if (typeof v !== 'number') return String(v);
       if (m && m.fmt === 'bytes') { const f = A() && A().fmt; return f && f.bytes ? f.bytes(v) : fmtInt(v) + ' B'; }
+      if (m && m.fmt === 'pct') { const f = A() && A().fmt; return f && f.pct ? f.pct(v) : (100 * v).toFixed(1) + ' %'; }
       return (m && m.fmt === 'si') ? (m.unit ? fmtOps(v, m.unit) : fmtSi(v)) : fmtInt(v);   // "17.56 GMACs", como en la prosa
     };
     const table = h('table', { class: 'dtable dtable--num cmp' },

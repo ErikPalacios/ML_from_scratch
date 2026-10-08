@@ -52,6 +52,10 @@
   const NORMAL = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
   const CIRCLE_SHAPES = { add: 1, concat: 1, split: 1, pool: 1, flatten: 1, mul: 1 };
   let uid = 0;
+  // fase 7 (revisión): node.xref = [{href, label, cfg, cfgWhy}]: con cfg, el enlace abre la vista de destino con esa config
+  // (LLaVA → el bloque del decoder con llama2-7b, la arquitectura de Vicuna-7B). La ruta (#página.sección~diagrama.nodo) no
+  // lleva config: el clic la deja pendiente y la toma focusNode del diagrama que contiene la vista de destino.
+  let pendingXref = null;
 
   // ============================================================ utilidades puras
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -531,6 +535,14 @@
   // sub de un nodo: con "Números" activado y subNum definido, la versión con números del calculador
   // (p. ej. 'conv {{cfg.P}}×{{cfg.P}}' → 'conv 16×16'); si no, la simbólica.
   function nodeSub(n, ctl, spec) {
+    // fase 7 (revisión): subWhen = {claveDeConfig: sub}: otro sub si esa clave de la config es verdadera (el LM head
+    // atado al embedding en Qwen2-VL 2B, que si no parecía sin parámetros)
+    if (n.subWhen) {
+      const cid = (ctl && ctl.opts && ctl.opts.config) || (spec && spec.config) || (ctl && ctl.view && ctl.view.spec && ctl.view.spec.config);
+      let c = null;
+      try { c = cid ? runFor(cid).config : null; } catch (e) { c = null; }
+      for (const k in n.subWhen) if (c && c[k]) return n.subWhen[k];
+    }
     if (n.subNum && ctl && ctl.showNumbers && ctl.mode !== 'blank') {
       const cfg = (ctl.opts && ctl.opts.config) || (spec && spec.config) || (ctl.view && ctl.view.spec && ctl.view.spec.config);
       const v = String(n.subNum).split('\n').map((ln) => strip(qResolve(ln, cfg))).join('\n');
@@ -566,13 +578,15 @@
     for (const o of ops) { params += o.params || 0; macs += o.macs || 0; rep = Math.max(rep, o.repeat || 1); }
     // nodo compuesto con ops de distinta repetición (p. ej. una torre entera de CLIP: embeddings ×1 + capas ×L):
     // "por capa" no tiene sentido; se muestra el total (Σ op × repeat)
-    if (ops.some((o) => (o.repeat || 1) !== rep)) {
-      params = ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0);
+    // fase 7: pesos compartidos entre ejecuciones (LLaVA con varias imágenes: op.paramRepeat < op.repeat) → también total
+    const pRep = (o) => (o.paramRepeat != null ? o.paramRepeat : o.repeat || 1);
+    if (ops.some((o) => (o.repeat || 1) !== rep || pRep(o) !== (o.repeat || 1))) {
+      params = ops.reduce((a, o) => a + (o.params || 0) * pRep(o), 0);
       macs = ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0);
       rep = 1;
     }
     const by = !node.costRef && run && run.totals && run.totals.byNode && run.totals.byNode[node.costOf || node.id];
-    return { ops, params, macs, rep, total: (!node.opsExact && !node.scope && !node.costExclude && by) || { params: ops.reduce((a, o) => a + (o.params || 0) * (o.repeat || 1), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
+    return { ops, params, macs, rep, total: (!node.opsExact && !node.scope && !node.costExclude && by) || { params: ops.reduce((a, o) => a + (o.params || 0) * pRep(o), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
   }
 
   // Unidad de un nodo repetido: node.badgeUnit ('por par' en los stages de Swin) o 'por capa'; con el plural
@@ -724,7 +738,14 @@
       S('path', { d, class: 'ad-tokmarks' }, grp);
       if (mark === 'first') S('rect', { x: r1(x), y: r1(y - g.h), width: r1(step), height: r1(g.h), class: 'ad-tokfirst' }, grp);
       // fase 7: mark:'dropfirst' = el primer token (CLS) tachado: se descarta
-      if (mark === 'dropfirst') { const fx = x - step - 3; S('rect', { x: r1(fx), y: r1(y - g.h), width: r1(step), height: r1(g.h), class: 'ad-tokdrop' }, grp); S('path', { d: 'M' + P([fx, y - g.h]) + 'L' + P([fx + step, y]) + 'M' + P([fx + step, y - g.h]) + 'L' + P([fx, y]), class: 'ad-tokdrop-x' }, grp); }
+      // (revisión: pegado al glifo, al menos 7 px de ancho, con la etiqueta "CLS" encima; la leyenda lo explica)
+      if (mark === 'dropfirst') {
+        const dw = Math.max(step, 8), dh = Math.max(g.h, 9), fx = x - dw - 1;
+        S('rect', { x: r1(fx), y: r1(y - dh), width: r1(dw), height: r1(dh), class: 'ad-tokdrop' }, grp);
+        S('path', { d: 'M' + P([fx + 1.5, y - dh + 1.5]) + 'L' + P([fx + dw - 1.5, y - 1.5]) + 'M' + P([fx + dw - 1.5, y - dh + 1.5]) + 'L' + P([fx + 1.5, y - 1.5]), class: 'ad-tokdrop-x' }, grp);
+        const ct = S('text', { x: r1(fx + dw / 2), y: r1(y - dh - 3), 'text-anchor': 'middle', class: 'ad-tokdrop-lab' }, grp);
+        ct.textContent = 'CLS';
+      }
     }
     if (g.lay === 'mat' || g.lay === 'amat') {
       // matriz: rejilla tenue (hasta 8×8) y, en la cuadrada de CLIP, la diagonal (los pares positivos)
@@ -811,6 +832,18 @@
     S('path', { d, class: 'ad-sym' }, parent);
   }
 
+  // 2×2 celdas (c = 6 px) → flecha → barra de 4 celdas; devuelve el ancho. Las celdas llevan 4 tonos (ad-c2-0…3).
+  function drawConcat2x2(parent, x, cy) {
+    const c = 6, gp = 1, g = S('g', { class: 'ad-c2x2' }, parent);
+    const blk = 2 * c + gp, y0 = cy - blk / 2;
+    [[0, 0], [1, 0], [0, 1], [1, 1]].forEach(([i, j], k) => S('rect', { x: r1(x + i * (c + gp)), y: r1(y0 + j * (c + gp)), width: c, height: c, class: 'ad-c2-' + k }, g));
+    const ax = x + blk + 3;
+    S('path', { d: 'M' + P([ax, cy]) + 'h7M' + P([ax + 4.5, cy - 2.5]) + 'l2.5,2.5l-2.5,2.5', class: 'ad-sym' }, g);
+    const bx = ax + 11;
+    for (let k = 0; k < 4; k++) S('rect', { x: r1(bx + k * c), y: r1(cy - c / 2), width: c, height: c, class: 'ad-c2-' + k }, g);
+    return bx + 4 * c - x;
+  }
+
   // ============================================================ dibujo de una vista
   function buildView(ctl, spec) {
     const run = ctl.runFor(spec);
@@ -875,7 +908,10 @@
         // títulos de región: encima de las aristas (capa de etiquetas) y con halo
         // fase 6: abajo y con label2 (carril de decode de la inferencia LLM), el título sube una línea y label2 va debajo
         const bottomL = (g.labelPos || '').indexOf('bottom') === 0, sub2 = bottomL && g.label2 && !(lane && (ctl.mode === 'blank' || ctl.quiz));
-        const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10, bottomL ? r.y + r.h - (sub2 ? 22 : 8) : r.y + 17, qText(g.label, ctl, spec), g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
+        // fase 7 (revisión): labelDx (u) corre el título a la derecha (el de un carril, encima de los bloques que enfoca
+        // la vista del teléfono)
+        const ldx = (g.labelDx || 0) * U;
+        const lt = txt(g.region ? L.labels : gg, right ? r.x + r.w - 10 : r.x + 10 + ldx, bottomL ? r.y + r.h - (sub2 ? 22 : 8) : r.y + 17, qText(g.label, ctl, spec), g.region ? 'ad-region-label' : 'ad-group-label', right ? 'end' : null);
         if (g.region && String(g.label).length * 7.0 > regionTitleMax(r)) { lt.setAttribute('textLength', r1(regionTitleMax(r))); lt.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
       }
       if (g.repeat && run) {
@@ -897,7 +933,9 @@
       }
       // el subtítulo de un carril (costos que nombran sus bloques: "encoder + neck: …") no va en la práctica
       if (g.label2 && !hideTitle && !(lane && (ctl.mode === 'blank' || ctl.quiz))) {
-        const bl = (g.labelPos || '').indexOf('bottom') === 0, rt = /right$/.test(g.labelPos || '');
+        // label2Pos: dónde va el subtítulo (por omisión, con el título); 'bottom-left' lo deja abajo con el título arriba
+        const p2 = g.label2Pos || g.labelPos || '';
+        const bl = p2.indexOf('bottom') === 0, rt = /right$/.test(p2);
         txt(gg, rt ? r.x + r.w - 10 : r.x + 10, bl ? r.y + r.h - 8 : r.y + 31, qText(g.label2, ctl, spec), 'ad-group-sub', rt ? 'end' : null);
       }
     }
@@ -913,6 +951,9 @@
     const edgeEls = [];
     const tensorAt = {};
     for (const t of spec.tensors || []) if (t.at && t.at.edge) tensorAt[t.at.edge + (t.at.tensor ? '@' + t.at.tensor : '')] = t;
+    // fase 7 (revisión): una arista que entra (o sale) por arriba o por la derecha de un bloque con mazo de cabezas
+    // termina en la carta más externa; si no, el mazo (los nodos van encima de las aristas) tapaba la punta de la flecha
+    if (!isMap && run) geo.edges.forEach((ge) => deckTrim(ge, spec, run, geo));
     geo.edges.forEach((ge) => {
       const el = drawEdge(ctl, L, ge, run, used, tensorAt, isMap);
       if (el) edgeEls.push(el);
@@ -970,6 +1011,35 @@
     }
     ctl.building = null;
     return { svg, geo, used, nodeEls, edgeEls, run, spec, width: W, height: Hh };
+  }
+
+  // Mazo de cabezas de un nodo (node.heads): las cartas 1…k−1 van desplazadas 3 px arriba a la derecha (drawNode).
+  // deckTrim lleva el extremo de una arista que llega por arriba o por la derecha hasta la carta más externa que cubre
+  // ese punto (la que se ve), sin cambiar el tramo anterior (horizontal por la derecha, vertical por arriba).
+  function deckTrim(ge, spec, run, geo) {
+    if (ge.curve || !ge.pts || ge.pts.length < 2) return;
+    const fix = (end) => {
+      const id = end ? ge.to : ge.from, side = end ? ge.toSide : ge.fromSide;
+      if (side !== 'right' && side !== 'top') return;
+      const n = (spec.nodes || []).find((x) => x.id === id), r = geo.nodes[id];
+      const hv = n && n.heads && r ? cfgPath(run.config, n.heads) : 0;
+      if (!(hv > 1)) return;
+      const k = Math.min(hv, 8) - 1;
+      const i = end ? ge.pts.length - 1 : 0, j = end ? i - 1 : 1;
+      const p = ge.pts[i].slice(), q = ge.pts[j];
+      let m = 0;
+      for (let c = 1; c <= k; c++) {
+        if (side === 'right' ? (p[1] >= r.y - 3 * c && p[1] <= r.y + r.h - 3 * c) : (p[0] >= r.x + 3 * c && p[0] <= r.x + r.w + 3 * c)) m = c;
+      }
+      if (!m) return;
+      if (side === 'right') { p[0] = r.x + r.w + 3 * m; if (q[0] < p[0] + 6) return; }
+      else { p[1] = r.y - 3 * m; if (q[1] > p[1] - 6) return; }
+      if (!ge.pts0) ge.pts0 = ge.pts;
+      ge.pts = ge.pts.slice();
+      ge.pts[i] = p;
+    };
+    fix(true);
+    fix(false);
   }
 
   // Línea guía de un glifo suelto a su bloque: del punto del contorno del glifo más cercano al punto de
@@ -1062,7 +1132,12 @@
         const total = lines.length * 15 + subs.length * 13;
         let y0 = r.y + ry + (r.h - ry - miniH) / 2 - total / 2 + 11;
         let cx = r.x + r.w / 2;
-        if (n.symbol) {
+        if (n.symbol === 'concat2x2') {
+          // fase 7 (revisión): pictograma ancho del merger de Qwen2-VL: 2×2 parches vecinos → 1 vector con los 4 uno al
+          // lado del otro (concatenación, no promedio): el mismo tono para el mismo parche a los dos lados
+          const pw = drawConcat2x2(g, r.x + 7, r.y + r.h / 2);
+          cx = r.x + pw + 10 + (r.w - pw - 10) / 2;
+        } else if (n.symbol) {
           // símbolo de operación de tensor a la izquierda, texto centrado en el resto
           const sr = Math.min(r.h / 2 - 3, 9);
           drawSymbol(g, n.symbol, r.x + 6 + sr, r.y + r.h / 2, sr);
@@ -1078,7 +1153,7 @@
           else if (n.experts) drawExperts(g, n.experts, r, run.config, used);
           else if (n.rows && store) drawStoreRows(g, n.rows, r, used, ctl, spec);
           else if (n.strip) drawStrip(g, n.strip, r, run, used, ctl, spec);
-          else if (n.layers) drawLayers(g, n.layers, r, run, used);
+          else if (n.layers) drawLayers(g, n.layers, r, run, used, layersNeutral(ctl, spec, n));
         }
         if (!hideInner && n.posIds) drawPosIds(g, n.posIds, r, used, ctl);
       }
@@ -1116,7 +1191,7 @@
       if (n.xref && n.xref.length && ctl.mode === 'full') {
         used.xref = true;
         // arriba a la derecha, por dentro (abajo a la derecha va la marca de "se abre"; abajo, las filas internas)
-        const xr = r.x + r.w - 13, yb = r.y + 13;
+        const xr = r.x + r.w - 13, yb = r.y + 13 + (n.train ? 9 : 0);   // con la píldora congelado/entrena, debajo de ella
         const xm = S('g', { class: 'ad-xref-mark' }, g);
         S('path', { d: 'M' + P([xr, yb]) + 'l8,-8M' + P([xr + 3, yb - 8]) + 'h5v5', class: 'ad-expand-ico' }, xm);
       }
@@ -1352,7 +1427,15 @@
   const LAYERS_H = 34;
   // capa de la toma (1-based): un índice negativo cuenta desde el final como hidden_states[−k] (−2 = la penúltima capa)
   function tapOf(run, o, L) { const t = numKey(run, o.tap); return Number.isFinite(t) && t < 0 ? L + t + 1 : t; }
-  function drawLayers(g, o, r, run, used) {
+  // práctica: si el hueco pregunta por el bloque que consume estas features (la "penúltima capa, sin CLS" de LLaVA) o
+  // por el propio encoder, la fila va neutra (sin la capa resaltada ni "se toma"): si no, daría la respuesta
+  function layersNeutral(ctl, spec, n) {
+    if (ctl.mode !== 'blank' && !ctl.quiz) return false;
+    const isSlot = (id) => { const s = slotFor(ctl, id); return !!(s && (s.ask === 'label' || s.ask === 'op')); };
+    if (isSlot(n.id)) return true;
+    return (spec.edges || []).some((e) => e.from === n.id && isSlot(e.to));
+  }
+  function drawLayers(g, o, r, run, used, neutral) {
     const L = numKey(run, o.L);
     const tap = tapOf(run, o, L);
     if (!(L > 0) || !(tap > 0)) return;
@@ -1368,11 +1451,11 @@
     cells.forEach((c, i) => {
       const x = x0 + i * cw;
       if (c == null) { txt(gg, x + cw / 2, y + 10, '…', 'ad-layer-n', 'middle'); return; }
-      const cls = c === tap ? ' is-tap' : c > tap ? ' is-off' : '';
+      const cls = neutral ? '' : c === tap ? ' is-tap' : c > tap ? ' is-off' : '';
       S('rect', { x: r1(x + 1.5), y: r1(y), width: r1(cw - 3), height: ch, rx: 2, class: 'ad-layer' + cls }, gg);
       txt(gg, x + cw / 2, y + 9.8, String(c), 'ad-layer-n' + cls, 'middle');
       // solo la toma lleva texto (las capas que no se usan van atenuadas y punteadas; la leyenda lo explica)
-      if (c === tap) txt(gg, x + cw / 2, y + ch + 11, o.tapLabel || 'toma', 'ad-layer-cap is-tap', 'middle');
+      if (c === tap && !neutral) txt(gg, x + cw / 2, y + ch + 11, o.tapLabel || 'toma', 'ad-layer-cap is-tap', 'middle');
     });
   }
 
@@ -1451,7 +1534,7 @@
     if (n.experts && run) { const E = cfgPath(run.config, n.experts.n || 'nExperts'), K = cfgPath(run.config, n.experts.k || 'topK'); if (E) parts.push(K + ' de ' + E + ' expertos por token'); }
     if (n.train) parts.push(n.train === 'frozen' ? 'congelado' : 'entrena');
     if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ')); }
-    if (n.layers && run) { const L = numKey(run, n.layers.L); const tp = tapOf(run, n.layers, L); if (L && tp) parts.push('features de la capa ' + tp + ' de ' + L); }
+    if (n.layers && run) { const L = numKey(run, n.layers.L); const tp = tapOf(run, n.layers, L); if (L && tp) parts.push(layersNeutral(ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {}), n) ? L + ' capas' : 'features de la capa ' + tp + ' de ' + L); }
     if (n.expand) parts.push('se puede abrir');
     if (n.xref && n.xref.length) parts.push('con enlace a otra página');
     return parts.join('; ');
@@ -1615,7 +1698,7 @@
     if (!t && !isMap && kind === 'control' && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(e.tag) + ' (control, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
     if (e.dot) { const dp = e.fromPt ? ge.pts[0] : ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
     if ((kind === 'cross' || e.tag) && e.tag !== false) {   // tag:false = arista cross sin etiqueta (chips de texto de YOLO-World)
-      const la = labelAnchor(ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
+      const la = labelAnchor(ge.pts0 || ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
       if (la) {
         const tg = S('g', { class: 'ad-tag' + (e.tagStyle === 'plain' ? ' ad-tag--plain' : '') }, L.labels);
         tg.setAttribute('data-edge-tag', ge.key);
@@ -1629,7 +1712,7 @@
       }
     }
     if (t && SHAPED[kind]) {
-      const la = labelAnchor(ge.pts, e);
+      const la = labelAnchor(ge.pts0 || ge.pts, e);   // pts0: la ruta antes de deckTrim (las etiquetas no se mueven)
       const tk = tensorAt[ge.key + '@' + e.tensor] || tensorAt[ge.key];
       const hide = ctl.hideShapes === true || (Array.isArray(ctl.hideShapes) && ctl.hideShapes.indexOf(e.tensor) >= 0) || (ctl.blankHide && ctl.blankHide.has(ge.key + '@' + e.tensor));
       if (slot) {
@@ -1644,7 +1727,10 @@
           else if (la.side === 'left') { gx = la.x - 9 - gs.w; gy = la.y + gs.h / 2; lx = gx; }
           else if (la.side === 'below') { gx = la.x - gs.w / 2; gy = la.y + 8 + gs.h; ly = gy; }
           else { gx = la.x - gs.w / 2; gy = la.y - 7; ly = gy - gs.h + 2; }
-          if (isJoint(drawGlyph(g, t, gx, gy, ctl.id, tk.mark, tk))) used.joint = true;
+          // práctica: la marca de "CLS descartado" no va si el hueco pregunta por el bloque que lo descarta
+          const mk = tk.mark === 'dropfirst' && (ctl.mode === 'blank' || ctl.quiz) && slotFor(ctl, e.from) ? null : tk.mark;
+          if (mk === 'dropfirst') used.dropfirst = true;
+          if (isJoint(drawGlyph(g, t, gx, gy, ctl.id, mk, tk))) used.joint = true;
           // la leyenda lista una modalidad solo si se dibuja un glifo (o una franja) de ella: las formas
           // escritas de las aristas no la muestran (fase 5: "queries aprendidas" sin ningún glifo azul)
           if (t.mod) used.mods.add(t.mod);
@@ -1729,8 +1815,9 @@
     if (used.experts) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-exp' + (i === 1 || i === 2 ? ' is-on' : '') }, s)); }, 'Expertos (FFN): encendidos = los top-k elegidos para un token');
     if (used.rows) item((s) => { const g = S('g', { class: 'ad-rows' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 3, y, width: 20, height: 3, rx: 1, class: 'ad-row' + (i === 2 ? ' is-new' : '') }, g)); }, 'Filas del caché (una por token; la resaltada se agrega en este paso)');
     // fase 7: tira de tokens, ids de M-RoPE, capas con toma, congelado / entrena, enlaces
-    if (used.strip) item((s) => { defs(s, lid + '-lstrip'); const a = S('g', { class: 'ad-glyph ad-mod--txt' }, s); S('rect', { x: 2, y: 4, width: 6, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-txt)' }, a); const b = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-img)' }, b); }, 'Tira del prompt: ancho ∝ número de tokens (texto rayado, imagen liso)');
+    if (used.strip) item((s) => { defs(s, lid + '-lstrip'); const a = S('g', { class: 'ad-glyph ad-mod--txt' }, s); S('rect', { x: 2, y: 4, width: 6, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-txt)' }, a); const b = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-img)' }, b); }, 'Tira del prompt: ancho proporcional al número de tokens (texto rayado, imagen liso)');
     if (used.posIds) item((s) => { const t = S('text', { x: 13, y: 12, 'text-anchor': 'middle', class: 'ad-pos-n is-var' }, s); t.textContent = 't h w'; }, 'Ids de posición (t, h, w) de M-RoPE: ilustrativo');
+    if (used.dropfirst) item((s) => { const g = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 9, class: 'ad-face ad-face--front', fill: 'var(--surface)' }, g); S('rect', { x: 2, y: 4, width: 7, height: 9, class: 'ad-tokdrop' }, s); S('path', { d: 'M3 5L8 12M8 5L3 12', class: 'ad-tokdrop-x' }, s); }, 'Token descartado (CLS): no sigue al proyector');
     if (used.layers) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-layer' + (i === 2 ? ' is-tap' : i === 3 ? ' is-off' : '') }, s)); }, 'Capas del encoder: resaltada = de la que se toman las features; atenuada = no se usa');
     if (used.frozen) item((s) => { const g = S('g', { class: 'ad-train ad-train--frozen' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, true, 13, 8); }, 'Congelado: sus pesos no se actualizan en esta etapa');
     if (used.trained) item((s) => { const g = S('g', { class: 'ad-train ad-train--on' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, false, 13, 8); }, 'Entrena: sus pesos se actualizan en esta etapa');
@@ -1757,7 +1844,7 @@
   function render(diagramId, container, opts) {
     // copia: opts.config se ajusta por vista (spec.configs) sin tocar el objeto del llamador
     opts = Object.assign({}, opts || {});
-    const reqConfig = opts.config || null;
+    let reqConfig = opts.config || null;
     const spec0 = ATLAS.diagram(diagramId);
     const ctl = {
       id: 'ad' + (++uid), mode: opts.mode || 'full', opts, rootId: diagramId,
@@ -1828,6 +1915,14 @@
       const cfgOk = !reqConfig || !Array.isArray(spec.configs) || spec.configs.indexOf(reqConfig) >= 0;
       opts.config = cfgOk ? reqConfig : undefined;
       cfgNote.hidden = cfgOk;
+      cfgNote.textContent = '';
+      if (cfgOk && ctl.xref && reqConfig === ctl.xref.config) {
+        // vista abierta desde un enlace de otra página con otra config: se dice cuál y se puede volver a la canónica
+        cfgNote.hidden = false;
+        H('span', { text: 'Vista con la config ' + configLabel(reqConfig) + (ctl.xref.why ? ' (' + ctl.xref.why + ')' : '') + '. ' }, cfgNote);
+        const back = H('button', { type: 'button', class: 'ad-btn', text: 'Volver a ' + configLabel(spec0.config) }, cfgNote);
+        back.addEventListener('click', () => { reqConfig = null; ctl.xref = null; redraw(); });
+      }
       if (!cfgOk) cfgNote.textContent = 'Esta vista no aplica a ' + configLabel(reqConfig) + (spec.configsNote ? ' (' + spec.configsNote + ')' : '') + '; se muestra ' + configLabel(spec.config) + '.';
       let view;
       try { view = buildView(ctl, spec); }
@@ -2168,7 +2263,10 @@
         }
         const acts = H('div', { class: 'ad-panel-acts' }, panel);
         if (n.expand && ATLAS.diagram(n.expand)) { const b = H('button', { type: 'button', class: 'ad-btn ad-btn--primary', text: 'Abrir bloque' }, acts); b.addEventListener('click', () => expandTo(n.expand, n.id)); }
-        for (const xr of n.xref || []) H('a', { class: 'ad-btn' + (n.expand ? '' : ' ad-btn--primary'), href: xr.href, text: xr.label }, acts);
+        for (const xr of n.xref || []) {
+          const a = H('a', { class: 'ad-btn' + (n.expand ? '' : ' ad-btn--primary'), href: xr.href, text: xr.label }, acts);
+          if (xr.cfg) a.addEventListener('click', () => { const m = /~([^.]+)\./.exec(xr.href || ''); pendingXref = { config: xr.cfg, why: xr.cfgWhy || '', diagram: m ? m[1] : null, t: Date.now() }; });
+        }
         if (spec.page && run && n.op !== 'io') H('a', { class: 'ad-btn', href: '#' + spec.page + '.operaciones', text: 'Ver en Operaciones' }, acts);
       }
       panel.hidden = false;
@@ -2527,6 +2625,22 @@
 
     function inside(n, g) { return n.x >= g.x && n.y >= g.y && n.x + n.w <= g.x + g.w && n.y + n.h <= g.y + g.h; }
 
+    // enlace con config pendiente (pendingXref) cuyo destino cuelga de este diagrama: se adopta esa config
+    function takeXref() {
+      const p = pendingXref;
+      if (!p || !p.diagram || Date.now() - p.t > 20000) return false;
+      const all = ATLAS.diagrams ? Object.values(ATLAS.diagrams()) : [];
+      const desc = (id) => all.filter((d) => d.parent === id).flatMap((d) => [d.id].concat(desc(d.id)));
+      if ([ctl.rootId].concat(desc(ctl.rootId)).indexOf(p.diagram) < 0) return false;
+      const sp = ATLAS.diagram(p.diagram);
+      if (!sp || (Array.isArray(sp.configs) && sp.configs.indexOf(p.config) < 0)) return false;
+      try { runFor(p.config); } catch (e) { return false; }
+      pendingXref = null;
+      reqConfig = p.config;
+      ctl.xref = p;
+      return true;
+    }
+
     const api = {
       el: fig,
       get view() { return ctl.stack[ctl.stack.length - 1]; },
@@ -2534,6 +2648,7 @@
       collapse: () => collapseTo(ctl.stack.length - 2),
       focusNode(nodeId, o) {
         o = o || {};
+        if (takeXref()) redraw();
         let vid = ctl.stack[ctl.stack.length - 1];
         const has = (id) => ((ATLAS.diagram(id) || {}).nodes || []).some((n) => n.id === nodeId);
         const go = () => { const el = ctl.view.nodeEls[nodeId]; if (!el) return false; if (ctl.zoomed) ensureVisible(el); el.focus({ preventScroll: !!o.preventScroll }); if (o.open !== false && ctl.mode === 'full') { openPanel(nodeId); hideTip(); } return true; };

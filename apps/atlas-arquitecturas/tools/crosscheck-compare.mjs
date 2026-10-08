@@ -201,8 +201,10 @@ export function compareConfig(A, exp) {
     push('anyres[' + a.H + '×' + a.W + '] tokens', c, a.tokens, c === a.tokens);
   }
   for (const a of exp.smart_resize_checks || []) {
-    const z = A.vlm.smartResize(a.h, a.w), c = z.H + '×' + z.W, ref = a.H + '×' + a.W;
-    push('smart_resize[' + a.h + '×' + a.w + ']', c, ref, c === ref);
+    // min_pixels / max_pixels opcionales: el presupuesto con el que corrió la referencia (si faltan, el del checkpoint)
+    const o = a.max_pixels !== undefined ? { minPixels: a.min_pixels, maxPixels: a.max_pixels } : undefined;
+    const z = A.vlm.smartResize(a.h, a.w, o), c = z.H + '×' + z.W, ref = a.H + '×' + a.W;
+    push('smart_resize[' + a.h + '×' + a.w + (o ? ', ' + o.minPixels + '–' + o.maxPixels + ' px' : '') + ']', c, ref, c === ref);
   }
   const hf = exp.alt && exp.alt.hf;
   if (hf) {

@@ -236,13 +236,22 @@
       "calc_overrides": {
         "T": 256
       },
+      "params_total": 7063427072,
       "flops_total": 11763615105024
     },
     {
       "calc_overrides": {
         "images": 2
       },
+      "params_total": 7063427072,
       "flops_total": 17656446124032
+    },
+    {
+      "calc_overrides": {
+        "images": 4
+      },
+      "params_total": 7063427072,
+      "flops_total": 35856574709760
     }
   ],
   "metrics_checks": {

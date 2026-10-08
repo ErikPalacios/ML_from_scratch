@@ -18,7 +18,8 @@
      tokens (y cualquier clave de quantities, también como quantities.<k>)
      tensor.<id>.shape | .sym | .elements
      node.<id>.params | .paramsM | .paramsPct | .macs | .macsG | .macsM | .macsPct | .flops | .flopsG
-     op.<id>.params | .macs | .paramArith | .macArith | .repeat
+     op.<id>.params | .macs | .paramArith | .macArith | .repeat | .paramRepeat   (paramRepeat = copias de los
+                                        pesos; ≠ repeat solo con pesos compartidos: LLaVA con varias imágenes)
      prim.<prim>.params | .macs   ·   group.<g>.params | .macs
      cfg.<key>                         (valores de la config resuelta; enteros < 10,000 sin separador
                                         de miles, como en las formas: 'D = 1024' junto a '197×1024')
@@ -111,6 +112,7 @@
         case 'paramArith': return num(op.paramArith, op.paramArith);
         case 'macArith': return num(op.macArith, op.macArith);
         case 'repeat': return num(op.repeat, String(op.repeat));
+        case 'paramRepeat': { const pr = op.paramRepeat != null ? op.paramRepeat : op.repeat; return num(pr, String(pr)); }
         default: return null;
       }
     }
@@ -205,7 +207,7 @@
     for (const id of Object.keys(r.totals.byNode)) nf.forEach((x) => out.push('node.' + id + '.' + x));
     for (const id of Object.keys(r.totals.byPrim)) ['params', 'macs'].forEach((x) => out.push('prim.' + id + '.' + x));
     for (const id of Object.keys(r.totals.byGroup)) ['params', 'macs'].forEach((x) => out.push('group.' + id + '.' + x));
-    for (const op of r.ops) ['params', 'macs', 'paramArith', 'macArith', 'repeat'].forEach((x) => out.push('op.' + op.id + '.' + x));
+    for (const op of r.ops) ['params', 'macs', 'paramArith', 'macArith', 'repeat', 'paramRepeat'].forEach((x) => out.push('op.' + op.id + '.' + x));
     for (const k of Object.keys(r.config)) {
       const v = r.config[k];
       if (['number', 'boolean', 'string'].indexOf(typeof v) >= 0) out.push('cfg.' + k);

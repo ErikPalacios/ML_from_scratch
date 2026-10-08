@@ -698,6 +698,12 @@ tr.is-walk > * { background: var(--accent-soft); }
 /* CLS descartado (glifo mark:'dropfirst') */
 .ad-tokdrop { fill: var(--surface); stroke: var(--muted); stroke-width: .9; stroke-dasharray: 2 1.5; }
 .ad-tokdrop-x { stroke: var(--bad); stroke-width: 1.3; stroke-linecap: round; }
+.ad-c2x2 rect { stroke: var(--ink); stroke-width: .8; }
+.ad-c2-0 { fill: color-mix(in srgb, var(--mod-img) 18%, var(--surface)); }
+.ad-c2-1 { fill: color-mix(in srgb, var(--mod-img) 42%, var(--surface)); }
+.ad-c2-2 { fill: color-mix(in srgb, var(--mod-img) 66%, var(--surface)); }
+.ad-c2-3 { fill: var(--mod-img); }
+.ad-tokdrop-lab { font: 600 9px var(--font-mono); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
 .ad-xref-mark .ad-expand-ico { stroke: var(--ink); }
 /* ---------------------------------------------------------------- fase 7: visualizaciones (VLM) */
 .viz-mrope-stage:focus-visible, .viz-vt-stage:focus-visible, .viz-vtc-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
