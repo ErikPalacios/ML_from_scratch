@@ -2636,3 +2636,324 @@ test('F7 etiqueta + símbolo identifican una forma; byPath suma; aritmética; wh
     J(Q7.keys(id)).forEach((k) => assert.ok(Q7.get(id + '.' + k), id + '.' + k));
   }
 });
+
+// ---------------------------------------------------------------- fase 8: difusión (Stable Diffusion, SDXL, DiT)
+// Contexto con todos los modelos hasta la fase 8 (diffusion.js compone el encoder de texto de clip.js y usa el hardware de llm.js).
+const ATLAS8 = (function () {
+  const ctx = vm.createContext({});
+  for (const f of FILES.filter((x) => x !== 'js/core/quantities.js').concat(['js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js',
+    'js/arch/diffusion.js', 'js/core/quantities.js'])) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  }
+  return vm.runInContext('ATLAS', ctx);
+})();
+const A8 = ATLAS8.Arch, Q8 = ATLAS8.Quantities;
+const SD = ['sd15-unet', 'sd15-train', 'sdxl-unet'], DITS = ['dit-xl2-256', 'dit-xl2-512', 'dit-xl4-256', 'dit-xl8-256', 'dit-b2-256', 'dit-xl2-256-fm'];
+const S8 = (sym, num, mod, layout) => A8.shape(sym, num, mod || 'lat', layout || 'seq');
+
+test('F8 los modelos stable-diffusion / dit y las primitivas nuevas no cambian ningún resultado de las fases 1–7', () => {
+  for (const c of A7.configs()) {
+    const a = A7.run(c.id), b = A8.run(c.id);
+    assert.deepStrictEqual([b.totals.params, b.totals.macs, b.totals.other], [a.totals.params, a.totals.macs, a.totals.other], c.id);
+    assert.deepStrictEqual(J(b.ops.map((o) => [o.id, o.paramTex, o.macTex, o.shapeTex])), J(a.ops.map((o) => [o.id, o.paramTex, o.macTex, o.shapeTex])), c.id + ' fórmulas');
+    const ma = A7.metrics(c.id, {}), mb = A8.metrics(c.id, {});
+    assert.deepStrictEqual([mb.attnMem, mb.actMem, mb.kvCache, mb.decodeMacsPerToken], [ma.attnMem, ma.actMem, ma.kvCache, ma.decodeMacsPerToken], c.id + ' metrics');
+  }
+  assert.deepStrictEqual(J(A8.configs('stable-diffusion').map((c) => c.id)), SD);
+  assert.deepStrictEqual(J(A8.configs('dit').map((c) => c.id)), DITS);
+  assert.strictEqual(A8.canonical('stable-diffusion'), 'sd15-unet');
+  assert.strictEqual(A8.canonical('dit'), 'dit-xl2-256');
+  // knobs: 0 solo donde el modelo lo declara (cfg); el resto sigue exigiendo enteros positivos
+  assert.throws(() => A8.run('vit-b16-224', { res: 0 }), /entero positivo/);
+  assert.throws(() => A8.run('sd15-unet', { steps: 0 }), /entero positivo/);
+  assert.doesNotThrow(() => A8.run('sd15-unet', { cfg: 0 }));
+  assert.throws(() => A8.run('sd15-unet', { cfg: -1 }), /no negativo/);
+});
+
+test('F8 primitivas: tiempo, clase, broadcast, downsample, GEGLU, adaLN-Zero, posición 2-D, unpatchify, latente, ruido, CFG, sampler', () => {
+  const t = S8(['1'], [1], null, 'vec');
+  const te = A8.timestep_embedding(t, { dim: 8, sym: 'C' });
+  assert.deepStrictEqual([J(te.out.num), J(te.out.sym), te.params, te.macs, te.other], [[8], ['C'], 0, 0, 8 * 3]);
+  assert.deepStrictEqual(J(A8.timestep_embedding(S8(['6'], [6], null, 'vec'), { dim: 4 }).out.num), [24]);   // 6 time ids de SDXL
+  assert.throws(() => A8.timestep_embedding(t, { dim: 7 }), /par/);
+  const cf = A8.concat_features([S8(['T', 'D_1'], [5, 3], 'txt'), S8(['T', 'D_2'], [5, 4], 'txt')]);
+  assert.deepStrictEqual([J(cf.out.num), J(cf.out.sym), cf.params], [[5, 7], ['T', 'D_1+D_2'], 0]);
+  assert.throws(() => A8.concat_features([S8(['T', 'D'], [5, 3]), S8(['T', 'D'], [4, 3])]), /incompatibles/);
+  const le = A8.label_embed(t, { K: 10, D: 4 });
+  assert.deepStrictEqual([J(le.out.num), le.params, le.paramFormula], [[4], 11 * 4, '(K+1)\\cdot D']);
+  assert.strictEqual(A8.label_embed(t, { K: 10, D: 4, nullClass: false }).params, 40);
+  const gr = S8(['h', 'w', 'C'], [2, 3, 4], 'lat', 'grid');
+  const ab = A8.add_broadcast(gr, S8(['C'], [4], null, 'vec'));
+  assert.deepStrictEqual([J(ab.out.num), ab.params, ab.macs, ab.other], [[2, 3, 4], 0, 0, 24]);
+  assert.throws(() => A8.add_broadcast(gr, S8(['C'], [5], null, 'vec')), /canales/);
+  const ds = A8.downsample2d(S8(['H', 'W', 'C'], [8, 8, 3], 'lat', 'grid'), { cout: 5, coutSym: 'C_o' });
+  assert.deepStrictEqual([J(ds.out.num), J(ds.out.sym), ds.params, ds.macs], [[4, 4, 5], ['H/2', 'W/2', 'C_o'], 9 * 3 * 5 + 5, 4 * 4 * 5 * 9 * 3]);
+  const da = A8.downsample2d(S8(['H', 'W', 'C'], [8, 8, 3], 'lat', 'grid'), { cout: 5, pad: 'asym' });
+  assert.deepStrictEqual([da.params, da.macs, da.detail.pad], [ds.params, ds.macs, 'asym']);
+  assert.throws(() => A8.downsample2d(S8(['H', 'W', 'C'], [7, 8, 3], 'lat', 'grid'), { cout: 5 }), /no es par/);
+  const gg = A8.geglu(S8(['N', '8C'], [3, 8]), { outSym: '4C' });
+  assert.deepStrictEqual([J(gg.out.num), J(gg.out.sym), gg.params, gg.other], [[3, 4], ['N', '4C'], 0, 12 * 9]);
+  const c = S8(['D'], [4], null, 'vec');
+  const ad = A8.adaln_zero(c, { k: 6 });
+  assert.deepStrictEqual([ad.out.length, J(ad.out[0].num), ad.params, ad.macs, ad.paramFormula], [6, [4], 4 * 24 + 24, 4 * 24, 'D\\cdot 6D + 6D']);
+  const x = S8(['N', 'D'], [3, 4]);
+  assert.deepStrictEqual([A8.ada_modulate(x, ad.out[0], ad.out[1]).other, A8.ada_gate(x, ad.out[2]).other], [36, 12]);
+  assert.throws(() => A8.ada_modulate(x, S8(['E'], [5], null, 'vec'), ad.out[1]), /vectores/);
+  assert.deepStrictEqual([A8.layernorm(x, { affine: false }).params, A8.layernorm(x).params], [0, 8]);
+  const pe = A8.sincos_pos_2d({ gh: 3, gw: 3, D: 8 });
+  assert.deepStrictEqual([J(pe.out.num), pe.params, pe.detail.buffer], [[9, 8], 0, true]);
+  const up = A8.unpatchify(S8(['N', 'P²·3'], [4, 12]), { gh: 2, gw: 2, P: 2, outSym: ['I', 'I', '3'] });
+  assert.deepStrictEqual([J(up.out.num), up.params], [[4, 4, 3], 0]);
+  assert.throws(() => A8.unpatchify(S8(['N', 'X'], [5, 12]), { gh: 2, gw: 2, P: 2 }), /rejilla/);
+  const mo = S8(['h', 'w', '8'], [2, 2, 8], 'lat', 'grid');
+  assert.deepStrictEqual(J(A8.latent_sample(mo, { sym: '4' }).out.num), [2, 2, 4]);
+  const z = A8.latent_sample(mo, { sym: '4' }).out;
+  assert.deepStrictEqual([A8.latent_scale(z, { factor: 0.18215 }).other, A8.add_noise(z, z, t, {}).other, A8.flow_target(z, z).other, A8.cfg_combine(z, z, { w: 7.5 }).other], [16, 48, 16, 48]);
+  assert.match(A8.add_noise(z, z, t, { kind: 'flow' }).detail.formula, /1 − t/);
+  assert.deepStrictEqual([A8.scheduler_step(z, z, {}).other, A8.scheduler_step(z, z, { kind: 'euler' }).other], [96, 32]);
+  assert.deepStrictEqual(J(A8.mse_loss(z, z).out.num), [1]);
+  assert.throws(() => A8.mse_loss(z, mo), /formas distintas/);
+  // '²' en un símbolo → ^2 en LaTeX (M² sigue por SYM_TEX)
+  assert.strictEqual(A8.fmt.symTex('P²·8'), 'P^2\\cdot 8');
+  assert.strictEqual(A8.fmt.symTex('M²'), 'M^2');
+});
+
+test('F8 compuestas a mano: resnet_block (con tiempo y atajo), upsample2d, geglu_ff 12D² + 9D, spatial_transformer 20C² + 2D_tC + 21C, dit_block 18D² + 15D', () => {
+  const x = S8(['H', 'W', 'C'], [4, 4, 4], 'lat', 'grid'), e = S8(['E'], [8], null, 'vec');
+  const rb = A8.resnet_block(x, { cout: 6, temb: e });
+  // GN 2·4 + conv1 9·4·6 + 6 + tiempo 8·6 + 6 + GN 2·6 + conv2 9·36 + 6 + atajo 4·6 + 6
+  assert.strictEqual(rb.params, 8 + 222 + 54 + 12 + 330 + 30);
+  assert.strictEqual(rb.macs, 16 * 216 + 48 + 16 * 324 + 16 * 24);
+  assert.deepStrictEqual(J(rb.out.num), [4, 4, 6]);
+  assert.strictEqual(A8.resnet_block(x, { cout: 4 }).params, 8 + (9 * 16 + 4) + 8 + (9 * 16 + 4));   // VAE: sin tiempo ni atajo
+  const u2 = A8.upsample2d(S8(['h', 'w', 'C'], [2, 2, 3], 'lat', 'grid'));
+  assert.deepStrictEqual([J(u2.out.num), u2.params, u2.macs], [[4, 4, 3], 9 * 9 + 3, 16 * 81]);
+  const ff = A8.geglu_ff(S8(['N', 'D'], [3, 4]), {});
+  assert.deepStrictEqual([ff.params, ff.macs], [12 * 16 + 9 * 4, 12 * 3 * 16]);
+  const st = A8.spatial_transformer(S8(['h', 'w', 'C'], [2, 2, 32], 'lat', 'grid'), { h: 4, text: S8(['T', 'D_t'], [5, 16], 'txt') });
+  assert.strictEqual(st.params, 20 * 1024 + 2 * 16 * 32 + 21 * 32);
+  assert.strictEqual(st.macs, 4 * (20 * 1024 + 2 * 4 * 32 + 2 * 5 * 32) + 2 * 5 * 16 * 32);
+  const db = A8.dit_block(S8(['N', 'D'], [3, 8]), S8(['D'], [8], null, 'vec'), { h: 2 });
+  assert.deepStrictEqual([db.params, db.macs], [18 * 64 + 15 * 8, 3 * 12 * 64 + 2 * 9 * 8 + 6 * 64]);
+});
+
+test('F8 Stable Diffusion 1.5: anclas de diffusers (U-Net 859,520,964, VAE, CLIP), MACs por componente, ids y formas', () => {
+  const r = A8.run('sd15-unet'), n = r.totals.byNode, q = r.quantities;
+  assert.deepStrictEqual([n.unet.params, n['text-encoder'].params, n['vae-encoder'].params, n['vae-decoder'].params, r.totals.params],
+    [859520964, 123060480, 34163664, 49490199, 1066235307]);
+  assert.deepStrictEqual([n.unet.macs, n['text-encoder'].macs, n['vae-decoder'].macs, n['vae-encoder'].macs], [401636720640, 6649251840, 1257259466752, 0]);
+  assert.strictEqual(A8.run('sd15-train').totals.byNode['vae-encoder'].macs, 558329233408);
+  // el texto es la torre de texto de clip-vit-l14 (mismos parámetros y MACs, sin la proyección)
+  const cl = A8.run('clip-vit-l14').totals.byNode['txt-encoder'];
+  assert.deepStrictEqual([n['text-encoder'].params, n['text-encoder'].macs], [cl.params, cl.macs]);
+  // reglas de la prosa: bloque transformer = 20C² + 2·D_t·C + 21C; 22 ResNet, 16 transformers, 12 skips
+  const C = 320;
+  assert.strictEqual(r.totals.byPath['unet>down-1>d1-attn1'].params, 20 * C * C + 2 * 768 * C + 21 * C);
+  assert.deepStrictEqual([q.nResnets, q.nTransformers, q.nSkips], [22, 16, 12]);
+  // niveles: down-k en H/8/2^(k−1); atención en los 3 primeros niveles y el medio
+  const T = (id) => J(r.tensors[id].num), Y = (id) => J(r.tensors[id].sym);
+  assert.deepStrictEqual([T('z-t'), T('h-in'), T('d1-down-out'), T('d3-attn2-out'), T('d4-res2-out'), T('mid-res2-out'), T('eps-hat'), T('image'), T('text-emb')],
+    [[64, 64, 4], [64, 64, 320], [32, 32, 320], [16, 16, 1280], [8, 8, 1280], [8, 8, 1280], [64, 64, 4], [512, 512, 3], [77, 768]]);
+  assert.deepStrictEqual([T('d1-attn1-sa-scores'), T('d1-attn1-ca-scores'), T('mid-attn-sa-scores'), T('u1-cat1'), T('u2-cat3'), T('u4-attn3-out')],
+    [[8, 4096, 4096], [8, 4096, 77], [8, 64, 64], [8, 8, 2560], [16, 16, 1920], [64, 64, 320]]);
+  assert.deepStrictEqual([Y('z-t'), Y('h-in'), Y('d1-attn1-x0'), Y('d1-attn1-ca-scores'), Y('d1-attn1-ff-h'), Y('u1-cat1'), Y('d2-attn1-sa-qh'), Y('text-emb'), Y('t-q')],
+    [['H/8', 'W/8', '4'], ['H/8', 'W/8', 'C'], ['H/8·W/8', 'C'], ['h', 'H/8·W/8', 'T'], ['H/8·W/8', '8C'], ['H/64', 'W/64', '4C+4C'], ['h', 'H/16·W/16', '2C/h'], ['T', 'D_t'], ['h_t', 'T', 'd_t']]);
+  assert.ok(!r.ops.find((o) => o.id === 'd4-attn1') && !r.tensors['u1-attn1-out'], 'down-4 / up-1 sin atención');
+  // nodos de SPEC §20.1 (paths)
+  const P = (id) => J(r.ops.find((o) => o.id === id).path);
+  assert.deepStrictEqual([P('conv-in'), P('temb-fc1'), P('d1-res1-gn1'), P('d1-res1-time-proj'), P('d2-res1-skip'), P('d1-attn1-norm1'), P('d1-attn1-sa-scores'),
+    P('d1-attn1-ca-k'), P('d1-attn1-ff-geglu'), P('d1-down'), P('u1-cat1'), P('u1-up-conv'), P('conv-out'), P('scheduler-step'), P('cfg-combine'), P('vd-conv-out'), P('t-qkv')],
+  [['unet', 'conv-in'], ['unet', 'time-embed', 'fc1'], ['unet', 'down-1', 'd1-res1', 'gn1'], ['unet', 'down-1', 'd1-res1', 'time-proj'], ['unet', 'down-2', 'd2-res1', 'skip'],
+    ['unet', 'down-1', 'd1-attn1', 'norm1'], ['unet', 'down-1', 'd1-attn1', 'self-attn', 'scores'], ['unet', 'down-1', 'd1-attn1', 'cross-attn', 'k'],
+    ['unet', 'down-1', 'd1-attn1', 'ff-geglu', 'geglu'], ['unet', 'down-1', 'd1-down'], ['unet', 'up-1', 'u1-res1', 'cat'], ['unet', 'up-1', 'u1-up', 'conv'],
+    ['unet', 'conv-out', 'conv'], ['scheduler', 'step'], ['scheduler', 'cfg'], ['vae-decoder', 'vd-conv-out', 'conv'], ['text-encoder', 'enc-layer', 'mhsa', 'qkv']]);
+  // cross-attention: K y V del texto (77 × 768 → C)
+  assert.deepStrictEqual(J(r.ops.find((o) => o.id === 'd1-attn1-ca-k').in), ['text-emb']);
+  assert.strictEqual(r.ops.find((o) => o.id === 'd1-attn1-ca-k').params, 768 * 320);
+  // los skips: el último tensor de cada bloque de bajada, consumido por el nivel espejo
+  assert.deepStrictEqual(J(r.config.skipMap.map((s) => s.tensor)), ['d4-res2-out', 'd4-res1-out', 'd3-down-out', 'd3-attn2-out', 'd3-attn1-out', 'd2-down-out',
+    'd2-attn2-out', 'd2-attn1-out', 'd1-down-out', 'd1-attn2-out', 'd1-attn1-out', 'h-in']);
+  assert.deepStrictEqual(J(r.tensors['d1-attn2-out'].consumers), ['d1-down', 'u4-cat1']);
+});
+
+test('F8 SD: knobs res, steps, cfg (0/1), B y train; config de entrenamiento; errores en español', () => {
+  const r = A8.run('sd15-unet'), t = A8.run('sd15-train');
+  assert.strictEqual(t.totals.params, r.totals.params);
+  assert.strictEqual(t.totals.byNode.unet.macs, r.totals.byNode.unet.macs);
+  assert.deepStrictEqual(J(['image', 'z0', 'eps', 'z-t', 'eps-hat', 'loss'].map((id) => t.tensors[id].num)), [[512, 512, 3], [64, 64, 4], [64, 64, 4], [64, 64, 4], [64, 64, 4], [1]]);
+  assert.deepStrictEqual(J(t.ops.find((o) => o.id === 'add-noise').in), ['z0', 'eps', 'timestep']);
+  assert.strictEqual(t.ops.find((o) => o.id === 'vae-decoder-idle').params, 49490199);
+  assert.strictEqual(A8.run('sd15-unet', { train: 1 }).totals.macs, t.totals.macs);
+  // cfg = 0: sin la op de CFG ni la predicción sin texto; el grafo de la red no cambia
+  const n0 = A8.run('sd15-unet', { cfg: 0 });
+  assert.ok(!n0.tensors['eps-uncond'] && !n0.ops.find((o) => o.id === 'cfg-combine'));
+  assert.strictEqual(n0.totals.macs, r.totals.macs);
+  assert.deepStrictEqual(J(A8.run('sd15-unet', { steps: 20 }).ops.map((o) => o.id)), J(r.ops.map((o) => o.id)));
+  // res: latente res/8, el número de tokens del primer nivel ∝ res²
+  const r7 = A8.run('sd15-unet', { res: 768 });
+  assert.deepStrictEqual([J(r7.tensors['z-t'].num), r7.config.tokens, J(r7.tensors['d1-attn1-sa-scores'].num)], [[96, 96, 4], 9216, [8, 9216, 9216]]);
+  assert.match(r7.label, /@ 768/);
+  assert.ok(r7.notes.some((x) => /se entrenó a 512/.test(x)));
+  assert.throws(() => A8.run('sd15-unet', { res: 500 }), /múltiplo de 64/);
+  assert.throws(() => A8.run('sd15-unet', { cfg: 2 }), /cfg debe ser 0/);
+  assert.throws(() => A8.run('sd15-unet', { foo: 1 }), /Knob inválido/);
+  // schedule de SD (scaled_linear 0.00085 → 0.012) y pasos de DDIM / PNDM (cross-check con diffusers en el JSON)
+  const ab = A8.diffusion.alphasCumprod('scaled_linear', 1000, 0.00085, 0.012);
+  assert.ok(Math.abs(ab[0] - 0.99915) < 1e-12 && Math.abs(ab[999] - 0.004660) < 1e-5);
+  assert.deepStrictEqual(J(A8.diffusion.ddimTimesteps(10)), [901, 801, 701, 601, 501, 401, 301, 201, 101, 1]);
+  assert.strictEqual(A8.diffusion.pndmNfe(50), 51);
+  const sch = A8.diffusion.schedule('dit-xl2-256');
+  assert.strictEqual(sch.kind, 'linear');
+  assert.ok(Math.abs(sch.alphasCumprod[0] - 0.9999) < 1e-12);
+});
+
+test('F8 SDXL: U-Net 2,567,463,684 (3 niveles, transformers ×2 / ×10, d_h = 64), dos encoders de texto (penúltima capa), micro-condicionamiento', () => {
+  const r = A8.run('sdxl-unet'), n = r.totals.byNode;
+  assert.deepStrictEqual([n.unet.params, n.te1.params, n.te2.params, n['text-encoder'].params, r.totals.params], [2567463684, 123060480, 694659840, 817720320, 3468837867]);
+  assert.deepStrictEqual([n.unet.macs, n['text-encoder'].macs, n['vae-decoder'].macs], [3380618199040, 55580805120, 5235196297216]);
+  const T = (id) => J(r.tensors[id].num);
+  assert.deepStrictEqual([T('z-t'), T('text-emb'), T('te1-hidden'), T('te2-hidden'), T('text-pooled'), T('add-in'), T('temb-total'), T('d2-attn1-sa-scores'), T('d3-attn1-ca-scores'), T('image')],
+    [[128, 128, 4], [77, 2048], [77, 768], [77, 1280], [1280], [2816], [1280], [10, 4096, 4096], [20, 1024, 77], [1024, 1024, 3]]);
+  assert.ok(!r.ops.find((o) => /^d1-attn/.test(o.id)), 'sin atención en el primer nivel (128×128)');
+  assert.deepStrictEqual([r.ops.find((o) => o.id === 'd2-attn1-norm1').repeat, r.ops.find((o) => o.id === 'd3-attn1-norm1').repeat, r.ops.find((o) => o.id === 'mid-attn-norm1').repeat], [2, 10, 10]);
+  assert.strictEqual(r.ops.find((o) => o.id === 'te1-enc-layer') === undefined, true);
+  assert.deepStrictEqual([r.ops.find((o) => o.id === 'te1-qkv').repeat, r.ops.find((o) => o.id === 'te2-qkv').repeat], [11, 31]);
+  assert.deepStrictEqual(J(r.ops.find((o) => o.id === 'text-concat').in), ['te1-hidden', 'te2-hidden']);
+  assert.deepStrictEqual(J(r.tensors['d2-attn1-sa-qh'].sym), ['2C/d_h', 'H/16·W/16', 'd_h']);
+  assert.strictEqual(r.config.skipMap.length, 9);
+});
+
+test('F8 DiT: anclas (XL/2 674,834,720 = oficial sin la posición fija; diffusers 749,826,464), 118.6 «Gflops» del paper = MACs, adaLN-Zero, patch y resolución', () => {
+  const r = A8.run('dit-xl2-256'), q = r.quantities, D = 1152, L = 28;
+  assert.deepStrictEqual([r.totals.params, q.officialParams, q.diffusersParams, r.totals.macs, q.diffusersMacs], [674834720, 675129632, 749826464, 118621421568, 118666838016]);
+  assert.ok(Math.abs(r.totals.macs / 118.6e9 - 1) < 0.0005, 'los 118.6 «Gflops» de la Tabla 4 son GMACs');
+  assert.strictEqual(q.blockParams, 18 * D * D + 15 * D);
+  assert.strictEqual(q.adalnParamsBlock, 6 * D * D + 6 * D);
+  assert.strictEqual(r.ops.find((o) => o.id === 'adaln').repeat, L);
+  assert.deepStrictEqual([r.totals.byNode.adaln.params, r.totals.byNode['adaln-final'].params, q.adalnParams], [L * (6 * D * D + 6 * D), D * 2 * D + 2 * D, L * (6 * D * D + 6 * D) + D * 2 * D + 2 * D]);
+  assert.deepStrictEqual([q.tEmbedParams, q.yEmbedParams], [256 * D + D + D * D + D, 1001 * D]);
+  assert.strictEqual(r.ops.find((o) => o.id === 'norm1').params, 0);
+  const T = (id) => J(r.tensors[id].num), Y = (id) => J(r.tensors[id].sym);
+  assert.deepStrictEqual([T('x-t'), T('x-patch-grid'), T('h0'), T('c'), T('gamma1'), T('scores'), T('u'), T('h-final'), T('out'), T('eps-hat'), T('sigma')],
+    [[32, 32, 4], [16, 16, 1152], [256, 1152], [1152], [1152], [16, 256, 256], [256, 4608], [256, 32], [32, 32, 8], [32, 32, 4], [32, 32, 4]]);
+  assert.deepStrictEqual([Y('x-t'), Y('x-patch-grid'), Y('h0'), Y('h-final'), Y('out'), Y('beta1')], [['I', 'I', '4'], ['I/P', 'I/P', 'D'], ['N', 'D'], ['N', 'P²·8'], ['I', 'I', '8'], ['D']]);
+  const P = (id) => J(r.ops.find((o) => o.id === id).path);
+  assert.deepStrictEqual([P('patchify'), P('pos-embed'), P('adaln'), P('modulate1'), P('qkv'), P('gate1'), P('fc1'), P('gate2'), P('res2'), P('final-adaln'), P('final-linear'), P('unpatchify'), P('split-out'), P('temb-fc1'), P('y-embed'), P('cond')],
+    [['patchify', 'conv'], ['pos-embed', 'table'], ['blocks', 'block', 'adaln'], ['blocks', 'block', 'modulate1'], ['blocks', 'block', 'attn', 'qkv'], ['blocks', 'block', 'gate1'],
+      ['blocks', 'block', 'mlp', 'fc1'], ['blocks', 'block', 'gate2'], ['blocks', 'block', 'res2'], ['final-layer', 'adaln-final'], ['final-layer', 'linear'], ['unpatchify'], ['out'], ['t-embed', 'fc1'], ['y-embed'], ['cond']]);
+  assert.deepStrictEqual(J(r.ops.find((o) => o.id === 'adaln').out), ['beta1', 'gamma1', 'alpha1', 'beta2', 'gamma2', 'alpha2']);
+  // patch: tokens ÷4 por cada ×2 del patch; los parámetros casi no cambian (solo el patchify y el Linear final)
+  const tok = DITS.slice(0, 4).map((id) => A8.run(id).config.N);
+  assert.deepStrictEqual(J(tok), [256, 1024, 64, 16]);
+  assert.deepStrictEqual(J(['dit-xl4-256', 'dit-xl8-256', 'dit-b2-256', 'dit-xl2-512'].map((id) => A8.run(id).totals.params)), [675000704, 675664640, 130315808, 674834720]);
+  assert.deepStrictEqual(J(['dit-xl4-256', 'dit-xl8-256', 'dit-b2-256', 'dit-xl2-512'].map((id) => A8.run(id).totals.macs)), [29043671040, 7392411648, 23005102080, 524538298368]);
+  assert.strictEqual(A8.run('dit-xl2-256', { patch: 4 }).totals.macs, A8.run('dit-xl4-256').totals.macs);
+  assert.strictEqual(A8.run('dit-xl2-256', { res: 1024 }).config.N, 4096);
+  assert.throws(() => A8.run('dit-xl2-256', { patch: 3 }), /divisible/);
+  // flow matching: la red bajo el nodo `model`, salida v̂ de 4 canales, objetivo v = ε − x₀
+  const f = A8.run('dit-xl2-256-fm');
+  assert.deepStrictEqual([J(f.tensors['v-hat'].num), J(f.tensors['v-target'].num), J(f.tensors.loss.num)], [[32, 32, 4], [32, 32, 4], [1]]);
+  assert.deepStrictEqual(J(f.ops.find((o) => o.id === 'interp').in), ['x0', 'eps', 'timestep']);
+  assert.deepStrictEqual(J(f.ops.find((o) => o.id === 'qkv').path), ['model', 'blocks', 'block', 'attn', 'qkv']);
+  assert.deepStrictEqual(J(f.ops.find((o) => o.id === 'loss').in), ['v-hat', 'v-target']);
+  assert.strictEqual(f.totals.byNode.model.params, f.totals.params);
+  assert.strictEqual(f.totals.params, r.totals.params - (D * 32 + 32) + (D * 16 + 16));
+});
+
+test('F8 métricas: unidades conocidas, costo por imagen (pasos × NFE × CFG + texto + VAE), reparto, atención por nivel, roofline ≈, listas', () => {
+  const OK = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params'];
+  for (const id of SD.concat(DITS)) {
+    const m = A8.metrics(id, {});
+    for (const [k, u] of Object.entries(m.units)) assert.ok(OK.includes(u), id + ' ' + k + ': ' + u);
+    Object.keys(m).filter((k) => typeof m[k] === 'number' && /Macs$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'macs', id + ' ' + k));
+    Object.keys(m).filter((k) => typeof m[k] === 'number' && /Params$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'params', id + ' ' + k));
+    assert.strictEqual(m.compressionFactor, 48, id);
+    assert.ok(m.samplingMs > 0 && m.imagesPerSecUpperBound > 0 && isFinite(m.msPerImage), id);
+  }
+  const m = A8.metrics('sd15-unet', {});
+  assert.deepStrictEqual([m.steps, m.nfePerStep, m.nfe, m.textPasses, m.latentShape, m.latentTokens], [50, 2, 100, 2, '64×64×4', 4096]);
+  assert.strictEqual(m.samplingMacs, 100 * m.unetMacs + 2 * m.textEncoderMacs + m.vaeDecoderMacs);
+  assert.strictEqual(A8.metrics('sd15-unet', { cfg: 0 }).samplingMacs, 50 * m.unetMacs + m.textEncoderMacs + m.vaeDecoderMacs);
+  assert.ok(m.denoiserSamplingShare > 0.96 && m.vaeDecoderShare < 0.04);
+  assert.deepStrictEqual([m.unetParams + m.vaeParams + m.textEncoderParams, m.totalParams], [1066235307, 1066235307]);
+  // atención: por nivel suma al total de la U-Net (más conv-in, tiempo y conv-out); 8 cabezas × 4096² en bf16 = 268 MB por bloque
+  const lv = m.attnByLevel;
+  assert.deepStrictEqual(J(lv.map((x) => x.level)), ['down-1', 'down-2', 'down-3', 'down-4', 'mid', 'up-1', 'up-2', 'up-3', 'up-4']);
+  const rest = ['conv-in', 'time-embed', 'conv-out'].reduce((s, k) => s + A8.run('sd15-unet').totals.byPath['unet>' + k].macs, 0);
+  assert.strictEqual(lv.reduce((s, x) => s + x.macs, 0) + rest, m.unetMacs);
+  assert.deepStrictEqual([lv[0].tokens, lv[3].hasAttention, lv[5].hasAttention, m.selfAttnTokens, m.selfAttnScoreBytes], [4096, false, false, 4096, 8 * 4096 * 4096 * 2]);
+  assert.ok(lv[0].attnShareOfLevel > lv[1].attnShareOfLevel, 'la atención pesa más en el nivel de 64×64');
+  // crecimiento con la resolución: superlineal en píxeles (la self-attention es cuadrática en tokens)
+  const rs = m.resScaling;
+  assert.deepStrictEqual(J(rs.map((x) => x.tokensL1)), [1024, 4096, 9216, 16384]);
+  assert.ok(rs[3].unetMacsVsBase > 4 && rs.every((x, i) => !i || x.selfScoreShareUnet > rs[i - 1].selfScoreShareUnet));
+  assert.deepStrictEqual(J(m.attnShareAt.map((x) => x.res)), [256, 512, 768, 1024]);
+  // pasos: lineal; CFG: ×2 en la red
+  const ss = m.stepsScaling;
+  assert.ok(Math.abs((ss[4].samplingMacs - ss[3].samplingMacs) - 50 * 2 * m.unetMacs) < 1);
+  assert.deepStrictEqual(J(m.cfgScaling.map((x) => x.nfe)), [50, 100]);
+  // roofline ≈: suma de componentes; la U-Net con CFG a B = 1 ya está limitada por cómputo
+  assert.ok(Math.abs(m.samplingMs - (50 * m.unetNfeMs + m.textEncoderMs + m.vaeDecodeMs)) < 1e-9);
+  assert.strictEqual(m.unetBound, 'cómputo');
+  assert.strictEqual(m.ridgePoint, 989e12 / 3.35e12);
+  assert.ok(A8.metrics('sd15-unet', { B: 4 }).msPerImage < m.msPerImage + 1e-9);
+  assert.ok(A8.metrics('sd15-unet', { peakFlops: 989e12 / 2 }).samplingMs > m.samplingMs);
+  // DiT: 250 pasos DDPM × 2 (CFG) + decoder del VAE a 256
+  const d = A8.metrics('dit-xl2-256', {});
+  assert.strictEqual(d.samplingMacs, 500 * d.ditMacs + d.vaeDecoderMacs);
+  assert.deepStrictEqual([d.paperGflops, d.latentTokens, d.vaeDecoderMacs], [118.6, 256, 311093641216]);
+  assert.ok(Math.abs(d.adalnParamsShareBlock - 1 / 3) < 0.001);
+  assert.deepStrictEqual(J(d.patchScaling.map((x) => x.tokens)), [256, 64, 16]);
+  assert.deepStrictEqual(J(d.resScaling.map((x) => x.tokens)), [256, 1024, 4096]);
+  assert.ok(d.resScaling.every((x, i, a) => !i || x.scoreShareDit > a[i - 1].scoreShareDit));
+  // Quantities: claves de la fase 8 en prosa
+  assert.strictEqual(Q8.get('sd15-unet.scaling').text, '0.18215');
+  assert.strictEqual(Q8.get('sd15-unet.metrics.samplingMacs').text, A8.fmt.ops(m.samplingMacs));
+  assert.strictEqual(Q8.get('sd15-unet.metrics.attnShareUnet').text, A8.fmt.pct(m.attnShareUnet));
+  assert.strictEqual(Q8.get('dit-xl2-256.paperGflops').text, '118.6');
+  assert.strictEqual(Q8.get('sd15-unet.tensor.d1-attn1-sa-scores.shape').text, '8×4096×4096');
+});
+
+test('F8 etiqueta + símbolo identifican una forma; byPath suma; aritmética; where; Quantities resuelve todas las claves', () => {
+  const cases = [['sd15-unet', [{}, { cfg: 0 }, { res: 768 }]], ['sd15-train', [{}]], ['sdxl-unet', [{}]]].concat(DITS.map((id) => [id, [{}]]));
+  for (const [id, ovs] of cases) {
+    for (const ov of ovs) {
+      const r = A8.run(id, ov), t = r.totals;
+      const by = {};
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        const k = x.label + '|' + String(x.tex).split('=')[0].trim();
+        (by[k] = by[k] || new Set()).add(x.num.join('×'));
+      }
+      for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.params * A8.paramRep(o), 0), t.params);
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.macs * o.repeat, 0), t.macs);
+      const check = (pp, want) => {
+        const kids = children(r, pp);
+        if (!kids.length) return;
+        const at = (k) => t.byPath[pp.concat([k]).join('>')];
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).params, 0), want.params, id + ' params bajo ' + (pp.join('>') || 'raíz'));
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).macs, 0), want.macs, id + ' MACs bajo ' + (pp.join('>') || 'raíz'));
+        kids.forEach((k) => check(pp.concat([k]), at(k)));
+      };
+      check([], t);
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        if (x.producer) assert.ok(r.ops.find((o) => o.id === x.producer).out.includes(tid));
+        x.consumers.forEach((oid) => assert.ok(r.ops.find((o) => o.id === oid).in.includes(tid)));
+      }
+      for (const o of r.ops) {
+        if (o.params && o.prim !== 'idle_params') assert.ok(o.paramArith.endsWith(A8.fmt.int(o.params)), id + ' ' + o.id + ' paramArith');
+        if (o.macs) assert.ok(o.macArith.endsWith(A8.fmt.int(o.macs)), id + ' ' + o.id + ' macArith');
+        assert.ok(!/undefined|NaN|null/.test(o.paramTex + o.macTex + o.shapeTex + o.label), id + ' ' + o.id + ' tex');
+        assert.ok(Array.isArray(o.where) && o.where.length, id + ' ' + o.id + ' sin where');
+      }
+      // el encoder de texto importado no conserva h / d_h / D_mlp (son h_t, d_t, 4D_t: h es la de la U-Net)
+      for (const o of r.ops.filter((x) => x.path[0] === 'text-encoder' && !/^te\d/.test(x.id))) {
+        assert.ok(!/(^|[^A-Za-z\\{_])h(?![A-Za-z_])|d_h|mathrm\{mlp\}/.test(o.macTex + o.paramTex + o.shapeTex), id + ' ' + o.id + ': ' + o.macTex);
+      }
+    }
+    assert.strictEqual(A8.run(id), A8.run(id), 'memoizado');
+    J(Q8.keys(id)).forEach((k) => assert.ok(Q8.get(id + '.' + k), id + '.' + k));
+  }
+});

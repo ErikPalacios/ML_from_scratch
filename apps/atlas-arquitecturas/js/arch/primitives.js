@@ -76,6 +76,16 @@
      mrope (M-RoPE) y mrope_ids; graph.has(id); importGraph(g, src, o) compone un modelo con el grafo de otro (el decoder de
      llm.js dentro del VLM) sin duplicar su constructor; preLnLayer acepta hSym, dhSym, DmlpSym, rope, outMeta y entradas con
      dimensiones delanteras (todas opcionales). Ninguna cambia el resultado de las fases 1–6.
+   - Fase 8 (difusión: Stable Diffusion, DiT): timestep_embedding (sinusoidal del paso t, buffer; n valores → n·dim),
+     concat_features (concatenar en la última dimensión: los dos textos de SDXL), label_embed (tabla K + 1
+     con la clase nula de CFG), add_broadcast (vector por canal sumado a una rejilla: el tiempo en la U-Net), downsample2d
+     (conv 3×3 stride 2, padding simétrico o el (0, 1, 0, 1) del VAE), geglu, adaln_zero (SiLU → Linear D → kD → k vectores),
+     ada_modulate (x(1 + γ) + β), ada_gate (α ⊙ x), sincos_pos_2d (posición fija de DiT), unpatchify, latent_sample,
+     latent_scale, add_noise (DDPM o flow), flow_target, cfg_combine, scheduler_step, mse_loss; compuestas resnet_block,
+     upsample2d, geglu_ff, spatial_transformer y dit_block. layernorm acepta {affine: false} (0 parámetros, LayerNorm de DiT);
+     symTexAtom convierte '²' en ^2 (solo 'M²' lo tenía, y va por SYM_TEX); resolve acepta 0 en los knobs que el modelo
+     declare en def.zeroKnobs (cfg). Ninguna cambia el resultado de las fases 1–7 (verificado: run y metrics de todas las
+     configs anteriores idénticos antes y después).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -144,7 +154,8 @@
     if (SYM_TEX[s]) return SYM_TEX[s];
     // Fase 4: '·' dentro de un símbolo (H/8·W/8, las celdas de un nivel de YOLO) → \cdot. Ningún símbolo
     // anterior lo usa fuera de SYM_TEX (hLK·2), así que las fórmulas de las fases 1–3 no cambian.
-    return s.replace(/D_mlp/g, 'D_{\\mathrm{mlp}}').replace(/·/g, '\\cdot ');
+    // Fase 8: '²' dentro de un símbolo (P²·8 de DiT) → ^2. El único símbolo anterior con '²' (M²) está en SYM_TEX.
+    return s.replace(/D_mlp/g, 'D_{\\mathrm{mlp}}').replace(/·/g, '\\cdot ').replace(/²/g, '^2');
   }
   const compound = (s) => /[+\-\/ ]/.test(String(s));
   // En una forma: (N+1)×D. En LaTeX de forma: (N{+}1)\times D.
@@ -280,6 +291,11 @@
   function norm(prim, x, o) {
     const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1];
     const affine2 = prim === 'layernorm';
+    // Fase 8 (DiT): o.affine === false → LayerNorm sin γ ni β (elementwise_affine = False; la escala y el desplazamiento
+    // los pone adaLN): 0 parámetros. Sin la opción, el resultado es exactamente el de antes.
+    if (o && o.affine === false) {
+      return result(prim, [x], plain(x), { params: 0, paramTex: '0\\ (\\text{sin }\\gamma,\\beta)', other: elems(x) * OTHER[prim], detail: { D, eps: o.eps || null, affine: false } });
+    }
     return result(prim, [x], plain(x), {
       paramTerms: affine2 ? [[2, D]] : [[D]],
       paramTex: affine2 ? texScale(2, Ds) : symTexFactor(Ds),
@@ -1376,6 +1392,195 @@
     return result('mrope_ids', [], shape(['3', o.sym || String(o.S)], [3, o.S], 'txt', 'seq'), { detail: { span: o.span || null, note: o.note || '' } });
   }
 
+  // ---- Fase 8 (difusión: Stable Diffusion, DiT): primitivas elementales ---------------------
+  // GroupNorm (group_norm, fase 3), SiLU (silu, fase 4), upsample_nearest (fase 4), concat_channels (fase 4), split_channels,
+  // flatten y to_grid ya existen; aquí solo lo nuevo.
+  // timestep_embedding (DDPM / DiT): el paso t (un escalar) → vector sinusoidal de `dim` canales: [cos(t·ω_i); sin(t·ω_i)] con
+  // ω_i = maxPeriod^(−i/(dim/2 − shift)). Buffer calculado: 0 parámetros, 0 MACs. o = {dim, sym, flip=true (cos primero),
+  // shift=0 (diffusers: freq_shift / downscale_freq_shift), maxPeriod=10000, mod}
+  // Con n valores de entrada (un vector de n: los 6 "time ids" de tamaño y recorte de SDXL) la salida es n·dim (cada valor
+  // con su sinusoide, concatenadas), como add_time_proj de diffusers; con n = 1 es un vector de dim.
+  function timestep_embedding(t, o) {
+    const dim = o.dim, n = t.num.length === 1 ? t.num[0] : 1;
+    if (dim % 2 !== 0) throw new Error('timestep_embedding: dim = ' + dim + ' debe ser par (mitad seno, mitad coseno).');
+    return result('timestep_embedding', [t], shape([o.sym || String(n * dim)], [n * dim], o.mod || null, 'vec'), {
+      other: n * dim * OTHER.sinpos,
+      detail: { dim, values: n, flipSinToCos: o.flip !== false, shift: o.shift || 0, maxPeriod: o.maxPeriod || 10000, buffer: true,
+        note: 'sin/cos de t·ω_i (como la PE del Transformer, pero sobre el paso t): sin parámetros' },
+    });
+  }
+
+  // concat_features: concatena en la última dimensión (canales / features) tensores con las mismas dimensiones delanteras:
+  // T×D₁, T×D₂ → T×(D₁ + D₂) (SDXL: los dos encoders de texto; el vector de tiempo + el texto agrupado). Vista: sin costo.
+  // o = {sym}
+  function concat_features(list, o) {
+    const nd = list[0].num.length, lead = list[0].num.slice(0, nd - 1);
+    list.forEach((t) => { if (t.num.length !== nd || t.num.slice(0, nd - 1).some((v, i) => v !== lead[i])) throw new Error('concat_features: formas incompatibles (' + list.map(shapeStr).join(', ') + ').'); });
+    const W = list.reduce((s, t) => s + t.num[nd - 1], 0);
+    return result('concat_features', list, shape(list[0].sym.slice(0, nd - 1).concat([(o && o.sym) || list.map((t) => t.sym[nd - 1]).join('+')]), lead.concat([W]), (o && o.mod) || list[0].mod, list[0].layout), {
+      detail: { parts: list.map((t) => t.num[nd - 1]) },
+    });
+  }
+
+  // label_embed (DiT): la clase y (un id) → vector D de una tabla aprendida de K + 1 filas (la fila extra es la clase
+  // "nula" de classifier-free guidance: con probabilidad 0.1 se reemplaza la etiqueta por ella al entrenar). o = {K, D, Ksym,
+  // Dsym, nullClass=true}
+  function label_embed(y, o) {
+    const rows = o.K + (o.nullClass === false ? 0 : 1), Ks = o.Ksym || 'K', Ds = o.Dsym || 'D';
+    const rowsTex = o.nullClass === false ? symTexFactor(Ks) : '(' + symTexAtom(Ks) + '+1)';
+    return result('label_embed', [y], shape([Ds], [o.D], o.mod || null, 'vec'), {
+      paramTerms: [[rows, o.D]], paramTex: rowsTex + '\\cdot ' + symTexFactor(Ds),
+      detail: { K: o.K, rows, D: o.D, nullClass: o.nullClass !== false, note: 'tabla de K + 1 filas: la última es la clase nula (∅) de CFG' },
+    });
+  }
+
+  // add_broadcast: rejilla h×w×C + vector C (un valor por canal, el mismo en cada posición) → h×w×C. U-Net: la proyección
+  // del embedding del tiempo se suma así a cada bloque ResNet. 1 op por elemento.
+  function add_broadcast(x, v) {
+    const C = x.num[x.num.length - 1];
+    if (v.num.length !== 1 || v.num[0] !== C) throw new Error('add_broadcast: el vector (' + shapeStr(v) + ') no tiene los ' + C + ' canales de la rejilla.');
+    return result('add_broadcast', [x, v], plain(x), { other: elems(x) * OTHER.add, detail: { C, note: 'el mismo vector en cada posición (broadcast)' } });
+  }
+
+  // downsample2d (U-Net y VAE): conv 3×3 con stride 2: H×W×C → H/2×W/2×C_out. pad 'sym' = padding 1 (U-Net de SD,
+  // downsample_padding = 1); 'asym' = relleno (0, 1, 0, 1) a la derecha y abajo y padding 0 (encoder del VAE). Mismo
+  // tamaño de salida y mismos MACs: (H/2)(W/2)·C_out·9·C. o = {cout, coutSym, pad='sym', outSym:[hs, ws], bias=true}
+  function downsample2d(x, o) {
+    if (x.num.length !== 3) throw new Error('downsample2d espera una entrada H×W×C.');
+    const [H, W, C] = x.num, Cs = x.sym[2], bias = o.bias !== false;
+    if (H % 2 !== 0 || W % 2 !== 0) throw new Error('downsample2d: la rejilla ' + H + '×' + W + ' no es par.');
+    const Ho = H / 2, Wo = W / 2, cout = o.cout || C, cs = o.coutSym || (o.cout ? String(cout) : Cs);
+    const os = o.outSym || [x.sym[0] + '/2', x.sym[1] + '/2'];
+    return result('downsample2d', [x], shape([os[0], os[1], cs], [Ho, Wo, cout], o.mod || x.mod, 'grid'), {
+      paramTerms: [[3, 3, C, cout]].concat(bias ? [[cout]] : []),
+      paramTex: '3^2\\cdot ' + symTexFactor(Cs) + '\\cdot ' + symTexFactor(cs) + (bias ? ' + ' + symTexFactor(cs) : ''),
+      macTerms: [[Ho, Wo, cout, 3, 3, C]], macTex: texProd([os[0], os[1], cs]) + '\\cdot 3^2\\cdot ' + symTexFactor(Cs),
+      other: bias ? Ho * Wo * cout * OTHER.bias : 0,
+      detail: { k: 3, s: 2, pad: o.pad || 'sym', Ho, Wo, cin: C, cout, bias,
+        note: (o.pad === 'asym' ? 'relleno (0, 1, 0, 1) y padding 0' : 'padding 1') + ': conv 3×3 con stride 2 (la resolución se divide entre 2)' },
+    });
+  }
+
+  // geglu (FFN de los bloques transformer de SD; Shazeer 2020): la proyección de entrada da 2F canales que se parten en dos
+  // mitades: valor ⊙ GELU(compuerta) → N×F. La mitad de canales a la salida. Sin parámetros (los tiene el Linear de antes).
+  function geglu(x, o) {
+    const nd = x.num.length, W = x.num[nd - 1];
+    if (W % 2 !== 0) throw new Error('geglu: ' + W + ' canales no se parten en dos mitades.');
+    const F = W / 2, sym = x.sym.slice(0, nd - 1).concat([(o && o.outSym) || String(F)]);
+    return result('geglu', [x], shape(sym, x.num.slice(0, nd - 1).concat([F]), x.mod, x.layout), {
+      other: elems(x) / 2 * (OTHER.gelu + OTHER.mul),
+      detail: { F, note: 'h, g = chunk(xW + b, 2): salida h ⊙ GELU(g) (diffusers GEGLU)' },
+    });
+  }
+
+  // adaln_zero (DiT, adaLN-Zero): del vector de condición c (D) → SiLU → Linear D → k·D (con sesgo) → k vectores de D
+  // (k = 6 en cada bloque: γ1, β1, α1, γ2, β2, α2 — en el orden de diffusers / el código oficial: shift, scale, gate de la
+  // atención y del MLP; k = 2 en la capa final: β, γ). "Zero": el Linear se inicializa en ceros, así cada bloque empieza
+  // como la identidad (α = 0). Parámetros D·kD + kD; MACs D·kD (una fila: c es un vector). o = {k, outSyms}
+  function adaln_zero(c, o) {
+    if (c.num.length !== 1) throw new Error('adaln_zero espera el vector de condición c (D).');
+    const D = c.num[0], Ds = c.sym[0], k = o.k;
+    const outs = Array.from({ length: k }, () => shape([Ds], [D], c.mod, 'vec'));
+    return result('adaln_zero', [c], outs, {
+      paramTerms: [[D, k, D], [k, D]], paramTex: symTexFactor(Ds) + '\\cdot ' + texScale(k, Ds) + ' + ' + texScale(k, Ds),
+      macTerms: [[D, k, D]], macTex: symTexFactor(Ds) + '\\cdot ' + texScale(k, Ds),
+      other: D * OTHER.silu + k * D * OTHER.bias,
+      detail: { k, D, zeroInit: true, note: 'SiLU → Linear D → kD (inicializado en ceros) → k vectores' },
+    });
+  }
+
+  // ada_modulate (DiT): x ⊙ (1 + γ) + β con γ (scale) y β (shift) vectores de D, iguales para todos los tokens. Entradas x,
+  // β, γ. ≈ 3 ops por elemento. Sin parámetros (γ y β salen del adaLN).
+  function ada_modulate(x, shift, scl) {
+    const D = x.num[x.num.length - 1];
+    [shift, scl].forEach((v) => { if (v.num.length !== 1 || v.num[0] !== D) throw new Error('ada_modulate: β y γ deben ser vectores de ' + D + '.'); });
+    return result('ada_modulate', [x, shift, scl], plain(x), { other: 3 * elems(x), detail: { D, note: 'x·(1 + γ) + β (modulate de DiT)' } });
+  }
+
+  // ada_gate (DiT): α ⊙ x (α vector de D, el mismo para cada token) antes de la suma residual; con α = 0 (adaLN-Zero) la
+  // rama no aporta nada al inicio. 1 op por elemento.
+  function ada_gate(x, alpha) {
+    const D = x.num[x.num.length - 1];
+    if (alpha.num.length !== 1 || alpha.num[0] !== D) throw new Error('ada_gate: α debe ser un vector de ' + D + '.');
+    return result('ada_gate', [x, alpha], plain(x), { other: elems(x), detail: { D, note: 'α ⊙ rama (α = 0 al inicio: el bloque empieza como la identidad)' } });
+  }
+
+  // sincos_pos_2d (DiT, como MAE): tabla FIJA N×D de senos y cosenos de la fila y la columna de cada parche (D/2 canales por
+  // eje). Buffer calculado: 0 parámetros (el código oficial de DiT la guarda como nn.Parameter con requires_grad = False:
+  // ver la nota del modelo). o = {gh, gw, D, rowsSym='N', Dsym='D'}
+  function sincos_pos_2d(o) {
+    const rows = o.gh * o.gw;
+    return result('sincos_pos_2d', [], shape([o.rowsSym || 'N', o.Dsym || 'D'], [rows, o.D], o.mod || 'lat', 'seq'), {
+      other: rows * o.D * OTHER.sinpos,
+      detail: { grid: [o.gh, o.gw], D: o.D, perAxis: o.D / 2, buffer: true, note: 'sin/cos 2-D fijos (MAE): no se aprenden' },
+    });
+  }
+
+  // unpatchify (DiT): N×(P²·C) → (h·P)×(w·P)×C: cada token vuelve a ser un parche P×P×C de la rejilla. Vista. o = {gh, gw, P,
+  // outSym:[hs, ws, cs]}
+  function unpatchify(x, o) {
+    const [N, W] = x.num, P = o.P;
+    if (N !== o.gh * o.gw) throw new Error('unpatchify: ' + N + ' tokens no forman una rejilla ' + o.gh + '×' + o.gw + '.');
+    if (W % (P * P) !== 0) throw new Error('unpatchify: ' + W + ' canales no son P²·C con P = ' + P + '.');
+    const C = W / (P * P), os = o.outSym || [String(o.gh * P), String(o.gw * P), String(C)];
+    return result('unpatchify', [x], shape(os, [o.gh * P, o.gw * P, C], x.mod, 'grid'), { detail: { P, C, grid: [o.gh, o.gw] } });
+  }
+
+  // latent_sample (VAE, DiagonalGaussianDistribution): los 2c momentos (media y log-varianza) → z = μ + σ·ε, c canales.
+  // ≈ 4 ops por elemento de salida (exp, ×, +). o = {sym, mode} (mode = 'sample' | 'mean')
+  function latent_sample(m, o) {
+    const nd = m.num.length, W = m.num[nd - 1];
+    if (W % 2 !== 0) throw new Error('latent_sample: ' + W + ' canales no son media + log-varianza.');
+    const c = W / 2, sym = m.sym.slice(0, nd - 1).concat([(o && o.sym) || String(c)]);
+    const out = shape(sym, m.num.slice(0, nd - 1).concat([c]), (o && o.mod) || m.mod, m.layout);
+    return result('latent_sample', [m], out, { other: elems(out) * 4, detail: { c, mode: (o && o.mode) || 'sample', note: 'μ, log σ² = chunk(momentos, 2); z = μ + σ·ε' } });
+  }
+
+  // latent_scale (SD): z·s al codificar (s = scaling_factor, 0.18215 en SD 1.x: deja los latentes con varianza ≈ 1) o z/s
+  // antes del decoder (inverse). 1 op por elemento. o = {factor, inverse}
+  function latent_scale(x, o) {
+    return result('latent_scale', [x], plain(x), { other: elems(x) * OTHER.scale, detail: { factor: o.factor, inverse: !!o.inverse } });
+  }
+
+  // add_noise (entrenamiento): DDPM x_t = √ᾱ_t·x₀ + √(1 − ᾱ_t)·ε (kind 'ddpm'); flow matching / rectified flow
+  // x_t = (1 − t)·x₀ + t·ε (kind 'flow'). Entradas x₀, ε, t. ≈ 3 ops por elemento. Sin parámetros.
+  function add_noise(x0, eps, t, o) {
+    if (shapeStr(x0) !== shapeStr(eps)) throw new Error('add_noise: x₀ y ε con formas distintas.');
+    const kind = (o && o.kind) || 'ddpm';
+    return result('add_noise', [x0, eps, t], plain(x0), {
+      other: 3 * elems(x0),
+      detail: { kind, formula: kind === 'flow' ? 'x_t = (1 − t)·x₀ + t·ε' : 'x_t = √ᾱ_t·x₀ + √(1 − ᾱ_t)·ε' },
+    });
+  }
+
+  // flow_target (flow matching, rectified flow): la velocidad objetivo v = ε − x₀ (derivada de x_t respecto de t). 1 op por elemento.
+  function flow_target(x0, eps) {
+    if (shapeStr(x0) !== shapeStr(eps)) throw new Error('flow_target: x₀ y ε con formas distintas.');
+    return result('flow_target', [x0, eps], plain(x0), { other: elems(x0), detail: { formula: 'v = ε − x₀' } });
+  }
+
+  // cfg_combine (classifier-free guidance): ε̂ = ε_u + w·(ε_c − ε_u) con las predicciones sin y con condición (las dos mitades
+  // del lote duplicado). ≈ 3 ops por elemento. o = {w}
+  function cfg_combine(eu, ec, o) {
+    if (shapeStr(eu) !== shapeStr(ec)) throw new Error('cfg_combine: predicciones con formas distintas.');
+    return result('cfg_combine', [eu, ec], plain(ec), { other: 3 * elems(ec), detail: { w: (o && o.w) || 7.5, formula: 'ε̂ = ε_u + w·(ε_c − ε_u)' } });
+  }
+
+  // scheduler_step (muestreo): un paso del sampler de x_t a x_{t−1} con la predicción del modelo. DDIM (η = 0):
+  // x̂₀ = (x_t − √(1−ᾱ_t)·ε̂)/√ᾱ_t, x_{t−1} = √ᾱ_{t−1}·x̂₀ + √(1−ᾱ_{t−1})·ε̂; Euler (flow): x_{t−Δ} = x_t − Δt·v̂.
+  // Elementwise (≈ 6 ops por elemento con DDIM, 2 con Euler). Sin parámetros. o = {kind='ddim', steps}
+  function scheduler_step(x, pred, o) {
+    if (shapeStr(x) !== shapeStr(pred)) throw new Error('scheduler_step: x_t y la predicción con formas distintas.');
+    const kind = (o && o.kind) || 'ddim';
+    return result('scheduler_step', [x, pred], plain(x), { other: (kind === 'euler' ? 2 : 6) * elems(x), detail: { kind, steps: (o && o.steps) || null } });
+  }
+
+  // mse_loss: ‖pred − objetivo‖² promediado → escalar (≈ 3 ops por elemento). o.target = descripción.
+  function mse_loss(pred, target, o) {
+    if (shapeStr(pred) !== shapeStr(target)) throw new Error('mse_loss: predicción y objetivo con formas distintas.');
+    return result('mse_loss', [pred, target], shape(['1'], [1], null, 'vec'), { other: 3 * elems(pred), detail: { target: (o && o.target) || null } });
+  }
+
   // ---- compuestas (para fórmulas, tablas y pruebas; los modelos usan las elementales en el grafo)
   function composite(prim, x, parts, out, o) {
     return {
@@ -1897,6 +2102,130 @@
     });
   }
 
+  // ---- Fase 8: compuestas -------------------------------------------------------------------
+  // resnet_block (U-Net de SD y VAE; ResnetBlock2D de diffusers): GN → SiLU → conv 3×3 (C_in → C_out) → [+ Linear(SiLU(e))
+  // por canal: el tiempo] → GN → SiLU → conv 3×3 (C_out → C_out) → + atajo (identidad, o conv 1×1 si C_in ≠ C_out).
+  // o = {cout, coutSym, temb (forma del embedding del tiempo, E; null en el VAE), groups=32}
+  // Parámetros 9C_in·C_out + 9C_out² + E·C_out (+ C_in·C_out del atajo) + sesgos y GN; MACs HW(9C_in·C_out + 9C_out² [+ C_in·C_out]) + E·C_out.
+  function resnet_block(x, o) {
+    const [, , C] = x.num, cout = o.cout || C, cs = o.coutSym || (o.cout ? String(cout) : x.sym[2]);
+    const g1 = group_norm(x, { groups: o.groups || 32 });
+    const a1 = silu(g1.out);
+    const c1 = conv2d(a1.out, { k: 3, s: 1, p: 1, cout, coutSym: cs, outSym: [x.sym[0], x.sym[1]] });
+    const parts = [g1, a1, c1];
+    let h = c1.out;
+    if (o.temb) {
+      const ta = silu(o.temb);
+      const tp = linear(ta.out, { dout: cout, doutSym: cs });
+      const ad = add_broadcast(h, tp.out);
+      parts.push(ta, tp, ad);
+      h = ad.out;
+    }
+    const g2 = group_norm(h, { groups: o.groups || 32 });
+    const a2 = silu(g2.out);
+    const c2 = conv2d(a2.out, { k: 3, s: 1, p: 1, cout, coutSym: cs, outSym: [x.sym[0], x.sym[1]] });
+    parts.push(g2, a2, c2);
+    let sk = x;
+    if (cout !== C) { const sc = conv2d(x, { k: 1, cout, coutSym: cs, outSym: [x.sym[0], x.sym[1]] }); parts.push(sc); sk = sc.out; }
+    const rs = residual_add(sk, c2.out);
+    parts.push(rs);
+    const r = composite('resnet_block', x, parts, rs.out, {
+      paramTex: '9\\,C_{in}C_{out} + 9\\,C_{out}^2' + (o.temb ? ' + E\\,C_{out}' : '') + (cout !== C ? ' + C_{in}C_{out}' : '') + ' + \\ldots',
+      macTex: 'HW\\,(9\\,C_{in}C_{out} + 9\\,C_{out}^2' + (cout !== C ? ' + C_{in}C_{out}' : '') + ')' + (o.temb ? ' + E\\,C_{out}' : ''),
+      detail: { cin: C, cout, temb: !!o.temb, shortcut: cout !== C ? 'conv 1×1' : 'identidad' },
+    });
+    if (o.temb) r.inputs = [x, o.temb];
+    return r;
+  }
+
+  // upsample2d (U-Net y VAE): vecino más cercano ×2 → conv 3×3 (padding 1): H×W×C → 2H×2W×C. Parámetros 9C² + C; MACs 4HW·9C².
+  function upsample2d(x, o) {
+    o = o || {};
+    const C = x.num[2], cs = o.coutSym || x.sym[2];
+    const up = upsample_nearest(x, { s: 2, outSym: o.outSym });
+    const cv = conv2d(up.out, { k: 3, s: 1, p: 1, cout: o.cout || C, coutSym: cs, outSym: [up.out.sym[0], up.out.sym[1]] });
+    return composite('upsample2d', x, [up, cv], cv.out, { paramTex: '9C^2 + C', macTex: '4HW\\cdot 9C^2', detail: { mode: 'nearest ×2 + conv 3×3' } });
+  }
+
+  // geglu_ff (FeedForward de SD): Linear D → 2F (con sesgo) → GEGLU (F) → Linear F → D (con sesgo). Con F = 4D:
+  // 12D² + 9D parámetros y 12·N·D² MACs (una matriz más ancha que un MLP 4D: 8D en la entrada).
+  function geglu_ff(x, o) {
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1], F = o.F || 4 * D, Fs = o.Fsym || '4' + Ds;
+    const p = linear(x, { dout: 2 * F, doutSym: o.F2sym || '8' + Ds });
+    const g = geglu(p.out, { outSym: Fs });
+    const q = linear(g.out, { dout: D, doutSym: Ds });
+    const d = symTexFactor(Ds), n = symTexFactor(x.sym[0]);
+    return composite('geglu_ff', x, [p, g, q], q.out, { paramTex: '12' + d + '^2 + 9' + d, macTex: '12\\,' + n + '\\,' + d + '^2', detail: { F } });
+  }
+
+  // spatial_transformer (Transformer2DModel de SD 1.x con un BasicTransformerBlock): GN → proj_in (conv 1×1) → tokens →
+  // [LN → self-attn → +] → [LN → cross-attn (K, V del texto) → +] → [LN → FF GEGLU → +] → rejilla → proj_out (conv 1×1) → + x.
+  // Atención sin sesgo en Q, K, V (con sesgo en la salida). o = {h, text (forma T×D_t)}
+  // Parámetros 20C² + 2·D_t·C + 21C; MACs N(18C² + 2·T·...): ver el detalle de las partes.
+  function spatial_transformer(x, o) {
+    const [H, W, C] = x.num, cs = x.sym[2], ts = x.sym[0] + '·' + x.sym[1];
+    const gn = group_norm(x, { groups: 32 });
+    const pi = conv2d(gn.out, { k: 1, cout: C, coutSym: cs, outSym: [x.sym[0], x.sym[1]] });
+    const fl = flatten(pi.out, { sym: [ts, cs] });
+    // atención de diffusers (Attention): W_Q, W_K, W_V sin sesgo; W_O con sesgo. kv = el mismo x (self) o el texto (cross).
+    const att = (xq, xkv) => {
+      const q = linear(xq, { dout: C, doutSym: cs, bias: false });
+      const k = linear(xkv, { dout: C, doutSym: cs, bias: false });
+      const v = linear(xkv, { dout: C, doutSym: cs, bias: false });
+      const sp = split_qkv_heads(q.out, k.out, v.out, { h: o.h });
+      const sc = attention_scores(sp.out[0], sp.out[1]);
+      const sl = scale(sc.out);
+      const sm = softmax(sl.out);
+      const ws = attention_weighted_sum(sm.out, sp.out[2]);
+      const mg = merge_heads(ws.out, { Dsym: cs });
+      const pj = linear(mg.out, { dout: C, doutSym: cs });
+      return { parts: [q, k, v, sp, sc, sl, sm, ws, mg, pj], out: pj.out };
+    };
+    const ln1 = layernorm(fl.out);
+    const sa = att(ln1.out, ln1.out);
+    const r1 = residual_add(fl.out, sa.out);
+    const ln2 = layernorm(r1.out);
+    const ca = att(ln2.out, o.text);
+    const r2 = residual_add(r1.out, ca.out);
+    const ln3 = layernorm(r2.out);
+    const ff = geglu_ff(ln3.out, {});
+    const r3 = residual_add(r2.out, ff.out);
+    const tg = to_grid(r3.out, { H, W, sym: [x.sym[0], x.sym[1]] });
+    const po = conv2d(tg.out, { k: 1, cout: C, coutSym: cs, outSym: [x.sym[0], x.sym[1]] });
+    const rs = residual_add(x, po.out);
+    const r = composite('spatial_transformer', x, [gn, pi, fl, ln1].concat(sa.parts, [r1, ln2], ca.parts, [r2, ln3, ff, r3, tg, po, rs]), rs.out, {
+      paramTex: '20C^2 + 2\\,D_t\\,C + 21C', macTex: 'N\\,(20C^2 + 2NC + 2TC) + 2\\,T\\,D_t\\,C',
+      detail: { h: o.h, tokens: H * W, T: o.text.num[0], note: 'GN → conv 1×1 → [self-attn, cross-attn, FF GEGLU] con LN y residuales → conv 1×1 → + x' },
+    });
+    r.inputs = [x, o.text];
+    return r;
+  }
+
+  // dit_block (DiT, adaLN-Zero): (γ1, β1, α1, γ2, β2, α2) = adaLN(c); x += α1 ⊙ Attn(LN(x)·(1 + γ1) + β1);
+  // x += α2 ⊙ MLP(LN(x)·(1 + γ2) + β2). LayerNorm SIN parámetros. Parámetros 18D² + 15D (atención 4D² + 4D, MLP 8D² + 5D,
+  // adaLN 6D² + 6D); MACs N·12D² + 2N²D + 6D². o = {h, Dmlp}
+  function dit_block(x, c, o) {
+    const D = x.num[1], Ds = x.sym[1], n = symTexFactor(x.sym[0]), d = symTexFactor(Ds);
+    const ad = adaln_zero(c, { k: 6 });
+    const [sa, sc1, ga, sm, sc2, gm] = ad.out;
+    const n1 = layernorm(x, { affine: false });
+    const m1 = ada_modulate(n1.out, sa, sc1);
+    const at = mhsa(m1.out, { h: o.h });
+    const g1 = ada_gate(at.out, ga);
+    const r1 = residual_add(x, g1.out);
+    const n2 = layernorm(r1.out, { affine: false });
+    const m2 = ada_modulate(n2.out, sm, sc2);
+    const ml = mlp(m2.out, { Dmlp: o.Dmlp || 4 * D, DmlpSym: o.DmlpSym || '4' + Ds });
+    const g2 = ada_gate(ml.out, gm);
+    const r2 = residual_add(r1.out, g2.out);
+    const r = composite('dit_block', x, [ad, n1, m1, at, g1, r1, n2, m2, ml, g2, r2], r2.out, {
+      paramTex: '18' + d + '^2 + 15' + d, macTex: n + '\\cdot 12' + d + '^2 + 2\\,' + n + '^2' + d + ' + 6' + d + '^2',
+      detail: { h: o.h, note: 'adaLN-Zero: 6 vectores por bloque; LayerNorm sin γ ni β' },
+    });
+    r.inputs = [x, c];
+    return r;
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -1923,6 +2252,10 @@
     swiglu, gqa_attention, llama_block, moe_ffn,
     // Fase 7
     repeat_frames, patch_embed_3d, flatten_nd, segment_rows, group_tokens, splice_tokens, mrope, mrope_ids,
+    // Fase 8
+    timestep_embedding, concat_features, label_embed, add_broadcast, downsample2d, geglu, adaln_zero, ada_modulate, ada_gate, sincos_pos_2d, unpatchify,
+    latent_sample, latent_scale, add_noise, flow_target, cfg_combine, scheduler_step, mse_loss,
+    resnet_block, upsample2d, geglu_ff, spatial_transformer, dit_block,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -2076,6 +2409,30 @@
     { id: 'splice_tokens', name: 'Insertar los tokens visuales en el prompt', paramTex: '0', macTex: '0', outTex: 'T\\times D,\\ N\\times D \\to (N{+}T)\\times D', note: 'Los N tokens visuales (ya proyectados al ancho D del LLM) reemplazan al marcador <image>: para el LLM son tokens más del prompt.' },
     { id: 'mrope', name: 'M-RoPE (RoPE multimodal)', paramTex: '0', macTex: '0', outTex: 'h\\times S\\times d_h \\to h\\times S\\times d_h', note: 'Qwen2-VL: cada token tiene 3 ids (t, h, w); las d_h/2 frecuencias se reparten en secciones (16, 24, 24) y cada una rota con el id de su eje. En el texto los tres ids son iguales: es RoPE 1-D.' },
     { id: 'mrope_ids', name: 'Ids de posición (t, h, w)', paramTex: '0', macTex: '0', outTex: '\\to 3\\times S', note: 'Texto: t = h = w = posición; imagen: t fijo, h y w = fila y columna en la rejilla de tokens (tras el merge 2×2). El texto que sigue continúa desde el máximo + 1.' },
+    // Fase 8 (difusión: Stable Diffusion, DiT)
+    { id: 'timestep_embedding', name: 'Embedding sinusoidal del paso t', paramTex: '0', macTex: '0', outTex: '1 \\to C', note: 'El paso de ruido t (un número) → [cos(tω_i); sin(tω_i)], como la PE del Transformer pero sobre t. Buffer: luego un MLP (C → 4C en SD, 256 → D en DiT) lo vuelve aprendido.' },
+    { id: 'concat_features', name: 'Concatenar features', paramTex: '0', macTex: '0', outTex: 'T\\times D_1,\\ T\\times D_2 \\to T\\times (D_1{+}D_2)', note: 'SDXL: los 77 vectores de los dos encoders de texto (768 + 1280) se pegan en uno de 2,048 por token: la cross-attention ve un solo texto más ancho.' },
+    { id: 'label_embed', name: 'Embedding de clase (con clase nula)', paramTex: '(K{+}1)\\,D', macTex: '0', outTex: '1 \\to D', note: 'DiT: una fila por clase de ImageNet más la clase nula ∅: al entrenar, el 10 % de las etiquetas se cambia por ∅ y así el mismo modelo sirve con y sin condición (classifier-free guidance).' },
+    { id: 'add_broadcast', name: 'Suma por canal (broadcast)', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C,\\ C \\to H\\times W\\times C', note: 'U-Net: la proyección del embedding del tiempo (un vector de C) se suma a cada posición del mapa: así cada bloque ResNet sabe en qué paso de ruido está.' },
+    { id: 'downsample2d', name: 'Downsample (conv 3×3, stride 2)', paramTex: '9\\,C_{in}C_{out} + C_{out}', macTex: '\\tfrac{H}{2}\\tfrac{W}{2}\\,C_{out}\\,9\\,C_{in}', outTex: 'H\\times W\\times C \\to \\tfrac{H}{2}\\times \\tfrac{W}{2}\\times C', note: 'Baja la resolución a la mitad con una conv aprendida (no max-pool). El encoder del VAE rellena (0, 1, 0, 1) en vez de padding 1: mismo tamaño y mismos MACs.' },
+    { id: 'upsample2d', name: 'Upsample (vecino ×2 + conv 3×3)', paramTex: '9C^2 + C', macTex: '4HW\\cdot 9C^2', outTex: 'H\\times W\\times C \\to 2H\\times 2W\\times C', note: 'Repetir cada píxel 2×2 y suavizar con una conv 3×3 (evita el patrón de tablero de una conv transpuesta). La conv corre a la resolución NUEVA: 4× más cara que a la vieja.' },
+    { id: 'resnet_block', name: 'Bloque ResNet con tiempo (U-Net / VAE)', paramTex: '9C_{in}C_{out} + 9C_{out}^2 + E\\,C_{out} + \\ldots', macTex: 'HW(9C_{in}C_{out} + 9C_{out}^2) + E\\,C_{out}', outTex: 'H\\times W\\times C_{in} \\to H\\times W\\times C_{out}', note: 'GN → SiLU → conv 3×3 → + Linear(SiLU(e_t)) por canal → GN → SiLU → conv 3×3, + atajo (conv 1×1 si cambian los canales). En el VAE no hay tiempo (E = 0).' },
+    { id: 'geglu', name: 'GEGLU (compuerta)', paramTex: '0', macTex: '0', outTex: 'N\\times 2F \\to N\\times F', note: 'h, g = mitades de la proyección; salida h ⊙ GELU(g). Como SwiGLU pero con GELU y una sola matriz de entrada de doble ancho.' },
+    { id: 'geglu_ff', name: 'FFN GEGLU (SD)', paramTex: '12D^2 + 9D', macTex: '12\\,N\\,D^2', outTex: 'N\\times D \\to N\\times D', note: 'Linear D → 8D (con sesgo) → GEGLU (4D) → Linear 4D → D. 1.5× los parámetros de un MLP 4D.' },
+    { id: 'spatial_transformer', name: 'Bloque transformer de la U-Net (SD)', paramTex: '20C^2 + 2D_tC + 21C', macTex: 'N(20C^2 + 2NC + 2TC) + 2TD_tC', outTex: 'H\\times W\\times C,\\ T\\times D_t \\to H\\times W\\times C', note: 'GN → conv 1×1 → tokens → self-attention → cross-attention (Q de la imagen, K y V del texto) → FF GEGLU → rejilla → conv 1×1 → + x. El término 2N²C (self-attn) domina a 64×64: N = 4,096 tokens.' },
+    { id: 'adaln_zero', name: 'adaLN-Zero (modulación)', paramTex: 'D\\cdot 6D + 6D', macTex: 'D\\cdot 6D', outTex: 'D \\to 6\\times D', note: 'DiT: SiLU(c) → Linear D → 6D, inicializado en CEROS → (β, γ, α) para la atención y para el MLP. Con α = 0 cada bloque empieza siendo la identidad. Un tercio de los parámetros del bloque.' },
+    { id: 'ada_modulate', name: 'Modulación x(1 + γ) + β', paramTex: '0', macTex: '0', outTex: 'N\\times D \\to N\\times D', note: 'La LayerNorm de DiT no tiene γ, β propios: los pone la condición (tiempo + clase), los mismos para todos los tokens de la imagen.' },
+    { id: 'ada_gate', name: 'Compuerta α (residual)', paramTex: '0', macTex: '0', outTex: 'N\\times D \\to N\\times D', note: 'α ⊙ rama antes de sumarla al residual. α = 0 al inicio (adaLN-Zero).' },
+    { id: 'dit_block', name: 'Bloque DiT (adaLN-Zero)', paramTex: '18D^2 + 15D', macTex: 'N\\cdot 12D^2 + 2N^2D + 6D^2', outTex: 'N\\times D,\\ D \\to N\\times D', note: 'Un bloque ViT pre-LN cuya LayerNorm se modula con la condición: 12D² + 9D del ViT − 4D (LN sin parámetros) + 6D² + 6D del adaLN. DiT-XL: D = 1,152, 28 bloques.' },
+    { id: 'sincos_pos_2d', name: 'Posición sin/cos 2-D (fija)', paramTex: '0', macTex: '0', outTex: '\\to N\\times D', note: 'DiT (como MAE): senos y cosenos de la fila y la columna de cada parche; no se aprende.' },
+    { id: 'unpatchify', name: 'Unpatchify', paramTex: '0', macTex: '0', outTex: 'N\\times P^2C \\to I\\times I\\times C', note: 'Cada token vuelve a ser su parche P×P×C en la rejilla del latente (la inversa del patchify).' },
+    { id: 'latent_sample', name: 'Muestreo del latente (VAE)', paramTex: '0', macTex: '0', outTex: 'h\\times w\\times 2c \\to h\\times w\\times c', note: 'El encoder da media y log-varianza por posición y canal; z = μ + σ·ε.' },
+    { id: 'latent_scale', name: 'Escala del latente', paramTex: '0', macTex: '0', outTex: 'h\\times w\\times c \\to h\\times w\\times c', note: 'SD 1.x: z·0.18215 al codificar (latentes con varianza ≈ 1) y z/0.18215 antes del decoder.' },
+    { id: 'add_noise', name: 'Agregar ruido (forward)', paramTex: '0', macTex: '0', outTex: 'x_0,\\ \\varepsilon,\\ t \\to x_t', note: 'DDPM: x_t = √ᾱ_t·x₀ + √(1 − ᾱ_t)·ε, en un solo paso para cualquier t. Flow matching: x_t = (1 − t)·x₀ + t·ε (línea recta).' },
+    { id: 'flow_target', name: 'Velocidad objetivo', paramTex: '0', macTex: '0', outTex: 'x_0,\\ \\varepsilon \\to v', note: 'Flow matching (rectified flow): v = ε − x₀, constante a lo largo de la recta; el modelo la predice y se muestrea con pasos de Euler.' },
+    { id: 'cfg_combine', name: 'Classifier-free guidance', paramTex: '0', macTex: '0', outTex: '\\varepsilon_u,\\ \\varepsilon_c \\to \\hat\\varepsilon', note: 'ε̂ = ε_u + w(ε_c − ε_u), w = 7.5 en SD. Necesita las dos predicciones: duplica el lote de cada paso.' },
+    { id: 'scheduler_step', name: 'Paso del sampler', paramTex: '0', macTex: '0', outTex: 'x_t,\\ \\hat\\varepsilon \\to x_{t-1}', note: 'DDIM: estima x̂₀ con ε̂ y vuelve a mezclar con el ruido del paso siguiente. Elementwise: el costo está en la red, que corre una vez por paso (×2 con CFG).' },
+    { id: 'mse_loss', name: 'Pérdida MSE', paramTex: '0', macTex: '0', outTex: '\\hat y,\\ y \\to 1', note: 'Difusión = regresión: ‖ε̂ − ε‖² (DDPM, L_simple) o ‖v̂ − v‖² (flow matching).' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -2295,7 +2652,9 @@
     for (const key of Object.keys(ov)) {
       if (!def.knobs || !(key in def.knobs)) throw new Error('Knob inválido "' + key + '" para el modelo "' + def.id + '". Válidos: ' + Object.keys(def.knobs || {}).join(', ') + '.');
       const v = ov[key];
-      if (!Number.isInteger(v) || v <= 0) throw new Error('Knob "' + key + '": el valor debe ser un entero positivo (recibí ' + v + ').');
+      // Fase 8: def.zeroKnobs = knobs que aceptan 0 (cfg: 0 = sin classifier-free guidance). El resto, enteros positivos.
+      const zero = Array.isArray(def.zeroKnobs) && def.zeroKnobs.indexOf(key) >= 0;
+      if (!Number.isInteger(v) || v < (zero ? 0 : 1)) throw new Error('Knob "' + key + '": el valor debe ser un entero ' + (zero ? 'no negativo' : 'positivo') + ' (recibí ' + v + ').');
     }
     const cfg = def.applyKnobs ? def.applyKnobs(base, ov) : Object.assign(base, ov);
     return def.resolve ? def.resolve(cfg) : cfg;
@@ -2374,6 +2733,8 @@
     split_gqa_heads: 1, kv_append: 1, sample_token: 1,
     // Fase 7: vistas (repetir la imagen en el tiempo, segmentos, agrupar 2×2) y los ids de posición de M-RoPE (constante).
     repeat_frames: 1, segment_rows: 1, group_tokens: 1, mrope_ids: 1,
+    // Fase 8: constantes calculadas (embedding sinusoidal del paso, posición sin/cos 2-D) y la vista unpatchify.
+    timestep_embedding: 1, sincos_pos_2d: 1, unpatchify: 1, concat_features: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).

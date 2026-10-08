@@ -743,3 +743,80 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-vtc-line { fill: none; stroke: var(--mod-img); stroke-width: 2; stroke-linejoin: round; }
 .viz-vtc-pt { fill: var(--surface); stroke: var(--mod-img); stroke-width: 1.6; cursor: pointer; }
 .viz-vtc-pt.is-on { fill: var(--mod-img); stroke: var(--ink); }
+/* ---------------------------------------------------------------- fase 8: visualizaciones (difusión) */
+.viz-ns-stage:focus-visible, .viz-ds-stage:focus-visible, .viz-cfg-stage:focus-visible, .viz-fd-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-ns-sl, .viz-ds-sl, .viz-cfg-sl, .viz-fd-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-ns-sl input[type="range"], .viz-ds-sl input[type="range"], .viz-cfg-sl input[type="range"], .viz-fd-sl input[type="range"] { width: 150px; accent-color: var(--accent); }
+.viz-ns-out { min-width: 4.8em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+/* noise-schedule: x₀ + ε → x_t, barras de señal/ruido, curvas ᾱ_t y log SNR */
+.viz-ns-img { image-rendering: pixelated; }
+.viz-ns-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-ns-frame.is-on { stroke: var(--ink); stroke-width: 2; }
+.viz-ns-op { font: 600 18px var(--font-mono); fill: var(--muted); }
+.viz-ns-track { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-ns-bar.is-sig { fill: var(--mod-img); }
+.viz-ns-bar.is-noise { fill: var(--mod-lat); }
+.viz-ns-val { font: 600 10.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-ns-curve { fill: none; stroke-width: 2.2; stroke-linejoin: round; }
+.viz-ns-curve.is-abar { stroke: var(--mod-img); }
+.viz-ns-curve.is-snr { stroke: var(--op-attn); }
+.viz-ns-curve.is-other { stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 4 3; }
+/* denoise-steps / flow-vs-diffusion / cfg-guidance: juguete 2-D (modos, trayectorias, finales) y curvas */
+.viz-ds-box { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-ds-mode { fill: var(--mod-img); fill-opacity: .12; stroke: var(--mod-img); stroke-width: 1; stroke-dasharray: 3 2; }
+.is-ddpm { --sc: var(--op-attn); }
+.is-ddim { --sc: var(--op-embed); }
+.is-flow { --sc: var(--op-mlp); }
+.viz-ds-path { fill: none; stroke: var(--sc, var(--ink)); stroke-width: 1.6; stroke-linejoin: round; stroke-opacity: .85; }
+.viz-ds-step { fill: var(--surface); stroke: var(--sc, var(--ink)); stroke-width: 1.2; }
+.viz-ds-start { fill: var(--surface); stroke: var(--ink); stroke-width: 1.6; }
+.viz-ds-end { fill: var(--sc, var(--ink)); stroke: var(--surface); stroke-width: 1; }
+.viz-ds-end.is-off { fill: var(--surface); stroke: var(--bad); stroke-width: 1.5; }
+.viz-ds-end.is-sel { stroke: var(--ink); stroke-width: 2; }
+.viz-ds-line { fill: none; stroke: var(--sc, var(--muted)); stroke-width: 1.3; stroke-opacity: .55; stroke-dasharray: 4 3; }
+.viz-ds-line.is-on { stroke-width: 2.4; stroke-opacity: 1; stroke-dasharray: none; }
+.viz-ds-cur { fill: var(--sc, var(--ink)); stroke: var(--surface); stroke-width: 2; }
+.viz-ds-cost { fill: none; stroke: var(--op-head); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-ds-costpt { fill: var(--op-head); stroke: var(--surface); stroke-width: 2; }
+/* cfg-guidance: modos de dos clases, el punto ruidoso, las tres predicciones de x̂₀ y las muestras guiadas */
+.viz-cfg-mode { stroke-width: 1; stroke-dasharray: 3 2; fill-opacity: .1; }
+.viz-cfg-mode.is-c0 { fill: var(--op-attn); stroke: var(--op-attn); }
+.viz-cfg-mode.is-c1 { fill: var(--op-embed); stroke: var(--op-embed); }
+.viz-cfg-mode.is-want { fill-opacity: .22; stroke-dasharray: none; stroke-width: 1.6; }
+.viz-cfg-ml { font: 700 11px var(--font-mono); fill: var(--muted); pointer-events: none; }
+.viz-cfg-arr { fill: none; stroke-width: 1.6; }
+.viz-cfg-arr.is-u, .viz-cfg-head.is-u { stroke: var(--muted); }
+.viz-cfg-arr.is-c, .viz-cfg-head.is-c { stroke: var(--op-head); }
+.viz-cfg-arr.is-g { stroke: var(--ink); stroke-width: 3; }
+.viz-cfg-head { stroke: none; }
+.viz-cfg-head.is-u { fill: var(--muted); }
+.viz-cfg-head.is-c { fill: var(--op-head); }
+.viz-cfg-head.is-g { fill: var(--ink); }
+.viz-cfg-pt { stroke: var(--surface); stroke-width: 1.5; }
+.viz-cfg-pt.is-u { fill: var(--muted); }
+.viz-cfg-pt.is-c { fill: var(--op-head); }
+.viz-cfg-pt.is-g { fill: var(--ink); }
+.viz-cfg-x { fill: var(--surface); stroke: var(--ink); stroke-width: 2.2; }
+.viz-cfg-hit { fill: transparent; cursor: crosshair; touch-action: none; }
+.viz-cfg-stage { touch-action: pan-y; }
+.viz-cfg-s { stroke: var(--surface); stroke-width: .8; }
+.viz-cfg-s.is-c0 { fill: var(--op-attn); }
+.viz-cfg-s.is-c1 { fill: var(--op-embed); }
+.viz-cfg-s.is-out { fill: var(--surface); stroke: var(--bad); stroke-width: 1.5; }
+/* flow-vs-diffusion: caminos por par (arco / recta) y el ODE fino de referencia */
+.viz-fd-pair { fill: none; stroke: var(--sc, var(--ink)); stroke-width: 1.4; stroke-opacity: .8; }
+.viz-fd-fine { fill: none; stroke: var(--sc, var(--muted)); stroke-width: 1; stroke-opacity: .3; }
+/* ---------------------------------------------------------------- fase 8: motor (difusión) */
+/* bucle de muestreo (edge.loop), veces que corre (node.runs), barra del costo por imagen (node.costSplit) */
+.ad-loop-ico { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
+.ad-loop-ico-head { fill: var(--ink); stroke: none; }
+.ad-runs-bg { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+.ad-runs--once .ad-runs-bg { fill: var(--surface-2); stroke: var(--muted); }
+.ad-runs-txt { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-cs-seg { fill: var(--oc); stroke: none; }
+.ad-cs-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.ad-cs-lab { font: 500 10.5px var(--font-body); fill: var(--ink); }
+.ad-cs-val { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-cs--loop { fill: var(--accent); }
+.ad-cs--once { fill: var(--muted); }
+.ad-cs--once2 { fill: color-mix(in srgb, var(--muted) 45%, var(--surface)); stroke: var(--muted); stroke-width: .8; }

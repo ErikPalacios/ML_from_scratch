@@ -121,7 +121,8 @@
       if (!Object.prototype.hasOwnProperty.call(c, parts[1])) return null;
       const v = c[parts[1]];
       // Dimensiones (D = 1024, D_mlp = 3072) sin separador, igual que en las formas '197×1024'.
-      if (typeof v === 'number') return num(v, Number.isInteger(v) && Math.abs(v) < 10000 ? String(v) : f.int(v));
+      // No enteros (escala del VAE 0.18215, β): tal cual, sin redondear a 0.
+      if (typeof v === 'number') return num(v, !Number.isInteger(v) ? String(+v.toPrecision(6)) : Math.abs(v) < 10000 ? String(v) : f.int(v));
       if (typeof v === 'boolean') return num(v, v ? 'sí' : 'no');
       if (typeof v === 'string') return num(v, v);
       return null;

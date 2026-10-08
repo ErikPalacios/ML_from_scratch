@@ -1125,7 +1125,8 @@
         // fase 6: kvGroups / experts / rows ocupan la parte de abajo del bloque (como mini): el texto sube
         const hideInner = slot && slot.ask === 'label';
         // fase 7: strip (tira de tokens), posIds (ids de M-RoPE) y layers (capas con la toma) también van abajo
-        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : 0;
+        // fase 8: costSplit (barra del costo por imagen) también va abajo
+        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : 0;
         const miniH = n.mini ? 22 : innerH;
         // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
         const subs = sub ? String(sub).split('\n') : [];
@@ -1154,6 +1155,8 @@
           else if (n.rows && store) drawStoreRows(g, n.rows, r, used, ctl, spec);
           else if (n.strip) drawStrip(g, n.strip, r, run, used, ctl, spec);
           else if (n.layers) drawLayers(g, n.layers, r, run, used, layersNeutral(ctl, spec, n));
+          // en la práctica la barra no va: sus filas nombran los bloques ("Encoder de texto × 2") que los huecos preguntan
+          else if (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) drawCostSplit(g, n.costSplit, r, run, used, ctl, spec);
         }
         if (!hideInner && n.posIds) drawPosIds(g, n.posIds, r, used, ctl);
       }
@@ -1174,6 +1177,8 @@
       }
       // fase 7: congelado / entrena (en la práctica también: es parte de la figura, no la respuesta de un hueco de nombre)
       if (n.train && !(slot && slot.ask === 'label')) drawTrain(g, n, r, used, ctl);
+      // fase 8: node.runs = cuántas veces corre por imagen ("× {{metrics.nfe}}"), píldora con ↻ arriba a la derecha
+      if (n.runs && !(slot && (slot.ask === 'label' || slot.ask === 'op'))) drawRuns(g, n, r, used, ctl, spec);
       const flag = n.flag && ctl.mode !== 'blank' && !n.train ? qText(n.flag, ctl, spec) : '';
       if (flag) {
         // marca corta arriba a la derecha (p. ej. "≠ ViT"): diferencias de un modelo frente a su base
@@ -1484,6 +1489,62 @@
     }
   }
 
+  // ------------------------------------------------------------ fase 8 (difusión): veces que corre, costo por imagen, bucle
+  // Flecha circular (↻) centrada en (cx, cy), radio k: el bucle de muestreo y las píldoras "× n".
+  function loopIcon(p, cx, cy, k, cls) {
+    const a0 = -0.35 * Math.PI, a1 = 1.25 * Math.PI;
+    const P0 = [cx + k * Math.cos(a0), cy + k * Math.sin(a0)], P1 = [cx + k * Math.cos(a1), cy + k * Math.sin(a1)];
+    S('path', { d: 'M' + P(P1) + 'A' + r1(k) + ',' + r1(k) + ' 0 1,1 ' + P(P0), class: cls || 'ad-loop-ico' }, p);
+    // punta en P0, tangente al giro (sentido horario en pantalla)
+    const tx = -Math.sin(a0), ty = Math.cos(a0), h = k * 0.8;
+    S('path', { d: 'M' + P([P0[0] + tx * h * 0.2, P0[1] + ty * h * 0.2]) + 'L' + P([P0[0] - tx * h * 0.7 - ty * h * 0.55, P0[1] - ty * h * 0.7 + tx * h * 0.55]) + 'L' + P([P0[0] - tx * h * 0.7 + ty * h * 0.55, P0[1] - ty * h * 0.7 - tx * h * 0.55]) + 'Z', class: (cls || 'ad-loop-ico') + '-head' }, p);
+  }
+  // node.runs = texto corto con {{…}} del calculador ("× {{metrics.nfe}} pasadas"): píldora arriba a la derecha (con la de
+  // congelado/entrena, a su izquierda). runsTone:'once' = tono neutro (corre una vez); por omisión, acento (corre en el bucle).
+  function drawRuns(g, n, r, used, ctl, spec) {
+    const s = qText(n.runs, ctl, spec);
+    if (!s || String(s).indexOf('{{') >= 0) return;
+    const once = n.runsTone === 'once';
+    used[once ? 'runsOnce' : 'runs'] = true;
+    const w = textW(s, 10.5, true) + 26;
+    const trainW = n.train ? textW(n.train === 'frozen' ? 'congelado' : 'entrena', 10.5, true) + 24 + 6 : 0;
+    const x = r.x + r.w - w - 4 - trainW, y = r.y - 8;
+    const pg = S('g', { class: 'ad-runs' + (once ? ' ad-runs--once' : '') }, g);
+    S('rect', { x: r1(x), y, width: r1(w), height: 15, rx: 7.5, class: 'ad-runs-bg' }, pg);
+    loopIcon(pg, x + 10, y + 7.5, 3.6);
+    txt(pg, x + 18, y + 11.3, s, 'ad-runs-txt');
+  }
+  // node.costSplit = {segs:[{tone:'loop'|'once'|'once2' (o op), n:<clave>, times?:<clave>, label}], caption} (times multiplica: el
+  // encoder de texto corre textPasses veces con CFG): barra horizontal del costo (MACs) con un tramo por parte, ancho
+  // ∝ su valor (lineal y honesto: un tramo chico queda en 1.5 px y su porcentaje lo dice), y debajo una fila por parte
+  // (muestra · etiqueta · valor · %). caption (con {{…}}) debajo. Los números, del calculador (claves de numKey).
+  const COST_H = (o) => 30 + 14 * ((o && o.segs) || []).length + (o && o.caption ? 14 : 0);
+  function drawCostSplit(g, o, r, run, used, ctl, spec) {
+    const segs = (o.segs || []).map((sg) => Object.assign({}, sg, { v: numKey(run, sg.n) * (sg.times != null ? numKey(run, sg.times) : 1) }));
+    const cls = (sg) => 'ad-cs-seg ' + (sg.tone ? 'ad-cs--' + sg.tone : 'ad-op--' + (sg.op || 'tensorop'));
+    if (!segs.length || !segs.every((sg) => Number.isFinite(sg.v) && sg.v >= 0)) return;
+    used.costSplit = true;
+    const A = arch(), ops = (v) => (A && A.fmt && A.fmt.ops ? A.fmt.ops(v) : fsi(v) + 'MACs');
+    const tot = segs.reduce((a, sg) => a + sg.v, 0) || 1;
+    const gg = S('g', { class: 'ad-cs' }, g);
+    const x0 = r.x + 12, W = r.w - 24, y = r.y + r.h - COST_H(o) + 4, bh = 14;
+    let x = x0;
+    segs.forEach((sg) => {
+      const w = Math.max(1.5, W * sg.v / tot);
+      S('rect', { x: r1(x), y, width: r1(Math.min(w, x0 + W - x)), height: bh, class: cls(sg) }, gg);
+      x += W * sg.v / tot;
+    });
+    S('rect', { x: x0, y, width: W, height: bh, class: 'ad-cs-frame' }, gg);
+    const pct = (v) => { const f = 100 * v / tot; return f > 0 && f < 1 ? '<1 %' : (f > 99 && f < 100 ? '>99 %' : Math.round(f) + ' %'); };
+    segs.forEach((sg, i) => {
+      const yy = y + bh + 14 + i * 14;
+      S('rect', { x: x0, y: r1(yy - 8.5), width: 9, height: 9, class: cls(sg) }, gg);
+      txt(gg, x0 + 14, yy, qText(sg.label || '', ctl, spec), 'ad-cs-lab');
+      txt(gg, x0 + W, yy, ops(sg.v) + ' · ' + pct(sg.v), 'ad-cs-val', 'end');
+    });
+    if (o.caption) txt(gg, x0, y + bh + 14 + segs.length * 14, qText(o.caption, ctl, spec), 'ad-gqa-cap');
+  }
+
   function drawMapNode(ctl, parent, n, r, used) {
     const it = (ATLAS.catalog && ATLAS.catalog() && ATLAS.catalog().items && ATLAS.catalog().items[n.id]) || null;
     const page = ATLAS.getPage ? ATLAS.getPage(n.id) : null;
@@ -1693,9 +1754,9 @@
     if (kind !== 'contrasta') arrowHead(g, headPts, 'ad-head' + (hollow ? ' ad-head--hollow' : ''), headSize);
     if (kind === 'contrasta') { const p0 = ge.pts[0], p1 = ge.pts[ge.pts.length - 1]; S('circle', { cx: r1(p0[0]), cy: r1(p0[1]), r: 2.4, class: 'ad-end' }, g); S('circle', { cx: r1(p1[0]), cy: r1(p1[1]), r: 2.4, class: 'ad-end' }, g); }
     if (isMap) g.setAttribute('aria-label', (MAP_KIND_SENT[kind] ? MAP_KIND_SENT[kind](mapName(e.from), mapName(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' (' + e.label + ')' : ''));
-    if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? e.tag + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + shapeSay(t) + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
+    if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? plainSub(qText(e.tag, ctl, ctl.building)) + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + shapeSay(t) + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
     // arista de control con etiqueta (sin tensor): el lector de pantalla oye qué decide y entre qué bloques
-    if (!t && !isMap && kind === 'control' && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(e.tag) + ' (control, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
+    if (!t && !isMap && kind === 'control' && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(qText(e.tag, ctl, ctl.building)) + (e.loop ? ', se repite' : '') + ' (control, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
     if (e.dot) { const dp = e.fromPt ? ge.pts[0] : ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
     if ((kind === 'cross' || e.tag) && e.tag !== false) {   // tag:false = arista cross sin etiqueta (chips de texto de YOLO-World)
       const la = labelAnchor(ge.pts0 || ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
@@ -1703,15 +1764,21 @@
         const tg = S('g', { class: 'ad-tag' + (e.tagStyle === 'plain' ? ' ad-tag--plain' : '') }, L.labels);
         tg.setAttribute('data-edge-tag', ge.key);
         if (e.tensor) tg.setAttribute('data-tensor', e.tensor);
-        const s = e.tag || 'K,V';
-        const tw = textW(s, e.tagStyle === 'plain' ? 11.5 : 10.5, true) + 8;   // plain = 11.5 px en CSS
+        // fase 8: el texto admite {{…}} del calculador ("× {{cfg.steps}} pasos"); loop:true = flecha circular delante (bucle)
+        const s = e.tag ? qText(e.tag, ctl, ctl.building) : 'K,V';
+        const li = e.loop ? 14 : 0;
+        if (e.loop) used.loop = true;
+        const tw = textW(s, e.tagStyle === 'plain' ? 11.5 : 10.5, true) + 8 + li;   // plain = 11.5 px en CSS
         // tagSide:'on' = la etiqueta va sobre la línea (nombra la arista); si no, al costado
         const off = e.tagSide === 'on' ? [0, 0] : la.vertical ? [-(tw / 2) - 8, 0] : [0, 12];
         S('rect', { x: r1(la.x + off[0] - tw / 2), y: r1(la.y + off[1] - 8), width: r1(tw), height: 15, rx: 3, class: 'ad-tag-bg' }, tg);
-        txt(tg, la.x + off[0], la.y + off[1] + 3.5, s, 'ad-tag-txt', 'middle');
+        if (e.loop) loopIcon(tg, la.x + off[0] - tw / 2 + 9, la.y + off[1] - 0.5, 4);
+        txt(tg, la.x + off[0] + li / 2, la.y + off[1] + 3.5, s, 'ad-tag-txt', 'middle');
       }
     }
-    if (t && SHAPED[kind]) {
+    // fase 8: una arista de control puede nombrar su tensor y mostrar la forma con shapeLabel:true (el vector de
+    // condicionamiento c de DiT, 1152, que llega a cada bloque: es condicionamiento, no el flujo de datos)
+    if (t && (SHAPED[kind] || (kind === 'control' && e.shapeLabel))) {
       const la = labelAnchor(ge.pts0 || ge.pts, e);   // pts0: la ruta antes de deckTrim (las etiquetas no se mueven)
       const tk = tensorAt[ge.key + '@' + e.tensor] || tensorAt[ge.key];
       const hide = ctl.hideShapes === true || (Array.isArray(ctl.hideShapes) && ctl.hideShapes.indexOf(e.tensor) >= 0) || (ctl.blankHide && ctl.blankHide.has(ge.key + '@' + e.tensor));
@@ -1822,6 +1889,11 @@
     if (used.frozen) item((s) => { const g = S('g', { class: 'ad-train ad-train--frozen' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, true, 13, 8); }, 'Congelado: sus pesos no se actualizan en esta etapa');
     if (used.trained) item((s) => { const g = S('g', { class: 'ad-train ad-train--on' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, false, 13, 8); }, 'Entrena: sus pesos se actualizan en esta etapa');
     if (used.xref) item((s) => { S('path', { d: 'M8 13l9,-9M11 4h6v6', class: 'ad-expand-ico', style: 'stroke:var(--ink)' }, s); }, 'Enlace: se ve por dentro en otra página');
+    // fase 8: bucle de muestreo, veces que corre cada red y la barra del costo por imagen
+    if (used.loop) item((s) => { const g = S('g', { class: 'ad-tag' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 3, class: 'ad-tag-bg' }, g); loopIcon(g, 13, 8, 4.2); }, 'Bucle: se repite en cada paso de muestreo');
+    if (used.runs) item((s) => { const g = S('g', { class: 'ad-runs' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, 'Veces que corre por imagen (en el bucle)');
+    if (used.runsOnce) item((s) => { const g = S('g', { class: 'ad-runs ad-runs--once' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, 'Veces que corre por imagen (fuera del bucle)');
+    if (used.costSplit) item((s) => { S('rect', { x: 2, y: 4, width: 18, height: 8, class: 'ad-cs-seg ad-cs--loop' }, s); S('rect', { x: 20, y: 4, width: 4, height: 8, class: 'ad-cs-seg ad-cs--once' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-cs-frame' }, s); }, 'Costo por imagen: ancho proporcional a los MACs (del calculador)');
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
@@ -2672,7 +2744,8 @@
       },
       startWalk(walkId) {
         if (ctl.mode !== 'full') return;
-        const w = walkSpec(walkId || ((spec0.walks || [])[0] || {}).id);
+        // fase 8: un id de recorrido desconocido (p. ej. 'forward' en una vista cuyo recorrido es 'sampling') usa el primero
+        const w = walkSpec(walkId) || (spec0.walks || [])[0] || null;
         if (!w) return;
         ctl.walk = { spec: w, i: 0, timer: null };
         buildWalkBar();
@@ -2773,6 +2846,8 @@
     html: (tag, attrs, parent, inner) => H(tag, attrs, parent, inner),
     scene: drawScene,
     icon: drawIcon,
+    // fase 8: texto de SVG con subíndices estilo TeX ("x_t", "ᾱ_{T−1}") como tspan rebajado (lo mismo que las etiquetas)
+    rich: (t, s) => setRich(t, s),
     ICONS: ['house', 'tree', 'sun', 'boat', 'mountain', 'fish', 'car', 'star'],
     // fase 4: íconos extra (fuera de ICONS para no mover la semilla de similarity-matrix)
     ICONS_EXTRA: ['cat', 'dog', 'person'],
@@ -2852,6 +2927,123 @@
       { icon: 'star', label: 'estrella', box: [0.30, 0.12, 0.07, 0.11] },
     ],
   };
+  // ---- fase 8 (difusión): utilidades matemáticas puras para las visualizaciones (sin DOM)
+  // Agenda de ruido de la config del calculador (β lineal o "scaled linear" de SD) y un juguete 2-D exacto: datos = mezcla
+  // de gaussianas isotrópicas (N(μ_k, s²I)), para la que el ε-predictor óptimo (VP/DDPM) y la velocidad óptima (flujo
+  // rectificado, x_t = (1−t)·x₀ + t·ε) tienen forma cerrada: los muestreadores corren con el "modelo perfecto" y lo que se
+  // ve es solo el efecto del muestreador y del número de pasos (ilustrativo).
+  ATLAS.Viz.diff = (function () {
+    const pick = (o, ks) => { for (const k of ks) if (o && Number.isFinite(+o[k]) && o[k] !== '' && o[k] != null) return +o[k]; return undefined; };
+    // agenda: betas y ᾱ_t (t = 0…T−1, como diffusers: alphas_cumprod[t])
+    function schedule(b0, b1, T, kind) {
+      const betas = new Float64Array(T), abar = new Float64Array(T);
+      let p = 1;
+      for (let i = 0; i < T; i++) {
+        const f = T > 1 ? i / (T - 1) : 0;
+        betas[i] = kind === 'scaled_linear' ? Math.pow(Math.sqrt(b0) + f * (Math.sqrt(b1) - Math.sqrt(b0)), 2) : b0 + f * (b1 - b0);
+        p *= 1 - betas[i];
+        abar[i] = p;
+      }
+      return { T, b0, b1, kind, betas, abar };
+    }
+    // agenda de una config del calculador (campos betaStart/betaEnd/trainSteps/betaSchedule o sus alias)
+    function scheduleOf(configId) {
+      const A = ATLAS.Arch;
+      let c = null;
+      try { c = A && A.run ? A.run(configId).config : null; } catch (e) { c = null; }
+      const s = c && (c.scheduler || c.sched || c);
+      const b0 = pick(s, ['betaStart', 'beta_start', 'beta0', 'betaMin']), b1 = pick(s, ['betaEnd', 'beta_end', 'beta1', 'betaMax']);
+      const T = pick(s, ['trainSteps', 'trainTimesteps', 'numTrainTimesteps', 'num_train_timesteps', 'Ttrain', 'timesteps']);
+      if (!(b0 > 0 && b1 > b0 && T > 1)) return null;
+      const kind = String((s && (s.betaSchedule || s.beta_schedule || s.schedule)) || 'scaled_linear').replace('-', '_');
+      return Object.assign(schedule(b0, b1, Math.round(T), kind), { configId, label: (c && c.label) || configId });
+    }
+    // pasos de inferencia de mayor a menor. 'trailing' (por omisión): t = T − 1 − round(i·T / n), el primero en T − 1 (con
+    // pocos pasos se empieza de verdad desde ruido); 'leading' = diffusers DDIM/PNDM con steps_offset = 1: t = i·⌊T / n⌋ + 1
+    // (con 1 paso sería t = 1: casi sin ruido, el defecto que señalan Lin et al. 2023)
+    function timesteps(T, n, spacing) {
+      const out = [];
+      if (spacing === 'leading') { const k = Math.floor(T / n); for (let i = n - 1; i >= 0; i--) out.push(Math.min(T - 1, i * k + 1)); return out; }
+      for (let i = 0; i < n; i++) out.push(Math.max(0, T - 1 - Math.round(i * T / n)));
+      return out;
+    }
+    // ---- mezcla de gaussianas: modes = [{mu:[x, y], w, cls}], s = desvío de cada modo
+    function comps(g, cls) { const ms = g.modes.filter((m) => cls == null || m.cls === cls); const W = ms.reduce((a, m) => a + (m.w || 1), 0); return ms.map((m) => ({ mu: m.mu, w: (m.w || 1) / W })); }
+    function post(cs, x, mean, varr) {
+      // pesos de cada componente dado x (en log para que no se anulen)
+      const lg = cs.map((c, k) => { const d0 = x[0] - mean(c)[0], d1 = x[1] - mean(c)[1]; return Math.log(c.w) - (d0 * d0 + d1 * d1) / (2 * varr); });
+      const mx = Math.max(...lg); const e = lg.map((v) => Math.exp(v - mx)); const S = e.reduce((a, b) => a + b, 0);
+      return e.map((v) => v / S);
+    }
+    // VP: x_t = √ᾱ·x₀ + √(1−ᾱ)·ε → ε̂(x, ᾱ) = E[ε | x_t = x]
+    function epsHat(g, x, ab, cls) {
+      const cs = comps(g, cls), s2 = g.s * g.s, v = ab * s2 + 1 - ab, sa = Math.sqrt(ab);
+      const w = post(cs, x, (c) => [sa * c.mu[0], sa * c.mu[1]], v);
+      let e0 = 0, e1 = 0;
+      cs.forEach((c, k) => { e0 += w[k] * (x[0] - sa * c.mu[0]); e1 += w[k] * (x[1] - sa * c.mu[1]); });
+      const f = Math.sqrt(1 - ab) / v;
+      return [f * e0, f * e1];
+    }
+    const x0From = (x, e, ab) => [(x[0] - Math.sqrt(1 - ab) * e[0]) / Math.sqrt(ab), (x[1] - Math.sqrt(1 - ab) * e[1]) / Math.sqrt(ab)];
+    // guía libre de clasificador (convención de diffusers: w = 1 es sin guía): ε̃ = ε_u + w·(ε_c − ε_u)
+    function epsGuided(g, x, ab, cls, w) {
+      if (cls == null || w === 0) return epsHat(g, x, ab, w === 0 ? null : cls);
+      const u = epsHat(g, x, ab, null), c = epsHat(g, x, ab, cls);
+      return [u[0] + w * (c[0] - u[0]), u[1] + w * (c[1] - u[1])];
+    }
+    // DDIM generalizado (η = 0: determinista, el ODE de flujo de probabilidad; η = 1: DDPM ancestral) con ᾱ de la agenda y
+    // los pasos ts (de mayor a menor); el último paso devuelve x̂₀. opts = {eta, rng, cls, w}. Devuelve la trayectoria.
+    function sampleVP(g, xT, abar, ts, opts) {
+      const o = opts || {};
+      let x = xT.slice();
+      const path = [x.slice()];
+      for (let i = 0; i < ts.length; i++) {
+        const ab = abar[ts[i]], abp = i + 1 < ts.length ? abar[ts[i + 1]] : 1;
+        const e = epsGuided(g, x, ab, o.cls, o.w == null ? 1 : o.w);
+        const x0 = x0From(x, e, ab);
+        const sig = (o.eta || 0) * Math.sqrt((1 - abp) / (1 - ab)) * Math.sqrt(Math.max(0, 1 - ab / abp));
+        const c = Math.sqrt(Math.max(0, 1 - abp - sig * sig));
+        const z = sig > 0 && o.rng ? [o.rng.normal(), o.rng.normal()] : [0, 0];
+        x = [Math.sqrt(abp) * x0[0] + c * e[0] + sig * z[0], Math.sqrt(abp) * x0[1] + c * e[1] + sig * z[1]];
+        path.push(x.slice());
+      }
+      return path;
+    }
+    // flujo rectificado: x_t = (1−t)·x₀ + t·ε, v = ε − x₀ → v̂(x, t) = E[ε − x₀ | x_t = x]
+    function velHat(g, x, t, cls) {
+      const cs = comps(g, cls), s2 = g.s * g.s, a = 1 - t, v = a * a * s2 + t * t;
+      const w = post(cs, x, (c) => [a * c.mu[0], a * c.mu[1]], v);
+      let r0 = 0, r1_ = 0;
+      cs.forEach((c, k) => {
+        const d0 = x[0] - a * c.mu[0], d1 = x[1] - a * c.mu[1];
+        const ex0 = c.mu[0] + a * s2 / v * d0, ex1 = c.mu[1] + a * s2 / v * d1;   // E[x₀ | x, k]
+        const ee0 = t / v * d0, ee1 = t / v * d1;                                 // E[ε | x, k]
+        r0 += w[k] * (ee0 - ex0); r1_ += w[k] * (ee1 - ex1);
+      });
+      return [r0, r1_];
+    }
+    function velGuided(g, x, t, cls, w) {
+      if (cls == null || w === 0) return velHat(g, x, t, w === 0 ? null : cls);
+      const u = velHat(g, x, t, null), c = velHat(g, x, t, cls);
+      return [u[0] + w * (c[0] - u[0]), u[1] + w * (c[1] - u[1])];
+    }
+    // Euler de t = 1 (ruido) a t = 0 (datos) en n pasos iguales
+    function sampleFlow(g, x1, n, opts) {
+      const o = opts || {};
+      let x = x1.slice();
+      const path = [x.slice()];
+      for (let i = 0; i < n; i++) {
+        const t = 1 - i / n, dt = 1 / n;
+        const v = velGuided(g, x, t, o.cls, o.w == null ? 1 : o.w);
+        x = [x[0] - dt * v[0], x[1] - dt * v[1]];
+        path.push(x.slice());
+      }
+      return path;
+    }
+    const nearestMode = (g, p) => g.modes.reduce((b, m) => { const d = Math.hypot(p[0] - m.mu[0], p[1] - m.mu[1]); return d < b.d ? { d, m } : b; }, { d: Infinity, m: null });
+    return { schedule, scheduleOf, timesteps, epsHat, epsGuided, x0From, sampleVP, velHat, velGuided, sampleFlow, nearestMode };
+  })();
+
   function boxXY(b) { return [b[0] - b[2] / 2, b[1] - b[3] / 2, b[0] + b[2] / 2, b[1] + b[3] / 2]; }
   function ovl(A, B) { return Math.max(0, Math.min(A[2], B[2]) - Math.max(A[0], B[0])) * Math.max(0, Math.min(A[3], B[3]) - Math.max(A[1], B[1])); }
 

@@ -1,0 +1,353 @@
+{
+  "config_id": "sdxl-unet",
+  "model": "stable-diffusion",
+  "res": 1024,
+  "T": 77,
+  "train": 0,
+  "params_total": 3468837867,
+  "params_by_node": {
+    "unet": 2567463684,
+    "text-encoder": 817720320,
+    "te1": 123060480,
+    "te2": 694659840,
+    "vae-encoder": 34163664,
+    "vae-decoder": 49490199,
+    "add-embed": 5245440,
+    "conv-in": 11840,
+    "down-1": 5432000,
+    "down-2": 60105600,
+    "down-3": 757404160,
+    "mid": 413117440,
+    "up-1": 1206568960,
+    "up-2": 106343680,
+    "up-3": 11171840,
+    "d3-attn1": 350840320,
+    "mid-attn": 350840320,
+    "time-embed": 7296000
+  },
+  "shapes": {
+    "te1-x0": [
+      77,
+      768
+    ],
+    "te1-u": [
+      77,
+      3072
+    ],
+    "te1-hidden": [
+      77,
+      768
+    ],
+    "te2-x0": [
+      77,
+      1280
+    ],
+    "te2-u": [
+      77,
+      5120
+    ],
+    "te2-hidden": [
+      77,
+      1280
+    ],
+    "text-pooled": [
+      1280
+    ],
+    "temb": [
+      1280
+    ],
+    "add-in": [
+      2816
+    ],
+    "add-emb": [
+      1280
+    ],
+    "z-t": [
+      128,
+      128,
+      4
+    ],
+    "h-in": [
+      128,
+      128,
+      320
+    ],
+    "d1-res1-out": [
+      128,
+      128,
+      320
+    ],
+    "d2-attn1-x0": [
+      4096,
+      640
+    ],
+    "d2-attn1-sa-attn": [
+      10,
+      4096,
+      4096
+    ],
+    "text-emb": [
+      77,
+      2048
+    ],
+    "d2-attn1-ff-h": [
+      4096,
+      5120
+    ],
+    "d2-attn1-out": [
+      64,
+      64,
+      640
+    ],
+    "d3-attn1-ca-attn": [
+      20,
+      1024,
+      77
+    ],
+    "d3-attn2-out": [
+      32,
+      32,
+      1280
+    ],
+    "mid-attn-out": [
+      32,
+      32,
+      1280
+    ],
+    "u1-cat1": [
+      32,
+      32,
+      2560
+    ],
+    "u1-up-out": [
+      64,
+      64,
+      1280
+    ],
+    "u3-res3-out": [
+      128,
+      128,
+      320
+    ],
+    "eps-hat": [
+      128,
+      128,
+      4
+    ],
+    "vd-pq": [
+      128,
+      128,
+      4
+    ],
+    "vd-h-in": [
+      128,
+      128,
+      512
+    ],
+    "vd-mid-attn-sa-attn": [
+      1,
+      16384,
+      16384
+    ],
+    "vd-mid-attn-out": [
+      128,
+      128,
+      512
+    ],
+    "vd-u1-up-out": [
+      256,
+      256,
+      512
+    ],
+    "vd-u3-res1-skip": [
+      512,
+      512,
+      256
+    ],
+    "vd-u4-res3-out": [
+      1024,
+      1024,
+      128
+    ],
+    "image": [
+      1024,
+      1024,
+      3
+    ],
+    "prompt-ids": [
+      77
+    ]
+  },
+  "flops_total": 17342790602752,
+  "flops_by_node": {
+    "unet": 6761236398080,
+    "text-encoder": 111161610240,
+    "te1": 13298503680,
+    "te2": 97863106560,
+    "vae-decoder": 10470392594432,
+    "add-embed": 10485760,
+    "time-embed": 14581760,
+    "down-1": 128347340800,
+    "down-2": 546584002560,
+    "down-3": 1460358348800,
+    "mid": 797291315200,
+    "up-1": 2425418547200,
+    "up-2": 1076986839040,
+    "up-3": 325480448000,
+    "d3-attn1": 676488806400
+  },
+  "flops_by_op_torch": {
+    "aten.addmm": 3443852312576,
+    "aten.baddbmm": 666835615744,
+    "aten.bmm": 668025589760,
+    "aten.convolution": 11509388804096,
+    "aten.mm": 1054688280576
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "conv2d",
+        "downsample2d"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm",
+        "aten.baddbmm",
+        "aten.bmm"
+      ],
+      "prims": [
+        "linear",
+        "attention_scores",
+        "attention_weighted_sum",
+        "transformer_block"
+      ]
+    }
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "res": 512
+      },
+      "params_total": 3468837867,
+      "flops_total": 4214459305984
+    },
+    {
+      "calc_overrides": {
+        "res": 768
+      },
+      "params_total": 3468837867,
+      "flops_total": 9506674970624
+    }
+  ],
+  "metrics_checks": {
+    "unetParams": 2567463684,
+    "textEncoderParams": 817720320,
+    "vaeEncoderParams": 34163664,
+    "vaeDecoderParams": 49490199,
+    "vaeParams": 83653863,
+    "unetMacs": 3380618199040,
+    "textEncoderMacs": 55580805120,
+    "vaeEncoderMacs": 2439475363840,
+    "vaeDecoderMacs": 5235196297216,
+    "latentTokens": 16384,
+    "totalParams": 3468837867
+  },
+  "not_hooked": {
+    "text-concat": "torch.cat del pipeline (no es un módulo)",
+    "time-ids-emb": "add_time_proj recibe los ids aplanados (sin dimensión de batch)"
+  },
+  "hf_config_source": "stabilityai/stable-diffusion-xl-base-1.0",
+  "source": {
+    "lib": "diffusers",
+    "version": "0.41.0",
+    "transformers": "5.19.0",
+    "ctor": "with torch.device('meta'): UNet2DConditionModel(**sdxl_unet_config), AutoencoderKL(**vae_config, scaling_factor=0.13025), CLIPTextModel(CLIPTextConfig(ViT-L/14 texto)), CLIPTextModelWithProjection(CLIPTextConfig(bigG texto)); AttnProcessor (eager)",
+    "unet_config": {
+      "act_fn": "silu",
+      "addition_embed_type": "text_time",
+      "addition_embed_type_num_heads": 64,
+      "addition_time_embed_dim": 256,
+      "attention_head_dim": [
+        5,
+        10,
+        20
+      ],
+      "block_out_channels": [
+        320,
+        640,
+        1280
+      ],
+      "center_input_sample": false,
+      "cross_attention_dim": 2048,
+      "down_block_types": [
+        "DownBlock2D",
+        "CrossAttnDownBlock2D",
+        "CrossAttnDownBlock2D"
+      ],
+      "downsample_padding": 1,
+      "flip_sin_to_cos": true,
+      "freq_shift": 0,
+      "in_channels": 4,
+      "layers_per_block": 2,
+      "mid_block_scale_factor": 1,
+      "norm_eps": 1e-05,
+      "norm_num_groups": 32,
+      "out_channels": 4,
+      "projection_class_embeddings_input_dim": 2816,
+      "sample_size": 128,
+      "transformer_layers_per_block": [
+        1,
+        2,
+        10
+      ],
+      "up_block_types": [
+        "CrossAttnUpBlock2D",
+        "CrossAttnUpBlock2D",
+        "UpBlock2D"
+      ],
+      "use_linear_projection": true
+    },
+    "text_config": {
+      "vocab_size": 49408,
+      "hidden_size": 768,
+      "intermediate_size": 3072,
+      "num_hidden_layers": 12,
+      "num_attention_heads": 12,
+      "max_position_embeddings": 77,
+      "hidden_act": "quick_gelu",
+      "projection_dim": 768,
+      "layer_norm_eps": 1e-05
+    },
+    "text_config_2": {
+      "vocab_size": 49408,
+      "hidden_size": 1280,
+      "intermediate_size": 5120,
+      "num_hidden_layers": 32,
+      "num_attention_heads": 20,
+      "max_position_embeddings": 77,
+      "hidden_act": "gelu",
+      "projection_dim": 1280,
+      "layer_norm_eps": 1e-05
+    },
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "diffusers": "0.41.0"
+    }
+  },
+  "notes": [
+    "Modelos construidos en código en el dispositivo meta (sin pesos ni hub; hiperparámetros de stabilityai/stable-diffusion-xl-base-1.0: unet/config.json, text_encoder, text_encoder_2, vae): parámetros exactos con sum(p.numel()). Sin el refiner.",
+    "Grafo = UN paso de muestreo a 1024×1024: los dos encoders de texto (77 tokens; output_hidden_states = True: SDXL usa hidden_states[−2] de los dos, concatenados a 77 × 2,048, y el text_embeds agrupado del segundo) + U-Net (1 NFE, latente 128×128×4, con added_cond_kwargs: text_embeds 1,280 y 6 time ids) + decoder del VAE. FLOPs = suma de los cuatro forwards (FlopCounterMode, atención eager).",
+    "HF corre TODAS las capas de los dos encoders (también la última, que SDXL no usa salvo para el vector agrupado del segundo) y la LayerNorm final: se cuentan (el calculador: op last-layer de cada torre).",
+    "U-Net de SDXL: 3 niveles (320, 640, 1280), sin atención en el primero (64×64… a 1024 son 128×128 = 16,384 tokens: demasiado caro), 2 y 10 bloques transformer por bloque en los niveles 2 y 3 y 10 en el medio; use_linear_projection (proj_in/proj_out Linear en vez de conv 1×1: mismos parámetros y MACs); d_h = 64 (attention_head_dim [5, 10, 20] = cabezas).",
+    "Micro-condicionamiento (addition_embed_type text_time): 6 time ids → sinusoides de 256 (1,536) + text_embeds (1,280) = 2,816 → TimestepEmbedding(2816 → 1280) sumado al embedding del tiempo.",
+    "Los dos tokenizers de SDXL comparten el vocabulario BPE de 49,408 (cambia el token de relleno): el calculador usa un solo tensor de ids."
+  ]
+}

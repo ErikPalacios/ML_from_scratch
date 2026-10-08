@@ -13,7 +13,7 @@ import vm from 'node:vm';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
-  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js'];
+  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -206,6 +206,19 @@ export function compareConfig(A, exp) {
     const z = A.vlm.smartResize(a.h, a.w, o), c = z.H + '×' + z.W, ref = a.H + '×' + a.W;
     push('smart_resize[' + a.h + '×' + a.w + (o ? ', ' + o.minPixels + '–' + o.maxPixels + ' px' : '') + ']', c, ref, c === ref);
   }
+  // Fase 8 (difusión). schedule_checks: ᾱ_t del scheduler de SD en diffusers (float32) ↔ ATLAS.Arch.diffusion.alphasCumprod
+  // (float64; tolerancia relativa 1e-5), pasos de DDIM ↔ ddimTimesteps (exactos) y evaluaciones de PNDM ↔ pndmNfe.
+  const sch = exp.schedule_checks;
+  if (sch && A.diffusion) {
+    const c = r.config;
+    const ab = A.diffusion.alphasCumprod(c.betaSchedule, c.trainSteps, c.betaStart, c.betaEnd);
+    for (const [t, ref] of Object.entries(sch.alphas_cumprod || {})) push('schedule[ᾱ_' + t + ']', ab[+t], ref, rel(ab[+t], ref) <= 1e-5);
+    for (const [n, ref] of Object.entries(sch.ddim_timesteps || {})) {
+      const calc = A.diffusion.ddimTimesteps(+n, c.trainSteps, 1).join(',');
+      push('schedule[ddim ' + n + ' pasos]', calc, ref.join(','), calc === ref.join(','));
+    }
+    for (const [n, ref] of Object.entries(sch.pndm_nfe || {})) push('schedule[pndm ' + n + ' pasos: NFE]', A.diffusion.pndmNfe(+n), ref, A.diffusion.pndmNfe(+n) === ref);
+  }
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -241,7 +254,7 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }

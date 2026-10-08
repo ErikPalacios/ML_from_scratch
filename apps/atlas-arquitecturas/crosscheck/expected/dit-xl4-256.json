@@ -1,0 +1,195 @@
+{
+  "config_id": "dit-xl4-256",
+  "model": "dit",
+  "res": 256,
+  "latent": [
+    32,
+    32,
+    4
+  ],
+  "N": 64,
+  "params_total": 675000704,
+  "params_total_diffusers_raw": 749992448,
+  "params_duplicated_embedders": 74991744,
+  "pos_embed_values": 73728,
+  "params_by_node": {
+    "patchify": 74880,
+    "t-embed": 1624320,
+    "y-embed": 1153152,
+    "blocks": 669344256,
+    "adaln": 223147008,
+    "adaln-final": 2656512,
+    "attn": 148764672,
+    "mlp": 297432576,
+    "final-layer": 2804096
+  },
+  "params_by_path": {
+    "blocks>block>adaln": 223147008,
+    "final-layer>adaln-final": 2656512,
+    "final-layer>linear": 147584,
+    "blocks>block>attn": 148764672,
+    "blocks>block>mlp": 297432576
+  },
+  "shapes": {
+    "x-patch-grid": [
+      8,
+      8,
+      1152
+    ],
+    "h0": [
+      64,
+      1152
+    ],
+    "t-freq": [
+      256
+    ],
+    "t-emb": [
+      1152
+    ],
+    "y-emb": [
+      1152
+    ],
+    "h-mod1": [
+      64,
+      1152
+    ],
+    "attn": [
+      16,
+      64,
+      64
+    ],
+    "o": [
+      64,
+      1152
+    ],
+    "h-mod2": [
+      64,
+      1152
+    ],
+    "u": [
+      64,
+      4608
+    ],
+    "f": [
+      64,
+      1152
+    ],
+    "x-out": [
+      64,
+      1152
+    ],
+    "h-final": [
+      64,
+      128
+    ],
+    "out": [
+      32,
+      32,
+      8
+    ],
+    "eps-hat": [
+      32,
+      32,
+      4
+    ],
+    "sigma": [
+      32,
+      32,
+      4
+    ]
+  },
+  "flops_total": 58087342080,
+  "flops_total_diffusers_raw": 58178174976,
+  "flops_duplicated_embedders": 90832896,
+  "flops_by_node": {
+    "patchify": 9437184,
+    "t-embed": 3244032,
+    "final-layer": 24182784,
+    "attn": 19553845248,
+    "mlp": 38050725888,
+    "adaln": 445906944,
+    "adaln-final": 5308416
+  },
+  "flops_by_op_torch": {
+    "aten.convolution": 9437184,
+    "aten.addmm": 57549422592,
+    "aten.baddbmm": 264241152,
+    "aten.bmm": 264241152
+  },
+  "flops_by_op_torch_raw": {
+    "aten.convolution": 9437184,
+    "aten.addmm": 57640255488,
+    "aten.baddbmm": 264241152,
+    "aten.bmm": 264241152
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "conv2d"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm"
+      ],
+      "prims": [
+        "linear",
+        "adaln_zero"
+      ]
+    },
+    {
+      "ops": [
+        "aten.baddbmm",
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "override_checks": [],
+  "metrics_checks": {
+    "ditParams": 675000704,
+    "ditMacs": 29043671040,
+    "diffusersParams": 749992448,
+    "diffusersMacs": 29089087488,
+    "officialParams": 675074432,
+    "embedderParams": 2777472,
+    "tEmbedMacs": 1622016,
+    "vaeDecoderMacs": 311093641216,
+    "vaeEncoderMacs": 136361082880,
+    "vaeDecoderParams": 49490199,
+    "latentTokens": 64
+  },
+  "not_hooked": {
+    "beta1…alpha2": "AdaLayerNormZero calcula el Linear D → 6D y lo parte con chunk (se verifica su forma 6D en params)",
+    "q, k, v": "diffusers separa to_q/to_k/to_v; el calculador sigue al qkv fusionado del oficial"
+  },
+  "hf_config_source": null,
+  "source": {
+    "lib": "diffusers",
+    "version": "0.41.0",
+    "ctor": "with torch.device('meta'): DiTTransformer2DModel(num_attention_heads=16, attention_head_dim=72, in_channels=4, out_channels=8, num_layers=28, sample_size=32, patch_size=4, activation_fn='gelu-approximate', num_embeds_ada_norm=1000, norm_type='ada_norm_zero', norm_elementwise_affine=False, attention_bias=True, norm_num_groups=32)",
+    "reference_architecture": "facebookresearch/DiT models.py (oficial) = diffusers − embedders duplicados",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "diffusers": "0.41.0"
+    }
+  },
+  "notes": [
+    "diffusers DiTTransformer2DModel construido en código en el dispositivo meta (sin pesos ni hub; config de DiT-XL/4 (Peebles & Xie 2023, Tabla 1)): latente 32×32×4, patch 4 → N = 64 tokens de D = 1152, 28 bloques, out_channels 8.",
+    "diffusers DUPLICA el embedder de tiempo y clase en cada bloque (AdaLayerNormZero.emb = CombinedTimestepLabelEmbeddings, 2,777,472 parámetros) y lo corre 29 veces (una por bloque + la capa final, que usa el del bloque 0). El modelo oficial (facebookresearch/DiT, models.py) tiene UN t_embedder y UN y_embedder: params_total = 749,992,448 (diffusers) − 27·2,777,472 = 675,000,704; flops_total = 58,178,174,976 − 90,832,896 (las 28 llamadas extra, medidas por módulo) = 58,087,342,080.",
+    "Posición sin/cos 2-D: buffer en diffusers (y en el calculador); el oficial la guarda como nn.Parameter(requires_grad=False) de N·D = 73,728 valores, así que su conteo sum(p.numel()) da 675,074,432 (metrics_checks.officialParams).",
+    "Timesteps de diffusers en DiT usa downscale_freq_shift = 1 (frecuencias exp(−ln 10⁴·i/(127))); el oficial divide por 128: cambia los valores del embedding sinusoidal, no parámetros ni FLOPs.",
+    "Atención eager (AttnProcessor: baddbmm + softmax + bmm). diffusers separa to_q/to_k/to_v (con sesgo); el oficial (timm Attention) usa un qkv fusionado: mismos parámetros y MACs (el calculador sigue al oficial: op qkv).",
+    "LayerNorm sin parámetros (elementwise_affine = False): γ y β los pone adaLN-Zero (Linear D → 6D por bloque, inicializado en ceros)."
+  ]
+}

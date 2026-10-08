@@ -414,7 +414,32 @@
     encSamplingMacsLayer: { label: 'Encoder: MACs del muestreo deformable (una capa)', kind: 'ops', note: '5·N·hLK·d_h; lineal en N' },
     decCrossSamplingMacs: { label: 'Cross-attention: MACs del muestreo deformable', kind: 'ops', note: '5·Q·hLK·d_h por capa' },
     decCrossSamplingMacsLayer: { label: 'Cross-attention: MACs del muestreo deformable (una capa)', kind: 'ops', note: '5·Q·hLK·d_h' },
-    samplingMacs: { label: 'MACs del muestreo deformable', kind: 'ops', note: 'encoder + cross-attention del decoder; convención del calculador' },
+    samplingMacs: { label: 'MACs del muestreo deformable', kind: 'ops', note: 'encoder + cross-attention del decoder; convención del calculador',
+      labels: { 'stable-diffusion': 'MACs por imagen', dit: 'MACs por imagen' },
+      notes: { 'stable-diffusion': 'pasos × NFE × (2 con CFG) + texto + decoder del VAE', dit: 'pasos × NFE × (2 con CFG) + decoder del VAE' } },
+    latentTokens: { label: 'Tokens del latente', kind: 'count', note: '(H/8/p)·(W/8/p): parches del latente' },
+    ditMacs: { label: 'MACs por evaluación (NFE)', kind: 'ops', note: 'una pasada del DiT' },
+    unetMacs: { label: 'MACs por evaluación (NFE)', kind: 'ops', note: 'una pasada de la U-Net' },
+    scoreShareDit: { label: 'Parte de QKᵀ y A·V', kind: 'pct', note: '% de los MACs por NFE; crece ∝ tokens²' },
+    selfScoreShareUnet: { label: 'Self-attention de la U-Net: QKᵀ y A·V', kind: 'pct', note: '% de los MACs por NFE; crece ∝ tokens² del nivel 64×64' },
+    vaeDecoderShare: { label: 'Decoder del VAE', kind: 'pct', note: '% de los MACs por imagen' },
+    selfAttnScoreBytes: { label: 'Scores de la self-attention (nivel más fino)', kind: 'bytes', note: 'h×N×N en fp16, una capa, B = 1' },
+    selfAttnTokens: { label: 'Tokens de la self-attention (nivel más fino)', kind: 'count', note: '(H/8)·(W/8)' },
+    msPerImage: { label: 'ms por imagen (≈ cota)', kind: 'ms', note: 'roofline en H100, sin overhead' },
+    unetNfeMs: { label: 'ms por NFE de la U-Net (≈ cota)', kind: 'ms', note: 'roofline en H100' },
+    ditNfeMs: { label: 'ms por NFE del DiT (≈ cota)', kind: 'ms', note: 'roofline en H100' },
+    samplingMs: { label: 'ms del muestreo (≈ cota)', kind: 'ms', note: 'roofline en H100' },
+    imagesPerSecUpperBound: { label: 'Imágenes/s (≈ tope)', kind: 'count', note: 'roofline en H100' },
+    unetParams: { label: 'Parámetros de la U-Net', kind: 'count', note: '' },
+    ditParams: { label: 'Parámetros del DiT', kind: 'count', note: '' },
+    vaeParams: { label: 'Parámetros del VAE', kind: 'count', note: 'encoder + decoder' },
+    textEncoderParams: { label: 'Parámetros del text encoder', kind: 'count', note: 'CLIP ViT-L/14 (texto)' },
+    unetParamsShare: { label: 'U-Net', kind: 'pct', note: '% de los parámetros del sistema' },
+    nfe: { label: 'Evaluaciones de la red (NFE)', kind: 'count', note: 'pasos × (2 con CFG)' },
+    textEncoderMacs: { label: 'MACs del text encoder', kind: 'ops', note: 'una vez por imagen' },
+    vaeDecoderMacs: { label: 'MACs del decoder del VAE', kind: 'ops', note: 'una vez por imagen' },
+    vaeEncoderMacs: { label: 'MACs del encoder del VAE', kind: 'ops', note: 'solo en entrenamiento (o img2img)' },
+    compressionFactor: { label: 'Compresión del VAE', kind: 'ratio', note: 'valores de la imagen / valores del latente' },
     samplingShare: { label: 'Muestreo deformable', kind: 'pct', note: '% de los MACs; convención del calculador (los profilers no cuentan grid_sample)' },
     denseEncScoreMacs: { label: 'Encoder denso: MACs de QKᵀ y A·V', kind: 'ops', note: 'si el encoder usara atención densa sobre los mismos N tokens; ∝ N²' },
     denseEncScoreMacsLayer: { label: 'Encoder denso: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·N²·D' },
@@ -601,6 +626,7 @@
   };
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
+  const DIFFUSION = { 'stable-diffusion': true, dit: true };   // fase 8: modelos cuyo samplingMacs es el costo por imagen
   // Etiqueta: la del modelo (labels[model]: «Celdas A» en YOLO) o la general.
   const metricLabel = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.labels && model && m.labels[model]) || m.label || k; };
   const UNIT_KIND = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count' };
@@ -609,7 +635,7 @@
   function metricKind(key) {
     const k = metricKey(key);
     // Primero el mapa `units` del modelo (lo registra metrics()); luego METRICS; luego el nombre.
-    if (METRICS[k] && (METRICS[k].kind === 'intensity' || METRICS[k].kind === 'rate' || METRICS[k].kind === 'avg')) return METRICS[k].kind;   // formato propio, gana a units
+    if (METRICS[k] && (METRICS[k].kind === 'intensity' || METRICS[k].kind === 'rate' || METRICS[k].kind === 'avg' || METRICS[k].kind === 'ms')) return METRICS[k].kind;   // formato propio, gana a units
     if (ARCH_UNITS[k] && UNIT_KIND[ARCH_UNITS[k]]) return UNIT_KIND[ARCH_UNITS[k]];
     if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
@@ -658,6 +684,7 @@
     if (kind === 'ratio') return '×' + String(+v.toFixed(4));
     if (kind === 'intensity') return String(+v.toFixed(4)) + ' FLOPs/B';
     if (kind === 'rate') return String(+v.toFixed(2)) + ' tok/s';
+    if (kind === 'ms') return String(+v.toFixed(3)) + ' ms';
     if (kind === 'avg') return String(+v.toFixed(3));
     return fInt(v) + (kind === 'bytes' ? ' bytes' : '');
   }
@@ -1054,7 +1081,7 @@
       splitEl.innerHTML = '';
       const sp = splitSegments(m);
       const windowed = !!(m && m.windowScoreMacs != null);
-      const deform = !!(m && typeof m.samplingMacs === 'number');
+      const deform = !!(m && typeof m.samplingMacs === 'number') && !DIFFUSION[model];   // en difusión, samplingMacs = costo por imagen
       // Grounding DINO: el tensor de scores que crece con la imagen es el de la fusión (h/2×N×T).
       const fusionMem = !!(m && typeof m.fusionAttnMem === 'number');
       // Deformable DETR no tiene attnMem (sin matriz N×N): su mayor tensor de scores es el h×Q×Q del decoder.
@@ -1171,7 +1198,7 @@
         + (num(m.memCrossScoreMacs) != null ? ' Dentro de la memory attention, QKᵀ y A·V de la cross-attention a la memoria: ' + fOps(m.memCrossScoreMacs) + ' (' + pctOf(m.memCrossScoreMacs) + ' %).' : '')];
       return { title: 'Dónde se va el cómputo: encoder compartido (por frame) vs la parte por objeto', segs, extra, noAttnNote: true };
     }
-    if (num(m.samplingMacs) != null) {
+    if (num(m.samplingMacs) != null && !DIFFUSION[model]) {
       const samp = m.samplingMacs, dself = num(m.decSelfScoreMacs) || 0;
       return { title: 'Dónde se va el cómputo: atención deformable vs el resto', segs: [
         { cls: 'a', label: 'Muestreo deformable (encoder ∝ N·hLK, cross-attention ∝ Q·hLK; sin matriz N×N; convención del calculador)', v: samp },
@@ -1504,6 +1531,13 @@
       if (typeof c.classes === 'number') out.push(['K_cls', c.classes]);
     } else if (typeof c.classes === 'number' && !has('K')) out.push(['K', c.classes]);
     if (typeof c.D === 'number' && Array.isArray(c.widths) && c.widths.length && typeof c.expansion === 'number') out.push(['C_5', c.widths[c.widths.length - 1] * c.expansion]);
+    // Fase 8 (difusión): canales del VAE / texto (SD), torres de texto (SDXL), tamaño de entrada I (DiT).
+    if (c.I != null && !has('I')) out.push(['I', c.I, 'lado del latente']);
+    if (c.Cv != null && !has('C_v')) out.push(['C_v', c.Cv, 'canales del VAE']);
+    if (c.Dtxt != null && !has('D_t')) out.push(['D_t', c.Dtxt, 'ancho del texto (cross-attention)']);
+    if (c.ht) [['h_t', c.ht, 'cabezas del text encoder'], ['d_t', c.dt], ['L_t', c.Lt, 'capas del text encoder']].forEach(([sym, v, n]) => { if (v != null && !has(sym)) out.push([sym, v, n]); });
+    if (c.headDim && !has('d_h')) out.push(['d_h', c.headDim, 'dim. por cabeza']);
+    (Array.isArray(c.towers) ? c.towers : []).forEach((tw, i) => { out.push(['D_' + (i + 1), tw.D, 'text encoder ' + (i + 1)], ['h_' + (i + 1), tw.h], ['d_' + (i + 1), tw.D / tw.h]); });
     // Fase 7 (VLMs): la torre de visión tiene sus propios símbolos (D_v, h_v…) además de los del LLM.
     if (typeof c.Dv === 'number') {
       [['D_v', c.Dv, 'ancho de la torre de visión'], ['h_v', c.hv, 'cabezas de la torre de visión'], ['d_v', c.dv, 'dim. por cabeza de la visión'],
@@ -2074,7 +2108,9 @@
     const isCount = metricKind(ask) === 'count';
     const fix = (x) => (isCount ? Math.round(x) : x);
     const right = fMetric(ask, fix(av));
-    const cands = [bv, av * r, bv * Math.sqrt(r), av * 2, av / 2, av * 4, av / 4].map(fix).filter((x) => x > 0 && isFinite(x));
+    const isPct = metricKind(ask) === 'pct';
+    // Porcentajes: nada por encima de 100 % (×2 o ×4 de una fracción grande no es un distractor creíble).
+    const cands = [bv, av * r, bv * Math.sqrt(r), av * 2, av / 2, av * 4, av / 4, 1 - av].map(fix).filter((x) => x > 0 && isFinite(x) && (!isPct || x <= 1));
     const out = [];
     const labels = new Set([right]);
     for (const c of cands) {

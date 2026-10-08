@@ -16,3 +16,8 @@ ultralytics-thop==2.2.2
 opencv-python==5.0.0.93
 matplotlib==3.11.2
 polars==2.0.0
+# diffusers (fase 8): UNet2DConditionModel, AutoencoderKL, DiTTransformer2DModel y los schedulers DDIM / PNDM, construidos en código sin
+# pesos (crosscheck/diffusion.py). Trae importlib_metadata y zipp.
+diffusers==0.41.0
+importlib_metadata==9.0.1
+zipp==4.1.1

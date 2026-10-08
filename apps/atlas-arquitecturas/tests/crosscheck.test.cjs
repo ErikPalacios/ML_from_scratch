@@ -245,3 +245,35 @@ test('VLM: HF Llava / Qwen2VL en meta con todas las capas; capa 24 de CLIP conta
   assert.ok(q.checks.some((c) => c.what === '[frames=4] flops_total' && c.ok));
   assert.strictEqual((await find('qwen2-vl-2b')).exp.params_by_node['lm-head'], 0);
 });
+
+// ---------------------------------------------------------------- fase 8
+test('Difusión: diffusers UNet2DConditionModel / AutoencoderKL / DiTTransformer2DModel + CLIPTextModel en meta; DiT = oficial (embedders sin duplicar); schedule de SD', async () => {
+  for (const id of ['sd15-unet', 'sd15-train', 'sdxl-unet', 'dit-xl2-256', 'dit-xl2-512', 'dit-xl4-256', 'dit-xl8-256', 'dit-b2-256', 'dit-xl2-256-fm']) {
+    const r = await find(id);
+    assert.ok(r.checks.every((c) => c.ok), id + ': ' + r.checks.filter((c) => !c.ok).map((c) => c.what).join(', '));
+    assert.match(r.exp.source.ctor, /torch\.device\('meta'\)/, id);
+    assert.strictEqual(r.exp.source.lib, 'diffusers');
+    assert.ok(r.checks.some((c) => c.what.startsWith('metrics[') && c.ok), id + ' sin metrics_checks');
+    assert.ok(r.checks.some((c) => c.what.startsWith('[') && c.what.endsWith('flops_total') && c.ok) || /dit-xl[248]-|dit-b2|fm|512/.test(id), id + ' sin override_checks');
+  }
+  const sd = await find('sd15-unet');
+  assert.deepStrictEqual([sd.exp.params_by_node.unet, sd.exp.params_by_node['text-encoder'], sd.exp.params_by_node['vae-encoder'], sd.exp.params_by_node['vae-decoder']],
+    [859520964, 123060480, 34163664, 49490199]);
+  assert.strictEqual(sd.exp.flops_by_node.unet, 2 * 401636720640);
+  assert.deepStrictEqual(sd.exp.shapes['d1-attn1-sa-attn'], [8, 4096, 4096]);
+  assert.deepStrictEqual(sd.exp.shapes['d1-attn1-ca-attn'], [8, 4096, 77]);
+  assert.strictEqual(sd.exp.schedule_checks.pndm_nfe['50'], 51);
+  assert.ok(sd.checks.filter((c) => c.what.startsWith('schedule[') && c.ok).length >= 12);
+  assert.ok(sd.exp.notes.some((n) => /NÚMERO de cabezas/.test(n)));
+  const xl = await find('sdxl-unet');
+  assert.strictEqual(xl.exp.params_by_node.unet, 2567463684);
+  assert.deepStrictEqual(xl.exp.shapes['text-emb'], [77, 2048]);
+  const d = await find('dit-xl2-256');
+  assert.deepStrictEqual([d.exp.params_total, d.exp.params_total_diffusers_raw, d.exp.pos_embed_values], [674834720, 749826464, 256 * 1152]);
+  assert.strictEqual(d.exp.flops_total, 2 * 118621421568);
+  assert.strictEqual(d.exp.flops_total, d.exp.flops_total_diffusers_raw - d.exp.flops_duplicated_embedders);
+  assert.strictEqual(d.exp.metrics_checks.officialParams, 675129632);
+  assert.strictEqual(d.exp.paper_gflops, 118.6);
+  assert.ok(d.exp.notes.some((n) => /son MACs/.test(n)) && d.exp.notes.some((n) => /DUPLICA/.test(n)));
+  assert.deepStrictEqual(d.exp.shapes.attn, [16, 256, 256]);
+});

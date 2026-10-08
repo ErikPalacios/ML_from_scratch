@@ -352,9 +352,12 @@
       await go(e.href);
       const r = A.App.parseHash(e.href);
       const sec = byId(r.pageId + '.' + r.section);
-      const c = sec && diagramCtrls(sec)[0];
-      const fig = c && ($('figure.ad', c.el) || c.el);
-      const opened = fig && await waitFor(() => fig.getAttribute('data-view') === e.diagram, 2500);
+      // La sección puede tener varios diagramas raíz (dit.diagrama: dit-overview y flow-matching): vale el
+      // que termine mostrando la vista del resultado.
+      const figs = sec ? diagramCtrls(sec).map((c) => $('figure.ad', c.el) || c.el) : [];
+      let fig = null;
+      const opened = figs.length && await waitFor(() => { fig = figs.find((f) => f.getAttribute('data-view') === e.diagram) || null; return !!fig; }, 2500);
+      if (!fig) fig = figs[0] || null;
       const focused = await waitFor(() => document.activeElement && document.activeElement.getAttribute('data-node') === e.node && fig.contains(document.activeElement), 1500);
       if (!opened || !focused) bad.push(e.href + ' → vista ' + (fig && fig.getAttribute('data-view')) + ', foco ' + (document.activeElement && (document.activeElement.getAttribute('data-node') || document.activeElement.tagName)));
     }

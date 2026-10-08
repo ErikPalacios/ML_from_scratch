@@ -91,7 +91,19 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   `.item()`) → no-op, los ids de posición del ViT se calculan en CPU y se mueven a meta, máscara 4-D de ceros y `position_ids`
   dados (Qwen2-VL: 3×1×S, cuya forma 3×S se verifica en `rotary_emb`). `metrics_checks`: bytes de KV por token (DynamicCache,
   bf16), tokens visuales, parámetros del proyector / merger y del módulo `visual`.
-- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`) deben coincidir con las de `js/arch/<modelo>.js`.
+- `diffusion.py` (fase 8): diffusers 0.41.0 `UNet2DConditionModel(**unet_config)`, `AutoencoderKL(**vae_config)` y
+  `DiTTransformer2DModel(...)`, y transformers `CLIPTextModel` / `CLIPTextModelWithProjection(CLIPTextConfig(...))`, construidos en código
+  **en el dispositivo meta** (sin pesos ni hub; hiperparámetros copiados de los `config.json` de stable-diffusion-v1-5,
+  stable-diffusion-xl-base-1.0 y facebook/DiT-XL-2-256 / -512, citados en el script), atención eager (`AttnProcessor`: baddbmm + bmm).
+  Stable Diffusion (`sd15-unet`, `sdxl-unet`): el grafo es UN paso de muestreo = encoder(es) de texto (77 tokens) + U-Net (1 NFE, B = 1)
+  + decoder del VAE, medidos por separado y sumados; `sd15-train` = texto + encoder del VAE + U-Net. Parámetros = el checkpoint entero.
+  `override_checks` con otras resoluciones; `metrics_checks` por componente; `schedule_checks`: `alphas_cumprod` del DDIMScheduler de SD,
+  pasos de DDIM (leading, steps_offset 1) y evaluaciones de PNDM (n + 1) ↔ `ATLAS.Arch.diffusion`. DiT (`dit-xl2-256`, `-512`, `-xl4-256`,
+  `-xl8-256`, `-b2-256`, `-xl2-256-fm`): diffusers duplica el embedder de tiempo + clase en cada bloque (y lo corre L + 1 veces); el JSON
+  resta las copias medidas por módulo (`params_total_diffusers_raw`, `flops_duplicated_embedders`) y queda la arquitectura del código
+  oficial (facebookresearch/DiT): 674,834,720 parámetros para XL/2 (+ la posición sin/cos, `nn.Parameter` congelado en el oficial =
+  675,129,632, los «675M» del paper) y 118.62 GMACs (los «118.6 Gflops» de la Tabla 4 son MACs). Parámetros y FLOPs exactos (diferencia 0).
+- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que
   torch no trae para `_scaled_dot_product_flash_attention_for_cpu`).

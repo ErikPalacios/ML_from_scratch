@@ -20,12 +20,25 @@ function load() {
 }
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl'];
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit'];
 const diagrams = ATLAS.diagrams();
 // Fase 7 (VLM): símbolos de la torre de visión que la tarjeta de datos debe mostrar además de los genéricos (H, W, C, P, D, L,
 // h, D_mlp, N, T, V, G): D_v, h_v, d_v, L_v, N_p y, en Qwen2-VL, F (frames). Mientras practice.js (factPairs) no los incluya,
 // las barridas de formas los toman de aquí (mismos nombres que js/arch/vlm.js).
 const vlmFacts = (cfg) => (cfg && cfg.Dv != null ? { D_v: cfg.Dv, h_v: cfg.hv, d_v: cfg.dv, L_v: cfg.Lv, N_p: cfg.Np, F: cfg.F } : {});
+// Fase 8 (difusión): símbolos propios de las formas de js/arch/diffusion.js que la tarjeta debe mostrar además de los genéricos
+// (H, W, C, T, V, h; DiT: P, D, L, h, D_mlp, N, K): SD — C_v (canales base del VAE), D_t (ancho del texto: 768 en SD 1.5, 2,048 en
+// SDXL), h_t / d_t / L_t (cabezas, dim. por cabeza y capas del encoder de texto de SD 1.5); SDXL — d_h (64), D_1 / D_2, h_1 / h_2,
+// d_1 / d_2 (los dos encoders de texto); DiT — I (lado del latente = res/8). Mientras practice.js (factPairs) no los incluya,
+// las barridas los toman de aquí (mismos nombres que la cabecera de diffusion.js).
+const diffFacts = (cfg) => {
+  if (!cfg || (cfg.Cv == null && cfg.I == null)) return {};
+  const f = cfg.I != null ? { I: cfg.I } : { C_v: cfg.Cv, D_t: cfg.Dtxt };
+  if (cfg.ht) Object.assign(f, { h_t: cfg.ht, d_t: cfg.dt, L_t: cfg.Lt });
+  if (cfg.headDim) f.d_h = cfg.headDim;
+  (cfg.towers || []).forEach((tw, i) => { f['D_' + (i + 1)] = tw.D; f['h_' + (i + 1)] = tw.h; f['d_' + (i + 1)] = tw.D / tw.h; });
+  return f;
+};
 
 // Lo que el diagrama escribe para un nodo (archdiagram.js nodeCost): por capa si todas las ops se
 // repiten igual; Σ op × repeat si mezclan repeticiones; el total si es un grupo con repeat.totalOf.
@@ -82,6 +95,7 @@ test('drills de formas: cada dimensión sale de los datos de la tarjeta o del te
       const known = {};
       P._drillFacts(Rc, c).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
       Object.entries(vlmFacts(Rc.config)).forEach(([s, v]) => { if (!(s in known)) known[s] = v; });
+      Object.entries(diffFacts(Rc.config)).forEach(([s, v]) => { if (!(s in known)) known[s] = v; });
       known.dh = known.d_h != null ? known.d_h : (known.D != null ? known.D : known.D_t) / known.h;
       // Swin: cabezas y ventanas del stage que nombra la etiqueta (datos: H, M y h por stage)
       const st = (Rc.config.stages || []).find((s) => new RegExp('Stage ' + s.k + '\\b').test(t.label || ''));
@@ -501,4 +515,43 @@ test('fase 7: toda forma de LLaVA y Qwen2-VL (imagen, varias imágenes, video) s
   // datos genéricos de la tarjeta: D, L, h, G, D_mlp del LLM; N = tokens visuales; T = de texto
   const f = Object.fromEntries(P._factPairs(A.run('qwen2-vl-7b').config));
   assert.deepStrictEqual([f.D, f.L, f.h, f.G, f.D_mlp, f.N, f.T, f.H, f.W, f.P], [3584, 28, 28, 4, 18944, 841, 64, 812, 812, 14]);
+});
+
+test('fase 8: toda forma de Stable Diffusion (inferencia, entrenamiento, SDXL) y DiT (incl. flow matching) sale de los datos de la tarjeta (+ los de difusión); units conocidas', () => {
+  let n = 0;
+  const cases = [['sd15-unet', [{}, { cfg: 0 }, { res: 768 }]], ['sd15-train', [{}]], ['sdxl-unet', [{}]], ['dit-xl2-256', [{}, { patch: 4 }]], ['dit-xl2-512', [{}]],
+    ['dit-b2-256', [{}]], ['dit-xl8-256', [{}]], ['dit-xl2-256-fm', [{}]]];
+  for (const [cfg, ovs] of cases) {
+    for (const ov of ovs) {
+      const R = A.run(cfg, ov);
+      const known = {};
+      P._factPairs(R.config).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
+      Object.entries(diffFacts(R.config)).forEach(([s, v]) => { if (!(s in known)) known[s] = v; });
+      known.dh = known.d_h != null ? known.d_h : known.D / known.h;
+      for (const id of R.order) {
+        const t = R.tensors[id];
+        const text = (t.label || '') + ' ' + (t.tex || '');
+        t.sym.forEach((sym, i) => {
+          const str = String(sym);
+          if (/^\d+$/.test(str)) return;
+          const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/²/g, '**2').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+          const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+          if (ids.some((x) => !(x in known))) {
+            assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
+            return;
+          }
+          n++;
+          assert.strictEqual(Function(...Object.keys(known), 'return ' + e)(...Object.values(known)), t.num[i], cfg + ' ' + id + ': ' + str);
+        });
+      }
+    }
+    const m = A.metrics(cfg, {});
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
+  }
+  assert.ok(n > 3000, 'se revisaron ' + n + ' dimensiones');
+  // datos genéricos de la tarjeta: SD 1.5 (H, W, C = 320, h = 8, T = 77, V); DiT (P, D, L, h, D_mlp, N, K)
+  const f = Object.fromEntries(P._factPairs(A.run('sd15-unet').config));
+  assert.deepStrictEqual([f.H, f.W, f.C, f.h, f.T, f.V], [512, 512, 320, 8, 77, 49408]);
+  const fd = Object.fromEntries(P._factPairs(A.run('dit-xl2-256').config));
+  assert.deepStrictEqual([fd.P, fd.D, fd.L, fd.h, fd.D_mlp, fd.N, fd.K], [2, 1152, 28, 16, 4608, 256, 1000]);
 });
