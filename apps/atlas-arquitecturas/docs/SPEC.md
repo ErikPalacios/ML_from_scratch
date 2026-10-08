@@ -1276,3 +1276,82 @@ and KV bytes: image vs text share as the image grows or the number of images inc
   js/content/diagrams/{llava,qwen2-vl}.js, dev/diagram.html.
 - **content-llava**: js/content/llava.js. **content-qwen2-vl**: js/content/qwen2-vl.js.
 - **orchestrator**: index.html + stubs, catalog, SPEC, practice METRICS labels, integration.
+
+## 20. Phase 8 shared facts — Stable Diffusion (latent U-Net) + DiT / flow matching (every F8 agent MUST use exactly these)
+
+Phase 1–7 lessons apply. Thesis: **generation = learning to undo noise** — a network trained by plain
+regression (predict the noise ε, or the velocity v) is applied many times at sampling; latent diffusion
+makes it affordable (VAE ×8 compression), the text enters by cross-attention (SD) or the condition by
+adaLN (DiT), and flow matching straightens the path (fewer steps; it is what π0 uses for actions in F9).
+Every number below is a starting point: verify against configs/papers and cite; the source wins.
+Cross-check needs `diffusers` in the dev venv (`.venv/bin/pip install diffusers==<pin>`, add to
+crosscheck/requirements.txt; dev-only, same approval as torch/timm/transformers).
+
+### 20.1 Stable Diffusion — page `stable-diffusion`, model `stable-diffusion`
+Paper: Rombach et al., *High-Resolution Image Synthesis with Latent Diffusion Models*, CVPR 2022,
+arXiv:2112.10752; DDPM: Ho et al., NeurIPS 2020, arXiv:2006.11239; DDIM: Song et al., ICLR 2021,
+arXiv:2010.02502; classifier-free guidance: Ho & Salimans, arXiv:2207.12598.
+Canonical **`sd15-unet`** (SD 1.5 at 512×512): VAE f=8 → latent 64×64×4 (scale factor 0.18215),
+U-Net `block_out_channels` (320, 640, 1280, 1280), 2 ResNet blocks per level, transformer blocks
+(self-attn → cross-attn to text → GEGLU FF) in the first 3 down levels / last 3 up levels and the mid
+block, 8 heads, cross-attention dim 768 (CLIP ViT-L/14 text encoder, 77 tokens), timestep embedding
+(sinusoidal 320 → MLP 1280), ≈860M U-Net params — compute, don't trust. Also count the VAE (encoder
+only for training, decoder for sampling) and the text encoder as separate components. Scheduler:
+1,000 training steps, scaled-linear β 0.00085 → 0.012 (verify), sampling e.g. 50 DDIM/PNDM steps,
+CFG scale 7.5 (doubles the U-Net batch). Configs: `sd15-unet` (canonical), optional `sdxl-unet`
+(1024, latent 128×128, 2 text encoders) for scaling contrast. Knobs: `res` (image side; latent =
+res/8), `steps`, `cfg` (0/1: doubles batch), `B`.
+Ids: `sd-overview` nodes `prompt`, `text-encoder`, `noise`, `unet` (expand `sd-unet`), `scheduler`
+(loop ×steps, control edge back to `unet`), `vae-decoder`, `image`; training view `sd-training`
+(`image`, `vae-encoder`, `add-noise` with t, `unet`, `loss` MSE on ε); `sd-unet`: `conv-in`, `down-1..4`,
+`mid`, `up-1..4`, `conv-out`, skip connections drawn as skip edges, `time-embed`; expansion
+`sd-transformer-block`: `norm1`, `self-attn`, `norm2`, `cross-attn` (K,V from text — cross-attention
+style), `norm3`, `ff-geglu`; `sd-resblock`: `gn1`, `silu1`, `conv1`, `time-proj` (added), `gn2`,
+`silu2`, `conv2`, `skip`.
+
+### 20.2 DiT + flow matching — page `dit`, model `dit`
+Papers: Peebles & Xie, *Scalable Diffusion Models with Transformers*, ICCV 2023, arXiv:2212.09748;
+flow matching: Lipman et al., ICLR 2023, arXiv:2210.02747; rectified flow: Liu et al., ICLR 2023,
+arXiv:2209.03003; SD3 / MMDiT: Esser et al., ICML 2024, arXiv:2403.03206 (verify all).
+Canonical **`dit-xl2-256`**: latent 32×32×4, patch 2 → 256 tokens, 28 blocks, hidden 1152, 16 heads,
+MLP ×4, **adaLN-Zero** (6 modulation vectors per block from timestep + class embedding; zero-init),
+class-conditional (1,000 classes + null for CFG), output 2×4 channels (ε and Σ, learn_sigma) — paper
+reports ≈675M params and 118.6 "Gflops" (check whether those are MACs: compare with the calculator).
+Configs: `dit-xl2-256` (canonical), `dit-xl2-512` (1,024 tokens), `dit-b2-256`, `dit-xl4-256`,
+`dit-xl8-256` (patch-size scaling: tokens ÷4 per ×2 patch). Knobs: `res`, `patch`, `steps`, `cfg`.
+Flow matching (on the same page, model-agnostic): x_t = (1−t)·x₀ + t·ε (rectified-flow convention —
+state which convention you use; SD3 uses it), target velocity v = ε − x₀, loss ‖v_θ(x_t,t) − v‖²,
+Euler sampling with N steps; contrast with DDPM ε-prediction; SD3/Flux as MMDiT + rectified flow
+(text, not class) — brief, verified.
+Ids: `dit-overview` nodes `latent`, `patchify`, `pos-embed`, `blocks` (group ×L, expand `dit-block`),
+`final-layer` (adaLN + linear), `unpatchify`, `out` (ε, Σ), conditioning `timestep`, `t-embed`,
+`class`, `y-embed`, `cond` (sum) feeding every block (conditioning edges, not data); `dit-block`:
+`adaln` (→ γ1 β1 α1 γ2 β2 α2), `norm1`, `modulate1`, `attn`, `gate1`, `res1`, `norm2`, `modulate2`,
+`mlp`, `gate2`, `res2`; `flow-matching` view: `x0`, `eps`, `interp` (x_t), `model`, `v-target`, `loss`.
+
+### 20.3 Metrics (calculator)
+Per network evaluation (NFE): `unetMacs` / `ditMacs`, `textEncoderMacs`, `vaeDecoderMacs`,
+`vaeEncoderMacs`; per image: `samplingMacs` = steps × NFE × (2 if CFG) + text + VAE decode; params split
+`unetParams`/`ditParams`, `vaeParams`, `textEncoderParams`; `latentShape`, `latentTokens` (DiT),
+`compressionFactor` (pixels / latent values = 48 for f=8, c=4); attention share at 64×64 (SD self-attn
+over 4,096 tokens at the first level) and its growth with resolution; `stepsScaling`, `resScaling`;
+a roofline "≈" latency estimate per image with explicit hardware (reuse llm.js conventions).
+
+### 20.4 Visualizations
+`noise-schedule` (a synthetic 2-D image/signal noised along ᾱ_t: slider t; ᾱ_t and SNR curves from the
+real SD schedule), `denoise-steps` (a sampling trajectory: steps vs quality/cost; DDPM vs DDIM vs flow
+with fewer steps; synthetic, labelled), `cfg-guidance` (conditional vs unconditional prediction and
+w·(cond − uncond); 2-D toy), `flow-vs-diffusion` (2-D toy distribution: curved diffusion paths vs
+straight flow-matching paths; Euler steps).
+
+### 20.5 Ownership in Phase 8
+- **arch**: js/arch/primitives.js (new primitives only: groupnorm, conv residual block with time
+  injection, GEGLU, adaLN modulate/gate, up/downsample, VAE blocks), js/arch/diffusion.js (models
+  `stable-diffusion`, `dit`), tests, crosscheck/diffusion.py + expected JSONs (diffusers
+  `UNet2DConditionModel`, `AutoencoderKL`, `DiTTransformer2DModel` / official DiT code, CLIPTextModel;
+  meta device or small dummy inputs; params exact; FLOPs exact or within 0.5 %), requirements pin.
+- **diagram**: engine extensions (U-Net skip layout, loop edges), js/ui/viz/{noise-schedule,
+  denoise-steps,cfg-guidance,flow-vs-diffusion}.js, js/content/diagrams/{stable-diffusion,dit}.js,
+  dev/diagram.html.
+- **content-sd**: js/content/stable-diffusion.js. **content-dit**: js/content/dit.js.
+- **orchestrator**: index.html + stubs, catalog, SPEC, practice METRICS labels, integration.
