@@ -483,12 +483,18 @@
     try { return A.run(run.id, Object.assign({}, run.overrides || {}, ov)); } catch (e) { return run; }
   }
   const edgeRun = (run, e) => (e && e.ov ? ovRun(run, e.ov) : run);
+  function configLabel(id) {
+    const A = arch();
+    try { const c = A && A.configs ? A.configs().find((x) => x.id === id) : null; return c ? c.label : id; } catch (e) { return id; }
+  }
   function shapeText(t, mode) {
     const A = arch();
     if (A && A.fmt && typeof A.fmt.shape === 'function') return A.fmt.shape(t, mode);
     const a = mode === 'sym' ? t.sym : t.num;
     return (a || []).join('×');
   }
+  // "sym = num" para leer en voz alta / en texto; si no hay símbolos (p. ej. 1 token), solo el número
+  function shapeSay(t) { const a = plainSub(shapeText(t, 'sym')), b = shapeText(t, 'num'); return a === b ? b : a + ' = ' + b; }
   function shapeTexOf(t) {
     const A = arch();
     if (A && A.fmt && typeof A.fmt.shapeTex === 'function') return A.fmt.shapeTex(t);
@@ -1357,6 +1363,12 @@
     const sym = shapeText(t, 'sym'), num = shapeText(t, 'num');
     const g = S('g', { class: 'ad-shape' + (ctl.showNumbers ? '' : ' ad-shape--nonum') }, parent);
     const anchor = side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle';
+    if (sym === num) {   // forma sin símbolos (p. ej. 1 token): una sola línea, no "1 / 1"
+      const tx1 = side === 'left' ? x - 7 : side === 'right' ? x + 7 : x;
+      const y1 = side === 'above' ? y - 6 : side === 'below' ? y + 15 : y + 4;
+      txt(g, tx1, y1, num, 'ad-shape-num', anchor).setAttribute('data-tensor', tensorId);
+      return g;
+    }
     let ys, yn;
     if (side === 'above') { yn = y - 6; ys = ctl.showNumbers ? y - 19 : y - 6; }
     else if (side === 'below') { ys = y + 15; yn = y + 28; }
@@ -1405,7 +1417,9 @@
     if (kind !== 'contrasta') arrowHead(g, headPts, 'ad-head' + (hollow ? ' ad-head--hollow' : ''), headSize);
     if (kind === 'contrasta') { const p0 = ge.pts[0], p1 = ge.pts[ge.pts.length - 1]; S('circle', { cx: r1(p0[0]), cy: r1(p0[1]), r: 2.4, class: 'ad-end' }, g); S('circle', { cx: r1(p1[0]), cy: r1(p1[1]), r: 2.4, class: 'ad-end' }, g); }
     if (isMap) g.setAttribute('aria-label', (MAP_KIND_SENT[kind] ? MAP_KIND_SENT[kind](mapName(e.from), mapName(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' (' + e.label + ')' : ''));
-    if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? e.tag + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num') + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
+    if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? e.tag + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + shapeSay(t) + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
+    // arista de control con etiqueta (sin tensor): el lector de pantalla oye qué decide y entre qué bloques
+    if (!t && !isMap && kind === 'control' && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(e.tag) + ' (control, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
     if (e.dot) { const dp = e.fromPt ? ge.pts[0] : ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
     if ((kind === 'cross' || e.tag) && e.tag !== false) {   // tag:false = arista cross sin etiqueta (chips de texto de YOLO-World)
       const la = labelAnchor(ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
@@ -1499,7 +1513,7 @@
         if (k.id === 'cross') { S('path', { d: 'M2 8H20', class: 'ad-ln ad-ln--cross-out' }, g); S('path', { d: 'M2 8H20', class: 'ad-ln ad-ln--cross-in' }, g); }
         else S('path', { d: 'M2 8H19', class: 'ad-ln' }, g);
         arrowHead(g, [[2, 8], [25, 8]], 'ad-head' + (k.id === 'cross' ? ' ad-head--hollow' : ''), k.id === 'control' ? 5 : 7);
-      }, k.title);
+      }, (view.spec && view.spec.edgeLegend && view.spec.edgeLegend[k.id]) || k.title);   // spec.edgeLegend: texto propio por tipo
     }
     for (const mk of MAP_KINDS) {
       if (!used.map.has(mk)) continue;
@@ -1541,7 +1555,9 @@
 
   // ============================================================ controlador
   function render(diagramId, container, opts) {
-    opts = opts || {};
+    // copia: opts.config se ajusta por vista (spec.configs) sin tocar el objeto del llamador
+    opts = Object.assign({}, opts || {});
+    const reqConfig = opts.config || null;
     const spec0 = ATLAS.diagram(diagramId);
     const ctl = {
       id: 'ad' + (++uid), mode: opts.mode || 'full', opts, rootId: diagramId,
@@ -1584,6 +1600,10 @@
       walkBar = H('div', { class: 'ad-walk', hidden: 'hidden', 'aria-live': 'polite' }, fig);
       walkBar.hidden = true;
     }
+    // fase 6: spec.configs = configs donde la vista tiene sentido (p. ej. la FFN SwiGLU no es la MoE de Mixtral);
+    // con otra config se dibuja la canónica del spec y se avisa (en vez de una figura en blanco o equivocada).
+    const cfgNote = H('p', { class: 'ad-cfgnote', role: 'status' }, fig);
+    cfgNote.hidden = true;
     const body = H('div', { class: 'ad-body' }, fig);
     const vp = H('div', { class: 'ad-viewport', tabindex: '-1' }, body);
     if (ctl.mode !== 'blank' && !ctl.quiz) { tip = H('div', { class: 'ad-tip', role: 'tooltip', id: ctl.id + '-tip' }, vp); tip.hidden = true; }
@@ -1605,6 +1625,10 @@
     // ---- vista actual
     function mountView(id) {
       const spec = ATLAS.diagram(id);
+      const cfgOk = !reqConfig || !Array.isArray(spec.configs) || spec.configs.indexOf(reqConfig) >= 0;
+      opts.config = cfgOk ? reqConfig : undefined;
+      cfgNote.hidden = cfgOk;
+      if (!cfgOk) cfgNote.textContent = 'Esta vista no aplica a ' + configLabel(reqConfig) + (spec.configsNote ? ' (' + spec.configsNote + ')' : '') + '; se muestra ' + configLabel(spec.config) + '.';
       let view;
       try { view = buildView(ctl, spec); }
       catch (err) {
@@ -1671,8 +1695,8 @@
         if (spec.kind === 'map') { dd.innerHTML = '<a href="#' + esc(n.id) + '">Abrir</a>'; continue; }
         const io = nodeIO(view, n.id, run);
         const parts = [];
-        if (io.in.length) parts.push('Entra: ' + io.in.map((t) => plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num')).join(', '));
-        if (io.out.length) parts.push('Sale: ' + io.out.map((t) => plainSub(shapeText(t, 'sym')) + ' = ' + shapeText(t, 'num')).join(', '));
+        if (io.in.length) parts.push('Entra: ' + io.in.map((t) => shapeSay(t)).join(', '));
+        if (io.out.length) parts.push('Sale: ' + io.out.map((t) => shapeSay(t)).join(', '));
         if (run && n.op !== 'io') { const c = nodeCost(run, n); const pp = perPairOf(c.ops); if (c.params) parts.push('Parámetros: ' + fint(c.params) + (c.rep > 1 ? ' ' + unitOf(n) : '')); if (c.macs) parts.push('MACs: ' + fint(c.macs) + (c.rep > 1 ? ' ' + unitOf(n) : '') + (pp ? ' por par (lote de B = ' + fint(pp.B) + ': ' + fint(pp.batchMacs) + ')' : '')); }
         if (n.costNote) parts.push(strip(qResolve(n.costNote, opts.config || spec.config)));
         if (n.expand) parts.push('Se abre en: ' + ((ATLAS.diagram(n.expand) || {}).title || n.expand));
@@ -1870,11 +1894,11 @@
         const els = (t.num || []).reduce((a, b) => a * b, 1);
         return '<div class="ad-tip-t">' + esc(t.label || e.tensor) + '</div>' + (t.tex ? '<div class="ad-tip-tex" data-tex="' + esc(t.tex + ' \\in \\mathbb{R}^{' + shapeTexOf(t) + '}') + '"></div>' : '')
           + '<div class="ad-tip-io">' + shp(t) + '</div><div class="ad-tip-cost">' + fint(els) + ' elementos · ' + esc(((ATLAS.MODALITIES || []).find((m) => m.id === t.mod) || {}).title || t.mod || '') + '</div>'
-          + (e.kind === 'cross' ? '<div class="ad-tip-sub">K y V vienen de otro flujo</div>' : '');
+          + (e.kind === 'cross' ? '<div class="ad-tip-sub">' + esc(e.crossNote || 'K y V vienen de otro flujo') + '</div>' : '');
       }
       return '';
     }
-    function shp(t) { return '<span class="ad-mono">' + htmlSub(shapeText(t, 'sym')) + ' = <b>' + esc(shapeText(t, 'num')) + '</b></span>'; }
+    function shp(t) { const a = shapeText(t, 'sym'), b = shapeText(t, 'num'); return '<span class="ad-mono">' + (a === b ? '' : htmlSub(a) + ' = ') + '<b>' + esc(b) + '</b></span>'; }
     function mapLabel(id) { const n = (ctl.view.spec.nodes || []).find((x) => x.id === id); const it = catItem(id); return (n && n.label) || (it && (it.short || it.title)) || id; }
     function catItem(id) { const c = ATLAS.catalog && ATLAS.catalog(); return (c && c.items && c.items[id]) || null; }
     function mapTip(n) {
@@ -1987,7 +2011,9 @@
         const [key, tn] = k.split('@');
         svg.querySelectorAll('[data-edge="' + cssq(key) + '"], [data-edge-tag="' + cssq(key) + '"]').forEach((el) => { if (!tn || !el.hasAttribute('data-tensor') || el.getAttribute('data-tensor') === tn) el.classList.add('is-on'); });
       }
-      for (const t of h.tensors || []) svg.querySelectorAll('[data-tensor="' + cssq(t) + '"].ad-edge, [data-tensor="' + cssq(t) + '"].ad-tag, [data-tensor-glyph="' + cssq(t) + '"]').forEach((el) => el.classList.add('is-on'));
+      const listed = h.onlyListed ? new Set((h.edges || []).map((k) => k.split('@')[0])) : null;
+      const inListed = (el) => { const e = el.closest('[data-edge], [data-edge-tag]'); return !!e && listed.has(e.getAttribute('data-edge') || e.getAttribute('data-edge-tag')); };
+      for (const t of h.tensors || []) svg.querySelectorAll('[data-tensor="' + cssq(t) + '"].ad-edge, [data-tensor="' + cssq(t) + '"].ad-tag, [data-tensor-glyph="' + cssq(t) + '"]').forEach((el) => { if (!listed || inListed(el)) el.classList.add('is-on'); });
       // los grupos que contienen nodos activos no se atenúan
       for (const g of view.spec.groups || []) {
         if ((h.nodes || []).some((id) => { const n = (view.spec.nodes || []).find((x) => x.id === id); return n && inside(n, g); })) { const gr = svg.querySelector('[data-group="' + g.id + '"]'); if (gr) gr.classList.add('is-on'); }
@@ -2024,7 +2050,9 @@
       if (ctl.stack[ctl.stack.length - 1] !== target) {
         if (target === ctl.rootId) await collapseTo(0); else await expandTo(target);
       }
-      ctl.hl = { nodes: st.nodes || [], edges: st.edges || [], tensors: st.tensors || [] };
+      // st.tensorsOn = 'edges': los tensores del paso (y la fila de la tabla de trace) solo encienden las aristas
+      // listadas (fase 6: k-rope va en las tres aristas del caché; el paso del prefill no debe encender las del decode)
+      ctl.hl = { nodes: st.nodes || [], edges: st.edges || [], tensors: st.tensors || [], onlyListed: st.tensorsOn === 'edges' };
       applyHighlight(ctl.hl);
       walkBar.querySelector('.ad-walk-n').textContent = 'Paso ' + (w.i + 1) + ' de ' + w.spec.steps.length;
       walkBar.querySelector('.ad-walk-text').innerHTML = qResolve(st.text || '', spec0.config);

@@ -305,7 +305,7 @@
     "La máscara causal NO divide el conteo: eager calcula QKᵀ y A·V con las T² entradas y la fórmula de sdpa de FlopCounterMode no tiene término causal (flops_total_sdpa = eager). El trabajo útil es T(T+1)/2 por cabeza (metrics().prefillScoreMacsCausal).",
     "El LM head corre sobre las T posiciones (logits T×V, logits_to_keep = 0); al servir solo hace falta la última fila (metrics().prefillMacsLastLogits).",
     "Sin sesgos (attention_bias = mlp_bias = False); RMSNorm solo con γ; embedding y LM head sin atar (tie_word_embeddings = False).",
-    "Vocabulario: el paper (Tabla 3) dice 128K (128,000 tokens del tokenizer); el config de HF tiene 128,256 (256 especiales reservados): el calculador usa 128,256.",
+    "Vocabulario: el paper dice 128K tokens (§3.2) y 128,000 en la Tabla 3 (los tokens BPE); el config de HF tiene 128,256 = 128,000 + 256 especiales reservados: el calculador usa 128,256.",
     "Contexto 8,192 (Llama 3). Llama 3.1 usa los mismos tamaños y llega a 128K con rope_type 'llama3' (factor 8): no cambia ni parámetros ni FLOPs a igual T."
   ]
 }

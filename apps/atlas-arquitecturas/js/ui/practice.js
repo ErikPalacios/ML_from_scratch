@@ -130,11 +130,20 @@
   function cfgInfo(id) { return allConfigs().find((c) => c.id === id) || null; }
   function cfgLabel(id) { const c = cfgInfo(id); return c ? c.label : (safe(() => Arch().run(id).label, null) || id); }
   function modelOfConfig(id) { const c = cfgInfo(id); return c ? c.model : safe(() => Arch().run(id).model, null); }
-  function run(id) {
+  function run(id, ov) {
     const A = Arch();
     if (!A || typeof A.run !== 'function') throw new Error('El calculador (ATLAS.Arch) no está cargado.');
-    return A.run(id);
+    return ov ? A.run(id, ov) : A.run(id);
   }
+  // Fase 6: edge.ov / node.ov de un diagrama = knobs del calculador solo para esa arista o ese nodo (p. ej. {decode: 1}:
+  // el carril de decode dentro de un diagrama de prefill). Igual que archdiagram.js ovRun: la misma config con
+  // overrides + ov; si falla, la corrida base. ovKey = firma estable ('decode=1') para ids y comparaciones.
+  function ovRun(R, ov) {
+    if (!ov || !R) return R;
+    return safe(() => run(R.id, Object.assign({}, R.overrides || {}, ov)), R) || R;
+  }
+  const ovKey = (ov) => (ov && typeof ov === 'object' ? Object.keys(ov).sort().map((k) => k + '=' + ov[k]).join(',') : '');
+  const sameOv = (a, b) => ovKey(a) === ovKey(b);
   function metrics(cfg, ov) {
     const A = Arch();
     if (!A || typeof A.metrics !== 'function') throw new Error('El calculador no expone ATLAS.Arch.metrics.');
@@ -142,9 +151,12 @@
     const m = A.metrics(cfg, Object.assign({ dtype: 'fp16' }, ov || {}));
     // El mapa `units` del modelo ({clave: 'ratio'|'count'|'bytes'|'pct'|'macs'|'params'}) manda sobre el nombre.
     if (m && m.units && typeof m.units === 'object') Object.assign(ARCH_UNITS, m.units);
+    // MoE: E de la última corrida, para el formato 'avg' («≈ 7.2 de 8» expertos leídos por capa).
+    ARCH_CTX.experts = m && typeof m.experts === 'number' ? m.experts : null;
     return m;
   }
   const ARCH_UNITS = {};
+  const ARCH_CTX = {};
   // Knobs del modelo (SPEC §6.4 `knobs`). ATLAS.Arch.knobs(model) si existe; si no, lo que haya.
   function modelKnobs(model) {
     const A = Arch();
@@ -193,7 +205,8 @@
     llm: {
       T: { label: 'Tokens del prompt T', show: (v) => 'T = ' + fInt(v), phrase: (v) => 'un prompt de ' + fInt(v) + ' tokens' },
       ctx: { label: 'Contexto ctx', show: (v) => fInt(v) + ' tok', phrase: (v) => fInt(v) + ' tokens de contexto en la cache' },
-      bits: { label: 'Bits de los pesos y la KV', show: (v) => v + ' bits', phrase: (v) => 'pesos y KV a ' + v + ' bits' },
+      bits: { label: 'Bits de los pesos', show: (v) => v + ' bits', phrase: (v) => 'pesos a ' + v + ' bits (embedding y LM head en 16)' },
+      kvBits: { label: 'Bits de la KV cache', show: (v) => v + ' bits', phrase: (v) => 'KV cache a ' + v + ' bits' },
       nKV: { label: 'Cabezas KV n_KV', show: (v) => 'n_KV = ' + v, phrase: (v) => 'n_KV = ' + v + (v === 1 ? ' (MQA)' : '') },
     },
   };
@@ -253,7 +266,7 @@
         sam: 'h×N×N de un bloque global del ViT en fp16, B = 1 (los bloques con ventanas: 25×h×196×196)',
         sam2: 'el mayor tensor de scores de una capa en fp16, B = 1: un bloque global de Hiera (stage 3) o la cross-attention a la memoria (1×N×Nₘ)' } },
     actMem: { label: 'Activaciones', kind: 'bytes', note: 'fp16, B = 1', notes: { clip: 'fp16, las dos torres, una muestra' } },
-    kvCache: { label: 'KV cache', kind: 'bytes', note: 'fp16, B = 1', notes: { llm: 'bf16, B = 1, ctx = T tokens (lo que escribe el prefill)' } },
+    kvCache: { label: 'KV cache', kind: 'bytes', note: 'fp16, B = 1', notes: { llm: 'ctx × B × KV por token, a los bits de la KV (por defecto bf16, ctx = 4,096, B = 1)' } },
     attnMemAllLayers: { label: 'Scores de atención (todas las capas)', kind: 'bytes', note: 'fp16, B = 1 (entrenamiento sin recomputar)' },
     actMemPerSample: { label: 'Activaciones por muestra', kind: 'bytes', note: 'fp16, sin los tensores del lote' },
     paramMem: { label: 'Pesos en memoria', kind: 'bytes', note: 'parámetros × 2 bytes (fp16)' },
@@ -493,19 +506,25 @@
     imgEncoderVsSamH: { label: 'Encoder de imagen / el de SAM ViT-H (MACs)', kind: 'ratio', note: 'Hiera + FPN vs ViT-H + neck' },
     paramsVsSamH: { label: 'Parámetros / SAM ViT-H', kind: 'ratio', note: '' },
     // Fase 6 (LLM): inferencia. intensity = FLOPs por byte movido; rate = tokens/s (estimado de roofline).
-    kvBytesPerToken: { label: 'KV cache por token', kind: 'bytes', note: '2·L·n_kv·d_h·bytes (K y V de todas las capas)' },
-    kvBytesPerTokenLayer: { label: 'KV cache por token y capa', kind: 'bytes', note: '2·n_kv·d_h·bytes' },
-    kvCacheBytes: { label: 'KV cache', kind: 'bytes', note: 'por token × ctx × B, a los bits elegidos' },
+    kvBytesPerToken: { label: 'KV cache por token', kind: 'bytes', note: '2·L·n_kv·d_h·bytes de la KV (K y V de todas las capas)' },
+    kvBytesPerTokenLayer: { label: 'KV cache por token y capa', kind: 'bytes', note: '2·n_kv·d_h·bytes de la KV' },
+    kvCacheBytes: { label: 'KV cache', kind: 'bytes', note: 'por token × ctx × B, a los bits de la KV (por defecto bf16)' },
     kvBytesPerTokenMHA: { label: 'KV por token si fuera MHA', kind: 'bytes', note: 'n_kv = n_heads' },
     kvCacheBytesMHA: { label: 'KV cache si fuera MHA', kind: 'bytes', note: 'n_kv = n_heads' },
     kvCacheBytesMQA: { label: 'KV cache si fuera MQA', kind: 'bytes', note: 'n_kv = 1' },
     kvSavingVsMHA: { label: 'Ahorro de KV vs MHA', kind: 'ratio', note: 'n_heads / n_kv' },
     kvCacheVsWeights: { label: 'KV cache / pesos', kind: 'ratio', note: 'cuando pasa de ×1, la cache ya pesa más que el modelo' },
-    weightBytes: { label: 'Pesos en memoria', kind: 'bytes', note: 'parámetros × bits / 8' },
+    weightBytes: { label: 'Pesos en memoria', kind: 'bytes', note: 'lineales de los bloques × bits / 8 + embedding y LM head en 16 bits (si bits < 16); sin escalas: +3–6 % con escalas de grupo' },
     weightBytes16: { label: 'Pesos a 16 bits', kind: 'bytes', note: 'bf16/fp16' },
-    weightBytes8: { label: 'Pesos a 8 bits', kind: 'bytes', note: 'INT8/FP8, sin las escalas' },
-    weightBytes4: { label: 'Pesos a 4 bits', kind: 'bytes', note: 'INT4, sin las escalas' },
-    activeWeightBytes: { label: 'Pesos activos por token', kind: 'bytes', note: 'MoE: solo los expertos elegidos' },
+    weightBytes8: { label: 'Pesos a 8 bits', kind: 'bytes', note: 'lineales en INT8/FP8; embedding y LM head en 16 bits; sin escalas' },
+    weightBytes4: { label: 'Pesos a 4 bits', kind: 'bytes', note: 'lineales en INT4; embedding y LM head en 16 bits (como GPTQ/AWQ); sin escalas: +3–6 % con escalas de grupo' },
+    quantizedLinearBytes: { label: 'Pesos de las lineales (cuantizados)', kind: 'bytes', note: 'atención y FFN de los bloques × bits / 8' },
+    unquantizedBytes: { label: 'Pesos que quedan en 16 bits', kind: 'bytes', note: 'embedding, LM head, RMSNorm (y router de MoE)' },
+    quantizedParams: { label: 'Parámetros cuantizables', kind: 'count', note: 'lineales de los bloques (atención + FFN)' },
+    unquantizedParams: { label: 'Parámetros sin cuantizar', kind: 'count', note: 'embedding, LM head, RMSNorm (y router)' },
+    activeWeightBytes: { label: 'Pesos activos por token', kind: 'bytes', note: 'MoE: solo los expertos elegidos; a los bits de los pesos' },
+    kvPlusWeightsBytes: { label: 'Pesos + KV cache', kind: 'bytes', note: 'lo que ocupa en la HBM (≈, sin activaciones ni runtime)' },
+    hbmHeadroomBytes: { label: 'HBM libre', kind: 'bytes', note: 'HBM − pesos − KV cache; negativo = no cabe (H100 de 80 GB)' },
     totalParams: { label: 'Parámetros totales', kind: 'count', note: 'todo lo que vive en memoria' },
     activeParams: { label: 'Parámetros activos por token', kind: 'count', note: 'MoE: compartidos + top-k expertos; denso = totales' },
     activeParamsShare: { label: 'Activos / totales', kind: 'pct', note: '' },
@@ -521,7 +540,7 @@
     attnParamsShare: { label: 'Atención', kind: 'pct', note: '% de los parámetros' },
     ffnParamsShare: { label: 'FFN', kind: 'pct', note: '% de los parámetros' },
     normParamsShare: { label: 'Normas', kind: 'pct', note: '% de los parámetros' },
-    routerParams: { label: 'Routers', kind: 'count', note: 'd×E por capa' },
+    routerParams: { label: 'Routers', kind: 'count', note: 'd×E por capa, × L capas' },
     expertParams: { label: 'Un experto', kind: 'count', note: '3·d·d_ff' },
     expertsParamsShare: { label: 'Expertos', kind: 'pct', note: '% de los parámetros' },
     prefillMacs: { label: 'MACs del prefill', kind: 'ops', note: 'T tokens en paralelo, todas las capas' },
@@ -542,11 +561,11 @@
     arithmeticIntensityPrefill: { label: 'Intensidad aritmética del prefill', kind: 'intensity', note: 'FLOPs / bytes movidos' },
     arithmeticIntensityDecode: { label: 'Intensidad aritmética del decode', kind: 'intensity', note: 'FLOPs / bytes movidos; ≈ B con ctx corto' },
     ridgePoint: { label: 'Punto de quiebre de la GPU', kind: 'intensity', note: 'pico de FLOPs / ancho de banda (H100 SXM ≈)' },
-    decodeTokPerSecUpperBound: { label: 'Decode: tokens/s del lote (≈ tope)', kind: 'rate', note: 'estimado de roofline, sin overhead de kernels' },
+    decodeTokPerSecUpperBound: { label: 'Decode: tokens/s del lote (≈ tope)', kind: 'rate', note: 'estimado de roofline, sin overhead de kernels; no mira si el lote cabe en la HBM' },
     decodeTokPerSecPerSeq: { label: 'Decode: tokens/s por secuencia (≈ tope)', kind: 'rate', note: 'estimado de roofline' },
     prefillTokPerSecUpperBound: { label: 'Prefill: tokens/s (≈ tope)', kind: 'rate', note: 'estimado de roofline' },
-    maxBatchInHbm: { label: 'Lote máximo que cabe en HBM', kind: 'count', note: '(HBM − pesos) / KV por secuencia (≈, sin activaciones)' },
-    decodeExpertsReadPerLayer: { label: 'Expertos leídos por capa', kind: 'ratio', note: 'esperado con ruteo uniforme y el lote B' },
+    maxBatchInHbm: { label: 'Lote máximo que cabe en HBM', kind: 'count', note: '(HBM − pesos) / KV por secuencia (≈, sin activaciones; H100 de 80 GB)' },
+    decodeExpertsReadPerLayer: { label: 'Expertos leídos por capa', kind: 'avg', note: 'esperado con ruteo uniforme y el lote B: E·(1 − ((E−k)/E)^B)' },
     experts: { label: 'Expertos E', kind: 'count', note: '' },
     topk: { label: 'Expertos por token k', kind: 'count', note: '' },
   };
@@ -560,7 +579,7 @@
   function metricKind(key) {
     const k = metricKey(key);
     // Primero el mapa `units` del modelo (lo registra metrics()); luego METRICS; luego el nombre.
-    if (METRICS[k] && (METRICS[k].kind === 'intensity' || METRICS[k].kind === 'rate')) return METRICS[k].kind;   // formato propio, gana a units
+    if (METRICS[k] && (METRICS[k].kind === 'intensity' || METRICS[k].kind === 'rate' || METRICS[k].kind === 'avg')) return METRICS[k].kind;   // formato propio, gana a units
     if (ARCH_UNITS[k] && UNIT_KIND[ARCH_UNITS[k]]) return UNIT_KIND[ARCH_UNITS[k]];
     if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
@@ -590,6 +609,8 @@
     if (kind === 'ratio') return '×' + fRatio(v);
     if (kind === 'intensity') return fRatio(v) + ' FLOPs/B';
     if (kind === 'rate') return '≈ ' + fRatio(v) + ' tok/s';
+    // 'avg': un conteo esperado (no un factor): 1 decimal, sin «×»; «de E» si es un MoE (≈ 7.2 de 8).
+    if (kind === 'avg') return (Number.isInteger(v) ? String(v) : '≈ ' + v.toFixed(1)) + (ARCH_CTX.experts ? ' de ' + ARCH_CTX.experts : '');
     return v >= 1e6 ? fSi(v) : fInt(v);
   }
   // Comparación con la base: factor (×4) o, para porcentajes, diferencia en puntos.
@@ -607,6 +628,7 @@
     if (kind === 'ratio') return '×' + String(+v.toFixed(4));
     if (kind === 'intensity') return String(+v.toFixed(4)) + ' FLOPs/B';
     if (kind === 'rate') return String(+v.toFixed(2)) + ' tok/s';
+    if (kind === 'avg') return String(+v.toFixed(3));
     return fInt(v) + (kind === 'bytes' ? ' bytes' : '');
   }
   // Reparto de MACs: matriz de atención (QKᵀ + A·V, crece con N²) vs capas lineales (crecen con N).
@@ -621,17 +643,24 @@
   }
 
   // ------------------------------------------------------------------ diagramas del modelo
-  function diagramsOf(model) {
+  // cfg (opcional): sin las vistas que declaran `configs` y no la incluyen (moe-block solo para Mixtral; las vistas
+  // densas del decoder no dibujan Mixtral): así ningún ejercicio sale de una figura que no aplica a esa config.
+  function diagramsOf(model, cfg) {
     const all = safe(() => ATLAS.diagrams(), {}) || {};
-    return Object.values(all).filter((d) => d && d.model === model && d.kind !== 'map');
+    return Object.values(all).filter((d) => d && d.model === model && d.kind !== 'map'
+      && (!cfg || !Array.isArray(d.configs) || !d.configs.length || d.configs.indexOf(cfg) >= 0 || d.configs.indexOf(baseCfg(cfg)) >= 0));
   }
+  // Config de decode → su config de prefill (llama3-8b-decode → llama3-8b) para el filtro de vistas.
+  const baseCfg = (cfg) => safe(() => { const R = run(cfg); return (R && R.config && R.config.decodeOf) || cfg; }, cfg);
   const edgeKey = (e) => e.from + '>' + e.to;
-  function tensorInDiagram(d, tid) {
-    return (d.edges || []).some((e) => e.tensor === tid) || (d.tensors || []).some((t) => t.id === tid);
+  // ov = los overrides de la arista o del glifo (fase 6): un tensor del carril de decode ({decode: 1}) no es el
+  // mismo que el del prefill aunque tenga el mismo id. Sin ov = las aristas de la corrida base del diagrama.
+  function tensorInDiagram(d, tid, ov) {
+    return (d.edges || []).some((e) => e.tensor === tid && sameOv(e.ov, ov)) || (d.tensors || []).some((t) => t.id === tid && sameOv(t.ov, ov));
   }
-  function diagramForTensor(model, tid) {
+  function diagramForTensor(model, tid, ov) {
     const ds = diagramsOf(model);
-    return ds.find((d) => (d.edges || []).some((e) => e.tensor === tid)) || ds.find((d) => tensorInDiagram(d, tid)) || null;
+    return ds.find((d) => (d.edges || []).some((e) => e.tensor === tid && sameOv(e.ov, ov))) || ds.find((d) => tensorInDiagram(d, tid, ov)) || null;
   }
   function mountMini(figEl, diagramId, hl) {
     const AD = ATLAS.ArchDiagram;
@@ -1184,17 +1213,23 @@
         let tid = s.tensor || null;
         // {node, ask:'shape'} → se pregunta en la arista que lleva ese tensor (sale del nodo), así el
         // diagrama oculta esa etiqueta de forma (que si no, delataría la respuesta).
+        // ov (fase 6): la forma de una arista con ov (o que sale de un nodo con ov) se lee de run(config, ov), como la
+        // dibuja archdiagram.js: el carril de decode pregunta 8×1×128, no la forma del prefill.
+        let ov = null;
         if (!s.edge && s.node) {
           const outs = (spec.edges || []).filter((e) => e.from === s.node && e.tensor && (!tid || e.tensor === tid));
           const e = outs[0] || (tid ? (spec.edges || []).find((x) => x.tensor === tid) : null);
-          if (e) { id = edgeKey(e); tid = tid || e.tensor; }
+          if (e) { id = edgeKey(e); tid = tid || e.tensor; ov = e.ov || null; }
+          const nd = nodes.find((x) => x.id === s.node);
+          if (!ov && nd && nd.ov && !e) ov = nd.ov;
         }
-        if (s.edge) { const e = (spec.edges || []).find((x) => edgeKey(x) === s.edge); if (e) tid = tid || e.tensor; }
-        if (!tid && s.node && R) { const op = (R.ops || []).filter((o) => o.node === s.node || (o.path || []).indexOf(s.node) >= 0).pop(); if (op) tid = (op.out || [])[0]; }
-        const t = R && tid ? R.tensors[tid] : null;
+        if (s.edge) { const e = (spec.edges || []).find((x) => edgeKey(x) === s.edge); if (e) { tid = tid || e.tensor; ov = e.ov || null; } }
+        const Rs = ov ? ovRun(R, ov) : R;
+        if (!tid && s.node && Rs) { const op = (Rs.ops || []).filter((o) => o.node === s.node || (o.path || []).indexOf(s.node) >= 0).pop(); if (op) tid = (op.out || [])[0]; }
+        const t = Rs && tid ? Rs.tensors[tid] : null;
         if (!t) return;
         const correct = { id: shapeKey(t.num), text: shapeKey(t.num), mono: true };
-        const pool = shapeDistractors(t, R, seed).map((k) => ({ id: k, text: k, mono: true }));
+        const pool = shapeDistractors(t, Rs, seed).map((k) => ({ id: k, text: k, mono: true }));
         slot = { id, ask: 'shape', tensor: tid, correct, pool };
       } else if (s.node) {
         const n = nodes.find((x) => x.id === s.node);
@@ -1240,15 +1275,33 @@
     out.forEach((s) => { if (s.ask === 'label') blankLabel[s.id] = s.n; });
     const plain = (t) => (ATLAS.ArchDiagram && typeof ATLAS.ArchDiagram.plainSub === 'function' ? ATLAS.ArchDiagram.plainSub(t) : String(t)).replace(/\n/g, ' ');
     const nameOf = (nid) => (blankLabel[nid] ? 'hueco ' + blankLabel[nid] : '«' + plain((nodes.find((x) => x.id === nid) || {}).label || nid) + '»');
+    // Huecos de nombre: "después de X" (arista de entrada); si otro hueco tiene la misma descripción (dos bloques que
+    // salen de «Tokens») o no hay entrada (la máscara entra por control), "antes de Y" (arista de salida). slots[i].desc
+    // del autor manda (texto plano, no debe delatar la respuesta).
+    const flow = (e) => e.kind !== 'residual' && e.kind !== 'control';
+    const after = (sid) => { const inc = (spec.edges || []).find((e) => e.to === sid && flow(e)); return inc ? ' que viene después de ' + nameOf(inc.from) : ''; };
+    const before = (sid) => {
+      const o = (spec.edges || []).find((e) => e.from === sid && flow(e)) || (spec.edges || []).find((e) => e.from === sid);
+      return o ? ' que va antes de ' + nameOf(o.to) : '';
+    };
     out.forEach((s) => {
       if (s.ask === 'shape') {
         const [a, b] = String(s.id).split('>');
         s.desc = b ? 'Forma del tensor entre ' + nameOf(a) + ' y ' + nameOf(b) : 'Forma de la salida de ' + nameOf(a);
       } else if (s.ask === 'op') s.desc = 'Tipo de operación de ' + nameOf(s.id);
-      else {
-        const inc = (spec.edges || []).find((e) => e.to === s.id && e.kind !== 'residual' && e.kind !== 'control');
-        s.desc = 'Nombre del bloque' + (inc ? ' que viene después de ' + nameOf(inc.from) : '');
-      }
+      else s.desc = 'Nombre del bloque' + (after(s.id) || before(s.id));
+      // Descripción del autor en el nodo (blankDesc): gana a la generada (expertos MoE: mismos vecinos).
+      const nd = s.ask === 'label' && (spec.nodes || []).find((x) => x.id === s.id);
+      if (nd && typeof nd.blankDesc === 'string' && nd.blankDesc.trim()) s.desc = nd.blankDesc.trim();
+    });
+    const dupDesc = (s) => out.some((x) => x !== s && x.desc === s.desc);
+    out.forEach((s) => { if (s.ask === 'label' && dupDesc(s) && before(s.id)) s.desc = 'Nombre del bloque' + before(s.id); });
+    // Todavía repetidos (mismos vecinos): se numeran por orden para que la lista nunca muestre dos líneas iguales.
+    out.forEach((s) => { if (dupDesc(s)) { const same = out.filter((x) => x.desc === s.desc); same.forEach((x, i) => { x.desc += ' (' + (i + 1) + ' de ' + same.length + ')'; }); } });
+    (blockSlots || []).forEach((bs, i) => {
+      const id = bs && (bs.edge || bs.node);
+      const sl = bs && typeof bs.desc === 'string' && bs.desc.trim() ? out.find((x) => x.id === id || (bs.node && x.id.split('>')[0] === bs.node && x.ask === 'shape' && bs.ask === 'shape')) : null;
+      if (sl) sl.desc = bs.desc.trim();
     });
     return out;
   }
@@ -1406,7 +1459,10 @@
       if (side === 'joint') return pick([['D', c.D], ['D_t', c.Dt], ['E', c.E], ['B', c.B]]);
       return pick([['H', c.H], ['W', c.W], ['P', c.P], ['D', c.D], ['L', c.L], ['h', c.h], ['D_mlp', c.Dmlp], ['N', c.N], ['E', c.E], ['B', c.B]]);
     }
-    const out = CFG_SYMS.filter(([k]) => typeof c[k] === 'number').map(([k, s]) => [s, c[k]]);
+    // Fase 6: un paso de decode (cfg.decode = 1) no usa T (1 token nuevo) sino ctx, el largo de la KV cache que lee.
+    const dec = c.decode === 1;
+    const out = CFG_SYMS.filter(([k]) => typeof c[k] === 'number' && !(dec && k === 'T')).map(([k, s]) => [s, c[k]]);
+    if (dec && typeof c.ctx === 'number') out.push(['ctx', c.ctx, 'KV cache: ctx − 1 filas guardadas + el token nuevo']);
     const has = (sym) => out.some(([x]) => x === sym);
     if (Array.isArray(c.heads) && !has('h')) out.push(['h', c.heads.join(' / ') + ' (por stage)']);
     if (Array.isArray(c.heads) && typeof c.dh === 'number') out.push(['d_h', c.dh]);
@@ -1563,6 +1619,14 @@
       const l2 = leadOf();
       if (l2 >= 0) { base = ctxParts[l2]; ctxParts = ctxParts.filter((_, i) => i !== l2); }
     }
+    // Fase 6: la etiqueta del diagrama contradice al calculador en otra config ("FFN SwiGLU" con el contexto "FFN MoE (8
+    // expertos, top-2)" en Mixtral; "Atención GQA" con "atención MHA (…)" en Llama 2 7B): misma primera palabra y alguna
+    // otra palabra de la etiqueta que el contexto no tiene → manda el contexto (sale de la config).
+    if (model === 'llm' && ctxParts.length && !loc.group) {
+      const lastCtx = ctxParts[ctxParts.length - 1];
+      const wb = norm(base).split(' '), wc = norm(lastCtx).split(' ');
+      if (wb.length > 1 && wb[0] === wc[0] && wb.slice(1).some((w) => !wordIn(lastCtx, w))) { base = lastCtx; ctxParts = ctxParts.slice(0, -1); }
+    }
     const label = (ctxParts.length ? ctxParts.join(' · ') + ' · ' : '') + base;
     return { ops, total, group: whole, perLayer: !whole && rep > 1, repeat: rep, biases, lnParams, label, qual,
       unit: pairUnit ? 'par' : isSwin ? 'bloque' : 'capa', diagram: loc.diagram ? loc.diagram.id : null,
@@ -1600,7 +1664,7 @@
   // diagrama, la op (solo si es la única con ese nodo; id cfg:<nodo>:params, como antes). Sin duplicados (mismas ops, misma unidad, mismo
   // nombre). Id estable: cfg:<nodo>:params; si el id de nodo se repite entre diagramas, cfg:<diagrama>><nodo>:params.
   function paramsCandidates(src, cfg, R) {
-    const ds = diagramsOf(src.model);
+    const ds = diagramsOf(src.model, cfg);
     const count = {};
     ds.forEach((d) => { (d.nodes || []).concat(d.groups || []).forEach((n) => { if (n && n.id) count[n.id] = (count[n.id] || 0) + 1; }); });
     const out = [], seen = new Set(), seenOps = new Set();
@@ -1609,8 +1673,11 @@
       if (!np || !(np.total > 0)) return;
       const opSig = np.ops.map((o) => o.id).sort().join(',') + '|' + np.group;
       const sig = opSig + '|' + np.label;
-      // una op hoja que ya pregunta un nodo de diagrama (mismas ops con params) no se repite
-      if (seen.has(sig) || (ref.op && seenOps.has(opSig))) return;
+      // una op hoja que ya pregunta un nodo de diagrama (mismas ops con params) no se repite; tampoco un nodo que toma
+      // el costo de otro (costOf) con las mismas ops y la misma unidad (fase 6: "L capas, T tokens" / "L capas, 1 token"
+      // de la inferencia = el bloque decoder).
+      const borrowed = ref.node && ref.diagram && safe(() => ((ATLAS.diagram(ref.diagram).nodes || []).find((x) => x.id === ref.node) || {}).costOf, null);
+      if (seen.has(sig) || ((ref.op || borrowed) && seenOps.has(opSig))) return;
       seen.add(sig); seenOps.add(opSig);
       out.push({ kind: 'params', model: src.model, pageId: src.pageId, config: cfg, node: ref, id: cfg + ':' + key + ':params' });
     };
@@ -1645,14 +1712,32 @@
         if (kinds.indexOf('shape') >= 0) {
           // pool 'all': los tensores que aparecen en algún diagrama del modelo (así siempre hay figura y
           // contexto); un pool explícito (lista de ids) se respeta tal cual.
-          const ds = diagramsOf(src.model);
+          const ds = diagramsOf(src.model, cfg);
           const pool = Array.isArray(src.pool) ? src.pool
             : (R.order || Object.keys(R.tensors || {})).filter((tid) => !ds.length || ds.some((d) => tensorInDiagram(d, tid)));
-          pool.forEach((tid) => {
-            const t = R.tensors[tid];
+          // Sin repetir la misma pregunta (misma corrida, mismo tensor): la config de decode y el carril {decode: 1}.
+          const seenT = new Set();
+          const add = (Rx, tid, ov) => {
+            const t = Rx.tensors[tid];
             if (!t || !t.producer || !(t.num || []).length) return;   // las entradas no se preguntan
-            out.push({ kind: 'shape', model: src.model, pageId: src.pageId, config: cfg, tensor: tid, id: cfg + ':' + tid + ':shape' });
-          });
+            const sig = Rx.label + '|' + tid;
+            if (seenT.has(sig)) return;
+            seenT.add(sig);
+            const k = ovKey(ov);
+            out.push(Object.assign({ kind: 'shape', model: src.model, pageId: src.pageId, config: cfg, tensor: tid, id: cfg + (k ? '~' + k : '') + ':' + tid + ':shape' }, k ? { ov } : {}));
+          };
+          pool.forEach((tid) => add(R, tid, null));
+          // Un paso de decode (config de decode): también la KV cache de todo el contexto (k-ctx, v-ctx = G×ctx×d_h, salida
+          // de kv_append), la forma que más se pregunta en el ejercicio de KV cache aunque ningún diagrama la dibuje.
+          if (!Array.isArray(src.pool) && R.config && R.config.decode === 1) (R.ops || []).filter((o) => o.prim === 'kv_append').forEach((o) => (o.out || []).forEach((tid) => add(R, tid, null)));
+          // Fase 6: aristas (y glifos) con ov, p. ej. el carril de decode ({decode: 1}) de la inferencia LLM: se preguntan
+          // con las formas de run(config, ov), las mismas que dibuja el diagrama.
+          if (!Array.isArray(src.pool)) ds.forEach((d) => (d.edges || []).concat(d.tensors || []).forEach((e) => {
+            const tid = e.tensor || (e.id && !e.from ? e.id : null);
+            if (!e.ov || !tid) return;
+            const Rx = ovRun(R, e.ov);
+            if (Rx && Rx !== R) add(Rx, tid, e.ov);
+          }));
         }
         if (kinds.indexOf('params') >= 0) paramsCandidates(src, cfg, R).forEach((c) => out.push(c));
       });
@@ -1724,7 +1809,7 @@
         return;
       }
       if (cur.kind === 'whatif') { paintWhatif(focus); return; }
-      const R = run(cur.config);
+      const R = run(cur.config, cur.ov);
       const modelName = safe(() => pageMeta(cur.pageId).short, null);
       const top = h('div', { class: 'pxd__meta' },
         modelName && o.showModel ? h('span', { class: 'chip chip--accent' }, modelName) : null,
@@ -1738,11 +1823,15 @@
         const tsym = t.tex ? String(t.tex).split('=')[0].trim() : '';
         qHtml = '¿Qué forma tiene ' + (t.label ? '<b>' + esc(t.label) + '</b> ' : '') + (tsym ? '\\(' + tsym + '\\)' : '<code>' + esc(cur.tensor) + '</code>') + '?';
         hint = 'Solo números, sin batch: tokens × canales (N×D); imágenes H×W×C; cabezas h×N×d_h. Acepta 197x768, 197 × 768 o (197, 768).';
-        const d = diagramForTensor(cur.model, cur.tensor);
+        const d = diagramForTensor(cur.model, cur.tensor, cur.ov);
         diag = d && d.id;
         const prod = (R.ops || []).find((x) => x.id === t.producer);
         const pn = prod && (d ? (d.nodes || []).find((n) => (prod.path || []).indexOf(n.id) >= 0 && n.id === prod.path[prod.path.length - 1]) : null);
-        hl = d ? { tensors: [cur.tensor], edges: (d.edges || []).filter((e) => e.tensor === cur.tensor).map(edgeKey), nodes: pn ? [pn.id] : [] } : null;
+        // Solo las aristas del mismo carril (mismo ov); si el tensor también va por aristas de otro carril (el prefill
+        // escribe K,V y el decode agrega una fila), no se resalta por tensor: se encenderían las del otro carril.
+        const es = d ? (d.edges || []).filter((e) => e.tensor === cur.tensor) : [];
+        const mine = es.filter((e) => sameOv(e.ov, cur.ov));
+        hl = d ? { tensors: mine.length < es.length ? [] : [cur.tensor], edges: mine.map(edgeKey), nodes: pn ? [pn.id] : [] } : null;
       } else {
         const np = nodeParams(R, cur.model, cur.node);
         expected = np.total;

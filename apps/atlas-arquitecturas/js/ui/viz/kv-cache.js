@@ -7,8 +7,8 @@
    sola cabeza. Abajo, los bytes del calculador: por token (2·L·n_kv·d_h·bytes), del caché actual y del
    contexto completo, para MHA / GQA / MQA.
    Lo ilustrativo: las palabras del prompt y de la salida (y que se dibujen 4 capas de L). Del calculador
-   (config llama3-8b, knob nKV y bits): L, h, n_kv, d_h y todos los bytes.
-   params: { config:'llama3-8b', prompt:6, steps:3, nKV:'gqa'|'mha'|'mqa', bits:16 }
+   (config llama3-8b, knobs nKV y kvBits, la precisión de la KV cache): L, h, n_kv, d_h y todos los bytes.
+   params: { config:'llama3-8b', prompt:6, steps:3, nKV:'gqa'|'mha'|'mqa', bits:16 }   (bits = los de la caché → kvBits)
    No toca el DOM al cargar.
    ========================================================================== */
 (function (root) {
@@ -40,7 +40,7 @@
     // ----- adaptador al calculador: bytes por token y del caché para ctx tokens (B = 1)
     function bytesFor(nKV, ctx) {
       let m = null;
-      try { m = A.metrics(cfgId, { nKV, bits: state.bits, ctx, B: 1 }); } catch (e) { m = null; }
+      try { m = A.metrics(cfgId, { nKV, kvBits: state.bits, ctx, B: 1 }); } catch (e) { m = null; }
       const per = m && Number.isFinite(m.kvBytesPerToken) ? m.kvBytesPerToken : null, tot = m && Number.isFinite(m.kvCacheBytes) ? m.kvCacheBytes : null;
       return { per, tot, ok: Number.isFinite(per) && Number.isFinite(tot) };
     }
@@ -125,7 +125,7 @@
       t(svg, dotsX, yLay + 22 + 3 * rowH, '…', 'viz-kv-dots', 'middle');
       t(svg, dotsX, yLay + 22 + 3 * rowH + 16, '×' + L, 'viz-s', 'middle');
       // bytes del calculador: MHA / GQA / MQA a contexto completo; el elegido resaltado
-      t(svg, 8, yBars - 8, narrow ? 'KV cache, ' + fmt.int(ctxMax) + ' tokens (B = 1):' : 'KV cache con ' + fmt.int(ctxMax) + ' tokens de contexto (B = 1, ' + state.bits + ' bits):', narrow ? 'viz-s' : 'viz-t');
+      t(svg, 8, yBars - 8, narrow ? 'KV cache, contexto máx. ' + fmt.int(ctxMax) + ' (B = 1):' : 'KV cache con el contexto máximo, ' + fmt.int(ctxMax) + ' tokens (B = 1, ' + state.bits + ' bits):', narrow ? 'viz-s' : 'viz-t');
       const rows = Object.keys(KINDS).map((k) => ({ k, b: bytesFor(KINDS[k].nKV, ctxMax) }));
       const bmax = Math.max(...rows.map((x) => x.b.tot || 0), 1);
       const lw = narrow ? 52 : 66, bw = W - 16 - lw - (narrow ? 70 : 96);

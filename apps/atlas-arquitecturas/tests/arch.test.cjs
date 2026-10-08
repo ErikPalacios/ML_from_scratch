@@ -1949,6 +1949,7 @@ const ATLAS6 = (function () {
 const A6 = ATLAS6.Arch, Q6 = ATLAS6.Quantities;
 const S6 = (sym, num, layout) => A6.shape(sym, num, 'txt', layout || 'seq');
 const LLM = ['llama3-8b', 'llama3-70b', 'llama2-7b', 'mixtral-8x7b'];
+const LLM_DEC = ['llama3-8b-decode', 'mixtral-8x7b-decode'];   // configs de decode (revisión de la fase 6)
 
 test('F6 el modelo llm y las primitivas nuevas no cambian ningún resultado de las fases 1–5', () => {
   for (const c of A5.configs()) {
@@ -1959,7 +1960,7 @@ test('F6 el modelo llm y las primitivas nuevas no cambian ningún resultado de l
   }
   assert.ok(J(A6.models()).includes('llm'));
   assert.strictEqual(A6.canonical('llm'), 'llama3-8b');
-  assert.deepStrictEqual(J(A6.configs('llm').map((c) => c.id)), LLM);
+  assert.deepStrictEqual(J(A6.configs('llm').map((c) => c.id)), LLM.concat(LLM_DEC));
   // MHA sin cambios: attention_scores con las mismas cabezas da el mismo detail de siempre (sin kvHeads)
   const q = A6.shape(['h', 'N', 'd_h'], [2, 5, 4], 'txt', 'heads');
   assert.strictEqual(A6.attention_scores(q, q).detail.kvHeads, undefined);
@@ -2139,6 +2140,28 @@ test('llm decode: 1 token, la atención lee ctx filas de la KV cache; MACs = lin
   assert.throws(() => A6.run('llama3-8b', { decode: 2 }), /decode debe ser 1/);
 });
 
+test('llm configs de decode: llama3-8b-decode y mixtral-8x7b-decode = el modelo con decode = 1 (formas, MACs y métricas)', () => {
+  for (const [dc, of] of [['llama3-8b-decode', 'llama3-8b'], ['mixtral-8x7b-decode', 'mixtral-8x7b']]) {
+    const d = A6.run(dc), ref = A6.run(of, { decode: 1 });
+    assert.strictEqual(d.config.decode, 1);
+    assert.strictEqual(d.config.decodeOf, of);
+    assert.strictEqual(d.config.canonical, false);
+    assert.deepStrictEqual([d.totals.params, d.totals.macs], [ref.totals.params, ref.totals.macs], dc);
+    for (const tid of ref.order) assert.strictEqual(d.tensors[tid].num.join('×'), ref.tensors[tid].num.join('×'), dc + ' ' + tid);
+    assert.match(d.label, /· decode \(ctx = 4,096\)$/);
+    assert.ok(!/decode.*decode/.test(d.label), d.label);
+    // métricas = las de la config de prefill (el prefill se corre en decodeOf)
+    const md = A6.metrics(dc, {}), mp = A6.metrics(of, {});
+    for (const k of ['prefillMacs', 'decodeMacsPerToken', 'weightBytes', 'kvCacheBytes', 'decodeTokPerSecUpperBound', 'arithmeticIntensityPrefill', 'maxBatchInHbm']) assert.strictEqual(md[k], mp[k], dc + ' ' + k);
+    assert.strictEqual(A6.metrics(dc, { ctx: 8192, bits: 4 }).decodeTokPerSecUpperBound, A6.metrics(of, { ctx: 8192, bits: 4 }).decodeTokPerSecUpperBound);
+  }
+  const d = A6.run('llama3-8b-decode');
+  assert.deepStrictEqual(['q', 'k-past', 'k-ctx', 'scores', 'logits'].map((id) => d.tensors[id].num.join('×')), ['1×4096', '8×4095×128', '8×4096×128', '32×1×4096', '1×128256']);
+  assert.strictEqual(d.totals.flops, 17156800512);                         // = HF con DynamicCache
+  assert.strictEqual(A6.run('llama3-8b-decode', { ctx: 8192 }).tensors['k-ctx'].num.join('×'), '8×8192×128');
+  assert.strictEqual(A6.canonical('llm'), 'llama3-8b');
+});
+
 test('llm knobs: nKV (MHA/GQA/MQA what-if), T, bits, ctx más allá del entrenamiento; errores en español', () => {
   const base = A6.run('llama3-8b');
   const mha = A6.run('llama3-8b', { nKV: 32 }), mqa = A6.run('llama3-8b', { nKV: 1 });
@@ -2171,10 +2194,40 @@ test('llm metrics: KV cache, pesos por bits, intensidad aritmética prefill ≫ 
   assert.strictEqual(m.kvCacheBytesMHA, 4 * m.kvCacheBytes);
   assert.strictEqual(m.kvSavingVsMHA, 4);
   assert.strictEqual(A6.metrics('llama3-8b', { ctx: 8192, B: 8 }).kvCacheBytes, 131072 * 8192 * 8);
-  assert.strictEqual(A6.metrics('llama3-8b', { bits: 8 }).kvBytesPerToken, 65536);
+  assert.strictEqual(A6.metrics('llama3-8b', { kvBits: 8 }).kvBytesPerToken, 65536);
+  assert.strictEqual(A6.metrics('llama3-8b', { bits: 8 }).kvBytesPerToken, 131072);     // bits = solo los pesos
   assert.strictEqual(A6.metrics('llama2-7b', {}).kvBytesPerToken, 524288);   // MHA: 4× Llama 3 8B
-  assert.deepStrictEqual([m.weightBytes, m.weightBytes8, m.weightBytes4], [2 * 8030261248, 8030261248, 4015130624]);
-  assert.strictEqual(A6.metrics('llama3-8b', { bits: 4 }).weightBytes, 4015130624);
+  // pesos INT-k realistas: solo las lineales de los bloques a k bits; embedding, LM head y normas en 16 (GPTQ/AWQ)
+  const lin = 6979321856, unq = 8030261248 - lin;      // 32·218,112,000 − normas; 2·128,256·4096 + 65·4096
+  assert.deepStrictEqual([m.quantizedParams, m.unquantizedParams], [lin, unq]);
+  assert.deepStrictEqual([m.weightBytes, m.weightBytes16, m.weightBytes8, m.weightBytes4], [2 * 8030261248, 2 * 8030261248, lin + 2 * unq, lin / 2 + 2 * unq]);
+  const m4 = A6.metrics('llama3-8b', { bits: 4 });
+  assert.strictEqual(m4.weightBytes, 5591539712);                                   // ≈ 5.6 GB, no 4.02 GB = P/2
+  assert.deepStrictEqual([m4.quantizedLinearBytes, m4.unquantizedBytes], [lin / 2, 2 * unq]);
+  assert.strictEqual(m4.kvBytesPerToken, 131072);                                   // KV sigue en bf16 (kvBits = 16)
+  assert.strictEqual(m4.decodeWeightBytesRead, lin / 2 + 2 * (unq - 525336576) + 4096 * 2);
+  assert.ok(Math.abs(m4.decodeTokPerSecUpperBound - 659.74) < 0.01, String(m4.decodeTokPerSecUpperBound));   // ≈ 3.1× los 215 de bf16
+  assert.strictEqual(m4.maxBatchInHbm, Math.floor((80e9 - 5591539712) / (131072 * 4096)));
+  // kvBits: KV a 8 bits; pesos sin cambio
+  const k8 = A6.metrics('llama3-8b', { kvBits: 8 });
+  assert.deepStrictEqual([k8.kvCacheBytes, k8.weightBytes, k8.decodeKvBytesRead], [65536 * 4096, 2 * 8030261248, 65536 * 4096]);
+  assert.strictEqual(k8.maxBatchInHbm, Math.floor((80e9 - 2 * 8030261248) / (65536 * 4096)));
+  assert.deepStrictEqual(J(m4.kvBitsScaling.map((x) => x.kvBytesPerToken)), [131072, 65536, 32768]);
+  assert.deepStrictEqual(J(m.bitsScaling.map((x) => x.weightBytes)), [m.weightBytes16, m.weightBytes8, m.weightBytes4]);
+  assert.ok(m.bitsScaling.every((x) => x.kvCacheBytes === m.kvCacheBytes));
+  assert.strictEqual(m.bitsScaling[2].tokPerSec, m4.decodeTokPerSecUpperBound);
+  assert.throws(() => A6.run('llama3-8b', { kvBits: 3 }), /kvBits debe ser 4, 8, 16 o 32/);
+  // ¿cabe en la HBM? pesos + KV de ctx × B; B = 256 con 4096 tokens no cabe en 80 GB (máx. 119)
+  assert.deepStrictEqual([m.kvPlusWeightsBytes, m.fitsInHbm, m.hbmHeadroomBytes], [m.weightBytes + m.kvCacheBytes, true, 80e9 - m.weightBytes - m.kvCacheBytes]);
+  const m256 = A6.metrics('llama3-8b', { B: 256 });
+  assert.strictEqual(m256.fitsInHbm, false);
+  assert.ok(m256.hbmHeadroomBytes < 0);
+  assert.deepStrictEqual(J(m.batchScaling.map((x) => x.fitsInHbm)), [true, true, true, true, false, false]);
+  assert.strictEqual(A6.metrics('llama3-70b', {}).fitsInHbm, false);
+  // Mixtral a 4 bits: router en 16 bits; activos = sin los 6 expertos que no usa un token
+  const x4 = A6.metrics('mixtral-8x7b', { bits: 4 }), xq = A6.run('mixtral-8x7b').quantities;
+  assert.strictEqual(x4.unquantizedParams, xq.embedParams + xq.lmHeadParams + xq.normParams + xq.routerParams);
+  assert.strictEqual(x4.activeWeightBytes, (x4.quantizedParams - 6 * 32 * xq.expertParams) / 2 + 2 * x4.unquantizedParams);
   // bytes por paso de decode (B = 1) = pesos menos la tabla de embedding + 1 fila + KV leída
   const q = A6.run('llama3-8b').quantities;
   assert.strictEqual(m.decodeBytesPerStep, (8030261248 - q.embedParams) * 2 + 4096 * 2 + 131072 * 4096);
@@ -2214,7 +2267,7 @@ test('llm metrics: KV cache, pesos por bits, intensidad aritmética prefill ≫ 
   assert.ok(A6.metrics('mixtral-8x7b', { B: 8 }).decodeExpertsReadPerLayer > 7);
   assert.strictEqual(mx.decodeWeightBytesRead, (mq.activeParams - mq.embedParams) * 2 + 4096 * 2);
   // quantities y metrics usan el mismo modelo de costo
-  for (const id of LLM) for (const ov of [{}, { B: 8, ctx: 8192, bits: 8 }]) {
+  for (const id of LLM.concat(LLM_DEC)) for (const ov of [{}, { B: 8, ctx: 8192, bits: 8 }, { bits: 4, kvBits: 8 }]) {
     const mm = A6.metrics(id, ov), qq = A6.run(id, ov).quantities;
     for (const k of ['kvCacheBytes', 'weightBytes', 'decodeMacsPerToken', 'decodeBytesPerStep', 'prefillBytes', 'arithmeticIntensityDecode', 'arithmeticIntensityPrefill', 'decodeTokPerSecUpperBound', 'prefillMacs']) {
       assert.ok(Math.abs(mm[k] - qq[k]) <= 1e-9 * Math.abs(mm[k]), id + ' ' + JSON.stringify(ov) + ' ' + k + ': ' + mm[k] + ' vs ' + qq[k]);
@@ -2245,7 +2298,7 @@ test('llm metrics: unidades conocidas por la práctica, toda …Macs con unidad;
 });
 
 test('F6 etiqueta + símbolo identifican una forma; byPath suma; aritmética; where; Quantities resuelve todas las claves', () => {
-  for (const id of LLM) {
+  for (const id of LLM.concat(LLM_DEC)) {
     for (const ov of [{}, { decode: 1 }, { nKV: 1 }]) {
       const r = A6.run(id, ov), t = r.totals;
       const by = {};

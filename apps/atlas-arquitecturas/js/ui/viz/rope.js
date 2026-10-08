@@ -93,15 +93,26 @@
       stage.innerHTML = '';
       const cols = narrow ? 2 : 4, R = narrow ? 50 : 60, CW = R * 2 + (narrow ? 36 : 76), CH = R * 2 + 64;
       const W = cols * CW + 16;
-      const plotY = 34 + Math.ceil(PAIRS / cols) * CH + 18, plotH = 150;
+      const KEY = 16;   // franja de la clave (qué flecha es q y cuál k)
+      const plotY = 34 + KEY + Math.ceil(PAIRS / cols) * CH + 18, plotH = 150;
       const Hh = plotY + plotH + 52;
       const sc = score(state.m, state.n);
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' ' + Hh, style: 'max-width:' + W + 'px', role: 'img', 'aria-label': ariaOf(sc) }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); e.textContent = s; return e; };
       t(svg, 8, 16, narrow ? 'Un reloj por par: q gira m·θᵢ, k gira n·θᵢ' : 'Un reloj por par de componentes: q gira m·θᵢ, k gira n·θᵢ', 'viz-t');
       t(svg, 8, 30, narrow ? 'ángulo entre ellos = (m − n)·θᵢ' : 'el ángulo entre ellos es (m − n)·θᵢ: solo importa la distancia', 'viz-s');
+      // clave: rosa = q, azul = k, punteadas = sin rotar (posición 0)
+      const kg = V.svg('g', { class: 'viz-rope-key' }, svg);
+      let kx = 8;
+      const keyItem = (cls, lab) => {
+        V.svg('path', { d: 'M' + kx + ' 44H' + (kx + 18), class: 'viz-rope-vec ' + cls }, kg);
+        t(kg, kx + 23, 48, lab, 'viz-s'); kx += 23 + lab.length * (narrow ? 5.6 : 6.2) + 14;
+      };
+      keyItem('viz-rope-q', narrow ? 'q (en m)' : 'q (posición m)');
+      keyItem('viz-rope-k', narrow ? 'k (en n)' : 'k (posición n)');
+      keyItem('viz-rope-q0', narrow ? 'sin rotar' : 'punteadas: sin rotar (posición 0)');
       for (let i = 0; i < PAIRS; i++) {
-        const cx = 8 + (i % cols) * CW + CW / 2, cy = 34 + Math.floor(i / cols) * CH + R + 14;
+        const cx = 8 + (i % cols) * CW + CW / 2, cy = 34 + KEY + Math.floor(i / cols) * CH + R + 14;
         const g = V.svg('g', { class: 'viz-rope-dial' }, svg);
         V.svg('circle', { cx: r1(cx), cy: r1(cy), r: R, class: 'viz-rope-face' }, g);
         V.svg('path', { d: 'M' + r1(cx - R) + ' ' + r1(cy) + 'H' + r1(cx + R) + 'M' + r1(cx) + ' ' + r1(cy - R) + 'V' + r1(cy + R), class: 'viz-rope-axis' }, g);

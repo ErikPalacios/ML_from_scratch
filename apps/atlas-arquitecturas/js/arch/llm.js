@@ -32,10 +32,19 @@
    Grafo. Por defecto: PREFILL de T tokens (T = 2048). Knob decode = 1: UN paso de decode (1 token nuevo, la atención lee
    ctx filas de K/V: ctx − 1 de la caché + la nueva). Ids iguales en los dos; decode añade k-past, v-past (entradas de la
    caché), kv-append-k / kv-append-v y k-ctx / v-ctx, y no tiene op `mask` (1 query ve todo el contexto).
-   Knobs: T (tokens del prompt), ctx (contexto del decode y de la KV cache), B (batch: solo metrics), bits (16 | 8 | 4,
-   y 32: pesos Y KV cache), nKV (what-if MHA / GQA / MQA: cambia G y los parámetros de W_K, W_V), decode (1).
+   Configs de decode (fase 6, revisión): 'llama3-8b-decode' y 'mixtral-8x7b-decode' = el mismo modelo con decode = 1 y
+   ctx = 4096 por defecto (cfg.decodeOf = la config de prefill). Sirven donde un bloque solo acepta una config (tarjetas de
+   operación, drills de formas, compare): q 1×D, k-past G×(ctx−1)×d_h, k-ctx G×ctx×d_h, scores h×1×ctx, logits 1×V.
+   Mismos parámetros y métricas que la config de prefill (metrics() corre el prefill con decodeOf).
+   Knobs: T (tokens del prompt), ctx (contexto del decode y de la KV cache), B (batch: solo metrics), nKV (what-if MHA /
+   GQA / MQA: cambia G y los parámetros de W_K, W_V), decode (1) y DOS precisiones separadas:
+   - bits   = bits de los PESOS (16 | 8 | 4; 32 = fp32). Con bits < 16 solo se cuantizan las lineales de los bloques
+     (W_Q, W_K, W_V, W_O y la FFN / los expertos); embedding, LM head, RMSNorm y el router de MoE quedan en 16 bits, como
+     en los checkpoints GPTQ/AWQ. Sin las escalas de grupo (+3–6 % con escalas fp16 por grupo de 128).
+   - kvBits = bits de la KV CACHE (16 | 8 | 4; por defecto 16): todo lo que es KV (por token, cache, bytes leídos/escritos).
    metrics() acepta además bandwidth (B/s, por defecto 3.35e12 = H100 SXM), peakFlops (FLOP/s, por defecto 989e12 =
-   H100 SXM bf16 denso) y hbmBytes (por defecto 80e9 = H100 80 GB): ENTRADAS de hardware, no parte del modelo.
+   H100 SXM bf16 denso) y hbmBytes (por defecto 80e9 = H100 80 GB en unidades decimales; la tarjeta tiene 80 GiB ≈ 85.9e9 B,
+   así que la cota de memoria es conservadora ≈ 7 %): ENTRADAS de hardware, no parte del modelo.
 
    ---------------------------------------------------------------- nodos (path) y ops
    Vista `llm-decoder-overview`: tokens (glifo del tensor ids), embed, blocks (grupo ×L) › block, final-norm, lm-head,
@@ -83,38 +92,49 @@
    - En Mixtral gate, up, act y prod son kT×D_mlp (las filas enrutadas: cada token aparece k = 2 veces).
    - El símbolo de las cabezas KV es G (no n_kv); el knob se llama nKV como en la SPEC (cfg.nKV = cfg.G).
 
-   ---------------------------------------------------------------- metrics() (B = 1, bits = 16 por defecto)
+   ---------------------------------------------------------------- metrics() (B = 1, bits = kvBits = 16 por defecto)
    Unidades en metrics.units (bytes | macs | params | pct | ratio | count). Bytes = decimales (fmt.bytes).
-   - KV cache: kvBytesPerToken (2·L·G·d_h·bits/8, una secuencia), kvBytesPerTokenLayer, kvCacheBytes (× ctx × B; = kvCache),
-     kvCacheBytesMHA / kvCacheBytesMQA (mismo ctx, B y bits con G = h / G = 1), kvBytesPerTokenMHA, kvSavingVsMHA (h/G),
-     kvCacheVsWeights.
-   - Pesos: weightBytes (params·bits/8), weightBytes16 / weightBytes8 / weightBytes4, activeWeightBytes.
+   - KV cache (a kvBits): kvBytesPerToken (2·L·G·d_h·kvBits/8, una secuencia), kvBytesPerTokenLayer, kvCacheBytes
+     (× ctx × B; = kvCache), kvCacheBytesMHA / kvCacheBytesMQA (mismo ctx, B y kvBits con G = h / G = 1),
+     kvBytesPerTokenMHA, kvSavingVsMHA (h/G), kvCacheVsWeights.
+   - Pesos (a bits; ver arriba qué se cuantiza): weightBytes = quantizedLinearBytes (lineales de los bloques × bits/8) +
+     unquantizedBytes (embedding + LM head + RMSNorm + router, a 16 bits si bits < 16); weightBytes16 / weightBytes8 /
+     weightBytes4 (la misma regla a 16 / 8 / 4 bits, independientes del knob); quantizedParams / unquantizedParams;
+     activeWeightBytes (MoE: sin los E − k expertos que no usa un token). Llama 3 8B a 4 bits: 3.49 GB de lineales +
+     2.10 GB en 16 bits = 5.59 GB (no 4.02 GB = P/2).
+   - Memoria total: kvPlusWeightsBytes (pesos + KV cache de ctx × B), fitsInHbm (booleano: kvPlusWeightsBytes ≤ hbmBytes),
+     hbmHeadroomBytes (hbmBytes − kvPlusWeightsBytes; negativo = no cabe), maxBatchInHbm (secuencias de ctx que caben
+     después de los pesos; 0 = los pesos no caben). Sin activaciones ni el overhead del runtime (≈).
    - Parámetros: totalParams (= params), activeParams (MoE: todo menos los E − k expertos que no usa un token),
      activeParamsShare, embedParams, lmHeadParams, attnParams, ffnParams, normParams, layerParams, attnParamsLayer,
-     ffnParamsLayer y sus …Share (fracción de params); MoE: routerParams, expertParams (un experto de una capa),
-     expertsParamsShare.
+     ffnParamsLayer y sus …Share (fracción de params); MoE: routerParams (TODAS las capas: L·D·E), expertParams (un
+     experto de una capa), expertsParamsShare.
    - Cómputo: prefillMacs (T tokens), prefillMacsPerToken, prefillMacsLastLogits, prefillScoreMacs (contado),
      prefillScoreMacsCausal (útil), prefillScoreMacsShare, decodeMacsPerToken (un token con ctx), decodeScoreMacs,
      decodeLinearMacs, decodeScoreMacsShare, decodeFlopsPerParam (2·decodeMacs/activeParams ≈ 2: "2 FLOPs por parámetro").
    - Bytes movidos (definición): prefillBytes = pesos leídos UNA vez (todos menos la tabla de embedding; MoE: los
-     expertos tocados ≈ todos) + filas de embedding leídas (B·T·D) + KV cache escrita (B·T·kvBytesPerToken).
-     decodeBytesPerStep = pesos leídos una vez por paso (todos menos la tabla de embedding; MoE: router + atención + los
-     expertos distintos que toca el lote, ≈ E·(1 − ((E−k)/E)^B) por capa con enrutamiento uniforme) + B filas de embedding
-     + KV cache leída (B·ctx·kvBytesPerToken). Se ignoran activaciones y la escritura de la fila nueva (< 0.1 %).
-     decodeWeightBytesRead, decodeKvBytesRead, decodeExpertsReadPerLayer (count).
+     expertos tocados ≈ todos) + filas de embedding leídas (B·T·D, 16 bits) + KV cache escrita (B·T·kvBytesPerToken).
+     Prefill SIN el tráfico de activaciones: a T = 2048, leer y escribir los tensores T×D y T×D_mlp sin fusionar mueve del
+     orden de los pesos, así que la intensidad real es ≈ la mitad (con kernels fusionados, menos); sigue muy por encima
+     del codo. decodeBytesPerStep = pesos leídos una vez por paso (todos menos la tabla de embedding; MoE: router +
+     atención + los expertos distintos que toca el lote, ≈ E·(1 − ((E−k)/E)^B) por capa con enrutamiento uniforme) + B
+     filas de embedding + KV cache leída (B·ctx·kvBytesPerToken). Se ignoran activaciones y la escritura de la fila
+     nueva (< 0.1 %). decodeWeightBytesRead, decodeKvBytesRead, decodeExpertsReadPerLayer (count).
    - Intensidad aritmética (FLOPs por byte movido, units 'ratio'): arithmeticIntensityPrefill = 2·B·prefillMacs /
      prefillBytes; arithmeticIntensityDecode = 2·B·decodeMacsPerToken / decodeBytesPerStep. ridgePoint = peakFlops /
      bandwidth (≈ 295 FLOP/B en H100 SXM): por debajo, la fase está limitada por memoria.
    - Cotas (≈ ESTIMACIONES de roofline, sin overheads de kernels, comunicación ni scheduling; hardware = entradas):
      decodeTokPerSecUpperBound = B / máx(FLOPs/peakFlops, bytes/bandwidth) (tokens/s del lote; con B = 1, ≈ bandwidth /
-     bytes), decodeTokPerSecPerSeq (= pasos por segundo), prefillTokPerSecUpperBound (B·T / máx(…)), maxBatchInHbm
-     (secuencias de ctx que caben en hbmBytes después de los pesos; 0 = los pesos no caben), bandwidth, peakFlops,
-     hbmBytes (los valores usados).
+     bytes), decodeTokPerSecPerSeq (= pasos por segundo), prefillTokPerSecUpperBound (B·T / máx(…)), bandwidth,
+     peakFlops, hbmBytes (los valores usados). La cota NO mira si el lote cabe: úsala junto a fitsInHbm.
    - crossoverN: T en que QKᵀ + A·V (2T²D por capa) iguala a las lineales (T·(2D² + 2D·G·d_h + 3D·D_mlp)) =
      D + G·d_h + 1.5·D_mlp (MoE: con k expertos y el router); crossoverNProj = D + G·d_h; scoreToLinear = T/crossoverN.
-   - Listas (para viz): ctxScaling [{ctx, kvCacheBytes, decodeMacs, decodeBytes, intensity, tokPerSec}], batchScaling
-     [{B, kvCacheBytes, decodeBytes, intensity, tokPerSec, tokPerSecPerSeq}], bitsScaling [{bits, weightBytes,
-     kvCacheBytes, tokPerSec}], nkvScaling [{nKV, kind, kvBytesPerToken, kvCacheBytes, attnParamsLayer, params}].
+   - Listas (para viz): ctxScaling [{ctx, kvCacheBytes, decodeMacs, decodeBytes, intensity, tokPerSec, kvPlusWeightsBytes,
+     fitsInHbm}], batchScaling [{B, kvCacheBytes, decodeBytes, intensity, tokPerSec, tokPerSecPerSeq, kvPlusWeightsBytes,
+     fitsInHbm}], bitsScaling [{bits, weightBytes, kvCacheBytes, decodeBytes, tokPerSec, fitsInHbm}] (bits de los PESOS,
+     KV a kvBits), kvBitsScaling [{kvBits, kvBytesPerToken, kvCacheBytes, decodeBytes, tokPerSec, maxBatchInHbm,
+     fitsInHbm}] (KV a esos bits, pesos a bits), nkvScaling [{nKV, kind, kvBytesPerToken, kvCacheBytes, attnParamsLayer,
+     params}].
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -127,16 +147,17 @@
 
   // Hardware por defecto de las cotas (≈, entradas explícitas de metrics()). NVIDIA H100 Tensor Core GPU datasheet,
   // variante SXM5 80 GB: 3.35 TB/s de HBM3 y 989 TFLOPS BF16 densos (1,979 con dispersidad 2:4).
+  // hbmBytes = 80e9 (80 GB decimales; la tarjeta tiene 80 GiB ≈ 85.9e9 B): la cota de memoria queda conservadora (≈ 7 %).
   const H100 = { bandwidth: 3.35e12, peakFlops: 989e12, hbmBytes: 80e9,
-    source: 'NVIDIA H100 Tensor Core GPU datasheet (H100 SXM 80 GB): 3.35 TB/s HBM3, 989 TFLOPS BF16 denso' };
+    source: 'NVIDIA H100 Tensor Core GPU datasheet (H100 SXM 80 GB): 3.35 TB/s HBM3, 989 TFLOPS BF16 denso; 80 GB decimales (conservador: la tarjeta tiene 80 GiB)' };
 
-  const BASE = { T: 2048, ctx: 4096, B: 1, bits: 16, decode: 0, eps: 1e-5, tied: false, bias: false, act: 'silu', norm: 'rmsnorm', causal: true };
+  const BASE = { T: 2048, ctx: 4096, B: 1, bits: 16, kvBits: 16, decode: 0, eps: 1e-5, tied: false, bias: false, act: 'silu', norm: 'rmsnorm', causal: true };
 
   const LLAMA3_SRC = 'Llama Team, AI @ Meta 2024 (The Llama 3 Herd of Models, arXiv:2407.21783), Tabla 3; config.json de HF ';
   const CONFIGS = {
     'llama3-8b': Object.assign({}, BASE, { label: 'Llama 3 8B', family: 'Llama 3', D: 4096, L: 32, h: 32, G: 8, dh: 128, Dmlp: 14336, V: 128256,
       ctxMax: 8192, ropeTheta: 500000, canonical: true, hf: 'meta-llama/Meta-Llama-3-8B',
-      source: LLAMA3_SRC + 'meta-llama/Meta-Llama-3-8B (hidden 4096, 32 capas, 32 cabezas, 8 KV, FFN 14,336, vocab 128,256, rope_theta 500,000, rms_norm_eps 1e-5, sin atar). El paper redondea el vocabulario a 128K; Llama 3.1 8B (mismos pesos en forma) llega a 128K de contexto con escalado de RoPE (rope_type llama3, factor 8).' }),
+      source: LLAMA3_SRC + 'meta-llama/Meta-Llama-3-8B (hidden 4096, 32 capas, 32 cabezas, 8 KV, FFN 14,336, vocab 128,256, rope_theta 500,000, rms_norm_eps 1e-5, sin atar). Vocabulario: la Tabla 3 dice 128,000 (los tokens BPE) y la config suma 256 especiales reservados = 128,256; Llama 3.1 8B (mismos pesos en forma) llega a 128K de contexto con escalado de RoPE (rope_type llama3, factor 8).' }),
     'llama3-70b': Object.assign({}, BASE, { label: 'Llama 3 70B', family: 'Llama 3', D: 8192, L: 80, h: 64, G: 8, dh: 128, Dmlp: 28672, V: 128256,
       ctxMax: 8192, ropeTheta: 500000, hf: 'meta-llama/Meta-Llama-3-70B',
       source: LLAMA3_SRC + 'meta-llama/Meta-Llama-3-70B (hidden 8192, 80 capas, 64 cabezas, 8 KV, FFN 28,672, vocab 128,256, rope_theta 500,000).' }),
@@ -147,6 +168,13 @@
       ctxMax: 32768, ropeTheta: 1000000, E: 8, topk: 2, hf: 'mistralai/Mixtral-8x7B-v0.1',
       source: 'Jiang et al. 2024 (Mixtral of Experts, arXiv:2401.04088), Tabla 1: dim 4096, 32 capas, head_dim 128, hidden_dim 14,336, 32 cabezas, 8 KV, contexto 32,768, vocab 32,000, 8 expertos, top-2; config.json de HF mistralai/Mixtral-8x7B-v0.1 (rope_theta 1e6, sliding_window null, rms_norm_eps 1e-5).' }),
   };
+  // Configs de decode (un paso de decode, ctx = 4096 por defecto): el mismo modelo con decode = 1. decodeOf = la config de
+  // prefill (metrics() corre allí el prefill: el knob decode no se puede "apagar" con un override).
+  const DEC_SRC = ' Config de decode: un paso de decode (1 token nuevo que lee ctx filas de la KV cache; ctx = 4096 por defecto, knob ctx).';
+  [['llama3-8b-decode', 'llama3-8b'], ['mixtral-8x7b-decode', 'mixtral-8x7b']].forEach(([id, of]) => {
+    const b = CONFIGS[of];
+    CONFIGS[id] = Object.assign({}, b, { label: b.label + ' · decode', canonical: false, decode: 1, decodeOf: of, source: b.source + DEC_SRC });
+  });
 
   function applyKnobs(c, ov) {
     const notes = [];
@@ -160,13 +188,14 @@
       }
       c.G = ov.nKV;
     }
-    ['T', 'ctx', 'B', 'bits', 'decode'].forEach((k) => { if (ov[k] !== undefined) c[k] = ov[k]; });
+    ['T', 'ctx', 'B', 'bits', 'kvBits', 'decode'].forEach((k) => { if (ov[k] !== undefined) c[k] = ov[k]; });
     if (c.bits !== 4 && c.bits !== 8 && c.bits !== 16 && c.bits !== 32) throw new Error(c.label + ': bits debe ser 4, 8, 16 o 32 (recibí ' + c.bits + ').');
+    if (c.kvBits !== 4 && c.kvBits !== 8 && c.kvBits !== 16 && c.kvBits !== 32) throw new Error(c.label + ': kvBits debe ser 4, 8, 16 o 32 (recibí ' + c.kvBits + ').');
     if (c.decode !== 0 && c.decode !== 1) throw new Error(c.label + ': decode debe ser 1 (un paso de decode) u omitirse (prefill).');
     if (c.decode === 1 && c.ctx < 2) throw new Error(c.label + ': en decode ctx debe ser ≥ 2 (el token nuevo + al menos uno en la caché).');
     if (c.T > c.ctxMax) notes.push('T = ' + fint(c.T) + ' supera el contexto de entrenamiento de ' + c.label.split(' · ')[0] + ' (' + fint(c.ctxMax) + ' tokens): el conteo es válido, la calidad no está garantizada.');
     if (c.ctx > c.ctxMax) notes.push('ctx = ' + fint(c.ctx) + ' supera el contexto de entrenamiento (' + fint(c.ctxMax) + ')' + (c.family === 'Llama 3' ? '; Llama 3.1 llega a 131,072 con escalado de RoPE (mismos parámetros).' : '.'));
-    if (c.decode === 1) c.label += ' · decode (ctx = ' + fint(c.ctx) + ')';
+    if (c.decode === 1) c.label += (c.decodeOf ? ' (ctx = ' : ' · decode (ctx = ') + fint(c.ctx) + ')';
     c._notes = notes;
     return c;
   }
@@ -183,7 +212,8 @@
     c.Tq = c.decode === 1 ? 1 : c.T;           // filas de query de este forward
     c.tokens = c.Tq;
     c.past = c.decode === 1 ? c.ctx - 1 : 0;  // filas que vienen de la caché
-    c.bytesPerElem = c.bits / 8;
+    c.bytesPerElem = c.bits / 8;            // pesos cuantizados (lineales de los bloques)
+    c.kvBytesPerElem = c.kvBits / 8;        // KV cache
     return c;
   }
 
@@ -323,7 +353,7 @@
     const expertParams = c.moe ? 3 * D * c.Dmlp : 0;
     const activeParams = c.moe ? t.params - (c.E - c.topk) * L * expertParams : t.params;
     const q = {
-      tokens: c.Tq, T: c.T, ctx: c.ctx, B: c.B, bits: c.bits, D, L, h: c.h, G: c.G, nKV: c.G, dh: c.dh, Dmlp: c.Dmlp, V: c.V,
+      tokens: c.Tq, T: c.T, ctx: c.ctx, B: c.B, bits: c.bits, kvBits: c.kvBits, D, L, h: c.h, G: c.G, nKV: c.G, dh: c.dh, Dmlp: c.Dmlp, V: c.V,
       Dkv: c.Dkv, groupSize: c.groupSize, ctxMax: c.ctxMax, ropeTheta: c.ropeTheta, attnKind: c.attnKind,
       E: c.moe ? c.E : 0, topk: c.moe ? c.topk : 0,
       layerParams: n.block.params / L, attnParamsLayer: attnParams / L, ffnParamsLayer: ffnParams / L, normParamsLayer: 2 * D,
@@ -331,13 +361,16 @@
       embedParams, lmHeadParams, attnParams, ffnParams, normParams, blocksParams: n.blocks.params,
       totalParams: t.params, activeParams, expertParams, expertsParams: c.moe ? c.E * L * expertParams : 0,
       routerParams: c.moe ? n.router.params : 0,
-      kvBytesPerToken: 2 * L * c.G * c.dh * c.bits / 8,
+      kvBytesPerToken: 2 * L * c.G * c.dh * c.kvBits / 8,
       kvElemsPerTokenLayer: 2 * c.G * c.dh,
       layerMacs: n.block.macs / L, attnMacsLayer: n.attn.macs / L, ffnMacsLayer: n.ffn.macs / L,
       scoreMacsLayer: r.ops.filter((o) => o.prim === 'attention_scores' || o.prim === 'attention_weighted_sum').reduce((s, o) => s + o.macs, 0),
       lmHeadMacs: n['lm-head'].macs,
     };
-    // Inferencia, también aquí para {{…}} y tablas compare (B, bits y ctx de la config; hardware por defecto = H100 SXM).
+    // Pesos que se cuantizan con bits < 16: las lineales de los bloques (atención + FFN/expertos, sin el router).
+    q.quantizedParams = attnParams + ffnParams - q.routerParams;
+    q.unquantizedParams = t.params - q.quantizedParams;
+    // Inferencia, también aquí para {{…}} y tablas compare (B, bits, kvBits y ctx de la config; hardware = H100 SXM).
     // decodeLinearMacs: las lineales escalan con las filas, (MACs − scores)/T_q, exacto; decodeMacsPerToken le suma los
     // scores de un paso con ctx filas (2·L·h·ctx·d_h) = los MACs del grafo decode (lo verifica tests/arch.test.cjs).
     const score = r.ops.filter(isScore).reduce((s, o) => s + o.macs * o.repeat, 0);
@@ -346,7 +379,7 @@
     const cm = costModel(c, q, H100);
     q.decodeMacsPerToken = cm.decodeMacsAt(c.ctx);
     q.kvCacheBytes = cm.kvTok * c.ctx * c.B;
-    q.weightBytes = t.params * c.bits / 8;
+    q.weightBytes = cm.weightBytesAt(c.bits);
     q.decodeBytesPerStep = cm.decodeBytesAt(c.ctx, c.B);
     q.prefillBytes = cm.prefillBytes(c.B);
     q.arithmeticIntensityDecode = 2 * c.B * q.decodeMacsPerToken / q.decodeBytesPerStep;
@@ -360,19 +393,25 @@
 
   // Modelo de costo de inferencia compartido por quantities() y metrics(). q = quantities (parámetros por tipo y
   // decodeLinearMacs); hw = {bandwidth, peakFlops}. Bytes: ver la cabecera (pesos leídos + filas de embedding + KV).
+  // Precisiones: wb = bytes por peso de las lineales de los bloques (bits); ub = bytes por peso de lo que no se cuantiza
+  // (embedding, LM head, RMSNorm, router: 16 bits si bits < 16; si bits ≥ 16, los mismos bits); kb = bytes por elemento
+  // de la KV cache (kvBits).
+  const unqBytes = (bits) => (bits < 16 ? 2 : bits / 8);
   function costModel(c, q, hw) {
-    const L = c.L, D = c.D, wb = c.bits / 8;
-    const kvTok = 2 * L * c.G * c.dh * wb;                 // bytes de K y V por token, todas las capas, una secuencia
+    const L = c.L, D = c.D, wb = c.bits / 8, ub = unqBytes(c.bits), kb = c.kvBits / 8;
+    const kvTok = 2 * L * c.G * c.dh * kb;                 // bytes de K y V por token, todas las capas, una secuencia
     // Expertos distintos que lee un paso con n tokens (enrutamiento uniforme, ≈): E·(1 − ((E−k)/E)^n). Denso: 0.
     const expertsTouched = (n) => (c.moe ? c.E * (1 - Math.pow((c.E - c.topk) / c.E, n)) : 0);
-    const nonExpert = q.totalParams - q.expertsParams;
-    const readWeightBytes = (nTok) => (nonExpert - q.embedParams + expertsTouched(nTok) * L * q.expertParams) * wb;
+    const quantNonExpert = q.quantizedParams - q.expertsParams;           // lineales de la atención (+ FFN densa)
+    const unqRead = q.unquantizedParams - q.embedParams;                  // LM head + normas + router (la tabla no se lee entera)
+    const weightBytesAt = (bits) => q.quantizedParams * bits / 8 + q.unquantizedParams * unqBytes(bits);
+    const readWeightBytes = (nTok) => (quantNonExpert + expertsTouched(nTok) * L * q.expertParams) * wb + unqRead * ub;
     const decodeMacsAt = (ctx) => q.decodeLinearMacs + 2 * L * c.h * ctx * c.dh;
-    const decodeBytesAt = (ctx, b) => readWeightBytes(b) + b * D * wb + b * ctx * kvTok;
-    const prefillBytes = (b) => readWeightBytes(b * c.T) + b * c.T * D * wb + b * c.T * kvTok;
+    const decodeBytesAt = (ctx, b) => readWeightBytes(b) + b * D * ub + b * ctx * kvTok;
+    const prefillBytes = (b) => readWeightBytes(b * c.T) + b * c.T * D * ub + b * c.T * kvTok;
     const tokPerSec = (flops, bytes, toks) => toks / Math.max(flops / hw.peakFlops, bytes / hw.bandwidth);
     const decTok = (ctx, b) => tokPerSec(2 * b * decodeMacsAt(ctx), decodeBytesAt(ctx, b), b);
-    return { kvTok, expertsTouched, readWeightBytes, decodeMacsAt, decodeBytesAt, prefillBytes, tokPerSec, decTok };
+    return { wb, ub, kb, kvTok, expertsTouched, weightBytesAt, readWeightBytes, decodeMacsAt, decodeBytesAt, prefillBytes, tokPerSec, decTok };
   }
 
   // ------------------------------------------------------------------ métricas
@@ -383,21 +422,26 @@
     const peak = ov.peakFlops !== undefined ? ov.peakFlops : H100.peakFlops;
     const hbm = ov.hbmBytes !== undefined ? ov.hbmBytes : H100.hbmBytes;
     [['bandwidth', bw], ['peakFlops', peak], ['hbmBytes', hbm]].forEach(([k, v]) => { if (!(typeof v === 'number' && v > 0 && isFinite(v))) throw new Error(k + ' debe ser un número positivo.'); });
-    const wb = c.bits / 8;
-    // Knobs de arquitectura de esta corrida, sin `decode`: prefill y decode con los mismos T, ctx, B, bits y nKV.
+    // Knobs de arquitectura de esta corrida, sin `decode`: prefill y decode con los mismos T, ctx, B, bits, kvBits y nKV.
+    // Una config de decode (decodeOf) corre su prefill en la config de prefill (decode no se apaga con un override).
     const arch = {};
-    ['T', 'ctx', 'B', 'bits', 'nKV'].forEach((k) => { if (r.overrides[k] !== undefined) arch[k] = r.overrides[k]; });
-    const pre = c.decode === 1 ? A.run(r.id, arch) : r;
+    ['T', 'ctx', 'B', 'bits', 'kvBits', 'nKV'].forEach((k) => { if (r.overrides[k] !== undefined) arch[k] = r.overrides[k]; });
+    const pre = c.decode === 1 ? A.run(c.decodeOf || r.id, arch) : r;
     const dec = c.decode === 1 ? r : A.run(r.id, Object.assign({}, arch, { decode: 1 }));
     const q = pre.quantities, L = c.L, D = c.D;
     const params = pre.totals.params;
-    const cm = costModel(c, q, { bandwidth: bw, peakFlops: peak });
-    const { kvTok, expertsTouched, readWeightBytes, decodeMacsAt, decodeBytesAt, tokPerSec, decTok } = cm;
+    const hw = { bandwidth: bw, peakFlops: peak };
+    const cm = costModel(c, q, hw);
+    const { wb, ub, kb, kvTok, expertsTouched, weightBytesAt, readWeightBytes, decodeMacsAt, decodeBytesAt, tokPerSec, decTok } = cm;
 
-    // KV cache y pesos
+    // KV cache (a kvBits) y pesos (lineales a bits; embedding, LM head, normas y router a 16 si bits < 16)
     const kvCache = kvTok * c.ctx * B;
-    const kvMHA = 2 * L * c.h * c.dh * wb, kvMQA = 2 * L * 1 * c.dh * wb;
-    const weightBytes = params * wb;
+    const kvMHA = 2 * L * c.h * c.dh * kb, kvMQA = 2 * L * 1 * c.dh * kb;
+    const weightBytes = weightBytesAt(c.bits);
+    const quantizedLinearBytes = q.quantizedParams * wb, unquantizedBytes = q.unquantizedParams * ub;
+    const activeQuant = q.quantizedParams - (c.moe ? (c.E - c.topk) * L * q.expertParams : 0);
+    const fits = (bytes) => bytes <= hbm;
+    const maxBatch = (ctx, kvT, wBytes) => Math.max(0, Math.floor((hbm - wBytes) / (ctx * kvT)));
 
     // Cómputo (de los grafos prefill y decode)
     const prefillMacs = pre.totals.macs, decodeMacs = dec.totals.macs;
@@ -406,7 +450,7 @@
 
     // Bytes movidos
     const prefillBytes = cm.prefillBytes(B);
-    const decodeWeightBytes = readWeightBytes(B) + B * D * wb;
+    const decodeWeightBytes = readWeightBytes(B) + B * D * ub;
     const decodeBytes = decodeBytesAt(c.ctx, B);
 
     const crossLin = D + c.Dkv + (c.moe ? (c.E / 2) + 1.5 * c.topk * c.Dmlp : 1.5 * c.Dmlp);
@@ -417,9 +461,12 @@
       kvBytesPerTokenMHA: kvMHA, kvCacheBytesMHA: kvMHA * c.ctx * B, kvCacheBytesMQA: kvMQA * c.ctx * B, kvSavingVsMHA: c.h / c.G,
       kvCacheVsWeights: kvCache / weightBytes,
       // pesos
-      weightBytes, weightBytes16: params * 2, weightBytes8: params, weightBytes4: params / 2,
+      weightBytes, weightBytes16: weightBytesAt(16), weightBytes8: weightBytesAt(8), weightBytes4: weightBytesAt(4),
+      quantizedLinearBytes, unquantizedBytes, quantizedParams: q.quantizedParams, unquantizedParams: q.unquantizedParams,
+      // memoria total (pesos + KV de ctx × B) frente a la HBM (≈: sin activaciones ni el runtime)
+      kvPlusWeightsBytes: weightBytes + kvCache, fitsInHbm: fits(weightBytes + kvCache), hbmHeadroomBytes: hbm - weightBytes - kvCache,
       // parámetros
-      totalParams: params, activeParams: q.activeParams, activeParamsShare: q.activeParams / params, activeWeightBytes: q.activeParams * wb,
+      totalParams: params, activeParams: q.activeParams, activeParamsShare: q.activeParams / params, activeWeightBytes: activeQuant * wb + q.unquantizedParams * ub,
       embedParams: q.embedParams, lmHeadParams: q.lmHeadParams, attnParams: q.attnParams, ffnParams: q.ffnParams, normParams: q.normParams,
       layerParams: q.layerParams, attnParamsLayer: q.attnParamsLayer, ffnParamsLayer: q.ffnParamsLayer,
       embedParamsShare: share(q.embedParams + q.lmHeadParams), attnParamsShare: share(q.attnParams), ffnParamsShare: share(q.ffnParams), normParamsShare: share(q.normParams),
@@ -439,7 +486,7 @@
       prefillTokPerSecUpperBound: tokPerSec(2 * B * prefillMacs, prefillBytes, B * c.T),
       decodeBound: 2 * B * decodeMacs / peak > decodeBytes / bw ? 'cómputo' : 'memoria',
       prefillBound: 2 * B * prefillMacs / peak > prefillBytes / bw ? 'cómputo' : 'memoria',
-      maxBatchInHbm: Math.max(0, Math.floor((hbm - weightBytes) / (c.ctx * kvTok))),
+      maxBatchInHbm: maxBatch(c.ctx, kvTok, weightBytes),
       bandwidth: bw, peakFlops: peak, hbmBytes: hbm, hardwareSource: H100.source,
       // cruce scores vs lineales (por capa)
       crossoverN: crossLin, crossoverNProj: D + c.Dkv, scoreToLinear: c.T / crossLin,
@@ -451,21 +498,28 @@
       decodeExpertsReadPerLayer: expertsTouched(B), experts: c.E, topk: c.topk,
     });
     out.ctxScaling = [1024, 4096, 8192, 32768, 131072].map((ctx) => {
-      const by = decodeBytesAt(ctx, B);
-      return { ctx, kvCacheBytes: kvTok * ctx * B, decodeMacs: decodeMacsAt(ctx), decodeBytes: by, intensity: 2 * B * decodeMacsAt(ctx) / by, tokPerSec: decTok(ctx, B) };
+      const by = decodeBytesAt(ctx, B), kv = kvTok * ctx * B;
+      return { ctx, kvCacheBytes: kv, decodeMacs: decodeMacsAt(ctx), decodeBytes: by, intensity: 2 * B * decodeMacsAt(ctx) / by, tokPerSec: decTok(ctx, B),
+        kvPlusWeightsBytes: weightBytes + kv, fitsInHbm: fits(weightBytes + kv) };
     });
     out.batchScaling = [1, 8, 32, 64, 128, 256].map((b) => {
-      const by = decodeBytesAt(c.ctx, b);
-      return { B: b, kvCacheBytes: kvTok * c.ctx * b, decodeBytes: by, intensity: 2 * b * decodeMacsAt(c.ctx) / by, tokPerSec: decTok(c.ctx, b), tokPerSecPerSeq: decTok(c.ctx, b) / b };
+      const by = decodeBytesAt(c.ctx, b), kv = kvTok * c.ctx * b;
+      return { B: b, kvCacheBytes: kv, decodeBytes: by, intensity: 2 * b * decodeMacsAt(c.ctx) / by, tokPerSec: decTok(c.ctx, b), tokPerSecPerSeq: decTok(c.ctx, b) / b,
+        kvPlusWeightsBytes: weightBytes + kv, fitsInHbm: fits(weightBytes + kv) };
     });
+    // bits de los PESOS (la KV queda a kvBits) y bits de la KV (los pesos quedan a bits).
     out.bitsScaling = [16, 8, 4].map((bits) => {
-      const s = bits / 8 / wb;   // reescala bytes
-      const by = decodeBytes * s;
-      return { bits, weightBytes: params * bits / 8, kvCacheBytes: kvCache * s, tokPerSec: tokPerSec(2 * B * decodeMacs, by, B) };
+      const cb = costModel(Object.assign({}, c, { bits }), q, hw), w = cb.weightBytesAt(bits), by = cb.decodeBytesAt(c.ctx, B);
+      return { bits, weightBytes: w, kvCacheBytes: kvCache, decodeBytes: by, tokPerSec: tokPerSec(2 * B * decodeMacs, by, B), fitsInHbm: fits(w + kvCache) };
+    });
+    out.kvBitsScaling = [16, 8, 4].map((kvBits) => {
+      const cb = costModel(Object.assign({}, c, { kvBits }), q, hw), kv = cb.kvTok * c.ctx * B, by = cb.decodeBytesAt(c.ctx, B);
+      return { kvBits, kvBytesPerToken: cb.kvTok, kvCacheBytes: kv, decodeBytes: by, tokPerSec: tokPerSec(2 * B * decodeMacs, by, B),
+        maxBatchInHbm: maxBatch(c.ctx, cb.kvTok, weightBytes), fitsInHbm: fits(weightBytes + kv) };
     });
     out.nkvScaling = Array.from(new Set([c.h, 8, 1].filter((x) => c.h % x === 0))).map((G) => {
       const attnLayer = D * c.Dq + 2 * D * G * c.dh + c.Dq * D;
-      return { nKV: G, kind: G === c.h ? 'MHA' : (G === 1 ? 'MQA' : 'GQA'), kvBytesPerToken: 2 * L * G * c.dh * wb, kvCacheBytes: 2 * L * G * c.dh * wb * c.ctx * B,
+      return { nKV: G, kind: G === c.h ? 'MHA' : (G === 1 ? 'MQA' : 'GQA'), kvBytesPerToken: 2 * L * G * c.dh * kb, kvCacheBytes: 2 * L * G * c.dh * kb * c.ctx * B,
         attnParamsLayer: attnLayer, params: params + L * (attnLayer - q.attnParamsLayer) };
     });
     return out;
@@ -476,6 +530,8 @@
     kvBytesPerToken: 'bytes', kvBytesPerTokenLayer: 'bytes', kvCacheBytes: 'bytes', kvCache: 'bytes', kvBytesPerTokenMHA: 'bytes',
     kvCacheBytesMHA: 'bytes', kvCacheBytesMQA: 'bytes', kvSavingVsMHA: 'ratio', kvCacheVsWeights: 'ratio',
     weightBytes: 'bytes', weightBytes16: 'bytes', weightBytes8: 'bytes', weightBytes4: 'bytes', activeWeightBytes: 'bytes',
+    quantizedLinearBytes: 'bytes', unquantizedBytes: 'bytes', quantizedParams: 'params', unquantizedParams: 'params',
+    kvPlusWeightsBytes: 'bytes', hbmHeadroomBytes: 'bytes',
     totalParams: 'params', activeParams: 'params', activeParamsShare: 'pct', embedParams: 'params', lmHeadParams: 'params', attnParams: 'params',
     ffnParams: 'params', normParams: 'params', layerParams: 'params', attnParamsLayer: 'params', ffnParamsLayer: 'params',
     embedParamsShare: 'pct', attnParamsShare: 'pct', ffnParamsShare: 'pct', normParamsShare: 'pct',
@@ -496,7 +552,7 @@
     paper: { title: 'The Llama 3 Herd of Models', authors: 'Llama Team, AI @ Meta (arXiv v1: Dubey et al.; v3: Grattafiori et al.)', venue: 'arXiv', year: 2024, arxiv: '2407.21783',
       note: 'Llama 2: Touvron et al. 2023, arXiv:2307.09288. Mixtral: Jiang et al. 2024, arXiv:2401.04088. GQA: Ainslie et al., EMNLP 2023, arXiv:2305.13245. RoPE: Su et al., arXiv:2104.09864. SwiGLU: Shazeer 2020, arXiv:2002.05202.' },
     configs: CONFIGS,
-    knobs: { T: [128, 512, 2048, 8192], ctx: [1024, 4096, 8192, 32768, 131072], B: [1, 8, 32, 128], bits: [16, 8, 4], nKV: [32, 8, 1], decode: [1] },
+    knobs: { T: [128, 512, 2048, 8192], ctx: [1024, 4096, 8192, 32768, 131072], B: [1, 8, 32, 128], bits: [16, 8, 4], kvBits: [16, 8, 4], nKV: [32, 8, 1], decode: [1] },
     hardware: Object.assign({}, H100),
     applyKnobs,
     resolve,

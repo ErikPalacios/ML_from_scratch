@@ -703,6 +703,11 @@
     V: { label: 'Vocabulario V', get: (r) => r.config && r.config.V, fmt: 'int' },
     activeParams: { label: 'Parámetros activos por token', get: (r) => r.quantities && r.quantities.activeParams, fmt: 'int' },
     kvBytesPerToken: { label: 'KV cache por token', get: (r) => r.quantities && r.quantities.kvBytesPerToken, fmt: 'bytes' },
+    // Revisión de la fase 6: bits de los pesos y de la KV cache por separado; pesos INT-k con embedding y LM head en 16 bits.
+    bits: { label: 'Bits de los pesos', get: (r) => r.config && r.config.bits, fmt: 'int' },
+    kvBits: { label: 'Bits de la KV cache', get: (r) => r.config && r.config.kvBits, fmt: 'int' },
+    weightBytes: { label: 'Pesos en memoria', get: (r) => r.quantities && r.quantities.weightBytes, fmt: 'bytes' },
+    kvCacheBytes: { label: 'KV cache (ctx × B)', get: (r) => r.quantities && r.quantities.kvCacheBytes, fmt: 'bytes' },
   };
   function resolveRunId(id) {
     const Ar = A();

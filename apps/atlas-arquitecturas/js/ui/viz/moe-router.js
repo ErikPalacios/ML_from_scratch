@@ -76,7 +76,7 @@
     bCol.addEventListener('click', () => { state.mode = 'collapsed'; draw(); });
     const g2 = V.html('div', { class: 'viz-ctl', role: 'group', 'aria-label': 'Capacidad' }, ctl);
     V.html('span', { class: 'viz-ctl-l', text: 'Capacidad' }, g2);
-    const bCap = V.html('button', { type: 'button', class: 'viz-chip', 'aria-pressed': 'false', text: 'fija, CF = ' + CF + ' (Switch)' }, g2);
+    const bCap = V.html('button', { type: 'button', class: 'viz-chip', 'aria-pressed': 'false', text: 'aplicar capacidad (CF = ' + CF + ', Switch)' }, g2);
     bCap.addEventListener('click', () => { state.cap = !state.cap; draw(); });
     const stage = V.html('div', { class: 'viz-stage viz-moe-stage', tabindex: 0, role: 'group', 'aria-label': 'Tokens enrutados a expertos. Flechas arriba y abajo: elegir un token' }, wrap);
     const out = V.html('div', { class: 'viz-readout', 'aria-live': 'polite' }, wrap);
@@ -86,7 +86,7 @@
       (tot ? '; ' + fmt.si(tot) + ' parámetros en total' : '') + (act ? ' pero solo ≈ ' + fmt.si(act) + ' activos por token (atención, normas, embeddings y ' + K + ' de los ' + E + ' FFN)' : '') + '. ' +
       'El router es una sola matriz d × E: logits → softmax → se quedan los ' + K + ' mayores y sus pesos se renormalizan (suman 1); la salida es Σ w·FFN<sub>e</sub>(x) solo sobre esos ' + K + '. ' +
       'Sin una pérdida auxiliar de balanceo el router colapsa en pocos expertos (los demás casi no se entrenan y, en paralelo de expertos, unas GPUs esperan a otras). La pérdida de Switch Transformer, E·Σ f<sub>i</sub>·P<sub>i</sub> (f<sub>i</sub> = fracción de asignaciones, P<sub>i</sub> = probabilidad media), vale 1 si todo está parejo y crece con el desbalance (la implementación de Mixtral en HF la incluye: router_aux_loss_coef). ' +
-      'La capacidad fija (Switch, GShard) corta lo que pasa de CF·T·k/E por experto y esos tokens solo siguen por la residual; Mixtral no descarta tokens: cada experto procesa todos los que le tocan (el paper cita los kernels de MegaBlocks para hacerlo eficiente).');
+      'La capacidad fija (Switch, GShard) corta lo que pasa de CF·T·k/E por experto y esos tokens solo siguen por la residual; las implementaciones de inferencia de Mixtral (HF, vLLM) no descartan tokens: cada experto procesa todos los que le tocan. El paper de Mixtral no habla de capacidad; cita MegaBlocks (MoE "dropless") para hacerlo eficiente.');
 
     let lastNarrow = null;
     function draw() {
@@ -139,7 +139,7 @@
       // barras: p(experto | token) del token elegido, con los k elegidos marcados
       const r0 = R.rows[state.tok];
       const pmax = Math.max(...r0.p);
-      t(svg, bx, yB - 8, narrow ? 'router de «' + WORDS[state.tok] + '»' : 'softmax del router para «' + WORDS[state.tok] + '»', 'viz-s');
+      t(svg, bx, yB - 8, 'router de «' + WORDS[state.tok] + '»', 'viz-s');
       if (narrow) for (let e = 0; e < E; e++) t(svg, bx - 6, yE(e) - top + yB + 4, 'E' + e, 'viz-s', 'end');
       for (let e = 0; e < E; e++) {
         const y = yE(e) - top + yB;

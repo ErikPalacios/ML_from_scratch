@@ -70,6 +70,7 @@
      que Q (GQA: h divisible por G; cada cabeza KV la comparten h/G cabezas de query; MACs h·N_q·N_k·d_h, iguales que MHA):
      con las mismas cabezas el resultado es exactamente el de antes. NON_ARCH suma 'bandwidth', 'peakFlops' y 'hbmBytes'
      (entradas de hardware de metrics(), no knobs) y def.metrics recibe también `overrides`. Ninguna cambia las fases 1–5.
+     Revisión de la fase 6: fmt.si y fmt.ops suman el prefijo P (10¹⁵): solo cambia el texto de valores ≥ 10¹⁵.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -84,9 +85,10 @@
   }
 
   // si(n): 86.6 M · 17.56 G · 1.77 M · 590.6 K. decimals opcional fuerza los decimales.
+  // Fase 6 (revisión): prefijo P (10¹⁵) para el prefill largo de un LLM (5.49 PMACs, no "5487.25 TMACs").
   function si(n, decimals) {
     const a = Math.abs(n);
-    const units = [[1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'K']];
+    const units = [[1e15, 'P'], [1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'K']];
     for (const [v, u] of units) {
       if (a >= v) {
         const x = n / v;
@@ -122,7 +124,7 @@
   function ops(n, unit) {
     const u = unit || 'MACs';
     const s = si(n);
-    const m = s.match(/^(.*) ([KMGT])$/);
+    const m = s.match(/^(.*) ([KMGTP])$/);
     return m ? m[1] + ' ' + m[2] + u : s + ' ' + u;
   }
 

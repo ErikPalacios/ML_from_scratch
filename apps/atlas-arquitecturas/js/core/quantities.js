@@ -26,7 +26,8 @@
                                         unidades decimales: 1 KB = 1000 B → '931.4 KB', '173.1 MB'. Unidad por
                                         el mapa metrics.units del modelo o por el nombre: …Mem, …Mem2x,
                                         …MemAllLayers, …Cache = bytes; …Share = %; 'ratio' = 3 cifras;
-                                        'macs' = fmt.ops, p. ej. '1.81 GMACs' — solo por el mapa units)
+                                        'macs' = fmt.ops, p. ej. '1.81 GMACs' — solo por el mapa units;
+                                        booleanos 'sí' / 'no' y textos tal cual: metrics.fitsInHbm, metrics.decodeBound)
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -128,6 +129,9 @@
       try { m = A.metrics(configId, {}); } catch (e) { return null; }
       if (!Object.prototype.hasOwnProperty.call(m, parts[1])) return null;
       const v = m[parts[1]];
+      // Fase 6 (revisión): métricas no numéricas (fitsInHbm → 'sí' / 'no'; decodeBound → 'memoria' / 'cómputo').
+      if (typeof v === 'boolean') return num(v, v ? 'sí' : 'no');
+      if (typeof v === 'string') return num(v, v);
       if (typeof v !== 'number') return null;
       // Unidad: la del mapa del modelo (metrics.units: {clave: 'bytes'|'pct'|'ratio'|'count'}) o, si no
       // está, por el nombre: …Mem, …Mem2x, …MemAllLayers, …MemBatch, …Cache = bytes; …Share = fracción.
@@ -207,7 +211,7 @@
       if (['number', 'boolean', 'string'].indexOf(typeof v) >= 0) out.push('cfg.' + k);
     }
     const m = A.metrics(configId, {});
-    for (const k of Object.keys(m)) if (typeof m[k] === 'number') out.push('metrics.' + k);
+    for (const k of Object.keys(m)) if (typeof m[k] === 'number' || typeof m[k] === 'boolean') out.push('metrics.' + k);
     keyCache[configId] = Array.from(new Set(out));
     return keyCache[configId].slice();
   }

@@ -73,12 +73,13 @@ test('drills de formas: cada dimensión sale de los datos de la tarjeta o del te
   for (const model of MODELS) for (const { id: cfg } of A.configs(model)) {
     const R = A.run(cfg);
     for (const c of P._drillCandidates([{ model, configs: [cfg], pool: 'all' }], ['shape'])) {
-      const t = R.tensors[c.tensor];
+      const Rc = c.ov ? A.run(cfg, c.ov) : R;   // fase 6: aristas con ov (carril de decode) → run(config, ov)
+      const t = Rc.tensors[c.tensor];
       const known = {};
-      P._drillFacts(R, c).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
+      P._drillFacts(Rc, c).forEach(([s, v]) => { known[s] = v; known[s.replace('_', '')] = v; });
       known.dh = known.d_h != null ? known.d_h : (known.D != null ? known.D : known.D_t) / known.h;
       // Swin: cabezas y ventanas del stage que nombra la etiqueta (datos: H, M y h por stage)
-      const st = (R.config.stages || []).find((s) => new RegExp('Stage ' + s.k + '\\b').test(t.label || ''));
+      const st = (Rc.config.stages || []).find((s) => new RegExp('Stage ' + s.k + '\\b').test(t.label || ''));
       if (st) { known.h = st.h; known.nW = st.windows; }
       const text = (t.label || '') + ' ' + (t.tex || '');
       t.sym.forEach((sym, i) => {
@@ -352,7 +353,7 @@ test('fase 5: drills de SAM 2 sin prompts repetidos con respuestas distintas; el
 
 test('fase 6: toda forma del modelo llm (prefill y decode, denso y MoE) sale de los datos de la tarjeta o de su etiqueta; units conocidas', () => {
   let n = 0;
-  for (const cfg of ['llama3-8b', 'llama3-70b', 'llama2-7b', 'mixtral-8x7b']) {
+  for (const cfg of ['llama3-8b', 'llama3-70b', 'llama2-7b', 'mixtral-8x7b', 'llama3-8b-decode', 'mixtral-8x7b-decode']) {
     for (const ov of [{}, { decode: 1 }]) {
       const R = A.run(cfg, ov);
       const known = {};
@@ -383,9 +384,79 @@ test('fase 6: toda forma del modelo llm (prefill y decode, denso y MoE) sale de 
   // datos de la tarjeta (genéricos): G = cabezas KV (grupos de GQA) sale de la config
   const f = Object.fromEntries(P._factPairs(A.run('llama3-8b').config));
   assert.deepStrictEqual([f.D, f.L, f.h, f.G, f.D_mlp, f.T, f.V], [4096, 32, 32, 8, 14336, 2048, 128256]);
+  // un paso de decode: ctx (largo de la KV cache) en vez de T
+  const fd = Object.fromEntries(P._factPairs(A.run('llama3-8b-decode').config).map(([s, v]) => [s, v]));
+  assert.deepStrictEqual([fd.ctx, fd.T], [4096, undefined]);
   // el mapa units del calculador solo usa unidades que la práctica sabe formatear
   for (const cfg of ['llama3-8b', 'mixtral-8x7b']) {
     const m = A.metrics(cfg, {});
     for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
   }
+});
+
+test('fase 6 (revisión): ov en huecos y drills de formas, configs de decode, huecos sin descripciones repetidas, etiquetas LLM', () => {
+  // Huecos de forma en aristas con ov (carril de decode): la respuesta es la forma de run(config, ov), como la dibuja el motor.
+  let nOv = 0;
+  for (const d of Object.values(diagrams)) {
+    if (d.kind === 'map' || !d.config) continue;
+    for (const e of (d.edges || []).filter((x) => x.ov && x.tensor)) {
+      const k = P._blankKey({ diagram: d.id, slots: [{ edge: e.from + '>' + e.to, ask: 'shape' }] });
+      const want = A.run(d.config, e.ov).tensors[e.tensor].num.join('×');
+      assert.strictEqual(k.slots[0].correct.text, want, d.id + ' ' + e.from + '>' + e.to);
+      nOv++;
+    }
+  }
+  assert.ok(nOv >= 2, 'aristas con ov: ' + nOv);
+  // Drills de formas: las aristas con ov dan candidatos con ov y la forma de run(config, ov); sin preguntas repetidas.
+  const cands = P._drillCandidates([{ model: 'llm', configs: ['llama3-8b'], pool: 'all' }], ['shape']);
+  const ovc = cands.filter((c) => c.ov);
+  assert.ok(ovc.length >= 1);
+  ovc.forEach((c) => { assert.match(c.id, /~decode=1:/); assert.ok(A.run('llama3-8b', c.ov).tensors[c.tensor]); });
+  assert.strictEqual(new Set(cands.map((c) => c.id)).size, cands.length);
+  // Config de decode: pregunta la KV cache de todo el contexto (G×ctx×d_h) y no repite el carril {decode: 1}.
+  const dc = P._drillCandidates([{ model: 'llm', configs: ['llama3-8b-decode'], pool: 'all' }], ['shape']);
+  assert.ok(dc.some((c) => c.tensor === 'k-ctx'));
+  const sig = dc.map((c) => A.run(c.config, c.ov).label + '|' + c.tensor);
+  assert.strictEqual(new Set(sig).size, sig.length);
+  // Parámetros: el nodo de la FFN en Mixtral se nombra como MoE (no "FFN SwiGLU" con la respuesta de 8 expertos + router);
+  // los nodos que toman el costo de otro (costOf) no repiten la pregunta del bloque.
+  const mx = A.run('mixtral-8x7b');
+  for (const c of P._drillCandidates([{ model: 'llm', configs: ['mixtral-8x7b'], pool: 'all' }], ['params'])) {
+    const np = P._nodeParams(mx, 'llm', c.node);
+    if (np.node === 'ffn') assert.doesNotMatch(np.label, /SwiGLU/, np.label);
+  }
+  const l2 = A.run('llama2-7b');
+  const attn = P._drillCandidates([{ model: 'llm', configs: ['llama2-7b'], pool: 'all' }], ['params']).map((c) => P._nodeParams(l2, 'llm', c.node)).find((np) => np.node === 'attn');
+  if (attn) assert.doesNotMatch(attn.label, /GQA/, attn.label);
+  const p8 = P._drillCandidates([{ model: 'llm', configs: ['llama3-8b'], pool: 'all' }], ['params']).map((c) => c.node && c.node.node);
+  assert.ok(!p8.includes('prefill') && !p8.includes('decode'));
+  // Ninguna lista de huecos tiene dos descripciones iguales (todas las páginas).
+  const items = (ATLAS.catalog && ATLAS.catalog().items) || {};
+  const walk = (b, f) => { if (!b || typeof b !== 'object') return; if (Array.isArray(b)) { b.forEach((x) => walk(x, f)); return; } if (b.t) f(b); Object.keys(b).forEach((k) => { if (typeof b[k] === 'object') walk(b[k], f); }); };
+  let nb = 0;
+  for (const id of Object.keys(items)) {
+    const page = ATLAS.getPage ? ATLAS.getPage(id) : null;
+    if (!page) continue;
+    walk(page.sections, (b) => {
+      if (b.t !== 'blankdiagram') return;
+      const k = P._blankKey(b);
+      const ds = k.slots.map((s) => s.desc);
+      assert.strictEqual(new Set(ds).size, ds.length, b.diagram + ': ' + ds.join(' | '));
+      nb++;
+    });
+  }
+  assert.ok(nb >= 10, 'diagramas en blanco: ' + nb);
+  // Knobs de bits del LLM: pesos y KV por separado.
+  assert.strictEqual(P._knobLabel('bits', 'llm'), 'Bits de los pesos');
+  assert.strictEqual(P._knobLabel('kvBits', 'llm'), 'Bits de la KV cache');
+  assert.match(P._changeText({ kvBits: 8 }, 'llm'), /KV cache a 8 bits/);
+  for (const k of ['quantizedLinearBytes', 'unquantizedBytes', 'kvPlusWeightsBytes', 'hbmHeadroomBytes']) {
+    assert.notStrictEqual(P._metricLabel(k, 'llm'), k);
+    assert.strictEqual(P._metricKind(k), 'bytes');
+  }
+  assert.match(P._fMetric('kvPlusWeightsBytes', A.metrics('llama3-8b', { bits: 4 }).kvPlusWeightsBytes), /^6\.13 GB$/);
+  // expertos leídos por capa: un conteo esperado, no un factor (sin «×»)
+  assert.strictEqual(P._metricKind('decodeExpertsReadPerLayer'), 'avg');
+  assert.match(P._fMetric('decodeExpertsReadPerLayer', A.metrics('mixtral-8x7b', { B: 8 }).decodeExpertsReadPerLayer), /^≈ 7\.2( de 8)?$/);
+  assert.match(P._fMetric('decodeExpertsReadPerLayer', 2), /^2( de 8)?$/);
 });

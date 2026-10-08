@@ -1,5 +1,6 @@
 """Cross-check del modelo `llm` (SPEC §18): HF LlamaForCausalLM / MixtralForCausalLM construidos en código en el
-dispositivo META (sin pesos en memoria, sin hub). Escribe crosscheck/expected/{llama3-8b,llama3-70b,llama2-7b,mixtral-8x7b}.json.
+dispositivo META (sin pesos en memoria, sin hub). Escribe crosscheck/expected/{llama3-8b,llama3-70b,llama2-7b,mixtral-8x7b}.json
+y las configs de decode {llama3-8b-decode,mixtral-8x7b-decode}.json (el mismo modelo, un paso de decode con ctx = 4096).
 
 - Parámetros: sum(p.numel()) del modelo meta (exacto).
 - FLOPs: FlopCounterMode sobre tensores meta con TODAS las capas (no se extrapola desde un modelo chico). Los tensores meta
@@ -37,6 +38,9 @@ CONFIGS = {
                          E=8, k=2, hf="mistralai/Mixtral-8x7B-v0.1"),
 }
 T_DEFAULT, CTX_DEFAULT, T_SMALL = 2048, 4096, 64
+# Configs de decode del calculador (js/arch/llm.js): mismo modelo con decode = 1 y ctx = 4096 por defecto.
+DECODE_CONFIGS = {"llama3-8b-decode": "llama3-8b", "mixtral-8x7b-decode": "mixtral-8x7b"}
+CTX_LONG = 8192
 
 NOT_HOOKED = {
     "ids": "entrada (input_ids)",
@@ -239,10 +243,7 @@ def moe_impl_check():
             "eager_equals_batched_mm": res["eager"] == res["batched_mm"], "grouped_mm_undercounts": res["grouped_mm"] < res["eager"]}
 
 
-def run(config_id):
-    c = CONFIGS[config_id]
-    model = build(c)
-    cls = type(model).__name__
+def params_by_node(model, c):
     L = c["L"]
     layers = model.model.layers
 
@@ -266,18 +267,40 @@ def run(config_id):
     else:
         pb.update({"gate-proj": lsum(lambda l: n_params(l.mlp.gate_proj)), "up-proj": lsum(lambda l: n_params(l.mlp.up_proj)),
                    "down-proj": lsum(lambda l: n_params(l.mlp.down_proj))})
-    params_total = n_params(model)
+    return pb
 
-    # ---- prefill de T tokens
-    T = T_DEFAULT
-    flops, by_op, by_mod, shapes, kv_elems = forward(model, c, T)
+
+def op_groups(c):
+    return [{"ops": ["aten.mm"], "prims": ["linear", "lm_head"] + (["moe_router"] if c["kind"] == "mixtral" else [])},
+            {"ops": ["aten.bmm"], "prims": ["attention_scores", "attention_weighted_sum"] + (["expert_linear"] if c["kind"] == "mixtral" else [])}]
+
+
+def node_flops(by_mod, cls, c):
     fbn = {"attn": module_flops(by_mod, cls, c, "self_attn"), "ffn": module_flops(by_mod, cls, c, "mlp"),
            "lm-head": by_mod.get(f"{cls}.lm_head", 0)}
     if c["kind"] == "mixtral":
         fbn["router"] = module_flops(by_mod, cls, c, "mlp.gate")
         fbn["experts"] = module_flops(by_mod, cls, c, "mlp.experts")
-    groups = [{"ops": ["aten.mm"], "prims": ["linear", "lm_head"] + (["moe_router"] if c["kind"] == "mixtral" else [])},
-              {"ops": ["aten.bmm"], "prims": ["attention_scores", "attention_weighted_sum"] + (["expert_linear"] if c["kind"] == "mixtral" else [])}]
+    return fbn
+
+
+def active_params(c, pb, params_total):
+    return params_total - (pb.get("experts", 0) * (c["E"] - c["k"]) // c["E"] if c["kind"] == "mixtral" else 0)
+
+
+def run(config_id):
+    c = CONFIGS[config_id]
+    model = build(c)
+    cls = type(model).__name__
+    L = c["L"]
+    pb = params_by_node(model, c)
+    params_total = n_params(model)
+
+    # ---- prefill de T tokens
+    T = T_DEFAULT
+    flops, by_op, by_mod, shapes, kv_elems = forward(model, c, T)
+    fbn = node_flops(by_mod, cls, c)
+    groups = op_groups(c)
     assert set(by_op) <= {"aten.mm", "aten.bmm"}, by_op
     # sdpa (math en meta; la fórmula de FlopCounterMode para sdpa tampoco tiene término causal): mismo total que eager
     model.config._attn_implementation = "sdpa"
@@ -305,8 +328,7 @@ def run(config_id):
                                     "shapes": {k: sg[k] for k in ("k", "v", "k-rope", "v-heads", "attn")}})
             del mg
 
-    experts_params = pb.get("experts", 0)
-    active = params_total - (experts_params * (c["E"] - c["k"]) // c["E"] if c["kind"] == "mixtral" else 0)
+    active = active_params(c, pb, params_total)
     kv_bytes_per_token = kv_elems * 2 // T          # bf16: 2 bytes por elemento; todas las capas
     shapes["ids"] = [T]
 
@@ -319,7 +341,7 @@ def run(config_id):
         "Sin sesgos (attention_bias = mlp_bias = False); RMSNorm solo con γ; embedding y LM head sin atar (tie_word_embeddings = False).",
     ]
     if config_id.startswith("llama3"):
-        notes.append("Vocabulario: el paper (Tabla 3) dice 128K (128,000 tokens del tokenizer); el config de HF tiene 128,256 (256 especiales reservados): el calculador usa 128,256.")
+        notes.append("Vocabulario: el paper dice 128K tokens (§3.2) y 128,000 en la Tabla 3 (los tokens BPE); el config de HF tiene 128,256 = 128,000 + 256 especiales reservados: el calculador usa 128,256.")
         notes.append("Contexto 8,192 (Llama 3). Llama 3.1 usa los mismos tamaños y llega a 128K con rope_type 'llama3' (factor 8): no cambia ni parámetros ni FLOPs a igual T.")
     if config_id == "llama2-7b":
         notes.append("Llama 2 7B usa MHA (num_key_value_heads = 32): el paper aplica GQA solo a 34B y 70B (Tabla 1).")
@@ -354,7 +376,55 @@ def run(config_id):
     write_expected(config_id, data)
 
 
+def run_decode(config_id):
+    """Config de decode: un paso (1 token nuevo, ctx − 1 filas en la DynamicCache) del modelo de prefill `of`."""
+    of = DECODE_CONFIGS[config_id]
+    c = CONFIGS[of]
+    model = build(c)
+    cls = type(model).__name__
+    pb = params_by_node(model, c)
+    params_total = n_params(model)
+    ctx = CTX_DEFAULT
+    flops, by_op, by_mod, shapes, kv_elems = forward(model, c, 1, past=ctx - 1)
+    assert set(by_op) <= {"aten.mm", "aten.bmm"}, by_op
+    flops_long, _, _, shapes_long, _ = forward(model, c, 1, past=CTX_LONG - 1)
+    pick = ["x0", "q", "k", "q-rope", "k-rope", "k-ctx", "v-ctx", "attn", "z", "logits"]
+    active = active_params(c, pb, params_total)
+    notes = [
+        f"Config de decode del calculador = {of} con decode = 1: un paso de decode (1 token nuevo en la posición ctx − 1) con una DynamicCache de ctx − 1 = {ctx - 1} filas meta por capa; la atención ve ctx = {ctx} filas.",
+        "Mismo modelo construido en código en el dispositivo meta (sin pesos ni hub): parámetros exactos con sum(p.numel()); FLOPs con FlopCounterMode y todas las capas.",
+        "Decode sin máscara causal (1 query ve todo el contexto): se pasa una máscara 4-D de ceros 1×1×1×ctx, que no cambia ningún FLOP.",
+        f"kvBytesPerToken = elementos de K y V de la caché después del paso (ctx filas, todas las capas) × 2 bytes (bf16) ÷ ctx; override_checks: el mismo paso con ctx = {CTX_LONG}.",
+    ]
+    data = {
+        "config_id": config_id,
+        "model": "llm",
+        "decode_of": of,
+        "ctx": ctx,
+        "params_total": params_total,
+        "params_by_node": pb,
+        "shapes": {k: shapes[k] for k in pick if k in shapes},
+        "flops_total": flops,
+        "flops_by_node": node_flops(by_mod, cls, c),
+        "flops_by_op_torch": by_op,
+        "flops_by_op_groups": op_groups(c),
+        "override_checks": [{"calc_overrides": {"ctx": CTX_LONG}, "flops_total": flops_long,
+                             "shapes": {k: shapes_long[k] for k in ("k-ctx", "v-ctx", "attn", "logits") if k in shapes_long}}],
+        "metrics_checks": {"kvBytesPerToken": kv_elems * 2 // ctx, "activeParams": active, "totalParams": params_total},
+        "not_hooked": NOT_HOOKED,
+        "hf_config_source": c["hf"],
+        "source": {"lib": "transformers", "version": transformers.__version__, "ctor": ctor_text(c),
+                   "attn_implementation": "eager", "experts_implementation": "batched_mm" if c["kind"] == "mixtral" else None,
+                   "versions": versions()},
+        "notes": notes,
+    }
+    write_expected(config_id, data)
+
+
 if __name__ == "__main__":
     for cid in CONFIGS:
         print(f"▸ {cid}", flush=True)
         run(cid)
+    for cid in DECODE_CONFIGS:
+        print(f"▸ {cid}", flush=True)
+        run_decode(cid)

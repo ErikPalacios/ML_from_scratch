@@ -159,6 +159,19 @@ function run(configId) {
   runCache.set(configId, r);
   return r;
 }
+// Fase 6: edge.ov / node.ov / tensors[].ov = knobs del calculador solo para esa arista, nodo o glifo (p. ej. {decode: 1}:
+// el carril de decode dentro de un diagrama de prefill). Igual que js/ui/archdiagram.js ovRun: la misma config con
+// esos overrides. Devuelve null si el calculador rechaza el ov (el validador lo reporta).
+function runOv(configId, ov) {
+  if (!ov) return run(configId);
+  if (!Arch || !configId) return null;
+  const key = configId + '|' + JSON.stringify(ov);
+  if (runCache.has(key)) return runCache.get(key);
+  let r = null;
+  try { r = Arch.run(configId, ov); } catch (e) { r = null; }
+  runCache.set(key, r);
+  return r;
+}
 const allConfigs = (() => { try { return Arch && Arch.configs ? Arch.configs() : []; } catch (e) { err('ATLAS.Arch.configs', String(e && e.message || e)); return []; } })();
 const configIds = new Set(allConfigs.map((c) => c.id));
 const modelIds = new Set((() => { try { return Arch && Arch.models ? Arch.models() : []; } catch (e) { return []; } })());
@@ -192,12 +205,24 @@ function quantityRaw(key) {
 }
 // Mismo patrón que ATLAS.Quantities (las claves no llevan barras ni llaves: el LaTeX {{…}} no choca).
 const QTY = /\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}/g;
+// Config por defecto de las cantidades sin prefijo ({{metrics.x}}, {{cfg.T}}): la del diagrama que se está revisando
+// (archdiagram.js resuelve el texto de un diagrama con Quantities.fill(html, {config})). En las páginas no hay: las
+// cantidades llevan su config ({{llama3-8b.metrics.x}}).
+let qDefaultConfig = null;
 function checkQuantities(where, s) {
   if (typeof s !== 'string' || s.indexOf('{{') < 0) return;
   for (const m of s.matchAll(QTY)) {
     const key = m[1];
     const cfg = key.split('.')[0];
-    if (Arch && !configIds.has(cfg)) { err(where, 'cantidad {{' + key + '}}: la config "' + cfg + '" no existe en el calculador'); continue; }
+    if (Arch && !configIds.has(cfg)) {
+      if (qDefaultConfig && Q && typeof Q.has === 'function') {
+        let ok = false;
+        try { ok = !!Q.has(key, { config: qDefaultConfig }); } catch (e) { ok = false; }
+        if (!ok) err(where, 'cantidad desconocida {{' + key + '}} (con la config del diagrama, ' + qDefaultConfig + ')');
+        continue;
+      }
+      err(where, 'cantidad {{' + key + '}}: la config "' + cfg + '" no existe en el calculador'); continue;
+    }
     if (!quantityOk(key)) err(where, 'cantidad desconocida {{' + key + '}}');
   }
   const rest = s.replace(QTY, '');
@@ -443,6 +468,21 @@ function checkDiagram(d) {
   const boxes = new Map();
   const tensorOk = (id) => !R || !!(R.tensors && R.tensors[id]);
   const opOk = (id) => !R || (R.ops || []).some((o) => o.id === id);
+  // ov (fase 6): la arista, el nodo o el glifo se evalúa con run(config, ov), como lo dibuja el motor.
+  const ovR = (x, w) => {
+    if (!x || !x.ov || !R) return R;
+    if (typeof x.ov !== 'object' || Array.isArray(x.ov)) { err(w, 'ov debe ser un objeto de knobs del calculador ({decode: 1})'); return R; }
+    const r2 = runOv(d.config, x.ov);
+    if (!r2) err(w, 'ov ' + JSON.stringify(x.ov) + ': el calculador no acepta esos knobs para ' + d.config);
+    return r2 || R;
+  };
+  const inRun = (r, id, kind) => !r || !!(kind === 'op' ? (r.ops || []).some((o) => o.id === id) : r.tensors && r.tensors[id]);
+  const ovTag = (x) => (x && x.ov ? ', ov ' + JSON.stringify(x.ov) : '');
+  // Corridas que usa el diagrama (la base y las de cada ov): un paso del recorrido o un hueco puede nombrar un tensor
+  // que solo existe en el carril con ov (k-past, k-ctx…).
+  const ovRuns = [];
+  if (R) [].concat(d.edges || [], d.nodes || [], d.tensors || []).forEach((x) => { if (x && x.ov && typeof x.ov === 'object') { const r2 = runOv(d.config, x.ov); if (r2 && !ovRuns.includes(r2)) ovRuns.push(r2); } });
+  const tensorOkAny = (id) => tensorOk(id) || ovRuns.some((r2) => !!(r2.tensors && r2.tensors[id]));
   (d.groups || []).forEach((gr, i) => {
     const w = where + '.groups[' + (gr.id || i) + ']';
     if (!gr.id) { err(w, 'sin id'); return; }
@@ -474,7 +514,8 @@ function checkDiagram(d) {
     else if (!inside(n)) err(w, 'se sale de la grilla ' + g.w + '×' + g.h + ' (x=' + n.x + ', y=' + n.y + ', w=' + n.w + ', h=' + n.h + ')');
     if (n.shape && !['add', 'concat', 'split', 'pool', 'flatten', 'mul', 'rect', 'pill'].includes(n.shape)) err(w, 'shape desconocida: ' + n.shape);
     if (n.expand && !diagrams[n.expand]) err(w, 'expand a un diagrama no registrado: ' + n.expand);
-    (n.ops || []).forEach((o) => { if (!opOk(o)) err(w, 'op del calculador desconocida: ' + o + ' (' + d.config + ')'); });
+    const nR = isMap ? null : ovR(n, w);
+    (n.ops || []).forEach((o) => { if (!inRun(nR, o, 'op')) err(w, 'op del calculador desconocida: ' + o + ' (' + d.config + ovTag(n) + ')'); });
     if (n.tex) checkTex(w + '.tex', n.tex);
     if (!isMap && !n.note) warn(w, 'sin note (qué hace y por qué)');
     checkHtml(w + '.note', n.note, true);
@@ -504,7 +545,7 @@ function checkDiagram(d) {
       if (!EDGE[e.kind]) err(w, 'kind desconocido: ' + e.kind + ' (usa ' + Object.keys(EDGE).join(', ') + ')');
       else if (EDGE[e.kind].shaped && !e.tensor) err(w, 'arista "' + e.kind + '" sin tensor: su forma debe salir del calculador');
     }
-    if (e.tensor && !tensorOk(e.tensor)) err(w, 'tensor desconocido: ' + e.tensor + ' (' + d.config + ')');
+    if (e.tensor && !inRun(isMap ? null : ovR(e, w), e.tensor)) err(w, 'tensor desconocido: ' + e.tensor + ' (' + d.config + ovTag(e) + ')');
     ['fromSide', 'toSide'].forEach((k) => { if (e[k] && !SIDES.includes(e[k])) err(w, k + ' inválido: ' + e[k]); });
     (e.via || []).forEach((p) => {
       if (!Array.isArray(p) || p.length !== 2 || !p.every(Number.isFinite)) err(w, 'via inválido: ' + JSON.stringify(p));
@@ -545,7 +586,7 @@ function checkDiagram(d) {
   (d.tensors || []).forEach((t, i) => {
     const w = where + '.tensors[' + (t.id || i) + ']';
     if (!t.id) { err(w, 'sin id'); return; }
-    if (!tensorOk(t.id)) err(w, 'tensor desconocido: ' + t.id + ' (' + d.config + ')');
+    if (!inRun(ovR(t, w), t.id)) err(w, 'tensor desconocido: ' + t.id + ' (' + d.config + ovTag(t) + ')');
     if (t.at && t.at.edge && !edgeIds.has(t.at.edge)) err(w, 'at.edge a una arista inexistente: ' + t.at.edge);
     if (t.at && Number.isFinite(t.at.x) && (t.at.x < 0 || t.at.y < 0 || t.at.x > g.w || t.at.y > g.h)) err(w, 'at fuera de la grilla');
     if (t.show && !['glyph', 'label', 'both'].includes(t.show)) err(w, 'show inválido: ' + t.show);
@@ -563,14 +604,17 @@ function checkDiagram(d) {
       const subR = sub && sub.config ? run(sub.config) : null;
       (st.nodes || []).forEach((n) => { if (!boxes.has(n) && !subNodes.has(n)) err(ws, 'nodo inexistente: ' + n); });
       (st.edges || []).forEach((e) => { if (!edgeIds.has(e) && !subEdges.has(e)) err(ws, 'arista inexistente: ' + e); });
-      (st.tensors || []).forEach((t) => { if (!tensorOk(t) && !(subR && subR.tensors && subR.tensors[t])) err(ws, 'tensor desconocido: ' + t); });
+      (st.tensors || []).forEach((t) => { if (!tensorOkAny(t) && !(subR && subR.tensors && subR.tensors[t])) err(ws, 'tensor desconocido: ' + t); });
       if (!st.text) err(ws, 'sin text');
       checkHtml(ws, st.text, true);
     });
   });
   if (d.legend && d.legend !== 'auto' && !Array.isArray(d.legend)) err(where, 'legend debe ser "auto" o una lista');
 }
-for (const d of Object.values(diagrams)) checkDiagram(d);
+for (const d of Object.values(diagrams)) {
+  qDefaultConfig = d.kind !== 'map' && d.config && configIds.has(d.config) ? d.config : null;
+  try { checkDiagram(d); } finally { qDefaultConfig = null; }
+}
 
 // ------------------------------------------------------------------ bloques
 // pctx = {pageId, model, config}: la config por defecto de los bloques generados.
@@ -718,7 +762,18 @@ function checkBlock(where, b, page, ids, pctx) {
         if (!id) err(where, 'slot ' + i + ' necesita node o edge');
         else if (!nodeIds.has(id) && !edgeIds.has(id)) err(where, 'slot ' + i + ': ' + id + ' no existe en ' + b.diagram);
         // {node, ask:'shape'} lo pregunta practice.js en la arista que sale del nodo (o en s.tensor).
-        if (s && s.tensor) { const Rd = d && d.config ? run(d.config) : null; if (Rd && !(Rd.tensors && Rd.tensors[s.tensor])) err(where, 'slot ' + i + ': tensor desconocido ' + s.tensor); }
+        // ov (fase 6): el tensor del hueco puede vivir solo en una arista o un nodo con ov (el carril de decode).
+        if (s && s.tensor) {
+          const Rd = d && d.config ? run(d.config) : null;
+          const ovs = [].concat((d && d.edges) || [], (d && d.nodes) || []).filter((x) => x && x.ov && typeof x.ov === 'object').map((x) => runOv(d.config, x.ov)).filter(Boolean);
+          if (Rd && !(Rd.tensors && Rd.tensors[s.tensor]) && !ovs.some((r2) => r2.tensors && r2.tensors[s.tensor])) err(where, 'slot ' + i + ': tensor desconocido ' + s.tensor);
+        }
+        // Un hueco de forma en una arista con ov: la forma tiene que existir en run(config, ov).
+        if (s && s.edge && s.ask === 'shape' && d && d.config) {
+          const e = (d.edges || []).find((x) => x.from + '>' + x.to === s.edge);
+          if (e && e.ov && e.tensor) { const r2 = runOv(d.config, e.ov); if (r2 && !(r2.tensors && r2.tensors[s.tensor || e.tensor])) err(where, 'slot ' + i + ': la arista ' + s.edge + ' (ov ' + JSON.stringify(e.ov) + ') no tiene el tensor ' + (s.tensor || e.tensor)); }
+        }
+        if (s && s.desc != null && (typeof s.desc !== 'string' || !s.desc.trim())) err(where, 'slot ' + i + ': desc debe ser texto');
       });
       break;
     }

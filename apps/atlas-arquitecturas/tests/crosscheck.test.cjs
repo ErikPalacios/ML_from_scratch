@@ -211,4 +211,15 @@ test('LLM: HF LlamaForCausalLM / MixtralForCausalLM en el dispositivo meta; pref
   assert.ok(mx.exp.notes.some((n) => /gate_up_proj/.test(n)));
   const l2 = await find('llama2-7b');
   assert.ok(l2.exp.notes.some((n) => /MHA/.test(n)));
+  // configs de decode (revisión de la fase 6): un paso de decode de HF con DynamicCache = el grafo decode del calculador
+  for (const [id, of, decFlops] of [['llama3-8b-decode', 'llama3-8b', 17156800512], ['mixtral-8x7b-decode', 'mixtral-8x7b', 27644657664]]) {
+    const r = await find(id);
+    assert.deepStrictEqual([r.exp.decode_of, r.exp.ctx, r.exp.flops_total], [of, 4096, decFlops], id);
+    assert.ok(r.checks.every((c) => c.ok), id + ': ' + r.checks.filter((c) => !c.ok).map((c) => c.what).join(', '));
+    for (const k of ['flops_total', 'shape[k-ctx]', 'shape[attn]', 'shape[logits]', 'flops[attn]', 'flops[aten.bmm]', '[ctx=8192] flops_total', '[ctx=8192] shape[k-ctx]', 'metrics[kvBytesPerToken]']) {
+      assert.ok(r.checks.some((c) => c.what === k && c.ok), id + ' ' + k);
+    }
+    assert.deepStrictEqual(r.exp.shapes['k-ctx'], [8, 4096, 128], id);
+    assert.strictEqual(r.exp.metrics_checks.kvBytesPerToken, 131072, id);
+  }
 });

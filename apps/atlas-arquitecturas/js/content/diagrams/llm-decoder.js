@@ -17,7 +17,9 @@
   const ATLAS = (root.ATLAS = root.ATLAS || {});
   const C = 'llama3-8b';
   const q = (k) => '{{' + C + '.' + k + '}}';
-  const PAGE = { page: 'llm-decoder', section: 'diagrama' };
+  // configs densas: con Mixtral la FFN es MoE (diagrama moe-block), así que estas vistas no aplican (el motor avisa)
+  const PAGE = { page: 'llm-decoder', section: 'diagrama', configs: ['llama3-8b', 'llama3-70b', 'llama2-7b'],
+    configsNote: 'su FFN es MoE: ver el diagrama moe-block' };
 
   // ------------------------------------------------------------------ (a) vista general
   ATLAS.registerDiagram(Object.assign({
@@ -48,7 +50,7 @@
     ],
     tensors: [
       { id: 'ids', at: { edge: 'tokens>embed' }, show: 'both' },
-      { id: 'x0', at: { edge: 'embed>block' }, show: 'both', mark: 'first' },
+      { id: 'x0', at: { edge: 'embed>block' }, show: 'both' },
       { id: 'logits', at: { edge: 'lm-head>logits' }, show: 'both' },
     ],
     edges: [
@@ -107,13 +109,13 @@
       { id: 'in', op: 'io', label: 'Entrada x_{ℓ−1}', x: 22, y: 1, w: 18, h: 4, note: 'La salida del bloque anterior (en el primero, el embedding de los tokens).' },
       { id: 'norm1', op: 'norm', label: 'RMSNorm 1', x: 19, y: 14, w: 24, h: 4,
         tex: '\\mathrm{RMSNorm}(x) = \\gamma \\odot \\frac{x}{\\sqrt{\\tfrac{1}{D}\\sum_i x_i^2 + \\epsilon}}', note: 'Como LayerNorm pero sin restar la media y sin β: divide cada token por su raíz cuadrática media y escala con γ (D parámetros). Más barata y, en la práctica, igual de estable.' },
-      { id: 'attn', op: 'attn', label: 'Atención GQA', sub: 'RoPE · causal · G grupos K,V', heads: 'h', costOf: 'attn', x: 15, y: 24, w: 32, h: 7, expand: 'llm-gqa',
+      { id: 'attn', op: 'attn', label: 'Atención causal', sub: 'RoPE · h queries, G grupos K,V', heads: 'h', costOf: 'attn', x: 15, y: 24, w: 32, h: 7, expand: 'llm-gqa',
         tex: '\\mathrm{Attn}(X) = \\mathrm{concat}_i\\big(\\mathrm{softmax}(\\tfrac{q_i k_{g(i)}^\\top}{\\sqrt{d_h}} + M)\\, v_{g(i)}\\big)\\, W_O', note: 'Atención causal con h cabezas de query pero solo G cabezas de K y V (cada grupo de h/G queries comparte una): menos parámetros en W_K, W_V y, sobre todo, un KV cache h/G veces más chico. La posición entra con RoPE. Ábrela para ver cada paso.' },
       { id: 'res1', op: 'tensorop', shape: 'add', label: 'Residual 1', labelPos: 'right', x: 29, y: 36, w: 4, h: 4,
         tex: 'r = x + \\mathrm{Attn}(\\mathrm{RMSNorm}(x))', note: 'Suma la entrada del bloque a la salida de la atención.' },
       { id: 'norm2', op: 'norm', label: 'RMSNorm 2', x: 19, y: 46, w: 24, h: 4, tex: '\\mathrm{RMSNorm}(r)', note: 'Segunda RMSNorm, antes de la FFN (otros D parámetros).' },
       { id: 'ffn', op: 'mlp', label: 'FFN SwiGLU', sub: 'D → D_mlp → D · 3 matrices', costOf: 'ffn', x: 17, y: 55, w: 28, h: 6, expand: 'llm-swiglu',
-        tex: '\\mathrm{FFN}(x) = W_{\\text{down}}\\big(\\mathrm{SiLU}(x W_{\\text{gate}}) \\odot x W_{\\text{up}}\\big)', note: 'Una FFN con compuerta (Shazeer 2020): tres matrices en vez de dos. Para mantener el costo de una FFN de 4D, el ancho oculto se baja a ≈ 8D/3 (y se redondea): 14,336 en Llama 3 8B. Es donde están dos tercios de los parámetros.' },
+        tex: '\\mathrm{FFN}(x) = W_{\\text{down}}\\big(\\mathrm{SiLU}(x W_{\\text{gate}}) \\odot x W_{\\text{up}}\\big)', note: 'Una FFN con compuerta (Shazeer 2020): tres matrices en vez de dos. Con un ancho oculto de 8D/3 costaría lo mismo que una FFN de 4D, pero Llama 3 lo multiplica por 1.3 (ffn_dim_multiplier) y lo redondea a un múltiplo de 1024: ' + q('cfg.Dmlp') + ' = 3.5·D en Llama 3 8B, ≈ 31 % más parámetros que una FFN de 4D (10.5·D² por capa, no 8·D²). Ahí está el ' + q('metrics.ffnParamsShare') + ' de los parámetros del modelo.' },
       { id: 'res2', op: 'tensorop', shape: 'add', label: 'Residual 2', labelPos: 'right', x: 29, y: 66, w: 4, h: 4,
         tex: 'y = r + \\mathrm{FFN}(\\mathrm{RMSNorm}(r))', note: 'Segunda residual: cierra el bloque.' },
       { id: 'out', op: 'io', label: 'Salida x_ℓ', x: 22, y: 81, w: 18, h: 4, note: 'Misma forma que la entrada. Va al bloque siguiente; tras el último, a la RMSNorm final.' },
@@ -155,7 +157,7 @@
       { id: 'split', op: 'tensorop', shape: 'rect', label: 'Dividir en cabezas', sub: 'Q: h cabezas · K, V: G cabezas', kvGroups: { q: 'h', kv: 'G' }, x: 6, y: 22, w: 84, h: 12,
         tex: 'Q \\to h\\times T\\times d_h,\\quad K, V \\to G\\times T\\times d_h', note: 'Un reshape (sin parámetros): Q en h cabezas de d_h y K, V en G cabezas. Las cartas de cada grupo son las queries que comparten UNA cabeza K,V: en la atención, la cabeza de query i usa la K y la V del grupo g(i) = ⌊i·G/h⌋ (HF lo hace con repeat_kv, repitiendo cada K,V h/G veces). Con G = h es MHA (grupos de 1); con G = 1, MQA.' },
       { id: 'rope', op: 'tensorop', shape: 'pill', symbol: 'roll', label: 'RoPE: rota q y k (v no)', x: 6, y: 38, w: 56, h: 5,
-        tex: '\\begin{pmatrix} x_{2i}\\\\ x_{2i+1}\\end{pmatrix} \\leftarrow R(m\\,\\theta_i) \\begin{pmatrix} x_{2i}\\\\ x_{2i+1}\\end{pmatrix},\\; \\theta_i = b^{-2i/d_h}', note: 'Rotary position embedding: cada par de componentes de q y de k (en cada cabeza) se rota un ángulo m·θ<sub>i</sub>, con m la posición del token. Sin parámetros. Como q·k de dos vectores rotados depende solo de la diferencia de ángulos, la atención ve la distancia relativa m − n. La k rotada es la que se guarda en el KV cache.' },
+        tex: '\\begin{pmatrix} x_{2i}\\\\ x_{2i+1}\\end{pmatrix} \\leftarrow R(m\\,\\theta_i) \\begin{pmatrix} x_{2i}\\\\ x_{2i+1}\\end{pmatrix},\\; \\theta_i = \\theta^{-2i/d_h}', note: 'Rotary position embedding: cada par de componentes de q y de k (en cada cabeza) se rota un ángulo m·θ<sub>i</sub>, con m la posición del token. Sin parámetros. Como q·k de dos vectores rotados depende solo de la diferencia de ángulos, la atención ve la distancia relativa m − n. La k rotada es la que se guarda en el KV cache.' },
       { id: 'scores', op: 'attn', label: 'Q · Kᵀ', sub: 'cada query contra la K de su grupo', x: 10, y: 55, w: 52, h: 6,
         tex: 'S_i = q_i\\, k_{g(i)}^\\top \\in \\mathbb{R}^{T\\times T}', note: 'Por cabeza de query, el producto punto con cada key de su grupo: h matrices T×T. El costo es el de MHA (h·T²·d_h): GQA no ahorra cómputo aquí, ahorra memoria (K y V más chicas).' },
       { id: 'scale', op: 'attn', label: '÷ √d_h', shape: 'pill', x: 24, y: 69.5, w: 24, h: 4.5,
@@ -184,14 +186,14 @@
       { from: 'v-proj', to: 'split', kind: 'data', tensor: 'v', toAt: 0.8929, labelT: 0.5 },
       { from: 'split', to: 'rope', kind: 'data', tensor: 'q-heads', fromAt: 0.1786, toAt: 0.2679, labelSide: 'left', tag: 'Q', tagStyle: 'plain', tagSide: 'on', tagT: 0.5, label: false },
       { from: 'split', to: 'rope', kind: 'data', tensor: 'k-heads', fromAt: 0.5595, toAt: 0.8393, tag: 'K', tagStyle: 'plain', tagSide: 'on', tagT: 0.5, label: false },
-      { from: 'rope', to: 'scores', kind: 'data', tensor: 'q-rope', fromAt: 0.2679, toAt: 0.2115, labelSide: 'left', labelT: 0.8, tag: 'Q', tagStyle: 'plain', tagSide: 'on', tagT: 0.15 },
-      { from: 'rope', to: 'scores', kind: 'data', tensor: 'k-rope', fromAt: 0.8393, toAt: 0.8269, labelT: 0.8, tag: 'K', tagStyle: 'plain', tagSide: 'on', tagT: 0.15 },
+      { from: 'rope', to: 'scores', kind: 'data', tensor: 'q-rope', fromAt: 0.2679, toAt: 0.2115, labelSide: 'left', labelT: 0.85, tag: 'Q', tagStyle: 'plain', tagSide: 'on', tagT: 0.15 },
+      { from: 'rope', to: 'scores', kind: 'data', tensor: 'k-rope', fromAt: 0.8393, toAt: 0.8269, labelT: 0.85, tag: 'K', tagStyle: 'plain', tagSide: 'on', tagT: 0.15 },
       { from: 'split', to: 'weighted-sum', kind: 'data', tensor: 'v-heads', fromAt: 0.8929, toSide: 'right', via: [[81, 94]], labelT: 0.45, tag: 'V', tagStyle: 'plain', tagSide: 'on', tagT: 0.12 },
       { from: 'scores', to: 'scale', kind: 'data', tensor: 'scores' },
       { from: 'scale', to: 'softmax', kind: 'data', tensor: 'scores-scaled', label: false },
       { from: 'mask', to: 'softmax', kind: 'control', fromSide: 'left', toSide: 'right' },
       { from: 'softmax', to: 'weighted-sum', kind: 'data', tensor: 'attn', labelT: 0.45 },
-      { from: 'weighted-sum', to: 'merge', kind: 'data', tensor: 'z-heads', labelT: 0.5 },
+      { from: 'weighted-sum', to: 'merge', kind: 'data', tensor: 'z-heads', labelT: 0.78 },
       { from: 'merge', to: 'o-proj', kind: 'data', tensor: 'z' },
       { from: 'o-proj', to: 'out', kind: 'data', tensor: 'o' },
     ],
@@ -225,7 +227,7 @@
     edges: [
       { from: 'in', to: 'gate-proj', kind: 'data', tensor: 'h-norm2', fromSide: 'bottom', toSide: 'top', fromAt: 0.25, midY: 8.5, label: false },
       { from: 'in', to: 'up-proj', kind: 'data', tensor: 'h-norm2', fromSide: 'bottom', toSide: 'top', fromAt: 0.75, midY: 8.5, labelSeg: -1, labelSide: 'right', labelT: 0.4 },
-      { from: 'gate-proj', to: 'silu', kind: 'data', tensor: 'gate', fromAt: 0.4615, toAt: 0.5 },
+      { from: 'gate-proj', to: 'silu', kind: 'data', tensor: 'gate', fromAt: 0.5, toAt: 0.5 },
       { from: 'silu', to: 'mul', kind: 'data', tensor: 'act', fromSide: 'bottom', toSide: 'left', labelSide: 'left', labelSeg: 0, labelT: 0.5 },
       { from: 'up-proj', to: 'mul', kind: 'data', tensor: 'up', fromSide: 'bottom', toSide: 'right', labelSeg: 0, labelT: 0.45 },
       { from: 'mul', to: 'down-proj', kind: 'data', tensor: 'prod' },
