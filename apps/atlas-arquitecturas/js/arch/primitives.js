@@ -2667,7 +2667,7 @@
   // sin MACs. → una distancia aproximada por vector recorrido. o = {scanned, sym}
   function pq_scan(lut, codes, o) {
     const m = lut.num[1];
-    return result('pq_scan', [lut, codes], shape([o.sym || 'n_probe·N/n_list'], [o.scanned], lut.mod, 'vec'), {
+    return result('pq_scan', [lut, codes], shape([o.sym || 'n_scan'], [o.scanned], lut.mod, 'vec'), {
       other: o.scanned * m * 2, detail: { scanned: o.scanned, lookupsPerCode: m, distances: o.scanned, note: 'ADC: m consultas a la tabla por código; 0 MACs' },
     });
   }

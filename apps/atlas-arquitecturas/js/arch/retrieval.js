@@ -481,6 +481,8 @@
       const src = { tensors: cd.data.tensors, ops: cd.data.ops.map((op) => Object.assign({}, op, { repeat: op.repeat * c.k, paramRepeat: A.paramRep(op) })) };
       const hs = A.importGraph(g, src, {
         inputs: { ids: pair.id }, tensorId: (id) => 'r-' + id, opId: (id) => 'r-' + id,
+        // El reranker (MiniLM) tiene otro ancho que el bi-encoder (BERT-base): sus símbolos llevan _r para no chocar con D, h, d_h, D_mlp.
+        sym: { D: 'D_r', h: 'h_r', d_h: 'd_r', D_mlp: 'D_mlp,r', V: 'V_r' },
         path: (pp) => ['rerank'].concat(pp), where: (w) => WR.concat(w.slice(1)), label: (l) => 'Rerank · ' + l,
       });
       const st = g.op('rerank-collect', A.stack_batch(hs.score, { B: c.k, Bsym: 'k' }), { path: ['rerank', 'collect'], out: 'rerank-scores', where: WR, label: 'Juntar los k puntajes', type: 'tensorop', group: 'head',
@@ -701,11 +703,11 @@
       outMeta: { label: 'Listas invertidas a recorrer', tex: 'i_1, …, i_{n_{\\mathrm{probe}}}' } });
     const rs = g.op('residual', A.ivf_residual(qv, pr, { nprobe: c.nprobe }), { path: ['list-scan', 'residual'], out: 'residuals', where: W.concat(['listas']), label: 'Residuo q − c_i por lista', type: 'tensorop', group: 'head',
       outMeta: { label: 'Residuo de la query en cada lista', tex: 'q - c_i' } });
-    const lut = g.op('lut', A.pq_lut(rs, { m: c.m, nbits: c.nbits, nprobe: c.nprobe, precomputed: !!c.precomputed }), { path: ['list-scan', 'lut'], out: 'lut', where: W.concat(['PQ']),
+    const lut = g.op('lut', A.pq_lut(rs, { m: c.m, nbits: c.nbits, nprobe: c.nprobe, precomputed: !!c.precomputed }), { path: ['list-scan', 'lut'], out: 'lut', where: W.concat(['cuantización de producto']),
       label: 'Tablas ADC: distancia de cada sub-vector a los k_s centroides de su sub-espacio', type: 'attn', group: 'head', outMeta: { label: 'Tablas de distancias (una por lista)', tex: 'T_{i,j,c}' } });
     const codes = g.input('codes', shp(['N', 'm'], [c.N, c.m], 'txt', 'seq'), { label: 'Códigos PQ: m sub-códigos de ' + c.nbits + ' bits por vector', tex: 'C' });
     const lids = g.input('list-ids', shp(['N'], [c.N], 'txt', 'vec'), { label: 'Ids en las listas invertidas (int64)', tex: '\\mathrm{id}' });
-    const adc = g.op('adc', A.pq_scan(lut, codes, { scanned: c.scanned }), { path: ['list-scan', 'adc'], out: 'adc-dists', where: W.concat(['PQ']), label: 'Recorrer los códigos de las n_probe listas (ADC: m lecturas de tabla por código)', type: 'tensorop', group: 'head',
+    const adc = g.op('adc', A.pq_scan(lut, codes, { scanned: c.scanned }), { path: ['list-scan', 'adc'], out: 'adc-dists', where: W.concat(['cuantización de producto']), label: 'Recorrer los códigos de las n_probe listas (ADC: m lecturas de tabla por código)', type: 'tensorop', group: 'head',
       outMeta: { label: 'Distancia aproximada de cada vector recorrido', tex: '\\textstyle\\sum_j T_{j, c_j}' } });
     g.op('topk', A.topk_scores(adc, { k: c.k }), { path: ['rerank'], in: ['adc-dists', lids.id], out: 'ids', where: ['Top-k'], label: 'Top-k por distancia aproximada (ids de las listas)', type: 'tensorop', group: 'head',
       outMeta: { label: 'Ids de los k vecinos (aproximados)', tex: '\\mathrm{top}\\text{-}k' } });

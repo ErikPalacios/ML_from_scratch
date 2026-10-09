@@ -31,7 +31,7 @@
     title: 'ANN: flat vs HNSW vs IVF-PQ',
     caption: 'La misma query (un vector de 768) contra tres índices del mismo millón de vectores. Flat compara con todos: exacto, pero lee el índice entero en cada búsqueda. HNSW guarda además un grafo y salta de vecino en vecino: unas miles de distancias en vez de un millón, a cambio de un poco más de memoria. IVF-PQ agrupa los vectores en listas, recorre solo n_probe de ellas y guarda cada vector como un código de m bytes: 30 veces menos memoria, con distancias aproximadas. Números del calculador; latencias ≈ en una CPU de 1 socket. Abre un índice para verlo a escala, o una búsqueda para verla por dentro.',
     grid: { w: 100, h: 70 }, direction: 'lr', maxCrossings: 0,
-    mobileFocus: ['flat-scan', 'hnsw-search', 'ivfpq-search'],
+    mobileFocus: ['hnsw-index', 'hnsw-search'], mobileFocusPad: 1,
     edgeLegend: { control: 'Lee parte del índice (los códigos de n_probe listas)' },
     groups: [
       { id: 'lane-flat', style: 'lane', tone: 'muted', label: 'Flat · fuerza bruta (exacto)', legend: 'Marco gris: flat', labelPos: 'right', x: 17, y: 1, w: 82, h: 21 },
@@ -126,7 +126,7 @@
     title: 'HNSW: capas y búsqueda codiciosa', parent: 'ann-overview', parentNode: 'hnsw-search',
     caption: 'Un grafo por capas (Malkov y Yashunin): la capa 0 tiene los N vectores; cada capa de arriba, ≈ 1/M de los de abajo, con enlaces más largos. La búsqueda entra por el punto de entrada de la capa más alta y baja: en cada capa de arriba salta al vecino más cercano a q hasta no mejorar (ef = 1); en la capa 0 mantiene una lista de efSearch candidatos para no quedarse en un mínimo local. El pictograma es ilustrativo (pocos puntos); formas y costos, del calculador.',
     grid: { w: 126, h: 54 }, direction: 'tb', maxCrossings: 0,
-    mobileFocus: ['hl-graph', 'hl-upper', 'hl-layer0'],
+    mobileFocus: ['hl-graph'], mobileFocusPad: 1,
     edgeLegend: { control: 'Lee los vecinos de las capas de arriba' },
     nodes: [
       { id: 'hl-query', op: 'io', modality: 'txt', label: 'Query q', subNum: 'd = {{cfg.d}}', sub: 'd', x: 56, y: 1, w: 40, h: 6, note: 'El vector de la consulta.' },

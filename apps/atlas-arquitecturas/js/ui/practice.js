@@ -1797,6 +1797,19 @@
       if (typeof c.classes === 'number') out.push(['K_cls', c.classes]);
     } else if (typeof c.classes === 'number' && !has('K')) out.push(['K', c.classes]);
     if (typeof c.D === 'number' && Array.isArray(c.widths) && c.widths.length && typeof c.expansion === 'number') out.push(['C_5', c.widths[c.widths.length - 1] * c.expansion]);
+    // Fase 11 (retrieval / ANN): candidatos k que devuelve la búsqueda (y que reordena el cross-encoder).
+    if (typeof c.k === 'number' && !has('k')) out.push(['k', c.k, 'vecinos / candidatos por consulta']);
+    // Índices ANN: los símbolos de las formas del grafo de costo.
+    if (typeof c.efSearch === 'number') [['N', c.N, 'vectores en el índice'], ['d', c.d, 'dimensión de los vectores'], ['M', c.M, 'vecinos por nodo (HNSW)'], ['ef', c.efSearch, 'efSearch: candidatos en la búsqueda'],
+      ['n_list', c.nlist, 'listas (centroides de IVF)'], ['n_probe', c.nprobe, 'listas que se revisan'], ['m', c.m, 'sub-vectores de PQ'], ['k_s', c.ksub, 'centroides por sub-espacio (2^nbits)'], ['n_scan', c.scanned, 'vectores que se recorren ≈ n_probe·N/n_list']]
+      .forEach(([sym, v, n]) => { if (typeof v === 'number' && !has(sym)) out.push([sym, v, n]); });
+    if (typeof c.dim === 'number' && !has('dim')) out.push(['dim', c.dim, 'dimensión del embedding']);
+    if (typeof c.Tq === 'number' && !has('T_q')) out.push(['T_q', c.Tq, 'tokens de la consulta']);
+    if (typeof c.Td === 'number' && !has('T_d')) out.push(['T_d', c.Td, 'tokens del documento']);
+    // Reranker en cascada (otro ancho que el bi-encoder): sus dimensiones van con _r (las pone el calculador al importarlo).
+    if (c.rerank && c.reranker) { const rr = safe(() => run(c.reranker), null); const rc = rr && rr.config;
+      if (rc) [['D_r', rc.D, 'ancho del reranker'], ['h_r', rc.h], ['d_r', rc.D && rc.h ? rc.D / rc.h : null], ['D_mlp,r', rc.Dmlp], ['V_r', rc.V]]
+        .forEach(([sym, v, n]) => { if (typeof v === 'number' && !has(sym)) out.push([sym, v, n]); }); }
     // Fase 10 (fine-tuning): rango y escala del adapter, ancho de K/V; en RLHF G son las cabezas KV (no el grupo de GRPO, que en
     // las formas es n_G = cfg.groupSize: js/arch/finetune.js). r / α solo cuando HAY adapter: el full FT tiene r = α = 0 (α/r
     // daría NaN) y las configs de RLHF sin LoRA (lora = 0) arrastran r 16 / α 32 de RL_BASE sin usarlos.
@@ -1943,6 +1956,8 @@
     const all = loc.ops;
     const ops = all.filter((o) => (o.params || 0) > 0);
     if (!ops.length) return null;
+    // Pesos compartidos con otro nodo (torre siamesa de SBERT: paramRepeat 0): el diagrama no muestra badge, no hay drill.
+    if (all.every((o) => pRep(o) === 0)) return null;
     // repeticiones de los PESOS (paramRepeat): con pesos compartidos (LLaVA con varias imágenes) no es el repeat de los MACs
     const rep = Math.max(...all.map(pRep));
     const mixed = all.some((o) => pRep(o) !== rep);

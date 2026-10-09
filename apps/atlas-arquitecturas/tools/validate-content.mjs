@@ -486,6 +486,8 @@ function checkDiagram(d) {
   const opOk = (id) => !R || (R.ops || []).some((o) => o.id === id);
   // ov (fase 6): la arista, el nodo o el glifo se evalúa con run(config, ov), como lo dibuja el motor.
   const ovR = (x, w) => {
+    // Arista con su propia config (carriles de ann-overview: flat / HNSW / IVF-PQ lado a lado).
+    if (x && typeof x.config === 'string' && x.config !== d.config) { const r2 = runOv(x.config, x.ov || {}); if (!r2) err(w, 'config ' + x.config + ' desconocida'); return r2 || R; }
     if (!x || !x.ov || !R) return R;
     if (typeof x.ov !== 'object' || Array.isArray(x.ov)) { err(w, 'ov debe ser un objeto de knobs del calculador ({decode: 1})'); return R; }
     const r2 = runOv(d.config, x.ov);
