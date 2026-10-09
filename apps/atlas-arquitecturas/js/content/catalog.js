@@ -482,7 +482,7 @@
     freq: A, minutes: 75,
     from: ['bert', 'clip'], to: ['ann', 'two-tower'],
     paper: { title: 'Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks', authors: 'Reimers & Gurevych', venue: 'EMNLP 2019', arxiv: '1908.10084' },
-    model: 'retrieval', canonical: null,
+    model: 'retrieval', canonical: 'dpr-bert-base',
     card: { in: 'query + corpus', out: 'documentos ordenados',
       idea: 'embeddings separados para recuperar, codificación conjunta para reordenar', uso: 'RAG, búsqueda semántica' },
   }));
@@ -499,7 +499,7 @@
     freq: M, minutes: 60,
     from: ['retrieval'], to: ['two-tower'],
     paper: { title: 'Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs', authors: 'Malkov & Yashunin', venue: 'IEEE TPAMI 2020', arxiv: '1603.09320' },   // verificar año: online 2018, vol. 42 (2020)
-    model: 'ann', canonical: null,
+    model: 'ann', canonical: 'hnsw-1m-768',
     card: { in: 'vector de query + índice', out: 'k vecinos aproximados',
       idea: 'no comparar contra todos: grafo o particiones + cuantización', uso: 'bases vectoriales (FAISS, pgvector), RAG, recomendación' },
   }));

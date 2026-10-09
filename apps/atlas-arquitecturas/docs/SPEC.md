@@ -1499,3 +1499,79 @@ the loss moves chosen vs rejected log-probs; KL budget; synthetic, labelled).
 - **content-lora**: js/content/lora.js. **content-rlhf-dpo**: js/content/rlhf-dpo.js.
 - **orchestrator**: index.html + stubs, catalog (canonical ids `lora-llama3-8b-r16`, `rlhf-llama3-8b`;
   roadmap status), SPEC, practice METRICS labels, integration.
+
+## 23. Phase 11 shared facts — BERT, dense retrieval, ANN (every F11 agent MUST use exactly these)
+
+Phase 1–10 lessons apply. Thesis: **search is "encode once, compare fast"** — BERT gives contextual
+token vectors (bidirectional encoder, MLM); a bi-encoder pools them into one vector per text so the
+corpus is embedded offline and queries are compared by dot product; a cross-encoder reads query and
+document together (precise, no index); ANN indexes (HNSW, IVF-PQ) make the dot-product search
+sublinear. The calculator counts encoder cost, embedding/index memory and search cost (distance
+computations, bytes touched) so the trade-offs are numbers, not slogans. Verify every number against
+papers/official code/docs and cite; the source wins.
+
+### 23.1 BERT — page `bert`, model `bert`
+Paper: Devlin et al., NAACL 2019, arXiv:1810.04805; RoBERTa (arXiv:1907.11692) for the "no NSP, more
+data" correction. Canonical **`bert-base`**: 12 layers, d 768, 12 heads, FFN 3,072, GELU, post-LN,
+learned absolute positions (512), token-type (segment) embeddings (2), WordPiece vocab 30,522,
+pooler (d→d tanh on [CLS]), MLM head (dense + LN + tied decoder + bias) and NSP head; ≈110M params
+(compute exactly). Also `bert-large` (24 / 1024 / 16 / 4096, ≈340M). Reuse js/arch/transformer.js /
+the Grounding DINO text encoder if it is BERT (check `js/arch/grounding-dino.js`) — compose, don't
+duplicate. Knobs: `T` (sequence length), `B`. Metrics: params split (embeddings / encoder / pooler /
+MLM head), MACs per sequence, attention share (∝ T²), MLM masking stats (15 %: 80/10/10 — from the
+paper).
+Ids: `bert-overview` nodes `tokens` ([CLS] … [SEP] … [SEP]), `embed` (token + position + segment →
+LN), `encoder` (group ×L, expand to the existing encoder layer view), `pooler`, `mlm-head`, `nsp-head`;
+`bert-pretraining` view (masked tokens → MLM loss; NSP).
+
+### 23.2 Dense retrieval — page `retrieval`, model `retrieval`
+Papers: Sentence-BERT (Reimers & Gurevych, EMNLP 2019, arXiv:1908.10084), DPR (Karpukhin et al.,
+EMNLP 2020, arXiv:2004.04906; in-batch negatives, hard negatives), ColBERT (Khattab & Zaharia, SIGIR
+2020, arXiv:2004.12832; late interaction), MS MARCO / BEIR (arXiv:2104.08663) for evaluation, E5 /
+BGE / GTE briefly (verify), MTEB; InfoNCE (van den Oord et al. 2018) linked to CLIP (#clip). Canonical
+**`dpr-bert-base`**: two BERT-base towers (or shared weights — DPR uses two; state it), [CLS] pooling,
+768-d dot product; configs `sbert-minilm` (all-MiniLM-L6-v2: 6 layers, 384, mean pooling — verify),
+`cross-encoder-minilm` (ms-marco-MiniLM-L-6-v2 — verify), `colbert-v2` (BERT-base, 128-d per token —
+verify). Knobs: `Tq`, `Td` (query/doc tokens), `N` (corpus size), `k` (candidates to rerank), `dim`,
+`bits` (embedding precision 32/16/8/1). Metrics: queryEncodeMacs, docEncodeMacs (offline, × N),
+crossEncoderMacsPerPair, rerankMacs (k pairs), embeddingIndexBytes (N × dim × bits), colbertIndexBytes
+(N × Td × 128 × bits), bruteForceMacs (N × dim per query), latency estimates "≈" with explicit
+hardware (reuse llm.js conventions), recall@k / nDCG only as cited numbers.
+Ids: `retrieval-overview` (offline lane: corpus → doc encoder → index; online lane: query → query
+encoder → ANN top-k → cross-encoder rerank → results), `bi-vs-cross` view (two towers + dot product vs
+one joint encoder + score head), `colbert-maxsim` view.
+
+### 23.3 ANN — page `ann`, model `ann`
+Papers: HNSW (Malkov & Yashunin, IEEE TPAMI 2020 (online 2018), arXiv:1603.09320); Product
+Quantization (Jégou et al., TPAMI 2011); IVF; FAISS (Johnson et al., arXiv:1702.08734; the Faiss
+library paper arXiv:2401.08281); ScaNN (Guo et al., ICML 2020, arXiv:1908.10396); DiskANN (NeurIPS
+2019); ann-benchmarks (arXiv:1807.05614). Canonical **`hnsw-1m-768`** (N = 1M vectors, d = 768, fp32,
+M = 32, efConstruction 200, efSearch 64 — verify FAISS/hnswlib defaults); configs `ivfpq-1m-768`
+(nlist 4,096, nprobe 16, PQ m = 96 sub-quantizers × 8 bits — verify), `flat-1m-768` (brute force),
+`ivfpq-1b-768` (billion-scale contrast). Knobs: `N`, `d`, `M`, `efSearch`, `nlist`, `nprobe`, `m`,
+`nbits`, `bits` (fp32/fp16/int8). Metrics: indexBytes (vectors + graph links ≈ N·M·2·4 B for HNSW
+layer 0 — state the formula and source; codes N·m·nbits/8 + codebooks for PQ), distanceComputations per
+query (flat N; HNSW ≈ efSearch·M·log N — mark ≈; IVF nprobe·N/nlist), bytesTouchedPerQuery, buildCost
+(≈), latency "≈" with hardware; recall@10 vs efSearch / nprobe only as cited numbers (ann-benchmarks,
+FAISS wiki) or from a small in-browser synthetic simulation clearly labelled.
+Ids: `ann-overview` (flat vs HNSW vs IVF-PQ side by side), `hnsw-layers` view (layered graph, greedy
+descent), `ivfpq` view (coarse quantizer → inverted lists → PQ codes → ADC lookup tables).
+
+### 23.4 Visualizations
+`mlm-masking` (a sentence: 15 % selected, 80/10/10 replacement; what the model predicts), `embedding-space`
+(2-D toy: queries/documents, dot-product ranking, hard negatives; in-batch negatives; synthetic),
+`hnsw-search` (interactive greedy search on a small synthetic layered graph: hops, visited nodes,
+efSearch), `ivfpq-quantize` (a vector split into m sub-vectors, nearest centroid per sub-space, ADC
+distance error; synthetic).
+
+### 23.5 Ownership in Phase 11
+- **arch**: js/arch/primitives.js (new primitives only: mean/CLS pooling, maxsim, dot-product score,
+  PQ/HNSW cost accounting), js/arch/retrieval.js (models `bert`, `retrieval`, `ann`; reuse existing
+  BERT pieces), tests, crosscheck/retrieval.py + expected JSONs (HF `BertModel`/`BertForPreTraining`
+  on the meta device; sentence-transformers / cross-encoder configs built in code; FAISS index sizes via
+  `faiss` if it installs in the dev venv — pin it; otherwise document the formulas from the FAISS docs).
+- **diagram**: engine extensions, js/ui/viz/{mlm-masking,embedding-space,hnsw-search,ivfpq-quantize}.js,
+  js/content/diagrams/{bert,retrieval,ann}.js, dev/diagram.html.
+- **content-bert-retrieval**: js/content/bert.js and js/content/retrieval.js. **content-ann**: js/content/ann.js.
+- **orchestrator**: index.html + stubs, catalog (canonical ids `bert-base`, `dpr-bert-base`,
+  `hnsw-1m-768`; roadmap status), SPEC, practice METRICS labels, integration.
