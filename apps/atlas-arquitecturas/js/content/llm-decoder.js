@@ -394,7 +394,7 @@
             [R`Qwen2 (Yang et al., arXiv:2407.10671)`, R`Receta Llama con GQA y <b>bias en Q, K, V</b>; vocabulario de ≈ 151K; tying en los modelos chicos; contexto largo con YaRN + Dual Chunk Attention.`, R`<a href="#qwen2-vl">Qwen2-VL</a>`],
             [R`Gemma (Gemma Team, arXiv:2403.08295)`, R`GeGLU en vez de SwiGLU, d<sub>h</sub> = 256, vocabulario de 256K con embedding y cabeza <b>compartidas</b>, MQA en el 2B y MHA en el 7B. Gemma 2 (arXiv:2408.00118) alterna capas de ventana local y globales.`, 'Modelos chicos'],
             [R`DeepSeek-V2 (DeepSeek-AI, arXiv:2405.04434)`, R`<b>MLA</b> (multi-head latent attention): comprime K y V en un vector latente chico por token y lo expande al atender; el paper reporta 93.3 % menos KV cache que DeepSeek 67B. Más MoE fino (236B totales, 21B activos).`, 'Alternativa a GQA'],
-            [R`Mamba (Gu y Dao, arXiv:2312.00752)`, R`No es un transformer: un state-space model selectivo con estado de tamaño fijo, lineal en T, sin KV cache.`, R`<a href="#mamba">Mamba</a> (próximamente)`],
+            [R`Mamba (Gu y Dao, arXiv:2312.00752)`, R`No es un transformer: un state-space model selectivo con estado de tamaño fijo, lineal en T, sin KV cache.`, R`<a href="#mamba">Mamba</a> (tarjeta del mapa)`],
           ] },
           { t: 'callout', kind: 'skip', html: R`<p><b>Sáltate esto</b> si vas corto: la lista de "LLaMA con X". Lo que se pregunta: GQA vs MQA vs MLA, sliding window (Mistral), MoE (Mixtral) y que Qwen y Gemma son la misma receta con matices (bias en QKV, tying, GeGLU).</p>` },
         ],

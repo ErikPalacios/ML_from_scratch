@@ -116,7 +116,7 @@
           { t: 'p', html: R`La tentación: tomar <a href="#bert">BERT</a> preentrenado, sacar el [CLS] de cada texto y comparar por coseno. Sentence-BERT (${SBERT}) lo midió en siete tareas de similitud semántica (STS): Spearman promedio <b>29.19</b> con el [CLS], 54.81 promediando los tokens de BERT y 61.32 promediando vectores de GloVe (Tabla 1). Peor que un modelo de 2014 sin contexto. La razón: el [CLS] se entrenó para NSP, nada en el preentrenamiento pide que dos frases parecidas den vectores cercanos, y los vectores contextuales de BERT ocupan un cono estrecho donde casi todo tiene coseno alto. El arreglo de SBERT: BERT en una red siamesa, mean pooling, y un fine-tuning con pares etiquetados (NLI); DPR y los modelos actuales usan directamente la pérdida contrastiva.` },
           { t: 'h3', text: 'Y por qué no un cross-encoder para todo' },
           { t: 'p', html: R`Con BERT como cross-encoder ("[CLS] frase A [SEP] frase B [SEP]" → score), encontrar el par más parecido entre 10,000 frases son n(n−1)/2 = 49,995,000 forwards: ${est('≈ 65 horas')} en una V100, según SBERT (§1). Con un bi-encoder: 10,000 forwards (${est('≈ 5 s')}) y una matriz de cosenos (${est('≈ 0.01 s')}). La misma cuenta, para búsqueda: un cross-encoder sobre un corpus de N documentos son N forwards <b>por consulta</b>; un bi-encoder, N forwards <b>una vez</b> y después uno por consulta.` },
-          { t: 'callout', kind: 'connect', html: R`<p>El índice que hace sublineal la búsqueda sobre millones de vectores (HNSW, IVF-PQ) está en <a href="#ann">búsqueda ANN</a>. El mismo patrón de dos torres, con usuarios e ítems en lugar de consultas y documentos, es el <a href="#two-tower">two-tower de recomendación</a> (próximamente). El diseño del sistema completo (logging, frescura del índice, A/B tests) es materia de la Ronda de Diseño ML; aquí, el modelo y sus costos.</p>` },
+          { t: 'callout', kind: 'connect', html: R`<p>El índice que hace sublineal la búsqueda sobre millones de vectores (HNSW, IVF-PQ) está en <a href="#ann">búsqueda ANN</a>. El mismo patrón de dos torres, con usuarios e ítems en lugar de consultas y documentos, es el <a href="#two-tower">two-tower de recomendación</a>. El diseño del sistema completo (logging, frescura del índice, A/B tests) es materia de la Ronda de Diseño ML; aquí, el modelo y sus costos.</p>` },
         ],
       },
 
@@ -362,7 +362,7 @@
             [R`Matryoshka (${MRL})`, 'Pérdida sobre prefijos anidados del embedding: se puede truncar.', 'Memoria del índice'],
             [R`BGE-M3 (${BGEM3})`, 'Un solo modelo multilingüe (100+ idiomas, hasta 8,192 tokens) que da a la vez un vector denso, pesos léxicos tipo SPLADE y vectores por token tipo ColBERT.', 'Multilingüe e híbrido con un modelo'],
             [R`Embedders basados en LLM (${E5MISTRAL}; gte-Qwen2, NV-Embed)`, 'Un decoder de 7B ajustado con pérdida contrastiva; el embedding es el del último token, y la consulta lleva una instrucción de tarea ("Instruct: dada una pregunta, recupera pasajes que la respondan · Query: …"). Encabezan MTEB, con vectores de 3,584–4,096 dimensiones.', 'Cuando te pregunten por el número 1 de MTEB'],
-            ['Two-tower de recomendación', 'El mismo bi-encoder con usuarios e ítems.', R`<a href="#two-tower">Two-tower</a> (próximamente)`],
+            ['Two-tower de recomendación', 'El mismo bi-encoder con usuarios e ítems.', R`<a href="#two-tower">Two-tower</a>`],
           ] },
         ],
       },

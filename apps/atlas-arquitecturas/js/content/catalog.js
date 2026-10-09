@@ -549,8 +549,8 @@
     ],
     freq: M, minutes: 60,
     from: ['retrieval', 'ann'], to: ['dlrm'],
-    paper: { title: 'Sampling-Bias-Corrected Neural Modeling for Large Corpus Item Recommendations', authors: 'Yi et al.', venue: 'RecSys 2019' },   // verificar: sin arXiv conocido; añadir url (DOI ACM) en F13
-    model: 'two-tower', canonical: null,
+    paper: { title: 'Sampling-Bias-Corrected Neural Modeling for Large Corpus Item Recommendations', authors: 'Yi et al.', venue: 'RecSys 2019', url: 'https://doi.org/10.1145/3298689.3346996' },
+    model: 'two-tower', canonical: 'two-tower-base',
     card: { in: 'features de usuario y de ítem', out: 'score = producto punto de dos embeddings',
       idea: 'dos encoders separados para poder precomputar e indexar los ítems', uso: 'candidate generation en recomendación' },
   }));
@@ -567,7 +567,7 @@
     freq: M, minutes: 60,
     from: ['two-tower', 'gbdt'], to: [],
     paper: { title: 'Deep Learning Recommendation Model for Personalization and Recommendation Systems', authors: 'Naumov et al.', venue: 'arXiv 2019', arxiv: '1906.00091' },
-    model: 'dlrm', canonical: null,
+    model: 'dlrm', canonical: 'dlrm-criteo-kaggle',
     card: { in: 'features densas + categóricas de (usuario, ítem, contexto)', out: 'probabilidad de click/compra',
       idea: 'embeddings para categóricas + MLP + interacciones explícitas', uso: 'ranking de feeds, ads, e-commerce' },
   }));
@@ -584,7 +584,7 @@
     freq: M, minutes: 60,
     from: [], to: ['dlrm'],
     paper: { title: 'XGBoost: A Scalable Tree Boosting System', authors: 'Chen & Guestrin', venue: 'KDD 2016', arxiv: '1603.02754' },
-    model: 'gbdt', canonical: null,
+    model: 'gbdt', canonical: 'xgboost-500-d6',
     card: { in: 'tabla de features', out: 'predicción (suma de árboles)',
       idea: 'cada árbol nuevo corrige el residuo de los anteriores', uso: 'fraude, riesgo, ranking tabular, baselines fuertes' },
   }));
@@ -840,9 +840,9 @@
       note: 'BERT → bi-encoder → cross-encoder reranker, InfoNCE y búsqueda ANN (HNSW, IVF-PQ). Conecta con CLIP y con los casos de RAG de la Ronda.' },
     { phase: 12, block: 2, status: 'done', title: 'Fase 12 — Encoder-decoder y tarjetas de nivel 1', items: ['t5', 'whisper', 'gnn', 'mamba', 'gan', 'rnn-lstm'],
       note: 'T5 y Whisper (cross-attention), y las tarjetas completas de GNNs, Mamba/SSMs, GANs y RNN/LSTM. Fase ligera.' },
-    { phase: 13, block: 2, status: 'next', title: 'Fase 13 — Recomendación y árboles', items: ['two-tower', 'dlrm', 'gbdt'],
+    { phase: 13, block: 2, status: 'done', title: 'Fase 13 — Recomendación y árboles', items: ['two-tower', 'dlrm', 'gbdt'],
       note: 'Two-tower + ranking (DLRM / Wide & Deep) y gradient boosted trees, y por qué siguen ganando en tabulares.' },
-    { phase: 14, block: 3, status: 'later', title: 'Fase 14 — Percepción para robótica', items: ['bytetrack', 'depth', 'pointnet', 'nerf-3dgs'],
+    { phase: 14, block: 3, status: 'next', title: 'Fase 14 — Percepción para robótica', items: ['bytetrack', 'depth', 'pointnet', 'nerf-3dgs'],
       note: 'Tracking (Kalman + matching húngaro), profundidad monocular, PointNet; NeRF y Gaussian Splatting a nivel 1. Opcional.' },
     { phase: 15, block: 3, status: 'later', title: 'Fase 15 — RL e imitation learning', items: ['rl-ppo', 'imitation'],
       note: 'Policy gradient, PPO, behavior cloning, ACT y Diffusion Policy; conecta con las fases 8 y 9. Opcional.' },

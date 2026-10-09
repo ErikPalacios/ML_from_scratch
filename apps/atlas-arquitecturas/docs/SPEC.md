@@ -1639,7 +1639,7 @@ vs decoder per token; cost as Tout grows — from the calculator).
 Phase 1–12 lessons apply. Thesis: **recommendation is a funnel, and tabular data is where trees still
 win** — two-tower = the bi-encoder pattern of #retrieval applied to users × items (precompute items,
 ANN, #ann); ranking models (DLRM family) score hundreds of candidates with huge embedding tables
-(memory-bound, almost all parameters are embeddings) plus small MLPs and explicit feature interactions;
+(table lookups are memory-bound and hold almost all parameters; the MLPs hold the FLOPs) plus small MLPs and explicit feature interactions;
 GBDTs are the strong baseline for tabular features (and still common rankers). The calculator turns
 "tables are huge / lookups are memory-bound / trees are cheap at inference" into numbers. Verify every
 number against papers/official code/docs and cite; the source wins. These are systems without one
@@ -1677,7 +1677,8 @@ derived — verify), sigmoid. Configs: `dlrm-mlperf` (Criteo 1TB, dim 128, botto
 (MLPerf v3 cross layers — verify), `wide-and-deep` (reference config, documented). Knobs: `B`, `dim`,
 `maxRows` (hashing cap), `bits` (embedding precision 32/16/8), `k` (candidates ranked per request).
 Metrics: embeddingParams vs mlpParams (share), embeddingBytes, lookup bytes per sample (26 × dim ×
-bytes), interaction MACs, MLP MACs per sample, arithmetic intensity (≪ GPU ridge — memory-bound),
+bytes), interaction MACs, MLP MACs per sample, arithmetic intensity (the lookups ≪ GPU ridge — memory-bound; the whole
+sample is near or above the ridge for the Kaggle/MLPerf configs: report both, build finding),
 samples/s roofline "≈" with hardware, ranking cost per request (k candidates), table sharding note
 (model-parallel tables vs data-parallel MLPs).
 Ids: `dlrm-overview` (dense features → bottom MLP; categorical → embedding lookups ×26; interaction;

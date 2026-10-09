@@ -209,7 +209,11 @@
     // anterior lo usa fuera de SYM_TEX (hLK·2), así que las fórmulas de las fases 1–3 no cambian.
     // Fase 8: '²' dentro de un símbolo (P²·8 de DiT) → ^2. El único símbolo anterior con '²' (M²) está en SYM_TEX.
     // Fase 11 (ANN): n_list / n_probe → n_{\mathrm{list}} (ningún símbolo anterior los tiene).
-    return s.replace(/D_mlp/g, 'D_{\\mathrm{mlp}}').replace(/n_(list|probe)/g, 'n_{\\mathrm{$1}}').replace(/·/g, '\\cdot ').replace(/²/g, '^2');
+    // Fase 13 (recomendación, GBDT): d_id, n_hist, d_user, d_item, N_items, n_pairs, L_hot, n_bins, n_nodes, n_leaves, n_int → subíndice
+    // en \mathrm (ningún símbolo anterior los tiene).
+    return s.replace(/D_mlp/g, 'D_{\\mathrm{mlp}}').replace(/n_(list|probe)/g, 'n_{\\mathrm{$1}}')
+      .replace(/\b([dnNL])_(id|hist|user|item|items|pairs|hot|bins|nodes|leaves|int)\b/g, '$1_{\\mathrm{$2}}')
+      .replace(/·/g, '\\cdot ').replace(/²/g, '^2');
   }
   const compound = (s) => /[+\-\/ ]/.test(String(s));
   // En una forma: (N+1)×D. En LaTeX de forma: (N{+}1)\times D.
@@ -277,7 +281,9 @@
     // Fase 6: producto elementwise (SwiGLU: SiLU(gate) ⊙ up), top-k del router (≈ 1 comparación por logit).
     mul: 1, topk: 1,
     // Fase 11: tanh (pooler de BERT), máximo por fila (MaxSim de ColBERT).
-    tanh: 5, max: 1 };
+    tanh: 5, max: 1,
+    // Fase 13: candidato de corte de un GBDT (G_L, H_L acumulados, G_R y H_R por resta, ganancia con 3 divisiones) y una comparación.
+    gain: 10, cmp: 1 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -2808,6 +2814,185 @@
     });
   }
 
+  // ---- Fase 13 (recomendación: two-tower, DLRM / Wide & Deep / DCN v2 en js/arch/recsys.js; GBDT en js/arch/trees.js) ------
+  // embedding_bag (nn.EmbeddingBag de PyTorch; EmbeddingBagCollection de torchrec): los n ids de UNA tabla (rows × D) → UN vector
+  // D: suma (DLRM, multi-hot) o promedio (el historial del two-tower). n = 1 es un lookup simple. Parámetros rows·D; 0 MACs (leer
+  // filas no es una matmul); "otros" ≈ (n − 1)·D sumas (+ D divisiones con mean). detail.lookups = n filas leídas (n·D·4 bytes en
+  // fp32: el costo real es de MEMORIA). o = {rows, D, rowsSym = 'V', Dsym = 'D', mode = 'sum' | 'mean', mod, shared}
+  function embedding_bag(ids, o) {
+    const n = elems(ids), D = o.D, Ds = o.Dsym || 'D', Rs = o.rowsSym || 'V', mode = o.mode || 'sum';
+    if (!(o.rows >= 1)) throw new Error('embedding_bag: la tabla necesita al menos una fila (rows = ' + o.rows + ').');
+    return result('embedding_bag', [ids], shape([Ds], [D], o.mod || ids.mod, 'vec'), {
+      paramTerms: [[o.rows, D]], paramTex: texProd([Rs, Ds]),
+      other: Math.max(0, n - 1) * D * OTHER.add + (mode === 'mean' && n > 1 ? D : 0),
+      detail: { rows: o.rows, D, lookups: n, mode, bytesRead32: n * D * 4, note: n > 1 ? n + ' filas leídas y ' + (mode === 'mean' ? 'promediadas' : 'sumadas') + ' (0 MACs: el costo es leer memoria)' : 'una fila leída (0 MACs)' },
+    });
+  }
+  // embedding_tables (DLRM: una tabla por feature categórica; torchrec EmbeddingBagCollection): ids de n_t features (uno por
+  // feature, o hots[i] por feature si es multi-hot con suma) → n_t × D (una fila por tabla) o, con o.concat, el vector n_t·D
+  // concatenado (two-tower: las features categóricas chicas). Parámetros Σ rows_i·D. 0 MACs; "otros" (Σ hots − n_t)·D sumas.
+  // o = {rows: [..], D, Dsym = 'D', rowsSym = 'ΣV', hots: [..] (opcional, multi-hot), concat, outSym, mod}
+  function embedding_tables(ids, o) {
+    const rows = o.rows, nt = rows.length, D = o.D, Ds = o.Dsym || 'D';
+    const hots = o.hots || rows.map(() => 1);
+    if (hots.length !== nt) throw new Error('embedding_tables: ' + nt + ' tablas y ' + hots.length + ' tamaños multi-hot.');
+    const lookups = hots.reduce((a, b) => a + b, 0), total = rows.reduce((a, b) => a + b, 0);
+    const out = o.concat ? shape([o.outSym || String(nt) + '·' + Ds], [nt * D], o.mod || ids.mod, 'vec')
+      : shape([o.outSym || String(nt), Ds], [nt, D], o.mod || ids.mod, 'seq');
+    return result('embedding_tables', [ids], out, {
+      params: total * D, paramTex: '\\textstyle\\sum_i V_i\\cdot ' + symTexFactor(Ds), paramArith: int(total) + '·' + D + ' = ' + int(total * D),
+      other: (lookups - nt) * D * OTHER.add,
+      detail: { tables: nt, rows: rows.slice(), totalRows: total, maxRows: Math.max.apply(null, rows), D, hots: hots.slice(), lookups, bytesRead32: lookups * D * 4,
+        note: lookups + ' filas leídas de ' + nt + ' tablas (' + int(total) + ' filas en total): 0 MACs, el costo es de memoria' },
+    });
+  }
+  // stack_rows: apila vectores D y matrices R×D en una matriz (Σ filas)×D (DLRM: el vector denso + las 26 filas de embedding
+  // → 27×D, la entrada de la interacción). Copia, sin costo. o = {sym, mod}
+  function stack_rows(list, o) {
+    const D = list[0].num[list[0].num.length - 1];
+    let n = 0;
+    list.forEach((t) => { if (t.num[t.num.length - 1] !== D) throw new Error('stack_rows: anchos distintos (' + list.map(shapeStr).join(', ') + ').'); n += t.num.length === 1 ? 1 : t.num[0]; });
+    const Ds = list[0].sym[list[0].sym.length - 1];
+    return result('stack_rows', list, shape([(o && o.sym) || String(n), Ds], [n, D], (o && o.mod) || list[list.length - 1].mod, 'seq'), { detail: { rows: n } });
+  }
+  // flatten_vec: R×C → el vector R·C (vista; DCN v2: las 27 filas de 128 → 3,456). o = {sym}
+  function flatten_vec(x, o) {
+    return result('flatten', [x], shape([(o && o.sym) || x.sym.join('·')], [elems(x)], x.mod, 'vec'), { detail: { from: x.num.slice() } });
+  }
+  // pairwise_dot (DLRM, interacción "dot"; Naumov et al. 2019, §3; dlrm_s_pytorch.py interact_features y torchrec InteractionArch):
+  // T (n×d) → Z = T·Tᵀ (n×n) con un bmm. MACs n·n·d: las implementaciones calculan la matriz ENTERA (FlopCounterMode también);
+  // solo n(n−1)/2 productos se usan (detail.usefulMacs). Sin parámetros.
+  function pairwise_dot(x, o) {
+    const [n, d] = x.num, ns = x.sym[0], ds = x.sym[1];
+    return result('pairwise_dot', [x], shape([ns, ns], [n, n], (o && o.mod) || x.mod, 'mat'), {
+      macTerms: [[n, n, d]], macTex: texProd([ns, ns, ds]),
+      detail: { n, d, pairs: n * (n - 1) / 2, usefulMacs: n * (n - 1) / 2 * d, note: 'bmm de la matriz completa; solo el triángulo inferior estricto (n(n−1)/2 pares) se usa' },
+    });
+  }
+  // tril_select: el triángulo inferior estricto de una matriz n×n → n(n−1)/2 valores (cada par una vez, sin la diagonal; DLRM sin
+  // arch_interaction_itself). Gather, sin costo. o = {sym}
+  function tril_select(z, o) {
+    const n = z.num[0], p = n * (n - 1) / 2;
+    return result('tril_select', [z], shape([(o && o.sym) || 'n(n-1)/2'], [p], z.mod, 'vec'), { detail: { n, pairs: p } });
+  }
+  // cross_mix (DCN v2, Wang et al., WWW 2021, ec. 1; torchrec LowRankCrossNet): x_{l+1} = x_0 ⊙ (W x_l + b) + x_l, con W x_l ya
+  // calculado (en DCN v2 de bajo rango: W = U·V, dos Linear sin sesgo de d → r → d). Esta op suma el sesgo b (d parámetros), el
+  // producto elementwise con x_0 y el residual: 0 MACs, ≈ 3d "otros". Entradas: x_0, W x_l, x_l. o = {}
+  function cross_mix(x0, wx, xl) {
+    if (shapeStr(x0) !== shapeStr(wx) || shapeStr(x0) !== shapeStr(xl)) throw new Error('cross_mix: formas distintas (' + [x0, wx, xl].map(shapeStr).join(', ') + ').');
+    const d = elems(x0), ds = x0.sym[x0.sym.length - 1];
+    return result('cross_mix', [x0, wx, xl], plain(x0), { paramTerms: [[d]], paramTex: symTexFactor(ds), other: 3 * d, detail: { d, note: 'x₀ ⊙ (W x_l + b) + x_l' } });
+  }
+  // cross_layer (compuesta, DCN v2): con rango r (o.r) = Linear d → r sin sesgo, Linear r → d sin sesgo y cross_mix: parámetros
+  // 2·d·r + d, MACs 2·d·r; sin rango (r = d, matriz llena, DCN v2 "full-rank"): Linear d → d con sesgo: d² + d, MACs d².
+  // x0 y xl (d). o = {r, rSym = 'r'}
+  function cross_layer(x0, xl, o) {
+    const d = elems(x0), ds = x0.sym[x0.sym.length - 1];
+    if (o && o.r) {
+      const v = linear(xl, { dout: o.r, doutSym: o.rSym || 'r', bias: false }), w = linear(v.out, { dout: d, doutSym: ds, bias: false });
+      const m = cross_mix(x0, w.out, xl);
+      return composite('cross_layer', xl, [v, w, m], m.out, { paramTex: '2\\cdot ' + symTexFactor(ds) + '\\cdot ' + (o.rSym || 'r') + ' + ' + symTexFactor(ds), macTex: '2\\cdot ' + symTexFactor(ds) + '\\cdot ' + (o.rSym || 'r'), detail: { d, r: o.r, lowRank: true } });
+    }
+    const w = linear(xl, { dout: d, doutSym: ds, bias: false });
+    const m = cross_mix(x0, w.out, xl);
+    return composite('cross_layer', xl, [w, m], m.out, { paramTex: symTexFactor(ds) + '^2 + ' + symTexFactor(ds), macTex: symTexFactor(ds) + '^2', detail: { d, lowRank: false } });
+  }
+
+  // logq_correct (two-tower, Yi et al., RecSys 2019, §4): logits del lote / τ − log Q(j) por columna (Q(j) = probabilidad de que el
+  // ítem j aparezca en un lote ≈ su frecuencia, estimada en streaming). B×B y B → B×B; ≈ 2 ops por logit. o = {tau}
+  function logq_correct(logits, logq, o) {
+    return result('logq_correct', [logits, logq], plain(logits), { other: 2 * elems(logits), detail: { tau: (o && o.tau) || null, note: 's_ij/τ − log Q(j): sin la corrección, los ítems populares (que aparecen más como negativos) quedan castigados de más' } });
+  }
+
+  // ---- GBDT (contabilidad de costo; no hay matmuls: 0 MACs, todo en "otros" ≈ y en detail) ----
+  // Histogramas por árbol: filas recorridas (cada una suma g y h en el bin de cada feature). Con el truco de la RESTA (XGBoost
+  // hist y LightGBM: se construye solo el histograma del hijo más chico; el otro = padre − hermano): por nivel ≈ N/2 filas
+  // tras la raíz. Por profundidad (depthwise / oblivious): niveles 0 … d−1 → N·(1 + (d − 1)/2); por hojas (leafwise, L hojas):
+  // cada hoja nueva necesita su histograma (para saber su ganancia) → ≈ N·(1 + log₂L/2) en un árbol balanceado (≈).
+  function treeHistRows(o) {
+    if (o.kind === 'leafwise') return o.N * (1 + Math.log2(o.leaves) / 2);
+    return o.N * (1 + (o.depth - 1) / 2);
+  }
+  // Candidatos de corte evaluados por árbol (cada uno: G_L, H_L acumulados, G_R = G − G_L, ganancia). depthwise / oblivious: los
+  // 2^d − 1 nodos de los niveles 0 … d−1 (oblivious: un corte por nivel, puntuado sobre los 2^l nodos del nivel: la misma
+  // cuenta); leafwise: las 2L − 1 hojas que tuvieron histograma.
+  function treeSplitEvals(o) {
+    const nodes = o.kind === 'leafwise' ? 2 * o.leaves - 1 : Math.pow(2, o.depth) - 1;
+    return { nodes, evals: nodes * o.F * o.bins };
+  }
+  // quantize_bins: X (N×F floats) → índices de bin (N×F, 1 byte con ≤ 256 bins): búsqueda binaria en los cortes de cada feature
+  // (≈ log₂ bins comparaciones por valor; se hace UNA vez antes del boosting). o = {bins}
+  function quantize_bins(X, o) {
+    return result('quantize_bins', [X], plain(X), { other: Math.round(elems(X) * Math.log2(o.bins)), detail: { bins: o.bins, bytes: elems(X) * (o.bins <= 256 ? 1 : 2), note: 'una vez, antes del primer árbol' } });
+  }
+  // grad_hess: gradiente y hessiana de la pérdida en cada fila, con las predicciones F_{t−1}: error cuadrático g = F − y, h = 1;
+  // logística g = σ(F) − y, h = σ(1 − σ). y, F (N) → g, h (N). o = {loss = 'squared' | 'logistic'}
+  function grad_hess(y, f, o) {
+    const N = elems(y), lg = o && o.loss === 'logistic';
+    return result('grad_hess', [y, f], [plain(y), plain(y)], { other: N * (lg ? 8 : 2), detail: { loss: lg ? 'logistic' : 'squared' } });
+  }
+  // histogram_build: por cada nodo, suma g y h de sus filas en el bin de cada feature → F × bins × 2 (G y H de UN nodo). Costo por
+  // árbol (≈, detail.rows = filas recorridas, treeHistRows): 2·rows·F sumas. o = {rows, F, bins, binsSym, nodes}
+  function histogram_build(xb, g, h, o) {
+    const F = xb.num[1], Fs = xb.sym[1];
+    return result('histogram_build', [xb, g, h], shape([Fs, o.binsSym || 'n_bins', '2'], [F, o.bins, 2], xb.mod, 'seq'), {
+      other: Math.round(2 * o.rows * F), detail: { rows: o.rows, F, bins: o.bins, nodes: o.nodes, adds: Math.round(2 * o.rows * F), note: 'G y H por bin; el hijo grande sale de la resta padre − hermano' },
+    });
+  }
+  // split_find: recorre los bins de cada feature de cada nodo y evalúa la ganancia (XGBoost, Chen & Guestrin 2016, ec. 7):
+  // ½[G_L²/(H_L + λ) + G_R²/(H_R + λ) − G²/(H + λ)] − γ. ≈ 10 ops por candidato (OTHER.gain). → (feature, umbral, ganancia).
+  // o = {evals, nodes}
+  function split_find(hist, o) {
+    return result('split_find', [hist], shape(['3'], [3], hist.mod, 'vec'), { other: o.evals * OTHER.gain, detail: { evals: o.evals, nodes: o.nodes, note: 'feature, umbral y ganancia del mejor corte de cada nodo' } });
+  }
+  // grow_tree: el árbol t = sus números aprendidos: un umbral por nodo interno y un valor por hoja (el índice de feature es
+  // discreto; XGBoost además guarda estadísticas por nodo: ver tree_bytes). Binario: internos = hojas − 1. Oblivious (CatBoost,
+  // árbol simétrico): UN corte por nivel compartido por todos los nodos del nivel → d umbrales + 2^d hojas. → n_nodes valores.
+  // o = {internal, leaves, oblivious, depth, nodesSym}
+  function grow_tree(split, o) {
+    const thr = o.oblivious ? o.depth : o.internal, n = thr + o.leaves;
+    return result('grow_tree', [split], shape([o.nodesSym || 'n_nodes'], [n], split.mod, 'vec'), {
+      paramTerms: [[thr], [o.leaves]], paramTex: o.oblivious ? 'd + 2^d' : 'n_{\\mathrm{int}} + n_{\\mathrm{leaves}}',
+      detail: { thresholds: thr, leaves: o.leaves, internal: o.internal, oblivious: !!o.oblivious, note: o.oblivious ? 'oblivious: un umbral por nivel, compartido' : 'un umbral por nodo interno + un valor por hoja' },
+    });
+  }
+  // tree_update: F_t = F_{t−1} + η·tree_t(x) en las N filas (bajar cada fila por el árbol: ≈ depth comparaciones + 1 suma).
+  // o = {depth}
+  function tree_update(f, tree, o) {
+    const N = elems(f);
+    return result('tree_update', [f, tree], plain(f), { other: N * (o.depth + 2), detail: { comparisons: N * o.depth, eta: o.eta || null } });
+  }
+  // tree_predict: una muestra x (F) baja por los K árboles → el índice de hoja de cada uno (K). Costo: las comparaciones
+  // (o.comparisons: K·d por profundidad; leaf-wise depende de los datos). Sin MACs. o = {K, Ksym = 'K', comparisons}
+  function tree_predict(x, o) {
+    return result('tree_predict', [x], shape([o.Ksym || 'K'], [o.K], x.mod, 'vec'), { other: o.comparisons * OTHER.cmp, detail: { K: o.K, comparisons: o.comparisons } });
+  }
+  // leaf_sum: ŷ = base + Σ_t η·w_t(hoja) (η ya va dentro de los valores de hoja guardados). K → 1. K sumas.
+  function leaf_sum(ids, o) {
+    const K = elems(ids);
+    return result('leaf_sum', [ids], shape(['1'], [1], ids.mod, 'vec'), { paramTerms: o && o.base ? [[1]] : [], paramTex: o && o.base ? '1' : '0', other: K * OTHER.add, detail: { K, base: !!(o && o.base) } });
+  }
+  // tree_bytes: tamaño del modelo serializado (≈; no es una op del grafo). Por formato, verificado con modelos reales en
+  // crosscheck/trees.py (xgboost 3.4.1, lightgbm 4.7.0, catboost 1.2.10; tolerancias en el JSON):
+  //   'xgb-ubj'  (save_model .ubj, el formato por defecto): por nodo 8 arreglos de 4 bytes (left/right_children, parents, split_indices,
+  //              split_conditions, base_weights, loss_changes, sum_hessian) + 2 de 1 byte (default_left, split_type) = 34 B; + ≈ 660 B
+  //              de encabezado por árbol + ≈ 830 B fijos (ajustados con 4 modelos: error < 0.1 %).
+  //   'xgb-json' (.json, texto): ≈ 58 B por nodo (números en decimal).
+  //   'lgb-text' (model_to_string / save_model): ≈ 96 B por hoja (los arreglos del árbol en texto) + ≈ 68 B por feature (encabezado).
+  //   'cb-cbm'   (CatBoost .cbm, binario): por árbol 2^d valores de hoja + 2^d pesos de hoja (double: 16·2^d B) + ≈ 17 B por corte
+  //              (d) + ≈ 88 B por feature (bordes usados).
+  // o = {format, nodes, leaves, K, depth, F}
+  function tree_bytes(o) {
+    const f = o.format;
+    let bytes, perNode;
+    if (f === 'xgb-ubj') { perNode = 34; bytes = 34 * o.nodes + 660 * o.K + 830; }
+    else if (f === 'xgb-json') { perNode = 58; bytes = 58 * o.nodes; }
+    else if (f === 'lgb-text') { perNode = 96; bytes = 96 * o.leaves + 68 * o.F; }
+    else if (f === 'cb-cbm') { perNode = null; bytes = o.K * (16 * Math.pow(2, o.depth) + 17 * o.depth) + 88 * o.F; }
+    else throw new Error('tree_bytes: formato desconocido "' + f + '" (xgb-ubj, xgb-json, lgb-text, cb-cbm).');
+    return { format: f, bytes, perNode, estimate: true };
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -2849,6 +3034,9 @@
     flat_bytes, hnsw_bytes, ivfpq_bytes,
     // Fase 12
     conv1d, t5RelativeBucket, t5_rel_bias, add_rel_bias, pad_or_trim, log_mel,
+    // Fase 13
+    embedding_bag, embedding_tables, stack_rows, logq_correct, flatten_vec, pairwise_dot, tril_select, cross_mix, cross_layer,
+    treeHistRows, treeSplitEvals, quantize_bins, grad_hess, histogram_build, split_find, grow_tree, tree_update, tree_predict, leaf_sum, tree_bytes,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -3082,6 +3270,23 @@
     { id: 'add_rel_bias', name: 'Sumar el sesgo relativo', paramTex: '0', macTex: '0', outTex: 'h\\times T_q\\times T_k \\to h\\times T_q\\times T_k', note: 'scores + B antes del softmax (T5 no escala por 1/√d_h).' },
     { id: 'pad_or_trim', name: 'Rellenar o cortar a 30 s', paramTex: '0', macTex: '0', outTex: 'S \\to 480000', note: 'Whisper siempre procesa ventanas de 30 s (480,000 muestras a 16 kHz): el audio corto se rellena con ceros.' },
     { id: 'log_mel', name: 'Espectrograma log-Mel', paramTex: '0', macTex: '0', outTex: 'S \\to (S/160)\\times n_{\\mathrm{mels}}', note: 'STFT (25 ms, hop 10 ms) + banco de filtros mel + log: 100 frames por segundo, 3,000 por ventana. Preprocesamiento: fuera de los MACs del modelo.' },
+    // Fase 13 (recomendación: two-tower, DLRM / Wide & Deep / DCN v2; GBDT)
+    { id: 'embedding_bag', name: 'Embedding bag (lookup + suma / promedio)', paramTex: 'V\\,D', macTex: '0', outTex: 'n \\to D', note: 'Lee n filas de una tabla V×D y las suma (DLRM multi-hot) o promedia (historial del two-tower). 0 MACs: el costo es leer n·D números de memoria (acceso aleatorio).' },
+    { id: 'embedding_tables', name: 'Tablas de embeddings (una por feature)', paramTex: '\\textstyle\\sum_i V_i\\,D', macTex: '0', outTex: 'n_s \\to n_s\\times D', note: 'Una tabla por feature categórica: casi todos los parámetros de un modelo de ranking. Bytes = Σ V_i·D·bits/8; por muestra se leen n_s·D números.' },
+    { id: 'stack_rows', name: 'Apilar filas', paramTex: '0', macTex: '0', outTex: 'D,\\ n_s\\times D \\to (n_s{+}1)\\times D', note: 'El vector denso (salida del bottom MLP) junto a las n_s filas de embedding: la entrada de la interacción.' },
+    { id: 'logq_correct', name: 'Corrección log Q', paramTex: '0', macTex: '0', outTex: 'B\\times B,\\ B \\to B\\times B', note: 'Softmax in-batch: s_ij/τ − log Q(j). Los ítems populares aparecen más como negativos; restar log Q(j) quita ese sesgo de muestreo (Yi et al. 2019).' },
+    { id: 'pairwise_dot', name: 'Interacción por pares (dot)', paramTex: '0', macTex: 'n^2\\,d', outTex: 'n\\times d \\to n\\times n', note: 'Z = TTᵀ con un bmm (DLRM): la implementación calcula la matriz entera (n²d MACs); solo se usan los n(n−1)/2 pares del triángulo inferior.' },
+    { id: 'tril_select', name: 'Triángulo inferior', paramTex: '0', macTex: '0', outTex: 'n\\times n \\to n(n{-}1)/2', note: 'Cada par (i, j) con i > j una vez: con n = 27, 351 productos punto que se concatenan al vector denso.' },
+    { id: 'cross_mix', name: 'Cruce DCN (mezcla)', paramTex: 'd', macTex: '0', outTex: 'd,\\ d,\\ d \\to d', note: 'x₀ ⊙ (W x_l + b) + x_l: el producto elementwise con x₀ crea términos de un grado más por capa.' },
+    { id: 'cross_layer', name: 'Capa de cruce DCN v2', paramTex: '2\\,d\\,r + d', macTex: '2\\,d\\,r', outTex: 'd \\to d', note: 'Bajo rango (W = U·V, d → r → d): 2dr + d parámetros; rango completo: d² + d. Interacciones explícitas sin listar pares.' },
+    { id: 'quantize_bins', name: 'Discretizar en bins', paramTex: '0', macTex: '0', outTex: 'N\\times F \\to N\\times F', note: 'Una vez antes del boosting: cada valor → su bin (búsqueda binaria en ≤ 256 cortes por feature). Desde aquí el árbol trabaja con enteros de 1 byte.' },
+    { id: 'grad_hess', name: 'Gradiente y hessiana', paramTex: '0', macTex: '0', outTex: 'N,\\ N \\to N,\\ N', note: 'g_i = ∂ℓ/∂F, h_i = ∂²ℓ/∂F² con las predicciones actuales. Error cuadrático: g = F − y, h = 1.' },
+    { id: 'histogram_build', name: 'Histograma de gradientes', paramTex: '0', macTex: '0', outTex: 'N\\times F \\to F\\times n_{\\mathrm{bins}}\\times 2', note: 'Por nodo: suma g y h de sus filas en el bin de cada feature. Es el grueso del entrenamiento: ≈ 2·N·F sumas por nivel (la mitad con el truco de la resta).' },
+    { id: 'split_find', name: 'Mejor corte', paramTex: '0', macTex: '0', outTex: 'F\\times n_{\\mathrm{bins}}\\times 2 \\to 3', note: 'Ganancia ½[G_L²/(H_L+λ) + G_R²/(H_R+λ) − G²/(H+λ)] − γ para cada bin de cada feature: F·n_bins candidatos por nodo.' },
+    { id: 'grow_tree', name: 'Árbol (umbrales + hojas)', paramTex: 'n_{\\mathrm{int}} + n_{\\mathrm{leaves}}', macTex: '0', outTex: '\\to n_{\\mathrm{nodes}}', note: 'Lo aprendido: un umbral por nodo interno y un valor por hoja (profundidad d llena: 2^d − 1 + 2^d). Oblivious (CatBoost): d umbrales + 2^d hojas.' },
+    { id: 'tree_update', name: 'Actualizar predicciones', paramTex: '0', macTex: '0', outTex: 'N \\to N', note: 'F_t = F_{t−1} + η·árbol_t(x): cada fila baja por el árbol nuevo.' },
+    { id: 'tree_predict', name: 'Recorrer los árboles', paramTex: '0', macTex: '0', outTex: 'F \\to K', note: 'Una muestra baja por los K árboles: K·d comparaciones (por profundidad), 0 MACs. Por hojas (LightGBM) la profundidad del camino depende de los datos.' },
+    { id: 'leaf_sum', name: 'Suma de hojas', paramTex: '1', macTex: '0', outTex: 'K \\to 1', note: 'ŷ = base + Σ_t w_t(x) (η ya está dentro de los valores de hoja). Para clasificación, σ(ŷ).' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 

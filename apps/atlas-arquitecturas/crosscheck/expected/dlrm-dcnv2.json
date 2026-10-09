@@ -1,0 +1,129 @@
+{
+  "config_id": "dlrm-dcnv2",
+  "model": "dlrm",
+  "params_total": 26151671809,
+  "params_by_node": {
+    "embeddings": 26135627264,
+    "bottom-mlp": 171392,
+    "top-mlp": 5245953,
+    "interaction": 10627200
+  },
+  "shapes": {
+    "dense": [
+      13
+    ],
+    "b-h1": [
+      512
+    ],
+    "b-a1": [
+      512
+    ],
+    "b-h2": [
+      256
+    ],
+    "b-a2": [
+      256
+    ],
+    "b-h3": [
+      128
+    ],
+    "bot-out": [
+      128
+    ],
+    "emb": [
+      26,
+      128
+    ],
+    "feats": [
+      27,
+      128
+    ],
+    "x0": [
+      3456
+    ],
+    "c-low": [
+      512
+    ],
+    "c-up": [
+      3456
+    ],
+    "top-in": [
+      3456
+    ],
+    "t-h1": [
+      1024
+    ],
+    "t-a1": [
+      1024
+    ],
+    "t-h2": [
+      1024
+    ],
+    "t-a2": [
+      1024
+    ],
+    "t-h3": [
+      512
+    ],
+    "t-a3": [
+      512
+    ],
+    "t-h4": [
+      256
+    ],
+    "t-a4": [
+      256
+    ],
+    "logit": [
+      1
+    ],
+    "ctr": [
+      1
+    ],
+    "sparse-ids": [
+      214
+    ]
+  },
+  "flops_total": 32060928,
+  "flops_by_op_torch": {
+    "aten.addmm": 10827264,
+    "aten.mm": 21233664
+  },
+  "flops_by_node": {
+    "bottom-mlp": 340992,
+    "top-mlp": 10486272
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm"
+      ],
+      "prims": [
+        "linear"
+      ]
+    }
+  ],
+  "metrics_checks": {
+    "embeddingParams": 26135627264,
+    "mlpParams": 5417345,
+    "lookupsPerSample": 214,
+    "tables": 26,
+    "totalRows": 204184588,
+    "interactionMacs": 10616832,
+    "interactionParams": 10627200
+  },
+  "notes": [
+    "Construido en código en el dispositivo meta (sin pesos ni datos). mlcommons/training recommendation_v2/torchrec_dlrm README (DLRM_DCN, --dcn_num_layers=3 --dcn_low_rank_dim=512).",
+    "EmbeddingBag (lookup + suma), ReLU, sigmoide y el producto x0 ⊙ (…) de DCN no cuentan en FlopCounterMode, igual que el calculador ('otros')."
+  ],
+  "source": {
+    "lib": "torch (réplica de DLRM_Net de facebookresearch/dlrm / DLRM_DCN de torchrec)",
+    "ctor": "DLRM({'kind': 'dcn', 'd': 128, 'bot': '13-512-256-128', 'top': '1024-1024-512-256-1', 'hots': [3, 2, 1, 2, 6, 1, 1, 1, 1, 7, 3, 8, 1, 6, 9, 5, 1, 1, 1, 12, 100, 27, 10, 3, 1, 1], 'layers': 3, 'rank': 512})",
+    "rows_sum": 204184588,
+    "python": "3.13.15",
+    "torch": "2.14.1",
+    "timm": "1.0.30",
+    "transformers": "5.19.0"
+  }
+}

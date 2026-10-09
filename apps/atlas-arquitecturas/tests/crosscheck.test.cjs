@@ -418,3 +418,61 @@ test('F11 ANN: encoder DPR en meta + búsqueda; bytes y distancias contra índic
   const b = await find('ivfpq-1b-768');
   assert.strictEqual(b.exp.metrics_checks.precomputedTableBytes, 0);                 // 2²⁰·96·256·4 B > 2 GiB: FAISS no la precalcula
 });
+
+// ---------------------------------------------------------------- fase 13
+test('F13 two-tower y DLRM: módulos de PyTorch en meta desde las configs citadas; totales, módulos, FLOPs por operador y lote exactos', async () => {
+  for (const id of ['two-tower-base', 'two-tower-small', 'two-tower-no-ids']) {
+    const r = await find(id);
+    assert.deepStrictEqual(r.exp.calc_overrides, { B: 1 }, id);
+    assert.strictEqual(r.exp.batch_check.B, 4);
+    for (const w of ['batch B=4 flops_total', 'batch B=4 shape[logits]', 'params[user-tower]', 'params[item-tower]', 'params[user-tower>mlp]', 'flops[user-tower]', 'flops[item-tower]',
+      'metrics[embeddingParams]', 'metrics[userTowerMacs]', 'metrics[bruteForceMacs]']) assert.ok(r.checks.some((c) => c.what === w && c.ok), id + ' ' + w);
+  }
+  const b = await find('two-tower-base');
+  assert.strictEqual(b.exp.params_total, 768189984);
+  assert.strictEqual(b.exp.params_by_path['user-tower>hist-embed'], 0);                 // tabla de ítems compartida: se cuenta una vez
+  assert.deepStrictEqual(b.exp.batch_check.shapes.logits, [4, 4]);
+  for (const id of ['dlrm-criteo-kaggle', 'dlrm-mlperf', 'dlrm-dcnv2', 'wide-and-deep']) {
+    const r = await find(id);
+    assert.ok(r.checks.some((c) => c.what === 'params[embeddings]' && c.ok), id);
+    assert.ok(r.checks.some((c) => c.what === 'flops[top-mlp]' && c.ok), id);
+    assert.ok(r.checks.some((c) => c.what === 'metrics[embeddingParams]' && c.ok) && r.checks.some((c) => c.what === 'metrics[totalRows]' && c.ok), id);
+    assert.ok(r.checks.filter((c) => c.what.startsWith('flops[aten.')).every((c) => c.ok), id);
+  }
+  const k = await find('dlrm-criteo-kaggle');
+  assert.strictEqual(k.exp.params_total, 540677217);
+  assert.strictEqual(k.exp.source.rows_sum, 33762577);
+  assert.deepStrictEqual([k.exp.shapes.gram, k.exp.shapes.pairs, k.exp.shapes['top-in']], [[27, 27], [351], [367]]);
+  assert.strictEqual(k.exp.metrics_checks.interactionMacs, 27 * 27 * 16);                // bmm de la matriz entera
+  assert.ok(k.checks.some((c) => c.what === 'flops[aten.bmm]' && c.ok));
+  const d = await find('dlrm-dcnv2');
+  assert.strictEqual(d.exp.params_total, 26151671809);
+  assert.strictEqual(d.exp.metrics_checks.lookupsPerSample, 214);
+  assert.strictEqual(d.exp.params_by_node.interaction, 3 * (2 * 3456 * 512 + 3456));
+  assert.match(d.exp.source.ctor, /'rank': 512/);
+});
+
+test('F13 GBDT: modelos reales de xgboost / lightgbm / catboost (N = 50,000); defaults, estructura, nodos medidos y bytes guardados', async () => {
+  for (const id of ['xgboost-500-d6', 'lightgbm-500-l31', 'xgboost-2000-d8', 'catboost-oblivious-d6']) {
+    const r = await find(id);
+    assert.deepStrictEqual(r.exp.calc_overrides, { N: 50000 }, id);
+    assert.strictEqual(r.exp.flops_total, 0, id);
+    assert.ok(r.checks.some((c) => c.what === 'metrics[measuredNodes]' && c.ok), id);
+    assert.ok(r.checks.some((c) => c.what === 'metrics[nTrees]' && c.ok), id);
+    assert.ok(r.checks.some((c) => /^faiss\[bytes/.test(c.what) && c.ok), id + ': bytes del modelo guardado');
+    assert.ok(r.exp.notes.some((n) => /FLOPs = 0/.test(n)), id);
+  }
+  const x = await find('xgboost-500-d6');
+  assert.match(x.exp.source.xgboost, /^3\.4/);
+  assert.deepStrictEqual([x.exp.defaults.max_bin, x.exp.defaults.max_depth_default, x.exp.defaults.lambda, x.exp.defaults.updater], [256, 6, 1, 'grow_quantile_histmaker']);
+  assert.deepStrictEqual(x.exp.shapes.hist, [100, 257, 2]);                              // max_bin + 1 cortes por feature
+  assert.ok(x.exp.params_real_total < x.exp.params_total);                                // XGBoost poda: el real queda bajo la cota llena
+  const l = await find('lightgbm-500-l31');
+  assert.deepStrictEqual([l.exp.defaults.num_leaves, l.exp.defaults.max_depth, l.exp.defaults.max_bin], ['31', '-1', '255']);
+  assert.strictEqual(l.exp.params_real_total, l.exp.params_total);                        // 31 hojas en los 500 árboles
+  assert.strictEqual(l.exp.measured.base_folded_into_tree_1, true);
+  assert.ok(l.checks.some((c) => c.what === 'metrics[comparisonsMeasured]' && c.ok));
+  const c = await find('catboost-oblivious-d6');
+  assert.deepStrictEqual([c.exp.defaults.depth_default, c.exp.defaults.border_count, c.exp.defaults.grow_policy], [6, 254, 'SymmetricTree']);
+  assert.strictEqual(c.exp.params_real_total, 500 * 70 + 1);
+});

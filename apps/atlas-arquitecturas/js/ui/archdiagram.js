@@ -1254,6 +1254,10 @@
         used.store = true;
         S('path', { d: 'M' + P([r.x, r.y + ry]) + 'V' + r1(r.y + r.h - ry) + 'A' + r1(r.w / 2) + ',' + r1(ry) + ' 0 0 0 ' + P([r.x + r.w, r.y + r.h - ry]) + 'V' + r1(r.y + ry), class: 'ad-box ad-box--store' }, g);
         S('ellipse', { cx: r1(r.x + r.w / 2), cy: r1(r.y + ry), rx: r1(r.w / 2), ry: r1(ry), class: 'ad-box ad-box--store' }, g);
+      } else if (n.taper > 0 && n.taper < 1) {
+        // fase 13: node.taper = trapecio (el embudo de recomendación): el borde de abajo mide taper × el de arriba
+        const dx = r.w * (1 - n.taper) / 2;
+        S('path', { d: 'M' + P([r.x, r.y]) + 'H' + r1(r.x + r.w) + 'L' + P([r.x + r.w - dx, r.y + r.h]) + 'H' + r1(r.x + dx) + 'Z', class: 'ad-box', 'stroke-linejoin': 'round' }, g);
       } else S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: shape === 'pill' ? Math.min(r.h / 2, 12) : 4, class: 'ad-box' }, g);
       if (n.modality) S('rect', { x: r.x + 1, y: r.y + 4, width: 3.5, height: r.h - 8, class: 'ad-stripe ad-mod--' + n.modality }, g);
       if (n.image && ((run && run.config) || nocalc)) {
@@ -1268,7 +1272,7 @@
         // fase 7: strip (tira de tokens), posIds (ids de M-RoPE) y layers (capas con la toma) también van abajo
         // fase 8: costSplit (barra del costo por imagen) también va abajo
         // fase 10: bars (barras por fila, fuera de la práctica) y matrix (matriz a escala) también van abajo
-        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : (n.bars && ctl.mode !== 'blank' && !ctl.quiz) ? BARS_H(n.bars, r.w, (ctl.opts && ctl.opts.config) || (spec && spec.config), run, ctl, spec, !!(ctl.narrow && spec && spec.mobileGrid)) : n.matrix ? MAT_H(n.matrix) : n.tokens ? TOK_H(n.tokens) : n.cells ? CELLS_H(n.cells, run) : n.layered ? LAYERED_H(n.layered) : n.wave ? WAVE_H : n.melGrid ? MEL_H(n.melGrid) : 0;
+        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : (n.bars && ctl.mode !== 'blank' && !ctl.quiz) ? BARS_H(n.bars, r.w, (ctl.opts && ctl.opts.config) || (spec && spec.config), run, ctl, spec, !!(ctl.narrow && spec && spec.mobileGrid)) : n.matrix ? MAT_H(n.matrix) : n.tokens ? TOK_H(n.tokens) : n.cells ? CELLS_H(n.cells, run) : n.layered ? LAYERED_H(n.layered) : n.wave ? WAVE_H : n.melGrid ? MEL_H(n.melGrid) : n.hist ? HIST_H(n.hist) : 0;
         const miniH = n.mini ? 22 : innerH;
         // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
         const subs = sub ? String(sub).split('\n') : [];
@@ -1312,6 +1316,8 @@
         // fase 12: onda de audio y espectrograma log-Mel (pictogramas ilustrativos de Whisper)
         if (!hideInner && n.wave) drawWave(g, n.wave, r, used);
         if (!hideInner && n.melGrid) drawMelGrid(g, n.melGrid, r, used);
+        // fase 13: histograma de gradientes ilustrativo con el corte (GBDT)
+        if (!hideInner && n.hist) drawHist(g, n.hist, r, used, ctl, spec);
         if (!hideInner && n.maskGrid) drawMaskGrid(g, n.maskGrid, r, used);
         if (!hideInner && n.posIds) drawPosIds(g, n.posIds, r, used, ctl);
       }
@@ -2138,6 +2144,32 @@
     if (pad > 0) S('rect', { x: r1(x0 + live * cw), y: r1(y0), width: r1(W - live * cw), height: rows * cs, class: 'ad-wave-pad' }, gg);
   }
 
+  // fase 13: node.hist = {n:16, split:9, seed?, left?, right?}: histograma ILUSTRATIVO de una feature en n bins (GBDT): una barra
+  // con signo por bin (G_b = Σ g de sus filas), los bins a la izquierda del corte en azul y los de la derecha en verde azulado,
+  // la línea punteada del corte y los rótulos de cada lado (left/right, por omisión "G_L, H_L" y "G_R, H_R"). Los valores son de
+  // una semilla: lo que dice el dibujo es la estructura (sumas por bin, un corte entre bins), no un número.
+  const HIST_H = () => 52;
+  function drawHist(g, o, r, used, ctl, spec) {
+    used.hist = true;
+    const n = Math.max(2, o.n || 16), k = Math.max(1, Math.min(n - 1, o.split || Math.round(n * 0.6)));
+    const rng = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng(o.seed || 16) : Math.random;
+    const gg = S('g', { class: 'ad-hist' }, g);
+    const x0 = r.x + 12, W = r.w - 24, bw = W / n, y0 = r.y + r.h - HIST_H() + 4, bh = 30, zero = y0 + bh / 2;
+    S('path', { d: 'M' + P([x0, zero]) + 'H' + r1(x0 + W), class: 'ad-hist-axis' }, gg);
+    for (let b = 0; b < n; b++) {
+      const sg = (b < k ? 1 : -1) * (rng() < 0.15 ? -1 : 1), v = sg * (0.25 + 0.75 * rng());
+      const h = (bh / 2 - 1) * Math.abs(v);
+      S('rect', { x: r1(x0 + b * bw + 0.8), y: r1(v >= 0 ? zero - h : zero), width: r1(Math.max(1, bw - 1.6)), height: r1(Math.max(0.8, h)), class: 'ad-hist-bar ' + (b < k ? 'is-l' : 'is-r') }, gg);
+    }
+    const cx = x0 + k * bw;
+    S('path', { d: 'M' + P([cx, y0 - 2]) + 'V' + r1(y0 + bh + 2), class: 'ad-hist-cut' }, gg);
+    const quiet = ctl && (ctl.mode === 'blank' || ctl.quiz);
+    if (!quiet) {
+      txt(gg, x0 + (cx - x0) / 2, y0 + bh + 12, qText(o.left || 'G_L, H_L', ctl, spec), 'ad-hist-lab', 'middle');
+      txt(gg, cx + (x0 + W - cx) / 2, y0 + bh + 12, qText(o.right || 'G_R, H_R', ctl, spec), 'ad-hist-lab', 'middle');
+    }
+  }
+
   // node.cells = {rows, cols (claves o números), maxR?:6, maxC?:12, mark:'rowmax'|'pick'|'rows'|'none', lit?:<clave o número>,
   //   sum?:texto, label?, caption?, seed?, cell?:9}: una tabla chica (filas × columnas, recortada a maxR × maxC con "…" y con la
   //   cuenta real en label/caption) en la parte de abajo del bloque. El tono de cada celda es ILUSTRATIVO (semilla fija): lo que
@@ -2184,8 +2216,11 @@
         const xx = x0 + j * cs;
         if (d.moreC && j === d.nC) { txt(gg, xx + cs / 2, yy + cs - 2, '…', 'ad-cells-ell', 'middle'); continue; }
         if (mark === 'rows') S('rect', { x: r1(xx + 0.5), y: r1(yy + 1.5), width: r1(cs - 1), height: r1(cs - 3), class: 'ad-cell-row' + (isLit(i) ? ' is-lit' : '') }, gg);
+        // fase 13: tril = solo el triángulo inferior estricto cuenta (la interacción de DLRM); el resto, celda apagada
+        else if (mark === 'tril' && j >= i) S('rect', { x: r1(xx + 0.5), y: r1(yy + 0.5), width: r1(cs - 1), height: r1(cs - 1), class: 'ad-cell-off' }, gg);
         else S('rect', { x: r1(xx + 0.5), y: r1(yy + 0.5), width: r1(cs - 1), height: r1(cs - 1), class: 'ad-cell', style: 'fill-opacity:' + (Math.round((0.12 + 0.75 * row[j]) * 100) / 100) }, gg);
-        if ((mark === 'rowmax' && j === best) || (mark === 'pick' && j === pick)) S('rect', { x: r1(xx - 0.5), y: r1(yy - 0.5), width: r1(cs + 1), height: r1(cs + 1), class: 'ad-cell-mark' }, gg);
+        // fase 13: diag = la diagonal marcada (los positivos de la matriz B×B del lote)
+        if ((mark === 'rowmax' && j === best) || (mark === 'pick' && j === pick) || (mark === 'diag' && j === i)) S('rect', { x: r1(xx - 0.5), y: r1(yy - 0.5), width: r1(cs + 1), height: r1(cs + 1), class: 'ad-cell-mark' }, gg);
       }
       if (sumW) {
         const xs = x0 + colsDrawn * cs + 10;
@@ -2203,7 +2238,7 @@
     const d = cellsDims(o, run);
     if (!d) return '';
     const quiet = ctl.mode === 'blank' || ctl.quiz;
-    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : '';
+    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : o.mark === 'diag' ? 'la diagonal marcada' : o.mark === 'tril' ? 'solo el triángulo inferior estricto' : '';
     return 'tabla' + (quiet ? '' : ' de ' + fint(d.R) + ' × ' + fint(d.C)) + (what ? ', ' + what : '') + ' (tono ilustrativo)' + (o.caption && !quiet ? ': ' + plainSub(qText(o.caption, ctl, spec)) : '');
   }
 
@@ -2363,6 +2398,7 @@
     if (n.train) parts.push(n.train === 'frozen' ? 'congelado' : 'entrena');
     if (n.style === 'closed') parts.push('caja negra: pesos cerrados');
     if (n.bins) parts.push((n.bins.n || 256) + ' bins');
+    if (n.hist) parts.push('histograma ilustrativo de ' + (n.hist.n || 16) + ' bins con un corte entre bins');
     if (n.maskGrid) parts.push('máscara: ' + maskWords(n.maskGrid));
     // fase 10: barras (fuera de la práctica), adaptador LoRA y matriz a escala
     if (n.bars && run && ctl.mode !== 'blank' && !ctl.quiz) { const bw = barsWords(n.bars, run, ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {})); if (bw) parts.push(bw); }
@@ -2632,7 +2668,7 @@
         const g = S('g', { class: 'ad-op--' + o.id }, s);
         if (o.id === 'tensorop') { S('circle', { cx: 13, cy: 8, r: 6.5, class: 'ad-box' }, g); drawSymbol(g, 'add', 13, 8, 6.5); }
         else S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g);
-      }, o.title);
+      }, ((view.spec && view.spec.opLegend) || {})[o.id] || o.title);   // fase 13: spec.opLegend = rótulo propio por op (GBDT)
     }
     const mods = ATLAS.MODALITIES || [];
     const lid = view.legendDefsId;
@@ -2642,7 +2678,7 @@
         defs(s, lid + '-l' + m.id);
         const g = S('g', { class: 'ad-glyph ad-mod--' + m.id + (m.id === 'qry' ? ' ad-glyph--outline' : '') }, s);
         S('rect', { x: 3, y: 3, width: 20, height: 10, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-l' + m.id + '-tx-' + m.id + ')' }, g);
-      }, 'Tensor: ' + m.title.toLowerCase());
+      }, ((view.spec && view.spec.modLegend) || {})[m.id] || 'Tensor: ' + m.title.toLowerCase());   // fase 13: spec.modLegend = rótulo propio por modalidad (recsys: usuario / ítem)
     }
     if (used.joint) item((s) => { const g = S('g', { class: 'ad-glyph ad-mod--joint' }, s); S('rect', { x: 3, y: 3, width: 20, height: 10, class: 'ad-face ad-face--front', fill: 'var(--op-fuse-soft)' }, g); S('path', { d: 'M3 3L23 13', class: 'ad-matdiag' }, g); }, 'Tensor conjunto (lote B×B)');
     const ek = ATLAS.EDGE_KINDS || [];
@@ -2723,6 +2759,7 @@
     if (used.wave) item((s) => { const g = S('g', { class: 'ad-wave' }, s); S('path', { d: 'M3 8V8M5 5V11M7 3V13M9 6V10M11 4V12M13 7V9', class: 'ad-wave-ln' }, g); S('rect', { x: 15, y: 4, width: 9, height: 8, class: 'ad-wave-pad' }, g); }, LT.wave || 'Onda de audio (ilustrativa); marco punteado = relleno con ceros hasta 30 s');
     if (used.melGrid) item((s) => { const g = S('g', { class: 'ad-melg' }, s); [[3, 9, .9], [6, 9, .6], [9, 9, .8], [3, 6, .5], [6, 6, .3], [9, 6, .6], [3, 3, .2], [9, 3, .3]].forEach(([x, y, v]) => S('rect', { x, y, width: 3, height: 3, class: 'ad-melg-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 14, y: 3, width: 10, height: 9, class: 'ad-wave-pad' }, g); }, LT.melGrid || 'Espectrograma log-Mel (tono ilustrativo): filas = bandas mel, columnas = frames de 10 ms');
     if (used.tokKeep) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-seg0 is-keep' }, g); }, LT.tokKeep || 'Elegido y sin cambio (10 % de los elegidos): también entra en la pérdida');
+    if (used.hist) item((s) => { const g = S('g', { class: 'ad-hist' }, s); [[2, 4, 4], [6, 2, 6], [10, 5, 3]].forEach(([x, y, h]) => S('rect', { x, y: 8 - h, width: 3, height: h, class: 'ad-hist-bar is-l' }, g)); [[16, 8, 4], [20, 8, 6]].forEach(([x, y, h]) => S('rect', { x, y, width: 3, height: h, class: 'ad-hist-bar is-r' }, g)); S('path', { d: 'M14.5 1V15', class: 'ad-hist-cut' }, g); }, LT.hist || 'Histograma (ilustrativo): una barra por bin con la suma de gradientes; línea punteada = el corte');
     if (used.cells) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [[2, 2, .25], [8, 2, .8], [14, 2, .4], [2, 8, .6], [8, 8, .2], [14, 8, .9]].forEach(([x, y, v]) => S('rect', { x, y, width: 5, height: 5, class: 'ad-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 7.5, y: 1.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('rect', { x: 13.5, y: 7.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); }, LT.cells || 'Tabla (ilustrativa: el tono no es un valor real); recuadro = la celda elegida por fila');
     if (used.cellsRows) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 2, y, width: 22, height: 3, class: 'ad-cell-row' + (i === 1 ? ' is-lit' : '') }, g)); }, LT.cellsRows || 'Filas: listas del índice; resaltadas = las que se recorren');
     if (used.layered) item((s) => { const g = S('g', { class: 'ad-layered' }, s); S('path', { d: 'M4 3H24L21 7H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M4 9H24L21 13H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M8 5L8 11', class: 'ad-lay-drop' }, g); S('path', { d: 'M8 11L16 11', class: 'ad-lay-path' }, g); S('circle', { cx: 8, cy: 5, r: 2.6, class: 'ad-lay-ep' }, g); S('path', { d: 'M19 11L21 9L23 11L21 13Z', class: 'ad-lay-q' }, g); }, LT.layered || 'Grafo por capas (ilustrativo): la ruta resaltada es la búsqueda codiciosa');

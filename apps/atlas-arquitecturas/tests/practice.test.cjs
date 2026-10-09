@@ -21,7 +21,7 @@ function load() {
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
 // Revisión de la fase 10: lora y rlhf-dpo también entran en las barridas (drills de parámetros = diagrama, de formas = tarjeta).
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit', 'lora', 'rlhf-dpo', 'bert', 'retrieval', 'ann', 't5', 'whisper'];
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit', 'lora', 'rlhf-dpo', 'bert', 'retrieval', 'ann', 't5', 'whisper', 'two-tower', 'dlrm', 'gbdt'];
 const diagrams = ATLAS.diagrams();
 // Fase 7 (VLM): símbolos de la torre de visión que la tarjeta de datos debe mostrar además de los genéricos (H, W, C, P, D, L,
 // h, D_mlp, N, T, V, G): D_v, h_v, d_v, L_v, N_p y, en Qwen2-VL, F (frames). Mientras practice.js (factPairs) no los incluya,
