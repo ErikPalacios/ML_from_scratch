@@ -1633,3 +1633,92 @@ vs decoder per token; cost as Tout grows — from the calculator).
 - **content-t5**: js/content/t5.js. **content-whisper**: js/content/whisper.js.
 - **orchestrator**: index.html + stubs, catalog (canonical ids `t5-base`, Whisper canonical per §24.2;
   level-1 card fixes), SPEC, practice METRICS labels, integration.
+
+## 25. Phase 13 shared facts — two-tower, ranking (DLRM / Wide & Deep / DCN), GBDT (every F13 agent MUST use exactly these)
+
+Phase 1–12 lessons apply. Thesis: **recommendation is a funnel, and tabular data is where trees still
+win** — two-tower = the bi-encoder pattern of #retrieval applied to users × items (precompute items,
+ANN, #ann); ranking models (DLRM family) score hundreds of candidates with huge embedding tables
+(memory-bound, almost all parameters are embeddings) plus small MLPs and explicit feature interactions;
+GBDTs are the strong baseline for tabular features (and still common rankers). The calculator turns
+"tables are huge / lookups are memory-bound / trees are cheap at inference" into numbers. Verify every
+number against papers/official code/docs and cite; the source wins. These are systems without one
+official checkpoint: canonical configs are documented, reproducible reference configs (state where each
+number comes from); crosscheck builds the same modules in PyTorch (and real xgboost/lightgbm models)
+and compares.
+
+### 25.1 Two-tower — page `two-tower`, model `two-tower`
+Papers: Yi et al., "Sampling-Bias-Corrected Neural Modeling for Large Corpus Item Recommendations",
+RecSys 2019 (no arXiv; add the ACM DOI url — verify, expected 10.1145/3298689.3346996); Covington et
+al., "Deep Neural Networks for YouTube Recommendations", RecSys 2016; DSSM (Huang et al., CIKM 2013);
+in-batch softmax with logQ correction; link #retrieval (InfoNCE, in-batch negatives) and #clip.
+Canonical **`two-tower-base`** (reference config, document it): user tower = user-id embedding
+(hashed, 10M buckets × 64) + mean of the last 50 watched item ids (shared item-id table, 2M × 64) +
+a few categorical features (country 250, device 8, ... × 16) → MLP 256-128-64 → L2-normalised 64-d;
+item tower = item-id embedding (shared table) + categorical item features → MLP 256-128-64. Configs:
+`two-tower-small` (fewer ids), `two-tower-no-ids` (features only — cold start). Knobs: `B` (batch, =
+in-batch negatives), `dim`, `nItems` (corpus to index), `hist` (history length), `idBuckets`.
+Metrics: params split (embedding tables vs MLPs — tables dominate), embeddingBytes (fp32/fp16),
+userTowerMacs, itemTowerMacs, in-batch logits B×B MACs, item index bytes (nItems × dim), brute-force
+scoring MACs per request (link #ann for ANN cost), training lookup bytes per example.
+Ids: `two-tower-overview` (user features → user tower → u; item features → item tower → v; score
+u·v; offline lane: all items → item tower → ANN index; online lane: user → u → top-k), `inbatch-softmax`
+view (B×B logits, diagonal positives, − log Q(item) correction).
+
+### 25.2 Ranking — page `dlrm`, model `dlrm`
+Papers: DLRM (Naumov et al., arXiv:1906.00091; code facebookresearch/dlrm), Wide & Deep (Cheng et
+al., DLRS 2016, arXiv:1606.07792), DCN v2 (Wang et al., WWW 2021, arXiv:2008.13535), MLPerf DLRM
+(Criteo 1TB; DLRM-DCNv2 since MLPerf v3.0 — verify). Canonical **`dlrm-criteo-kaggle`**: the
+facebookresearch/dlrm Criteo Kaggle run: 13 dense features, 26 categorical with the Kaggle table
+cardinalities (from the repo / dataset counts — verify and cite), embedding dim 16, bottom MLP
+13-512-256-64-16, dot interaction (pairwise among 27 vectors, + dense), top MLP 512-256-1 (input size
+derived — verify), sigmoid. Configs: `dlrm-mlperf` (Criteo 1TB, dim 128, bottom 13-512-256-128, top
+1024-1024-512-256-1, tables capped at 40M rows — verify against MLPerf reference), `dlrm-dcnv2`
+(MLPerf v3 cross layers — verify), `wide-and-deep` (reference config, documented). Knobs: `B`, `dim`,
+`maxRows` (hashing cap), `bits` (embedding precision 32/16/8), `k` (candidates ranked per request).
+Metrics: embeddingParams vs mlpParams (share), embeddingBytes, lookup bytes per sample (26 × dim ×
+bytes), interaction MACs, MLP MACs per sample, arithmetic intensity (≪ GPU ridge — memory-bound),
+samples/s roofline "≈" with hardware, ranking cost per request (k candidates), table sharding note
+(model-parallel tables vs data-parallel MLPs).
+Ids: `dlrm-overview` (dense features → bottom MLP; categorical → embedding lookups ×26; interaction;
+top MLP; CTR), `interaction` view (pairwise dot matrix, lower triangle), `funnel` view (retrieval
+(two-tower) → ranking (DLRM) → re-ranking/business rules, with counts per stage: millions → hundreds →
+tens).
+
+### 25.3 GBDT — page `gbdt`, model `gbdt`
+Papers: XGBoost (Chen & Guestrin, KDD 2016, arXiv:1603.02754), LightGBM (Ke et al., NeurIPS 2017),
+CatBoost (Prokhorenkova et al., NeurIPS 2018, arXiv:1706.09516), Friedman 2001 (Annals of Statistics,
+gradient boosting machine), Grinsztajn et al. (NeurIPS 2022 Datasets & Benchmarks, arXiv:2207.08815,
+why trees still win on tabular). Canonical **`xgboost-500-d6`**: 500 trees, max_depth 6, 255/256
+histogram bins (verify xgboost `max_bin` default), learning rate 0.1 (cost-neutral), N = 1M rows × F =
+100 features (reference workload). Configs: `lightgbm-500-l31` (leaf-wise, num_leaves 31 — default),
+`xgboost-2000-d8`, `catboost-oblivious-d6` (symmetric trees). Knobs: `nTrees`, `depth` (or `leaves`),
+`F`, `N`, `bins`. Metrics: nodes / leaves (≤ 2^depth — real counts from crosscheck models), modelBytes
+(per format: estimate from node struct — verify), comparisons per prediction (nTrees × depth),
+predictions/s CPU "≈" with explicit hardware, histogram build cost per tree (≈ N × F per level for
+depth-wise; leaf-wise subtraction trick), split-finding cost (bins × F per node), training cost
+per tree. No tensors flow through trees: the diagram may use `calc: false` views with labelled edges
+(as RT-2) plus calculator badges where they apply.
+Ids: `gbdt-overview` (data → gradients/hessians → histogram build → best split → tree t → F_t =
+F_{t−1} + η·tree_t → next), `tree` view (one depth-limited tree, a sample's path, leaf value),
+`histogram-split` view (feature bins, gradient sums G_L/G_R, gain formula).
+
+### 25.4 Visualizations
+`inbatch-softmax` (B×B score matrix with logQ correction toggle; popular items' bias; synthetic),
+`feature-interaction` (DLRM pairwise dots; DCN cross terms; synthetic), `boosting-residuals` (1-D
+regression: each tree fits the residual; learning-rate slider; overfitting with many trees; synthetic),
+`histogram-split` (one feature binned, gain per threshold with the XGBoost gain formula including λ, γ;
+synthetic).
+
+### 25.5 Ownership in Phase 13
+- **arch**: js/arch/primitives.js (new primitives only: embedding lookup/bag (sum/mean pooling),
+  pairwise-dot interaction, cross layer, tree-ensemble cost accounting), js/arch/recsys.js (models
+  `two-tower`, `dlrm`), js/arch/trees.js (model `gbdt`), tests, crosscheck/recsys.py + crosscheck/trees.py
+  + expected JSONs (PyTorch modules built in code from the reference configs; real xgboost / lightgbm /
+  catboost (if it installs) models trained on synthetic data for node counts and model sizes — pin versions
+  in .venv; run in a separate process from torch if they clash).
+- **diagram**: engine extensions, js/ui/viz/{inbatch-softmax,feature-interaction,boosting-residuals,
+  histogram-split}.js, js/content/diagrams/{two-tower,dlrm,gbdt}.js, dev/diagram.html.
+- **content-recsys**: js/content/two-tower.js and js/content/dlrm.js. **content-gbdt**: js/content/gbdt.js.
+- **orchestrator**: index.html + stubs, catalog (canonical ids `two-tower-base`, `dlrm-criteo-kaggle`,
+  `xgboost-500-d6`; paper metadata; roadmap status), SPEC, practice METRICS labels, integration.
