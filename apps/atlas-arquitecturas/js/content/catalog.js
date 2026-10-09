@@ -574,7 +574,7 @@
   add(model({
     id: 'gbdt', block: 2, num: 10, phase: 13, family: 'trees',
     title: 'Gradient boosted trees: XGBoost y LightGBM', titleEn: 'Gradient boosted decision trees', short: 'GBDT (XGBoost/LightGBM)',
-    summary: 'Árboles que se suman uno a uno corrigiendo el error del anterior, con splits por histograma. Siguen ganando en tabulares por qué y cuándo deberías empezar por aquí.',
+    summary: 'Árboles que se suman uno a uno corrigiendo el error del anterior, con splits por histograma. Siguen ganando en datos tabulares: por qué, y cuándo conviene empezar por aquí.',
     topics: [
       'Boosting: ajustar el gradiente de la pérdida con un árbol',
       'Splits por histograma y crecimiento por hoja (LightGBM)',
