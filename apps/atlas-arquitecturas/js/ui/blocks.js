@@ -63,13 +63,15 @@
     if (a >= 1e3) return (n / 1e3).toFixed(1) + ' K';
     return String(n);
   }
+  // Cociente con 3 cifras significativas; desde 1,000 con separador de miles (3,814,995 → '3,810,000', no '3810000').
+  function fmtRatio3(v) { const x = Number(v.toPrecision(3)); return Math.abs(x) >= 1000 ? fmtInt(x) : String(x); }
   // Cómputo con el prefijo pegado a la unidad, formato único de la app: '17.56 GMACs', '872 MACs'.
   function fmtOps(n, unit) {
     const u = unit || 'MACs';
     const f = A() && A().fmt;
     if (f && typeof f.ops === 'function') { const v = safe(() => f.ops(n, u), null); if (v != null) return v; }
     const s = fmtSi(n);
-    const m = /^(.*) ([KMGT])$/.exec(s);
+    const m = /^(.*) ([KMGTPE])$/.exec(s);
     return m ? m[1] + ' ' + m[2] + u : s + ' ' + u;
   }
   function shapeNum(t) {
@@ -865,7 +867,7 @@
       if (m && m.fmt === 'sub') return h('span', { html: labelHtml(v) });   // 'W_Q y W_V' → subíndices
       if (typeof v !== 'number') return String(v);
       if (m && m.fmt === 'raw') return String(+v.toPrecision(4));
-      if (m && m.fmt === 'ratio') return '×' + String(Number(v.toPrecision(3)));
+      if (m && m.fmt === 'ratio') return '×' + fmtRatio3(v);
       if (m && m.fmt === 'bytes') { const f = A() && A().fmt; return f && f.bytes ? f.bytes(v) : fmtInt(v) + ' B'; }
       if (m && m.fmt === 'pct') return pctAuto(v);
       if (m && m.fmt === 'ms') return fmtMs(v) + ' ms';
@@ -877,7 +879,8 @@
         if (u === 'bytes' && f && f.bytes) return f.bytes(v);
         if (u === 'macs') return fmtOps(v, 'MACs');
         if (u === 'ms') return fmtMs(v) + ' ms';
-        if (u === 'ratio') return '×' + String(Number(v.toPrecision(3)));
+        if (u === 'duration' && f && f.duration) return f.duration(v);
+        if (u === 'ratio') return '×' + fmtRatio3(v);
       }
       return (m && m.fmt === 'si') ? (m.unit ? fmtOps(v, m.unit) : fmtSi(v)) : fmtInt(v);   // "17.56 GMACs", como en la prosa
     };

@@ -21,7 +21,11 @@
   // el ejemplo del paper (§A.1, par IsNext): "[CLS] the man went to [MASK] store [SEP] he bought a gallon [MASK] milk [SEP]"
   const WORDS = ['[CLS]', 'the', 'man', 'went', 'to', 'the', 'store', '[SEP]', 'he', 'bought', 'a', 'gallon', 'of', 'milk', '[SEP]'];
   const MASKED = { 5: 1, 12: 1 };
-  const toks = (masked) => WORDS.map((t, i) => ({ t, seg: i > 7 ? 1 : 0, special: t === '[CLS]' || t === '[SEP]', mask: !!(masked && MASKED[i]) }));
+  // en el pre-entrenamiento, además, la regla 80 / 10 / 10 dibujada: "store" → "song" (al azar) y "milk" elegido sin cambio
+  // (ilustrativo: 4 de 12 elegibles, más que el 15 %, para que se vean los tres casos)
+  const RAND = { 6: 'song' }, KEEP = { 13: 1 };
+  const toks = (masked, rule) => WORDS.map((t, i) => Object.assign({ t, seg: i > 7 ? 1 : 0, special: t === '[CLS]' || t === '[SEP]', mask: !!(masked && MASKED[i]) },
+    rule && RAND[i] ? { rand: RAND[i] } : {}, rule && KEEP[i] ? { keep: true } : {}));
   const LT = { tokens: 'Tokens de ejemplo (el par del paper; la config usa T tokens); la barra de abajo es el segmento: A o B', tie: 'Pesos atados: el decoder del MLM usa la MISMA matriz de word embeddings (se cuenta una vez)' };
 
   // ------------------------------------------------------------------ (a) vista general
@@ -65,7 +69,7 @@
     edges: [
       { from: 'tokens', to: 'embed', kind: 'data', tensor: 'ids', labelT: 0.5 },
       { from: 'embed', to: 'encoder', kind: 'data', tensor: 'x0', labelT: 0.45 },
-      { from: 'encoder', to: 'mlm-head', kind: 'data', tensor: 'x-out', fromSide: 'bottom', toSide: 'top', fromAt: 0.16, toAt: 0.5, labelT: 0.55 },
+      { from: 'encoder', to: 'mlm-head', kind: 'data', tensor: 'x-out', fromSide: 'bottom', toSide: 'top', fromAt: 0.16, toAt: 0.5, labelT: 0.8 },
       { from: 'encoder', to: 'pick-cls', kind: 'data', tensor: 'x-out', fromSide: 'bottom', toSide: 'top', fromAt: 0.86, toAt: 0.5, label: false, tag: 'fila 0', tagStyle: 'plain', tagSide: 'on', tagSeg: -1, tagT: 0.45 },
       { from: 'pick-cls', to: 'pooler', kind: 'data', tensor: 'h-cls', labelT: 0.5 },
       { from: 'pooler', to: 'nsp-head', kind: 'data', tensor: 'pooled', labelT: 0.5 },
@@ -105,7 +109,7 @@
     parent: 'bert-overview', parentNode: 'embed',
     caption: 'Tres búsquedas en tablas, una por cada tipo de id: palabra (V × D), posición absoluta aprendida (512 × D) y segmento A / B (2 × D). Se suman elemento a elemento y se normalizan. La tabla de palabras tiene casi todos los parámetros del bloque, y es la misma matriz que usa el decoder del MLM.',
     grid: { w: 110, h: 45 }, direction: 'lr', maxCrossings: 0,
-    mobileFocus: ['tok', 'pos', 'type', 'add'],
+    mobileFocus: ['ids-in', 'tok', 'type', 'add'],
     nodes: [
       { id: 'ids-in', op: 'io', modality: 'txt', label: 'ids de palabra', sub: 'WordPiece', x: 1, y: 7, w: 17, h: 7, note: 'Un id de WordPiece por token (con [MASK] en el pre-entrenamiento).' },
       { id: 'pos-in', op: 'io', modality: 'txt', label: 'posiciones', sub: '0 … T − 1', x: 1, y: 21, w: 17, h: 7, note: 'Los índices 0, 1, …, T − 1 (un buffer fijo, sin parámetros).' },
@@ -181,34 +185,34 @@
     id: 'bert-pretraining', model: 'bert', config: C, configs: CFGS, kind: 'arch', title: 'Pre-entrenamiento de BERT: MLM + NSP',
     parent: 'bert-overview', parentNode: 'mlm-head',
     caption: 'Dos tareas a la vez, sin etiquetas humanas. MLM: se elige el 15 % de los tokens (80 % pasa a [MASK], 10 % a una palabra al azar, 10 % queda igual) y la cross-entropy mide si el modelo recupera el original SOLO en esas posiciones (la flecha de la izquierda: las etiquetas salen del mismo texto). NSP: con el 50 % de los pares B sigue a A; [CLS] → pooler → 2 clases. La pérdida es la suma.',
-    grid: { w: 94, h: 104 }, direction: 'tb', maxCrossings: 0,
-    mobileFocus: ['pt-raw', 'pt-mask'],
-    legendText: LT,
+    grid: { w: 98, h: 104 }, direction: 'tb', maxCrossings: 0,
+    mobileFocus: ['pt-raw', 'pt-mask'], mobileFocusPad: 7,
+    legendText: Object.assign({}, LT, { tokens: 'Tokens de ejemplo (el par del paper; ilustrativo: aquí se eligen 4 de 12 para mostrar los tres casos, no el 15 %); la barra de abajo es el segmento: A o B' }),
     nodes: [
-      { id: 'pt-raw', op: 'io', modality: 'txt', label: 'Texto original', x: 3, y: 1, w: 72, h: 10,
+      { id: 'pt-raw', op: 'io', modality: 'txt', label: 'Texto original', x: 7, y: 1, w: 72, h: 10,
         tokens: { items: toks(false) }, note: 'Dos oraciones del corpus (BooksCorpus + Wikipedia en inglés). La mitad de las veces B es la oración siguiente; la otra mitad, una al azar.' },
-      { id: 'pt-mask', op: 'tensorop', shape: 'rect', label: 'Enmascarar el 15 %', sub: '80 % [MASK] · 10 % al azar · 10 % igual', ops: ['mask-tokens'], opsExact: true, x: 3, y: 16, w: 72, h: 11,
-        tokens: { items: toks(true) },
+      { id: 'pt-mask', op: 'tensorop', shape: 'rect', label: 'Enmascarar el 15 %', sub: '80 % [MASK] · 10 % al azar · 10 % igual', ops: ['mask-tokens'], opsExact: true, x: 7, y: 16, w: 72, h: 11,
+        tokens: { items: toks(true, true) },
         tex: '\\tilde t = \\mathrm{mask}(t),\\ \\ y_{\\mathrm{MLM}} = t \\text{ en las elegidas}', note: 'Se eligen ≈ {{metrics.mlmPredictions}} posiciones de {{cfg.T}} (nunca [CLS] ni [SEP]). De ellas, el 80 % pasa a [MASK], el 10 % a una palabra al azar y el 10 % queda igual: [MASK] no aparece en el fine-tuning y el modelo no puede confiar en que solo [MASK] importa. Las palabras originales son las etiquetas.' },
-      { id: 'pt-bert', op: 'attn', style: 'block', label: 'BERT (cuerpo)', sub: 'embeddings + L capas post-LN, bidireccional', ops: [], opsExact: true, x: 15, y: 33, w: 48, h: 8,
+      { id: 'pt-bert', op: 'attn', style: 'block', label: 'BERT (cuerpo)', sub: 'embeddings + L capas post-LN, bidireccional', ops: [], opsExact: true, x: 19, y: 33, w: 48, h: 8,
         note: 'El modelo entero de la vista general ({{params.total}} parámetros con las cabezas). Sale un vector por token: H = T×D.' },
-      { id: 'pt-mlm', op: 'head', costOf: 'mlm-head', label: 'Cabeza MLM', sub: 'decoder atado a E_tok', x: 3, y: 48, w: 30, h: 8,
+      { id: 'pt-mlm', op: 'head', costOf: 'mlm-head', label: 'Cabeza MLM', sub: 'decoder atado a E_tok', x: 7, y: 48, w: 30, h: 8,
         note: 'Dense + GELU + LN y el decoder atado a la tabla de palabras: un logit por palabra del vocabulario en cada posición.' },
-      { id: 'pt-pooler', op: 'embed', label: '[CLS] → pooler', sub: 'tanh(W_p h + b_p)', ops: ['pool-cls', 'pooler-dense', 'pooler-tanh'], opsExact: true, x: 45, y: 48, w: 30, h: 8,
+      { id: 'pt-pooler', op: 'embed', label: '[CLS] → pooler', sub: 'tanh(W_p h + b_p)', ops: ['pool-cls', 'pooler-dense', 'pooler-tanh'], opsExact: true, x: 49, y: 48, w: 30, h: 8,
         note: 'El vector de [CLS] por una Linear D → D y tanh.' },
-      { id: 'pt-nsp', op: 'head', costOf: 'nsp-head', label: 'NSP', sub: 'Linear D → 2', x: 45, y: 62, w: 30, h: 7, note: 'Dos logits: IsNext / NotNext.' },
-      { id: 'pt-mlm-loss', op: 'head', label: 'Cross-entropy MLM', sub: 'solo las posiciones elegidas', ops: ['mlm-loss'], opsExact: true, x: 3, y: 74, w: 30, h: 8,
+      { id: 'pt-nsp', op: 'head', costOf: 'nsp-head', label: 'NSP', sub: 'Linear D → 2', x: 49, y: 62, w: 30, h: 7, note: 'Dos logits: IsNext / NotNext.' },
+      { id: 'pt-mlm-loss', op: 'head', label: 'Cross-entropy MLM', sub: 'solo las posiciones elegidas', ops: ['mlm-loss'], opsExact: true, x: 7, y: 74, w: 30, h: 8,
         tex: '\\mathcal{L}_{\\mathrm{MLM}} = -\\tfrac{1}{|M|}\\textstyle\\sum_{i \\in M} \\log p(t_i \\mid \\tilde t)', note: 'Promedio sobre las posiciones elegidas M (≈ {{metrics.mlmPredictions}} por secuencia); las demás no aportan gradiente.' },
-      { id: 'pt-nsp-label', op: 'io', label: 'IsNext / NotNext', sub: '50 % / 50 %', x: 78, y: 74.5, w: 15, h: 7, note: 'La etiqueta del par, gratis: se sabe si B era la oración siguiente.' },
-      { id: 'pt-nsp-loss', op: 'head', label: 'Cross-entropy NSP', sub: '2 clases', ops: ['nsp-loss'], opsExact: true, x: 45, y: 74, w: 30, h: 8,
+      { id: 'pt-nsp-label', op: 'io', label: 'IsNext / NotNext', sub: '50 % / 50 %', x: 82, y: 74.5, w: 15, h: 7, note: 'La etiqueta del par, gratis: se sabe si B era la oración siguiente.' },
+      { id: 'pt-nsp-loss', op: 'head', label: 'Cross-entropy NSP', sub: '2 clases', ops: ['nsp-loss'], opsExact: true, x: 49, y: 74, w: 30, h: 8,
         tex: '\\mathcal{L}_{\\mathrm{NSP}} = -\\log p(y_{\\mathrm{NSP}} \\mid p)', note: 'Una clasificación binaria por par.' },
-      { id: 'pt-loss', op: 'tensorop', shape: 'add', label: 'L = L_MLM + L_NSP', labelPos: 'below', ops: ['loss-sum'], opsExact: true, x: 37, y: 92, w: 4, h: 4,
+      { id: 'pt-loss', op: 'tensorop', shape: 'add', label: 'L = L_MLM + L_NSP', labelPos: 'below', ops: ['loss-sum'], opsExact: true, x: 41, y: 92, w: 4, h: 4,
         tex: '\\mathcal{L} = \\mathcal{L}_{\\mathrm{MLM}} + \\mathcal{L}_{\\mathrm{NSP}}', note: 'Las dos pérdidas se suman con el mismo peso.' },
     ],
     edges: [
       { from: 'pt-raw', to: 'pt-mask', kind: 'data', tensor: 'raw-ids', label: false },
       { from: 'pt-mask', to: 'pt-bert', kind: 'data', tensor: 'ids', labelT: 0.5 },
-      { from: 'pt-mask', to: 'pt-mlm-loss', kind: 'data', tensor: 'mlm-labels', fromSide: 'left', toSide: 'left', fromAt: 0.5, toAt: 0.5, via: [[1, 21.5], [1, 78]], label: false, tag: 'etiquetas', tagBlank: false, tagStyle: 'plain', tagSide: 'on', tagSeg: 1, tagT: 0.25 },
+      { from: 'pt-mask', to: 'pt-mlm-loss', kind: 'data', tensor: 'mlm-labels', fromSide: 'left', toSide: 'left', fromAt: 0.5, toAt: 0.5, via: [[5, 21.5], [5, 78]], label: false, tag: 'etiquetas', tagBlank: false, tagStyle: 'plain', tagSide: 'on', tagSeg: 1, tagT: 0.25 },
       { from: 'pt-bert', to: 'pt-mlm', kind: 'data', tensor: 'x-out', fromSide: 'bottom', toSide: 'top', fromAt: 0.12, toAt: 0.5, labelT: 0.5, labelSide: 'left' },
       { from: 'pt-bert', to: 'pt-pooler', kind: 'data', tensor: 'x-out', fromSide: 'bottom', toSide: 'top', fromAt: 0.88, toAt: 0.5, label: false },
       { from: 'pt-pooler', to: 'pt-nsp', kind: 'data', tensor: 'pooled', labelT: 0.5 },

@@ -73,7 +73,7 @@
     const ctl = V.html('div', { class: 'viz-controls' }, wrap);
     const all = [];
     const grp = (lab) => { const g = V.html('div', { class: 'viz-ctl', role: 'group', 'aria-label': lab }, ctl); V.html('span', { class: 'viz-ctl-l', text: lab }, g); return g; };
-    const gB = grp('nbits (K = 2^nbits)');
+    const gB = grp('nbits (K = 2ⁿᵇⁱᵗˢ)');
     NBITS.forEach((v) => { const b = V.html('button', { type: 'button', class: 'viz-chip', 'aria-pressed': 'false', text: v + ' (K = ' + (1 << v) + ')' }, gB); b.addEventListener('click', () => { state.nbits = v; draw(); }); b._v = v; all.push(b); });
     const gS = grp('Vector');
     const act = (g, label, fn) => { const b = V.html('button', { type: 'button', class: 'viz-chip', text: label }, g); b.addEventListener('click', () => { fn(); draw(); }); return b; };
@@ -111,7 +111,9 @@
       const s = (W - 16 - (cols - 1) * gap) / cols, y0 = 52;
       for (let j = 0; j < M; j++) {
         const px = 8 + (j % cols) * (s + gap), py = y0 + Math.floor(j / cols) * (s + 30);
-        const P = (v) => [px + v[0] * s, py + (1 - v[1]) * s];
+        // margen de 7 px y recorte a [0, 1]: ningún centroide ni punto queda sobre el borde del panel (a 375 px se salía)
+        const mg = 7, cl = (u) => Math.max(0, Math.min(1, u));
+        const P = (v) => [px + mg + cl(v[0]) * (s - 2 * mg), py + mg + (1 - cl(v[1])) * (s - 2 * mg)];
         V.svg('rect', { x: r1(px), y: r1(py), width: r1(s), height: r1(s), rx: 4, class: 'viz-pq-bg' }, svg);
         t(svg, px, py - 6, 'sub-espacio ' + (j + 1) + (narrow ? '' : ' (dims ' + (j * SD + 1) + '–' + (j + 1) * SD + ')'), 'viz-s');
         let d = '';
@@ -192,7 +194,7 @@
       kv('ADC:', adc[state.item].toFixed(3));
       kv('recall@3:', recall.toFixed(2));
       const cn = calcNote();
-      note.textContent = 'Más bits por sub-vector = más centroides = menos error y mejor recall, a cambio de un código más largo y una tabla más grande (m × 2^nbits). ADC no cuantiza la consulta: solo la base. La tabla se arma una vez por consulta (m·K distancias de d/m dimensiones) y después cada vector cuesta m sumas, sin multiplicar.' + (cn ? ' A escala real (ivfpq-1m-768): d = ' + cn.d + ' en m = ' + cn.m + ' sub-vectores de ' + (cn.d / cn.m) + ', ' + cn.nbits + ' bits cada uno: ' + fint(cn.codeBytes) + ' B por vector en vez de ' + fint(cn.fp32) + ' B en fp32 (' + Math.round(cn.fp32 / cn.codeBytes) + '× menos).' : '');
+      note.textContent = 'Más bits por sub-vector = más centroides = menos error y mejor recall, a cambio de un código más largo y una tabla más grande (m × 2ⁿᵇⁱᵗˢ). ADC no cuantiza la consulta: solo la base. La tabla se arma una vez por consulta (m·K distancias de d/m dimensiones) y después cada vector cuesta m sumas, sin multiplicar. En IVF-PQ esto se aplica al residuo x − c_lista de cada vector respecto del centroide de su lista (y la tabla se arma con q − c_lista, una vez por lista recorrida); aquí se omite la lista para ver solo la cuantización.' + (cn ? ' A escala real (ivfpq-1m-768): d = ' + cn.d + ' en m = ' + cn.m + ' sub-vectores de ' + (cn.d / cn.m) + ', ' + cn.nbits + ' bits cada uno: ' + fint(cn.codeBytes) + ' B por vector en vez de ' + fint(cn.fp32) + ' B en fp32 (' + Math.round(cn.fp32 / cn.codeBytes) + '× menos).' : '');
     }
     stage.addEventListener('keydown', (ev) => {
       const k = ev.key;

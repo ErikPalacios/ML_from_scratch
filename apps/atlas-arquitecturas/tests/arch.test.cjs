@@ -3865,7 +3865,8 @@ test('F11 recuperación metrics: índice N·dim·bits/8, fuerza bruta N·dim, Co
   assert.deepStrictEqual([d256.tensors['q-trunc'].num.join('×'), d256.tensors['q-emb'].num.join('×'), d256.tensors['doc-index'].num.join('×')], ['256', '256', '8841823×256']);
   assert.strictEqual(A11.run('colbert-v2', { dim: 64 }).tensors['q-emb'].num.join('×'), '32×64');
   assert.throws(() => A11.run('sbert-minilm', { dim: 512 }), /mayor que D/);
-  assert.throws(() => A11.run('cross-encoder-minilm', { Td: 512 }), /T_q \+ T_d − 1/);
+  // Revisión de la fase 11: T_d = 512 ya no rompe nada: el par del cross-encoder se trunca a 512 (se recorta el documento).
+  assert.strictEqual(A11.run('cross-encoder-minilm', { Td: 512 }).tensors.ids.num.join('×'), '512');
   assert.throws(() => A11.run('dpr-bert-base', { bits: 3 }), /bits = 3/);
   assert.throws(() => A11.run('dpr-bert-base', { k: 30000000 }), /corpus/);
 });
@@ -3936,7 +3937,7 @@ test('F11 etiqueta + símbolo identifican una forma; byPath suma; aritmética; w
         assert.ok(Array.isArray(o.where) && o.where.length, id + ' ' + o.id + ' sin where');
       }
       const m = A11.metrics(id, ov);
-      for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'].includes(u), id + ' ' + k + ': ' + u);
+      for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms', 'duration'].includes(u), id + ' ' + k + ': ' + u);
       Object.keys(m).filter((k) => typeof m[k] === 'number' && /Macs$/.test(k) && !/^(attnMacs|scoreMacs|linearMacs)$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'macs', id + ' ' + k));
       Object.keys(m).filter((k) => typeof m[k] === 'number' && /Bytes(\d+)?$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'bytes', id + ' ' + k));
       Object.keys(m).filter((k) => typeof m[k] === 'number' && /Params$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'params', id + ' ' + k));
@@ -3952,5 +3953,62 @@ test('F11 etiqueta + símbolo identifican una forma; byPath suma; aritmética; w
   assert.strictEqual(Q11.get('dpr-bert-base.metrics.bruteForceMacs').text, A11.fmt.ops(21015324 * 768));
   assert.strictEqual(Q11.get('colbert-v2.tensor.sim.sym').text, 'T_q×T_d');
   assert.strictEqual(Q11.get('hnsw-1m-768.metrics.latencyBound').text, 'memoria');
+});
+test('F11 revisión: T_d = 512 trunca el par del cross-encoder (only_second) en las cuatro configs; métricas solo donde aplican', () => {
+  const pair = (c) => A11.run('cross-encoder-minilm', { Tq: c.Tq, Td: c.Td }).totals.macs;
+  for (const id of RET11) {
+    for (const ov of [{ Td: 512 }, { Td: 512, rerank: 0 }, { Tq: 8, Td: 512 }, { Tq: 64, Td: 512 }]) {
+      const r = A11.run(id, ov), m = A11.metrics(id, ov), c = r.config;
+      assert.deepStrictEqual([c.pairT, c.TdPair, c.pairTrunc], [512, 512 - c.Tq + 1, 1], id + ' ' + JSON.stringify(ov));
+      if (r.tensors['r-ids']) {
+        assert.deepStrictEqual([r.tensors['r-ids'].num.join('×'), r.tensors['r-ids'].sym.join('×')], ['512', '512']);
+        assert.match(r.ops.find((o) => o.id === 'make-pairs').label, /truncado a 512/);
+        assert.strictEqual(m.rerankMacs, c.k * pair(c));
+      }
+      if (c.kind !== 'cross') assert.strictEqual(r.tensors['d-ids'].num[0], 512, 'la torre de documentos lee los 512');
+    }
+  }
+  // Sin truncar: T_q + T_d − 1 y ninguna nota
+  const d = A11.run('dpr-bert-base');
+  assert.deepStrictEqual([d.tensors['r-ids'].sym.join('×'), d.tensors['r-ids'].num[0], d.config.pairTrunc, J(d.notes)], ['T_q+T_d-1', 32 + 256 - 1, 0, []]);
+  // Compare: el cross-encoder no tiene torres (—) y su rerank son k pares; ColBERT no tiene cross-encoder ni rerank.
+  const ce = A11.run('cross-encoder-minilm'), mce = A11.metrics('cross-encoder-minilm', {});
+  assert.deepStrictEqual([ce.quantities.queryEncodeMacs, ce.quantities.docEncodeMacs, mce.queryEncodeMacs, mce.docEncodeMacs], [undefined, undefined, undefined, undefined]);
+  assert.deepStrictEqual([ce.quantities.rerankMacs, mce.rerankMacs], [100 * ce.totals.macs, 100 * ce.totals.macs]);
+  const cb = A11.run('colbert-v2'), mcb = A11.metrics('colbert-v2', {});
+  for (const k of ['crossEncoderMacsPerPair', 'rerankMacs', 'crossEncoderParams']) assert.strictEqual(cb.quantities[k], undefined, 'colbert quantities.' + k);
+  for (const k of ['crossEncoderMacsPerPair', 'rerankMacs', 'rerankMs', 'crossVsBiPerQuery', 'crossEncoderFullScanMacs']) assert.strictEqual(mcb[k], undefined, 'colbert metrics.' + k);
+  // DPR con rerank 0: sin rerank, pero la comparación «cross-encoder sobre todo el corpus» sigue
+  const m0 = A11.metrics('dpr-bert-base', { rerank: 0 });
+  assert.deepStrictEqual([m0.rerankMacs, typeof m0.crossVsBiPerQuery], [undefined, 'number']);
+  assert.strictEqual(A11.run('dpr-bert-base').quantities.biEncoderParams, 2 * BB_TOWER);
+  // pretrainMacs de BERT no depende del knob B (es el de B = 256); stepMacs sí
+  assert.strictEqual(A11.metrics('bert-base', { B: 32 }).pretrainMacs, A11.metrics('bert-base', {}).pretrainMacs);
+  assert.strictEqual(A11.metrics('bert-base', { B: 32 }).stepMacs * 8, A11.metrics('bert-base', {}).stepMacs);
+  // El embedding guardado se llama dim (= D sin truncar); la query de ANN, d
+  assert.strictEqual(A11.run('dpr-bert-base').tensors['doc-index'].sym.join('×'), 'N×dim');
+  assert.strictEqual(A11.run('hnsw-1m-768').tensors.query.sym.join('×'), 'd');
+});
+
+test('F11 revisión: IVF-PQ con HNSW grueso devuelve ef candidatos; enlaces y distancias por nivel; centroides en caché; formatos', () => {
+  const b = A11.run('ivfpq-1b-768'), mb = A11.metrics('ivfpq-1b-768', {});
+  assert.deepStrictEqual([b.tensors['coarse-dists'].sym.join('×'), b.tensors['coarse-dists'].num.join('×')], ['ef', '64']);
+  assert.match(b.ops.find((o) => o.id === 'coarse').label, /4,224 distancias, no 1,048,576/);
+  assert.strictEqual(mb.coarseDistances, 4 * 32 + 64 * 64);
+  assert.strictEqual(A11.metrics('ivfpq-1b-768', { nprobe: 256 }).coarseDistances, 4 * 32 + 256 * 64, 'FAISS: ef = máx(efSearch, n_probe)');
+  assert.strictEqual(A11.run('ivfpq-1m-768').tensors['coarse-dists'].sym.join('×'), 'n_list');
+  const h = A11.metrics('hnsw-1m-768', {});
+  assert.deepStrictEqual([h.layer0LinkBytes, h.upperDistances, h.layer0Distances], [4 * 1e6 * 64, 3 * 32, 64 * 64]);
+  assert.ok(Math.abs(h.upperLinkBytes / h.layer0LinkBytes - 1 / (2 * 31)) < 1e-6, 'arriba ≈ 1/(2(M − 1)) del nivel 0');
+  const p = A11.metrics('ivfpq-1m-768', {});
+  assert.strictEqual(p.centroidBytesTouched, 4096 * 768 * 4);
+  assert.ok(p.centroidBytesShare > 0.85 && p.latencyMsCachedCentroids < p.latencyMs / 5);
+  assert.match(p.latencyKind, /86 % de los bytes son los centroides/);
+  // Formatos: E (10¹⁸), duraciones con unidad, cocientes grandes con 3 cifras
+  assert.strictEqual(A11.fmt.ops(1.4505e19), '14.51 EMACs');
+  assert.deepStrictEqual([0.693, 36842, 975384, 2.7e7, 5.87e8].map((x) => A11.fmt.duration(x)), ['0.693 ms', '36.8 s', '16.3 min', '7.5 h', '6.79 días']);
+  assert.strictEqual(Q11.get('dpr-bert-base.metrics.corpusEncodeTime').text, '16.3 min');
+  assert.strictEqual(Q11.get('dpr-bert-base.metrics.crossVsBiPerQuery').text, '3.81 millones');
+  assert.strictEqual(Q11.get('bert-base.metrics.pretrainMacs').text, '14.51 EMACs');
 });
 // ================================================================ fin del bloque de la fase 11

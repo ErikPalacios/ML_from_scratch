@@ -114,7 +114,7 @@
       768
     ],
     "coarse-dists": [
-      1048576
+      64
     ],
     "probe-ids": [
       16
@@ -565,7 +565,7 @@
   },
   "notes": [
     "Encode = el encoder de queries de DPR (BertModel sin pooler, [CLS], T_q = 32) en meta; FLOPs por FlopCounterMode.",
-    "Cuantizador grueso HNSW32 sobre los 1,048,576 centroides (IVF1048576_HNSW32 del wiki): ≈ 4224 distancias (cota del calculador).",
+    "Cuantizador grueso HNSW32 sobre los 1,048,576 centroides (IVF1048576_HNSW32 del wiki): ≈ 4224 distancias (estimación del calculador); salen los ef = 64 centroides candidatos (forma de coarse-dists), no 1,048,576 distancias.",
     "IVF-PQ: IndexIVFPQ(IndexFlatL2, d, 1048576, 96, 8) a tamaño real sin entrenar: code_size = 96 B, pq.centroids = 196608 floats (k_s·d); centroides gruesos n_list·d (parámetros de k-means). FLOPs de búsqueda en meta: q·Cᵀ (cuantizador grueso) + las tablas ADC q·codebooks (einsum, k_s·d MACs con la tabla precalculada, × n_probe sin ella); recorrer códigos = lecturas de tabla y sumas, 0 FLOPs de matmul.",
     "ann_checks / range_checks: índices FAISS reales con N = 20,000 y d = 64 (datos gaussianos, semilla 0): las fórmulas de bytes del calculador (A.flat_bytes / hnsw_bytes / ivfpq_bytes) con esos mismos N, d, M, n_list, m, nbits = los arreglos de FAISS."
   ],

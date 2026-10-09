@@ -627,6 +627,108 @@
     latencyMs: { label: 'ms por consulta en CPU (≈ cota)', kind: 'ms', note: 'roofline de ancho de banda; no cuenta el costo de los saltos aleatorios' },
     searchMacs: { label: 'MACs de la búsqueda', kind: 'ops', note: 'distancias × d' },
     scannedVectors: { label: 'Vectores revisados por consulta', kind: 'count', note: '' },
+    // Revisión de la fase 11: el resto de claves numéricas de metrics() de `bert`, `retrieval` y `ann` con etiqueta.
+    poolerParams: { label: 'Parámetros del pooler', kind: 'count', note: 'Linear D → D + tanh sobre [CLS]' },
+    mlmHeadParams: { label: 'Parámetros de la cabeza MLM', kind: 'count', note: 'dense + LayerNorm + sesgo del decoder (D² + 3D + V; el decoder está atado)' },
+    nspParams: { label: 'Parámetros de la cabeza NSP', kind: 'count', note: 'Linear D → 2' },
+    mlmTiedParams: { label: 'Decoder del MLM atado (no se cuenta)', kind: 'count', note: 'V × D: la tabla de word embeddings, ya contada' },
+    bodyParams: { label: 'Parámetros del cuerpo', kind: 'count', note: 'embeddings + encoder' },
+    headsParams: { label: 'Parámetros de las cabezas', kind: 'count', note: 'pooler + MLM + NSP' },
+    headsParamsShare: { label: 'Cabezas (parámetros)', kind: 'pct', note: '% de los parámetros' },
+    layerMacs: { label: 'MACs por capa del encoder', kind: 'ops', note: '' },
+    mlmDecoderMacs: { label: 'MACs del decoder del MLM', kind: 'ops', note: 'T × D × V (todas las posiciones)' },
+    mlmHeadMacsGathered: { label: 'MACs de la cabeza MLM solo en las posiciones elegidas', kind: 'ops', note: 'como el código original (gather_indexes)' },
+    poolerMacs: { label: 'MACs del pooler', kind: 'ops', note: 'D² sobre [CLS]' },
+    nspMacs: { label: 'MACs de la cabeza NSP', kind: 'ops', note: '' },
+    mlmHeadMacsShare: { label: 'Cabeza MLM', kind: 'pct', note: '% de los MACs por secuencia' },
+    attnScoreShare: { label: 'QKᵀ y A·V', kind: 'pct', note: '% de los MACs por secuencia (con la cabeza MLM)' },
+    maskRate: { label: 'Tokens elegidos por el MLM', kind: 'pct', note: '' },
+    mlmMaskTokens: { label: 'Elegidos que pasan a [MASK]', kind: 'count', note: '80 % de los elegidos (en esperanza)' },
+    mlmRandomTokens: { label: 'Elegidos que pasan a un token al azar', kind: 'count', note: '10 % de los elegidos' },
+    mlmKeptTokens: { label: 'Elegidos que quedan iguales', kind: 'count', note: '10 % de los elegidos' },
+    maskShare: { label: '[MASK]', kind: 'pct', note: '% de los elegidos' },
+    randomShare: { label: 'Token al azar', kind: 'pct', note: '% de los elegidos' },
+    keepShare: { label: 'Sin cambio', kind: 'pct', note: '% de los elegidos' },
+    nspPositiveShare: { label: 'Pares IsNext', kind: 'pct', note: '% de los pares de NSP' },
+    tokensPerBatch: { label: 'Tokens por paso', kind: 'count', note: 'B × T' },
+    stepMacs: { label: 'MACs por paso de entrenamiento (≈)', kind: 'ops', note: '3 × forward × B' },
+    pretrainMacs: { label: 'MACs del preentrenamiento de BERT (≈)', kind: 'ops', note: '1M pasos de B = 256: 90 % a T = 128 y 10 % a 512' },
+    forwardBatchMsH100: { label: 'ms del forward del lote en H100 (≈ cota)', kind: 'ms', note: 'roofline, B secuencias' },
+    crossoverT: { label: 'Largo donde QKᵀ + A·V igualan a las lineales', kind: 'count', note: 'T = 2D + D_mlp (6D en BERT)' },
+    N: { label: 'Documentos del corpus N', kind: 'count', note: '', labels: { ann: 'Vectores del índice N' } },
+    k: { label: 'Candidatos por consulta k', kind: 'count', note: '' },
+    Tq: { label: 'Tokens de la consulta T_q', kind: 'count', note: '' },
+    Td: { label: 'Tokens del documento T_d', kind: 'count', note: '' },
+    dim: { label: 'Dimensión guardada dim', kind: 'count', note: '' },
+    bits: { label: 'Bits por número', kind: 'count', note: 'precisión guardada del índice' },
+    pairTokens: { label: 'Tokens del par (cross-encoder)', kind: 'count', note: 'T_q + T_d − 1, truncado a 512 (se recorta el documento)' },
+    cpuBandwidth: { label: 'Ancho de banda de la CPU', kind: 'bw', note: 'AMD EPYC 9654, 1 socket' },
+    cpuPeakFlops: { label: 'Pico de cómputo de la CPU', kind: 'flops', note: 'fp32, derivado (≈)' },
+    crossEncoderFullScanMacs: { label: 'MACs del cross-encoder sobre todo el corpus', kind: 'ops', note: 'N pares por consulta: lo que NO se hace' },
+    crossEncoderFullScanMs: { label: 'ms del cross-encoder sobre todo el corpus (≈ cota)', kind: 'ms', note: 'H100 a pico, por consulta' },
+    crossEncoderParams: { label: 'Parámetros del cross-encoder', kind: 'count', note: '' },
+    rerankMs: { label: 'ms del rerank en H100 (≈ cota)', kind: 'ms', note: 'k pares, roofline' },
+    pairsPerSecH100: { label: 'Pares por segundo en H100 (≈ tope)', kind: 'count', note: 'roofline, a pico' },
+    towerParams: { label: 'Parámetros de una torre', kind: 'count', note: '' },
+    docTowerParams: { label: 'Parámetros de la torre de documentos', kind: 'count', note: '0 si comparte los pesos (siamés)' },
+    biEncoderParams: { label: 'Parámetros del bi-encoder', kind: 'count', note: 'las dos torres, sin el reranker' },
+    rerankerParams: { label: 'Parámetros del reranker', kind: 'count', note: '0 si no hay rerank' },
+    queryEncodeMs: { label: 'ms para codificar la consulta en H100 (≈ cota)', kind: 'ms', note: 'roofline' },
+    corpusEncodeMs: { label: 'ms para codificar el corpus en H100 (≈ cota)', kind: 'ms', note: 'offline, a pico' },
+    corpusEncodeTime: { label: 'Tiempo para codificar el corpus en H100 (≈ cota)', kind: 'duration', note: 'offline, a pico' },
+    bruteForceBytes: { label: 'Bytes que lee la búsqueda exacta', kind: 'bytes', note: 'el índice entero, por consulta' },
+    embeddingIndexBytes32: { label: 'Memoria del índice en fp32', kind: 'bytes', note: 'N × dim × 4' },
+    colbertIndexBytes: { label: 'Índice por token (ColBERT)', kind: 'bytes', note: 'N × T_d × dim × bits / 8' },
+    colbertV1IndexBytes: { label: 'Índice de ColBERT v1 (fp16)', kind: 'bytes', note: 'N × T_d × dim × 2' },
+    colbertV2IndexBytes: { label: 'Índice de ColBERTv2 (residuo de 2 bits)', kind: 'bytes', note: '36 B por vector' },
+    colbertV2BytesPerVector: { label: 'Bytes por vector en ColBERTv2', kind: 'bytes', note: 'centroide (4 B) + residuo' },
+    tokenVectors: { label: 'Vectores de token guardados', kind: 'count', note: 'N × T_d' },
+    singleVectorRatio: { label: 'Vectores por documento vs un vector', kind: 'ratio', note: '= T_d' },
+    maxsimMacsPerDoc: { label: 'MACs de MaxSim por documento', kind: 'ops', note: 'T_q × T_d × dim' },
+    colbertRerankMacs: { label: 'MACs de MaxSim sobre los k candidatos', kind: 'ops', note: '' },
+    bruteForceMsCpu: { label: 'ms de la búsqueda exacta en CPU (≈ cota)', kind: 'ms', note: 'roofline: leer el índice domina' },
+    onlineMacsPerQuery: { label: 'MACs en línea por consulta', kind: 'ops', note: 'encoder + búsqueda exacta + rerank' },
+    onlineMsH100: { label: 'ms en línea por consulta en H100 (≈ cota)', kind: 'ms', note: '' },
+    bruteForceShareOnline: { label: 'Búsqueda exacta', kind: 'pct', note: '% de los MACs en línea por consulta' },
+    queryVsDocEncode: { label: 'Documento / consulta (MACs del encoder)', kind: 'ratio', note: '' },
+    crossVsBiPerQuery: { label: 'Cross-encoder sobre todo el corpus / bi-encoder', kind: 'ratio', note: 'MACs por consulta' },
+    encodeMacs: { label: 'MACs para codificar la query', kind: 'ops', note: 'encoder de queries de DPR' },
+    encodeParams: { label: 'Parámetros del encoder de la query', kind: 'count', note: '' },
+    flatBytes: { label: 'Memoria del índice exacto (fp32)', kind: 'bytes', note: 'N × d × 4' },
+    flatMacs: { label: 'MACs de la búsqueda exacta', kind: 'ops', note: 'N × d' },
+    vectorBytes: { label: 'Bytes de los vectores', kind: 'bytes', note: 'N × d × bits / 8' },
+    layer0LinkBytes: { label: 'Enlaces del nivel 0', kind: 'bytes', note: '4 · N · 2M' },
+    upperLinkBytes: { label: 'Enlaces de los niveles de arriba', kind: 'bytes', note: '≈ 4 · N · M/(M − 1): ≈ 1/(2(M − 1)) del nivel 0' },
+    levelBytes: { label: 'Niveles y offsets de HNSW', kind: 'bytes', note: '4N + 8(N + 1)' },
+    wikiRuleBytes: { label: 'Regla del wiki de FAISS', kind: 'bytes', note: '(d·4 + 2M·4) por vector' },
+    linksPerVector: { label: 'Enlaces por vector (esperanza)', kind: 'ratio', note: '2M + M/(M − 1)' },
+    levels: { label: 'Niveles sobre el 0 (≈)', kind: 'count', note: '⌊log_M N⌋' },
+    upperDistances: { label: 'Distancias del descenso (≈)', kind: 'count', note: '⌊log_M N⌋ · M' },
+    layer0Distances: { label: 'Distancias en el nivel 0 (≈)', kind: 'count', note: 'efSearch · 2M (estimación: medido 0.44–1.02×)' },
+    buildMacs: { label: 'MACs de construir el índice (≈)', kind: 'ops', note: '' },
+    searchParams: { label: 'Parámetros del índice', kind: 'count', note: 'centroides y codebooks (k-means)' },
+    distanceComputationsFlat: { label: 'Distancias de la búsqueda exacta', kind: 'count', note: 'N' },
+    distanceRatioVsFlat: { label: 'Distancias: exacta / índice', kind: 'ratio', note: '' },
+    searchMacsShare: { label: 'Búsqueda', kind: 'pct', note: '% de los MACs por consulta (con el encoder)' },
+    macsVsFlat: { label: 'MACs: exacta / índice', kind: 'ratio', note: '' },
+    bytesTouchedVsFlat: { label: 'Bytes leídos: exacta / índice', kind: 'ratio', note: '' },
+    buildMsCpu: { label: 'ms de construir el índice en CPU (≈ cota)', kind: 'ms', note: 'a pico: el build real es mucho más lento' },
+    buildTimeCpu: { label: 'Tiempo de construir el índice en CPU (≈ cota)', kind: 'duration', note: 'a pico: el build real es mucho más lento' },
+    qpsUpperBound: { label: 'Consultas por segundo (≈ tope)', kind: 'count', note: '1 / latencia, un núcleo de memoria' },
+    encodeMsH100: { label: 'ms para codificar la query en H100 (≈ cota)', kind: 'ms', note: '' },
+    h100Bandwidth: { label: 'Ancho de banda de la H100', kind: 'bw', note: 'para el encoder' },
+    idBytes: { label: 'Bytes de los ids', kind: 'bytes', note: 'int64 por vector en las listas' },
+    centroidBytes: { label: 'Bytes de los centroides', kind: 'bytes', note: 'n_list × d × 4' },
+    codebookBytes: { label: 'Bytes de los codebooks de PQ', kind: 'bytes', note: 'k_s × d × 4' },
+    listSizeBytes: { label: 'Tamaños de las listas', kind: 'bytes', note: '8 · n_list' },
+    coarseLinkBytes: { label: 'Enlaces del HNSW sobre los centroides', kind: 'bytes', note: '0 con cuantizador plano' },
+    precomputedTableBytes: { label: 'Tabla precalculada (RAM)', kind: 'bytes', note: 'n_list × m × k_s × 4, si cabe en 2 GiB' },
+    compression: { label: 'Compresión de PQ', kind: 'ratio', note: 'd × 4 / (m × nbits / 8)' },
+    coarseDistances: { label: 'Distancias a centroides por consulta', kind: 'count', note: 'n_list, o ≈ las del HNSW grueso' },
+    listSize: { label: 'Vectores por lista', kind: 'ratio', note: 'N / n_list' },
+    centroidBytesTouched: { label: 'Bytes de centroides leídos por consulta', kind: 'bytes', note: 'coarse · d · 4' },
+    centroidBytesShare: { label: 'Centroides', kind: 'pct', note: '% de los bytes leídos por consulta' },
+    latencyMsCachedCentroids: { label: 'ms por consulta con los centroides en caché (≈ cota)', kind: 'ms', note: 'misma cota sin leer los centroides de DRAM' },
     actionBins: { label: 'Bins por dimensión', kind: 'count', note: 'discretización uniforme entre q01 y q99' },
     decodeSteps: { label: 'Pasos de decode por acción', kind: 'count', note: 'el primer token sale del prefill' },
     actionTokenFirst: { label: 'Primer id de token de acción', kind: 'count', note: 'los 256 ids menos usados de Llama' },
@@ -680,7 +782,7 @@
     embBatchMem: { label: 'Embeddings del lote', kind: 'bytes', note: '2·B·E valores (imagen y texto), bf16' },
     batchMacs: { label: 'MACs del lote', kind: 'ops', note: 'forward de los B pares' },
     // ---- Fase 5: SAM (codificar una vez por imagen, decodificar por prompt; ventanas vs bloques globales)
-    encoderParams: { label: 'Parámetros del encoder', kind: 'count', note: 'ViT + neck' },
+    encoderParams: { label: 'Parámetros del encoder', kind: 'count', note: 'ViT + neck', notes: { bert: 'las L capas post-LN' } },
     encoderParamsShare: { label: 'Encoder (parámetros)', kind: 'pct', note: '% de los parámetros del modelo' },
     decoderParams: { label: 'Parámetros del prompt encoder + decoder', kind: 'count', note: 'lo que corre por prompt (el mismo en H, L y B)' },
     decoderMacsPerPrompt: { label: 'MACs por prompt (prompt encoder + decoder)', kind: 'ops', note: 'cada clic, con el embedding de imagen ya calculado' },
@@ -783,7 +885,8 @@
     layerParams: { label: 'Parámetros por capa', kind: 'count', note: '' },
     attnParamsLayer: { label: 'Atención por capa', kind: 'count', note: 'd·(n_h + 2·n_kv)·d_h + n_h·d_h·d' },
     ffnParamsLayer: { label: 'FFN por capa', kind: 'count', note: '3·d·d_ff (MoE: × expertos + router)' },
-    embedParamsShare: { label: 'Embedding + LM head', kind: 'pct', note: '% de los parámetros' },
+    embedParamsShare: { label: 'Embedding + LM head', kind: 'pct', note: '% de los parámetros',
+      labels: { bert: 'Embeddings (palabra, posición y segmento)' }, notes: { bert: '% de los parámetros; el decoder del MLM reutiliza la tabla (atado)' } },
     attnParamsShare: { label: 'Atención', kind: 'pct', note: '% de los parámetros' },
     ffnParamsShare: { label: 'FFN', kind: 'pct', note: '% de los parámetros' },
     normParamsShare: { label: 'Normas', kind: 'pct', note: '% de los parámetros' },
@@ -859,19 +962,22 @@
     });
     // Hardware del roofline (lo que devuelve metrics(); por defecto H100 SXM).
     if (!METRICS.bandwidth) METRICS.bandwidth = { label: 'Ancho de banda de memoria', kind: 'bw', note: 'el del roofline (por defecto H100 SXM, 3.35 TB/s)' };
-    if (!METRICS.peakFlops) METRICS.peakFlops = { label: 'Pico de cómputo', kind: 'flops', note: 'denso, bf16/FP16 (por defecto H100 SXM, 989 TFLOPS)' }; }
+    if (!METRICS.peakFlops) METRICS.peakFlops = { label: 'Pico de cómputo', kind: 'flops', note: 'denso, bf16/FP16 (por defecto H100 SXM, 989 TFLOPS)' };
+    // ANN (fase 11): el roofline de la búsqueda es la CPU (FAISS), no la H100.
+    METRICS.bandwidth.notes = Object.assign({}, METRICS.bandwidth.notes, { ann: 'el del roofline de la búsqueda: CPU AMD EPYC 9654, 1 socket (460.8 GB/s)' });
+    METRICS.peakFlops.notes = Object.assign({}, METRICS.peakFlops.notes, { ann: 'CPU AMD EPYC 9654: fp32 ≈ 7.37 TFLOPS (derivado)' }); }
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
   const DIFFUSION = { 'stable-diffusion': true, dit: true };   // fase 8: modelos cuyo samplingMacs es el costo por imagen
   // Etiqueta: la del modelo (labels[model]: «Celdas A» en YOLO) o la general.
   const metricLabel = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.labels && model && m.labels[model]) || m.label || k; };
-  const UNIT_KIND = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count', ms: 'ms' };
+  const UNIT_KIND = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count', ms: 'ms', duration: 'duration' };
   // Tipo de formato: el de METRICS; si la clave no está, por su nombre (las métricas que añade cada modelo
   // siguen la convención …Mem/…Cache = bytes, …Share = fracción, …Macs = MACs; como js/core/quantities.js).
   function metricKind(key) {
     const k = metricKey(key);
     // Primero el mapa `units` del modelo (lo registra metrics()); luego METRICS; luego el nombre.
-    if (METRICS[k] && ['intensity', 'rate', 'avg', 'ms', 'hz', 'bw', 'flops', 'bool'].includes(METRICS[k].kind)) return METRICS[k].kind;   // formato propio, gana a units
+    if (METRICS[k] && ['intensity', 'rate', 'avg', 'ms', 'duration', 'hz', 'bw', 'flops', 'bool'].includes(METRICS[k].kind)) return METRICS[k].kind;   // formato propio, gana a units
     if (ARCH_UNITS[k] && UNIT_KIND[ARCH_UNITS[k]]) return UNIT_KIND[ARCH_UNITS[k]];
     if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
@@ -882,7 +988,8 @@
   }
   // Cociente con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5', 16 → '16'.
   // Si el redondeo da un entero de una cifra que no es exacto (1.004), 2 decimales: '×1.00', no '×1'.
-  const fRatio = (v) => { const x = Number(v.toPrecision(3)); if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2); return Math.abs(x) >= 1000 ? fInt(Math.round(v)) : String(x); };   // ≥ 1000: entero redondeado (1,645, no 1,640)
+  // ≥ 1000: entero redondeado (1,645, no 1,640); ≥ 100,000: 3 cifras significativas (3,810,000), como quantities.js.
+  const fRatio = (v) => { const x = Number(v.toPrecision(3)); if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2); return Math.abs(x) >= 1e5 ? fInt(x) : Math.abs(x) >= 1000 ? fInt(Math.round(v)) : String(x); };
   // Milisegundos (fase 8): 3 cifras significativas, como quantities.js: 1.62 · 2.54 · 83.8 · 121.
   const fMs = (v) => { const a = Math.abs(v); return a >= 100 ? fInt(Math.round(v)) : a >= 10 ? v.toFixed(1) : a >= 1 ? v.toFixed(2) : String(Number(v.toPrecision(3))); };
   // Lee una métrica: número, {bytes}, o función (attnMem(dtype), kvCache(B, ctx, dtype)…). Booleano (fitsOn24…) → 1 / 0
@@ -914,6 +1021,8 @@
     if (kind === 'intensity') return fRatio(v) + ' FLOPs/B';
     if (kind === 'rate') return '≈ ' + fRatio(v) + ' tok/s';
     if (kind === 'ms') return fMs(v) + ' ms';
+    // 'duration' (fase 11): un tiempo largo con su unidad (36.8 s, 16.3 min, 6.8 días); fmt.duration del calculador.
+    if (kind === 'duration') { const A = Arch(); return A && A.fmt && typeof A.fmt.duration === 'function' ? A.fmt.duration(v) : fMs(v) + ' ms'; }
     // 'avg': un conteo esperado (no un factor): 1 decimal, sin «×»; «de E» si es un MoE (≈ 7.2 de 8).
     if (kind === 'hz') return '≈ ' + fRatio(v) + ' Hz';
     if (kind === 'bw') return fRate(v, 'B/s');
@@ -938,7 +1047,7 @@
     if (kind === 'ratio') return '×' + String(+v.toFixed(4));
     if (kind === 'intensity') return String(+v.toFixed(4)) + ' FLOPs/B';
     if (kind === 'rate') return String(+v.toFixed(2)) + ' tok/s';
-    if (kind === 'ms') return String(+v.toFixed(3)) + ' ms';
+    if (kind === 'ms' || kind === 'duration') return String(+v.toFixed(3)) + ' ms';
     if (kind === 'hz') return String(+v.toFixed(2)) + ' Hz';
     if (kind === 'bw') return fInt(v) + ' B/s';
     if (kind === 'flops') return fInt(v) + ' FLOPS';
@@ -1055,9 +1164,10 @@
     let s = String(str || '').trim().toLowerCase().replace(/[≈~]/g, '').replace(/parámetros|params?|macs?|flops?|tokens?|tok\b/g, '').trim();
     if (!s) return null;
     let mult = 1;
-    const m = s.match(/(k|m|g|b|t|mil millones|millones|mil)\s*$/);
+    // p / e (fase 11): PMACs y EMACs (corpus de 21M pasajes, preentrenamiento de BERT).
+    const m = s.match(/(k|m|g|b|t|p|e|mil millones|millones|mil)\s*$/);
     if (m) {
-      mult = { k: 1e3, mil: 1e3, m: 1e6, millones: 1e6, g: 1e9, b: 1e9, 'mil millones': 1e9, t: 1e12 }[m[1]];
+      mult = { k: 1e3, mil: 1e3, m: 1e6, millones: 1e6, g: 1e9, b: 1e9, 'mil millones': 1e9, t: 1e12, p: 1e15, e: 1e18 }[m[1]];
       s = s.slice(0, m.index).trim();
     }
     s = s.replace(/(\d)[\s_\u00a0\u202f](?=\d{3}\b)/g, '$1');
@@ -1799,12 +1909,30 @@
     if (typeof c.D === 'number' && Array.isArray(c.widths) && c.widths.length && typeof c.expansion === 'number') out.push(['C_5', c.widths[c.widths.length - 1] * c.expansion]);
     // Fase 11 (retrieval / ANN): candidatos k que devuelve la búsqueda (y que reordena el cross-encoder).
     if (typeof c.k === 'number' && !has('k')) out.push(['k', c.k, 'vecinos / candidatos por consulta']);
-    // Índices ANN: los símbolos de las formas del grafo de costo.
-    if (typeof c.efSearch === 'number') [['N', c.N, 'vectores en el índice'], ['d', c.d, 'dimensión de los vectores'], ['M', c.M, 'vecinos por nodo (HNSW)'], ['ef', c.efSearch, 'efSearch: candidatos en la búsqueda'],
-      ['n_list', c.nlist, 'listas (centroides de IVF)'], ['n_probe', c.nprobe, 'listas que se revisan'], ['m', c.m, 'sub-vectores de PQ'], ['k_s', c.ksub, 'centroides por sub-espacio (2^nbits)'], ['n_scan', c.scanned, 'vectores que se recorren ≈ n_probe·N/n_list']]
-      .forEach(([sym, v, n]) => { if (typeof v === 'number' && !has(sym)) out.push([sym, v, n]); });
-    if (typeof c.dim === 'number' && !has('dim')) out.push(['dim', c.dim, 'dimensión del embedding']);
-    if (typeof c.Tq === 'number' && !has('T_q')) out.push(['T_q', c.Tq, 'tokens de la consulta']);
+    // Retrieval / ANN (cfg.Tq): T es T_q (o el par del cross-encoder), no un símbolo propio de las formas: fuera, salvo en el
+    // cross-encoder, donde es el largo del par. En ANN las configs heredan TODOS los knobs de ANN_BASE: solo van los símbolos del
+    // tipo de índice (revisión de la fase 11: «M = 32» del HNSW junto a «m = 96» de PQ en la tarjeta de IVF-PQ era una trampa).
+    const drop = (sym) => { const i = out.findIndex(([x]) => x === sym); if (i >= 0) out.splice(i, 1); };
+    const annKind = typeof c.efSearch === 'number' && ['hnsw', 'ivfpq', 'flat'].indexOf(c.kind) >= 0 ? c.kind : null;
+    const retrKind = ['bi', 'cross', 'late'].indexOf(c.kind) >= 0 && typeof c.Td === 'number';   // modelo `retrieval` (el LLM también tiene Tq)
+    if ((retrKind || annKind) && !dec) {
+      if (c.kind === 'cross' && typeof c.T === 'number') { drop('T'); out.push(['T', c.T, c.pairTrunc ? 'tokens del par, truncado a ' + c.T + ' (el documento entra con ' + c.TdPair + ')' : 'tokens del par: T_q + T_d − 1']); }
+      else drop('T');
+    }
+    if (annKind) {
+      drop('M');
+      if (!c.encode) ['D', 'L', 'h', 'D_mlp', 'V', 'T_q'].forEach(drop);   // sin encoder: la query entra como vector de d
+      const list = [['N', c.N, 'vectores en el índice'], ['d', c.d, 'dimensión de los vectores']];
+      if (annKind === 'hnsw') list.push(['M', c.M, 'vecinos por nodo (2M en el nivel 0)'], ['ef', c.efSearch, 'efSearch: candidatos en la búsqueda']);
+      if (annKind === 'ivfpq') {
+        list.push(['n_list', c.nlist, 'listas (centroides de IVF)'], ['n_probe', c.nprobe, 'listas que se revisan'], ['m', c.m, 'sub-vectores de PQ (no la M de HNSW)'], ['k_s', c.ksub, 'centroides por sub-espacio (2^nbits)'], ['n_scan', c.scanned, 'vectores que se recorren ≈ n_probe·N/n_list']);
+        if (c.coarseM) list.push(['M', c.coarseM, 'HNSW sobre los centroides: vecinos por nodo'], ['ef', Math.max(c.coarseEf, c.nprobe), 'HNSW sobre los centroides: efSearch (candidatos)']);
+      }
+      list.forEach(([sym, v, n]) => { if (typeof v === 'number' && !has(sym)) out.push([sym, v, n]); });
+    }
+    if (typeof c.dim === 'number' && !has('dim') && c.kind !== 'cross') out.push(['dim', c.dim, 'dimensión del embedding']);   // el cross-encoder no guarda embeddings
+    // T_q solo en retrieval / ANN con encoder (el LLM también tiene cfg.Tq = filas de query, que en sus formas es T).
+    if (typeof c.Tq === 'number' && !has('T_q') && (retrKind || (annKind && c.encode))) out.push(['T_q', c.Tq, 'tokens de la consulta']);
     if (typeof c.Td === 'number' && !has('T_d')) out.push(['T_d', c.Td, 'tokens del documento']);
     // Reranker en cascada (otro ancho que el bi-encoder): sus dimensiones van con _r (las pone el calculador al importarlo).
     if (c.rerank && c.reranker) { const rr = safe(() => run(c.reranker), null); const rc = rr && rr.config;
@@ -2289,7 +2417,7 @@
       }
       const qid = uid('pxd-q');
       const inp = h('input', { type: 'text', class: 'input pxd__in mono', id: uid('pxd-in'), autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
-        inputmode: isShape ? 'text' : 'decimal', placeholder: isShape ? 'p. ej. 196×768' : 'p. ej. 590,592', 'aria-describedby': qid });
+        inputmode: isShape ? 'text' : 'decimal', placeholder: isShape ? 'números con ×, p. ej. 3×5' : 'p. ej. 1,234,567', 'aria-describedby': qid });
       const fb = h('p', { class: 'pxd__fb', 'aria-live': 'polite' });
       const reveal = h('div', { class: 'pxd__reveal', hidden: true });
       const btnNext = h('button', { type: 'button', class: 'btn btn--primary', hidden: true, on: { click: () => next(true) } }, 'Siguiente', h('span', { html: icon('arrow-right') }));
@@ -2302,7 +2430,7 @@
         if (!v) { fb.className = 'pxd__fb is-warn'; fb.textContent = 'Escribe una respuesta (o pulsa «No sé, muéstrame»).'; inp.focus(); return; }
         let ok;
         if (isShape) {
-          if (!parseShape(v).length) { fb.className = 'pxd__fb is-warn'; fb.textContent = 'No entendí la forma. Escribe números separados por × (p. ej. 197×768).'; return; }
+          if (!parseShape(v).length) { fb.className = 'pxd__fb is-warn'; fb.textContent = 'No entendí la forma. Escribe números separados por × (p. ej. 3×5).'; return; }
           ok = shapeMatches(v, expected);
         } else {
           const g = gradeParams(v, nodeParams(R, cur.model, cur.node));

@@ -54,7 +54,7 @@ def small_checks(c):
                 faiss.cvar.hnsw_stats.reset()
                 ix.search(q, 10)
                 ndis = faiss.cvar.hnsw_stats.ndis / q.shape[0]
-                range_checks.append({"what": f"HNSW M = {M}, efSearch = {ef}: distancias por query medidas / cota ≈ del calculador",
+                range_checks.append({"what": f"HNSW M = {M}, efSearch = {ef}: distancias por query medidas / estimación ≈ del calculador",
                                      "calc_overrides": {"N": N, "d": d, "M": M, "efSearch": ef, "encode": 0}, "metric": "distanceComputations",
                                      "ref": ndis, "min_ratio": 0.3, "max_ratio": 1.2})
         h = faiss.IndexHNSWFlat(d, 32)

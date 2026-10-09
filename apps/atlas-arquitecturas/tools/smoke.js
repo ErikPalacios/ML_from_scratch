@@ -157,7 +157,8 @@
             const next = $('.ad-walk-next', fig);
             if (!next || next.disabled) break;
             next.click();
-            await sleep(30);
+            // Espera al contador (los pasos que expanden animan ~300 ms; bajo carga tardan más)
+            for (let t = 0; t < 40 && !new RegExp('Paso ' + (i + 1) + ' de').test(txt($('.ad-walk-n', fig))); t++) await sleep(30);
             visited++;
           }
           ok(label + ' · recorrido ' + w.id + ': visita los ' + w.steps.length + ' pasos', visited === w.steps.length && new RegExp('Paso ' + w.steps.length + ' de ' + w.steps.length).test(txt($('.ad-walk-n', fig))), { visited, n: txt($('.ad-walk-n', fig)) });

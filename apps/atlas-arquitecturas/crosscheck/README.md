@@ -142,11 +142,11 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   `nn.Linear(768, 128, bias=False)` para `colbert-v2`. La búsqueda exacta (E·q con E de N×dim meta), el top-k y MaxSim corren en torch meta
   dentro de FlopCounterMode (los productos contra la query se escriben como matriz × (d×1): FlopCounterMode no cuenta `mv`).
   **ANN** (`hnsw-1m-768`, `ivfpq-1m-768`, `flat-1m-768`, `ivfpq-1b-768`): encoder de queries de DPR en meta + la búsqueda en torch meta (flat:
-  X·q; IVF: centroides y tablas ADC); HNSW usa la cota ≈ del calculador (no hay forma "exacta"). `faiss_ann.py` corre faiss-cpu 1.15.1 en un
+  X·q; IVF: centroides y tablas ADC); HNSW usa la estimación ≈ del calculador (no hay forma "exacta"). `faiss_ann.py` corre faiss-cpu 1.15.1 en un
   **proceso aparte** (torch y faiss traen cada uno su libomp y no conviven en macOS): atributos a tamaño real sin entrenar (`nb_neighbors(0)`
   = 2M, `code_size`, codebooks de PQ) e índices REALES chicos (N = 20,000, d = 64): `ann_checks` compara `A.flat_bytes / hnsw_bytes /
   ivfpq_bytes` con los arreglos internos y `serialize_index` (enlaces de HNSW = esperanza N·(2M + M/(M−1)): 1 %), y `range_checks` las
-  distancias por query medidas (`hnsw_stats.ndis`: 0.44–1.02× la cota del calculador; `indexIVF_stats.ndis` ≈ n_probe·N/n_list). Parámetros
+  distancias por query medidas (`hnsw_stats.ndis`: 0.44–1.02× la estimación del calculador, que no es una cota; `indexIVF_stats.ndis` ≈ n_probe·N/n_list). Parámetros
   y FLOPs exactos (diferencia 0) en las 10 configs.
 - Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`, `OVLA`, `PI0`, `LORA`, `RL`, `BERT`, `RET`, `ANN`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con

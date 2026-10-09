@@ -11,7 +11,7 @@
   stanford-futuredata/ColBERT). La búsqueda exacta (q·Eᵀ contra N vectores meta), el top-k y MaxSim se corren en torch sobre
   tensores meta dentro de FlopCounterMode.
 - ANN: el encoder de queries de DPR (meta) + la búsqueda reimplementada en torch meta (flat: q·Xᵀ; IVF: q·Cᵀ y las tablas ADC
-  q·codebooks, por FlopCounterMode; HNSW: la cota ≈ del calculador, sin forma "exacta" que medir). FAISS 1.15.1 (faiss-cpu):
+  q·codebooks, por FlopCounterMode; HNSW: la estimación ≈ del calculador, sin forma "exacta" que medir). FAISS 1.15.1 (faiss-cpu):
   índices chicos REALES (N = 20,000, d = 64) para verificar las fórmulas de bytes (serialize_index y los arreglos internos) y
   los conteos de distancias (hnsw_stats.ndis, indexIVF_stats.ndis) — escalan con N, d, M, n_list, m (fórmulas, no constantes).
 
@@ -457,16 +457,19 @@ def ann_expected(cid, c):
             rec.put("ids", [k], strip=False)
             metrics_checks["levels"] = lv
             notes.append(f"HNSW: FAISS IndexHNSWFlat(d, M = {c['M']}).hnsw.nb_neighbors(0) = {nb0} = 2M enlaces en el nivel 0 (forma de `links`). "
-                         "Las distancias de una búsqueda dependen de los datos: el calculador usa la cota ≈ ⌊log_M N⌋·M + efSearch·2M y "
-                         "la verifica contra hnsw_stats.ndis de FAISS en índices chicos (range_checks: 0.5–1.0× la cota en datos sintéticos). "
-                         "flops_total = encoder + 2·d por distancia de esa cota (≈, no medible en meta).")
+                         "Las distancias de una búsqueda dependen de los datos: el calculador usa la estimación ≈ ⌊log_M N⌋·M + efSearch·2M "
+                         "(no es una cota: la búsqueda puede expandir más de ef nodos) y la verifica contra hnsw_stats.ndis de FAISS en índices "
+                         "chicos (range_checks: 0.44–1.02× la estimación en datos sintéticos; ≈ 0.66× con M = 32 y efSearch = 64). "
+                         "flops_total = encoder + 2·d por distancia de esa estimación (≈, no medible en meta).")
         else:
             coarse_hnsw = c.get("coarseM", 0)
             if coarse_hnsw:
                 lv = max(0, math.floor(math.log(c["nlist"]) / math.log(coarse_hnsw)))
-                ndc = lv * coarse_hnsw + c["coarseEf"] * 2 * coarse_hnsw
+                cef = max(c["coarseEf"], c["nprobe"])   # FAISS: el HNSW busca con máx(efSearch, k = n_probe)
+                ndc = lv * coarse_hnsw + cef * 2 * coarse_hnsw
                 C = torch.empty(ndc, d)
-                notes.append(f"Cuantizador grueso HNSW{coarse_hnsw} sobre los {c['nlist']:,} centroides (IVF1048576_HNSW32 del wiki): ≈ {ndc} distancias (cota del calculador).")
+                notes.append(f"Cuantizador grueso HNSW{coarse_hnsw} sobre los {c['nlist']:,} centroides (IVF1048576_HNSW32 del wiki): ≈ {ndc} distancias "
+                             f"(estimación del calculador); salen los ef = {cef} centroides candidatos (forma de coarse-dists), no {c['nlist']:,} distancias.")
             else:
                 C = torch.empty(c["nlist"], d)
             cdist, fc = mm_flops(lambda: C @ qv[:, None])
@@ -478,7 +481,7 @@ def ann_expected(cid, c):
                 fl *= c["nprobe"]
             search_flops = fc + fl
             scanned = max(1, round(c["nprobe"] * N / c["nlist"]))
-            rec.put("coarse-dists", [c["nlist"]], strip=False)
+            rec.put("coarse-dists", [max(c["coarseEf"], c["nprobe"])] if coarse_hnsw else [c["nlist"]], strip=False)
             rec.put("probe-ids", [c["nprobe"]], strip=False)
             rec.put("residuals", [c["nprobe"], d], strip=False)
             rec.put("lut", [c["nprobe"]] + list(lut_q.shape), strip=False)

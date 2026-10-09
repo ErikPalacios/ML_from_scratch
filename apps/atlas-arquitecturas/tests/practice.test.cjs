@@ -751,3 +751,26 @@ test('fase 10: el drill de formas monta la vista de SU config (DPO → dpo-step,
   assert.ok(p && (!Array.isArray(p.configs) || p.configs.indexOf('rlhf-llama3-8b') >= 0), 'vista: ' + (p && p.id));
   assert.notStrictEqual(d.id, p.id);
 });
+
+test('fase 11 (revisión): tarjetas de ANN solo con los símbolos de su índice; métricas de bert / retrieval / ann con etiqueta; duración y P/E', () => {
+  const facts = (cfg, ov) => Object.fromEntries(P._factPairs(A.run(cfg, ov || {}).config).map(([s, v]) => [s, v]));
+  const h = facts('hnsw-1m-768'), q = facts('ivfpq-1m-768'), f = facts('flat-1m-768'), b = facts('ivfpq-1b-768');
+  assert.deepStrictEqual([h.M, h.ef, h.n_list, h.m, h.T], [32, 64, undefined, undefined, undefined]);
+  assert.deepStrictEqual([q.M, q.ef, q.n_list, q.n_probe, q.m, q.k_s, q.n_scan], [undefined, undefined, 4096, 16, 96, 256, 3906]);
+  assert.deepStrictEqual([f.M, f.ef, f.n_list, f.m, f.N, f.d], [undefined, undefined, undefined, undefined, 1e6, 768]);
+  assert.deepStrictEqual([b.M, b.ef, b.n_list], [32, 64, 1048576], 'IVF-PQ a 1B: M y ef del HNSW sobre los centroides');
+  assert.deepStrictEqual([facts('flat-1m-768', { encode: 0 }).D, facts('flat-1m-768', { encode: 0 }).T_q], [undefined, undefined]);
+  assert.strictEqual(facts('cross-encoder-minilm').T, 211);
+  assert.strictEqual(facts('dpr-bert-base').T, undefined);
+  assert.strictEqual(facts('llama3-8b').T_q, undefined, 'el Tq del LLM no es «tokens de la consulta»');
+  const skip = /^(id|B|bytesPerElement|crossover|scoreToLinear)$/;
+  for (const cfg of ['bert-base', 'dpr-bert-base', 'sbert-minilm', 'cross-encoder-minilm', 'colbert-v2', 'hnsw-1m-768', 'ivfpq-1m-768', 'flat-1m-768', 'ivfpq-1b-768']) {
+    const model = A.run(cfg).model, m = A.metrics(cfg, {});
+    for (const k of Object.keys(m)) if (typeof m[k] === 'number' && !skip.test(k)) assert.notStrictEqual(P._metricLabel(k, model), k, cfg + ': sin etiqueta: ' + k);
+  }
+  A.metrics('dpr-bert-base', {});
+  assert.strictEqual(P._metricKind('corpusEncodeTime'), 'duration');
+  assert.strictEqual(P._fMetric('corpusEncodeTime', 975384), '16.3 min');
+  assert.strictEqual(P._fMetric('crossVsBiPerQuery', 3814994.6), '×3,810,000');
+  assert.match(P._metricNote('bandwidth', 'ann'), /EPYC/);
+});

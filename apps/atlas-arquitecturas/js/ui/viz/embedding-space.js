@@ -101,7 +101,7 @@
       const top = scored.slice(0, state.k);
       const rankOf = (id) => scored.findIndex((x) => x.d.id === id) + 1;
       t(svg, 8, 15, narrow ? 'Ranking por ' + (state.norm ? 'coseno' : 'producto punto') : 'Búsqueda densa: puntaje = ' + (state.norm ? 'coseno (q y d normalizados, ‖·‖ = 1)' : 'producto punto q·d (sin normalizar: cuenta la norma)') + ', top-' + state.k, 'viz-t');
-      t(svg, 8, 29, narrow ? '2-D de juguete (ilustrativo)' : 'espacio de juguete en 2-D (los reales tienen 384–1024 dimensiones); vectores elegidos a mano', 'viz-s');
+      t(svg, 8, 29, narrow ? '2-D de juguete (ilustrativo)' : 'espacio de juguete en 2-D (los reales tienen de cientos a miles de dimensiones); vectores elegidos a mano', 'viz-s');
       // ---- plano
       const S = narrow ? Math.min(W - 16, 300) : 340, cx = narrow ? W / 2 : 8 + S / 2, cy = 44 + S / 2, R = S * (state.norm ? 0.4 : 0.26);
       V.svg('rect', { x: r1(cx - S / 2), y: r1(cy - S / 2), width: S, height: S, rx: 4, class: 'viz-es-plane' }, svg);

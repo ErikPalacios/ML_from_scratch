@@ -88,8 +88,9 @@
    con la longitud real), colbertV1IndexBytes (16 bits), colbertV2IndexBytes (N·T_d·(dim·2/8 + 4): 36 B por vector, §3.3),
    colbertV2BytesPerVector; params — towerParams, docTowerParams (0 si siamés), biEncoderParams, rerankerParams,
    crossEncoderParams; ms (≈) — queryEncodeMs, corpusEncodeMs, rerankMs, bruteForceMsH100, bruteForceMsCpu, onlineMsH100,
-   crossEncoderFullScanMs; pct — rerankShareOnline, bruteForceShareOnline; ratio — queryVsDocEncode, crossVsBiPerQuery,
-   singleVectorRatio; count — Tq, Td, N, k, dim, bits, tokenVectors, pairsPerSecH100; textos queryEncodeBound, rerankBound,
+   crossEncoderFullScanMs; duración (s / min / h con la unidad en el texto) — corpusEncodeTime; pct — rerankShareOnline,
+   bruteForceShareOnline; ratio — queryVsDocEncode, crossVsBiPerQuery,
+   singleVectorRatio; count — Tq, Td, N, k, dim, bits, pairTokens (el par, truncado a 512), tokenVectors, pairsPerSecH100; textos queryEncodeBound, rerankBound,
    bruteForceBoundCpu; listas bitsScaling, dimScaling, nScaling.
 
    ---------------------------------------------------------------- modelo `ann`
@@ -102,24 +103,27 @@
    Knobs: N, d, M, efSearch, nlist, nprobe, m, nbits [4, 8], bits [32, 16, 8], k, Tq, encode [0, 1] (zeroKnob).
    Nodos y ops: encode (› embed, encoder, pool; encode › proj) · flat: scan (flat_scan → dists N) · HNSW: graph-walk › upper
    (hnsw_descent → entry 1) y › layer0 (hnsw_beam → cands ef; entradas xb N×d, links N×2M) · IVF-PQ: coarse › dists (ivf_coarse
-   → coarse-dists n_list; sus parámetros = los centroides de k-means) y › probe (→ probe-ids n_probe), list-scan › residual
+   → coarse-dists n_list, o ef con el cuantizador HNSW; sus parámetros = los centroides de k-means) y › probe (→ probe-ids n_probe), list-scan › residual
    (→ residuals n_probe×d), › lut (pq_lut → lut n_probe×m×k_s; parámetros = codebooks k_s·d) y › adc (pq_scan → adc-dists
    n_probe·N/n_list; entradas codes N×m, list-ids N) · rerank (topk → ids k: el top-k / re-rank final de cada índice).
    Tensores: q-… (encoder), q-cls (si d ≠ 768), query, xb, links, entry, cands, coarse-dists, probe-ids, residuals, lut, codes,
    list-ids, adc-dists, dists, ids.
    Distancias por query: flat N (exacto); IVF n_list (o ≈ las del HNSW grueso) + n_probe·N/n_list; HNSW ≈ ⌊log_M N⌋·M (descenso)
-   + efSearch·2M (nivel 0) — una COTA: medido con FAISS en datos sintéticos da 0.44–1.02× (crosscheck range_checks).
+   + efSearch·2M (nivel 0) — una ESTIMACIÓN (≈), no una cota: la búsqueda puede expandir más de ef nodos; medido con FAISS en datos
+   sintéticos da 0.44–1.02× (crosscheck range_checks; ≈ 0.66× con M = 32 y efSearch = 64).
    Bytes (verificados con FAISS: primitives.flat_bytes / hnsw_bytes / ivfpq_bytes): flat N·d·bits/8; HNSW N·d·bits/8 + 4·N·(2M +
    M/(M−1)) enlaces (esperanza) + 4N levels + 8(N+1) offsets (la regla del wiki, (d·4 + M·2·4) B por vector, en wikiRuleBytes);
    IVF-PQ N·m·nbits/8 códigos + 8N ids + n_list·d·4 centroides + k_s·d·4 codebooks + 8·n_list (+ enlaces del HNSW grueso).
-   metrics: bytes — indexBytes, vectorBytes, linkBytes, levelBytes, wikiRuleBytes, codeBytes, idBytes, centroidBytes,
-   codebookBytes, listSizeBytes, coarseLinkBytes, precomputedTableBytes (RAM, no se serializa), bytesPerVector, flatBytes,
-   bytesTouchedPerQuery (vectores / códigos / centroides / tablas leídos, ≈); count — distanceComputations (≈ en HNSW),
-   distanceComputationsFlat, coarseDistances, scannedVectors, levels, qpsUpperBound; macs — searchMacs, encodeMacs, flatMacs,
+   metrics: bytes — indexBytes, vectorBytes, linkBytes (= layer0LinkBytes 4·N·2M + upperLinkBytes ≈ 4·N·M/(M−1)), levelBytes,
+   wikiRuleBytes, codeBytes, idBytes, centroidBytes, codebookBytes, listSizeBytes, coarseLinkBytes, precomputedTableBytes (RAM, no
+   se serializa), bytesPerVector, flatBytes, bytesTouchedPerQuery (vectores / códigos / centroides / tablas leídos, ≈),
+   centroidBytesTouched (IVF: coarse·d·4) + centroidBytesShare (pct); count — distanceComputations (≈ en HNSW; = upperDistances
+   ⌊log_M N⌋·M + layer0Distances ef·2M), distanceComputationsFlat, coarseDistances, scannedVectors, levels, qpsUpperBound; macs — searchMacs, encodeMacs, flatMacs,
    buildMacs (≈: HNSW = N inserciones con ef = efConstruction; IVF-PQ = k-means grueso (10 iteraciones, ≤ 256 puntos por centroide)
    + k-means de PQ (25 iteraciones) + asignar y codificar); ratio — distanceRatioVsFlat, macsVsFlat, bytesTouchedVsFlat,
    memoryVsFlat, compression, linksPerVector, listSize; params — encodeParams, searchParams; pct — searchMacsShare; ms (≈, CPU) —
-   latencyMs, buildMsCpu (a pico: el build real es mucho más lento; DPR reporta 8.5 h para su HNSW de 21M), encodeMsH100;
+   latencyMs, latencyMsCachedCentroids (IVF-PQ: la misma cota con los centroides en caché), buildMsCpu (a pico: el build real es
+   mucho más lento; DPR reporta 8.5 h para su HNSW de 21M), encodeMsH100; duración (unidad en el texto: '16.3 min') — buildTimeCpu;
    textos latencyBound, latencyKind; booleano estimate; listas nScaling, efScaling, mScaling (HNSW), nprobeScaling, mScaling (IVF).
    recall@k / nDCG NO se calculan: solo como números citados (ann-benchmarks, wiki de FAISS, papers) en las páginas.
 
@@ -128,6 +132,15 @@
    - ANN incluye "encode query" (el encoder de DPR) como pide la lista de ops de §23.3: totals = encode + búsqueda (metrics separa
      encodeMacs y searchMacs). Los centroides y codebooks (aprendidos con k-means) cuentan como parámetros.
    - `dim` en bi-encoders = truncar (Matryoshka), en ColBERT = salida del Linear; `bits` 4 también vale en `retrieval`.
+   - Par del cross-encoder > 512 tokens (T_q + T_d − 1 con T_d = 512): se TRUNCA el documento a 512 − T_q + 1 tokens, como HF
+     (truncation = 'only_second') y CrossEncoder(max_length = 512); el par queda en 512 (símbolo '512') y la etiqueta lo dice.
+     Antes el knob T_d = 512 tiraba error en las cuatro configs. cfg.pairT / cfg.TdPair / cfg.pairTrunc; quantities.pairTokens.
+   - Métricas del reranker (rerankMacs, rerankMs, crossEncoderMacsPerPair, …) solo donde corre un cross-encoder (rerank = 1 o la
+     config cross-encoder); en ColBERT no existen (antes daban el par de MiniLM). En la config cross-encoder no hay
+     queryEncodeMacs / docEncodeMacs (no hay torres) y rerankMacs = k × el par.
+   - IVF-PQ con cuantizador HNSW (escala de mil millones): coarse-dists son los ef centroides candidatos que devuelve el HNSW
+     (forma ef, ef = máx(coarseEf, n_probe) como FAISS), no n_list distancias.
+   - ANN: el vector de la query se llama d (la dimensión del índice) aunque salga de [CLS] sin proyección (d = D).
    - Knobs añadidos: rerank (retrieval); k, Tq, encode (ann). La CPU (EPYC 9654) es una entrada nueva con su ficha citada; su pico
      de cómputo es derivado (≈).
    - Nodos añadidos: tokens › mask y loss (bert); q-pool / d-pool, ann-search › scan / topk, rerank › pairs / collect, results,
@@ -299,8 +312,9 @@
     const at = (T) => A.run(r.id, Object.assign({}, arch, { T }));
     const short = at(c.Tshort), long = at(c.Tlong);
     // Preentrenamiento (≈, regla backward = 2 × forward → 3 × forward por secuencia): 1M pasos de B = 256, 90 % con 128 y 10 % con 512.
-    const stepMacs = (rr) => 3 * c.B * rr.totals.macs;
-    const pretrainMacs = c.steps * ((1 - c.longShare) * stepMacs(short) + c.longShare * stepMacs(long));
+    // pretrainMacs es el de BERT (B = 256 del paper) aunque el knob B cambie; stepMacs usa el B del knob.
+    const stepMacs = (rr, B) => 3 * B * rr.totals.macs;
+    const pretrainMacs = c.steps * ((1 - c.longShare) * stepMacs(short, BERT_BASE.B) + c.longShare * stepMacs(long, BERT_BASE.B));
     const fwd = roof(2 * c.B * t.macs, 2 * t.params, H100);
     return {
       embedParams: q.embedParams, encoderParams: q.encoderParams, layerParams: q.layerParams, poolerParams: q.poolerParams, mlmHeadParams: q.mlmHeadParams,
@@ -312,7 +326,7 @@
       scoreMacs: q.scoreMacs, attnScoreShare: q.scoreMacs / t.macs, attnScoreShareEncoder: q.scoreMacs / q.encoderMacs,
       maskRate: c.maskRate, mlmPredictions: q.mlmPredictions, mlmMaskTokens: q.mlmMaskTokens, mlmRandomTokens: q.mlmRandomTokens, mlmKeptTokens: q.mlmKeptTokens,
       maskShare: 0.8, randomShare: 0.1, keepShare: 0.1, nspPositiveShare: 0.5,
-      tokensPerBatch: c.B * c.T, stepMacs: stepMacs(r), pretrainMacs,
+      tokensPerBatch: c.B * c.T, stepMacs: stepMacs(r, c.B), pretrainMacs,
       forwardBatchMsH100: fwd.ms, forwardBatchBound: fwd.bound, bandwidth: H100.bandwidth, peakFlops: H100.peakFlops, hardwareSource: H100.source,
       crossoverT: q.crossoverT,
       tScaling: [32, 64, 128, 256, 512].filter((T) => T <= c.posMax).map((T) => {
@@ -375,15 +389,26 @@
     const W = 'Recuperación: ';
     if (c.D % c.h !== 0) throw new Error(W + 'D = ' + c.D + ' no es divisible por h = ' + c.h + '.');
     if (c.Tq < 3 || c.Td < 3) throw new Error(W + 'T_q y T_d deben ser ≥ 3 ([CLS] … [SEP]); recibí ' + c.Tq + ' y ' + c.Td + '.');
-    const maxT = c.kind === 'cross' ? c.Tq + c.Td - 1 : Math.max(c.Tq, c.Td);
-    if (maxT > c.posMax) throw new Error(W + (c.kind === 'cross' ? 'el par tiene T_q + T_d − 1 = ' + maxT : 'T = ' + maxT) + ' tokens; el máximo es ' + c.posMax + ' (posiciones aprendidas).');
+    const maxT = c.kind === 'cross' ? c.Tq + 2 : Math.max(c.Tq, c.Td);
+    if (maxT > c.posMax) throw new Error(W + (c.kind === 'cross' ? 'T_q = ' + c.Tq + ' no deja lugar al documento en ' + c.posMax : 'T = ' + maxT + ' tokens; el máximo es ' + c.posMax) + ' (posiciones aprendidas).');
     if ([32, 16, 8, 4, 1].indexOf(c.bits) < 0) throw new Error(W + 'bits = ' + c.bits + '; usa 32, 16, 8, 4 o 1.');
     if (c.kind === 'bi' && c.dim > c.D) throw new Error(W + 'dim = ' + c.dim + ' es mayor que D = ' + c.D + ' (dim trunca el embedding: Matryoshka).');
     if (c.k > c.N) throw new Error(W + 'k = ' + c.k + ' candidatos y el corpus tiene N = ' + c.N + '.');
     if (c.rerank !== 0 && c.rerank !== 1) throw new Error(W + 'rerank es 0 o 1.');
     if (c.kind === 'cross') c.rerank = 0;
+    // Par del cross-encoder ([CLS] q [SEP] d [SEP] = T_q + T_d − 1): si pasa de las posiciones del cross-encoder (512), se recorta
+    // el DOCUMENTO (truncation = 'only_second' de HF; CrossEncoder con max_length 512). En la config cross-encoder es su entrada;
+    // en las demás, la del reranker (si rerank = 1).
+    const rc = c.kind === 'cross' ? c : RET_CONFIGS[c.reranker];
+    const rMax = (rc && rc.posMax) || 512;
+    c.pairT = Math.min(c.Tq + c.Td - 1, rMax);
+    c.pairTrunc = c.Tq + c.Td - 1 > rMax ? 1 : 0;
+    c.TdPair = c.pairT - c.Tq + 1;
+    if (c.pairTrunc && (c.kind === 'cross' || c.rerank)) {
+      (c._notes = c._notes || []).push('par del cross-encoder truncado a ' + rMax + ' tokens: el documento entra con ' + c.TdPair + ' de sus ' + c.Td + ' tokens (truncation = only_second)');
+    }
     c.dh = c.D / c.h;
-    c.T = c.kind === 'cross' ? c.Tq + c.Td - 1 : c.Tq;
+    c.T = c.kind === 'cross' ? c.pairT : c.Tq;
     c.tokens = c.T;
     return c;
   }
@@ -412,7 +437,9 @@
     const PP = [q ? 'q-pool' : 'd-pool'];
     const steps = [];
     const mean = c.pool === 'mean';
-    steps.push({ id: 'pool', tid: mean ? 'mean' : 'cls-vec', res: (h) => (mean ? A.mean_pool(h) : A.pool_cls(h)), node: mean ? 'mean' : 'cls', label: mean ? 'Mean pooling (promedio de los T vectores)' : 'Tomar [CLS] (fila 0)',
+    // Sin truncar, el vector del pooling ya es el embedding guardado: se llama dim (= D), como N × dim del índice.
+    const po = c.dim < c.D ? null : { sym: 'dim' };
+    steps.push({ id: 'pool', tid: mean ? 'mean' : 'cls-vec', res: (h) => (mean ? A.mean_pool(h, po) : A.pool_cls(h, po)), node: mean ? 'mean' : 'cls', label: mean ? 'Mean pooling (promedio de los T vectores)' : 'Tomar [CLS] (fila 0)',
       meta: { label: pre + (mean ? 'promedio de los vectores de token' : 'vector de [CLS]'), tex: mean ? '\\bar h' : 'h_{[\\mathrm{CLS}]}' }, type: 'tensorop' });
     if (c.dim < c.D) steps.push({ id: 'truncate', tid: 'trunc', res: (h) => A.truncate_dim(h, { dim: c.dim }), node: 'truncate', label: 'Truncar a dim (Matryoshka, what-if)', meta: { label: pre + 'primeras dim coordenadas', tex: 'h_{1:dim}' }, type: 'tensorop' });
     if (c.normalize) steps.push({ id: 'normalize', tid: 'normed', res: (h) => A.l2_normalize(h), node: 'normalize', label: 'Normalizar (‖·‖ = 1: producto punto = coseno)', meta: { label: pre + 'vector normalizado', tex: 'h/\\lVert h\\rVert' }, type: 'norm' });
@@ -428,12 +455,14 @@
   // Grafo del cross-encoder (también lo importa el rerank de los bi-encoders): ids del par → BERT → pooler → Linear D → 1.
   function crossGraph(g, c) {
     const W = ['Cross-encoder (' + c.encLabel + ')'];
-    const x = bertBody(g, c, { path: ['joint-encoder'], where: W, labelPrefix: 'Par · ', T: c.Tq + c.Td - 1, Tsym: 'T_q+T_d-1', idsLabel: 'ids del par: [CLS] query [SEP] documento [SEP]' });
+    const x = bertBody(g, c, { path: ['joint-encoder'], where: W, labelPrefix: 'Par · ', T: c.pairT, Tsym: c.pairTrunc ? String(c.pairT) : 'T_q+T_d-1',
+      idsLabel: 'ids del par: [CLS] query [SEP] documento [SEP]' + (c.pairTrunc ? ' (truncado a ' + c.pairT + ': el documento entra con ' + c.TdPair + ' tokens)' : '') });
     const pooled = addPooler(g, c, x, { path: ['pooler'], where: W.concat(['pooler']), labelPrefix: 'Par · ' });
     return g.op('score-head', A.score_head(pooled), { path: ['score-head'], out: 'score', where: W.concat(['cabeza']), label: 'Puntaje: Linear D → 1 (con sesgo)', type: 'head', group: 'head',
       outMeta: { label: 'Puntaje de relevancia del par', tex: 's(q, d)' } });
   }
   const crossMemo = {};
+  // El cross-encoder del rerank con los T_q y T_d de la config (su resolve trunca el par a 512 si hace falta).
   function crossData(c) {
     const key = c.reranker + '|' + c.Tq + '|' + c.Td;
     if (!crossMemo[key]) {
@@ -474,8 +503,8 @@
     if (c.rerank) {
       const cd = crossData(c), rc = cd.r.config;
       const WR = ['Reranker (cross-encoder ' + rc.encLabel + ')'];
-      const pair = g.op('make-pairs', A.pair_tokens(g.tensor('q-ids'), top, { Td: c.Td }), { path: ['rerank', 'pairs'], out: 'r-ids', where: WR, repeat: c.k,
-        label: 'Armar cada par [CLS] query [SEP] documento [SEP] (× k)', type: 'tensorop', group: 'embed',
+      const pair = g.op('make-pairs', A.pair_tokens(g.tensor('q-ids'), top, { Td: c.Td, T: rc.pairT, sym: rc.pairTrunc ? String(rc.pairT) : undefined }), { path: ['rerank', 'pairs'], out: 'r-ids', where: WR, repeat: c.k,
+        label: 'Armar cada par [CLS] query [SEP] documento [SEP] (× k)' + (rc.pairTrunc ? ' — truncado a ' + rc.pairT + ' tokens: el documento entra con ' + rc.TdPair + ' de sus ' + c.Td + ' (only_second)' : ''), type: 'tensorop', group: 'embed',
         outMeta: { label: 'Rerank · ids de un par (query + candidato)', tex: '[q; d]' } });
       // El grafo del cross-encoder (modelo `retrieval`, config del reranker con los mismos T_q y T_d), con cada op × k pares.
       const src = { tensors: cd.data.tensors, ops: cd.data.ops.map((op) => Object.assign({}, op, { repeat: op.repeat * c.k, paramRepeat: A.paramRep(op) })) };
@@ -497,17 +526,20 @@
   // Costos por partes (exactos del grafo) para quantities / metrics.
   function retParts(c, r) {
     const P = (k) => pathOf(r, k);
+    // Cross-encoder: no hay torres (queryEncodeMacs / docEncodeMacs quedan sin definir → "—" en las tablas); su rerank es k pares.
     if (c.kind === 'cross') {
       const t = r.totals;
-      return { pairMacs: t.macs, pairParams: t.params, crossParams: t.params, queryEncodeMacs: 0, docEncodeMacs: 0, towerParams: 0, docTowerParams: 0, rerankMacs: 0, rerankerParams: 0, searchMacs: 0, maxsimMacs: 0 };
+      return { pairMacs: t.macs, pairParams: t.params, crossParams: t.params, rerankMacs: c.k * t.macs, rerankerParams: 0, searchMacs: 0, maxsimMacs: 0, hasCross: true };
     }
     const qMacs = P('query-encoder').macs + P('q-pool').macs, dMacs = P('doc-encoder').macs + P('d-pool').macs;
     const qPar = P('query-encoder').params + P('q-pool').params, dPar = P('doc-encoder').params + P('d-pool').params;
-    const cd = c.kind !== 'cross' ? crossData(c) : null;
+    // ColBERT no usa cross-encoder: sin par ni rerank de MiniLM. Un bi-encoder sí lo compara (el reranker de su pipeline) aunque
+    // rerank = 0 (crossVsBiPerQuery: por qué no se rerankea todo).
+    const cd = c.kind === 'bi' ? crossData(c) : null;
     return {
       queryEncodeMacs: qMacs, docEncodeMacs: dMacs, towerParams: qPar, docTowerParams: dPar,
       searchMacs: P('ann-search').macs, rerankMacs: P('rerank').macs, rerankerParams: P('rerank').params,
-      pairMacs: cd ? cd.r.totals.macs : 0, crossParams: cd ? cd.r.totals.params : 0, maxsimMacs: P('maxsim').macs,
+      pairMacs: cd ? cd.r.totals.macs : 0, crossParams: cd ? cd.r.totals.params : 0, maxsimMacs: P('maxsim').macs, hasCross: !!cd,
     };
   }
 
@@ -515,11 +547,13 @@
     const p = retParts(c, r), t = r.totals;
     const q = {
       Tq: c.Tq, Td: c.Td, T: c.T, N: c.N, k: c.k, dim: c.dim, bits: c.bits, L: c.L, D: c.D, h: c.h, dh: c.dh, Dmlp: c.Dmlp, V: c.V,
-      pairTokens: c.Tq + c.Td - 1, shared: c.shared ? 1 : 0, rerank: c.rerank,
-      queryEncodeMacs: p.queryEncodeMacs, docEncodeMacs: p.docEncodeMacs, towerParams: p.towerParams, docTowerParams: p.docTowerParams,
-      biEncoderParams: t.params - p.rerankerParams, rerankerParams: p.rerankerParams, crossEncoderParams: p.crossParams,
-      crossEncoderMacsPerPair: p.pairMacs, searchMacs: p.searchMacs, rerankMacs: p.rerankMacs,
+      pairTokens: c.pairT, shared: c.shared ? 1 : 0, rerank: c.rerank, searchMacs: p.searchMacs,
     };
+    // Solo lo que existe en cada config (el bloque compare lee quantities primero: lo que falta sale "—").
+    if (c.kind !== 'cross') Object.assign(q, { queryEncodeMacs: p.queryEncodeMacs, docEncodeMacs: p.docEncodeMacs, towerParams: p.towerParams, docTowerParams: p.docTowerParams,
+      biEncoderParams: t.params - p.rerankerParams, rerankerParams: p.rerankerParams });
+    if (p.hasCross) Object.assign(q, { crossEncoderParams: p.crossParams, crossEncoderMacsPerPair: p.pairMacs });
+    if (c.kind === 'cross' || c.rerank) q.rerankMacs = p.rerankMacs;
     if (c.kind === 'late') q.maxsimMacsPerDoc = p.maxsimMacs;
     return q;
   }
@@ -527,15 +561,16 @@
   function retMetrics(c, r, o) {
     const p = retParts(c, r), t = r.totals, by = c.bits / 8;
     const late = c.kind === 'late', cross = c.kind === 'cross';
-    const pairMacs = p.pairMacs;
+    const pairMacs = p.pairMacs, runsRerank = cross || !!c.rerank;
     const out = {
-      Tq: c.Tq, Td: c.Td, N: c.N, k: c.k, dim: c.dim, bits: c.bits,
-      crossEncoderMacsPerPair: pairMacs, rerankMacs: c.k * pairMacs, crossEncoderFullScanMacs: c.N * pairMacs, crossEncoderParams: p.crossParams,
+      Tq: c.Tq, Td: c.Td, N: c.N, k: c.k, dim: c.dim, bits: c.bits, pairTokens: c.pairT,
       bandwidth: H100.bandwidth, peakFlops: H100.peakFlops, hardwareSource: H100.source, cpuBandwidth: CPU.bandwidth, cpuPeakFlops: CPU.peakFlops, cpuSource: CPU.source,
     };
+    // El cross-encoder (el de la config o el reranker de un bi-encoder): costo por par y sobre todo el corpus (lo que NO se hace).
+    if (p.hasCross) Object.assign(out, { crossEncoderMacsPerPair: pairMacs, crossEncoderFullScanMacs: c.N * pairMacs, crossEncoderParams: p.crossParams });
+    // El rerank (k pares) solo donde corre: rerank = 1 o la config cross-encoder.
     const rr = roof(2 * c.k * pairMacs, 2 * p.crossParams, H100);
-    out.rerankMs = rr.ms;
-    out.rerankBound = rr.bound;
+    if (runsRerank) Object.assign(out, { rerankMacs: c.k * pairMacs, rerankMs: rr.ms, rerankBound: rr.bound });
     if (cross) {
       out.pairsPerSecH100 = 1000 * c.k / rr.ms;
       out.crossEncoderFullScanMs = roof(2 * c.N * pairMacs, 2 * p.crossParams, H100).ms;
@@ -547,7 +582,8 @@
     Object.assign(out, {
       queryEncodeMacs: p.queryEncodeMacs, docEncodeMacs: p.docEncodeMacs, corpusEncodeMacs: c.N * p.docEncodeMacs,
       towerParams: p.towerParams, docTowerParams: p.docTowerParams, biEncoderParams: t.params - p.rerankerParams, rerankerParams: p.rerankerParams,
-      queryEncodeMs: qr.ms, queryEncodeBound: qr.bound, corpusEncodeMs: corpus.ms,
+      // corpusEncodeTime = corpusEncodeMs con unidad 'duration' (s / min / h, la unidad va en el texto: '16.3 min').
+      queryEncodeMs: qr.ms, queryEncodeBound: qr.bound, corpusEncodeMs: corpus.ms, corpusEncodeTime: corpus.ms,
     });
     if (late) {
       const vecs = c.N * c.Td;
@@ -575,21 +611,21 @@
       rerankShareOnline: c.rerank ? (c.k * pairMacs) / (p.queryEncodeMacs + out.bruteForceMacs + c.k * pairMacs) : 0,
       bruteForceShareOnline: out.bruteForceMacs / (p.queryEncodeMacs + out.bruteForceMacs + (c.rerank ? c.k * pairMacs : 0)),
       queryVsDocEncode: p.docEncodeMacs / p.queryEncodeMacs,
-      crossVsBiPerQuery: (c.N * pairMacs) / (p.queryEncodeMacs + out.bruteForceMacs),
     });
+    if (p.hasCross) out.crossVsBiPerQuery = (c.N * pairMacs) / (p.queryEncodeMacs + out.bruteForceMacs);
     if (!late) {
       out.bitsScaling = [32, 16, 8, 1].map((b) => ({ bits: b, embeddingIndexBytes: c.N * c.dim * b / 8, bruteForceMsCpu: roof(2 * c.N * c.dim, c.N * c.dim * b / 8, CPU).ms }));
       out.dimScaling = [64, 128, 256, 384, 512, 768].filter((d) => d <= c.D).map((d) => ({ dim: d, embeddingIndexBytes: c.N * d * by, bruteForceMacs: c.N * d }));
     }
-    out.nScaling = [1e5, 1e6, 1e7, 1e8, 1e9].map((N) => ({ N, corpusEncodeMacs: N * p.docEncodeMacs,
-      indexBytes: late ? N * c.Td * c.dim * by : N * c.dim * by, bruteForceMacs: late ? N * p.maxsimMacs : N * c.dim, crossEncoderFullScanMacs: N * pairMacs }));
+    out.nScaling = [1e5, 1e6, 1e7, 1e8, 1e9].map((N) => Object.assign({ N, corpusEncodeMacs: N * p.docEncodeMacs,
+      indexBytes: late ? N * c.Td * c.dim * by : N * c.dim * by, bruteForceMacs: late ? N * p.maxsimMacs : N * c.dim }, p.hasCross ? { crossEncoderFullScanMacs: N * pairMacs } : {}));
     out.units = RET_UNITS;
     return out;
   }
   const RET_UNITS = {
     Tq: 'count', Td: 'count', N: 'count', k: 'count', dim: 'count', bits: 'count',
     crossEncoderMacsPerPair: 'macs', rerankMacs: 'macs', crossEncoderFullScanMacs: 'macs', crossEncoderParams: 'params', rerankMs: 'ms', pairsPerSecH100: 'count',
-    crossEncoderFullScanMs: 'ms', queryEncodeMacs: 'macs', docEncodeMacs: 'macs', corpusEncodeMacs: 'macs', towerParams: 'params', docTowerParams: 'params',
+    crossEncoderFullScanMs: 'ms', pairTokens: 'count', corpusEncodeTime: 'duration', queryEncodeMacs: 'macs', docEncodeMacs: 'macs', corpusEncodeMacs: 'macs', towerParams: 'params', docTowerParams: 'params',
     biEncoderParams: 'params', rerankerParams: 'params', queryEncodeMs: 'ms', corpusEncodeMs: 'ms', maxsimMacsPerDoc: 'macs', colbertRerankMacs: 'macs',
     bruteForceMacs: 'macs', colbertIndexBytes: 'bytes', colbertV1IndexBytes: 'bytes', colbertV2IndexBytes: 'bytes', colbertV2BytesPerVector: 'bytes', tokenVectors: 'count',
     embeddingIndexBytes: 'bytes', embeddingIndexBytes32: 'bytes', singleVectorRatio: 'ratio', bruteForceBytes: 'bytes', bruteForceMsH100: 'ms', bruteForceMsCpu: 'ms',
@@ -664,7 +700,8 @@
       const W = ['Codificar la query (DPR, ' + c.encLabel + ')'];
       const x = bertBody(g, c, { tid: 'q-', oid: 'q-', path: ['encode'], where: W, labelPrefix: 'Query · ', T: c.Tq, Tsym: 'T_q', idsLabel: 'ids de la query ([CLS] … [SEP])' });
       const proj = c.d !== c.D;
-      qv = g.op('q-pool', A.pool_cls(x), { path: ['encode', 'pool'], out: proj ? 'q-cls' : 'query', where: W, label: 'Tomar [CLS] (fila 0)', type: 'tensorop', group: 'head',
+      // Sin proyección, el [CLS] ES el vector del índice: se llama d (= D), como en el resto de la página.
+      qv = g.op('q-pool', A.pool_cls(x, proj ? null : { sym: 'd' }), { path: ['encode', 'pool'], out: proj ? 'q-cls' : 'query', where: W, label: 'Tomar [CLS] (fila 0)', type: 'tensorop', group: 'head',
         outMeta: proj ? { label: 'Query · vector de [CLS]', tex: 'h_{[\\mathrm{CLS}]}' } : { label: 'Vector de la query', tex: 'q' } });
       if (proj) {
         qv = g.op('encode-proj', A.linear(qv, { dout: c.d, doutSym: 'd' }), { path: ['encode', 'proj'], out: 'query', where: W, label: 'Linear D → d (projection_dim de DPR)', type: 'embed', group: 'head',
@@ -696,9 +733,12 @@
     }
     // IVF-PQ
     const W = ['IVF-PQ'];
-    const cd = g.op('coarse', A.ivf_coarse(qv, { nlist: c.nlist, hnsw: c.coarseM ? { M: c.coarseM, ef: c.coarseEf } : null }), { path: ['coarse', 'dists'], out: 'coarse-dists', where: W.concat(['cuantizador grueso']),
-      label: c.coarseM ? 'q contra los n_list centroides (con HNSW' + c.coarseM + ' sobre ellos, ≈)' : 'q contra los n_list centroides (k-means)', type: 'attn', group: 'head',
-      outMeta: { label: 'Distancia a cada centroide', tex: '\\lVert q - c_i\\rVert^2' } });
+    // Con cuantizador HNSW (IVF…_HNSW32) la búsqueda gruesa devuelve los ef centroides candidatos (FAISS: ef = máx(efSearch, n_probe)),
+    // no las n_list distancias: solo calcula ≈ ⌊log_M n_list⌋·M + ef·2M.
+    const cres = A.ivf_coarse(qv, { nlist: c.nlist, hnsw: c.coarseM ? { M: c.coarseM, ef: Math.max(c.coarseEf, c.nprobe) } : null });
+    const cd = g.op('coarse', cres, { path: ['coarse', 'dists'], out: 'coarse-dists', where: W.concat(['cuantizador grueso']),
+      label: c.coarseM ? 'HNSW' + c.coarseM + ' sobre los n_list centroides: ≈ ' + fint(cres.detail.distances) + ' distancias, no ' + fint(c.nlist) + ' (≈)' : 'q contra los n_list centroides (k-means)', type: 'attn', group: 'head',
+      outMeta: c.coarseM ? { label: 'Los ef centroides candidatos del HNSW (con su distancia)', tex: '\\lVert q - c_i\\rVert^2,\\ i \\in C_{ef}' } : { label: 'Distancia a cada centroide', tex: '\\lVert q - c_i\\rVert^2' } });
     const pr = g.op('probe', A.topk_scores(cd, { k: c.nprobe, kSym: 'n_probe' }), { path: ['coarse', 'probe'], out: 'probe-ids', where: W.concat(['cuantizador grueso']), label: 'Elegir las n_probe listas más cercanas', type: 'tensorop', group: 'head',
       outMeta: { label: 'Listas invertidas a recorrer', tex: 'i_1, …, i_{n_{\\mathrm{probe}}}' } });
     const rs = g.op('residual', A.ivf_residual(qv, pr, { nprobe: c.nprobe }), { path: ['list-scan', 'residual'], out: 'residuals', where: W.concat(['listas']), label: 'Residuo q − c_i por lista', type: 'tensorop', group: 'head',
@@ -728,8 +768,10 @@
       const b = A.hnsw_bytes({ N: c.N, d, M: c.M, bits: c.bits });
       const lv = Math.max(0, Math.floor(Math.log(c.N) / Math.log(c.M)));
       const dist = lv * c.M + c.efSearch * 2 * c.M;
-      Object.assign(out, { indexBytes: b.total, vectorBytes: b.vectors, linkBytes: b.links, levelBytes: b.levels + b.offsets, wikiRuleBytes: b.wiki,
-        bytesPerVector: b.total / c.N, linksPerVector: b.linksPerVector, levels: lv, distances: dist,
+      // Enlaces: nivel 0 = 2M por nodo; niveles de arriba = M/(M − 1) por nodo en esperanza → ≈ 1/(2(M − 1)) de los del nivel 0.
+      const l0 = 4 * c.N * 2 * c.M;
+      Object.assign(out, { indexBytes: b.total, vectorBytes: b.vectors, linkBytes: b.links, layer0LinkBytes: l0, upperLinkBytes: b.links - l0, levelBytes: b.levels + b.offsets, wikiRuleBytes: b.wiki,
+        bytesPerVector: b.total / c.N, linksPerVector: b.linksPerVector, levels: lv, distances: dist, upperDistances: lv * c.M, layer0Distances: c.efSearch * 2 * c.M,
         // vectores leídos + listas de vecinos leídas (≈ ef + niveles expansiones de 2M ids int32)
         bytesTouched: dist * d * by + (c.efSearch + lv) * 2 * c.M * 4,
         buildMacs: c.N * (lv * c.M + c.efConstruction * 2 * c.M) * d, searchParams: 0 });
@@ -742,7 +784,9 @@
       Object.assign(out, { indexBytes: b.total, codeBytes: b.codes, idBytes: b.ids, centroidBytes: b.centroids, codebookBytes: b.codebooks, listSizeBytes: b.listSizes,
         coarseLinkBytes: b.coarseLinks, precomputedTableBytes: b.precomputedTable, bytesPerVector: b.perVector, compression: (d * 4) / (c.m * c.nbits / 8),
         distances: coarse + c.scanned, coarseDistances: coarse, scannedVectors: c.scanned, listSize: c.N / c.nlist,
-        bytesTouched: coarse * d * 4 + c.scanned * (c.m * c.nbits / 8 + 8) + lutBytes,
+        // Leídos por query: centroides comparados (coarse·d·4: con n_list chico son casi todo y caben en la caché L3) + códigos e ids
+        // recorridos + las tablas ADC.
+        bytesTouched: coarse * d * 4 + c.scanned * (c.m * c.nbits / 8 + 8) + lutBytes, centroidBytesTouched: coarse * d * 4,
         // k-means del cuantizador grueso (FAISS IndexIVF: cp.niter = 10, hasta 256 puntos por centroide) + k-means de cada sub-espacio de PQ
         // (25 iteraciones, 256·k_s puntos) + asignar y codificar los N vectores (≈).
         buildMacs: 10 * nTrainCoarse * c.nlist * d + 25 * nTrainPQ * c.ksub * d + c.N * (assign * d + c.ksub * d),
@@ -763,19 +807,24 @@
   function annMetrics(c, r, o) {
     const k = annCost(c, r);
     const lat = roof(2 * k.searchMacs, k.bytesTouched, CPU), enc = roof(2 * k.encodeMacs, 2 * k.encodeParams, H100);
+    const ivf = c.kind === 'ivfpq';
+    const centShare = ivf ? k.centroidBytesTouched / k.bytesTouched : 0;
     const out = Object.assign({}, k, {
       indexBytes: k.indexBytes, distanceComputations: k.distances, distanceComputationsFlat: c.N, distanceRatioVsFlat: c.N / k.distances,
       searchMacs: k.searchMacs, encodeMacs: k.encodeMacs, searchMacsShare: r.totals.macs ? k.searchMacs / r.totals.macs : 0, macsVsFlat: k.flatMacs / Math.max(1, k.searchMacs),
       bytesTouchedPerQuery: k.bytesTouched, bytesTouchedVsFlat: k.flatBytes / k.bytesTouched, memoryVsFlat: k.indexBytes / k.flatBytes,
-      buildMacs: k.buildMacs, buildMsCpu: 1000 * 2 * k.buildMacs / CPU.peakFlops,
+      buildMacs: k.buildMacs, buildMsCpu: 1000 * 2 * k.buildMacs / CPU.peakFlops, buildTimeCpu: 1000 * 2 * k.buildMacs / CPU.peakFlops,
       latencyMs: lat.ms, latencyBound: lat.bound, qpsUpperBound: 1000 / lat.ms, encodeMsH100: enc.ms,
       bandwidth: CPU.bandwidth, peakFlops: CPU.peakFlops, hardwareSource: CPU.source, h100Bandwidth: H100.bandwidth,
-      latencyKind: c.kind === 'hnsw' ? 'cota inferior (roofline; HNSW está limitado por la latencia de accesos aleatorios)' : 'cota inferior (roofline)',
+      latencyKind: c.kind === 'hnsw' ? 'cota inferior (roofline; HNSW está limitado por la latencia de accesos aleatorios)'
+        : ivf ? 'cota inferior (roofline; ' + Math.round(100 * centShare) + ' % de los bytes son los centroides comparados' + (c.coarseM ? ')' : ', que con n_list chico viven en la caché L3)') : 'cota inferior (roofline)',
       estimate: c.kind !== 'flat',
       units: ANN_UNITS,
     });
     // actMem (genérica) cuenta las entradas del grafo; la base de vectores, el grafo y los códigos son el ÍNDICE, no activaciones.
     const dbElems = ['xb', 'links', 'codes', 'list-ids'].filter((id) => r.tensors[id]).reduce((s, id) => s + r.tensors[id].elements, 0);
+    // IVF-PQ: la misma cota sin leer los centroides de DRAM (con n_list chico caben en la caché: 4,096 × 768 × 4 = 12.6 MB) y su parte.
+    if (ivf) Object.assign(out, { centroidBytesShare: centShare, latencyMsCachedCentroids: roof(2 * k.searchMacs, k.bytesTouched - k.centroidBytesTouched, CPU).ms });
     out.actMem = o.actMemBatch - dbElems * o.by * o.B;
     out.actMemPerSample = o.actMemPerSample - dbElems * o.by;
     delete out.distances; delete out.bytesTouched;
@@ -791,7 +840,8 @@
     return out;
   }
   const ANN_UNITS = {
-    indexBytes: 'bytes', vectorBytes: 'bytes', linkBytes: 'bytes', levelBytes: 'bytes', wikiRuleBytes: 'bytes', bytesPerVector: 'bytes', linksPerVector: 'ratio', levels: 'count',
+    indexBytes: 'bytes', vectorBytes: 'bytes', linkBytes: 'bytes', layer0LinkBytes: 'bytes', upperLinkBytes: 'bytes', upperDistances: 'count', layer0Distances: 'count',
+    centroidBytesTouched: 'bytes', centroidBytesShare: 'pct', latencyMsCachedCentroids: 'ms', buildTimeCpu: 'duration', levelBytes: 'bytes', wikiRuleBytes: 'bytes', bytesPerVector: 'bytes', linksPerVector: 'ratio', levels: 'count',
     codeBytes: 'bytes', idBytes: 'bytes', centroidBytes: 'bytes', codebookBytes: 'bytes', listSizeBytes: 'bytes', coarseLinkBytes: 'bytes', precomputedTableBytes: 'bytes',
     compression: 'ratio', coarseDistances: 'count', scannedVectors: 'count', listSize: 'ratio', flatBytes: 'bytes', flatMacs: 'macs',
     encodeMacs: 'macs', encodeParams: 'params', searchMacs: 'macs', searchParams: 'params', distanceComputations: 'count', distanceComputationsFlat: 'count',

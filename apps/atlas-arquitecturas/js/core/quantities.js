@@ -29,7 +29,8 @@
                                         …MemAllLayers, …Cache = bytes; …Share = % (1 decimal; debajo de 1 %, 3 cifras: '0.0848 %'); 'ratio' = 3 cifras;
                                         'macs' = fmt.ops, p. ej. '1.81 GMACs' — solo por el mapa units;
                                         'ms' = milisegundos con 3 cifras ('1.62', '83.8', '121'), SIN la
-                                        unidad: la prosa escribe ' ms' detrás;
+                                        unidad: la prosa escribe ' ms' detrás; 'duration' (fase 11) = un tiempo
+                                        CON su unidad (fmt.duration: '36.8 s', '16.3 min', '6.8 días');
                                         booleanos 'sí' / 'no' y textos tal cual: metrics.fitsInHbm, metrics.decodeBound)
    ========================================================================== */
 (function (root) {
@@ -148,6 +149,7 @@
       if (unit === 'macs') return num(v, f.ops(v));
       // 'ms' (fase 8): milisegundos con 3 cifras significativas (1.62, 2.54, 83.8, 121); la prosa añade ' ms'.
       if (unit === 'ms') return num(v, fMs(v));
+      if (unit === 'duration') return num(v, f.duration ? f.duration(v) : fMs(v) + ' ms');
       if (parts[1] === 'scoreToLinear') return num(v, v.toFixed(2));
       return num(v, f.int(v));
     }
@@ -179,6 +181,11 @@
     const x = Number(v.toPrecision(3));
     if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2);
     // ≥ 1000: el entero redondeado (1,644.57 → '1,645'), no 3 cifras ('1,640'): coincide con los conteos redondeados.
+    // ≥ 10⁶ (fase 11, revisión): 3 cifras significativas en palabras (3,814,995 → '3.81 millones'; 10⁹ → 'mil millones'):
+    // siete cifras de una cota ≈ son ruido. La prosa escribe «{{…}} de veces». Entre 10⁵ y 10⁶: 3 cifras ('482,000').
+    if (Math.abs(x) >= 1e9) return String(Number((v / 1e9).toPrecision(3))) + ' mil millones';
+    if (Math.abs(x) >= 1e6) return String(Number((v / 1e6).toPrecision(3))) + ' millones';
+    if (Math.abs(x) >= 1e5) return arch().fmt.int(x);
     return Math.abs(x) >= 1000 ? arch().fmt.int(Math.round(v)) : String(x);
   }
 

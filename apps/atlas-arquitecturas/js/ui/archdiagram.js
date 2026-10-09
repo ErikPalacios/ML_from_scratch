@@ -425,7 +425,7 @@
     if (!spec || spec.kind === 'map') return spec;
     const nodes = spec.nodes || [];
     const narrow = !!(ctl.narrow && spec.mobileGrid);
-    const hasWhen = nodes.some((n) => n.when) || (spec.edges || []).some((e) => e.when != null) || (spec.notes || []).some((nt) => nt.when != null);
+    const hasWhen = nodes.some((n) => n.when) || (spec.edges || []).some((e) => e.when != null || e.whenSet) || (spec.notes || []).some((nt) => nt.when != null);
     const hasBars = nodes.some((n) => n.bars) && ctl.mode !== 'blank' && !ctl.quiz;
     if (!hasWhen && !narrow && !hasBars) return spec;
     const out = Object.assign({}, spec);
@@ -437,7 +437,15 @@
       if (n.when) for (const w of [].concat(n.when)) if (w && condOf(run, w.if)) m = Object.assign({}, m, w.set || {});
       return m;
     });
-    if (spec.edges) out.edges = spec.edges.filter((e) => e.when == null || condOf(run, e.when));
+    if (spec.edges) out.edges = spec.edges.filter((e) => e.when == null || condOf(run, e.when)).map((e) => {
+      // fase 11 (revisión): edge.whenSet = [{if: cond, set: {…}}] (o uno solo): props de la arista que cambian con la config
+      // (IVF-PQ de mil millones: el HNSW sobre los centroides calcula ≈ 4k distancias, no n_list: la arista lleva esa cuenta)
+      let m = e;
+      if (e.whenSet) for (const w of [].concat(e.whenSet)) if (w && condOf(run, w.if)) m = Object.assign({}, m, w.set || {});
+      return m;
+    });
+    // fase 11 (revisión): group.mobile = {x, y, w, h} en la grilla angosta (bi-encoder vs cross-encoder: carriles apilados)
+    if (narrow && spec.groups && spec.groups.some((g) => g.mobile)) out.groups = spec.groups.map((g) => (g.mobile ? Object.assign({}, g, g.mobile) : g));
     if (spec.notes) out.notes = spec.notes.filter((nt) => nt.when == null || condOf(run, nt.when));
     if (hasBars) {
       const cur = (ctl.opts && ctl.opts.config) || spec.config;
@@ -674,6 +682,18 @@
   // Ops que el calculador cuenta "por par" dentro de un lote (la matriz B×B de CLIP: detail.perPair):
   // sus MACs son una fila de la matriz; detail.batchMacs = la matmul de todo el lote.
   function perPairOf(ops) { const o = (ops || []).find((x) => x.detail && x.detail.perPair); return o ? o.detail : null; }
+  // fase 11 (revisión): torre siamesa (Sentence-BERT, ColBERT): sus ops tienen parámetros con op.paramRepeat 0 (ya contados en la
+  // otra torre). El tooltip y el panel lo dicen en vez de "Sin parámetros" / "Total: 0". Devuelve el rótulo de la otra torre
+  // (la arista tie) o '' si no hay arista.
+  function sharedTower(spec, n, c) {
+    if (c.params || !c.ops.some((o) => o.params > 0 && o.paramRepeat === 0)) return null;
+    const e = (spec.edges || []).find((x) => x.tie && (x.from === n.id || x.to === n.id));
+    const other = e && (spec.nodes || []).find((x) => x.id === (e.from === n.id ? e.to : e.from));
+    return other ? String(other.label || other.id).replace(/\n/g, ' ') : '';
+  }
+  // fase 11 (revisión): node.repK = clave del calculador con las veces que corre el bloque con los MISMOS pesos (los k pares del
+  // cross-encoder: 'cfg.k'); el tooltip y el panel muestran "por par × k = …" (las formas de las aristas son de un par)
+  function repKOf(run, n) { const K = n && n.repK ? numKey(run, n.repK) : 0; return K > 1 ? K : 0; }
 
   // Valor de config por ruta: 'h', 'heads.0' o 'heads[0]' (cabezas por etapa en Swin).
   function cfgPath(cfg, key) {
@@ -979,10 +999,11 @@
       // style:'offline' = carril "offline" (YOLO-World: el vocabulario se codifica una vez, antes de la inferencia)
       if (g.style === 'offline') used.offline = true;
       // fase 5: style:'lane' = carril de "cuándo corre" (SAM: una vez por imagen / por prompt; SAM 2: por frame),
-      // con tone (warn|accent|head|fuse|muted: tokens del tema) y legend = el texto de su entrada en la leyenda
+      // con tone (warn|accent|head|fuse|muted: tokens del tema) y legend = el texto de su entrada en la leyenda.
+      // fase 11 (revisión): group.config = el carril de esa config; si es la dibujada, marco continuo y más grueso (is-curcfg)
       const lane = g.style === 'lane';
       if (lane) (used.lanes = used.lanes || new Map()).set(g.legend || g.label || g.id, g.tone || 'muted');
-      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : '') + (g.style === 'train' ? ' ad-group--train' : '') + (g.style === 'offline' ? ' ad-group--offline' : '') + (lane ? ' ad-group--lane ad-tone--' + (g.tone || 'muted') : ''), 'data-group': g.id }, L.groups);
+      const gg = S('g', { class: 'ad-group' + (g.region ? ' ad-region' : '') + (g.repeat ? ' ad-group--repeat' : '') + (g.style === 'batch' ? ' ad-group--batch' : '') + (g.style === 'train' ? ' ad-group--train' : '') + (g.style === 'offline' ? ' ad-group--offline' : '') + (lane ? ' ad-group--lane ad-tone--' + (g.tone || 'muted') : '') + (lane && g.config && g.config === ((ctl.opts && ctl.opts.config) || spec.config) ? ' is-curcfg' : ''), 'data-group': g.id }, L.groups);
       if (g.repeat) {
         used.repeat = true;
         S('rect', { x: r.x + 10, y: r.y + 10, width: r.w, height: r.h, rx: 6, class: 'ad-stack' }, gg);
@@ -1685,7 +1706,8 @@
     });
     S('rect', { x: x0, y, width: W, height: bh, class: 'ad-cs-frame' }, gg);
     // fase 10 (revisión): pct1 = un decimal por debajo de 10 % (el rollout de PPO: "2.7 %" como el caption, no "3 %")
-    const pct = (v) => { const f = 100 * v / tot; return o.pct1 && f > 0 && f < 10 ? f.toFixed(1) + ' %' : f > 0 && f < 1 ? '<1 %' : (f > 99 && f < 100 ? '>99 %' : Math.round(f) + ' %'); };
+    // fase 11 (revisión): pct1:'all' = un decimal en todos los tramos (el reranker: "94.8 %", como el rótulo del carril)
+    const pct = (v) => { const f = 100 * v / tot; return o.pct1 && f > 0 && (f < 10 || (o.pct1 === 'all' && f < 99.95)) ? f.toFixed(1) + ' %' : f > 0 && f < 1 ? '<1 %' : (f > 99 && f < 100 ? '>99 %' : Math.round(f) + ' %'); };
     segs.forEach((sg, i) => {
       const yy = y + bh + 14 + i * 14;
       S('rect', { x: x0, y: r1(yy - 8.5), width: 9, height: 9, class: cls(sg) }, gg);
@@ -1928,7 +1950,10 @@
         }
         x += w;
       });
-      S('rect', { x: r1(x0), y: r1(by), width: r1(Math.max(1.5, X(row.total) - x0)), height: BAR_BH, class: 'ad-bars-frame' + (isCur ? ' is-cur' : '') }, gg);
+      // fase 11 (revisión): bars.curFrameMin = px: una barra más angosta no lleva el marco grueso de la fila dibujada (la tapaba
+      // de negro: HNSW e IVF-PQ en "Distancias por query" de ann-costs); la fila sigue resaltada por el rótulo y el total
+      const fw = X(row.total) - x0;
+      S('rect', { x: r1(x0), y: r1(by), width: r1(Math.max(1.5, fw)), height: BAR_BH, class: 'ad-bars-frame' + (isCur && fw >= (o.curFrameMin || 0) ? ' is-cur' : '') }, gg);
       // total a la derecha de la barra (en angosto: a la derecha del rótulo, o debajo de la barra); con fits, la GPU más chica
       // de las líneas en la que entra (o que no entra en ninguna)
       const vc = 'ad-bars-val' + (isCur ? ' is-cur' : '');
@@ -2016,12 +2041,16 @@
   // del calculador) en la parte de abajo del bloque: chip por token ([MASK] resaltado, [CLS]/[SEP] atenuados) y una barra fina
   // con el segmento (A / B: la tabla de token-type de BERT). Si no entran, la fila se achica (hasta 70 %) y luego corta con "…".
   const TOK_H = (o) => 30 + (o && o.caption ? 13 : 0);
-  function tokLab(it) { return it.mask ? '[MASK]' : String(it.t); }
+  // fase 11 (revisión): it.rand = 'palabra' (elegido y cambiado por una palabra al azar: se dibuja esa palabra en naranja) e
+  // it.keep = true (elegido y sin cambio: borde verde punteado), la regla 80 / 10 / 10 en el dibujo y no solo en el texto
+  function tokLab(it) { return it.mask ? '[MASK]' : it.rand ? String(it.rand) : String(it.t); }
   function drawTokens(g, o, r, used, ctl, spec) {
     const items = (o.items || []).slice();
     if (!items.length) return;
     used.tokens = true;
     if (items.some((it) => it.mask)) used.tokMask = true;
+    if (items.some((it) => it.rand)) used.tokRand = true;
+    if (items.some((it) => it.keep)) used.tokKeep = true;
     if (items.some((it) => it.seg === 1)) used.tokSeg = true;
     const gg = S('g', { class: 'ad-toks' }, g);
     const x0 = r.x + 8, W = r.w - 16, y = r.y + r.h - TOK_H(o) + 3, h = 15, gap = 3;
@@ -2032,7 +2061,7 @@
     // si aún no entra: se quitan tokens comunes cerca del medio (nunca [CLS], [SEP] ni [MASK]) y queda un "…" en su lugar
     while (total(list, k) > W && list.filter((it) => !it.ell).length > 3) {
       const mid = list.length / 2;
-      const cand = list.map((it, j) => j).filter((j) => !list[j].ell && !list[j].special && !list[j].mask).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+      const cand = list.map((it, j) => j).filter((j) => !list[j].ell && !list[j].special && !list[j].mask && !list[j].rand && !list[j].keep).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
       if (!cand.length) break;
       const i = cand[0];
       if ((list[i - 1] && list[i - 1].ell) || (list[i + 1] && list[i + 1].ell)) list.splice(i, 1);
@@ -2044,15 +2073,15 @@
       const w = ws[i];
       if (it.ell) { txt(gg, x + w / 2, y + 11, '…', 'ad-tok-txt', 'middle'); x += w + gap; return; }
       const seg = it.seg === 1 ? 1 : 0;
-      S('rect', { x: r1(x), y: r1(y), width: r1(w), height: h, rx: 2.5, class: 'ad-tok is-seg' + seg + (it.mask ? ' is-mask' : '') + (it.special ? ' is-special' : '') }, gg);
-      const tt = txt(gg, x + w / 2, y + 10.8, tokLab(it), 'ad-tok-txt' + (it.special ? ' is-special' : ''), 'middle');
+      S('rect', { x: r1(x), y: r1(y), width: r1(w), height: h, rx: 2.5, class: 'ad-tok is-seg' + seg + (it.mask ? ' is-mask' : '') + (it.rand ? ' is-rand' : '') + (it.keep ? ' is-keep' : '') + (it.special ? ' is-special' : '') }, gg);
+      const tt = txt(gg, x + w / 2, y + 10.8, tokLab(it), 'ad-tok-txt' + (it.special ? ' is-special' : '') + (it.mask ? ' is-mask' : ''), 'middle');
       if (k < 1) tt.setAttribute('style', 'font-size:' + r1(10 * k) + 'px');
       if (used.tokSeg) S('rect', { x: r1(x), y: r1(y + h + 2), width: r1(w), height: 2.5, class: 'ad-tok-seg is-seg' + seg }, gg);
       x += w + gap;
     });
     if (o.caption && ctl.mode !== 'blank' && !ctl.quiz) txt(gg, r.x + r.w / 2, y + h + 15, qText(o.caption, ctl, spec), 'ad-gqa-cap', 'middle');
   }
-  function tokensWords(o) { return 'tokens de ejemplo: ' + (o.items || []).map(tokLab).join(' '); }
+  function tokensWords(o) { return 'tokens de ejemplo: ' + (o.items || []).map((it) => tokLab(it) + (it.rand ? ' (al azar, era ' + it.t + ')' : it.keep ? ' (elegido, sin cambio)' : '')).join(' '); }
 
   // node.cells = {rows, cols (claves o números), maxR?:6, maxC?:12, mark:'rowmax'|'pick'|'rows'|'none', lit?:<clave o número>,
   //   sum?:texto, label?, caption?, seed?, cell?:9}: una tabla chica (filas × columnas, recortada a maxR × maxC con "…" y con la
@@ -2083,6 +2112,10 @@
     const x0 = r.x + (r.w - gw) / 2, y0 = r.y + r.h - CELLS_H(o, run) + CELLS_TOP(o);
     if (o.label && !quiet) txt(gg, r.x + r.w / 2, y0 - (o.sum ? 17 : 5), qText(o.label, ctl, spec), 'ad-cells-lab', 'middle');
     const lit = mark === 'rows' ? Math.min(numKey(run, o.lit) || 0, d.nR) : 0;
+    // fase 11 (revisión): litRows = las filas dibujadas resaltadas, sueltas (las n_probe listas están donde caen los centroides
+    // más cercanos, no arriba de todo)
+    const litSet = mark === 'rows' && Array.isArray(o.litRows) ? new Set(o.litRows.filter((i) => i < d.nR)) : null;
+    const isLit = (i) => (litSet ? litSet.has(i) : i < lit);
     const vals = [];
     for (let i = 0; i < rowsDrawn; i++) {
       const isMoreR = d.moreR && i === d.nR;
@@ -2095,7 +2128,7 @@
       for (let j = 0; j < colsDrawn; j++) {
         const xx = x0 + j * cs;
         if (d.moreC && j === d.nC) { txt(gg, xx + cs / 2, yy + cs - 2, '…', 'ad-cells-ell', 'middle'); continue; }
-        if (mark === 'rows') S('rect', { x: r1(xx + 0.5), y: r1(yy + 1.5), width: r1(cs - 1), height: r1(cs - 3), class: 'ad-cell-row' + (i < lit ? ' is-lit' : '') }, gg);
+        if (mark === 'rows') S('rect', { x: r1(xx + 0.5), y: r1(yy + 1.5), width: r1(cs - 1), height: r1(cs - 3), class: 'ad-cell-row' + (isLit(i) ? ' is-lit' : '') }, gg);
         else S('rect', { x: r1(xx + 0.5), y: r1(yy + 0.5), width: r1(cs - 1), height: r1(cs - 1), class: 'ad-cell', style: 'fill-opacity:' + (Math.round((0.12 + 0.75 * row[j]) * 100) / 100) }, gg);
         if ((mark === 'rowmax' && j === best) || (mark === 'pick' && j === pick)) S('rect', { x: r1(xx - 0.5), y: r1(yy - 0.5), width: r1(cs + 1), height: r1(cs + 1), class: 'ad-cell-mark' }, gg);
       }
@@ -2121,53 +2154,74 @@
 
   // node.layered = {levels:[{n, label?}, …] (de arriba abajo), seed?}: pictograma de un grafo por capas (HNSW): una lámina por capa
   // con n puntos (los de arriba son un subconjunto de los de abajo), enlaces a los vecinos más cercanos de esa capa, la ruta
-  // codiciosa resaltada (de la entrada arriba hacia la consulta, bajando por el mismo punto) y la consulta (rombo) abajo. Todo
-  // ILUSTRATIVO (pocos puntos); los rótulos pueden llevar {{…}} del calculador.
-  const LAY_STEP = 46;
+  // codiciosa resaltada (de la entrada arriba hacia la consulta, bajando por el mismo punto) y la consulta (rombo) abajo, con su
+  // misma posición tenue en las capas de arriba. Todo ILUSTRATIVO (pocos puntos); los rótulos pueden llevar {{…}} del calculador.
+  // fase 11 (revisión): distancias, vecinos y ruta se miden en el espacio DIBUJADO (la lámina es ~10× más ancha que alta y va
+  // sesgada): así cada salto de la ruta acerca el punto al rombo en pantalla. Puntos con separación mínima (dardos con semilla),
+  // enlaces no dirigidos (cada enlace que usa la ruta está dibujado) y rótulos a la izquierda, bajo cada lámina.
+  const LAY_STEP = 46, LAY_SK = 14, LAY_PH = 32;
   const LAYERED_H = (o) => ((o && o.levels) || []).length * LAY_STEP + 6;
-  function layeredGeom(o) {
+  function layeredGeom(o, W) {
     const levels = o.levels || [], L = levels.length;
     const rng = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng(o.seed || 5) : Math.random;
     const nBottom = levels.length ? levels[L - 1].n : 0;
-    const pts = Array.from({ length: nBottom }, () => [0.06 + 0.88 * rng(), 0.12 + 0.76 * rng()]);
+    const AX = (W || 312) - LAY_SK;
+    const proj = (p) => [LAY_SK * (1 - p[1]) + p[0] * AX, p[1] * LAY_PH];
+    const dist = (a, b) => { const A = proj(a), B = proj(b); return Math.hypot(A[0] - B[0], A[1] - B[1]); };
     const q = o.query || [0.78, 0.62];
+    const pts = [];
+    for (let i = 0; i < nBottom; i++) {
+      let best = null, bd = -1;
+      for (let t = 0; t < 60; t++) {
+        const c = [0.06 + 0.88 * rng(), 0.12 + 0.76 * rng()];
+        const md = Math.min(dist(c, q) - 3, ...pts.map((p) => dist(c, p)));
+        if (md > bd) { bd = md; best = c; }
+        if (md >= 11) break;
+      }
+      pts.push(best);
+    }
     // capa i (0 = arriba) = los primeros n_i puntos (anidadas, como en HNSW)
     const sets = levels.map((lv) => pts.slice(0, Math.min(lv.n, nBottom)).map((p, j) => j));
-    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-    const nb = (ids, j, k) => ids.filter((x) => x !== j).sort((a, b) => dist(pts[a], pts[j]) - dist(pts[b], pts[j])).slice(0, k);
-    const links = sets.map((ids) => ids.map((j) => nb(ids, j, Math.min(3, ids.length - 1))));
+    const adj = sets.map((ids) => {
+      const A = new Map(ids.map((j) => [j, new Set()]));
+      ids.forEach((j) => ids.filter((x) => x !== j).sort((a, b) => dist(pts[a], pts[j]) - dist(pts[b], pts[j])).slice(0, Math.min(3, ids.length - 1)).forEach((e) => { A.get(j).add(e); A.get(e).add(j); }));
+      return A;
+    });
     // ruta codiciosa: en cada capa, saltar al vecino más cercano a q hasta no mejorar
     const path = [];
     let cur = 0;
     sets.forEach((ids, li) => {
       const seg = [cur];
-      for (let it = 0; it < 20; it++) {
-        const cand = links[li][ids.indexOf(cur)] || [];
-        const best = cand.reduce((b, x) => (dist(pts[x], q) < dist(pts[b], q) ? x : b), cur);
+      for (let it = 0; it < 30; it++) {
+        const best = [...(adj[li].get(cur) || [])].reduce((b, x) => (dist(pts[x], q) < dist(pts[b], q) ? x : b), cur);
         if (best === cur) break;
         cur = best; seg.push(cur);
       }
       path.push(seg);
     });
-    return { levels, pts, q, sets, links, path };
+    return { levels, pts, q, sets, adj, path };
   }
   function drawLayered(g, o, r, used, ctl, spec) {
-    const G = layeredGeom(o);
+    const x0 = r.x + 12, W = r.w - 24, sk = LAY_SK, ph = LAY_PH;
+    const G = layeredGeom(o, W);
     if (!G.levels.length) return;
     used.layered = true;
     const gg = S('g', { class: 'ad-layered' }, g);
-    const x0 = r.x + 12, W = r.w - 24, sk = 14, ph = 32;
     const yTop = r.y + r.h - LAYERED_H(o) + 4;
     const Q = (li, p) => { const yy = yTop + li * LAY_STEP; return [x0 + sk * (1 - p[1]) + p[0] * (W - sk), yy + p[1] * ph]; };
+    const diamond = (p, k) => 'M' + P([p[0] - k, p[1]]) + 'L' + P([p[0], p[1] - k]) + 'L' + P([p[0] + k, p[1]]) + 'L' + P([p[0], p[1] + k]) + 'Z';
+    const last = G.levels.length - 1;
     G.levels.forEach((lv, li) => {
       const yy = yTop + li * LAY_STEP;
       S('path', { d: 'M' + r1(x0 + sk) + ' ' + r1(yy) + 'H' + r1(x0 + W) + 'L' + r1(x0 + W - sk) + ' ' + r1(yy + ph) + 'H' + r1(x0) + 'Z', class: 'ad-lay-plane' }, gg);
       let d = '';
-      G.sets[li].forEach((j, k) => (G.links[li][k] || []).forEach((e) => { if (e > j) { const a = Q(li, G.pts[j]), b = Q(li, G.pts[e]); d += 'M' + P(a) + 'L' + P(b); } }));
+      G.adj[li].forEach((nbs, j) => nbs.forEach((e) => { if (e > j) d += 'M' + P(Q(li, G.pts[j])) + 'L' + P(Q(li, G.pts[e])); }));
       if (d) S('path', { d, class: 'ad-lay-edge' }, gg);
+      // la posición de q en las capas de arriba (tenue): "más cerca de q" se lee en cada lámina
+      if (li < last) S('path', { d: diamond(Q(li, G.q), 4), class: 'ad-lay-q is-ghost' }, gg);
     });
     // verticales punteadas: el mismo nodo baja de capa
-    for (let li = 0; li + 1 < G.levels.length; li++) {
+    for (let li = 0; li < last; li++) {
       const j = G.path[li][G.path[li].length - 1], a = Q(li, G.pts[j]), b = Q(li + 1, G.pts[j]);
       S('path', { d: 'M' + P(a) + 'L' + P(b), class: 'ad-lay-drop' }, gg);
     }
@@ -2176,10 +2230,9 @@
       if (seg.length > 1) S('path', { d: seg.map((j, k) => (k ? 'L' : 'M') + P(Q(li, G.pts[j]))).join(''), class: 'ad-lay-path' }, gg);
       G.sets[li].forEach((j) => { const p = Q(li, G.pts[j]); S('circle', { cx: r1(p[0]), cy: r1(p[1]), r: seg.indexOf(j) >= 0 ? 2.8 : 2, class: 'ad-lay-pt' + (seg.indexOf(j) >= 0 ? ' is-on' : '') }, gg); });
       if (li === 0) { const p = Q(0, G.pts[0]); S('circle', { cx: r1(p[0]), cy: r1(p[1]), r: 5, class: 'ad-lay-ep' }, gg); }
-      if (lv.label && !(ctl.mode === 'blank' || ctl.quiz)) txt(gg, x0 + W - sk - 2, yTop + li * LAY_STEP + ph + 11, qText(lv.label, ctl, spec), 'ad-lay-lab', 'end');
+      if (lv.label && !(ctl.mode === 'blank' || ctl.quiz)) txt(gg, x0 + 2, yTop + li * LAY_STEP + ph + 11, qText(lv.label, ctl, spec), 'ad-lay-lab');
     });
-    const qp = Q(G.levels.length - 1, G.q);
-    S('path', { d: 'M' + P([qp[0] - 5, qp[1]]) + 'L' + P([qp[0], qp[1] - 5]) + 'L' + P([qp[0] + 5, qp[1]]) + 'L' + P([qp[0], qp[1] + 5]) + 'Z', class: 'ad-lay-q' }, gg);
+    S('path', { d: diamond(Q(last, G.q), 5), class: 'ad-lay-q' }, gg);
   }
   function layeredWords(o, ctl, spec) {
     const lv = o.levels || [];
@@ -2606,9 +2659,11 @@
     if (used.tie) item((s) => { const g = S('g', { class: 'ad-edge ad-edge--control ad-edge--tie' }, s); S('path', { d: 'M4 8H22', class: 'ad-ln' }, g); S('circle', { cx: 4, cy: 8, r: 2.6, class: 'ad-end' }, g); S('circle', { cx: 22, cy: 8, r: 2.6, class: 'ad-end' }, g); }, LT.tie || 'Pesos atados: la misma matriz en los dos extremos (se cuenta una vez)');
     if (used.tokens) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 1, y: 3, width: 11, height: 9, rx: 2, class: 'ad-tok is-seg0' }, g); S('rect', { x: 14, y: 3, width: 11, height: 9, rx: 2, class: 'ad-tok is-seg1' }, g); S('rect', { x: 1, y: 13, width: 11, height: 2, class: 'ad-tok-seg is-seg0' }, g); S('rect', { x: 14, y: 13, width: 11, height: 2, class: 'ad-tok-seg is-seg1' }, g); }, LT.tokens || ('Tokens de ejemplo (ilustrativo)' + (used.tokSeg ? '; la barra de abajo es el segmento: A o B' : '')));
     if (used.tokMask) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-mask' }, g); }, LT.tokMask || '[MASK]: token enmascarado (lo que el MLM predice)');
+    if (used.tokRand) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-rand' }, g); }, LT.tokRand || 'Elegido y cambiado por una palabra al azar (10 % de los elegidos)');
+    if (used.tokKeep) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-seg0 is-keep' }, g); }, LT.tokKeep || 'Elegido y sin cambio (10 % de los elegidos): también entra en la pérdida');
     if (used.cells) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [[2, 2, .25], [8, 2, .8], [14, 2, .4], [2, 8, .6], [8, 8, .2], [14, 8, .9]].forEach(([x, y, v]) => S('rect', { x, y, width: 5, height: 5, class: 'ad-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 7.5, y: 1.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('rect', { x: 13.5, y: 7.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); }, LT.cells || 'Tabla (ilustrativa: el tono no es un valor real); recuadro = la celda elegida por fila');
     if (used.cellsRows) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 2, y, width: 22, height: 3, class: 'ad-cell-row' + (i === 1 ? ' is-lit' : '') }, g)); }, LT.cellsRows || 'Filas: listas del índice; resaltadas = las que se recorren');
-    if (used.layered) item((s) => { const g = S('g', { class: 'ad-layered' }, s); S('path', { d: 'M4 3H24L21 7H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M4 9H24L21 13H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M10 5L10 11L17 11', class: 'ad-lay-path' }, g); }, LT.layered || 'Grafo por capas (ilustrativo): la ruta resaltada es la búsqueda codiciosa');
+    if (used.layered) item((s) => { const g = S('g', { class: 'ad-layered' }, s); S('path', { d: 'M4 3H24L21 7H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M4 9H24L21 13H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M8 5L8 11', class: 'ad-lay-drop' }, g); S('path', { d: 'M8 11L16 11', class: 'ad-lay-path' }, g); S('circle', { cx: 8, cy: 5, r: 2.6, class: 'ad-lay-ep' }, g); S('path', { d: 'M19 11L21 9L23 11L21 13Z', class: 'ad-lay-q' }, g); }, LT.layered || 'Grafo por capas (ilustrativo): la ruta resaltada es la búsqueda codiciosa');
     if (used.matrix) item((s) => { const g = S('g', { class: 'ad-op--embed' }, s); S('rect', { x: 3, y: 2, width: 12, height: 12, class: 'ad-mat-box' }, g); S('rect', { x: 18, y: 2, width: 3, height: 12, class: 'ad-mat-box' + (used.matrixClamped ? ' is-clamped' : '') }, g); }, LT.matrix || 'Matriz de pesos a escala (lineal): filas × columnas');
     if (used.closed) item((s) => { const g = S('g', { class: 'ad-node--closed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); }, 'Caja negra: pesos cerrados (no se ve por dentro)');
     if (used.bins) item((s) => { const g = S('g', { class: 'ad-bins' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-bins-track' }, g); S('path', { d: 'M5 4V12M8 4V12M11 4V12M14 4V12M17 4V12M20 4V12', class: 'ad-bins-tick' }, g); S('rect', { x: 13, y: 3, width: 4, height: 10, class: 'ad-bins-on' }, g); }, 'Bins de una dimensión de la acción (resaltado: el del ejemplo, ilustrativo)');
@@ -2746,7 +2801,16 @@
       if (ctl.hl) applyHighlight(ctl.hl);
       return view;
     }
-    function redraw() { const keep = ctl.vb; mountView(ctl.stack[ctl.stack.length - 1]); sizeViewport(); if (keep && ctl.zoomed) setVB(keep); else fit(false); }
+    function redraw() {
+      const keep = ctl.vb, from = ctl.view && ctl.view.from;
+      // fase 11 (revisión): el nodo enfocado sigue enfocado tras redibujar (al abrir el panel la figura baja de 640 px y una
+      // vista con mobileGrid se redibuja en su grilla angosta: el foco caía en <body>)
+      const a = root.document && root.document.activeElement, nid = a && fig.contains(a) && a.getAttribute && a.getAttribute('data-node');
+      mountView(ctl.stack[ctl.stack.length - 1]);
+      if (ctl.view && from) ctl.view.from = from;
+      sizeViewport(); if (keep && ctl.zoomed) setVB(keep); else fit(false);
+      if (nid && ctl.view && ctl.view.nodeEls[nid]) ctl.view.nodeEls[nid].focus({ preventScroll: true });
+    }
 
     function renderCrumbs() {
       crumbs.innerHTML = '';
@@ -2930,6 +2994,8 @@
       if (r && ctl.vb) { await animateVB(ctl.vb, rectVB(r), 300); }
       ctl.stack.push(id);
       mountView(id);
+      // fase 11 (revisión): desde qué nodo se abrió (spec.mobileFocusFrom[nodo]: el reranker abre el bi-vs-cross en el cross-encoder)
+      if (ctl.view) ctl.view.from = nodeId;
       sizeViewport();
       fadeIn();
       // fase 8: en el teléfono, la vista abierta usa su mobileFocus (antes solo se leía al montar y la U-Net abría a 5 px)
@@ -2982,7 +3048,10 @@
         if (io.in.length || io.out.length) h += '<div class="ad-tip-io">' + io.in.map(shp).join(', ') + (io.in.length && io.out.length ? ' <span aria-hidden="true">→</span> ' : '') + io.out.map(shp).join(', ') + '</div>';
         if (run && n.op !== 'io') {
           const c = nodeCost(run, n);
-          if (c.params || c.macs) h += '<div class="ad-tip-cost">' + (c.params ? 'Parámetros <b>' + fint(c.params) + '</b>' : 'Sin parámetros') + (c.macs ? ' · MACs <b>' + fsi(c.macs) + '</b>' : '') + (c.rep > 1 ? ' <span class="ad-muted">' + unitOf(n) + ' (' + repTimes(n, c.rep) + ')</span>' : '') + '</div>';
+          const shw = sharedTower(spec, n, c), K = repKOf(run, n);
+          const kTxt = K && c.macs ? ' <span class="ad-muted">(' + fsi(c.macs / K) + ' por par × ' + esc(String(n.repKSym || 'k')) + ' = ' + fint(K) + ')</span>' : '';
+          if (shw != null && c.macs) h += '<div class="ad-tip-cost">Pesos compartidos' + (shw ? ' con «' + htmlSub(shw) + '»' : '') + ' (no se cuentan dos veces) · MACs <b>' + fsi(c.macs) + '</b></div>';
+          else if (c.params || c.macs) h += '<div class="ad-tip-cost">' + (c.params ? 'Parámetros <b>' + fint(c.params) + '</b>' : 'Sin parámetros') + (c.macs ? ' · MACs <b>' + fsi(c.macs) + '</b>' + kTxt : '') + (c.rep > 1 ? ' <span class="ad-muted">' + unitOf(n) + ' (' + repTimes(n, c.rep) + ')</span>' : '') + '</div>';
           else h += '<div class="ad-tip-cost ad-muted">Sin parámetros ni MACs de matmul</div>';
           const pp = perPairOf(c.ops);
           if (pp && c.macs) h += '<div class="ad-tip-cost ad-muted">MACs por par (una fila de la matriz); el lote de B = ' + fint(pp.B) + ' entero: <b>' + fsi(pp.batchMacs) + '</b></div>';
@@ -3054,10 +3123,12 @@
           const box = H('div', { class: 'ad-panel-cost' }, panel);
           if (!c.ops.length) H('p', { class: 'ad-muted', text: 'Sin operaciones del calculador asociadas.' }, box);
           const withP = c.ops.filter((o) => o.params), withM = c.ops.filter((o) => o.macs);
+          const shw = sharedTower(spec, n, c), K = repKOf(run, n);
           if (withP.length) {
-            H('h5', { text: 'Parámetros' + (c.rep > 1 ? ' (' + unitOf(n) + ')' : '') }, box);
+            H('h5', { text: 'Parámetros' + (c.rep > 1 ? ' (' + unitOf(n) + ')' : shw != null ? ' (compartidos)' : '') }, box);
             for (const o of withP) costRow(box, o, 'param');
-            if (withP.length > 1) H('p', { class: 'ad-panel-sum' }, box, 'Total: <b>' + fint(c.params) + '</b>');
+            if (shw != null) H('p', { class: 'ad-panel-sum' }, box, 'Pesos compartidos' + (shw ? ' con «' + htmlSub(shw) + '»' : '') + ': ya están contados ahí, no suman al total del modelo.');
+            else if (withP.length > 1) H('p', { class: 'ad-panel-sum' }, box, 'Total: <b>' + fint(c.params) + '</b>');
           } else if (c.ops.length) H('p', { class: 'ad-muted', text: 'Sin parámetros aprendibles.' }, box);
           if (withM.length) {
             const pp = perPairOf(c.ops);
@@ -3065,6 +3136,7 @@
             for (const o of withM) costRow(box, o, 'mac');
             if (withM.length > 1) H('p', { class: 'ad-panel-sum' }, box, 'Total: <b>' + fint(c.macs) + '</b> (= ' + fsi(c.macs) + ' MACs, ' + fsi(2 * c.macs) + ' FLOPs)');
             if (pp) H('p', { class: 'ad-panel-sum' }, box, 'Por par: una fila de la matriz B×B. El lote entero (B = ' + fint(pp.B) + '): <b>' + fint(pp.batchMacs) + '</b> MACs (= ' + fsi(pp.batchMacs) + ').');
+            if (K && c.macs) H('p', { class: 'ad-panel-sum' }, box, 'Por par: ' + fsi(c.macs / K) + ' MACs (las filas de arriba son de un par' + (withM.some((o) => (o.repeat || 1) > K) ? ' y una capa' : '') + '). × ' + esc(String(n.repKSym || 'k')) + ' = ' + fint(K) + ' pares: <b>' + fint(c.macs) + '</b> MACs (= ' + fsi(c.macs) + ').');
           }
           if (c.rep > 1) H('p', { class: 'ad-panel-sum' }, box, 'En el modelo (' + repTimes(n, c.rep) + '): <b>' + fint(c.total.params) + '</b> parámetros · <b>' + fsi(c.total.macs) + '</b> MACs');
           if (n.costNote) H('p', { class: 'ad-panel-sum ad-muted' }, box, esc(qText(n.costNote, ctl, spec)));
@@ -3419,7 +3491,8 @@
     // initialVB() = esa vista (sin aplicarla): la usan el montaje, expandTo y la animación de volver (collapseTo).
     function initialVB() {
       const spec = ctl.view && ctl.view.spec;
-      const ids = spec && isMobile() && ctl.mode === 'full' && !fig.classList.contains('ad--fs') ? spec.mobileFocus : null;
+      const from = spec && spec.mobileFocusFrom && ctl.view.from ? spec.mobileFocusFrom[ctl.view.from] : null;
+      const ids = spec && isMobile() && ctl.mode === 'full' && !fig.classList.contains('ad--fs') ? from || spec.mobileFocus : null;
       const rs = (ids || []).map((id) => ctl.view.geo.nodes[id] || ctl.view.geo.groups[id]).filter(Boolean);
       if (!rs.length) return fitVB();
       // mobileFocusPad (u): margen extra arriba a la izquierda (p. ej. para que entre el título de un carril)

@@ -122,9 +122,10 @@
 
   // si(n): 86.6 M · 17.56 G · 1.77 M · 590.6 K. decimals opcional fuerza los decimales.
   // Fase 6 (revisión): prefijo P (10¹⁵) para el prefill largo de un LLM (5.49 PMACs, no "5487.25 TMACs").
+  // Fase 11 (revisión): prefijo E (10¹⁸) para el preentrenamiento de BERT (14.51 EMACs, no "14505.53 PMACs").
   function si(n, decimals) {
     const a = Math.abs(n);
-    const units = [[1e15, 'P'], [1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'K']];
+    const units = [[1e18, 'E'], [1e15, 'P'], [1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'K']];
     for (const [v, u] of units) {
       if (a >= v) {
         const x = n / v;
@@ -160,8 +161,21 @@
   function ops(n, unit) {
     const u = unit || 'MACs';
     const s = si(n);
-    const m = s.match(/^(.*) ([KMGTP])$/);
+    const m = s.match(/^(.*) ([KMGTPE])$/);
     return m ? m[1] + ' ' + m[2] + u : s + ' ' + u;
+  }
+
+  // duration(ms) (fase 11): un tiempo en milisegundos con su unidad, 3 cifras significativas: 0.693 → '0.693 ms',
+  // 36,842 → '36.8 s', 975,384 → '16.3 min', 2.7e7 → '7.5 h', 5.9e8 → '6.8 días'. Para cotas largas (codificar un corpus,
+  // construir un índice) que en ms son ilegibles ('975,384 ms'). La unidad va en el texto (a diferencia de las métricas 'ms').
+  function duration(ms) {
+    if (ms === null || ms === undefined || !isFinite(ms)) return '—';
+    const a = Math.abs(ms), p3 = (x) => (Math.abs(x) >= 1000 ? int(x) : String(Number(x.toPrecision(3))));
+    if (a < 1000) return p3(ms) + ' ms';
+    if (a < 60e3) return p3(ms / 1e3) + ' s';
+    if (a < 3600e3) return p3(ms / 60e3) + ' min';
+    if (a < 48 * 3600e3) return p3(ms / 3600e3) + ' h';
+    return p3(ms / 86400e3) + ' días';
   }
 
   function pct(x, decimals) { return (x * 100).toFixed(decimals === undefined ? 1 : decimals) + ' %'; }
@@ -229,7 +243,7 @@
     return v.map(int).join(' + ') + ' = ' + int(total);
   }
 
-  const fmt = { int, si, ops, bytes, pct, pctAuto, shape: shapeStr, shapeTex, symText, symTex: symTexShape };
+  const fmt = { int, si, ops, bytes, pct, pctAuto, duration, shape: shapeStr, shapeTex, symText, symTex: symTexShape };
 
   // ------------------------------------------------------------------ formas
   function shape(sym, num, mod, layout) {
@@ -454,8 +468,9 @@
   }
 
   // pool_cls: (N+1)×D → D (fila 0).
-  function pool_cls(x) {
-    return result('pool_cls', [x], shape([x.sym[1]], [x.num[1]], x.mod, 'vec'), {});
+  // o.sym (opcional): símbolo de la salida cuando el vector cambia de nombre sin cambiar de tamaño (ANN: q de d = D dimensiones).
+  function pool_cls(x, o) {
+    return result('pool_cls', [x], shape([(o && o.sym) || x.sym[1]], [x.num[1]], x.mod, 'vec'), {});
   }
 
   // classifier_head: D → K (lineal sobre un vector).
@@ -2467,9 +2482,9 @@
   const tanh = (x) => elementwise('tanh', x, OTHER.tanh);
   // mean_pool (Sentence-BERT; all-MiniLM-L6-v2 usa pooling_mode_mean_tokens): Σ_t m_t·x_t / Σ_t m_t sobre las T filas
   // (m = máscara de atención; sin relleno, todas 1): T×D → D. Sin parámetros ni MACs: ≈ 2·T·D + D "otros".
-  function mean_pool(x) {
+  function mean_pool(x, o) {
     const T = x.num[0], D = x.num[1];
-    return result('mean_pool', [x], shape([x.sym[1]], [D], x.mod, 'vec'), {
+    return result('mean_pool', [x], shape([(o && o.sym) || x.sym[1]], [D], x.mod, 'vec'), {
       other: 2 * T * D + D, detail: { T, D, note: 'promedio de los T vectores de token (con la máscara de atención: el relleno no cuenta)' },
     });
   }
@@ -2590,9 +2605,10 @@
   }
   // pair_tokens (cross-encoder): arma la entrada de un par: [CLS] query [SEP] documento [SEP]. q (T_q, con su [CLS] y [SEP]) y
   // un candidato del top-k (cand: k ids de documento) → T_q + T_d − 1 ids (el [CLS] del documento sobra). Sin costo; se repite por
-  // cada uno de los k pares. o = {Td, sym = 'T_q+T_d-1'}
+  // cada uno de los k pares. o = {Td, T?, sym = 'T_q+T_d-1'}: T (opcional) = largo del par ya truncado a las posiciones del
+  // cross-encoder (512: se recorta el documento, truncation = 'only_second' de HF / CrossEncoder con max_length 512).
   function pair_tokens(q, cand, o) {
-    const T = q.num[0] + o.Td - 1;
+    const T = o.T != null ? o.T : q.num[0] + o.Td - 1;
     return result('pair_tokens', [q, cand], shape([o.sym || 'T_q+T_d-1'], [T], q.mod, 'vec'), { detail: { Tq: q.num[0], Td: o.Td, note: '[CLS] query [SEP] documento [SEP]' } });
   }
   // ---- ANN (contabilidad de costo de búsqueda; FAISS 1.15: Johnson et al., arXiv:1702.08734; Douze et al., arXiv:2401.08281) ----
@@ -2619,23 +2635,25 @@
     });
   }
   // hnsw_beam: búsqueda en el nivel 0 con una lista de ef candidatos (efSearch): cada candidato expandido revisa ≤ 2M vecinos →
-  // ≈ ef·2M distancias (≈, cota: los ya visitados no se recalculan; medido con FAISS 1.15 sobre datos sintéticos: 0.5–1.0× esta
-  // cota). → ef candidatos ordenados. o = {ef, M, efSym = 'ef'}
+  // ≈ ef·2M distancias (≈, ESTIMACIÓN, no cota: los ya visitados no se recalculan, pero la búsqueda puede expandir más de ef nodos;
+  // medido con FAISS 1.15 sobre datos sintéticos: 0.44–1.02× esta estimación). → ef candidatos ordenados. o = {ef, M, efSym = 'ef'}
   function hnsw_beam(q, entry, X, links, o) {
     const d = q.num[0], ds = q.sym[0], dist = o.ef * 2 * o.M;
     return result('hnsw_beam', [q, entry, X, links], shape([o.efSym || 'ef'], [o.ef], q.mod, 'vec'), {
       macTerms: [[o.ef, 2 * o.M, d]], macTex: symTexFactor(o.efSym || 'ef') + '\\cdot 2M\\cdot ' + symTexFactor(ds), other: dist * OTHER.topk,
-      detail: { ef: o.ef, M: o.M, distances: dist, estimate: true, note: '≈ cota: ef expansiones × 2M vecinos del nivel 0 (los visitados se saltan)' },
+      detail: { ef: o.ef, M: o.M, distances: dist, estimate: true, note: '≈ estimación: ef expansiones × 2M vecinos del nivel 0 (los visitados se saltan; medido 0.44–1.02×)' },
     });
   }
   // ivf_coarse: cuantizador grueso del IVF: q contra los n_list centroides de k-means (n_list×d, aprendidos: son sus parámetros) →
-  // n_list distancias. Plano: MACs n_list·d. Con un HNSW sobre los centroides (o.hnsw = {M, ef}; FAISS IVF…_HNSW32): ≈ (niveles·M
-  // + ef·2M)·d. o = {nlist, nlistSym = 'n_list', hnsw}
+  // n_list distancias. Plano: MACs n_list·d. Con un HNSW sobre los centroides (o.hnsw = {M, ef, efSym = 'ef'}; FAISS IVF…_HNSW32):
+  // ≈ (niveles·M + ef·2M)·d y la salida son los ef centroides candidatos del HNSW (no las n_list distancias: solo se calculan ~ef·2M).
+  // o = {nlist, nlistSym = 'n_list', hnsw}
   function ivf_coarse(q, o) {
     const d = q.num[0], ds = q.sym[0], ls = o.nlistSym || 'n_list';
     const h = o.hnsw;
     const dist = h ? hnswLevels(o.nlist, h.M) * h.M + h.ef * 2 * h.M : o.nlist;
-    return result('ivf_coarse', [q], shape([ls], [o.nlist], q.mod, 'vec'), {
+    const out = h ? shape([h.efSym || 'ef'], [h.ef], q.mod, 'vec') : shape([ls], [o.nlist], q.mod, 'vec');
+    return result('ivf_coarse', [q], out, {
       paramTerms: [[o.nlist, d]], paramTex: texProd([ls, ds]),
       macTerms: [[dist, d]], macTex: h ? '(\\lfloor\\log_M n_{\\mathrm{list}}\\rfloor M + ef\\cdot 2M)\\cdot ' + symTexFactor(ds) : texProd([ls, ds]),
       other: dist,
@@ -2942,7 +2960,7 @@
     { id: 'dpo_loss', name: 'Pérdida DPO', paramTex: '0', macTex: '0', outTex: '\\to 1', note: '−log σ(β[(log π − log π_ref)(y_w) − (log π − log π_ref)(y_l)]): la recompensa implícita es β·log(π/π_ref).' },
     // Fase 11 (BERT, recuperación densa, ANN)
     { id: 'mlm_mask', name: 'Enmascarado del MLM', paramTex: '0', macTex: '0', outTex: 'T \\to T,\\ T', note: '15 % de las posiciones: 80 % [MASK], 10 % token al azar, 10 % igual. La pérdida solo mira esas posiciones.' },
-    { id: 'pair_tokens', name: 'Armar el par (cross-encoder)', paramTex: '0', macTex: '0', outTex: 'T_q,\\ T_d \\to T_q{+}T_d{-}1', note: '[CLS] query [SEP] documento [SEP]: el modelo lee los dos textos juntos (atención cruzada entre ambos).' },
+    { id: 'pair_tokens', name: 'Armar el par (cross-encoder)', paramTex: '0', macTex: '0', outTex: 'T_q,\\ T_d \\to T_q{+}T_d{-}1', note: '[CLS] query [SEP] documento [SEP]: el modelo lee los dos textos juntos (atención cruzada entre ambos). Si pasa de 512 tokens, se recorta el documento (truncation only_second).' },
     { id: 'pooler', name: 'Pooler de BERT', paramTex: 'D^2 + D', macTex: 'D^2', outTex: 'T\\times D \\to D', note: 'tanh(W·h_[CLS] + b): solo la fila [CLS]. Lo usan NSP y la cabeza de clasificación; DPR y Sentence-BERT no.' },
     { id: 'tanh', name: 'tanh', paramTex: '0', macTex: '0', outTex: 'D \\to D', note: 'Elementwise; ≈ 5 ops por elemento en "otros".' },
     { id: 'mean_pool', name: 'Mean pooling', paramTex: '0', macTex: '0', outTex: 'T\\times D \\to D', note: 'Promedio de los vectores de token con la máscara de atención (Sentence-BERT). Alternativa: tomar [CLS] (DPR).' },
@@ -2961,8 +2979,8 @@
     { id: 'embed_index', name: 'Índice de embeddings', paramTex: '0', macTex: '0', outTex: 'D \\to N\\times D', note: 'Offline: N vectores guardados a bits por número: N·D·bits/8 bytes.' },
     { id: 'flat_scan', name: 'Búsqueda exacta (flat)', paramTex: '0', macTex: 'N\\,d', outTex: 'd,\\ N\\times d \\to N', note: 'Fuerza bruta: N distancias exactas por query; lee los N·d números del índice.' },
     { id: 'hnsw_descent', name: 'HNSW: descenso por niveles', paramTex: '0', macTex: '\\approx \\lfloor\\log_M N\\rfloor\\,M\\,d', outTex: 'd \\to 1', note: 'Voraz por los niveles superiores (pocos nodos, enlaces largos) hasta el punto de entrada del nivel 0.' },
-    { id: 'hnsw_beam', name: 'HNSW: búsqueda en el nivel 0', paramTex: '0', macTex: '\\approx ef\\cdot 2M\\cdot d', outTex: 'd \\to ef', note: 'Lista de ef candidatos; cada expansión revisa ≤ 2M vecinos. Más ef = más recall y más distancias.' },
-    { id: 'ivf_coarse', name: 'IVF: cuantizador grueso', paramTex: 'n_{\\mathrm{list}}\\,d', macTex: 'n_{\\mathrm{list}}\\,d', outTex: 'd \\to n_{\\mathrm{list}}', note: 'q contra los n_list centroides de k-means; se recorren solo las n_probe listas más cercanas.' },
+    { id: 'hnsw_beam', name: 'HNSW: búsqueda en el nivel 0', paramTex: '0', macTex: '\\approx ef\\cdot 2M\\cdot d', outTex: 'd \\to ef', note: 'Lista de ef candidatos; cada expansión revisa ≤ 2M vecinos. Más ef = más recall y más distancias. ef·2M es una estimación, no una cota: medido con FAISS, 0.44–1.02×.' },
+    { id: 'ivf_coarse', name: 'IVF: cuantizador grueso', paramTex: 'n_{\\mathrm{list}}\\,d', macTex: 'n_{\\mathrm{list}}\\,d', outTex: 'd \\to n_{\\mathrm{list}}', note: 'q contra los n_list centroides de k-means; se recorren solo las n_probe listas más cercanas. Con un HNSW sobre los centroides (escala de mil millones): ≈ (⌊log_M n_list⌋·M + ef·2M)·d MACs y salen los ef centroides candidatos.' },
     { id: 'ivf_residual', name: 'IVF: residuo', paramTex: '0', macTex: '0', outTex: 'd \\to n_{\\mathrm{probe}}\\times d', note: 'q − c_i para cada lista elegida (PQ codifica residuos).' },
     { id: 'pq_lut', name: 'PQ: tablas ADC', paramTex: 'k_s\\,d', macTex: 'k_s\\,d', outTex: '\\to n_{\\mathrm{probe}}\\times m\\times k_s', note: 'Distancia de cada sub-vector a los k_s = 2^nbits centroides de su sub-espacio; los codebooks (k_s·d floats) son los parámetros.' },
     { id: 'pq_scan', name: 'PQ: recorrer códigos (ADC)', paramTex: '0', macTex: '0', outTex: '\\to n_{\\mathrm{probe}}N/n_{\\mathrm{list}}', note: 'Cada código: m consultas a la tabla y m sumas, sin MACs. Lee m bytes (+ 8 del id) por vector.' },

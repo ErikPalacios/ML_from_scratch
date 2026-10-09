@@ -204,7 +204,9 @@
         const ax = narrow ? W / 2 : 8 + s0 / 2;
         V.svg('path', { d: 'M' + r1(ax) + ' ' + r1(y1 + su + 6) + 'V' + r1(y0 - 18), class: 'viz-hn-down' }, svg);
         V.svg('path', { d: 'M' + r1(ax - 4) + ' ' + r1(y0 - 22) + 'L' + r1(ax) + ' ' + r1(y0 - 16) + 'L' + r1(ax + 4) + ' ' + r1(y0 - 22), class: 'viz-hn-down' }, svg);
-        t(svg, ax + 8, y0 - 18, narrow ? 'el mejor nodo baja de capa' : 'el mejor nodo de cada capa es la entrada de la siguiente', 'viz-s');
+        // a 375 px el texto va a la izquierda de la flecha (a la derecha se cortaba: "baja de c…")
+        if (narrow) t(svg, ax - 8, y0 - 18, 'el mejor nodo baja', 'viz-s', 'end');
+        else t(svg, ax + 8, y0 - 18, 'el mejor nodo de cada capa es la entrada de la siguiente', 'viz-s');
       }
       panel(0, 8, y0, s0);
       // leyenda + lectura a la derecha (escritorio) o debajo (teléfono)
