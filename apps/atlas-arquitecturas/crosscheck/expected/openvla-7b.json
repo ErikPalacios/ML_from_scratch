@@ -1,0 +1,418 @@
+{
+  "config_id": "openvla-7b",
+  "model": "openvla",
+  "T": 22,
+  "params_total": 7541237184,
+  "params_checkpoint": 7541237184,
+  "params_by_node": {
+    "dinov2": 303230976,
+    "siglip": 427680704,
+    "projector": 71385600,
+    "embed": 131334144,
+    "llm": 6476271616,
+    "lm-head": 131334144,
+    "last-layer": 27837776
+  },
+  "params_by_path": {
+    "dinov2>enc-layer": 289760256,
+    "dinov2>last-layer": 12598272,
+    "dinov2>norm": 2048,
+    "dinov2>patch-embed": 603136,
+    "dinov2>prefix-tokens": 5120,
+    "dinov2>pos-embed": 262144,
+    "siglip>enc-layer": 396227104,
+    "siglip>last-layer": 15239504,
+    "siglip>head": 15240656,
+    "siglip>pos-embed": 294912,
+    "projector>fc1": 18948608,
+    "projector>fc2": 35655680,
+    "projector>fc3": 16781312,
+    "llm>block": 6476267520
+  },
+  "shapes": {
+    "d-patch-grid": [
+      16,
+      16,
+      1024
+    ],
+    "d-patches": [
+      256,
+      1024
+    ],
+    "d-x0": [
+      261,
+      1024
+    ],
+    "d-h-ln1": [
+      261,
+      1024
+    ],
+    "d-qkv": [
+      261,
+      3072
+    ],
+    "d-z": [
+      261,
+      1024
+    ],
+    "d-o": [
+      261,
+      1024
+    ],
+    "d-o-ls": [
+      261,
+      1024
+    ],
+    "d-r1": [
+      261,
+      1024
+    ],
+    "d-u": [
+      261,
+      4096
+    ],
+    "d-f": [
+      261,
+      1024
+    ],
+    "d-f-ls": [
+      261,
+      1024
+    ],
+    "d-x-out": [
+      261,
+      1024
+    ],
+    "d-x-last": [
+      261,
+      1024
+    ],
+    "d-feats": [
+      256,
+      1024
+    ],
+    "s-patch-grid": [
+      16,
+      16,
+      1152
+    ],
+    "s-patches": [
+      256,
+      1152
+    ],
+    "s-x0": [
+      256,
+      1152
+    ],
+    "s-h-ln1": [
+      256,
+      1152
+    ],
+    "s-qkv": [
+      256,
+      3456
+    ],
+    "s-z": [
+      256,
+      1152
+    ],
+    "s-o": [
+      256,
+      1152
+    ],
+    "s-r1": [
+      256,
+      1152
+    ],
+    "s-u": [
+      256,
+      4304
+    ],
+    "s-f": [
+      256,
+      1152
+    ],
+    "s-x-last": [
+      256,
+      1152
+    ],
+    "s-feats": [
+      256,
+      1152
+    ],
+    "vis-feats": [
+      256,
+      2176
+    ],
+    "proj-h1": [
+      256,
+      8704
+    ],
+    "proj-h2": [
+      256,
+      4096
+    ],
+    "vis-tokens": [
+      256,
+      4096
+    ],
+    "prompt": [
+      278,
+      4096
+    ],
+    "h-norm1": [
+      278,
+      4096
+    ],
+    "q": [
+      278,
+      4096
+    ],
+    "k": [
+      278,
+      4096
+    ],
+    "v": [
+      278,
+      4096
+    ],
+    "z": [
+      278,
+      4096
+    ],
+    "gate": [
+      278,
+      11008
+    ],
+    "prod": [
+      278,
+      11008
+    ],
+    "x-out": [
+      278,
+      4096
+    ],
+    "x-norm": [
+      278,
+      4096
+    ],
+    "logits": [
+      278,
+      32064
+    ],
+    "attn": [
+      32,
+      278,
+      278
+    ],
+    "k-rope": [
+      32,
+      278,
+      128
+    ],
+    "pixels": [
+      224,
+      224,
+      3
+    ],
+    "text-ids": [
+      22
+    ],
+    "action-tokens": [
+      7
+    ],
+    "action": [
+      7
+    ]
+  },
+  "flops_total": 4214526410752,
+  "flops_prefill": 4134352814080,
+  "flops_decode_steps": [
+    {
+      "ctx": 279,
+      "flops": 13360955392
+    },
+    {
+      "ctx": 280,
+      "flops": 13361479680
+    },
+    {
+      "ctx": 281,
+      "flops": 13362003968
+    },
+    {
+      "ctx": 282,
+      "flops": 13362528256
+    },
+    {
+      "ctx": 283,
+      "flops": 13363052544
+    },
+    {
+      "ctx": 284,
+      "flops": 13363576832
+    }
+  ],
+  "flops_by_node": {
+    "dinov2": 164643569664,
+    "siglip": 218968621056,
+    "last-layer": 14944407552,
+    "projector": 36540776448,
+    "llm": 3641178062848,
+    "lm-head": 73021784064,
+    "action-tokens": 80173596672
+  },
+  "flops_by_op_torch": {
+    "aten.convolution": 655097856,
+    "aten.addmm": 404647575552,
+    "aten.bmm": 55369367552,
+    "aten.mm": 3673680773120
+  },
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "T": 8
+      },
+      "params_total": 7541237184,
+      "flops_total": 4025498566656,
+      "shapes": {
+        "prompt": [
+          264,
+          4096
+        ],
+        "logits": [
+          264,
+          32064
+        ],
+        "d-x0": [
+          261,
+          1024
+        ],
+        "vis-feats": [
+          256,
+          2176
+        ]
+      }
+    },
+    {
+      "calc_overrides": {
+        "T": 64
+      },
+      "params_total": 7541237184,
+      "flops_total": 4782843068416,
+      "shapes": {
+        "prompt": [
+          320,
+          4096
+        ],
+        "logits": [
+          320,
+          32064
+        ],
+        "d-x0": [
+          261,
+          1024
+        ],
+        "vis-feats": [
+          256,
+          2176
+        ]
+      }
+    },
+    {
+      "calc_overrides": {
+        "res": 448
+      },
+      "params_total": 7542908352,
+      "flops_total": 16325474615296,
+      "shapes": {
+        "prompt": [
+          1046,
+          4096
+        ],
+        "logits": [
+          1046,
+          32064
+        ],
+        "d-x0": [
+          1029,
+          1024
+        ],
+        "vis-feats": [
+          1024,
+          2176
+        ]
+      }
+    },
+    {
+      "calc_overrides": {
+        "da": 4
+      },
+      "params_total": 7541237184,
+      "flops_total": 4174437253120,
+      "shapes": {
+        "prompt": [
+          278,
+          4096
+        ],
+        "logits": [
+          278,
+          32064
+        ],
+        "d-x0": [
+          261,
+          1024
+        ],
+        "vis-feats": [
+          256,
+          2176
+        ]
+      }
+    }
+  ],
+  "metrics_checks": {
+    "kvBytesPerToken": 524288,
+    "visualTokens": 256,
+    "promptTokens": 278,
+    "totalParams": 7541237184,
+    "projectorParams": 71385600,
+    "dinoParams": 303230976,
+    "siglipParams": 427680704,
+    "prefillMacs": 2067176407040,
+    "decodeMacsTotal": 40086798336,
+    "decodeMacsPerToken": 6680477696,
+    "macsPerAction": 2107263205376,
+    "decodeSteps": 6,
+    "idleParams": 15242704
+  },
+  "not_hooked": {
+    "d-pixels / s-pixels": "la normalización la hace el procesador (dos estadísticas): pixel_values ya trae 6 canales",
+    "text-emb": "embedding de las T ids (búsqueda)",
+    "next-token": "argmax de la última fila (generate)"
+  },
+  "hf_config_source": "openvla/openvla-7b (rev. 47a0ec7): config.json, modeling_prismatic.py, model.safetensors.index.json",
+  "source": {
+    "lib": "timm + transformers",
+    "version": "timm 1.0.30, transformers 5.19.0",
+    "ctor": "with torch.device('meta'): OpenVLARef() = timm.create_model('vit_large_patch14_reg4_dinov2.lvd142m' | 'vit_so400m_patch14_siglip_224', pretrained=False, num_classes=0, img_size=224) + PrismaticProjector(2176, 4096) + LlamaForCausalLM(LlamaConfig(vocab_size=32064, hidden_size=4096, intermediate_size=11008, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=32, tie_word_embeddings=False))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Sin trust_remote_code (el modeling_prismatic.py del checkpoint exige timm 0.9.x y transformers 4.40.1): mismas piezas reconstruidas — timm.create_model de los dos timm_model_ids con pretrained=False, num_classes=0, img_size=224; PrismaticProjector fused copiado; LlamaForCausalLM con vocab 32,064. sum(p.numel()) = 7,541,237,184 = total_size/2 de model.safetensors.index.json (bf16): la reconstrucción tiene exactamente los parámetros del checkpoint.",
+    "Visión: get_intermediate_layers(n = {L − 2}) de timm 0.9.16 corre los L bloques y devuelve la salida del bloque L − 2 (el penúltimo) sin los tokens prefijo y sin la norma final; la última capa de cada torre se CALCULA y se descarta (flops_by_node['last-layer']). timm 1.0 podría parar antes (stop_early); el forward de aquí copia el de 0.9.16, el que usa el checkpoint.",
+    "DINOv2-reg4: 1 CLS + 4 registros (sin posición: no_embed_class) → 261 tokens dentro de la torre, 256 a la salida. SigLIP sin CLS: 256. Fusión por canal: 256 × (1024 + 1152) = 256 × 2176.",
+    "Parámetros sin uso en el forward (existen en el checkpoint): LayerNorm final de DINOv2 (2,048) y de SigLIP (2,304) y el attention pooling MAP de SigLIP (15,238,352; timm lo crea con global_pool = 'map' aunque num_classes = 0). El calculador los pone como idle_params.",
+    "Proyector fused-gelu-mlp = TRES lineales (2176 → 8704 → 4096 → 4096, GELU tras las dos primeras). El paper (§3.1) habla de un 'MLP de 2 capas'; el checkpoint tiene fc1, fc2, fc3.",
+    "Prompt: T = 22 tokens ('In: What action should the robot take to put the eggplant in the pot?\\nOut:' con el tokenizer del checkpoint = 21 con <BOS>, + el 29871 que agrega predict_action); los 256 tokens visuales van después de <BOS> → 278 filas en el LLM; logits sobre todas (el forward de HF sin logits_to_keep).",
+    "Acción = 7 tokens: el prefill da el 1.º; generate hace 6 pasos de decode más (ctx = N + T + 1 … N + T + 6) con la DynamicCache. flops_total = prefill + los 6 pasos (= totals.flops del calculador, que incluye la op ar-decode).",
+    "Parches para meta (no cambian FLOPs): máscara 4-D de ceros y position_ids dados; atención eager en Llama y attn.fused_attn = False en timm (q @ kᵀ y A @ v como bmm).",
+    "override_checks: T = 8 y 64; res = 448 (timm img_size = 448: las tablas de posición de las dos torres tienen 1,024 filas, interpoladas en un checkpoint real; +768·2176 parámetros) y d_a = 4 (1 prefill + 3 decodes). El knob images (varias vistas) no tiene referencia: Prismatic acepta una imagen; el calculador repite las torres con los mismos pesos.",
+    "Tokens de acción: ids 32,000 − b con b = np.digitize(a, linspace(−1, 1, 256)) ∈ [1, 256] → 31,744 … 31,999 (los 256 últimos del tokenizer de Llama). Detokenizar usa 255 centros (los bins 255 y 256 dan el mismo)."
+  ]
+}

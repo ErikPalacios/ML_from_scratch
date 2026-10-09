@@ -277,3 +277,30 @@ test('Difusión: diffusers UNet2DConditionModel / AutoencoderKL / DiTTransformer
   assert.ok(d.exp.notes.some((n) => /son MACs/.test(n)) && d.exp.notes.some((n) => /DUPLICA/.test(n)));
   assert.deepStrictEqual(d.exp.shapes.attn, [16, 256, 256]);
 });
+
+// ================================================================ FASE 9 (VLA) — bloque del agente arch
+test('VLA: OpenVLA = el checkpoint (7,541,237,184) con timm + HF Llama en meta; π0 = PaliGemma + experto (port de openpi) en meta; todo exacto', async () => {
+  for (const id of ['openvla-7b', 'pi0', 'pi0-1cam']) {
+    const r = await find(id);
+    assert.ok(r, id + ' sin JSON');
+    assert.ok(r.checks.every((c) => c.ok), id + ': ' + r.checks.filter((c) => !c.ok).map((c) => c.what).join(', '));
+    assert.match(r.exp.source.ctor, /torch\.device\('meta'\)/, id);
+    assert.ok(r.checks.filter((c) => c.what.startsWith('metrics[') && c.ok).length >= 8, id + ' metrics_checks');
+    assert.ok(r.checks.filter((c) => c.what.startsWith('flops[') && c.ok).length >= 6, id + ' flops_by_node');
+  }
+  const o = await find('openvla-7b');
+  assert.deepStrictEqual([o.exp.params_total, o.exp.params_checkpoint], [7541237184, 7541237184]);
+  assert.strictEqual(o.exp.flops_total, o.exp.flops_prefill + o.exp.flops_decode_steps.reduce((s, d) => s + d.flops, 0));
+  assert.deepStrictEqual(o.exp.flops_decode_steps.map((d) => d.ctx), [279, 280, 281, 282, 283, 284]);
+  assert.deepStrictEqual([o.exp.shapes['d-x0'], o.exp.shapes['vis-feats'], o.exp.shapes['proj-h1'], o.exp.shapes.prompt], [[261, 1024], [256, 2176], [256, 8704], [278, 4096]]);
+  assert.ok(o.exp.notes.some((n) => /TRES lineales/.test(n)) && o.exp.notes.some((n) => /0\.9\.16/.test(n)));
+  for (const tag of ['[T=64] flops_total', '[res=448] params_total', '[res=448] flops_total', '[da=4] flops_total']) assert.ok(o.checks.some((c) => c.what === tag && c.ok), tag);
+  const p = await find('pi0');
+  assert.deepStrictEqual([p.exp.params_total, p.exp.params_paligemma_hf, p.exp.metrics_checks.expertParams], [3238048528, 2923335408, 311464960]);
+  assert.strictEqual(p.exp.flops_total, p.exp.flops_prefix + p.exp.flops_flow);
+  assert.deepStrictEqual([p.exp.shapes['a-attn'], p.exp.shapes['a-k-all'], p.exp.shapes['k-rope'], p.exp.shapes.attn], [[8, 51, 867], [1, 867, 256], [1, 816, 256], [8, 816, 816]]);
+  assert.strictEqual(p.exp.metrics_checks.kvBytesPerToken, 18432);
+  for (const tag of ['[steps=5] flops_total', '[H=25] flops_total', '[T=16] flops_total', '[cams=2] flops_total']) assert.ok(p.checks.some((c) => c.what === tag && c.ok), tag);
+  assert.ok(p.exp.notes.some((n) => /215abfb/.test(n)));
+});
+// ================================================================ fin del bloque de la fase 9

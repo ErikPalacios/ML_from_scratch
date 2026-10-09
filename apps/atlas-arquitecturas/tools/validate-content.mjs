@@ -1047,7 +1047,13 @@ for (const page of pages) {
     const has = (sid, t) => { const s = page.sections.find((x) => x.id === sid); return s && s.blocks.some((b) => b && b.t === t); };
     [['puente', 'table'], ['diagrama', 'archdiagram'], ['operaciones', 'op'], ['operaciones', 'trace'], ['costo', 'params'], ['costo', 'flops'],
       ['costo', 'scaling'], ['entrevista', 'followups'], ['entrevista', 'qa'], ['practica', 'blankdiagram'], ['practica', 'shapedrill'], ['practica', 'whatif']]
-      .forEach(([sid, t]) => { if (ids.sections.has(sid) && !has(sid, t)) err(where + '.' + sid, 'debe incluir un bloque "' + t + '" (SPEC §5.3)'); });
+      .forEach(([sid, t]) => {
+        // Pesos cerrados (catálogo canonical: null, p. ej. RT-2): sin calculador no hay op/trace/params/flops/
+        // scaling/shapedrill/whatif que generar; la plantilla se cumple con texto, tablas y calc citados.
+        const calcBlock = ['op', 'trace', 'params', 'flops', 'scaling', 'shapedrill', 'whatif'].includes(t);
+        if (calcBlock && it && it.canonical === null) { if (!has(sid, t)) warn(where + '.' + sid, 'sin bloque "' + t + '": pesos cerrados (canonical null)'); return; }
+        if (ids.sections.has(sid) && !has(sid, t)) err(where + '.' + sid, 'debe incluir un bloque "' + t + '" (SPEC §5.3)');
+      });
     if (ids.sections.has('entrenamiento') && !has('entrenamiento', 'math')) warn(where + '.entrenamiento', 'sin bloque math (la pérdida con su fórmula)');
     if (ids.sections.has('fallas') && !has('fallas', 'table') && !has('fallas', 'compare') && !has('fallas', 'tradeoffs')) warn(where + '.fallas', 'sin tabla comparativa');
     if (ids.sections.has('entrevista')) {

@@ -629,3 +629,53 @@ test('fase 9: un diagrama calc: false no da drills de formas ni de parámetros (
   assert.ok(cands.length > 0);
   assert.ok(!cands.some((c) => c.node && c.node.diagram === 'zz-nocalc'), 'drill desde un diagrama calc: false');
 });
+
+// ================================================================ FASE 9 (VLA) — bloque del agente arch
+// Símbolos propios de js/arch/vla.js que la tarjeta debe mostrar además de los genéricos (H, W, C, P, D, L, h, G, D_mlp, N, T,
+// V; N_p y D_v ya salen de factPairs en OpenVLA): DINOv2 D_d, h_d, d_d, L_d; SigLIP D_s, h_s, d_s, M_s (= 4,304), L_s; π0
+// D_a (experto), H_a (chunk), d_a (acción/estado); d_h. Mientras practice.js (factPairs) no los incluya, la barrida los toma de aquí.
+const vlaFacts = (cfg) => {
+  if (!cfg || (cfg.Dd == null && cfg.Da == null)) return {};
+  const f = { d_a: cfg.da, N_p: cfg.Np, D_s: cfg.Ds, h_s: cfg.hs, d_s: cfg.ds, M_s: cfg.Ms, L_s: cfg.Ls, d_h: cfg.dh };
+  if (cfg.Dd != null) Object.assign(f, { D_d: cfg.Dd, h_d: cfg.hd, d_d: cfg.dd, L_d: cfg.Ld, D_v: cfg.Dv });
+  else Object.assign(f, { D_a: cfg.Da, H_a: cfg.Ha });
+  return f;
+};
+test('fase 9: toda forma de OpenVLA y π0 (1 y 3 cámaras, otros H / pasos / T) sale de los datos de la tarjeta (+ los de vla.js); units conocidas', () => {
+  let n = 0;
+  const cases = [['openvla-7b', [{}, { T: 64 }, { res: 336, images: 2, da: 4 }]], ['pi0', [{}, { cams: 2, H: 25, steps: 5, T: 16 }]], ['pi0-1cam', [{}]]];
+  for (const [cfg, ovs] of cases) {
+    for (const ov of ovs) {
+      const R = A.run(cfg, ov);
+      const known = {};
+      P._factPairs(R.config).forEach(([s, v]) => { if (typeof v === 'number') { known[s] = v; known[s.replace('_', '')] = v; } });
+      Object.entries(vlaFacts(R.config)).forEach(([s, v]) => { if (!(s in known)) { known[s] = v; known[s.replace('_', '')] = v; } });
+      known.dh = R.config.dh;
+      for (const id of R.order) {
+        const t = R.tensors[id];
+        const text = (t.label || '') + ' ' + (t.tex || '');
+        t.sym.forEach((sym, i) => {
+          const str = String(sym);
+          if (/^\d+$/.test(str)) return;
+          const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+          const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+          if (ids.some((x) => !(x in known))) {
+            assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
+            return;
+          }
+          n++;
+          assert.strictEqual(Function(...Object.keys(known), 'return ' + e)(...Object.values(known)), t.num[i], cfg + ' ' + id + ': ' + str);
+        });
+      }
+    }
+    const m = A.metrics(cfg, {});
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'].includes(u), cfg + ' ' + k + ': ' + u);
+  }
+  assert.ok(n > 800, 'se revisaron ' + n + ' dimensiones');
+  // datos genéricos de la tarjeta: OpenVLA = los del LLM (Llama 2 7B) + N = 256 visuales, T = 22; π0 = los de Gemma 2B
+  const f = Object.fromEntries(P._factPairs(A.run('openvla-7b').config));
+  assert.deepStrictEqual([f.D, f.L, f.h, f.G, f.D_mlp, f.N, f.T, f.V, f.H, f.P], [4096, 32, 32, 32, 11008, 256, 22, 32064, 224, 14]);
+  const g = Object.fromEntries(P._factPairs(A.run('pi0').config));
+  assert.deepStrictEqual([g.D, g.L, g.h, g.G, g.D_mlp, g.N, g.T, g.V], [2048, 18, 8, 1, 16384, 768, 48, 257152]);
+});
+// ================================================================ fin del bloque de la fase 9

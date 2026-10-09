@@ -114,7 +114,9 @@
       if (!spec || spec.kind === 'map') continue;
       const bad = labelProblems(fig);
       ok(label + ' · ' + c.diagram + ': formas = calculador', bad.length === 0, bad.slice(0, 4));
-      ok(label + ' · ' + c.diagram + ': aristas con forma', $$('[data-edge][data-tensor]', fig).length > 0);
+      // calc:false (pesos cerrados, RT-2): sin formas del calculador por diseño; las aristas llevan etiqueta.
+      if (spec.calc === false) ok(label + ' · ' + c.diagram + ': aristas con etiqueta (calc:false)', $$('[data-edge]', fig).length > 0 && $$('[data-edge][data-tensor]', fig).length === 0);
+      else ok(label + ' · ' + c.diagram + ': aristas con forma', $$('[data-edge][data-tensor]', fig).length > 0);
       views++;
       // Bloques que se abren (nivel b y c)
       const seen = new Set([c.diagram]);

@@ -1,0 +1,276 @@
+{
+  "config_id": "pi0-1cam",
+  "model": "pi0",
+  "cams": 1,
+  "T": 48,
+  "H": 50,
+  "steps": 10,
+  "params_total": 3238048528,
+  "params_paligemma_hf": 2923335408,
+  "params_by_node": {
+    "siglip": 414803696,
+    "language": 526647296,
+    "gemma": 1981884416,
+    "action-expert": 311464960,
+    "state": 33792,
+    "noisy-actions": 33792,
+    "t-embed": 3147776,
+    "velocity": 32800
+  },
+  "params_by_path": {
+    "siglip>img-proj": 2361344,
+    "siglip>enc-layer": 411466608,
+    "siglip>ln-post": 2304,
+    "gemma>block": 1981882368,
+    "gemma>final-norm": 2048,
+    "action-expert>block": 311463936,
+    "action-expert>final-norm": 1024
+  },
+  "shapes": {
+    "s-patch-grid": [
+      16,
+      16,
+      1152
+    ],
+    "s-x0": [
+      256,
+      1152
+    ],
+    "s-h-ln1": [
+      256,
+      1152
+    ],
+    "s-z": [
+      256,
+      1152
+    ],
+    "s-u": [
+      256,
+      4304
+    ],
+    "s-f": [
+      256,
+      1152
+    ],
+    "s-x-out": [
+      256,
+      1152
+    ],
+    "s-feats": [
+      256,
+      1152
+    ],
+    "img-tokens": [
+      256,
+      2048
+    ],
+    "prefix": [
+      304,
+      2048
+    ],
+    "h-norm1": [
+      304,
+      2048
+    ],
+    "q": [
+      304,
+      2048
+    ],
+    "k": [
+      304,
+      256
+    ],
+    "v": [
+      304,
+      256
+    ],
+    "z": [
+      304,
+      2048
+    ],
+    "gate": [
+      304,
+      16384
+    ],
+    "prod": [
+      304,
+      16384
+    ],
+    "x-out": [
+      304,
+      2048
+    ],
+    "x-norm": [
+      304,
+      2048
+    ],
+    "state-tok": [
+      1,
+      1024
+    ],
+    "act-emb": [
+      50,
+      1024
+    ],
+    "at-cat": [
+      50,
+      2048
+    ],
+    "act-tokens": [
+      50,
+      1024
+    ],
+    "suffix": [
+      51,
+      1024
+    ],
+    "a-h-norm1": [
+      51,
+      1024
+    ],
+    "a-q": [
+      51,
+      2048
+    ],
+    "a-k": [
+      51,
+      256
+    ],
+    "a-v": [
+      51,
+      256
+    ],
+    "a-z": [
+      51,
+      2048
+    ],
+    "a-o": [
+      51,
+      1024
+    ],
+    "a-gate": [
+      51,
+      4096
+    ],
+    "a-prod": [
+      51,
+      4096
+    ],
+    "a-f": [
+      51,
+      1024
+    ],
+    "a-x-norm": [
+      51,
+      1024
+    ],
+    "a-act-out": [
+      50,
+      1024
+    ],
+    "velocity": [
+      50,
+      32
+    ],
+    "attn": [
+      8,
+      304,
+      304
+    ],
+    "k-rope": [
+      1,
+      304,
+      256
+    ],
+    "v-heads": [
+      1,
+      304,
+      256
+    ],
+    "a-attn": [
+      8,
+      51,
+      355
+    ],
+    "a-k-all": [
+      1,
+      355,
+      256
+    ],
+    "pixels": [
+      224,
+      224,
+      3
+    ],
+    "lang-ids": [
+      48
+    ],
+    "x-t": [
+      50,
+      32
+    ],
+    "action-chunk": [
+      50,
+      32
+    ]
+  },
+  "flops_total": 1786307969024,
+  "flops_prefix": 1438743527424,
+  "flops_flow": 347564441600,
+  "flops_by_node": {
+    "siglip": 220176580608,
+    "gemma": 1218566946816,
+    "action-expert": 344352522240,
+    "state": 655360,
+    "noisy-actions": 32768000,
+    "t-embed": 3145728000,
+    "velocity": 32768000
+  },
+  "flops_by_op_torch": {
+    "aten.addmm": 214887956480,
+    "aten.bmm": 48477929472,
+    "aten.convolution": 346816512,
+    "aten.mm": 1522595266560
+  },
+  "override_checks": [],
+  "metrics_checks": {
+    "totalParams": 3238048528,
+    "paligemmaParams": 2923335408,
+    "expertParams": 311464960,
+    "kvBytesPerToken": 18432,
+    "prefixTokens": 304,
+    "suffixTokens": 51,
+    "kvRows": 355,
+    "prefixMacs": 719371763712,
+    "flowStepMacs": 17378222080,
+    "flowMacs": 173782220800,
+    "macsPerChunk": 893153984512
+  },
+  "not_hooked": {
+    "s-patches": "HF suma la posición dentro de embeddings (s-x0)",
+    "t-emb / t-tokens": "posemb_sincos (sin módulo)",
+    "a-k-all": "la KV que lee el experto = caché del prefijo + el sufijo (forma tomada de la DynamicCache tras el 1.er paso)"
+  },
+  "hf_config_source": "Physical-Intelligence/openpi main @ 215abfb: src/openpi/models/{pi0.py, pi0_config.py, gemma.py, siglip.py}, src/openpi/models_pytorch/{pi0_pytorch.py, gemma_pytorch.py}",
+  "source": {
+    "lib": "transformers",
+    "version": "5.19.0",
+    "ctor": "with torch.device('meta'): Pi0Ref() = PaliGemmaForConditionalGeneration(PaliGemmaConfig(vision_config=dict(hidden_size=1152, intermediate_size=4304, num_hidden_layers=27, num_attention_heads=16, image_size=224, patch_size=14, projection_dim=2048, hidden_act='gelu_pytorch_tanh', vision_use_head=False), text_config=dict(vocab_size=257152, hidden_size=2048, intermediate_size=16384, num_hidden_layers=18, num_attention_heads=8, num_key_value_heads=1, head_dim=256, hidden_activation='gelu_pytorch_tanh', tie_word_embeddings=True), image_token_index=257152, projection_dim=2048)) + GemmaModel(GemmaConfig(hidden_size=1024, intermediate_size=4096, num_hidden_layers=18, num_attention_heads=8, num_key_value_heads=1, head_dim=256)) con embed_tokens = None + nn.Linear ×5 de pi0.py (state_proj 32→1024, action_in_proj 32→1024, action_time_mlp_in 2048→1024, action_time_mlp_out 1024→1024, action_out_proj 1024→32)",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Reimplementación fiel de openpi (main @ 215abfb) siguiendo su port oficial de PyTorch (models_pytorch/gemma_pytorch.py: PaliGemmaForConditionalGeneration + GemmaForCausalLM del experto con embed_tokens = None; pi0_pytorch.py: embed_prefix, embed_suffix, sample_actions, denoise_step). Aquí el experto es GemmaModel (sin LM head: el JAX original no tiene embedder ni cabeza para el experto; el port deja una lm_head atada que no se usa).",
+    "Parámetros = PaliGemma 3B (SigLIP So400m/14 con head 1152 → 2048 = multi_modal_projector, Gemma 2B con vocab 257,152 = PALIGEMMA_VOCAB_SIZE y embedding atado) + experto gemma_300m (311,463,936 en las capas, el '311M' de gemma.py, + 1,024 de su norma final) + las 5 lineales de pi0.py. El paper dice ≈ 3.3B y ≈ 300M para el experto.",
+    "FLOPs = FlopCounterMode, atención eager. Prefijo UNA vez: 1 cámara(s) × 256 tokens + T = 48 (max_token_len de Pi0Config, relleno incluido) = 304 filas por Gemma 2B (bidireccional: máscara 4-D de ceros; el conteo no depende de la máscara). Luego 10 pasos: sufijo de 1 + 50 tokens por el experto, que lee la KV cache del prefijo (DynamicCache recortada al prefijo tras cada paso: openpi llama al experto con use_cache = False).",
+    "Gemma no corre su LM head (π0 no decodifica texto); la RMSNorm final del prefijo sí corre (su salida no se usa). El experto no corre en el prefijo ni Gemma en el sufijo (sample_actions: [prefix_tokens, None] y luego [None, suffix_tokens]).",
+    "Atención conjunta: Q del sufijo (8 cabezas × 256 = 2,048 desde D_a = 1,024) contra K/V de prefijo + sufijo (1 cabeza KV: MQA) → scores 8 × 51 × (N + T + 51). La máscara por bloques (estado → prefijo + estado; acciones → todo) no cambia el conteo.",
+    "Parches para meta (no cambian FLOPs): máscaras 4-D de ceros y position_ids dados; τ sobre meta (el valor no importa).",
+    "Latencia del paper (Tabla I, RTX 4090, 3 cámaras): encoders de imagen 14 ms, forward del prefijo 32 ms, 10 pasos de flow 27 ms → 73 ms a bordo (86 ms con 13 ms de red). El calculador da cotas de roofline (≈), menores."
+  ]
+}

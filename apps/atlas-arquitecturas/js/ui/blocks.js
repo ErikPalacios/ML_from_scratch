@@ -604,10 +604,18 @@
     }
     return groups;
   }
-  function groupName(model, g, group) {
+  function groupName(model, g, group, cfgId) {
     if (group === 'op' || g.ops.length === 1 && !nodeInfo(model, g.key)) return str(g.ops[0].label || g.key);
     const info = nodeInfo(model, g.key);
-    return info ? labelText(info.label) : g.key;
+    if (!info) return g.key;
+    // Etiquetas de nodo con {{cfg.…}} (VLMs: "LLM decoder ({{cfg.llmLabel}})"): se llenan con la config de la tabla.
+    let lab = info.label;
+    if (cfgId && typeof lab === 'string' && lab.indexOf('{{') >= 0 && ATLAS.Quantities) {
+      lab = String(lab).replace(/\{\{\s*(cfg|metrics|q|tensor|node)\.([^}]+?)\s*\}\}/g, (m, h0, rest) => {
+        const q = ATLAS.Quantities.get(cfgId + '.' + h0 + '.' + rest); return q ? q.text : m;
+      });
+    }
+    return labelText(lab);
   }
   // Fórmula de un grupo: la de su op si es una; si son pocas, sumadas; si no, un detalle desplegable.
   function groupFormula(g, which) {
@@ -644,7 +652,7 @@
     const total = r.totals && typeof r.totals.params === 'number' ? r.totals.params : groups.reduce((s, g) => s + g.params, 0);
     const sum = groups.reduce((s, g) => s + g.params, 0);
     const rows = groups.map((g) => h('tr', { dataset: { node: g.key } },
-      h('th', { scope: 'row' }, groupName(model, g, group)),
+      h('th', { scope: 'row' }, groupName(model, g, group, r.id)),
       h('td', null, groupFormula(g, 'params')),
       h('td', { class: 'num' }, fmtInt(g.params)),
       h('td', { class: 'num ptab__pct' }, pctBar(g.params, total), pctTxt(g.params, total))));
@@ -672,7 +680,7 @@
     const table = h('table', { class: 'dtable dtable--num ptab' },
       h('thead', null, h('tr', null, h('th', { scope: 'col' }, group === 'op' ? 'Operación' : 'Bloque'), h('th', { scope: 'col' }, 'Fórmula (MACs)'), h('th', { scope: 'col', class: 'num' }, 'MACs'), h('th', { scope: 'col', class: 'num' }, 'FLOPs (= 2 × MACs)'), h('th', { scope: 'col', class: 'num' }, '% del total'))),
       h('tbody', null, groups.map((g) => h('tr', { dataset: { node: g.key } },
-        h('th', { scope: 'row' }, groupName(model, g, group)),
+        h('th', { scope: 'row' }, groupName(model, g, group, r.id)),
         h('td', null, groupFormula(g, 'macs')),
         h('td', { class: 'num' }, fmtInt(g.macs)),
         h('td', { class: 'num' }, fmtInt(2 * g.macs)),
@@ -731,6 +739,11 @@
     nfe: { label: 'Evaluaciones (NFE)', get: (r) => vlmMetric(r, 'nfe'), fmt: 'int' },
     samplingMacs: { label: 'MACs por imagen', get: (r) => vlmMetric(r, 'samplingMacs'), fmt: 'si', unit: 'MACs' },
     latentTokens: { label: 'Tokens del latente', get: (r) => vlmMetric(r, 'latentTokens'), fmt: 'int' },
+    // VLA (fase 9).
+    macsPerAction: { label: 'MACs por acción', get: (r) => vlmMetric(r, 'macsPerAction'), fmt: 'si', unit: 'MACs' },
+    macsPerChunk: { label: 'MACs por chunk', get: (r) => vlmMetric(r, 'macsPerChunk'), fmt: 'si', unit: 'MACs' },
+    actionTokensPerStep: { label: 'Tokens de acción por paso', get: (r) => vlmMetric(r, 'actionTokensPerStep'), fmt: 'int' },
+    prefixTokens: { label: 'Tokens del prefijo', get: (r) => vlmMetric(r, 'prefixTokens'), fmt: 'int' },
     projectorParams: { label: 'Parámetros del proyector / merger', get: (r) => vlmMetric(r, 'projectorParams'), fmt: 'si' },
     visualModuleParams: { label: 'Parámetros de visión + proyector', get: (r) => vlmMetric(r, 'visualModuleParams'), fmt: 'si' },
     promptTokens: { label: 'Tokens del prompt (N + T)', get: (r) => vlmMetric(r, 'promptTokens'), fmt: 'int' },

@@ -2984,3 +2984,260 @@ test('F8 revisión: blockParams en flow matching, costo de los bloques por image
   assert.strictEqual(Q8.get('dit-xl2-256.metrics.msPerImage').text, '121');
   assert.strictEqual(Q8.get('dit-xl2-256.metrics.ditNfeMs').text, '0.48');
 });
+
+// ================================================================ FASE 9 (VLA: OpenVLA, π0; ayudas de RT-2) — bloque del agente arch
+// Contexto con todos los modelos hasta la fase 9 (vla.js compone el decoder de llm.js: va después de llm.js / vlm.js / diffusion.js).
+const ATLAS9 = (function () {
+  const ctx = vm.createContext({});
+  for (const f of FILES.filter((x) => x !== 'js/core/quantities.js').concat(['js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js',
+    'js/arch/diffusion.js', 'js/arch/vla.js', 'js/core/quantities.js'])) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  }
+  return vm.runInContext('ATLAS', ctx);
+})();
+const A9 = ATLAS9.Arch, Q9 = ATLAS9.Quantities;
+const VLA9 = ['openvla-7b', 'pi0', 'pi0-1cam'];
+const S9 = (sym, num, mod, layout) => A9.shape(sym, num, mod || 'act', layout || 'seq');
+
+test('F9 los modelos openvla / pi0 no cambian ningún resultado de las fases 1–8', () => {
+  for (const c of A8.configs()) {
+    const a = A8.run(c.id), b = A9.run(c.id);
+    assert.deepStrictEqual([b.totals.params, b.totals.macs, b.totals.other], [a.totals.params, a.totals.macs, a.totals.other], c.id);
+    const ma = A8.metrics(c.id, {}), mb = A9.metrics(c.id, {});
+    assert.deepStrictEqual([mb.attnMem, mb.actMem, mb.kvCache], [ma.attnMem, ma.actMem, ma.kvCache], c.id + ' metrics');
+  }
+  assert.ok(J(A9.models()).includes('openvla') && J(A9.models()).includes('pi0') && !J(A9.models()).includes('rt2'));
+  assert.deepStrictEqual(J(A9.configs('openvla').map((c) => c.id)), ['openvla-7b']);
+  assert.deepStrictEqual(J(A9.configs('pi0').map((c) => c.id)), ['pi0', 'pi0-1cam']);
+  assert.deepStrictEqual([A9.canonical('openvla'), A9.canonical('pi0')], ['openvla-7b', 'pi0']);
+  assert.deepStrictEqual(J(A9.vla.primitives().map((p) => p.id)), ['normalize_pixels', 'prefix_tokens', 'broadcast_rows', 'prefix_mask', 'block_causal_mask', 'ar_decode', 'detokenize_actions']);
+});
+
+test('F9 primitivas locales de vla.js: prefix_tokens, broadcast_rows, máscaras, ar_decode, detokenize_actions', () => {
+  const P9 = A9.vla.prims;
+  const pt = P9.prefix_tokens(S9(['N_p', 'D_d'], [4, 8], 'img'), { k: 5, sym: 'N_p+5' });
+  assert.deepStrictEqual([J(pt.out.num), J(pt.out.sym), pt.params, pt.macs, pt.paramArith], [[9, 8], ['N_p+5', 'D_d'], 40, 0, '5·8 = 40']);
+  const br = P9.broadcast_rows(S9(['D_a'], [6], 'act', 'vec'), { rows: 3, sym: 'H_a' });
+  assert.deepStrictEqual([J(br.out.num), J(br.out.sym), br.params, br.macs], [[3, 6], ['H_a', 'D_a'], 0, 0]);
+  const sc = S9(['h', '1+H_a', 'S'], [2, 4, 9], 'act', 'heads');
+  for (const m of [P9.prefix_mask(sc), P9.block_causal_mask(sc)]) assert.deepStrictEqual([J(m.out.num), m.params, m.macs, m.other], [[2, 4, 9], 0, 0, 72]);
+  const ad = P9.ar_decode(S9(['1'], [1], 'txt', 'vec'), { steps: [{ ctx: 5, macs: 10 }, { ctx: 6, macs: 11 }], sym: 'd_a' });
+  assert.deepStrictEqual([J(ad.out.num), ad.macs, ad.params, ad.macArith], [[3], 21, 0, '10 + 11 = 21']);
+  const dt = P9.detokenize_actions(S9(['d_a'], [7], 'act', 'vec'), {});
+  assert.deepStrictEqual([J(dt.out.num), dt.out.mod, dt.params, dt.macs], [[7], 'act', 0, 0]);
+  const nz = P9.normalize_pixels(S9(['H', 'W', 'C'], [2, 2, 3], 'img', 'grid'), {});
+  assert.deepStrictEqual([J(nz.out.num), nz.other], [[2, 2, 3], 24]);
+});
+
+test('F9 OpenVLA 7B: 7,541,237,184 parámetros (= el checkpoint) y cada parte contada a mano', () => {
+  const r = A9.run('openvla-7b'), t = r.totals, by = t.byPath, c = r.config;
+  assert.strictEqual(t.params, 15082474368 / 2);       // model.safetensors.index.json: total_size en bf16 / 2
+  // DINOv2 ViT-L/14 reg4 a 224: conv 14·14·3·1024 + 1024, pos 256·1024, CLS + 4 registros, 24 capas con LayerScale (12D² + 15D), norma final 2D
+  const D = 1024, blk = 12 * D * D + 15 * D;
+  assert.strictEqual(t.byNode.dinov2.params, 14 * 14 * 3 * D + D + 256 * D + 5 * D + 24 * blk + 2 * D);
+  assert.strictEqual(by['dinov2>enc-layer'].params, 23 * blk);
+  // SigLIP So400m/14: MLP 4304 (no 4·1152), 27 capas sin LayerScale; norma final + attention pooling MAP sin uso (15,238,352)
+  const Ds = 1152, M = 4304, sblk = 4 * Ds * Ds + 2 * Ds * M + M + 9 * Ds;
+  assert.strictEqual(t.byNode.siglip.params, 14 * 14 * 3 * Ds + Ds + 256 * Ds + 27 * sblk + 2 * Ds + 15238352);
+  // proyector fused-gelu-mlp: TRES lineales 2176 → 8704 → 4096 → 4096
+  assert.strictEqual(t.byNode.projector.params, 2176 * 8704 + 8704 + 8704 * 4096 + 4096 + 4096 * 4096 + 4096);
+  assert.deepStrictEqual(J(r.ops.filter((o) => o.path[0] === 'projector' && o.prim === 'linear').map((o) => o.id)), ['proj-fc1', 'proj-fc2', 'proj-fc3']);
+  // Llama 2 7B con vocab 32,064 = el de llm.js + 2·64·D
+  assert.strictEqual(t.byNode.llm.params + t.byNode['lm-head'].params + t.byNode.embed.params, A9.run('llama2-7b').totals.params + 2 * 64 * 4096);
+  const m = A9.metrics('openvla-7b', {});
+  assert.deepStrictEqual([m.idleParams, m.visionParamsUsed + m.idleParams, m.dinoParams, m.siglipParams], [2 * D + 2 * Ds + 15238352, m.visionParams, 303230976, 427680704]);
+  // formas clave
+  const sh = (id) => J(r.tensors[id].num).join('×');
+  assert.deepStrictEqual(['d-x0', 'd-feats', 's-feats', 'vis-feats', 'proj-h1', 'vis-tokens', 'prompt', 'logits', 'action-tokens', 'action'].map(sh),
+    ['261×1024', '256×1024', '256×1152', '256×2176', '256×8704', '256×4096', '278×4096', '278×32064', '7', '7']);
+  assert.deepStrictEqual([c.N, c.T, c.S, c.Dv, c.actionTokenFirst, c.actionTokenLast], [256, 22, 278, 2176, 31744, 31999]);
+  assert.deepStrictEqual(J(r.tensors.prompt.sym), ['N+T', 'D']);
+});
+
+test('F9 OpenVLA: MACs por acción = prefill + 6 pasos de decode del Llama de llm.js; la última capa de cada torre se calcula', () => {
+  const r = A9.run('openvla-7b'), t = r.totals, m = A9.metrics('openvla-7b', {});
+  const V64 = 4096 * 64;   // la fila extra del LM head por las 64 entradas de vocab (32,064 vs 32,000)
+  assert.strictEqual(m.llmPrefillMacs, A9.run('llama2-7b', { T: 278 }).totals.macs + 278 * V64);
+  for (let k = 1; k <= 6; k++) assert.strictEqual(r.ops.find((o) => o.id === 'ar-decode').detail.steps[k - 1].macs, A9.run('llama2-7b', { decode: 1, ctx: 278 + k }).totals.macs + V64);
+  assert.strictEqual(m.decodeMacsPerToken, A9.run('llama2-7b', { decode: 1, ctx: 279 }).totals.macs + V64);
+  assert.strictEqual(m.macsPerAction, t.macs);
+  assert.strictEqual(t.macs, m.prefillMacs + m.decodeMacsTotal);
+  assert.strictEqual(m.prefillMacs, m.visionMacs + m.projectorMacs + m.llmPrefillMacs);
+  // torres: DINOv2 corre 24 capas sobre 261 tokens, SigLIP 27 sobre 256 (la última de cada una se descarta)
+  const vit = (N, Dw, Dm) => N * (4 * Dw * Dw + 2 * Dw * Dm) + 2 * N * N * Dw;
+  assert.strictEqual(m.dinoMacs, 256 * 1024 * 588 + 24 * vit(261, 1024, 4096));
+  assert.strictEqual(m.siglipMacs, 256 * 1152 * 588 + 27 * vit(256, 1152, 4304));
+  assert.strictEqual(m.visionMacsDiscarded, vit(261, 1024, 4096) + vit(256, 1152, 4304));
+  assert.strictEqual(m.projectorMacs, 256 * (2176 * 8704 + 8704 * 4096 + 4096 * 4096));
+  assert.deepStrictEqual([m.kvBytesPerToken, m.actionTokensPerStep, m.decodeSteps, m.visualTokens], [2 * 32 * 32 * 128 * 2, 7, 6, 256]);
+  // T: knob
+  const r64 = A9.run('openvla-7b', { T: 64 });
+  assert.deepStrictEqual([r64.config.S, J(r64.tensors.logits.num)], [320, [320, 32064]]);
+  assert.throws(() => A9.run('openvla-7b', { T: 1 }), /BOS/);
+  assert.throws(() => A9.run('openvla-7b', { H: 50 }), /Knob inválido/);
+  // res (what-if: tablas de posición interpoladas a (res/14)² filas), images (mismos pesos, MACs × images), da (tokens por paso)
+  const r448 = A9.run('openvla-7b', { res: 448 }), mi = A9.metrics('openvla-7b', { images: 2 }), md = A9.metrics('openvla-7b', { da: 4 });
+  assert.deepStrictEqual([r448.config.Np, r448.totals.params - r.totals.params, J(r448.tensors['d-x0'].num)], [1024, 768 * (1024 + 1152), [1029, 1024]]);
+  assert.deepStrictEqual([mi.visualTokens, mi.totalParams, mi.visionMacs, mi.projectorMacs], [512, m.totalParams, 2 * m.visionMacs, 2 * m.projectorMacs]);
+  assert.deepStrictEqual(J(A9.run('openvla-7b', { images: 2 }).tensors['vis-tokens'].num), [256, 4096]);   // formas por imagen
+  assert.deepStrictEqual([md.decodeSteps, md.actionTokensPerStep, md.prefillMacs, J(A9.run('openvla-7b', { da: 4 }).tensors.action.num)], [3, 4, m.prefillMacs, [4]]);
+  assert.throws(() => A9.run('openvla-7b', { res: 230 }), /múltiplo/);
+});
+
+test('F9 π0: 3,238,048,528 parámetros (PaliGemma 3B + experto gemma_300m + proyecciones) y formas de la atención conjunta', () => {
+  const r = A9.run('pi0'), t = r.totals, c = r.config, m = A9.metrics('pi0', {});
+  // experto: 18 × (q 1024·2048 + k, v 2·1024·256 + o 2048·1024 + FFN 3·1024·4096 + 2 RMSNorm) + norma final
+  const ex = 18 * (1024 * 2048 + 2 * 1024 * 256 + 2048 * 1024 + 3 * 1024 * 4096 + 2 * 1024) + 1024;
+  assert.deepStrictEqual([m.expertParams, ex], [311464960, 311464960]);
+  const proj = 2 * (32 * 1024 + 1024) + (2048 * 1024 + 1024) + (1024 * 1024 + 1024) + (1024 * 32 + 32);
+  assert.strictEqual(m.actionProjParams, proj);
+  // Gemma 2B (MQA, d_h 256, GeGLU 16,384, vocab 257,152 atado) y SigLIP So400m + head 1152 → 2048
+  const gem = 257152 * 2048 + 18 * (2048 * 2048 + 2 * 2048 * 256 + 2048 * 2048 + 3 * 2048 * 16384 + 2 * 2048) + 2048;
+  assert.strictEqual(m.gemmaParams, gem);
+  assert.strictEqual(m.imgProjParams, 1152 * 2048 + 2048);
+  assert.deepStrictEqual([m.paligemmaParams, t.params], [2923335408, 3238048528]);
+  assert.strictEqual(t.params, m.paligemmaParams + m.expertParams + m.actionProjParams);
+  // cámaras: los pesos de SigLIP no cambian con cams
+  assert.strictEqual(A9.run('pi0-1cam').totals.params, t.params);
+  const sh = (id) => J(r.tensors[id].num).join('×');
+  assert.deepStrictEqual(['img-tokens', 'prefix', 'k-rope', 'suffix', 'a-q', 'a-k', 'a-k-all', 'a-scores', 'a-z', 'velocity', 'action-chunk'].map(sh),
+    ['256×2048', '816×2048', '1×816×256', '51×1024', '51×2048', '51×256', '1×867×256', '8×51×867', '51×2048', '50×32', '50×32']);
+  assert.deepStrictEqual(J(r.tensors['a-scores'].sym), ['h', '1+H_a', 'N+T+1+H_a']);
+  assert.deepStrictEqual([c.N, c.T, c.S, c.suffix, c.ctx, c.Ha, c.steps], [768, 48, 816, 51, 867, 50, 10]);
+  // el experto lee la KV del prefijo: sus kv_append consumen k-rope y v-heads de Gemma
+  assert.deepStrictEqual(J(r.ops.find((o) => o.id === 'ae-kv-k').in), ['k-rope', 'a-k-rope']);
+  assert.deepStrictEqual(J(r.ops.find((o) => o.id === 'ae-kv-v').in), ['v-heads', 'a-v-heads']);
+  assert.strictEqual(r.ops.find((o) => o.id === 'gelu').prim, 'gelu');
+  assert.strictEqual(r.ops.find((o) => o.id === 'mask').prim, 'prefix_mask');
+  assert.ok(!r.ops.some((o) => o.id === 'silu' || o.id === 'lm-head'));
+});
+
+test('F9 π0: MACs por chunk = prefijo una vez + pasos × paso de flow (contado a mano); knobs cams, H, steps, T', () => {
+  const m = A9.metrics('pi0', {}), t = A9.run('pi0').totals;
+  const sig = 256 * 1152 * 588 + 27 * (256 * (4 * 1152 * 1152 + 2 * 1152 * 4304) + 2 * 256 * 256 * 1152) + 256 * 1152 * 2048;
+  assert.strictEqual(m.visionMacs, 3 * sig);
+  const S = 816, gl = S * (2048 * 2048 + 2 * 2048 * 256 + 2048 * 2048 + 3 * 2048 * 16384) + 2 * 8 * S * S * 256;
+  assert.strictEqual(m.gemmaPrefixMacs, 18 * gl);
+  const R = 51, K = 867, el = R * (1024 * 2048 + 2 * 1024 * 256 + 2048 * 1024 + 3 * 1024 * 4096) + 2 * 8 * R * K * 256;
+  const pr = 32 * 1024 + 50 * 32 * 1024 + 50 * 2048 * 1024 + 50 * 1024 * 1024 + 50 * 1024 * 32;
+  assert.strictEqual(m.flowStepMacs, 18 * el + pr);
+  assert.strictEqual(m.macsPerChunk, m.prefixMacs + 10 * m.flowStepMacs);
+  assert.strictEqual(t.macs, m.macsPerChunk);
+  assert.strictEqual(m.macsPerAction, m.macsPerChunk / 50);
+  assert.deepStrictEqual([m.kvBytesPerToken, m.prefixKvBytes, m.prefixTokens, m.suffixTokens, m.kvRows], [18432, 816 * 18432, 816, 51, 867]);
+  // steps solo cambia la repetición del sufijo; cams y T el prefijo; H el sufijo
+  const at = (ov) => A9.metrics('pi0', ov);
+  assert.strictEqual(at({ steps: 5 }).macsPerChunk, m.prefixMacs + 5 * m.flowStepMacs);
+  assert.strictEqual(at({ steps: 5 }).totalParams, m.totalParams);
+  assert.strictEqual(at({ cams: 1 }).macsPerChunk, A9.metrics('pi0-1cam', {}).macsPerChunk);
+  assert.deepStrictEqual([at({ H: 25 }).suffixTokens, J(A9.run('pi0', { H: 25 }).tensors.velocity.num)], [26, [25, 32]]);
+  assert.strictEqual(at({ T: 16 }).prefixTokens, 784);
+  assert.ok(A9.run('pi0', { H: 25 }).notes.some((n) => /reentrenar/.test(n)));
+  assert.throws(() => A9.run('pi0', { cams: 9 }), /cams/);
+  assert.throws(() => A9.run('pi0', { res: 448 }), /Knob inválido/);
+  assert.deepStrictEqual(J(m.stepsScaling.map((x) => x.steps)), [1, 5, 10, 20]);
+  assert.ok(m.stepsScaling.every((x, i, a) => !i || x.macsPerChunk > a[i - 1].macsPerChunk));
+  assert.deepStrictEqual(J(m.camsScaling.map((x) => x.prefixTokens)), [304, 560, 816]);
+});
+
+test('F9 roofline (≈) por GPU: hardware citado, segmentos que suman, H100 > RTX 4090 > Orin; units conocidas', () => {
+  const hw = J(A9.vla.hardware());
+  assert.deepStrictEqual(hw.map((h) => [h.id, h.bandwidth, h.peakFlops]), [['h100', 3.35e12, 989e12], ['rtx4090', 1008e9, 165.2e12], ['orin', 204.8e9, 42.5e12]]);
+  assert.ok(hw.every((h) => typeof h.source === 'string' && h.source.length > 40));
+  const o = A9.metrics('openvla-7b', {}), p = A9.metrics('pi0', {});
+  for (const m of [o, p]) {
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'].includes(u), k + ': ' + u);
+    Object.keys(m).filter((k) => typeof m[k] === 'number' && /Macs$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'macs', k));
+    Object.keys(m).filter((k) => typeof m[k] === 'number' && /Ms(H100|Rtx4090|Orin)?$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'ms', k));
+  }
+  assert.ok(o.hzH100 > o.hzRtx4090 && o.hzRtx4090 > o.hzOrin);
+  assert.ok(Math.abs(o.actionMsRtx4090 - (o.visionMsRtx4090 + o.prefillMsRtx4090 + o.hardware[1].decodeTotalMs)) < 1e-9);
+  assert.ok(Math.abs(o.hzRtx4090 - 1000 / o.actionMsRtx4090) < 1e-9);
+  assert.strictEqual(o.decodeBound, 'memoria');   // un token: leer los 13.5 GB de pesos domina
+  assert.ok(p.chunkHzH100 > p.chunkHzRtx4090 && p.chunkHzRtx4090 > p.chunkHzOrin);
+  assert.ok(Math.abs(p.chunkMsRtx4090 - (p.imageMsRtx4090 + p.prefixMsRtx4090 + p.flowMsRtx4090)) < 1e-9);
+  assert.strictEqual(p.flowBound, 'memoria');
+  // la cota de roofline queda por debajo de lo medido en el paper (73 ms en RTX 4090): es una cota, ≈
+  assert.ok(p.chunkMsRtx4090 < p.paperOnboardMs);
+  assert.deepStrictEqual(J(p.chunkRates.map((x) => [x.controlHz, x.executed, x.intervalMs])), [[50, 25, 500], [20, 16, 800]]);
+  // hardware propio por overrides
+  assert.ok(A9.metrics('pi0', { peakFlops: 989e12 / 2 }).chunkMs > p.chunkMs);
+  assert.throws(() => A9.metrics('pi0', { bandwidth: -1 }), /positivo/);
+});
+
+test('F9 ayudas: tokens de RT-2, tokenizador de acciones de OpenVLA (ids 31,744–31,999) y máscara de π0', () => {
+  const V = A9.vla;
+  assert.deepStrictEqual(J(V.rt2Tokens({ hz: 3 })), { dims: 7, terminate: 1, bins: 256, tokensPerStep: 8, bitsPerDim: 8, valuesPerStep: Math.pow(256, 7), hz: 3, tokensPerSecond: 24, msPerStep: 1000 / 3, msPerToken: 1000 / 24 });
+  const d = V.discretize(0.003, { bins: 256 });
+  assert.deepStrictEqual([d.bin, d.width], [128, 2 / 256]);
+  assert.ok(Math.abs(d.error) <= d.width / 2);
+  assert.strictEqual(V.binCenter(0), -1 + 1 / 256);
+  // np.digitize sobre linspace(−1, 1, 256): −1 → bin 1 (id 31,999), 1 → bin 256 (id 31,744)
+  assert.deepStrictEqual(J(V.openvlaTokenize(-1)), { bin: 1, id: 31999 });
+  assert.deepStrictEqual(J(V.openvlaTokenize(1)), { bin: 256, id: 31744 });
+  assert.deepStrictEqual(J(V.openvlaTokenize(5)), { bin: 256, id: 31744 });   // se recorta a [−1, 1]
+  assert.strictEqual(V.openvlaDetokenize(31744).center, V.openvlaDetokenize(31745).center);   // 255 centros: bins 255 y 256 iguales
+  assert.ok(Math.abs(V.openvlaDetokenize(31999).center - (-1 + 1 / 255)) < 1e-12);
+  for (const x of [-0.9, -0.31, 0, 0.42, 0.97]) assert.ok(Math.abs(V.openvlaDetokenize(V.openvlaTokenize(x).id).center - x) <= 1 / 255 + 1e-12, String(x));
+  const mk = V.pi0Mask({ cams: 3, T: 48, H: 50 });
+  assert.deepStrictEqual(J(mk.groups.map((g) => [g.id, g.to - g.from])), [['image-1', 256], ['image-2', 256], ['image-3', 256], ['language', 48], ['state', 1], ['actions', 50]]);
+  assert.strictEqual(mk.total, 867);
+  const ix = (id) => mk.groups.findIndex((g) => g.id === id);
+  assert.ok(mk.matrix[ix('image-1')][ix('language')] && mk.matrix[ix('language')][ix('image-3')]);   // prefijo bidireccional
+  assert.ok(!mk.matrix[ix('language')][ix('state')] && !mk.matrix[ix('state')][ix('actions')]);
+  assert.ok(mk.matrix[ix('state')][ix('state')] && mk.matrix[ix('actions')][ix('state')] && mk.matrix[ix('actions')][ix('image-2')]);
+  assert.ok(mk.canAttend(866, 0) && !mk.canAttend(816, 817) && mk.canAttend(817, 816));
+});
+
+test('F9 etiqueta + símbolo identifican una forma; byPath suma; aritmética; where; Quantities resuelve todas las claves', () => {
+  const cases = [['openvla-7b', [{}, { T: 64 }, { res: 336, images: 2, da: 4 }]], ['pi0', [{}, { cams: 2, H: 25, steps: 5, T: 16 }]], ['pi0-1cam', [{}]]];
+  for (const [id, ovs] of cases) {
+    for (const ov of ovs) {
+      const r = A9.run(id, ov), t = r.totals;
+      const by = {};
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        const k = x.label + '|' + String(x.tex).split('=')[0].trim();
+        (by[k] = by[k] || new Set()).add(x.num.join('×'));
+      }
+      for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.params * A9.paramRep(o), 0), t.params);
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.macs * o.repeat, 0), t.macs);
+      const check = (pp, want) => {
+        const kids = children(r, pp);
+        if (!kids.length) return;
+        const at = (k) => t.byPath[pp.concat([k]).join('>')];
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).params, 0), want.params, id + ' params bajo ' + (pp.join('>') || 'raíz'));
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).macs, 0), want.macs, id + ' MACs bajo ' + (pp.join('>') || 'raíz'));
+        kids.forEach((k) => check(pp.concat([k]), at(k)));
+      };
+      check([], t);
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        if (x.producer) assert.ok(r.ops.find((o) => o.id === x.producer).out.includes(tid));
+        x.consumers.forEach((oid) => assert.ok(r.ops.find((o) => o.id === oid).in.includes(tid)));
+      }
+      for (const o of r.ops) {
+        if (o.params && o.prim !== 'idle_params') assert.ok(o.paramArith.endsWith(A9.fmt.int(o.params)), id + ' ' + o.id + ' paramArith');
+        if (o.macs) assert.ok(o.macArith.endsWith(A9.fmt.int(o.macs)), id + ' ' + o.id + ' macArith');
+        assert.ok(!/undefined|NaN|null/.test(o.paramTex + o.macTex + o.shapeTex + o.label), id + ' ' + o.id + ' tex');
+        assert.ok(Array.isArray(o.where) && o.where.length, id + ' ' + o.id + ' sin where');
+      }
+      // nodos raíz de la vista overview (SPEC §21)
+      const roots = new Set(r.ops.map((o) => o.path[0]));
+      const want = r.model === 'openvla' ? ['dinov2', 'siglip', 'concat', 'projector', 'embed', 'merge', 'llm', 'lm-head', 'action-tokens', 'detokenize']
+        : ['siglip', 'language', 'gemma', 'state', 'noisy-actions', 't-embed', 'action-expert', 'velocity', 'euler'];
+      assert.deepStrictEqual(J([...roots].sort()), want.slice().sort(), id + ' nodos raíz');
+    }
+    assert.strictEqual(A9.run(id), A9.run(id), 'memoizado');
+    J(Q9.keys(id)).forEach((k) => assert.ok(Q9.get(id + '.' + k), id + '.' + k));
+  }
+  assert.strictEqual(Q9.get('openvla-7b.params.total').text, '7,541,237,184');
+  assert.strictEqual(Q9.get('pi0.params.total').text, '3,238,048,528');
+  assert.strictEqual(Q9.get('pi0.tensor.a-scores.shape').text, '8×51×867');
+  assert.strictEqual(Q9.get('pi0.tensor.a-scores.sym').text, 'h×(1+H_a)×(N+T+1+H_a)');
+  assert.strictEqual(Q9.get('openvla-7b.quantities.actionTokenFirst').text, '31,744');
+  assert.strictEqual(Q9.get('pi0.metrics.macsPerChunk').text, A9.fmt.ops(A9.metrics('pi0', {}).macsPerChunk));
+  assert.strictEqual(Q9.get('openvla-7b.metrics.hzRtx4090').text, String(Number(A9.metrics('openvla-7b', {}).hzRtx4090.toPrecision(3))));
+});
+// ================================================================ fin del bloque de la fase 9

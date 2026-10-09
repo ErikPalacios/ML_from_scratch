@@ -588,6 +588,17 @@
       macs = ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0);
       rep = 1;
     }
+    // fase 9: node.perPass = costo de UNA pasada cuando el bloque corre más veces que sus pesos (π0: el experto, 18 capas × 10
+    // pasos de flujo, op.repeat 180 y op.paramRepeat 18 → "por capa"; las proyecciones del sufijo, × 10 pasos con paramRepeat 1):
+    // parámetros y MACs de una capa (o del bloque) en una pasada; las veces que corre van en costNote / runs
+    if (node && node.perPass && ops.length) {
+      const r0 = ops[0].repeat || 1, p0 = pRep(ops[0]);
+      if (r0 > p0 && ops.every((o) => (o.repeat || 1) === r0 && pRep(o) === p0)) {
+        params = ops.reduce((a, o) => a + (o.params || 0), 0);
+        macs = ops.reduce((a, o) => a + (o.macs || 0), 0);
+        rep = p0;
+      }
+    }
     const by = !node.costRef && run && run.totals && run.totals.byNode && run.totals.byNode[node.costOf || node.id];
     return { ops, params, macs, rep, total: (!node.opsExact && !node.scope && !node.costExclude && by) || { params: ops.reduce((a, o) => a + (o.params || 0) * pRep(o), 0), macs: ops.reduce((a, o) => a + (o.macs || 0) * (o.repeat || 1), 0) } };
   }
@@ -1093,9 +1104,14 @@
     const blankOp = slot && slot.ask === 'op';
     // style:'block' = bloque compuesto (p. ej. una capa entera): marco neutro; el color lo dan sus sub-ops (mini).
     const block = n.style === 'block' && !blankOp;
-    const g = S('g', { class: 'ad-node ad-op--' + (blankOp ? 'blank' : op) + (op === 'io' ? ' ad-node--io' : '') + (CIRCLE_SHAPES[shape] ? ' ad-node--sym' : '') + (n.expand ? ' ad-node--expandable' : '') + (block ? ' ad-node--block' : ''),
+    // fase 9: style:'closed' = caja negra (pesos cerrados, RT-2): relleno opaco, sin el color de su op (no se ve por dentro)
+    const closed = n.style === 'closed' && !blankOp;
+    // fase 9: spec.calc === false = vista sin calculador (pesos cerrados): imagen, tira y regla de bins con literales
+    const nocalc = !!(spec && spec.calc === false);
+    const g = S('g', { class: 'ad-node ad-op--' + (blankOp ? 'blank' : op) + (op === 'io' ? ' ad-node--io' : '') + (CIRCLE_SHAPES[shape] ? ' ad-node--sym' : '') + (n.expand ? ' ad-node--expandable' : '') + (block ? ' ad-node--block' : '') + (closed ? ' ad-node--closed' : ''),
       'data-node': n.id, tabindex: ctl.mode === 'blank' && !slot ? -1 : 0, role: 'button' }, parent);
-    if (op !== 'io' && !blankOp && !block) used.ops.add(op);
+    if (closed) used.closed = true;
+    if (op !== 'io' && !blankOp && !block && !closed) used.ops.add(op);
     if (n.modality) used.mods.add(n.modality);
     const cost = run && op !== 'io' ? nodeCost(run, n) : null;
     let label = n.label || '';
@@ -1124,8 +1140,10 @@
         for (let i = k - 1; i >= 1; i--) S('rect', { x: r.x + i * 3, y: r.y - i * 3, width: r.w, height: r.h, rx: 4, class: 'ad-box ad-box--deck' }, g);
         txt(g, r.x + r.w + (k - 1) * 3 + 4, r.y - (k - 1) * 3 + 4, (n.headsSym || n.heads) + ' = ' + hv, 'ad-heads-tag');
       }
-      if (n.parallel > 1) {
-        for (let i = Math.min(n.parallel, 4) - 1; i >= 1; i--) S('rect', { x: r.x + i * 4, y: r.y + i * 4, width: r.w, height: r.h, rx: 4, class: 'ad-box ad-box--deck' }, g);
+      // fase 9: parallel puede ser una clave del calculador ('cfg.cams': una carta por cámara de π0)
+      const par = typeof n.parallel === 'string' ? numKey(run, n.parallel) : n.parallel;
+      if (par > 1) {
+        for (let i = Math.min(par, 4) - 1; i >= 1; i--) S('rect', { x: r.x + i * 4, y: r.y + i * 4, width: r.w, height: r.h, rx: 4, class: 'ad-box ad-box--deck' }, g);
       }
       // style:'store' = almacén (cilindro): guarda tensores entre pasos (el banco de memoria de SAM 2); no es una
       // operación. Su color sigue siendo el de su op (p. ej. embed: sus únicos parámetros son una tabla).
@@ -1137,9 +1155,9 @@
         S('ellipse', { cx: r1(r.x + r.w / 2), cy: r1(r.y + ry), rx: r1(r.w / 2), ry: r1(ry), class: 'ad-box ad-box--store' }, g);
       } else S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: shape === 'pill' ? Math.min(r.h / 2, 12) : 4, class: 'ad-box' }, g);
       if (n.modality) S('rect', { x: r.x + 1, y: r.y + 4, width: 3.5, height: r.h - 8, class: 'ad-stripe ad-mod--' + n.modality }, g);
-      if (n.image && run && run.config) {
+      if (n.image && ((run && run.config) || nocalc)) {
         const pad = 6, side = Math.min(r.w - 2 * pad, r.h - 2 * pad - (label ? 16 : 0));
-        const grid = n.imageGrid != null ? n.imageGrid : run.config.P ? Math.round(run.config.H / run.config.P) : 0;
+        const grid = n.imageGrid != null ? n.imageGrid : run && run.config.P ? Math.round(run.config.H / run.config.P) : 0;
         drawScene(g, r.x + (r.w - side) / 2, r.y + pad, side, side, grid);
         if (label) txt(g, r.x + r.w / 2, r.y + r.h - 7, label, 'ad-label', 'middle');
       } else {
@@ -1148,7 +1166,7 @@
         const hideInner = slot && slot.ask === 'label';
         // fase 7: strip (tira de tokens), posIds (ids de M-RoPE) y layers (capas con la toma) también van abajo
         // fase 8: costSplit (barra del costo por imagen) también va abajo
-        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : 0;
+        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : 0;
         const miniH = n.mini ? 22 : innerH;
         // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
         const subs = sub ? String(sub).split('\n') : [];
@@ -1179,7 +1197,10 @@
           else if (n.layers) drawLayers(g, n.layers, r, run, used, layersNeutral(ctl, spec, n));
           // en la práctica la barra no va: sus filas nombran los bloques ("Encoder de texto × 2") que los huecos preguntan
           else if (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) drawCostSplit(g, n.costSplit, r, run, used, ctl, spec);
-        }
+        } else if (!hideInner && nocalc && n.strip) drawStrip(g, n.strip, r, null, used, ctl, spec);
+        // fase 9: regla de bins (una dimensión de la acción) y máscara de atención por bloques: no dependen del calculador
+        if (!hideInner && n.bins) drawBins(g, n.bins, r, used);
+        if (!hideInner && n.maskGrid) drawMaskGrid(g, n.maskGrid, r, used);
         if (!hideInner && n.posIds) drawPosIds(g, n.posIds, r, used, ctl);
       }
       if (cost && cost.params > 0 && ctl.mode !== 'blank' && !ctl.quiz) {
@@ -1533,7 +1554,10 @@
     used[once ? 'runsOnce' : 'runs'] = true;
     const w = textW(s, 10.5, true) + 26;
     const trainW = n.train ? textW(n.train === 'frozen' ? 'congelado' : 'entrena', 10.5, true) + 24 + 6 : 0;
-    const x = r.x + r.w - w - 4 - trainW, y = r.y - 8;
+    // fase 9: con una marca (flag, p. ej. "pesos cerrados" en RT-2) la píldora va a su izquierda
+    const fs = n.flag && ctl.mode !== 'blank' && !n.train ? qText(n.flag, ctl, spec) : '';
+    const flagW = fs ? textW(fs, 10, true) + 10 + 6 : 0;
+    const x = r.x + r.w - w - 4 - trainW - flagW, y = r.y - 8;
     const pg = S('g', { class: 'ad-runs' + (once ? ' ad-runs--once' : '') }, g);
     S('rect', { x: r1(x), y, width: r1(w), height: 15, rx: 7.5, class: 'ad-runs-bg' }, pg);
     loopIcon(pg, x + 10, y + 7.5, 3.6);
@@ -1549,7 +1573,8 @@
     const cls = (sg) => 'ad-cs-seg ' + (sg.tone ? 'ad-cs--' + sg.tone : 'ad-op--' + (sg.op || 'tensorop'));
     if (!segs.length || !segs.every((sg) => Number.isFinite(sg.v) && sg.v >= 0)) return;
     used.costSplit = true;
-    const A = arch(), ops = (v) => (A && A.fmt && A.fmt.ops ? A.fmt.ops(v) : fsi(v) + 'MACs');
+    // fase 9: unit:'ms' = la barra del TIEMPO (≈ roofline del calculador) en vez de los MACs
+    const A = arch(), ops = o.unit === 'ms' ? (v) => (v >= 100 ? Math.round(v) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + ' ms' : (v) => (A && A.fmt && A.fmt.ops ? A.fmt.ops(v) : fsi(v) + 'MACs');
     const tot = segs.reduce((a, sg) => a + sg.v, 0) || 1;
     const gg = S('g', { class: 'ad-cs' }, g);
     const x0 = r.x + 12, W = r.w - 24, y = r.y + r.h - COST_H(o) + 4, bh = 14;
@@ -1568,6 +1593,67 @@
       txt(gg, x0 + W, yy, ops(sg.v) + ' · ' + pct(sg.v), 'ad-cs-val', 'end');
     });
     if (o.caption) txt(gg, x0, y + bh + 14 + segs.length * 14, qText(o.caption, ctl, spec), 'ad-gqa-cap');
+  }
+
+  // ------------------------------------------------------------ fase 9 (VLA): regla de bins y máscara por bloques
+  // node.bins = {n:256, at:0.62, label}: la regla de n bins de UNA dimensión de acción (RT-2, OpenVLA) en la parte de abajo del
+  // bloque: un trazo por bin (todos si caben a ≥ 1 px), marcas mayores cada n/8 con su índice, el bin `at` (fracción del rango,
+  // ilustrativo) resaltado con su número y el valor continuo como un triángulo encima.
+  const BINS_H = 44;
+  function drawBins(g, o, r, used) {
+    const n = o.n || 256;
+    used.bins = true;
+    const gg = S('g', { class: 'ad-bins' }, g);
+    const x0 = r.x + 12, W = r.w - 24, y = r.y + r.h - BINS_H + 14, bh = 12;
+    S('rect', { x: r1(x0), y: r1(y), width: r1(W), height: bh, class: 'ad-bins-track' }, gg);
+    const step = W / n, every = step >= 1.5 ? 1 : Math.ceil(1.5 / step);
+    let d = '';
+    for (let i = every; i < n; i += every) d += 'M' + P([x0 + i * step, y + (i % (n / 8) === 0 ? 0 : bh * 0.45)]) + 'V' + r1(y + bh);
+    S('path', { d, class: 'ad-bins-tick' }, gg);
+    for (let i = 0; i <= 8; i++) { const b = Math.min(n - 1, i * n / 8); txt(gg, x0 + (i === 8 ? W : b * step), y + bh + 11, String(i === 8 ? n - 1 : b), 'ad-bins-n', i === 0 ? 'start' : i === 8 ? 'end' : 'middle'); }
+    const at = o.at == null ? 0.5 : o.at, b = Math.min(n - 1, Math.floor(at * n));
+    S('rect', { x: r1(x0 + b * step - 1), y: r1(y - 2), width: r1(Math.max(step, 1) + 2), height: bh + 4, class: 'ad-bins-on' }, gg);
+    const vx = x0 + at * W;
+    S('path', { d: 'M' + P([vx, y - 3]) + 'l-4,-6h8Z', class: 'ad-bins-val' }, gg);
+    txt(gg, vx + 7, y - 5, (o.label || 'bin') + ' = ' + b, 'ad-bins-lab');
+  }
+
+  // node.maskGrid = {groups:[{label, cells, block, mod}], causal?:false}: la máscara de atención por bloques (π0) como una
+  // grilla chica: fila = query, columna = key; permitido si block(key) ≤ block(query) (o causal: key ≤ query). Las celdas
+  // permitidas llevan el color de la modalidad de la KEY; las bloqueadas, vacías con ×. Etiquetas de grupo a la izquierda.
+  // en palabras (aria y texto alternativo): qué grupo ve a cuáles
+  function maskWords(o) {
+    const gs = o.groups || [];
+    return gs.map((gq, i) => gq.label + ' ve ' + gs.filter((x, j) => (o.causal ? j <= i : (x.block || 0) <= (gq.block || 0))).map((x) => x.label).join(', ')).join('; ');
+  }
+  function maskGridH(o) { const n = (o.groups || []).reduce((a, gq) => a + (gq.cells || 1), 0); return n * (o.cell || 11) + 34; }
+  function drawMaskGrid(g, o, r, used) {
+    const groups = o.groups || [];
+    const cells = [];
+    groups.forEach((gq, gi) => { for (let i = 0; i < (gq.cells || 1); i++) cells.push(gi); });
+    const n = cells.length, cs = o.cell || 11;
+    used.maskGrid = true;
+    const gg = S('g', { class: 'ad-mask' }, g);
+    const lw = o.labelW || 70;
+    const gx = r.x + (r.w - (lw + 8 + n * cs)) / 2 + lw + 8, gy = r.y + r.h - maskGridH(o) + 22;
+    const ok = (ri, ci) => (o.causal ? ci <= ri : (groups[cells[ci]].block || 0) <= (groups[cells[ri]].block || 0));
+    for (let ri = 0; ri < n; ri++) for (let ci = 0; ci < n; ci++) {
+      const x = gx + ci * cs, y = gy + ri * cs, mod = groups[cells[ci]].mod || 'txt';
+      if (ok(ri, ci)) S('rect', { x: r1(x + 0.5), y: r1(y + 0.5), width: cs - 1, height: cs - 1, class: 'ad-mask-on ad-mod--' + mod }, gg);
+      else { S('rect', { x: r1(x + 0.5), y: r1(y + 0.5), width: cs - 1, height: cs - 1, class: 'ad-mask-off' }, gg); S('path', { d: 'M' + P([x + 3, y + 3]) + 'l' + (cs - 6) + ',' + (cs - 6) + 'm0,' + -(cs - 6) + 'l' + -(cs - 6) + ',' + (cs - 6), class: 'ad-mask-x' }, gg); }
+    }
+    let k = 0;
+    groups.forEach((gq) => {
+      const c = gq.cells || 1, y0 = gy + k * cs, x0 = gx + k * cs;
+      txt(gg, gx - 6, y0 + c * cs / 2 + 4, gq.label, 'ad-mask-lab', 'end');
+      S('path', { d: 'M' + P([x0 + 1, gy - 4]) + 'V' + r1(gy - 7) + 'H' + r1(x0 + c * cs - 1) + 'V' + r1(gy - 4), class: 'ad-mask-brace' }, gg);
+      if (gq.short) txt(gg, x0 + c * cs / 2, gy - 10, gq.short, 'ad-mask-lab', 'middle');
+      k += c;
+    });
+    // separadores de bloque
+    let d = '';
+    for (let i = 1; i < n; i++) if ((groups[cells[i]].block || 0) !== (groups[cells[i - 1]].block || 0)) d += 'M' + P([gx + i * cs, gy - 2]) + 'V' + r1(gy + n * cs + 2) + 'M' + P([gx - 2, gy + i * cs]) + 'H' + r1(gx + n * cs + 2);
+    if (d) S('path', { d, class: 'ad-mask-sep' }, gg);
   }
 
   function drawMapNode(ctl, parent, n, r, used) {
@@ -1622,6 +1708,9 @@
     if (n.kvGroups && run) { const w = gqaWords(run.config, n.kvGroups); if (w) parts.push(w.text); }
     if (n.experts && run) { const E = cfgPath(run.config, n.experts.n || 'nExperts'), K = cfgPath(run.config, n.experts.k || 'topK'); if (E) parts.push(K + ' de ' + E + ' expertos por token'); }
     if (n.train) parts.push(n.train === 'frozen' ? 'congelado' : 'entrena');
+    if (n.style === 'closed') parts.push('caja negra: pesos cerrados');
+    if (n.bins) parts.push((n.bins.n || 256) + ' bins');
+    if (n.maskGrid) parts.push('máscara: ' + maskWords(n.maskGrid));
     if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ')); }
     if (n.layers && run) { const L = numKey(run, n.layers.L); const tp = tapOf(run, n.layers, L); if (L && tp) parts.push(layersNeutral(ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {}), n) ? L + ' capas' : 'features de la capa ' + tp + ' de ' + L); }
     if (n.expand) parts.push('se puede abrir');
@@ -1784,7 +1873,8 @@
     if (isMap) g.setAttribute('aria-label', (MAP_KIND_SENT[kind] ? MAP_KIND_SENT[kind](mapName(e.from), mapName(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' (' + e.label + ')' : ''));
     if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? plainSub(qText(e.tag, ctl, ctl.building)) + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + shapeSay(t) + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
     // arista de control con etiqueta (sin tensor): el lector de pantalla oye qué decide y entre qué bloques
-    if (!t && !isMap && kind === 'control' && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(qText(e.tag, ctl, ctl.building)) + (e.loop ? ', se repite' : '') + ' (control, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
+    // fase 9: en una vista sin calculador (calc:false) las aristas de datos tampoco tienen tensor: también dicen su etiqueta
+    if (!t && !isMap && (kind === 'control' || (ctl.building && ctl.building.calc === false)) && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(qText(e.tag, ctl, ctl.building)) + (e.loop ? ', se repite' : '') + (kind === 'control' ? ' (control, de ' : ' (flujo, de ') + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
     if (e.dot) { const dp = e.fromPt ? ge.pts[0] : ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
     if ((kind === 'cross' || e.tag) && e.tag !== false) {   // tag:false = arista cross sin etiqueta (chips de texto de YOLO-World)
       const la = labelAnchor(ge.pts0 || ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
@@ -1911,7 +2001,7 @@
     if (used.experts) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-exp' + (i === 1 || i === 2 ? ' is-on' : '') }, s)); }, 'Expertos (FFN): encendidos = los top-k elegidos para un token');
     if (used.rows) item((s) => { const g = S('g', { class: 'ad-rows' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 3, y, width: 20, height: 3, rx: 1, class: 'ad-row' + (i === 2 ? ' is-new' : '') }, g)); }, 'Filas del caché (una por token; la resaltada se agrega en este paso)');
     // fase 7: tira de tokens, ids de M-RoPE, capas con toma, congelado / entrena, enlaces
-    if (used.strip) item((s) => { defs(s, lid + '-lstrip'); const a = S('g', { class: 'ad-glyph ad-mod--txt' }, s); S('rect', { x: 2, y: 4, width: 6, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-txt)' }, a); const b = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-img)' }, b); }, 'Tira del prompt: ancho proporcional al número de tokens (texto rayado, imagen liso)');
+    if (used.strip) item((s) => { defs(s, lid + '-lstrip'); const a = S('g', { class: 'ad-glyph ad-mod--txt' }, s); S('rect', { x: 2, y: 4, width: 6, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-txt)' }, a); const b = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-img)' }, b); }, ((view.spec && view.spec.legendText) || {}).strip || 'Tira del prompt: ancho proporcional al número de tokens (texto rayado, imagen liso)');
     if (used.posIds) item((s) => { const t = S('text', { x: 13, y: 12, 'text-anchor': 'middle', class: 'ad-pos-n is-var' }, s); t.textContent = 't h w'; }, 'Ids de posición (t, h, w) de M-RoPE: ilustrativo');
     if (used.dropfirst) item((s) => { const g = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 9, class: 'ad-face ad-face--front', fill: 'var(--surface)' }, g); S('rect', { x: 2, y: 4, width: 7, height: 9, class: 'ad-tokdrop' }, s); S('path', { d: 'M3 5L8 12M8 5L3 12', class: 'ad-tokdrop-x' }, s); }, 'Token descartado (CLS): no sigue al proyector');
     if (used.layers) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-layer' + (i === 2 ? ' is-tap' : i === 3 ? ' is-off' : '') }, s)); }, 'Capas del encoder: resaltada = de la que se toman las features; atenuada = no se usa');
@@ -1919,10 +2009,15 @@
     if (used.trained) item((s) => { const g = S('g', { class: 'ad-train ad-train--on' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, false, 13, 8); }, 'Entrena: sus pesos se actualizan en esta etapa');
     if (used.xref) item((s) => { S('path', { d: 'M8 13l9,-9M11 4h6v6', class: 'ad-expand-ico', style: 'stroke:var(--ink)' }, s); }, 'Enlace: se ve por dentro en otra página');
     // fase 8: bucle de muestreo, veces que corre cada red y la barra del costo por imagen
-    if (used.loop) item((s) => { const g = S('g', { class: 'ad-tag' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 3, class: 'ad-tag-bg' }, g); loopIcon(g, 13, 8, 4.2); }, 'Bucle: se repite en cada paso de muestreo');
-    if (used.runs) item((s) => { const g = S('g', { class: 'ad-runs' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, 'Veces que corre por imagen (en el bucle)');
-    if (used.runsOnce) item((s) => { const g = S('g', { class: 'ad-runs ad-runs--once' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, 'Veces que corre por imagen (fuera del bucle)');
-    if (used.costSplit) item((s) => { S('rect', { x: 2, y: 4, width: 18, height: 8, class: 'ad-cs-seg ad-cs--loop' }, s); S('rect', { x: 20, y: 4, width: 4, height: 8, class: 'ad-cs-seg ad-cs--once' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-cs-frame' }, s); }, 'Costo por imagen: ancho proporcional a los MACs (del calculador)');
+    // fase 9: spec.legendText = textos propios de estas entradas (VLA: "por acción" / "por chunk", no "por imagen")
+    const LT = (view.spec && view.spec.legendText) || {};
+    if (used.loop) item((s) => { const g = S('g', { class: 'ad-tag' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 3, class: 'ad-tag-bg' }, g); loopIcon(g, 13, 8, 4.2); }, LT.loop || 'Bucle: se repite en cada paso de muestreo');
+    if (used.runs) item((s) => { const g = S('g', { class: 'ad-runs' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, LT.runs || 'Veces que corre por imagen (en el bucle)');
+    if (used.runsOnce) item((s) => { const g = S('g', { class: 'ad-runs ad-runs--once' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, LT.runsOnce || 'Veces que corre por imagen (fuera del bucle)');
+    if (used.costSplit) item((s) => { S('rect', { x: 2, y: 4, width: 18, height: 8, class: 'ad-cs-seg ad-cs--loop' }, s); S('rect', { x: 20, y: 4, width: 4, height: 8, class: 'ad-cs-seg ad-cs--once' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-cs-frame' }, s); }, LT.costSplit || 'Costo por imagen: ancho proporcional a los MACs (del calculador)');
+    if (used.closed) item((s) => { const g = S('g', { class: 'ad-node--closed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); }, 'Caja negra: pesos cerrados (no se ve por dentro)');
+    if (used.bins) item((s) => { const g = S('g', { class: 'ad-bins' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-bins-track' }, g); S('path', { d: 'M5 4V12M8 4V12M11 4V12M14 4V12M17 4V12M20 4V12', class: 'ad-bins-tick' }, g); S('rect', { x: 13, y: 3, width: 4, height: 10, class: 'ad-bins-on' }, g); }, 'Bins de una dimensión de la acción (resaltado: el del ejemplo, ilustrativo)');
+    if (used.maskGrid) item((s) => { [[3, 3, 1], [9, 3, 0], [15, 3, 0], [3, 9, 1], [9, 9, 1], [15, 9, 0]].forEach(([x, y, on]) => S('rect', { x, y, width: 5, height: 5, class: on ? 'ad-mask-on ad-mod--img' : 'ad-mask-off' }, s)); }, 'Máscara de atención: fila = query, columna = key; llena = permitido, vacía = bloqueado (−∞)');
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
@@ -1930,7 +2025,9 @@
     if (used.offline) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--offline' }, s); }, 'Marco ámbar: offline (una vez, antes de la inferencia)');
     if (used.lanes) for (const [label, tone] of used.lanes) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--lane ad-tone--' + tone }, s); }, label);
     if (used.badge) item((s) => { S('rect', { x: 1, y: 3, width: 24, height: 10, rx: 5, class: 'ad-badge-bg' }, s); S('path', { d: 'M5,8m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0M7,8h3.5M9.5,8v2', class: 'ad-key' }, s); }, 'Parámetros aprendibles');
-    if ((!opts || opts.withShapes !== false) && view.spec.kind !== 'map') {   // antes "opts && …": nunca se mostraba
+    // antes "opts && …": nunca se mostraba. Fase 9: sin calculador (calc:false) no hay formas, y una vista sin aristas (la
+    // máscara de π0) no lleva el ejemplo fijo de ViT
+    if ((!opts || opts.withShapes !== false) && view.spec.kind !== 'map' && view.run && (view.spec.edges || []).length) {
       const li = H('div', { class: 'ad-leg-item ad-leg-shape', role: 'listitem' }, wrap);
       // Ejemplo con la primera arista de datos con tensor de ESTA vista (antes: un ejemplo fijo de ViT).
       const run = view.run, de = (view.spec.edges || []).find((e) => (e.kind || 'data') === 'data' && e.tensor && run && run.tensors[e.tensor]);
@@ -2025,6 +2122,8 @@
         back.addEventListener('click', () => { reqConfig = null; ctl.xref = null; redraw(); });
       }
       if (!cfgOk) cfgNote.textContent = 'Esta vista no aplica a ' + configLabel(reqConfig) + (spec.configsNote ? ' (' + spec.configsNote + ')' : '') + '; se muestra ' + configLabel(spec.config) + '.';
+      // fase 9: vista sin calculador (calc:false, pesos cerrados): se dice por qué no hay formas
+      if (spec.calc === false && spec.calcNote && ctl.mode === 'full') { cfgNote.hidden = false; cfgNote.textContent = spec.calcNote; }
       let view;
       try { view = buildView(ctl, spec); }
       catch (err) {
@@ -2099,6 +2198,8 @@
         if (n.train) parts.push(n.train === 'frozen' ? 'Congelado en esta etapa' : 'Entrena en esta etapa');
         if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('Prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ') + (n.strip.caption ? ' (' + qText(n.strip.caption, ctl, spec) + ')' : '')); }
         if (n.posIds) parts.push('Ids (t, h, w): ' + mropeIds(n.posIds.segs).map((q) => '(' + q.t + ',' + q.h + ',' + q.w + ')').join(' '));
+        if (n.maskGrid) parts.push('Máscara por bloques: ' + maskWords(n.maskGrid));
+        if (n.style === 'closed') parts.push('Caja negra: pesos cerrados');
         dd.innerHTML = combSafe(esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, opts.config || spec.config) : ''));
       }
     }

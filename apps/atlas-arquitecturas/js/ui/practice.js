@@ -452,6 +452,51 @@
     vaeDecoderMacs: { label: 'MACs del decoder del VAE', kind: 'ops', note: 'una vez por imagen' },
     vaeEncoderMacs: { label: 'MACs del encoder del VAE', kind: 'ops', note: 'solo en entrenamiento (o img2img)' },
     compressionFactor: { label: 'Compresión del VAE', kind: 'ratio', note: 'valores de la imagen / valores del latente' },
+    // Fase 9 (VLA): costo por acción / por chunk y frecuencias estimadas (roofline con hardware citado).
+    macsPerAction: { label: 'MACs por acción', kind: 'ops', note: 'prefill + los pasos de decode de los tokens de acción' },
+    macsPerChunk: { label: 'MACs por chunk de acciones', kind: 'ops', note: 'prefijo una vez + pasos × paso de flow' },
+    prefillShare: { label: 'Prefill', kind: 'pct', note: '% de los MACs por acción' },
+    actionMsRtx4090: { label: 'ms por acción en RTX 4090 (≈)', kind: 'ms', note: 'roofline, sin overhead' },
+    hzRtx4090: { label: 'Acciones/s en RTX 4090 (≈ tope)', kind: 'hz', note: 'roofline, sin overhead' },
+    hz: { label: 'Acciones/s (≈ tope)', kind: 'hz', note: 'roofline con el hardware elegido' },
+    decodeMs: { label: 'ms de decode (≈)', kind: 'ms', note: 'roofline' },
+    prefixTokens: { label: 'Tokens del prefijo', kind: 'count', note: 'imágenes + lenguaje (se calculan una vez por chunk)' },
+    suffixTokens: { label: 'Tokens del sufijo', kind: 'count', note: 'estado + H acciones' },
+    prefixMacs: { label: 'MACs del prefijo', kind: 'ops', note: 'SigLIP + Gemma sobre imágenes y lenguaje, una vez por chunk' },
+    flowStepMacs: { label: 'MACs por paso de flow', kind: 'ops', note: 'action expert sobre el sufijo, leyendo la KV del prefijo' },
+    actionTokensPerStep: { label: 'Tokens de acción por paso', kind: 'count', note: '7 dimensiones × 1 token' },
+    actionBins: { label: 'Bins por dimensión', kind: 'count', note: 'discretización uniforme entre q01 y q99' },
+    decodeSteps: { label: 'Pasos de decode por acción', kind: 'count', note: 'el primer token sale del prefill' },
+    actionTokenFirst: { label: 'Primer id de token de acción', kind: 'count', note: 'los 256 ids menos usados de Llama' },
+    actionTokenLast: { label: 'Último id de token de acción', kind: 'count', note: '' },
+    paperHz: { label: 'Hz reportados en el paper', kind: 'hz', note: 'medidos en el hardware del paper' },
+    dinoParams: { label: 'Parámetros de DINOv2', kind: 'count', note: '' },
+    siglipParams: { label: 'Parámetros de SigLIP', kind: 'count', note: '' },
+    visionParamsUsed: { label: 'Parámetros de visión que se usan', kind: 'count', note: 'sin la última capa ni las cabezas que se descartan' },
+    idleParams: { label: 'Parámetros que no se usan', kind: 'count', note: 'están en el checkpoint pero no en el forward' },
+    dinoMacs: { label: 'MACs de DINOv2', kind: 'ops', note: '' },
+    siglipMacs: { label: 'MACs de SigLIP', kind: 'ops', note: '' },
+    decodeMacsTotal: { label: 'MACs del decode de una acción', kind: 'ops', note: 'los pasos de decode de los tokens de acción' },
+    hzH100: { label: 'Acciones/s en H100 (≈ tope)', kind: 'hz', note: 'roofline' },
+    hzOrin: { label: 'Acciones/s en Jetson AGX Orin (≈ tope)', kind: 'hz', note: 'roofline; FP16 denso derivado (≈)' },
+    cams: { label: 'Cámaras', kind: 'count', note: '' },
+    kvRows: { label: 'Filas de la KV del prefijo', kind: 'count', note: 'lo que lee cada paso de flow' },
+    chunk: { label: 'Acciones por chunk H', kind: 'count', note: '' },
+    steps: { label: 'Pasos de integración', kind: 'count', note: '' },
+    actionDim: { label: 'Dimensión de acción (con padding)', kind: 'count', note: '' },
+    imgProjParams: { label: 'Proyección imagen → Gemma', kind: 'count', note: '' },
+    gemmaParams: { label: 'Parámetros de Gemma 2B', kind: 'count', note: '' },
+    paligemmaParams: { label: 'Parámetros de PaliGemma', kind: 'count', note: 'SigLIP + proyección + Gemma' },
+    actionProjParams: { label: 'Proyecciones de acción, estado y tiempo', kind: 'count', note: '' },
+    gemmaPrefixMacs: { label: 'MACs de Gemma sobre el prefijo', kind: 'ops', note: 'una vez por chunk' },
+    expertStepMacs: { label: 'MACs del action expert por paso', kind: 'ops', note: '' },
+    flowMacs: { label: 'MACs de todos los pasos de flow', kind: 'ops', note: 'pasos × paso de flow' },
+    prefixShare: { label: 'Prefijo', kind: 'pct', note: '% de los MACs por chunk' },
+    flowShare: { label: 'Pasos de flow', kind: 'pct', note: '% de los MACs por chunk' },
+    prefixKvBytes: { label: 'KV cache del prefijo', kind: 'bytes', note: 'bf16; se reutiliza en los pasos de flow' },
+    paperOnboardMs: { label: 'ms reportados (a bordo)', kind: 'ms', note: 'medidos en el paper' },
+    chunkHz: { label: 'Chunks/s (≈ tope)', kind: 'hz', note: 'roofline' },
+    actionsPerSecond: { label: 'Acciones/s ejecutadas', kind: 'count', note: 'frecuencia de control del robot' },
     samplingShare: { label: 'Muestreo deformable', kind: 'pct', note: '% de los MACs; convención del calculador (los profilers no cuentan grid_sample)' },
     denseEncScoreMacs: { label: 'Encoder denso: MACs de QKᵀ y A·V', kind: 'ops', note: 'si el encoder usara atención densa sobre los mismos N tokens; ∝ N²' },
     denseEncScoreMacsLayer: { label: 'Encoder denso: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·N²·D' },
@@ -636,6 +681,14 @@
     ttftTextOnlyMs: { label: 'TTFT sin imagen (≈ ms)', kind: 'count', note: 'roofline en H100' },
     topk: { label: 'Expertos por token k', kind: 'count', note: '' },
   };
+  // Fase 9 (π0): tiempos ≈ por etapa y hardware (chunkMsRtx4090, prefixMsH100, flowMsOrin…), roofline con specs citadas.
+  { const ST = { chunk: 'un chunk de acciones', image: 'los encoders de imagen', prefix: 'el prefijo (imágenes + lenguaje)', flow: 'los pasos de flow',
+      flowStep: 'un paso de flow', vision: 'la visión', prefill: 'el prefill', decode: 'el decode', decodeTotal: 'todo el decode', action: 'una acción' };
+    const HW = { Rtx4090: 'RTX 4090', H100: 'H100', Orin: 'Jetson AGX Orin', '': 'el hardware elegido' };
+    Object.keys(ST).forEach((st) => Object.keys(HW).forEach((hw) => {
+      const k = st + 'Ms' + hw;
+      if (!METRICS[k]) METRICS[k] = { label: 'ms de ' + ST[st] + ' en ' + HW[hw] + ' (≈ cota)', kind: 'ms', note: 'roofline con las specs citadas, sin overhead' };
+    })); }
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
   const DIFFUSION = { 'stable-diffusion': true, dit: true };   // fase 8: modelos cuyo samplingMacs es el costo por imagen
@@ -647,7 +700,7 @@
   function metricKind(key) {
     const k = metricKey(key);
     // Primero el mapa `units` del modelo (lo registra metrics()); luego METRICS; luego el nombre.
-    if (METRICS[k] && (METRICS[k].kind === 'intensity' || METRICS[k].kind === 'rate' || METRICS[k].kind === 'avg' || METRICS[k].kind === 'ms')) return METRICS[k].kind;   // formato propio, gana a units
+    if (METRICS[k] && (METRICS[k].kind === 'intensity' || METRICS[k].kind === 'rate' || METRICS[k].kind === 'avg' || METRICS[k].kind === 'ms' || METRICS[k].kind === 'hz')) return METRICS[k].kind;   // formato propio, gana a units
     if (ARCH_UNITS[k] && UNIT_KIND[ARCH_UNITS[k]]) return UNIT_KIND[ARCH_UNITS[k]];
     if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
@@ -681,6 +734,7 @@
     if (kind === 'rate') return '≈ ' + fRatio(v) + ' tok/s';
     if (kind === 'ms') return fMs(v) + ' ms';
     // 'avg': un conteo esperado (no un factor): 1 decimal, sin «×»; «de E» si es un MoE (≈ 7.2 de 8).
+    if (kind === 'hz') return '≈ ' + fRatio(v) + ' Hz';
     if (kind === 'avg') return (Number.isInteger(v) ? String(v) : '≈ ' + v.toFixed(1)) + (ARCH_CTX.experts ? ' de ' + ARCH_CTX.experts : '');
     return v >= 1e6 ? fSi(v) : fInt(v);
   }
@@ -700,6 +754,7 @@
     if (kind === 'intensity') return String(+v.toFixed(4)) + ' FLOPs/B';
     if (kind === 'rate') return String(+v.toFixed(2)) + ' tok/s';
     if (kind === 'ms') return String(+v.toFixed(3)) + ' ms';
+    if (kind === 'hz') return String(+v.toFixed(2)) + ' Hz';
     if (kind === 'avg') return String(+v.toFixed(3));
     return fInt(v) + (kind === 'bytes' ? ' bytes' : '');
   }

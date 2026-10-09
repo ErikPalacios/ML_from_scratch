@@ -272,6 +272,9 @@
         const tera = r.totals.macs >= 1e12;   // LLMs con prompts largos: TMACs, no "16469.05 G"
         cells.push([tera ? 'TMACs' : big ? 'GMACs' : 'MACs', h('span', { title: F.int(r.totals.macs) + ' MACs (FLOPs = 2 × MACs)' }, tera ? (r.totals.macs / 1e12).toFixed(2) : big ? (r.totals.macs / 1e9).toFixed(2) : F.int(r.totals.macs))]);
       }
+    } else if (m.canonical === null && m.card && m.card.tamano) {
+      // Pesos cerrados (RT-2): sin calculadora; la ficha dice qué se sabe y de dónde.
+      cells.push(['Parámetros', h('span', { class: 'muted' }, String(m.card.tamano))]);
     } else if (m.canonical) {
       cells.push(['Config canónica', m.canonical]);
       cells.push(['Calculadora', h('span', { class: 'muted' }, res && res.error && res.error !== 'no-arch' ? 'error: ' + res.error : 'no disponible')]);

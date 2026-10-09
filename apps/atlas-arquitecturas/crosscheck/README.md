@@ -103,7 +103,21 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   resta las copias medidas por módulo (`params_total_diffusers_raw`, `flops_duplicated_embedders`) y queda la arquitectura del código
   oficial (facebookresearch/DiT): 674,834,720 parámetros para XL/2 (+ la posición sin/cos, `nn.Parameter` congelado en el oficial =
   675,129,632, los «675M» del paper) y 118.62 GMACs (los «118.6 Gflops» de la Tabla 4 son MACs). Parámetros y FLOPs exactos (diferencia 0).
-- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`) deben coincidir con las de `js/arch/<modelo>.js`.
+- `vla.py` (fase 9): todo **en el dispositivo meta**, sin dependencias nuevas. **OpenVLA** (`openvla-7b`): el `modeling_prismatic.py`
+  del checkpoint (openvla/openvla-7b, rev. 47a0ec7) exige timm 0.9.x y transformers 4.40, así que no se usa `trust_remote_code`: se
+  rearma con las mismas piezas — `timm.create_model` de los dos `timm_model_ids` (DINOv2 ViT-L/14 reg4 + SigLIP So400m/14,
+  `pretrained=False, num_classes=0, img_size=224`), un forward que copia `get_intermediate_layers(n = {L − 2})` de timm 0.9.16 (corre
+  TODOS los bloques y devuelve el penúltimo sin prefijos: la última capa se calcula y se descarta), el `PrismaticProjector` fused
+  (3 lineales) y `LlamaForCausalLM` con vocab 32,064; parches insertados después de `<BOS>`. `sum(p.numel())` = 7,541,237,184 =
+  `total_size / 2` del `model.safetensors.index.json` (bf16): exacto contra el checkpoint. FLOPs = prefill (T = 22) + los 6 pasos de
+  decode con `DynamicCache` (una acción = 7 tokens); `override_checks` con T = 8 y 64. **π0** (`pi0`, `pi0-1cam`): como el port oficial
+  de PyTorch de openpi (main @ 215abfb, `models_pytorch/gemma_pytorch.py`, `pi0_pytorch.py`): `PaliGemmaForConditionalGeneration`
+  (SigLIP con intermediate 4304, projection_dim 2048, vocab 257,152) + `GemmaModel` del experto (gemma_300m, `embed_tokens = None`) +
+  las 5 lineales de `pi0.py`; un chunk = prefijo una vez (cámaras × 256 + 48 tokens por Gemma 2B, deja la KV cache) + 10 pasos del
+  sufijo (1 + 50 tokens) por el experto leyendo esa caché (recortada tras cada paso). `override_checks` (pi0) con 5 pasos, H = 25,
+  T = 16 y 2 cámaras. `metrics_checks`: parámetros por parte, KV por token (18,432 B: MQA con d_h 256), MACs de prefijo / paso / chunk.
+  Parámetros y FLOPs exactos (diferencia 0) en las 3 configs.
+- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`, `OVLA`, `PI0`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que
   torch no trae para `_scaled_dot_product_flash_attention_for_cpu`).

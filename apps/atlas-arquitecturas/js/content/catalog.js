@@ -376,7 +376,7 @@
     model: 'rt2', canonical: null,   // pesos cerrados: nivel 2 parcial (ROADMAP F9)
     card: { in: 'imagen de cámara + instrucción', out: 'tokens de acción (posición, rotación, gripper)',
       idea: 'un VLM que "habla" acciones discretizadas', uso: 'manipulación con instrucciones en lenguaje natural',
-      tamano: 'pesos cerrados' },
+      tamano: 'pesos cerrados (PaLI-X 55B y PaLM-E 12B)' },
   }));
   add(model({
     id: 'openvla', block: 1, num: 16, phase: 9, family: 'vla',
@@ -832,9 +832,9 @@
       note: 'De la imagen a tokens visuales dentro del prompt; resolución fija vs dinámica con M-RoPE.' },
     { phase: 8, block: 1, status: 'done', title: 'Fase 8 — Diffusion y flow matching', items: ['stable-diffusion', 'dit'],
       note: 'U-Net latente de Stable Diffusion y DiT; flow matching como línea recta entre ruido y dato (lo usa π0).' },
-    { phase: 9, block: 1, status: 'next', title: 'Fase 9 — VLA: RT-2, OpenVLA, π0', items: ['rt2', 'openvla', 'pi0'],
+    { phase: 9, block: 1, status: 'done', title: 'Fase 9 — VLA: RT-2, OpenVLA, π0', items: ['rt2', 'openvla', 'pi0'],
       note: 'De imagen + instrucción a un chunk de acciones. Ligeras porque reutilizan las fases 6–8; RT-2 a nivel 2 parcial (pesos cerrados).' },
-    { phase: 10, block: 2, status: 'later', title: 'Fase 10 — Fine-tuning y alineación', items: ['lora', 'rlhf-dpo'],
+    { phase: 10, block: 2, status: 'next', title: 'Fase 10 — Fine-tuning y alineación', items: ['lora', 'rlhf-dpo'],
       note: 'LoRA/QLoRA, SFT, RLHF con PPO y DPO, con el conteo de parámetros entrenables.' },
     { phase: 11, block: 2, status: 'later', title: 'Fase 11 — BERT, embeddings y retrieval', items: ['bert', 'retrieval', 'ann'],
       note: 'BERT → bi-encoder → cross-encoder reranker, InfoNCE y búsqueda ANN (HNSW, IVF-PQ). Conecta con CLIP y con los casos de RAG de la Ronda.' },

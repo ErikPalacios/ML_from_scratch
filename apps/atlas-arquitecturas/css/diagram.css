@@ -825,3 +825,93 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-cs--once2 { fill: var(--op-conv); }
 /* fase 8 (revisión): letra + sombrero/tilde combinante (ε̂, ε̃, v̂) en mono, donde la marca se compone bien */
 .ad-comb { font-family: var(--font-mono); }
+
+/* ---- fase 9 (VLA): caja negra (pesos cerrados), regla de bins y máscara por bloques en los diagramas ---- */
+.ad-node--closed .ad-box { fill: var(--ink); stroke: var(--ink); }
+.ad-node--closed .ad-label { fill: var(--bg); }
+.ad-node--closed .ad-sub { fill: var(--bg); opacity: .85; }
+.ad-node--closed:focus-visible .ad-box { stroke: var(--focus); stroke-width: 3; }
+/* en oscuro sigue siendo una caja NEGRA (más oscura que el fondo, con borde claro), no una caja blanca */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ad-node--closed .ad-box { fill: color-mix(in srgb, var(--bg) 45%, #000); stroke: var(--ink); }
+  :root:not([data-theme="light"]) .ad-node--closed .ad-label, :root:not([data-theme="light"]) .ad-node--closed .ad-sub { fill: var(--ink); }
+}
+:root[data-theme="dark"] .ad-node--closed .ad-box { fill: color-mix(in srgb, var(--bg) 45%, #000); stroke: var(--ink); }
+:root[data-theme="dark"] .ad-node--closed .ad-label, :root[data-theme="dark"] .ad-node--closed .ad-sub { fill: var(--ink); }
+.ad-bins-track { fill: color-mix(in srgb, var(--mod-act) 12%, var(--surface)); stroke: var(--mod-act); stroke-width: 1; }
+.ad-bins-tick { fill: none; stroke: var(--mod-act); stroke-width: .6; stroke-opacity: .75; }
+.ad-bins-on { fill: var(--mod-act); stroke: var(--ink); stroke-width: 1; }
+.ad-bins-val { fill: var(--ink); }
+.ad-bins-n { font: 500 9.5px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.ad-bins-lab { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+.ad-mask-on { stroke: var(--surface); stroke-width: 1; }
+.ad-mask-on.ad-mod--img { fill: var(--mod-img); }
+.ad-mask-on.ad-mod--txt { fill: var(--mod-txt); }
+.ad-mask-on.ad-mod--act { fill: var(--mod-act); }
+.ad-mask-on.ad-mod--lat { fill: var(--muted); }
+.ad-mask-off { fill: var(--surface-2); stroke: var(--rule); stroke-width: .8; }
+.ad-mask-x { fill: none; stroke: var(--muted); stroke-width: .8; }
+.ad-mask-sep { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 3 2; }
+.ad-mask-brace { fill: none; stroke: var(--muted); stroke-width: 1; }
+.ad-mask-lab { font: 500 10.5px var(--font-mono); fill: var(--ink); }
+/* ---- fase 9 (VLA): visualizaciones action-tokenizer, action-chunking, vla-latency, pi0-mask ---- */
+.viz-at-stage:focus-visible, .viz-ac-stage:focus-visible, .viz-vl-stage:focus-visible, .viz-pm-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-at-clip { fill: color-mix(in srgb, var(--bad) 9%, var(--surface)); }
+.viz-at-lim { fill: none; stroke: var(--bad); stroke-width: 1; stroke-dasharray: 4 3; }
+.viz-at-cont { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linejoin: round; }
+.viz-at-stair { fill: none; stroke: var(--mod-act); stroke-width: 2.2; stroke-linejoin: miter; }
+.viz-at-cur { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-at-pt { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.viz-at-qpt { fill: var(--mod-act); stroke: var(--surface); stroke-width: 1.5; }
+.viz-at-hit { fill: transparent; cursor: pointer; }
+.viz-at-rowbg { fill: transparent; }
+.viz-at-rowbg.is-on { fill: color-mix(in srgb, var(--mod-act) 14%, var(--surface)); stroke: var(--mod-act); stroke-width: 1; }
+.viz-at-bad { font: 600 11px var(--font-mono); fill: var(--bad); }
+.viz-at-tok { fill: color-mix(in srgb, var(--mod-act) 10%, var(--surface)); stroke: var(--mod-act); stroke-width: 1.2; }
+.viz-at-tok.is-term { fill: var(--surface-2); stroke: var(--muted); }
+.viz-at-tok.is-on { stroke-width: 2.6; fill: color-mix(in srgb, var(--mod-act) 22%, var(--surface)); }
+.viz-at-tokv { font: 700 13px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-at-limt { font: 500 10.5px var(--font-mono); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-pm-brace, .viz-pm-sep { fill: none; stroke: var(--muted); stroke-width: 1; }
+.viz-pm-sep { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 3 2; pointer-events: none; }
+.viz-pm-blk.is-b0 { fill: var(--mod-img); }
+.viz-pm-blk.is-b1 { fill: var(--muted); }
+.viz-pm-blk.is-b2 { fill: var(--mod-act); }
+.viz-pm-cell { stroke: var(--surface); stroke-width: 1; }
+.viz-pm-cell.is-no { fill: var(--surface-2); stroke: var(--rule); }
+.viz-pm-cell.is-ok.is-img { fill: color-mix(in srgb, var(--mod-img) 45%, var(--surface)); }
+.viz-pm-cell.is-ok.is-txt { fill: color-mix(in srgb, var(--mod-txt) 45%, var(--surface)); }
+.viz-pm-cell.is-ok.is-state { fill: color-mix(in srgb, var(--muted) 55%, var(--surface)); }
+.viz-pm-cell.is-ok.is-act { fill: color-mix(in srgb, var(--mod-act) 50%, var(--surface)); }
+.viz-pm-cell.is-ok.is-lit.is-img { fill: var(--mod-img); }
+.viz-pm-cell.is-ok.is-lit.is-txt { fill: var(--mod-txt); }
+.viz-pm-cell.is-ok.is-lit.is-state { fill: var(--muted); }
+.viz-pm-cell.is-ok.is-lit.is-act { fill: var(--mod-act); }
+.viz-pm-cell.is-no.is-lit { stroke: var(--bad); }
+.viz-pm-cell.is-frozen { fill-opacity: .28; }
+.viz-pm-cell.is-cached { stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 2 1.5; }
+.viz-pm-cell.is-hit { stroke: var(--focus); stroke-width: 2.4; stroke-dasharray: none; }
+.viz-pm-lab { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-pm-lab.is-on { stroke: var(--ink); stroke-width: 1.8; }
+.viz-pm-lab.is-img { fill: color-mix(in srgb, var(--mod-img) 10%, var(--surface)); }
+.viz-pm-lab.is-txt { fill: color-mix(in srgb, var(--mod-txt) 10%, var(--surface)); }
+.viz-pm-lab.is-act { fill: color-mix(in srgb, var(--mod-act) 12%, var(--surface)); }
+.viz-pm-rowlab:focus-visible .viz-pm-lab { stroke: var(--focus); stroke-width: 2.5; }
+.viz-pm-no { font: 400 11px var(--font-mono); fill: var(--bad); }
+.viz-ac-goal { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.viz-ac-exec { fill: none; stroke: var(--mod-act); stroke-width: 2.4; stroke-linejoin: round; }
+.viz-ac-plan { fill: none; stroke: var(--muted); stroke-width: 1; stroke-opacity: .7; }
+.viz-ac-q { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+.viz-ac-qband { fill: color-mix(in srgb, var(--accent) 35%, var(--surface)); }
+.viz-ac-dist { fill: none; stroke: var(--bad); stroke-width: 1.3; stroke-dasharray: 4 3; }
+.viz-ac-delay { fill: none; stroke: var(--bad); stroke-width: 3; stroke-linecap: round; }
+.viz-ac-distt { font: 600 11px var(--font-mono); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-vl-seg { stroke: var(--surface); stroke-width: 1; }
+.viz-vl-seg.is-vis, .viz-vl-paper.is-vis { fill: var(--op-attn); }
+.viz-vl-seg.is-pre, .viz-vl-paper.is-pre { fill: var(--muted); }
+.viz-vl-seg.is-loop, .viz-vl-paper.is-loop { fill: var(--accent); }
+.viz-vl-paper { fill-opacity: .45; stroke: none; }
+.viz-vl-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-vl-ptxt { font: 600 11px var(--font-mono); fill: var(--ink); }
+.viz-vl-ok { font: 600 11px var(--font-mono); fill: var(--ok); }
+.viz-vl-no { font: 600 11px var(--font-mono); fill: var(--bad); }
