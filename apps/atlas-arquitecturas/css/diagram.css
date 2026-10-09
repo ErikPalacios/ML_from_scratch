@@ -922,3 +922,97 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-vl-ptxt { font: 600 11px var(--font-mono); fill: var(--ink); }
 .viz-vl-ok { font: 600 11px var(--font-mono); fill: var(--ok); }
 .viz-vl-no { font: 600 11px var(--font-mono); fill: var(--bad); }
+/* ---- fase 10 (LoRA / RLHF / DPO): visualizaciones lora-rank, train-memory, bradley-terry, dpo-vs-ppo ---- */
+.viz-lr-stage:focus-visible, .viz-tm-stage:focus-visible, .viz-bt-stage:focus-visible, .viz-dp-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-lr-sl, .viz-bt-sl, .viz-dp-sl, .viz-tm-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-lr-sl input[type="range"], .viz-bt-sl input[type="range"], .viz-dp-sl input[type="range"], .viz-tm-sl input[type="range"] { width: 130px; accent-color: var(--accent); }
+.viz-lr-out, .viz-bt-out, .viz-dp-out, .viz-tm-out { min-width: 3.6em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+/* lora-rank: mapas de ΔW (signo por color, |valor| por opacidad), factores B y A a escala, espectro y energía */
+.viz-lr-bg { fill: var(--surface-2); }
+.viz-lr-c { stroke: none; }
+.viz-lr-c.is-pos { fill: var(--op-attn); }
+.viz-lr-c.is-neg { fill: var(--op-embed); }
+.viz-lr-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-lr-fac { fill: color-mix(in srgb, var(--op-mlp) 22%, var(--surface)); stroke: var(--op-mlp); stroke-width: 1.4; }
+.viz-lr-axis { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-lr-sv { fill: var(--surface-2); stroke: var(--muted); stroke-width: .8; }
+.viz-lr-sv.is-kept { fill: var(--op-mlp); stroke: var(--op-mlp); }
+.viz-lr-ref { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.viz-lr-curve { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.viz-lr-cur { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-lr-pt { fill: var(--op-mlp); stroke: var(--surface); stroke-width: 2; }
+/* bradley-terry: recta de recompensas (elegida / rechazada), σ(Δ − m), pérdida y gradiente */
+.viz-bt-axis { fill: none; stroke: var(--rule-strong); stroke-width: 1.2; }
+.viz-bt-grid { fill: none; stroke: var(--rule); stroke-width: 1; }
+.viz-bt-zero { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.viz-bt-margin { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.viz-bt-brace { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+.viz-bt-brace.is-neg { stroke: var(--bad); }
+.viz-bt-dot { stroke: var(--surface); stroke-width: 2; }
+.viz-bt-dot.is-w, .viz-bt-pt.is-p { fill: var(--ok); }
+.viz-bt-dot.is-l { fill: var(--bad); }
+.viz-bt-lab { font: 700 12px var(--font-mono); }
+.viz-bt-lab.is-w { fill: var(--ok); }
+.viz-bt-lab.is-l { fill: var(--bad); }
+.viz-bt-curve { fill: none; stroke-width: 2.2; stroke-linejoin: round; }
+.viz-bt-curve.is-p { stroke: var(--ok); }
+.viz-bt-curve.is-loss { stroke: var(--bad); }
+.viz-bt-curve.is-grad { stroke: var(--accent); stroke-dasharray: 5 3; stroke-width: 1.8; }
+.viz-bt-pt { stroke: var(--surface); stroke-width: 2; }
+.viz-bt-pt.is-loss { fill: var(--bad); }
+.viz-bt-pt.is-grad { fill: var(--accent); }
+/* dpo-vs-ppo: π_ref (contorno) y π_θ (relleno) por respuesta; log-ratios y KL en el tiempo */
+.viz-dp-grid { fill: none; stroke: var(--rule); stroke-width: 1; }
+.viz-dp-ref { fill: var(--surface); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.viz-dp-pol { stroke: none; }
+.viz-dp-ref.is-w { stroke: var(--ok); } .viz-dp-pol.is-w { fill: var(--ok); }
+.viz-dp-ref.is-l { stroke: var(--bad); } .viz-dp-pol.is-l { fill: var(--bad); }
+.viz-dp-ref.is-o { stroke: var(--muted); } .viz-dp-pol.is-o { fill: var(--muted); }
+.viz-dp-name { font: 700 11px var(--font-mono); fill: var(--ink); }
+.viz-dp-name.is-w { fill: var(--ok); }
+.viz-dp-name.is-l { fill: var(--bad); }
+.viz-dp-zero { fill: none; stroke: var(--muted); stroke-width: 1; }
+.viz-dp-budget { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.viz-dp-line { fill: none; stroke-width: 2.2; stroke-linejoin: round; }
+.viz-dp-line.is-w { stroke: var(--ok); }
+.viz-dp-line.is-l { stroke: var(--bad); }
+.viz-dp-line.is-kl { stroke: var(--accent); stroke-dasharray: 6 3; }
+.viz-dp-cur { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; }
+.viz-dp-pt { stroke: var(--surface); stroke-width: 2; }
+.viz-dp-pt.is-w { fill: var(--ok); } .viz-dp-pt.is-l { fill: var(--bad); } .viz-dp-pt.is-kl { fill: var(--accent); }
+/* ---- fase 10 (LoRA / RLHF): motor — barras por fila, matriz a escala, adaptador LoRA ---- */
+.ad-bar-seg { fill: var(--oc); stroke: var(--surface); stroke-width: .8; }
+.ad-bar-seg.ad-bar--mod { fill: var(--mc); }
+.ad-bar-seg.ad-cs--loop { fill: var(--accent); }
+.ad-bar-seg.ad-cs--once { fill: var(--muted); }
+.ad-frozen-ln2 { stroke: var(--surface); stroke-opacity: .6; stroke-width: 1.6; }
+.ad-bars-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.ad-bars-frame.is-cur { stroke: var(--ink); stroke-width: 1.6; }
+.ad-bars-lab { font: 500 11px var(--font-body); fill: var(--ink); }
+.ad-bars-lab.is-cur { font-weight: 700; }
+.ad-bars-val { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-bars-line { fill: none; stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.ad-bars-ltxt { font: 600 10px var(--font-mono); fill: var(--bad); }
+.ad-mat-box { fill: var(--ocs); stroke: var(--oc); stroke-width: 1.4; }
+.ad-mat-txt { font: 500 10px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.ad-adapter-bg { stroke-width: 1.2; }
+.ad-adapter.is-on .ad-adapter-bg { fill: var(--accent-soft); stroke: var(--accent); }
+.ad-adapter.is-off .ad-adapter-bg { fill: var(--surface); stroke: var(--rule-strong); stroke-dasharray: 3 2; }
+.ad-adapter-txt { font: 600 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-adapter.is-off .ad-adapter-txt { fill: var(--muted); font-weight: 500; }
+.ad-adapter .ad-train-ico { stroke: var(--ink); }
+/* train-memory: tramos de memoria (mismos colores que las barras de los diagramas), rayado de la base congelada, GPU */
+.viz-tm-seg { stroke: var(--surface); stroke-width: .8; }
+.viz-tm-seg.is-base { fill: var(--op-norm); }
+.viz-tm-seg.is-adapt { fill: var(--op-mlp); }
+.viz-tm-seg.is-grad { fill: var(--op-attn); }
+.viz-tm-seg.is-opt { fill: var(--op-conv); }
+.viz-tm-seg.is-act { fill: var(--mod-img); }
+.viz-tm-frozen { stroke: none; pointer-events: none; }
+.viz-tm-hatch { stroke: var(--surface); stroke-opacity: .6; stroke-width: 1.6; }
+.viz-tm-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-tm-frame.is-cur { stroke: var(--ink); stroke-width: 2; }
+.viz-tm-cur { font-weight: 700; text-decoration: underline; }
+.viz-tm-gpu { fill: none; stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.viz-tm-gput { font: 600 10.5px var(--font-mono); fill: var(--bad); }
+.viz-lr-c { shape-rendering: crispEdges; }

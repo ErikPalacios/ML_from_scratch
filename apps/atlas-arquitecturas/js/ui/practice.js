@@ -223,6 +223,26 @@
       da: { label: 'Dimensiones de la acción d_a', sym: 'd_a', show: (v) => 'd_a = ' + v, phrase: (v) => 'acciones de ' + v + ' dimensiones (d_a = ' + v + ': ' + v + ' tokens por paso)' },
     },
     sam: { P: { label: 'Clics P', show: (v) => 'P = ' + v, phrase: (v) => 'P = ' + v + (v === 1 ? ' clic' : ' clics') } },
+    // Fase 10 (fine-tuning): targets = cuántas matrices por bloque llevan adapter; optimizer = bytes de estado por parámetro.
+    lora: {
+      r: { label: 'Rango r', show: (v) => 'r = ' + v, phrase: (v) => 'rango r = ' + v },
+      targets: { label: 'Matrices adaptadas', show: (v) => (v === 2 ? 'W_Q y W_V' : v === 4 ? 'la atención (Q, K, V, O)' : v === 7 ? 'las 7 lineales' : v + ' matrices'), phrase: (v) => 'adapters en ' + (v === 2 ? 'W_Q y W_V' : v === 4 ? 'Q, K, V y O' : v === 7 ? 'las 7 lineales del bloque' : v + ' matrices') },
+      bits: { label: 'Bits de la base congelada', show: (v) => v + ' bits', phrase: (v) => 'base congelada a ' + v + ' bits' + (v === 4 ? ' (NF4)' : '') },
+      gradCkpt: { label: 'Gradient checkpointing', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' gradient checkpointing' },
+      optimizer: { label: 'Optimizador', show: (v) => ({ 8: 'AdamW', 2: 'AdamW 8-bit', 4: 'SGD + momentum', 0: 'SGD' })[v] || v + ' B/param', phrase: (v) => 'con ' + (({ 8: 'AdamW (fp32)', 2: 'AdamW 8-bit', 4: 'SGD con momentum', 0: 'SGD sin momentum' })[v] || v + ' bytes de estado por parámetro') },
+      T: { label: 'Tokens por secuencia T', show: (v) => 'T = ' + fInt(v), phrase: (v) => 'secuencias de ' + fInt(v) + ' tokens' },
+      B: { label: 'Secuencias por paso B', show: (v) => 'B = ' + v, phrase: (v) => 'B = ' + v + ' secuencias por paso' },
+    },
+    'rlhf-dpo': {
+      T: { label: 'Largo de secuencia T (prompt + respuesta)', show: (v) => 'T = ' + fInt(v), phrase: (v) => 'secuencias de ' + fInt(v) + ' tokens (prompt + respuesta)' },
+      G: { label: 'Respuestas por prompt G', show: (v) => 'G = ' + v, phrase: (v) => 'G = ' + v + ' respuestas por prompt' },
+      Gs: { label: 'Respuestas por prompt G', show: (v) => 'G = ' + v, phrase: (v) => 'G = ' + v + ' respuestas por prompt' },
+      groupSize: { label: 'Respuestas por prompt G', show: (v) => 'G = ' + v, phrase: (v) => 'G = ' + v + ' respuestas por prompt' },
+      B: { label: 'Prompts (o pares) por paso B', show: (v) => 'B = ' + v, phrase: (v) => 'B = ' + v + ' prompts (o pares) por paso' },
+      lora: { label: 'LoRA', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con LoRA (la referencia = la base)' : 'sin LoRA') },
+      refOffload: { label: 'Log-probs de la referencia precalculados', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' log-probs de la referencia precalculados' },
+      gradCkpt: { label: 'Gradient checkpointing', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' gradient checkpointing' },
+    },
     llava: { images: { label: 'Imágenes en el prompt', show: (v) => v + (v === 1 ? ' imagen' : ' imágenes'), phrase: (v) => v + (v === 1 ? ' imagen' : ' imágenes') + ' en el prompt' } },
     // Qwen2-VL: frames = 1 es una imagen (se duplica a 2 frames); un video de F frames da F/2 parches temporales.
     'qwen2-vl': { frames: { label: 'Frames del video F', sym: 'F', show: (v) => (v === 1 ? '1 (imagen)' : v + ' frames'), phrase: (v) => (v === 1 ? 'una imagen' : 'un video de ' + v + ' frames') } },
@@ -485,6 +505,45 @@
     prefixMacs: { label: 'MACs del prefijo', kind: 'ops', note: 'SigLIP + Gemma sobre imágenes y lenguaje, una vez por chunk' },
     flowStepMacs: { label: 'MACs por paso de flow', kind: 'ops', note: 'action expert sobre el sufijo, leyendo la KV del prefijo' },
     actionTokensPerStep: { label: 'Tokens de acción por paso', kind: 'count', note: '7 dimensiones × 1 token' },
+    // Fase 10 (fine-tuning y alineación): memoria de entrenamiento y cómputo por paso.
+    trainableParams: { label: 'Parámetros entrenables', kind: 'count', note: 'Σ r·(d_in + d_out) por matriz adaptada (LoRA); todos (full FT)' },
+    trainableShare: { label: 'Entrenables / totales', kind: 'pct', note: '' },
+    adapterParamsPerLayer: { label: 'Parámetros del adapter por capa', kind: 'count', note: '' },
+    mergedParams: { label: 'Parámetros tras el merge', kind: 'count', note: 'W₀ + (α/r)·BA: igual que la base' },
+    baseParams: { label: 'Parámetros de la base', kind: 'count', note: 'congelados' },
+    adapterBytes: { label: 'Bytes del adapter', kind: 'bytes', note: 'lo que guardas y distribuyes' },
+    baseWeightBytes: { label: 'Pesos de la base', kind: 'bytes', note: 'a los bits elegidos (NF4 con sus constantes)' },
+    gradBytes: { label: 'Gradientes', kind: 'bytes', note: 'solo de lo entrenable' },
+    masterBytes: { label: 'Copia maestra fp32', kind: 'bytes', note: 'full FT en precisión mixta' },
+    optimizerStateBytes: { label: 'Estados del optimizador', kind: 'bytes', note: 'm y v de AdamW, etc.' },
+    optimizerBytes: { label: 'Optimizador (estados + maestra)', kind: 'bytes', note: '' },
+    activationBytes: { label: 'Activaciones (≈)', kind: 'bytes', note: 'estimado por token y capa; depende de gradient checkpointing' },
+    activationBytesNoCkpt: { label: 'Activaciones sin checkpointing (≈)', kind: 'bytes', note: '' },
+    activationBytesCkpt: { label: 'Activaciones con checkpointing (≈)', kind: 'bytes', note: '' },
+    logitsBytes: { label: 'Logits', kind: 'bytes', note: 'T × V en fp32' },
+    totalTrainMemory: { label: 'Memoria total de entrenamiento (≈)', kind: 'bytes', note: 'pesos + gradientes + optimizador + activaciones' },
+    quantConstBytes: { label: 'Constantes de cuantización', kind: 'bytes', note: 'absmax por bloque (con doble cuantización)' },
+    bytesPerTrainableParam: { label: 'Bytes por parámetro entrenable', kind: 'ratio', note: 'peso + gradiente + optimizador' },
+    quantBitsPerParam: { label: 'Bits por parámetro de la base', kind: 'ratio', note: 'NF4: 4 + constantes' },
+    memoryVsFullFt: { label: 'Memoria / la de full FT', kind: 'ratio', note: '' },
+    backwardToForward: { label: 'Backward / forward (MACs)', kind: 'ratio', note: 'full FT ≈ 2; LoRA ≈ 1 (solo gradientes de entrada en W₀)' },
+    forwardMacs: { label: 'MACs del forward', kind: 'ops', note: '' },
+    backwardMacs: { label: 'MACs del backward', kind: 'ops', note: '' },
+    recomputeMacs: { label: 'MACs recomputados (checkpointing)', kind: 'ops', note: '' },
+    trainStepMacs: { label: 'MACs por paso de entrenamiento', kind: 'ops', note: 'forward + backward (+ recómputo)' },
+    modelsInMemory: { label: 'Modelos en memoria', kind: 'count', note: 'política, referencia, reward, crítico' },
+    policyParams: { label: 'Parámetros de la política', kind: 'count', note: '' },
+    referenceParams: { label: 'Parámetros de la referencia', kind: 'count', note: '' },
+    rewardParams: { label: 'Parámetros del reward model', kind: 'count', note: '' },
+    criticParams: { label: 'Parámetros del crítico', kind: 'count', note: '' },
+    generationTokensPerStep: { label: 'Tokens generados por paso', kind: 'count', note: 'rollouts (0 en DPO)' },
+    rolloutShare: { label: 'Rollouts (generación)', kind: 'pct', note: '% de los MACs del paso (en tiempo pesa mucho más: decode)' },
+    scoringShare: { label: 'Puntuar (referencia + reward)', kind: 'pct', note: '% de los MACs del paso' },
+    updateShare: { label: 'Actualización (forward + backward)', kind: 'pct', note: '% de los MACs del paso' },
+    gpus80Needed: { label: 'GPUs de 80 GB necesarias (≈)', kind: 'count', note: 'memoria total / 80 GB, sin paralelismo fino' },
+    fitsOn24: { label: 'Cabe en 24 GB', kind: 'count', note: '' },
+    fitsOn48: { label: 'Cabe en 48 GB', kind: 'count', note: '' },
+    fitsOn80: { label: 'Cabe en 80 GB', kind: 'count', note: '' },
     actionBins: { label: 'Bins por dimensión', kind: 'count', note: 'discretización uniforme entre q01 y q99' },
     decodeSteps: { label: 'Pasos de decode por acción', kind: 'count', note: 'el primer token sale del prefill' },
     actionTokenFirst: { label: 'Primer id de token de acción', kind: 'count', note: 'los 256 ids menos usados de Llama' },
@@ -1637,6 +1696,11 @@
       if (typeof c.classes === 'number') out.push(['K_cls', c.classes]);
     } else if (typeof c.classes === 'number' && !has('K')) out.push(['K', c.classes]);
     if (typeof c.D === 'number' && Array.isArray(c.widths) && c.widths.length && typeof c.expansion === 'number') out.push(['C_5', c.widths[c.widths.length - 1] * c.expansion]);
+    // Fase 10 (fine-tuning): rango y escala del adapter, ancho de K/V; en RLHF G son las cabezas KV (no el grupo de GRPO).
+    if (c.r != null && c.alpha != null && !has('r')) out.push(['r', c.r, 'rango del adapter'], ['α', c.alpha, 'escala α/r = ' + (c.alpha / c.r)]);
+    if (c.Dkv != null && !has('D_kv')) out.push(['D_kv', c.Dkv, 'n_KV·d_h: salida de W_K y W_V']);
+    if (c.Tp != null && !has('T_p')) out.push(['T_p', c.Tp, 'tokens del prompt'], ['T_r', c.Tr, 'tokens de la respuesta']);
+    if (c.method && c.G != null) { const i = out.findIndex(([x]) => x === 'G'); if (i >= 0) out[i] = ['G', c.G, 'cabezas KV del decoder']; }
     // Fase 8 (difusión): canales del VAE / texto (SD), torres de texto (SDXL), tamaño de entrada I (DiT).
     // T y K con nota: en estas páginas T = 1,000 son también los pasos de ruido y K = 1,000 se confunde con ellos.
     const noteOf = (sym, note) => { const i = out.findIndex(([x]) => x === sym); if (i >= 0 && out[i].length < 3) out[i] = [out[i][0], out[i][1], note]; };

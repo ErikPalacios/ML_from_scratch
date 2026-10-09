@@ -304,3 +304,58 @@ test('VLA: OpenVLA = el checkpoint (7,541,237,184) con timm + HF Llama en meta; 
   assert.ok(p.exp.notes.some((n) => /215abfb/.test(n)));
 });
 // ================================================================ fin del bloque de la fase 9
+
+// ================================================================ FASE 10 (LoRA / QLoRA, RLHF / DPO / GRPO) — bloque del agente arch
+test('LoRA / QLoRA / full FT: PEFT en meta (print_trainable_parameters exacto), forward + backward con FlopCounterMode, NF4 + DQ, activaciones medidas', async () => {
+  for (const id of ['lora-llama3-8b-r16', 'lora-llama3-8b-r16-qv', 'lora-llama3-8b-r64', 'qlora-llama3-8b-r16', 'full-ft-llama3-8b']) {
+    const r = await find(id);
+    assert.ok(r, id + ' sin JSON');
+    assert.ok(r.checks.every((c) => c.ok), id + ': ' + r.checks.filter((c) => !c.ok).map((c) => c.what).join(', '));
+    assert.match(r.exp.source.ctor, /torch\.device\('meta'\)/, id);
+    for (const k of ['metrics[forwardMacsPerSeq]', 'metrics[trainStepMacsPerSeq]', 'metrics[trainableParams]', '[gradCkpt=1] metrics[trainStepMacsPerSeq]', '[T=512] metrics[trainStepMacsPerSeq]']) {
+      assert.ok(r.checks.some((c) => c.what === k && c.ok), id + ' ' + k);
+    }
+    const st = r.exp.flops_train_step;
+    assert.ok(st.backward_ckpt_nonreentrant_hf_default <= st.backward_ckpt_reentrant, id);
+  }
+  const c = await find('lora-llama3-8b-r16');
+  assert.strictEqual(c.exp.print_trainable_parameters, 'trainable params: 41,943,040 || all params: 8,072,204,288 || trainable%: 0.5196');
+  assert.strictEqual((await find('lora-llama3-8b-r16-qv')).exp.print_trainable_parameters, 'trainable params: 6,815,744 || all params: 8,037,076,992 || trainable%: 0.0848');
+  assert.strictEqual((await find('lora-llama3-8b-r64')).exp.metrics_checks.trainableParams, 167772160);
+  for (const tag of ['[r=8] params_total', '[r=8] flops_total', '[targets=4] params_total', '[targets=2] flops_total']) assert.ok(c.checks.some((x) => x.what === tag && x.ok), tag);
+  assert.strictEqual(c.exp.activation_checks.length, 4);
+  assert.ok(c.checks.filter((x) => x.what.startsWith('activaciones[') && x.ok).length === 4);
+  // full FT: backward = 2 × forward exacto
+  const f = await find('full-ft-llama3-8b');
+  assert.strictEqual(f.exp.flops_train_step.backward, 2 * f.exp.flops_train_step.forward);
+  // QLoRA: la cuenta NF4 (bitsandbytes) en las nn.Linear reales: 0.5 → 0.127 bits por parámetro de constantes
+  const q = await find('qlora-llama3-8b-r16');
+  assert.ok(Math.abs(q.exp.nf4_accounting.const_bits_per_param_no_dq - 0.5) < 1e-12);
+  assert.ok(Math.abs(q.exp.nf4_accounting.const_bits_per_param_dq - 0.127) < 1e-3);
+  for (const k of ['metrics[baseWeightBytes]', 'metrics[baseWeightBytes4NoDQ]', 'metrics[quantConstBytes]']) assert.ok(q.checks.some((x) => x.what === k && x.ok), k);
+  assert.ok(q.exp.notes.some((n) => /bitsandbytes no corre/.test(n)));
+});
+
+test('RLHF (PPO), DPO, GRPO y DPO + LoRA: un modelo HF por rol en meta (reward / crítico = SeqCls num_labels 1), costo del update medido, pérdidas en float64', async () => {
+  for (const id of ['rlhf-llama3-8b', 'dpo-llama3-8b', 'grpo-llama3-8b', 'ppo-llama3-8b-lora', 'dpo-llama3-8b-lora']) {
+    const r = await find(id);
+    assert.ok(r, id + ' sin JSON');
+    assert.ok(r.checks.every((c) => c.ok), id + ': ' + r.checks.filter((c) => !c.ok).map((c) => c.what).join(', '));
+    assert.ok(r.checks.some((c) => c.what === 'metrics[policyTrainStepMacsPerSeq]' && c.ok), id);
+    assert.ok(r.checks.filter((c) => c.what.startsWith('flops[') && c.ok).length >= 2, id + ' flops por rol');
+  }
+  const p = await find('rlhf-llama3-8b');
+  assert.deepStrictEqual([p.exp.params_total, p.exp.params_by_node.reward, p.exp.params_by_node.critic], [31070380032, 7504928768, 7504928768]);
+  assert.ok(p.checks.some((c) => c.what === 'metrics[criticTrainStepMacsPerSeq]' && c.ok));
+  assert.deepStrictEqual([p.exp.shapes['reward-scores'], p.exp.shapes.reward, p.exp.shapes['critic-values']], [[1024, 1], [1], [1024, 1]]);
+  const lc = p.checks.filter((c) => c.what.startsWith('loss['));
+  assert.ok(lc.length >= 20 && lc.every((c) => c.ok), 'loss_checks');
+  assert.deepStrictEqual([(await find('dpo-llama3-8b')).exp.sequences, (await find('grpo-llama3-8b')).exp.sequences], [2, 8]);
+  const l = await find('dpo-llama3-8b-lora');
+  assert.deepStrictEqual([l.exp.params_total, l.exp.params_by_node.reference], [8072204288, 0]);
+  assert.ok(l.exp.notes.some((n) => /disable_adapter/.test(n)));
+  const pl = await find('ppo-llama3-8b-lora');
+  assert.strictEqual(pl.exp.params_by_node.reference, 0);
+  for (const k of ['metrics[criticTrainStepMacsPerSeq]', 'metrics[trainableParams]']) assert.ok(pl.checks.some((c) => c.what === k && c.ok), k);
+});
+// ================================================================ fin del bloque de la fase 10

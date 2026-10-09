@@ -117,7 +117,21 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   sufijo (1 + 50 tokens) por el experto leyendo esa caché (recortada tras cada paso). `override_checks` (pi0) con 5 pasos, H = 25,
   T = 16 y 2 cámaras. `metrics_checks`: parámetros por parte, KV por token (18,432 B: MQA con d_h 256), MACs de prefijo / paso / chunk.
   Parámetros y FLOPs exactos (diferencia 0) en las 3 configs.
-- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`, `OVLA`, `PI0`) deben coincidir con las de `js/arch/<modelo>.js`.
+- `finetune.py` (fase 10): HF `LlamaForCausalLM` / `LlamaForSequenceClassification(num_labels=1)` (Llama 3 8B) **en el dispositivo meta**
+  + peft 0.21.2 `get_peft_model(LoraConfig(r, lora_alpha, lora_dropout, target_modules))` para `lora-llama3-8b-r16`, `-r16-qv`, `-r64`,
+  `qlora-llama3-8b-r16` y `full-ft-llama3-8b`: parámetros exactos (= `print_trainable_parameters`, guardado en el JSON), FLOPs del forward
+  y del **paso de entrenamiento** (forward en modo train + `loss.backward()` bajo `FlopCounterMode`: dX y dW que autograd calcula de
+  verdad), con gradient checkpointing reentrante (`metrics_override_checks`; el default de HF 5, no reentrante, queda registrado) y con
+  T = 512; `override_checks` con r = 8 y targets 4 / 2. **QLoRA**: bitsandbytes no corre en macOS (sin CUDA): los bytes NF4 + doble
+  cuantización se cuentan sobre las `nn.Linear` reales de los bloques con las reglas de `quantize_4bit` (`nf4_accounting`: 0.5 → 0.127
+  bits por parámetro de constantes, QLoRA §3). `activation_checks`: bytes que guarda el backward por token y capa, **medidos** con
+  `torch.autograd.graph.saved_tensors_hooks` en un Llama diminuto real (CPU, bf16, sdpa) = `ATLAS.Arch.finetune.activationPerTokenLayer`.
+  RLHF: `rlhf-llama3-8b` (PPO: política + referencia + reward model + crítico), `dpo-llama3-8b` (batch 2: elegida + rechazada),
+  `grpo-llama3-8b` (batch G = 8), `ppo-llama3-8b-lora` y `dpo-llama3-8b-lora` (la referencia = el mismo `PeftModel` en
+  `disable_adapter()`): un modelo HF por rol, FLOPs del forward por rol y costo de un update de la política (y del crítico) por
+  secuencia medido con `loss.backward()`. `loss_checks`: Bradley-Terry, DPO (forma "sigmoid" de TRL), PPO-clip, KL k1 / k3, ventaja de
+  GRPO y GAE en torch float64 ↔ `ATLAS.Arch.finetune` (tolerancia 1e-9). Todo exacto (diferencia 0).
+- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`, `OVLA`, `PI0`, `LORA`, `RL`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que
   torch no trae para `_scaled_dot_product_flash_attention_for_cpu`).

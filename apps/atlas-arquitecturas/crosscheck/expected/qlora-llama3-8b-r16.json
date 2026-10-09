@@ -1,0 +1,291 @@
+{
+  "config_id": "qlora-llama3-8b-r16",
+  "model": "lora",
+  "T": 2048,
+  "params_total": 8072204288,
+  "params_by_node": {
+    "lora-a": 19922944,
+    "lora-b": 22020096,
+    "w-frozen": 6979321856,
+    "q-proj": 541065216,
+    "k-proj": 136839168,
+    "v-proj": 136839168,
+    "o-proj": 541065216,
+    "gate-proj": 1888485376,
+    "up-proj": 1888485376,
+    "down-proj": 1888485376,
+    "embed": 525336576,
+    "lm-head": 525336576,
+    "attn": 1355808768,
+    "ffn": 5665456128
+  },
+  "shapes": {
+    "x0": [
+      2048,
+      4096
+    ],
+    "h-norm1": [
+      2048,
+      4096
+    ],
+    "q-base": [
+      2048,
+      4096
+    ],
+    "q-drop": [
+      2048,
+      4096
+    ],
+    "q-lora-a": [
+      2048,
+      16
+    ],
+    "q-lora-b": [
+      2048,
+      4096
+    ],
+    "q": [
+      2048,
+      4096
+    ],
+    "k-base": [
+      2048,
+      1024
+    ],
+    "k-drop": [
+      2048,
+      4096
+    ],
+    "k-lora-a": [
+      2048,
+      16
+    ],
+    "k-lora-b": [
+      2048,
+      1024
+    ],
+    "k": [
+      2048,
+      1024
+    ],
+    "v-base": [
+      2048,
+      1024
+    ],
+    "v-drop": [
+      2048,
+      4096
+    ],
+    "v-lora-a": [
+      2048,
+      16
+    ],
+    "v-lora-b": [
+      2048,
+      1024
+    ],
+    "v": [
+      2048,
+      1024
+    ],
+    "z": [
+      2048,
+      4096
+    ],
+    "o-base": [
+      2048,
+      4096
+    ],
+    "o-drop": [
+      2048,
+      4096
+    ],
+    "o-lora-a": [
+      2048,
+      16
+    ],
+    "o-lora-b": [
+      2048,
+      4096
+    ],
+    "o": [
+      2048,
+      4096
+    ],
+    "r1": [
+      2048,
+      4096
+    ],
+    "h-norm2": [
+      2048,
+      4096
+    ],
+    "gate-base": [
+      2048,
+      14336
+    ],
+    "gate-drop": [
+      2048,
+      4096
+    ],
+    "gate-lora-a": [
+      2048,
+      16
+    ],
+    "gate-lora-b": [
+      2048,
+      14336
+    ],
+    "gate": [
+      2048,
+      14336
+    ],
+    "up-base": [
+      2048,
+      14336
+    ],
+    "up-drop": [
+      2048,
+      4096
+    ],
+    "up-lora-a": [
+      2048,
+      16
+    ],
+    "up-lora-b": [
+      2048,
+      14336
+    ],
+    "up": [
+      2048,
+      14336
+    ],
+    "prod": [
+      2048,
+      14336
+    ],
+    "down-base": [
+      2048,
+      4096
+    ],
+    "down-drop": [
+      2048,
+      14336
+    ],
+    "down-lora-a": [
+      2048,
+      16
+    ],
+    "down-lora-b": [
+      2048,
+      4096
+    ],
+    "f": [
+      2048,
+      4096
+    ],
+    "x-out": [
+      2048,
+      4096
+    ],
+    "x-norm": [
+      2048,
+      4096
+    ],
+    "logits": [
+      2048,
+      128256
+    ],
+    "ids": [
+      2048
+    ]
+  },
+  "flops_total": 33109902884864,
+  "flops_by_node": {
+    "attn": 7752415969280,
+    "ffn": 23205708300288,
+    "lm-head": 2151778615296,
+    "lora-a": 81604378624,
+    "lora-b": 90194313216,
+    "w-frozen": 28587302322176
+  },
+  "flops_by_op_torch": {
+    "aten.bmm": 2199023255552,
+    "aten.mm": 30910879629312
+  },
+  "flops_train_step": {
+    "forward": 33109902884864,
+    "backward": 35376840310784,
+    "backward_ckpt_reentrant": 66438849101824,
+    "backward_ckpt_nonreentrant_hf_default": 66430259167232
+  },
+  "metrics_checks": {
+    "forwardMacsPerSeq": 16554951442432,
+    "trainStepMacsPerSeq": 34243371597824,
+    "trainableParams": 41943040,
+    "allParams": 8072204288,
+    "baseWeightBytes": 5702296448,
+    "baseWeightBytes4NoDQ": 6027747328,
+    "quantConstBytes": 110756736
+  },
+  "metrics_override_checks": [
+    {
+      "calc_overrides": {
+        "gradCkpt": 1
+      },
+      "metrics": {
+        "trainStepMacsPerSeq": 49774375993344,
+        "forwardMacsPerSeq": 16554951442432
+      }
+    },
+    {
+      "calc_overrides": {
+        "T": 512
+      },
+      "metrics": {
+        "trainStepMacsPerSeq": 7942367608832,
+        "forwardMacsPerSeq": 3932579430400
+      }
+    }
+  ],
+  "not_hooked": {
+    "ids": "entrada (input_ids)",
+    "X-lora-delta": "lora_B(…) * scaling dentro de LoraLayer.forward (no es un módulo): misma forma que X-lora-b",
+    "q-heads / q-rope / scores / attn / z-heads": "ver crosscheck/llm.py (mismo decoder de F6)"
+  },
+  "source": {
+    "lib": "transformers + peft",
+    "version": "5.19.0",
+    "peft": "0.21.2",
+    "ctor": "with torch.device('meta'): LlamaForCausalLM(LlamaConfig(vocab_size=128256, hidden_size=4096, intermediate_size=14336, num_hidden_layers=32, num_attention_heads=32, num_key_value_heads=8, head_dim=128, max_position_embeddings=8192, rms_norm_eps=1e-05, tie_word_embeddings=False, attention_bias=False, mlp_bias=False, rope_theta=500000.0)); get_peft_model(model, LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'], bias='none'))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "peft": "0.21.2"
+    }
+  },
+  "notes": [
+    "Modelo construido en código en el dispositivo meta (sin pesos ni memoria, sin hub): parámetros exactos con sum(p.numel()).",
+    "PEFT 0.21.2: get_peft_model(model, LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'], bias='none')); print_trainable_parameters → trainable params: 41,943,040 || all params: 8,072,204,288 || trainable%: 0.5196.",
+    "FLOPs = FlopCounterMode sobre tensores meta con las 32 capas; una secuencia de T = 2048 tokens, atención eager, máscara 4-D de ceros ya armada (no cambia FLOPs).",
+    "Paso de entrenamiento = forward en modo train + backward de la suma de los logits en fp32 (la pérdida no tiene matmuls): FlopCounterMode cuenta los matmuls de dX y dW que autograd realmente calcula.",
+    "Gradient checkpointing (metrics_override_checks gradCkpt = 1) con use_reentrant = True: recomputa el forward completo de cada capa. El default de HF 5 (use_reentrant = False) corta la recomputación en el último tensor guardado: backward = 66,430,259,167,232 FLOPs vs 66,438,849,101,824 reentrante (diferencia 8,589,934,592).",
+    "LoRA: las W₀ congeladas calculan dX (para que el gradiente llegue a los adaptadores de abajo) pero no dW; en la capa 1 la entrada (embedding congelado) no requiere gradiente → sin dX allí; con gradient checkpointing PEFT llama enable_input_require_grads y la capa 1 también los calcula.",
+    "lora_dropout = 0.05: PEFT aplica un dropout por adaptador a SU entrada (0 FLOPs; el calculador lo cuenta en las activaciones).",
+    "QLoRA: bitsandbytes no corre en este Mac; parámetros y FLOPs = los de LoRA r 16 (la cuantización no cambia ninguno: los matmuls corren en bf16 tras descuantizar). Los bytes NF4 + DQ se calculan aquí sobre las nn.Linear reales (nf4_accounting) y se comparan con metrics().baseWeightBytes."
+  ],
+  "print_trainable_parameters": "trainable params: 41,943,040 || all params: 8,072,204,288 || trainable%: 0.5196",
+  "override_checks": [],
+  "nf4_accounting": {
+    "rule": "bitsandbytes.functional.quantize_4bit(blocksize=64, quant_type='nf4', compress_statistics=True): 4 bits por peso; absmax por bloque de 64 → 8 bits (quantize_blockwise con bloques de 256, tras restar la media: 1 offset fp32 por matriz) + 1 absmax fp32 por bloque de 256; sin compress_statistics, absmax fp32 por bloque de 64. Solo las nn.Linear de los bloques (Linear4bit); embedding, lm_head y RMSNorm en bf16.",
+    "block_linear_params": 6979321856,
+    "const_bytes_dq": 110756736,
+    "const_bytes_no_dq": 436207616,
+    "const_bits_per_param_dq": 0.12695415203387922,
+    "const_bits_per_param_no_dq": 0.5,
+    "paper": "QLoRA §3 (Double Quantization): 32/64 = 0.5 bits por parámetro → 8/64 + 32/(64·256) = 0.127"
+  }
+}

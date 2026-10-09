@@ -31,6 +31,10 @@
      fase 8: node.runs / runsTone (píldora "× n"), node.costSplit (barra del costo por imagen), node.costNote, node.hideInBlank
            (nodo oculto en la práctica), edge.loop (↻ en la etiqueta), edge.shapeLabel (forma en una arista de control),
            edge.blankHide (forma oculta cuando un hueco pide la de ese tensor: da un factor de la respuesta).
+     fase 10: node.bars (barras apiladas por fila, cada fila con su config, misma escala, líneas de referencia: memoria por
+           método y GPU de 24/48/80 GB), node.matrix (la matriz de pesos a escala: W cuadrada, A y B como tiras de ancho r),
+           node.adapter (píldora "+ B·A" encendida si la config adapta esa lineal, del calculador) y node.trainPill:false
+           (congelado solo con el rayado).
    Verificación en navegador: ATLAS.ArchDiagram.checkLabels(rootEl) → [{edge, tensor, got, want}] (vacío = OK).
 
    Reglas: las formas de las aristas salen SIEMPRE de ATLAS.Arch.run (nunca del spec). Los colores son
@@ -1177,7 +1181,8 @@
         const hideInner = slot && slot.ask === 'label';
         // fase 7: strip (tira de tokens), posIds (ids de M-RoPE) y layers (capas con la toma) también van abajo
         // fase 8: costSplit (barra del costo por imagen) también va abajo
-        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : 0;
+        // fase 10: bars (barras por fila, fuera de la práctica) y matrix (matriz a escala) también van abajo
+        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : (n.bars && ctl.mode !== 'blank' && !ctl.quiz) ? BARS_H(n.bars, r.w, (ctl.opts && ctl.opts.config) || (spec && spec.config)) : n.matrix ? MAT_H(n.matrix) : 0;
         const miniH = n.mini ? 22 : innerH;
         // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
         const subs = sub ? String(sub).split('\n') : [];
@@ -1208,6 +1213,8 @@
           else if (n.layers) drawLayers(g, n.layers, r, run, used, layersNeutral(ctl, spec, n));
           // en la práctica la barra no va: sus filas nombran los bloques ("Encoder de texto × 2") que los huecos preguntan
           else if (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) drawCostSplit(g, n.costSplit, r, run, used, ctl, spec);
+          else if (n.bars && ctl.mode !== 'blank' && !ctl.quiz) drawBars(g, n.bars, r, run, used, ctl, spec);
+          else if (n.matrix) drawMatrix(g, n.matrix, r, run, used);
         } else if (!hideInner && nocalc && n.strip) drawStrip(g, n.strip, r, null, used, ctl, spec);
         // fase 9: regla de bins (una dimensión de la acción) y máscara de atención por bloques: no dependen del calculador
         if (!hideInner && n.bins) drawBins(g, n.bins, r, used);
@@ -1231,6 +1238,8 @@
       }
       // fase 7: congelado / entrena (en la práctica también: es parte de la figura, no la respuesta de un hueco de nombre)
       if (n.train && !(slot && slot.ask === 'label')) drawTrain(g, n, r, used, ctl);
+      // fase 10: adaptador LoRA (B·A) sobre una lineal, encendido según la config dibujada
+      if (n.adapter && run) drawAdapter(g, n, r, run, used, ctl);
       // fase 8: node.runs = cuántas veces corre por imagen ("× {{metrics.nfe}}"), píldora con ↻ arriba a la derecha
       if (n.runs && !(slot && (slot.ask === 'label' || slot.ask === 'op'))) drawRuns(g, n, r, used, ctl, spec);
       const flag = n.flag && ctl.mode !== 'blank' && !n.train ? qText(n.flag, ctl, spec) : '';
@@ -1250,7 +1259,7 @@
       if (n.xref && n.xref.length && ctl.mode === 'full') {
         used.xref = true;
         // arriba a la derecha, por dentro (abajo a la derecha va la marca de "se abre"; abajo, las filas internas)
-        const xr = r.x + r.w - 13, yb = r.y + 13 + (n.train ? 9 : 0);   // con la píldora congelado/entrena, debajo de ella
+        const xr = r.x + r.w - 13, yb = r.y + 13 + (n.train && n.trainPill !== false ? 9 : 0);   // con la píldora congelado/entrena, debajo de ella
         const xm = S('g', { class: 'ad-xref-mark' }, g);
         S('path', { d: 'M' + P([xr, yb]) + 'l8,-8M' + P([xr + 3, yb - 8]) + 'h5v5', class: 'ad-expand-ico' }, xm);
       }
@@ -1369,7 +1378,7 @@
   // ------------------------------------------------------------ fase 7 (VLM): tira de tokens, ids de M-RoPE, capas con toma,
   // marcas de entrenamiento y enlaces a otras páginas
   // Número del calculador por clave (nunca escrito a mano en el spec):
-  //   'cfg.X' (config resuelta) · 'metrics.X' (ATLAS.Arch.metrics de la misma corrida) · 'q.X' (run.quantities) ·
+  //   'cfg.X' (config resuelta) · 'metrics.X' (ATLAS.Arch.metrics de la misma corrida) · 'q.X' (run.quantities) · 'ops.ID.params' ·
   //   'tensor.ID.i' (dimensión i del tensor) · un número literal solo para ejemplos ilustrativos.
   const metricsMemo = (typeof WeakMap === 'function') ? new WeakMap() : null;
   function metricsOf(run) {
@@ -1389,6 +1398,8 @@
     else if (ns === 'metrics') { const m = metricsOf(run); v = m ? cfgPath(m, rest.join('.')) : undefined; }
     else if (ns === 'q') v = run.quantities ? run.quantities[rest.join('.')] : undefined;
     else if (ns === 'tensor') { const t = run.tensors && run.tensors[rest[0]]; v = t && t.num ? t.num[+(rest[1] || 0)] : undefined; }
+    // fase 10: 'ops.ID.params' / 'ops.ID.macs' = parámetros o MACs de esa op del calculador (una instancia, sin × repeat)
+    else if (ns === 'ops') { const os = (run.ops || []).filter((o) => o.id === rest[0]); v = os.length ? os.reduce((a, o) => a + (o[rest[1] === 'macs' ? 'macs' : 'params'] || 0), 0) : undefined; }
     return Number.isFinite(v) ? v : undefined;
   }
 
@@ -1523,10 +1534,12 @@
 
   // node.train = 'frozen' | 'trained': píldora arriba a la derecha (congelado / entrena) y, si está congelado, un rayado
   // tenue sobre el bloque. La leyenda explica las dos.
+  // fase 10: trainPill:false = solo el rayado (sin la píldora): las 7 lineales congeladas del bloque de LoRA no llevan 7 píldoras
   function drawTrain(g, n, r, used, ctl) {
     const fz = n.train === 'frozen';
-    used[fz ? 'frozen' : 'trained'] = true;
     if (fz) S('rect', { x: r.x, y: r.y, width: r.w, height: r.h, rx: 4, class: 'ad-frozen-hatch', fill: 'url(#' + ctl.id + '-tx-frozen)' }, g);
+    if (n.trainPill === false) { used[fz ? 'frozenHatch' : 'trained'] = true; return; }
+    used[fz ? 'frozen' : 'trained'] = true;
     const label = fz ? 'congelado' : 'entrena';
     const w = textW(label, 10.5, true) + 24, x = r.x + r.w - w - 4, y = r.y - 8;
     const pg = S('g', { class: 'ad-train ' + (fz ? 'ad-train--frozen' : 'ad-train--on') }, g);
@@ -1567,7 +1580,7 @@
     const once = n.runsTone === 'once';
     used[once ? 'runsOnce' : 'runs'] = true;
     const w = textW(s, 10.5, true) + 26;
-    const trainW = n.train ? textW(n.train === 'frozen' ? 'congelado' : 'entrena', 10.5, true) + 24 + 6 : 0;
+    const trainW = n.train && n.trainPill !== false ? textW(n.train === 'frozen' ? 'congelado' : 'entrena', 10.5, true) + 24 + 6 : 0;
     // fase 9: con una marca (flag, p. ej. "pesos cerrados" en RT-2) la píldora va a su izquierda
     const fs = n.flag && ctl.mode !== 'blank' && !n.train ? qText(n.flag, ctl, spec) : '';
     const flagW = fs ? textW(fs, 10, true) + 10 + 6 : 0;
@@ -1693,6 +1706,170 @@
     }
   }
 
+  // ------------------------------------------------------------ fase 10 (LoRA / RLHF): barras por fila, matriz a escala, adaptador
+  // node.bars = {unit:'bytes'|'params'|'macs'|'flops'|'count', rows:[{label, config?, ov?, segs?}], legend?:false, segs:[{n:<clave o [claves]>, label,
+  //   op|mod|tone, frozen?, times?}], lines:[{v:<número o clave>, label}], labelW?, caption?, fits?:true}: una barra apilada
+  // horizontal por fila, todas en la MISMA escala (lineal), con líneas verticales de referencia (las GPU de 24 / 48 / 80 GB).
+  // Cada fila toma sus números de SU config (row.config; si no, la dibujada): claves de numKey (cfg.X, metrics.X, q.X…). Los
+  // tramos frozen llevan el rayado de "congelado". La fila de la config dibujada va resaltada (is-cur). Debajo, la leyenda de
+  // los tramos (una muestra por tramo) y el caption. En la práctica no se dibuja (las filas nombran bloques y métodos).
+  const BAR_ROW = 22, BAR_BH = 14;
+  function barsLegendRows(o, w) {
+    const avail = w - 24;
+    let rows = 1, x = 0;
+    (o.segs || []).forEach((sg) => { const iw = 14 + textW(String(sg.label || ''), 10.5, false) + 14; if (x > 0 && x + iw > avail) { rows++; x = 0; } x += iw; });
+    return rows;
+  }
+  function BARS_H(o, w, cur) { return 18 + barsRowsOf(o, cur).length * BAR_ROW + 6 + (o.legend === false ? 0 : barsLegendRows(o, w) * 14) + (o.caption ? 14 : 0) + 4; }
+  function barsRun(run, row) {
+    if (!row || (!row.config && !row.ov)) return run;
+    let r2 = null;
+    try { r2 = runFor(row.config || run.id); } catch (e) { r2 = null; }
+    return row.ov ? ovRun(r2, row.ov) : r2;
+  }
+  function barsFmt(unit) {
+    const A = arch(), F = (A && A.fmt) || {};
+    if (unit === 'bytes') return (v) => (F.bytes ? F.bytes(v) : fsi(v) + 'B');
+    if (unit === 'macs') return (v) => (F.ops ? F.ops(v) : fsi(v) + 'MACs');
+    if (unit === 'flops') return (v) => (F.ops ? F.ops(v, 'FLOPs') : fsi(v) + 'FLOPs');
+    if (unit === 'count') return (v) => fint(v);
+    return (v) => fsi(v);
+  }
+  // addCur = plantilla del rótulo de una fila extra con la config DIBUJADA, si no está entre las filas (lora r64 junto a las tres de siempre)
+  function barsRowsOf(o, cur) {
+    const rows = (o.rows || []).slice();
+    if (o.addCur && cur && !rows.some((row) => row.config === cur || (!row.config && !row.ov))) rows.push({ config: cur, label: o.addCur, added: true });
+    return rows;
+  }
+  function barsData(o, run, cur) {
+    const val = (rr, k) => (Array.isArray(k) ? k.reduce((a, x) => a + numKey(rr, x), 0) : numKey(rr, k));
+    const rows = barsRowsOf(o, cur).map((row) => {
+      const rr = barsRun(run, row);
+      const segs = (row.segs || o.segs || []).map((sg) => Object.assign({}, sg, { v: rr ? val(rr, sg.n) * (sg.times != null ? numKey(rr, sg.times) : 1) : NaN }));
+      return { row, run: rr, segs, total: segs.reduce((a, s) => a + (Number.isFinite(s.v) ? s.v : 0), 0), ok: !!rr && segs.every((s) => Number.isFinite(s.v) && s.v >= 0) };
+    });
+    const lines = (o.lines || []).map((ln) => ({ v: typeof ln.v === 'number' ? ln.v : numKey(run, ln.v), label: ln.label })).filter((ln) => Number.isFinite(ln.v) && ln.v > 0);
+    return { rows, lines };
+  }
+  // rayado de "congelado" visible sobre un tramo de color (claro sobre el relleno): se agrega a <defs> solo cuando hace falta,
+  // así las vistas anteriores no cambian
+  function frozenBarFill(g, ctl) {
+    const svg = g.ownerSVGElement, pid = ctl.id + '-tx-frozenbar';
+    if (svg && !svg.querySelector('#' + pid)) {
+      const d = svg.querySelector('defs') || S('defs', null, svg);
+      const p = S('pattern', { id: pid, patternUnits: 'userSpaceOnUse', width: 5, height: 5, patternTransform: 'rotate(45)' }, d);
+      S('path', { d: 'M0 0V5', class: 'ad-frozen-ln2' }, p);
+    }
+    return 'url(#' + pid + ')';
+  }
+  function barsCls(sg) { return 'ad-bar-seg ' + (sg.tone ? 'ad-cs--' + sg.tone : sg.mod ? 'ad-bar--mod ad-mod--' + sg.mod : 'ad-op--' + (sg.op || 'tensorop')); }
+  function drawBars(g, o, r, run, used, ctl, spec) {
+    const cur = (ctl.opts && ctl.opts.config) || spec.config;
+    const D = barsData(o, run, cur);
+    if (!D.rows.length || !D.rows.every((x) => x.ok)) return;
+    used.bars = true;
+    const fmtV = barsFmt(o.unit);
+    const gg = S('g', { class: 'ad-bars' }, g);
+    const lw = (o.labelW != null ? o.labelW : 15) * U, tw = (o.totalW != null ? o.totalW : 11) * U;
+    const x0 = r.x + 12 + lw, W = r.w - 24 - lw - tw, y0 = r.y + r.h - BARS_H(o, r.w, cur) + 18;
+    const maxV = Math.max(...D.rows.map((x) => x.total), ...D.lines.map((ln) => ln.v)) * 1.04 || 1;
+    const X = (v) => x0 + W * v / maxV;
+    const yEnd = y0 + D.rows.length * BAR_ROW - (BAR_ROW - BAR_BH);
+    // líneas de referencia (detrás de las barras) con su rótulo arriba
+    D.lines.forEach((ln) => {
+      S('path', { d: 'M' + P([X(ln.v), y0 - 5]) + 'V' + r1(yEnd + 3), class: 'ad-bars-line' }, gg);
+      txt(gg, X(ln.v), y0 - 8, ln.label || fmtV(ln.v), 'ad-bars-ltxt', 'middle');
+    });
+    D.rows.forEach((row, i) => {
+      const y = y0 + i * BAR_ROW, isCur = row.row.config ? row.row.config === cur && !row.row.ov : !row.row.ov;
+      const lab = qText(row.row.label || '', ctl, spec, row.row.config || null);
+      txt(gg, r.x + 12, y + 11, lab, 'ad-bars-lab' + (isCur ? ' is-cur' : ''));
+      let x = x0;
+      row.segs.forEach((sg) => {
+        const w = W * sg.v / maxV;
+        if (sg.v > 0) {
+          S('rect', { x: r1(x), y: r1(y), width: r1(Math.max(1.5, w)), height: BAR_BH, class: barsCls(sg) }, gg);
+          if (sg.frozen) { used.frozenHatch = true; S('rect', { x: r1(x), y: r1(y), width: r1(Math.max(1.5, w)), height: BAR_BH, class: 'ad-frozen-hatch', fill: frozenBarFill(gg, ctl) }, gg); }
+        }
+        x += w;
+      });
+      S('rect', { x: r1(x0), y: r1(y), width: r1(Math.max(1.5, X(row.total) - x0)), height: BAR_BH, class: 'ad-bars-frame' + (isCur ? ' is-cur' : '') }, gg);
+      // total a la derecha de la barra; con fits, la GPU más chica de las líneas en la que entra (o que no entra en ninguna)
+      let s = fmtV(row.total);
+      if (o.fits && D.lines.length) {
+        const fit = D.lines.slice().sort((a, b) => a.v - b.v).find((ln) => row.total <= ln.v);
+        s += fit ? ' · entra en ' + (fit.label || fmtV(fit.v)) : ' · no entra';
+      }
+      txt(gg, X(row.total) + 6, y + 11, s, 'ad-bars-val' + (isCur ? ' is-cur' : ''));
+    });
+    // leyenda de los tramos (fluye en filas); legend:false = sin leyenda (filas con sus propios tramos, ya rotuladas)
+    let lx = r.x + 12, ly = yEnd + (o.legend === false ? 4 : 18);
+    (o.legend === false ? [] : o.segs || []).forEach((sg) => {
+      const label = qText(String(sg.label || ''), ctl, spec), iw = 14 + textW(label, 10.5, false) + 14;
+      if (lx > r.x + 12 && lx + iw > r.x + r.w - 12) { lx = r.x + 12; ly += 14; }
+      S('rect', { x: r1(lx), y: r1(ly - 8.5), width: 9, height: 9, class: barsCls(sg) }, gg);
+      if (sg.frozen) S('rect', { x: r1(lx), y: r1(ly - 8.5), width: 9, height: 9, class: 'ad-frozen-hatch', fill: frozenBarFill(gg, ctl) }, gg);
+      txt(gg, lx + 13, ly, label, 'ad-cs-lab');
+      lx += iw;
+    });
+    if (o.caption) txt(gg, r.x + 12, ly + 14, qText(o.caption, ctl, spec), 'ad-gqa-cap');
+  }
+  // en palabras (aria y texto alternativo): fila: total (tramos)
+  function barsWords(o, run, ctl, spec) {
+    const D = barsData(o, run, (ctl.opts && ctl.opts.config) || (spec && spec.config));
+    if (!D.rows.length || !D.rows.every((x) => x.ok)) return '';
+    const f = barsFmt(o.unit);
+    return D.rows.map((x) => plainSub(qText(x.row.label || '', ctl, spec, x.row.config || null)) + ': ' + f(x.total) + ' (' + x.segs.filter((s) => s.v > 0).map((s) => plainSub(qText(String(s.label || ''), ctl, spec)) + ' ' + f(s.v)).join(', ') + ')').join('; ');
+  }
+
+  // node.matrix = {rows:<clave o número>, cols:<clave o número>, ref:<clave o número>, px?:44}: la matriz de pesos del bloque A
+  // ESCALA (lineal: ref = px), abajo, con su forma "filas×columnas" al lado. La misma ref en W, A y B de LoRA: W se ve cuadrada y
+  // A (r × d_in) y B (d_out × r) como tiras finas (mínimo 2.5 px): el cuello de rango r a la vista.
+  const MAT_H = (o) => (o.px || 44) + 12;
+  function drawMatrix(g, o, r, run, used) {
+    const R = numKey(run, o.rows), C = numKey(run, o.cols), ref = numKey(run, o.ref) || Math.max(R, C);
+    if (!(R > 0 && C > 0 && ref > 0)) return;
+    used.matrix = true;
+    const px = o.px || 44, w = Math.max(2.5, px * C / ref), h = Math.max(2.5, px * R / ref);
+    const lab = fint(R) + '×' + fint(C);
+    const tw = textW(lab, 10, true);
+    const tot = w + 8 + tw, x = r.x + (r.w - tot) / 2, yb = r.y + r.h - 8;
+    const gg = S('g', { class: 'ad-mat' }, g);
+    S('rect', { x: r1(x), y: r1(yb - h), width: r1(w), height: r1(h), class: 'ad-mat-box' }, gg);
+    txt(gg, x + w + 8, yb - Math.min(h, px) / 2 + 3.5, lab, 'ad-mat-txt');
+  }
+
+  // node.adapter = {ops:[ids] | key:'cfg.X', has:'q', label?}: el adaptador LoRA (B·A, entrenable) sobre una lineal congelada.
+  // Encendido si el calculador tiene esas ops con parámetros en la corrida dibujada (o si la clave contiene `has`): una píldora
+  // verde "+ B·A" con sus parámetros por capa (del calculador) abajo a la derecha, sobre el borde. Apagado: una píldora tenue
+  // "sin adaptador". Así cada config (targets qv / attn / all) enciende lo suyo.
+  function adapterState(run, o) {
+    if (!run || !o) return { on: false, params: 0 };
+    if (o.ops) {
+      const ids = [].concat(o.ops);
+      const ops = run.ops.filter((x) => ids.indexOf(x.id) >= 0 && (!o.scope || (x.path && x.path.indexOf(o.scope) >= 0)));
+      const params = ops.reduce((a, x) => a + (x.params || 0), 0);
+      return { on: params > 0, params };
+    }
+    const parts = String(o.key || '').split('.'), ns = parts[0], rest = parts.slice(1).join('.');
+    const src = ns === 'cfg' ? run.config : ns === 'metrics' ? metricsOf(run) : null;
+    const v = src ? cfgPath(src, rest) : undefined;
+    const on = Array.isArray(v) ? v.indexOf(o.has) >= 0 : typeof v === 'string' ? (o.in ? [].concat(o.in).indexOf(v) >= 0 : v === o.has) : !!(v && o.has && v[o.has]);
+    return { on, params: 0 };
+  }
+  function drawAdapter(g, n, r, run, used, ctl) {
+    const st = adapterState(run, n.adapter);
+    const on = st.on;
+    used[on ? 'adapterOn' : 'adapterOff'] = true;
+    const s = on ? (n.adapter.label || '+ B·A') + (st.params ? ' ' + fsi(st.params) : '') : (n.adapter.offLabel || 'sin LoRA');
+    const w = textW(s, 10, true) + (on ? 24 : 12), x = r.x + r.w - w - 4, y = r.y + r.h - 7;
+    const pg = S('g', { class: 'ad-adapter' + (on ? ' is-on' : ' is-off') }, g);
+    S('rect', { x: r1(x), y, width: r1(w), height: 14, rx: 7, class: 'ad-adapter-bg' }, pg);
+    if (on) trainIcon(pg, false, x + 9, y + 7);
+    txt(pg, on ? x + 17 : x + w / 2, y + 10.4, s, 'ad-adapter-txt', on ? null : 'middle');
+    return st;
+  }
+
   function drawMapNode(ctl, parent, n, r, used) {
     const it = (ATLAS.catalog && ATLAS.catalog() && ATLAS.catalog().items && ATLAS.catalog().items[n.id]) || null;
     const page = ATLAS.getPage ? ATLAS.getPage(n.id) : null;
@@ -1759,6 +1936,10 @@
     if (n.style === 'closed') parts.push('caja negra: pesos cerrados');
     if (n.bins) parts.push((n.bins.n || 256) + ' bins');
     if (n.maskGrid) parts.push('máscara: ' + maskWords(n.maskGrid));
+    // fase 10: barras (fuera de la práctica), adaptador LoRA y matriz a escala
+    if (n.bars && run && ctl.mode !== 'blank' && !ctl.quiz) { const bw = barsWords(n.bars, run, ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {})); if (bw) parts.push(bw); }
+    if (n.adapter && run) { const st = adapterState(run, n.adapter); parts.push(st.on ? 'con adaptador LoRA entrenable' + (st.params ? ' (' + fint(st.params) + ' parámetros por capa)' : '') : 'sin adaptador con esta config'); }
+    if (n.matrix && run) { const R = numKey(run, n.matrix.rows), C = numKey(run, n.matrix.cols); if (R && C) parts.push('matriz ' + fint(R) + '×' + fint(C)); }
     if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ')); }
     if (n.layers && run) { const L = numKey(run, n.layers.L); const tp = tapOf(run, n.layers, L); if (L && tp) parts.push(layersNeutral(ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {}), n) ? L + ' capas' : 'features de la capa ' + tp + ' de ' + L); }
     if (n.expand) parts.push('se puede abrir');
@@ -1885,7 +2066,8 @@
   }
 
   function drawEdge(ctl, L, ge, run, used, tensorAt, isMap) {
-    const e = ge.spec;
+    // fase 10: edge.tagBlank = el tag en la práctica (false = sin tag): "log π_ref" junto al hueco de la referencia la nombraba
+    const e = ctl.mode === 'blank' && ge.spec.tagBlank !== undefined ? Object.assign({}, ge.spec, { tag: ge.spec.tagBlank }) : ge.spec;
     if (!ge.pts.length) return null;
     const kind = ge.kind;
     used.edges.add(kind);
@@ -2070,6 +2252,8 @@
     if (used.dropfirst) item((s) => { const g = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 9, class: 'ad-face ad-face--front', fill: 'var(--surface)' }, g); S('rect', { x: 2, y: 4, width: 7, height: 9, class: 'ad-tokdrop' }, s); S('path', { d: 'M3 5L8 12M8 5L3 12', class: 'ad-tokdrop-x' }, s); }, 'Token descartado (CLS): no sigue al proyector');
     if (used.layers) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-layer' + (i === 2 ? ' is-tap' : i === 3 ? ' is-off' : '') }, s)); }, 'Capas del encoder: resaltada = de la que se toman las features; atenuada = no se usa');
     if (used.frozen) item((s) => { const g = S('g', { class: 'ad-train ad-train--frozen' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, true, 13, 8); }, 'Congelado: sus pesos no se actualizan en esta etapa');
+    // fase 10: congelado solo con el rayado (trainPill:false) o en un tramo de barra: la muestra es el rayado
+    if (used.frozenHatch && !used.frozen) item((s) => { const g = S('g', { class: 'ad-op--embed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); defs(s, lid + '-lfz'); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frozen-hatch', fill: 'url(#' + lid + '-lfz-tx-frozen)' }, g); }, ((view.spec && view.spec.legendText) || {}).frozenHatch || 'Rayado: congelado (sus pesos no se actualizan)');
     if (used.trained) item((s) => { const g = S('g', { class: 'ad-train ad-train--on' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, false, 13, 8); }, 'Entrena: sus pesos se actualizan en esta etapa');
     if (used.xref) item((s) => { S('path', { d: 'M8 13l9,-9M11 4h6v6', class: 'ad-expand-ico', style: 'stroke:var(--ink)' }, s); }, 'Enlace: se ve por dentro en otra página');
     // fase 8: bucle de muestreo, veces que corre cada red y la barra del costo por imagen
@@ -2079,6 +2263,11 @@
     if (used.runs) item((s) => { const g = S('g', { class: 'ad-runs' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, LT.runs || 'Veces que corre por imagen (en el bucle)');
     if (used.runsOnce) item((s) => { const g = S('g', { class: 'ad-runs ad-runs--once' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-runs-bg' }, g); loopIcon(g, 13, 8, 3.6); }, LT.runsOnce || 'Veces que corre por imagen (fuera del bucle)');
     if (used.costSplit) item((s) => { S('rect', { x: 2, y: 4, width: 18, height: 8, class: 'ad-cs-seg ad-cs--loop' }, s); S('rect', { x: 20, y: 4, width: 4, height: 8, class: 'ad-cs-seg ad-cs--once' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-cs-frame' }, s); }, LT.costSplit || 'Costo por imagen: ancho proporcional a los MACs (del calculador)');
+    // fase 10: barras por fila (memoria por método), adaptador LoRA y matriz a escala
+    if (used.bars) item((s) => { S('rect', { x: 2, y: 3, width: 12, height: 5, class: 'ad-bar-seg ad-op--norm' }, s); S('rect', { x: 14, y: 3, width: 6, height: 5, class: 'ad-bar-seg ad-op--conv' }, s); S('rect', { x: 2, y: 10, width: 7, height: 5, class: 'ad-bar-seg ad-op--norm' }, s); S('path', { d: 'M22 1V15', class: 'ad-bars-line' }, s); }, LT.bars || 'Barras: ancho proporcional (del calculador); línea punteada = referencia');
+    if (used.adapterOn) item((s) => { const g = S('g', { class: 'ad-adapter is-on' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-adapter-bg' }, g); trainIcon(g, false, 13, 8); }, LT.adapterOn || 'Adaptador LoRA (B·A, entrenable) sobre esa lineal; su número: parámetros por capa');
+    if (used.adapterOff) item((s) => { const g = S('g', { class: 'ad-adapter is-off' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-adapter-bg' }, g); }, LT.adapterOff || 'Sin adaptador con esta config: la lineal queda congelada tal cual');
+    if (used.matrix) item((s) => { const g = S('g', { class: 'ad-op--embed' }, s); S('rect', { x: 3, y: 2, width: 12, height: 12, class: 'ad-mat-box' }, g); S('rect', { x: 18, y: 2, width: 3, height: 12, class: 'ad-mat-box' }, g); }, LT.matrix || 'Matriz de pesos a escala (lineal): filas × columnas');
     if (used.closed) item((s) => { const g = S('g', { class: 'ad-node--closed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); }, 'Caja negra: pesos cerrados (no se ve por dentro)');
     if (used.bins) item((s) => { const g = S('g', { class: 'ad-bins' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-bins-track' }, g); S('path', { d: 'M5 4V12M8 4V12M11 4V12M14 4V12M17 4V12M20 4V12', class: 'ad-bins-tick' }, g); S('rect', { x: 13, y: 3, width: 4, height: 10, class: 'ad-bins-on' }, g); }, 'Bins de una dimensión de la acción (resaltado: el del ejemplo, ilustrativo)');
     if (used.maskGrid) item((s) => { [[3, 3, 1], [9, 3, 0], [15, 3, 0], [3, 9, 1], [9, 9, 1], [15, 9, 0]].forEach(([x, y, on]) => S('rect', { x, y, width: 5, height: 5, class: on ? 'ad-mask-on ad-mod--img' : 'ad-mask-off' }, s)); }, 'Máscara de atención: fila = query, columna = key; llena = permitido, vacía = bloqueado (−∞)' + (used.maskRun ? '; filas atenuadas = no corren en el paso' : ''));
@@ -2264,6 +2453,9 @@
         if (n.posIds) parts.push('Ids (t, h, w): ' + mropeIds(n.posIds.segs).map((q) => '(' + q.t + ',' + q.h + ',' + q.w + ')').join(' '));
         if (n.maskGrid) parts.push('Máscara por bloques: ' + maskWords(n.maskGrid));
         if (n.style === 'closed') parts.push('Caja negra: pesos cerrados');
+        if (n.bars && run) { const bw = barsWords(n.bars, run, ctl, spec); if (bw) parts.push(bw); }
+        if (n.adapter && run) { const st = adapterState(run, n.adapter); parts.push(st.on ? 'Adaptador LoRA entrenable' + (st.params ? ': ' + fint(st.params) + ' parámetros por capa' : '') : 'Sin adaptador con esta config'); }
+        if (n.matrix && run) { const R = numKey(run, n.matrix.rows), C = numKey(run, n.matrix.cols); if (R && C) parts.push('Matriz ' + fint(R) + '×' + fint(C)); }
         dd.innerHTML = combSafe(esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, opts.config || spec.config) : ''));
       }
     }

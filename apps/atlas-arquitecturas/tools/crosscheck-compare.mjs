@@ -13,7 +13,7 @@ import vm from 'node:vm';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
-  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js', 'js/arch/vla.js'];
+  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js', 'js/arch/vla.js', 'js/arch/finetune.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -219,6 +219,33 @@ export function compareConfig(A, exp) {
     }
     for (const [n, ref] of Object.entries(sch.pndm_nfe || {})) push('schedule[pndm ' + n + ' pasos: NFE]', A.diffusion.pndmNfe(+n), ref, A.diffusion.pndmNfe(+n) === ref);
   }
+  // Fase 10 (LoRA / RLHF). metrics_override_checks: métricas con otros knobs (gradient checkpointing, T) ↔ lo medido con
+  // loss.backward() bajo FlopCounterMode. loss_checks: fórmulas de ATLAS.Arch.finetune ↔ torch float64 (tolerancia 1e-9).
+  for (const mo of exp.metrics_override_checks || []) {
+    const m = A.metrics(exp.config_id, Object.assign({}, ov, mo.calc_overrides));
+    const tag = Object.entries(mo.calc_overrides).map(([k, v]) => k + '=' + v).join(',');
+    for (const [k, ref] of Object.entries(mo.metrics)) push('[' + tag + '] metrics[' + k + ']', m[k], ref, m[k] === ref);
+  }
+  const near = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
+  for (const lc of exp.loss_checks || []) {
+    const fn = A.finetune && A.finetune[lc.fn];
+    if (!fn) { push('loss[' + lc.fn + ']', null, lc.fn, false, 'sin la función en ATLAS.Arch.finetune'); continue; }
+    const res = fn.apply(null, lc.args);
+    const tag = 'loss[' + lc.fn + '(' + JSON.stringify(lc.args).slice(0, 60) + ')]';
+    if (lc.out.list) {
+      push(tag, res.map((x) => x.toFixed(12)).join(','), lc.out.list.map((x) => x.toFixed(12)).join(','), res.length === lc.out.list.length && res.every((x, i) => near(x, lc.out.list[i])));
+      continue;
+    }
+    for (const [k, ref] of Object.entries(lc.out)) {
+      const v = res[k];
+      const ok = Array.isArray(ref) ? Array.isArray(v) && v.length === ref.length && v.every((x, i) => near(x, ref[i])) : near(v, ref);
+      push(tag + '.' + k, Array.isArray(v) ? v.join(',') : v, Array.isArray(ref) ? ref.join(',') : ref, ok);
+    }
+  }
+  for (const ac of exp.activation_checks || []) {
+    const v = A.finetune.activationPerTokenLayer(ac.args).total;
+    push('activaciones[' + ac.case + '] bytes por token y capa', v, ac.measured_bytes_per_token_layer, v === ac.measured_bytes_per_token_layer);
+  }
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -254,7 +281,7 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }

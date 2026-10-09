@@ -3247,3 +3247,393 @@ test('F9 etiqueta + símbolo identifican una forma; byPath suma; aritmética; wh
   assert.strictEqual(Q9.get('openvla-7b.metrics.hzRtx4090').text, String(Number(A9.metrics('openvla-7b', {}).hzRtx4090.toPrecision(3))));
 });
 // ================================================================ fin del bloque de la fase 9
+
+// ================================================================ FASE 10 (LoRA / QLoRA, RLHF / DPO / GRPO) — bloque del agente arch
+// Contexto con todos los modelos hasta la fase 10 (finetune.js compone el decoder de llm.js: va al final).
+const ATLAS10 = (function () {
+  const ctx = vm.createContext({});
+  for (const f of FILES.filter((x) => x !== 'js/core/quantities.js').concat(['js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js',
+    'js/arch/diffusion.js', 'js/arch/vla.js', 'js/arch/finetune.js', 'js/core/quantities.js'])) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
+  }
+  return vm.runInContext('ATLAS', ctx);
+})();
+const A10 = ATLAS10.Arch, Q10 = ATLAS10.Quantities, FT = A10.finetune;
+const LORA10 = ['lora-llama3-8b-r16', 'lora-llama3-8b-r16-qv', 'lora-llama3-8b-r64', 'qlora-llama3-8b-r16', 'full-ft-llama3-8b'];
+const RL10 = ['rlhf-llama3-8b', 'dpo-llama3-8b', 'grpo-llama3-8b', 'ppo-llama3-8b-lora', 'dpo-llama3-8b-lora'];
+const S10 = (sym, num, layout) => A10.shape(sym, num, 'txt', layout || 'seq');
+// Llama 3 8B
+const LD = 4096, LKV = 1024, LF = 14336, LV = 128256, LL = 32, LH = 32, LDH = 128;
+const LLAMA8B = 8030261248;
+
+test('F10 los modelos lora / rlhf-dpo no cambian ningún resultado de las fases 1–9', () => {
+  for (const c of A9.configs()) {
+    const a = A9.run(c.id), b = A10.run(c.id);
+    assert.deepStrictEqual([b.totals.params, b.totals.macs, b.totals.other], [a.totals.params, a.totals.macs, a.totals.other], c.id);
+    const ma = A9.metrics(c.id, {}), mb = A10.metrics(c.id, {});
+    assert.deepStrictEqual([mb.attnMem, mb.actMem, mb.kvCache], [ma.attnMem, ma.actMem, ma.kvCache], c.id + ' metrics');
+  }
+  assert.deepStrictEqual(J(A10.configs('lora').map((c) => c.id)), LORA10);
+  assert.deepStrictEqual(J(A10.configs('rlhf-dpo').map((c) => c.id)), RL10);
+  assert.deepStrictEqual([A10.canonical('lora'), A10.canonical('rlhf-dpo')], ['lora-llama3-8b-r16', 'rlhf-llama3-8b']);
+  const ids = J(A10.primitives()).map((p) => p.id);
+  for (const id of ['lora_linear', 'lora_a', 'lora_b', 'lora_scale', 'dropout', 'quant_storage', 'scalar_head', 'token_logprobs', 'kl_penalty', 'shaped_reward', 'gae', 'group_advantage', 'ppo_clip_loss', 'value_loss', 'bt_loss', 'dpo_loss']) {
+    assert.ok(ids.includes(id), id);
+  }
+});
+
+test('F10 primitivas: LoRA A/B/escala y la compuesta lora_linear (r·(d_in + d_out)), dropout, cabeza escalar, log-probs y pérdidas', () => {
+  const x = S10(['T', 'D'], [3, 8]);
+  const a = A10.lora_a(x, { r: 2 });
+  assert.deepStrictEqual([a.prim, J(a.out.num), J(a.out.sym), a.params, a.macs, a.detail.trainable], ['lora_a', [3, 2], ['T', 'r'], 16, 48, true]);
+  const b = A10.lora_b(a.out, { dout: 5, doutSym: 'E' });
+  assert.deepStrictEqual([b.prim, J(b.out.num), J(b.out.sym), b.params, b.macs], ['lora_b', [3, 5], ['T', 'E'], 10, 30]);
+  const s = A10.lora_scale(b.out, { alpha: 4, r: 2 });
+  assert.deepStrictEqual([s.params, s.macs, s.other, s.detail.scaling], [0, 0, 15, 2]);
+  const ll = A10.lora_linear(x, { dout: 5, doutSym: 'E', r: 2, alpha: 4 });
+  assert.deepStrictEqual([ll.prim, J(ll.out.num), ll.params, ll.macs], ['lora_linear', [3, 5], 2 * (8 + 5), 3 * 2 * (8 + 5)]);
+  assert.deepStrictEqual([ll.detail.frozenParams, ll.detail.frozenMacs, ll.detail.mergedParams, ll.detail.trainableParams, ll.detail.scaling], [40, 120, 40, 26, 2]);
+  assert.deepStrictEqual([ll.paramArith, ll.macArith], ['2·(8 + 5) = 26', '3·2·(8 + 5) = 78']);
+  assert.strictEqual(ll.paramFormula, 'r\\,(D + E)');
+  const d = A10.dropout(x, { p: 0.1 });
+  assert.deepStrictEqual([J(d.out.num), d.params, d.macs, d.other], [[3, 8], 0, 0, 48]);
+  const sh = A10.scalar_head(x, { role: 'valor' });
+  assert.deepStrictEqual([sh.prim, J(sh.out.num), J(sh.out.sym), sh.params, sh.macs], ['scalar_head', [3, 1], ['T', '1'], 8, 24]);
+  const lg = S10(['T', 'V'], [6, 10]);
+  const lp = A10.token_logprobs(lg, { rows: 3, sym: 'T_r' }), lps = A10.token_logprobs(lg, { rows: 3, sum: true });
+  assert.deepStrictEqual([J(lp.out.num), J(lp.out.sym), lp.macs, J(lps.out.num)], [[3], ['T_r'], 0, [1]]);
+  const v = S10(['T_r'], [3], 'vec');
+  const [adv, ret] = A10.gae(v, v, { gamma: 1, lambda: 0.95 }).out;
+  assert.deepStrictEqual([J(adv.num), J(ret.num)], [[3], [3]]);
+  for (const r of [A10.kl_penalty(v, v, { estimator: 'k3' }), A10.shaped_reward(v, S10(['1'], [1], 'vec'), {}), A10.group_advantage(v)]) assert.deepStrictEqual([J(r.out.num), r.params, r.macs], [[3], 0, 0]);
+  for (const r of [A10.ppo_clip_loss(v, v, {}), A10.value_loss(v, v, {}), A10.bt_loss(S10(['1'], [1], 'vec'), S10(['1'], [1], 'vec')), A10.dpo_loss(S10(['2'], [2], 'vec'), S10(['2'], [2], 'vec'), { beta: 0.1 })]) {
+    assert.deepStrictEqual([J(r.out.num), r.params, r.macs], [[1], 0, 0]);
+  }
+});
+
+test('F10 quant_storage: NF4 0.5 bits por parámetro de constantes → 0.127 con doble cuantización (QLoRA §3), int8 por filas, 16 / 32', () => {
+  const n = 4096 * 4096;
+  const a = A10.quant_storage(n, { bits: 4 }), b = A10.quant_storage(n, { bits: 4, dq: true });
+  assert.deepStrictEqual([a.dataBytes, a.constBytes, a.constBitsPerParam], [n / 2, (n / 64) * 4, 0.5]);
+  assert.deepStrictEqual([b.dataBytes, b.constBytes], [n / 2, n / 64 + (n / 64 / 256) * 4 + 4]);
+  assert.ok(Math.abs(b.constBitsPerParam - (8 / 64 + 32 / (64 * 256))) < 1e-5);        // 0.126953… + el offset de 4 bytes por matriz
+  assert.ok(Math.abs(b.bitsPerParam - 4.127) < 1e-3);
+  assert.strictEqual(A10.quant_storage(100, { bits: 4 }).detail.blocks, 2);           // bloques incompletos se redondean hacia arriba
+  const c = A10.quant_storage(6, { bits: 8, rows: 2 });
+  assert.deepStrictEqual([c.dataBytes, c.constBytes, c.bytes], [6, 8, 14]);
+  assert.deepStrictEqual([A10.quant_storage(10, { bits: 16 }).bytes, A10.quant_storage(10, { bits: 32 }).bytes, A10.quant_storage(10, {}).bytes], [20, 40, 20]);
+  assert.throws(() => A10.quant_storage(10, { bits: 3 }), /bits debe ser/);
+  assert.throws(() => A10.quant_storage(10, { bits: 8 }), /rows/);
+  assert.throws(() => A10.quant_storage(0, { bits: 4 }), /entero positivo/);
+  assert.ok(Math.abs(FT.nf4(n, true).constBitsPerParam - b.constBitsPerParam) < 1e-12);
+});
+
+test('F10 LoRA r 16 en las 7 lineales: 41,943,040 entrenables (= PEFT print_trainable_parameters) de 8,072,204,288; qv y r 64', () => {
+  const perLayer = (r, mats) => r * mats.reduce((s, [i, o]) => s + i + o, 0);
+  const ALL = [[LD, LD], [LD, LKV], [LD, LKV], [LD, LD], [LD, LF], [LD, LF], [LF, LD]];
+  const QVm = [[LD, LD], [LD, LKV]];
+  const cases = [['lora-llama3-8b-r16', LL * perLayer(16, ALL), 41943040], ['lora-llama3-8b-r16-qv', LL * perLayer(16, QVm), 6815744],
+    ['lora-llama3-8b-r64', LL * perLayer(64, ALL), 167772160], ['qlora-llama3-8b-r16', LL * perLayer(16, ALL), 41943040]];
+  for (const [id, hand, peft] of cases) {
+    const r = A10.run(id), m = A10.metrics(id, {});
+    assert.strictEqual(hand, peft, id + ' a mano');
+    assert.deepStrictEqual([m.trainableParams, r.quantities.trainableParams, r.quantities.adapterParamsFormula], [peft, peft, peft], id);
+    assert.strictEqual(r.totals.params, LLAMA8B + peft, id + ' all params');
+    assert.deepStrictEqual([m.allParams, m.baseParams, m.mergedParams], [LLAMA8B + peft, LLAMA8B, LLAMA8B], id);
+    assert.strictEqual(r.totals.byNode['lora-a'].params + r.totals.byNode['lora-b'].params, peft, id);
+    assert.ok(Math.abs(m.trainableShare - peft / (LLAMA8B + peft)) < 1e-15, id);
+    // MACs del forward = las del decoder de F6 + T·r·(d_in + d_out) por matriz adaptada
+    assert.strictEqual(r.totals.macs, A10.run('llama3-8b').totals.macs + 2048 * peft, id + ' MACs');
+  }
+  assert.strictEqual((100 * A10.metrics('lora-llama3-8b-r16', {}).trainableShare).toFixed(4), '0.5196');   // trainable%: 0.5196 de PEFT
+  const f = A10.run('full-ft-llama3-8b'), mf = A10.metrics('full-ft-llama3-8b', {});
+  assert.deepStrictEqual([f.totals.params, f.totals.macs, mf.trainableParams, mf.trainableShare, mf.mergedParams], [LLAMA8B, A10.run('llama3-8b').totals.macs, LLAMA8B, 1, LLAMA8B]);
+  // cada matriz: A (r×d_in) y B (d_out×r); B se inicia en 0
+  const r16 = A10.run('lora-llama3-8b-r16');
+  const op = (id) => r16.ops.find((o) => o.id === id);
+  assert.deepStrictEqual([op('q-lora-a').params, op('q-lora-b').params, op('k-lora-b').params, op('down-lora-a').params, op('down-lora-b').params], [16 * LD, LD * 16, LKV * 16, 16 * LF, LD * 16]);
+  assert.ok(/0/.test(op('q-lora-b').detail.init));
+  assert.deepStrictEqual([op('q-lora-a').repeat, op('q-lora-a').paramRepeat], [LL, LL]);
+});
+
+test('F10 lora: ids y formas (SPEC §22.1): W₀ congelada + dropout → A → B → ×α/r → suma, por matriz; F6 intacto', () => {
+  const r = A10.run('lora-llama3-8b-r16');
+  const sh = (id) => J(r.tensors[id].num).join('×'), sy = (id) => J(r.tensors[id].sym).join('×');
+  assert.deepStrictEqual(['ids', 'x0', 'h-norm1', 'q-base', 'q-drop', 'q-lora-a', 'q-lora-b', 'q-lora-delta', 'q', 'k-base', 'k-lora-b', 'k', 'o', 'down-drop', 'down-lora-a', 'f', 'x-out', 'logits'].map(sh),
+    ['2048', '2048×4096', '2048×4096', '2048×4096', '2048×4096', '2048×16', '2048×4096', '2048×4096', '2048×4096', '2048×1024', '2048×1024', '2048×1024', '2048×4096', '2048×14336', '2048×16', '2048×4096', '2048×4096', '2048×128256']);
+  assert.deepStrictEqual([sy('q-lora-a'), sy('k-lora-b'), sy('down-drop'), sy('gate-lora-b')], ['T×r', 'T×G·d_h', 'T×D_mlp', 'T×D_mlp']);
+  const P = (id) => J(r.ops.find((o) => o.id === id).path).join('>');
+  assert.deepStrictEqual(['q-proj', 'q-lora-dropout', 'q-lora-a', 'q-lora-b', 'q-lora-scale', 'q-lora-sum', 'down-lora-a', 'embed', 'lm-head'].map(P),
+    ['blocks>block>attn>q-proj>w-frozen', 'blocks>block>attn>q-proj>dropout', 'blocks>block>attn>q-proj>lora-a', 'blocks>block>attn>q-proj>lora-b', 'blocks>block>attn>q-proj>scale', 'blocks>block>attn>q-proj>sum',
+      'blocks>block>ffn>down-proj>lora-a', 'embed', 'lm-head']);
+  // la suma devuelve el tensor ORIGINAL de F6 (q, k, v, o, gate, up, f): split, o-proj, mul y res2 lo consumen igual que en llm.js
+  assert.deepStrictEqual(J(r.tensors.q.consumers), ['split']);
+  assert.strictEqual(r.tensors.q.producer, 'q-lora-sum');
+  assert.strictEqual(r.tensors.f.producer, 'down-lora-sum');
+  assert.ok(!r.ops.some((o) => o.id === 'sample'));
+  // qv: k-proj y la FFN quedan como en F6 (sin w-frozen ni adaptador)
+  const qv = A10.run('lora-llama3-8b-r16-qv');
+  assert.deepStrictEqual(J(qv.ops.find((o) => o.id === 'k-proj').path), ['blocks', 'block', 'attn', 'k-proj']);
+  assert.ok(!qv.tensors['k-base'] && !qv.tensors['gate-lora-a'] && qv.tensors['v-lora-a']);
+  assert.strictEqual(qv.totals.byPath['blocks>block>attn>v-proj>lora-a'].params, LL * 16 * LD);
+  // knobs r, targets, bits, T y errores en español
+  assert.deepStrictEqual(J(A10.run('lora-llama3-8b-r16', { r: 8 }).tensors['q-lora-a'].num), [2048, 8]);
+  assert.strictEqual(A10.run('lora-llama3-8b-r16', { r: 8 }).config.alpha, 16);   // α/r se mantiene
+  assert.strictEqual(A10.metrics('lora-llama3-8b-r16', { targets: 4 }).trainableParams, LL * 16 * (2 * (LD + LD) + 2 * (LD + LKV)));
+  assert.deepStrictEqual(J(A10.run('lora-llama3-8b-r16', { T: 512 }).tensors.logits.num), [512, LV]);
+  assert.throws(() => A10.run('lora-llama3-8b-r16', { targets: 3 }), /targets debe ser 2/);
+  assert.throws(() => A10.run('lora-llama3-8b-r16', { bits: 2 }), /bits debe ser 16, 8 o 4/);
+  assert.throws(() => A10.run('lora-llama3-8b-r16', { optimizer: 5 }), /optimizer debe ser/);
+  assert.throws(() => A10.run('full-ft-llama3-8b', { r: 8 }), /no tiene adaptadores/);
+  assert.throws(() => A10.run('full-ft-llama3-8b', { bits: 4 }), /no se pueden entrenar pesos cuantizados/);
+  assert.throws(() => A10.run('lora-llama3-8b-r16', { gradCkpt: 2 }), /gradCkpt debe ser 0 o 1/);
+  assert.strictEqual(A10.run('lora-llama3-8b-r16', { optimizer: 0 }).config.optimizer, 0);   // zeroKnobs
+});
+
+test('F10 MACs de un paso: full FT backward = 2 × forward; LoRA ≈ 1 × (dX por las W₀ congeladas, dW solo de A y B); gradient checkpointing', () => {
+  const T = 2048;
+  const lin = T * (LD * LD + 2 * LD * LKV + LD * LD + 3 * LD * LF);       // MACs de las 7 lineales de una capa
+  const att = 2 * LH * T * T * LDH;                                       // QKᵀ + A·V de una capa
+  const head = T * LD * LV;
+  const mf = A10.metrics('full-ft-llama3-8b', {});
+  assert.strictEqual(mf.forwardMacsPerSeq, LL * (lin + att) + head);
+  assert.strictEqual(mf.backwardMacsPerSeq, 2 * mf.forwardMacsPerSeq);   // EXACTO (FlopCounterMode, crosscheck)
+  assert.strictEqual(mf.backwardWeightGradMacsPerSeq, LL * lin + head);
+  // LoRA r 16, 7 lineales: capa de régimen = dX de las W₀ + (dW y dX de A y B) + 2 matmuls por cada producto de la atención
+  const steady = lin + 2 * T * 16 * 81920 + 2 * att;
+  const first = steady - T * LD * (LD + 2 * LKV) - 3 * T * LD * 16;        // capa 1: h-norm1 no requiere gradiente
+  const m = A10.metrics('lora-llama3-8b-r16', {});
+  assert.strictEqual(m.backwardMacsPerSeq, first + (LL - 1) * steady + head);
+  assert.strictEqual(m.backwardWeightGradMacsPerSeq, LL * T * 16 * 81920);
+  assert.ok(m.backwardToForward > 1 && m.backwardToForward < 1.1);
+  // regla de bolsillo: 2·N_base + 3·N_adapter MACs por token (sin la atención ni la tabla de embedding)
+  assert.strictEqual(m.trainStepMacsRule, T * (2 * (LLAMA8B - LV * LD) + 3 * 41943040));
+  assert.strictEqual(mf.trainStepMacsRule, T * 3 * (LLAMA8B - LV * LD));
+  // gradient checkpointing (reentrante): + el forward de los bloques, y la capa 1 también calcula dX
+  const mc = A10.metrics('lora-llama3-8b-r16', { gradCkpt: 1 });
+  assert.strictEqual(mc.recomputeMacsPerSeq, m.forwardMacsPerSeq - head);
+  assert.strictEqual(mc.backwardMacsPerSeq, LL * steady + head);
+  assert.strictEqual(mc.trainStepMacsPerSeq, mc.forwardMacsPerSeq + mc.backwardMacsPerSeq + mc.recomputeMacsPerSeq);
+  // B secuencias por paso
+  const m4 = A10.metrics('lora-llama3-8b-r16', { B: 4 });
+  assert.deepStrictEqual([m4.trainStepMacs, m4.tokensPerStep], [4 * m.trainStepMacsPerSeq, 4 * T]);
+  // qv: en la capa 1 tampoco se calcula dK (K no requiere gradiente)
+  const sq = FT.seqCost('lora-llama3-8b-r16-qv', {});
+  assert.strictEqual(sq.steadyLayer - sq.firstLayer, T * LD * (LD + 2 * LKV) + 2 * T * LD * 16 + LH * T * T * LDH);
+});
+
+test('F10 memoria: 16 bytes por parámetro entrenable (ZeRO §3.1 / LoRA fp32), 12 en QLoRA; NF4 + DQ = 4.127 bits; optimizadores', () => {
+  const m = A10.metrics('lora-llama3-8b-r16', {}), q = A10.metrics('qlora-llama3-8b-r16', {}), f = A10.metrics('full-ft-llama3-8b', {});
+  const n = 41943040;
+  assert.deepStrictEqual([m.adapterBytes, m.gradBytes, m.masterBytes, m.optimizerStateBytes, m.optimizerBytes, m.bytesPerTrainableParam], [4 * n, 4 * n, 0, 8 * n, 8 * n, 16]);
+  assert.deepStrictEqual([f.trainableWeightBytes, f.gradBytes, f.masterBytes, f.optimizerStateBytes, f.bytesPerTrainableParam, f.adapterBytes], [2 * LLAMA8B, 2 * LLAMA8B, 4 * LLAMA8B, 8 * LLAMA8B, 16, 0]);
+  assert.deepStrictEqual([q.adapterBytes, q.gradBytes, q.optimizerBytes, q.bytesPerTrainableParam], [2 * n, 2 * n, 8 * n, 12]);
+  assert.strictEqual(m.baseWeightBytes, 2 * LLAMA8B);
+  // QLoRA: las 7 lineales de cada bloque en NF4 + doble cuantización; embedding, LM head y RMSNorm en bf16
+  const mats = [LD * LD, LD * LKV, LD * LKV, LD * LD, LD * LF, LD * LF, LF * LD];
+  const nf4 = (x) => x / 2 + x / 64 + (x / 64 / 256) * 4 + 4;
+  const quant = LL * mats.reduce((s, x) => s + x, 0);
+  assert.strictEqual(q.baseWeightBytes, LL * mats.reduce((s, x) => s + nf4(x), 0) + 2 * (LLAMA8B - quant));
+  assert.strictEqual(q.baseWeightBytes4NoDQ, LL * mats.reduce((s, x) => s + x / 2 + (x / 64) * 4, 0) + 2 * (LLAMA8B - quant));
+  assert.ok(Math.abs(q.quantConstBitsPerParam - 0.127) < 1e-3 && Math.abs(q.quantBitsPerParam - 4.127) < 1e-3);
+  assert.strictEqual(m.baseWeightBytes4, q.baseWeightBytes);
+  assert.strictEqual(m.baseWeightBytes8, LL * mats.reduce((s, x) => s + x, 0) + 4 * LL * (LD + LKV + LKV + LD + LF + LF + LD) + 2 * (LLAMA8B - quant));
+  // optimizadores: AdamW 8-bit (2 bytes de estado), SGD con momentum (4), SGD (0)
+  assert.deepStrictEqual([2, 4, 0].map((o) => A10.metrics('lora-llama3-8b-r16', { optimizer: o }).optimizerStateBytes), [2 * n, 4 * n, 0]);
+  assert.deepStrictEqual([A10.metrics('full-ft-llama3-8b', { optimizer: 2 }).optimizerBytes, A10.metrics('lora-llama3-8b-r16', { optimizer: 2 }).optimizerName], [(4 + 2) * LLAMA8B, 'adamw8bit']);
+  assert.deepStrictEqual([m.optimizerName, m.targetsName, A10.metrics('lora-llama3-8b-r16-qv', {}).targetsName, f.targetsName, m.method, q.method, f.method], ['adamw', 'all', 'qv', 'full', 'lora', 'qlora', 'full']);
+  // total = suma del desglose; GPUs de 24 / 48 / 80 GB decimales
+  for (const id of LORA10) {
+    const x = A10.metrics(id, {});
+    assert.strictEqual(x.memoryBreakdown.reduce((s, b) => s + b.bytes, 0), x.totalTrainMemory, id);
+    assert.deepStrictEqual([x.fitsOn24, x.fitsOn48, x.fitsOn80], [x.totalTrainMemory <= 24e9, x.totalTrainMemory <= 48e9, x.totalTrainMemory <= 80e9], id);
+    assert.deepStrictEqual(J(x.gpus.map((g) => g.fits)), [x.fitsOn24, x.fitsOn48, x.fitsOn80], id);
+    assert.deepStrictEqual(J(x.methods.map((g) => g.id)), ['full', 'lora', 'qlora']);
+  }
+  assert.ok(!f.fitsOn80 && m.fitsOn48 && A10.metrics('lora-llama3-8b-r16', { gradCkpt: 1 }).fitsOn24 && A10.metrics('qlora-llama3-8b-r16', { gradCkpt: 1 }).fitsOn24);
+  assert.ok(f.totalTrainMemory > 7 * q.totalTrainMemory / 1.3);
+  assert.deepStrictEqual([f.trainStepMacsVsFullFt, m.trainStepMacsVsFullFt], [1, m.trainStepMacs / f.trainStepMacs]);
+  assert.ok(m.trainStepMacsVsFullFt > 0.68 && m.trainStepMacsVsFullFt < 0.71);
+  assert.deepStrictEqual([m.trainableSharePct.toFixed(4), A10.metrics('lora-llama3-8b-r16-qv', {}).trainableSharePct.toFixed(4)], ['0.5196', '0.0848']);
+  assert.strictEqual(Q10.get('lora-llama3-8b-r16-qv.metrics.trainableSharePct').text, '0.0848');
+});
+
+test('F10 activaciones (≈): bytes guardados por token y capa como HF (medido: crosscheck activation_checks), dropout por adaptador, checkpointing', () => {
+  const pl = (o) => FT.activationPerTokenLayer(Object.assign({ D: LD, Dkv: LKV, F: LF, h: LH, r: 16 }, o)).total;
+  // full FT: 2 RMSNorm (copia fp32 4D + rstd 4 + salida bf16 2D) + h-norm1 + Q, K, V, salida, lse + h-norm2 + 3·D_mlp + prod
+  const full = 2 * (4 * LD + 4 + 2 * LD) + 2 * LD + (2 * LD + 4 * LKV + 2 * LD + 4 * LH) + 2 * LD + 6 * LF + 2 * LF;
+  assert.strictEqual(full, 200840);
+  assert.strictEqual(pl({ full: true }), full);
+  const ALL = ['q', 'k', 'v', 'o', 'gate', 'up', 'down'];
+  const p0 = 2 * (4 * LD + 4) + 2 * LD + (4 * LD + 4 * LKV + 4 * LH) + 2 * LD + 6 * LF + 2 * LF + 7 * 32;
+  assert.strictEqual(pl({ adapted: ALL, p: 0 }), p0);
+  // con p > 0 cada adaptador guarda su copia con dropout (2 bytes) + la máscara (1 byte en CUDA): 3·Σ d_in = 116,736
+  const drop = 3 * (6 * LD + LF);
+  assert.strictEqual(drop, 116736);
+  assert.strictEqual(pl({ adapted: ALL, p: 0.05 }), 2 * (4 * LD + 4) + (4 * LD + 4 * LKV + 4 * LH) + 6 * LF + 7 * 32 + drop);
+  const m = A10.metrics('lora-llama3-8b-r16', {}), c = A10.metrics('lora-llama3-8b-r16', { gradCkpt: 1 });
+  const T = 2048, nonLayer = T * (4 * LD + 4 + 4 * LDH), logits = T * LV * 6;
+  assert.deepStrictEqual([m.activationBytesPerTokenLayer, m.loraDropoutBytesPerTokenLayer, m.logitsBytes], [pl({ adapted: ALL, p: 0.05 }), drop, logits]);
+  assert.strictEqual(m.activationBytes, T * LL * m.activationBytesPerTokenLayer + nonLayer + logits);
+  assert.strictEqual(c.activationBytes, LL * T * LD * 2 + T * m.activationBytesPerTokenLayer + nonLayer + logits);
+  assert.deepStrictEqual([m.activationBytesNoCkpt, m.activationBytesCkpt, c.activationBytes], [m.activationBytes, c.activationBytes, c.activationBytes]);
+  assert.strictEqual(A10.metrics('lora-llama3-8b-r16', { B: 2 }).activationBytes, 2 * m.activationBytes);
+  assert.strictEqual(m.attnScoresBytesEager, LL * LH * T * T * 2);
+  assert.strictEqual(m.actMem, m.activationBytes);   // la genérica, con la contabilidad de este modelo
+  // listas de escala
+  assert.deepStrictEqual(J(m.seqScaling.map((x) => x.T)), [512, 1024, 2048, 4096, 8192]);
+  assert.ok(m.seqScaling.every((x, i, a) => x.activationBytesCkpt < x.activationBytes && (!i || x.activationBytes > a[i - 1].activationBytes)));
+  assert.deepStrictEqual(J(m.rankScaling.map((x) => x.trainableParams)), [4, 8, 16, 32, 64, 128].map((rk) => rk * 41943040 / 16));
+  assert.deepStrictEqual(J(m.targetsScaling.map((x) => x.name)), ['qv', 'attn', 'all']);
+});
+
+test('F10 rlhf-dpo: los 4 modelos de PPO (reward y crítico = decoder + cabeza D → 1), DPO / GRPO con 2, LoRA comparte la base con la referencia', () => {
+  const RM = LLAMA8B - LV * LD + LD;   // sin LM head + score (4096 → 1, sin sesgo)
+  assert.strictEqual(RM, 7504928768);
+  const p = A10.run('rlhf-llama3-8b'), mp = A10.metrics('rlhf-llama3-8b', {});
+  assert.strictEqual(p.totals.params, 2 * LLAMA8B + 2 * RM);
+  assert.deepStrictEqual([mp.policyParams, mp.referenceParams, mp.rewardParams, mp.criticParams, mp.trainableParams, mp.modelsInMemory], [LLAMA8B, LLAMA8B, RM, RM, LLAMA8B + RM, 4]);
+  assert.deepStrictEqual([mp.policyWeightBytes, mp.referenceWeightBytes, mp.policyOptimizerBytes, mp.criticOptimizerBytes, mp.criticGradBytes], [2 * LLAMA8B, 2 * LLAMA8B, 12 * LLAMA8B, 12 * RM, 2 * RM]);
+  const roots = new Set(p.ops.map((o) => o.path[0]));
+  assert.deepStrictEqual(J([...roots].sort()), ['advantage', 'critic', 'kl', 'policy', 'ppo-loss', 'reference', 'reward', 'shaped-reward', 'value-loss']);
+  const sh = (r, id) => J(r.tensors[id].num).join('×');
+  assert.deepStrictEqual(['pol-logits', 'pol-logp', 'ref-logp', 'rm-x-norm', 'reward-scores', 'reward', 'critic-values', 'values', 'kl', 'rewards', 'advantages', 'returns', 'loss-policy'].map((id) => sh(p, id)),
+    ['1024×128256', '512', '512', '1024×4096', '1024×1', '1', '1024×1', '512×1', '512', '512', '512', '512', '1']);
+  assert.ok(!p.tensors['rm-logits'] && !p.tensors['cr-logits']);
+  // DPO: política y referencia con repeat × 2 (y_w, y_l) y UN juego de pesos cada una
+  const d = A10.run('dpo-llama3-8b'), md = A10.metrics('dpo-llama3-8b', {});
+  assert.strictEqual(d.totals.params, 2 * LLAMA8B);
+  assert.strictEqual(d.totals.macs, 4 * A10.run('llama3-8b', { T: 1024 }).totals.macs);
+  assert.deepStrictEqual([d.ops.find((o) => o.id === 'pol-q-proj').repeat, d.ops.find((o) => o.id === 'pol-q-proj').paramRepeat], [2 * LL, LL]);
+  assert.deepStrictEqual([sh(d, 'pol-logp'), sh(d, 'ref-logp'), sh(d, 'loss'), md.modelsInMemory, md.generationTokensPerStep, md.rolloutMacs, md.sequencesPerStep], ['2', '2', '1', 2, 0, 0, 16]);
+  // GRPO: × G respuestas por prompt, sin crítico
+  const g = A10.run('grpo-llama3-8b'), mg = A10.metrics('grpo-llama3-8b', {});
+  assert.strictEqual(g.totals.macs, 2 * 8 * A10.run('llama3-8b', { T: 1024 }).totals.macs);
+  assert.deepStrictEqual([mg.groupSize, mg.sequencesPerStep, mg.generationTokensPerStep, mg.modelsInMemory, mg.criticParams], [8, 64, 64 * 512, 2, 0]);
+  assert.strictEqual(A10.metrics('grpo-llama3-8b', { groupSize: 16 }).generationTokensPerStep, 2 * mg.generationTokensPerStep);
+  // groupSize (G de GRPO) NO es cfg.G (las 8 cabezas KV de F6): mismos parámetros, mismas formas de K y misma KV cache por secuencia
+  const g16 = A10.run('grpo-llama3-8b', { groupSize: 16 }), m16 = A10.metrics('grpo-llama3-8b', { groupSize: 16 });
+  assert.deepStrictEqual([g16.totals.params, g16.config.G, g16.config.groupSize, J(g16.tensors['pol-k'].num), J(g16.tensors.rewards.num)], [g.totals.params, 8, 16, [1024, 1024], [16]]);
+  assert.deepStrictEqual([m16.totalParams, m16.policyParams, m16.trainableParams, m16.kvCacheBytes], [mg.totalParams, mg.policyParams, mg.trainableParams, 2 * mg.kvCacheBytes]);
+  assert.strictEqual(m16.policyTrainStepMacsPerSeq, mg.policyTrainStepMacsPerSeq);
+  assert.throws(() => A10.run('grpo-llama3-8b', { G: 16 }), /Knob inválido/);
+  assert.throws(() => A10.run('dpo-llama3-8b', { groupSize: 4 }), /solo existe en GRPO/);
+  // PPO con LoRA: política y crítico con adaptadores; la referencia comparte la base de la política
+  const pl = A10.metrics('ppo-llama3-8b-lora', {});
+  assert.deepStrictEqual([pl.modelsInMemory, pl.trainableParams, pl.referenceWeightBytes, pl.totalParams], [3, 2 * 41943040 + LD, 0, LLAMA8B + 41943040 + RM + RM + 41943040]);
+  assert.ok(pl.fitsOn80 && !mp.fitsOn80);
+  assert.throws(() => A10.run('rlhf-llama3-8b', { T: 1023 }), /par/);
+  // DPO con LoRA: la referencia = la base sin adaptadores (paramRepeat 0): un solo juego de pesos
+  const l = A10.run('dpo-llama3-8b-lora'), ml = A10.metrics('dpo-llama3-8b-lora', {});
+  assert.strictEqual(l.totals.params, LLAMA8B + 41943040);
+  assert.ok(l.ops.filter((o) => o.path[0] === 'reference' && o.params).every((o) => o.paramRepeat === 0));
+  assert.deepStrictEqual([ml.modelsInMemory, ml.trainableParams, ml.referenceWeightBytes], [1, 41943040, 0]);
+  assert.ok(ml.totalTrainMemory < md.totalTrainMemory / 3);
+  // refOffload: la referencia sale de la GPU (DPO: log-probs precalculados → su forward sale del paso)
+  const mo = A10.metrics('dpo-llama3-8b', { refOffload: 1 });
+  assert.deepStrictEqual([mo.modelsInMemory, mo.referenceWeightBytes, mo.referenceMacs, mo.referencePrecomputeMacs], [1, 0, 0, md.referenceMacs]);
+});
+
+test('F10 rlhf-dpo: MACs por paso = rollout (llm.js) + forwards de puntuación + updates; memoria por rol', () => {
+  const c = A10.run('rlhf-llama3-8b').config, m = A10.metrics('rlhf-llama3-8b', {});
+  // rollout de UNA secuencia: prefill de T_p con logits solo de la última fila + T_r − 1 decodes con ctx = T_p + k
+  const q = A10.run('llama3-8b', { T: 512 }).quantities;
+  let dec = 0;
+  for (let k = 1; k <= 511; k++) dec += A10.metrics('llama3-8b-decode', { ctx: 512 + k }).decodeMacsPerToken;
+  const pre = A10.metrics('llama3-8b', { T: 512 }).prefillMacsLastLogits;
+  assert.strictEqual(q.prefillMacs - 511 * LD * LV, pre);
+  assert.strictEqual(m.rolloutMacsPerSeq, pre + dec);
+  assert.strictEqual(m.rolloutMacs, 8 * m.rolloutMacsPerSeq);
+  assert.deepStrictEqual([c.Tp, c.Tr, m.generationTokensPerStep, m.ppoEpochs], [512, 512, 8 * 512, 4]);
+  assert.strictEqual(m.trainStepMacs, m.rolloutMacs + m.referenceMacs + m.rewardMacs + m.criticForwardMacs + m.policyForwardMacs + m.policyUpdateMacs + m.criticUpdateMacs);
+  assert.strictEqual(m.flopsSplit.reduce((s, x) => s + x.macs, 0), m.trainStepMacs);
+  assert.strictEqual(m.policyUpdateMacs, 4 * 8 * m.policyTrainStepMacsPerSeq);
+  // la política de PPO se entrena como el full FT (gradient checkpointing): el mismo costo por secuencia a igual T
+  assert.strictEqual(m.policyTrainStepMacsPerSeq, A10.metrics('full-ft-llama3-8b', { T: 1024, gradCkpt: 1 }).trainStepMacsPerSeq);
+  assert.strictEqual(A10.metrics('dpo-llama3-8b-lora', {}).policyTrainStepMacsPerSeq, A10.metrics('lora-llama3-8b-r16', { T: 1024, gradCkpt: 1 }).trainStepMacsPerSeq);
+  assert.ok(Math.abs(m.rolloutShare + m.scoringShare + m.updateShare - 1) < 1e-12);
+  // memoria = pesos + gradientes + optimizador + máx(activaciones, KV cache del rollout)
+  assert.strictEqual(m.totalTrainMemory, m.weightBytes + m.gradBytes + m.optimizerBytes + Math.max(m.activationBytes, m.kvCacheBytes));
+  assert.strictEqual(m.kvCacheBytes, 8 * 1024 * A10.metrics('llama3-8b', {}).kvBytesPerToken);
+  assert.strictEqual(m.gpus80Needed, Math.ceil(m.totalTrainMemory / 80e9));
+  assert.deepStrictEqual(J(m.methods.map((x) => [x.id, x.modelsInMemory])), [['ppo', 4], ['dpo', 2], ['grpo', 2]]);
+  assert.ok(m.methods[0].totalTrainMemory > m.methods[2].totalTrainMemory && m.methods[2].totalTrainMemory > m.methods[1].totalTrainMemory);
+  assert.deepStrictEqual(J(m.roles.map((x) => [x.id, x.trainable, x.inMemory])), [['policy', true, true], ['reference', false, true], ['reward', false, true], ['critic', true, true]]);
+  const lo = A10.metrics('rlhf-llama3-8b', { lora: 1 });
+  assert.deepStrictEqual([lo.modelsInMemory, lo.trainableParams], [3, 2 * 41943040 + LD]);   // la referencia comparte la base; la cabeza de valor se entrena
+});
+
+test('F10 fórmulas: Bradley-Terry, DPO (recompensa implícita β·log π/π_ref), PPO-clip, KL k1/k3, ventaja de GRPO, GAE', () => {
+  const bt = FT.bradleyTerry(1, 1);
+  assert.deepStrictEqual([bt.prob, bt.loss], [0.5, Math.log(2)]);
+  assert.ok(FT.bradleyTerry(3, 0).prob > 0.95);
+  const z = FT.dpoLoss({ piChosen: -5, piRejected: -5, refChosen: -5, refRejected: -5, beta: 0.1 });
+  assert.deepStrictEqual([z.margin, z.loss, z.prob], [0, Math.log(2), 0.5]);
+  const dl = FT.dpoLoss({ piChosen: -10, piRejected: -14, refChosen: -11, refRejected: -12, beta: 0.5 });
+  assert.ok(Math.abs(dl.rewardChosen - 0.5) < 1e-12 && Math.abs(dl.rewardRejected + 1) < 1e-12 && Math.abs(dl.margin - 1.5) < 1e-12);
+  assert.ok(Math.abs(dl.loss - Math.log1p(Math.exp(-1.5))) < 1e-12);
+  const pc = FT.ppoClip({ logp: Math.log(1.5), oldLogp: 0, adv: 1, eps: 0.2 });
+  assert.ok(Math.abs(pc.loss + 1.2) < 1e-12 && pc.clipped);
+  assert.ok(Math.abs(FT.ppoClip({ logp: Math.log(0.5), oldLogp: 0, adv: -1 }).loss - 0.8) < 1e-12);   // ventaja negativa: recorta abajo
+  const kl = FT.klEstimators(-1, -1);
+  assert.deepStrictEqual([kl.k1, kl.k3], [0, 0]);
+  assert.ok(FT.klEstimators(-0.5, -2).k3 > 0 && FT.klEstimators(-2, -0.5).k3 > 0);   // k3 ≥ 0 siempre
+  const ga = FT.grpoAdvantages([1, 0, 1, 0]);
+  assert.ok(Math.abs(ga.reduce((s, x) => s + x, 0)) < 1e-12 && ga[0] > 0 && ga[1] < 0);
+  const ge = FT.gae([0, 0, 1], [0.2, 0.4, 0.5], { gamma: 1, lambda: 1 });
+  assert.deepStrictEqual(J(ge.advantages.map((x) => +x.toFixed(12))), [0.8, 0.6, 0.5]);   // λ = 1: retorno (1) − V
+  assert.deepStrictEqual(J(ge.returns.map((x) => +x.toFixed(12))), [1, 1, 1]);
+});
+
+test('F10 etiqueta + símbolo identifican una forma; byPath suma; aritmética; where; units conocidas; Quantities resuelve todas las claves', () => {
+  const cases = [['lora-llama3-8b-r16', [{}, { r: 8, targets: 4, T: 512 }]], ['lora-llama3-8b-r16-qv', [{}]], ['qlora-llama3-8b-r16', [{}]], ['full-ft-llama3-8b', [{}]],
+    ['rlhf-llama3-8b', [{}, { lora: 1 }]], ['dpo-llama3-8b', [{}]], ['grpo-llama3-8b', [{}, { groupSize: 16 }]], ['ppo-llama3-8b-lora', [{}]], ['dpo-llama3-8b-lora', [{}]]];
+  for (const [id, ovs] of cases) {
+    for (const ov of ovs) {
+      const r = A10.run(id, ov), t = r.totals;
+      const by = {};
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        const k = x.label + '|' + String(x.tex).split('=')[0].trim();
+        (by[k] = by[k] || new Set()).add(x.num.join('×'));
+      }
+      for (const [k, v] of Object.entries(by)) assert.strictEqual(v.size, 1, id + ': "' + k + '" tiene ' + [...v].join(' y '));
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.params * A10.paramRep(o), 0), t.params);
+      assert.strictEqual(r.ops.reduce((s, o) => s + o.macs * o.repeat, 0), t.macs);
+      const check = (pp, want) => {
+        const kids = children(r, pp);
+        if (!kids.length) return;
+        const at = (k) => t.byPath[pp.concat([k]).join('>')];
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).params, 0), want.params, id + ' params bajo ' + (pp.join('>') || 'raíz'));
+        assert.strictEqual(kids.reduce((s, k) => s + at(k).macs, 0), want.macs, id + ' MACs bajo ' + (pp.join('>') || 'raíz'));
+        kids.forEach((k) => check(pp.concat([k]), at(k)));
+      };
+      check([], t);
+      for (const tid of r.order) {
+        const x = r.tensors[tid];
+        if (x.producer) assert.ok(r.ops.find((o) => o.id === x.producer).out.includes(tid));
+        x.consumers.forEach((oid) => assert.ok(r.ops.find((o) => o.id === oid).in.includes(tid)));
+      }
+      for (const o of r.ops) {
+        if (o.params) assert.ok(o.paramArith.endsWith(A10.fmt.int(o.params)), id + ' ' + o.id + ' paramArith');
+        if (o.macs) assert.ok(o.macArith.endsWith(A10.fmt.int(o.macs)), id + ' ' + o.id + ' macArith');
+        assert.ok(!/undefined|NaN|null/.test(o.paramTex + o.macTex + o.shapeTex + o.label), id + ' ' + o.id + ' tex');
+        assert.ok(Array.isArray(o.where) && o.where.length, id + ' ' + o.id + ' sin where');
+      }
+      const m = A10.metrics(id, ov);
+      for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'].includes(u), id + ' ' + k + ': ' + u);
+      Object.keys(m).filter((k) => typeof m[k] === 'number' && /Macs(PerSeq|Rule)?$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'macs', id + ' ' + k));
+      Object.keys(m).filter((k) => typeof m[k] === 'number' && /Bytes(\d+|NoDQ|NoCkpt|Ckpt|PerTokenLayer|Eager)?$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'bytes', id + ' ' + k));
+      Object.keys(m).filter((k) => typeof m[k] === 'number' && /Params$/.test(k)).forEach((k) => assert.strictEqual(m.units[k], 'params', id + ' ' + k));
+    }
+    assert.strictEqual(A10.run(id), A10.run(id), 'memoizado');
+    J(Q10.keys(id)).forEach((k) => assert.ok(Q10.get(id + '.' + k), id + '.' + k));
+  }
+  assert.strictEqual(Q10.get('lora-llama3-8b-r16.metrics.trainableParams').text, '41,943,040');
+  assert.strictEqual(Q10.get('lora-llama3-8b-r16.params.total').text, '8,072,204,288');
+  assert.strictEqual(Q10.get('lora-llama3-8b-r16.tensor.q-lora-a.shape').text, '2048×16');
+  assert.strictEqual(Q10.get('lora-llama3-8b-r16.metrics.fitsOn48').text, 'sí');
+  assert.strictEqual(Q10.get('rlhf-llama3-8b.metrics.modelsInMemory').text, '4');
+  assert.strictEqual(Q10.get('qlora-llama3-8b-r16.metrics.baseWeightBytes').text, A10.fmt.bytes(A10.metrics('qlora-llama3-8b-r16', {}).baseWeightBytes));
+});
+// ================================================================ fin del bloque de la fase 10

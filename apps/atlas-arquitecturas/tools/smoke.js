@@ -116,6 +116,8 @@
       ok(label + ' · ' + c.diagram + ': formas = calculador', bad.length === 0, bad.slice(0, 4));
       // calc:false (pesos cerrados, RT-2): sin formas del calculador por diseño; las aristas llevan etiqueta.
       if (spec.calc === false) ok(label + ' · ' + c.diagram + ': aristas con etiqueta (calc:false)', $$('[data-edge]', fig).length > 0 && $$('[data-edge][data-tensor]', fig).length === 0);
+      // Vistas sin aristas (barras de memoria por método, fase 10): no hay formas que comprobar.
+      else if (!(spec.edges || []).length) ok(label + ' · ' + c.diagram + ': vista sin aristas (barras)', $$('[data-edge]', fig).length === 0);
       else ok(label + ' · ' + c.diagram + ': aristas con forma', $$('[data-edge][data-tensor]', fig).length > 0);
       views++;
       // Bloques que se abren (nivel b y c)

@@ -91,6 +91,13 @@
      (un vector en R filas: el tiempo en cada acción), prefix_mask y block_causal_mask (máscaras de π0), ar_decode (los pasos de
      decode autorregresivo que faltan tras el prefill) y detokenize_actions (id → bin → centro → desnormalizar). No están en
      NOT_SAVED (como cuando vivían en vla.js): run y metrics de todas las configs, idénticos antes y después.
+   - Fase 10 (LoRA / QLoRA, SFT / RLHF / DPO; modelos en js/arch/finetune.js): dropout (lora_dropout de PEFT), lora_a, lora_b,
+     lora_scale y la compuesta lora_linear (A → B → ×α/r: parámetros r·(d_in + d_out), MACs N·r·(d_in + d_out); la rama congelada
+     en detail), quant_storage(n, {bits, rows, dq}) (bytes de una matriz a 16 / 8 / 4 bits: int8 + absmax por fila, NF4 + absmax
+     por bloque de 64 con o sin doble cuantización: 0.5 → 0.127 bits por parámetro; no es una op del grafo), scalar_head
+     (D → 1: recompensa / valor), token_logprobs, kl_penalty (k1 / k3), shaped_reward, gae, group_advantage, ppo_clip_loss,
+     value_loss, bt_loss y dpo_loss (solo "otros"). Fuera de NOT_SAVED. Ninguna cambia el resultado de las fases 1–9
+     (verificado: run y metrics de las 56 configs anteriores idénticos antes y después).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -2283,6 +2290,157 @@
     });
   }
 
+  // ---- Fase 10 (LoRA / QLoRA, SFT / RLHF / DPO) ------------------------------------------------
+  // Lo que entrena un adaptador LoRA (Hu et al., ICLR 2022, arXiv:2106.09685): y = W₀x + (α/r)·B·A·x, con W₀ (d_out × d_in)
+  // CONGELADA, A (r × d_in) y B (d_out × r) entrenables; B empieza en 0 (ΔW = 0 al inicio). Parámetros entrenables
+  // r·(d_in + d_out); MACs extra N·r·(d_in + d_out). Tras entrenar se fusiona W = W₀ + (α/r)·BA: cero costo en inferencia.
+  // dropout: máscara de Bernoulli y escala 1/(1 − p) (≈ 2 ops por elemento). PEFT lo aplica a la ENTRADA de cada adaptador
+  // (lora_dropout; con p = 0 es nn.Identity y no copia nada). o = {p}
+  function dropout(x, o) {
+    const p = (o && o.p) || 0;
+    return result('dropout', [x], plain(x), { other: 2 * elems(x), detail: { p, note: 'PEFT: un dropout por adaptador sobre su entrada; con p = 0 es la identidad' } });
+  }
+  // lora_a: A, Linear d_in → r sin sesgo (entrenable; PEFT la inicia Kaiming-uniforme, el paper gaussiana). o = {r, rSym='r'}
+  function lora_a(x, o) {
+    const r = linear(x, { dout: o.r, doutSym: o.rSym || 'r', bias: false });
+    r.prim = 'lora_a';
+    r.detail = Object.assign({}, r.detail, { r: o.r, trainable: true, init: 'Kaiming-uniforme (PEFT, init_lora_weights = True) · gaussiana (paper)' });
+    return r;
+  }
+  // lora_b: B, Linear r → d_out sin sesgo (entrenable; empieza en CERO: el modelo arranca igual al base). o = {dout, doutSym}
+  function lora_b(x, o) {
+    const r = linear(x, { dout: o.dout, doutSym: o.doutSym || String(o.dout), bias: false });
+    r.prim = 'lora_b';
+    r.detail = Object.assign({}, r.detail, { trainable: true, init: 'ceros (ΔW = BA = 0 al empezar)' });
+    return r;
+  }
+  // lora_scale: multiplica por α/r (escalar fijo, no se entrena). o = {alpha, r}
+  function lora_scale(x, o) {
+    return result('lora_scale', [x], plain(x), { other: elems(x) * OTHER.scale, detail: { alpha: o.alpha, r: o.r, scaling: o.alpha / o.r } });
+  }
+  // lora_linear (compuesta): el camino del adaptador A → B → ×α/r sobre x (N×d_in) → ΔW·x (N×d_out). SOLO cuenta lo
+  // entrenable: parámetros r·(d_in + d_out), MACs N·r·(d_in + d_out). La rama congelada W₀x (d_in·d_out parámetros,
+  // N·d_in·d_out MACs) va en detail.frozenParams / frozenMacs; mergedParams = d_in·d_out (tras fusionar no queda nada extra).
+  // o = {dout, doutSym, r, alpha, rSym}
+  function lora_linear(x, o) {
+    const din = x.num[x.num.length - 1], dinSym = x.sym[x.sym.length - 1];
+    const rows = prod(x.num.slice(0, -1));
+    const a = lora_a(x, { r: o.r, rSym: o.rSym });
+    const b = lora_b(a.out, { dout: o.dout, doutSym: o.doutSym });
+    const s = lora_scale(b.out, { alpha: o.alpha, r: o.r });
+    const rs = symTexFactor(o.rSym || 'r'), di = symTexFactor(dinSym), dout = symTexFactor(o.doutSym || String(o.dout));
+    const n = x.sym.slice(0, -1).map(symTexFactor).join('\\,');
+    const r = composite('lora_linear', x, [a, b, s], s.out, {
+      paramTex: rs + '\\,(' + di + ' + ' + dout + ')', macTex: (n ? n + '\\,' : '') + rs + '\\,(' + di + ' + ' + dout + ')',
+      detail: { r: o.r, alpha: o.alpha, scaling: o.alpha / o.r, din, dout: o.dout, frozenParams: din * o.dout, frozenMacs: rows * din * o.dout,
+        mergedParams: din * o.dout, trainableParams: o.r * (din + o.dout),
+        note: 'y = W₀x + (α/r)·B(Ax); W₀ congelada. Tras entrenar: W = W₀ + (α/r)·BA (misma forma, sin costo extra en inferencia).' },
+    });
+    r.paramArith = o.r + '·(' + din + ' + ' + o.dout + ') = ' + int(r.params);
+    r.macArith = (rows > 1 ? rows + '·' : '') + o.r + '·(' + din + ' + ' + o.dout + ') = ' + int(r.macs);
+    return r;
+  }
+  // quant_storage: bytes de guardar n pesos de UNA matriz a `bits` (contabilidad, no es una op del grafo). → {bytes, dataBytes,
+  // constBytes, bitsPerParam, constBitsPerParam, detail}. o = {bits: 32|16|8|4, rows (d_out, para int8), block = 64,
+  // absmaxBits = 32, dq = false, dqBits = 8, dqBlock = 256}
+  // - 32 / 16 bits: n·bits/8, sin constantes.
+  // - 8 bits (LLM.int8 de bitsandbytes, Dettmers et al. 2022, arXiv:2208.07339): int8 por elemento + un absmax fp32 por FILA
+  //   de salida (SCB): n + 4·rows.
+  // - 4 bits (NF4 de QLoRA, Dettmers et al., NeurIPS 2023, arXiv:2305.14314, §3; bitsandbytes quantize_4bit): 4 bits por
+  //   elemento + un absmax por bloque de 64. Sin doble cuantización: absmax fp32 → 32/64 = 0.5 bits por parámetro. Con doble
+  //   cuantización (compress_statistics): los absmax se guardan en 8 bits (bloques de 256, menos su media: 1 offset fp32 por
+  //   matriz) + 1 absmax fp32 por bloque de 256 → 8/64 + 32/(64·256) = 0.127 bits por parámetro (paper: "from 0.5 to 0.127").
+  //   No cuenta los códigos (16 valores NF4 y el mapa dinámico de 256): son tablas compartidas, no por matriz.
+  function quant_storage(n, o) {
+    o = o || {};
+    const bits = o.bits || 16;
+    if (!(Number.isInteger(n) && n > 0)) throw new Error('quant_storage: n debe ser un entero positivo.');
+    let dataBytes, constBytes = 0, detail;
+    if (bits === 16 || bits === 32) {
+      dataBytes = n * bits / 8;
+      detail = { scheme: bits === 16 ? 'bf16' : 'fp32' };
+    } else if (bits === 8) {
+      if (!o.rows) throw new Error('quant_storage: con 8 bits hace falta rows (filas de salida: un absmax por fila).');
+      dataBytes = n;
+      constBytes = 4 * o.rows;
+      detail = { scheme: 'LLM.int8 (int8 + absmax fp32 por fila)', rows: o.rows };
+    } else if (bits === 4) {
+      const block = o.block || 64, ab = o.absmaxBits || 32;
+      const blocks = Math.ceil(n / block);
+      dataBytes = Math.ceil(n / 2);
+      if (o.dq) {
+        const qb = o.dqBits || 8, b2 = o.dqBlock || 256;
+        const blocks2 = Math.ceil(blocks / b2);
+        constBytes = blocks * qb / 8 + blocks2 * 4 + 4;
+        detail = { scheme: 'NF4 + doble cuantización', block, blocks, absmaxBits: qb, dqBlock: b2, blocks2, offsetBytes: 4 };
+      } else {
+        constBytes = blocks * ab / 8;
+        detail = { scheme: 'NF4', block, blocks, absmaxBits: ab };
+      }
+    } else {
+      throw new Error('quant_storage: bits debe ser 4, 8, 16 o 32 (recibí ' + bits + ').');
+    }
+    return { n, bits, dataBytes, constBytes, bytes: dataBytes + constBytes, bitsPerParam: 8 * (dataBytes + constBytes) / n, constBitsPerParam: 8 * constBytes / n, detail };
+  }
+  // scalar_head: Linear D → 1 sin sesgo sobre cada fila (cabeza de recompensa o de valor: LlamaForSequenceClassification con
+  // num_labels = 1, `score`). Parámetros D; MACs N·D. o = {role}
+  function scalar_head(x, o) {
+    const r = linear(x, { dout: 1, doutSym: '1', bias: false });
+    r.prim = 'scalar_head';
+    r.detail = Object.assign({}, r.detail, { role: (o && o.role) || null });
+    return r;
+  }
+  // token_logprobs: log-softmax sobre V y tomar el log-prob del token real en cada una de las `rows` posiciones de la respuesta
+  // (logits T×V → rows). o.sum: además suma por secuencia (DPO: un log π(y|x) por secuencia) → vector de 1. ≈ 5·rows·V "otros".
+  // o = {rows, sym, sum}
+  function token_logprobs(logits, o) {
+    const V = logits.num[logits.num.length - 1], rows = o.rows;
+    const out = o.sum ? shape(['1'], [1], logits.mod, 'vec') : shape([o.sym || String(rows)], [rows], logits.mod, 'vec');
+    return result('token_logprobs', [logits], out, { other: rows * (V * OTHER.softmax + 1) + (o.sum ? rows : 0), detail: { V, rows, sum: !!o.sum } });
+  }
+  // kl_penalty: KL por token entre la política y la referencia a partir de los log-probs muestreados. o.estimator: 'k1'
+  // (log π − log π_ref: InstructGPT / TRL PPO) o 'k3' (π_ref/π − log(π_ref/π) − 1, sin sesgo y ≥ 0: GRPO, Schulman 2020).
+  function kl_penalty(logp, ref, o) {
+    const est = (o && o.estimator) || 'k1';
+    return result('kl_penalty', [logp, ref], plain(logp), { other: elems(logp) * (est === 'k3' ? 4 : 1), detail: { estimator: est, beta: (o && o.beta) || null } });
+  }
+  // shaped_reward: r_t = −β·KL_t en cada token y + r_φ(x, y) en el último (InstructGPT §3.5; TRL PPO). o = {beta}
+  function shaped_reward(kl, reward, o) {
+    return result('shaped_reward', [kl, reward], plain(kl), { other: 2 * elems(kl) + 1, detail: { beta: (o && o.beta) || null } });
+  }
+  // gae: ventajas con GAE (Schulman et al. 2016, arXiv:1506.02438): δ_t = r_t + γV_{t+1} − V_t, Â_t = Σ (γλ)^k δ_{t+k};
+  // retornos = Â + V. → [ventajas, retornos] (rows cada uno). o = {gamma, lambda}
+  function gae(rewards, values, o) {
+    const n = rewards.num[0], s = rewards.sym[0];
+    return result('gae', [rewards, values], [shape([s], [n], rewards.mod, 'vec'), shape([s], [n], rewards.mod, 'vec')], {
+      other: 6 * n, detail: { gamma: o && o.gamma != null ? o.gamma : null, lambda: o && o.lambda != null ? o.lambda : null },
+    });
+  }
+  // group_advantage (GRPO, Shao et al. 2024, arXiv:2402.03300): Â_i = (r_i − media(r)) / std(r) sobre las G respuestas del
+  // mismo prompt (sin crítico). ≈ 4 ops por respuesta.
+  function group_advantage(rewards, o) {
+    return result('group_advantage', [rewards], plain(rewards), { other: 4 * elems(rewards), detail: { G: rewards.num[0] } });
+  }
+  // ppo_clip_loss: −E[min(ρ_t Â_t, clip(ρ_t, 1 − ε, 1 + ε) Â_t)], ρ_t = exp(log π − log π_old) (Schulman et al. 2017,
+  // arXiv:1707.06347). → escalar. o = {eps, kind: 'ppo'|'grpo'}
+  function ppo_clip_loss(logp, adv, o) {
+    const ins = [logp, adv].concat(o && o.kl ? [o.kl] : []);
+    return result('ppo_clip_loss', ins, shape(['1'], [1], logp.mod, 'vec'), { other: 8 * elems(logp), detail: { eps: (o && o.eps) || 0.2, kind: (o && o.kind) || 'ppo' } });
+  }
+  // value_loss: ½·máx((V − R)², (clip(V, V_old ± ε) − R)²) promediado (crítico de PPO). → escalar. o = {eps}
+  function value_loss(values, returns, o) {
+    return result('value_loss', [values, returns], shape(['1'], [1], values.mod, 'vec'), { other: 6 * elems(returns), detail: { eps: (o && o.eps) || 0.2 } });
+  }
+  // bt_loss: Bradley-Terry del modelo de recompensa: P(y_w ≻ y_l) = σ(r_w − r_l); pérdida −log σ(r_w − r_l). → escalar.
+  function bt_loss(rw, rl) {
+    return result('bt_loss', [rw, rl], shape(['1'], [1], rw.mod, 'vec'), { other: 4, detail: { formula: '−log σ(r_w − r_l)' } });
+  }
+  // dpo_loss (Rafailov et al., NeurIPS 2023, arXiv:2305.18290, ec. 7): −log σ(β·[(log π(y_w) − log π_ref(y_w)) −
+  // (log π(y_l) − log π_ref(y_l))]). Entradas: log-probs por secuencia (elegida, rechazada) de la política y de la referencia.
+  function dpo_loss(pi, ref, o) {
+    return result('dpo_loss', [pi, ref], shape(['1'], [1], pi.mod, 'vec'), { other: 8, detail: { beta: (o && o.beta) || 0.1 } });
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -2315,6 +2473,9 @@
     resnet_block, upsample2d, geglu_ff, spatial_transformer, dit_block,
     // Fase 9
     normalize_pixels, prefix_tokens, broadcast_rows, prefix_mask, block_causal_mask, ar_decode, detokenize_actions,
+    // Fase 10
+    dropout, lora_a, lora_b, lora_scale, lora_linear, quant_storage, scalar_head, token_logprobs, kl_penalty, shaped_reward, gae,
+    group_advantage, ppo_clip_loss, value_loss, bt_loss, dpo_loss,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -2500,6 +2661,23 @@
     { id: 'block_causal_mask', name: 'Máscara por bloques', paramTex: '0', macTex: '0', outTex: 'h\\times (1{+}H_a)\\times S \\to \\cdot', note: 'π0: estado → prefijo + estado; acciones → todo. Los MACs no bajan: se cuentan las entradas enmascaradas.' },
     { id: 'ar_decode', name: 'Decode autorregresivo', paramTex: '0', macTex: '\\sum_k \\mathrm{decode}(\\mathrm{ctx}_k)', outTex: '1 \\to d_a', note: 'OpenVLA: 7 tokens de acción = 1 prefill + 6 pasos de decode, cada uno leyendo todos los pesos del LLM (≈ 13.2 GB en bf16).' },
     { id: 'detokenize_actions', name: 'Tokens → acción continua', paramTex: '0', macTex: '0', outTex: 'd_a \\to d_a', note: 'id → bin (32,000 − id) → centro del bin → desnormalizar con los cuantiles 1 % / 99 % del dataset.' },
+    // Fase 10 (LoRA / QLoRA, RLHF / DPO)
+    { id: 'lora_linear', name: 'Adaptador LoRA', paramTex: 'r\\,(d_{in} + d_{out})', macTex: 'N\\,r\\,(d_{in} + d_{out})', outTex: 'N\\times d_{in} \\to N\\times d_{out}', note: 'y = W₀x + (α/r)·B(Ax): W₀ congelada; solo A (r×d_in) y B (d_out×r) se entrenan. B empieza en 0. Tras fusionar W₀ + (α/r)BA no queda costo extra.' },
+    { id: 'lora_a', name: 'LoRA A (bajada a r)', paramTex: 'r\\,d_{in}', macTex: 'N\\,d_{in}\\,r', outTex: 'N\\times d_{in} \\to N\\times r', note: 'Entrenable, sin sesgo; PEFT la inicia Kaiming-uniforme.' },
+    { id: 'lora_b', name: 'LoRA B (subida a d_out)', paramTex: 'd_{out}\\,r', macTex: 'N\\,r\\,d_{out}', outTex: 'N\\times r \\to N\\times d_{out}', note: 'Entrenable, sin sesgo, empieza en cero: el modelo arranca idéntico al base.' },
+    { id: 'lora_scale', name: 'Escala α/r', paramTex: '0', macTex: '0', outTex: 'N\\times d_{out} \\to N\\times d_{out}', note: 'Escalar fijo: con α = 2r, ×2. rsLoRA propone α/√r.' },
+    { id: 'dropout', name: 'Dropout', paramTex: '0', macTex: '0', outTex: 'N\\times D \\to N\\times D', note: 'PEFT aplica lora_dropout a la entrada de CADA adaptador: con p > 0 es una copia más que el backward guarda.' },
+    { id: 'quant_storage', name: 'Almacenamiento cuantizado', paramTex: '0', macTex: '0', outTex: 'n \\to \\text{bytes}', note: 'NF4: 4 bits + absmax fp32 por bloque de 64 (0.5 bit/param); con doble cuantización 8/64 + 32/(64·256) ≈ 0.127. int8: + absmax por fila.' },
+    { id: 'scalar_head', name: 'Cabeza escalar (recompensa / valor)', paramTex: 'D', macTex: 'N\\,D', outTex: 'N\\times D \\to N\\times 1', note: 'El LM head (D → V) se cambia por D → 1: el reward model lee el último token; el crítico, todos.' },
+    { id: 'token_logprobs', name: 'Log-probs por token', paramTex: '0', macTex: '0', outTex: 'T\\times V \\to T_r', note: 'log-softmax sobre V y tomar el del token real en cada posición de la respuesta.' },
+    { id: 'kl_penalty', name: 'Penalización KL', paramTex: '0', macTex: '0', outTex: 'T_r,\\ T_r \\to T_r', note: 'k1 = log π − log π_ref (PPO); k3 = π_ref/π − log(π_ref/π) − 1 (GRPO): ≥ 0 y sin sesgo.' },
+    { id: 'shaped_reward', name: 'Recompensa con KL', paramTex: '0', macTex: '0', outTex: 'T_r,\\ 1 \\to T_r', note: 'r_t = −β·KL_t y, en el último token, + r_φ(x, y).' },
+    { id: 'gae', name: 'GAE', paramTex: '0', macTex: '0', outTex: 'T_r,\\ T_r \\to T_r,\\ T_r', note: 'δ_t = r_t + γV_{t+1} − V_t; Â_t = Σ (γλ)^k δ_{t+k}; retornos = Â + V. Necesita el crítico.' },
+    { id: 'group_advantage', name: 'Ventaja por grupo (GRPO)', paramTex: '0', macTex: '0', outTex: 'G \\to G', note: 'Â_i = (r_i − media)/std de las G respuestas al mismo prompt: reemplaza al crítico.' },
+    { id: 'ppo_clip_loss', name: 'Pérdida PPO-clip', paramTex: '0', macTex: '0', outTex: '\\to 1', note: '−min(ρÂ, clip(ρ, 1 − ε, 1 + ε)Â), ρ = π/π_old, ε = 0.2.' },
+    { id: 'value_loss', name: 'Pérdida del crítico', paramTex: '0', macTex: '0', outTex: '\\to 1', note: '½·máx((V − R)², (V_clip − R)²).' },
+    { id: 'bt_loss', name: 'Pérdida Bradley-Terry', paramTex: '0', macTex: '0', outTex: 'r_w,\\ r_l \\to 1', note: 'P(y_w ≻ y_l) = σ(r_w − r_l); pérdida −log σ(r_w − r_l). Solo importa la diferencia.' },
+    { id: 'dpo_loss', name: 'Pérdida DPO', paramTex: '0', macTex: '0', outTex: '\\to 1', note: '−log σ(β[(log π − log π_ref)(y_w) − (log π − log π_ref)(y_l)]): la recompensa implícita es β·log(π/π_ref).' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 

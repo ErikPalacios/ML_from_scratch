@@ -21,3 +21,8 @@ polars==2.0.0
 diffusers==0.41.0
 importlib_metadata==9.0.1
 zipp==4.1.1
+# peft (fase 10): LoraConfig + get_peft_model sobre LlamaForCausalLM / LlamaForSequenceClassification en meta (crosscheck/finetune.py).
+# Trae accelerate. Sin bitsandbytes (no corre en macOS sin CUDA: la contabilidad NF4 se hace en finetune.py) ni trl (las pérdidas
+# se verifican contra una referencia en torch float64 escrita desde los papers).
+peft==0.21.2
+accelerate==1.15.0
