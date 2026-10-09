@@ -516,7 +516,7 @@
     freq: M, minutes: 60,
     from: ['repaso-atencion', 'bert'], to: [],
     paper: { title: 'Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer', authors: 'Raffel et al.', venue: 'JMLR 2020', arxiv: '1910.10683' },
-    model: 't5', canonical: null,
+    model: 't5', canonical: 't5-base',
     card: { in: 'texto', out: 'texto',
       idea: 'encoder bidireccional + decoder causal con cross-attention', uso: 'traducción, resumen; text encoder de algunos modelos de difusión' },
   }));
@@ -533,7 +533,7 @@
     freq: B, minutes: 60,
     from: ['repaso-atencion'], to: [],
     paper: { title: 'Robust Speech Recognition via Large-Scale Weak Supervision', authors: 'Radford et al.', venue: 'ICML 2023', arxiv: '2212.04356' },
-    model: 'whisper', canonical: null,
+    model: 'whisper', canonical: 'whisper-small',
     card: { in: 'audio (30 s)', out: 'texto (transcripción o traducción)',
       idea: 'encoder-decoder sobre el espectrograma', uso: 'ASR, subtítulos, voz en agentes' },
   }));

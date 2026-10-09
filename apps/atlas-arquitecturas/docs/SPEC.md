@@ -1575,3 +1575,61 @@ distance error; synthetic).
 - **content-bert-retrieval**: js/content/bert.js and js/content/retrieval.js. **content-ann**: js/content/ann.js.
 - **orchestrator**: index.html + stubs, catalog (canonical ids `bert-base`, `dpr-bert-base`,
   `hnsw-1m-768`; roadmap status), SPEC, practice METRICS labels, integration.
+
+## 24. Phase 12 shared facts — T5, Whisper (encoder-decoder) + level-1 cards (every F12 agent MUST use exactly these)
+
+Phase 1–11 lessons apply. Light phase. Thesis: **the third transformer flavour** — an encoder reads
+the whole input bidirectionally once; a causal decoder generates while attending to it through
+**cross-attention** (link #repaso-atencion cross-attention, #detr decoder, #stable-diffusion text
+cross-attention). T5 shows it for text-to-text; Whisper shows it for audio → text, and the cost
+asymmetry (encode once, decode token by token with a cross-attention KV computed once). Verify every
+number against papers/configs and cite.
+
+### 24.1 T5 — page `t5`, model `t5`
+Paper: Raffel et al., JMLR 2020, arXiv:1910.10683; T5 v1.1 / Flan-T5 (Chung et al., arXiv:2210.11416)
+briefly. Canonical **`t5-base`** (12 + 12 layers, d_model 768, 12 heads, d_kv 64, d_ff 3,072 ReLU,
+vocab 32,128 SentencePiece, relative position buckets (32 buckets, max distance 128, shared per stack —
+verify), RMSNorm-style LayerNorm without bias, pre-norm, tied embeddings with the d^-0.5 rescale of
+the LM head — verify against HF `T5Config`); also `t5-small`, `t5-large`, `flan-t5-base` (v1.1: GEGLU,
+untied, no dropout in pretraining — verify). Span corruption objective (15 % noise, mean span 3,
+sentinel tokens). Knobs: `Tin`, `Tout`, `B`. Metrics: params split (shared embedding / encoder /
+decoder incl. cross-attention / LM head), encoder MACs (once), decoder MACs per token (self + cross +
+FFN), cross-attention KV bytes (computed once per input), decoder self KV cache, total generation MACs.
+Ids: `t5-overview` nodes `input`, `embed`, `encoder` (×L), `enc-out`, `decoder` (×L, expand
+`t5-decoder-layer`: `self-attn` (causal), `cross-attn` (K,V from enc-out — cross-attention style),
+`ffn`), `lm-head`, `output`; `span-corruption` view.
+
+### 24.2 Whisper — page `whisper`, model `whisper`
+Paper: Radford et al., ICML 2023, arXiv:2212.04356. Canonical **`whisper-small`** (12 + 12 layers,
+d 768, 12 heads — verify against the HF config). Encoder:
+log-Mel (80 bins; 128 in large-v3 — verify) × 3,000 frames (30 s at 10 ms hop) → 2 conv1d (stride 2 in
+the second) → 1,500 frames → sinusoidal positions → L transformer blocks (pre-LN, GELU); decoder with
+learned positions (448 tokens max), multitask special tokens (<|startoftranscript|>, language,
+<|transcribe|>/<|translate|>, timestamps). Configs `whisper-tiny/base/small/medium/large-v3` with
+verified sizes; also `distil-whisper-large-v3` (2 decoder layers — verify). Knobs: `Tout` (tokens
+generated), `B`, `seconds` (≤ 30; padding to 30 s). Metrics: encoder MACs per 30 s window, decoder MACs
+per token, cross KV bytes, realtime factor ≈ with explicit hardware, share encoder vs decoder.
+Ids: `whisper-overview` nodes `audio`, `mel`, `conv`, `encoder` (×L), `enc-out`, `prompt-tokens`,
+`decoder` (×L, cross-attn to enc-out), `lm-head`, `text`; `whisper-tokens` view (the multitask token
+format).
+
+### 24.3 Level-1 cards (orchestrator)
+`gnn`, `mamba`, `gan`, `rnn-lstm` stay map cards (no page). Verify and fix their paper metadata
+(Mamba venue COLM 2024; LSTM Neural Computation 9(8) 1997 with a DOI/url), and make sure each card's
+"idea" and "uso" are accurate and link to the nearest level-2 page.
+
+### 24.4 Visualizations
+`span-corruption` (a sentence → masked spans with sentinels → target; synthetic), `cross-attention-map`
+(decoder token × encoder positions heatmap, illustrative), `mel-spectrogram` (a synthetic waveform →
+log-Mel frames → 1,500 encoder positions after the conv stride; labelled), `encdec-cost` (encoder once
+vs decoder per token; cost as Tout grows — from the calculator).
+
+### 24.5 Ownership in Phase 12
+- **arch**: js/arch/primitives.js (new primitives only: relative position bias buckets, conv1d front
+  end, log-Mel accounting), js/arch/encdec.js (models `t5`, `whisper`), tests, crosscheck/encdec.py +
+  expected JSONs (HF `T5ForConditionalGeneration`, `WhisperForConditionalGeneration` on the meta device).
+- **diagram**: engine extensions, js/ui/viz/{span-corruption,cross-attention-map,mel-spectrogram,encdec-cost}.js,
+  js/content/diagrams/{t5,whisper}.js, dev/diagram.html.
+- **content-t5**: js/content/t5.js. **content-whisper**: js/content/whisper.js.
+- **orchestrator**: index.html + stubs, catalog (canonical ids `t5-base`, Whisper canonical per §24.2;
+  level-1 card fixes), SPEC, practice METRICS labels, integration.
