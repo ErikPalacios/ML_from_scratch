@@ -8,7 +8,7 @@
                         3) Llama 2 7B (× L; el bloque de la fase 6, con enlace a llm-block con la config llama2-7b) → RMSNorm final
                            → LM head → los 7 tokens de acción (tira), generados token a token (bucle × 6 pasos de decode)
                         4) detokenizar → acción; y dos barras del costo POR ACCIÓN (del calculador): MACs (casi todo es el
-                           prefill) y tiempo ≈ en una RTX 4090 (los 6 decodes, limitados por memoria, pesan tanto como el prefill)
+                           prefill) y tiempo ≈ en una RTX 4090 (los 6 decodes, limitados por memoria, son ≈ 3/4 del tiempo: ≈ 3.5× el prefill)
        openvla-projector  fc1 → GELU → fc2 → GELU → fc3 (el checkpoint tiene TRES lineales; el paper dice "MLP de 2 capas")
    Solo datos: posiciones en unidades de grilla (1 u = 8 px). Formas, parámetros y MACs: ATLAS.Arch.run / metrics. No toca el DOM.
    ========================================================================== */
@@ -21,7 +21,7 @@
   const BLOCK_MINI = { items: [{ label: 'RMSNorm', op: 'norm' }, { label: 'Atención', op: 'attn' }, { sym: 'add' }, { label: 'RMSNorm', op: 'norm' }, { label: 'SwiGLU', op: 'mlp' }, { sym: 'add' }], res: [[0, 2], [3, 5]] };
   // el prompt de OpenVLA: <BOS>, los parches de la imagen y el resto del texto (T incluye el <BOS>: la cuenta exacta, en el caption)
   const STRIP = {
-    segs: [{ mod: 'txt', n: 1, count: false, label: 'BOS' }, { mod: 'img', n: 'metrics.visualTokens', label: 'parches' }, { mod: 'txt', n: 'cfg.T', count: false, label: 'instrucción' }],
+    segs: [{ mod: 'txt', n: 1, count: false, label: 'BOS' }, { mod: 'img', n: 'metrics.visualTokens', label: 'parches' }, { mod: 'txt', n: 'cfg.T', count: false, label: 'texto' }],
     caption: 'imagen {{metrics.visualTokens}} + texto {{cfg.T}} = {{metrics.promptTokens}} tokens (los parches van tras el BOS)',
   };
   const ACT_LABELS = ['Δx', 'Δy', 'Δz', 'roll', 'pitch', 'yaw', 'pinza'];
@@ -30,9 +30,9 @@
   // ------------------------------------------------------------------ (a) vista general
   ATLAS.registerDiagram(Object.assign({
     id: 'openvla-overview', model: 'openvla', config: C, kind: 'arch', title: 'OpenVLA 7B — vista general',
-    caption: 'La receta de LLaVA con salida de acciones. Arriba, la imagen pasa por DOS encoders en paralelo (DINOv2: forma y geometría; SigLIP: semántica alineada con texto); sus features de la penúltima capa se concatenan por canales y un MLP las lleva al ancho de Llama 2. En el medio, esos 256 tokens visuales se empalman con la instrucción. Abajo, Llama 2 7B genera la acción como 7 tokens, uno por paso (bucle punteado): cada token es un bin de 256 de una dimensión. Las barras: casi todo el CÓMPUTO es el prefill, pero los 6 pasos de decode, limitados por memoria, se llevan una buena parte del TIEMPO.',
+    caption: 'La receta de LLaVA con salida de acciones. Arriba, la imagen pasa por DOS encoders en paralelo (DINOv2: forma y geometría; SigLIP: semántica alineada con texto); sus features de la penúltima capa se concatenan por canales y un MLP las lleva al ancho de Llama 2. En el medio, esos 256 tokens visuales se empalman con la instrucción. Abajo, Llama 2 7B genera la acción como 7 tokens, uno por paso (bucle punteado): cada token es un bin de 256 de una dimensión. Las barras: casi todo el CÓMPUTO es el prefill, pero los 6 pasos de decode, limitados por memoria, se llevan unas tres cuartas partes del TIEMPO.',
     grid: { w: 160, h: 112 }, direction: 'lr', maxCrossings: 0,
-    mobileFocus: ['action-tokens', 'detokenize'], mobileFocusPad: 2,
+    mobileFocus: ['action-tokens', 'detokenize'], mobileFocusPad: 3,
     edgeLegend: { control: 'Bucle: cada token de acción vuelve a entrar al LLM' },
     legendText: { runs: 'Veces que corre el LLM por acción (1 prefill + 6 decodes)', loop: 'Bucle: se repite por cada token de acción', costSplit: 'Costo por acción: ancho proporcional (del calculador)' },
     groups: [
@@ -81,8 +81,7 @@
       { id: 'cost', op: 'io', hideInBlank: true, label: 'Cómputo por acción (MACs)', x: 1, y: 97, w: 78, h: 14,
         costSplit: {
           segs: [
-            { op: 'attn', n: 'metrics.visionMacs', label: 'DINOv2 + SigLIP' },
-            { op: 'embed', n: 'metrics.projectorMacs', label: 'Proyector' },
+            { op: 'attn', n: ['metrics.visionMacs', 'metrics.projectorMacs'], label: 'DINOv2 + SigLIP + proyector' },
             { tone: 'once', n: 'metrics.llmPrefillMacs', label: 'LLM: prefill ({{metrics.promptTokens}} tokens)' },
             { tone: 'loop', n: 'metrics.decodeMacsTotal', label: 'LLM: {{metrics.decodeSteps}} decodes de 1 token' },
           ],
@@ -93,13 +92,13 @@
         costSplit: {
           unit: 'ms',
           segs: [
-            { op: 'attn', n: 'metrics.visionMsRtx4090', label: 'Visión' },
+            { op: 'attn', n: 'metrics.visionMsRtx4090', label: 'Visión + proyector' },
             { tone: 'once', n: 'metrics.prefillMsRtx4090', label: 'Prefill del LLM' },
             { tone: 'loop', n: 'metrics.decodeMsRtx4090', times: 'metrics.decodeSteps', label: '{{metrics.decodeSteps}} decodes (limitados por memoria)' },
           ],
           caption: '≈ {{metrics.actionMsRtx4090}} ms por acción = {{metrics.hzRtx4090}} Hz (cota de roofline; el paper mide ≈ {{metrics.paperHz}} Hz)',
         },
-        note: 'Tiempo estimado con el roofline del calculador en una RTX 4090 (165.2 TFLOPS BF16, 1,008 GB/s): cada segmento tarda lo que más tarde entre calcular sus FLOPs y leer sus bytes. Cada decode relee los pesos (' + q('metrics.weightBytes') + ' en bf16) para UN token: limitado por memoria. Es una cota optimista (sin overheads de kernels ni del Python de generate).' },
+        note: 'Tiempo estimado con el roofline del calculador en una RTX 4090 (165.2 TFLOPS BF16, 1,008 GB/s): cada segmento tarda lo que más tarde entre calcular sus FLOPs y leer sus bytes. Cada decode relee los pesos del LLM (' + q('metrics.decodeWeightBytesRead') + ' en bf16, sin la tabla de embedding; la visión no corre en el decode) y la KV para UN token: limitado por memoria. Es una cota optimista (sin overheads de kernels ni del Python de generate).' },
     ],
     tensors: [
       { id: 'vis-feats', at: { edge: 'concat>projector' }, show: 'both' },
@@ -140,7 +139,7 @@
           text: 'Los ' + q('metrics.actionTokensPerStep') + ' ids → bins → valores continuos: <b>' + q('tensor.action.shape') + '</b> números para el robot. Una acción cuesta ' + q('metrics.macsPerAction') + ' y ≈ ' + q('metrics.actionMsRtx4090') + ' ms en una RTX 4090 (≈ ' + q('metrics.hzRtx4090') + ' Hz como cota; el paper mide ≈ ' + q('metrics.paperHz') + ' Hz).' },
       ] },
     ],
-    legend: 'auto',
+    legend: 'auto', blankCrop: true,
   }, PAGE));
 
   // ------------------------------------------------------------------ (b) el proyector (3 lineales)
@@ -149,7 +148,7 @@
     parent: 'openvla-overview', parentNode: 'projector',
     caption: 'Por parche: tres lineales con GELU entre medio, del ancho fusionado de los dos encoders (D_v) al de Llama 2 (D). Es lo que tiene el checkpoint (Prismatic "fused-gelu-mlp"); el paper lo describe como "MLP de 2 capas".',
     grid: { w: 162, h: 22 }, direction: 'lr', maxCrossings: 0,
-    mobileFocus: ['fc1', 'gelu1', 'fc2'],
+    mobileFocus: ['in', 'fc1', 'gelu1'], mobileFocusPad: 3,
     nodes: [
       { id: 'in', op: 'io', modality: 'img', label: 'Features', sub: 'DINOv2 ‖ SigLIP', x: 1, y: 6.5, w: 16, h: 9, note: 'Los parches con las features de las dos torres concatenadas.' },
       { id: 'fc1', op: 'embed', label: 'fc1', sub: 'D_v → 4D_v', ops: ['proj-fc1'], opsExact: true, x: 25, y: 7, w: 16, h: 8,

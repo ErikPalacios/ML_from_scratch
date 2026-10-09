@@ -86,6 +86,11 @@
      symTexAtom convierte '²' en ^2 (solo 'M²' lo tenía, y va por SYM_TEX); resolve acepta 0 en los knobs que el modelo
      declare en def.zeroKnobs (cfg). Ninguna cambia el resultado de las fases 1–7 (verificado: run y metrics de todas las
      configs anteriores idénticos antes y después).
+   - Fase 9 (VLA: OpenVLA, π0; movidas desde vla.js tras la fase 8, mismo contrato y mismos números): normalize_pixels
+     ((x − μ)/σ por canal con las estadísticas de cada encoder), prefix_tokens (CLS + registros de DINOv2-reg4), broadcast_rows
+     (un vector en R filas: el tiempo en cada acción), prefix_mask y block_causal_mask (máscaras de π0), ar_decode (los pasos de
+     decode autorregresivo que faltan tras el prefill) y detokenize_actions (id → bin → centro → desnormalizar). No están en
+     NOT_SAVED (como cuando vivían en vla.js): run y metrics de todas las configs, idénticos antes y después.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -2226,6 +2231,58 @@
     return r;
   }
 
+  // ---- Fase 9 (VLA: OpenVLA, π0) -------------------------------------------------------------
+  // Movidas desde js/arch/vla.js (donde vivían por la concurrencia de la fase 8): mismo contrato y mismos números. paramArith /
+  // macArith por defecto = el entero (no hay términos).
+  function vlaResult(prim, inputs, out, o) {
+    const params = o.params || 0, macs = o.macs || 0;
+    return result(prim, inputs, out, Object.assign({}, o, { params, macs, paramArith: o.paramArith || int(params), macArith: o.macArith || int(macs) }));
+  }
+  // normalize_pixels: (x − μ)/σ por canal con la media y desviación de CADA encoder (OpenVLA normaliza dos veces la misma
+  // imagen: estadísticas de DINOv2 / ImageNet y de SigLIP). 2 ops por elemento. o = {stats}
+  function normalize_pixels(x, o) {
+    return vlaResult('normalize_pixels', [x], plain(x), { other: 2 * elems(x), detail: { stats: (o && o.stats) || null } });
+  }
+  // prefix_tokens: antepone k vectores aprendidos (CLS + registros de DINOv2-reg4): N×D → (N+k)×D, k·D parámetros. o = {k, sym}
+  function prefix_tokens(x, o) {
+    const [N, D] = x.num, [Ns, Ds] = x.sym, k = o.k;
+    return vlaResult('prefix_tokens', [x], shape([o.sym || Ns + '+' + k, Ds], [N + k, D], x.mod, 'seq'), {
+      params: k * D, paramTex: k + symTexShape(Ds), paramArith: k + '·' + D + ' = ' + int(k * D),
+      detail: { k, cls: 1, registers: k - 1, note: 'CLS + registros (Darcet et al. 2024, "Vision Transformers Need Registers"): sin position embedding (no_embed_class)' },
+    });
+  }
+  // broadcast_rows: un vector D → R×D (la misma fila R veces: el embedding del tiempo en cada token de acción). Vista. o = {rows, sym, mod}
+  function broadcast_rows(v, o) {
+    return vlaResult('broadcast_rows', [v], shape([o.sym || String(o.rows), v.sym[0]], [o.rows, v.num[0]], o.mod || v.mod, 'seq'), { detail: { rows: o.rows } });
+  }
+  // prefix_mask: máscara del prefijo de π0 (imágenes + texto se ven todos con todos; el relleno del texto se enmascara).
+  function prefix_mask(x, o) {
+    return vlaResult('prefix_mask', [x], plain(x), { other: elems(x), detail: Object.assign({ kind: 'bidireccional (prefix-LM) + relleno', note: 'make_attn_mask con ar_mask = 0 en todo el prefijo' }, o || {}) });
+  }
+  // block_causal_mask: máscara por bloques del sufijo de π0 (filas = 1 + H_a queries; columnas = prefijo + sufijo). El estado
+  // ve el prefijo y a sí mismo; las acciones ven el prefijo, el estado y todas las acciones. MACs: los mismos (se cuentan las
+  // entradas enmascaradas, como la atención eager).
+  function block_causal_mask(x, o) {
+    return vlaResult('block_causal_mask', [x], plain(x), { other: elems(x), detail: Object.assign({ blocks: ['prefijo (imágenes + texto)', 'estado', 'acciones'] }, o || {}) });
+  }
+  // ar_decode: los k pasos de decode autorregresivo que faltan (cada uno = el decoder sobre 1 token nuevo leyendo la KV cache).
+  // Sin parámetros propios (usa los del LLM); MACs = Σ de los pasos. o = {steps: [{ctx, macs}], sym, mod, macTex, other}
+  function ar_decode(x, o) {
+    const steps = o.steps || [];
+    const macs = steps.reduce((s, z) => s + z.macs, 0);
+    return vlaResult('ar_decode', [x], shape([o.sym || 'd_a'], [steps.length + 1], o.mod || 'act', 'vec'), {
+      macs, macTex: o.macTex || '\\textstyle\\sum_{k=1}^{d_a-1} \\mathrm{MACs}_{\\mathrm{decode}}(\\mathrm{ctx} = N{+}T{+}k)',
+      macArith: steps.length > 1 ? steps.map((z) => int(z.macs)).join(' + ') + ' = ' + int(macs) : int(macs),
+      other: o.other || 0, detail: { steps: steps.map((z) => Object.assign({}, z)), note: 'el 1.er token sale del prefill; los demás, uno por paso de decode' },
+    });
+  }
+  // detokenize_actions: id → bin (V_tok − id) → centro del bin en [−1, 1] → desnormalizar con q01 / q99. ≈ 4 ops por dimensión.
+  function detokenize_actions(ids, o) {
+    return vlaResult('detokenize_actions', [ids], shape(ids.sym.slice(), ids.num.slice(), 'act', 'vec'), {
+      other: 4 * elems(ids), detail: Object.assign({ formula: 'a = ½(c_b + 1)(q99 − q01) + q01, c_b = centro del bin b' }, o || {}),
+    });
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -2256,6 +2313,8 @@
     timestep_embedding, concat_features, label_embed, add_broadcast, downsample2d, geglu, adaln_zero, ada_modulate, ada_gate, sincos_pos_2d, unpatchify,
     latent_sample, latent_scale, add_noise, flow_target, cfg_combine, scheduler_step, mse_loss,
     resnet_block, upsample2d, geglu_ff, spatial_transformer, dit_block,
+    // Fase 9
+    normalize_pixels, prefix_tokens, broadcast_rows, prefix_mask, block_causal_mask, ar_decode, detokenize_actions,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -2433,6 +2492,14 @@
     { id: 'cfg_combine', name: 'Classifier-free guidance', paramTex: '0', macTex: '0', outTex: '\\varepsilon_u,\\ \\varepsilon_c \\to \\hat\\varepsilon', note: 'ε̂ = ε_u + w(ε_c − ε_u), w = 7.5 en SD. Necesita las dos predicciones: duplica el lote de cada paso.' },
     { id: 'scheduler_step', name: 'Paso del sampler', paramTex: '0', macTex: '0', outTex: 'x_t,\\ \\hat\\varepsilon \\to x_{t-1}', note: 'DDIM: estima x̂₀ con ε̂ y vuelve a mezclar con el ruido del paso siguiente. Elementwise: el costo está en la red, que corre una vez por paso (×2 con CFG).' },
     { id: 'mse_loss', name: 'Pérdida MSE', paramTex: '0', macTex: '0', outTex: '\\hat y,\\ y \\to 1', note: 'Difusión = regresión: ‖ε̂ − ε‖² (DDPM, L_simple) o ‖v̂ − v‖² (flow matching).' },
+    // Fase 9 (VLA)
+    { id: 'normalize_pixels', name: 'Normalizar píxeles', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'OpenVLA normaliza la misma imagen dos veces: con las estadísticas de DINOv2 y con las de SigLIP.' },
+    { id: 'prefix_tokens', name: 'CLS + registros', paramTex: 'kD', macTex: '0', outTex: 'N\\times D \\to (N{+}k)\\times D', note: 'DINOv2-reg4: 1 CLS + 4 registros (k = 5), sin posición; se descartan a la salida.' },
+    { id: 'broadcast_rows', name: 'Repetir un vector en R filas', paramTex: '0', macTex: '0', outTex: 'D \\to R\\times D', note: 'π0: el embedding del tiempo τ se copia en cada una de las H_a filas de acción.' },
+    { id: 'prefix_mask', name: 'Máscara del prefijo', paramTex: '0', macTex: '0', outTex: 'h\\times S\\times S \\to h\\times S\\times S', note: 'π0: imágenes + texto se atienden entre sí (bidireccional); el relleno se enmascara.' },
+    { id: 'block_causal_mask', name: 'Máscara por bloques', paramTex: '0', macTex: '0', outTex: 'h\\times (1{+}H_a)\\times S \\to \\cdot', note: 'π0: estado → prefijo + estado; acciones → todo. Los MACs no bajan: se cuentan las entradas enmascaradas.' },
+    { id: 'ar_decode', name: 'Decode autorregresivo', paramTex: '0', macTex: '\\sum_k \\mathrm{decode}(\\mathrm{ctx}_k)', outTex: '1 \\to d_a', note: 'OpenVLA: 7 tokens de acción = 1 prefill + 6 pasos de decode, cada uno leyendo todos los pesos del LLM (≈ 13.2 GB en bf16).' },
+    { id: 'detokenize_actions', name: 'Tokens → acción continua', paramTex: '0', macTex: '0', outTex: 'd_a \\to d_a', note: 'id → bin (32,000 − id) → centro del bin → desnormalizar con los cuantiles 1 % / 99 % del dataset.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 

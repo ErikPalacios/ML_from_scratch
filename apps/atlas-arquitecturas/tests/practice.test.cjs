@@ -631,17 +631,10 @@ test('fase 9: un diagrama calc: false no da drills de formas ni de parámetros (
 });
 
 // ================================================================ FASE 9 (VLA) — bloque del agente arch
-// Símbolos propios de js/arch/vla.js que la tarjeta debe mostrar además de los genéricos (H, W, C, P, D, L, h, G, D_mlp, N, T,
-// V; N_p y D_v ya salen de factPairs en OpenVLA): DINOv2 D_d, h_d, d_d, L_d; SigLIP D_s, h_s, d_s, M_s (= 4,304), L_s; π0
-// D_a (experto), H_a (chunk), d_a (acción/estado); d_h. Mientras practice.js (factPairs) no los incluya, la barrida los toma de aquí.
-const vlaFacts = (cfg) => {
-  if (!cfg || (cfg.Dd == null && cfg.Da == null)) return {};
-  const f = { d_a: cfg.da, N_p: cfg.Np, D_s: cfg.Ds, h_s: cfg.hs, d_s: cfg.ds, M_s: cfg.Ms, L_s: cfg.Ls, d_h: cfg.dh };
-  if (cfg.Dd != null) Object.assign(f, { D_d: cfg.Dd, h_d: cfg.hd, d_d: cfg.dd, L_d: cfg.Ld, D_v: cfg.Dv });
-  else Object.assign(f, { D_a: cfg.Da, H_a: cfg.Ha });
-  return f;
-};
-test('fase 9: toda forma de OpenVLA y π0 (1 y 3 cámaras, otros H / pasos / T) sale de los datos de la tarjeta (+ los de vla.js); units conocidas', () => {
+// La tarjeta del drill (practice.js factPairs) trae los símbolos propios de js/arch/vla.js además de los genéricos: DINOv2 D_d,
+// h_d, d_d, L_d; SigLIP D_s, h_s, d_s, M_s (= 4,304), L_s; π0 D_a (experto), H_a (chunk), d_a (acción/estado); d_h. La barrida
+// usa SOLO la tarjeta real (sin datos inyectados por el test).
+test('fase 9: toda forma de OpenVLA y π0 (1 y 3 cámaras, otros H / pasos / T) sale de los datos de la tarjeta; units conocidas', () => {
   let n = 0;
   const cases = [['openvla-7b', [{}, { T: 64 }, { res: 336, images: 2, da: 4 }]], ['pi0', [{}, { cams: 2, H: 25, steps: 5, T: 16 }]], ['pi0-1cam', [{}]]];
   for (const [cfg, ovs] of cases) {
@@ -649,8 +642,6 @@ test('fase 9: toda forma de OpenVLA y π0 (1 y 3 cámaras, otros H / pasos / T) 
       const R = A.run(cfg, ov);
       const known = {};
       P._factPairs(R.config).forEach(([s, v]) => { if (typeof v === 'number') { known[s] = v; known[s.replace('_', '')] = v; } });
-      Object.entries(vlaFacts(R.config)).forEach(([s, v]) => { if (!(s in known)) { known[s] = v; known[s.replace('_', '')] = v; } });
-      known.dh = R.config.dh;
       for (const id of R.order) {
         const t = R.tensors[id];
         const text = (t.label || '') + ' ' + (t.tex || '');
@@ -677,5 +668,14 @@ test('fase 9: toda forma de OpenVLA y π0 (1 y 3 cámaras, otros H / pasos / T) 
   assert.deepStrictEqual([f.D, f.L, f.h, f.G, f.D_mlp, f.N, f.T, f.V, f.H, f.P], [4096, 32, 32, 32, 11008, 256, 22, 32064, 224, 14]);
   const g = Object.fromEntries(P._factPairs(A.run('pi0').config));
   assert.deepStrictEqual([g.D, g.L, g.h, g.G, g.D_mlp, g.N, g.T, g.V], [2048, 18, 8, 1, 16384, 768, 48, 257152]);
+  // símbolos de VLA: OpenVLA D_v = las DOS torres fusionadas; π0 H_a = el chunk y H = el alto de la imagen (con nota)
+  assert.deepStrictEqual([f.D_d, f.h_d, f.d_d, f.L_d, f.D_s, f.h_s, f.d_s, f.M_s, f.L_s, f.D_v, f.d_h, f.d_a], [1024, 16, 64, 24, 1152, 16, 72, 4304, 27, 2176, 128, 7]);
+  assert.deepStrictEqual([g.D_a, g.H_a, g.d_a, g.d_h, g.N_p, g.D_s, g.M_s], [1024, 50, 32, 256, 256, 1152, 4304]);
+  const notes = (cfg) => Object.fromEntries(P._factPairs(A.run(cfg).config).map(([s, , n]) => [s, n || '']));
+  assert.match(notes('openvla-7b').D_v, /D_d \+ D_s/);
+  assert.match(notes('pi0').H, /alto de la imagen/);
+  assert.match(notes('pi0').H_a, /chunk/);
+  const g25 = Object.fromEntries(P._factPairs(A.run('pi0', { H: 25 }).config));
+  assert.deepStrictEqual([g25.H, g25.H_a], [224, 25]);
 });
 // ================================================================ fin del bloque de la fase 9

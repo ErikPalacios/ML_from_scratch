@@ -205,6 +205,9 @@
 .pxd__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .pxd__facts { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; }
 .pxd__fact { font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* Hechos largos (π0: «D_a = 1024 (ancho del experto…)») y chips del what-if: se parten en vez de ensanchar la página a 375 px. */
+@media (max-width: 600px) { .pxd__fact { white-space: normal; overflow-wrap: anywhere; } }
+.b-practice .chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .pxd__fnote { font-family: var(--font-body); font-size: 11.5px; }   /* nota del dato: «P = 1 (clic)», «h = 2 (stage 1…)» */
 .pxd__q { margin: 0; font: 500 19px/1.45 var(--font-body); color: var(--ink); }
 .pxd__q b { font-weight: 600; }

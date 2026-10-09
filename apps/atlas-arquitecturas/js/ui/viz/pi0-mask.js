@@ -6,7 +6,7 @@
    y los anteriores, nunca los siguientes: el prefijo no ve al robot ni a las acciones ruidosas (así su KV no cambia
    entre pasos de flujo y se calcula UNA vez), el estado no ve las acciones.
    Fila = query, columna = key. Cada grupo se dibuja con pocas celdas (ilustrativo); su número real de tokens, del
-   calculador (config pi0: cámaras × tokens por imagen, T de lenguaje, H acciones), va en la etiqueta.
+   calculador (config pi0: cámaras × tokens por imagen, T de lenguaje, H_a acciones = cfg.Ha), va en la etiqueta.
    Interacción: pasar el cursor o enfocar un grupo (o una celda) muestra a qué atiende; "Máscara" compara con una causal
    de LLM (las acciones no verían las de después); "Paso de flujo" marca qué se recalcula en cada uno de los pasos de
    Euler (las filas del sufijo) y qué sale del caché (las columnas del prefijo).
@@ -29,7 +29,8 @@
     const cams = pickN('cfg.cams', 'metrics.cams') || 3;
     const perImg = pickN('metrics.visualTokensPerImage', 'metrics.tokensPerImage', 'cfg.imgTokens', 'cfg.Np') || 256;
     const T = pickN('cfg.T', 'metrics.textTokens') || 48;
-    const H = pickN('cfg.H', 'metrics.H') || 50;
+    // el chunk es cfg.Ha (metrics.chunk); cfg.H es el ALTO de la imagen (224)
+    const H = pickN('cfg.Ha', 'metrics.chunk') || 50;
     const steps = pickN('cfg.steps', 'metrics.steps') || 10;
     const prefixN = pickN('metrics.prefixTokens') || cams * perImg + T;
     const suffixN = pickN('metrics.suffixTokens') || 1 + H;
@@ -203,8 +204,8 @@
         kv('celda:', groups[cells[r].g].label + ' → ' + groups[cells[c].g].label + (allowed(r, c) ? ': permitido' : ': bloqueado (−∞)'));
       }
       note.innerHTML = (state.mode === 'pi0'
-        ? 'Tres bloques: cada uno ve el suyo y los anteriores. El prefijo (imágenes + lenguaje) es bidireccional y no ve al robot: por eso su K y su V no dependen del estado ni de las acciones ruidosas, y se calculan una vez por chunk y se reusan en los ' + steps + ' pasos de flujo. Las acciones se ven todas entre sí (bidireccional): el chunk se predice entero a la vez, no token a token.'
-        : 'Con una máscara causal, cada acción vería solo las anteriores: el chunk se generaría token a token (como OpenVLA). π0 no la usa: las ' + fmt.int(H) + ' acciones se refinan juntas en cada paso de flujo.')
+        ? 'Tres bloques: cada uno ve el suyo y los anteriores. El prefijo (imágenes + lenguaje) es bidireccional y no ve al robot: por eso su K y su V no dependen del estado ni de las acciones ruidosas, y se calculan una vez por chunk y se reusan en los ' + steps + ' pasos de flujo. Las acciones se ven todas entre sí (bidireccional): cada acción se ajusta a todas las del chunk.'
+        : 'Con una máscara causal, cada acción vería solo las anteriores (no podría ajustarse a las que vienen después). Ojo: la máscara no decide cómo se decodifica; con flujo, las ' + fmt.int(H) + ' acciones seguirían refinándose juntas en cada paso. Lo de generar token a token es otra decisión (OpenVLA usa máscara causal Y decodificación autorregresiva). π0 usa atención bidireccional entre las acciones para que el chunk entero sea coherente.')
         + ' Celdas por grupo: ilustrativo; las cuentas de tokens son ' + (fromCalc ? 'del calculador (' + ((run && run.label) || cfgId) + ').' : 'las del paper (calculador no disponible).');
     }
     stage.addEventListener('keydown', (ev) => {

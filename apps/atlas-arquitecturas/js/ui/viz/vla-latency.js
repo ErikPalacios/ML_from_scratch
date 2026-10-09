@@ -138,7 +138,9 @@
       kv('π0:', ms(hp.chunkMs) + ' por chunk (' + mp.chunk + ' acciones)');
       kv('π0, ' + state.steps + ' pasos de flow:', ms(hp.flowMs));
       const h = (mo.hardware || []).find((x) => x.id === state.hw);
-      note.innerHTML = 'Del calculador (≈ roofline, una cota optimista). Hardware: ' + (h ? h.source : '') + '. OpenVLA genera 7 tokens: el prefill + ' + mo.decodeSteps + ' decodes que releen los pesos (' + ((A.fmt && A.fmt.bytes) ? A.fmt.bytes(mo.weightBytes) : mo.weightBytes + ' B') + ' en bf16) cada uno (limitados por memoria). π0 calcula el prefijo una vez y repite solo el experto chico en cada paso de flow: más pasos casi no cuestan. Y π0 entrega ' + mp.chunk + ' acciones por inferencia: el robot ejecuta parte del chunk mientras tanto. Lo medido en los papers incluye todo lo que el roofline no ve.';
+      // lo que lee CADA decode: los pesos del LLM sin la tabla de embedding (≈ 13.2 GB), no el checkpoint entero (weightBytes)
+      const decB = Number.isFinite(mo.decodeWeightBytesRead) ? mo.decodeWeightBytesRead : (mo.bytesPerElement || 2) * (mo.llmParams - mo.embedParams);
+      note.innerHTML = 'Del calculador (≈ roofline, una cota optimista). Hardware: ' + (h ? h.source : '') + '. OpenVLA genera 7 tokens: el prefill + ' + mo.decodeSteps + ' decodes que releen los pesos del LLM (' + ((A.fmt && A.fmt.bytes) ? A.fmt.bytes(decB) : decB + ' B') + ' en bf16, sin la tabla de embedding; la visión no corre en el decode) cada uno (limitados por memoria). π0 calcula el prefijo una vez y repite solo el experto chico en cada paso de flow: más pasos casi no cuestan. Y π0 entrega ' + mp.chunk + ' acciones por inferencia: el robot ejecuta parte del chunk mientras tanto. Lo medido en los papers incluye todo lo que el roofline no ve.';
     }
     stage.addEventListener('keydown', (ev) => {
       const k = ev.key;

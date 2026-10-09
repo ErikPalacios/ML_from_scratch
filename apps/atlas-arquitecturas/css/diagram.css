@@ -854,6 +854,12 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-mask-sep { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 3 2; }
 .ad-mask-brace { fill: none; stroke: var(--muted); stroke-width: 1; }
 .ad-mask-lab { font: 500 10.5px var(--font-mono); fill: var(--ink); }
+/* fase 9 (revisión): el estado del robot (no es ruido: no el gris de 'lat'), filas que no corren en el paso y su corchete */
+.ad-mask-on.ad-mask--state { fill: color-mix(in srgb, var(--mod-act) 35%, var(--surface)); stroke: var(--mod-act); stroke-width: 1; }
+.ad-mask-idle { opacity: .35; }
+.ad-mask-lab--idle { fill: var(--muted); }
+.ad-mask-run { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+.ad-mask-runlab { font: 600 10.5px var(--font-mono); fill: var(--ink); }
 /* ---- fase 9 (VLA): visualizaciones action-tokenizer, action-chunking, vla-latency, pi0-mask ---- */
 .viz-at-stage:focus-visible, .viz-ac-stage:focus-visible, .viz-vl-stage:focus-visible, .viz-pm-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .viz-at-clip { fill: color-mix(in srgb, var(--bad) 9%, var(--surface)); }
@@ -875,17 +881,17 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-pm-brace, .viz-pm-sep { fill: none; stroke: var(--muted); stroke-width: 1; }
 .viz-pm-sep { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 3 2; pointer-events: none; }
 .viz-pm-blk.is-b0 { fill: var(--mod-img); }
-.viz-pm-blk.is-b1 { fill: var(--muted); }
+.viz-pm-blk.is-b1 { fill: color-mix(in srgb, var(--mod-act) 45%, var(--surface)); stroke: var(--mod-act); stroke-width: 1; }
 .viz-pm-blk.is-b2 { fill: var(--mod-act); }
 .viz-pm-cell { stroke: var(--surface); stroke-width: 1; }
 .viz-pm-cell.is-no { fill: var(--surface-2); stroke: var(--rule); }
 .viz-pm-cell.is-ok.is-img { fill: color-mix(in srgb, var(--mod-img) 45%, var(--surface)); }
 .viz-pm-cell.is-ok.is-txt { fill: color-mix(in srgb, var(--mod-txt) 45%, var(--surface)); }
-.viz-pm-cell.is-ok.is-state { fill: color-mix(in srgb, var(--muted) 55%, var(--surface)); }
+.viz-pm-cell.is-ok.is-state { fill: color-mix(in srgb, var(--mod-act) 22%, var(--surface)); stroke: var(--mod-act); }
 .viz-pm-cell.is-ok.is-act { fill: color-mix(in srgb, var(--mod-act) 50%, var(--surface)); }
 .viz-pm-cell.is-ok.is-lit.is-img { fill: var(--mod-img); }
 .viz-pm-cell.is-ok.is-lit.is-txt { fill: var(--mod-txt); }
-.viz-pm-cell.is-ok.is-lit.is-state { fill: var(--muted); }
+.viz-pm-cell.is-ok.is-lit.is-state { fill: color-mix(in srgb, var(--mod-act) 55%, var(--surface)); stroke: var(--mod-act); }
 .viz-pm-cell.is-ok.is-lit.is-act { fill: var(--mod-act); }
 .viz-pm-cell.is-no.is-lit { stroke: var(--bad); }
 .viz-pm-cell.is-frozen { fill-opacity: .28; }
@@ -896,6 +902,7 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-pm-lab.is-img { fill: color-mix(in srgb, var(--mod-img) 10%, var(--surface)); }
 .viz-pm-lab.is-txt { fill: color-mix(in srgb, var(--mod-txt) 10%, var(--surface)); }
 .viz-pm-lab.is-act { fill: color-mix(in srgb, var(--mod-act) 12%, var(--surface)); }
+.viz-pm-lab.is-state { fill: color-mix(in srgb, var(--mod-act) 6%, var(--surface)); stroke-dasharray: 3 2; }
 .viz-pm-rowlab:focus-visible .viz-pm-lab { stroke: var(--focus); stroke-width: 2.5; }
 .viz-pm-no { font: 400 11px var(--font-mono); fill: var(--bad); }
 .viz-ac-goal { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 5 3; }

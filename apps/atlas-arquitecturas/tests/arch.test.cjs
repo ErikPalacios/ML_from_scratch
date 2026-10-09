@@ -3011,6 +3011,12 @@ test('F9 los modelos openvla / pi0 no cambian ningún resultado de las fases 1�
   assert.deepStrictEqual(J(A9.configs('pi0').map((c) => c.id)), ['pi0', 'pi0-1cam']);
   assert.deepStrictEqual([A9.canonical('openvla'), A9.canonical('pi0')], ['openvla-7b', 'pi0']);
   assert.deepStrictEqual(J(A9.vla.primitives().map((p) => p.id)), ['normalize_pixels', 'prefix_tokens', 'broadcast_rows', 'prefix_mask', 'block_causal_mask', 'ar_decode', 'detokenize_actions']);
+  // revisión F9: las 7 viven en primitives.js (tabla de fórmulas incluida); A.vla.prims son las mismas funciones
+  const ids9 = J(A9.primitives()).map((p) => p.id);
+  for (const id of ['normalize_pixels', 'prefix_tokens', 'broadcast_rows', 'prefix_mask', 'block_causal_mask', 'ar_decode', 'detokenize_actions']) {
+    assert.ok(ids9.includes(id), id);
+    assert.strictEqual(A9.vla.prims[id], A9[id], id);
+  }
 });
 
 test('F9 primitivas locales de vla.js: prefix_tokens, broadcast_rows, máscaras, ar_decode, detokenize_actions', () => {

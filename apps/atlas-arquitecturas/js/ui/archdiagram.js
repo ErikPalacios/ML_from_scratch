@@ -1043,7 +1043,17 @@
       te.setAttribute('data-note', nt.id || '');
     }
     ctl.building = null;
-    return { svg, geo, used, nodeEls, edgeEls, run, spec, width: W, height: Hh };
+    // fase 9 (revisión): spec.blankCrop = en la práctica, el alto llega hasta lo visible (los nodos hideInBlank de abajo, las
+    // barras del costo, dejaban una banda vacía de ≈ 170 px)
+    let Hv = Hh;
+    if (ctl.mode === 'blank' && spec.blankCrop) {
+      const vis = (spec.nodes || []).filter((n) => !n.hideInBlank || slotFor(ctl, n.id)).map((n) => geo.nodes[n.id]);
+      const gr = (spec.groups || []).map((g) => geo.groups[g.id]);
+      const ys = vis.concat(gr).filter(Boolean).map((r) => r.y + r.h);
+      geo.edges.forEach((ge) => ge.pts.forEach((p) => ys.push(p[1])));
+      if (ys.length) Hv = Math.min(Hh, Math.max(...ys) + 2 * U);
+    }
+    return { svg, geo, used, nodeEls, edgeEls, run, spec, width: W, height: Hv };
   }
 
   // Mazo de cabezas de un nodo (node.heads): las cartas 1…k−1 van desplazadas 3 px arriba a la derecha (drawNode).
@@ -1111,7 +1121,8 @@
     const g = S('g', { class: 'ad-node ad-op--' + (blankOp ? 'blank' : op) + (op === 'io' ? ' ad-node--io' : '') + (CIRCLE_SHAPES[shape] ? ' ad-node--sym' : '') + (n.expand ? ' ad-node--expandable' : '') + (block ? ' ad-node--block' : '') + (closed ? ' ad-node--closed' : ''),
       'data-node': n.id, tabindex: ctl.mode === 'blank' && !slot ? -1 : 0, role: 'button' }, parent);
     if (closed) used.closed = true;
-    if (op !== 'io' && !blankOp && !block && !closed) used.ops.add(op);
+    // fase 9 (revisión): la máscara de π0 es un tensorop que no dibuja ⊕: no lleva "Operaciones de tensor" a la leyenda
+    if (op !== 'io' && !blankOp && !block && !closed && !n.maskGrid) used.ops.add(op);
     if (n.modality) used.mods.add(n.modality);
     const cost = run && op !== 'io' ? nodeCost(run, n) : null;
     let label = n.label || '';
@@ -1407,6 +1418,9 @@
     segs.forEach((s, i) => {
       const w = ws[i], mod = s.mod || 'txt';
       used.mods.add(mod);
+      // fase 9 (revisión): la leyenda de la tira muestra exactamente las modalidades dibujadas (RT-2: solo acción)
+      used.stripMods = used.stripMods || [];
+      if (used.stripMods.indexOf(mod) < 0) used.stripMods.push(mod);
       const sg = S('g', { class: 'ad-glyph ad-mod--' + mod }, gg);
       S('rect', { x: r1(x), y: r1(y), width: r1(w), height: bh, class: 'ad-face ad-face--front ad-strip-seg', fill: 'url(#' + ctl.id + '-tx-' + mod + ')' }, sg);
       // marcas de token (hasta 1 cada 3 px): densidad ∝ tokens, como las marcas de un glifo
@@ -1569,7 +1583,10 @@
   // (muestra · etiqueta · valor · %). caption (con {{…}}) debajo. Los números, del calculador (claves de numKey).
   const COST_H = (o) => 30 + 14 * ((o && o.segs) || []).length + (o && o.caption ? 14 : 0);
   function drawCostSplit(g, o, r, run, used, ctl, spec) {
-    const segs = (o.segs || []).map((sg) => Object.assign({}, sg, { v: numKey(run, sg.n) * (sg.times != null ? numKey(run, sg.times) : 1) }));
+    // fase 9 (revisión): seg.n puede ser una lista de claves que se suman (OpenVLA: visión + proyector en un solo tramo, como
+    // el segmento del calculador; el proyector solo, azul, se confundía con los decodes del bucle)
+    const val = (k) => (Array.isArray(k) ? k.reduce((a, x) => a + numKey(run, x), 0) : numKey(run, k));
+    const segs = (o.segs || []).map((sg) => Object.assign({}, sg, { v: val(sg.n) * (sg.times != null ? numKey(run, sg.times) : 1) }));
     const cls = (sg) => 'ad-cs-seg ' + (sg.tone ? 'ad-cs--' + sg.tone : 'ad-op--' + (sg.op || 'tensorop'));
     if (!segs.length || !segs.every((sg) => Number.isFinite(sg.v) && sg.v >= 0)) return;
     used.costSplit = true;
@@ -1627,25 +1644,35 @@
     return gs.map((gq, i) => gq.label + ' ve ' + gs.filter((x, j) => (o.causal ? j <= i : (x.block || 0) <= (gq.block || 0))).map((x) => x.label).join(', ')).join('; ');
   }
   function maskGridH(o) { const n = (o.groups || []).reduce((a, gq) => a + (gq.cells || 1), 0); return n * (o.cell || 11) + 34; }
+  // fase 9 (revisión): maskGrid.runRows = [bloques] cuyas filas (queries) corren en un paso de flujo: las demás filas se
+  // atenúan y un corchete a la derecha las nombra (runLabel, con '\n'); mod:'state' = celda del estado del robot (no es
+  // ruido: no usa el gris de 'lat')
+  const MASK_RUN_W = 74;
   function drawMaskGrid(g, o, r, used) {
     const groups = o.groups || [];
     const cells = [];
     groups.forEach((gq, gi) => { for (let i = 0; i < (gq.cells || 1); i++) cells.push(gi); });
     const n = cells.length, cs = o.cell || 11;
     used.maskGrid = true;
+    const run = Array.isArray(o.runRows) && o.runRows.length ? o.runRows : null;
+    if (run) used.maskRun = true;
+    const idleRow = (ri) => !!run && run.indexOf(groups[cells[ri]].block || 0) < 0;
     const gg = S('g', { class: 'ad-mask' }, g);
     const lw = o.labelW || 70;
-    const gx = r.x + (r.w - (lw + 8 + n * cs)) / 2 + lw + 8, gy = r.y + r.h - maskGridH(o) + 22;
+    const gx = r.x + (r.w - (lw + 8 + n * cs + (run ? MASK_RUN_W : 0))) / 2 + lw + 8, gy = r.y + r.h - maskGridH(o) + 22;
     const ok = (ri, ci) => (o.causal ? ci <= ri : (groups[cells[ci]].block || 0) <= (groups[cells[ri]].block || 0));
+    const idleG = run ? S('g', { class: 'ad-mask-idle' }, gg) : null;
     for (let ri = 0; ri < n; ri++) for (let ci = 0; ci < n; ci++) {
       const x = gx + ci * cs, y = gy + ri * cs, mod = groups[cells[ci]].mod || 'txt';
-      if (ok(ri, ci)) S('rect', { x: r1(x + 0.5), y: r1(y + 0.5), width: cs - 1, height: cs - 1, class: 'ad-mask-on ad-mod--' + mod }, gg);
-      else { S('rect', { x: r1(x + 0.5), y: r1(y + 0.5), width: cs - 1, height: cs - 1, class: 'ad-mask-off' }, gg); S('path', { d: 'M' + P([x + 3, y + 3]) + 'l' + (cs - 6) + ',' + (cs - 6) + 'm0,' + -(cs - 6) + 'l' + -(cs - 6) + ',' + (cs - 6), class: 'ad-mask-x' }, gg); }
+      const pg = idleRow(ri) ? idleG : gg;
+      if (ok(ri, ci)) S('rect', { x: r1(x + 0.5), y: r1(y + 0.5), width: cs - 1, height: cs - 1, class: 'ad-mask-on ' + (mod === 'state' ? 'ad-mask--state' : 'ad-mod--' + mod) }, pg);
+      else { S('rect', { x: r1(x + 0.5), y: r1(y + 0.5), width: cs - 1, height: cs - 1, class: 'ad-mask-off' }, pg); S('path', { d: 'M' + P([x + 3, y + 3]) + 'l' + (cs - 6) + ',' + (cs - 6) + 'm0,' + -(cs - 6) + 'l' + -(cs - 6) + ',' + (cs - 6), class: 'ad-mask-x' }, pg); }
     }
     let k = 0;
     groups.forEach((gq) => {
       const c = gq.cells || 1, y0 = gy + k * cs, x0 = gx + k * cs;
-      txt(gg, gx - 6, y0 + c * cs / 2 + 4, gq.label, 'ad-mask-lab', 'end');
+      const idle = !!run && run.indexOf(gq.block || 0) < 0;
+      txt(gg, gx - 6, y0 + c * cs / 2 + 4, gq.label, 'ad-mask-lab' + (idle ? ' ad-mask-lab--idle' : ''), 'end');
       S('path', { d: 'M' + P([x0 + 1, gy - 4]) + 'V' + r1(gy - 7) + 'H' + r1(x0 + c * cs - 1) + 'V' + r1(gy - 4), class: 'ad-mask-brace' }, gg);
       if (gq.short) txt(gg, x0 + c * cs / 2, gy - 10, gq.short, 'ad-mask-lab', 'middle');
       k += c;
@@ -1654,6 +1681,16 @@
     let d = '';
     for (let i = 1; i < n; i++) if ((groups[cells[i]].block || 0) !== (groups[cells[i - 1]].block || 0)) d += 'M' + P([gx + i * cs, gy - 2]) + 'V' + r1(gy + n * cs + 2) + 'M' + P([gx - 2, gy + i * cs]) + 'H' + r1(gx + n * cs + 2);
     if (d) S('path', { d, class: 'ad-mask-sep' }, gg);
+    // corchete de las filas que corren
+    if (run) {
+      const rows = cells.map((gi, ri) => ri).filter((ri) => !idleRow(ri));
+      if (rows.length) {
+        const ya = gy + rows[0] * cs + 1, yb = gy + (rows[rows.length - 1] + 1) * cs - 1, bx = gx + n * cs + 6;
+        S('path', { d: 'M' + P([bx, ya]) + 'h4V' + r1(yb) + 'h-4', class: 'ad-mask-run' }, gg);
+        const lines = String(o.runLabel || 'corren en\ncada paso').split('\n');
+        lines.forEach((ln, i) => txt(gg, bx + 9, (ya + yb) / 2 + 4 + (i - (lines.length - 1) / 2) * 12, ln, 'ad-mask-runlab'));
+      }
+    }
   }
 
   function drawMapNode(ctl, parent, n, r, used) {
@@ -1696,15 +1733,26 @@
     }
     return out;
   }
-  function nodeLabelOf(ctl, id) { const sp = ctl.building || (ctl.view ? ctl.view.spec : null); const n = sp && (sp.nodes || []).find((x) => x.id === id); return n ? String(n.label || id).replace(/\n/g, ' ') : id; }
+  // fase 9 (revisión): en la práctica, un bloque con hueco de nombre o de tipo no se nombra en el aria de sus vecinos
+  // (las aristas decían "(de Cámaras a SigLIP So400m/14)" con SigLIP en blanco)
+  function nodeLabelOf(ctl, id) {
+    if (ctl.mode === 'blank') { const sl = slotFor(ctl, id); if (sl && (sl.ask === 'label' || sl.ask === 'op')) return 'bloque con hueco'; }
+    const sp = ctl.building || (ctl.view ? ctl.view.spec : null); const n = sp && (sp.nodes || []).find((x) => x.id === id); return n ? String(n.label || id).replace(/\n/g, ' ') : id;
+  }
+  // fase 9 (revisión): en la práctica, ¿esta forma es la respuesta de un hueco (o la delata)? Entonces no va en el aria.
+  function blankShapeHidden(ctl, t, key) {
+    if (ctl.mode !== 'blank' || !ctl.blankHide || !t) return false;
+    return ctl.blankHide.nums.has(t.num.join('×')) || (key != null && ctl.blankHide.has(key));
+  }
   function mapName(id) { const c = ATLAS.catalog && ATLAS.catalog(); const it = c && c.items && c.items[id]; return (it && (it.short || it.title)) || id; }
 
   function nodeAria(ctl, n, run) {
     const parts = [plainSub(n.label || n.id)];
     if (n.sub) parts.push(plainSub(nodeSub(n, ctl)).replace(/\n/g, ' '));
     const io = nodeIO(ctl.cur(), n.id, run);
-    if (io.in.length) parts.push('entrada ' + io.in.map((t) => shapeText(t, 'num')).join(', '));
-    if (io.out.length) parts.push('salida ' + io.out.map((t) => shapeText(t, 'num')).join(', '));
+    const ioTxt = (ts) => ts.map((t) => (blankShapeHidden(ctl, t) ? 'forma oculta' : shapeText(t, 'num'))).join(', ');
+    if (io.in.length) parts.push('entrada ' + ioTxt(io.in));
+    if (io.out.length) parts.push('salida ' + ioTxt(io.out));
     if (n.kvGroups && run) { const w = gqaWords(run.config, n.kvGroups); if (w) parts.push(w.text); }
     if (n.experts && run) { const E = cfgPath(run.config, n.experts.n || 'nExperts'), K = cfgPath(run.config, n.experts.k || 'topK'); if (E) parts.push(K + ' de ' + E + ' expertos por token'); }
     if (n.train) parts.push(n.train === 'frozen' ? 'congelado' : 'entrena');
@@ -1871,7 +1919,11 @@
     if (kind !== 'contrasta') arrowHead(g, headPts, 'ad-head' + (hollow ? ' ad-head--hollow' : ''), headSize);
     if (kind === 'contrasta') { const p0 = ge.pts[0], p1 = ge.pts[ge.pts.length - 1]; S('circle', { cx: r1(p0[0]), cy: r1(p0[1]), r: 2.4, class: 'ad-end' }, g); S('circle', { cx: r1(p1[0]), cy: r1(p1[1]), r: 2.4, class: 'ad-end' }, g); }
     if (isMap) g.setAttribute('aria-label', (MAP_KIND_SENT[kind] ? MAP_KIND_SENT[kind](mapName(e.from), mapName(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' (' + e.label + ')' : ''));
-    if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? plainSub(qText(e.tag, ctl, ctl.building)) + ': ' : '') + plainSub(t.label || e.tensor) + ', ' + shapeSay(t) + ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')');
+    // fase 9 (revisión): en la práctica, la arista con hueco de forma dice solo que es un hueco, y las que comparten esa forma
+    // (o la delatan, blankHide) la callan: el lector de pantalla oía la respuesta ("Tokens visuales …, 256×4096")
+    const fromTo = () => ' (de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')';
+    if (t && !isMap && ctl.mode === 'blank' && slot && slot.ask === 'shape') g.setAttribute('aria-label', 'Hueco: forma del tensor' + fromTo());
+    else if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? plainSub(qText(e.tag, ctl, ctl.building)) + ': ' : '') + plainSub(t.label || e.tensor) + (blankShapeHidden(ctl, t, ge.key + '@' + e.tensor) ? '' : ', ' + shapeSay(t)) + fromTo());
     // arista de control con etiqueta (sin tensor): el lector de pantalla oye qué decide y entre qué bloques
     // fase 9: en una vista sin calculador (calc:false) las aristas de datos tampoco tienen tensor: también dicen su etiqueta
     if (!t && !isMap && (kind === 'control' || (ctl.building && ctl.building.calc === false)) && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(qText(e.tag, ctl, ctl.building)) + (e.loop ? ', se repite' : '') + (kind === 'control' ? ' (control, de ' : ' (flujo, de ') + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
@@ -2001,7 +2053,19 @@
     if (used.experts) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-exp' + (i === 1 || i === 2 ? ' is-on' : '') }, s)); }, 'Expertos (FFN): encendidos = los top-k elegidos para un token');
     if (used.rows) item((s) => { const g = S('g', { class: 'ad-rows' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 3, y, width: 20, height: 3, rx: 1, class: 'ad-row' + (i === 2 ? ' is-new' : '') }, g)); }, 'Filas del caché (una por token; la resaltada se agrega en este paso)');
     // fase 7: tira de tokens, ids de M-RoPE, capas con toma, congelado / entrena, enlaces
-    if (used.strip) item((s) => { defs(s, lid + '-lstrip'); const a = S('g', { class: 'ad-glyph ad-mod--txt' }, s); S('rect', { x: 2, y: 4, width: 6, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-txt)' }, a); const b = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-img)' }, b); }, ((view.spec && view.spec.legendText) || {}).strip || 'Tira del prompt: ancho proporcional al número de tokens (texto rayado, imagen liso)');
+    if (used.strip) {
+      // texto + imagen (el prompt de LLaVA / Qwen2-VL): la muestra y el texto de siempre; otra mezcla (RT-2: solo acción;
+      // OpenVLA: prompt + tira de la acción): una muestra por modalidad dibujada, en orden, y el texto las nombra
+      const sm = used.stripMods || ['txt', 'img'];
+      const classic = sm.length === 2 && sm.indexOf('txt') >= 0 && sm.indexOf('img') >= 0;
+      const MW = { txt: 'texto rayado', img: 'imagen liso', act: 'acción con puntos', aud: 'audio', lat: 'latente', qry: 'queries' };
+      if (classic) item((s) => { defs(s, lid + '-lstrip'); const a = S('g', { class: 'ad-glyph ad-mod--txt' }, s); S('rect', { x: 2, y: 4, width: 6, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-txt)' }, a); const b = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-img)' }, b); }, ((view.spec && view.spec.legendText) || {}).strip || 'Tira del prompt: ancho proporcional al número de tokens (texto rayado, imagen liso)');
+      else item((s) => {
+        defs(s, lid + '-lstrip');
+        const k = Math.min(sm.length, 3), w = (22 - (k - 1)) / k;
+        sm.slice(0, k).forEach((m, i) => { const a = S('g', { class: 'ad-glyph ad-mod--' + m }, s); S('rect', { x: r1(2 + i * (w + 1)), y: 4, width: r1(w), height: 8, class: 'ad-face ad-face--front', fill: 'url(#' + lid + '-lstrip-tx-' + m + ')' }, a); });
+      }, ((view.spec && view.spec.legendText) || {}).strip || 'Tira de tokens: ancho proporcional al número (' + sm.map((m) => MW[m] || m).join(', ') + ')');
+    }
     if (used.posIds) item((s) => { const t = S('text', { x: 13, y: 12, 'text-anchor': 'middle', class: 'ad-pos-n is-var' }, s); t.textContent = 't h w'; }, 'Ids de posición (t, h, w) de M-RoPE: ilustrativo');
     if (used.dropfirst) item((s) => { const g = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 9, class: 'ad-face ad-face--front', fill: 'var(--surface)' }, g); S('rect', { x: 2, y: 4, width: 7, height: 9, class: 'ad-tokdrop' }, s); S('path', { d: 'M3 5L8 12M8 5L3 12', class: 'ad-tokdrop-x' }, s); }, 'Token descartado (CLS): no sigue al proyector');
     if (used.layers) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-layer' + (i === 2 ? ' is-tap' : i === 3 ? ' is-off' : '') }, s)); }, 'Capas del encoder: resaltada = de la que se toman las features; atenuada = no se usa');
@@ -2017,7 +2081,7 @@
     if (used.costSplit) item((s) => { S('rect', { x: 2, y: 4, width: 18, height: 8, class: 'ad-cs-seg ad-cs--loop' }, s); S('rect', { x: 20, y: 4, width: 4, height: 8, class: 'ad-cs-seg ad-cs--once' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-cs-frame' }, s); }, LT.costSplit || 'Costo por imagen: ancho proporcional a los MACs (del calculador)');
     if (used.closed) item((s) => { const g = S('g', { class: 'ad-node--closed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); }, 'Caja negra: pesos cerrados (no se ve por dentro)');
     if (used.bins) item((s) => { const g = S('g', { class: 'ad-bins' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-bins-track' }, g); S('path', { d: 'M5 4V12M8 4V12M11 4V12M14 4V12M17 4V12M20 4V12', class: 'ad-bins-tick' }, g); S('rect', { x: 13, y: 3, width: 4, height: 10, class: 'ad-bins-on' }, g); }, 'Bins de una dimensión de la acción (resaltado: el del ejemplo, ilustrativo)');
-    if (used.maskGrid) item((s) => { [[3, 3, 1], [9, 3, 0], [15, 3, 0], [3, 9, 1], [9, 9, 1], [15, 9, 0]].forEach(([x, y, on]) => S('rect', { x, y, width: 5, height: 5, class: on ? 'ad-mask-on ad-mod--img' : 'ad-mask-off' }, s)); }, 'Máscara de atención: fila = query, columna = key; llena = permitido, vacía = bloqueado (−∞)');
+    if (used.maskGrid) item((s) => { [[3, 3, 1], [9, 3, 0], [15, 3, 0], [3, 9, 1], [9, 9, 1], [15, 9, 0]].forEach(([x, y, on]) => S('rect', { x, y, width: 5, height: 5, class: on ? 'ad-mask-on ad-mod--img' : 'ad-mask-off' }, s)); }, 'Máscara de atención: fila = query, columna = key; llena = permitido, vacía = bloqueado (−∞)' + (used.maskRun ? '; filas atenuadas = no corren en el paso' : ''));
     if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');

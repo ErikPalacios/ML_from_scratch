@@ -7,8 +7,10 @@
    - RT-2 (Brohan et al. 2023, arXiv:2307.15818): 8 tokens, "terminar" + Δpos (3) + Δrot (3) + pinza, cada uno el entero
      del bin escrito como texto (PaLI-X tiene un token por entero; en PaLM-E se pisan los 256 tokens menos usados).
    - OpenVLA (Kim et al. 2024, arXiv:2406.09246): 7 tokens; los bins pisan los 256 ÚLTIMOS ids del vocabulario de Llama
-     (los menos usados): id = 32,000 − d con d = b + 1 (b = 0…255), como el ActionTokenizer del código oficial. Los
-     límites de cada dimensión son los cuantiles 1 % y 99 % de los datos (un valor atípico no ensancha los bins).
+     (los menos usados). Como el ActionTokenizer del código oficial (ATLAS.Arch.vla.openvlaTokenize / openvlaDetokenize):
+     bordes = linspace(−1, 1, 256) → 255 intervalos; d = digitize(x) ∈ 1…256, id = 32,000 − d, de vuelta al centro del
+     intervalo clip(d − 1, 0, 254) (x = 0 → d = 128, id 31,872). Los límites de cada dimensión son los cuantiles 1 % y 99 %
+     de los datos (un valor atípico no ensancha los bins); x se normaliza a [−1, 1] con ellos.
    Lo ilustrativo: la trayectoria y el "dataset" (sintéticos, con semilla) — rotulados. Lo real: 256 bins, 7 dims (+ 1
    de RT-2), la regla de los ids de OpenVLA, que el error máximo es medio bin.
    params: { model:'openvla'|'rt2', bins:256|64|16, bounds:'quantile'|'minmax', dim:0…6, t:0…N−1 }
@@ -77,14 +79,23 @@
       t: Number.isInteger(+params.t) && +params.t >= 0 && +params.t < N ? +params.t : 20,
     };
     const boundsOf = () => state.bounds || (state.model === 'openvla' ? 'quantile' : 'minmax');
-    // cuantizar: recortar a [lo, hi], bin b = ⌊(x − lo)/w⌋ ∈ [0, n−1], de vuelta al centro del bin
+    // cuantizar: recortar a [lo, hi].
+    // RT-2: n intervalos iguales, bin b = ⌊(x − lo)/w⌋ ∈ [0, n−1] (ATLAS.Arch.vla.discretize), de vuelta al centro del bin.
+    // OpenVLA: como el código (openvlaTokenize / openvlaDetokenize): n BORDES en [−1, 1] → n − 1 intervalos, d ∈ 1…n, id = 32,000 − d.
+    const VLA = A && A.vla;
     const quant = (x, d) => {
-      const [lo, hi] = LIM[boundsOf()][d], n = state.bins, w = (hi - lo) / n;
-      const xc = Math.min(hi, Math.max(lo, x));
-      const b = Math.min(n - 1, Math.max(0, Math.floor((xc - lo) / w)));
-      return { b, back: lo + (b + 0.5) * w, w, clipped: xc !== x, lo, hi };
+      const [lo, hi] = LIM[boundsOf()][d], n = state.bins;
+      const xc = Math.min(hi, Math.max(lo, x)), clipped = xc !== x;
+      if (state.model === 'openvla' && VLA && VLA.openvlaTokenize && VLA.openvlaDetokenize) {
+        const xn = 2 * (xc - lo) / (hi - lo) - 1;
+        const tk = VLA.openvlaTokenize(xn, { bins: n, vocab: MODELS.openvla.vocab });
+        const dt = VLA.openvlaDetokenize(tk.id, { bins: n, vocab: MODELS.openvla.vocab });
+        return { b: tk.bin, id: tk.id, back: lo + (dt.center + 1) / 2 * (hi - lo), w: (hi - lo) / (n - 1), nInt: n - 1, clipped, lo, hi };
+      }
+      const w = (hi - lo) / n;
+      const b = VLA && VLA.discretize ? VLA.discretize(xc, { bins: n, lo, hi }).bin : Math.min(n - 1, Math.max(0, Math.floor((xc - lo) / w)));
+      return { b, id: b, back: lo + (b + 0.5) * w, w, nInt: n, clipped, lo, hi };
     };
-    const tokenOf = (b) => (state.model === 'openvla' ? MODELS.openvla.vocab - (b + 1) : b);
 
     const wrap = V.html('div', { class: 'viz viz-at' }, el);
     const ctl = V.html('div', { class: 'viz-controls' }, wrap);
@@ -128,9 +139,9 @@
       if (q0.lo > ymin) V.svg('rect', { x: px0, y: r1(Y(q0.lo)), width: pw, height: r1(py0 + ph - Y(q0.lo)), class: 'viz-at-clip' }, svg);
       const every = state.bins > 64 ? 16 : state.bins > 16 ? 4 : 1;
       let dg = '';
-      for (let b = 0; b <= state.bins; b += every) { const yy = Y(q0.lo + b * q0.w); if (yy >= py0 - 0.5 && yy <= py0 + ph + 0.5) dg += 'M' + px0 + ' ' + r1(yy) + 'H' + r1(px0 + pw); }
+      for (let b = 0; b <= q0.nInt; b += every) { const yy = Y(q0.lo + b * q0.w); if (yy >= py0 - 0.5 && yy <= py0 + ph + 0.5) dg += 'M' + px0 + ' ' + r1(yy) + 'H' + r1(px0 + pw); }
       V.svg('path', { d: dg, class: 'viz-rl-grid' }, svg);
-      [q0.lo, q0.hi].forEach((v, k) => { V.svg('path', { d: 'M' + px0 + ' ' + r1(Y(v)) + 'H' + r1(px0 + pw), class: 'viz-at-lim' }, svg); t(svg, px0 + pw - 4, Y(v) + (k ? -4 : 12), (k ? 'límite sup. ' : 'límite inf. ') + v.toFixed(2), 'viz-at-limt', 'end'); });
+      [q0.lo, q0.hi].forEach((v, k) => { V.svg('path', { d: 'M' + px0 + ' ' + r1(Y(v)) + 'H' + r1(px0 + pw), class: 'viz-at-lim' }, svg); t(svg, px0 + pw - 4, Y(v) + (k ? 12 : -4), (k ? 'límite sup. ' : 'límite inf. ') + v.toFixed(2), 'viz-at-limt', 'end'); });
       [-1, 0, 1].forEach((v) => { if (v > ymin && v < ymax) t(svg, px0 - 4, Y(v) + 4, String(v), 'viz-s', 'end'); });
       // curva continua y escalera cuantizada
       V.svg('path', { d: vals.map((v, i) => (i ? 'L' : 'M') + r1(X(i)) + ' ' + r1(Y(v))).join(''), class: 'viz-at-cont' }, svg);
@@ -159,7 +170,8 @@
       t(svg, 8, y, 'Paso ' + state.t + ': acción → bins → tokens' + (narrow ? '' : ' (' + MODELS[state.model].label + ')'), 'viz-t');
       y += 14;
       const row = (narrow ? 16 : 18), colsW = narrow ? [44, 64, 40, 70, 52] : [86, 120, 70, 170, 90];
-      const heads = narrow ? ['dim', 'valor', 'bin', 'de vuelta', 'error'] : ['dimensión', 'valor continuo', 'bin b', 'de vuelta (centro)', '|error|'];
+      const ovl = state.model === 'openvla';
+      const heads = narrow ? ['dim', 'valor', ovl ? 'd' : 'bin', 'de vuelta', 'error'] : ['dimensión', 'valor continuo', ovl ? 'bin d' : 'bin b', 'de vuelta (centro)', '|error|'];
       let cx = 8;
       const colX = colsW.map((w) => { const x = cx; cx += w; return x; });
       heads.forEach((h, k) => t(svg, colX[k] + (k ? colsW[k] - 8 : 0), y + 10, h, 'viz-s', k ? 'end' : null));
@@ -182,7 +194,7 @@
       y += 16;
       t(svg, 8, y, state.model === 'rt2' ? (narrow ? 'RT-2 escribe 8 tokens' : 'Lo que escribe RT-2 (8 tokens: terminar + 7)') : (narrow ? 'OpenVLA escribe 7 tokens (ids)' : 'Lo que escribe OpenVLA (7 tokens: ids del vocabulario de Llama)'), 'viz-t');
       y += 10;
-      const toks = (state.model === 'rt2' ? [{ lab: 'terminar', v: state.t === N - 1 ? 1 : 0, term: true }] : []).concat(rows.map((r) => ({ lab: r.dd.label, v: tokenOf(r.qq.b), k: r.k })));
+      const toks = (state.model === 'rt2' ? [{ lab: 'terminar', v: state.t === N - 1 ? 1 : 0, term: true }] : []).concat(rows.map((r) => ({ lab: r.dd.label, v: r.qq.id, k: r.k })));
       const per = narrow ? 4 : toks.length, tw = narrow ? (W - 16 - 3 * 6) / 4 : Math.min(96, (W - 16 - (toks.length - 1) * 6) / toks.length), th = 34;
       toks.forEach((tk, i) => {
         const col = i % per, line = Math.floor(i / per);
@@ -193,7 +205,7 @@
         t(svg, x + tw / 2, yy + 28, tk.lab, 'viz-s', 'middle');
       });
       y += Math.ceil(toks.length / per) * (th + 8) + 4;
-      if (state.model === 'openvla') { t(svg, 8, y + 6, narrow ? 'id = 32000 − (b + 1): los 256 últimos ids' : 'id = 32000 − (b + 1): los 256 últimos ids del vocabulario de 32,000 (31744…31999), los menos usados', 'viz-s'); y += 12; }
+      if (state.model === 'openvla') { t(svg, 8, y + 6, narrow ? 'id = 32000 − d: los 256 últimos ids' : 'id = 32000 − d (d = digitize, 1…256): los 256 últimos ids del vocabulario de 32,000 (31744…31999)', 'viz-s'); y += 12; t(svg, 8, y + 8, narrow ? '256 bordes → 255 intervalos' : '256 bordes en [−1, 1] → 255 intervalos (como el código; el paper dice "256 bins")', 'viz-s'); y += 14; }
       else { t(svg, 8, y + 6, narrow ? 'token = el entero del bin, como texto' : 'cada token es el entero del bin escrito como texto (PaLI-X tiene un token por entero)', 'viz-s'); y += 12; }
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + r1(y + 8));
       svg.setAttribute('aria-label', 'Dimensión ' + D.label + ' en el paso ' + state.t + ': valor ' + vals[state.t].toFixed(3) + ', bin ' + cur.b + ' de ' + state.bins + ', de vuelta ' + cur.back.toFixed(3) + '. Tokens: ' + toks.map((x) => x.v).join(' '));
@@ -202,12 +214,16 @@
     function readout(rows, cur, vals, d) {
       out.innerHTML = '';
       const kv = (k, v) => { const sp = V.html('span', null, out); sp.innerHTML = k + ' <b>' + v + '</b>'; };
-      kv('ancho del bin (' + DIMS[d].label + '):', cur.w.toFixed(4));
-      kv('error máximo (medio bin):', (cur.w / 2).toFixed(4));
-      const errs = vals.map((v) => Math.abs(v - quant(v, d).back));
-      kv('error medio en el episodio:', (errs.reduce((a, b) => a + b, 0) / errs.length).toFixed(4));
+      kv('ancho del bin (' + DIMS[d].label + '):', cur.w.toFixed(4) + (state.model === 'openvla' ? ' (' + cur.nInt + ' intervalos)' : ''));
+      kv('error máx. dentro de los límites (medio bin):', (cur.w / 2).toFixed(4));
+      // el error medio, solo con los pasos dentro de los límites; los recortados aparte (su error supera medio bin)
+      const qs = vals.map((v) => { const qq = quant(v, d); return { e: Math.abs(v - qq.back), c: qq.clipped }; });
+      const inn = qs.filter((x) => !x.c), cl = qs.filter((x) => x.c);
+      const mean = (a) => a.reduce((s, x) => s + x.e, 0) / a.length;
+      kv('error medio (dentro de los límites):', inn.length ? mean(inn).toFixed(4) : '—');
+      if (cl.length) kv('pasos recortados:', cl.length + ' (error medio ' + mean(cl).toFixed(4) + ')');
       kv('tokens por paso:', state.model === 'rt2' ? '8' : '7');
-      note.innerHTML = 'Datos ilustrativos (una trayectoria sintética, normalizada). Lo real: ' + (state.model === 'rt2' ? 'RT-2 discretiza cada dimensión continua en 256 bins uniformes y escribe la acción como 8 enteros separados por espacios ("terminar", Δpos, Δrot, pinza); con PaLI-X cada entero ya es un token, con PaLM-E pisa los 256 tokens menos usados.' : 'OpenVLA usa 256 bins uniformes entre los cuantiles 1 % y 99 % de cada dimensión en los datos de entrenamiento (un tirón aislado no ensancha los bins; con mín–máx sí, y todos los pasos pierden precisión), y escribe cada bin como uno de los 256 últimos tokens de Llama.') + ' Volver del bin al valor da el centro del bin: el error es a lo sumo medio bin, salvo lo recortado. Con menos bins, la escalera se ve: es el precio de convertir acciones en tokens.';
+      note.innerHTML = 'Datos ilustrativos (una trayectoria sintética, normalizada). Lo real: ' + (state.model === 'rt2' ? 'RT-2 discretiza cada dimensión continua en 256 bins uniformes y escribe la acción como 8 enteros separados por espacios ("terminar", Δpos, Δrot, pinza); con PaLI-X cada entero ya es un token, con PaLM-E pisa los 256 tokens menos usados.' : 'OpenVLA normaliza cada dimensión a [−1, 1] con sus cuantiles 1 % y 99 % en los datos de entrenamiento y la parte con 256 bordes uniformes (255 intervalos: el paper dice "256 bins"; el código, linspace(−1, 1, 256)) (un tirón aislado no ensancha los bins; con mín–máx sí, y todos los pasos pierden precisión), y escribe cada bin como uno de los 256 últimos tokens de Llama.') + ' Volver del bin al valor da el centro del bin: el error es a lo sumo medio bin, salvo lo recortado (por eso el error medio se cuenta solo dentro de los límites). Con menos bins, la escalera se ve: es el precio de convertir acciones en tokens.';
     }
 
     stage.addEventListener('keydown', (ev) => {

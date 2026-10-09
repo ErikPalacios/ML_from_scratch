@@ -140,9 +140,9 @@
      rellenan con ceros y se enmascaran, pero SE CALCULAN: el costo real de openpi con una cámara es el de `pi0`).
    - RT-2: sin config (pesos y arquitectura exacta cerrados). ATLAS.Arch.vla.rt2Tokens / discretize / binCenter / openvlaTokenize /
      openvlaDetokenize para la calculadora de tokens y la viz action-tokenizer; pi0Mask para la viz pi0-mask.
-   - Primitivas locales (no están en primitives.js por la concurrencia de la fase 8): normalize_pixels, prefix_tokens,
-     broadcast_rows, prefix_mask, block_causal_mask, ar_decode, detokenize_actions (ATLAS.Arch.vla.primitives() las lista).
-     El resto reusa primitives.js (linear, conv2d, layernorm, rmsnorm, layer_scale, gelu, silu, mul, rope, split_gqa_heads,
+   - Primitivas de la fase 9 (en primitives.js desde la revisión; antes locales por la concurrencia de la fase 8): normalize_pixels,
+     prefix_tokens, broadcast_rows, prefix_mask, block_causal_mask, ar_decode, detokenize_actions (ATLAS.Arch.vla.primitives()
+     las lista). El resto reusa primitives.js (linear, conv2d, layernorm, rmsnorm, layer_scale, gelu, silu, mul, rope, split_gqa_heads,
      kv_append, attention_*, concat_features, concat_tokens, splice_tokens, take_rows, timestep_embedding, scheduler_step,
      idle_params, transformer_block, preLnLayer, importGraph).
 
@@ -151,13 +151,14 @@
    embedding ni los parámetros sin uso) + filas de embedding + KV escrita/leída; sin activaciones ni overheads): H100 SXM (el de
    llm.js: 989 TFLOPS bf16 denso, 3.35 TB/s), RTX 4090 (NVIDIA Ada GPU Architecture whitepaper, Apéndice A: 165.2 TFLOPS BF16
    Tensor con acumulación FP32, densos; 1,008 GB/s), Jetson AGX Orin 64GB (Technical Brief v1.2, Tabla 1: 204.8 GB/s LPDDR5; GPU
-   Ampere 2048 CUDA / 64 Tensor cores a 1.3 GHz, 170 TOPS INT8 dispersos → ≈ 42.5 TFLOPS FP16 densos = 170 / 2 (dispersidad) / 2
-   (FP16 = la mitad que INT8): DERIVADO, ≈). bandwidth / peakFlops en overrides = hardware propio (claves …Ms / hz sin sufijo).
+   Ampere 2048 CUDA / 64 Tensor cores a 1.3 GHz; el datasheet da 85 TFLOPS FP16 CON sparsity → ≈ 42.5 TFLOPS FP16 densos = 85 / 2:
+   DERIVADO, ≈). bandwidth / peakFlops en overrides = hardware propio (claves …Ms / hz sin sufijo).
    OpenVLA: visualTokens, textTokens, promptTokens, actionTokensPerStep (= d_a), actionBins, decodeSteps (count); dinoParams,
      siglipParams, visionParams, visionParamsUsed, idleParams, projectorParams, llmParams, embedParams, totalParams (params);
      dinoMacs, siglipMacs, visionMacs, visionMacsDiscarded, projectorMacs, llmPrefillMacs, prefillMacs, decodeMacsPerToken (1.er
      decode, ctx = N + T + 1), decodeMacsTotal, macsPerAction (macs); prefillShare, visionMacsShare (pct); kvBytesPerToken,
-     kvBytesPrompt, weightBytes (bytes); visionMs, prefillMs, decodeMs (un paso), actionMs (ms) y hz (ratio) + los mismos con
+     kvBytesPrompt, weightBytes (todo el checkpoint), decodeWeightBytesRead (pesos del LLM sin la tabla de embedding que lee CADA
+     paso de decode: 2·(llmParams − embedParams) ≈ 13.2 GB) (bytes); visionMs, prefillMs, decodeMs (un paso), actionMs (ms) y hz (ratio) + los mismos con
      sufijo H100 / Rtx4090 / Orin; actionBound ('cómputo' | 'memoria' del prefill); hardware (lista por GPU); paperHz (6, §3.5).
    π0: cams, visualTokens, visualTokensPerImage, textTokens, prefixTokens, suffixTokens, kvRows, chunk, steps, actionDim (count);
      siglipParams, imgProjParams, gemmaParams, paligemmaParams, expertParams, actionProjParams, totalParams (params); visionMacs,
@@ -176,10 +177,6 @@
   const LLMDEF = A.model('llm');
   const fint = (n) => A.fmt.int(n);
   const shp = (sym, num, mod, layout) => A.shape(sym, num, mod, layout);
-  const prod = (a) => a.reduce((x, y) => x * y, 1);
-  const elems = (t) => prod(t.num);
-  const plain = (t) => ({ sym: t.sym.slice(), num: t.num.slice(), mod: t.mod, layout: t.layout });
-  const texOf = (t) => A.fmt.shapeTex(t);
 
   // ------------------------------------------------------------------ hardware (≈, entradas del roofline)
   const H100 = Object.assign({ id: 'h100', label: 'H100 SXM' }, LLMDEF.hardware);
@@ -188,80 +185,16 @@
     { id: 'rtx4090', key: 'Rtx4090', label: 'RTX 4090', bandwidth: 1008e9, peakFlops: 165.2e12,
       source: 'NVIDIA Ada GPU Architecture whitepaper, Apéndice A (GeForce RTX 4090): 165.2 TFLOPS BF16 Tensor con acumulación FP32 (densos; 330.4 con dispersidad), 1,008 GB/s GDDR6X' },
     { id: 'orin', key: 'Orin', label: 'Jetson AGX Orin 64GB', bandwidth: 204.8e9, peakFlops: 42.5e12, estimate: true,
-      source: 'NVIDIA Jetson AGX Orin Series Technical Brief v1.2, Tabla 1 y §GPU: 204.8 GB/s LPDDR5; GPU Ampere de 2048 CUDA cores y 64 Tensor cores a 1.3 GHz con 170 TOPS INT8 dispersos. FP16 denso ≈ 42.5 TFLOPS DERIVADO (170 / 2 por la dispersidad / 2 porque FP16 rinde la mitad que INT8): ≈' },
+      source: 'NVIDIA Jetson AGX Orin Series Technical Brief v1.2, Tabla 1: 204.8 GB/s LPDDR5; GPU Ampere de 2048 CUDA cores y 64 Tensor cores a 1.3 GHz. Cómputo: 85 TFLOPS FP16 (con sparsity, datasheet) ÷ 2 ≈ 42.5 denso (≈)' },
   ];
 
-  // ------------------------------------------------------------------ primitivas locales (fase 9)
-  // Mismo contrato que las de primitives.js: {prim, inputs, out, params, macs, other, paramFormula, macFormula, paramArith,
-  // macArith, shapeTex, detail}. Candidatas a moverse a primitives.js cuando termine la fase 8.
-  function mk(prim, inputs, out, o) {
-    o = o || {};
-    const params = o.params || 0, macs = o.macs || 0;
-    const outs = Array.isArray(out) ? out : [out];
-    const ins = inputs.filter(Boolean);
-    const inTex = ins.map(texOf).join(',\\ '), outTex = outs.map(texOf).join(',\\ ');
-    return {
-      prim, inputs: ins, out, params, macs, other: o.other || 0,
-      paramFormula: o.paramTex || (params ? '' : '0'), macFormula: o.macTex || (macs ? '' : '0'),
-      paramArith: o.paramArith || fint(params), macArith: o.macArith || fint(macs),
-      shapeTex: (inTex ? inTex + ' \\to ' : '\\to ') + outTex, detail: o.detail || {},
-    };
-  }
-  const P = {
-    // normalize_pixels: (x − μ)/σ por canal con la media y desviación de CADA encoder (OpenVLA normaliza dos veces la misma
-    // imagen: estadísticas de DINOv2 / ImageNet y de SigLIP). 2 ops por elemento.
-    normalize_pixels(x, o) {
-      return mk('normalize_pixels', [x], plain(x), { other: 2 * elems(x), detail: { stats: (o && o.stats) || null } });
-    },
-    // prefix_tokens: antepone k vectores aprendidos (CLS + registros de DINOv2-reg4): N×D → (N+k)×D, k·D parámetros.
-    prefix_tokens(x, o) {
-      const [N, D] = x.num, [Ns, Ds] = x.sym, k = o.k;
-      return mk('prefix_tokens', [x], shp([o.sym || Ns + '+' + k, Ds], [N + k, D], x.mod, 'seq'), {
-        params: k * D, paramTex: k + A.fmt.symTex(Ds), paramArith: k + '·' + D + ' = ' + fint(k * D),
-        detail: { k, cls: 1, registers: k - 1, note: 'CLS + registros (Darcet et al. 2024, "Vision Transformers Need Registers"): sin position embedding (no_embed_class)' },
-      });
-    },
-    // broadcast_rows: un vector D → R×D (la misma fila R veces: el embedding del tiempo en cada token de acción). Vista.
-    broadcast_rows(v, o) {
-      return mk('broadcast_rows', [v], shp([o.sym || String(o.rows), v.sym[0]], [o.rows, v.num[0]], o.mod || v.mod, 'seq'), { detail: { rows: o.rows } });
-    },
-    // prefix_mask: máscara del prefijo de π0 (imágenes + texto se ven todos con todos; el relleno del texto se enmascara).
-    prefix_mask(x, o) {
-      return mk('prefix_mask', [x], plain(x), { other: elems(x), detail: Object.assign({ kind: 'bidireccional (prefix-LM) + relleno', note: 'make_attn_mask con ar_mask = 0 en todo el prefijo' }, o || {}) });
-    },
-    // block_causal_mask: máscara por bloques del sufijo de π0 (filas = 1 + H_a queries; columnas = prefijo + sufijo). El estado
-    // ve el prefijo y a sí mismo; las acciones ven el prefijo, el estado y todas las acciones. MACs: los mismos (se cuentan las
-    // entradas enmascaradas, como la atención eager).
-    block_causal_mask(x, o) {
-      return mk('block_causal_mask', [x], plain(x), { other: elems(x), detail: Object.assign({ blocks: ['prefijo (imágenes + texto)', 'estado', 'acciones'] }, o || {}) });
-    },
-    // ar_decode: los k pasos de decode autorregresivo que faltan (cada uno = el decoder sobre 1 token nuevo leyendo la KV cache).
-    // Sin parámetros propios (usa los del LLM); MACs = Σ de los pasos (o.steps = [{ctx, macs}]).
-    ar_decode(x, o) {
-      const steps = o.steps || [];
-      const macs = steps.reduce((s, z) => s + z.macs, 0);
-      return mk('ar_decode', [x], shp([o.sym || 'd_a'], [steps.length + 1], o.mod || 'act', 'vec'), {
-        macs, macTex: o.macTex || '\\textstyle\\sum_{k=1}^{d_a-1} \\mathrm{MACs}_{\\mathrm{decode}}(\\mathrm{ctx} = N{+}T{+}k)',
-        macArith: steps.length > 1 ? steps.map((z) => fint(z.macs)).join(' + ') + ' = ' + fint(macs) : fint(macs),
-        other: o.other || 0, detail: { steps: steps.map((z) => Object.assign({}, z)), note: 'el 1.er token sale del prefill; los demás, uno por paso de decode' },
-      });
-    },
-    // detokenize_actions: id → bin (V_tok − id) → centro del bin en [−1, 1] → desnormalizar con q01 / q99. ≈ 4 ops por dimensión.
-    detokenize_actions(ids, o) {
-      return mk('detokenize_actions', [ids], shp(ids.sym.slice(), ids.num.slice(), 'act', 'vec'), {
-        other: 4 * elems(ids), detail: Object.assign({ formula: 'a = ½(c_b + 1)(q99 − q01) + q01, c_b = centro del bin b' }, o || {}),
-      });
-    },
-  };
-  const LOCAL_PRIM_INFO = [
-    { id: 'normalize_pixels', name: 'Normalizar píxeles', paramTex: '0', macTex: '0', outTex: 'H\\times W\\times C \\to H\\times W\\times C', note: 'OpenVLA normaliza la misma imagen dos veces: con las estadísticas de DINOv2 y con las de SigLIP.' },
-    { id: 'prefix_tokens', name: 'CLS + registros', paramTex: 'kD', macTex: '0', outTex: 'N\\times D \\to (N{+}k)\\times D', note: 'DINOv2-reg4: 1 CLS + 4 registros (k = 5), sin posición; se descartan a la salida.' },
-    { id: 'broadcast_rows', name: 'Repetir un vector en R filas', paramTex: '0', macTex: '0', outTex: 'D \\to R\\times D', note: 'π0: el embedding del tiempo τ se copia en cada una de las H_a filas de acción.' },
-    { id: 'prefix_mask', name: 'Máscara del prefijo', paramTex: '0', macTex: '0', outTex: 'h\\times S\\times S \\to h\\times S\\times S', note: 'π0: imágenes + texto se atienden entre sí (bidireccional); el relleno se enmascara.' },
-    { id: 'block_causal_mask', name: 'Máscara por bloques', paramTex: '0', macTex: '0', outTex: 'h\\times (1{+}H_a)\\times S \\to \\cdot', note: 'π0: estado → prefijo + estado; acciones → todo. Los MACs no bajan: se cuentan las entradas enmascaradas.' },
-    { id: 'ar_decode', name: 'Decode autorregresivo', paramTex: '0', macTex: '\\sum_k \\mathrm{decode}(\\mathrm{ctx}_k)', outTex: '1 \\to d_a', note: 'OpenVLA: 7 tokens de acción = 1 prefill + 6 pasos de decode, cada uno leyendo todos los pesos.' },
-    { id: 'detokenize_actions', name: 'Tokens → acción continua', paramTex: '0', macTex: '0', outTex: 'd_a \\to d_a', note: 'id → bin (32,000 − id) → centro del bin → desnormalizar con los cuantiles 1 % / 99 % del dataset.' },
-  ];
+  // ------------------------------------------------------------------ primitivas de la fase 9 (en primitives.js)
+  // normalize_pixels, prefix_tokens, broadcast_rows, prefix_mask, block_causal_mask, ar_decode y detokenize_actions vivían aquí
+  // (fase 8 en paralelo) y se movieron a primitives.js con el mismo contrato y los mismos números. A.vla.prims / A.vla.primitives()
+  // siguen dando las 7 (compatibilidad).
+  const VLA_PRIM_IDS = ['normalize_pixels', 'prefix_tokens', 'broadcast_rows', 'prefix_mask', 'block_causal_mask', 'ar_decode', 'detokenize_actions'];
+  VLA_PRIM_IDS.forEach((id) => { if (typeof A[id] !== 'function') throw new Error('vla.js necesita la primitiva ' + id + ' de js/arch/primitives.js.'); });
+  const P = Object.fromEntries(VLA_PRIM_IDS.map((id) => [id, A[id]]));
 
   // ------------------------------------------------------------------ el decoder de llm.js (como vlm.js)
   const llmMemo = {};
@@ -584,7 +517,7 @@
       outMeta: { label: 'MLP acción-tiempo: capa oculta', tex: 'W_1[\\cdot]' } });
     const aa = sfx('at-swish', A.silu(ah), ['t-embed', 'swish'], { out: 'at-act', where: WT, label: 'Swish (SiLU)', type: 'mlp', group: 'mlp', outMeta: { label: 'MLP acción-tiempo: activación swish', tex: '\\mathrm{swish}(\\cdot)' } });
     const at = sfx('at-mlp-out', A.linear(aa, { dout: c.Da, doutSym: 'D_a', bias: true }), ['t-embed', 'mlp-out'], { out: 'act-tokens', where: WT, label: 'action_time_mlp_out (D_a → D_a)', type: 'mlp', group: 'mlp',
-      outMeta: { label: 'Tokens de acción (con τ)', tex: 'A_\\tau' } });
+      outMeta: { label: 'Tokens de acción (con t, convención de openpi)', tex: 'A_t' } });
     const WE = ['Experto de acción (gemma_300m, ×' + c.L + ')'];
     const sx = sfx('suffix-concat', A.concat_tokens(stt, at, { sym: '1+H_a', mod: 'act' }), ['action-expert', 'suffix-concat'], { out: 'suffix', where: WE, label: 'Sufijo: estado + H_a acciones', type: 'tensorop', group: 'embed',
       outMeta: { label: 'Sufijo (1 + H_a = ' + c.suffix + ' tokens)', tex: '[q_tW_s;\\,A_\\tau]' } });
@@ -596,7 +529,7 @@
     const vel = sfx('action-out-proj', A.linear(ta, { dout: c.da, doutSym: 'd_a', bias: true, mod: 'act' }), ['velocity', 'proj'], { out: 'velocity', where: ['Velocidad'], label: 'action_out_proj (D_a → d_a)', type: 'head', group: 'head',
       outMeta: { label: 'Velocidad predicha v_θ (un vector por acción del chunk)', tex: 'v_\\theta(x_\\tau, o)' } });
     sfx('euler-step', A.scheduler_step(xt, vel, { kind: 'euler', steps: c.steps }), ['euler'], { out: 'action-chunk', where: ['Integración (Euler)'], label: 'Paso de Euler x ← x + δ·v (δ = −1/' + c.steps + ', ×' + c.steps + ' pasos)', type: 'tensorop', group: 'other',
-      outMeta: { label: 'Chunk de acciones (tras los ' + c.steps + ' pasos: τ = 0)', tex: 'A_t = x_0' } });
+      outMeta: { label: 'Chunk de acciones (tras los ' + c.steps + ' pasos: t = 0, convención de openpi)', tex: 'A_t = x_0' } });
     return g;
   }
 
@@ -678,7 +611,7 @@
       actionTokenFirst: c.actionTokenFirst, actionTokenLast: c.actionTokenLast, decodeStepsCount: c.decodeSteps, binCenters: c.bins - 1,
       H: c.H, W: c.W, P: c.P, D: c.D, L: c.L, h: c.h, G: c.G, dh: c.dh, Dmlp: c.Dmlp, V: c.V, Vtok: c.Vtok, T: c.T, N: c.N, Np: c.Np, S: c.S, da: c.da,
       Dd: c.Dd, Ld: c.Ld, hd: c.hd, dd: c.dd, Dmlpd: c.Dmlpd, Ds: c.Ds, Ls: c.Ls, hs: c.hs, ds: c.ds, Ms: c.Ms, Dv: c.Dv, Dproj: c.Dproj, reg: c.reg,
-      kvBytesPerToken: p.kvTok, kvBytesPrompt: c.S * p.kvTok, weightBytes: 2 * r.totals.params,
+      kvBytesPerToken: p.kvTok, kvBytesPrompt: c.S * p.kvTok, weightBytes: 2 * r.totals.params, decodeWeightBytesRead: 2 * (p.llmParams - p.embedParams),
       paperHz: 6, paperVramGB: 15, paperEpisodes: 970000, paperA100Hours: 21500,
       instruction: c.instruction, images: c.images, res: c.res,
     }, Object.fromEntries(Object.entries(p).filter(([, v]) => typeof v === 'number')));
@@ -686,7 +619,8 @@
   function ovlaLatency(c, r, p, hw) {
     const vis = seg(p.visionMacs + p.projectorMacs, p.visionParamsUsed + p.projectorParams, 0, hw);
     const llmW = p.llmParams - p.embedParams;
-    const pre = seg(p.llmPrefillMacs, llmW, c.S * c.D * 2 + c.S * p.kvTok, hw);
+    // filas de embedding: solo las T de texto (las N visuales salen del proyector, no de la tabla); como pi0Latency.
+    const pre = seg(p.llmPrefillMacs, llmW, c.T * c.D * 2 + c.S * p.kvTok, hw);
     const decs = p.decodeSteps.map((z) => seg(z.macs, llmW, c.D * 2 + z.ctx * p.kvTok, hw));
     const decMs = decs.reduce((s, x) => s + x.ms, 0);
     const actionMs = vis.ms + pre.ms + decMs;
@@ -708,7 +642,7 @@
       dinoMacs: p.dinoMacs, siglipMacs: p.siglipMacs, visionMacs: p.visionMacs, visionMacsDiscarded: p.visionMacsDiscarded, projectorMacs: p.projectorMacs,
       llmPrefillMacs: p.llmPrefillMacs, prefillMacs: p.prefillMacs, decodeMacsPerToken: p.decodeSteps.length ? p.decodeSteps[0].macs : 0, decodeMacsTotal: p.decodeMacsTotal,
       macsPerAction: p.macsPerAction, prefillShare: p.prefillMacs / p.macsPerAction, visionMacsShare: p.visionMacs / p.macsPerAction,
-      kvBytesPerToken: p.kvTok, kvBytesPrompt: c.S * p.kvTok, weightBytes: 2 * p.totalParams,
+      kvBytesPerToken: p.kvTok, kvBytesPrompt: c.S * p.kvTok, weightBytes: 2 * p.totalParams, decodeWeightBytesRead: 2 * (p.llmParams - p.embedParams),
       visionMs: base.visionMs, prefillMs: base.prefillMs, decodeMs: base.decodeMs, decodeTotalMs: base.decodeTotalMs, actionMs: base.actionMs, hz: base.hz,
       actionBound: base.prefillBound, decodeBound: base.decodeBound, bandwidth: hw.bandwidth, peakFlops: hw.peakFlops, hardwareSource: hw.source,
       paperHz: 6, units: VLA_UNITS,
@@ -815,7 +749,7 @@
     decodeMacsPerToken: 'macs', decodeMacsTotal: 'macs', macsPerAction: 'macs', gemmaPrefixMacs: 'macs', prefixMacs: 'macs', flowStepMacs: 'macs',
     expertStepMacs: 'macs', flowMacs: 'macs', macsPerChunk: 'macs',
     prefillShare: 'pct', visionMacsShare: 'pct', prefixShare: 'pct', flowShare: 'pct',
-    kvBytesPerToken: 'bytes', kvBytesPrompt: 'bytes', prefixKvBytes: 'bytes', weightBytes: 'bytes',
+    kvBytesPerToken: 'bytes', kvBytesPrompt: 'bytes', prefixKvBytes: 'bytes', weightBytes: 'bytes', decodeWeightBytesRead: 'bytes',
     visionMs: 'ms', prefillMs: 'ms', decodeMs: 'ms', decodeTotalMs: 'ms', actionMs: 'ms', imageMs: 'ms', prefixMs: 'ms', flowStepMs: 'ms', flowMs: 'ms', chunkMs: 'ms',
     hz: 'ratio', chunkHz: 'ratio', actionsPerSecond: 'ratio', paperHz: 'count', paperOnboardMs: 'ms', bandwidth: 'count', peakFlops: 'count',
     attnMacs: 'macs', scoreMacs: 'macs', linearMacs: 'macs',   // genéricas de ATLAS.Arch.metrics
@@ -880,7 +814,7 @@
   }
 
   A.vla = { hardware: () => HARDWARE.map((h) => Object.assign({}, h)), rt2Tokens, discretize, binCenter, openvlaTokenize, openvlaDetokenize, pi0Mask,
-    primitives: () => LOCAL_PRIM_INFO.map((p) => Object.assign({}, p)), prims: Object.assign({}, P) };
+    primitives: () => A.primitives().filter((p) => VLA_PRIM_IDS.includes(p.id)).sort((x, y) => VLA_PRIM_IDS.indexOf(x.id) - VLA_PRIM_IDS.indexOf(y.id)), prims: Object.assign({}, P) };
 
   A.defineModel({
     id: 'openvla',

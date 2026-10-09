@@ -198,9 +198,30 @@
     maskIn: { label: 'Máscara previa como prompt', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con la máscara previa como prompt' : 'sin máscara previa') },
     memFrames: { label: 'Frames recientes Nᵣ', sym: 'Nᵣ', show: (v) => 'Nᵣ = ' + v, phrase: (v) => 'Nᵣ = ' + v + ' frames recientes' },
     ptrs: { label: 'Punteros de objeto P', sym: 'P', show: (v) => 'P = ' + v, phrase: (v) => 'P = ' + v + (v === 1 ? ' puntero de objeto' : ' punteros de objeto') },
+    // Hardware propio del roofline (overrides de metrics(): LLM, difusión, VLA). En B/s y FLOP/s: se muestran en GB/s y TFLOPS.
+    bandwidth: { label: 'Ancho de banda de memoria', show: (v) => fRate(v, 'B/s'), phrase: (v) => 'ancho de banda ' + fRate(v, 'B/s') },
+    peakFlops: { label: 'Pico de cómputo', show: (v) => fRate(v, 'FLOPS'), phrase: (v) => 'pico ' + fRate(v, 'FLOPS') },
   };
+  // 204.8e9 → '204.8 GB/s'; 3.35e12 → '3.35 TB/s'; 42.5e12 → '42.5 TFLOPS' (3 cifras significativas, sin ceros de más).
+  function fRate(v, unit) {
+    const P = [[1e15, 'P'], [1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'k']].find(([x]) => Math.abs(v) >= x);
+    return P ? String(Number((v / P[0]).toPrecision(4))) + ' ' + P[1] + unit : String(v) + ' ' + unit;
+  }
   // Mismo knob, otro significado según el modelo: en SAM, P son clics del prompt (el patch es 16).
+  // π0: el knob H es el CHUNK (cfg.Ha, símbolo H_a), no el alto de la imagen (cfg.H = 224).
   const KNOBS_BY_MODEL = {
+    pi0: {
+      H: { label: 'Acciones por chunk H_a', sym: 'H_a', show: (v) => 'H_a = ' + v, phrase: (v) => 'chunks de ' + v + ' acciones (H_a = ' + v + ')' },
+      cams: { label: 'Cámaras', sym: 'cams', show: (v) => v + (v === 1 ? ' cámara' : ' cámaras'), phrase: (v) => (v === 1 ? 'una sola cámara' : v + ' cámaras') },
+      steps: { label: 'Pasos de flow', sym: 'pasos', show: (v) => v + (v === 1 ? ' paso' : ' pasos'), phrase: (v) => v + (v === 1 ? ' paso' : ' pasos') + ' de flow por chunk' },
+      T: { label: 'Tokens de texto T', show: (v) => 'T = ' + v, phrase: (v) => 'T = ' + v + ' tokens de texto (max_token_len, con relleno)' },
+    },
+    openvla: {
+      T: { label: 'Tokens de texto T', show: (v) => 'T = ' + v, phrase: (v) => 'una instrucción de ' + v + ' tokens (T = ' + v + ')' },
+      res: { label: 'Resolución', show: (v) => v + '×' + v },
+      images: { label: 'Imágenes por paso', sym: 'imágenes', show: (v) => v + (v === 1 ? ' imagen' : ' imágenes'), phrase: (v) => (v === 1 ? 'una imagen por paso' : v + ' imágenes por paso (cámaras)') },
+      da: { label: 'Dimensiones de la acción d_a', sym: 'd_a', show: (v) => 'd_a = ' + v, phrase: (v) => 'acciones de ' + v + ' dimensiones (d_a = ' + v + ': ' + v + ' tokens por paso)' },
+    },
     sam: { P: { label: 'Clics P', show: (v) => 'P = ' + v, phrase: (v) => 'P = ' + v + (v === 1 ? ' clic' : ' clics') } },
     llava: { images: { label: 'Imágenes en el prompt', show: (v) => v + (v === 1 ? ' imagen' : ' imágenes'), phrase: (v) => v + (v === 1 ? ' imagen' : ' imágenes') + ' en el prompt' } },
     // Qwen2-VL: frames = 1 es una imagen (se duplica a 2 frames); un video de F frames da F/2 parches temporales.
@@ -455,13 +476,12 @@
     // Fase 9 (VLA): costo por acción / por chunk y frecuencias estimadas (roofline con hardware citado).
     macsPerAction: { label: 'MACs por acción', kind: 'ops', note: 'prefill + los pasos de decode de los tokens de acción' },
     macsPerChunk: { label: 'MACs por chunk de acciones', kind: 'ops', note: 'prefijo una vez + pasos × paso de flow' },
-    prefillShare: { label: 'Prefill', kind: 'pct', note: '% de los MACs por acción' },
+    prefillShare: { label: 'MACs del paso en el prefill (%)', kind: 'pct', note: '% de los MACs por acción que hace el prefill (visión + proyector + LLM sobre N + T)' },
     actionMsRtx4090: { label: 'ms por acción en RTX 4090 (≈)', kind: 'ms', note: 'roofline, sin overhead' },
     hzRtx4090: { label: 'Acciones/s en RTX 4090 (≈ tope)', kind: 'hz', note: 'roofline, sin overhead' },
     hz: { label: 'Acciones/s (≈ tope)', kind: 'hz', note: 'roofline con el hardware elegido' },
-    decodeMs: { label: 'ms de decode (≈)', kind: 'ms', note: 'roofline' },
     prefixTokens: { label: 'Tokens del prefijo', kind: 'count', note: 'imágenes + lenguaje (se calculan una vez por chunk)' },
-    suffixTokens: { label: 'Tokens del sufijo', kind: 'count', note: 'estado + H acciones' },
+    suffixTokens: { label: 'Tokens del sufijo', kind: 'count', note: 'estado + H_a acciones (1 + H_a)' },
     prefixMacs: { label: 'MACs del prefijo', kind: 'ops', note: 'SigLIP + Gemma sobre imágenes y lenguaje, una vez por chunk' },
     flowStepMacs: { label: 'MACs por paso de flow', kind: 'ops', note: 'action expert sobre el sufijo, leyendo la KV del prefijo' },
     actionTokensPerStep: { label: 'Tokens de acción por paso', kind: 'count', note: '7 dimensiones × 1 token' },
@@ -480,9 +500,9 @@
     hzH100: { label: 'Acciones/s en H100 (≈ tope)', kind: 'hz', note: 'roofline' },
     hzOrin: { label: 'Acciones/s en Jetson AGX Orin (≈ tope)', kind: 'hz', note: 'roofline; FP16 denso derivado (≈)' },
     cams: { label: 'Cámaras', kind: 'count', note: '' },
-    kvRows: { label: 'Filas de la KV del prefijo', kind: 'count', note: 'lo que lee cada paso de flow' },
-    chunk: { label: 'Acciones por chunk H', kind: 'count', note: '' },
-    steps: { label: 'Pasos de integración', kind: 'count', note: '' },
+    kvRows: { label: 'Keys que mira cada query en un paso de flow', kind: 'count', note: 'N + T del prefijo (KV cache) + 1 + H_a del sufijo' },
+    chunk: { label: 'Acciones por chunk H_a', kind: 'count', note: 'knob H' },
+    steps: { label: 'Pasos de flow (integración)', kind: 'count', note: '' },
     actionDim: { label: 'Dimensión de acción (con padding)', kind: 'count', note: '' },
     imgProjParams: { label: 'Proyección imagen → Gemma', kind: 'count', note: '' },
     gemmaParams: { label: 'Parámetros de Gemma 2B', kind: 'count', note: '' },
@@ -496,7 +516,7 @@
     prefixKvBytes: { label: 'KV cache del prefijo', kind: 'bytes', note: 'bf16; se reutiliza en los pasos de flow' },
     paperOnboardMs: { label: 'ms reportados (a bordo)', kind: 'ms', note: 'medidos en el paper' },
     chunkHz: { label: 'Chunks/s (≈ tope)', kind: 'hz', note: 'roofline' },
-    actionsPerSecond: { label: 'Acciones/s ejecutadas', kind: 'count', note: 'frecuencia de control del robot' },
+    actionsPerSecond: { label: 'Acciones/s predichas (≈ tope)', kind: 'hz', note: 'H_a × chunks/s si se encadenan chunks sin pausa; el robot ejecuta menos (25 de 50 a 50 Hz)' },
     samplingShare: { label: 'Muestreo deformable', kind: 'pct', note: '% de los MACs; convención del calculador (los profilers no cuentan grid_sample)' },
     denseEncScoreMacs: { label: 'Encoder denso: MACs de QKᵀ y A·V', kind: 'ops', note: 'si el encoder usara atención densa sobre los mismos N tokens; ∝ N²' },
     denseEncScoreMacsLayer: { label: 'Encoder denso: MACs de QKᵀ y A·V (una capa)', kind: 'ops', note: '2·N²·D' },
@@ -626,9 +646,9 @@
     ffnParamsShare: { label: 'FFN', kind: 'pct', note: '% de los parámetros' },
     normParamsShare: { label: 'Normas', kind: 'pct', note: '% de los parámetros' },
     routerParams: { label: 'Routers', kind: 'count', note: 'd×E por capa, × L capas' },
-    expertParams: { label: 'Un experto', kind: 'count', note: '3·d·d_ff' },
+    expertParams: { label: 'Un experto', kind: 'count', note: '3·d·d_ff', labels: { pi0: 'Parámetros del experto de acción' }, notes: { pi0: 'gemma_300m: 18 capas de ancho D_a = 1024 + su norma final' } },
     expertsParamsShare: { label: 'Expertos', kind: 'pct', note: '% de los parámetros' },
-    prefillMacs: { label: 'MACs del prefill', kind: 'ops', note: 'T tokens en paralelo, todas las capas' },
+    prefillMacs: { label: 'MACs del prefill', kind: 'ops', note: 'T tokens en paralelo, todas las capas', notes: { openvla: 'visión + proyector + Llama sobre las N + T filas (sin el decode)' } },
     prefillMacsPerToken: { label: 'MACs del prefill por token', kind: 'ops', note: '≈ parámetros sin embedding + el término de atención' },
     prefillMacsLastLogits: { label: 'Prefill con logits solo del último token', kind: 'ops', note: 'lo que hace un servidor real: la LM head corre 1 vez' },
     prefillScoreMacs: { label: 'Prefill: QKᵀ y A·V', kind: 'ops', note: 'la matriz T×T completa (como la cuentan HF y sdpa)' },
@@ -641,7 +661,7 @@
     decodeFlopsPerParam: { label: 'FLOPs por parámetro (decode)', kind: 'ratio', note: 'la regla dice ≈ 2' },
     prefillBytes: { label: 'Bytes movidos en el prefill', kind: 'bytes', note: 'pesos + KV escrita' },
     decodeBytesPerStep: { label: 'Bytes leídos por paso de decode', kind: 'bytes', note: 'pesos + KV cache' },
-    decodeWeightBytesRead: { label: 'Decode: pesos leídos', kind: 'bytes', note: 'una vez por paso, para todo el lote' },
+    decodeWeightBytesRead: { label: 'Decode: pesos leídos', kind: 'bytes', note: 'una vez por paso, para todo el lote', labels: { openvla: 'Pesos del LLM leídos por paso de decode' }, notes: { openvla: 'Llama 2 + LM head en bf16, sin la tabla de embedding; la visión no corre en el decode' } },
     decodeKvBytesRead: { label: 'Decode: KV leída', kind: 'bytes', note: 'ctx × B × KV por token' },
     arithmeticIntensityPrefill: { label: 'Intensidad aritmética del prefill', kind: 'intensity', note: 'FLOPs / bytes movidos' },
     arithmeticIntensityDecode: { label: 'Intensidad aritmética del decode', kind: 'intensity', note: 'FLOPs / bytes movidos; ≈ B con ctx corto' },
@@ -653,7 +673,7 @@
     decodeExpertsReadPerLayer: { label: 'Expertos leídos por capa', kind: 'avg', note: 'esperado con ruteo uniforme y el lote B: E·(1 − ((E−k)/E)^B)' },
     experts: { label: 'Expertos E', kind: 'count', note: '' },
     // Fase 7 (VLMs): tokens visuales y su costo.
-    visualTokens: { label: 'Tokens visuales N', kind: 'count', note: 'los que entran al LLM por imagen', notes: { llava: '576 a 336 px (CLS fuera)', 'qwen2-vl': '(H/28)·(W/28) por imagen, tras el merge 2×2' } },
+    visualTokens: { label: 'Tokens visuales N', kind: 'count', note: 'los que entran al LLM por imagen', notes: { llava: '576 a 336 px (CLS fuera)', 'qwen2-vl': '(H/28)·(W/28) por imagen, tras el merge 2×2', openvla: '256 parches por imagen (features de las dos torres fusionadas)', pi0: 'todas las cámaras: 256 por cámara' } },
     promptTokens: { label: 'Tokens del prompt (N + T)', kind: 'count', note: 'visuales + texto' },
     visualShare: { label: 'Parte visual del prompt', kind: 'pct', note: '% de los tokens del prompt que son de imagen' },
     prefillShareFromImage: { label: 'Prefill debido a la imagen', kind: 'pct', note: '% de los MACs del prefill: torre de visión + projector + los N tokens en el LLM' },
@@ -662,6 +682,7 @@
     llmMacsFromImage: { label: 'MACs del LLM por la imagen', kind: 'ops', note: 'prefill del LLM con N + T filas menos con T' },
     llmMacsTextOnly: { label: 'MACs del LLM solo con el texto', kind: 'ops', note: 'prefill del LLM con las T filas de texto' },
     posSpan: { label: 'Posiciones M-RoPE ocupadas', kind: 'count', note: 'texto + max(alto, ancho) de la rejilla de la imagen' },
+    crossoverNProj: { label: 'Largo donde la atención iguala a las proyecciones', kind: 'count', note: 'como crossoverN, pero solo contra Q, K, V, O (sin la FFN)' },
     crossoverN: { label: 'Largo donde la atención iguala a las lineales', kind: 'count', note: 'filas a partir de las que QKᵀ + A·V cuestan más que las proyecciones y la FFN (por capa)' },
     scoreToLinear: { label: 'Atención / lineales', kind: 'ratio', note: 'MACs de QKᵀ + A·V sobre los de las lineales, por capa' },
     kvBytesPrompt: { label: 'KV cache del prompt', kind: 'bytes', note: '(N + T) × KV por token (bf16)' },
@@ -671,24 +692,32 @@
     llmPrefillMacs: { label: 'MACs del prefill del LLM (N + T filas)', kind: 'ops', note: '' },
     projectorMacs: { label: 'MACs del projector / merger', kind: 'ops', note: '' },
     imageMacs: { label: 'MACs debidos a la imagen', kind: 'ops', note: 'visión + projector + los N tokens en el LLM' },
-    visionParams: { label: 'Parámetros de la torre de visión', kind: 'count', note: '' },
+    visionParams: { label: 'Parámetros de la torre de visión', kind: 'count', note: '', labels: { openvla: 'Parámetros de las dos torres de visión' }, notes: { openvla: 'DINOv2 + SigLIP, con las partes que no se usan' } },
     projectorParams: { label: 'Parámetros del projector / merger', kind: 'count', note: '' },
     llmParams: { label: 'Parámetros del LLM', kind: 'count', note: '' },
     visualModuleParams: { label: 'Parámetros de visión + projector', kind: 'count', note: '' },
     visionParamsShare: { label: 'Visión', kind: 'pct', note: '% de los parámetros' },
-    visionMacsShare: { label: 'Visión: % del prefill', kind: 'pct', note: '% de los MACs del prefill' },
+    visionMacsShare: { label: 'Visión: % del prefill', kind: 'pct', note: '% de los MACs del prefill', labels: { openvla: 'MACs de visión (% de la acción)' }, notes: { openvla: 'DINOv2 + SigLIP sobre los MACs por acción' } },
     ttftMs: { label: 'TTFT (≈ cota inferior, ms)', kind: 'count', note: 'roofline en H100, sin overhead' },
     ttftTextOnlyMs: { label: 'TTFT sin imagen (≈ ms)', kind: 'count', note: 'roofline en H100' },
     topk: { label: 'Expertos por token k', kind: 'count', note: '' },
   };
   // Fase 9 (π0): tiempos ≈ por etapa y hardware (chunkMsRtx4090, prefixMsH100, flowMsOrin…), roofline con specs citadas.
-  { const ST = { chunk: 'un chunk de acciones', image: 'los encoders de imagen', prefix: 'el prefijo (imágenes + lenguaje)', flow: 'los pasos de flow',
-      flowStep: 'un paso de flow', vision: 'la visión', prefill: 'el prefill', decode: 'el decode', decodeTotal: 'todo el decode', action: 'una acción' };
+  // Con la preposición ya contraída: «ms del prefill», no «ms de el prefill». decodeMs* = UN paso de decode.
+  { const ST = { chunk: 'de un chunk de acciones', image: 'de los encoders de imagen', prefix: 'del prefijo en Gemma (tokens de imagen + texto; sin SigLIP)', flow: 'de los pasos de flow',
+      flowStep: 'de un paso de flow', vision: 'de la visión', prefill: 'del prefill', decode: 'de un paso de decode', decodeTotal: 'de todo el decode', action: 'de una acción' };
     const HW = { Rtx4090: 'RTX 4090', H100: 'H100', Orin: 'Jetson AGX Orin', '': 'el hardware elegido' };
+    const EST = { Orin: '; FP16 denso derivado (≈)' };
     Object.keys(ST).forEach((st) => Object.keys(HW).forEach((hw) => {
       const k = st + 'Ms' + hw;
-      if (!METRICS[k]) METRICS[k] = { label: 'ms de ' + ST[st] + ' en ' + HW[hw] + ' (≈ cota)', kind: 'ms', note: 'roofline con las specs citadas, sin overhead' };
-    })); }
+      if (!METRICS[k]) METRICS[k] = { label: 'ms ' + ST[st] + ' en ' + HW[hw] + ' (≈ cota)', kind: 'ms', note: 'roofline con las specs citadas, sin overhead' + (EST[hw] || '') };
+    }));
+    Object.keys(HW).filter((hw) => hw).forEach((hw) => {
+      if (!METRICS['chunkHz' + hw]) METRICS['chunkHz' + hw] = { label: 'Chunks/s en ' + HW[hw] + ' (≈ tope)', kind: 'hz', note: 'roofline con las specs citadas, sin overhead' + (EST[hw] || '') };
+    });
+    // Hardware del roofline (lo que devuelve metrics(); por defecto H100 SXM).
+    if (!METRICS.bandwidth) METRICS.bandwidth = { label: 'Ancho de banda de memoria', kind: 'bw', note: 'el del roofline (por defecto H100 SXM, 3.35 TB/s)' };
+    if (!METRICS.peakFlops) METRICS.peakFlops = { label: 'Pico de cómputo', kind: 'flops', note: 'denso, bf16/FP16 (por defecto H100 SXM, 989 TFLOPS)' }; }
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
   const DIFFUSION = { 'stable-diffusion': true, dit: true };   // fase 8: modelos cuyo samplingMacs es el costo por imagen
@@ -700,7 +729,7 @@
   function metricKind(key) {
     const k = metricKey(key);
     // Primero el mapa `units` del modelo (lo registra metrics()); luego METRICS; luego el nombre.
-    if (METRICS[k] && (METRICS[k].kind === 'intensity' || METRICS[k].kind === 'rate' || METRICS[k].kind === 'avg' || METRICS[k].kind === 'ms' || METRICS[k].kind === 'hz')) return METRICS[k].kind;   // formato propio, gana a units
+    if (METRICS[k] && ['intensity', 'rate', 'avg', 'ms', 'hz', 'bw', 'flops'].includes(METRICS[k].kind)) return METRICS[k].kind;   // formato propio, gana a units
     if (ARCH_UNITS[k] && UNIT_KIND[ARCH_UNITS[k]]) return UNIT_KIND[ARCH_UNITS[k]];
     if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
@@ -735,6 +764,8 @@
     if (kind === 'ms') return fMs(v) + ' ms';
     // 'avg': un conteo esperado (no un factor): 1 decimal, sin «×»; «de E» si es un MoE (≈ 7.2 de 8).
     if (kind === 'hz') return '≈ ' + fRatio(v) + ' Hz';
+    if (kind === 'bw') return fRate(v, 'B/s');
+    if (kind === 'flops') return fRate(v, 'FLOPS');
     if (kind === 'avg') return (Number.isInteger(v) ? String(v) : '≈ ' + v.toFixed(1)) + (ARCH_CTX.experts ? ' de ' + ARCH_CTX.experts : '');
     return v >= 1e6 ? fSi(v) : fInt(v);
   }
@@ -755,6 +786,8 @@
     if (kind === 'rate') return String(+v.toFixed(2)) + ' tok/s';
     if (kind === 'ms') return String(+v.toFixed(3)) + ' ms';
     if (kind === 'hz') return String(+v.toFixed(2)) + ' Hz';
+    if (kind === 'bw') return fInt(v) + ' B/s';
+    if (kind === 'flops') return fInt(v) + ' FLOPS';
     if (kind === 'avg') return String(+v.toFixed(3));
     return fInt(v) + (kind === 'bytes' ? ' bytes' : '');
   }
@@ -1615,8 +1648,33 @@
     if (c.ht) [['h_t', c.ht, 'cabezas del text encoder'], ['d_t', c.dt], ['L_t', c.Lt, 'capas del text encoder']].forEach(([sym, v, n]) => { if (v != null && !has(sym)) out.push([sym, v, n]); });
     if (c.headDim && !has('d_h')) out.push(['d_h', c.headDim, 'dim. por cabeza']);
     (Array.isArray(c.towers) ? c.towers : []).forEach((tw, i) => { out.push(['D_' + (i + 1), tw.D, 'text encoder ' + (i + 1)], ['h_' + (i + 1), tw.h], ['d_' + (i + 1), tw.D / tw.h]); });
+    // Fase 9 (VLA): OpenVLA (c.Dd) tiene DOS torres (DINOv2 D_d…, SigLIP D_s…) cuyas features se concatenan (D_v = D_d + D_s);
+    // π0 (c.Da) tiene SigLIP por cámara + Gemma + el experto de acción (D_a, con las mismas h, G y d_h que Gemma) y el chunk
+    // H_a (knob `H`: cfg.Ha). OJO: en las dos configs H = 224 es el ALTO de la imagen, no el chunk.
+    const vla = c.Dd != null || c.Da != null;
+    const push = (list) => list.forEach(([sym, v, note]) => { if (v != null && !has(sym)) out.push(note ? [sym, v, note] : [sym, v]); });
+    if (vla) {
+      noteOf('H', c.Da != null ? 'alto de la imagen; el chunk es H_a' : 'alto de la imagen');
+      if (c.Da != null) noteOf('N', c.cams > 1 ? 'tokens de imagen de las ' + c.cams + ' cámaras = ' + c.cams + '·N_p' : 'tokens de imagen de 1 cámara');
+      else noteOf('N', 'tokens visuales: N_p por imagen');
+      noteOf('T', c.Da != null ? 'tokens de texto, relleno incluido' : 'tokens de texto, con <BOS>');
+      noteOf('D', c.Da != null ? 'ancho de Gemma 2B' : 'ancho de Llama 2 7B');
+      noteOf('D_mlp', c.Da != null ? 'FFN de Gemma' : 'MLP de Llama');
+      push([['d_h', c.dh, c.Da != null ? 'dim. por cabeza, igual en Gemma y en el experto' : 'dim. por cabeza del LLM']]);
+      if (c.Dd != null) {
+        push([['N_p', c.Np, 'parches de UNA imagen, sin CLS ni registros'],
+          ['D_d', c.Dd, 'ancho de DINOv2'], ['h_d', c.hd, 'cabezas de DINOv2'], ['d_d', c.dd, 'dim. por cabeza de DINOv2'], ['L_d', c.Ld, 'capas de DINOv2'],
+          ['D_s', c.Ds, 'ancho de SigLIP'], ['h_s', c.hs, 'cabezas de SigLIP'], ['d_s', c.ds, 'dim. por cabeza de SigLIP'], ['M_s', c.Ms, 'MLP de SigLIP, no 4D_s'], ['L_s', c.Ls, 'capas de SigLIP'],
+          ['D_v', c.Dv, 'D_d + D_s: features fusionadas de las dos torres'], ['d_a', c.da, 'dimensiones de la acción = tokens por paso']]);
+      } else {
+        push([['N_p', c.Np, 'parches por cámara'],
+          ['D_s', c.Ds, 'ancho de SigLIP'], ['h_s', c.hs, 'cabezas de SigLIP'], ['d_s', c.ds, 'dim. por cabeza de SigLIP'], ['M_s', c.Ms, 'MLP de SigLIP, no 4D_s'], ['L_s', c.Ls, 'capas de SigLIP'],
+          ['D_a', c.Da, 'ancho del experto de acción; su FFN es 4D_a = ' + (c.Dmlpa || 4 * c.Da)], ['H_a', c.Ha, 'acciones por chunk: el knob H'],
+          ['d_a', c.da, 'dim. de la acción y del estado, con relleno']]);
+      }
+    }
     // Fase 7 (VLMs): la torre de visión tiene sus propios símbolos (D_v, h_v…) además de los del LLM.
-    if (typeof c.Dv === 'number') {
+    if (typeof c.Dv === 'number' && !vla) {
       [['D_v', c.Dv, 'ancho de la torre de visión'], ['h_v', c.hv, 'cabezas de la torre de visión'], ['d_v', c.dv, 'dim. por cabeza de la visión'],
         ['L_v', c.Lv, 'capas de la torre de visión'], ['N_p', c.Np, c.frames > 1 ? 'patches del video entero (todos los pares de frames)' : c.images != null ? 'patches de UNA imagen (sin CLS)' : 'patches de la imagen'], ['F', c.F, 'frames']]
         .forEach(([sym, v, note]) => { if (typeof v === 'number' && !has(sym)) out.push([sym, v, note]); });
@@ -1737,11 +1795,14 @@
     const txt = all.some((o) => (o.path || []).indexOf('txt-encoder') >= 0) || inPath('txt-backbone');
     // Símbolo del número de capas (CLIP: L_t en la torre de texto; DETR: L_enc / L_dec; Grounding DINO:
     // L_t en BERT, L_enc en el feature enhancer, L_dec en el decoder).
+    const towerL = cfg.Ld != null && inPath('dinov2') ? ['L_d', cfg.Ld] : cfg.Ls != null && cfg.Lv == null && inPath('siglip') ? ['L_s', cfg.Ls] : null;
     const layerSym = txt ? (cfg.Lt != null ? ['L_t', cfg.Lt] : null)
       : cfg.Lenc != null && (inPath('encoder') || inPath('enhancer')) ? ['L_enc', cfg.Lenc]
       : cfg.Ldec != null && inPath('decoder') ? ['L_dec', cfg.Ldec]
       // Fase 7 (VLM): la torre de visión tiene su propio número de capas (L_v), distinto del L del LLM.
       : cfg.Lv != null && inPath('vision-encoder') ? ['L_v', cfg.Lv]
+      // Fase 9 (VLA): torres de OpenVLA (DINOv2 L_d, SigLIP L_s) y la SigLIP de π0 (L_s).
+      : towerL ? towerL
       : cfg.L != null && !isSwin ? ['L', cfg.L] : null;
     const sym = layerSym && layerSym[1] === rep ? layerSym[0] + ' = ' + rep : '' + rep;
     // ¿El repeat mayor es de verdad el número de capas? (En el backbone ResNet de DETR el mayor repeat
@@ -1757,6 +1818,9 @@
     // op (la que HF calcula y descarta). Todas tienen los mismos parámetros: la pregunta es por UNA capa de las L_v = 24.
     const vlmVis = cfg.Lv != null && inPath('vision-encoder');
     if (vlmVis && !group && !mixed && rep === cfg.Lv - 1) qual = ' (una sola capa; la torre tiene L_v = ' + cfg.Lv + ': las ' + rep + ' hasta la penúltima, de donde salen las features, y la ' + cfg.Lv + ', que HF calcula y descarta)';
+    // OpenVLA: las torres corren L_d − 1 = 23 (DINOv2) y L_s − 1 = 26 (SigLIP) capas repetidas; la última es otra op
+    // (dino-last-layer / sig-last-layer, con los mismos parámetros, γ₁ y γ₂ incluidos) que se calcula y se descarta.
+    if (towerL && !group && !mixed && rep === towerL[1] - 1) qual = ' (una sola capa; la torre tiene ' + towerL[0] + ' = ' + towerL[1] + ': las ' + rep + ' hasta la penúltima, de donde salen las features, y la ' + towerL[1] + ', que se calcula y se descarta)';
     if (vlmVis && !group && mixed && model === 'llava') qual = ' (entero: embeddings, las L_v = ' + cfg.Lv + ' capas —también la ' + cfg.Lv + ', que se descarta— y ln_post)';
     // Nombre: el del diagrama (o el de la op hoja), con el contexto que falte (stage/bloque, torre).
     // node.drillLabel / group.drillLabel: nombre para el drill cuando la etiqueta del diagrama es corta ('Clase').
