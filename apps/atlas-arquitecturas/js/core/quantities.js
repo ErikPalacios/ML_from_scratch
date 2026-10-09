@@ -26,7 +26,7 @@
      metrics.<k>                       (ATLAS.Arch.metrics con B = 1, bf16; bytes con ATLAS.Arch.fmt.bytes,
                                         unidades decimales: 1 KB = 1000 B → '931.4 KB', '173.1 MB'. Unidad por
                                         el mapa metrics.units del modelo o por el nombre: …Mem, …Mem2x,
-                                        …MemAllLayers, …Cache = bytes; …Share = %; 'ratio' = 3 cifras;
+                                        …MemAllLayers, …Cache = bytes; …Share = % (1 decimal; debajo de 1 %, 3 cifras: '0.0848 %'); 'ratio' = 3 cifras;
                                         'macs' = fmt.ops, p. ej. '1.81 GMACs' — solo por el mapa units;
                                         'ms' = milisegundos con 3 cifras ('1.62', '83.8', '121'), SIN la
                                         unidad: la prosa escribe ' ms' detrás;
@@ -142,7 +142,7 @@
       // está, por el nombre: …Mem, …Mem2x, …MemAllLayers, …MemBatch, …Cache = bytes; …Share = fracción.
       const unit = (m.units && m.units[parts[1]]) || metricUnitByName(parts[1]);
       if (unit === 'bytes') return num(v, f.bytes(v));
-      if (unit === 'pct') return num(v, f.pct(v));
+      if (unit === 'pct') return num(v, pctAuto(v));
       if (unit === 'ratio') return num(v, fRatio(v));
       // 'macs' (mapa units del modelo): cómputo con el formato único de la app (fmt.ops): '1.81 GMACs', '2.98 TMACs'.
       if (unit === 'macs') return num(v, f.ops(v));
@@ -154,6 +154,14 @@
     return null;
   }
 
+  // Porcentaje (fase 10, revisión): 1 decimal desde 1 % (= fmt.pct); debajo de 1 %, 3 cifras significativas ('0.0848 %',
+  // '0.520 %'), no '0.1 %' / '0.5 %'. fmt.pctAuto si el calculador lo trae.
+  function pctAuto(v) {
+    const f = arch().fmt;
+    if (typeof f.pctAuto === 'function') return f.pctAuto(v);
+    const p = v * 100;
+    return p !== 0 && Math.abs(p) < 1 ? p.toPrecision(3) + ' %' : f.pct(v);
+  }
   // Milisegundos: 3 cifras significativas sin unidad (la escribe la prosa: '≈ {{metrics.msPerImage}} ms').
   function fMs(v) {
     const a = Math.abs(v);
@@ -186,11 +194,11 @@
     switch (field) {
       case 'params': return num(n.params, f.int(n.params));
       case 'paramsM': return num(n.params / 1e6, (n.params / 1e6).toFixed(n.params >= 1e7 ? 1 : 2) + ' M');
-      case 'paramsPct': return num(t.params ? n.params / t.params : 0, f.pct(t.params ? n.params / t.params : 0));
+      case 'paramsPct': return num(t.params ? n.params / t.params : 0, pctAuto(t.params ? n.params / t.params : 0));
       case 'macs': return num(n.macs, f.int(n.macs));
       case 'macsG': return num(n.macs / 1e9, (n.macs / 1e9).toFixed(2) + ' G');
       case 'macsM': return num(n.macs / 1e6, (n.macs / 1e6).toFixed(1) + ' M');
-      case 'macsPct': return num(t.macs ? n.macs / t.macs : 0, f.pct(t.macs ? n.macs / t.macs : 0));
+      case 'macsPct': return num(t.macs ? n.macs / t.macs : 0, pctAuto(t.macs ? n.macs / t.macs : 0));
       case 'flops': return num(2 * n.macs, f.int(2 * n.macs));
       case 'flopsG': return num(2 * n.macs / 1e9, (2 * n.macs / 1e9).toFixed(2) + ' G');
       default: return null;

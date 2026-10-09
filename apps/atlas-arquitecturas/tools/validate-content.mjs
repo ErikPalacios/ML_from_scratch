@@ -765,9 +765,13 @@ function checkBlock(where, b, page, ids, pctx) {
         if (Arch) err(where, 'models: "' + m + '" no es una config ni un modelo del calculador');
         return null;
       }).filter(Boolean);
+      // Revisión de la fase 10: blocks.js (vlmMetric / metricAny) también lee ATLAS.Arch.metrics(config): una fila vale si la
+      // clave está en config, quantities, totals O metrics() (número o sí / no) de alguna config del bloque.
+      const metricsOf = (R) => { if (!Arch || typeof Arch.metrics !== 'function' || !R || !R.id) return null; try { return Arch.metrics(R.id, R.overrides || {}); } catch (e) { return null; } };
+      const inMetrics = (R, k) => { const m = metricsOf(R); return !!m && (typeof m[k] === 'number' || typeof m[k] === 'boolean'); };
       (b.rows || []).forEach((k) => {
-        const known = runs.length === 0 || COMPARE_METRICS.includes(k) || runs.some((R) => (R.config && k in R.config) || (R.quantities && k in R.quantities) || (R.totals && k in R.totals));
-        if (!known) err(where, 'rows: métrica desconocida "' + k + '" (no está en config, quantities ni totals)');
+        const known = runs.length === 0 || COMPARE_METRICS.includes(k) || runs.some((R) => (R.config && k in R.config) || (R.quantities && k in R.quantities) || (R.totals && k in R.totals) || inMetrics(R, k));
+        if (!known) err(where, 'rows: métrica desconocida "' + k + '" (no está en config, quantities, totals ni metrics())');
       });
       break;
     }
@@ -818,6 +822,13 @@ function checkBlock(where, b, page, ids, pctx) {
           const m = metricsOk(wi, cfg, it.change);
           const key = it.ask === 'kv' ? 'kvCache' : it.ask;
           if (m && !(key in m) && !(it.ask in m)) err(wi, 'ATLAS.Arch.metrics no da "' + it.ask + '" para ' + cfg);
+          // Revisión de la fase 10: una métrica booleana (fitsOn24…) se pregunta con opciones sí / no (practice.js, kind
+          // 'bool'): no admite respuesta numérica ni opciones de factor del autor; un texto (targetsName…) no se puede preguntar.
+          const v = m ? (key in m ? m[key] : m[it.ask]) : undefined;
+          if (typeof v === 'boolean' && (it.mode === 'numeric' || it.numeric === true || (Array.isArray(it.options) && it.options.length)))
+            err(wi, '"' + it.ask + '" es sí / no: sin mode numeric ni options (la práctica ofrece sí / no)');
+          if (typeof v === 'string' || (v && typeof v === 'object' && !Array.isArray(v) && v.bytes == null && v.total == null && v.value == null && typeof v !== 'function'))
+            err(wi, '"' + it.ask + '" no es numérica ni sí / no: no se puede preguntar en un what-if');
         }
       });
       break;

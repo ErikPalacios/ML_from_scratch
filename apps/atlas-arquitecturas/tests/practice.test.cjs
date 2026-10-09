@@ -20,7 +20,8 @@ function load() {
 }
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit'];
+// Revisión de la fase 10: lora y rlhf-dpo también entran en las barridas (drills de parámetros = diagrama, de formas = tarjeta).
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit', 'lora', 'rlhf-dpo'];
 const diagrams = ATLAS.diagrams();
 // Fase 7 (VLM): símbolos de la torre de visión que la tarjeta de datos debe mostrar además de los genéricos (H, W, C, P, D, L,
 // h, D_mlp, N, T, V, G): D_v, h_v, d_v, L_v, N_p y, en Qwen2-VL, F (frames). Mientras practice.js (factPairs) no los incluya,
@@ -46,8 +47,11 @@ function shownParams(R, node, total) {
   const ids = node.ops || [], pid = node.costOf || node.id;
   const ops = R.ops.filter((o) => ids.indexOf(o.id) >= 0 || (!node.opsExact && o.path && o.path.indexOf(pid) >= 0 && (!node.scope || o.path.indexOf(node.scope) >= 0)));
   const rep = Math.max(1, ...ops.map((o) => o.repeat || 1));
-  const mixed = ops.some((o) => (o.repeat || 1) !== rep);
-  return ops.reduce((a, o) => a + (o.params || 0) * (total || mixed ? o.repeat || 1 : 1), 0);
+  // pesos compartidos entre ejecuciones (op.paramRepeat < op.repeat: LLaVA con varias imágenes, la política de DPO que corre
+  // elegida + rechazada con UNA copia de los pesos): archdiagram.js muestra el total con paramRepeat.
+  const pRep = (o) => (o.paramRepeat != null ? o.paramRepeat : o.repeat || 1);
+  const mixed = ops.some((o) => (o.repeat || 1) !== rep || pRep(o) !== (o.repeat || 1));
+  return ops.reduce((a, o) => a + (o.params || 0) * (total || mixed ? pRep(o) : 1), 0);
 }
 
 test('drills de parámetros: respuesta = lo que muestra el diagrama; prompt sin TeX crudo ni contexto repetido', () => {
@@ -679,3 +683,71 @@ test('fase 9: toda forma de OpenVLA y π0 (1 y 3 cámaras, otros H / pasos / T) 
   assert.deepStrictEqual([g25.H, g25.H_a], [224, 25]);
 });
 // ================================================================ fin del bloque de la fase 9
+
+// ================================================================ revisión de la fase 10 (fine-tuning y alineación)
+test('fase 10: tarjeta de datos — r / α solo con adapter, n_G (grupo de GRPO) ≠ G (cabezas KV), sin NaN', () => {
+  const facts = (cfg, ov) => Object.fromEntries(P._factPairs(A.run(cfg, ov || {}).config).map(([s, v, n]) => [s, { v, n: n || '' }]));
+  const ft = facts('full-ft-llama3-8b');
+  assert.ok(!('r' in ft) && !('α' in ft), 'full FT sin r ni α');
+  assert.ok(!JSON.stringify(P._factPairs(A.run('full-ft-llama3-8b').config)).includes('NaN'));
+  const lo = facts('lora-llama3-8b-r16');
+  assert.deepStrictEqual([lo.r.v, lo['α'].v], [16, 32]);
+  assert.match(lo['α'].n, /α\/r = 2$/);
+  for (const cfg of ['rlhf-llama3-8b', 'dpo-llama3-8b', 'grpo-llama3-8b']) assert.ok(!('r' in facts(cfg)), cfg + ': sin LoRA no hay «rango del adapter»');
+  for (const cfg of ['dpo-llama3-8b-lora', 'ppo-llama3-8b-lora']) assert.strictEqual(facts(cfg).r.v, 16, cfg);
+  assert.strictEqual(facts('rlhf-llama3-8b', { lora: 1 }).r.v, 16);
+  const g = facts('grpo-llama3-8b'), g16 = facts('grpo-llama3-8b', { groupSize: 16 });
+  assert.deepStrictEqual([g.G.v, g.n_G.v, g16.G.v, g16.n_G.v], [8, 8, 8, 16]);
+  assert.match(g.G.n, /cabezas KV/);
+  assert.match(g.n_G.n, /respuestas por prompt/);
+  assert.ok(!('n_G' in facts('rlhf-llama3-8b')) && !('n_G' in facts('dpo-llama3-8b')), 'n_G solo en GRPO');
+  // las formas del grupo usan n_G (no G): con groupSize = 16 las recompensas son 16 y las K del decoder siguen con G = 8
+  const R16 = A.run('grpo-llama3-8b', { groupSize: 16 });
+  assert.deepStrictEqual([R16.tensors.rewards.sym, R16.tensors.rewards.num, R16.tensors.advantages.sym].map((x) => JSON.stringify(x)), ['["n_G"]', '[16]', '["n_G"]']);
+  assert.strictEqual(R16.tensors['pol-k-rope'] ? R16.tensors['pol-k-rope'].sym[0] : 'G', 'G');
+});
+
+test('fase 10: métricas booleanas (sí / no), % chicos con 3 cifras y etiquetas de todas las claves', () => {
+  const m = A.metrics('lora-llama3-8b-r16', {}), q = A.metrics('qlora-llama3-8b-r16', { gradCkpt: 1 });
+  assert.strictEqual(P._metricKind('fitsOn24'), 'bool');
+  assert.deepStrictEqual([P._metricValue(m, 'fitsOn24'), P._metricValue(q, 'fitsOn24')], [0, 1]);
+  assert.deepStrictEqual([P._fMetric('fitsOn24', 0), P._fMetric('fitsOn24', 1), P._fMetric('fitsOn80', P._metricValue(m, 'fitsOn80'))], ['no', 'sí', 'sí']);
+  assert.strictEqual(P._fVsBase('fitsOn24', 1, 0), 'no en la base');
+  // what-if con ask booleano: se pregunta por el valor (opciones sí / no)
+  assert.strictEqual(P._asksValue({ ask: 'fitsOn24' }, '¿Entra en 24 GB?'), true);
+  // porcentajes: < 1 % con 3 cifras significativas; ≥ 1 % igual que antes (1 decimal)
+  const qv = A.metrics('lora-llama3-8b-r16-qv', {});
+  assert.deepStrictEqual([P._fMetric('trainableShare', qv.trainableShare), P._fMetric('trainableShare', m.trainableShare), P._fMetric('rolloutShare', 0.1618)], ['0.0848 %', '0.520 %', '16.2 %']);
+  assert.strictEqual(A.fmt.pctAuto(0.000848037664288186), '0.0848 %');
+  assert.strictEqual(A.fmt.pctAuto(0.1234), A.fmt.pct(0.1234));
+  assert.strictEqual(A.fmt.pctAuto(0), '0.0 %');
+  assert.strictEqual(ATLAS.Quantities.get('lora-llama3-8b-r16-qv.metrics.trainableShare').text, '0.0848 %');
+  assert.strictEqual(ATLAS.Quantities.get('grpo-llama3-8b.metrics.rolloutShare').text, '16.2 %');
+  // ninguna clave numérica / booleana de metrics() de lora y rlhf-dpo queda con la etiqueta cruda
+  for (const cfg of ['lora-llama3-8b-r16', 'full-ft-llama3-8b', 'qlora-llama3-8b-r16', 'rlhf-llama3-8b', 'dpo-llama3-8b', 'grpo-llama3-8b', 'ppo-llama3-8b-lora']) {
+    const mm = A.metrics(cfg, {});
+    for (const k of Object.keys(mm)) {
+      if (!(typeof mm[k] === 'number' || typeof mm[k] === 'boolean') || /^(B|T|dtype|actMem|actMemPerSample|paramMem)$/.test(k)) continue;
+      assert.notStrictEqual(P._metricLabel(k, A.run(cfg).model), k, cfg + ': sin etiqueta ' + k);
+    }
+  }
+});
+
+test('fase 10: rollout con prefijo compartido (GRPO) y claves existentes intactas', () => {
+  const g = A.metrics('grpo-llama3-8b', {}), g64 = A.metrics('grpo-llama3-8b', { groupSize: 64 }), p = A.metrics('rlhf-llama3-8b', {});
+  assert.strictEqual(+g.rolloutShare.toFixed(4), 0.1618);   // convención de siempre: cada respuesta paga su prefill
+  assert.strictEqual(+g.rolloutShareSharedPrefix.toFixed(3), 0.101);
+  assert.strictEqual(+g64.rolloutShareSharedPrefix.toFixed(3), 0.092);
+  assert.strictEqual(g.rolloutMacsSharedPrefix, g.B * (g.rolloutPrefillMacsPerSeq + g.groupSize * (g.rolloutMacsPerSeq - g.rolloutPrefillMacsPerSeq)));
+  assert.strictEqual(p.rolloutMacsSharedPrefix, p.rolloutMacs);   // PPO: 1 respuesta por prompt, nada que compartir
+  assert.strictEqual(A.metrics('dpo-llama3-8b', {}).rolloutShareSharedPrefix, 0);
+  assert.strictEqual(P._metricKind('rolloutShareSharedPrefix'), 'pct');
+});
+
+test('fase 10: el drill de formas monta la vista de SU config (DPO → dpo-step, no ppo-step)', () => {
+  const d = P._diagramForTensor('rlhf-dpo', 'pol-logp', null, 'dpo-llama3-8b');
+  assert.ok(d && (!Array.isArray(d.configs) || d.configs.indexOf('dpo-llama3-8b') >= 0), 'vista: ' + (d && d.id));
+  const p = P._diagramForTensor('rlhf-dpo', 'pol-logp', null, 'rlhf-llama3-8b');
+  assert.ok(p && (!Array.isArray(p.configs) || p.configs.indexOf('rlhf-llama3-8b') >= 0), 'vista: ' + (p && p.id));
+  assert.notStrictEqual(d.id, p.id);
+});

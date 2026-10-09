@@ -7,7 +7,8 @@
    −log σ(r_w − r_l − m).
    Interacción: las dos recompensas (deslizadores o flechas), el margen m y "sumar c a las dos" (la probabilidad no cambia:
    la recompensa solo está definida a menos de una constante; por eso se normaliza antes de PPO).
-   Se ven: las dos recompensas en una recta, la curva σ(Δ − m) con el punto actual, la pérdida y el tamaño del gradiente
+   Se ven: las dos recompensas en una recta, la curva P = σ(Δ) con el punto actual (con margen, además σ(Δ − m) punteada: el
+   margen va solo en la pérdida, la probabilidad de preferencia sigue siendo σ(Δ)), la pérdida y el tamaño del gradiente
    σ(−(Δ − m)) (los pares ya bien ordenados casi no empujan). Todo es aritmética exacta sobre números elegidos (ilustrativo).
    params: { rw:1, rl:-0.5, m:0 }
    No toca el DOM al cargar.
@@ -59,14 +60,15 @@
       sw.inp.value = state.rw; sw.o.textContent = f2(state.rw);
       sl.inp.value = state.rl; sl.o.textContent = f2(state.rl);
       const rw = state.rw + state.c, rl = state.rl + state.c;
-      const D = rw - rl, z = D - state.m, P = sig(z), loss = softplus(-z), grad = sig(-z);
+      // P = σ(Δ) es la probabilidad de preferencia del modelo; el margen m (Llama 2) va SOLO en la pérdida: −log σ(Δ − m)
+      const D = rw - rl, z = D - state.m, P = sig(D), Pm = sig(z), loss = softplus(-z), grad = sig(-z);
       const cw = stage.clientWidth || 860, narrow = cw < 640;
       lastNarrow = narrow;
       stage.innerHTML = '';
       const W = narrow ? Math.max(300, Math.min(460, cw)) : 880;
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'img' }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); V.rich(e, s); return e; };
-      t(svg, 8, 15, narrow ? 'P(y_w ≻ y_l) = σ(r_w − r_l' + (state.m ? ' − m' : '') + ')' : 'Bradley–Terry: P(y_w ≻ y_l | x) = σ(r(x, y_w) − r(x, y_l)' + (state.m ? ' − m' : '') + '); pérdida del modelo de recompensa = −log P', 'viz-t');
+      t(svg, 8, 15, narrow ? 'P(y_w ≻ y_l) = σ(r_w − r_l)' : 'Bradley–Terry: P(y_w ≻ y_l | x) = σ(r(x, y_w) − r(x, y_l)); pérdida del modelo de recompensa = ' + (state.m ? '−log σ(Δ − m) (margen solo en la pérdida)' : '−log P'), 'viz-t');
       t(svg, 8, 29, narrow ? 'recompensas elegidas a mano (ilustrativo)' : 'recompensas elegidas a mano (ilustrativo); la curva y las cuentas son exactas', 'viz-s');
 
       // ---- recta de recompensas
@@ -85,7 +87,7 @@
       dot(xb, 'is-w', 'y_w', D >= 0);
       dot(xa, 'is-l', 'y_l', D < 0);
 
-      // ---- curvas: P = σ(Δ − m) y pérdida / gradiente
+      // ---- curvas: P = σ(Δ) (con margen, además σ(Δ − m) punteada: lo que mira la pérdida) y pérdida / gradiente
       const cx0 = narrow ? 34 : 46, cwid = narrow ? W - cx0 - 12 : (W - 16 - 2 * 46 - 30) / 2, ch = narrow ? 110 : 140;
       const cy = 150;
       const panel = (x0, y0, title, yTicks, curves, yLab) => {
@@ -111,10 +113,16 @@
         });
         if (yLab) yLab(X, Y, ymax);
       };
-      panel(cx0, cy, 'P(y_w ≻ y_l)' + (state.m ? ' = σ(Δ − m)' : ' = σ(Δ)'), [0, 0.5, 1], [{ f: (d) => sig(d - state.m), cls: 'is-p' }], (X, Y, ymax) => {
+      panel(cx0, cy, 'P(y_w ≻ y_l) = σ(Δ)', [0, 0.5, 1], [{ f: (d) => sig(d), cls: 'is-p' }].concat(state.m ? [{ f: (d) => sig(d - state.m), cls: 'is-pm' }] : []), (X, Y, ymax) => {
         if (Math.abs(D) <= DMAX) t(svg, Math.min(X(D) + 8, cx0 + cwid - 2), Y(P, ymax) + (P > 0.8 ? 16 : -8), f2(P), 'viz-n', X(D) + 50 > cx0 + cwid ? 'end' : null);
       });
-      const px2 = narrow ? cx0 : cx0 + cwid + 30 + 46, py2 = narrow ? cy + ch + 56 : cy;
+      // leyenda del panel 1 (con margen): la punteada no es la probabilidad, es el argumento de la pérdida
+      const ly1 = cy + ch + (narrow ? 42 : 44);
+      if (state.m) {
+        V.svg('path', { d: 'M' + r1(cx0 - (narrow ? 30 : 40)) + ' ' + r1(ly1 - 4) + 'h18', class: 'viz-bt-curve is-pm' }, svg);
+        t(svg, cx0 - (narrow ? 30 : 40) + 24, ly1, narrow ? 'σ(Δ − m): la usa la pérdida (no es P)' : 'σ(Δ − m): objetivo de la pérdida con margen (no es P)', 'viz-s');
+      }
+      const px2 = narrow ? cx0 : cx0 + cwid + 30 + 46, py2 = narrow ? cy + ch + 74 : cy;
       // (la x de este panel la resuelve panel(); aquí solo se arma la leyenda de las dos curvas)
       const savedX0 = px2;
       panel(savedX0, py2, narrow ? 'pérdida y |gradiente|' : 'Pérdida −log σ(Δ − m) y |∂pérdida/∂Δ| = σ(−(Δ − m))', [0, 1, 2, 3, 4], [{ f: (d) => softplus(-(d - state.m)), cls: 'is-loss' }, { f: (d) => sig(-(d - state.m)), cls: 'is-grad' }], () => {});
@@ -126,16 +134,17 @@
       t(svg, savedX0 + (narrow ? 154 : 174), ly2, '|gradiente| ' + f2(grad), 'viz-s');
       let y = ly2 + 18;
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + r1(y));
-      svg.setAttribute('aria-label', 'r_w = ' + f2(rw) + ', r_l = ' + f2(rl) + ', Δ = ' + f2(D) + (state.m ? ', margen ' + state.m : '') + ': P(y_w ≻ y_l) = ' + f2(P) + ', pérdida ' + f2(loss) + ', gradiente ' + f2(grad) + '.');
+      svg.setAttribute('aria-label', 'r_w = ' + f2(rw) + ', r_l = ' + f2(rl) + ', Δ = ' + f2(D) + ': P(y_w ≻ y_l) = σ(Δ) = ' + f2(P) + (state.m ? '; con margen ' + state.m + ', la pérdida usa σ(Δ − m) = ' + f2(Pm) : '') + ', pérdida ' + f2(loss) + ', gradiente ' + f2(grad) + '.');
 
       out.innerHTML = '';
       const kv = (k, v) => { const sp = V.html('span', null, out); sp.innerHTML = sub(k) + ' <b>' + v + '</b>'; };
       kv('Δ = r<sub>w</sub> − r<sub>l</sub>:', f2(D));
-      kv('P(y<sub>w</sub> ≻ y<sub>l</sub>):', f2(P));
+      kv('P(y<sub>w</sub> ≻ y<sub>l</sub>) = σ(Δ):', f2(P));
+      if (state.m) kv('σ(Δ − m) (solo en la pérdida):', f2(Pm));
       kv('pérdida −log σ(Δ' + (state.m ? ' − m' : '') + '):', f2(loss));
       kv('|∂pérdida/∂Δ|:', f2(grad));
       if (state.c) kv('con c = ' + state.c + ':', 'la misma P (solo importa Δ)');
-      note.innerHTML = sub('El modelo de recompensa es un LLM con una cabeza escalar (d → 1) que puntúa la respuesta entera; se entrena solo con <i>pares</i> que eligieron personas, así que únicamente aprende diferencias: sumar la misma c a las dos no cambia nada (por eso InstructGPT normaliza la recompensa con un sesgo antes de PPO). Los pares ya bien ordenados (Δ grande) casi no empujan: el gradiente es σ(−Δ). Con margen m (Llama 2: más grande cuanto más clara fue la preferencia), un par bien ordenado sigue empujando hasta que Δ supera m. DPO usa esta misma pérdida, pero con la recompensa implícita β·log(π/π_ref) en vez de una red aparte.');
+      note.innerHTML = sub('El modelo de recompensa es un LLM con una cabeza escalar (d → 1) que puntúa la respuesta entera; se entrena solo con <i>pares</i> que eligieron personas, así que únicamente aprende diferencias: sumar la misma c a las dos no cambia nada (por eso InstructGPT normaliza la recompensa con un sesgo antes de PPO). Los pares ya bien ordenados (Δ grande) casi no empujan: el gradiente es σ(−Δ). Con margen m (Llama 2: más grande cuanto más clara fue la preferencia), un par bien ordenado sigue empujando hasta que Δ supera m; el margen va solo en la pérdida: la probabilidad de preferencia sigue siendo σ(Δ). DPO usa esta misma pérdida, pero con la recompensa implícita β·log(π/π_ref) en vez de una red aparte.');
     }
     stage.addEventListener('keydown', (ev) => {
       const k = ev.key;

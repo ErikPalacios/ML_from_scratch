@@ -744,12 +744,29 @@
     macsPerChunk: { label: 'MACs por chunk', get: (r) => vlmMetric(r, 'macsPerChunk'), fmt: 'si', unit: 'MACs' },
     actionTokensPerStep: { label: 'Tokens de acción por paso', get: (r) => vlmMetric(r, 'actionTokensPerStep'), fmt: 'int' },
     prefixTokens: { label: 'Tokens del prefijo', get: (r) => vlmMetric(r, 'prefixTokens'), fmt: 'int' },
-    // Fine-tuning (fase 10).
+    // Fine-tuning (fase 10). r / α / matrices adaptadas solo cuando HAY adapter (full FT y RLHF sin LoRA: «—»); los knobs
+    // enteros (targets 2 | 4 | 7, optimizer = bytes de estado) se muestran con su nombre (A.finetune.TARGET_LABELS / OPTIMIZERS).
+    r: { label: 'Rango r', get: (r) => (ftAdapter(r) ? r.config.r : null), fmt: 'int' },
+    alpha: { label: 'Escala α (α/r)', get: (r) => (ftAdapter(r) && r.config.alpha > 0 ? r.config.alpha + ' (α/r = ' + String(+(r.config.alpha / r.config.r).toFixed(3)) + ')' : null), fmt: 'raw' },
+    targets: { label: 'Matrices adaptadas', get: ftTargets, fmt: 'sub' },
+    targetsCount: { label: 'Matrices adaptadas por bloque', get: (r) => (ftAdapter(r) ? vlmMetric(r, 'targetsCount') : null), fmt: 'int' },
+    optimizer: { label: 'Optimizador', get: ftOptimizer, fmt: 'raw' },
     trainableParams: { label: 'Parámetros entrenables', get: (r) => vlmMetric(r, 'trainableParams'), fmt: 'int' },
     trainableShare: { label: 'Entrenables / totales', get: (r) => vlmMetric(r, 'trainableShare'), fmt: 'pct' },
     adapterParamsPerLayer: { label: 'Adapter por capa', get: (r) => vlmMetric(r, 'adapterParamsPerLayer'), fmt: 'int' },
+    adapterBytes: { label: 'Archivo del adapter', get: (r) => (ftAdapter(r) ? vlmMetric(r, 'adapterBytes') : null), fmt: 'bytes' },
     baseWeightBytes: { label: 'Pesos de la base', get: (r) => vlmMetric(r, 'baseWeightBytes'), fmt: 'bytes' },
-    optimizerBytes: { label: 'Optimizador', get: (r) => vlmMetric(r, 'optimizerBytes'), fmt: 'bytes' },
+    gradBytes: { label: 'Gradientes', get: (r) => vlmMetric(r, 'gradBytes'), fmt: 'bytes' },
+    optimizerBytes: { label: 'Memoria del optimizador', get: (r) => vlmMetric(r, 'optimizerBytes'), fmt: 'bytes' },
+    bytesPerTrainableParam: { label: 'Bytes por parámetro entrenable', get: (r) => vlmMetric(r, 'bytesPerTrainableParam'), fmt: 'raw' },
+    fitsOn24: { label: 'Cabe en 24 GB', get: (r) => metricAny(r, 'fitsOn24'), fmt: 'bool' },
+    fitsOn48: { label: 'Cabe en 48 GB', get: (r) => metricAny(r, 'fitsOn48'), fmt: 'bool' },
+    fitsOn80: { label: 'Cabe en 80 GB', get: (r) => metricAny(r, 'fitsOn80'), fmt: 'bool' },
+    gpus80Needed: { label: 'GPUs de 80 GB (≈)', get: (r) => vlmMetric(r, 'gpus80Needed'), fmt: 'int' },
+    rolloutShare: { label: 'Generación (% de los MACs del paso)', get: (r) => vlmMetric(r, 'rolloutShare'), fmt: 'pct' },
+    updateShare: { label: 'Actualización (% de los MACs del paso)', get: (r) => vlmMetric(r, 'updateShare'), fmt: 'pct' },
+    trainStepMacsVsFullFt: { label: 'MACs del paso / full FT', get: (r) => vlmMetric(r, 'trainStepMacsVsFullFt'), fmt: 'ratio' },
+    memoryVsFullFt: { label: 'Memoria / full FT', get: (r) => vlmMetric(r, 'memoryVsFullFt'), fmt: 'ratio' },
     activationBytes: { label: 'Activaciones (≈)', get: (r) => vlmMetric(r, 'activationBytes'), fmt: 'bytes' },
     totalTrainMemory: { label: 'Memoria total de entrenamiento (≈)', get: (r) => vlmMetric(r, 'totalTrainMemory'), fmt: 'bytes' },
     trainStepMacs: { label: 'MACs por paso', get: (r) => vlmMetric(r, 'trainStepMacs'), fmt: 'si', unit: 'MACs' },
@@ -765,10 +782,10 @@
     Dv: { label: 'Ancho de la visión D_v', get: (r) => r.config && r.config.Dv, fmt: 'int' },
     Lv: { label: 'Capas de la visión L_v', get: (r) => r.config && r.config.Lv, fmt: 'int' },
     // Revisión de la fase 6: bits de los pesos y de la KV cache por separado; pesos INT-k con embedding y LM head en 16 bits.
-    bits: { label: 'Bits de los pesos', get: (r) => r.config && r.config.bits, fmt: 'int' },
+    bits: { label: 'Bits de los pesos', labels: { lora: 'Bits de la base congelada', 'rlhf-dpo': 'Bits de la base congelada' }, get: (r) => r.config && r.config.bits, fmt: 'int' },
     kvBits: { label: 'Bits de la KV cache', get: (r) => r.config && r.config.kvBits, fmt: 'int' },
-    weightBytes: { label: 'Pesos en memoria', get: (r) => r.quantities && r.quantities.weightBytes, fmt: 'bytes' },
-    kvCacheBytes: { label: 'KV cache (ctx × B)', get: (r) => r.quantities && r.quantities.kvCacheBytes, fmt: 'bytes' },
+    weightBytes: { label: 'Pesos en memoria', get: (r) => (r.quantities && r.quantities.weightBytes != null ? r.quantities.weightBytes : vlmMetric(r, 'weightBytes')), fmt: 'bytes' },
+    kvCacheBytes: { label: 'KV cache (ctx × B)', labels: { 'rlhf-dpo': 'KV cache del rollout' }, get: (r) => (r.quantities && r.quantities.kvCacheBytes != null ? r.quantities.kvCacheBytes : vlmMetric(r, 'kvCacheBytes')), fmt: 'bytes' },
   };
   function resolveRunId(id) {
     const Ar = A();
@@ -776,12 +793,38 @@
     const isCfg = typeof Ar.configs === 'function' && arr(safe(() => Ar.configs(), [])).some((c) => c && c.id === id);
     return isCfg ? id : canonicalFor(id) || id;
   }
+  // Porcentaje: 1 decimal; debajo de 1 %, 3 cifras significativas ('0.0848 %'): ATLAS.Arch.fmt.pctAuto.
+  const pctAuto = (v) => { const f = A() && A().fmt; if (f && f.pctAuto) return f.pctAuto(v); const p = 100 * v; return (p !== 0 && Math.abs(p) < 1 ? p.toPrecision(3) : p.toFixed(1)) + ' %'; };
   // Milisegundos con 3 cifras significativas (como quantities.js): 1.62 · 83.8 · 121.
   const fmtMs = (v) => { const a = Math.abs(v); return a >= 100 ? fmtInt(Math.round(v)) : a >= 10 ? v.toFixed(1) : a >= 1 ? v.toFixed(2) : String(Number(v.toPrecision(3))); };
   function vlmMetric(r, k) {
     if (r.quantities && r.quantities[k] != null) return r.quantities[k];
     const m = safe(() => A().metrics(r.id, r.overrides || {}), null);
     return m && typeof m[k] === 'number' ? m[k] : null;
+  }
+  // Cualquier valor de metrics() (booleanos fitsOn…, textos targetsName…).
+  function metricAny(r, k) {
+    const m = safe(() => A().metrics(r.id, r.overrides || {}), null);
+    return m && m[k] != null ? m[k] : null;
+  }
+  // Fase 10: ¿la config tiene adapter? (full FT: r = 0; RLHF / DPO / GRPO con lora = 0 arrastran r 16 sin usarlo).
+  const ftAdapter = (r) => { const c = r && r.config; return !!(c && c.r > 0 && c.full !== 1 && (c.lora === undefined || c.lora === 1)); };
+  function ftTargets(r) {
+    const c = r && r.config;
+    if (!c) return null;
+    if (c.full === 1) return 'todas (full FT)';
+    if (!ftAdapter(r)) return null;
+    const F = A() && A().finetune;
+    const n = c.targets != null ? c.targets : (Array.isArray(c.adapted) ? c.adapted.length : null);
+    const lab = F && F.TARGET_LABELS && F.TARGET_LABELS[n];
+    const code = metricAny(r, 'targetsName') || (F && F.TARGET_NAMES && F.TARGET_NAMES[n]);
+    return lab ? lab + (code ? ' · ' + code : '') : n != null ? n + ' matrices' : null;
+  }
+  function ftOptimizer(r) {
+    const c = r && r.config, F = A() && A().finetune;
+    if (!c || c.optimizer == null) return null;
+    const o = F && F.OPTIMIZERS && F.OPTIMIZERS[c.optimizer];
+    return o ? o.label : c.optimizer + ' B de estado por parámetro';
   }
   R.compare = (b, ctx) => {
     if (!A()) return missingComponent('calculadora', 'js/arch/primitives.js (ATLAS.Arch)');
@@ -802,15 +845,19 @@
       let v = m ? safe(() => m.get(r), null) : null;
       if (v == null && !m) v = safe(() => (r.quantities && r.quantities[k] != null ? r.quantities[k] : r.config && r.config[k] != null ? r.config[k] : vlmMetric(r, k)), null);
       if (v == null) return '—';
+      if (typeof v === 'boolean' || (m && m.fmt === 'bool')) return v ? 'sí' : 'no';
+      if (m && m.fmt === 'sub') return h('span', { html: labelHtml(v) });   // 'W_Q y W_V' → subíndices
       if (typeof v !== 'number') return String(v);
+      if (m && m.fmt === 'raw') return String(+v.toPrecision(4));
+      if (m && m.fmt === 'ratio') return '×' + String(Number(v.toPrecision(3)));
       if (m && m.fmt === 'bytes') { const f = A() && A().fmt; return f && f.bytes ? f.bytes(v) : fmtInt(v) + ' B'; }
-      if (m && m.fmt === 'pct') { const f = A() && A().fmt; return f && f.pct ? f.pct(v) : (100 * v).toFixed(1) + ' %'; }
+      if (m && m.fmt === 'pct') return pctAuto(v);
       if (m && m.fmt === 'ms') return fmtMs(v) + ' ms';
       // Sin entrada en METRICS: la unidad del mapa metrics.units del modelo (un % no se imprime como el entero "0").
       if (!m) {
         const u = safe(() => (A().metrics(r.id, r.overrides || {}).units || {})[k], null);
         const f = A() && A().fmt;
-        if (u === 'pct' && f && f.pct) return f.pct(v);
+        if (u === 'pct') return pctAuto(v);
         if (u === 'bytes' && f && f.bytes) return f.bytes(v);
         if (u === 'macs') return fmtOps(v, 'MACs');
         if (u === 'ms') return fmtMs(v) + ' ms';

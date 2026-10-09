@@ -285,7 +285,7 @@
   // CLIP: torres por muestra y una parte conjunta del lote B; DETR: N = tokens de C5 sin CLS, y los scores
   // mezclan el encoder (∝ N²) con el decoder (cross ∝ Q·N, self ∝ Q²); Deformable DETR: el encoder no
   // tiene matriz N×N, así que los scores genéricos son solo los de la self-attention del decoder).
-  // kind: count · ops (MACs) · bytes · pct (fracción 0–1) · ratio (cociente adimensional, "×505").
+  // kind: count · ops (MACs) · bytes · pct (fracción 0–1) · ratio (cociente adimensional, "×505") · bool (sí / no; fase 10).
   const METRICS = {
     tokens: { label: 'Tokens', kind: 'count', note: 'longitud de la secuencia (incluye CLS)',
       labels: { 'grounding-dino': 'Tokens de imagen N', 'yolo-world': 'Celdas A (P3–P5)', yolov8: 'Celdas A (P3–P5)', sam: 'Tokens del encoder N', sam2: 'Tokens a stride 16 N' },
@@ -541,9 +541,68 @@
     scoringShare: { label: 'Puntuar (referencia + reward)', kind: 'pct', note: '% de los MACs del paso' },
     updateShare: { label: 'Actualización (forward + backward)', kind: 'pct', note: '% de los MACs del paso' },
     gpus80Needed: { label: 'GPUs de 80 GB necesarias (≈)', kind: 'count', note: 'memoria total / 80 GB, sin paralelismo fino' },
-    fitsOn24: { label: 'Cabe en 24 GB', kind: 'count', note: '' },
-    fitsOn48: { label: 'Cabe en 48 GB', kind: 'count', note: '' },
-    fitsOn80: { label: 'Cabe en 80 GB', kind: 'count', note: '' },
+    // Revisión de la fase 10: el resto de claves de metrics() de `lora` y `rlhf-dpo` con etiqueta (nada crudo en explorers ni what-ifs).
+    r: { label: 'Rango r', kind: 'count', note: 'del adapter (0 en full FT)' },
+    alpha: { label: 'Escala α', kind: 'count', note: 'el adapter suma (α/r)·BA' },
+    targetsCount: { label: 'Matrices adaptadas por bloque', kind: 'count', note: '2 = W_Q, W_V · 4 = atención · 7 = todas las lineales' },
+    allParams: { label: 'Parámetros totales (base + adapter)', kind: 'count', note: 'el «all params» de peft' },
+    trainableSharePct: { label: 'Entrenables / totales (en %)', kind: 'ratio', note: '3 cifras: 0.520, 0.0848' },
+    trainableWeightBytes: { label: 'Pesos entrenables', kind: 'bytes', note: 'adapter (fp32 en peft, bf16 en QLoRA) o todo el modelo' },
+    activationBytesPerTokenLayer: { label: 'Activaciones por token y capa (≈)', kind: 'bytes', note: 'lo que guarda el backward' },
+    loraDropoutBytesPerTokenLayer: { label: 'Copias del lora_dropout por token y capa', kind: 'bytes', note: 'una por adapter con p > 0' },
+    attnScoresBytesEager: { label: 'Scores T×T si la atención fuera eager', kind: 'bytes', note: 'sin SDPA / FlashAttention: L·h·T²·2 bytes' },
+    baseWeightBytes16: { label: 'Base a 16 bits', kind: 'bytes', note: 'bf16' },
+    baseWeightBytes8: { label: 'Base a 8 bits', kind: 'bytes', note: 'LLM.int8 en las lineales' },
+    baseWeightBytes4: { label: 'Base en NF4 (con doble cuantización)', kind: 'bytes', note: 'las lineales; embedding y LM head en bf16' },
+    baseWeightBytes4NoDQ: { label: 'Base en NF4 sin doble cuantización', kind: 'bytes', note: 'absmax fp32 por bloque de 64' },
+    quantConstBitsPerParam: { label: 'Bits de constantes por parámetro', kind: 'ratio', note: '0.5 sin DQ → 0.127 con DQ' },
+    forwardMacsPerSeq: { label: 'MACs del forward (una secuencia)', kind: 'ops', note: '' },
+    backwardMacsPerSeq: { label: 'MACs del backward (una secuencia)', kind: 'ops', note: '' },
+    recomputeMacsPerSeq: { label: 'MACs recomputados (una secuencia)', kind: 'ops', note: 'gradient checkpointing' },
+    trainStepMacsPerSeq: { label: 'MACs del paso (una secuencia)', kind: 'ops', note: 'forward + backward (+ recómputo)' },
+    backwardInputGradMacs: { label: 'MACs de los gradientes de entrada (dX)', kind: 'ops', note: 'en LoRA, también en las W₀ congeladas' },
+    backwardWeightGradMacs: { label: 'MACs de los gradientes de pesos (dW)', kind: 'ops', note: 'en LoRA, solo A y B' },
+    backwardInputGradMacsPerSeq: { label: 'MACs de dX (una secuencia)', kind: 'ops', note: '' },
+    backwardWeightGradMacsPerSeq: { label: 'MACs de dW (una secuencia)', kind: 'ops', note: '' },
+    trainStepMacsRule: { label: 'MACs por paso (regla de bolsillo)', kind: 'ops', note: '3N (full) o 2N_base + 3N_adapter por token' },
+    macsPerToken: { label: 'MACs por token (forward)', kind: 'ops', note: '' },
+    adapterMacsPerToken: { label: 'MACs del adapter por token', kind: 'ops', note: 'lo que cuesta no fusionarlo en inferencia' },
+    trainStepMacsVsFullFt: { label: 'MACs del paso / los del full FT', kind: 'ratio', note: 'mismos B, T y checkpointing' },
+    tokensPerStep: { label: 'Tokens por paso', kind: 'count', note: 'B × T' },
+    sequencesPerStep: { label: 'Secuencias por paso', kind: 'count', note: 'B (PPO) · 2B (DPO: elegida y rechazada) · B·G (GRPO)' },
+    Tp: { label: 'Tokens del prompt T_p', kind: 'count', note: 'T/2' },
+    Tr: { label: 'Tokens de la respuesta T_r', kind: 'count', note: 'T/2' },
+    groupSize: { label: 'Respuestas por prompt G (GRPO)', kind: 'count', note: 'n_G en las formas; G del decoder = cabezas KV' },
+    ppoEpochs: { label: 'Épocas de PPO por batch', kind: 'count', note: 'num_ppo_epochs de TRL (0 si no es PPO)' },
+    rolloutMacs: { label: 'MACs de la generación', kind: 'ops', note: 'prefill del prompt + decode de la respuesta, por paso' },
+    rolloutMacsPerSeq: { label: 'MACs de generar una respuesta', kind: 'ops', note: 'prefill + T_r − 1 decodes' },
+    rolloutPrefillMacsPerSeq: { label: 'MACs del prefill del prompt (una respuesta)', kind: 'ops', note: 'lo que el prefix caching comparte' },
+    rolloutMacsSharedPrefix: { label: 'MACs de la generación con prefijo compartido', kind: 'ops', note: 'GRPO: un prefill por prompt para las G respuestas' },
+    rolloutShareSharedPrefix: { label: 'Rollouts con prefijo compartido', kind: 'pct', note: '% de los MACs del paso si las G respuestas comparten el prefill (prefix caching)' },
+    referenceMacs: { label: 'MACs de la referencia', kind: 'ops', note: 'forward por paso' },
+    rewardMacs: { label: 'MACs del reward model', kind: 'ops', note: 'forward por paso' },
+    criticForwardMacs: { label: 'MACs del forward del crítico', kind: 'ops', note: 'valores «old»' },
+    policyForwardMacs: { label: 'MACs del forward de la política (old)', kind: 'ops', note: 'log-probs «old» de PPO' },
+    scoringMacs: { label: 'MACs de puntuar', kind: 'ops', note: 'referencia + reward + forwards «old»' },
+    policyUpdateMacs: { label: 'MACs del update de la política', kind: 'ops', note: 'forward + backward (× épocas)' },
+    criticUpdateMacs: { label: 'MACs del update del crítico', kind: 'ops', note: '' },
+    updateMacs: { label: 'MACs de los updates', kind: 'ops', note: 'política + crítico' },
+    referencePrecomputeMacs: { label: 'MACs de precalcular la referencia', kind: 'ops', note: 'DPO con log-probs precalculados: fuera del paso' },
+    policyTrainStepMacsPerSeq: { label: 'MACs del paso de la política (una secuencia)', kind: 'ops', note: '' },
+    policyForwardMacsPerSeq: { label: 'MACs del forward de la política (una secuencia)', kind: 'ops', note: '' },
+    criticTrainStepMacsPerSeq: { label: 'MACs del paso del crítico (una secuencia)', kind: 'ops', note: '' },
+    policyWeightBytes: { label: 'Pesos de la política', kind: 'bytes', note: '' },
+    referenceWeightBytes: { label: 'Pesos de la referencia', kind: 'bytes', note: '0 con LoRA (es la base) o precalculada' },
+    rewardWeightBytes: { label: 'Pesos del reward model', kind: 'bytes', note: '' },
+    criticWeightBytes: { label: 'Pesos del crítico', kind: 'bytes', note: '' },
+    policyOptimizerBytes: { label: 'Optimizador de la política', kind: 'bytes', note: '' },
+    criticOptimizerBytes: { label: 'Optimizador del crítico', kind: 'bytes', note: '' },
+    policyGradBytes: { label: 'Gradientes de la política', kind: 'bytes', note: '' },
+    criticGradBytes: { label: 'Gradientes del crítico', kind: 'bytes', note: '' },
+    // kind 'bool': metrics() devuelve true / false; metricValue lo lee como 1 / 0 y fMetric lo escribe «sí» / «no».
+    fitsOn24: { label: 'Cabe en 24 GB', kind: 'bool', note: 'memoria total ≤ 24 GB (RTX 4090, A10)' },
+    fitsOn48: { label: 'Cabe en 48 GB', kind: 'bool', note: 'memoria total ≤ 48 GB (L40S, A6000)' },
+    fitsOn80: { label: 'Cabe en 80 GB', kind: 'bool', note: 'memoria total ≤ 80 GB (A100 / H100)' },
     actionBins: { label: 'Bins por dimensión', kind: 'count', note: 'discretización uniforme entre q01 y q99' },
     decodeSteps: { label: 'Pasos de decode por acción', kind: 'count', note: 'el primer token sale del prefill' },
     actionTokenFirst: { label: 'Primer id de token de acción', kind: 'count', note: 'los 256 ids menos usados de Llama' },
@@ -788,12 +847,13 @@
   function metricKind(key) {
     const k = metricKey(key);
     // Primero el mapa `units` del modelo (lo registra metrics()); luego METRICS; luego el nombre.
-    if (METRICS[k] && ['intensity', 'rate', 'avg', 'ms', 'hz', 'bw', 'flops'].includes(METRICS[k].kind)) return METRICS[k].kind;   // formato propio, gana a units
+    if (METRICS[k] && ['intensity', 'rate', 'avg', 'ms', 'hz', 'bw', 'flops', 'bool'].includes(METRICS[k].kind)) return METRICS[k].kind;   // formato propio, gana a units
     if (ARCH_UNITS[k] && UNIT_KIND[ARCH_UNITS[k]]) return UNIT_KIND[ARCH_UNITS[k]];
     if (METRICS[k] && METRICS[k].kind) return METRICS[k].kind;
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
     if (/Share$/.test(k)) return 'pct';
     if (/Macs(\d+x|Layer)?$/.test(k)) return 'ops';
+    if (/^fits/.test(k)) return 'bool';   // fitsOn…, fitsInHbm: booleanos del calculador
     return 'count';
   }
   // Cociente con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5', 16 → '16'.
@@ -801,22 +861,31 @@
   const fRatio = (v) => { const x = Number(v.toPrecision(3)); if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2); return Math.abs(x) >= 1000 ? fInt(Math.round(v)) : String(x); };   // ≥ 1000: entero redondeado (1,645, no 1,640)
   // Milisegundos (fase 8): 3 cifras significativas, como quantities.js: 1.62 · 2.54 · 83.8 · 121.
   const fMs = (v) => { const a = Math.abs(v); return a >= 100 ? fInt(Math.round(v)) : a >= 10 ? v.toFixed(1) : a >= 1 ? v.toFixed(2) : String(Number(v.toPrecision(3))); };
-  // Lee una métrica: número, {bytes}, o función (attnMem(dtype), kvCache(B, ctx, dtype)…).
+  // Lee una métrica: número, {bytes}, o función (attnMem(dtype), kvCache(B, ctx, dtype)…). Booleano (fitsOn24…) → 1 / 0
+  // (kind 'bool': fMetric lo escribe «sí» / «no»).
   function metricValue(m, key) {
     if (!m) return null;
     const k = metricKey(key);
     let v = m[k];
+    if (typeof v === 'boolean') return v ? 1 : 0;
     if (k === 'scoreMacs' && v == null) { const sp = attnSplit(m); v = sp ? sp.attn : null; }
     if (typeof v === 'function') v = safe(() => (k === 'kvCache' ? v(1, undefined, 'fp16') : k === 'actMem' ? v(1, 'fp16') : v('fp16')), null);
     if (v && typeof v === 'object') v = v.bytes != null ? v.bytes : v.total != null ? v.total : v.value != null ? v.value : null;
     return typeof v === 'number' && isFinite(v) ? v : null;
   }
+  // Porcentaje: 1 decimal desde 1 %; debajo de 1 %, 3 cifras significativas (0.0848 %, 0.520 %: "0.1 %" sería −18 %).
+  // Mismo criterio que ATLAS.Arch.fmt.pctAuto (prosa {{metrics.…Share}} y tablas compare); ≥ 1 % igual que antes.
+  function fPctAuto(v) {
+    const p = v * 100;
+    return (p !== 0 && Math.abs(p) < 1 ? p.toPrecision(3) : (Math.round(p * 10) / 10).toFixed(1)) + ' %';
+  }
   function fMetric(key, v) {
     if (v == null) return '—';
     const kind = metricKind(key);
+    if (kind === 'bool') return v ? 'sí' : 'no';
     if (kind === 'bytes') return fBytes(v);
     if (kind === 'ops') return fOps(v, metricKey(key) === 'flops' ? 'FLOPs' : 'MACs');
-    if (kind === 'pct') return (Math.round(v * 1000) / 10).toFixed(1) + ' %';
+    if (kind === 'pct') return fPctAuto(v);
     if (kind === 'ratio') return '×' + fRatio(v);
     if (kind === 'intensity') return fRatio(v) + ' FLOPs/B';
     if (kind === 'rate') return '≈ ' + fRatio(v) + ' tok/s';
@@ -831,15 +900,17 @@
   // Comparación con la base: factor (×4) o, para porcentajes, diferencia en puntos.
   function fVsBase(key, v, b) {
     if (v == null || b == null) return '';
+    if (metricKind(key) === 'bool') return v === b ? 'base' : (b ? 'sí' : 'no') + ' en la base';
     if (metricKind(key) === 'pct') { const d = (v - b) * 100; return Math.abs(d) < 0.05 ? 'base' : (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1) + ' pp vs base'; }
     if (!b) return '';
     return Math.abs(v / b - 1) < 0.0005 ? 'base' : fFactor(v / b) + ' vs base';
   }
-  const isChanged = (key, v, b) => v != null && b != null && (metricKind(key) === 'pct' ? Math.abs(v - b) >= 0.0005 : b !== 0 && Math.abs(v / b - 1) >= 0.0005);
+  const isChanged = (key, v, b) => v != null && b != null && (metricKind(key) === 'bool' ? v !== b : metricKind(key) === 'pct' ? Math.abs(v - b) >= 0.0005 : b !== 0 && Math.abs(v / b - 1) >= 0.0005);
   function fMetricExact(key, v) {
     if (v == null) return '';
     const kind = metricKind(key);
-    if (kind === 'pct') return (v * 100).toFixed(3) + ' %';
+    if (kind === 'bool') return v ? 'sí' : 'no';
+    if (kind === 'pct') return (v * 100).toFixed(Math.abs(v) < 0.01 && v !== 0 ? 4 : 3) + ' %';
     if (kind === 'ratio') return '×' + String(+v.toFixed(4));
     if (kind === 'intensity') return String(+v.toFixed(4)) + ' FLOPs/B';
     if (kind === 'rate') return String(+v.toFixed(2)) + ' tok/s';
@@ -878,15 +949,21 @@
   function tensorInDiagram(d, tid, ov) {
     return (d.edges || []).some((e) => e.tensor === tid && sameOv(e.ov, ov)) || (d.tensors || []).some((t) => t.id === tid && sameOv(t.ov, ov));
   }
-  function diagramForTensor(model, tid, ov) {
-    const ds = diagramsOf(model);
+  // cfg (fase 10, revisión): solo las vistas que aplican a la config del drill (diagramsOf con configs). Sin él, el drill
+  // de DPO «Política · log-probs por secuencia» montaba ppo-step (la primera vista con el tensor pol-logp).
+  function diagramForTensor(model, tid, ov, cfg) {
+    const ds = diagramsOf(model, cfg);
     return ds.find((d) => (d.edges || []).some((e) => e.tensor === tid && sameOv(e.ov, ov))) || ds.find((d) => tensorInDiagram(d, tid, ov)) || null;
   }
-  function mountMini(figEl, diagramId, hl) {
+  // config: la del drill. Se pasa al diagrama solo si la vista la declara en `configs` (ppo-step / dpo-step / lora-overview…
+  // dibujan cada config a su manera); una vista sin `configs` se dibuja con la suya, como antes.
+  function mountMini(figEl, diagramId, hl, config) {
     const AD = ATLAS.ArchDiagram;
     if (!AD || typeof AD.render !== 'function' || !diagramId) return null;
     try {
-      const dg = AD.render(diagramId, figEl, { mode: 'mini', quiz: true, showNumbers: false });
+      const spec = safe(() => ATLAS.diagram(diagramId), null);
+      const useCfg = config && spec && Array.isArray(spec.configs) && spec.configs.indexOf(config) >= 0 && config !== spec.config ? config : null;
+      const dg = AD.render(diagramId, figEl, Object.assign({ mode: 'mini', quiz: true, showNumbers: false }, useCfg ? { config: useCfg } : {}));
       if (dg && hl && typeof dg.highlight === 'function') safe(() => dg.highlight(hl));
       // La figura mini tiene alto máximo: se desplaza hasta lo resaltado (sin mover la página).
       const center = () => {
@@ -1087,7 +1164,7 @@
     // Se calcula antes de clasificar las métricas: metrics() registra el mapa `units` del modelo.
     const baseM = metrics(config, overrides());
     const forcedKnob = knobs.find((k) => k.forced);
-    const plottable = show.filter((k) => metricKind(k) !== 'pct');
+    const plottable = show.filter((k) => metricKind(k) !== 'pct' && metricKind(k) !== 'bool');   // sí / no no se grafica en log-log
     // Gráfica: MACs si están; si no, la primera memoria (CLIP: la curva B² de la matriz de logits); si no, otra.
     let chartMetric = plottable.indexOf('macs') >= 0 ? 'macs'
       : plottable.find((k) => metricKind(k) === 'bytes') || plottable.find((k) => k !== 'params') || plottable[0] || show[0];
@@ -1696,8 +1773,12 @@
       if (typeof c.classes === 'number') out.push(['K_cls', c.classes]);
     } else if (typeof c.classes === 'number' && !has('K')) out.push(['K', c.classes]);
     if (typeof c.D === 'number' && Array.isArray(c.widths) && c.widths.length && typeof c.expansion === 'number') out.push(['C_5', c.widths[c.widths.length - 1] * c.expansion]);
-    // Fase 10 (fine-tuning): rango y escala del adapter, ancho de K/V; en RLHF G son las cabezas KV (no el grupo de GRPO).
-    if (c.r != null && c.alpha != null && !has('r')) out.push(['r', c.r, 'rango del adapter'], ['α', c.alpha, 'escala α/r = ' + (c.alpha / c.r)]);
+    // Fase 10 (fine-tuning): rango y escala del adapter, ancho de K/V; en RLHF G son las cabezas KV (no el grupo de GRPO, que en
+    // las formas es n_G = cfg.groupSize: js/arch/finetune.js). r / α solo cuando HAY adapter: el full FT tiene r = α = 0 (α/r
+    // daría NaN) y las configs de RLHF sin LoRA (lora = 0) arrastran r 16 / α 32 de RL_BASE sin usarlos.
+    const hasAdapter = c.r > 0 && c.full !== 1 && (c.lora === undefined || c.lora === 1);
+    if (hasAdapter && c.alpha > 0 && !has('r')) out.push(['r', c.r, 'rango del adapter'], ['α', c.alpha, 'escala α/r = ' + String(+(c.alpha / c.r).toFixed(3))]);
+    if (c.method === 'grpo' && c.groupSize != null && !has('n_G')) out.push(['n_G', c.groupSize, 'respuestas por prompt (la G de GRPO)']);
     if (c.Dkv != null && !has('D_kv')) out.push(['D_kv', c.Dkv, 'n_KV·d_h: salida de W_K y W_V']);
     if (c.Tp != null && !has('T_p')) out.push(['T_p', c.Tp, 'tokens del prompt'], ['T_r', c.Tr, 'tokens de la respuesta']);
     if (c.method && c.G != null) { const i = out.findIndex(([x]) => x === 'G'); if (i >= 0) out[i] = ['G', c.G, 'cabezas KV del decoder']; }
@@ -1784,7 +1865,10 @@
   // ref: {diagram, node} | {diagram, group} | id de nodo (el primer diagrama del modelo que lo tiene) |
   // {op}: una op hoja cuyo nodo no está en ningún diagrama (única op con ese nodo).
   function locateParamsNode(model, R, ref) {
-    const ds = diagramsOf(model);
+    // vistas de la config de la corrida primero (fase 10: ppo-step vs dpo-step); si ninguna tiene el nodo, todas (como antes).
+    const cfgId = R && (R.id || (R.config && R.config.id));
+    const dsC = cfgId ? diagramsOf(model, cfgId) : [];
+    const ds = dsC.concat(diagramsOf(model).filter((d) => dsC.indexOf(d) < 0));
     if (ref && typeof ref === 'object' && ref.op) {
       const op = (R.ops || []).find((o) => o.id === ref.op);
       return op ? { op, ops: [op] } : null;
@@ -2147,7 +2231,7 @@
         const tsym = t.tex ? String(t.tex).split('=')[0].trim() : '';
         qHtml = '¿Qué forma tiene ' + (t.label ? '<b>' + esc(t.label) + '</b> ' : '') + (tsym ? '\\(' + tsym + '\\)' : '<code>' + esc(cur.tensor) + '</code>') + '?';
         hint = 'Solo números, sin batch: tokens × canales (N×D); imágenes H×W×C; cabezas h×N×d_h. Acepta 197x768, 197 × 768 o (197, 768).';
-        const d = diagramForTensor(cur.model, cur.tensor, cur.ov);
+        const d = diagramForTensor(cur.model, cur.tensor, cur.ov, cur.config);
         diag = d && d.id;
         const prod = (R.ops || []).find((x) => x.id === t.producer);
         const pn = prod && (d ? (d.nodes || []).find((n) => (prod.path || []).indexOf(n.id) >= 0 && n.id === prod.path[prod.path.length - 1]) : null);
@@ -2211,7 +2295,7 @@
 
       const fig = h('div', { class: 'pxd__fig' });
       card.append(top, h('p', { class: 'pxd__q', id: qid, html: qHtml }), h('p', { class: 'pxd__hint muted small' }, hint), fig, form, fb, reveal, h('div', { class: 'pxd__actions' }, btnNext));
-      dg = mountMini(fig, diag, hl);
+      dg = mountMini(fig, diag, hl, cur.config);
       if (!dg) fig.hidden = true;
       typeset(card);
       if (focus) inp.focus({ preventScroll: true });
@@ -2288,6 +2372,11 @@
 
   // ================================================================== WHAT-IF (§8.3)
   const WI_ROWS = ['tokens', 'params', 'macs', 'scoreMacs', 'attnMem', 'kvCache'];
+  // Fase 10: en entrenamiento lo que se compara es memoria y cómputo del PASO, no el forward de inferencia.
+  const WI_ROWS_BY_MODEL = {
+    lora: ['trainableParams', 'trainableShare', 'totalTrainMemory', 'activationBytes', 'trainStepMacs', 'fitsOn24', 'fitsOn80'],
+    'rlhf-dpo': ['modelsInMemory', 'trainableParams', 'totalTrainMemory', 'gpus80Needed', 'generationTokensPerStep', 'trainStepMacs', 'rolloutShare'],
+  };
   // Etiqueta de un factor COMO OPCIÓN: la misma regla para todas las opciones (correcta, distractores
   // y las del autor), así el formato no delata la respuesta: "≈" + 2 cifras significativas.
   // 3.98 → "≈ ×4" · 15.88 → "≈ ×16" · 4.45 → "≈ ×4.5" · 0.25 → "≈ ÷4" · 1.003 → "≈ ×1".
@@ -2350,6 +2439,7 @@
     if (item.expect === 'value') return true;
     if (item.expect === 'factor') return false;
     if (metricKind(metricKey(item.ask || 'macs')) === 'pct') return true;
+    if (metricKind(metricKey(item.ask || 'macs')) === 'bool') return true;   // «¿cabe en 24 GB?»: sí / no
     return /(^|[¿\s])cu[aá]nt[oa]s?\b/i.test(String(qText || '').replace(/<[^>]*>/g, ' '));
   }
   function parseFactor(o) {
@@ -2402,10 +2492,11 @@
     const bv = metricValue(base, ask), av = metricValue(alt, ask);
     if (bv == null || av == null) { warnBox(card, 'El calculador no da «' + metricLabel(ask, wm) + '» para ' + cfgLabel(cfg) + '.'); return card; }
     const r = av / bv;
-    const numeric = item.mode === 'numeric' || item.numeric === true;
     // Con opciones del autor, se pregunta lo que ellas expresan (factores) salvo expect explícito.
     const askKind = metricKind(ask);
-    const expectValue = (Array.isArray(item.options) && item.options.length && !numeric) ? false : asksValue(item, qHtml);
+    const isBool = askKind === 'bool';   // fase 10: «¿cabe en 24 GB?» → opciones sí / no (sin factor ni entrada numérica)
+    const numeric = !isBool && (item.mode === 'numeric' || item.numeric === true);
+    const expectValue = isBool ? true : (Array.isArray(item.options) && item.options.length && !numeric) ? false : asksValue(item, qHtml);
     const fb = h('p', { class: 'pxd__fb', 'aria-live': 'polite' });
     const expl = h('div', { class: 'pxw__expl', hidden: true });
     let done = false;
@@ -2415,7 +2506,9 @@
       if (o.drillId) sCall(o.store, 'drillResult', o.drillId, { ok, answer: String(answer) });
       fb.className = 'pxd__fb ' + (ok ? 'is-ok' : 'is-bad');
       fb.innerHTML = '';
-      if (expectValue) fb.append(h('span', { html: icon(ok ? 'check' : 'close') }), h('span', null, ok ? 'Correcto: ' : 'No. Es '),
+      if (isBool) fb.append(h('span', { html: icon(ok ? 'check' : 'close') }), h('span', null, ok ? 'Correcto: ' : 'No. Es '),
+        h('b', { class: 'mono' }, fMetric(ask, av)), h('span', null, ' (' + metricLabel(ask, wm).toLowerCase() + ': ' + fMetric(ask, bv) + ' → ' + fMetric(ask, av) + ').'));
+      else if (expectValue) fb.append(h('span', { html: icon(ok ? 'check' : 'close') }), h('span', null, ok ? 'Correcto: ' : 'No. Es '),
         h('b', { class: 'mono', title: fMetricExact(ask, av) }, fMetric(ask, av)), h('span', null, ' (' + fMetric(ask, bv) + ' → ' + fMetric(ask, av) + ': ' + (askKind === 'pct' ? fVsBase(ask, av, bv).replace(' vs base', '') : fFactor(r)) + ').'));
       else fb.append(h('span', { html: icon(ok ? 'check' : 'close') }), h('span', null, ok ? 'Correcto: ' : 'No. Es '),
         h('b', { class: 'mono' }, fFactor(r)), h('span', null, ' (' + fMetric(ask, bv) + ' → ' + fMetric(ask, av) + ').'));
@@ -2426,7 +2519,7 @@
     }
     function paintExpl() {
       expl.innerHTML = '';
-      const rows = WI_ROWS.filter((k) => metricValue(base, k) != null && metricValue(alt, k) != null);
+      const rows = (WI_ROWS_BY_MODEL[wm] || WI_ROWS).filter((k) => metricValue(base, k) != null && metricValue(alt, k) != null);
       if (rows.indexOf(ask) < 0) rows.unshift(ask);
       expl.appendChild(h('div', { class: 'pxd__tablewrap' }, h('table', { class: 'pxw__table' },
         h('caption', { class: 'sr-only' }, 'Las dos corridas del calculador lado a lado'),
@@ -2437,7 +2530,7 @@
             h('th', { scope: 'row' }, metricLabel(k, wm)),
             h('td', { class: 'mono num', title: fMetricExact(k, b) }, fMetric(k, b)),
             h('td', { class: 'mono num', title: fMetricExact(k, a) }, fMetric(k, a)),
-            h('td', { class: 'mono num' }, metricKind(k) === 'pct' ? fVsBase(k, a, b).replace(' vs base', '') : b ? fFactor(a / b) : '—'));
+            h('td', { class: 'mono num' }, metricKind(k) === 'bool' ? (a === b ? '=' : 'cambia') : metricKind(k) === 'pct' ? fVsBase(k, a, b).replace(' vs base', '') : b ? fFactor(a / b) : '—'));
         })))));
       const sb = attnSplit(base), sa = attnSplit(alt);
       if (sb && sa) expl.appendChild(h('p', { class: 'muted small' }, 'Atención (solo QKᵀ y A·V), en % de los MACs: ' + Math.round(sb.share * 1000) / 10 + ' % → ' + Math.round(sa.share * 1000) / 10 + ' %.'
@@ -2448,7 +2541,9 @@
     if (!numeric) {
       let opts;
       const seed = (o.drillId || '') + JSON.stringify(item.change);
-      if (Array.isArray(item.options) && item.options.length) {
+      if (isBool) {
+        opts = [{ id: 'si', text: 'sí', ok: av === 1 }, { id: 'no', text: 'no', ok: av === 0 }];
+      } else if (Array.isArray(item.options) && item.options.length) {
         // el correcto es el más cercano (en escala log) al factor calculado; los factores "pelados"
         // se reescriben con la misma regla (fFactorOpt) y se quitan duplicados del correcto.
         const vals = item.options.map(parseFactorLoose);
@@ -2723,5 +2818,6 @@
     _valueOptions: valueOptions, _fFactorOpt: fFactorOpt, _parseFactor: parseFactor, _parseBytes: parseBytes,
     _parseNum: parseNum, _gradeParams: gradeParams, _nodeParams: nodeParams, _asksValue: asksValue,
     _changeText: changeText, _knobLabel: knobLabel, _knobShow: knobShow, _splitSegments: splitSegmentsOf, _factPairs: factPairs, _drillFacts: (R, cand) => factPairs(R.config, drillSide(R, cand)), _metricKind: metricKind, _metricLabel: (k, model) => metricLabel(k, model), _metricNote: (k, model) => metricNote(k, model), _fMetric: fMetric, _knobBase: knobBase,
+    _metricValue: metricValue, _diagramForTensor: diagramForTensor, _fVsBase: fVsBase,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

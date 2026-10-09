@@ -37,8 +37,12 @@
    ---------------------------------------------------------------- convenciones y símbolos
    Formas sin batch: UNA secuencia de T tokens (B = secuencias por paso, solo en metrics). Símbolos de F6 (D, L, h, G, d_h,
    D_mlp, V, D_kv = G·d_h) + r (rango), α (escala; α/r), d_in / d_out de cada matriz adaptada, T_p / T_r (prompt / respuesta del
-   RLHF: T = T_p + T_r, mitad y mitad), G (GRPO: respuestas por prompt = knob y cfg `groupSize`; cfg.G y el símbolo G de las formas del decoder siguen siendo las
-   cabezas KV de F6, 8). Knobs = enteros (primitives.resolve solo acepta enteros):
+   RLHF: T = T_p + T_r, mitad y mitad). GRUPO DE GRPO: símbolo de FORMA `n_G` (respuestas por prompt = knob y cfg `groupSize`,
+   metrics().groupSize; tensores `rewards` y `advantages` de GRPO = n_G; tarjeta de datos: "n_G = 8 · respuestas por prompt (la G
+   de GRPO)"). En la PROSA se puede seguir diciendo "G respuestas por prompt", pero en formas, {{…}} y tarjetas el grupo es
+   n_G / cfg.groupSize: cfg.G y el símbolo G de las formas del decoder siguen siendo las cabezas KV de F6 (8). La coincidencia
+   8 = 8 de los defaults escondía el choque: con groupSize = 16 las formas dicen n_G = 16 y G = 8. Knobs = enteros
+   (primitives.resolve solo acepta enteros):
    - targets = matrices adaptadas por bloque: 2 = W_Q, W_V (paper de LoRA) · 4 = W_Q, W_K, W_V, W_O ('attn') · 7 = las 7 lineales
      (q, k, v, o, gate, up, down: 'all', recetas QLoRA / PEFT). La SPEC dice 'qv' | 'attn' | 'all': metrics().targetsName.
    - optimizer = bytes de ESTADO del optimizador por parámetro entrenable (sin la copia maestra): 8 = AdamW (m, v en fp32) ·
@@ -153,7 +157,10 @@
      (rollout), totalTrainMemory, policyWeightBytes, referenceWeightBytes, rewardWeightBytes, criticWeightBytes,
      policyOptimizerBytes, criticOptimizerBytes, policyGradBytes, criticGradBytes; macs: rolloutMacs, referenceMacs, rewardMacs,
      criticForwardMacs, policyForwardMacs (log-probs "old" de PPO), scoringMacs, policyUpdateMacs, criticUpdateMacs,
-     updateMacs, trainStepMacs, rolloutMacsPerSeq, referencePrecomputeMacs; pct: rolloutShare, updateShare, scoringShare;
+     updateMacs, trainStepMacs, rolloutMacsPerSeq, referencePrecomputeMacs, rolloutPrefillMacsPerSeq (la parte del prompt:
+     prefill + sus adaptadores), rolloutMacsSharedPrefix (GRPO con el prefill del prompt compartido entre las G respuestas =
+     prefix caching: B·(prefill + G·resto); PPO = rolloutMacs); pct: rolloutShare (cada respuesta paga su prefill: GRPO 16.2 %),
+     rolloutShareSharedPrefix (con prefijo compartido: GRPO ≈ 10.1 % con G = 8, 9.2 % con G = 64), updateShare, scoringShare;
      booleanos fitsOn24 / 48 / 80; listas roles [{id, label, params, trainableParams, weightBytes, gradBytes, optimizerBytes,
      activationBytes, inMemory, trainable}], flopsSplit [{id, label, macs}], memoryByRole [{id, label, bytes}], methods [{id,
      configId, label, modelsInMemory, totalTrainMemory, generationTokensPerStep, trainStepMacs, roles…}] (PPO / DPO / GRPO con
@@ -164,7 +171,7 @@
      estado = 'adamw' | 'adamw8bit' | 'sgd' con momentum | SGD sin momentum); metrics().targetsName / optimizerName dan el texto.
    - trainStepFlops → trainStepMacs (unidad 'macs' de la app; FLOPs = 2×). La regla de la SPEC (≈ 6N vs ≈ 4N_base + 6N_adapter
      FLOPs por token) = trainStepMacsRule (3N vs 2N_base + 3N_adapter MACs); el exacto sale del grafo (ver arriba).
-   - Knob G de GRPO (SPEC) → groupSize (cfg.groupSize, metrics().groupSize; símbolo G en la prosa y en el tensor `rewards`): cfg.G
+   - Knob G de GRPO (SPEC) → groupSize (cfg.groupSize, metrics().groupSize; G en la prosa, símbolo n_G en las formas de `rewards` / `advantages`): cfg.G
      queda como las cabezas KV de F6 (8), que el decoder importado usa. Config añadida ppo-llama3-8b-lora; métricas añadidas
      trainableSharePct (en %, unidad 'ratio' para tener 3 cifras: 0.0848) y trainStepMacsVsFullFt.
    - fitsOn (24 / 48 / 80 GB) = tres booleanos fitsOn24 / fitsOn48 / fitsOn80 + la lista gpus.
@@ -631,7 +638,7 @@
   function rlBuild(c, A) {
     const g = A.graph(c);
     const lv = c, S = c.seqs;
-    const perSeq = c.method === 'dpo' ? ' (por secuencia: elegida y_w y rechazada y_l)' : c.method === 'grpo' ? ' (por respuesta: G = ' + c.groupSize + ' por prompt)' : '';
+    const perSeq = c.method === 'dpo' ? ' (por secuencia: elegida y_w y rechazada y_l)' : c.method === 'grpo' ? ' (por respuesta: n_G = ' + c.groupSize + ' por prompt)' : '';
     g.input('ids', shp(['T'], [c.T], 'txt', 'vec'), { label: 'Secuencia · prompt + respuesta (T = T_p + T_r = ' + c.Tp + ' + ' + c.Tr + ')' + perSeq, tex: '(x,\\,y)' });
     const roleOpt = (role) => ({
       prefix: ROLE_PREFIX[role], path: [role], where: [ROLE_LABEL[role]], label: ROLE_SHORT[role] + ' · ', S,
@@ -682,8 +689,8 @@
       return g;
     }
     // GRPO
-    const rw = g.input('rewards', shp(['G'], [c.groupSize], 'txt', 'vec'), { label: 'Recompensas de las G respuestas del prompt (verificador: 0 parámetros)', tex: 'r_{1..G}' });
-    const adv = g.op('group-adv', A.group_advantage(rw), { path: ['advantage', 'group-adv'], out: 'advantages', where: ['Ventaja por grupo'], label: 'Â_i = (r_i − media) / std sobre las G respuestas', type: 'head', group: 'head',
+    const rw = g.input('rewards', shp(['n_G'], [c.groupSize], 'txt', 'vec'), { label: 'Recompensas de las n_G respuestas del prompt (verificador: 0 parámetros)', tex: 'r_{1..G}' });   // n_G = groupSize (G = cabezas KV)
+    const adv = g.op('group-adv', A.group_advantage(rw), { path: ['advantage', 'group-adv'], out: 'advantages', where: ['Ventaja por grupo'], label: 'Â_i = (r_i − media) / std sobre las n_G respuestas del grupo', type: 'head', group: 'head',
       outMeta: { label: 'Ventajas normalizadas en el grupo', tex: '\\hat A_i' } });
     const kl = g.op('kl', A.kl_penalty(pol, ref, { estimator: 'k3', beta: c.beta }), { path: ['kl'], out: 'kl', repeat: S, where: ['Penalización KL'], label: 'KL por token k3 = π_ref/π − log(π_ref/π) − 1', type: 'head', group: 'head',
       outMeta: { label: 'KL por token contra la referencia (k3)', tex: '\\mathbb{D}_{\\mathrm{KL}}^{(k3)}' } });
@@ -728,8 +735,11 @@
     const pre = q.prefillMacs - (c.Tp - 1) * c.D * c.V;
     const n = c.Tr - 1;
     const dec = n * q.decodeLinearMacs + 2 * c.L * c.h * c.dh * (n * c.Tp + n * (n + 1) / 2);
-    const lora = c.lora ? (c.Tp + n) * c.L * TARGETS[7].reduce((s, id) => { const l = LINEARS.find((x) => x.id === id); return s + c.r * (dimOf(c, l.din) + dimOf(c, l.dout)); }, 0) : 0;
-    return { prefill: pre, decode: dec, lora, total: pre + dec + lora, kvBytesPerToken: q.kvBytesPerToken };
+    const perTok = c.lora ? c.L * TARGETS[7].reduce((s, id) => { const l = LINEARS.find((x) => x.id === id); return s + c.r * (dimOf(c, l.din) + dimOf(c, l.dout)); }, 0) : 0;
+    const lora = (c.Tp + n) * perTok;
+    // prefixPart = lo que depende solo del prompt (prefill + sus adaptadores): con prefix caching (vLLM, SGLang) las G respuestas
+    // de GRPO lo comparten → rolloutMacsSharedPrefix = B·(prefixPart + G·(total − prefixPart)).
+    return { prefill: pre, decode: dec, lora, total: pre + dec + lora, prefixPart: pre + c.Tp * perTok, kvBytesPerToken: q.kvBytesPerToken };
   }
   function rlCore(c, r) {
     const roles = rlRoles(c, r), by = Object.fromEntries(roles.map((x) => [x.id, x]));
@@ -780,7 +790,14 @@
       policyForwardMacs: k.policyForwardMacs, scoringMacs: k.scoringMacs, policyUpdateMacs: k.policyUpdateMacs, criticUpdateMacs: k.criticUpdateMacs,
       updateMacs: k.policyUpdateMacs + k.criticUpdateMacs, trainStepMacs: k.trainStepMacs,
       referencePrecomputeMacs: c.method === 'dpo' && c.refOffload ? k.nSeq * k.by.reference.sc.fwd : 0,
-      rolloutShare: k.rolloutMacs / k.trainStepMacs, scoringShare: k.scoringMacs / k.trainStepMacs, updateShare: (k.policyUpdateMacs + k.criticUpdateMacs) / k.trainStepMacs,
+      rolloutShare: k.rolloutMacs / k.trainStepMacs,
+      // Revisión de la fase 10: con el prefill del prompt COMPARTIDO entre las G respuestas (prefix caching; lo que la página
+      // recomienda). Solo cambia GRPO (PPO genera 1 respuesta por prompt: igual a rolloutMacs). rolloutShare sigue siendo la
+      // convención de arriba (cada respuesta paga su prefill), para no mover las claves existentes.
+      rolloutMacsSharedPrefix: k.ro ? c.B * (k.ro.prefixPart + k.S * (k.ro.total - k.ro.prefixPart)) : 0,
+      rolloutShareSharedPrefix: k.ro ? (c.B * (k.ro.prefixPart + k.S * (k.ro.total - k.ro.prefixPart))) / (k.trainStepMacs - k.rolloutMacs + c.B * (k.ro.prefixPart + k.S * (k.ro.total - k.ro.prefixPart))) : 0,
+      rolloutPrefillMacsPerSeq: k.ro ? k.ro.prefixPart : 0,
+      scoringShare: k.scoringMacs / k.trainStepMacs, updateShare: (k.policyUpdateMacs + k.criticUpdateMacs) / k.trainStepMacs,
       policyTrainStepMacsPerSeq: k.by.policy.sc.total, policyForwardMacsPerSeq: k.by.policy.sc.fwd,
       gpus: fitsList(k.total), units: FT_UNITS,
       actMem: k.activationBytes, actMemPerSample: k.activationBytes / c.B, paramMem: k.weightBytes,
@@ -819,7 +836,7 @@
   const FT_UNITS = {
     trainableParams: 'params', allParams: 'params', baseParams: 'params', mergedParams: 'params', adapterParamsPerLayer: 'params', totalParams: 'params',
     policyParams: 'params', referenceParams: 'params', rewardParams: 'params', criticParams: 'params',
-    trainableShare: 'pct', rolloutShare: 'pct', scoringShare: 'pct', updateShare: 'pct',
+    trainableShare: 'pct', rolloutShare: 'pct', rolloutShareSharedPrefix: 'pct', scoringShare: 'pct', updateShare: 'pct',
     adapterBytes: 'bytes', trainableWeightBytes: 'bytes', baseWeightBytes: 'bytes', gradBytes: 'bytes', masterBytes: 'bytes', optimizerStateBytes: 'bytes', optimizerBytes: 'bytes',
     activationBytes: 'bytes', activationBytesNoCkpt: 'bytes', activationBytesCkpt: 'bytes', activationBytesPerTokenLayer: 'bytes', loraDropoutBytesPerTokenLayer: 'bytes',
     logitsBytes: 'bytes', attnScoresBytesEager: 'bytes', totalTrainMemory: 'bytes', baseWeightBytes16: 'bytes', baseWeightBytes8: 'bytes', baseWeightBytes4: 'bytes',
@@ -830,7 +847,7 @@
     forwardMacs: 'macs', backwardMacs: 'macs', backwardInputGradMacs: 'macs', backwardWeightGradMacs: 'macs', recomputeMacs: 'macs', trainStepMacs: 'macs',
     trainStepMacsRule: 'macs', macsPerToken: 'macs', adapterMacsPerToken: 'macs',
     forwardMacsPerSeq: 'macs', backwardMacsPerSeq: 'macs', recomputeMacsPerSeq: 'macs', trainStepMacsPerSeq: 'macs', backwardInputGradMacsPerSeq: 'macs', backwardWeightGradMacsPerSeq: 'macs',
-    rolloutMacs: 'macs', rolloutMacsPerSeq: 'macs', referenceMacs: 'macs', rewardMacs: 'macs', criticForwardMacs: 'macs', policyForwardMacs: 'macs', scoringMacs: 'macs',
+    rolloutMacs: 'macs', rolloutMacsPerSeq: 'macs', rolloutMacsSharedPrefix: 'macs', rolloutPrefillMacsPerSeq: 'macs', referenceMacs: 'macs', rewardMacs: 'macs', criticForwardMacs: 'macs', policyForwardMacs: 'macs', scoringMacs: 'macs',
     policyUpdateMacs: 'macs', criticUpdateMacs: 'macs', updateMacs: 'macs', referencePrecomputeMacs: 'macs', policyTrainStepMacsPerSeq: 'macs', policyForwardMacsPerSeq: 'macs',
     criticTrainStepMacsPerSeq: 'macs',
     r: 'count', alpha: 'count', targetsCount: 'count', B: 'count', T: 'count', Tp: 'count', Tr: 'count', groupSize: 'count', ppoEpochs: 'count', tokensPerStep: 'count',

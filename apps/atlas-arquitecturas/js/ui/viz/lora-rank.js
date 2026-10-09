@@ -129,13 +129,14 @@
       if (!narrow) {
         // B (d × r) a la izquierda debajo y A (r × d) a la derecha: el producto pasa por un cuello de ancho r
         const fy = y + 6, bx = xBA, ax = xBA + 14 + fw;
-        V.svg('rect', { x: r1(bx), y: r1(fy), width: r1(fw), height: r1(hs * 0.5), class: 'viz-lr-fac' }, svg);
-        t(svg, bx + fw / 2, fy + hs * 0.5 + 12, 'B', 'viz-n', 'middle');
-        V.svg('rect', { x: r1(ax), y: r1(fy), width: r1(hs * 0.5), height: r1(fw), class: 'viz-lr-fac' }, svg);
-        t(svg, ax + hs * 0.25, fy + fw + 12, 'A', 'viz-n', 'middle');
-        t(svg, ax + hs * 0.5 + 8, fy + 9, 'B: ' + N + '×' + r + ' · A: ' + r + '×' + N + ' (a escala)', 'viz-s');
-        t(svg, ax + hs * 0.5 + 8, fy + 23, 'el producto pasa por un cuello de ancho r', 'viz-s');
-        y = fy + hs * 0.5 + 24;
+        // a escala de verdad: la misma celda que los mapas en los dos ejes (antes el largo iba a la mitad)
+        V.svg('rect', { x: r1(bx), y: r1(fy), width: r1(fw), height: r1(hs), class: 'viz-lr-fac' }, svg);
+        t(svg, bx + fw / 2, fy + hs + 12, 'B', 'viz-n', 'middle');
+        V.svg('rect', { x: r1(ax), y: r1(fy), width: r1(hs), height: r1(fw), class: 'viz-lr-fac' }, svg);
+        t(svg, ax + hs * 0.5, fy + fw + 12, 'A', 'viz-n', 'middle');
+        t(svg, ax + hs + 8, fy + 9, 'B: ' + N + '×' + r + ' · A: ' + r + '×' + N + ' (a escala, como los mapas)', 'viz-s');
+        t(svg, ax + hs + 8, fy + 23, 'el producto pasa por un cuello de ancho r', 'viz-s');
+        y = fy + hs + 24;
       } else {
         t(svg, 8, y + 6, 'B: ' + N + '×' + r + ' · A: ' + r + '×' + N + ' (cuello de ancho r)', 'viz-s');
         y += 16;
@@ -184,7 +185,7 @@
       kv('90 % con r =', String(M.r90));
       kv('parámetros B·A (juguete):', fint(r * 2 * N) + ' vs ' + fint(N * N) + ' de ΔW');
       if (Dllm) kv('con W_Q de Llama 3 8B (' + fint(Dllm) + '×' + fint(Dllm) + '):', fint(r * 2 * Dllm) + ' vs ' + fint(Dllm * Dllm) + ' (' + (100 * r * 2 * Dllm / (Dllm * Dllm)).toFixed(2) + ' %)');
-      note.innerHTML = sub('Ilustrativo: un ΔW sintético con un espectro elegido, no medido en un modelo. B·A de rango r no puede hacerlo mejor que la SVD truncada (Eckart–Young); LoRA no calcula ninguna SVD: entrena B (empieza en 0) y A (gaussiana) por gradiente, así que a lo sumo llega a esto. Con un espectro que cae rápido (la hipótesis de LoRA: el cambio al adaptar tiene rango intrínseco bajo), r = 4–16 alcanza; con uno que cae lento, r chico pierde energía: es lo que miden Biderman et al. (2024) cuando el FT aprende conocimiento nuevo (código, matemática). La cuenta de parámetros es r·(d_in + d_out) por matriz' + (Dllm ? ' (el ancho ' + fint(Dllm) + ' de Llama 3 8B, del calculador)' : '') + '.');
+      note.innerHTML = sub('Ilustrativo: un ΔW sintético con un espectro elegido, no medido en un modelo. B·A de rango r no puede hacerlo mejor que la SVD truncada (Eckart–Young); LoRA no calcula ninguna SVD: entrena B (empieza en 0) y A (aleatoria: Kaiming uniforme en peft, gaussiana en el paper) por gradiente, así que a lo sumo llega a esto. Con un espectro que cae rápido (la hipótesis de LoRA: el cambio al adaptar tiene rango intrínseco bajo), r = 4–16 alcanza; con uno que cae lento, r chico pierde energía: es lo que miden Biderman et al. (2024) cuando el FT aprende conocimiento nuevo (código, matemática). La cuenta de parámetros es r·(d_in + d_out) por matriz' + (Dllm ? ' (el ancho ' + fint(Dllm) + ' de Llama 3 8B, del calculador)' : '') + '.');
     }
     stage.addEventListener('keydown', (ev) => {
       const k = ev.key;

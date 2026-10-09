@@ -156,6 +156,15 @@
   }
 
   function pct(x, decimals) { return (x * 100).toFixed(decimals === undefined ? 1 : decimals) + ' %'; }
+  // Porcentaje para prosa y tablas (fase 10, revisión): 1 decimal desde 1 %; por debajo de 1 % (y ≠ 0), 3 cifras
+  // significativas — 0.000848 → '0.0848 %', 0.005196 → '0.520 %' (con 1 decimal serían '0.1 %' y '0.5 %': −18 % y −4 %).
+  // Desde 1 % es idéntico a pct(x): 0.1234 → '12.3 %'. Lo usan quantities.js ({{metrics.…}} en %, node.….paramsPct), la
+  // práctica (fMetric) y las tablas compare (blocks.js).
+  function pctAuto(x) {
+    const p = x * 100;
+    if (p !== 0 && isFinite(p) && Math.abs(p) < 1) return p.toPrecision(3) + ' %';
+    return pct(x);
+  }
 
   // Símbolos: texto plano y LaTeX.
   const SYM_TEX = { D_mlp: 'D_{\\mathrm{mlp}}', d_h: 'd_h', 'P^2C': 'P^2C', nW: 'n_W', 'M²': 'M^2', D_t: 'D_t',
@@ -210,7 +219,7 @@
     return v.map(int).join(' + ') + ' = ' + int(total);
   }
 
-  const fmt = { int, si, ops, bytes, pct, shape: shapeStr, shapeTex, symText, symTex: symTexShape };
+  const fmt = { int, si, ops, bytes, pct, pctAuto, shape: shapeStr, shapeTex, symText, symTex: symTexShape };
 
   // ------------------------------------------------------------------ formas
   function shape(sym, num, mod, layout) {
@@ -2673,7 +2682,7 @@
     { id: 'kl_penalty', name: 'Penalización KL', paramTex: '0', macTex: '0', outTex: 'T_r,\\ T_r \\to T_r', note: 'k1 = log π − log π_ref (PPO); k3 = π_ref/π − log(π_ref/π) − 1 (GRPO): ≥ 0 y sin sesgo.' },
     { id: 'shaped_reward', name: 'Recompensa con KL', paramTex: '0', macTex: '0', outTex: 'T_r,\\ 1 \\to T_r', note: 'r_t = −β·KL_t y, en el último token, + r_φ(x, y).' },
     { id: 'gae', name: 'GAE', paramTex: '0', macTex: '0', outTex: 'T_r,\\ T_r \\to T_r,\\ T_r', note: 'δ_t = r_t + γV_{t+1} − V_t; Â_t = Σ (γλ)^k δ_{t+k}; retornos = Â + V. Necesita el crítico.' },
-    { id: 'group_advantage', name: 'Ventaja por grupo (GRPO)', paramTex: '0', macTex: '0', outTex: 'G \\to G', note: 'Â_i = (r_i − media)/std de las G respuestas al mismo prompt: reemplaza al crítico.' },
+    { id: 'group_advantage', name: 'Ventaja por grupo (GRPO)', paramTex: '0', macTex: '0', outTex: 'n_G \\to n_G', note: 'Â_i = (r_i − media)/std de las n_G respuestas al mismo prompt (la G de GRPO; en las formas, G son las cabezas KV): reemplaza al crítico.' },
     { id: 'ppo_clip_loss', name: 'Pérdida PPO-clip', paramTex: '0', macTex: '0', outTex: '\\to 1', note: '−min(ρÂ, clip(ρ, 1 − ε, 1 + ε)Â), ρ = π/π_old, ε = 0.2.' },
     { id: 'value_loss', name: 'Pérdida del crítico', paramTex: '0', macTex: '0', outTex: '\\to 1', note: '½·máx((V − R)², (V_clip − R)²).' },
     { id: 'bt_loss', name: 'Pérdida Bradley-Terry', paramTex: '0', macTex: '0', outTex: 'r_w,\\ r_l \\to 1', note: 'P(y_w ≻ y_l) = σ(r_w − r_l); pérdida −log σ(r_w − r_l). Solo importa la diferencia.' },

@@ -143,11 +143,11 @@
       t(svg, lx0 + lw, ly + lh + 14, String(STEPS), 'viz-s', 'middle');
       // leyenda de las curvas
       let lgy = ly + lh + 32;
-      // leyenda (con el presupuesto de KL; en angosto, en dos filas)
+      // leyenda (con el presupuesto de KL) en dos filas también en escritorio: en una sola, "presupuesto de KL" pasaba del viewBox
       const leg = [['viz-dp-line is-w', 'y_w (elegida)'], ['viz-dp-line is-l', 'y_l (rechazada)'], ['viz-dp-line is-kl', 'KL'], ['viz-dp-budget', narrow ? 'presupuesto (ej.)' : 'presupuesto de KL (ejemplo)']];
       let lgx = lx0;
       leg.forEach(([c, s], i) => {
-        if (narrow && i === 2) { lgx = lx0; lgy += 16; }
+        if (i === 2) { lgx = lx0; lgy += 16; }
         V.svg('path', { d: 'M' + r1(lgx) + ' ' + r1(lgy - 4) + 'h16', class: c }, svg); t(svg, lgx + 21, lgy, s, 'viz-s'); lgx += 21 + s.length * 6.6 + 14;
       });
       const y = Math.max(by + bh + 50, lgy + 12);

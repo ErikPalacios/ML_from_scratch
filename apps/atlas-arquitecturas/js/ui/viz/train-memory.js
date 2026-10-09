@@ -80,10 +80,13 @@
       const X = (v) => bx + bw * v / maxV;
       let y = 62;
       const yTop = y, barYs = [];
+      // las líneas de las GPU van DETRÁS de las barras y de los textos (que llevan halo): antes cruzaban "35.1 GB" y los rótulos
+      const gLines = V.svg('g', { class: 'viz-tm-gpus' }, svg);
       rows.forEach(({ m, met }) => {
         const cur = m.id === state.method;
         const rl = m.id === 'full' ? 'FT completo' : (m.id === 'lora' ? 'LoRA' + (state.bits === 8 ? ' 8 bits' : '') : 'QLoRA') + ' · r = ' + state.r;
-        if (narrow) { t(svg, lx, y, rl, 'viz-n' + (cur ? ' viz-tm-cur' : '')); t(svg, W - 8, y, bytes(met.totalTrainMemory), 'viz-n', 'end'); y += 5; }
+        // en angosto la barra baja 7 px bajo el rótulo: la línea de la GPU (desde la barra − 3) no toca sus descendentes
+        if (narrow) { t(svg, lx, y, rl, 'viz-n' + (cur ? ' viz-tm-cur' : '')); t(svg, W - 8, y, bytes(met.totalTrainMemory), 'viz-n', 'end'); y += 7; }
         else t(svg, lx, y + 14, rl, 'viz-n' + (cur ? ' viz-tm-cur' : ''));
         barYs.push(y);
         let x = X(0);
@@ -96,14 +99,19 @@
           x += w;
         });
         V.svg('rect', { x: r1(X(0)), y: r1(y), width: r1(X(met.totalTrainMemory) - X(0)), height: bh, class: 'viz-tm-frame' + (cur ? ' is-cur' : '') }, svg);
-        if (!narrow) t(svg, X(met.totalTrainMemory) + 6, y + 14, bytes(met.totalTrainMemory), 'viz-n');
+        if (!narrow) {
+          // total con fondo: ninguna línea de GPU cruza sus caracteres
+          const tv = bytes(met.totalTrainMemory);
+          V.svg('rect', { x: r1(X(met.totalTrainMemory) + 3), y: r1(y + 3), width: r1(tv.length * 6.6 + 6), height: 15, class: 'viz-tm-txtbg' }, svg);
+          t(svg, X(met.totalTrainMemory) + 6, y + 14, tv, 'viz-n');
+        }
         y += bh + (narrow ? 14 : 12);
       });
-      // líneas de las GPU (por encima de las barras, finas)
+      // líneas de las GPU (en su grupo, detrás); en angosto, solo sobre las barras (los rótulos de las filas van arriba de cada
+      // barra, también la primera)
       GPUS.forEach((g) => {
-        // en angosto, solo sobre las barras (los rótulos de las filas van arriba de cada barra)
-        const d = narrow ? barYs.map((by, i) => 'M' + r1(X(g)) + ' ' + r1(i ? by - 3 : yTop - 8) + 'V' + r1(by + bh + 3)).join('') : 'M' + r1(X(g)) + ' ' + r1(yTop - 8) + 'V' + r1(y - 6);
-        V.svg('path', { d, class: 'viz-tm-gpu' }, svg);
+        const d = narrow ? barYs.map((by) => 'M' + r1(X(g)) + ' ' + r1(by - 2) + 'V' + r1(by + bh + 2)).join('') : 'M' + r1(X(g)) + ' ' + r1(yTop - 8) + 'V' + r1(y - 6);
+        V.svg('path', { d, class: 'viz-tm-gpu' }, gLines);
         t(svg, X(g), yTop - 12, (g / 1e9) + ' GB', 'viz-tm-gput', 'middle');
       });
       // leyenda

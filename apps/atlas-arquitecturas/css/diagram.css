@@ -958,9 +958,11 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-bt-curve.is-p { stroke: var(--ok); }
 .viz-bt-curve.is-loss { stroke: var(--bad); }
 .viz-bt-curve.is-grad { stroke: var(--accent); stroke-dasharray: 5 3; stroke-width: 1.8; }
+.viz-bt-curve.is-pm { stroke: var(--warn); stroke-dasharray: 5 3; stroke-width: 1.8; }
 .viz-bt-pt { stroke: var(--surface); stroke-width: 2; }
 .viz-bt-pt.is-loss { fill: var(--bad); }
 .viz-bt-pt.is-grad { fill: var(--accent); }
+.viz-bt-pt.is-pm { fill: var(--warn); }
 /* dpo-vs-ppo: π_ref (contorno) y π_θ (relleno) por respuesta; log-ratios y KL en el tiempo */
 .viz-dp-grid { fill: none; stroke: var(--rule); stroke-width: 1; }
 .viz-dp-ref { fill: var(--surface); stroke-width: 1.4; stroke-dasharray: 3 2; }
@@ -1001,6 +1003,15 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-adapter-txt { font: 600 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
 .ad-adapter.is-off .ad-adapter-txt { fill: var(--muted); font-weight: 500; }
 .ad-adapter .ad-train-ico { stroke: var(--ink); }
+/* fase 10 (revisión): halo en los textos de las barras (las líneas rojas de las GPU pasan por detrás), segunda línea de la fila,
+   tira de matriz ensanchada al mínimo (no a escala: borde punteado) y nodo "fantasma" (no es otro modelo en memoria) */
+.ad-bars-lab, .ad-bars-val, .ad-bars-sub, .ad-bars-ltxt { paint-order: stroke; stroke: var(--surface-2); stroke-width: 4px; stroke-linejoin: round; }
+.ad-bars-sub { font: 500 10px var(--font-body); fill: var(--muted); }
+.ad-bars-txtbg { fill: var(--surface-2); stroke: none; }
+.ad-mat-box.is-clamped { stroke-dasharray: 2 1.5; }
+.ad-node--ghost .ad-box { stroke-dasharray: 5 3; fill-opacity: .45; }
+.viz-tm-txtbg { fill: var(--surface); stroke: none; }
+.viz-tm-stage .viz-n, .viz-tm-stage .viz-tm-gput { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
 /* train-memory: tramos de memoria (mismos colores que las barras de los diagramas), rayado de la base congelada, GPU */
 .viz-tm-seg { stroke: var(--surface); stroke-width: .8; }
 .viz-tm-seg.is-base { fill: var(--op-norm); }
