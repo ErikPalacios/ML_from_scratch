@@ -780,7 +780,8 @@
     arithmeticIntensityEncoder: { label: 'Intensidad aritmética del encoder', kind: 'intensity', note: 'FLOPs / bytes movidos' },
     Tin: { label: 'Tokens de entrada T_in', kind: 'count', note: '' },
     Tout: { label: 'Tokens de salida T_out', kind: 'count', note: '' },
-    generatedTokens: { label: 'Tokens generados', kind: 'count', note: '' },
+    generatedTokens: { label: 'Tokens generados', kind: 'count', note: 'Whisper: T_out menos los 4 del prompt' },
+    decoderForwards: { label: 'Forwards del decoder en serie', kind: 'count', note: 'el prompt entra en uno; después, uno por token' },
     relBiasParams: { label: 'Parámetros del bias de posición relativa', kind: 'count', note: 'buckets × h, uno por pila' },
     spanRawTokens: { label: 'Tokens del texto original', kind: 'count', note: 'los que caben en 512 tras la corrupción' },
     spanInputTokens: { label: 'Tokens de la entrada corrupta', kind: 'count', note: 'sin los spans, con un sentinel por span' },
@@ -801,8 +802,8 @@
     seconds: { label: 'Segundos de audio', kind: 'count', note: '' },
     paddingShare: { label: 'Relleno', kind: 'pct', note: '% del encoder gastado en relleno' },
     wastedEncoderMacs: { label: 'MACs del encoder gastados en relleno', kind: 'ops', note: '' },
-    realtimeFactor: { label: 'Factor de tiempo real (≈ H100)', kind: 'ratio', note: 'tiempo de cómputo / duración del audio' },
-    speedVsRealtime: { label: 'Veces más rápido que tiempo real (≈ H100)', kind: 'ratio', note: '1 / factor de tiempo real' },
+    realtimeFactor: { label: 'Factor de tiempo real del lote (≈ H100)', kind: 'ratio', note: 'tiempo del lote / audio del lote (B × segundos): throughput' },
+    speedVsRealtime: { label: 'Veces más rápido que tiempo real (≈ H100)', kind: 'ratio', note: 'audio del lote / tiempo del lote = 1 / factor de tiempo real' },
     actionBins: { label: 'Bins por dimensión', kind: 'count', note: 'discretización uniforme entre q01 y q99' },
     decodeSteps: { label: 'Pasos de decode por acción', kind: 'count', note: 'el primer token sale del prefill' },
     actionTokenFirst: { label: 'Primer id de token de acción', kind: 'count', note: 'los 256 ids menos usados de Llama' },
@@ -1726,8 +1727,16 @@
         let ov = null;
         if (!s.edge && s.node) {
           const outs = (spec.edges || []).filter((e) => e.from === s.node && e.tensor && (!tid || e.tensor === tid));
-          const e = outs[0] || (tid ? (spec.edges || []).find((x) => x.tensor === tid) : null);
-          if (e) { id = edgeKey(e); tid = tid || e.tensor; ov = e.ov || null; }
+          let e = outs[0] || (tid ? (spec.edges || []).find((x) => x.tensor === tid) : null);
+          // Revisión de la fase 12: si ninguna arista lleva ese tensor (Whisper: conv2-act dentro del front end), el hueco iría
+          // al NODO y pisaría su hueco de etiqueta. Se usa la arista que sale del nodo con un tensor de la MISMA forma (conv >
+          // encoder lleva x0, 1500 × D): se oculta esa etiqueta y la respuesta es la misma.
+          if (!e && tid && R && R.tensors && R.tensors[tid]) {
+            const want = shapeKey(R.tensors[tid].num);
+            e = (spec.edges || []).find((x) => x.from === s.node && x.tensor && !x.ov && R.tensors[x.tensor] && shapeKey(R.tensors[x.tensor].num) === want) || null;
+            if (e) { id = edgeKey(e); ov = null; }
+          }
+          if (e && id === s.node) { id = edgeKey(e); tid = tid || e.tensor; ov = e.ov || null; }
           const nd = nodes.find((x) => x.id === s.node);
           if (!ov && nd && nd.ov && !e) ov = nd.ov;
         }
@@ -2014,7 +2023,7 @@
       if (typeof tin === 'number' && !has('T_in')) out.push(['T_in', tin, typeof c.Tin === 'number' ? 'tokens de entrada del encoder' : 'posiciones del encoder (30 s tras el stride 2)']);
       if (!has('T_out')) out.push(['T_out', c.Tout, 'tokens de salida del decoder']);
       if (typeof c.nMels === 'number' && !has('n_mels')) out.push(['n_mels', c.nMels, 'bandas log-Mel']);
-      if (typeof c.samples === 'number' && !has('S')) out.push(['S', c.samples, 'muestras de audio (30 s a 16 kHz)']);
+      if (typeof c.samples === 'number' && !has('S')) out.push(['S', c.samples, 'muestras de audio (' + c.seconds + ' s a ' + (c.sr ? c.sr / 1000 : 16) + ' kHz' + (c.chunk && c.seconds < c.chunk ? '; el log-Mel se rellena hasta ' + c.chunk + ' s' : '') + ')']);
       if (typeof c.Ld === 'number' && c.Ld !== c.L && !has('L_d')) out.push(['L_d', c.Ld, 'capas del decoder']);
     }
     // Reranker en cascada (otro ancho que el bi-encoder): sus dimensiones van con _r (las pone el calculador al importarlo).
@@ -2626,6 +2635,9 @@
   const WI_ROWS_BY_MODEL = {
     lora: ['trainableParams', 'trainableShare', 'totalTrainMemory', 'activationBytes', 'trainStepMacs', 'fitsOn24', 'fitsOn80'],
     'rlhf-dpo': ['modelsInMemory', 'trainableParams', 'totalTrainMemory', 'gpus80Needed', 'generationTokensPerStep', 'trainStepMacs', 'rolloutShare'],
+    // Fase 12: encoder una vez + decoder por token; T_in fijo en Whisper, así que `tokens` no sirve de fila.
+    t5: ['encoderMacs', 'decoderMacsPerToken', 'totalGenerationMacs', 'encoderShare', 'crossKvBytes', 'selfKvCacheBytes', 'generationMs'],
+    whisper: ['encoderMacs', 'decoderMacsPerToken', 'totalGenerationMacs', 'encoderShare', 'crossKvBytes', 'selfKvCacheBytes', 'generationMs', 'paddingShare', 'speedVsRealtime'],
   };
   // Etiqueta de un factor COMO OPCIÓN: la misma regla para todas las opciones (correcta, distractores
   // y las del autor), así el formato no delata la respuesta: "≈" + 2 cifras significativas.

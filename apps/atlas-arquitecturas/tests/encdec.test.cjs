@@ -266,6 +266,67 @@ test('F12 span corruption: random_spans_helper(512, 0.15, 3) = 568 crudos → 51
   assert.strictEqual(A.encdec.spanLengths(50, 0.05, 3).noise, 2);
 });
 
+test('F12 span corruption: random_spans_helper de T5 para cualquier densidad y media (corrección de 0.5; rejilla de crosscheck)', () => {
+  const sc = A.encdec.spanCorruption;
+  // Las 9 combinaciones de la viz (inputs_length 512): [tokens, inputs, targets] del port literal en Python.
+  const ref = { '0.15/1': [511, 512, 155], '0.15/3': [568, 512, 114], '0.15/8': [588, 512, 100], '0.3/1': [511, 512, 307], '0.3/3': [639, 512, 257],
+    '0.3/8': [693, 512, 235], '0.5/1': [510, 512, 512], '0.5/3': [766, 512, 512], '0.5/8': [908, 512, 512] };
+  for (const [k, v] of Object.entries(ref)) {
+    const [d, m] = k.split('/').map(Number);
+    const s = sc(512, d, m);
+    assert.deepStrictEqual([s.tokens, s.inputs, s.targets], v, k);
+    assert.ok(s.inputs <= 512 && s.maskInputs <= 512 && s.maskTargets <= s.targets, k + ': nunca desborda');
+    assert.strictEqual(s.noise + s.nonNoise, s.tokens, k);
+  }
+  // Corrección de T5 con densidad 0.5: resta 1 a tokens y a targets cuando targets > inputs (sin recalcular inputs).
+  const c = sc(512, 0.5, 1);
+  assert.strictEqual(c.corrected, true);
+  assert.deepStrictEqual([c.noise, c.spans, c.maskInputs, c.maskTargets], [255, 255, 511, 511]);
+  assert.strictEqual(sc(512, 0.5, 8).corrected, false);
+  assert.strictEqual(sc(512).corrected, false);
+  // Firma (inputs_length, noise_density = 0.15, mean_noise_span_length = 3)
+  assert.deepStrictEqual(J(sc(512)), J(sc(512, 0.15, 3)));
+  assert.deepStrictEqual([sc(512).density, sc(512).meanSpan, sc(512).inputsLength], [0.15, 3, 512]);
+  assert.throws(() => sc(1), /entero ≥ 2/);
+  assert.throws(() => sc(512.5), /entero ≥ 2/);
+  assert.throws(() => sc(512, 0), /noise_density/);
+  assert.throws(() => sc(512, 1), /noise_density/);
+  assert.throws(() => sc(512, 0.15, 0), /mean_noise_span_length/);
+  // Rejilla completa contra el port literal (crosscheck/encdec.py → span_checks): 3,920 combinaciones.
+  const exp = JSON.parse(fs.readFileSync(path.join(ROOT, 'crosscheck', 'expected', 't5-base.json'), 'utf8')).span_checks;
+  assert.ok(exp && exp.rows.length >= 3000, 'span_checks en t5-base.json');
+  let n = 0;
+  for (const r of exp.rows) {
+    const [L, d, m, t, i, tg] = r.replace(':', '').split(' ').map(Number);
+    const s = sc(L, d, m);
+    assert.deepStrictEqual([s.tokens, s.inputs, s.targets], [t, i, tg], r);
+    n++;
+  }
+  assert.strictEqual(n, exp.rows.length);
+});
+
+test('F12 Whisper: RTF de throughput (B clips), prompt en un forward, T_out ≤ prompt rechazado', () => {
+  const w1 = A.metrics('whisper-small', {}), w32 = A.metrics('whisper-small', { B: 32 });
+  assert.ok(Math.abs(w1.realtimeFactor - w1.generationMs / 30000) < 1e-15);
+  assert.ok(Math.abs(w32.realtimeFactor - w32.generationMs / (30000 * 32)) < 1e-15);
+  assert.ok(w32.speedVsRealtime > w1.speedVsRealtime, 'el lote procesa más audio por segundo');
+  assert.ok(w32.generationMs > w1.generationMs, 'la latencia del lote sube');
+  // 4 tokens del prompt en un forward + 124 de a uno
+  assert.deepStrictEqual([w1.generatedTokens, w1.decoderForwards], [124, 125]);
+  const t = A.metrics('t5-base', {});
+  assert.deepStrictEqual([t.generatedTokens, t.decoderForwards], [114, 114]);
+  // T_out ≤ 4: solo el prompt; nada negativo y una nota que lo dice
+  for (const T of [2, 4]) {
+    const m = A.metrics('whisper-small', { Tout: T });
+    assert.deepStrictEqual([m.generatedTokens, m.decoderForwards], [0, 1], 'T_out ' + T);
+    assert.match(A.run('whisper-small', { Tout: T }).notes.join(' '), /solo posiciones del prompt/);
+  }
+  assert.deepStrictEqual([A.metrics('whisper-small', { Tout: 5 }).generatedTokens, A.metrics('whisper-small', { Tout: 5 }).decoderForwards], [1, 2]);
+  // El prefill del prompt cuesta lo mismo en MACs y menos (o igual) en tiempo que 4 pasos en serie.
+  const w = A.metrics('whisper-small', { Tout: 16 });
+  assert.ok(w.decoderMs > 0 && w.decoderMs < A.metrics('whisper-small', { Tout: 17 }).decoderMs);
+});
+
 test('F12 contrato §6.7 y totals.byPath coherentes en las 12 configs (y con knobs)', () => {
   const children = (r, pp) => {
     const out = new Set();

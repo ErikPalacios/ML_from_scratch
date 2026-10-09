@@ -523,7 +523,7 @@
   add(model({
     id: 'whisper', block: 2, num: 7, phase: 12, family: 'encdec',
     title: 'Whisper — audio a texto', titleEn: 'Whisper: robust speech recognition', short: 'Whisper',
-    summary: 'Encoder-decoder sobre el espectrograma log-mel de 30 s de audio, entrenado con supervisión débil a gran escala. Usa el encoder-decoder del Transformer original: es hermano de T5, no su descendiente (ni span corruption ni relative position bias).',
+    summary: 'Encoder-decoder sobre el espectrograma log-mel de 30 s de audio, entrenado con supervisión débil a gran escala. Usa un encoder-decoder Transformer estándar (pre-LN, GELU) sin cambios de arquitectura: es hermano de T5, no su descendiente (ni span corruption ni relative position bias).',
     topics: [
       'Log-mel spectrogram y convoluciones de entrada',
       'Tokens especiales de tarea e idioma',

@@ -269,6 +269,16 @@ export function compareConfig(A, exp) {
     const bad = calc.findIndex((v, i) => v !== bc.ref[i]);
     push('buckets T5 [' + bc.what + '] ' + bc.range.join('…'), bad < 0 ? calc.length + ' iguales' : 'rel ' + (bc.range[0] + bad) + ' → ' + calc[bad], bad < 0 ? calc.length + ' iguales' : bc.ref[bad], bad < 0 && calc.length === bc.ref.length);
   }
+  // Fase 12 (T5). span_checks: random_spans_helper de T5 (port literal en crosscheck/encdec.py) ↔ A.encdec.spanCorruption
+  // (tokens, inputs, targets) en cada fila de la rejilla.
+  if (exp.span_checks) {
+    const sc = exp.span_checks;
+    const rows = sc.rows.map((r) => r.replace(':', '').split(' ').map(Number));
+    const bad = rows.find((r) => { const s = A.encdec.spanCorruption(r[0], r[1], r[2]); return s.tokens !== r[3] || s.inputs !== r[4] || s.targets !== r[5]; });
+    const s0 = bad && A.encdec.spanCorruption(bad[0], bad[1], bad[2]);
+    push('span corruption [' + sc.what + ']', bad ? '(' + bad.slice(0, 3).join(', ') + ') → ' + [s0.tokens, s0.inputs, s0.targets].join(' / ') : rows.length + ' iguales',
+      bad ? bad.slice(3).join(' / ') : rows.length + ' iguales', !bad && rows.length > 0);
+  }
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);

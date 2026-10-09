@@ -7,7 +7,8 @@
    punto elegido (encoder · K, V cruzadas · decoder) en MACs o en tiempo ≈ (cota de roofline en una H100).
    TODOS los números salen del calculador: ATLAS.Arch.metrics(config, {Tout, Tin | seconds}) en cada punto de la curva
    (totalGenerationMacs, encoderMacs, crossKvMacs, generationDecoderMacs, encoderMs, crossKvMs, decoderMs, encoderVsToken,
-   paddingShare, wastedEncoderMacs). Lo único derivado aquí: la curva sin caché = total + crossKvMacs · (t − 1).
+   paddingShare, wastedEncoderMacs). Lo único derivado aquí: la curva sin caché = total + crossKvMacs · (t − 1), y el cruce
+   decoder = encoder (el primer t con generationDecoderMacs ≥ encoderMacs, por búsqueda binaria en el calculador).
    params: { model:'t5'|'whisper' | config:'<id>', Tout, Tin (T5), seconds (Whisper), unit:'macs'|'ms' }
    No toca el DOM al cargar.
    ========================================================================== */
@@ -102,14 +103,16 @@
       const tot = enc + ckv + dec;
       const head = (A.configs().find((x) => x.id === state.cfg) || {}).label || state.cfg;
       t(svg, 8, 15, (narrow ? head : 'Generar con ' + head) + ': T_out = ' + state.Tout + (state.model === 't5' ? ', T_in = ' + state.Tin : ', ' + state.seconds + ' s de audio'), 'viz-t');
-      t(svg, 8, 29, isMs ? (narrow ? 'tiempo ≈ (cota, H100)' : 'tiempo ≈: cota de roofline del calculador en una H100, sin overheads (no es una medición)') : (narrow ? 'MACs (del calculador)' : 'MACs del calculador: el encoder una vez, el decoder una vez por token'), 'viz-s');
+      t(svg, 8, 31, isMs ? (narrow ? 'tiempo ≈ (cota, H100)' : 'tiempo ≈: cota de roofline del calculador en una H100, sin overheads (no es una medición)') : (narrow ? 'MACs (del calculador)' : 'MACs del calculador: el encoder una vez, el decoder una vez por token'), 'viz-s');
       // ---- barra del punto elegido
       const lx = 8, bw = W - 16, barH = 20;
       let y = 42;
+      const nFwd = Number.isFinite(m.decoderForwards) ? m.decoderForwards : state.Tout;
       const parts = [
         { v: enc, label: state.model === 'whisper' ? 'encoder + front end (× 1)' : 'encoder (× 1)', short: 'encoder × 1', cls: 'is-enc' },
         { v: ckv, label: 'K, V de la cross (× 1)', short: 'K, V cruzadas × 1', cls: 'is-ckv' },
-        { v: dec, label: 'decoder (× ' + state.Tout + ' tokens)', short: 'decoder × ' + state.Tout, cls: 'is-dec' },
+        // revisión fase 12: pasos del decoder del calculador (Whisper: el prompt de 4 tokens en un forward → T_out − 3 pasos)
+        { v: dec, label: 'decoder (× ' + nFwd + ' pasos)', short: 'decoder × ' + nFwd, cls: 'is-dec' },
       ];
       let x = lx;
       parts.forEach((p) => { const w = tot > 0 ? bw * p.v / tot : 0; if (w > 0) V.svg('rect', { x: r1(x), y, width: r1(Math.max(w, 1)), height: barH, class: 'viz-edc-seg ' + p.cls }, svg); x += w; });
@@ -119,7 +122,12 @@
       parts.forEach((p) => {
         const s = (narrow ? p.short : p.label) + ': ' + fv(p.v) + ' · ' + pct(p.v);
         if (narrow) { y += 14; V.svg('rect', { x: lx, y: r1(y - 9), width: 9, height: 9, class: 'viz-edc-seg ' + p.cls }, svg); t(svg, lx + 13, y, s, 'viz-s'); }
-        else { V.svg('rect', { x: r1(lx2), y: r1(y + 4), width: 9, height: 9, class: 'viz-edc-seg ' + p.cls }, svg); t(svg, lx2 + 13, y + 13, s, 'viz-s'); lx2 += 13 + s.length * 6.4 + 16; }
+        else {
+          // revisión fase 12: la fila envuelve si no cabe (Whisper: "decoder (× 128 tokens): … · 10 %" se cortaba en x = 919)
+          const sw = 13 + s.length * 6.6;
+          if (lx2 > lx && lx2 + sw > W - 8) { lx2 = lx; y += 16; }
+          V.svg('rect', { x: r1(lx2), y: r1(y + 4), width: 9, height: 9, class: 'viz-edc-seg ' + p.cls }, svg); t(svg, lx2 + 13, y + 13, s, 'viz-s'); lx2 += sw + 16;
+        }
       });
       y += narrow ? 26 : 38;
       // ---- curva: costo acumulado al generar t tokens (t = 0 … máx.), con y sin la caché de K, V cruzadas
@@ -134,38 +142,63 @@
         // sin caché cruzada: las K, V de la cross se recalculan en cada token (solo en MACs: el tiempo dependería de cómo se lance)
         pts.push({ t: tt, v, nc: isMs || !state.nocache ? null : v + mm.crossKvMacs * (tt - 1) });
       }
-      const ch = narrow ? 150 : 190, cx0 = lx + (narrow ? 46 : 64), cwid = W - cx0 - 16, cy0 = y + 14;
+      // revisión fase 12: marcas del eje y compactas (3 cifras: "283 G", "4.02 T"; la unidad va en el título del gráfico): con
+      // fmt.si ("283.28 G") la etiqueta empezaba en x = −4 a ≤ 640 px
+      const ch = narrow ? 150 : 190, cx0 = lx + (narrow ? 44 : 52), cwid = W - cx0 - 16, cy0 = y + 14;
+      const tick = (v) => {
+        if (isMs) return ms(v);
+        const u = [[1e18, 'E'], [1e15, 'P'], [1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'K']].find((x) => v >= x[0]);
+        return u ? String(Number((v / u[0]).toPrecision(3))) + ' ' + u[1] : String(Math.round(v));
+      };
       const vmax = Math.max.apply(null, pts.map((p) => Math.max(p.v, p.nc || 0))) * 1.05 || 1;
       const X = (tt) => cx0 + cwid * tt / tMax, Y = (v) => cy0 + ch - ch * v / vmax;
-      t(svg, lx, y + 2, narrow ? 'acumulado al generar t tokens' : 'costo acumulado al generar t tokens (el escalón en t = 0: encoder + K, V cruzadas)', 'viz-s');
+      t(svg, lx, y + 2, (narrow ? 'acumulado' : 'costo acumulado') + (isMs ? ' (ms)' : ' (MACs)') + ' al generar t tokens' + (narrow ? '' : ' (el escalón en t = 0: encoder + K, V cruzadas)'), 'viz-s');
       V.svg('rect', { x: r1(cx0), y: r1(cy0), width: r1(cwid), height: ch, class: 'viz-rl-box' }, svg);
-      [0, 0.5, 1].forEach((f) => { const yy = cy0 + ch - ch * f; t(svg, cx0 - 5, yy + 4, f === 0 ? '0' : isMs ? ms(vmax * f) : (fmt.si ? fmt.si(vmax * f) : ops(vmax * f)), 'viz-s', 'end'); if (f > 0 && f < 1) V.svg('path', { d: 'M' + r1(cx0) + ' ' + r1(yy) + 'H' + r1(cx0 + cwid), class: 'viz-rl-grid' }, svg); });
+      [0, 0.5, 1].forEach((f) => { const yy = cy0 + ch - ch * f; t(svg, cx0 - 5, yy + 4, f === 0 ? '0' : tick(vmax * f), 'viz-s', 'end'); if (f > 0 && f < 1) V.svg('path', { d: 'M' + r1(cx0) + ' ' + r1(yy) + 'H' + r1(cx0 + cwid), class: 'viz-rl-grid' }, svg); });
       // franja del encoder (fija)
       const e0 = pts[0] ? pts[0].v : 0;
       V.svg('rect', { x: r1(cx0), y: r1(Y(e0)), width: r1(cwid), height: r1(cy0 + ch - Y(e0)), class: 'viz-edc-band' }, svg);
-      t(svg, cx0 + 6, Math.min(cy0 + ch - 6, Y(e0) + 14), narrow ? 'encoder + K, V (× 1)' : 'encoder + K, V cruzadas: se pagan una vez', 'viz-edc-bandt');
+      // revisión fase 12: con "sin guardar" la escala sube a T y la franja queda de pocos px: su rótulo caía sobre el punto elegido.
+      // Si la franja no le da lugar (< 18 px), el rótulo va a la leyenda de abajo
+      const bandLab = narrow ? 'encoder + K, V (× 1)' : 'encoder + K, V cruzadas: se pagan una vez';
+      const bandIn = cy0 + ch - Y(e0) >= 18;
+      if (bandIn) t(svg, cx0 + 6, Math.min(cy0 + ch - 6, Y(e0) + 14), bandLab, 'viz-edc-bandt');
       const ln = pts.map((p, i) => (i ? 'L' : 'M') + r1(X(p.t)) + ' ' + r1(Y(p.v))).join('');
       V.svg('path', { d: 'M' + r1(X(0)) + ' ' + r1(cy0 + ch) + 'L' + r1(X(0)) + ' ' + r1(Y(e0)) + ln.replace(/^M/, 'L'), class: 'viz-edc-line' }, svg);
       const nc = pts.filter((p) => p.nc != null);
       if (nc.length > 1) V.svg('path', { d: nc.map((p, i) => (i ? 'L' : 'M') + r1(X(p.t)) + ' ' + r1(Y(p.nc))).join(''), class: 'viz-edc-nc' }, svg);
       // eje x y punto elegido
       // etiquetas del eje x: los valores del knob que no se pisan (≥ 26 px entre sí)
-      let lastX = -1e9;
-      [0].concat(M.Tout.filter((v) => v <= tMax)).forEach((v) => { const xx = X(v); if (xx - lastX < 26 && v !== state.Tout) return; t(svg, xx, cy0 + ch + 14, String(v), v === state.Tout ? 'viz-n' : 'viz-s', 'middle'); lastX = xx; });
+      // revisión fase 12: el valor elegido siempre; los demás solo si quedan a ≥ 26 px de todos los ya puestos ("0" y "16" se pisaban a 340 px)
+      const xv = [0].concat(M.Tout.filter((v) => v <= tMax)), kept = [state.Tout];
+      xv.forEach((v) => { if (v !== state.Tout && kept.every((k) => Math.abs(X(k) - X(v)) >= 26)) kept.push(v); });
+      xv.filter((v) => kept.indexOf(v) >= 0).forEach((v) => t(svg, X(v), cy0 + ch + 14, String(v), v === state.Tout ? 'viz-n' : 'viz-s', 'middle'));
       t(svg, cx0 + cwid, cy0 + ch + 30, 'tokens generados t', 'viz-s', 'end');
       const cur = { t: state.Tout, v: tot };
       V.svg('circle', { cx: r1(X(cur.t)), cy: r1(Y(cur.v)), r: 5, class: 'viz-edc-pt' }, svg);
-      // dónde el decoder alcanza al encoder (en MACs: encoderVsToken tokens)
-      const cross = m.encoderVsToken;
+      // dónde el decoder alcanza al encoder (en MACs)
+      // revisión fase 12: el primer t en que el decoder acumulado (generationDecoderMacs) alcanza al encoder, buscado en el
+      // calculador (antes, encoderVsToken del T_out elegido: se movía con el chip, 339–362 para un cruce real de 355 en T5-Base)
+      let cross = NaN;
+      if (!isMs) {
+        const m1 = met(state, tMax);
+        if (m1 && m1.generationDecoderMacs >= m1.encoderMacs) {
+          let lo = 1, hi = tMax;
+          while (lo < hi) { const mid = (lo + hi) >> 1, mm = met(state, mid); if (mm && mm.generationDecoderMacs >= mm.encoderMacs) hi = mid; else lo = mid + 1; }
+          cross = lo;
+        }
+      }
       if (!isMs && Number.isFinite(cross) && cross <= tMax) {
         V.svg('path', { d: 'M' + r1(X(cross)) + ' ' + r1(cy0) + 'V' + r1(cy0 + ch), class: 'viz-edc-x' }, svg);
-        t(svg, X(cross) - 4, cy0 + 12, narrow ? '≈ ' + Math.round(cross) : 'decoder = encoder en ≈ ' + Math.round(cross) + ' tokens', 'viz-s', 'end');
+        t(svg, X(cross) - 4, cy0 + 12, narrow ? 't = ' + cross : 'decoder ≥ encoder desde t = ' + cross, 'viz-s', 'end');
       }
       y = cy0 + ch + 50;
       // leyenda de líneas
       let lg = lx;
-      [['viz-edc-line', 'con las K, V cruzadas guardadas'], ...(isMs || !state.nocache ? [] : [['viz-edc-nc', 'recalculándolas en cada token']])].forEach(([cls, lab]) => {
-        V.svg('path', { d: 'M' + r1(lg) + ' ' + r1(y - 4) + 'h18', class: cls }, svg);
+      [['viz-edc-line', 'con las K, V cruzadas guardadas'], ...(isMs || !state.nocache ? [] : [['viz-edc-nc', 'recalculándolas en cada token']]), ...(bandIn ? [] : [['viz-edc-band', bandLab]])].forEach(([cls, lab]) => {
+        if (!narrow && lg > lx && lg + 24 + lab.length * 6.4 > W - 8) { lg = lx; y += 15; }
+        if (cls === 'viz-edc-band') V.svg('rect', { x: r1(lg), y: r1(y - 9), width: 18, height: 10, class: cls }, svg);
+        else V.svg('path', { d: 'M' + r1(lg) + ' ' + r1(y - 4) + 'h18', class: cls }, svg);
         t(svg, lg + 24, y, lab, 'viz-s');
         lg += 24 + lab.length * 6.4 + 18;
         if (narrow) { lg = lx; y += 15; }

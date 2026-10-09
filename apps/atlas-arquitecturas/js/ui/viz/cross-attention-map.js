@@ -135,7 +135,9 @@
         for (let s = 0; s <= span + 1e-9; s += step) { const xx = gx + (s / binS()) * cs; t(svg, xx, gy - 8, (Math.round(s * 10) / 10) + ' s', 'viz-xam-col', s === 0 ? 'start' : Math.abs(s - span) < 1e-9 ? 'end' : 'middle'); V.svg('path', { d: 'M' + r1(xx) + ' ' + r1(gy - 4) + 'V' + r1(gy), class: 'viz-xam-tick' }, svg); }
         const pe = gx + (ex.speechEnd / binS()) * cs;
         V.svg('rect', { x: r1(pe), y: r1(gy + nR * ch + 4), width: r1(gx + nC * cs - pe), height: 8, class: 'viz-xam-pad' }, svg);
-        t(svg, (pe + gx + nC * cs) / 2, gy + nR * ch + 24, state.zoom ? 'relleno →' : narrow ? 'relleno hasta 30 s' : 'relleno (silencio) hasta completar 30 s: casi sin atención', 'viz-s', 'middle');
+        // revisión fase 12: "relleno →" (zoom) anclado a su final: centrado en un tramo angosto se salía a la derecha a 375 px
+        if (state.zoom) t(svg, gx + nC * cs, gy + nR * ch + 24, 'relleno →', 'viz-s', 'end');
+        else t(svg, (pe + gx + nC * cs) / 2, gy + nR * ch + 24, narrow ? 'relleno hasta 30 s' : 'relleno (silencio) hasta completar 30 s: casi sin atención', 'viz-s', 'middle');
         V.svg('rect', { x: r1(gx), y: r1(gy + nR * ch + 4), width: r1(pe - gx), height: 8, class: 'viz-xam-speech' }, svg);
         t(svg, gx, gy + nR * ch + 24, 'voz', 'viz-s');
       }
@@ -164,9 +166,10 @@
       t(svg, 8, y, 'Paso ' + (state.step + 1) + ' ("' + curTok + '"): ' + Math.round(100 * order[0][0]) + ' % en ' + colName(order[0][1]) + (narrow ? '' : ', ' + Math.round(100 * order[1][0]) + ' % en ' + colName(order[1][1])), 'viz-n');
       y += 16;
       if (info && info.Tin) {
+        // revisión fase 12: versión corta a ≤ 640 px (las largas terminaban en 430 / 549 px de 314)
         const s = key === 't5'
-          ? 'En ' + info.label + ': cada fila es una softmax sobre T_in = ' + fint(info.Tin) + ' posiciones'
-          : 'En ' + info.label + ': cada fila mira las ' + fint(info.Tin) + ' posiciones del encoder (una cada 20 ms)';
+          ? (narrow ? info.label + ': softmax sobre T_in = ' + fint(info.Tin) : 'En ' + info.label + ': cada fila es una softmax sobre T_in = ' + fint(info.Tin) + ' posiciones')
+          : (narrow ? info.label.replace(/^Whisper /, '') + ': ' + fint(info.Tin) + ' posiciones (20 ms)' : 'En ' + info.label + ': cada fila mira las ' + fint(info.Tin) + ' posiciones del encoder (una cada 20 ms)');
         t(svg, 8, y, s, 'viz-s'); y += 14;
       }
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + r1(y + 4));

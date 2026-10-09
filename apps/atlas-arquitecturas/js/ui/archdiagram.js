@@ -1353,7 +1353,8 @@
       if (n.xref && n.xref.length && ctl.mode === 'full') {
         used.xref = true;
         // arriba a la derecha, por dentro (abajo a la derecha va la marca de "se abre"; abajo, las filas internas)
-        const xr = r.x + r.w - 13, yb = r.y + 13 + (n.train && n.trainPill !== false ? 9 : 0);   // con la píldora congelado/entrena, debajo de ella
+        // fase 12 (revisión): node.xrefBelow = con la píldora de "veces que corre" encima, la flecha baja 5 px (la píldora la tapaba)
+        const xr = r.x + r.w - 13, yb = r.y + 13 + (n.train && n.trainPill !== false ? 9 : 0) + (n.xrefBelow && n.runs ? 5 : 0);   // con la píldora congelado/entrena, debajo de ella
         const xm = S('g', { class: 'ad-xref-mark' }, g);
         S('path', { d: 'M' + P([xr, yb]) + 'l8,-8M' + P([xr + 3, yb - 8]) + 'h5v5', class: 'ad-expand-ico' }, xm);
       }
@@ -2542,6 +2543,9 @@
     // fase 10 (revisión): y si un extremo es un hueco de nombre o de tipo, la arista no dice qué tensor es (su descripción lo
     // nombraba: "ΔW·x = (α/r)·B·A·x" entre los huecos de A, B y la escala; "Referencia · log-probs…" saliendo del hueco)
     else if (t && !isMap && ctl.mode === 'blank' && [e.from, e.to].some((id) => { const sl = slotFor(ctl, id); return sl && (sl.ask === 'label' || sl.ask === 'op'); })) g.setAttribute('aria-label', 'Tensor' + (blankShapeHidden(ctl, t, ge.key + '@' + e.tensor) ? '' : ', ' + shapeText(t, 'num')) + fromTo());
+    // fase 12 (revisión): edge.aria = descripción propia cuando el rótulo del tensor del calculador no corresponde al dibujo (el
+    // span corruption usa el tensor de ids de la vista general, cuyo rótulo es el ejemplo de traducción)
+    else if (t && !isMap && e.aria) g.setAttribute('aria-label', e.aria + fromTo());
     else if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? plainSub(qText(e.tag, ctl, ctl.building)) + ': ' : '') + plainSub(t.label || e.tensor) + (blankShapeHidden(ctl, t, ge.key + '@' + e.tensor) ? '' : ', ' + shapeSay(t)) + fromTo());
     // arista de control con etiqueta (sin tensor): el lector de pantalla oye qué decide y entre qué bloques
     // fase 9: en una vista sin calculador (calc:false) las aristas de datos tampoco tienen tensor: también dicen su etiqueta
@@ -2738,7 +2742,10 @@
     if ((!opts || opts.withShapes !== false) && view.spec.kind !== 'map' && view.run && (view.spec.edges || []).length) {
       const li = H('div', { class: 'ad-leg-item ad-leg-shape', role: 'listitem' }, wrap);
       // Ejemplo con la primera arista de datos con tensor de ESTA vista (antes: un ejemplo fijo de ViT).
-      const run = view.run, de = (view.spec.edges || []).find((e) => (e.kind || 'data') === 'data' && e.tensor && run && run.tensors[e.tensor]);
+      // fase 12 (revisión): spec.legendShapeEdge = 'from>to' elige la arista del ejemplo (la primera de Whisper es 480000 / 480000:
+      // símbolo y número iguales, no enseña nada)
+      const okE = (e) => (e.kind || 'data') === 'data' && e.tensor && run && run.tensors[e.tensor];
+      const run = view.run, de = (view.spec.legendShapeEdge && (view.spec.edges || []).find((e) => e.from + '>' + e.to === view.spec.legendShapeEdge && okE(e))) || (view.spec.edges || []).find(okE);
       const ex = de ? run.tensors[de.tensor] : null;
       H('span', { class: 'ad-leg-mono' }, li, ex ? '<b>' + htmlSub(shapeText(ex, 'sym')) + '</b> / ' + esc(shapeText(ex, 'num')) : '<b>N×D</b> / 197×768');
       H('span', { text: 'forma: símbolos / números (sin batch)' }, li);
@@ -3491,7 +3498,10 @@
         return false;
       };
       if (t.node) {
-        const e = fwd ? edges.find((x) => x.from === t.node) : edges.find((x) => x.to === t.node);
+        // fase 12 (revisión): si no sale ninguna arista con forma (una cadena de control: los tokens especiales de Whisper, el
+        // texto crudo del span corruption), sigue por cualquier arista; goEdge falla en la de control y se enfoca el nodo vecino
+        const anyE = (list) => (fwd ? list.find((x) => x.from === t.node) : list.find((x) => x.to === t.node));
+        const e = anyE(edges) || anyE(ctl.view.spec.edges || []);
         if (!e) return;
         if (!goEdge(e)) { const n = ctl.view.nodeEls[fwd ? e.to : e.from]; if (n) n.focus(); }
       } else if (t.edge) {

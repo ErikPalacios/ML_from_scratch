@@ -465,10 +465,20 @@ test('fase 6 (revisión): ov en huecos y drills de formas, configs de decode, hu
       const k = P._blankKey(b);
       const ds = k.slots.map((s) => s.desc);
       assert.strictEqual(new Set(ds).size, ds.length, b.diagram + ': ' + ds.join(' | '));
+      // Revisión de la fase 12: dos huecos en el mismo lugar se pisan (el segundo borra el marcador del primero).
+      const ids = k.slots.map((s) => s.id);
+      assert.strictEqual(new Set(ids).size, ids.length, b.diagram + ': huecos repetidos ' + ids.join(' | '));
       nb++;
     });
   }
   assert.ok(nb >= 10, 'diagramas en blanco: ' + nb);
+  // Un hueco de forma sobre un tensor que ninguna arista lleva (Whisper: conv2-act, dentro del front end) va a la arista que
+  // sale del nodo con la MISMA forma (conv > encoder: e-x0, 1500 × D), no al nodo (donde pisaría el hueco de etiqueta).
+  {
+    const k = P._blankKey({ diagram: 'whisper-overview', slots: [{ node: 'conv', ask: 'label' }, { node: 'conv', tensor: 'conv2-act', ask: 'shape' }] });
+    assert.deepStrictEqual(Array.from(k.slots, (s) => s.id), ['conv', 'conv>encoder']);
+    assert.strictEqual(k.slots[1].correct.id, A.run('whisper-small').tensors['conv2-act'].num.join('×'));
+  }
   // Knobs de bits del LLM: pesos y KV por separado.
   assert.strictEqual(P._knobLabel('bits', 'llm'), 'Bits de los pesos');
   assert.strictEqual(P._knobLabel('kvBits', 'llm'), 'Bits de la KV cache');

@@ -18,6 +18,9 @@ distil-whisper-large-v3}.json y las configs de decode {t5-base-decode,whisper-sm
 - Buckets de posición relativa: T5Attention._relative_position_bucket de HF en CPU (int64 reales) para −600 … 600, bidireccional
   y causal (↔ ATLAS.Arch.t5RelativeBucket).
 - Whisper: WhisperFeatureExtractor(feature_size = n_mels) sobre audio de 30 s y de 5 s (ceros): 3,000 frames en los dos (relleno).
+- Span corruption: port literal de random_spans_helper (t5/data/preprocessors.py del repo de T5, un centinela por span en
+  entrada y objetivo; el paquete t5 no se instala) sobre una rejilla de inputs_length × noise_density × mean_noise_span_length
+  (↔ ATLAS.Arch.encdec.spanCorruption: tokens, inputs y targets, con la corrección de noise_density == 0.5).
 
 Uso: .venv/bin/python crosscheck/encdec.py
 """
@@ -374,6 +377,36 @@ def bucket_checks():
     return out
 
 
+def random_spans_helper(inputs_length, noise_density, mean_noise_span_length,
+                        extra_tokens_per_span_inputs=1, extra_tokens_per_span_targets=1):
+    """Port literal de t5/data/preprocessors.py::random_spans_helper (google-research/text-to-text-transfer-transformer).
+    Devuelve (tokens_length, inputs_length, targets_length): los dos que retorna T5 y el inputs_length que registra con verbose."""
+    def _tokens_length_to_inputs_length_targets_length(tokens_length):
+        num_noise_tokens = int(round(tokens_length * noise_density))
+        num_nonnoise_tokens = tokens_length - num_noise_tokens
+        num_noise_spans = int(round(num_noise_tokens / mean_noise_span_length))
+        return (num_nonnoise_tokens + num_noise_spans * extra_tokens_per_span_inputs + 1,
+                num_noise_tokens + num_noise_spans * extra_tokens_per_span_targets + 1)
+    tokens_length = inputs_length - 1
+    while _tokens_length_to_inputs_length_targets_length(tokens_length + 1)[0] <= inputs_length:
+        tokens_length += 1
+    inputs_length, targets_length = _tokens_length_to_inputs_length_targets_length(tokens_length)
+    if noise_density == 0.5 and targets_length > inputs_length:
+        tokens_length -= 1
+        targets_length -= 1
+    return tokens_length, inputs_length, targets_length
+
+
+def span_checks():
+    lengths = list(range(2, 41)) + [64, 100, 128, 256, 511, 512, 513, 568, 1024, 2048]
+    densities = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.75]
+    means = [1, 2, 2.5, 3, 4, 5, 8, 10]
+    # Una fila por combinación, en texto compacto: "inputs_length noise_density mean_span: tokens inputs targets".
+    rows = ["%d %s %s: %d %d %d" % ((L, d, m) + random_spans_helper(L, d, m)) for L in lengths for d in densities for m in means]
+    return {"what": "random_spans_helper de T5 (port literal), " + str(len(rows)) + " combinaciones",
+            "format": "inputs_length noise_density mean_noise_span_length: tokens inputs targets", "rows": rows}
+
+
 def mel_checks(mels):
     fe = WhisperFeatureExtractor(feature_size=mels)
     res = {}
@@ -410,6 +443,7 @@ def run(cid, kind):
                                     "shapes": {k: sh2[k] for k in ("e-x0", "e-scores", "e-bias", "d-scores", "d-bias", "c-scores", "c-k-heads", "logits") if k in sh2}}]
         if cid == "t5-base":
             data["bucket_checks"] = bucket_checks()
+            data["span_checks"] = span_checks()
         notes.append("Sin escalado 1/√d_h en QKᵀ (T5Attention.scaling = 1.0); el sesgo relativo (tabla 32 × h) solo existe en la capa 0 de cada stack y se reusa.")
         if c.get("gated"):
             notes.append("flan-t5-base: T5Config de transformers 5.x fuerza tie_word_embeddings = True; lm_head se desata a mano (como queda al cargar el checkpoint, donde lm_head ≠ shared). scale_decoder_outputs = False (sin d^-0.5).")

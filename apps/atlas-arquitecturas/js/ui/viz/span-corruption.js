@@ -8,10 +8,12 @@
    máscaras al azar de T5 siempre terminan en un tramo corrompido, así que su objetivo no lo lleva.
    El muestreo de tramos es el del código de T5 (random_spans_noise_mask, el mismo de HF run_t5_mlm_flax.py): n_ruido =
    round(n·densidad), n_tramos = round(n_ruido / largo medio), y los tokens con y sin ruido se parten en tramos al azar y se
-   intercalan empezando por uno SIN ruido. El cálculo de largos (compute_input_and_target_lengths) es el mismo código: con 512
-   tokens de entrada, el texto original mide 568 y el objetivo 114 (densidad 0.15, largo medio 3): esos tres números los lee del
-   calculador (metrics de t5-base); con otra densidad o largo medio, los calcula con el mismo código.
-   Lo ilustrativo: el texto (palabras como tokens; T5 usa SentencePiece) y la semilla. El ejemplo del paper es la Figura 2.
+   intercalan empezando por uno SIN ruido. Los largos (random_spans_helper / compute_input_and_target_lengths): con 512 tokens
+   de entrada, el texto original mide 568 y el objetivo 114 (densidad 0.15, largo medio 3): esos tres números los lee del
+   calculador (metrics de t5-base); con otra densidad o largo medio, llama a la MISMA función del calculador
+   (ATLAS.Arch.encdec.spanCorruption: redondeo de Python, búsqueda desde inputs_length − 1 y la corrección de densidad 0.5).
+   Lo ilustrativo: el texto (palabras como tokens; T5 usa SentencePiece) y la semilla. El ejemplo del paper es la Figura 2, que
+   muestra el objetivo baseline (ruido i.i.d., §3.1.4); el T5 final usa el mismo formato con tramos de largo medio 3 (§3.3.4).
    params: { mode:'paper'|'random', density:0.15, span:3, seed:1 }
    No toca el DOM al cargar.
    ========================================================================== */
@@ -52,19 +54,10 @@
     }
     return mask.slice(0, n);
   }
-  // compute_input_and_target_lengths (T5 / HF): el largo del texto original para que la entrada corrompida mida `inLen`
-  function lengthsFor(inLen, density, meanSpan) {
-    const f = (L) => {
-      const nNoise = Math.round(L * density), nKeep = L - nNoise, nSpans = Math.round(nNoise / meanSpan);
-      return [nKeep + nSpans + 1, nNoise + nSpans + 1];
-    };
-    let L = inLen;
-    while (f(L + 1)[0] <= inLen) L++;
-    const [i, t] = f(L);
-    return { raw: L, input: i, target: t };
-  }
   // largos del pre-entrenamiento: del calculador (metrics de t5-base: spanRawTokens / spanInputTokens / spanTargetTokens, con 15 % y
-  // largo medio 3). Con otra densidad o largo, el mismo cálculo de T5 sobre la entrada del calculador; sin el modelo, la del paper (512).
+  // largo medio 3). Con otra densidad o largo, la función del calculador (random_spans_helper de T5) sobre la misma entrada.
+  // revisión fase 12: antes había aquí una copia (Math.round, búsqueda desde inputs_length y sin la corrección de 0.5) que daba
+  // 5 de las 9 combinaciones mal (p. ej. 15 % / 1: entrada 513 > 512)
   function pretrain(density, meanSpan) {
     const A = ATLAS.Arch;
     let m = null;
@@ -73,8 +66,10 @@
     if (ok('spanInputTokens') && ok('spanRawTokens') && ok('spanTargetTokens') && Math.abs(density - (+m.noiseDensity || 0.15)) < 1e-9 && meanSpan === (+m.meanNoiseSpan || 3)) {
       return { raw: +m.spanRawTokens, input: +m.spanInputTokens, target: +m.spanTargetTokens, src: 'calculador' };
     }
-    const L = lengthsFor(ok('spanInputTokens') ? +m.spanInputTokens : 512, density, meanSpan);
-    return Object.assign(L, { src: ok('spanInputTokens') ? 'cálculo de T5' : 'paper' });
+    let r = null;
+    try { r = A && A.encdec && A.encdec.spanCorruption ? A.encdec.spanCorruption(ok('spanInputTokens') ? +m.spanInputTokens : 512, density, meanSpan) : null; } catch (e) { r = null; }
+    if (r && Number.isFinite(r.tokens) && Number.isFinite(r.inputs) && Number.isFinite(r.targets)) return { raw: r.tokens, input: r.inputs, target: r.targets, src: 'cálculo de T5' };
+    return null;
   }
 
   function render(el, params) {
@@ -149,8 +144,8 @@
       const W = narrow ? Math.max(300, Math.min(460, cw)) : 880;
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'img' }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); e.textContent = s; return e; };
-      t(svg, 8, 15, narrow ? 'Span corruption (T5)' : 'Span corruption: el objetivo de pre-entrenamiento de T5 (§3.1.4, Figura 2)', 'viz-t');
-      t(svg, 8, 29, ex.paper ? (narrow ? 'el ejemplo de la Figura 2' : 'el ejemplo de la Figura 2 del paper: dos tramos corrompidos') : (narrow ? 'muestreo real, texto ilustrativo' : 'tramos muestreados con el algoritmo de T5 (random_spans_noise_mask); texto ilustrativo'), 'viz-s');
+      t(svg, 8, 15, narrow ? 'Span corruption (T5)' : 'Span corruption: el objetivo de pre-entrenamiento de T5 (§3.1.4 y §3.3.4)', 'viz-t');
+      t(svg, 8, 29, ex.paper ? (narrow ? 'Figura 2: baseline i.i.d., mismo formato' : 'Figura 2 del paper: el objetivo baseline (ruido i.i.d.), con el mismo formato que el span corruption final') : (narrow ? 'muestreo real, texto ilustrativo' : 'tramos muestreados con el algoritmo de T5 (random_spans_noise_mask); texto ilustrativo'), 'viz-s');
       const lx = 8, gap = 4, chipH = 20, lineH = 28;
       let y = 46;
       // una fila de chips que envuelve; devuelve la y siguiente
@@ -175,7 +170,7 @@
         return { t: w, noise: ex.noise[i], k: s && s.noise ? s.k : null };
       });
       row('Texto original (' + ex.words.length + ' tokens)', orig, 'is-orig');
-      row('Entrada del encoder (' + B.input.length + ')', B.input, 'is-in');
+      row('Entrada del encoder (' + B.input.length + ' + </s>)', B.input, 'is-in');
       row('Objetivo del decoder (' + B.target.length + ' + </s>)', B.target, 'is-out');
       // leyenda
       let lgx = lx;
@@ -189,9 +184,10 @@
       y += 24;
       // largos del pre-entrenamiento real (el mismo cálculo del código de T5)
       const Ls = pretrain(state.mode === 'paper' ? 0.15 : state.density, state.mode === 'paper' ? 3 : state.span);
-      const dTxt = state.mode === 'paper' ? '15 %, largo medio 3' : Math.round(state.density * 100) + ' %, largo medio ' + state.span;
-      if (narrow) {
-        t(svg, lx, y, 'Pre-entrenamiento (' + dTxt + '):', 'viz-n'); y += 15;
+      const dTxt = state.mode === 'paper' ? 'el de T5: 15 %, largo medio 3' : Math.round(state.density * 100) + ' %, largo medio ' + state.span;
+      if (!Ls) t(svg, lx, y, 'Pre-entrenamiento (' + dTxt + '): el calculador no está cargado', 'viz-s');
+      else if (narrow) {
+        t(svg, lx, y, 'Pre-entrenamiento (' + dTxt.replace(/^el de T5: /, '') + '):', 'viz-n'); y += 15;
         t(svg, lx, y, 'texto ' + fint(Ls.raw) + ' → entrada ' + fint(Ls.input) + ' → objetivo ' + fint(Ls.target), 'viz-s');
       } else t(svg, lx, y, 'En el pre-entrenamiento (' + dTxt + '): un texto de ' + fint(Ls.raw) + ' tokens → entrada de ' + fint(Ls.input) + ' → objetivo de ' + fint(Ls.target) + ' (con </s>)', 'viz-n');
       y += 10;
@@ -203,10 +199,10 @@
       const nNoise = ex.noise.filter(Boolean).length;
       kv('corrompidos:', nNoise + ' de ' + ex.words.length + ' (' + Math.round(100 * nNoise / ex.words.length) + ' %)');
       kv('tramos:', String(B.nSpans));
-      kv('entrada:', B.input.length + ' tokens');
+      kv('entrada:', B.input.length + ' + &lt;/s&gt;');
       kv('objetivo:', B.target.length + ' + &lt;/s&gt;');
-      kv('pre-entrenamiento:', fint(Ls.input) + ' → ' + fint(Ls.target) + ' (' + Ls.src + ')');
-      note.innerHTML = 'El encoder ve el texto con huecos (cada tramo, un solo centinela) y el decoder genera SOLO lo que falta, cada tramo tras su centinela: el objetivo es mucho más corto que la entrada (≈ ' + Math.round(100 * Ls.target / Ls.input) + ' % aquí), así que el pre-entrenamiento es barato en el decoder. Frente al MLM de BERT: no se predice cada [MASK] por separado, sino tramos enteros de forma autorregresiva, y no hay posiciones "sin pérdida" en el objetivo. Los centinelas son ids reservados del vocabulario (&lt;extra_id_0&gt; … &lt;extra_id_99&gt;: los ids 32,099 … 32,000 en HF). El paper compara tasas de corrupción (Tabla 6) y largos medios de tramo (Tabla 7) y se queda con 15 % y 3: rinde igual o un poco mejor que corromper tokens sueltos y acorta el objetivo.';
+      if (Ls) kv('pre-entrenamiento:', fint(Ls.raw) + ' → ' + fint(Ls.input) + ' → ' + fint(Ls.target) + ' (' + Ls.src + ')');
+      note.innerHTML = 'El encoder ve el texto con huecos (cada tramo, un solo centinela) y el decoder genera SOLO lo que falta, cada tramo tras su centinela: el objetivo es mucho más corto que la entrada' + (Ls ? ' (≈ ' + Math.round(100 * Ls.target / Ls.input) + ' % aquí)' : '') + ', así que el pre-entrenamiento es barato en el decoder. Frente al MLM de BERT: no se predice cada [MASK] por separado, sino tramos enteros de forma autorregresiva, y no hay posiciones "sin pérdida" en el objetivo. Los centinelas son ids reservados del vocabulario (&lt;extra_id_0&gt; … &lt;extra_id_99&gt;: los ids 32,099 … 32,000 en HF). El ejemplo del paper (Figura 2) es el objetivo baseline, con ruido i.i.d. (los tokens corrompidos seguidos forman un tramo); el T5 final elige los tramos con largo medio 3 (§3.3.4), con el mismo formato. El paper compara tasas de corrupción (Tabla 6: importa poco entre 10 y 25 %) y largos medios de tramo (Tabla 7) y se queda con 15 % y 3: rinde igual o un poco mejor que corromper tokens sueltos y acorta el objetivo.';
     }
     stage.addEventListener('keydown', (ev) => {
       const k = ev.key;

@@ -195,7 +195,8 @@
         d += 'M' + r1(x0 + c + 0.5) + ' ' + r1(mid - hi * wh * 0.9) + 'V' + r1(mid - lo * wh * 0.9 + 0.6);
       }
       V.svg('path', { d, class: 'viz-mel-wave' }, svg);
-      if (state.sec < WIN_S) t(svg, (X(state.sec) + X(WIN_S)) / 2, mid + 4, narrow ? 'relleno (ceros)' : 'relleno con ceros hasta 30 s', 'viz-s', 'middle');
+      // revisión fase 12: el rótulo del relleno, arriba de la línea de cero y con halo (sobre la línea se leía tachado)
+      if (state.sec < WIN_S) t(svg, (X(state.sec) + X(WIN_S)) / 2, mid - 6, narrow ? 'relleno (ceros)' : 'relleno con ceros hasta 30 s', 'viz-mel-ax', 'middle');
       y += wh + 8;
       // eje de tiempo
       for (let s = 0; s <= WIN_S; s += narrow ? 10 : 5) { V.svg('path', { d: 'M' + r1(X(s)) + ' ' + r1(y) + 'v4', class: 'viz-xam-tick' }, svg); t(svg, X(s), y + 15, s + ' s', 'viz-s', s === 0 ? 'start' : s === WIN_S ? 'end' : 'middle'); }
@@ -245,11 +246,14 @@
         if (i > 0) V.svg('path', { d: 'M' + r1(bx + (i - 1) * bw + bw / 2) + ' ' + r1(rowF + bh) + 'L' + r1(bx + i * bw + bw / 2) + ' ' + r1(rowC1), class: 'viz-mel-k is-side' }, svg);
         if (i < nF - 1) V.svg('path', { d: 'M' + r1(bx + (i + 1) * bw + bw / 2) + ' ' + r1(rowF + bh) + 'L' + r1(bx + i * bw + bw / 2) + ' ' + r1(rowC1), class: 'viz-mel-k is-side' }, svg);
       }
+      // revisión fase 12: la salida j de la conv2 se centra en el frame 2j (campo receptivo 2j−1 … 2j+1): la caja va de la mitad
+      // del frame 2j−1 a la mitad del 2j+1 (antes cubría 2j y 2j+1, medio frame corrida); la primera se recorta en el borde
       for (let j = 0; j < nF / 2; j++) {
-        const c = 2 * j, p = (f0 + c) / 2;
-        V.svg('rect', { x: r1(bx + c * bw + 1), y: rowC2, width: r1(2 * bw - 2), height: bh, rx: 2, class: 'viz-mel-c2' }, svg);
-        t(svg, bx + c * bw + bw, rowC2 + 12, String(Math.floor(p)), 'viz-mel-fn', 'middle');
-        [-1, 0, 1].forEach((dd) => { const xs = bx + (c + dd) * bw + bw / 2; if (c + dd >= 0 && c + dd < nF) V.svg('path', { d: 'M' + r1(xs) + ' ' + r1(rowC1 + bh) + 'L' + r1(bx + c * bw + bw) + ' ' + r1(rowC2), class: 'viz-mel-k' + (dd ? ' is-side' : '') }, svg); });
+        const c = 2 * j, p = (f0 + c) / 2, xc = bx + c * bw + bw / 2;
+        const xa = Math.max(bx, xc - bw) + 1, xb = Math.min(bx + nF * bw, xc + bw) - 1;
+        V.svg('rect', { x: r1(xa), y: rowC2, width: r1(xb - xa), height: bh, rx: 2, class: 'viz-mel-c2' }, svg);
+        t(svg, xc, rowC2 + 12, String(Math.floor(p)), 'viz-mel-fn', 'middle');
+        [-1, 0, 1].forEach((dd) => { const xs = bx + (c + dd) * bw + bw / 2; if (c + dd >= 0 && c + dd < nF) V.svg('path', { d: 'M' + r1(xs) + ' ' + r1(rowC1 + bh) + 'L' + r1(xc) + ' ' + r1(rowC2), class: 'viz-mel-k' + (dd ? ' is-side' : '') }, svg); });
       }
       y = rowC2 + bh + (narrow ? 18 : 30);
       t(svg, 8, y, narrow ? fint(lm.nFrames) + ' frames → ' + fint(N.pos) + ' posiciones (20 ms c/u)' : 'Cada posición del encoder cubre 2 frames = 20 ms: ' + fint(lm.nFrames) + ' frames → ' + fint(N.pos) + ' posiciones' + (N.D ? ' de D = ' + fint(N.D) : '') + ', + posiciones sinusoidales', 'viz-n');

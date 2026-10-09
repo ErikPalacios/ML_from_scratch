@@ -707,6 +707,11 @@
     L: { label: 'Capas L', get: (r) => r.config && r.config.L, fmt: 'int' },
     h: { label: 'Heads h', get: (r) => r.config && r.config.h, fmt: 'int' },
     Dmlp: { label: 'MLP D_mlp', get: (r) => r.config && r.config.Dmlp, fmt: 'int' },
+    Ld: { label: 'Capas del decoder L_d', get: (r) => r.config && r.config.Ld, fmt: 'int' },
+    nMels: { label: 'Bandas log-Mel n_mels', get: (r) => r.config && r.config.nMels, fmt: 'int' },
+    E: { label: 'Dimensión del embedding compartido E', get: (r) => r.config && r.config.E, fmt: 'int' },
+    // retrieval: el cross-encoder no guarda embeddings (da un puntaje por par): «—», como en las fichas de práctica.
+    dim: { label: 'Dimensión del embedding guardado', get: (r) => (r.config && r.config.kind === 'cross' ? null : r.config && r.config.dim), fmt: 'int' },
     // En SAM, P son clics del prompt (el patch es 16); en SAM 2, el P de la página son punteros de objeto.
     P: { label: 'Patch P', labels: { sam: 'Clics P' }, get: (r) => r.config && r.config.P, fmt: 'int' },
     ptrs: { label: 'Punteros de objeto P', get: (r) => r.config && r.config.ptrs, fmt: 'int' },

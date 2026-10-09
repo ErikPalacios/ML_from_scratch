@@ -1199,12 +1199,14 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-melg-bg { fill: var(--surface-2); }
 .ad-melg-cell { fill: var(--mod-aud); stroke: none; }
 .viz-edc-seg { stroke: var(--surface); stroke-width: 1; }
-.viz-edc-seg.is-enc { fill: var(--mod-txt); }
-.viz-edc-seg.is-ckv { fill: var(--op-fuse); }
-.viz-edc-seg.is-dec { fill: var(--op-embed); }
-.viz-edc-band { fill: var(--mod-txt); fill-opacity: .12; }
+/* revisión fase 12: los mismos tonos que las barras de costo del diagrama (.ad-cs--once / --once2 / --loop): encoder gris,
+   K, V cruzadas marrón (op-conv), decoder acento */
+.viz-edc-seg.is-enc { fill: var(--muted); }
+.viz-edc-seg.is-ckv { fill: var(--op-conv); }
+.viz-edc-seg.is-dec { fill: var(--accent); }
+.viz-edc-band { fill: var(--muted); fill-opacity: .14; }
 .viz-edc-bandt { font: 500 10.5px var(--font-mono); fill: var(--ink); }
-.viz-edc-line { fill: none; stroke: var(--op-embed); stroke-width: 2.2; stroke-linejoin: round; }
-.viz-edc-nc { fill: none; stroke: var(--op-fuse); stroke-width: 1.8; stroke-dasharray: 5 3; }
-.viz-edc-pt { fill: var(--op-embed); stroke: var(--ink); stroke-width: 1.4; }
+.viz-edc-line { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-edc-nc { fill: none; stroke: var(--op-conv); stroke-width: 1.8; stroke-dasharray: 5 3; }
+.viz-edc-pt { fill: var(--accent); stroke: var(--ink); stroke-width: 1.4; }
 .viz-edc-x { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }

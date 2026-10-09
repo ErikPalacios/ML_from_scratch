@@ -93,8 +93,12 @@
    decode; incluye el LM head; decoderLayerMacsPerToken = self + cross + FFN sin el LM head). Bytes: crossKvBytes = 2·L_d·T_in·h·d_h
    ·bytes·B (se escribe una vez y se LEE en cada paso), selfKvCacheBytes = 2·L_d·T_out·h·d_h·bytes·B. Tiempos ≈ (roofline H100 SXM,
    entradas bandwidth / peakFlops como en llm.js): cada fase = máx(FLOPs/pico, bytes/ancho de banda), sin overheads; el paso de
-   decode lee los pesos del decoder (sin W_K / W_V de la cross) + el LM head + las dos cachés. realtimeFactor (Whisper) =
-   generationMs / duración del audio (< 1: más rápido que el tiempo real).
+   decode lee los pesos del decoder (sin W_K / W_V de la cross) + el LM head + las dos cachés. Whisper: los promptTokens (4) entran
+   en UN forward (prefill del prompt) y los T_out − 4 restantes van de a uno (decoderForwards = 1 + T_out − promptTokens; T5: T_out
+   forwards, el primero con el token de inicio). generatedTokens = máx(0, T_out − promptTokens): con T_out ≤ 4 (solo el prompt; la
+   API lo acepta con una nota, las pruebas suman pasos desde T_out = 2) da 0, nunca negativo. realtimeFactor (Whisper) = generationMs / (1000 · seconds · B): tiempo del lote /
+   segundos de audio del lote, es decir, de throughput (< 1: más rápido que el tiempo real; con B > 1 el lote tarda más pero
+   procesa B clips). La latencia del lote es generationMs.
 
    ---------------------------------------------------------------- desviaciones respecto de SPEC §24 (añadidos; nada renombrado)
    - Nodos añadidos: dec-norm (LayerNorm / RMSNorm final del decoder, entre decoder y lm-head) y los internos de arriba; la capa
@@ -118,19 +122,40 @@
   const H100 = Object.assign({ id: 'h100', label: 'H100 SXM' }, A.model('llm').hardware);   // 3.35 TB/s, 989 TFLOPS bf16 denso
 
   // ------------------------------------------------------------------ span corruption (T5, §3.1.4 y Tabla 7 del paper)
-  // random_spans_helper de google-research/text-to-text-transfer-transformer (t5/data/preprocessors.py): dado el largo de entrada
-  // (512), busca el texto crudo más largo que, con 15 % de ruido en spans de media 3 (cada span → 1 centinela en la entrada y 1 en
-  // el objetivo, + EOS), cabe en 512 tokens. round() de Python = redondeo bancario (half to even).
+  // Port literal de random_spans_helper (google-research/text-to-text-transfer-transformer, t5/data/preprocessors.py), con
+  // extra_tokens_per_span_inputs = extra_tokens_per_span_targets = 1 (un centinela por span en la entrada y en el objetivo) y el
+  // EOS incluido: dado el largo de entrada (512), busca el texto crudo más largo cuya entrada corrupta cabe sin relleno.
+  //   tokens_length = inputs_length − 1; while largos(tokens_length + 1).inputs ≤ inputs_length: tokens_length += 1
+  //   inputs, targets = largos(tokens_length)
+  //   if noise_density == 0.5 and targets > inputs: tokens_length −= 1; targets −= 1      ← corrección de T5 (solo con 0.5)
+  // round() de Python = redondeo bancario (half to even). Verificado contra el port en Python sobre una rejilla de largos,
+  // densidades y medias (crosscheck/encdec.py → span_checks en crosscheck/expected/t5-base.json).
   const pyRound = (x) => { const f = Math.floor(x), d = x - f; if (d > 0.5) return f + 1; if (d < 0.5) return f; return f % 2 === 0 ? f : f + 1; };
   function spanLengths(tokens, density, meanSpan) {
     const noise = pyRound(tokens * density), spans = pyRound(noise / meanSpan);
     return { tokens, noise, nonNoise: tokens - noise, spans, inputs: tokens - noise + spans + 1, targets: noise + spans + 1 };
   }
+  // spanCorruption(inputs_length, noise_density = 0.15, mean_noise_span_length = 3) → los valores de random_spans_helper:
+  //   tokens  = tokens_length (texto crudo que se corta; ya con la corrección de 0.5),
+  //   inputs  = inputs_length que calcula T5 (el que registra con verbose; ≤ inputs_length pedido),
+  //   targets = targets_length de T5 (ya con la corrección de 0.5).
+  // noise / nonNoise / spans son los de la máscara sobre `tokens` (random_spans_noise_mask redondea igual); maskInputs /
+  // maskTargets, los largos reales de esa máscara. Coinciden con inputs / targets salvo cuando corrected = true (densidad 0.5:
+  // T5 resta 1 a tokens y a targets sin recalcular; los largos reales quedan ≤ los de T5, sin desbordar).
   function spanCorruption(inputsLength, density, meanSpan) {
     density = density === undefined ? 0.15 : density; meanSpan = meanSpan === undefined ? 3 : meanSpan;
+    if (!Number.isInteger(inputsLength) || inputsLength < 2) throw new Error('spanCorruption: inputs_length debe ser un entero ≥ 2 (es ' + inputsLength + ').');
+    if (!(typeof density === 'number' && density > 0 && density < 1)) throw new Error('spanCorruption: noise_density debe estar en (0, 1) (es ' + density + ').');
+    if (!(typeof meanSpan === 'number' && meanSpan > 0 && isFinite(meanSpan))) throw new Error('spanCorruption: mean_noise_span_length debe ser > 0 (es ' + meanSpan + ').');
     let t = inputsLength - 1;
-    while (spanLengths(t + 1, density, meanSpan).inputs <= inputsLength) t += 1;
-    return Object.assign(spanLengths(t, density, meanSpan), { density, meanSpan, inputsLength });
+    const cap = 1e3 * inputsLength / (1 - density) + 1e6;     // la entrada crece con t: el bucle termina; tope por las dudas
+    while (spanLengths(t + 1, density, meanSpan).inputs <= inputsLength) { t += 1; if (t > cap) throw new Error('spanCorruption: sin convergencia.'); }
+    const base = spanLengths(t, density, meanSpan);
+    let tokens = t, targets = base.targets, corrected = false;
+    if (density === 0.5 && targets > base.inputs) { tokens -= 1; targets -= 1; corrected = true; }
+    const m = corrected ? spanLengths(tokens, density, meanSpan) : base;
+    return { tokens, inputs: base.inputs, targets, noise: m.noise, nonNoise: m.nonNoise, spans: m.spans,
+      maskInputs: m.inputs, maskTargets: m.targets, corrected, density, meanSpan, inputsLength };
   }
 
   // ------------------------------------------------------------------ configs
@@ -183,6 +208,8 @@
     if (c.kind === 'whisper') {
       if (c.seconds > c.chunk) throw new Error(c.label + ': seconds = ' + c.seconds + '; Whisper procesa ventanas de ' + c.chunk + ' s (audio más largo se parte en ventanas: long-form).');
       if (c.Tout > c.Tmax) throw new Error(c.label + ': T_out = ' + c.Tout + ' supera las ' + c.Tmax + ' posiciones aprendidas del decoder.');
+      // T_out ≤ promptTokens: solo el prompt (el conteo de MACs vale; generatedTokens = 0). Las pruebas suman pasos desde T_out = 2.
+      if (c.Tout <= c.promptTokens) notes.push('T_out = ' + c.Tout + ': solo posiciones del prompt (' + c.promptTokens + ' tokens: <|startoftranscript|>, idioma, tarea, timestamps); no se genera ningún token de texto.');
       if (c.seconds < c.chunk) notes.push(c.seconds + ' s de audio: se rellena con ceros hasta ' + c.chunk + ' s; el encoder procesa igual las 1,500 posiciones.');
     } else if (c.Tin > c.TinTrain) notes.push('T_in = ' + fint(c.Tin) + ' supera los ' + c.TinTrain + ' tokens del preentrenamiento: el conteo vale (la posición relativa no tiene tabla por posición), la calidad no está garantizada.');
     if (c.decode === 1 && c.Tout < 2) throw new Error(c.label + ': en decode T_out debe ser ≥ 2 (el token nuevo + al menos uno en la caché).');
@@ -493,8 +520,13 @@
     const roof = (flops, bytes) => 1000 * Math.max(flops / peak, bytes / bw);
     const encoderMs = roof(2 * B * k.encoderMacs, q.encoderParams * by);
     const crossKvMs = roof(2 * B * k.crossKvMacs, L * crossKvWeightParams(c) * by + crossKvBytes);
-    let decoderMs = 0;
-    for (let s = 1; s <= Tout; s++) decoderMs += roof(2 * B * k.step(s), decStepParams * by + crossKvBytes + selfKvBytesPerToken * s * B);
+    // Primer forward del decoder: el prompt entero en paralelo (Whisper: promptTokens = 4; T5: el token de inicio). Después, un
+    // forward por token, cada uno leyendo los pesos y las dos cachés.
+    const P = c.kind === 'whisper' ? Math.min(c.promptTokens, Tout) : 1;
+    let promptMacs = 0;
+    for (let s = 1; s <= P; s++) promptMacs += k.step(s);
+    let decoderMs = roof(2 * B * promptMacs, decStepParams * by + crossKvBytes + selfKvBytesPerToken * P * B);
+    for (let s = P + 1; s <= Tout; s++) decoderMs += roof(2 * B * k.step(s), decStepParams * by + crossKvBytes + selfKvBytesPerToken * s * B);
     const stepBytesLast = decStepParams * by + crossKvBytes + selfKvBytesPerToken * Tout * B;
     const genDec = k.genDec(Tout);
     const totalOnce = k.encoderMacs + k.crossKvMacs + genDec;
@@ -523,7 +555,7 @@
       arithmeticIntensityDecode: 2 * B * k.step(Tout) / stepBytesLast, arithmeticIntensityEncoder: 2 * B * k.encoderMacs / (q.encoderParams * by),
       bandwidth: bw, peakFlops: peak, hardwareSource: H100.source, estimate: true,
       // largos
-      Tin, Tout, generatedTokens: c.kind === 'whisper' ? Tout - c.promptTokens : Tout,
+      Tin, Tout, generatedTokens: Math.max(0, Tout - (c.kind === 'whisper' ? c.promptTokens : 0)), decoderForwards: 1 + Tout - P,
       units: UNITS,
     };
     if (c.kind === 't5') {
@@ -535,7 +567,8 @@
         frontendParams: q.frontendParams, decoderPosParams: q.decoderPosParams, paramsHF: q.paramsHF, convMacs: q.convMacs,
         encoderMacsPerWindow: k.encoderMacs, melFrames: c.melFrames, encoderPositions: c.encPos, usefulPositions: useful, seconds: c.seconds,
         paddingShare: 1 - useful / c.encPos, wastedEncoderMacs: k.encoderMacs * (1 - useful / c.encPos), promptTokens: c.promptTokens,
-        realtimeFactor: (encoderMs + crossKvMs + decoderMs) / (1000 * c.seconds), speedVsRealtime: (1000 * c.seconds) / (encoderMs + crossKvMs + decoderMs),
+        // throughput: tiempo del lote / audio del lote (B clips de `seconds`); la latencia del lote es generationMs
+        realtimeFactor: (encoderMs + crossKvMs + decoderMs) / (1000 * c.seconds * B), speedVsRealtime: (1000 * c.seconds * B) / (encoderMs + crossKvMs + decoderMs),
       });
     }
     // Lista para la viz encdec-cost: costo de generar T_out tokens (encoder una vez + decoder por token).
@@ -559,7 +592,7 @@
     crossKvBytes: 'bytes', crossKvBytesPerLayer: 'bytes', selfKvBytesPerToken: 'bytes', selfKvCacheBytes: 'bytes', kvTotalBytes: 'bytes', weightBytes: 'bytes',
     encoderMs: 'ms', crossKvMs: 'ms', decoderMs: 'ms', generationMs: 'ms', decoderStepMs: 'ms',
     arithmeticIntensityDecode: 'ratio', arithmeticIntensityEncoder: 'ratio', realtimeFactor: 'ratio', speedVsRealtime: 'ratio',
-    bandwidth: 'count', peakFlops: 'count', Tin: 'count', Tout: 'count', generatedTokens: 'count', melFrames: 'count', encoderPositions: 'count',
+    bandwidth: 'count', peakFlops: 'count', Tin: 'count', Tout: 'count', generatedTokens: 'count', decoderForwards: 'count', melFrames: 'count', encoderPositions: 'count',
     usefulPositions: 'count', seconds: 'count', promptTokens: 'count', spanRawTokens: 'count', spanInputTokens: 'count', spanTargetTokens: 'count',
     spanNoiseTokens: 'count', spanNoiseSpans: 'count', spanNonNoiseTokens: 'count', noiseDensity: 'pct', meanNoiseSpan: 'count',
   };

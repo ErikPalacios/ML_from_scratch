@@ -140,6 +140,17 @@ const BLOCK_HTML_OK = new Set([...INLINE_OK, 'p', 'ul', 'ol', 'li', 'div', 'tabl
 const VOID = new Set(['br', 'hr', 'img', 'wbr']);
 // Métricas con etiqueta propia en el bloque compare (js/ui/blocks.js METRICS).
 const COMPARE_METRICS = ['params', 'paramsM', 'macs', 'flops', 'tokens', 'patches', 'D', 'L', 'h', 'Dmlp', 'P', 'res'];
+// Claves con entrada en METRICS de blocks.js (etiqueta y formato). Una fila sin entrada se ve con la clave cruda como etiqueta
+// («Ld», «nMels»): aviso. Se leen del texto (blocks.js es de UI y no corre en Node).
+const BLOCK_METRIC_LABELS = (() => {
+  try {
+    const src = readFileSync(join(ROOT, 'js', 'ui', 'blocks.js'), 'utf8');
+    const i = src.indexOf('const METRICS = {');
+    if (i < 0) return null;
+    const body = src.slice(i, src.indexOf('\n  };', i));
+    return new Set(Array.from(body.matchAll(/^ {4}([A-Za-z_$][\w$]*): \{/gm), (m) => m[1]));
+  } catch (e) { return null; }
+})();
 
 // ids de §13.3 (contrato del catálogo)
 const REQUIRED_IDS = {
@@ -774,6 +785,7 @@ function checkBlock(where, b, page, ids, pctx) {
       (b.rows || []).forEach((k) => {
         const known = runs.length === 0 || COMPARE_METRICS.includes(k) || runs.some((R) => (R.config && k in R.config) || (R.quantities && k in R.quantities) || (R.totals && k in R.totals) || inMetrics(R, k));
         if (!known) err(where, 'rows: métrica desconocida "' + k + '" (no está en config, quantities, totals ni metrics())');
+        else if (BLOCK_METRIC_LABELS && !BLOCK_METRIC_LABELS.has(k)) warn(where, 'rows: "' + k + '" no tiene entrada en METRICS de js/ui/blocks.js: la tabla muestra la clave cruda como etiqueta');
       });
       break;
     }
@@ -802,6 +814,27 @@ function checkBlock(where, b, page, ids, pctx) {
         }
         if (s && s.desc != null && (typeof s.desc !== 'string' || !s.desc.trim())) err(where, 'slot ' + i + ': desc debe ser texto');
       });
+      // Revisión de la fase 12: dos huecos en el mismo lugar se pisan (el segundo reemplaza al primero y su marcador). Se
+      // resuelve cada hueco como practice.js buildSlots: {node, ask:'shape'} va a la arista que sale del nodo con ese tensor,
+      // a cualquier arista con ese tensor o a una arista que sale del nodo con un tensor de la misma forma; si no, al nodo.
+      if (d) {
+        const Rd = d.config ? run(d.config) : null;
+        const shapeOf = (tid) => (Rd && Rd.tensors && Rd.tensors[tid] ? (Rd.tensors[tid].num || []).join('×') : null);
+        const where2 = new Map();
+        (b.slots || []).forEach((s, i) => {
+          if (!s) return;
+          let id = s.edge || s.node;
+          if (!s.edge && s.node && s.ask === 'shape') {
+            const E = d.edges || [];
+            const e = E.find((x) => x.from === s.node && x.tensor && (!s.tensor || x.tensor === s.tensor)) || (s.tensor ? E.find((x) => x.tensor === s.tensor) : null)
+              || (s.tensor && shapeOf(s.tensor) ? E.find((x) => x.from === s.node && x.tensor && !x.ov && shapeOf(x.tensor) === shapeOf(s.tensor)) : null);
+            if (e) id = e.from + '>' + e.to;
+          }
+          if (!id) return;
+          if (where2.has(id)) err(where, 'slots ' + where2.get(id) + ' y ' + i + ' caen en el mismo lugar (' + id + '): el segundo pisa al primero');
+          else where2.set(id, i);
+        });
+      }
       break;
     }
     case 'shapedrill': {

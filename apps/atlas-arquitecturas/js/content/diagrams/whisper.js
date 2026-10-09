@@ -21,11 +21,12 @@
   const q = (k) => '{{' + k + '}}';
   const PAGE = { page: 'whisper', section: 'diagrama' };
   const sp = (t) => ({ t, special: true });
-  const PROMPT = [sp('<|startoftranscript|>'), sp('<|es|>'), sp('<|transcribe|>'), sp('<|notimestamps|>')];
+  // revisión fase 12: <|en|>, como el prompt del calculador (encdec.js) y el recorrido
+  const PROMPT = [sp('<|startoftranscript|>'), sp('<|en|>'), sp('<|transcribe|>'), sp('<|notimestamps|>')];
   const LT = {
     tokens: 'Tokens de ejemplo (ilustrativo); borde punteado = token especial',
     tie: 'Pesos atados: el LM head usa la MISMA tabla de tokens (se cuenta una vez)',
-    runs: 'Veces que corre al generar T_out tokens (una por token)',
+    runs: 'Veces que corre al generar: un forward para el prompt y uno por token nuevo',
     runsOnce: 'Corre una sola vez por ventana de 30 s',
     costSplit: 'Costo de una ventana de 30 s: ancho proporcional (del calculador)',
   };
@@ -37,12 +38,13 @@
     grid: { w: 112, h: 152 }, direction: 'tb', maxCrossings: 0,
     mobileFocus: ['audio', 'mel', 'conv', 'prompt-tokens'],
     legendText: LT,
+    legendShapeEdge: 'mel>conv',
     groups: [
       { id: 'enc-group', label: 'Encoder (bidireccional)', x: 5, y: 51, w: 46, h: 19, repeat: { sym: 'L', from: 'L', totalOf: 'encoder' }, modality: 'aud' },
       { id: 'dec-group', label: 'Decoder (causal)', x: 63, y: 79, w: 40, h: 21, repeat: { sym: 'L_d', from: 'Ld', totalOf: 'decoder' }, modality: 'txt' },
     ],
     nodes: [
-      { id: 'audio', op: 'io', modality: 'aud', label: 'Audio · 16 kHz', x: 6, y: 1, w: 44, h: 11, wave: { pad: 0.6, seed: 31 },
+      { id: 'audio', op: 'io', modality: 'aud', label: 'Audio · 16 kHz', sub: 'rellenado a 30 s', x: 6, y: 1, w: 44, h: 11, wave: { pad: 0.6, seed: 31 },
         note: 'La onda a 16,000 muestras por segundo. Whisper SIEMPRE trabaja con ventanas de 30 s: si el audio es más corto se rellena con ceros (marco punteado) y si es más largo se corta en ventanas. Por eso la entrada al modelo tiene siempre {{cfg.samples}} muestras.' },
       { id: 'mel', op: 'tensorop', shape: 'rect', label: 'Log-Mel', sub: 'ventana 25 ms · salto 10 ms', subNum: '{{cfg.nMels}} bandas · salto de 10 ms', melGrid: { rows: 8, cols: 44, pad: 0.6, seed: 81 }, x: 6, y: 17, w: 44, h: 12,
         tex: 'M = \\log_{10} \\big( \\mathrm{Mel}\\, |\\mathrm{STFT}(x)|^2 \\big)', note: 'Preprocesamiento, sin parámetros: STFT con ventana de 25 ms cada 10 ms → potencia → {{cfg.nMels}} filtros mel (más finos en graves) → log10, recortado a 8 unidades del máximo y normalizado. Salen {{cfg.melFrames}} frames de 10 ms. No cuenta en los MACs del modelo.' },
@@ -61,14 +63,14 @@
         tokens: { items: PROMPT },
         xref: [{ href: '#whisper.diagrama~whisper-tokens.w-sot', label: 'Ver el formato de los tokens especiales' }],
         tex: 'y_0 = E[\\mathrm{ids}] + P_{\\mathrm{dec}}[0{:}T_{out}]', note: 'El decoder arranca con un prompt de tokens especiales que dice qué hacer: inicio, idioma, tarea (transcribir o traducir al inglés) y si poner marcas de tiempo. Embedding de tokens (atado al LM head) + posición APRENDIDA: como mucho {{cfg.Tmax}} posiciones en el decoder. El formato completo está en el diagrama de tokens.' },
-      { id: 'decoder', op: 'attn', style: 'block', badgeTotal: true, label: 'Capa del decoder', x: 65, y: 85, w: 36, h: 11, runs: '× {{cfg.Tout}} pasos',
+      { id: 'decoder', op: 'attn', style: 'block', badgeTotal: true, label: 'Capa del decoder', x: 65, y: 85, w: 36, h: 11, runs: '× {{metrics.decoderForwards}} pasos',
         mini: { items: [{ label: 'LN', op: 'norm' }, { label: 'self', op: 'attn' }, { sym: 'add' }, { label: 'LN', op: 'norm' }, { label: 'cross', op: 'fuse' }, { sym: 'add' }, { label: 'LN', op: 'norm' }, { label: 'MLP', op: 'mlp' }, { sym: 'add' }], res: [[0, 2], [3, 5], [6, 8]] },
-        xref: [{ href: '#t5.diagrama~t5-decoder-layer.cross-attn', label: 'Ver la capa por dentro (T5: misma estructura)' }],
+        xref: [{ href: '#t5.diagrama~t5-decoder-layer.cross-attn', label: 'Ver la capa por dentro (T5: misma estructura)' }], xrefBelow: true,
         tex: "\\begin{aligned} a &= y + \\mathrm{SA}_{\\mathrm{causal}}(\\mathrm{LN}(y)) \\\\ b &= a + \\mathrm{CA}(\\mathrm{LN}(a), H) \\\\ y' &= b + \\mathrm{MLP}(\\mathrm{LN}(b)) \\end{aligned}",
         costNote: 'Al generar corre una vez por token: {{metrics.decoderMacsPerToken}} por token (con el LM head).',
         note: 'Igual que la capa del decoder de T5, con LayerNorm y sin sesgo relativo: self-attention causal entre los tokens de texto, cross-attention a H (Q del texto, K y V del audio) y MLP. Una vez por token: {{metrics.decoderLayerMacsPerToken}} en sus {{cfg.Ld}} capas.' },
       { id: 'dec-norm', op: 'norm', label: 'LayerNorm final', x: 68, y: 104, w: 30, h: 5, tex: '\\mathrm{LN}(y_{L_d})', note: 'Una última LayerNorm sobre la salida del decoder.' },
-      { id: 'lm-head', op: 'head', label: 'LM head', sub: 'Eᵀ atada · sin reescalado', x: 66, y: 113, w: 34, h: 7, runs: '× {{cfg.Tout}}',
+      { id: 'lm-head', op: 'head', label: 'LM head', sub: 'Eᵀ atada · sin reescalado', x: 66, y: 113, w: 34, h: 7, runs: '× {{metrics.decoderForwards}}',
         tex: '\\mathrm{logits} = y\\, E^{\\top}', note: 'La tabla de tokens transpuesta (atada: 0 parámetros nuevos), sin el reescalado de T5. Un logit por token del vocabulario de {{cfg.V}} (texto BPE, idiomas, tareas y marcas de tiempo).' },
       { id: 'text', op: 'io', modality: 'txt', label: 'Texto (+ marcas)', sub: 'el token elegido vuelve', x: 68, y: 125, w: 30, h: 7,
         note: 'Del último logit se elige el siguiente token (greedy o beam de 5 en el paper, con fallback de temperatura). Puede ser texto, una marca de tiempo &lt;|t|&gt; o &lt;|endoftext|&gt;.' },
@@ -76,7 +78,7 @@
         costSplit: { segs: [
           { tone: 'once', n: 'metrics.encoderMacs', label: 'Front end + encoder × 1' },
           { tone: 'once2', n: 'metrics.crossKvMacs', label: 'K, V de la cross-attention × 1' },
-          { tone: 'loop', n: 'metrics.generationDecoderMacs', label: 'Decoder × {{cfg.Tout}} tokens' },
+          { tone: 'loop', n: 'metrics.generationDecoderMacs', label: 'Decoder × {{metrics.decoderForwards}} pasos ({{cfg.Tout}} posiciones)' },
         ], caption: 'total {{metrics.totalGenerationMacs}} · 30 s de audio, T_out = {{cfg.Tout}}' },
         note: 'MACs de transcribir una ventana de 30 s con T_out tokens (del calculador). El encoder procesa {{cfg.encPos}} posiciones: es caro, pero corre una vez. Cada token del decoder es barato ({{metrics.decoderMacsPerToken}}).' },
       { id: 'cost-time', op: 'io', label: 'Tiempo ≈ en una H100 (cota)', hideInBlank: true, x: 58, y: 137, w: 52, h: 14,
@@ -150,14 +152,14 @@
         note: 'Opcional: el texto de la ventana anterior, precedido por &lt;|startofprev|&gt;, como contexto (hasta la mitad del contexto del decoder). Ayuda a mantener nombres y estilo entre ventanas de 30 s; el modelo no lo predice, solo lo lee.' },
       { id: 'w-sot', op: 'io', label: '<|startoftranscript|>', sub: 'inicio', x: 26, y: 3, w: 24, h: 8,
         note: 'Empieza la transcripción. El siguiente token es el idioma, o &lt;|nospeech|&gt; si no hay voz en la ventana (en algunos tokenizers se llama &lt;|nocaptions|&gt;): su probabilidad se usa como detector de silencio.' },
-      { id: 'w-lang', op: 'io', label: '<|es|>', sub: 'idioma: 99 (100 en v3)', x: 53, y: 3, w: 22, h: 8,
+      { id: 'w-lang', op: 'io', label: '<|es|>', sub: '99 idiomas (100 en v3)\no <|nospeech|>', x: 53, y: 3, w: 22, h: 8,
         note: 'Un token por idioma (99; large-v3 agrega cantonés). Si no se fuerza, el modelo lo predice: así es como Whisper detecta el idioma (una sola pasada del decoder con el prompt &lt;|startoftranscript|&gt;).' },
       { id: 'w-task', op: 'io', label: '<|transcribe|>', sub: 'o <|translate|> (→ inglés)', x: 78, y: 3, w: 25, h: 8,
         note: 'La tarea: transcribir en el mismo idioma o traducir al inglés (solo hacia el inglés: es lo que había en los datos).' },
-      { id: 'w-ts', op: 'io', label: '<|0.00|>', sub: 'marcas cada 20 ms', x: 1, y: 19, w: 22, h: 8,
+      { id: 'w-ts', op: 'io', label: '<|0.00|>', sub: 'cada 20 ms\no <|notimestamps|>', x: 1, y: 19, w: 22, h: 8,
         note: 'Con marcas de tiempo, cada segmento de texto va entre dos tokens de tiempo, relativos al inicio de la ventana y cuantizados a 20 ms (una posición del encoder): &lt;|0.00|&gt; … &lt;|30.00|&gt;. Sin marcas, el prompt lleva &lt;|notimestamps|&gt; y el texto va directo.' },
       { id: 'w-text', op: 'io', modality: 'txt', label: 'Texto (BPE)', sub: '" Hoy vamos a ver"', x: 28, y: 19, w: 24, h: 8,
-        note: 'Los tokens de texto: el BPE byte-level de GPT-2 (en los modelos multilingües, con el vocabulario re-ajustado al mismo tamaño). La pérdida del entrenamiento se calcula sobre estos tokens (y las marcas), no sobre el prompt.' },
+        note: 'Los tokens de texto: el BPE byte-level de GPT-2 (en los modelos multilingües, con el vocabulario re-ajustado al mismo tamaño). La pérdida del entrenamiento cubre todo lo que viene después de &lt;|startoftranscript|&gt;: idioma, tarea, marcas, texto y fin (por eso el modelo aprende a detectar el idioma y la falta de voz). Solo se excluye el texto previo, detrás de &lt;|startofprev|&gt; (§2.3).' },
       { id: 'w-ts-end', op: 'io', label: '<|1.50|>', sub: 'fin del segmento', x: 56, y: 19, w: 20, h: 8,
         note: 'La marca de fin del segmento. Después puede venir otro segmento (otra marca de inicio) o el fin.' },
       { id: 'w-eot', op: 'io', label: '<|endoftext|>', sub: 'fin', x: 80, y: 19, w: 23, h: 8, note: 'Termina la generación de esta ventana.' },
