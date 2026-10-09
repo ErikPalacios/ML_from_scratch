@@ -359,3 +359,62 @@ test('RLHF (PPO), DPO, GRPO y DPO + LoRA: un modelo HF por rol en meta (reward /
   for (const k of ['metrics[criticTrainStepMacsPerSeq]', 'metrics[trainableParams]']) assert.ok(pl.checks.some((c) => c.what === k && c.ok), k);
 });
 // ================================================================ fin del bloque de la fase 10
+
+// ---------------------------------------------------------------- fase 11 (BERT, recuperación densa, ANN)
+test('F11 BERT: HF BertForPreTraining en meta, decoder del MLM atado, reparto por módulo y T = 512', async () => {
+  for (const [id, params, flops] of [['bert-base', 110106428, 2 * 14250149376], ['bert-large', 336226108, 2 * 43595859968]]) {
+    const r = await find(id);
+    assert.strictEqual(r.exp.params_total, params, id);
+    assert.strictEqual(r.exp.flops_total, flops, id);
+    assert.strictEqual(r.exp.tied_decoder, true, id);
+    assert.match(r.exp.source.ctor, /BertForPreTraining\(BertConfig\(/);
+    for (const w of ['params[embed]', 'params[encoder]', 'params[pooler]', 'params[mlm-head]', 'params[nsp-head]', 'flops[encoder]', 'flops[mlm-head]', 'flops[nsp-head]',
+      '[T=512] flops_total', 'metrics[mlmTiedParams]', 'metrics[mlmHeadParams]']) {
+      assert.ok(r.checks.some((c) => c.what === w && c.ok), id + ' ' + w);
+    }
+    assert.ok(r.exp.notes.some((n) => /gather_indexes/.test(n)));
+  }
+  const b = await find('bert-base');
+  assert.deepStrictEqual(b.exp.shapes['mlm-logits'], [128, 30522]);
+  assert.deepStrictEqual(b.exp.shapes.qkv, [128, 2304]);
+});
+
+test('F11 recuperación: DPR (dos torres), Sentence-BERT (siamés), cross-encoder, ColBERT; búsqueda y rerank medidos en meta', async () => {
+  const d = await find('dpr-bert-base');
+  assert.strictEqual(d.exp.params_total, 2 * 108891648 + 22713601);
+  for (const w of ['params[query-encoder]', 'params[doc-encoder]', 'params[rerank]', 'flops[ann-search]', 'flops[rerank]', '[rerank=0] flops_total', 'metrics[bruteForceMacs]', 'metrics[crossEncoderMacsPerPair]']) {
+    assert.ok(d.checks.some((c) => c.what === w && c.ok), 'dpr ' + w);
+  }
+  assert.deepStrictEqual(d.exp.shapes['doc-scores'], [21015324]);
+  assert.deepStrictEqual(d.exp.shapes['rerank-scores'], [100, 1]);
+  const s = await find('sbert-minilm');
+  assert.strictEqual(s.exp.params_by_path['doc-encoder'], 0);
+  assert.ok(s.checks.some((c) => c.what === 'params[doc-encoder]' && c.ok));
+  const c = await find('cross-encoder-minilm');
+  assert.strictEqual(c.exp.params_total, 22713601);
+  assert.ok(c.checks.some((x) => x.what === '[Tq=16,Td=128] flops_total' && x.ok));
+  const cb = await find('colbert-v2');
+  assert.strictEqual(cb.exp.params_total, 109482240 + 768 * 128);
+  assert.ok(cb.checks.some((x) => x.what === 'flops[maxsim]' && x.ok));
+  assert.ok(cb.checks.some((x) => x.what === 'metrics[colbertV2BytesPerVector]' && x.ok));
+});
+
+test('F11 ANN: encoder DPR en meta + búsqueda; bytes y distancias contra índices FAISS reales (faiss-cpu)', async () => {
+  for (const id of ['hnsw-1m-768', 'ivfpq-1m-768', 'flat-1m-768', 'ivfpq-1b-768']) {
+    const r = await find(id);
+    assert.match(r.exp.source.faiss, /^1\.15/, id);
+    const faiss = r.checks.filter((c) => c.what.startsWith('faiss['));
+    assert.ok(faiss.length >= 9, id + ': ' + faiss.length + ' comprobaciones de FAISS');
+    assert.ok(faiss.every((c) => c.ok), id);
+    assert.ok(r.checks.some((c) => c.what === 'flops[encode]' && c.ok), id);
+  }
+  const h = await find('hnsw-1m-768');
+  assert.deepStrictEqual(h.exp.shapes.links, [1000000, 64]);                        // nb_neighbors(0) = 2M
+  assert.ok(h.exp.range_checks.length >= 6);
+  assert.deepStrictEqual([h.exp.faiss_measured.faiss_defaults.efConstruction, h.exp.faiss_measured.faiss_defaults.efSearch], [40, 16]);
+  const p = await find('ivfpq-1m-768');
+  assert.deepStrictEqual(p.exp.shapes.lut, [16, 96, 256]);
+  assert.ok(p.checks.some((c) => c.what === 'metrics[precomputedTableBytes]' && c.ok));
+  const b = await find('ivfpq-1b-768');
+  assert.strictEqual(b.exp.metrics_checks.precomputedTableBytes, 0);                 // 2²⁰·96·256·4 B > 2 GiB: FAISS no la precalcula
+});

@@ -245,7 +245,7 @@
         p.sections.forEach((s) => ok(id + '.' + s.id + ': se pinta', !!byId(id + '.' + s.id) && $('.sec__body', byId(id + '.' + s.id)).children.length > 0));
         if (p.kind === 'model') {
           ok(id + ': plantilla de 11 en orden', JSON.stringify($$('#page section.sec').map((s) => s.dataset.sec)) === JSON.stringify(A.MODEL_TEMPLATE.map((t) => t.id)));
-          ok(id + ': ficha técnica con parámetros', !!$('#page .ficha') && /Parámetros/i.test(txt($('#page .ficha'))) && !/no disponible/.test(txt($('#page .ficha'))));
+          ok(id + ': ficha técnica con parámetros', !!$('#page .ficha') && /Parámetros|Índice/i.test(txt($('#page .ficha'))) && !/no disponible/.test(txt($('#page .ficha'))));
           ok(id + ': navegador 1–11', $$('#page .tnav__item').length === 11);
         }
         ok(id + ': enlaces lab: reescritos', $$('#page a[href^="lab:"]').length === 0);

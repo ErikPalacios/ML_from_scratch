@@ -546,7 +546,10 @@
     const A = arch();
     try { return A.run(run.id, Object.assign({}, run.overrides || {}, ov)); } catch (e) { return run; }
   }
-  const edgeRun = (run, e) => (e && e.ov ? ovRun(run, e.ov) : run);
+  // fase 11: edge.config = la forma de esa arista sale de OTRA config del mismo modelo (ann-overview: la columna de HNSW con
+  // hnsw-1m-768 y la de IVF-PQ con ivfpq-1m-768 en la misma figura); con edge.ov encima. La arista lleva data-config.
+  function cfgRun(cfg, ov) { let r = null; try { r = runFor(cfg); } catch (e) { return null; } return ov ? ovRun(r, ov) : r; }
+  const edgeRun = (run, e) => (e && e.config ? (cfgRun(e.config, e.ov) || run) : e && e.ov ? ovRun(run, e.ov) : run);
   function configLabel(id) {
     const A = arch();
     try { const c = A && A.configs ? A.configs().find((x) => x.id === id) : null; return c ? c.label : id; } catch (e) { return id; }
@@ -603,6 +606,9 @@
       try { c = cid ? runFor(cid).config : null; } catch (e) { c = null; }
       for (const k in n.subWhen) if (c && c[k]) return n.subWhen[k];
     }
+    // fase 11: node.blankSub = el sub en la práctica cuando el visible delata un hueco ("Linear D → 2" junto al hueco de la forma
+    // de los logits de NSP)
+    if (ctl && ctl.mode === 'blank' && n.blankSub != null && !slotFor(ctl, n.id)) return n.blankSub;
     if (n.subNum && ctl && ctl.showNumbers && ctl.mode !== 'blank') {
       const cfg = (ctl.opts && ctl.opts.config) || (spec && spec.config) || (ctl.view && ctl.view.spec && ctl.view.spec.config);
       const v = String(n.subNum).split('\n').map((ln) => strip(qResolve(ln, cfg))).join('\n');
@@ -1238,7 +1244,7 @@
         // fase 7: strip (tira de tokens), posIds (ids de M-RoPE) y layers (capas con la toma) también van abajo
         // fase 8: costSplit (barra del costo por imagen) también va abajo
         // fase 10: bars (barras por fila, fuera de la práctica) y matrix (matriz a escala) también van abajo
-        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : (n.bars && ctl.mode !== 'blank' && !ctl.quiz) ? BARS_H(n.bars, r.w, (ctl.opts && ctl.opts.config) || (spec && spec.config), run, ctl, spec, !!(ctl.narrow && spec && spec.mobileGrid)) : n.matrix ? MAT_H(n.matrix) : 0;
+        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : (n.bars && ctl.mode !== 'blank' && !ctl.quiz) ? BARS_H(n.bars, r.w, (ctl.opts && ctl.opts.config) || (spec && spec.config), run, ctl, spec, !!(ctl.narrow && spec && spec.mobileGrid)) : n.matrix ? MAT_H(n.matrix) : n.tokens ? TOK_H(n.tokens) : n.cells ? CELLS_H(n.cells, run) : n.layered ? LAYERED_H(n.layered) : 0;
         const miniH = n.mini ? 22 : innerH;
         // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
         const subs = sub ? String(sub).split('\n') : [];
@@ -1271,9 +1277,14 @@
           else if (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) drawCostSplit(g, n.costSplit, r, run, used, ctl, spec);
           else if (n.bars && ctl.mode !== 'blank' && !ctl.quiz) drawBars(g, n.bars, r, run, used, ctl, spec);
           else if (n.matrix) drawMatrix(g, n.matrix, r, run, used, ctl);
+          // fase 11: tabla de celdas (similitudes token×token de ColBERT, tabla ADC, listas invertidas)
+          else if (n.cells) drawCells(g, n.cells, r, run, used, ctl, spec);
         } else if (!hideInner && nocalc && n.strip) drawStrip(g, n.strip, r, null, used, ctl, spec);
         // fase 9: regla de bins (una dimensión de la acción) y máscara de atención por bloques: no dependen del calculador
         if (!hideInner && n.bins) drawBins(g, n.bins, r, used);
+        // fase 11: fila de tokens de ejemplo (BERT) y grafo por capas (HNSW): pictogramas sin números del calculador
+        if (!hideInner && n.tokens) drawTokens(g, n.tokens, r, used, ctl, spec);
+        if (!hideInner && n.layered) drawLayered(g, n.layered, r, used, ctl, spec);
         if (!hideInner && n.maskGrid) drawMaskGrid(g, n.maskGrid, r, used);
         if (!hideInner && n.posIds) drawPosIds(g, n.posIds, r, used, ctl);
       }
@@ -2000,6 +2011,181 @@
     return st;
   }
 
+  // ------------------------------------------------------------ fase 11 (BERT / retrieval / ANN): tokens, celdas, grafo por capas
+  // node.tokens = {items:[{t, seg?:0|1, mask?:true, special?:true}], caption?}: una fila de tokens de EJEMPLO (texto literal, no
+  // del calculador) en la parte de abajo del bloque: chip por token ([MASK] resaltado, [CLS]/[SEP] atenuados) y una barra fina
+  // con el segmento (A / B: la tabla de token-type de BERT). Si no entran, la fila se achica (hasta 70 %) y luego corta con "…".
+  const TOK_H = (o) => 30 + (o && o.caption ? 13 : 0);
+  function tokLab(it) { return it.mask ? '[MASK]' : String(it.t); }
+  function drawTokens(g, o, r, used, ctl, spec) {
+    const items = (o.items || []).slice();
+    if (!items.length) return;
+    used.tokens = true;
+    if (items.some((it) => it.mask)) used.tokMask = true;
+    if (items.some((it) => it.seg === 1)) used.tokSeg = true;
+    const gg = S('g', { class: 'ad-toks' }, g);
+    const x0 = r.x + 8, W = r.w - 16, y = r.y + r.h - TOK_H(o) + 3, h = 15, gap = 3;
+    let k = 1, list = items;
+    const widths = (L, kk) => L.map((it) => (it.ell ? 12 : textW(tokLab(it), 10 * kk, true) + 8 * kk));
+    const total = (L, kk) => widths(L, kk).reduce((a, b) => a + b, 0) + gap * (L.length - 1);
+    if (total(list, 1) > W) k = Math.max(0.7, W / total(list, 1));
+    // si aún no entra: se quitan tokens comunes cerca del medio (nunca [CLS], [SEP] ni [MASK]) y queda un "…" en su lugar
+    while (total(list, k) > W && list.filter((it) => !it.ell).length > 3) {
+      const mid = list.length / 2;
+      const cand = list.map((it, j) => j).filter((j) => !list[j].ell && !list[j].special && !list[j].mask).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+      if (!cand.length) break;
+      const i = cand[0];
+      if ((list[i - 1] && list[i - 1].ell) || (list[i + 1] && list[i + 1].ell)) list.splice(i, 1);
+      else list.splice(i, 1, { ell: true });
+    }
+    const ws = widths(list, k);
+    let x = x0 + (W - total(list, k)) / 2;
+    list.forEach((it, i) => {
+      const w = ws[i];
+      if (it.ell) { txt(gg, x + w / 2, y + 11, '…', 'ad-tok-txt', 'middle'); x += w + gap; return; }
+      const seg = it.seg === 1 ? 1 : 0;
+      S('rect', { x: r1(x), y: r1(y), width: r1(w), height: h, rx: 2.5, class: 'ad-tok is-seg' + seg + (it.mask ? ' is-mask' : '') + (it.special ? ' is-special' : '') }, gg);
+      const tt = txt(gg, x + w / 2, y + 10.8, tokLab(it), 'ad-tok-txt' + (it.special ? ' is-special' : ''), 'middle');
+      if (k < 1) tt.setAttribute('style', 'font-size:' + r1(10 * k) + 'px');
+      if (used.tokSeg) S('rect', { x: r1(x), y: r1(y + h + 2), width: r1(w), height: 2.5, class: 'ad-tok-seg is-seg' + seg }, gg);
+      x += w + gap;
+    });
+    if (o.caption && ctl.mode !== 'blank' && !ctl.quiz) txt(gg, r.x + r.w / 2, y + h + 15, qText(o.caption, ctl, spec), 'ad-gqa-cap', 'middle');
+  }
+  function tokensWords(o) { return 'tokens de ejemplo: ' + (o.items || []).map(tokLab).join(' '); }
+
+  // node.cells = {rows, cols (claves o números), maxR?:6, maxC?:12, mark:'rowmax'|'pick'|'rows'|'none', lit?:<clave o número>,
+  //   sum?:texto, label?, caption?, seed?, cell?:9}: una tabla chica (filas × columnas, recortada a maxR × maxC con "…" y con la
+  //   cuenta real en label/caption) en la parte de abajo del bloque. El tono de cada celda es ILUSTRATIVO (semilla fija): lo que
+  //   dice la tabla es su forma y la marca: rowmax = el máximo de cada fila (MaxSim de ColBERT; sum = columna con los máximos y su
+  //   suma), pick = una celda leída por fila (la tabla ADC: el código de cada sub-cuantizador), rows = las primeras `lit` filas
+  //   resaltadas (las nprobe listas que se recorren). En la práctica no lleva label ni caption (darían la forma de un hueco).
+  function cellsDims(o, run) {
+    const R = numKey(run, o.rows), C = numKey(run, o.cols);
+    if (!(R > 0 && C > 0)) return null;
+    const maxR = o.maxR || 6, maxC = o.maxC || 12, cs = o.cell || 9;
+    const nR = Math.min(R, maxR), nC = Math.min(C, maxC);
+    return { R, C, nR, nC, cs, moreR: R > maxR, moreC: C > maxC };
+  }
+  const CELLS_TOP = (o) => (o.label ? (o.sum ? 28 : 16) : (o.sum ? 14 : 6));
+  const CELLS_H = (o, run) => { const d = cellsDims(o, run); if (!d) return 0; return CELLS_TOP(o) + (d.nR + (d.moreR ? 1 : 0)) * d.cs + (o.sum ? 14 : 0) + (o.caption ? 15 : 0) + 6; };
+  function drawCells(g, o, r, run, used, ctl, spec) {
+    const d = cellsDims(o, run);
+    if (!d) return;
+    const mark = o.mark || 'none';
+    if (mark === 'rows') used.cellsRows = true; else used.cells = true;
+    const quiet = ctl.mode === 'blank' || ctl.quiz;
+    const gg = S('g', { class: 'ad-cells' }, g);
+    const rng = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng(o.seed || 11) : Math.random;
+    const cs = d.cs, rowsDrawn = d.nR + (d.moreR ? 1 : 0), colsDrawn = d.nC + (d.moreC ? 1 : 0);
+    const sumW = mark === 'rowmax' && o.sum ? cs + 10 : 0;
+    const gw = colsDrawn * cs + sumW;
+    const x0 = r.x + (r.w - gw) / 2, y0 = r.y + r.h - CELLS_H(o, run) + CELLS_TOP(o);
+    if (o.label && !quiet) txt(gg, r.x + r.w / 2, y0 - (o.sum ? 17 : 5), qText(o.label, ctl, spec), 'ad-cells-lab', 'middle');
+    const lit = mark === 'rows' ? Math.min(numKey(run, o.lit) || 0, d.nR) : 0;
+    const vals = [];
+    for (let i = 0; i < rowsDrawn; i++) {
+      const isMoreR = d.moreR && i === d.nR;
+      const yy = y0 + i * cs;
+      if (isMoreR) { txt(gg, x0 + (d.nC * cs) / 2, yy + cs - 1, '⋮', 'ad-cells-ell', 'middle'); continue; }
+      const row = [];
+      for (let j = 0; j < d.nC; j++) row.push(rng());
+      vals.push(row);
+      const best = row.indexOf(Math.max(...row)), pick = Math.floor(rng() * d.nC);
+      for (let j = 0; j < colsDrawn; j++) {
+        const xx = x0 + j * cs;
+        if (d.moreC && j === d.nC) { txt(gg, xx + cs / 2, yy + cs - 2, '…', 'ad-cells-ell', 'middle'); continue; }
+        if (mark === 'rows') S('rect', { x: r1(xx + 0.5), y: r1(yy + 1.5), width: r1(cs - 1), height: r1(cs - 3), class: 'ad-cell-row' + (i < lit ? ' is-lit' : '') }, gg);
+        else S('rect', { x: r1(xx + 0.5), y: r1(yy + 0.5), width: r1(cs - 1), height: r1(cs - 1), class: 'ad-cell', style: 'fill-opacity:' + (Math.round((0.12 + 0.75 * row[j]) * 100) / 100) }, gg);
+        if ((mark === 'rowmax' && j === best) || (mark === 'pick' && j === pick)) S('rect', { x: r1(xx - 0.5), y: r1(yy - 0.5), width: r1(cs + 1), height: r1(cs + 1), class: 'ad-cell-mark' }, gg);
+      }
+      if (sumW) {
+        const xs = x0 + colsDrawn * cs + 10;
+        S('rect', { x: r1(xs + 0.5), y: r1(yy + 0.5), width: r1(cs - 1), height: r1(cs - 1), class: 'ad-cell is-max', style: 'fill-opacity:' + (Math.round((0.12 + 0.75 * row[best]) * 100) / 100) }, gg);
+      }
+    }
+    if (sumW) {
+      const xs = x0 + colsDrawn * cs + 10, yb = y0 + rowsDrawn * cs;
+      txt(gg, xs + cs / 2, y0 - 5, 'máx', 'ad-cells-ell', 'middle');
+      if (!quiet) txt(gg, xs + cs / 2, yb + 11, String(o.sum), 'ad-cells-sum', 'middle');
+    }
+    if (o.caption && !quiet) txt(gg, r.x + r.w / 2, y0 + rowsDrawn * cs + (sumW ? 14 : 0) + 12, qText(o.caption, ctl, spec), 'ad-gqa-cap', 'middle');
+  }
+  function cellsWords(o, run, ctl, spec) {
+    const d = cellsDims(o, run);
+    if (!d) return '';
+    const quiet = ctl.mode === 'blank' || ctl.quiz;
+    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : '';
+    return 'tabla' + (quiet ? '' : ' de ' + fint(d.R) + ' × ' + fint(d.C)) + (what ? ', ' + what : '') + ' (tono ilustrativo)' + (o.caption && !quiet ? ': ' + plainSub(qText(o.caption, ctl, spec)) : '');
+  }
+
+  // node.layered = {levels:[{n, label?}, …] (de arriba abajo), seed?}: pictograma de un grafo por capas (HNSW): una lámina por capa
+  // con n puntos (los de arriba son un subconjunto de los de abajo), enlaces a los vecinos más cercanos de esa capa, la ruta
+  // codiciosa resaltada (de la entrada arriba hacia la consulta, bajando por el mismo punto) y la consulta (rombo) abajo. Todo
+  // ILUSTRATIVO (pocos puntos); los rótulos pueden llevar {{…}} del calculador.
+  const LAY_STEP = 46;
+  const LAYERED_H = (o) => ((o && o.levels) || []).length * LAY_STEP + 6;
+  function layeredGeom(o) {
+    const levels = o.levels || [], L = levels.length;
+    const rng = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng(o.seed || 5) : Math.random;
+    const nBottom = levels.length ? levels[L - 1].n : 0;
+    const pts = Array.from({ length: nBottom }, () => [0.06 + 0.88 * rng(), 0.12 + 0.76 * rng()]);
+    const q = o.query || [0.78, 0.62];
+    // capa i (0 = arriba) = los primeros n_i puntos (anidadas, como en HNSW)
+    const sets = levels.map((lv) => pts.slice(0, Math.min(lv.n, nBottom)).map((p, j) => j));
+    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const nb = (ids, j, k) => ids.filter((x) => x !== j).sort((a, b) => dist(pts[a], pts[j]) - dist(pts[b], pts[j])).slice(0, k);
+    const links = sets.map((ids) => ids.map((j) => nb(ids, j, Math.min(3, ids.length - 1))));
+    // ruta codiciosa: en cada capa, saltar al vecino más cercano a q hasta no mejorar
+    const path = [];
+    let cur = 0;
+    sets.forEach((ids, li) => {
+      const seg = [cur];
+      for (let it = 0; it < 20; it++) {
+        const cand = links[li][ids.indexOf(cur)] || [];
+        const best = cand.reduce((b, x) => (dist(pts[x], q) < dist(pts[b], q) ? x : b), cur);
+        if (best === cur) break;
+        cur = best; seg.push(cur);
+      }
+      path.push(seg);
+    });
+    return { levels, pts, q, sets, links, path };
+  }
+  function drawLayered(g, o, r, used, ctl, spec) {
+    const G = layeredGeom(o);
+    if (!G.levels.length) return;
+    used.layered = true;
+    const gg = S('g', { class: 'ad-layered' }, g);
+    const x0 = r.x + 12, W = r.w - 24, sk = 14, ph = 32;
+    const yTop = r.y + r.h - LAYERED_H(o) + 4;
+    const Q = (li, p) => { const yy = yTop + li * LAY_STEP; return [x0 + sk * (1 - p[1]) + p[0] * (W - sk), yy + p[1] * ph]; };
+    G.levels.forEach((lv, li) => {
+      const yy = yTop + li * LAY_STEP;
+      S('path', { d: 'M' + r1(x0 + sk) + ' ' + r1(yy) + 'H' + r1(x0 + W) + 'L' + r1(x0 + W - sk) + ' ' + r1(yy + ph) + 'H' + r1(x0) + 'Z', class: 'ad-lay-plane' }, gg);
+      let d = '';
+      G.sets[li].forEach((j, k) => (G.links[li][k] || []).forEach((e) => { if (e > j) { const a = Q(li, G.pts[j]), b = Q(li, G.pts[e]); d += 'M' + P(a) + 'L' + P(b); } }));
+      if (d) S('path', { d, class: 'ad-lay-edge' }, gg);
+    });
+    // verticales punteadas: el mismo nodo baja de capa
+    for (let li = 0; li + 1 < G.levels.length; li++) {
+      const j = G.path[li][G.path[li].length - 1], a = Q(li, G.pts[j]), b = Q(li + 1, G.pts[j]);
+      S('path', { d: 'M' + P(a) + 'L' + P(b), class: 'ad-lay-drop' }, gg);
+    }
+    G.levels.forEach((lv, li) => {
+      const seg = G.path[li];
+      if (seg.length > 1) S('path', { d: seg.map((j, k) => (k ? 'L' : 'M') + P(Q(li, G.pts[j]))).join(''), class: 'ad-lay-path' }, gg);
+      G.sets[li].forEach((j) => { const p = Q(li, G.pts[j]); S('circle', { cx: r1(p[0]), cy: r1(p[1]), r: seg.indexOf(j) >= 0 ? 2.8 : 2, class: 'ad-lay-pt' + (seg.indexOf(j) >= 0 ? ' is-on' : '') }, gg); });
+      if (li === 0) { const p = Q(0, G.pts[0]); S('circle', { cx: r1(p[0]), cy: r1(p[1]), r: 5, class: 'ad-lay-ep' }, gg); }
+      if (lv.label && !(ctl.mode === 'blank' || ctl.quiz)) txt(gg, x0 + W - sk - 2, yTop + li * LAY_STEP + ph + 11, qText(lv.label, ctl, spec), 'ad-lay-lab', 'end');
+    });
+    const qp = Q(G.levels.length - 1, G.q);
+    S('path', { d: 'M' + P([qp[0] - 5, qp[1]]) + 'L' + P([qp[0], qp[1] - 5]) + 'L' + P([qp[0] + 5, qp[1]]) + 'L' + P([qp[0], qp[1] + 5]) + 'Z', class: 'ad-lay-q' }, gg);
+  }
+  function layeredWords(o, ctl, spec) {
+    const lv = o.levels || [];
+    return 'grafo por capas, ilustrativo: ' + lv.map((x, i) => (x.label && !(ctl.mode === 'blank' || ctl.quiz) ? plainSub(qText(x.label, ctl, spec)) : 'capa ' + (lv.length - 1 - i)) + ' (' + x.n + ' puntos dibujados)').join(', ') + (ctl.mode === 'blank' || ctl.quiz ? '' : '; la búsqueda baja codiciosa desde la entrada de arriba');
+  }
+
   function drawMapNode(ctl, parent, n, r, used) {
     const it = (ATLAS.catalog && ATLAS.catalog() && ATLAS.catalog().items && ATLAS.catalog().items[n.id]) || null;
     const page = ATLAS.getPage ? ATLAS.getPage(n.id) : null;
@@ -2019,6 +2205,7 @@
   function blankGiveaways(ctl, spec, run) {
     const out = new Set();
     out.nums = new Set();
+    out.tensors = new Set();   // fase 11: tensores cuya forma delata un hueco (blankHide): tampoco van en el aria de sus nodos
     if (ctl.mode !== 'blank' || !run) return out;
     const edges = spec.edges || [];
     const num = (e) => { const er = edgeRun(run, e); return e.tensor && er.tensors[e.tensor] ? er.tensors[e.tensor].num.join('×') : null; };
@@ -2035,7 +2222,7 @@
         for (const e of edges) if (e !== h && num(e) === want) out.add(edgeKey(e) + '@' + e.tensor);
         // fase 8: edge.blankHide = true | id de tensor | [ids]: la forma de esta arista se oculta cuando un hueco pide la forma
         // de ese tensor (true = cualquiera), porque da UN factor de la respuesta ("D 1152" y "256×32" delatan 256×1152)
-        for (const e of edges) if (e !== h && e.tensor && e.blankHide && (e.blankHide === true || [].concat(e.blankHide).indexOf(h.tensor) >= 0)) out.add(edgeKey(e) + '@' + e.tensor);
+        for (const e of edges) if (e !== h && e.tensor && e.blankHide && (e.blankHide === true || [].concat(e.blankHide).indexOf(h.tensor) >= 0)) { out.add(edgeKey(e) + '@' + e.tensor); out.tensors.add(e.tensor); }
       }
     }
     return out;
@@ -2052,7 +2239,7 @@
   // fase 9 (revisión): en la práctica, ¿esta forma es la respuesta de un hueco (o la delata)? Entonces no va en el aria.
   function blankShapeHidden(ctl, t, key) {
     if (ctl.mode !== 'blank' || !ctl.blankHide || !t) return false;
-    return ctl.blankHide.nums.has(t.num.join('×')) || (key != null && ctl.blankHide.has(key));
+    return ctl.blankHide.nums.has(t.num.join('×')) || (key != null && ctl.blankHide.has(key)) || !!(t.id && ctl.blankHide.tensors && ctl.blankHide.tensors.has(t.id));
   }
   function mapName(id) { const c = ATLAS.catalog && ATLAS.catalog(); const it = c && c.items && c.items[id]; return (it && (it.short || it.title)) || id; }
 
@@ -2073,6 +2260,10 @@
     if (n.bars && run && ctl.mode !== 'blank' && !ctl.quiz) { const bw = barsWords(n.bars, run, ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {})); if (bw) parts.push(bw); }
     if (n.adapter && run) { const st = adapterState(run, n.adapter); parts.push(st.on ? 'con adaptador LoRA entrenable' + (st.params ? ' (' + fint(st.params) + ' parámetros por capa)' : '') : 'sin adaptador con esta config'); }
     if (n.matrix && run && ctl.mode !== 'blank') { const R = numKey(run, n.matrix.rows), C = numKey(run, n.matrix.cols); if (R && C) parts.push('matriz ' + fint(R) + '×' + fint(C)); }
+    // fase 11: tokens de ejemplo, tabla de celdas (sin números en la práctica) y grafo por capas
+    if (n.tokens) parts.push(tokensWords(n.tokens));
+    if (n.cells && run) { const cw = cellsWords(n.cells, run, ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {})); if (cw) parts.push(cw); }
+    if (n.layered) parts.push(layeredWords(n.layered, ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {})));
     if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ')); }
     if (n.layers && run) { const L = numKey(run, n.layers.L); const tp = tapOf(run, n.layers, L); if (L && tp) parts.push(layersNeutral(ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {}), n) ? L + ' capas' : 'features de la capa ' + tp + ' de ' + L); }
     if (n.expand) parts.push('se puede abrir');
@@ -2203,12 +2394,14 @@
     const e = ctl.mode === 'blank' && ge.spec.tagBlank !== undefined ? Object.assign({}, ge.spec, { tag: ge.spec.tagBlank }) : ge.spec;
     if (!ge.pts.length) return null;
     const kind = ge.kind;
-    used.edges.add(kind);
+    // fase 11: edge.tie = pesos atados / compartidos (la tabla de palabras de BERT y el decoder del MLM; las dos torres de un
+    // bi-encoder con pesos compartidos): línea de control propia, sin punta, con un punto en cada extremo; su entrada de leyenda
+    if (e.tie) used.tie = true; else used.edges.add(kind);
     if (isMap && MAP_KINDS.indexOf(kind) >= 0) used.map.add(kind);
     const t = e.tensor && run ? edgeRun(run, e).tensors[e.tensor] : null;
     let slot = (e.tensor && slotFor(ctl, ge.key + '@' + e.tensor)) || slotFor(ctl, ge.key) || (e.tensor && slotFor(ctl, 'tensor:' + e.tensor));
     if (slot && slot.tensor && e.tensor && slot.tensor !== e.tensor) slot = null;   // aristas paralelas (q y k): solo la del tensor pedido
-    const g = S('g', { class: 'ad-edge ad-edge--' + kind, 'data-edge': ge.key, 'data-kind': kind, 'data-tensor': e.tensor || null, 'data-ov': e.ov ? JSON.stringify(e.ov) : null,
+    const g = S('g', { class: 'ad-edge ad-edge--' + kind + (e.tie ? ' ad-edge--tie' : ''), 'data-edge': ge.key, 'data-kind': kind, 'data-tensor': e.tensor || null, 'data-ov': e.ov ? JSON.stringify(e.ov) : null, 'data-config': e.config || null,
       tabindex: (t || isMap) && ctl.mode !== 'blank' ? -1 : null, role: t ? 'button' : null }, L.edges);
     const headSize = kind === 'control' ? 5 : 7;
     let d;
@@ -2223,7 +2416,7 @@
       S('path', { d: path(B), class: 'ad-hit' }, g);
       headPts = [C2, B];
     } else {
-      d = roundedPath(shorten(ge.pts, headSize - 1), 8);
+      d = roundedPath(e.tie ? ge.pts : shorten(ge.pts, headSize - 1), 8);
       S('path', { d: roundedPath(ge.pts, 8), class: 'ad-hit' }, g);  // área de toque
     }
     if (kind === 'cross') {
@@ -2231,7 +2424,8 @@
       S('path', { d, class: 'ad-ln ad-ln--cross-in' }, g);
     } else S('path', { d, class: 'ad-ln' }, g);
     const hollow = kind === 'cross' || kind === 'usa';
-    if (kind !== 'contrasta') arrowHead(g, headPts, 'ad-head' + (hollow ? ' ad-head--hollow' : ''), headSize);
+    if (kind !== 'contrasta' && !e.tie) arrowHead(g, headPts, 'ad-head' + (hollow ? ' ad-head--hollow' : ''), headSize);
+    if (e.tie) { const p0 = ge.pts[0], p1 = ge.pts[ge.pts.length - 1]; S('circle', { cx: r1(p0[0]), cy: r1(p0[1]), r: 3, class: 'ad-end' }, g); S('circle', { cx: r1(p1[0]), cy: r1(p1[1]), r: 3, class: 'ad-end' }, g); }
     if (kind === 'contrasta') { const p0 = ge.pts[0], p1 = ge.pts[ge.pts.length - 1]; S('circle', { cx: r1(p0[0]), cy: r1(p0[1]), r: 2.4, class: 'ad-end' }, g); S('circle', { cx: r1(p1[0]), cy: r1(p1[1]), r: 2.4, class: 'ad-end' }, g); }
     if (isMap) g.setAttribute('aria-label', (MAP_KIND_SENT[kind] ? MAP_KIND_SENT[kind](mapName(e.from), mapName(e.to)) : e.from + ' → ' + e.to) + (e.label ? ' (' + e.label + ')' : ''));
     // fase 9 (revisión): en la práctica, la arista con hueco de forma dice solo que es un hueco, y las que comparten esa forma
@@ -2244,7 +2438,7 @@
     else if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? plainSub(qText(e.tag, ctl, ctl.building)) + ': ' : '') + plainSub(t.label || e.tensor) + (blankShapeHidden(ctl, t, ge.key + '@' + e.tensor) ? '' : ', ' + shapeSay(t)) + fromTo());
     // arista de control con etiqueta (sin tensor): el lector de pantalla oye qué decide y entre qué bloques
     // fase 9: en una vista sin calculador (calc:false) las aristas de datos tampoco tienen tensor: también dicen su etiqueta
-    if (!t && !isMap && (kind === 'control' || (ctl.building && ctl.building.calc === false)) && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(qText(e.tag, ctl, ctl.building)) + (e.loop ? ', se repite' : '') + (kind === 'control' ? ' (control, de ' : ' (flujo, de ') + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
+    if (!t && !isMap && (kind === 'control' || (ctl.building && ctl.building.calc === false)) && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(qText(e.tag, ctl, ctl.building)) + (e.loop ? ', se repite' : '') + (e.tie ? ' (pesos compartidos entre ' + plainSub(nodeLabelOf(ctl, e.from)) + ' y ' : kind === 'control' ? ' (control, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' : ' (flujo, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ') + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
     if (e.dot) { const dp = e.fromPt ? ge.pts[0] : ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
     if ((kind === 'cross' || e.tag) && e.tag !== false) {   // tag:false = arista cross sin etiqueta (chips de texto de YOLO-World)
       const la = labelAnchor(ge.pts0 || ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
@@ -2408,6 +2602,13 @@
     if (used.bars) item((s) => { S('rect', { x: 2, y: 3, width: 12, height: 5, class: 'ad-bar-seg ad-op--norm' }, s); S('rect', { x: 14, y: 3, width: 6, height: 5, class: 'ad-bar-seg ad-op--conv' }, s); S('rect', { x: 2, y: 10, width: 7, height: 5, class: 'ad-bar-seg ad-op--norm' }, s); S('path', { d: 'M22 1V15', class: 'ad-bars-line' }, s); }, LT.bars || 'Barras: ancho proporcional (del calculador); línea punteada = referencia');
     if (used.adapterOn) item((s) => { const g = S('g', { class: 'ad-adapter is-on' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-adapter-bg' }, g); trainIcon(g, false, 13, 8); }, LT.adapterOn || 'Adaptador LoRA (B·A, entrenable) sobre esa lineal; su número: parámetros por capa');
     if (used.adapterOff) item((s) => { const g = S('g', { class: 'ad-adapter is-off' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-adapter-bg' }, g); }, LT.adapterOff || 'Sin adaptador con esta config: la lineal queda congelada tal cual');
+    // fase 11: pesos atados, tokens de ejemplo, tablas de celdas y grafo por capas
+    if (used.tie) item((s) => { const g = S('g', { class: 'ad-edge ad-edge--control ad-edge--tie' }, s); S('path', { d: 'M4 8H22', class: 'ad-ln' }, g); S('circle', { cx: 4, cy: 8, r: 2.6, class: 'ad-end' }, g); S('circle', { cx: 22, cy: 8, r: 2.6, class: 'ad-end' }, g); }, LT.tie || 'Pesos atados: la misma matriz en los dos extremos (se cuenta una vez)');
+    if (used.tokens) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 1, y: 3, width: 11, height: 9, rx: 2, class: 'ad-tok is-seg0' }, g); S('rect', { x: 14, y: 3, width: 11, height: 9, rx: 2, class: 'ad-tok is-seg1' }, g); S('rect', { x: 1, y: 13, width: 11, height: 2, class: 'ad-tok-seg is-seg0' }, g); S('rect', { x: 14, y: 13, width: 11, height: 2, class: 'ad-tok-seg is-seg1' }, g); }, LT.tokens || ('Tokens de ejemplo (ilustrativo)' + (used.tokSeg ? '; la barra de abajo es el segmento: A o B' : '')));
+    if (used.tokMask) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-mask' }, g); }, LT.tokMask || '[MASK]: token enmascarado (lo que el MLM predice)');
+    if (used.cells) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [[2, 2, .25], [8, 2, .8], [14, 2, .4], [2, 8, .6], [8, 8, .2], [14, 8, .9]].forEach(([x, y, v]) => S('rect', { x, y, width: 5, height: 5, class: 'ad-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 7.5, y: 1.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('rect', { x: 13.5, y: 7.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); }, LT.cells || 'Tabla (ilustrativa: el tono no es un valor real); recuadro = la celda elegida por fila');
+    if (used.cellsRows) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 2, y, width: 22, height: 3, class: 'ad-cell-row' + (i === 1 ? ' is-lit' : '') }, g)); }, LT.cellsRows || 'Filas: listas del índice; resaltadas = las que se recorren');
+    if (used.layered) item((s) => { const g = S('g', { class: 'ad-layered' }, s); S('path', { d: 'M4 3H24L21 7H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M4 9H24L21 13H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M10 5L10 11L17 11', class: 'ad-lay-path' }, g); }, LT.layered || 'Grafo por capas (ilustrativo): la ruta resaltada es la búsqueda codiciosa');
     if (used.matrix) item((s) => { const g = S('g', { class: 'ad-op--embed' }, s); S('rect', { x: 3, y: 2, width: 12, height: 12, class: 'ad-mat-box' }, g); S('rect', { x: 18, y: 2, width: 3, height: 12, class: 'ad-mat-box' + (used.matrixClamped ? ' is-clamped' : '') }, g); }, LT.matrix || 'Matriz de pesos a escala (lineal): filas × columnas');
     if (used.closed) item((s) => { const g = S('g', { class: 'ad-node--closed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); }, 'Caja negra: pesos cerrados (no se ve por dentro)');
     if (used.bins) item((s) => { const g = S('g', { class: 'ad-bins' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-bins-track' }, g); S('path', { d: 'M5 4V12M8 4V12M11 4V12M14 4V12M17 4V12M20 4V12', class: 'ad-bins-tick' }, g); S('rect', { x: 13, y: 3, width: 4, height: 10, class: 'ad-bins-on' }, g); }, 'Bins de una dimensión de la acción (resaltado: el del ejemplo, ilustrativo)');
@@ -2600,6 +2801,9 @@
         if (n.bars && run) { const bw = barsWords(n.bars, run, ctl, spec); if (bw) parts.push(bw); }
         if (n.adapter && run) { const st = adapterState(run, n.adapter); parts.push(st.on ? 'Adaptador LoRA entrenable' + (st.params ? ': ' + fint(st.params) + ' parámetros por capa' : '') : 'Sin adaptador con esta config'); }
         if (n.matrix && run) { const R = numKey(run, n.matrix.rows), C = numKey(run, n.matrix.cols); if (R && C) parts.push('Matriz ' + fint(R) + '×' + fint(C)); }
+        if (n.tokens) parts.push(tokensWords(n.tokens));
+        if (n.cells && run) { const cw = cellsWords(n.cells, run, ctl, spec); if (cw) parts.push(cw); }
+        if (n.layered) parts.push(layeredWords(n.layered, ctl, spec));
         dd.innerHTML = combSafe(esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, opts.config || spec.config) : ''));
       }
     }

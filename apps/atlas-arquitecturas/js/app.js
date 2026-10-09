@@ -264,10 +264,15 @@
       const r = res.run;
       const F = B().fmt;
       cells.push(['Config canónica', r.label || m.canonical]);
-      if (r.totals && typeof r.totals.params === 'number') cells.push(['Parámetros', h('span', { title: F.int(r.totals.params) + ' parámetros' }, F.si(r.totals.params))]);
+      // Índices ANN: lo que importa es la memoria del índice y cuánto se revisa por consulta, no el encoder de la consulta.
+      const AM = m.model === 'ann' && ATLAS.Arch && ATLAS.Arch.metrics ? (() => { try { return ATLAS.Arch.metrics(m.canonical); } catch (e) { return null; } })() : null;
+      if (AM && typeof AM.indexBytes === 'number') {
+        cells.push(['Índice', F.bytes ? F.bytes(AM.indexBytes) : String(AM.indexBytes)]);
+        if (typeof AM.distanceComputations === 'number') cells.push(['Distancias/consulta (≈)', F.int(Math.round(AM.distanceComputations))]);
+      } else if (r.totals && typeof r.totals.params === 'number') cells.push(['Parámetros', h('span', { title: F.int(r.totals.params) + ' parámetros' }, F.si(r.totals.params))]);
       const tok = r.quantities && r.quantities.tokens;
-      if (tok != null) cells.push(['Tokens', F.int(tok)]);
-      if (r.totals && typeof r.totals.macs === 'number') {
+      if (!AM && tok != null) cells.push(['Tokens', F.int(tok)]);
+      if (!AM && r.totals && typeof r.totals.macs === 'number') {
         const big = r.totals.macs >= 1e7;   // modelos de juguete: MACs enteros, no "0.00 G"
         const tera = r.totals.macs >= 1e12;   // LLMs con prompts largos: TMACs, no "16469.05 G"
         cells.push([tera ? 'TMACs' : big ? 'GMACs' : 'MACs', h('span', { title: F.int(r.totals.macs) + ' MACs (FLOPs = 2 × MACs)' }, tera ? (r.totals.macs / 1e12).toFixed(2) : big ? (r.totals.macs / 1e9).toFixed(2) : F.int(r.totals.macs))]);

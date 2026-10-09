@@ -98,6 +98,15 @@
      (D → 1: recompensa / valor), token_logprobs, kl_penalty (k1 / k3), shaped_reward, gae, group_advantage, ppo_clip_loss,
      value_loss, bt_loss y dpo_loss (solo "otros"). Fuera de NOT_SAVED. Ninguna cambia el resultado de las fases 1–9
      (verificado: run y metrics de las 56 configs anteriores idénticos antes y después).
+   - Fase 11 (BERT, recuperación densa, ANN; modelos en js/arch/retrieval.js): tanh, mean_pool, pooler (compuesta: [CLS] → Linear →
+     tanh), tied_decoder (decoder del MLM atado a los word embeddings: solo el sesgo V cuenta), mlm_head (compuesta), nsp_head,
+     score_head (Linear D → 1 con sesgo: cross-encoder), cross_entropy, mlm_mask (15 %: 80 / 10 / 10), pair_tokens, dot_score,
+     token_sim / max_reduce / sum_reduce y la compuesta maxsim (ColBERT), topk_scores, truncate_dim (Matryoshka), embed_index;
+     ANN: flat_scan, hnsw_descent / hnsw_beam (≈), ivf_coarse (centroides = parámetros), ivf_residual, pq_lut, pq_scan y la
+     contabilidad flat_bytes / hnsw_bytes / ivfpq_bytes (fórmulas verificadas con faiss 1.15.1). Graph helper postLnLayer (capa
+     post-LN: BERT). OTHER suma tanh y max; NOT_SAVED suma embed_index y truncate_dim; symTexAtom escribe n_list / n_probe como
+     n_{\mathrm{list}} (ningún símbolo anterior los tenía). Ninguna cambia el resultado de las fases 1–10 (verificado: run y
+     metrics de las 65 configs anteriores idénticos antes y después).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -176,7 +185,8 @@
     // Fase 4: '·' dentro de un símbolo (H/8·W/8, las celdas de un nivel de YOLO) → \cdot. Ningún símbolo
     // anterior lo usa fuera de SYM_TEX (hLK·2), así que las fórmulas de las fases 1–3 no cambian.
     // Fase 8: '²' dentro de un símbolo (P²·8 de DiT) → ^2. El único símbolo anterior con '²' (M²) está en SYM_TEX.
-    return s.replace(/D_mlp/g, 'D_{\\mathrm{mlp}}').replace(/·/g, '\\cdot ').replace(/²/g, '^2');
+    // Fase 11 (ANN): n_list / n_probe → n_{\mathrm{list}} (ningún símbolo anterior los tiene).
+    return s.replace(/D_mlp/g, 'D_{\\mathrm{mlp}}').replace(/n_(list|probe)/g, 'n_{\\mathrm{$1}}').replace(/·/g, '\\cdot ').replace(/²/g, '^2');
   }
   const compound = (s) => /[+\-\/ ]/.test(String(s));
   // En una forma: (N+1)×D. En LaTeX de forma: (N{+}1)\times D.
@@ -242,7 +252,9 @@
     // Fase 5: interpolación bilineal (4 vecinos) y bicúbica (16), rotación RoPE (q·cos + rot(q)·sin).
     bilinear: 4, bicubic: 16, rope: 3,
     // Fase 6: producto elementwise (SwiGLU: SiLU(gate) ⊙ up), top-k del router (≈ 1 comparación por logit).
-    mul: 1, topk: 1 };
+    mul: 1, topk: 1,
+    // Fase 11: tanh (pooler de BERT), máximo por fila (MaxSim de ColBERT).
+    tanh: 5, max: 1 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -2450,6 +2462,243 @@
     return result('dpo_loss', [pi, ref], shape(['1'], [1], pi.mod, 'vec'), { other: 8, detail: { beta: (o && o.beta) || 0.1 } });
   }
 
+  // ---- Fase 11 (BERT, recuperación densa, ANN; modelos en js/arch/retrieval.js) ----------------------------------------
+  // tanh (pooler de BERT): ≈ 5 ops por elemento en "otros".
+  const tanh = (x) => elementwise('tanh', x, OTHER.tanh);
+  // mean_pool (Sentence-BERT; all-MiniLM-L6-v2 usa pooling_mode_mean_tokens): Σ_t m_t·x_t / Σ_t m_t sobre las T filas
+  // (m = máscara de atención; sin relleno, todas 1): T×D → D. Sin parámetros ni MACs: ≈ 2·T·D + D "otros".
+  function mean_pool(x) {
+    const T = x.num[0], D = x.num[1];
+    return result('mean_pool', [x], shape([x.sym[1]], [D], x.mod, 'vec'), {
+      other: 2 * T * D + D, detail: { T, D, note: 'promedio de los T vectores de token (con la máscara de atención: el relleno no cuenta)' },
+    });
+  }
+  // pooler (compuesta; BertPooler de HF): tanh(W·h_[CLS] + b), D → D sobre la fila 0. En el grafo: pool_cls → linear → tanh.
+  function pooler(x) {
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1], d = symTexFactor(Ds);
+    const c = pool_cls(x), l = linear(c.out, { dout: D, doutSym: Ds }), t = tanh(l.out);
+    return composite('pooler', x, [c, l, t], t.out, { paramTex: d + '^2 + ' + d, macTex: d + '^2', detail: { D, note: 'solo la fila [CLS]: D² MACs, no T·D²' } });
+  }
+  // tied_decoder (decoder del MLM de BERT): logits = h·E_tokᵀ + b. La matriz es la tabla de word embeddings (pesos ATADOS:
+  // ya contados en el embedding) y solo el sesgo de V es propio. Parámetros V; MACs T·D·V. o = {V, Vsym = 'V', tiedWith}
+  function tied_decoder(x, o) {
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1];
+    const rows = x.num.slice(0, -1), rowsSym = x.sym.slice(0, -1);
+    const V = o.V, Vs = o.Vsym || 'V';
+    return result('tied_decoder', [x], shape(rowsSym.concat([Vs]), rows.concat([V]), x.mod, x.layout), {
+      paramTerms: [[V]], paramTex: symTexFactor(Vs) + '\\ (\\text{sesgo; } W = E_{\\mathrm{tok}}^{\\top}\\text{, atada})',
+      macTerms: [rows.concat([D, V])], macTex: texProd(rowsSym.concat([Ds, Vs])), other: prod(rows) * V * OTHER.bias,
+      detail: { V, D, tied: o.tiedWith || 'word embeddings', tiedParams: V * D, note: 'pesos atados a la tabla de tokens: no se cuentan dos veces' },
+    });
+  }
+  // mlm_head (compuesta; BertLMPredictionHead): dense D → D → GELU → LayerNorm → tied_decoder (D → V, sesgo V).
+  // Parámetros D² + D + 2D + V; MACs T·D² + T·D·V. o = {V, Vsym}
+  function mlm_head(x, o) {
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1], d = symTexFactor(Ds), v = symTexFactor(o.Vsym || 'V');
+    const n = x.sym.slice(0, -1).map(symTexFactor).join('\\,');
+    const dn = linear(x, { dout: D, doutSym: Ds }), gl = gelu(dn.out), ln = layernorm(gl.out), dec = tied_decoder(ln.out, o);
+    return composite('mlm_head', x, [dn, gl, ln, dec], dec.out, {
+      paramTex: d + '^2 + 3' + d + ' + ' + v, macTex: n + '\\,' + d + '^2 + ' + n + '\\,' + d + '\\,' + v,
+      detail: { V: o.V, note: 'el decoder comparte la matriz con los word embeddings; solo su sesgo es nuevo' },
+    });
+  }
+  // nsp_head (BERT, next sentence prediction): Linear D → 2 sobre la salida del pooler. Parámetros 2D + 2.
+  function nsp_head(x) {
+    const r = linear(x, { dout: 2, doutSym: '2' });
+    r.prim = 'nsp_head';
+    r.detail = Object.assign({}, r.detail, { classes: ['IsNext', 'NotNext'] });
+    return r;
+  }
+  // score_head (cross-encoder; BertForSequenceClassification con num_labels = 1): Linear D → 1 CON sesgo sobre la salida del
+  // pooler → un escalar de relevancia. Parámetros D + 1. (scalar_head, de la fase 10, es la versión sin sesgo del reward model.)
+  function score_head(x) {
+    const r = linear(x, { dout: 1, doutSym: '1' });
+    r.prim = 'score_head';
+    r.detail = Object.assign({}, r.detail, { note: 'relevancia del par (query, documento): un número, sin softmax' });
+    return r;
+  }
+  // cross_entropy: −log softmax(logits)[etiqueta] promediado sobre `rows` posiciones (MLM: solo los tokens elegidos; NSP: 1).
+  // → escalar. Solo "otros": rows·(5·C + 1). Entradas: logits (…×C) y etiquetas. o = {rows}
+  function cross_entropy(logits, labels, o) {
+    const C = logits.num[logits.num.length - 1], rows = (o && o.rows) || prod(logits.num.slice(0, -1)) || 1;
+    return result('cross_entropy', [logits, labels], shape(['1'], [1], logits.mod, 'vec'), { other: rows * (C * OTHER.softmax + 1), detail: { C, rows } });
+  }
+  // dot_score: producto punto de un vector q (D) contra M vectores (M×D) → M (o contra uno, D → 1). MACs M·D. Con vectores
+  // normalizados (l2_normalize antes) es el coseno. o = {metric: 'ip' | 'cos'}
+  function dot_score(q, X, o) {
+    const D = q.num[q.num.length - 1], Ds = q.sym[q.sym.length - 1];
+    if (X.num[X.num.length - 1] !== D) throw new Error('dot_score: dimensiones distintas (' + D + ' y ' + X.num[X.num.length - 1] + ').');
+    const one = X.num.length === 1;
+    const M = one ? 1 : prod(X.num.slice(0, -1)), Ms = one ? '1' : X.sym.slice(0, -1).join('·');
+    return result('dot_score', [q, X], shape([Ms], [M], q.mod, 'vec'), {
+      macTerms: [one ? [D] : [M, D]], macTex: one ? symTexFactor(Ds) : texProd([Ms, Ds]),
+      detail: { M, D, metric: (o && o.metric) || 'ip', note: 'un producto punto de D MACs por vector comparado' },
+    });
+  }
+  // token_sim (ColBERT, interacción tardía): similitud de cada token de la query con cada token del documento:
+  // T_q×D, T_d×D → T_q×T_d. MACs T_q·T_d·D (sin parámetros).
+  function token_sim(q, d) {
+    if (q.num[1] !== d.num[1]) throw new Error('token_sim: dimensiones distintas (' + q.num[1] + ' y ' + d.num[1] + ').');
+    return result('token_sim', [q, d], shape([q.sym[0], d.sym[0]], [q.num[0], d.num[0]], q.mod, 'mat'), {
+      macTerms: [[q.num[0], d.num[0], q.num[1]]], macTex: texProd([q.sym[0], d.sym[0], q.sym[1]]), detail: { Tq: q.num[0], Td: d.num[0], D: q.num[1] },
+    });
+  }
+  // max_reduce: máximo por fila R×C → R (ColBERT: el mejor token del documento para cada token de la query). ≈ R·C comparaciones.
+  function max_reduce(x) {
+    return result('max_reduce', [x], shape([x.sym[0]], [x.num[0]], x.mod, 'vec'), { other: elems(x) * OTHER.max, detail: { over: x.num[1] } });
+  }
+  // sum_reduce: suma de un vector R → 1 (ColBERT: Σ sobre los tokens de la query). R − 1 sumas (≈ R).
+  function sum_reduce(x) {
+    return result('sum_reduce', [x], shape(['1'], [1], x.mod, 'vec'), { other: elems(x) * OTHER.add, detail: { over: elems(x) } });
+  }
+  // maxsim (compuesta, ColBERT, Khattab & Zaharia 2020, ec. 3): s(q, d) = Σ_i máx_j q_i·d_jᵀ. MACs T_q·T_d·D.
+  function maxsim(q, d) {
+    const s = token_sim(q, d), m = max_reduce(s.out), u = sum_reduce(m.out);
+    return composite('maxsim', q, [s, m, u], u.out, { paramTex: '0', macTex: texProd([q.sym[0], d.sym[0], q.sym[1]]), detail: { Tq: q.num[0], Td: d.num[0] } });
+  }
+  // topk_scores: los k mayores de N puntajes → k índices (heap / argpartition: ≈ N comparaciones, sin MACs). o = {k, kSym = 'k'}
+  function topk_scores(x, o) {
+    const N = elems(x), k = o.k;
+    if (k > N) throw new Error('topk_scores: k = ' + k + ' es mayor que los ' + N + ' candidatos.');
+    return result('topk_scores', [x], shape([o.kSym || 'k'], [k], x.mod, 'vec'), { other: N * OTHER.topk, detail: { N, k } });
+  }
+  // truncate_dim (Matryoshka, Kusupati et al., NeurIPS 2022, arXiv:2205.13147): quedarse con las primeras dim coordenadas
+  // (…×D → …×dim). Sin costo (una vista). o = {dim, dimSym = 'dim'}
+  function truncate_dim(x, o) {
+    const D = x.num[x.num.length - 1];
+    if (!(o.dim >= 1 && o.dim <= D)) throw new Error('truncate_dim: dim = ' + o.dim + ' debe estar entre 1 y ' + D + '.');
+    return result('truncate_dim', [x], shape(x.sym.slice(0, -1).concat([o.dimSym || 'dim']), x.num.slice(0, -1).concat([o.dim]), x.mod, x.layout), { detail: { from: D, to: o.dim } });
+  }
+  // embed_index: el índice offline = los vectores de los N documentos guardados (x es el de UN documento: D o T_d×D) →
+  // N×(…). Sin parámetros ni MACs (el costo de codificar está en el encoder × N); detail.bytes a `bits` por número.
+  // o = {N, Nsym = 'N', bits = 32}
+  function embed_index(x, o) {
+    const bits = o.bits || 32, n = o.N * elems(x);
+    return result('embed_index', [x], shape([o.Nsym || 'N'].concat(x.sym), [o.N].concat(x.num), x.mod, x.num.length ? 'seq' : 'vec'), {
+      detail: { N: o.N, bits, values: n, bytes: n * bits / 8, note: 'offline: se calcula una vez por documento y se guarda' },
+    });
+  }
+  // mlm_mask (BERT, Devlin et al. 2019, §3.1 y create_pretraining_data.py): elige ≈ 15 % de las posiciones (o.predictions; el README
+  // de google-research/bert: max_predictions_per_seq ≈ max_seq_length·masked_lm_prob, 20 con 128); de ellas 80 % → [MASK], 10 % → un
+  // token al azar y 10 % quedan igual. ids (T) → [ids de entrada (T), etiquetas (T: el id original en las elegidas, −100 / ignoradas
+  // en el resto)]. Solo "otros" (≈ 2T: sorteo y reemplazo). o = {rate = 0.15, predictions}
+  function mlm_mask(ids, o) {
+    const T = ids.num[0], rate = (o && o.rate) || 0.15, n = (o && o.predictions) || Math.ceil(rate * T);
+    return result('mlm_mask', [ids], [plain(ids), plain(ids)], {
+      other: 2 * T, detail: { rate, predictions: n, mask: 0.8, random: 0.1, keep: 0.1, note: '80 % [MASK] · 10 % token al azar · 10 % sin cambio' },
+    });
+  }
+  // pair_tokens (cross-encoder): arma la entrada de un par: [CLS] query [SEP] documento [SEP]. q (T_q, con su [CLS] y [SEP]) y
+  // un candidato del top-k (cand: k ids de documento) → T_q + T_d − 1 ids (el [CLS] del documento sobra). Sin costo; se repite por
+  // cada uno de los k pares. o = {Td, sym = 'T_q+T_d-1'}
+  function pair_tokens(q, cand, o) {
+    const T = q.num[0] + o.Td - 1;
+    return result('pair_tokens', [q, cand], shape([o.sym || 'T_q+T_d-1'], [T], q.mod, 'vec'), { detail: { Tq: q.num[0], Td: o.Td, note: '[CLS] query [SEP] documento [SEP]' } });
+  }
+  // ---- ANN (contabilidad de costo de búsqueda; FAISS 1.15: Johnson et al., arXiv:1702.08734; Douze et al., arXiv:2401.08281) ----
+  // flat_scan (IndexFlatIP / IndexFlatL2): q (d) contra los N vectores (N×d) → N distancias. MACs N·d, N distancias exactas.
+  // L2 vía BLAS: ‖q‖² + ‖x‖² − 2q·x (FAISS recalcula ‖x‖² en cada búsqueda: + N·d "otros"). o = {metric: 'ip' | 'l2'}
+  function flat_scan(q, X, o) {
+    const r = dot_score(q, X, o);
+    const l2 = o && o.metric === 'l2';
+    r.prim = 'flat_scan';
+    r.other = l2 ? X.num[0] * X.num[1] + 2 * X.num[0] : 0;
+    r.detail = Object.assign({}, r.detail, { distances: X.num[0], exact: true, metric: l2 ? 'l2' : 'ip' });
+    return r;
+  }
+  // Niveles de HNSW sobre el 0 (Malkov & Yashunin, TPAMI 2020, arXiv:1603.09320): el nivel de cada nodo sigue una geométrica con
+  // m_L = 1/ln M (P(nivel ≥ l) = M^−l; FAISS: assign_probas con levelMult = 1/ln M) → el nivel máximo esperado es ≈ log_M N.
+  const hnswLevels = (N, M) => Math.max(0, Math.floor(Math.log(N) / Math.log(M)));
+  // hnsw_descent: búsqueda voraz por los niveles superiores (ef = 1): ≈ un salto por nivel, cada uno compara ≤ M vecinos →
+  // ≈ niveles·M distancias (≈; cota de orden). → el punto de entrada al nivel 0. o = {N, M}
+  function hnsw_descent(q, X, o) {
+    const d = q.num[0], ds = q.sym[0], lv = hnswLevels(o.N, o.M), dist = lv * o.M;
+    return result('hnsw_descent', [q, X], shape(['1'], [1], q.mod, 'vec'), {
+      macTerms: dist ? [[lv, o.M, d]] : [], macTex: dist ? '\\lfloor\\log_M N\\rfloor\\cdot M\\cdot ' + symTexFactor(ds) : '0', other: dist,
+      detail: { levels: lv, distances: dist, estimate: true, note: '≈: voraz, ~1 salto por nivel de ≤ M vecinos; el costo real depende de los datos' },
+    });
+  }
+  // hnsw_beam: búsqueda en el nivel 0 con una lista de ef candidatos (efSearch): cada candidato expandido revisa ≤ 2M vecinos →
+  // ≈ ef·2M distancias (≈, cota: los ya visitados no se recalculan; medido con FAISS 1.15 sobre datos sintéticos: 0.5–1.0× esta
+  // cota). → ef candidatos ordenados. o = {ef, M, efSym = 'ef'}
+  function hnsw_beam(q, entry, X, links, o) {
+    const d = q.num[0], ds = q.sym[0], dist = o.ef * 2 * o.M;
+    return result('hnsw_beam', [q, entry, X, links], shape([o.efSym || 'ef'], [o.ef], q.mod, 'vec'), {
+      macTerms: [[o.ef, 2 * o.M, d]], macTex: symTexFactor(o.efSym || 'ef') + '\\cdot 2M\\cdot ' + symTexFactor(ds), other: dist * OTHER.topk,
+      detail: { ef: o.ef, M: o.M, distances: dist, estimate: true, note: '≈ cota: ef expansiones × 2M vecinos del nivel 0 (los visitados se saltan)' },
+    });
+  }
+  // ivf_coarse: cuantizador grueso del IVF: q contra los n_list centroides de k-means (n_list×d, aprendidos: son sus parámetros) →
+  // n_list distancias. Plano: MACs n_list·d. Con un HNSW sobre los centroides (o.hnsw = {M, ef}; FAISS IVF…_HNSW32): ≈ (niveles·M
+  // + ef·2M)·d. o = {nlist, nlistSym = 'n_list', hnsw}
+  function ivf_coarse(q, o) {
+    const d = q.num[0], ds = q.sym[0], ls = o.nlistSym || 'n_list';
+    const h = o.hnsw;
+    const dist = h ? hnswLevels(o.nlist, h.M) * h.M + h.ef * 2 * h.M : o.nlist;
+    return result('ivf_coarse', [q], shape([ls], [o.nlist], q.mod, 'vec'), {
+      paramTerms: [[o.nlist, d]], paramTex: texProd([ls, ds]),
+      macTerms: [[dist, d]], macTex: h ? '(\\lfloor\\log_M n_{\\mathrm{list}}\\rfloor M + ef\\cdot 2M)\\cdot ' + symTexFactor(ds) : texProd([ls, ds]),
+      other: dist,
+      detail: { nlist: o.nlist, distances: dist, quantizer: h ? 'HNSW' + h.M : 'flat', estimate: !!h, note: h ? '≈: búsqueda HNSW sobre los centroides (solo se calculan ~' + int(dist) + ' de ' + int(o.nlist) + ' distancias)' : 'k-means: n_list centroides de d floats' },
+    });
+  }
+  // ivf_residual: el residuo q − c_i contra cada una de las n_probe listas elegidas (IVFPQ by_residual = True, el default de FAISS)
+  // → n_probe×d. Solo "otros" (restas). o = {nprobe, nprobeSym = 'n_probe'}
+  function ivf_residual(q, probe, o) {
+    const d = q.num[0];
+    return result('ivf_residual', [q, probe], shape([o.nprobeSym || 'n_probe', q.sym[0]], [o.nprobe, d], q.mod, 'seq'), { other: o.nprobe * d, detail: { nprobe: o.nprobe } });
+  }
+  // pq_lut: tablas de la distancia asimétrica (ADC, Jégou et al., TPAMI 2011): para cada lista elegida, la distancia de cada
+  // sub-vector del residuo a los k_s = 2^nbits centroides de su sub-espacio → n_probe×m×k_s. Parámetros: los codebooks de PQ
+  // (m·k_s·d/m = k_s·d floats). MACs: con la tabla precalculada de FAISS (use_precomputed_table, si cabe en 2 GB: n_list·m·k_s
+  // floats) solo el término q·c de la query, k_s·d; sin ella, n_probe·k_s·d. o = {m, nbits, nprobe, precomputed, nprobeSym}
+  function pq_lut(r, o) {
+    const d = r.num[r.num.length - 1], ds = r.sym[r.sym.length - 1], ks = Math.pow(2, o.nbits);
+    if (d % o.m !== 0) throw new Error('pq_lut: d = ' + d + ' no es divisible por m = ' + o.m + '.');
+    const pre = !!o.precomputed, np = o.nprobe;
+    return result('pq_lut', [r], shape([o.nprobeSym || 'n_probe', 'm', 'k_s'], [np, o.m, ks], r.mod, 'seq'), {
+      paramTerms: [[ks, d]], paramTex: 'k_s\\cdot ' + symTexFactor(ds),
+      macTerms: [pre ? [ks, d] : [np, ks, d]], macTex: pre ? 'k_s\\cdot ' + symTexFactor(ds) : texProd([o.nprobeSym || 'n_probe', 'k_s', ds]),
+      other: np * o.m * ks * (pre ? 2 : 1),
+      detail: { m: o.m, nbits: o.nbits, ksub: ks, dsub: d / o.m, precomputed: pre, note: pre ? 'tabla precalculada: por lista solo se suman términos guardados' : 'una tabla por lista elegida' },
+    });
+  }
+  // pq_scan: recorrer los códigos de las n_probe listas: cada código son m bytes (nbits = 8) → m lecturas de la tabla + m sumas,
+  // sin MACs. → una distancia aproximada por vector recorrido. o = {scanned, sym}
+  function pq_scan(lut, codes, o) {
+    const m = lut.num[1];
+    return result('pq_scan', [lut, codes], shape([o.sym || 'n_probe·N/n_list'], [o.scanned], lut.mod, 'vec'), {
+      other: o.scanned * m * 2, detail: { scanned: o.scanned, lookupsPerCode: m, distances: o.scanned, note: 'ADC: m consultas a la tabla por código; 0 MACs' },
+    });
+  }
+  // Contabilidad de bytes de índices (no son ops del grafo; como quant_storage). Fórmulas verificadas con faiss 1.15.1
+  // (serialize_index; crosscheck/retrieval.py ann_checks).
+  // flat_bytes: N·d·bits/8 (IndexFlat fp32; 16 / 8 bits = IndexScalarQuantizer fp16 / SQ8, que añade 2·d floats de rango).
+  function flat_bytes(o) {
+    const bits = o.bits || 32, vectors = o.N * o.d * bits / 8, sq = bits < 32 && bits !== 16 ? 2 * o.d * 4 : 0;
+    return { vectors, sqTrained: sq, total: vectors + sq, perVector: o.d * bits / 8 };
+  }
+  // hnsw_bytes (IndexHNSWFlat / HNSWSQ): vectores N·d·bits/8 + enlaces int32: el nivel 0 tiene 2M por nodo y cada nivel superior
+  // M; con P(nivel ≥ l) = M^−l, la ESPERANZA es N·(2M + M/(M − 1)) enlaces (≈) + levels (int32 por nodo) + offsets (size_t,
+  // N + 1). Regla del wiki de FAISS ("Guidelines to choose an index"): (d·4 + M·2·4) bytes por vector.
+  function hnsw_bytes(o) {
+    const bits = o.bits || 32, M = o.M, N = o.N;
+    const vectors = N * o.d * bits / 8, linksPerVector = 2 * M + M / (M - 1);
+    const links = Math.round(4 * N * linksPerVector), levels = 4 * N, offsets = 8 * (N + 1);
+    return { vectors, links, levels, offsets, total: vectors + links + levels + offsets, linksPerVector, wiki: N * (o.d * 4 + M * 2 * 4), estimate: true };
+  }
+  // ivfpq_bytes (IndexIVFPQ): códigos N·m·nbits/8 + ids de 64 bits en las listas invertidas (8·N) + centroides n_list·d fp32 +
+  // codebooks de PQ k_s·d fp32 + tamaños de lista (8·n_list). precomputedTable (en RAM, no se serializa): n_list·m·k_s floats si
+  // cabe en 2 GB (precomputed_table_max_bytes de FAISS). Con cuantizador HNSW (o.coarseM): + los enlaces del HNSW de los centroides.
+  function ivfpq_bytes(o) {
+    const ks = Math.pow(2, o.nbits), N = o.N;
+    const codes = N * o.m * o.nbits / 8, ids = 8 * N, centroids = o.nlist * o.d * 4, codebooks = ks * o.d * 4, listSizes = 8 * o.nlist;
+    const coarseLinks = o.coarseM ? hnsw_bytes({ N: o.nlist, d: o.d, M: o.coarseM }).links + 12 * o.nlist + 8 : 0;
+    const pt = o.nlist * o.m * ks * 4;
+    return { codes, ids, centroids, codebooks, listSizes, coarseLinks, total: codes + ids + centroids + codebooks + listSizes + coarseLinks,
+      precomputedTable: pt <= 2147483648 ? pt : 0, precomputedFits: pt <= 2147483648, perVector: o.m * o.nbits / 8 + 8 };
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -2485,6 +2734,10 @@
     // Fase 10
     dropout, lora_a, lora_b, lora_scale, lora_linear, quant_storage, scalar_head, token_logprobs, kl_penalty, shaped_reward, gae,
     group_advantage, ppo_clip_loss, value_loss, bt_loss, dpo_loss,
+    // Fase 11
+    tanh, mean_pool, pooler, tied_decoder, mlm_head, nsp_head, score_head, cross_entropy, dot_score, token_sim, max_reduce, sum_reduce,
+    maxsim, topk_scores, truncate_dim, embed_index, mlm_mask, pair_tokens, flat_scan, hnsw_descent, hnsw_beam, ivf_coarse, ivf_residual, pq_lut, pq_scan,
+    flat_bytes, hnsw_bytes, ivfpq_bytes,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -2687,6 +2940,32 @@
     { id: 'value_loss', name: 'Pérdida del crítico', paramTex: '0', macTex: '0', outTex: '\\to 1', note: '½·máx((V − R)², (V_clip − R)²).' },
     { id: 'bt_loss', name: 'Pérdida Bradley-Terry', paramTex: '0', macTex: '0', outTex: 'r_w,\\ r_l \\to 1', note: 'P(y_w ≻ y_l) = σ(r_w − r_l); pérdida −log σ(r_w − r_l). Solo importa la diferencia.' },
     { id: 'dpo_loss', name: 'Pérdida DPO', paramTex: '0', macTex: '0', outTex: '\\to 1', note: '−log σ(β[(log π − log π_ref)(y_w) − (log π − log π_ref)(y_l)]): la recompensa implícita es β·log(π/π_ref).' },
+    // Fase 11 (BERT, recuperación densa, ANN)
+    { id: 'mlm_mask', name: 'Enmascarado del MLM', paramTex: '0', macTex: '0', outTex: 'T \\to T,\\ T', note: '15 % de las posiciones: 80 % [MASK], 10 % token al azar, 10 % igual. La pérdida solo mira esas posiciones.' },
+    { id: 'pair_tokens', name: 'Armar el par (cross-encoder)', paramTex: '0', macTex: '0', outTex: 'T_q,\\ T_d \\to T_q{+}T_d{-}1', note: '[CLS] query [SEP] documento [SEP]: el modelo lee los dos textos juntos (atención cruzada entre ambos).' },
+    { id: 'pooler', name: 'Pooler de BERT', paramTex: 'D^2 + D', macTex: 'D^2', outTex: 'T\\times D \\to D', note: 'tanh(W·h_[CLS] + b): solo la fila [CLS]. Lo usan NSP y la cabeza de clasificación; DPR y Sentence-BERT no.' },
+    { id: 'tanh', name: 'tanh', paramTex: '0', macTex: '0', outTex: 'D \\to D', note: 'Elementwise; ≈ 5 ops por elemento en "otros".' },
+    { id: 'mean_pool', name: 'Mean pooling', paramTex: '0', macTex: '0', outTex: 'T\\times D \\to D', note: 'Promedio de los vectores de token con la máscara de atención (Sentence-BERT). Alternativa: tomar [CLS] (DPR).' },
+    { id: 'tied_decoder', name: 'Decoder atado del MLM', paramTex: 'V', macTex: 'T\\,D\\,V', outTex: 'T\\times D \\to T\\times V', note: 'La matriz es la tabla de word embeddings (pesos atados): solo el sesgo de V es nuevo. Es la matmul más cara de la cabeza.' },
+    { id: 'mlm_head', name: 'Cabeza MLM', paramTex: 'D^2 + 3D + V', macTex: 'T\\,D^2 + T\\,D\\,V', outTex: 'T\\times D \\to T\\times V', note: 'dense → GELU → LayerNorm → decoder atado. HF calcula los logits de las T posiciones; la pérdida usa solo el 15 % elegido.' },
+    { id: 'nsp_head', name: 'Cabeza NSP', paramTex: '2D + 2', macTex: '2D', outTex: 'D \\to 2', note: 'Next sentence prediction sobre la salida del pooler: IsNext / NotNext. RoBERTa la quita sin perder calidad.' },
+    { id: 'score_head', name: 'Cabeza de puntaje (cross-encoder)', paramTex: 'D + 1', macTex: 'D', outTex: 'D \\to 1', note: 'Linear D → 1 con sesgo sobre el pooler: la relevancia del par (query, documento).' },
+    { id: 'cross_entropy', name: 'Cross-entropy', paramTex: '0', macTex: '0', outTex: 'R\\times C \\to 1', note: '−log softmax en la clase correcta, promediada sobre las R filas que tienen etiqueta.' },
+    { id: 'dot_score', name: 'Producto punto (score)', paramTex: '0', macTex: 'M\\,D', outTex: 'D,\\ M\\times D \\to M', note: 'q·d por cada vector comparado; con vectores normalizados es el coseno. Contra todo el corpus: N·D MACs por query.' },
+    { id: 'token_sim', name: 'Similitud token a token', paramTex: '0', macTex: 'T_q\\,T_d\\,D', outTex: 'T_q\\times D,\\ T_d\\times D \\to T_q\\times T_d', note: 'ColBERT: cada token de la query contra cada token del documento.' },
+    { id: 'max_reduce', name: 'Máximo por fila', paramTex: '0', macTex: '0', outTex: 'R\\times C \\to R', note: 'MaxSim: el mejor token del documento para cada token de la query.' },
+    { id: 'sum_reduce', name: 'Suma', paramTex: '0', macTex: '0', outTex: 'R \\to 1', note: 'Σ sobre los tokens de la query.' },
+    { id: 'maxsim', name: 'MaxSim (interacción tardía)', paramTex: '0', macTex: 'T_q\\,T_d\\,D', outTex: 'T_q\\times D,\\ T_d\\times D \\to 1', note: 's(q, d) = Σ_i máx_j q_i·d_j. Los vectores del documento se precalculan; el costo es por par.' },
+    { id: 'topk_scores', name: 'Top-k', paramTex: '0', macTex: '0', outTex: 'N \\to k', note: 'Los k mayores puntajes (heap / argpartition: ≈ N comparaciones).' },
+    { id: 'truncate_dim', name: 'Truncar dimensión', paramTex: '0', macTex: '0', outTex: 'D \\to dim', note: 'Matryoshka: quedarse con las primeras dim coordenadas (solo sirve si el modelo se entrenó así).' },
+    { id: 'embed_index', name: 'Índice de embeddings', paramTex: '0', macTex: '0', outTex: 'D \\to N\\times D', note: 'Offline: N vectores guardados a bits por número: N·D·bits/8 bytes.' },
+    { id: 'flat_scan', name: 'Búsqueda exacta (flat)', paramTex: '0', macTex: 'N\\,d', outTex: 'd,\\ N\\times d \\to N', note: 'Fuerza bruta: N distancias exactas por query; lee los N·d números del índice.' },
+    { id: 'hnsw_descent', name: 'HNSW: descenso por niveles', paramTex: '0', macTex: '\\approx \\lfloor\\log_M N\\rfloor\\,M\\,d', outTex: 'd \\to 1', note: 'Voraz por los niveles superiores (pocos nodos, enlaces largos) hasta el punto de entrada del nivel 0.' },
+    { id: 'hnsw_beam', name: 'HNSW: búsqueda en el nivel 0', paramTex: '0', macTex: '\\approx ef\\cdot 2M\\cdot d', outTex: 'd \\to ef', note: 'Lista de ef candidatos; cada expansión revisa ≤ 2M vecinos. Más ef = más recall y más distancias.' },
+    { id: 'ivf_coarse', name: 'IVF: cuantizador grueso', paramTex: 'n_{\\mathrm{list}}\\,d', macTex: 'n_{\\mathrm{list}}\\,d', outTex: 'd \\to n_{\\mathrm{list}}', note: 'q contra los n_list centroides de k-means; se recorren solo las n_probe listas más cercanas.' },
+    { id: 'ivf_residual', name: 'IVF: residuo', paramTex: '0', macTex: '0', outTex: 'd \\to n_{\\mathrm{probe}}\\times d', note: 'q − c_i para cada lista elegida (PQ codifica residuos).' },
+    { id: 'pq_lut', name: 'PQ: tablas ADC', paramTex: 'k_s\\,d', macTex: 'k_s\\,d', outTex: '\\to n_{\\mathrm{probe}}\\times m\\times k_s', note: 'Distancia de cada sub-vector a los k_s = 2^nbits centroides de su sub-espacio; los codebooks (k_s·d floats) son los parámetros.' },
+    { id: 'pq_scan', name: 'PQ: recorrer códigos (ADC)', paramTex: '0', macTex: '0', outTex: '\\to n_{\\mathrm{probe}}N/n_{\\mathrm{list}}', note: 'Cada código: m consultas a la tabla y m sumas, sin MACs. Lee m bytes (+ 8 del id) por vector.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -2817,6 +3096,52 @@
     });
   }
 
+
+  // postLnLayer (fase 11, BERT): capa POST-LN, como el Transformer original y BERT: x → MHSA → r1 = x + O → LN₁ → MLP →
+  // r2 = LN₁ + F → LN₂ (la salida). Mismos ids de op y de nodo que preLnLayer (qkv, split, scores, scale, softmax, weighted-sum,
+  // merge, proj bajo mhsa; fc1, gelu, fc2 bajo mlp; res1, ln1, res2, ln2) y de tensor (qkv, q, k, v, scores, scores-scaled,
+  // attn, z-heads, z, o, r1, h-ln1, u, g, f) más r2 (antes de LN₂) y la salida o.outId (por defecto <tid>x-out). OJO: aquí
+  // h-ln1 = LN₁(x + O) (la entrada del MLP), no LN₁(x). HF BertSelfAttention tiene W_Q, W_K, W_V separadas: el conteo es el
+  // mismo que la qkv fusionada (3·(D² + D)). o = {prefix, L, h, Dmlp, DmlpSym, qkvBias, projBias, mlpBias, tid, oid, where,
+  // labelPrefix, outMeta, paramL (copias de los pesos; 0 = pesos compartidos con otra torre), hSym, dhSym}
+  function postLnLayer(g, x, o) {
+    const P = o.prefix || ['enc-layer'];
+    const rep = o.L || 1;
+    const prep = o.paramL != null ? o.paramL : rep;
+    const L = (meta) => Object.assign({ perLayer: true }, meta);
+    const D = x.num[x.num.length - 1], Ds = x.sym[x.sym.length - 1];
+    const at = P.concat(['mhsa']), ml = P.concat(['mlp']);
+    const T = (n) => (o.tid || '') + n, O = (n) => (o.oid || '') + n;
+    const pre = o.labelPrefix || '';
+    const tag = (m) => (pre && m && m.label ? Object.assign({}, m, { label: pre + m.label }) : m);
+    const op = (id, res, path, extra) => {
+      const e = Object.assign({ path, repeat: rep, paramRepeat: prep }, extra);
+      if (o.where) e.where = o.where;
+      if (pre && e.outMeta) e.outMeta = Array.isArray(e.outMeta) ? e.outMeta.map(tag) : tag(e.outMeta);
+      return g.op(O(id), res, e);
+    };
+    const qkv = op('qkv', linear(x, { dout: 3 * D, doutSym: '3' + Ds, bias: o.qkvBias !== false }), at.concat(['qkv']), { out: T('qkv'), label: 'Proyección Q, K, V (W_Q, W_K, W_V)', type: 'embed', group: 'attn', outMeta: L({ label: 'Q, K y V concatenados', tex: '[Q\;K\;V]' }) });
+    const [q, k, v] = op('split', split_heads(qkv, { h: o.h, parts: 3, hSym: o.hSym, dhSym: o.dhSym }), at.concat(['split']), {
+      out: [T('q'), T('k'), T('v')], label: 'Separar en cabezas', type: 'tensorop', group: 'attn',
+      outMeta: [L({ label: 'Queries por cabeza', tex: 'Q' }), L({ label: 'Keys por cabeza', tex: 'K' }), L({ label: 'Values por cabeza', tex: 'V' })],
+    });
+    const sc = op('scores', attention_scores(q, k), at.concat(['scores']), { out: T('scores'), label: 'Producto QKᵀ', type: 'attn', group: 'attn', outMeta: L({ label: 'Scores sin escalar', tex: 'QK^\\top' }) });
+    const ss = op('scale', scale(sc), at.concat(['scale']), { out: T('scores-scaled'), label: 'Escala 1/√d_h', type: 'attn', group: 'attn', outMeta: L({ label: 'Scores escalados', tex: 'QK^\\top/\\sqrt{d_h}' }) });
+    const a = op('softmax', softmax(ss), at.concat(['softmax']), { out: T('attn'), label: 'Softmax por fila', type: 'attn', group: 'attn', outMeta: L({ label: 'Pesos de atención', tex: 'A' }) });
+    const zh = op('weighted-sum', attention_weighted_sum(a, v), at.concat(['weighted-sum']), { out: T('z-heads'), label: 'Suma ponderada A·V', type: 'attn', group: 'attn', outMeta: L({ label: 'Salida por cabeza', tex: 'AV' }) });
+    const z = op('merge', merge_heads(zh, { Dsym: Ds }), at.concat(['merge']), { out: T('z'), label: 'Concatenar cabezas', type: 'tensorop', group: 'attn', outMeta: L({ label: 'Cabezas concatenadas', tex: 'Z' }) });
+    const ov = op('proj', linear(z, { dout: D, doutSym: Ds, bias: o.projBias !== false }), at.concat(['proj']), { out: T('o'), label: 'Proyección de salida W_O', type: 'embed', group: 'attn', outMeta: L({ label: 'Salida de la atención', tex: 'O = ZW_O' }) });
+    const r1 = op('res1', residual_add(x, ov), P.concat(['res1']), { out: T('r1'), label: 'Residual 1', type: 'tensorop', group: 'resid', outMeta: L({ label: 'x + atención (antes de LN 1)', tex: 'x + O' }) });
+    const h1 = op('ln1', layernorm(r1), P.concat(['ln1']), { out: T('h-ln1'), label: 'LayerNorm 1 (post-LN)', type: 'norm', group: 'norm', outMeta: L({ label: 'Tras LayerNorm 1 (entrada del MLP)', tex: "x' = \\mathrm{LN}_1(x + O)" }) });
+    const u = op('fc1', linear(h1, { dout: o.Dmlp, doutSym: o.DmlpSym || 'D_mlp', bias: o.mlpBias !== false }), ml.concat(['fc1']), { out: T('u'), label: 'MLP: capa 1 (expansión)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Capa oculta del MLP', tex: "U = x'W_1 + b_1" }) });
+    const gg = op('gelu', gelu(u), ml.concat(['gelu']), { out: T('g'), label: 'GELU', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Activación', tex: '\\mathrm{GELU}(U)' }) });
+    const f = op('fc2', linear(gg, { dout: D, doutSym: Ds, bias: o.mlpBias !== false }), ml.concat(['fc2']), { out: T('f'), label: 'MLP: capa 2 (proyección)', type: 'mlp', group: 'mlp', outMeta: L({ label: 'Salida del MLP', tex: 'F' }) });
+    const r2 = op('res2', residual_add(h1, f), P.concat(['res2']), { out: T('r2'), label: 'Residual 2', type: 'tensorop', group: 'resid', outMeta: L({ label: "x' + MLP (antes de LN 2)", tex: "x' + F" }) });
+    return op('ln2', layernorm(r2), P.concat(['ln2']), {
+      out: o.outId || T('x-out'), label: 'LayerNorm 2 (post-LN)', type: 'norm', group: 'norm',
+      outMeta: o.outMeta || { label: 'Salida del encoder (x_L)', tex: "x_L = \\mathrm{LN}_2(x' + F)", perLayer: false, note: 'Salida de cada capa x_ℓ; tras la capa L es x_L.' },
+    });
+  }
 
   // importGraph (fase 7): compone un modelo con el grafo de OTRO (p. ej. el decoder de js/arch/llm.js dentro de un VLM) sin
   // duplicar su constructor: copia las ops de src = otroGrafo._data() (o un resultado de run) con sus números, etiquetas,
@@ -2989,6 +3314,8 @@
     repeat_frames: 1, segment_rows: 1, group_tokens: 1, mrope_ids: 1,
     // Fase 8: constantes calculadas (embedding sinusoidal del paso, posición sin/cos 2-D) y la vista unpatchify.
     timestep_embedding: 1, sincos_pos_2d: 1, unpatchify: 1, concat_features: 1,
+    // Fase 11: el índice offline de embeddings (N vectores guardados: no es una activación del forward) y la vista truncate_dim.
+    embed_index: 1, truncate_dim: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).
@@ -3072,7 +3399,7 @@
   function model(id) { const d = models[id]; if (!d) throw new Error('Modelo desconocido: "' + id + '".'); return d; }
 
   const A = Object.assign(ATLAS.Arch || {}, PRIMS, {
-    shape, graph, preLnLayer, importGraph, defineModel, run, metrics, resolve, fmt, primitives, paramRep,
+    shape, graph, preLnLayer, postLnLayer, importGraph, defineModel, run, metrics, resolve, fmt, primitives, paramRep,
     configs, models: () => Object.keys(models), model, hasConfig: (id) => !!configIndex[id],
     canonical: (mid) => { const c = configs(mid).find((x) => x.canonical); return c ? c.id : null; },
     DTYPE_BYTES: Object.assign({}, DTYPE_BYTES), OTHER_COST: Object.assign({}, OTHER),

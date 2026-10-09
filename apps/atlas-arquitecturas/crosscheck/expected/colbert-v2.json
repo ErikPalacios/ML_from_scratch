@@ -1,0 +1,296 @@
+{
+  "config_id": "colbert-v2",
+  "model": "retrieval",
+  "params_total": 109580544,
+  "params_by_path": {
+    "query-encoder": 109580544,
+    "doc-encoder": 0
+  },
+  "shapes": {
+    "q-ids": [
+      32
+    ],
+    "q-type-ids": [
+      32
+    ],
+    "q-pos-ids": [
+      32
+    ],
+    "q-e-tok": [
+      32,
+      768
+    ],
+    "q-e-type": [
+      32,
+      768
+    ],
+    "q-e-pos": [
+      32,
+      768
+    ],
+    "q-e-sum": [
+      32,
+      768
+    ],
+    "q-x0": [
+      32,
+      768
+    ],
+    "q-qkv": [
+      32,
+      2304
+    ],
+    "q-q": [
+      12,
+      32,
+      64
+    ],
+    "q-k": [
+      12,
+      32,
+      64
+    ],
+    "q-v": [
+      12,
+      32,
+      64
+    ],
+    "q-scores": [
+      12,
+      32,
+      32
+    ],
+    "q-scores-scaled": [
+      12,
+      32,
+      32
+    ],
+    "q-attn": [
+      12,
+      32,
+      32
+    ],
+    "q-z-heads": [
+      12,
+      32,
+      64
+    ],
+    "q-z": [
+      32,
+      768
+    ],
+    "q-o": [
+      32,
+      768
+    ],
+    "q-r1": [
+      32,
+      768
+    ],
+    "q-h-ln1": [
+      32,
+      768
+    ],
+    "q-u": [
+      32,
+      3072
+    ],
+    "q-g": [
+      32,
+      3072
+    ],
+    "q-f": [
+      32,
+      768
+    ],
+    "q-r2": [
+      32,
+      768
+    ],
+    "q-x-out": [
+      32,
+      768
+    ],
+    "q-h-cls": [
+      768
+    ],
+    "q-pooler-pre": [
+      768
+    ],
+    "q-pooled": [
+      768
+    ],
+    "d-ids": [
+      180
+    ],
+    "d-type-ids": [
+      180
+    ],
+    "d-pos-ids": [
+      180
+    ],
+    "d-e-tok": [
+      180,
+      768
+    ],
+    "d-e-type": [
+      180,
+      768
+    ],
+    "d-e-pos": [
+      180,
+      768
+    ],
+    "d-e-sum": [
+      180,
+      768
+    ],
+    "d-x0": [
+      180,
+      768
+    ],
+    "d-qkv": [
+      180,
+      2304
+    ],
+    "d-q": [
+      12,
+      180,
+      64
+    ],
+    "d-k": [
+      12,
+      180,
+      64
+    ],
+    "d-v": [
+      12,
+      180,
+      64
+    ],
+    "d-scores": [
+      12,
+      180,
+      180
+    ],
+    "d-scores-scaled": [
+      12,
+      180,
+      180
+    ],
+    "d-attn": [
+      12,
+      180,
+      180
+    ],
+    "d-z-heads": [
+      12,
+      180,
+      64
+    ],
+    "d-z": [
+      180,
+      768
+    ],
+    "d-o": [
+      180,
+      768
+    ],
+    "d-r1": [
+      180,
+      768
+    ],
+    "d-h-ln1": [
+      180,
+      768
+    ],
+    "d-u": [
+      180,
+      3072
+    ],
+    "d-g": [
+      180,
+      3072
+    ],
+    "d-f": [
+      180,
+      768
+    ],
+    "d-r2": [
+      180,
+      768
+    ],
+    "d-x-out": [
+      180,
+      768
+    ],
+    "d-h-cls": [
+      768
+    ],
+    "d-pooler-pre": [
+      768
+    ],
+    "d-pooled": [
+      768
+    ],
+    "q-lin": [
+      32,
+      128
+    ],
+    "d-lin": [
+      180,
+      128
+    ],
+    "q-emb": [
+      32,
+      128
+    ],
+    "d-emb": [
+      180,
+      128
+    ],
+    "sim": [
+      32,
+      180
+    ],
+    "sim-max": [
+      32
+    ],
+    "score": [
+      1
+    ]
+  },
+  "flops_total": 37289951232,
+  "flops_by_node": {
+    "query-encoder": 5481037824,
+    "doc-encoder": 31807438848,
+    "maxsim": 1474560
+  },
+  "metrics_checks": {
+    "towerParams": 109580544,
+    "queryEncodeMacs": 2740518912,
+    "docEncodeMacs": 15903719424,
+    "maxsimMacsPerDoc": 737280,
+    "colbertV2BytesPerVector": 36
+  },
+  "override_checks": [],
+  "notes": [
+    "ColBERT: HF_ColBERT = BertModel(config) (add_pooling_layer = True por defecto: el forward CALCULA el pooler y el modelo lo descarta) + Linear(768, 128, bias = False); query y documento usan el MISMO BERT (marcadores [Q] / [D]).",
+    "MaxSim = Σ_i máx_j q_i·d_j: la matmul E_q E_dᵀ (T_q×T_d×128 MACs) la cuenta FlopCounterMode; máximo y suma son 'otros'.",
+    "colbertV2BytesPerVector = 36 B con 2 bits por dimensión (Santhanam et al. 2022, §3.3: «20 or 36 bytes per vector»).",
+    "Búsqueda exacta (flat) = la matmul E·q con E de N×dim en meta (FlopCounterMode: 2·N·dim); topk sin FLOPs.",
+    "Formas sin batch; las del reranker (r-…) son por par (el batch de k se quita)."
+  ],
+  "source": {
+    "lib": "transformers",
+    "ctor": "with torch.device('meta'): BertModel(BertConfig()) + nn.Linear(768, 128, bias=False)",
+    "Tq": 32,
+    "Td": 180,
+    "N": 8841823,
+    "k": 1000,
+    "python": "3.13.15",
+    "torch": "2.14.1",
+    "timm": "1.0.30",
+    "transformers": "5.19.0"
+  }
+}

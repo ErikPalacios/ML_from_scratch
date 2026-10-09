@@ -26,3 +26,6 @@ zipp==4.1.1
 # se verifican contra una referencia en torch float64 escrita desde los papers).
 peft==0.21.2
 accelerate==1.15.0
+# faiss-cpu (fase 11): índices FAISS reales chicos para verificar las fórmulas de bytes y de distancias del modelo `ann`
+# (crosscheck/faiss_ann.py, en un proceso aparte de torch: cada uno trae su libomp). Sin dependencias nuevas (usa numpy y packaging).
+faiss-cpu==1.15.1

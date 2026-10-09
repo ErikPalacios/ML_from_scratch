@@ -131,7 +131,24 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   `disable_adapter()`): un modelo HF por rol, FLOPs del forward por rol y costo de un update de la política (y del crítico) por
   secuencia medido con `loss.backward()`. `loss_checks`: Bradley-Terry, DPO (forma "sigmoid" de TRL), PPO-clip, KL k1 / k3, ventaja de
   GRPO y GAE en torch float64 ↔ `ATLAS.Arch.finetune` (tolerancia 1e-9). Todo exacto (diferencia 0).
-- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`, `OVLA`, `PI0`, `LORA`, `RL`) deben coincidir con las de `js/arch/<modelo>.js`.
+- `retrieval.py` (fase 11) + `faiss_ann.py`: **BERT** (`bert-base`, `bert-large`): HF `BertForPreTraining(BertConfig(...))` en el dispositivo
+  **meta**; el decoder del MLM está atado a `word_embeddings` (`tied_decoder: true` en el JSON), así que `sum(p.numel())` lo cuenta una vez;
+  FLOPs por módulo (`flops_by_node`: encoder, pooler, cabeza MLM sobre las T posiciones como HF, NSP), `override_checks` con T = 512 y
+  `metrics_checks` del reparto de parámetros. Atención eager y sin máscara (una secuencia sin relleno); `qkv` = la salida de `query` con el
+  ancho ×3 (HF tiene W_Q, W_K, W_V separadas). **Recuperación**: `DPRQuestionEncoder` / `DPRContextEncoder(DPRConfig())` (se llama al
+  `DPREncoder` interno: el forward público arma una máscara con `.item()`, imposible en meta) para `dpr-bert-base`; `BertModel` de
+  all-MiniLM-L6-v2 (con pooler: el forward lo calcula aunque mean pooling no lo use) + mean pooling + normalizar para `sbert-minilm`;
+  `BertForSequenceClassification(num_labels = 1)` para `cross-encoder-minilm` y para el rerank (batch de k pares); `BertModel(bert-base)` +
+  `nn.Linear(768, 128, bias=False)` para `colbert-v2`. La búsqueda exacta (E·q con E de N×dim meta), el top-k y MaxSim corren en torch meta
+  dentro de FlopCounterMode (los productos contra la query se escriben como matriz × (d×1): FlopCounterMode no cuenta `mv`).
+  **ANN** (`hnsw-1m-768`, `ivfpq-1m-768`, `flat-1m-768`, `ivfpq-1b-768`): encoder de queries de DPR en meta + la búsqueda en torch meta (flat:
+  X·q; IVF: centroides y tablas ADC); HNSW usa la cota ≈ del calculador (no hay forma "exacta"). `faiss_ann.py` corre faiss-cpu 1.15.1 en un
+  **proceso aparte** (torch y faiss traen cada uno su libomp y no conviven en macOS): atributos a tamaño real sin entrenar (`nb_neighbors(0)`
+  = 2M, `code_size`, codebooks de PQ) e índices REALES chicos (N = 20,000, d = 64): `ann_checks` compara `A.flat_bytes / hnsw_bytes /
+  ivfpq_bytes` con los arreglos internos y `serialize_index` (enlaces de HNSW = esperanza N·(2M + M/(M−1)): 1 %), y `range_checks` las
+  distancias por query medidas (`hnsw_stats.ndis`: 0.44–1.02× la cota del calculador; `indexIVF_stats.ndis` ≈ n_probe·N/n_list). Parámetros
+  y FLOPs exactos (diferencia 0) en las 10 configs.
+- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`, `OVLA`, `PI0`, `LORA`, `RL`, `BERT`, `RET`, `ANN`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que
   torch no trae para `_scaled_dot_product_flash_attention_for_cpu`).

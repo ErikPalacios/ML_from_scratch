@@ -13,7 +13,7 @@ import vm from 'node:vm';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
-  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js', 'js/arch/vla.js', 'js/arch/finetune.js'];
+  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js', 'js/arch/vla.js', 'js/arch/finetune.js', 'js/arch/retrieval.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -246,6 +246,21 @@ export function compareConfig(A, exp) {
     const v = A.finetune.activationPerTokenLayer(ac.args).total;
     push('activaciones[' + ac.case + '] bytes por token y capa', v, ac.measured_bytes_per_token_layer, v === ac.measured_bytes_per_token_layer);
   }
+  // Fase 11 (ANN). ann_checks: fórmulas de bytes del calculador (A.flat_bytes / hnsw_bytes / ivfpq_bytes con los mismos N, d, M,
+  // n_list, m, nbits) ↔ lo medido en índices FAISS reales chicos (arreglos internos y serialize_index), tolerancia relativa `tol`
+  // (0 = exacto; los enlaces de HNSW son una esperanza: 1 %). range_checks: una métrica del calculador con otros knobs ↔ lo medido
+  // por FAISS (distancias por query): ref / calc dentro de [min_ratio, max_ratio] (la cota ≈ de HNSW).
+  for (const ac of exp.ann_checks || []) {
+    const fn = A[ac.fn];
+    if (typeof fn !== 'function') { push('faiss[' + ac.what + ']', null, ac.ref, false, 'sin A.' + ac.fn); continue; }
+    const v = fn(ac.args)[ac.key];
+    push('faiss[' + ac.what + ']', v, ac.ref, ac.tol ? rel(v, ac.ref) <= ac.tol : v === ac.ref);
+  }
+  for (const rc of exp.range_checks || []) {
+    const v = A.metrics(exp.config_id, Object.assign({}, ov, rc.calc_overrides))[rc.metric];
+    const ratio = rc.ref / v;
+    push('faiss[' + rc.what + '] = ' + ratio.toFixed(3), v, rc.ref, ratio >= rc.min_ratio && ratio <= rc.max_ratio, 'rango [' + rc.min_ratio + ', ' + rc.max_ratio + ']');
+  }
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -281,7 +296,7 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py', 'retrieval.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }
