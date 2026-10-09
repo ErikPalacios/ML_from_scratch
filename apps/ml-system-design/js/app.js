@@ -65,6 +65,8 @@
   const reduced = () => D.reducedMotion();
 
   function meta(id) {
+    const pm = /^practicar-(m\d\d)$/.exec(id);
+    if (pm) { const b = meta(pm[1]); return { id, kind: 'special', title: 'Practicar ' + pm[1].toUpperCase() + (b.short ? ': ' + b.short : ''), short: 'Practicar ' + pm[1].toUpperCase() }; }
     const c = catalog();
     const it = c && c.items && c.items[id];
     if (it) return Object.assign({}, SPECIAL[id] || {}, it);
@@ -294,7 +296,7 @@
       }
       if (mk.innerHTML !== html) mk.innerHTML = html;
       a.title = title;
-      const isCur = id === cur || (id === 'practica' && /^practica-c\d\d$/.test(cur || ''));
+      const isCur = id === cur || (id === 'practica' && /^practica-c\d\d$/.test(cur || '')) || cur === 'practicar-' + id;
       if (isCur) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
   }
@@ -735,8 +737,15 @@
     const m = Object.assign({}, meta(p.id), p);
     S.page = { id: p.id, kind: 'module', sections: p.sections };
     c.appendChild(pageHeader(m, { eyebrow: ['Parte 1', 'Módulo ' + pad2(m.num || +p.id.slice(1))], after: progressLine() }));
+    const drill = MSD.Drill && safe(() => MSD.Drill.hasDrill(p.id), false);
+    const drillCta = () => h('div', { class: 'drill-cta' },
+      h('span', { class: 'drill-cta__ico', html: icon('practice') }),
+      h('span', { class: 'drill-cta__txt' }, h('b', null, 'Practica este módulo'), ' · preguntas difíciles y cálculos con datos nuevos en cada ronda, con formulario y notas rápidas a la mano.'),
+      h('a', { class: 'btn btn--sm btn--primary', href: '#practicar-' + p.id }, 'Practicar ' + p.id.toUpperCase()));
+    if (drill) c.appendChild(drillCta());
     c.appendChild(pageTocDisclosure(p));
     p.sections.forEach((s) => c.appendChild(buildSection(p, s, 0)));
+    if (drill) c.appendChild(drillCta());
     c.appendChild(pageFoot(p));
     buildToc(p, false);
     return 'toc';
@@ -1038,6 +1047,7 @@
       } else if (/^practica(-c\d\d)?$/.test(id) || id === 'historial') layout = delegate(c, 'Practice', r);
       else if (id === 'flashcards') layout = delegate(c, 'Flashcards', r);
       else if (id === 'mis-notas') layout = delegate(c, 'Notes', r);
+      else if (/^practicar-m\d\d$/.test(id)) layout = delegate(c, 'Drill', r);
       else if (/^ref-(numeros|herramientas|comandos)$/.test(id) && (getPage(id) || {}).ready) layout = renderSheet(c, getPage(id));
       else if (id === 'glosario' || /^ref-(numeros|herramientas|comandos)$/.test(id)) layout = delegate(c, 'Reference', r, id === 'glosario' ? null : () => renderSoon(c, id));
       else layout = renderNotFound(c, r);
@@ -1088,7 +1098,7 @@
     updateNavMarkers();
     revealNavItem();
     renderSideUptime();
-    const known = r.pageId === 'inicio' || isCourseId(r.pageId) || SPECIAL[r.pageId] || /^practica-c\d\d$/.test(r.pageId);
+    const known = r.pageId === 'inicio' || isCourseId(r.pageId) || SPECIAL[r.pageId] || /^practica-c\d\d$/.test(r.pageId) || /^practicar-m\d\d$/.test(r.pageId);
     if (known && r.pageId !== 'inicio') {
       store.markVisited(r.pageId);
       // "Continúa donde lo dejaste" no debe apuntar a una página "Próximamente".

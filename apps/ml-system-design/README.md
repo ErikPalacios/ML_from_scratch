@@ -73,6 +73,16 @@ Para subirla, usa una de estas dos formas:
 En la web el progreso se guarda **en el navegador de cada dispositivo** ("Guardado en este navegador").
 Para pasarlo del celular a la tablet o desde el Artifact, usa **Exportar / importar progreso**.
 
+## Practicar un módulo
+
+M01 tiene un botón **Practicar M01** (al inicio y al final del módulo) que abre `#practicar-m01`:
+rondas de 10 preguntas difíciles, 6 de opción múltiple y 4 cálculos. Los cálculos cambian los números
+en cada ronda y aceptan ±15 % (el número de GPUs, exacto). Cada respuesta muestra la explicación y
+la sección que conviene releer. Los botones **Formulario**, **Notas rápidas** y **Mis notas** abren un
+panel a la derecha sin salir de la ronda. El banco vive en `js/content/m01-practica.js` (preguntas y
+notas rápidas) y `js/content/m01-practica-calc.js` (formulario y plantillas de cálculo); otro módulo
+se agrega con sus propios archivos `mNN-practica*.js` y el botón aparece solo.
+
 ## Tus notas
 
 Al final de cada sección hay un botón **Agregar nota**: escribe una duda, un resumen o un **término
@@ -262,7 +272,7 @@ registra errores.
 index.html              documento; carga css/ y js/ en el orden de SPEC §2.1
 css/                    app.css (tokens, layout, bloques) · components.css (diagrama, código) · practice.css
 js/core/                registry.js (catálogo, registro, plantillas) · store.js (estado y guardado)
-js/ui/                  dom · blocks · diagram · code · practice · flashcards · reference · notes
+js/ui/                  dom · blocks · diagram · code · practice · flashcards · reference · notes · drill
 js/content/             catalog.js · reference-files.js (generado) · un archivo por módulo/caso
 js/app.js               router, barra lateral, búsqueda, páginas del shell
 reference/c01/          archivos reales del caso C01 (gateway FastAPI, Triton, K8s, monitoreo…)

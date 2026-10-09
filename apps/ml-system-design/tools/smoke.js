@@ -660,6 +660,61 @@
     ok('notas: limpieza', store.listNotes().length === before);
   });
 
+  // ------------------------------------------------------------------ 9c. práctica de M01
+  await step('práctica M01', async () => {
+    await go('#m01');
+    const cta = $('#page .drill-cta a[href="#practicar-m01"]');
+    ok('práctica: botón «Practicar M01» en el módulo', !!cta);
+    await go('#practicar-m01');
+    ok('práctica: título', /^Practicar M01/.test(txt(byId('page-title'))));
+    ok('práctica: el índice marca M01', !!$('#nav .nav__item[data-id="m01"][aria-current="page"]'));
+    // Apuntes
+    button('Formulario').click();
+    const panel = await waitFor(() => { const p = byId('drill-panel'); return p && !p.hidden && p; }, 800);
+    ok('apuntes: el formulario se abre', !!panel && $$('.dform', panel).length >= 8);
+    button('Notas rápidas', panel).click();
+    ok('apuntes: notas rápidas', $$('.dquick', panel).length >= 5);
+    checkOverflow('#practicar-m01 (apuntes abiertos)');
+    key('Escape', $('.dpanel__title', panel));
+    ok('apuntes: Esc los cierra', await waitFor(() => byId('drill-panel').hidden, 800));
+    // Una ronda completa, contestando bien
+    button('Nueva ronda').click();
+    const rd = await waitFor(() => MSD.Drill.current('m01'), 800);
+    ok('ronda: 10 preguntas (6 + 4)', !!rd && rd.items.length === 10 && rd.items.filter((x) => x.kind === 'calc').length === 4, rd && rd.items.length);
+    for (let i = 0; rd && i < rd.items.length; i++) {
+      const it = rd.items[i];
+      const card = await waitFor(() => $('#page .dq'), 800);
+      if (it.kind === 'mcq') {
+        const k = it.options.findIndex((o) => o.ok);
+        $('input[value="' + k + '"]', card).click();
+      } else {
+        const inp = $('.dq__num', card);
+        inp.value = String(Math.round(it.answer * 1000) / 1000);
+      }
+      button('Comprobar', card).click();
+      await waitFor(() => $('#page .dq__res'), 800);
+      if (i === 0) ok('ronda: muestra la explicación y el enlace para repasar', !!$('#page .dq__res a[href^="#m01."]'));
+      button(i === rd.items.length - 1 ? 'Ver resultado' : 'Siguiente').click();
+    }
+    ok('ronda: 10 de 10 contestando bien', await waitFor(() => /^10 de 10/.test(txt(byId('drill-score'))), 1000), txt(byId('drill-score')));
+    ok('ronda: guarda las estadísticas', (store.pref('drillStats') || {}).m01 && store.pref('drillStats').m01.best === 100);
+    // Una respuesta de cálculo fuera de tolerancia cuenta como error
+    button('Nueva ronda').click();
+    const rd2 = await waitFor(() => MSD.Drill.current('m01') !== rd && MSD.Drill.current('m01'), 800);
+    const ci = rd2.items.findIndex((x) => x.kind === 'calc');
+    rd2.i = ci;
+    MSD.App.navigate('#practicar-m01');
+    await go('#inicio');
+    await go('#practicar-m01');
+    const card2 = await waitFor(() => $('#page .dq__num'), 800);
+    card2.value = String(rd2.items[ci].answer * 3);
+    button('Comprobar').click();
+    ok('ronda: un cálculo 3× fuera de rango es incorrecto', await waitFor(() => $('#page .dq.is-bad'), 800));
+    checkOverflow('#practicar-m01');
+    button('Terminar ronda').click();
+    await go('#inicio');
+  });
+
   // ------------------------------------------------------------------ 10. ruta desconocida
   await step('no encontrado', async () => {
     await go('#no-existe-esta-ruta');

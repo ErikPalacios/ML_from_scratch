@@ -805,3 +805,86 @@
 @media (min-width: 1100px) {
   html.notes-drawer-open .shell { margin-left: min(420px, 92vw); }
 }
+
+/* =============================================================================
+   Práctica de un módulo (js/ui/drill.js): #practicar-mNN
+   ========================================================================== */
+.drill-cta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 20px 0 8px; padding: 12px 16px;
+  border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: var(--r-2); background: var(--accent-soft);
+}
+.drill-cta__ico { display: flex; color: var(--accent-ink); }
+.drill-cta__ico .ico { width: 18px; height: 18px; }
+.drill-cta__txt { flex: 1 1 260px; font-size: 15px; }
+.drill__tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 18px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; padding: 8px 0; background: var(--surface); }
+@media (max-width: 767px) { .drill__tools { top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px)); } }
+.drill__tools .btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
+.drill__intro, .drill__sum { padding: 18px 20px; border: 1px solid var(--rule); border-radius: var(--r-2); background: var(--surface); display: grid; gap: 12px; }
+.drill__facts { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.drill__start { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.drill__prog { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.drill__bar { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--rule); overflow: hidden; }
+.drill__bar > i { display: block; height: 100%; background: var(--accent); transition: width var(--dur) var(--ease); }
+.dq { padding: 18px 20px; border: 1px solid var(--rule-strong); border-radius: var(--r-2); background: var(--surface); box-shadow: var(--shadow-1); display: grid; gap: 14px; }
+.dq.is-ok { border-left: 4px solid var(--ok); }
+.dq.is-bad { border-left: 4px solid var(--bad); }
+.dq__tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.dq__q { font-size: 17px; line-height: 1.55; outline: none; }
+.dq__opts { display: grid; gap: 8px; }
+.dq__opt {
+  display: grid; grid-template-columns: auto auto 1fr; align-items: start; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--rule); border-radius: var(--r-2); cursor: pointer; background: var(--surface);
+}
+.dq__opt:hover { border-color: var(--rule-strong); background: var(--surface-2); }
+.dq__opt input { margin-top: 4px; }
+.dq__opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.dq__opt:has(input:focus-visible) { box-shadow: 0 0 0 2px var(--focus); }
+.dq__key { font-size: 12px; color: var(--muted); padding-top: 3px; }
+.dq__otext { display: grid; gap: 6px; font-size: 15.5px; line-height: 1.5; }
+.dq__why { font-size: 14px; color: var(--muted); }
+.dq__opt.is-right { border-color: var(--ok); background: var(--ok-soft); cursor: default; }
+.dq__opt.is-wrong { border-color: var(--bad); background: var(--bad-soft); cursor: default; }
+.dq__opt.is-dim { opacity: .62; cursor: default; }
+.dq__calc { display: grid; gap: 6px; }
+.dq__row { display: flex; align-items: center; gap: 10px; }
+.dq__num { max-width: 220px; font-size: 17px; }
+.dq__unit { font: 500 15px/1 var(--font-mono); color: var(--muted); }
+.dq__res { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--r-2); background: var(--surface-2); outline: none; }
+.dq__verdict { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 600; }
+.dq.is-ok .dq__verdict { color: var(--ok); }
+.dq.is-bad .dq__verdict { color: var(--bad); }
+.dq__verdict .ico { width: 16px; height: 16px; }
+.dq__steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 15px; }
+.dq__explain { font-size: 15px; line-height: 1.55; }
+.dq__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.drill__score { font: 600 var(--fs-2xl)/1.1 var(--font-display); outline: none; }
+.drill__miss { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 4px; }
+
+/* Panel de apuntes (derecha): formulario, notas rápidas, mis notas */
+.dpanel {
+  position: fixed; top: 0; bottom: 0; right: 0; z-index: 42; width: min(420px, 92vw);
+  display: flex; flex-direction: column; background: var(--bg); border-left: 1px solid var(--rule-strong); box-shadow: var(--shadow-pop);
+  padding-top: env(safe-area-inset-top, 0px); animation: dpanel-in 200ms var(--ease);
+}
+.dpanel[hidden] { display: none; }
+@keyframes dpanel-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dpanel { animation: none; } }
+.dpanel__head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px 20px; }
+.dpanel__title { flex: 1; font: 600 var(--fs-lg)/1.25 var(--font-display); outline: none; }
+.dpanel__tabs { margin: 0 20px 10px; align-self: flex-start; flex-wrap: wrap; }
+.dpanel__body { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 4px 20px calc(32px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 10px; align-content: start; }
+.dform { padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--r-2); background: var(--surface); }
+.dform__t { margin: 0 0 4px; font-weight: 600; font-size: 14.5px; }
+.dform__expr { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+.dform__ex { margin: 4px 0 0; }
+.dquick { padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--r-2); background: var(--surface); }
+.dquick__t { margin: 0 0 6px; font: 600 15px/1.3 var(--font-body); }
+.dquick__html { font-size: 14px; line-height: 1.5; overflow-x: auto; }
+.dquick__html ul, .dquick__html ol { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.dquick__html table { font-size: 13px; }
+@media (min-width: 1100px) { html.drill-panel-open .shell { margin-right: min(420px, 92vw); } }
+@media (max-width: 767px) { .dpanel { z-index: 48; } }
+/* Etiquetas largas (título de sección) dentro de la tarjeta: hacen salto de línea en vez de ensanchar la página */
+.drill, .drill__stage, .dq { min-width: 0; }
+.dq__tags .chip { white-space: normal; max-width: 100%; height: auto; min-height: 22px; line-height: 1.3; padding-block: 2px; overflow-wrap: anywhere; }
+.dq__q, .dq__otext, .dq__res { overflow-wrap: anywhere; }

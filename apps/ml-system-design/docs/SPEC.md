@@ -330,6 +330,13 @@ store.backend() / store.onStatus(fn)
   the page's notes grouped by section; ≥ 1100 px the content shifts right while it is open; Esc closes.
   All note lists are "live": a change in one (section, panel, #mis-notas) repaints the others unless
   you are typing in them.
+- **Module practice** (js/ui/drill.js, `MSD.Drill`, route `#practicar-mNN`): shown for a module when
+  `MSD.drillBank[mNN]` exists (content files `js/content/mNN-practica.js` → `questions` (4 options, one
+  `ok`, each with `why`; `explain`; `section` to re-read) and `quick` cheat-sheet cards;
+  `js/content/mNN-practica-calc.js` → `formulas` and `calc` templates `{id, section, title, gen(r) →
+  {q, unit, answer, tol, steps}}` with random numbers each round). A round = 6 multiple choice (unseen
+  first, pref `drillSeen`) + 4 calculations; stats in pref `drillStats`. A right-side panel shows
+  Formulario / Notas rápidas / Mis notas. The module page shows a "Practicar mNN" call to action.
 - **"En esta página" (right TOC) is collapsible**: its title is a toggle; collapsed it becomes a vertical
   tab and the content column widens to `--content-wide` (big diagrams fit). Pref `tocCollapsed`.
 - **Search**: input at the top of the sidebar; results in a popover/list (keyboard navigable)
