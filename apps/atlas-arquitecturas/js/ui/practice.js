@@ -243,6 +243,17 @@
       refOffload: { label: 'Log-probs de la referencia precalculados', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' log-probs de la referencia precalculados' },
       gradCkpt: { label: 'Gradient checkpointing', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' gradient checkpointing' },
     },
+    // Fase 12 (encoder-decoder)
+    t5: {
+      Tin: { label: 'Tokens de entrada T_in', show: (v) => 'T_in = ' + fInt(v), phrase: (v) => 'una entrada de ' + fInt(v) + ' tokens (T_in = ' + fInt(v) + ')' },
+      Tout: { label: 'Tokens de salida T_out', show: (v) => 'T_out = ' + fInt(v), phrase: (v) => 'generar ' + fInt(v) + ' tokens (T_out = ' + fInt(v) + ')' },
+      B: { label: 'Batch B', show: (v) => 'B = ' + fInt(v), phrase: (v) => 'B = ' + fInt(v) + ' entradas a la vez' },
+    },
+    whisper: {
+      Tout: { label: 'Tokens de salida T_out', show: (v) => 'T_out = ' + fInt(v), phrase: (v) => 'generar ' + fInt(v) + ' tokens (T_out = ' + fInt(v) + ', con los del prompt)' },
+      seconds: { label: 'Segundos de audio', show: (v) => v + ' s', phrase: (v) => v + ' s de audio (se rellena a 30 s)' },
+      B: { label: 'Batch B', show: (v) => 'B = ' + fInt(v), phrase: (v) => 'B = ' + fInt(v) + ' ventanas de 30 s a la vez' },
+    },
     llava: { images: { label: 'Imágenes en el prompt', show: (v) => v + (v === 1 ? ' imagen' : ' imágenes'), phrase: (v) => v + (v === 1 ? ' imagen' : ' imágenes') + ' en el prompt' } },
     // Qwen2-VL: frames = 1 es una imagen (se duplica a 2 frames); un video de F frames da F/2 parches temporales.
     'qwen2-vl': { frames: { label: 'Frames del video F', sym: 'F', show: (v) => (v === 1 ? '1 (imagen)' : v + ' frames'), phrase: (v) => (v === 1 ? 'una imagen' : 'un video de ' + v + ' frames') } },
@@ -729,6 +740,69 @@
     centroidBytesTouched: { label: 'Bytes de centroides leídos por consulta', kind: 'bytes', note: 'coarse · d · 4' },
     centroidBytesShare: { label: 'Centroides', kind: 'pct', note: '% de los bytes leídos por consulta' },
     latencyMsCachedCentroids: { label: 'ms por consulta con los centroides en caché (≈ cota)', kind: 'ms', note: 'misma cota sin leer los centroides de DRAM' },
+    // Fase 12 (encoder-decoder: T5, Whisper)
+    sharedEmbedParams: { label: 'Embedding compartido', kind: 'count', note: 'V × D; el decoder (y el LM head atado) lo reusan' },
+    crossAttnParams: { label: 'Parámetros de la cross-attention', kind: 'count', note: 'todas las capas del decoder, con sus normas' },
+    decoderSelfAttnParams: { label: 'Parámetros de la self-attention del decoder', kind: 'count', note: 'todas las capas' },
+    decoderFfnParams: { label: 'Parámetros de la FFN del decoder', kind: 'count', note: 'todas las capas' },
+    encoderLayerParams: { label: 'Parámetros de una capa del encoder', kind: 'count', note: '' },
+    decoderLayerParams: { label: 'Parámetros de una capa del decoder', kind: 'count', note: 'self + cross + FFN' },
+    decoderParamsShare: { label: 'Decoder', kind: 'pct', note: '% de los parámetros' },
+    crossAttnParamsShare: { label: 'Cross-attention', kind: 'pct', note: '% de los parámetros' },
+    sharedEmbedParamsShare: { label: 'Embedding compartido', kind: 'pct', note: '% de los parámetros' },
+    encoderLayerMacs: { label: 'MACs de una capa del encoder', kind: 'ops', note: '' },
+    crossKvMacs: { label: 'MACs de K y V de la cross-attention', kind: 'ops', note: 'una vez por entrada, todas las capas' },
+    decoderMacsPerToken: { label: 'MACs del decoder por token', kind: 'ops', note: 'un paso con contexto T_out: self + cross + FFN + LM head' },
+    decoderMacsPerTokenFirst: { label: 'MACs del primer paso del decoder', kind: 'ops', note: 'contexto 1' },
+    decoderMacsPerTokenAvg: { label: 'MACs del decoder por token (promedio)', kind: 'ops', note: 'promedio sobre los T_out pasos' },
+    decoderLayerMacsPerToken: { label: 'MACs de las capas del decoder por token', kind: 'ops', note: 'self + cross + FFN, sin LM head' },
+    lmHeadMacsPerToken: { label: 'MACs del LM head por token', kind: 'ops', note: 'D × V' },
+    decoderSelfMacsPerToken: { label: 'MACs de la self-attention por token', kind: 'ops', note: 'todas las capas del decoder' },
+    decoderCrossMacsPerToken: { label: 'MACs de la cross-attention por token', kind: 'ops', note: 'Q, scores, suma y salida; K y V ya están' },
+    decoderFfnMacsPerToken: { label: 'MACs de la FFN del decoder por token', kind: 'ops', note: 'todas las capas' },
+    generationDecoderMacs: { label: 'MACs del decoder en toda la generación', kind: 'ops', note: 'Σ de los T_out pasos' },
+    totalGenerationMacs: { label: 'MACs de generar la salida', kind: 'ops', note: 'encoder + K/V cruzados + Σ pasos del decoder' },
+    teacherForcedMacs: { label: 'MACs de un forward con teacher forcing', kind: 'ops', note: 'el decoder procesa los T_out tokens en paralelo' },
+    encoderShare: { label: 'Encoder', kind: 'pct', note: '% de los MACs de la generación' },
+    crossKvShare: { label: 'K/V cruzados', kind: 'pct', note: '% de los MACs de la generación' },
+    decoderShare: { label: 'Decoder', kind: 'pct', note: '% de los MACs de la generación' },
+    encoderVsToken: { label: 'Encoder / un paso del decoder (MACs)', kind: 'ratio', note: '' },
+    crossKvBytes: { label: 'K/V de la cross-attention', kind: 'bytes', note: 'se calcula una vez por entrada; todas las capas, bf16' },
+    crossKvBytesPerLayer: { label: 'K/V cruzados de una capa', kind: 'bytes', note: '2 × T_in × D en bf16' },
+    selfKvBytesPerToken: { label: 'KV cache del decoder por token', kind: 'bytes', note: 'todas las capas, bf16' },
+    selfKvCacheBytes: { label: 'KV cache del decoder', kind: 'bytes', note: 'con T_out tokens, bf16' },
+    kvTotalBytes: { label: 'KV total (cruzada + propia)', kind: 'bytes', note: 'bf16' },
+    encoderMs: { label: 'ms del encoder (≈ H100)', kind: 'ms', note: 'roofline' },
+    crossKvMs: { label: 'ms de K/V cruzados (≈ H100)', kind: 'ms', note: 'roofline' },
+    decoderMs: { label: 'ms del decoder, todos los pasos (≈ H100)', kind: 'ms', note: 'roofline; cada paso lee los pesos' },
+    generationMs: { label: 'ms de la generación completa (≈ H100)', kind: 'ms', note: 'roofline' },
+    decoderStepMs: { label: 'ms por paso del decoder (≈ H100)', kind: 'ms', note: 'roofline' },
+    arithmeticIntensityEncoder: { label: 'Intensidad aritmética del encoder', kind: 'intensity', note: 'FLOPs / bytes movidos' },
+    Tin: { label: 'Tokens de entrada T_in', kind: 'count', note: '' },
+    Tout: { label: 'Tokens de salida T_out', kind: 'count', note: '' },
+    generatedTokens: { label: 'Tokens generados', kind: 'count', note: '' },
+    relBiasParams: { label: 'Parámetros del bias de posición relativa', kind: 'count', note: 'buckets × h, uno por pila' },
+    spanRawTokens: { label: 'Tokens del texto original', kind: 'count', note: 'los que caben en 512 tras la corrupción' },
+    spanInputTokens: { label: 'Tokens de la entrada corrupta', kind: 'count', note: 'sin los spans, con un sentinel por span' },
+    spanTargetTokens: { label: 'Tokens del target', kind: 'count', note: 'los spans con sus sentinels' },
+    spanNoiseTokens: { label: 'Tokens enmascarados', kind: 'count', note: '15 % del texto' },
+    spanNoiseSpans: { label: 'Spans enmascarados', kind: 'count', note: 'largo medio 3' },
+    spanNonNoiseTokens: { label: 'Tokens que quedan visibles', kind: 'count', note: '' },
+    noiseDensity: { label: 'Densidad de ruido', kind: 'pct', note: '' },
+    meanNoiseSpan: { label: 'Largo medio de un span', kind: 'count', note: '' },
+    frontendParams: { label: 'Parámetros de las convoluciones', kind: 'count', note: '2 conv1d antes del encoder' },
+    decoderPosParams: { label: 'Posiciones aprendidas del decoder', kind: 'count', note: '448 × D' },
+    paramsHF: { label: 'Parámetros según HF', kind: 'count', note: 'cuenta además la tabla sinusoidal congelada del encoder' },
+    convMacs: { label: 'MACs de las convoluciones', kind: 'ops', note: '' },
+    encoderMacsPerWindow: { label: 'MACs del encoder por ventana de 30 s', kind: 'ops', note: 'siempre 1,500 posiciones' },
+    melFrames: { label: 'Frames log-Mel', kind: 'count', note: '30 s con salto de 10 ms' },
+    encoderPositions: { label: 'Posiciones del encoder', kind: 'count', note: 'tras el stride 2 de la segunda conv' },
+    usefulPositions: { label: 'Posiciones con audio real', kind: 'count', note: 'el resto es relleno hasta 30 s' },
+    seconds: { label: 'Segundos de audio', kind: 'count', note: '' },
+    paddingShare: { label: 'Relleno', kind: 'pct', note: '% del encoder gastado en relleno' },
+    wastedEncoderMacs: { label: 'MACs del encoder gastados en relleno', kind: 'ops', note: '' },
+    realtimeFactor: { label: 'Factor de tiempo real (≈ H100)', kind: 'ratio', note: 'tiempo de cómputo / duración del audio' },
+    speedVsRealtime: { label: 'Veces más rápido que tiempo real (≈ H100)', kind: 'ratio', note: '1 / factor de tiempo real' },
     actionBins: { label: 'Bins por dimensión', kind: 'count', note: 'discretización uniforme entre q01 y q99' },
     decodeSteps: { label: 'Pasos de decode por acción', kind: 'count', note: 'el primer token sale del prefill' },
     actionTokenFirst: { label: 'Primer id de token de acción', kind: 'count', note: 'los 256 ids menos usados de Llama' },
@@ -1934,6 +2008,15 @@
     // T_q solo en retrieval / ANN con encoder (el LLM también tiene cfg.Tq = filas de query, que en sus formas es T).
     if (typeof c.Tq === 'number' && !has('T_q') && (retrKind || (annKind && c.encode))) out.push(['T_q', c.Tq, 'tokens de la consulta']);
     if (typeof c.Td === 'number' && !has('T_d')) out.push(['T_d', c.Td, 'tokens del documento']);
+    // Fase 12 (encoder-decoder): T_in / T_out; Whisper: T_in = las 1,500 posiciones del encoder, S muestras, n_mels.
+    if (typeof c.Tout === 'number' && (typeof c.Tin === 'number' || typeof c.nMels === 'number')) {
+      const tin = typeof c.Tin === 'number' ? c.Tin : c.encPos;
+      if (typeof tin === 'number' && !has('T_in')) out.push(['T_in', tin, typeof c.Tin === 'number' ? 'tokens de entrada del encoder' : 'posiciones del encoder (30 s tras el stride 2)']);
+      if (!has('T_out')) out.push(['T_out', c.Tout, 'tokens de salida del decoder']);
+      if (typeof c.nMels === 'number' && !has('n_mels')) out.push(['n_mels', c.nMels, 'bandas log-Mel']);
+      if (typeof c.samples === 'number' && !has('S')) out.push(['S', c.samples, 'muestras de audio (30 s a 16 kHz)']);
+      if (typeof c.Ld === 'number' && c.Ld !== c.L && !has('L_d')) out.push(['L_d', c.Ld, 'capas del decoder']);
+    }
     // Reranker en cascada (otro ancho que el bi-encoder): sus dimensiones van con _r (las pone el calculador al importarlo).
     if (c.rerank && c.reranker) { const rr = safe(() => run(c.reranker), null); const rc = rr && rr.config;
       if (rc) [['D_r', rc.D, 'ancho del reranker'], ['h_r', rc.h], ['d_r', rc.D && rc.h ? rc.D / rc.h : null], ['D_mlp,r', rc.Dmlp], ['V_r', rc.V]]

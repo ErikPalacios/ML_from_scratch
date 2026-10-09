@@ -148,7 +148,20 @@ Scripts y configs (cada uno escribe `expected/<configId>.json`):
   ivfpq_bytes` con los arreglos internos y `serialize_index` (enlaces de HNSW = esperanza N·(2M + M/(M−1)): 1 %), y `range_checks` las
   distancias por query medidas (`hnsw_stats.ndis`: 0.44–1.02× la estimación del calculador, que no es una cota; `indexIVF_stats.ndis` ≈ n_probe·N/n_list). Parámetros
   y FLOPs exactos (diferencia 0) en las 10 configs.
-- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`, `OVLA`, `PI0`, `LORA`, `RL`, `BERT`, `RET`, `ANN`) deben coincidir con las de `js/arch/<modelo>.js`.
+- `encdec.py` (fase 12): **T5** (`t5-small`, `t5-base`, `t5-large`, `flan-t5-base`) con HF `T5ForConditionalGeneration(T5Config(...))` y
+  **Whisper** (`whisper-tiny` … `whisper-large-v3`, `distil-whisper-large-v3`) con `WhisperForConditionalGeneration(WhisperConfig(...))`, en el
+  dispositivo **meta**, atención eager. Forward con teacher forcing (T5: T_in = 512, T_out = 114; Whisper: 3,000 frames mel, T_out = 128):
+  `flops_by_node` (encoder, decoder, LM head, cross-attention, convs), `flops_by_op_groups` (mm / bmm / convolution), formas por hooks en la
+  capa 0 de cada stack + un parche de `eager_attention_forward` (Q, K, V por cabeza, scores, sesgo relativo), `override_checks` (T5: T_in 128 /
+  T_out 32; Whisper: 5 s de audio = mismos FLOPs por el relleno a 30 s, T_out 448) y `metrics_checks` de bytes de la KV cache leídos de la
+  `EncoderDecoderCache` de HF (self y cross, bf16). Configs de decode (`t5-base-decode`, `whisper-small-decode`): un paso con la caché
+  propia de T_out − 1 filas y la cross ya llena (`is_updated = True`: W_K y W_V de la cross no corren). `bucket_checks` (en t5-base):
+  `T5Attention._relative_position_bucket` de HF en CPU para −600 … 600 (bidireccional y causal) ↔ `A.t5RelativeBucket`. Mel:
+  `WhisperFeatureExtractor(feature_size = n_mels)` sobre 30 s y 5 s de ceros (3,000 frames en los dos). Dos convenciones explícitas: flan-t5-base
+  desata `lm_head` a mano (transformers 5.x fuerza `tie_word_embeddings = True` en T5Config; el checkpoint real trae lm_head ≠ shared y HF no
+  los ata al cargar) y Whisper excluye de `params_total` la posición sinusoidal del encoder (HF la guarda como `nn.Embedding` congelado;
+  OpenAI la registra como buffer): `params_total_hf_raw` ↔ `quantities.paramsHF`. Parámetros y FLOPs exactos (diferencia 0) en las 12 configs.
+- Las configs de cada script (`CONFIGS`, `LLAVA`, `QWEN`, `SD15_UNET`, `SDXL_UNET`, `DIT`, `OVLA`, `PI0`, `LORA`, `RL`, `BERT`, `RET`, `ANN`, `T5`, `WH`) deben coincidir con las de `js/arch/<modelo>.js`.
 - `common.py`: conteo de parámetros, hooks de formas (sin batch; rejillas H×W×C) y FLOPs con
   `FlopCounterMode` (2 FLOPs por MAC de matmul/conv/sdpa; en CPU se registra la fórmula de sdpa que
   torch no trae para `_scaled_dot_product_flash_attention_for_cpu`).

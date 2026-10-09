@@ -1,0 +1,390 @@
+{
+  "config_id": "whisper-medium",
+  "model": "whisper",
+  "Tin": 1500,
+  "Tout": 128,
+  "params_total": 762321920,
+  "params_by_node": {
+    "conv": 3393536,
+    "encoder": 302284800,
+    "enc-out": 2048,
+    "prompt-tokens": 53568512,
+    "pos-embed": 458752,
+    "decoder": 403070976,
+    "dec-norm": 2048,
+    "lm-head": 0,
+    "enc-attn": 100786176,
+    "enc-ffn": 201498624,
+    "self-attn": 100786176,
+    "cross-attn": 100786176,
+    "ffn": 201498624
+  },
+  "shapes": {
+    "mel": [
+      3000,
+      80
+    ],
+    "conv1-out": [
+      3000,
+      1024
+    ],
+    "conv2-out": [
+      1500,
+      1024
+    ],
+    "e-pos": [
+      1500,
+      1024
+    ],
+    "e-x0": [
+      1500,
+      1024
+    ],
+    "e-h1": [
+      1500,
+      1024
+    ],
+    "e-q": [
+      1500,
+      1024
+    ],
+    "e-k": [
+      1500,
+      1024
+    ],
+    "e-v": [
+      1500,
+      1024
+    ],
+    "e-q-heads": [
+      16,
+      1500,
+      64
+    ],
+    "e-k-heads": [
+      16,
+      1500,
+      64
+    ],
+    "e-v-heads": [
+      16,
+      1500,
+      64
+    ],
+    "e-scores": [
+      16,
+      1500,
+      1500
+    ],
+    "e-attn": [
+      16,
+      1500,
+      1500
+    ],
+    "e-z-heads": [
+      16,
+      1500,
+      64
+    ],
+    "e-z": [
+      1500,
+      1024
+    ],
+    "e-o": [
+      1500,
+      1024
+    ],
+    "e-r1": [
+      1500,
+      1024
+    ],
+    "e-h2": [
+      1500,
+      1024
+    ],
+    "e-u": [
+      1500,
+      4096
+    ],
+    "e-g": [
+      1500,
+      4096
+    ],
+    "e-f": [
+      1500,
+      1024
+    ],
+    "e-x-out": [
+      1500,
+      1024
+    ],
+    "enc-out": [
+      1500,
+      1024
+    ],
+    "d-tok": [
+      128,
+      1024
+    ],
+    "d-x0": [
+      128,
+      1024
+    ],
+    "d-h1": [
+      128,
+      1024
+    ],
+    "d-q": [
+      128,
+      1024
+    ],
+    "d-k": [
+      128,
+      1024
+    ],
+    "d-v": [
+      128,
+      1024
+    ],
+    "d-q-heads": [
+      16,
+      128,
+      64
+    ],
+    "d-k-heads": [
+      16,
+      128,
+      64
+    ],
+    "d-v-heads": [
+      16,
+      128,
+      64
+    ],
+    "d-scores": [
+      16,
+      128,
+      128
+    ],
+    "d-attn": [
+      16,
+      128,
+      128
+    ],
+    "d-z-heads": [
+      16,
+      128,
+      64
+    ],
+    "d-z": [
+      128,
+      1024
+    ],
+    "d-o": [
+      128,
+      1024
+    ],
+    "d-r1": [
+      128,
+      1024
+    ],
+    "c-h": [
+      128,
+      1024
+    ],
+    "c-q": [
+      128,
+      1024
+    ],
+    "c-k": [
+      1500,
+      1024
+    ],
+    "c-v": [
+      1500,
+      1024
+    ],
+    "c-q-heads": [
+      16,
+      128,
+      64
+    ],
+    "c-k-heads": [
+      16,
+      1500,
+      64
+    ],
+    "c-v-heads": [
+      16,
+      1500,
+      64
+    ],
+    "c-scores": [
+      16,
+      128,
+      1500
+    ],
+    "c-attn": [
+      16,
+      128,
+      1500
+    ],
+    "c-z-heads": [
+      16,
+      128,
+      64
+    ],
+    "c-z": [
+      128,
+      1024
+    ],
+    "c-o": [
+      128,
+      1024
+    ],
+    "d-r2": [
+      128,
+      1024
+    ],
+    "d-h3": [
+      128,
+      1024
+    ],
+    "d-u": [
+      128,
+      4096
+    ],
+    "d-g": [
+      128,
+      4096
+    ],
+    "d-f": [
+      128,
+      1024
+    ],
+    "d-x-out": [
+      128,
+      1024
+    ],
+    "dec-out": [
+      128,
+      1024
+    ],
+    "logits": [
+      128,
+      51865
+    ],
+    "audio": [
+      480000
+    ]
+  },
+  "flops_total": 1413335744512,
+  "flops_by_node": {
+    "conv+encoder": 1138065408000,
+    "conv": 10911744000,
+    "decoder": 261674237952,
+    "lm-head": 13596098560,
+    "cross-attn": 182754213888
+  },
+  "flops_by_op_torch": {
+    "aten.addmm": 989721526272,
+    "aten.bmm": 241668980736,
+    "aten.convolution": 10911744000,
+    "aten.mm": 171033493504
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.mm",
+        "aten.addmm"
+      ],
+      "prims": [
+        "linear",
+        "lm_head"
+      ]
+    },
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    },
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "conv1d"
+      ]
+    }
+  ],
+  "metrics_checks": {
+    "crossKvBytes": 147456000,
+    "selfKvCacheBytes": 12582912,
+    "totalParams": 762321920
+  },
+  "params_total_hf_raw": 763857920,
+  "encoder_positions_buffer": 1536000,
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "seconds": 5
+      },
+      "flops_total": 1413335744512,
+      "params_total": 762321920,
+      "shapes": {
+        "audio": [
+          80000
+        ],
+        "mel": [
+          3000,
+          80
+        ]
+      }
+    },
+    {
+      "calc_overrides": {
+        "Tout": 448
+      },
+      "flops_total": 1738117087232,
+      "shapes": {
+        "d-scores": [
+          16,
+          448,
+          448
+        ],
+        "c-scores": [
+          16,
+          448,
+          1500
+        ],
+        "logits": [
+          448,
+          51865
+        ]
+      }
+    }
+  ],
+  "notes": [
+    "FlopCounterMode = 2 × MACs de matmuls (mm, bmm) y convoluciones; sesgos, normas, softmax, GELU / ReLU, el sesgo relativo de T5 y la máscara no cuentan.",
+    "Teacher forcing: decoder_input_ids de T_out tokens en paralelo (QKᵀ y A·V de la self-attention causal cuentan las T_out² entradas, como el calculador).",
+    "Posición sinusoidal del encoder: HF la guarda como nn.Embedding congelado (1,536,000 valores) y la cuenta en parameters(); params_total la excluye (buffer, como en el código de OpenAI); params_total_hf_raw = crudo de HF.",
+    "mel: WhisperFeatureExtractor(feature_size = n_mels) sobre audio de ceros: 30 s y 5 s dan los mismos 3,000 frames (relleno a 30 s); la entrada del modelo es n_mels × 3,000 (aquí traspuesta, frames × bandas)."
+  ],
+  "hf_config_source": "openai/whisper-medium",
+  "source": {
+    "lib": "transformers",
+    "version": "5.19.0",
+    "ctor": "with torch.device('meta'): WhisperForConditionalGeneration(WhisperConfig(vocab_size=51865, num_mel_bins=80, d_model=1024, encoder_layers=24, decoder_layers=24, encoder_attention_heads=16, decoder_attention_heads=16, encoder_ffn_dim=4096, decoder_ffn_dim=4096, max_source_positions=1500, max_target_positions=448, activation_function='gelu', scale_embedding=False))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  }
+}

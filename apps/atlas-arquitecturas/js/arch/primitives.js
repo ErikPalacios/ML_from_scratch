@@ -107,6 +107,13 @@
      post-LN: BERT). OTHER suma tanh y max; NOT_SAVED suma embed_index y truncate_dim; symTexAtom escribe n_list / n_probe como
      n_{\mathrm{list}} (ningún símbolo anterior los tenía). Ninguna cambia el resultado de las fases 1–10 (verificado: run y
      metrics de las 65 configs anteriores idénticos antes y después).
+   - Fase 12 (encoder-decoder: T5, Whisper; modelos en js/arch/encdec.js): conv1d (secuencia T×C, channels-last; front end de
+     Whisper), t5RelativeBucket (port exacto de T5Attention._relative_position_bucket de HF, en float32), t5_rel_bias (sesgo de
+     posición relativa por buckets: tabla aprendida n_buckets × h, se calcula en la capa 1 y la reusan todas), add_rel_bias (sumar
+     el sesgo a los scores), pad_or_trim (audio a 30 s) y log_mel (STFT + banco mel + log: preprocesamiento, 0 MACs del modelo; su
+     costo ≈ va en "otros"). SYM_TEX suma T_in, T_out y n_mels; NOT_SAVED suma t5_rel_bias, add_rel_bias y pad_or_trim (ningún
+     modelo anterior los usa). Ninguna cambia el resultado de las fases 1–11 (verificado: run y metrics de las 75 configs
+     anteriores idénticos antes y después).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -192,7 +199,9 @@
   // Símbolos: texto plano y LaTeX.
   const SYM_TEX = { D_mlp: 'D_{\\mathrm{mlp}}', d_h: 'd_h', 'P^2C': 'P^2C', nW: 'n_W', 'M²': 'M^2', D_t: 'D_t',
     // Fase 3 (Deformable DETR): h cabezas, L niveles, K puntos por cabeza y nivel (notación del paper, salvo h).
-    'hLK·2': 'hLK\\cdot 2', K_cls: 'K_{\\mathrm{cls}}' };
+    'hLK·2': 'hLK\\cdot 2', K_cls: 'K_{\\mathrm{cls}}',
+    // Fase 12 (T5, Whisper): largos de entrada y salida del encoder-decoder y bandas mel.
+    T_in: 'T_{\\mathrm{in}}', T_out: 'T_{\\mathrm{out}}', n_mels: 'n_{\\mathrm{mels}}' };
   function symTexAtom(s) {
     s = String(s);
     if (SYM_TEX[s]) return SYM_TEX[s];
@@ -2717,6 +2726,88 @@
       precomputedTable: pt <= 2147483648 ? pt : 0, precomputedFits: pt <= 2147483648, perVector: o.m * o.nbits / 8 + 8 };
   }
 
+  // ---- Fase 12 (encoder-decoder: T5, Whisper; modelos en js/arch/encdec.js) -------------------------------------------
+  // conv1d sobre una secuencia T×C (channels-last; PyTorch Conv1d usa C×T). Front end de Whisper: dos convs k = 3 con
+  // padding 1, la segunda con stride 2 (3,000 → 1,500 frames). o = {k, s=1, p=0, cout, coutSym, kSym, outSym, bias=true}.
+  // T_o = ⌊(T + 2p − k)/s⌋ + 1 (redondeo de PyTorch). Parámetros k·C_in·C_out + C_out; MACs T_o·C_out·k·C_in.
+  function conv1d(x, o) {
+    if (x.num.length !== 2) throw new Error('conv1d espera una entrada T×C.');
+    const [T, C] = x.num, Cs = x.sym[1];
+    const k = o.k, s = o.s || 1, p = o.p || 0, bias = o.bias !== false;
+    if (T + 2 * p < k) throw new Error('conv1d: la secuencia (' + T + ' + 2·' + p + ') es más corta que el kernel ' + k + '.');
+    const To = Math.floor((T + 2 * p - k) / s) + 1;
+    const cout = o.cout, coutSym = o.coutSym || String(cout), kSym = o.kSym || String(k), outSym = o.outSym || String(To);
+    const out = shape([outSym, coutSym], [To, cout], o.mod || x.mod, 'seq');
+    return result('conv1d', [x], out, {
+      paramTerms: [[k, C, cout]].concat(bias ? [[cout]] : []),
+      paramTex: texProd([kSym, Cs, coutSym]) + (bias ? ' + ' + symTexFactor(coutSym) : ''),
+      macTerms: [[To, cout, k, C]], macTex: texProd([outSym, coutSym, kSym, Cs]),
+      other: bias ? To * cout * OTHER.bias : 0,
+      detail: { k, s, p, T, To, cin: C, cout, bias },
+    });
+  }
+
+  // t5RelativeBucket: bucket de una posición relativa (memoria − query), port EXACTO de T5Attention._relative_position_bucket
+  // de HF (Mesh TF): la mitad de los buckets son distancias exactas (0 … max_exact − 1) y la otra mitad crece en escala
+  // logarítmica hasta max_distance; todo lo que está más lejos cae en el último. Bidireccional (encoder): la mitad de los
+  // buckets para cada signo. Unidireccional (decoder): solo el pasado (las posiciones futuras van al bucket 0, y la máscara
+  // causal las anula). HF calcula el logaritmo en float32: Math.fround lo imita (con 32 buckets y distancia máxima 128 da lo
+  // mismo que float64 en −2,000…2,000; crosscheck/encdec.py lo compara bucket por bucket con HF).
+  function t5RelativeBucket(rel, bidirectional, numBuckets, maxDistance) {
+    const f = Math.fround;
+    let nb = numBuckets, ret = 0, n;
+    if (bidirectional) { nb = Math.floor(nb / 2); ret += rel > 0 ? nb : 0; n = Math.abs(rel); } else n = -Math.min(rel, 0);
+    const maxExact = Math.floor(nb / 2);
+    if (n < maxExact) return ret + n;
+    const lg = f(f(Math.log(f(n / maxExact))) / f(Math.log(maxDistance / maxExact)));
+    const v = maxExact + Math.trunc(f(lg * (nb - maxExact)));
+    return ret + Math.min(v, nb - 1);
+  }
+
+  // t5_rel_bias (T5): sesgo de posición relativa B[i][q][k] = tabla[bucket(k − q)][i]. Tabla aprendida n_buckets × h (un
+  // escalar por bucket y cabeza, sin MACs: es un lookup); se calcula UNA vez por stack (en la capa 1) y la reusan las L capas.
+  // T5 no usa embeddings de posición absolutos: esto es toda la información de posición. o = {h, Tq, Tk, qSym, kSym, hSym='h',
+  // buckets=32, maxDistance=128, bidirectional, pos0=0 (posición de la primera query: en decode, la del token nuevo)}.
+  function t5_rel_bias(o) {
+    const nbk = o.buckets || 32, md = o.maxDistance || 128, bi = !!o.bidirectional, pos0 = o.pos0 || 0;
+    const out = shape([o.hSym || 'h', o.qSym, o.kSym], [o.h, o.Tq, o.Tk], o.mod || 'txt', 'heads');
+    const used = new Set();
+    for (let rel = -(pos0 + o.Tq - 1); rel <= o.Tk - 1 - pos0; rel++) used.add(t5RelativeBucket(rel, bi, nbk, md));
+    return result('t5_rel_bias', [], out, {
+      paramTerms: [[nbk, o.h]], paramTex: texProd([String(nbk), o.hSym || 'h']),
+      other: o.Tq * o.Tk * 2,
+      detail: { buckets: nbk, maxDistance: md, bidirectional: bi, bucketsUsed: used.size, exact: Math.floor((bi ? nbk / 2 : nbk) / 2),
+        note: 'bucket(k − q): distancias chicas exactas, grandes en escala log hasta ' + md + '; un escalar por cabeza, sumado a QKᵀ' },
+    });
+  }
+  // add_rel_bias (T5): scores + sesgo relativo (h×T_q×T_k), antes del softmax. T5 NO divide por √d_h (lo absorbe la init).
+  const add_rel_bias = (scores, bias) => add(scores, bias, 'add_rel_bias');
+
+  // pad_or_trim (Whisper): el audio (S muestras a 16 kHz) se rellena con ceros o se corta a 30 s = 480,000 muestras: el
+  // encoder SIEMPRE ve 30 s. Sin parámetros ni MACs. o = {to, sym}
+  function pad_or_trim(x, o) {
+    const n = x.num[0];
+    return result('pad_or_trim', [x], shape([o.sym || String(o.to)], [o.to], x.mod, 'vec'), {
+      other: Math.max(0, o.to - n), detail: { from: n, to: o.to, padded: Math.max(0, o.to - n), trimmed: Math.max(0, n - o.to) },
+    });
+  }
+
+  // log_mel (Whisper): STFT (ventana Hann de n_fft = 400 muestras = 25 ms, hop 160 = 10 ms) → |·|² → banco de n_mels filtros
+  // mel → log10 → recorte a 8 dB del máximo y escala. Frames = S/hop (HF descarta el último frame del STFT): 480,000 / 160 =
+  // 3,000. Es PREPROCESAMIENTO (el feature extractor, en NumPy): 0 MACs del modelo; su costo ≈ va en "otros" (FFT ≈ 5·n_fft·log₂
+  // n_fft, potencia, filtros (n_fft/2 + 1)·n_mels, log). o = {nMels, nFft=400, hop=160, sr=16000, framesSym, melSym='n_mels'}
+  function log_mel(x, o) {
+    const nFft = o.nFft || 400, hop = o.hop || 160, sr = o.sr || 16000, bins = nFft / 2 + 1;
+    const frames = Math.floor(x.num[0] / hop);
+    const out = shape([o.framesSym || String(frames), o.melSym || 'n_mels'], [frames, o.nMels], o.mod || x.mod || 'aud', 'seq');
+    const perFrame = Math.round(5 * nFft * Math.log2(nFft)) + 3 * bins + bins * o.nMels + 2 * o.nMels;
+    return result('log_mel', [x], out, {
+      other: frames * perFrame,
+      detail: { sr, nFft, hop, winMs: 1000 * nFft / sr, hopMs: 1000 * hop / sr, frames, nMels: o.nMels, bins, melFilterMacs: frames * bins * o.nMels,
+        note: 'preprocesamiento fuera del modelo (feature extractor): no cuenta en los MACs del forward' },
+    });
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -2756,6 +2847,8 @@
     tanh, mean_pool, pooler, tied_decoder, mlm_head, nsp_head, score_head, cross_entropy, dot_score, token_sim, max_reduce, sum_reduce,
     maxsim, topk_scores, truncate_dim, embed_index, mlm_mask, pair_tokens, flat_scan, hnsw_descent, hnsw_beam, ivf_coarse, ivf_residual, pq_lut, pq_scan,
     flat_bytes, hnsw_bytes, ivfpq_bytes,
+    // Fase 12
+    conv1d, t5RelativeBucket, t5_rel_bias, add_rel_bias, pad_or_trim, log_mel,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -2984,6 +3077,11 @@
     { id: 'ivf_residual', name: 'IVF: residuo', paramTex: '0', macTex: '0', outTex: 'd \\to n_{\\mathrm{probe}}\\times d', note: 'q − c_i para cada lista elegida (PQ codifica residuos).' },
     { id: 'pq_lut', name: 'PQ: tablas ADC', paramTex: 'k_s\\,d', macTex: 'k_s\\,d', outTex: '\\to n_{\\mathrm{probe}}\\times m\\times k_s', note: 'Distancia de cada sub-vector a los k_s = 2^nbits centroides de su sub-espacio; los codebooks (k_s·d floats) son los parámetros.' },
     { id: 'pq_scan', name: 'PQ: recorrer códigos (ADC)', paramTex: '0', macTex: '0', outTex: '\\to n_{\\mathrm{probe}}N/n_{\\mathrm{list}}', note: 'Cada código: m consultas a la tabla y m sumas, sin MACs. Lee m bytes (+ 8 del id) por vector.' },
+    { id: 'conv1d', name: 'Conv1d', paramTex: 'k\\,C_{in}\\,C_{out} + C_{out}', macTex: 'T_o\\,C_{out}\\,k\\,C_{in}', outTex: 'T\\times C_{in} \\to T_o\\times C_{out}', note: 'Convolución sobre el tiempo (T_o = ⌊(T + 2p − k)/s⌋ + 1). Front end de Whisper: k = 3, la segunda con stride 2: 3,000 frames mel → 1,500 posiciones.' },
+    { id: 't5_rel_bias', name: 'Sesgo de posición relativa (T5)', paramTex: 'n_b\\,h', macTex: '0', outTex: '\\to h\\times T_q\\times T_k', note: 'Tabla aprendida de n_b = 32 buckets × h cabezas: un escalar por (bucket(k − q), cabeza) sumado a QKᵀ. Buckets exactos para distancias chicas y logarítmicos hasta 128. Una tabla por stack, calculada en la capa 1.' },
+    { id: 'add_rel_bias', name: 'Sumar el sesgo relativo', paramTex: '0', macTex: '0', outTex: 'h\\times T_q\\times T_k \\to h\\times T_q\\times T_k', note: 'scores + B antes del softmax (T5 no escala por 1/√d_h).' },
+    { id: 'pad_or_trim', name: 'Rellenar o cortar a 30 s', paramTex: '0', macTex: '0', outTex: 'S \\to 480000', note: 'Whisper siempre procesa ventanas de 30 s (480,000 muestras a 16 kHz): el audio corto se rellena con ceros.' },
+    { id: 'log_mel', name: 'Espectrograma log-Mel', paramTex: '0', macTex: '0', outTex: 'S \\to (S/160)\\times n_{\\mathrm{mels}}', note: 'STFT (25 ms, hop 10 ms) + banco de filtros mel + log: 100 frames por segundo, 3,000 por ventana. Preprocesamiento: fuera de los MACs del modelo.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -3334,6 +3432,9 @@
     timestep_embedding: 1, sincos_pos_2d: 1, unpatchify: 1, concat_features: 1,
     // Fase 11: el índice offline de embeddings (N vectores guardados: no es una activación del forward) y la vista truncate_dim.
     embed_index: 1, truncate_dim: 1,
+    // Fase 12: el sesgo relativo de T5 (constante por stack, calculado de la tabla), los scores con sesgo (previos al softmax)
+    // y el audio rellenado (entrada cruda).
+    t5_rel_bias: 1, add_rel_bias: 1, pad_or_trim: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).

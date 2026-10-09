@@ -35,6 +35,9 @@
            método y GPU de 24/48/80 GB), node.matrix (la matriz de pesos a escala: W cuadrada, A y B como tiras de ancho r),
            node.adapter (píldora "+ B·A" encendida si la config adapta esa lineal, del calculador) y node.trainPill:false
            (congelado solo con el rayado).
+     fase 12: tokens[].sent (centinela de span corruption, color por it.k) y tokens[].drop (token de un tramo corrompido);
+           node.wave = {pad, seed} (onda de audio ilustrativa con el relleno a 30 s) y node.melGrid = {rows, cols, pad, seed}
+           (espectrograma log-Mel ilustrativo), abajo del bloque. Ninguno cambia los diagramas anteriores.
    Verificación en navegador: ATLAS.ArchDiagram.checkLabels(rootEl) → [{edge, tensor, got, want}] (vacío = OK).
 
    Reglas: las formas de las aristas salen SIEMPRE de ATLAS.Arch.run (nunca del spec). Los colores son
@@ -1265,7 +1268,7 @@
         // fase 7: strip (tira de tokens), posIds (ids de M-RoPE) y layers (capas con la toma) también van abajo
         // fase 8: costSplit (barra del costo por imagen) también va abajo
         // fase 10: bars (barras por fila, fuera de la práctica) y matrix (matriz a escala) también van abajo
-        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : (n.bars && ctl.mode !== 'blank' && !ctl.quiz) ? BARS_H(n.bars, r.w, (ctl.opts && ctl.opts.config) || (spec && spec.config), run, ctl, spec, !!(ctl.narrow && spec && spec.mobileGrid)) : n.matrix ? MAT_H(n.matrix) : n.tokens ? TOK_H(n.tokens) : n.cells ? CELLS_H(n.cells, run) : n.layered ? LAYERED_H(n.layered) : 0;
+        const innerH = hideInner ? 0 : n.kvGroups ? KVG_H : n.experts ? EXP_H : (n.rows && store) ? ROWS_H(n.rows) : n.strip ? STRIP_H : n.posIds ? POS_H : n.layers ? LAYERS_H : n.bins ? BINS_H : n.maskGrid ? maskGridH(n.maskGrid) : (n.costSplit && ctl.mode !== 'blank' && !ctl.quiz) ? COST_H(n.costSplit) : (n.bars && ctl.mode !== 'blank' && !ctl.quiz) ? BARS_H(n.bars, r.w, (ctl.opts && ctl.opts.config) || (spec && spec.config), run, ctl, spec, !!(ctl.narrow && spec && spec.mobileGrid)) : n.matrix ? MAT_H(n.matrix) : n.tokens ? TOK_H(n.tokens) : n.cells ? CELLS_H(n.cells, run) : n.layered ? LAYERED_H(n.layered) : n.wave ? WAVE_H : n.melGrid ? MEL_H(n.melGrid) : 0;
         const miniH = n.mini ? 22 : innerH;
         // sub con '\n' = varias líneas (el banco de SAM 2: "FIFO de N_r recientes" / "+ N_p con prompt (fijos)")
         const subs = sub ? String(sub).split('\n') : [];
@@ -1306,6 +1309,9 @@
         // fase 11: fila de tokens de ejemplo (BERT) y grafo por capas (HNSW): pictogramas sin números del calculador
         if (!hideInner && n.tokens) drawTokens(g, n.tokens, r, used, ctl, spec);
         if (!hideInner && n.layered) drawLayered(g, n.layered, r, used, ctl, spec);
+        // fase 12: onda de audio y espectrograma log-Mel (pictogramas ilustrativos de Whisper)
+        if (!hideInner && n.wave) drawWave(g, n.wave, r, used);
+        if (!hideInner && n.melGrid) drawMelGrid(g, n.melGrid, r, used);
         if (!hideInner && n.maskGrid) drawMaskGrid(g, n.maskGrid, r, used);
         if (!hideInner && n.posIds) drawPosIds(g, n.posIds, r, used, ctl);
       }
@@ -2052,6 +2058,8 @@
     if (items.some((it) => it.rand)) used.tokRand = true;
     if (items.some((it) => it.keep)) used.tokKeep = true;
     if (items.some((it) => it.seg === 1)) used.tokSeg = true;
+    if (items.some((it) => it.sent)) used.tokSent = true;
+    if (items.some((it) => it.drop)) used.tokDrop = true;
     const gg = S('g', { class: 'ad-toks' }, g);
     const x0 = r.x + 8, W = r.w - 16, y = r.y + r.h - TOK_H(o) + 3, h = 15, gap = 3;
     let k = 1, list = items;
@@ -2061,7 +2069,7 @@
     // si aún no entra: se quitan tokens comunes cerca del medio (nunca [CLS], [SEP] ni [MASK]) y queda un "…" en su lugar
     while (total(list, k) > W && list.filter((it) => !it.ell).length > 3) {
       const mid = list.length / 2;
-      const cand = list.map((it, j) => j).filter((j) => !list[j].ell && !list[j].special && !list[j].mask && !list[j].rand && !list[j].keep).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
+      const cand = list.map((it, j) => j).filter((j) => !list[j].ell && !list[j].special && !list[j].mask && !list[j].rand && !list[j].keep && !list[j].sent && !list[j].drop).sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid));
       if (!cand.length) break;
       const i = cand[0];
       if ((list[i - 1] && list[i - 1].ell) || (list[i + 1] && list[i + 1].ell)) list.splice(i, 1);
@@ -2073,15 +2081,61 @@
       const w = ws[i];
       if (it.ell) { txt(gg, x + w / 2, y + 11, '…', 'ad-tok-txt', 'middle'); x += w + gap; return; }
       const seg = it.seg === 1 ? 1 : 0;
-      S('rect', { x: r1(x), y: r1(y), width: r1(w), height: h, rx: 2.5, class: 'ad-tok is-seg' + seg + (it.mask ? ' is-mask' : '') + (it.rand ? ' is-rand' : '') + (it.keep ? ' is-keep' : '') + (it.special ? ' is-special' : '') }, gg);
-      const tt = txt(gg, x + w / 2, y + 10.8, tokLab(it), 'ad-tok-txt' + (it.special ? ' is-special' : '') + (it.mask ? ' is-mask' : ''), 'middle');
+      // fase 12: it.sent = centinela de span corruption (T5: <X>, <Y>…; color por it.k), it.drop = token de un tramo corrompido
+      const sk = it.sent || it.drop ? ' is-k' + ((it.k || 0) % 6) : '';
+      S('rect', { x: r1(x), y: r1(y), width: r1(w), height: h, rx: 2.5, class: 'ad-tok is-seg' + seg + (it.mask ? ' is-mask' : '') + (it.rand ? ' is-rand' : '') + (it.keep ? ' is-keep' : '') + (it.special ? ' is-special' : '') + (it.sent ? ' is-sent' + sk : '') + (it.drop ? ' is-drop' + sk : '') }, gg);
+      const tt = txt(gg, x + w / 2, y + 10.8, tokLab(it), 'ad-tok-txt' + (it.special ? ' is-special' : '') + (it.mask ? ' is-mask' : '') + (it.sent ? ' is-sent' : '') + (it.drop ? ' is-drop' : ''), 'middle');
       if (k < 1) tt.setAttribute('style', 'font-size:' + r1(10 * k) + 'px');
       if (used.tokSeg) S('rect', { x: r1(x), y: r1(y + h + 2), width: r1(w), height: 2.5, class: 'ad-tok-seg is-seg' + seg }, gg);
       x += w + gap;
     });
     if (o.caption && ctl.mode !== 'blank' && !ctl.quiz) txt(gg, r.x + r.w / 2, y + h + 15, qText(o.caption, ctl, spec), 'ad-gqa-cap', 'middle');
   }
-  function tokensWords(o) { return 'tokens de ejemplo: ' + (o.items || []).map((it) => tokLab(it) + (it.rand ? ' (al azar, era ' + it.t + ')' : it.keep ? ' (elegido, sin cambio)' : '')).join(' '); }
+  function tokensWords(o) { return 'tokens de ejemplo: ' + (o.items || []).map((it) => tokLab(it) + (it.rand ? ' (al azar, era ' + it.t + ')' : it.keep ? ' (elegido, sin cambio)' : it.sent ? ' (centinela)' : it.drop ? ' (tramo corrompido)' : '')).join(' '); }
+
+  // ------------------------------------------------------------ fase 12 (Whisper): onda de audio y espectrograma log-Mel
+  // node.wave = {pad: fracción del ancho que es relleno con ceros (30 s), seed}: una onda sintética en la parte de abajo del
+  // bloque y, a la derecha, el relleno (línea plana con marco punteado). Ilustrativa: no sale del calculador.
+  const WAVE_H = 28;
+  function drawWave(g, o, r, used) {
+    used.wave = true;
+    const gg = S('g', { class: 'ad-wave' }, g);
+    const x0 = r.x + 8, W = r.w - 16, h = 18, y = r.y + r.h - WAVE_H + 3, mid = y + h / 2;
+    const pad = Math.max(0, Math.min(0.9, o.pad || 0)), xs = x0 + W * (1 - pad);
+    const rng = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng(o.seed || 30) : Math.random;
+    // envolvente por "sílabas" (arcos de 10–22 px separados por pausas cortas) con ruido por muestra
+    let d = '', sx = x0, sw = 10 + 12 * rng(), peak = 0.55 + 0.45 * rng();
+    for (let x = x0; x < xs; x += 1.5) {
+      if (x > sx + sw) { sx = x + 2 + 5 * rng(); sw = 10 + 12 * rng(); peak = 0.55 + 0.45 * rng(); }
+      const u = (x - sx) / sw, env = x < sx ? 0.06 : Math.max(0.06, Math.sin(Math.PI * Math.min(1, u)) * peak);
+      const a = env * (0.55 + 0.45 * rng()) * h / 2;
+      d += 'M' + r1(x) + ' ' + r1(mid - a) + 'V' + r1(mid + a);
+    }
+    S('path', { d, class: 'ad-wave-ln' }, gg);
+    if (pad > 0) {
+      S('rect', { x: r1(xs), y: r1(y), width: r1(x0 + W - xs), height: h, class: 'ad-wave-pad' }, gg);
+      S('path', { d: 'M' + r1(xs) + ' ' + r1(mid) + 'H' + r1(x0 + W), class: 'ad-wave-flat' }, gg);
+    }
+  }
+  // node.melGrid = {rows, cols, pad, seed}: espectrograma chico (filas = bandas mel, graves abajo; columnas = frames) con tono
+  // ILUSTRATIVO; la parte de relleno (pad) va vacía. Las cuentas reales (n_mels × 3,000) están en las formas de las aristas.
+  const MEL_H = (o) => ((o && o.rows) || 8) * 3 + 8;
+  function drawMelGrid(g, o, r, used) {
+    used.melGrid = true;
+    const gg = S('g', { class: 'ad-melg' }, g);
+    const rows = o.rows || 8, cols = o.cols || 40, cs = 3, x0 = r.x + 8, W = r.w - 16, cw = W / cols, y0 = r.y + r.h - MEL_H(o) + 3;
+    const pad = Math.max(0, Math.min(0.9, o.pad || 0)), live = Math.round(cols * (1 - pad));
+    const rng = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng(o.seed || 80) : Math.random;
+    S('rect', { x: r1(x0), y: r1(y0), width: r1(W), height: rows * cs, class: 'ad-melg-bg' }, gg);
+    for (let c = 0; c < live; c++) {
+      const on = rng() < 0.82, f = 0.3 + 0.7 * rng();
+      for (let k = 0; k < rows; k++) {
+        const v = on ? Math.max(0, Math.min(1, f * (1 - k / rows * 0.75) * (0.55 + 0.45 * rng()))) : 0.05 * rng();
+        if (v > 0.06) S('rect', { x: r1(x0 + c * cw), y: r1(y0 + (rows - 1 - k) * cs), width: r1(cw + 0.2), height: cs, class: 'ad-melg-cell', style: 'fill-opacity:' + r1(v * 10) / 10 }, gg);
+      }
+    }
+    if (pad > 0) S('rect', { x: r1(x0 + live * cw), y: r1(y0), width: r1(W - live * cw), height: rows * cs, class: 'ad-wave-pad' }, gg);
+  }
 
   // node.cells = {rows, cols (claves o números), maxR?:6, maxC?:12, mark:'rowmax'|'pick'|'rows'|'none', lit?:<clave o número>,
   //   sum?:texto, label?, caption?, seed?, cell?:9}: una tabla chica (filas × columnas, recortada a maxR × maxC con "…" y con la
@@ -2660,6 +2714,10 @@
     if (used.tokens) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 1, y: 3, width: 11, height: 9, rx: 2, class: 'ad-tok is-seg0' }, g); S('rect', { x: 14, y: 3, width: 11, height: 9, rx: 2, class: 'ad-tok is-seg1' }, g); S('rect', { x: 1, y: 13, width: 11, height: 2, class: 'ad-tok-seg is-seg0' }, g); S('rect', { x: 14, y: 13, width: 11, height: 2, class: 'ad-tok-seg is-seg1' }, g); }, LT.tokens || ('Tokens de ejemplo (ilustrativo)' + (used.tokSeg ? '; la barra de abajo es el segmento: A o B' : '')));
     if (used.tokMask) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-mask' }, g); }, LT.tokMask || '[MASK]: token enmascarado (lo que el MLM predice)');
     if (used.tokRand) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-rand' }, g); }, LT.tokRand || 'Elegido y cambiado por una palabra al azar (10 % de los elegidos)');
+    if (used.tokSent) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-sent is-k0' }, g); }, LT.tokSent || 'Centinela: reemplaza un tramo corrompido (<X>, <Y>, …)');
+    if (used.tokDrop) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-drop is-k0' }, g); }, LT.tokDrop || 'Token de un tramo corrompido (lo que el decoder genera)');
+    if (used.wave) item((s) => { const g = S('g', { class: 'ad-wave' }, s); S('path', { d: 'M3 8V8M5 5V11M7 3V13M9 6V10M11 4V12M13 7V9', class: 'ad-wave-ln' }, g); S('rect', { x: 15, y: 4, width: 9, height: 8, class: 'ad-wave-pad' }, g); }, LT.wave || 'Onda de audio (ilustrativa); marco punteado = relleno con ceros hasta 30 s');
+    if (used.melGrid) item((s) => { const g = S('g', { class: 'ad-melg' }, s); [[3, 9, .9], [6, 9, .6], [9, 9, .8], [3, 6, .5], [6, 6, .3], [9, 6, .6], [3, 3, .2], [9, 3, .3]].forEach(([x, y, v]) => S('rect', { x, y, width: 3, height: 3, class: 'ad-melg-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 14, y: 3, width: 10, height: 9, class: 'ad-wave-pad' }, g); }, LT.melGrid || 'Espectrograma log-Mel (tono ilustrativo): filas = bandas mel, columnas = frames de 10 ms');
     if (used.tokKeep) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-seg0 is-keep' }, g); }, LT.tokKeep || 'Elegido y sin cambio (10 % de los elegidos): también entra en la pérdida');
     if (used.cells) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [[2, 2, .25], [8, 2, .8], [14, 2, .4], [2, 8, .6], [8, 8, .2], [14, 8, .9]].forEach(([x, y, v]) => S('rect', { x, y, width: 5, height: 5, class: 'ad-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 7.5, y: 1.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('rect', { x: 13.5, y: 7.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); }, LT.cells || 'Tabla (ilustrativa: el tono no es un valor real); recuadro = la celda elegida por fila');
     if (used.cellsRows) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 2, y, width: 22, height: 3, class: 'ad-cell-row' + (i === 1 ? ' is-lit' : '') }, g)); }, LT.cellsRows || 'Filas: listas del índice; resaltadas = las que se recorren');

@@ -699,7 +699,7 @@
     id: 'gnn', phase: 12, family: 'otros',
     title: 'Graph Neural Networks', titleEn: 'Graph neural networks', short: 'GNNs',
     summary: 'Cada nodo actualiza su vector agregando mensajes de sus vecinos. La self-attention es un caso particular: un grafo completo cuyos pesos de arista se calculan desde el contenido (como en GAT).',
-    freq: B, from: [], to: [],
+    freq: B, from: ['repaso-atencion'], to: [],
     paper: { title: 'Semi-Supervised Classification with Graph Convolutional Networks', authors: 'Kipf & Welling', venue: 'ICLR 2017', arxiv: '1609.02907' },
     card: { in: 'grafo (nodos con features + aristas)', out: 'embedding por nodo o por grafo',
       idea: 'message passing: agregar los vecinos, transformar, repetir', uso: 'moléculas, redes sociales, fraude, recomendación' },
@@ -708,8 +708,8 @@
     id: 'mamba', phase: 12, family: 'otros',
     title: 'Mamba / modelos de espacio de estados', titleEn: 'State space models (Mamba)', short: 'Mamba / SSMs',
     summary: 'Una recurrencia lineal con parámetros que dependen de la entrada, calculada con un scan paralelo: costo lineal en la longitud de secuencia y estado de tamaño fijo en inferencia.',
-    freq: B, from: [], to: [],
-    paper: { title: 'Mamba: Linear-Time Sequence Modeling with Selective State Spaces', authors: 'Gu & Dao', venue: 'COLM 2024', arxiv: '2312.00752' },   // verificar venue
+    freq: B, from: ['llm-decoder'], to: [],
+    paper: { title: 'Mamba: Linear-Time Sequence Modeling with Selective State Spaces', authors: 'Gu & Dao', venue: 'COLM 2024', arxiv: '2312.00752' },
     card: { in: 'secuencia de tokens', out: 'secuencia de salidas (como un decoder)',
       idea: 'estado oculto de tamaño fijo con transiciones selectivas: sin matriz N×N ni KV cache que crezca', uso: 'secuencias muy largas, híbridos atención + SSM' },
   }));
@@ -727,7 +727,7 @@
     title: 'RNN / LSTM', titleEn: 'Recurrent networks (RNN, LSTM)', short: 'RNN / LSTM',
     summary: 'Procesan la secuencia token a token con un estado oculto. La LSTM agrega compuertas para no perder el gradiente; la atención las reemplazó porque se entrena en paralelo.',
     freq: M, from: [], to: ['repaso-atencion'],
-    paper: { title: 'Long Short-Term Memory', authors: 'Hochreiter & Schmidhuber', venue: 'Neural Computation 1997' },   // verificar: sin arXiv (1997); añadir url en F12
+    paper: { title: 'Long Short-Term Memory', authors: 'Hochreiter & Schmidhuber', venue: 'Neural Computation 9(8), 1997', url: 'https://doi.org/10.1162/neco.1997.9.8.1735' },
     card: { in: 'secuencia', out: 'un estado por paso',
       idea: 'h_t = f(h_{t−1}, x_t): memoria recurrente con compuertas', uso: 'series de tiempo, modelos chicos en edge, historia de los transformers' },
   }));
@@ -838,9 +838,9 @@
       note: 'LoRA/QLoRA, SFT, RLHF con PPO y DPO, con el conteo de parámetros entrenables.' },
     { phase: 11, block: 2, status: 'done', title: 'Fase 11 — BERT, embeddings y retrieval', items: ['bert', 'retrieval', 'ann'],
       note: 'BERT → bi-encoder → cross-encoder reranker, InfoNCE y búsqueda ANN (HNSW, IVF-PQ). Conecta con CLIP y con los casos de RAG de la Ronda.' },
-    { phase: 12, block: 2, status: 'next', title: 'Fase 12 — Encoder-decoder y tarjetas de nivel 1', items: ['t5', 'whisper', 'gnn', 'mamba', 'gan', 'rnn-lstm'],
+    { phase: 12, block: 2, status: 'done', title: 'Fase 12 — Encoder-decoder y tarjetas de nivel 1', items: ['t5', 'whisper', 'gnn', 'mamba', 'gan', 'rnn-lstm'],
       note: 'T5 y Whisper (cross-attention), y las tarjetas completas de GNNs, Mamba/SSMs, GANs y RNN/LSTM. Fase ligera.' },
-    { phase: 13, block: 2, status: 'later', title: 'Fase 13 — Recomendación y árboles', items: ['two-tower', 'dlrm', 'gbdt'],
+    { phase: 13, block: 2, status: 'next', title: 'Fase 13 — Recomendación y árboles', items: ['two-tower', 'dlrm', 'gbdt'],
       note: 'Two-tower + ranking (DLRM / Wide & Deep) y gradient boosted trees, y por qué siguen ganando en tabulares.' },
     { phase: 14, block: 3, status: 'later', title: 'Fase 14 — Percepción para robótica', items: ['bytetrack', 'depth', 'pointnet', 'nerf-3dgs'],
       note: 'Tracking (Kalman + matching húngaro), profundidad monocular, PointNet; NeRF y Gaussian Splatting a nivel 1. Opcional.' },

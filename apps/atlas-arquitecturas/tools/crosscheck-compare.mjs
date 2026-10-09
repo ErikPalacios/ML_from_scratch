@@ -13,7 +13,7 @@ import vm from 'node:vm';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
-  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js', 'js/arch/vla.js', 'js/arch/finetune.js', 'js/arch/retrieval.js'];
+  'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js', 'js/arch/vla.js', 'js/arch/finetune.js', 'js/arch/retrieval.js', 'js/arch/encdec.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -261,6 +261,14 @@ export function compareConfig(A, exp) {
     const ratio = rc.ref / v;
     push('faiss[' + rc.what + '] = ' + ratio.toFixed(3), v, rc.ref, ratio >= rc.min_ratio && ratio <= rc.max_ratio, 'rango [' + rc.min_ratio + ', ' + rc.max_ratio + ']');
   }
+  // Fase 12 (T5). bucket_checks: buckets de posición relativa de HF (T5Attention._relative_position_bucket, CPU) para cada
+  // posición relativa de range[0] … range[1] ↔ A.t5RelativeBucket, uno por uno.
+  for (const bc of exp.bucket_checks || []) {
+    const calc = [];
+    for (let rel = bc.range[0]; rel <= bc.range[1]; rel++) calc.push(A.t5RelativeBucket(rel, bc.bidirectional, bc.buckets, bc.max_distance));
+    const bad = calc.findIndex((v, i) => v !== bc.ref[i]);
+    push('buckets T5 [' + bc.what + '] ' + bc.range.join('…'), bad < 0 ? calc.length + ' iguales' : 'rel ' + (bc.range[0] + bad) + ' → ' + calc[bad], bad < 0 ? calc.length + ' iguales' : bc.ref[bad], bad < 0 && calc.length === bc.ref.length);
+  }
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -296,7 +304,7 @@ function regenerate() {
     console.log('No hay .venv: comparo solo con los JSON versionados (python3.13 -m venv .venv && .venv/bin/pip install -r crosscheck/requirements.txt).');
     return true;
   }
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py', 'retrieval.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py', 'retrieval.py', 'encdec.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }) });
     if (r.status !== 0) { console.error('Falló crosscheck/' + script); return false; }
