@@ -806,6 +806,8 @@ tr.is-walk > * { background: var(--accent-soft); }
 /* flow-vs-diffusion: caminos por par (arco / recta) y el ODE fino de referencia */
 .viz-fd-pair { fill: none; stroke: var(--sc, var(--ink)); stroke-width: 1.4; stroke-opacity: .8; }
 .viz-fd-fine { fill: none; stroke: var(--sc, var(--muted)); stroke-width: 1; stroke-opacity: .3; }
+/* en "caminos por par" el deslizador de pasos no aplica */
+.viz-fd-sl.is-off { opacity: .55; }
 /* ---------------------------------------------------------------- fase 8: motor (difusión) */
 /* bucle de muestreo (edge.loop), veces que corre (node.runs), barra del costo por imagen (node.costSplit) */
 .ad-loop-ico { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
@@ -819,4 +821,7 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-cs-val { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
 .ad-cs--loop { fill: var(--accent); }
 .ad-cs--once { fill: var(--muted); }
-.ad-cs--once2 { fill: color-mix(in srgb, var(--muted) 45%, var(--surface)); stroke: var(--muted); stroke-width: .8; }
+/* el decoder del VAE es una conv: su tono (≥ 3:1 contra la superficie en los dos temas; antes, gris claro a 1.8:1) */
+.ad-cs--once2 { fill: var(--op-conv); }
+/* fase 8 (revisión): letra + sombrero/tilde combinante (ε̂, ε̃, v̂) en mono, donde la marca se compone bien */
+.ad-comb { font-family: var(--font-mono); }

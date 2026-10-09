@@ -109,3 +109,19 @@ test('vendor/lab/index.html al día con el Laboratorio (aviso)', { skip: !exists
   if (existsSync(join(LAB, 'index.html')) && statSync(join(LAB, 'index.html')).mtimeMs > vt) newer.push('index.html');
   if (newer.length) t.diagnostic('AVISO: vendor/lab/index.html es más viejo que ' + newer.slice(0, 5).join(', ') + (newer.length > 5 ? '…' : '') + ' — corre npm run vendor:lab');
 });
+
+test('validate-content: un diagrama calc: false (sin calculador) pasa con tags y falla si nombra un tensor', () => {
+  const { mkdtempSync, writeFileSync } = require('node:fs');
+  const os = require('node:os');
+  const dir = mkdtempSync(join(os.tmpdir(), 'atlas-fx-'));
+  const base = "{ kind: 'arch', model: 'rt2', calc: false, calcNote: 'Pesos cerrados: sin números del calculador.', title: 'Prueba', caption: 'Prueba.', grid: { w: 40, h: 12 },"
+    + " nodes: [{ id: 'a', op: 'io', label: 'Imagen', x: 1, y: 2, w: 8, h: 4, note: 'n' }, { id: 'b', op: 'attn', label: 'VLM', x: 20, y: 2, w: 10, h: 4, note: 'n' }],";
+  const ok = join(dir, 'ok.js'), bad = join(dir, 'bad.js');
+  writeFileSync(ok, "ATLAS.registerDiagram(Object.assign(" + base + " edges: [{ from: 'a', to: 'b', kind: 'data', tag: 'tokens' }], walks: [{ id: 'w', label: 'R', steps: [{ nodes: ['a', 'b'], edges: ['a>b'], text: 't' }] }] }, { id: 'zz-nocalc-ok' }));");
+  writeFileSync(bad, "ATLAS.registerDiagram(Object.assign(" + base + " edges: [{ from: 'a', to: 'b', kind: 'data', tensor: 'x-t' }], walks: [{ id: 'w', label: 'R', steps: [{ nodes: ['a'], tensors: ['x-t'], text: 't' }] }] }, { id: 'zz-nocalc-bad' }));");
+  const runV = (f) => JSON.parse(spawnSync(process.execPath, [join(ROOT, 'tools', 'validate-content.mjs'), '--json', '--fixture', f], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).stdout);
+  assert.deepStrictEqual(runV(ok).errors.filter((e) => /zz-nocalc/.test(e)), []);
+  const errs = runV(bad).errors.filter((e) => /zz-nocalc/.test(e));
+  assert.ok(errs.some((e) => /arista no puede nombrar un tensor/.test(e)), errs.join('\n'));
+  assert.ok(errs.some((e) => /solo nodos y aristas/.test(e)), errs.join('\n'));
+});

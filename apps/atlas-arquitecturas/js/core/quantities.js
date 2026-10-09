@@ -28,6 +28,8 @@
                                         el mapa metrics.units del modelo o por el nombre: …Mem, …Mem2x,
                                         …MemAllLayers, …Cache = bytes; …Share = %; 'ratio' = 3 cifras;
                                         'macs' = fmt.ops, p. ej. '1.81 GMACs' — solo por el mapa units;
+                                        'ms' = milisegundos con 3 cifras ('1.62', '83.8', '121'), SIN la
+                                        unidad: la prosa escribe ' ms' detrás;
                                         booleanos 'sí' / 'no' y textos tal cual: metrics.fitsInHbm, metrics.decodeBound)
    ========================================================================== */
 (function (root) {
@@ -144,12 +146,20 @@
       if (unit === 'ratio') return num(v, fRatio(v));
       // 'macs' (mapa units del modelo): cómputo con el formato único de la app (fmt.ops): '1.81 GMACs', '2.98 TMACs'.
       if (unit === 'macs') return num(v, f.ops(v));
+      // 'ms' (fase 8): milisegundos con 3 cifras significativas (1.62, 2.54, 83.8, 121); la prosa añade ' ms'.
+      if (unit === 'ms') return num(v, fMs(v));
       if (parts[1] === 'scoreToLinear') return num(v, v.toFixed(2));
       return num(v, f.int(v));
     }
     return null;
   }
 
+  // Milisegundos: 3 cifras significativas sin unidad (la escribe la prosa: '≈ {{metrics.msPerImage}} ms').
+  function fMs(v) {
+    const a = Math.abs(v);
+    if (a >= 100) return arch().fmt.int(Math.round(v));
+    return a >= 10 ? v.toFixed(1) : a >= 1 ? v.toFixed(2) : String(Number(v.toPrecision(3)));
+  }
   function metricUnitByName(k) {
     if (/Mem(\d+x|AllLayers|Batch|PerSample|Layer)?$|Cache$/.test(k)) return 'bytes';
     if (/Share$/.test(k)) return 'pct';

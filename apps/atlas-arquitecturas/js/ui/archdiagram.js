@@ -28,6 +28,9 @@
            de path] (ops que no cuentan en la insignia: el neck dentro del encoder de SAM); group.style:'lane' +
            tone (warn|accent|head|fuse|muted) + legend (carriles "una vez por imagen" / "por prompt"; su label2 no
            va en la práctica) y group.hideInBlank (título oculto en la práctica).
+     fase 8: node.runs / runsTone (píldora "× n"), node.costSplit (barra del costo por imagen), node.costNote, node.hideInBlank
+           (nodo oculto en la práctica), edge.loop (↻ en la etiqueta), edge.shapeLabel (forma en una arista de control),
+           edge.blankHide (forma oculta cuando un hueco pide la de ese tensor: da un factor de la respuesta).
    Verificación en navegador: ATLAS.ArchDiagram.checkLabels(rootEl) → [{edge, tensor, got, want}] (vacío = OK).
 
    Reglas: las formas de las aristas salen SIEMPRE de ATLAS.Arch.run (nunca del spec). Los colores son
@@ -645,13 +648,23 @@
   }
   // Subíndices estilo TeX en las etiquetas del SVG: "z_{ℓ−1}", "W_O", "d_h" → tspan rebajado
   // (sin guion bajo visible). textContent queda en forma plana: "zℓ−1", "WO", "dh" (ver plainSub).
+  // fase 8 (revisión): una letra con sombrero o tilde combinantes (ε̂, ε̃, v̂: U+0302 / U+0303) va en la fuente mono, donde
+  // la marca se compone sobre la letra; en IBM Plex Sans (Condensed) queda corrida a la derecha y se lee "ε ̂".
+  const COMB_RE = /([^\s<>&])([\u0302\u0303])/g;
   function setRich(t, s) {
     s = String(s == null ? '' : s);
     t.textContent = '';
-    if (s.indexOf('_') < 0) { t.textContent = s; return; }
+    const hasComb = /[\u0302\u0303]/.test(s);
+    if (s.indexOf('_') < 0 && !hasComb) { t.textContent = s; return; }
     let last = 0, m, down = false;
     SUB_RE.lastIndex = 0;
-    const put = (str, dy, cls) => { const ts = S('tspan', { dy: dy || null, class: cls || null }, t); ts.textContent = str; };
+    const put = (str, dy, cls) => {
+      if (!hasComb) { const ts = S('tspan', { dy: dy || null, class: cls || null }, t); ts.textContent = str; return; }
+      // trozos: texto normal / letra + marca (tspan .ad-comb); el dy va solo en el primero
+      const parts = String(str).split(/([^\s<>&][\u0302\u0303])/).filter((x) => x !== '');
+      parts.forEach((pt, i) => { const ts = S('tspan', { dy: i === 0 ? dy || null : null, class: [cls, /[\u0302\u0303]/.test(pt) ? 'ad-comb' : null].filter(Boolean).join(' ') || null }, t); ts.textContent = pt; });
+    };
+    if (s.indexOf('_') < 0) { put(s); return; }
     while ((m = SUB_RE.exec(s))) {
       if (m.index > last) { put(s.slice(last, m.index), down ? '-0.25em' : null); down = false; }
       put(subOf(m[1]), down ? null : '0.25em', 'ad-subscript');
@@ -668,11 +681,17 @@
   const CAP_SUB_RE = /(^|[^A-Za-z0-9_])([A-Za-z\u0370-\u03FF])_(\{[^}]*\}|[A-Za-z0-9ℓ\u0370-\u03FF]+)/g;
   function captionHtml(html) {
     let code = 0;
-    return String(html).split(/(<[^>]+>)/).map((part) => {
+    return combSafe(String(html).split(/(<[^>]+>)/).map((part) => {
       if (part[0] === '<') { if (/^<code\b/i.test(part)) code++; else if (/^<\/code>/i.test(part)) code = Math.max(0, code - 1); return part; }
       // solo símbolos de una letra (d_h, L_e, W_O, q_pos); identificadores como ln_post quedan tal cual
       return code ? part : part.replace(CAP_SUB_RE, (m, pre, base, g) => pre + base + '<sub>' + subOf(g) + '</sub>');
-    }).join('');
+    }).join(''));
+  }
+  // html: letra + marca combinante → <span class="ad-comb"> (fuente mono; ver COMB_RE). No toca las etiquetas html.
+  function combSafe(html) {
+    const s = String(html == null ? '' : html);
+    if (!/[\u0302\u0303]/.test(s)) return s;
+    return s.split(/(<[^>]+>)/).map((part) => (part[0] === '<' ? part : part.replace(COMB_RE, '<span class="ad-comb">$1$2</span>'))).join('');
   }
   function htmlSub(s) { return esc(s).replace(SUB_RE, (m, g) => '<sub>' + subOf(g) + '</sub>'); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -945,6 +964,9 @@
     for (const n of spec.nodes || []) {
       const el = isMap ? drawMapNode(ctl, L.nodes, n, geo.nodes[n.id], used) : drawNode(ctl, L.nodes, n, geo.nodes[n.id], run, used, spec);
       nodeEls[n.id] = el;
+      // fase 8 (revisión): node.hideInBlank = el nodo no va en la práctica (la barra del costo por imagen: sin ella, el marco
+      // quedaba vacío con solo el título)
+      if (el && ctl.mode === 'blank' && n.hideInBlank && !slotFor(ctl, n.id)) { el.setAttribute('display', 'none'); el.setAttribute('aria-hidden', 'true'); }
     }
 
     // ---- aristas
@@ -1494,10 +1516,13 @@
   function loopIcon(p, cx, cy, k, cls) {
     const a0 = -0.35 * Math.PI, a1 = 1.25 * Math.PI;
     const P0 = [cx + k * Math.cos(a0), cy + k * Math.sin(a0)], P1 = [cx + k * Math.cos(a1), cy + k * Math.sin(a1)];
-    S('path', { d: 'M' + P(P1) + 'A' + r1(k) + ',' + r1(k) + ' 0 1,1 ' + P(P0), class: cls || 'ad-loop-ico' }, p);
-    // punta en P0, tangente al giro (sentido horario en pantalla)
-    const tx = -Math.sin(a0), ty = Math.cos(a0), h = k * 0.8;
-    S('path', { d: 'M' + P([P0[0] + tx * h * 0.2, P0[1] + ty * h * 0.2]) + 'L' + P([P0[0] - tx * h * 0.7 - ty * h * 0.55, P0[1] - ty * h * 0.7 + tx * h * 0.55]) + 'L' + P([P0[0] - tx * h * 0.7 + ty * h * 0.55, P0[1] - ty * h * 0.7 - tx * h * 0.55]) + 'Z', class: (cls || 'ad-loop-ico') + '-head' }, p);
+    // arco de 288° SOBRE el círculo (cx, cy): de P0 en sentido horario (ángulo creciente con y hacia abajo) hasta P1, dejando
+    // el hueco arriba. (Antes iba de P1 a P0 con large-arc = 1 y sweep = 1: el arco horario entre esos puntos en este círculo es
+    // el chico, así que SVG tomaba el círculo espejado por encima de la cuerda y el ↻ asomaba por el borde de la píldora.)
+    S('path', { d: 'M' + P(P0) + 'A' + r1(k) + ',' + r1(k) + ' 0 1,1 ' + P(P1), class: cls || 'ad-loop-ico' }, p);
+    // punta en P1, tangente al giro (sentido horario en pantalla)
+    const tx = -Math.sin(a1), ty = Math.cos(a1), h = k * 0.8;
+    S('path', { d: 'M' + P([P1[0] + tx * h * 0.2, P1[1] + ty * h * 0.2]) + 'L' + P([P1[0] - tx * h * 0.7 - ty * h * 0.55, P1[1] - ty * h * 0.7 + tx * h * 0.55]) + 'L' + P([P1[0] - tx * h * 0.7 + ty * h * 0.55, P1[1] - ty * h * 0.7 - tx * h * 0.55]) + 'Z', class: (cls || 'ad-loop-ico') + '-head' }, p);
   }
   // node.runs = texto corto con {{…}} del calculador ("× {{metrics.nfe}} pasadas"): píldora arriba a la derecha (con la de
   // congelado/entrena, a su izquierda). runsTone:'once' = tono neutro (corre una vez); por omisión, acento (corre en el bucle).
@@ -1578,6 +1603,9 @@
         if (!want) continue;
         out.nums.add(want);
         for (const e of edges) if (e !== h && num(e) === want) out.add(edgeKey(e) + '@' + e.tensor);
+        // fase 8: edge.blankHide = true | id de tensor | [ids]: la forma de esta arista se oculta cuando un hueco pide la forma
+        // de ese tensor (true = cualquiera), porque da UN factor de la respuesta ("D 1152" y "256×32" delatan 256×1152)
+        for (const e of edges) if (e !== h && e.tensor && e.blankHide && (e.blankHide === true || [].concat(e.blankHide).indexOf(h.tensor) >= 0)) out.add(edgeKey(e) + '@' + e.tensor);
       }
     }
     return out;
@@ -1829,7 +1857,8 @@
       const s = S('svg', { width: 26, height: 16, viewBox: '0 0 26 16', 'aria-hidden': 'true', class: 'ad-leg-sw' });
       sw(s);
       li.appendChild(s);
-      H('span', { text: label }, li);
+      // fase 8 (revisión): subíndices TeX en la leyenda ("Tiempo e_t") como <sub>, igual que en las etiquetas
+      if (String(label).indexOf('_') >= 0) H('span', null, li, htmlSub(label)); else H('span', { text: label }, li);
     };
     const ops = ATLAS.OP_TYPES || [];
     for (const o of ops) {
@@ -2070,7 +2099,7 @@
         if (n.train) parts.push(n.train === 'frozen' ? 'Congelado en esta etapa' : 'Entrena en esta etapa');
         if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('Prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ') + (n.strip.caption ? ' (' + qText(n.strip.caption, ctl, spec) + ')' : '')); }
         if (n.posIds) parts.push('Ids (t, h, w): ' + mropeIds(n.posIds.segs).map((q) => '(' + q.t + ',' + q.h + ',' + q.w + ')').join(' '));
-        dd.innerHTML = esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, opts.config || spec.config) : '');
+        dd.innerHTML = combSafe(esc(parts.join(' · ')) + (n.note ? '<br>' + qResolve(n.note, opts.config || spec.config) : ''));
       }
     }
 
@@ -2197,7 +2226,8 @@
       mountView(id);
       sizeViewport();
       fadeIn();
-      fit(false);
+      // fase 8: en el teléfono, la vista abierta usa su mobileFocus (antes solo se leía al montar y la U-Net abría a 5 px)
+      initialView();
       if (opts.onExpand) try { opts.onExpand(id); } catch (e) { /* callback externo */ }
     }
     function fadeIn() { if (reducedMotion()) return; const s = ctl.view.svg; s.classList.add('ad-enter'); root.requestAnimationFrame(() => root.requestAnimationFrame(() => s.classList.remove('ad-enter'))); }
@@ -2210,7 +2240,7 @@
       mountView(ctl.stack[i]);
       sizeViewport();
       const r = ctl.view.geo.nodes[leaving.parentNode];
-      if (r) { setVB(rectVB(r)); fadeIn(); await animateVB(ctl.vb, fitVB(), 300); } else fit(false);
+      if (r) { setVB(rectVB(r)); fadeIn(); await animateVB(ctl.vb, initialVB(), 300); } else initialView();
       const el = ctl.view.nodeEls[leaving.parentNode];
       if (el && (hadFocus || fig.contains(document.activeElement))) el.focus({ preventScroll: true });
     }
@@ -2221,7 +2251,7 @@
       if (!tip || ctl.mode === 'blank') return;
       const html = tipHTML(target);
       if (!html) { hideTip(); return; }
-      tip.innerHTML = html;
+      tip.innerHTML = combSafe(html);
       tip.querySelectorAll('[data-tex]').forEach((el) => texInto(el, el.getAttribute('data-tex'), false));
       tip.hidden = false;
       tipFor = target;
@@ -2299,13 +2329,13 @@
         const it = catItem(n.id);
         if (it && it.titleEn) H('p', { class: 'ad-panel-en', text: it.titleEn }, panel);
         if (it && it.summary) H('p', null, panel, it.summary);
-        if (n.note) H('p', null, panel, n.note);
+        if (n.note) H('p', null, panel, combSafe(n.note));
         const page = ATLAS.getPage ? ATLAS.getPage(n.id) : null;
         const href = it && it.kind === 'card' ? '#mapa.' + (ATLAS.slug ? ATLAS.slug(n.id) : n.id) : '#' + n.id;
         H('a', { class: 'ad-btn ad-btn--primary', href, text: page && page.ready ? 'Abrir página' : it && it.kind === 'card' ? 'Ver tarjeta' : 'Ver qué viene' }, panel);
       } else {
         if (n.sub) H('p', { class: 'ad-panel-sub' }, panel, htmlSub(nodeSub(n, ctl)));
-        if (n.note) H('div', { class: 'ad-panel-note' }, panel, qResolve(n.note, opts.config || spec.config));
+        if (n.note) H('div', { class: 'ad-panel-note' }, panel, combSafe(qResolve(n.note, opts.config || spec.config)));
         if (n.tex) texInto(H('div', { class: 'ad-panel-tex' }, panel), n.tex, true);
         const io = nodeIO(view, n.id, run);
         if (io.in.length || io.out.length) {
@@ -2429,7 +2459,7 @@
       ctl.hl = { nodes: st.nodes || [], edges: st.edges || [], tensors: st.tensors || [], onlyListed: st.tensorsOn === 'edges' };
       applyHighlight(ctl.hl);
       walkBar.querySelector('.ad-walk-n').textContent = 'Paso ' + (w.i + 1) + ' de ' + w.spec.steps.length;
-      walkBar.querySelector('.ad-walk-text').innerHTML = qResolve(st.text || '', spec0.config);
+      walkBar.querySelector('.ad-walk-text').innerHTML = combSafe(qResolve(st.text || '', spec0.config));
       walkBar.querySelector('.ad-walk-prev').disabled = w.i === 0;
       walkBar.querySelector('.ad-walk-next').disabled = w.i === w.spec.steps.length - 1;
       const M = ATLAS.MathTex; if (M && M.typeset) try { M.typeset(walkBar.querySelector('.ad-walk-text')); } catch (e) { /* sin MathJax */ }
@@ -2677,16 +2707,18 @@
     on(root, 'resize', onWinResize);
 
     // Vista inicial: ajustada; en el teléfono, con zoom sobre spec.mobileFocus si existe (p. ej. el núcleo del mapa).
-    function initialView() {
+    // initialVB() = esa vista (sin aplicarla): la usan el montaje, expandTo y la animación de volver (collapseTo).
+    function initialVB() {
       const spec = ctl.view && ctl.view.spec;
       const ids = spec && isMobile() && ctl.mode === 'full' && !fig.classList.contains('ad--fs') ? spec.mobileFocus : null;
       const rs = (ids || []).map((id) => ctl.view.geo.nodes[id] || ctl.view.geo.groups[id]).filter(Boolean);
-      if (!rs.length) { fit(false); return; }
+      if (!rs.length) return fitVB();
       // mobileFocusPad (u): margen extra arriba a la izquierda (p. ej. para que entre el título de un carril)
       const mp = (spec.mobileFocusPad || 0) * U;
       const x0 = Math.min(...rs.map((r) => r.x)) - mp, y0 = Math.min(...rs.map((r) => r.y)) - mp, x1 = Math.max(...rs.map((r) => r.x + r.w)), y1 = Math.max(...rs.map((r) => r.y + r.h));
-      setVB(rectVB({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }));
+      return rectVB({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
     }
+    function initialView() { setVB(initialVB()); }
     ctl.initialView = initialView;
 
     // ---- montaje inicial

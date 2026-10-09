@@ -157,7 +157,9 @@
         for (let e = l0; e <= l1; e++) { tx(svg, cx0 - 4, Yc(Math.pow(10, e)) + 4, ops(Math.pow(10, e)).replace(/\.0+ /, ' ').replace(/MACs/, ''), 'viz-s', 'end'); if (e > l0 && e < l1) V.svg('path', { d: 'M' + cx0 + ' ' + r1(Yc(Math.pow(10, e))) + 'H' + r1(cx0 + cwid), class: 'viz-rl-grid' }, svg); }
         V.svg('path', { d: cs.map((c, i) => (i ? 'L' : 'M') + r1(lx(i)) + ' ' + r1(Yc(c.tot))).join(''), class: 'viz-ds-cost' }, svg);
         V.svg('circle', { cx: r1(lx(state.si)), cy: r1(Yc(cur.tot)), r: 5, class: 'viz-ds-costpt' }, svg);
-        tx(svg, lx(state.si) + (state.si > STEPS.length - 3 ? -9 : 9), Yc(cur.tot) - 8, ops(cur.tot), 'viz-rl-lab', state.si > STEPS.length - 3 ? 'end' : 'start');
+        // la curva sube hacia la derecha: la cifra va arriba a la izquierda del punto (abajo a la derecha en los dos primeros)
+        const lft = state.si >= 2;
+        tx(svg, lx(state.si) + (lft ? -9 : 9), Yc(cur.tot) + (lft ? -10 : 18), ops(cur.tot), 'viz-rl-lab', lft ? 'end' : 'start');
         axis(cy + chH + 14);
         tx(svg, cx0 + cwid / 2, cy + chH + 30, 'pasos N (escala log)', 'viz-s', 'middle');
         cy += chH + 40;
@@ -178,8 +180,8 @@
         kv('por imagen:', ops(cur.tot));
         if (cur.unet != null) kv(net + ':', Math.round(100 * cur.unet * evals / cur.tot) + ' %');
       }
-      note.innerHTML = 'Cada paso es una pasada completa de la red (' + (net === 'DiT' ? 'el transformer' : 'la U-Net') + ' de ' + label + '), así que el costo crece lineal con N y el CFG lo duplica (la red corre con y sin el texto). ' +
-        'DDPM muestrea con ruido en cada paso y necesita muchos; DDIM sigue el mismo modelo de forma determinista (un ODE) y aguanta saltos grandes; el flujo rectificado aprende un camino más recto y llega con menos. ' +
+      note.innerHTML = 'Cada paso es una pasada completa de la red (' + (net === 'DiT' ? 'el transformer' : 'la U-Net') + ' de ' + label + '), así que el costo crece lineal con N y el CFG lo duplica (la red corre con y sin la condición: el texto en SD, la clase en DiT). ' +
+        'DDPM muestrea con ruido en cada paso y necesita muchos; DDIM sigue el mismo modelo de forma determinista (un ODE) y aguanta saltos grandes. El flujo rectificado usa otra agenda y otra grilla de tiempos; con el modelo exacto, DDIM y Euler sobre el flujo son el mismo integrador salvo la grilla (Gao et al. 2024), así que "recto" no da pasos gratis: lo que baja N en la práctica es la agenda, el solver y la destilación. ' +
         'Juguete con el modelo óptimo exacto (ilustrativo): con una red real, al error de discretizar se le suma el de la red.';
     }
 

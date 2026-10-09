@@ -258,7 +258,10 @@
         llm: 'tokens del prompt (T), sin CLS' } },
     patches: { label: 'Patches', kind: 'count' },
     params: { label: 'Parámetros', kind: 'count', note: 'pesos + biases' },
-    macs: { label: 'MACs', kind: 'ops', note: 'matmuls y convs · FLOPs = 2 × MACs' },
+    macs: { label: 'MACs', kind: 'ops', note: 'matmuls y convs · FLOPs = 2 × MACs',
+      // difusión: el grafo es UNA evaluación de cada componente, no la imagen (esa es samplingMacs)
+      labels: { 'stable-diffusion': 'MACs de un paso del grafo (texto + 1 NFE + VAE)', dit: 'MACs por NFE' },
+      notes: { 'stable-diffusion': 'una vez cada componente; el costo por imagen es «MACs por imagen»', dit: 'una evaluación del DiT; el costo por imagen es «MACs por imagen»' } },
     flops: { label: 'FLOPs', kind: 'ops', note: '= 2 × MACs' },
     attnMem: { label: 'Scores de atención', kind: 'bytes', note: 'h×N×N en fp16, una capa, B = 1',
       notes: { swin: 'nW×h×M²×M² en fp16, el mayor bloque, B = 1', clip: 'h×N×N en fp16, una capa de la torre mayor, una muestra',
@@ -327,9 +330,14 @@
     // ---- Fase 4: Grounding DINO (texto en cada imagen, fusión imagen ↔ texto, reparto por bloque)
     imageTokens: { label: 'Tokens de imagen N', kind: 'count', note: 'Σ H_l·W_l de los 4 niveles (strides 8 a 64)', notes: { sam: '(H/16)·(W/16): las keys de imagen del decoder' } },
     textTokens: { label: 'Tokens de texto T', kind: 'count', note: 'el prompt en WordPiece, con [CLS] y [SEP]', notes: { llava: 'tokens de texto del prompt (sin el marcador de imagen)', 'qwen2-vl': 'tokens de texto del prompt' } },
-    textEncoderMacs: { label: 'MACs del texto (BERT + proyección)', kind: 'ops', note: 'se pagan en CADA imagen: el prompt entra junto con la imagen' },
+    // Una sola entrada por clave (revisión de la fase 8: la de difusión pisaba a la de Grounding DINO / YOLO-World): lo propio de
+    // cada modelo va en labels / notes.
+    textEncoderMacs: { label: 'MACs del texto (BERT + proyección)', kind: 'ops', note: 'se pagan en CADA imagen: el prompt entra junto con la imagen',
+      labels: { 'stable-diffusion': 'MACs del text encoder' },
+      notes: { 'stable-diffusion': 'por pasada; 2 por imagen con CFG (el prompt y el vacío)' } },
     textEncoderParams: { label: 'Parámetros del codificador de texto', kind: 'count', note: 'BERT-base + proyección 768 → D',
-      notes: { 'yolo-world': 'CLIP ViT-B/32 (torre de texto) + proyección; corre offline: fuera del total' } },
+      labels: { 'stable-diffusion': 'Parámetros del text encoder' },
+      notes: { 'yolo-world': 'CLIP ViT-B/32 (torre de texto) + proyección; corre offline: fuera del total', 'stable-diffusion': 'CLIP ViT-L/14 (texto)' } },
     textEncoderMacsShare: { label: 'Texto (BERT + proyección)', kind: 'pct', note: '% de los MACs por imagen' },
     textEncoderMacsMaxT: { label: 'MACs del texto con T = 256', kind: 'ops', note: 'el máximo de tokens (max_text_len)' },
     fusionMacs: { label: 'MACs de la fusión imagen ↔ texto', kind: 'ops', note: 'i2t + t2i de las 6 capas del feature enhancer',
@@ -416,8 +424,9 @@
     decCrossSamplingMacsLayer: { label: 'Cross-attention: MACs del muestreo deformable (una capa)', kind: 'ops', note: '5·Q·hLK·d_h' },
     samplingMacs: { label: 'MACs del muestreo deformable', kind: 'ops', note: 'encoder + cross-attention del decoder; convención del calculador',
       labels: { 'stable-diffusion': 'MACs por imagen', dit: 'MACs por imagen' },
-      notes: { 'stable-diffusion': 'pasos × NFE × (2 con CFG) + texto + decoder del VAE', dit: 'pasos × NFE × (2 con CFG) + decoder del VAE' } },
-    latentTokens: { label: 'Tokens del latente', kind: 'count', note: '(H/8/p)·(W/8/p): parches del latente' },
+      notes: { 'stable-diffusion': 'pasos × (2 con CFG) × MACs por NFE + (2 con CFG) × texto + decoder del VAE', dit: 'pasos × (2 con CFG) × MACs por NFE + decoder del VAE' } },
+    latentTokens: { label: 'Tokens del latente', kind: 'count', note: '(H/8/P)·(W/8/P): parches del latente',
+      notes: { 'stable-diffusion': '(H/8)·(W/8): posiciones del latente (nivel 1 de la U-Net)', dit: '(H/8/P)·(W/8/P): parches del latente' } },
     ditMacs: { label: 'MACs por evaluación (NFE)', kind: 'ops', note: 'una pasada del DiT' },
     unetMacs: { label: 'MACs por evaluación (NFE)', kind: 'ops', note: 'una pasada de la U-Net' },
     scoreShareDit: { label: 'Parte de QKᵀ y A·V', kind: 'pct', note: '% de los MACs por NFE; crece ∝ tokens²' },
@@ -429,14 +438,17 @@
     unetNfeMs: { label: 'ms por NFE de la U-Net (≈ cota)', kind: 'ms', note: 'roofline en H100' },
     ditNfeMs: { label: 'ms por NFE del DiT (≈ cota)', kind: 'ms', note: 'roofline en H100' },
     samplingMs: { label: 'ms del muestreo (≈ cota)', kind: 'ms', note: 'roofline en H100' },
+    vaeDecodeMs: { label: 'ms del decoder del VAE (≈ cota)', kind: 'ms', note: 'roofline en H100, una vez por imagen' },
+    textEncoderMs: { label: 'ms del text encoder (≈ cota)', kind: 'ms', note: 'roofline en H100' },
+    sequentialPasses: { label: 'Pasadas secuenciales de la red', kind: 'count', note: '= pasos: con CFG, las 2 evaluaciones de un paso van en un batch de 2' },
+    blockMacs: { label: 'MACs de un bloque (una NFE)', kind: 'ops', note: 'un bloque DiT, una evaluación' },
+    blocksSamplingMacs: { label: 'MACs de los bloques por imagen', kind: 'ops', note: 'L bloques × NFE' },
     imagesPerSecUpperBound: { label: 'Imágenes/s (≈ tope)', kind: 'count', note: 'roofline en H100' },
     unetParams: { label: 'Parámetros de la U-Net', kind: 'count', note: '' },
     ditParams: { label: 'Parámetros del DiT', kind: 'count', note: '' },
     vaeParams: { label: 'Parámetros del VAE', kind: 'count', note: 'encoder + decoder' },
-    textEncoderParams: { label: 'Parámetros del text encoder', kind: 'count', note: 'CLIP ViT-L/14 (texto)' },
     unetParamsShare: { label: 'U-Net', kind: 'pct', note: '% de los parámetros del sistema' },
     nfe: { label: 'Evaluaciones de la red (NFE)', kind: 'count', note: 'pasos × (2 con CFG)' },
-    textEncoderMacs: { label: 'MACs del text encoder', kind: 'ops', note: 'una vez por imagen' },
     vaeDecoderMacs: { label: 'MACs del decoder del VAE', kind: 'ops', note: 'una vez por imagen' },
     vaeEncoderMacs: { label: 'MACs del encoder del VAE', kind: 'ops', note: 'solo en entrenamiento (o img2img)' },
     compressionFactor: { label: 'Compresión del VAE', kind: 'ratio', note: 'valores de la imagen / valores del latente' },
@@ -629,7 +641,7 @@
   const DIFFUSION = { 'stable-diffusion': true, dit: true };   // fase 8: modelos cuyo samplingMacs es el costo por imagen
   // Etiqueta: la del modelo (labels[model]: «Celdas A» en YOLO) o la general.
   const metricLabel = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.labels && model && m.labels[model]) || m.label || k; };
-  const UNIT_KIND = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count' };
+  const UNIT_KIND = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count', ms: 'ms' };
   // Tipo de formato: el de METRICS; si la clave no está, por su nombre (las métricas que añade cada modelo
   // siguen la convención …Mem/…Cache = bytes, …Share = fracción, …Macs = MACs; como js/core/quantities.js).
   function metricKind(key) {
@@ -646,6 +658,8 @@
   // Cociente con 3 cifras significativas: 504.925 → '505', 9.5 → '9.5', 16 → '16'.
   // Si el redondeo da un entero de una cifra que no es exacto (1.004), 2 decimales: '×1.00', no '×1'.
   const fRatio = (v) => { const x = Number(v.toPrecision(3)); if (Math.abs(x) < 10 && Number.isInteger(x) && v !== x) return v.toFixed(2); return Math.abs(x) >= 1000 ? fInt(Math.round(v)) : String(x); };   // ≥ 1000: entero redondeado (1,645, no 1,640)
+  // Milisegundos (fase 8): 3 cifras significativas, como quantities.js: 1.62 · 2.54 · 83.8 · 121.
+  const fMs = (v) => { const a = Math.abs(v); return a >= 100 ? fInt(Math.round(v)) : a >= 10 ? v.toFixed(1) : a >= 1 ? v.toFixed(2) : String(Number(v.toPrecision(3))); };
   // Lee una métrica: número, {bytes}, o función (attnMem(dtype), kvCache(B, ctx, dtype)…).
   function metricValue(m, key) {
     if (!m) return null;
@@ -665,6 +679,7 @@
     if (kind === 'ratio') return '×' + fRatio(v);
     if (kind === 'intensity') return fRatio(v) + ' FLOPs/B';
     if (kind === 'rate') return '≈ ' + fRatio(v) + ' tok/s';
+    if (kind === 'ms') return fMs(v) + ' ms';
     // 'avg': un conteo esperado (no un factor): 1 decimal, sin «×»; «de E» si es un MoE (≈ 7.2 de 8).
     if (kind === 'avg') return (Number.isInteger(v) ? String(v) : '≈ ' + v.toFixed(1)) + (ARCH_CTX.experts ? ' de ' + ARCH_CTX.experts : '');
     return v >= 1e6 ? fSi(v) : fInt(v);
@@ -702,9 +717,10 @@
   // ------------------------------------------------------------------ diagramas del modelo
   // cfg (opcional): sin las vistas que declaran `configs` y no la incluyen (moe-block solo para Mixtral; las vistas
   // densas del decoder no dibujan Mixtral): así ningún ejercicio sale de una figura que no aplica a esa config.
+  // Fase 9: un diagrama con calc: false (RT-2: pesos cerrados, sin config del calculador) no da drills de formas ni de parámetros.
   function diagramsOf(model, cfg) {
     const all = safe(() => ATLAS.diagrams(), {}) || {};
-    return Object.values(all).filter((d) => d && d.model === model && d.kind !== 'map'
+    return Object.values(all).filter((d) => d && d.model === model && d.kind !== 'map' && d.calc !== false
       && (!cfg || !Array.isArray(d.configs) || !d.configs.length || d.configs.indexOf(cfg) >= 0 || d.configs.indexOf(baseCfg(cfg)) >= 0));
   }
   // Config de decode → su config de prefill (llama3-8b-decode → llama3-8b) para el filtro de vistas.
@@ -812,6 +828,8 @@
     return { v, half };
   }
   function parseNumber(str) { const r = parseNum(str); return r ? r.v : null; }
+  // Porcentaje escrito por la persona ("41.9", "41.9 %") → fracción 0.419 (las métricas pct son fracciones 0–1).
+  function parsePct(str) { const v = parseNumber(String(str || '').replace(/%/g, '').trim()); return v == null ? null : v / 100; }
   // Bytes: "3.72 MB", "3,7 MB", "931 KB", "1.2 GiB" (binario también vale), "3720000", "3.72e6 B".
   function parseBytes(str) {
     const s = String(str || '').trim().toLowerCase().replace(/[≈~]/g, '').trim();
@@ -1532,6 +1550,10 @@
     } else if (typeof c.classes === 'number' && !has('K')) out.push(['K', c.classes]);
     if (typeof c.D === 'number' && Array.isArray(c.widths) && c.widths.length && typeof c.expansion === 'number') out.push(['C_5', c.widths[c.widths.length - 1] * c.expansion]);
     // Fase 8 (difusión): canales del VAE / texto (SD), torres de texto (SDXL), tamaño de entrada I (DiT).
+    // T y K con nota: en estas páginas T = 1,000 son también los pasos de ruido y K = 1,000 se confunde con ellos.
+    const noteOf = (sym, note) => { const i = out.findIndex(([x]) => x === sym); if (i >= 0 && out[i].length < 3) out[i] = [out[i][0], out[i][1], note]; };
+    if (c.Cv != null) noteOf('T', 'tokens de texto de CLIP (no los ' + fInt(c.trainSteps || 1000) + ' pasos de ruido)');
+    if (c.I != null) noteOf('K', 'clases de ImageNet (tabla de K + 1 con la clase nula)');
     if (c.I != null && !has('I')) out.push(['I', c.I, 'lado del latente']);
     if (c.Cv != null && !has('C_v')) out.push(['C_v', c.Cv, 'canales del VAE']);
     if (c.Dtxt != null && !has('D_t')) out.push(['D_t', c.Dtxt, 'ancho del texto (cross-attention)']);
@@ -1630,7 +1652,7 @@
   // Copias de los pesos de una op (op.paramRepeat, fase 7: LLaVA con varias imágenes corre la torre `images` veces con los
   // mismos pesos); por defecto op.repeat.
   const pRep = (o) => (o && o.paramRepeat != null ? o.paramRepeat : (o && o.repeat) || 1);
-  function nodeParams(R, model, ref) {
+  function nodeParams(R, model, ref, raw) {
     const loc = locateParamsNode(model, R, ref);
     if (!loc || !loc.ops.length) return null;
     const all = loc.ops;
@@ -1731,7 +1753,22 @@
         qual = ' (solo las ' + sym + ' capas, sin embedding, norma final ni LM head)';
       }
     }
-    const label = (ctxParts.length ? ctxParts.join(' · ') + ' · ' : '') + base;
+    let label = (ctxParts.length ? ctxParts.join(' · ') + ' · ' : '') + base;
+    // Revisión de la fase 8: dos nodos del MISMO diagrama con la misma etiqueta ('Conv 3×3' dos veces en el bloque ResNet) darían
+    // la misma pregunta con respuestas distintas: se numeran por su orden en el diagrama ('Conv 3×3 (1)', '(2)').
+    if (!raw && loc.node && !loc.group && loc.diagram) {
+      const rawOf = (n) => plainLabel(fillLabel(n.drillLabel || n.label, R.id));
+      const mine = rawOf(loc.node);
+      const same = (loc.diagram.nodes || []).filter((n) => n && n.id && n.op !== 'io' && rawOf(n) === mine);
+      if (same.length > 1) {
+        const clash = same.filter((n) => {
+          if (n === loc.node) return true;
+          const o = safe(() => nodeParams(R, model, { diagram: loc.diagram.id, node: n.id }, true), null);
+          return o && o.label + o.qual === label + qual && o.total !== total;
+        });
+        if (clash.length > 1) label += ' (' + (clash.indexOf(loc.node) + 1) + ')';
+      }
+    }
     return { ops, total, group: whole, perLayer: !whole && rep > 1, repeat: rep, biases, lnParams, label, qual,
       unit: pairUnit ? 'par' : isSwin ? 'bloque' : 'capa', diagram: loc.diagram ? loc.diagram.id : null,
       node: loc.node ? loc.node.id : null };
@@ -2124,9 +2161,12 @@
     return shuffle(opts, rng(seed));
   }
   // ¿La pregunta pide un valor absoluto? "¿Cuántos…?" / "¿Cuánto…?" → sí (salvo expect explícito).
+  // Revisión de la fase 8: una métrica en % (…Share, unidad 'pct') se pregunta SIEMPRE por su valor nuevo (salvo expect: 'factor'):
+  // «×7.6» de una fracción de 15 % daría 116 %, y «el % se multiplica por 2.8» se lee peor que «15.2 % → 41.9 %».
   function asksValue(item, qText) {
     if (item.expect === 'value') return true;
     if (item.expect === 'factor') return false;
+    if (metricKind(metricKey(item.ask || 'macs')) === 'pct') return true;
     return /(^|[¿\s])cu[aá]nt[oa]s?\b/i.test(String(qText || '').replace(/<[^>]*>/g, ' '));
   }
   function parseFactor(o) {
@@ -2181,8 +2221,8 @@
     const r = av / bv;
     const numeric = item.mode === 'numeric' || item.numeric === true;
     // Con opciones del autor, se pregunta lo que ellas expresan (factores) salvo expect explícito.
-    const expectValue = (Array.isArray(item.options) && item.options.length && !numeric) ? false : asksValue(item, qHtml);
     const askKind = metricKind(ask);
+    const expectValue = (Array.isArray(item.options) && item.options.length && !numeric) ? false : asksValue(item, qHtml);
     const fb = h('p', { class: 'pxd__fb', 'aria-live': 'polite' });
     const expl = h('div', { class: 'pxw__expl', hidden: true });
     let done = false;
@@ -2193,7 +2233,7 @@
       fb.className = 'pxd__fb ' + (ok ? 'is-ok' : 'is-bad');
       fb.innerHTML = '';
       if (expectValue) fb.append(h('span', { html: icon(ok ? 'check' : 'close') }), h('span', null, ok ? 'Correcto: ' : 'No. Es '),
-        h('b', { class: 'mono', title: fMetricExact(ask, av) }, fMetric(ask, av)), h('span', null, ' (' + fMetric(ask, bv) + ' → ' + fMetric(ask, av) + ': ' + fFactor(r) + ').'));
+        h('b', { class: 'mono', title: fMetricExact(ask, av) }, fMetric(ask, av)), h('span', null, ' (' + fMetric(ask, bv) + ' → ' + fMetric(ask, av) + ': ' + (askKind === 'pct' ? fVsBase(ask, av, bv).replace(' vs base', '') : fFactor(r)) + ').'));
       else fb.append(h('span', { html: icon(ok ? 'check' : 'close') }), h('span', null, ok ? 'Correcto: ' : 'No. Es '),
         h('b', { class: 'mono' }, fFactor(r)), h('span', null, ' (' + fMetric(ask, bv) + ' → ' + fMetric(ask, av) + ').'));
       paintExpl();
@@ -2256,11 +2296,11 @@
         h('span', { class: 'sr-only', id: gid }, expectValue ? 'Opciones: nuevo valor de ' + metricLabel(ask, wm) : 'Opciones: factor de cambio en ' + metricLabel(ask, wm)), btns));
     } else {
       const inp = h('input', { type: 'text', class: 'input pxd__in mono', id: uid('pxw-in'), autocomplete: 'off', spellcheck: 'false', inputmode: 'decimal',
-        placeholder: expectValue ? (askKind === 'bytes' ? 'p. ej. 3.7 MB' : 'nuevo valor, p. ej. 785') : 'factor, p. ej. 4 o 1/4' });
+        placeholder: expectValue ? (askKind === 'bytes' ? 'p. ej. 3.7 MB' : askKind === 'pct' ? 'en %, p. ej. 41.9' : 'nuevo valor, p. ej. 785') : 'factor, p. ej. 4 o 1/4' });
       const form = h('form', { class: 'pxd__form', novalidate: true, on: { submit: (e) => {
         e.preventDefault();
         if (done) return;
-        const v = expectValue ? (askKind === 'bytes' ? parseBytes(inp.value) : parseNumber(inp.value)) : parseFactor(inp.value);
+        const v = expectValue ? (askKind === 'bytes' ? parseBytes(inp.value) : askKind === 'pct' ? parsePct(inp.value) : parseNumber(inp.value)) : parseFactor(inp.value);
         if (v == null || !isFinite(v)) { fb.className = 'pxd__fb is-warn'; fb.textContent = 'No entendí el número.'; return; }
         const target = expectValue ? av : r;
         const tol = expectValue ? 0.01 : 0.03;

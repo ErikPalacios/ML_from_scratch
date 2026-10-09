@@ -102,10 +102,13 @@
       tx(svg, 8, 29, narrow ? 'ilustrativo: en SD se ruidea el latente' : 'imagen ilustrativa (en SD se ruidea el latente, no los píxeles)', 'viz-s');
       // ---- fila de imágenes: x₀ · ε · x_t (en angosto, tres más chicas)
       const isz = narrow ? Math.floor((W - 16 - 2 * 18) / 3) : 150, iy = 50, gap = narrow ? 18 : 34;
+      // UNA escala de brillo para las tres (gris medio = 0; x₀ en [−1, 1]): así x_t en t = T − 1 se ve como el ε de al lado y
+      // en t = 0 como x₀ (antes ε iba a 0.5 + ε/6 y x_t a (v + 1)/2: x_t parecía 3 veces más ruidoso que el propio ε)
+      const disp = (v) => 0.5 + v / 3;
       const imgs = [
-        { lab: 'x₀ (la imagen)', url: dataURL(x0, (a, j) => a[j]) },
-        { lab: 'ε ~ N(0, I)', url: dataURL(eps, (a, j) => 0.5 + a[j] / 6) },
-        { lab: 'x_t (t = ' + state.t + ')', url: dataURL(x0, (a, j) => { const v = sa * (2 * a[j] - 1) + sn * eps[j]; return (v + 1) / 2; }) },
+        { lab: 'x₀ (la imagen)', url: dataURL(x0, (a, j) => disp(2 * a[j] - 1)) },
+        { lab: 'ε ~ N(0, I)', url: dataURL(eps, (a, j) => disp(a[j])) },
+        { lab: 'x_t (t = ' + state.t + ')', url: dataURL(x0, (a, j) => disp(sa * (2 * a[j] - 1) + sn * eps[j])) },
       ];
       imgs.forEach((im, k) => {
         const x = 8 + k * (isz + gap);
@@ -172,7 +175,7 @@
       const S2 = scheds.sd;
       note.innerHTML = (S2 ? 'Stable Diffusion (config del calculador): β de ' + S2.b0 + ' a ' + S2.b1 + ' en T = ' + fmt.int(S2.T) + ' pasos, "scaled linear" (lineal en √β). Al final queda ᾱ<sub>T−1</sub> = ' + S2.abar[S2.T - 1].toFixed(4) + ': la SNR no llega a 0 (Lin et al. 2023, arXiv:2305.08891, lo señalan como defecto). ' : '') +
         (ddpm ? 'La agenda lineal de DDPM (Ho et al. 2020, sobre píxeles; DiT la usa sobre el latente: config ' + ddpm.label + ') va de β = ' + ddpm.b0 + ' a ' + ddpm.b1 + ' y termina en ᾱ ≈ ' + ddpm.abar[ddpm.T - 1].toExponential(1) + '. ' : '') +
-        'Entrenar es elegir un t al azar, ruidear así de un salto (sin recorrer los pasos anteriores) y pedirle a la red que adivine ε. La imagen es ilustrativa: en SD se ruidea el latente del VAE, no la imagen.';
+        'Las tres imágenes usan la misma escala de brillo (gris medio = 0, x₀ llevado a [−1, 1]; lo que pasa de ±1.5 se satura). Entrenar es elegir un t al azar, ruidear así de un salto (sin recorrer los pasos anteriores) y pedirle a la red que adivine ε. La imagen es ilustrativa: en SD se ruidea el latente del VAE, no la imagen.';
     }
     function fmtSnr(s) { return s >= 100 ? Math.round(s).toString() : s >= 0.01 ? s.toFixed(3) : s.toExponential(1); }
 

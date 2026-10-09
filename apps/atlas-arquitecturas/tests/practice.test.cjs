@@ -294,7 +294,7 @@ test('fase 5: toda forma de SAM y SAM 2 sale de los datos de la tarjeta o de su 
   // cuyo nombre no basta (…Mem = bytes, …Share = %, el resto = conteo)
   for (const cfg of ['sam-vit-h-1024', 'sam2-hiera-l']) {
     const m = A.metrics(cfg, {});
-    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'].includes(u), cfg + ' ' + k + ': ' + u);
     for (const k of Object.keys(m)) if (typeof m[k] === 'number' && /Macs$/.test(k) && !/^(attnMacs|scoreMacs|linearMacs)$/.test(k)) assert.ok(m.units[k], cfg + ' ' + k + ' sin unidad');
   }
 });
@@ -409,7 +409,7 @@ test('fase 6: toda forma del modelo llm (prefill y decode, denso y MoE) sale de 
   // el mapa units del calculador solo usa unidades que la práctica sabe formatear
   for (const cfg of ['llama3-8b', 'mixtral-8x7b']) {
     const m = A.metrics(cfg, {});
-    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'].includes(u), cfg + ' ' + k + ': ' + u);
   }
 });
 
@@ -509,7 +509,7 @@ test('fase 7: toda forma de LLaVA y Qwen2-VL (imagen, varias imágenes, video) s
       }
     }
     const m = A.metrics(cfg, {});
-    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'].includes(u), cfg + ' ' + k + ': ' + u);
   }
   assert.ok(n > 400, 'se revisaron ' + n + ' dimensiones');
   // datos genéricos de la tarjeta: D, L, h, G, D_mlp del LLM; N = tokens visuales; T = de texto
@@ -546,7 +546,7 @@ test('fase 8: toda forma de Stable Diffusion (inferencia, entrenamiento, SDXL) y
       }
     }
     const m = A.metrics(cfg, {});
-    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params'].includes(u), cfg + ' ' + k + ': ' + u);
+    for (const [k, u] of Object.entries(m.units)) assert.ok(['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'].includes(u), cfg + ' ' + k + ': ' + u);
   }
   assert.ok(n > 3000, 'se revisaron ' + n + ' dimensiones');
   // datos genéricos de la tarjeta: SD 1.5 (H, W, C = 320, h = 8, T = 77, V); DiT (P, D, L, h, D_mlp, N, K)
@@ -554,4 +554,78 @@ test('fase 8: toda forma de Stable Diffusion (inferencia, entrenamiento, SDXL) y
   assert.deepStrictEqual([f.H, f.W, f.C, f.h, f.T, f.V], [512, 512, 320, 8, 77, 49408]);
   const fd = Object.fromEntries(P._factPairs(A.run('dit-xl2-256').config));
   assert.deepStrictEqual([fd.P, fd.D, fd.L, fd.h, fd.D_mlp, fd.N, fd.K], [2, 1152, 28, 16, 4608, 256, 1000]);
+});
+
+test('fase 8 (revisión): ms con decimales, una entrada por métrica, % como valor, T y K con nota, prompts de parámetros únicos', () => {
+  // ms: 3 cifras significativas en todos los formateadores (fMetric: explorador, what-if, tablas)
+  A.metrics('sd15-unet', {});
+  P._metricKind('vaeDecodeMs');
+  assert.strictEqual(P._fMetric('unetNfeMs', 1.624415), '1.62 ms');
+  assert.strictEqual(P._fMetric('vaeDecodeMs', 2.5425), '2.54 ms');
+  assert.strictEqual(P._fMetric('msPerImage', 83.8367), '83.8 ms');
+  assert.strictEqual(P._fMetric('samplingMs', 120.57), '121 ms');
+  // METRICS sin claves repetidas (en un literal, la última pisa a la primera sin aviso)
+  const src = readFileSync(join(ROOT, 'js/ui/practice.js'), 'utf8');
+  const lit = src.slice(src.indexOf('const METRICS = {'), src.indexOf('const metricNote'));
+  const keys = Array.from(lit.matchAll(/^ {4}([A-Za-z0-9_]+): \{/gm), (m) => m[1]);
+  const dup = keys.filter((k, i) => keys.indexOf(k) !== i);
+  assert.deepStrictEqual(dup, [], 'claves repetidas en METRICS: ' + dup.join(', '));
+  assert.strictEqual(P._metricLabel('textEncoderMacs', 'grounding-dino'), 'MACs del texto (BERT + proyección)');
+  assert.match(P._metricNote('textEncoderMacs', 'grounding-dino'), /CADA imagen/);
+  assert.strictEqual(P._metricLabel('textEncoderMacs', 'stable-diffusion'), 'MACs del text encoder');
+  assert.match(P._metricNote('textEncoderParams', 'yolo-world'), /offline/);
+  assert.match(P._metricNote('textEncoderParams', 'stable-diffusion'), /CLIP ViT-L\/14/);
+  // un % se pregunta por su valor (las opciones nunca pasan de 100 %), salvo expect: 'factor'
+  assert.strictEqual(P._asksValue({ ask: 'selfScoreShareUnet' }, '¿Qué pasa con la parte de la U-Net que es QKᵀ y A·V?'), true);
+  assert.strictEqual(P._asksValue({ ask: 'selfScoreShareUnet', expect: 'factor' }, '¿Qué pasa?'), false);
+  assert.strictEqual(P._asksValue({ ask: 'macs' }, '¿Qué pasa con los MACs?'), false);
+  const b = A.metrics('sd15-unet', {}).selfScoreShareUnet, a = A.metrics('sd15-unet', { res: 1024 }).selfScoreShareUnet;
+  for (const seed of ['a', 'b', 'c', 'd']) P._valueOptions('selfScoreShareUnet', b, a, seed).forEach((o) => assert.ok(o.v <= 1, o.text));
+  // T y K con nota en la tarjeta de datos
+  const ts = P._factPairs(A.run('sd15-unet').config).find((x) => x[0] === 'T');
+  assert.match(ts[2], /tokens de texto de CLIP/);
+  const ks = P._factPairs(A.run('dit-xl2-256').config).find((x) => x[0] === 'K');
+  assert.match(ks[2], /clases de ImageNet/);
+  // prompts de parámetros: la misma pregunta nunca tiene dos respuestas (sd-resblock: dos 'Conv 3×3')
+  for (const cfg of A.configs().map((c) => c.id)) {
+    const R = A.run(cfg), model = R.model, seen = {};
+    for (const c of P._drillCandidates([{ model, configs: [cfg], pool: 'all' }], ['params'])) {
+      const np = P._nodeParams(R, model, c.node), prompt = np.label + np.qual;
+      if (seen[prompt] != null) assert.strictEqual(seen[prompt], np.total, cfg + ': «' + prompt + '» pregunta dos cosas distintas');
+      seen[prompt] = np.total;
+    }
+  }
+});
+
+test('fase 8 (revisión): cada fila de un bloque compare tiene etiqueta y formato en blocks.js', () => {
+  const ctx = vm.createContext({ console, setTimeout, clearTimeout });
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const files = Array.from(html.matchAll(/<script src="([^"]+)"/g), (m) => m[1]).filter((f) => /^js\/(core|arch|content)\//.test(f) || f === 'js/ui/dom.js' || f === 'js/ui/blocks.js');
+  for (const f of files) vm.runInContext(readFileSync(join(ROOT, f), 'utf8'), ctx, { filename: f });
+  const B = ctx.ATLAS.Blocks, AT = ctx.ATLAS;
+  assert.ok(B && Array.isArray(B.COMPARE_METRICS));
+  const walk = (arr, out) => (arr || []).forEach((b) => { if (!b || typeof b !== 'object') return; if (b.t === 'compare') out.push(b); if (Array.isArray(b.blocks)) walk(b.blocks, out); });
+  const bad = [];
+  for (const id of Object.keys(AT.catalog().items || {})) {
+    const p = AT.getPage(id);
+    if (!p) continue;
+    const out = [];
+    (p.sections || []).forEach((s) => walk(s.blocks, out));
+    // una fila sin entrada solo vale si es un campo de la config (D, L…): las métricas necesitan su formato (un % no es «0»)
+    out.forEach((b) => (b.rows || []).forEach((k) => {
+      if (B.COMPARE_METRICS.includes(k)) return;
+      const runs = (b.models || []).map((m) => { try { return AT.Arch.run(m); } catch (e) { return null; } }).filter(Boolean);
+      if (!runs.every((r) => r.config && typeof r.config[k] === 'number')) bad.push(id + ': ' + k);
+    }));
+  }
+  assert.deepStrictEqual(bad, []);
+});
+
+test('fase 9: un diagrama calc: false no da drills de formas ni de parámetros (va al final: registra un diagrama de prueba)', () => {
+  ATLAS.registerDiagram({ id: 'zz-nocalc', kind: 'arch', model: 'dit', calc: false, calcNote: 'prueba', title: 'Prueba', caption: 'Prueba.', grid: { w: 40, h: 12 },
+    nodes: [{ id: 'a', op: 'io', label: 'Imagen', x: 1, y: 2, w: 8, h: 4 }, { id: 'patchify', op: 'conv', label: 'Patchify', x: 20, y: 2, w: 10, h: 4 }],
+    edges: [{ from: 'a', to: 'patchify', kind: 'data', tag: 'imagen' }] });
+  const cands = P._drillCandidates([{ model: 'dit', configs: ['dit-xl2-256'], pool: 'all' }], ['shape', 'params']);
+  assert.ok(cands.length > 0);
+  assert.ok(!cands.some((c) => c.node && c.node.diagram === 'zz-nocalc'), 'drill desde un diagrama calc: false');
 });

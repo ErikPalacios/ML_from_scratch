@@ -102,6 +102,13 @@ for (const f of scripts) {
     A.__wrapped = true;
   }
 }
+// --fixture <archivo.js> (repetible; para las pruebas): un script extra que se carga después del contenido, p. ej. un diagrama
+// de prueba. Se ejecuta en el mismo contexto (ATLAS.registerDiagram…).
+process.argv.forEach((a, i) => {
+  if (a !== '--fixture' || !process.argv[i + 1]) return;
+  const p = process.argv[i + 1];
+  try { vm.runInContext(readFileSync(p, 'utf8'), ctx, { filename: p }); } catch (e) { err('fixture ' + p, 'no carga: ' + (e && e.message || e)); }
+});
 
 const ATLAS = ctx.ATLAS;
 if (!ATLAS || typeof ATLAS.getPage !== 'function') { console.error('[validate] registry.js no definió ATLAS'); process.exit(1); }
@@ -453,8 +460,17 @@ function checkDiagram(d) {
     }
   }
   const isMap = d.kind === 'map';
+  // Fase 9: calc: false = diagrama sin calculador (RT-2, pesos cerrados): lleva model (el id de la página/modelo) y calcNote, sin
+  // config; sus aristas de datos llevan un tag de texto en vez de tensor, y nada puede nombrar un tensor ni una op del calculador.
+  const noCalc = !isMap && d.calc === false;
+  if (d.calc !== undefined && d.calc !== false) err(where, 'calc solo admite false (diagrama sin calculador)');
   let R = null;
-  if (!isMap) {
+  if (noCalc) {
+    if (!d.model) err(where, 'falta model (con calc: false, el id del modelo de la página)');
+    if (d.config) err(where, 'calc: false no lleva config (no hay corrida del calculador)');
+    if (!d.calcNote || typeof d.calcNote !== 'string') err(where, 'calc: false necesita calcNote (por qué no hay números del calculador)');
+    else checkHtml(where + '.calcNote', d.calcNote, true);
+  } else if (!isMap) {
     if (!d.model) err(where, 'falta model');
     else if (Arch && !modelIds.has(d.model)) err(where, 'model desconocido en el calculador: ' + d.model);
     if (!d.config) err(where, 'falta config');
@@ -515,6 +531,7 @@ function checkDiagram(d) {
     if (n.shape && !['add', 'concat', 'split', 'pool', 'flatten', 'mul', 'rect', 'pill'].includes(n.shape)) err(w, 'shape desconocida: ' + n.shape);
     if (n.expand && !diagrams[n.expand]) err(w, 'expand a un diagrama no registrado: ' + n.expand);
     const nR = isMap ? null : ovR(n, w);
+    if (noCalc && ((n.ops || []).length || n.scope || n.costOf)) err(w, 'calc: false: el nodo no puede nombrar ops del calculador (ops, scope, costOf)');
     (n.ops || []).forEach((o) => { if (!inRun(nR, o, 'op')) err(w, 'op del calculador desconocida: ' + o + ' (' + d.config + ovTag(n) + ')'); });
     if (n.tex) checkTex(w + '.tex', n.tex);
     if (!isMap && !n.note) warn(w, 'sin note (qué hace y por qué)');
@@ -543,8 +560,10 @@ function checkDiagram(d) {
       if (!REL_KINDS.includes(e.kind) && !EDGE[e.kind]) err(w, 'kind desconocido en el mapa: ' + e.kind);
     } else {
       if (!EDGE[e.kind]) err(w, 'kind desconocido: ' + e.kind + ' (usa ' + Object.keys(EDGE).join(', ') + ')');
-      else if (EDGE[e.kind].shaped && !e.tensor) err(w, 'arista "' + e.kind + '" sin tensor: su forma debe salir del calculador');
+      else if (EDGE[e.kind].shaped && !e.tensor && !noCalc) err(w, 'arista "' + e.kind + '" sin tensor: su forma debe salir del calculador');
     }
+    if (noCalc && e.tensor) err(w, 'calc: false: la arista no puede nombrar un tensor (' + e.tensor + '); usa tag');
+    if (noCalc && EDGE[e.kind] && EDGE[e.kind].shaped && !e.tensor && !e.tag && !e.label) warn(w, 'arista "' + e.kind + '" sin tag: con calc: false, el texto del tag dice qué pasa por ella');
     if (e.tensor && !inRun(isMap ? null : ovR(e, w), e.tensor)) err(w, 'tensor desconocido: ' + e.tensor + ' (' + d.config + ovTag(e) + ')');
     ['fromSide', 'toSide'].forEach((k) => { if (e[k] && !SIDES.includes(e[k])) err(w, k + ' inválido: ' + e[k]); });
     (e.via || []).forEach((p) => {
@@ -586,6 +605,7 @@ function checkDiagram(d) {
   (d.tensors || []).forEach((t, i) => {
     const w = where + '.tensors[' + (t.id || i) + ']';
     if (!t.id) { err(w, 'sin id'); return; }
+    if (noCalc) { err(w, 'calc: false: un glifo no puede nombrar un tensor del calculador (' + t.id + ')'); return; }
     if (!inRun(ovR(t, w), t.id)) err(w, 'tensor desconocido: ' + t.id + ' (' + d.config + ovTag(t) + ')');
     if (t.at && t.at.edge && !edgeIds.has(t.at.edge)) err(w, 'at.edge a una arista inexistente: ' + t.at.edge);
     if (t.at && Number.isFinite(t.at.x) && (t.at.x < 0 || t.at.y < 0 || t.at.x > g.w || t.at.y > g.h)) err(w, 'at fuera de la grilla');
@@ -604,7 +624,8 @@ function checkDiagram(d) {
       const subR = sub && sub.config ? run(sub.config) : null;
       (st.nodes || []).forEach((n) => { if (!boxes.has(n) && !subNodes.has(n)) err(ws, 'nodo inexistente: ' + n); });
       (st.edges || []).forEach((e) => { if (!edgeIds.has(e) && !subEdges.has(e)) err(ws, 'arista inexistente: ' + e); });
-      (st.tensors || []).forEach((t) => { if (!tensorOkAny(t) && !(subR && subR.tensors && subR.tensors[t])) err(ws, 'tensor desconocido: ' + t); });
+      if (noCalc && (st.tensors || []).length) err(ws, 'calc: false: los pasos usan solo nodos y aristas (sin tensors)');
+      else (st.tensors || []).forEach((t) => { if (!tensorOkAny(t) && !(subR && subR.tensors && subR.tensors[t])) err(ws, 'tensor desconocido: ' + t); });
       if (!st.text) err(ws, 'sin text');
       checkHtml(ws, st.text, true);
     });

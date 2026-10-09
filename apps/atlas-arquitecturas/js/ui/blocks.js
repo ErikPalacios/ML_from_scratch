@@ -721,6 +721,13 @@
     ditParams: { label: 'Parámetros del DiT', get: (r) => vlmMetric(r, 'ditParams'), fmt: 'si' },
     unetMacs: { label: 'MACs por NFE (U-Net)', get: (r) => vlmMetric(r, 'unetMacs'), fmt: 'si', unit: 'MACs' },
     ditMacs: { label: 'MACs por NFE (DiT)', get: (r) => vlmMetric(r, 'ditMacs'), fmt: 'si', unit: 'MACs' },
+    scoreShareDit: { label: 'QKᵀ y A·V (% de los MACs por NFE)', get: (r) => vlmMetric(r, 'scoreShareDit'), fmt: 'pct' },
+    selfScoreShareUnet: { label: 'Self-attention: QKᵀ y A·V (% de los MACs por NFE)', get: (r) => vlmMetric(r, 'selfScoreShareUnet'), fmt: 'pct' },
+    denoiserSamplingShare: { label: 'Parte de la red en la imagen', get: (r) => vlmMetric(r, 'denoiserSamplingShare'), fmt: 'pct' },
+    vaeDecoderMacs: { label: 'MACs del decoder del VAE', get: (r) => vlmMetric(r, 'vaeDecoderMacs'), fmt: 'si', unit: 'MACs' },
+    textEncoderParams: { label: 'Parámetros del text encoder', get: (r) => vlmMetric(r, 'textEncoderParams'), fmt: 'si' },
+    sequentialPasses: { label: 'Pasadas secuenciales', get: (r) => vlmMetric(r, 'sequentialPasses'), fmt: 'int' },
+    msPerImage: { label: 'ms por imagen (≈ cota, H100)', get: (r) => vlmMetric(r, 'msPerImage'), fmt: 'ms' },
     nfe: { label: 'Evaluaciones (NFE)', get: (r) => vlmMetric(r, 'nfe'), fmt: 'int' },
     samplingMacs: { label: 'MACs por imagen', get: (r) => vlmMetric(r, 'samplingMacs'), fmt: 'si', unit: 'MACs' },
     latentTokens: { label: 'Tokens del latente', get: (r) => vlmMetric(r, 'latentTokens'), fmt: 'int' },
@@ -745,6 +752,8 @@
     const isCfg = typeof Ar.configs === 'function' && arr(safe(() => Ar.configs(), [])).some((c) => c && c.id === id);
     return isCfg ? id : canonicalFor(id) || id;
   }
+  // Milisegundos con 3 cifras significativas (como quantities.js): 1.62 · 83.8 · 121.
+  const fmtMs = (v) => { const a = Math.abs(v); return a >= 100 ? fmtInt(Math.round(v)) : a >= 10 ? v.toFixed(1) : a >= 1 ? v.toFixed(2) : String(Number(v.toPrecision(3))); };
   function vlmMetric(r, k) {
     if (r.quantities && r.quantities[k] != null) return r.quantities[k];
     const m = safe(() => A().metrics(r.id, r.overrides || {}), null);
@@ -767,11 +776,22 @@
     const cell = (r, k) => {
       const m = METRICS[k];
       let v = m ? safe(() => m.get(r), null) : null;
-      if (v == null && !m) v = safe(() => (r.quantities && r.quantities[k] != null ? r.quantities[k] : r.config && r.config[k]), null);
+      if (v == null && !m) v = safe(() => (r.quantities && r.quantities[k] != null ? r.quantities[k] : r.config && r.config[k] != null ? r.config[k] : vlmMetric(r, k)), null);
       if (v == null) return '—';
       if (typeof v !== 'number') return String(v);
       if (m && m.fmt === 'bytes') { const f = A() && A().fmt; return f && f.bytes ? f.bytes(v) : fmtInt(v) + ' B'; }
       if (m && m.fmt === 'pct') { const f = A() && A().fmt; return f && f.pct ? f.pct(v) : (100 * v).toFixed(1) + ' %'; }
+      if (m && m.fmt === 'ms') return fmtMs(v) + ' ms';
+      // Sin entrada en METRICS: la unidad del mapa metrics.units del modelo (un % no se imprime como el entero "0").
+      if (!m) {
+        const u = safe(() => (A().metrics(r.id, r.overrides || {}).units || {})[k], null);
+        const f = A() && A().fmt;
+        if (u === 'pct' && f && f.pct) return f.pct(v);
+        if (u === 'bytes' && f && f.bytes) return f.bytes(v);
+        if (u === 'macs') return fmtOps(v, 'MACs');
+        if (u === 'ms') return fmtMs(v) + ' ms';
+        if (u === 'ratio') return '×' + String(Number(v.toPrecision(3)));
+      }
       return (m && m.fmt === 'si') ? (m.unit ? fmtOps(v, m.unit) : fmtSi(v)) : fmtInt(v);   // "17.56 GMACs", como en la prosa
     };
     const table = h('table', { class: 'dtable dtable--num cmp' },
@@ -1058,5 +1078,6 @@
     fmt: { int: fmtInt, si: fmtSi, ops: fmtOps, shapeNum, shapeSym },
     clearCache: () => runCache.clear(),
     TYPES: Object.keys(R),
+    COMPARE_METRICS: Object.keys(METRICS),   // filas con etiqueta y formato propios en el bloque compare (validador y pruebas)
   };
 })(typeof window !== 'undefined' ? window : globalThis);

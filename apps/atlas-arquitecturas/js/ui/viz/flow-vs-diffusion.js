@@ -8,8 +8,9 @@
      aprende v = ε − x₀ y se integra con Euler de t = 1 a 0.
    Modo "pares": los caminos por par (condicionales). Modo "muestreo": las trayectorias del ODE con el modelo óptimo exacto
    (tenues, con 200 pasos) y las de N pasos (marcadas), con el error de los N pasos frente a la solución fina.
-   Nota honesta (en la viz): las trayectorias marginales del flujo NO son rectas del todo (cada x_t mezcla muchos pares);
-   son más rectas que las de difusión, y "reflow" (Liu et al.) las endereza más.
+   Nota honesta (en la viz): las trayectorias marginales del flujo NO son rectas del todo (cada x_t mezcla muchos pares), y con
+   el modelo exacto DDIM = Euler sobre el flujo tras reescalar (Gao et al. 2024): lo que cambia con N chico es la grilla de
+   tiempos (ᾱ del calculador, sin ruido puro, frente a t uniforme). "Reflow" (Liu et al.) endereza las trayectorias.
    Lo NO ilustrativo: la agenda ᾱ de la config del calculador (la de SD).
    params: { config:'sd15-unet', steps:4, mode:'ode'|'pairs' }
    No toca el DOM al cargar.
@@ -71,7 +72,7 @@
       const tx = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); if (V.rich) V.rich(e, s); else e.textContent = s; return e; };
       const pairsMode = state.mode === 'pairs';
       tx(svg, 8, 15, pairsMode ? 'Por par (x₀, ε): difusión = arco · flujo = recta' : (narrow ? 'Muestreo con N = ' + n + ' pasos' : 'Muestreo con N = ' + n + ' pasos desde el mismo ruido: difusión (DDIM) frente a flujo (Euler)'), 'viz-t');
-      tx(svg, 8, 29, narrow ? 'juguete 2-D ilustrativo (modelo exacto)' : 'juguete 2-D ilustrativo (modelo exacto); ᾱ de la config del calculador', 'viz-s');
+      tx(svg, 8, 29, narrow ? 'juguete 2-D ilustrativo (modelo exacto)' : (pairsMode ? 'juguete 2-D ilustrativo; ᾱ de la config del calculador' : 'juguete 2-D, modelo exacto: DDIM en la grilla de ᾱ del calculador (no llega a ruido puro) · Euler en t uniforme'), 'viz-s');
       const gap = 24, top = 70;
       const P = narrow ? W - 16 : (W - 16 - gap) / 2;
       const C = coarse(n);
@@ -105,9 +106,10 @@
       const vpPair = (pr) => { const out2 = []; for (let t = sched.T - 1; t >= 0; t -= 10) { const a = sched.abar[t]; out2.push([Math.sqrt(a) * pr.x0[0] + Math.sqrt(1 - a) * pr.e[0], Math.sqrt(a) * pr.x0[1] + Math.sqrt(1 - a) * pr.e[1]]); } out2.push(pr.x0); return out2; };
       const flPair = (pr) => [pr.e, pr.x0];
       const b1 = panel(0, 'Difusión (VP: DDPM, SD 1.x)', pairsMode ? 'x_t = √ᾱ_t·x₀ + √(1−ᾱ_t)·ε' : 'DDIM (ODE), N = ' + n + ' · error ' + eVP.toFixed(2), 'is-ddim', fineVP, C.vp, vpPair);
-      const b2 = panel(1, 'Flujo rectificado (SD3, π0)', pairsMode ? 'x_t = (1−t)·x₀ + t·ε' : 'Euler, N = ' + n + ' · error ' + eFL.toFixed(2), 'is-flow', fineFL, C.fl, flPair);
+      const b2 = panel(1, 'Flujo rectificado (convención de SD3)', pairsMode ? 'x_t = (1−t)·x₀ + t·ε' : 'Euler, N = ' + n + ' · error ' + eFL.toFixed(2), 'is-flow', fineFL, C.fl, flPair);
       let y = Math.max(b1, b2) + 18;
-      const lgd = pairsMode ? [['viz-ds-start', 'ε (ruido)'], ['viz-ds-end is-ddim', 'x₀ (dato)']] : [['viz-ds-start', 'ruido inicial'], ['viz-ds-end is-flow', 'final'], ['viz-ds-end is-flow is-off', 'fuera de un modo']];
+      // puntos neutros (tinta): cada panel pinta los suyos con su color (azul difusión, verde flujo)
+      const lgd = pairsMode ? [['viz-ds-start', 'ε (ruido)'], ['viz-ds-end', 'x₀ (dato, en el color de cada panel)']] : [['viz-ds-start', 'ruido inicial'], ['viz-ds-end', 'final (en el color de cada panel)'], ['viz-ds-end is-off', 'fuera de un modo']];
       let lx = 8;
       lgd.forEach(([c, lab]) => { V.svg('circle', { cx: lx + 4, cy: y - 4, r: 3.5, class: c }, svg); tx(svg, lx + 12, y, lab, 'viz-s'); lx += 26 + lab.length * 6.4; });
       if (!pairsMode) {
@@ -122,8 +124,12 @@
       kv('pasos:', String(n));
       kv('error medio del final frente a ' + FINE + ' pasos: difusión', eVP.toFixed(2));
       kv('flujo', eFL.toFixed(2));
-      note.innerHTML = 'Por par, el flujo rectificado une ruido y dato con una recta (x<sub>t</sub> = (1−t)·x₀ + t·ε, objetivo v = ε − x₀) y la difusión con un arco. Las trayectorias que sigue el muestreo mezclan muchos pares y no son rectas (aquí se ve: primero van hacia el centro y después eligen un modo), pero el campo de velocidades del flujo es más fácil de integrar: con pocos pasos, Euler se equivoca menos que DDIM. ' +
-        '"Reflow" (Liu et al. 2023) re-entrena con los pares (ruido, muestra) del propio modelo y las endereza aún más. Juguete con el modelo exacto: el error es solo el de discretizar.';
+      note.innerHTML = 'Por par, el flujo rectificado une ruido y dato con una recta (x<sub>t</sub> = (1−t)·x₀ + t·ε, objetivo v = ε − x₀) y la difusión con un arco. Las trayectorias que sigue el muestreo mezclan muchos pares y no son rectas (aquí se ve: primero van hacia el centro y después eligen un modo). ' +
+        'Ojo con leer "recto, luego menos pasos": con el modelo exacto, DDIM <i>es</i> Euler sobre el flujo después de reescalar x/α (Gao et al. 2024, <i>Diffusion Meets Flow Matching</i>). La diferencia que ves con N chico viene de la <b>grilla de tiempos</b>: DDIM usa los pasos de la agenda ᾱ del calculador, que no llega a ruido puro (ᾱ<sub>T−1</sub> ≈ ' + sched.abar[sched.T - 1].toFixed(4) + '), y Euler una t uniforme de 1 a 0. Las ganancias reales del flujo en la práctica: agenda y grilla, cómo se pesa la pérdida en t, y reflow (Liu et al. 2023: re-entrenar con los pares (ruido, muestra) del propio modelo) o destilación. ' +
+        'π0 también usa flujo, para acciones, con la convención opuesta en el paper (τ = 0 es ruido, u = A − ε); el código público (openpi) usa la de SD3. Juguete con el modelo exacto: el error es solo el de discretizar.';
+      // en "pares" el deslizador de N y el error no aplican
+      inp.disabled = pairsMode; g2.classList.toggle('is-off', pairsMode);
+      out.hidden = pairsMode;
     }
 
     stage.addEventListener('keydown', (ev) => {

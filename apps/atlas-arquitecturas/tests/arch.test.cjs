@@ -2276,7 +2276,7 @@ test('llm metrics: KV cache, pesos por bits, intensidad aritmética prefill ≫ 
 });
 
 test('llm metrics: unidades conocidas por la práctica, toda …Macs con unidad; Quantities formatea bytes y MACs', () => {
-  const allowed = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params'];
+  const allowed = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'];
   for (const id of LLM) {
     const m = A6.metrics(id, {});
     for (const [k, u] of Object.entries(m.units)) assert.ok(allowed.includes(u), id + ' ' + k + ': ' + u);
@@ -2543,7 +2543,7 @@ test('F7 Qwen2-VL: anclas de HF, patchify 3-D, merger 2×2, M-RoPE, Qwen2 con se
 });
 
 test('F7 métricas: unidades conocidas, tokens y reparto del prefill, KV por imagen, roofline ≈, listas de escala', () => {
-  const OK = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params'];
+  const OK = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'];
   for (const id of LLAVA.concat(QWEN)) {
     const m = A7.metrics(id, {}), q = A7.run(id).quantities;
     for (const [k, u] of Object.entries(m.units)) assert.ok(OK.includes(u), id + ' ' + k + ': ' + u);
@@ -2861,7 +2861,7 @@ test('F8 DiT: anclas (XL/2 674,834,720 = oficial sin la posición fija; diffuser
 });
 
 test('F8 métricas: unidades conocidas, costo por imagen (pasos × NFE × CFG + texto + VAE), reparto, atención por nivel, roofline ≈, listas', () => {
-  const OK = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params'];
+  const OK = ['ratio', 'count', 'bytes', 'pct', 'macs', 'params', 'ms'];
   for (const id of SD.concat(DITS)) {
     const m = A8.metrics(id, {});
     for (const [k, u] of Object.entries(m.units)) assert.ok(OK.includes(u), id + ' ' + k + ': ' + u);
@@ -2956,4 +2956,31 @@ test('F8 etiqueta + símbolo identifican una forma; byPath suma; aritmética; wh
     assert.strictEqual(A8.run(id), A8.run(id), 'memoizado');
     J(Q8.keys(id)).forEach((k) => assert.ok(Q8.get(id + '.' + k), id + '.' + k));
   }
+});
+
+test('F8 revisión: blockParams en flow matching, costo de los bloques por imagen, pasadas secuenciales, frecuencias y ms con decimales', () => {
+  const d = A8.metrics('dit-xl2-256', {}), fm = A8.metrics('dit-xl2-256-fm', {});
+  assert.strictEqual(d.blockParams, 23905152);
+  assert.strictEqual(fm.blockParams, d.blockParams);
+  assert.ok(Math.abs(fm.adalnParamsShareBlock - d.adalnParamsShareBlock) < 1e-12);
+  assert.strictEqual(d.blocksMacs, 28 * d.blockMacs);
+  assert.strictEqual(d.blocksSamplingMacs, d.nfe * d.blocksMacs);
+  assert.strictEqual(d.denoiserSamplingMacs, 500 * d.ditMacs);
+  assert.ok(Math.abs(d.samplingMacs / 1e12 - 59.62) < 0.005);
+  for (const [id, steps] of [['sd15-unet', 50], ['dit-xl2-256', 250]]) {
+    const m = A8.metrics(id, {});
+    assert.strictEqual(m.sequentialPasses, steps, id);
+    assert.strictEqual(m.nfe, 2 * steps, id);
+    assert.strictEqual(A8.metrics(id, { cfg: 0 }).sequentialPasses, steps, id + ' sin CFG');
+  }
+  assert.strictEqual(A8.metrics('sd15-unet', {}).freqCount, 160);
+  assert.strictEqual(d.freqCount, 128);
+  assert.match(A8.run('sd15-unet').ops.find((o) => o.id === 'temb-freq').label, /320 canales: cos y sin de 160 frecuencias/);
+  // 'ms': 3 cifras significativas, sin la unidad (la prosa escribe ' ms')
+  for (const k of ['unetNfeMs', 'vaeDecodeMs', 'textEncoderMs', 'samplingMs', 'msPerImage']) assert.strictEqual(A8.metrics('sd15-unet', {}).units[k], 'ms', k);
+  assert.strictEqual(Q8.get('sd15-unet.metrics.unetNfeMs').text, '1.62');
+  assert.strictEqual(Q8.get('sd15-unet.metrics.vaeDecodeMs').text, '2.54');
+  assert.strictEqual(Q8.get('sd15-unet.metrics.msPerImage').text, '83.8');
+  assert.strictEqual(Q8.get('dit-xl2-256.metrics.msPerImage').text, '121');
+  assert.strictEqual(Q8.get('dit-xl2-256.metrics.ditNfeMs').text, '0.48');
 });

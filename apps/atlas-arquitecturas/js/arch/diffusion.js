@@ -114,16 +114,27 @@
    cfgCostFactor (ratio), vaeDecoderMacs, vaeEncoderMacs, textEncoderMacs (macs), vaeParams, vaeEncoderParams, vaeDecoderParams,
    textEncoderParams, totalParams (params), latentShape (texto '64×64×4'), latentH, latentW, latentTokens, latentValues, pixelValues
    (count), compressionFactor (ratio: 48 = píxeles / valores del latente), spatialFactor (ratio: 8); roofline ≈ (hardware de llm.js,
-   H100 SXM, entradas bandwidth / peakFlops): samplingMs, msPerImage, imagesPerSecUpperBound, vaeDecodeMs (count), denoiserIntensity,
+   H100 SXM, entradas bandwidth / peakFlops): samplingMs, msPerImage, vaeDecodeMs (ms), imagesPerSecUpperBound (count), denoiserIntensity,
    ridgePoint (ratio), weightBytes (bytes), bandwidth, peakFlops (count), hardwareSource; listas stepsScaling, cfgScaling, resScaling.
    SD: unetMacs (macs, 1 NFE), unetParams, unetParamsShare, trainForwardMacs, trainStepMacsApprox (≈ texto + encoder + 3 × U-Net),
    attnMacsUnet, selfAttnScoreMacs, crossAttnScoreMacs, convMacs, transformerMacs, resnetMacs (macs), attnShareUnet, selfScoreShareUnet,
    convShare, transformerShare (pct), selfAttnTokens, selfAttnHeads (count: la self-attention más grande), selfAttnScoreBytes (bytes,
-   bf16, un bloque), unetNfeMs, unetNfeUs, textEncoderMs (count), unetBound; listas attnByLevel [{level, grid, tokens, channels, macs,
+   bf16, un bloque), unetNfeMs, textEncoderMs (ms), unetNfeUs (count), unetBound; listas attnByLevel [{level, grid, tokens, channels, macs,
    attnMacs, selfScoreMacs, crossScoreMacs, hasAttention, attnShareOfLevel, shareOfUnet}], attnShareAt, resScaling (unetMacsVsBase…).
    DiT: ditMacs (macs), ditParams, officialParams, diffusersParams, embedderParams, blockParams, adalnParams (params), adalnParamsShare,
    adalnParamsShareBlock (pct), diffusersMacs, tEmbedMacs, scoreMacsDit (macs), scoreShareDit (pct), paperGflops, macsVsPaper (ratio;
-   solo dit-xl2-256), ditNfeMs, ditNfeUs (count), ditBound; listas patchScaling, resScaling, stepsScaling, cfgScaling.
+   solo dit-xl2-256), ditNfeMs (ms), ditNfeUs (count), ditBound; listas patchScaling, resScaling, stepsScaling, cfgScaling.
+   Revisión de la fase 8:
+   - Unidad 'ms' (milisegundos, decimales): unetNfeMs, ditNfeMs, textEncoderMs, vaeDecodeMs, samplingMs, msPerImage. quantities.js
+     escribe SOLO el número con 3 cifras significativas ('1.62', '2.54', '83.8', '121'); la prosa pone ' ms' detrás.
+   - sequentialPasses (count) = steps: pasadas SECUENCIALES de la red por imagen. Con CFG las 2 evaluaciones de un paso van en UNA
+     llamada de batch 2, así que nfe = steps × (1 + cfg) evaluaciones pero solo steps pasadas en serie (latencia ∝ steps).
+   - freqCount (count; también en quantities) = frecuencias del embedding sinusoidal del paso: C/2 = 160 en SD 1.5 (320 canales =
+     cos y sin), freqDim/2 = 128 en DiT (256 canales).
+   - DiT, costo POR IMAGEN (para el pill / costNote del bloque): samplingMacs (red × nfe + decoder del VAE; XL/2 @ 256 con 250 pasos y
+     CFG: 59.62 TMACs), denoiserSamplingMacs (solo la red × nfe: 59.31 TMACs), nfe (500), blockMacs (macs: UN bloque, una NFE: 4.24
+     GMACs), blocksMacs (los L bloques, una NFE: 118.60 GMACs), blocksSamplingMacs (los L bloques × nfe: 59.30 TMACs).
+   - blockParams / adalnParamsShareBlock también en dit-xl2-256-fm (path model › blocks › …): 23,905,152 y 33.3 %.
    ATLAS.Arch.diffusion = {betas, alphasCumprod(kind, T, β₀, β₁), schedule(configId) → {alphasCumprod, snr…}, ddimTimesteps(n),
    pndmNfe(n)} (verificados contra diffusers en el JSON de sd15-unet: schedule_checks).
    ========================================================================== */
@@ -472,7 +483,7 @@
     // tiempo: sinusoidal (C = 320) → Linear C → 4C → SiLU → Linear 4C → 4C
     const TE = U.concat(['time-embed']), WT = [WU, 'embedding del tiempo'];
     const tf = g.op('temb-freq', A.timestep_embedding(t, { dim: c.C, sym: 'C', flip: true, shift: 0 }), {
-      path: TE.concat(['freq']), where: WT, out: 't-freq', label: 'Embedding sinusoidal de t (' + c.C + ' canales)', type: 'embed', group: 'embed',
+      path: TE.concat(['freq']), where: WT, out: 't-freq', label: 'Embedding sinusoidal de t (' + c.C + ' canales: cos y sin de ' + c.C / 2 + ' frecuencias)', type: 'embed', group: 'embed',
       outMeta: { label: 'Embedding sinusoidal del paso t', tex: '\\gamma(t)' } });
     const t1 = g.op('temb-fc1', A.linear(tf, { dout: 4 * c.C, doutSym: '4C' }), { path: TE.concat(['fc1']), where: WT, out: 't-h', label: 'Linear C → 4C', type: 'mlp', group: 'mlp',
       outMeta: { label: 'Tiempo: capa oculta', tex: 'W_1\\gamma(t) + b_1' } });
@@ -637,12 +648,12 @@
   // ================================================================== métricas (comunes)
   const UNITS = {
     // por evaluación de la red (NFE) y por componente
-    unetMacs: 'macs', ditMacs: 'macs', textEncoderMacs: 'macs', vaeDecoderMacs: 'macs', vaeEncoderMacs: 'macs',
+    unetMacs: 'macs', ditMacs: 'macs', blockMacs: 'macs', blocksMacs: 'macs', blocksSamplingMacs: 'macs', textEncoderMacs: 'macs', vaeDecoderMacs: 'macs', vaeEncoderMacs: 'macs',
     unetParams: 'params', ditParams: 'params', textEncoderParams: 'params', vaeParams: 'params', vaeEncoderParams: 'params', vaeDecoderParams: 'params',
     totalParams: 'params', officialParams: 'params', diffusersParams: 'params', embedderParams: 'params', blockParams: 'params', adalnParams: 'params',
     adalnParamsShare: 'pct', adalnParamsShareBlock: 'pct', unetParamsShare: 'pct', diffusersMacs: 'macs', tEmbedMacs: 'macs',
     // por imagen
-    nfePerStep: 'count', nfe: 'count', steps: 'count', textPasses: 'count', samplingMacs: 'macs', samplingMacsNoCfg: 'macs', denoiserSamplingMacs: 'macs',
+    nfePerStep: 'count', nfe: 'count', steps: 'count', textPasses: 'count', freqCount: 'count', samplingMacs: 'macs', samplingMacsNoCfg: 'macs', denoiserSamplingMacs: 'macs',
     denoiserSamplingShare: 'pct', vaeDecoderShare: 'pct', textEncoderShare: 'pct', cfgCostFactor: 'ratio',
     trainForwardMacs: 'macs', trainStepMacsApprox: 'macs',
     // latente
@@ -652,7 +663,9 @@
     attnShareUnet: 'pct', selfScoreShareUnet: 'pct', convShare: 'pct', transformerShare: 'pct', selfAttnTokens: 'count', selfAttnHeads: 'count', selfAttnScoreBytes: 'bytes',
     scoreMacsDit: 'macs', scoreShareDit: 'pct', paperGflops: 'ratio', macsVsPaper: 'ratio', unetMacsVsBase: 'ratio',
     // roofline (≈)
-    unetNfeMs: 'count', ditNfeMs: 'count', unetNfeUs: 'count', ditNfeUs: 'count', textEncoderMs: 'count', vaeDecodeMs: 'count', samplingMs: 'count', msPerImage: 'count', imagesPerSecUpperBound: 'count',
+    // 'ms' (revisión de la fase 8): milisegundos con decimales (quantities.js: '1.62', '83.8'; la prosa añade ' ms')
+    unetNfeMs: 'ms', ditNfeMs: 'ms', unetNfeUs: 'count', ditNfeUs: 'count', textEncoderMs: 'ms', vaeDecodeMs: 'ms', samplingMs: 'ms', msPerImage: 'ms', imagesPerSecUpperBound: 'count',
+    sequentialPasses: 'count',
     denoiserIntensity: 'ratio', ridgePoint: 'ratio', weightBytes: 'bytes', bandwidth: 'count', peakFlops: 'count',
     attnMacs: 'macs', scoreMacs: 'macs', linearMacs: 'macs',   // genéricas de ATLAS.Arch.metrics
   };
@@ -712,7 +725,7 @@
     return Object.assign({
       tokens: c.tokens, H: c.H, W: c.W, res: c.H, latentH: c.latentH, latentW: c.latentW, latentC: c.latentC, f: c.f,
       latentValues: c.latentH * c.latentW * c.latentC, pixelValues: c.H * c.W * 3, compressionFactor: (c.H * c.W * 3) / (c.latentH * c.latentW * c.latentC),
-      C: c.C, C2: 2 * c.C, C4: 4 * c.C, T: c.T, V: c.V, Dtxt: c.Dtxt, Cv: c.Cv,
+      C: c.C, C2: 2 * c.C, C4: 4 * c.C, T: c.T, V: c.V, Dtxt: c.Dtxt, Cv: c.Cv, freqCount: c.C / 2,   // e_t: C canales = cos y sin de C/2 frecuencias
       // decimales como texto (qty / cfg.* redondearían 0.18215 y 0.00085)
       scaling: String(c.scaling), betaStart: String(c.betaStart), betaEnd: String(c.betaEnd),
       steps: c.steps, cfg: c.cfg, cfgScale: c.cfgScale, nfe: c.nfe, nfePerStep: c.nfePerStep, trainSteps: c.trainSteps, totalParams: r.totals.params,
@@ -746,7 +759,7 @@
       unetMacs: q.unetMacs, textEncoderMacs: q.textEncoderMacs, vaeDecoderMacs: q.vaeDecoderMacs, vaeEncoderMacs: q.vaeEncoderMacs,
       unetParams: q.unetParams, textEncoderParams: q.textEncoderParams, vaeParams: q.vaeParams, vaeEncoderParams: q.vaeEncoderParams, vaeDecoderParams: q.vaeDecoderParams,
       totalParams: r.totals.params, unetParamsShare: q.unetParams / r.totals.params,
-      steps: c.steps, nfePerStep: c.nfePerStep, nfe: c.nfe, textPasses: q.textPasses, cfgCostFactor: c.nfePerStep,
+      steps: c.steps, nfePerStep: c.nfePerStep, nfe: c.nfe, textPasses: q.textPasses, cfgCostFactor: c.nfePerStep, sequentialPasses: c.steps, freqCount: q.freqCount,
       samplingMacs: q.samplingMacs, samplingMacsNoCfg: c.steps * q.unetMacs + q.textEncoderMacs + q.vaeDecoderMacs,
       denoiserSamplingMacs: c.nfe * q.unetMacs, denoiserSamplingShare: (c.nfe * q.unetMacs) / q.samplingMacs,
       vaeDecoderShare: q.vaeDecoderMacs / q.samplingMacs, textEncoderShare: (q.textPasses * q.textEncoderMacs) / q.samplingMacs,
@@ -841,7 +854,7 @@
     // condición: e_t (sinusoidal 256 → MLP) + e_y (tabla de K + 1)
     const TE = ['t-embed'], WT = ['Embedding del tiempo'];
     const tf = g.op('temb-freq', A.timestep_embedding(t, { dim: c.freqDim, sym: String(c.freqDim), flip: true, shift: 0 }), { path: TE.concat(['freq']), where: WT, out: 't-freq',
-      label: 'Embedding sinusoidal de t (' + c.freqDim + ' canales)', type: 'embed', group: 'embed', outMeta: { label: 'Embedding sinusoidal del paso t (' + c.freqDim + ')', tex: '\\gamma(t)' } });
+      label: 'Embedding sinusoidal de t (' + c.freqDim + ' canales: cos y sin de ' + c.freqDim / 2 + ' frecuencias)', type: 'embed', group: 'embed', outMeta: { label: 'Embedding sinusoidal del paso t (' + c.freqDim + ' valores, ' + c.freqDim / 2 + ' frecuencias)', tex: '\\gamma(t)' } });
     const t1 = g.op('temb-fc1', A.linear(tf, { dout: D, doutSym: 'D' }), { path: TE.concat(['fc1']), where: WT, out: 't-h', label: 'Linear ' + c.freqDim + ' → D', type: 'mlp', group: 'mlp',
       outMeta: { label: 'Tiempo: capa oculta', tex: 'W_1\\gamma(t) + b_1' } });
     const ta = g.op('temb-silu', A.silu(t1), { path: TE.concat(['silu']), where: WT, out: 't-act', label: 'SiLU', type: 'mlp', group: 'act', outMeta: { label: 'Tiempo: tras SiLU', tex: '\\mathrm{SiLU}' } });
@@ -982,16 +995,20 @@
 
   function ditQuantities(c, r) {
     const n = r.totals.byNode, z = { params: 0, macs: 0 }, nd = (id) => n[id] || z;
-    const blockParams = r.ops.filter((op) => op.path[0] === 'blocks').reduce((s, op) => s + op.params, 0);
+    // path blocks › … (o model › blocks › … en el paso de flow matching, knob train: 1)
+    const inBlocks = (op) => op.path[c.train ? 1 : 0] === 'blocks';
+    const blockParams = r.ops.filter(inBlocks).reduce((s, op) => s + op.params, 0);
+    const blockMacs = r.ops.filter(inBlocks).reduce((s, op) => s + op.macs, 0);           // UN bloque, una NFE
+    const blocksMacs = sumOps(r.ops.filter(inBlocks), () => true);                        // los L bloques, una NFE
     const adalnBlock = (r.ops.find((op) => op.id === 'adaln') || {}).params || 0;
     const embedderParams = nd('t-embed').params + nd('y-embed').params;
     const tEmbedMacs = nd('t-embed').macs;
     const vs = vaeStats(c, c.H);
     const scoreMacs = sumOps(r.ops, isScore);
     return Object.assign({
-      tokens: c.N, N: c.N, I: c.I, P: c.P, D: c.D, L: c.L, h: c.h, dh: c.dh, Dmlp: c.Dmlp, K: c.K, res: c.H, latentC: c.latentC, outC: c.outC, freqDim: c.freqDim,
+      tokens: c.N, N: c.N, I: c.I, P: c.P, D: c.D, L: c.L, h: c.h, dh: c.dh, Dmlp: c.Dmlp, K: c.K, res: c.H, latentC: c.latentC, outC: c.outC, freqDim: c.freqDim, freqCount: c.freqDim / 2,
       latentValues: c.I * c.I * c.latentC, pixelValues: c.H * c.W * 3, compressionFactor: (c.H * c.W * 3) / (c.I * c.I * c.latentC), patchValues: c.P * c.P * c.latentC,
-      ditParams: r.totals.params, ditMacs: r.totals.macs, blockParams, adalnParamsBlock: adalnBlock,
+      ditParams: r.totals.params, ditMacs: r.totals.macs, blockParams, blockMacs, blocksMacs, blocksSamplingMacs: c.nfe * blocksMacs, adalnParamsBlock: adalnBlock,
       adalnParams: c.L * adalnBlock + nd('adaln-final').params,   // los L bloques + la capa final (node.adaln = solo los bloques)
       embedderParams, tEmbedParams: nd('t-embed').params, yEmbedParams: nd('y-embed').params, tEmbedMacs,
       posEmbedValues: c.N * c.D, officialParams: r.totals.params + c.N * c.D,
@@ -1021,7 +1038,8 @@
       embedderParams: q.embedderParams, blockParams: q.blockParams, adalnParams: q.adalnParams, adalnParamsShare: q.adalnParams / q.ditParams, tEmbedMacs: q.tEmbedMacs,
       vaeDecoderMacs: q.vaeDecoderMacs, vaeEncoderMacs: q.vaeEncoderMacs, vaeDecoderParams: q.vaeDecoderParams, vaeEncoderParams: q.vaeEncoderParams,
       vaeParams: q.vaeDecoderParams + q.vaeEncoderParams, textEncoderMacs: 0, textEncoderParams: 0,
-      steps: c.steps, nfePerStep: c.nfePerStep, nfe: c.nfe, cfgCostFactor: c.nfePerStep,
+      steps: c.steps, nfePerStep: c.nfePerStep, nfe: c.nfe, cfgCostFactor: c.nfePerStep, sequentialPasses: c.steps, freqCount: q.freqCount,
+      blockMacs: q.blockMacs, blocksMacs: q.blocksMacs, blocksSamplingMacs: q.blocksSamplingMacs,
       samplingMacs: q.samplingMacs, samplingMacsNoCfg: c.steps * q.ditMacs + q.vaeDecoderMacs,
       denoiserSamplingMacs: c.nfe * q.ditMacs, denoiserSamplingShare: (c.nfe * q.ditMacs) / q.samplingMacs, vaeDecoderShare: q.vaeDecoderMacs / q.samplingMacs,
       latentShape: c.I + '×' + c.I + '×' + c.latentC, latentH: c.I, latentW: c.I, latentTokens: c.N, latentValues: q.latentValues, pixelValues: q.pixelValues,
