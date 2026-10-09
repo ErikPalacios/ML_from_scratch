@@ -1355,3 +1355,79 @@ straight flow-matching paths; Euler steps).
   dev/diagram.html.
 - **content-sd**: js/content/stable-diffusion.js. **content-dit**: js/content/dit.js.
 - **orchestrator**: index.html + stubs, catalog, SPEC, practice METRICS labels, integration.
+
+## 21. Phase 9 shared facts — VLA: RT-2, OpenVLA, π0 (every F9 agent MUST use exactly these)
+
+Phase 1–8 lessons apply. Thesis: **a VLA = a VLM whose output is robot actions**; the interesting
+choices are *how actions are represented* (discrete tokens vs continuous chunks), *how they are
+decoded* (autoregressive vs flow matching), and *what that costs in Hz on real hardware*. Pages are
+lighter (3 models) because they reuse F6 (decoder, inference), F7 (VLM recipe) and F8 (flow matching).
+Every number below is a starting point: verify against papers/configs/official code and cite.
+
+### 21.1 RT-2 — page `rt2`, model `rt2` (closed weights: level-2 partial)
+Paper: Brohan et al., *RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control*,
+CoRL 2023, arXiv:2307.15818. Backbones PaLI-X (55B) and PaLM-E (12B); actions = 7 DoF (Δpos 3, Δrot 3,
+gripper 1) + terminate, each **discretized into 256 bins** and written as text tokens; co-fine-tuning
+with web VQA data; inference 1–3 Hz on a cloud TPU (verify). No calculator config (weights and exact
+architecture not public): the page uses only cited facts, a **token-budget calculator** (action tokens
+per step, steps per second) built from public numbers, and links to OpenVLA for the open replica.
+Diagram `rt2-overview`: `image`, `instruction`, `vlm` (closed box), `action-tokens` (strip of 8 tokens),
+`detokenize` (bin → continuous), `robot`; plus a `rt2-action-tokens` view (bins).
+
+### 21.2 OpenVLA — page `openvla`, model `openvla`
+Paper: Kim et al., *OpenVLA: An Open-Source Vision-Language-Action Model*, CoRL 2024, arXiv:2406.09246;
+Prismatic VLMs (Karamcheti et al., ICML 2024, arXiv:2402.07865). Canonical **`openvla-7b`**: fused
+vision encoder **DINOv2 ViT-L/14 + SigLIP So400m/14** at 224 px (features concatenated channel-wise:
+256 patches × (1024 + 1152)), 2-layer MLP projector → Llama 2 7B; actions = 7 dims × 256 bins mapped
+to the **256 least-used Llama tokens**; trained on 970K Open X-Embodiment episodes; ≈6 Hz on an RTX
+4090 bf16 (verify); fine-tuning with LoRA / OFT (OpenVLA-OFT: parallel decoding + action chunking +
+L1 regression, arXiv:2502.19645 — verify). Reuse js/arch/vlm.js (LLaVA-style splice) and llm.js
+(`llama2-7b`). Metrics: visualTokens (256), actionTokensPerStep (7), prefillMacs, decodeMacsPerToken,
+macsPerAction (prefill + 7 decode steps), roofline Hz estimates on H100 / RTX 4090 / Jetson Orin with
+cited specs (reuse the hardware conventions), params split (DINOv2 / SigLIP / projector / LLM).
+Ids: `openvla-overview` nodes `image`, `dinov2`, `siglip`, `concat`, `projector`, `instruction`,
+`embed`, `merge`, `llm` (group ×L), `lm-head`, `action-tokens` (7), `detokenize`, `action`.
+
+### 21.3 π0 — page `pi0`, model `pi0`
+Paper: Black et al., *π0: A Vision-Language-Action Flow Model for General Robot Control*, arXiv:2410.24164
+(check RSS 2025 venue); official code Physical-Intelligence/openpi. Canonical **`pi0`**: VLM
+**PaliGemma 3B** (SigLIP So400m/14 at 224 → 256 tokens per image, up to 3 cameras; Gemma 2B: 18 layers,
+width 2048, 8 heads, 1 KV head (MQA), head dim 256, FFN 16,384, vocab 257,152 — verify) + **action
+expert ≈300M** (same depth, width 1024, FFN 4,096 — verify in openpi) that shares attention with the
+VLM tokens (mixture-of-transformers style: separate weights per token group, one joint attention with a
+block-causal mask: images+language ↔ each other; state + actions see the prefix; actions see each
+other); proprioceptive state token; **action chunk H = 50**, action dim padded to 32 (verify);
+**flow matching** with 10 Euler steps; τ sampled from a shifted Beta; convention: paper v4 τ=0 noise,
+u = A − ε, while openpi code uses SD3's (x_t = t·noise + (1−t)·actions, integrate 1→0) — say both
+(link #dit). Latency reported ≈73 ms on RTX 4090 for 3 cameras (verify breakdown: image encoders,
+prefix forward, 10 action-expert steps). The prefix (images + language) KV is computed once per chunk
+and reused across the 10 flow steps — the key systems idea. Configs: `pi0` (canonical, 3 cameras),
+optional `pi0-1cam`. Knobs: `cams`, `H` (chunk), `steps`, `T` (language tokens). Metrics: prefix
+tokens, suffix tokens (1 + H), prefixMacs, flowStepMacs, macsPerChunk = prefix + steps × flowStep,
+actions per second at a chunk rate, roofline latency on RTX 4090 / H100 / Orin (≈, cited), params
+split (SigLIP / Gemma / action expert / projections).
+Ids: `pi0-overview` nodes `images`, `siglip`, `language`, `gemma` (prefix group), `state`,
+`noisy-actions`, `t-embed`, `action-expert` (group, shares attention with `gemma` — draw the joint
+attention), `velocity`, `euler` (loop ×steps, control), `action-chunk`; `pi0-attention-mask` view
+(block-causal mask: prefix / state / actions).
+
+### 21.4 Visualizations
+`action-tokenizer` (a continuous 7-DoF trajectory → 256-bin tokens per dim and back; quantization error;
+synthetic, labelled), `action-chunking` (chunk H vs control rate vs reaction delay; temporal ensembling;
+synthetic), `vla-latency` (stacked bars per model: vision / prefix / decode-or-flow steps; Hz vs
+hardware; numbers from the calculator with cited hardware), `pi0-mask` (interactive block-causal mask:
+hover a token group to see what it attends to).
+
+### 21.5 Ownership in Phase 9
+- **arch**: js/arch/vla.js (models `openvla`, `pi0`; compose vlm.js / llm.js / clip/vit builders;
+  put any new primitive *inside vla.js* this phase — js/arch/primitives.js is being edited by the F8
+  fixer concurrently), tests (append to tests/arch.test.cjs ONLY at the end of the file, in a clearly
+  marked F9 block), crosscheck/vla.py + expected JSONs (HF `PaliGemmaForConditionalGeneration` +
+  openpi or a faithful re-implementation of the action expert on the meta device; OpenVLA via HF
+  `transformers` Prismatic/remote code if available offline — otherwise build from published configs
+  and document; params exact where a reference exists).
+- **diagram**: js/ui/viz/{action-tokenizer,action-chunking,vla-latency,pi0-mask}.js,
+  js/content/diagrams/{rt2,openvla,pi0}.js, dev/diagram.html; engine extensions ONLY after the F8
+  diagram fixer finishes (coordinate through the orchestrator).
+- **content-rt2-openvla**: js/content/rt2.js and js/content/openvla.js. **content-pi0**: js/content/pi0.js.
+- **orchestrator**: index.html + stubs, catalog, SPEC, practice METRICS labels, integration.
