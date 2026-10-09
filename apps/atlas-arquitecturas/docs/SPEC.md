@@ -1431,3 +1431,71 @@ hover a token group to see what it attends to).
   diagram fixer finishes (coordinate through the orchestrator).
 - **content-rt2-openvla**: js/content/rt2.js and js/content/openvla.js. **content-pi0**: js/content/pi0.js.
 - **orchestrator**: index.html + stubs, catalog, SPEC, practice METRICS labels, integration.
+
+## 22. Phase 10 shared facts — LoRA/QLoRA + SFT/RLHF/DPO (every F10 agent MUST use exactly these)
+
+Phase 1–9 lessons apply. Thesis: **adapting a pretrained model is a memory and data problem, not an
+architecture problem** — LoRA changes *what is trained* (a rank-r delta), QLoRA changes *how the frozen
+base is stored* (4-bit NF4), SFT/RLHF/DPO change *what signal* trains it (demonstrations → preferences).
+The calculator here counts **trainable parameters, memory (weights / gradients / optimizer states /
+activations) and FLOPs per training step**, on top of the F6 decoder (`llm.js`) — compose, don't
+duplicate. Every number below is a starting point: verify against papers/official code and cite.
+
+### 22.1 LoRA / QLoRA — page `lora`, model `lora`
+Papers: Hu et al., *LoRA*, ICLR 2022, arXiv:2106.09685; Dettmers et al., *QLoRA*, NeurIPS 2023,
+arXiv:2305.14314 (NF4, double quantization, paged optimizers); also DoRA (arXiv:2402.09353), LoRA+ /
+rsLoRA if verified, LoRA Learns Less and Forgets Less (arXiv:2405.09673). Canonical **`lora-llama3-8b-r16`**:
+Llama 3 8B base (reuse `llama3-8b`), adapters on **all linear layers of the blocks** (q, k, v, o, gate,
+up, down) with r = 16, α = 32 (scaling α/r), dropout 0.05 (verify typical PEFT defaults); other configs:
+`lora-llama3-8b-r16-qv` (only W_Q, W_V, as in the LoRA paper), `lora-llama3-8b-r64`, `qlora-llama3-8b-r16`
+(base in NF4 + double quant, adapters bf16), `full-ft-llama3-8b` (all params trainable, for contrast).
+Knobs: `r`, `targets` ('qv' | 'attn' | 'all'), `bits` (base: 16 / 8 / 4), `B`, `T` (sequence length),
+`optimizer` ('adamw' 8+4 bytes/param fp32 states + master | 'adamw8bit' | 'sgd'), `gradCkpt` (0/1).
+Metrics: trainableParams (= Σ r·(d_in + d_out) per adapted matrix), trainableShare, adapterBytes,
+baseWeightBytes (bits; NF4 incl. quantization constants with/without double quant — from the QLoRA
+paper: 0.5 bits/param → 0.127 with DQ, verify), gradBytes, optimizerBytes, activationBytes (per token
+per layer estimate with/without gradient checkpointing — state the formula and mark ≈), totalTrainMemory,
+fitsOn (24 / 48 / 80 GB), trainStepFlops ≈ 6·N·tokens for full FT vs ≈ 4·N_base·tokens + 6·N_adapter
+for LoRA (forward + backward through frozen weights still costs; state the convention), mergedParams
+(= base after merge: no inference overhead).
+Ids: `lora-overview` nodes `x`, `w-frozen` (frozen mark), `lora-a` (r×d_in, init Gaussian), `lora-b`
+(d_out×r, init 0), `scale` (α/r), `sum`, `y`; `lora-placement` view (one decoder block with the 7
+linears, lit per `targets`); `qlora-memory` view (stacked memory bars: base, adapters, grads, optimizer,
+activations — from the calculator).
+
+### 22.2 SFT, RLHF (PPO) and DPO — page `rlhf-dpo`, model `rlhf-dpo`
+Papers: Ouyang et al., *InstructGPT*, NeurIPS 2022, arXiv:2203.02155; Christiano et al. 2017
+(arXiv:1706.03741); Stiennon et al. 2020; Schulman et al., PPO, arXiv:1707.06347; Rafailov et al.,
+*DPO*, NeurIPS 2023, arXiv:2305.18290; also KTO, IPO, ORPO, SimPO, GRPO (DeepSeekMath arXiv:2402.03300)
+and RLAIF / Constitutional AI if verified. Canonical **`rlhf-llama3-8b`** (all four models Llama 3 8B
+for the memory accounting: policy (trainable), reference (frozen), reward model (frozen, scalar head
+d→1), value/critic (trainable, scalar head)); configs `dpo-llama3-8b` (policy + reference only),
+`grpo-llama3-8b` (policy + reference, no critic, G samples per prompt), optional LoRA variants
+(`dpo-llama3-8b-lora`). Knobs: `B`, `T`, `G` (GRPO group size), `lora` (0/1), `refOffload` (0/1).
+Metrics: modelsInMemory, trainableParams, weightBytes per role, optimizerBytes, totalTrainMemory,
+generationTokensPerStep (PPO/GRPO rollouts) vs 0 for DPO, flopsPerStep split (rollout generation,
+forward of ref/reward, backward of policy/critic).
+Ids: `rlhf-pipeline` (3 stages: SFT on demonstrations → reward model on preference pairs
+(Bradley-Terry) → PPO with KL to the reference), `ppo-step` (policy generates → reward model scores →
+KL penalty vs reference → advantage with critic (GAE) → clipped update), `dpo-step` (pairs (x, y_w,
+y_l) → policy and reference log-probs → DPO loss), `memory-by-method` (models per method, stacked bars).
+
+### 22.3 Visualizations
+`lora-rank` (a weight delta ΔW and its rank-r approximation: singular values, explained energy vs r;
+synthetic, labelled), `train-memory` (stacked memory bars vs knobs: full FT / LoRA / QLoRA, optimizer,
+gradient checkpointing, GPU lines 24/48/80 GB — from the calculator), `bradley-terry` (reward
+difference → preference probability; margin), `dpo-vs-ppo` (the implicit reward β·log(π/π_ref); how
+the loss moves chosen vs rejected log-probs; KL budget; synthetic, labelled).
+
+### 22.4 Ownership in Phase 10
+- **arch**: js/arch/primitives.js (new primitives only: lora_linear, quantized storage accounting,
+  scalar heads, loss primitives for BT/DPO/PPO-clip if useful), js/arch/finetune.js (models `lora`,
+  `rlhf-dpo`; compose llm.js), tests, crosscheck/finetune.py + expected JSONs (HF `peft`
+  `LoraConfig` / `get_peft_model` on a meta-device Llama for trainable-param counts — install `peft`
+  in the dev venv and pin it; bitsandbytes NF4 accounting from the QLoRA paper/code if bitsandbytes
+  can't run on this Mac — document; TRL `DPOTrainer` loss on a tiny model for the DPO formula if cheap).
+- **diagram**: engine extensions, js/ui/viz/{lora-rank,train-memory,bradley-terry,dpo-vs-ppo}.js,
+  js/content/diagrams/{lora,rlhf-dpo}.js, dev/diagram.html.
+- **content-lora**: js/content/lora.js. **content-rlhf-dpo**: js/content/rlhf-dpo.js.
+- **orchestrator**: index.html + stubs, catalog (canonical ids `lora-llama3-8b-r16`, `rlhf-llama3-8b`;
+  roadmap status), SPEC, practice METRICS labels, integration.

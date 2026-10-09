@@ -429,7 +429,7 @@
     freq: A, minutes: 60,
     from: ['llm-decoder'], to: ['rlhf-dpo', 'openvla'],
     paper: { title: 'LoRA: Low-Rank Adaptation of Large Language Models', authors: 'Hu et al.', venue: 'ICLR 2022', arxiv: '2106.09685' },
-    model: 'lora', canonical: null,
+    model: 'lora', canonical: 'lora-llama3-8b-r16',
     card: { in: 'un modelo preentrenado congelado', out: 'el mismo modelo + un delta de bajo rango',
       idea: 'aprender BA (rango r) en vez de toda W', uso: 'fine-tuning barato de LLMs y VLAs' },
   }));
@@ -447,7 +447,7 @@
     freq: A, minutes: 75,
     from: ['llm-decoder', 'lora', 'rl-ppo'], to: [],
     paper: { title: 'Training language models to follow instructions with human feedback', authors: 'Ouyang et al.', venue: 'NeurIPS 2022', arxiv: '2203.02155' },
-    model: 'rlhf-dpo', canonical: null,
+    model: 'rlhf-dpo', canonical: 'rlhf-llama3-8b',
     card: { in: 'LLM preentrenado + demostraciones + preferencias', out: 'LLM alineado',
       idea: 'SFT → reward model → PPO, o DPO directo sobre pares', uso: 'asistentes conversacionales' },
   }));
