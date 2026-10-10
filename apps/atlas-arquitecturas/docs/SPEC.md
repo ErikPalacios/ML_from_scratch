@@ -1723,3 +1723,95 @@ synthetic).
 - **content-recsys**: js/content/two-tower.js and js/content/dlrm.js. **content-gbdt**: js/content/gbdt.js.
 - **orchestrator**: index.html + stubs, catalog (canonical ids `two-tower-base`, `dlrm-criteo-kaggle`,
   `xgboost-500-d6`; paper metadata; roadmap status), SPEC, practice METRICS labels, integration.
+
+## 26. Phase 14 shared facts — tracking (SORT / ByteTrack), monocular depth (DPT / Depth Anything), PointNet + NeRF/3DGS card (every F14 agent MUST use exactly these)
+
+Phase 1–13 lessons apply. Thesis: **perception for a robot is detection + time + geometry** — a tracker
+turns per-frame detections into persistent identities (Kalman prediction + assignment; cheap next to the
+detector — link #yolov8, #detr); monocular depth reuses a ViT encoder with a dense decoder that
+reassembles tokens into multi-scale maps (link #vit, #sam for dense heads; relative vs metric depth);
+PointNet consumes unordered 3-D points with a shared per-point MLP and a symmetric max-pool. The
+calculator makes the costs concrete (tracker ops vs detector MACs; encoder vs DPT head; per-point MLP
+vs max-pool; FPS on Jetson Orin vs H100 with the existing hardware table). Verify every number against
+papers / official code / HF configs and cite; the source wins.
+
+### 26.1 Tracking — page `bytetrack`, model `bytetrack`
+Papers: SORT (Bewley et al., ICIP 2016, arXiv:1602.00763), DeepSORT (Wojke et al., ICIP 2017,
+arXiv:1703.07402), ByteTrack (Zhang et al., ECCV 2022, arXiv:2110.06864; official repo ifzhang/ByteTrack),
+BoT-SORT (Aharon et al., arXiv:2206.14651) briefly, OC-SORT (Cao et al., CVPR 2023) briefly; metrics MOTA
+(Bernardin & Stiefelhagen 2008), IDF1 (Ristani et al. 2016), HOTA (Luiten et al., IJCV 2021). Canonical
+**`bytetrack-mot17`**: ByteTrack as in the official repo for MOT17 (detector YOLOX-X at 1440×800 — verify;
+track_thresh 0.6 / low 0.1, match_thresh 0.8, track_buffer 30 — verify defaults in the repo; Kalman state
+8-D (x, y, a, h and velocities), measurement 4-D, constant velocity). Configs: `sort` (Kalman + Hungarian
+on IoU, high-score detections only, no second pass), `bytetrack-ultralytics` (ultralytics bytetrack.yaml
+defaults — verify; detector link #yolov8). Knobs: `nDet` (detections per frame), `nTracks` (active
+tracks), `fps`, `lowFrac` (share of low-score detections). Metrics: Kalman predict/update FLOPs per track
+(matrix sizes 8×8, 4×8 — count exactly), IoU matrix ops (tracks × dets), Hungarian O(n³) ops (≈, state the
+algorithm — scipy linear_sum_assignment / lap), tracker FLOPs per frame vs detector MACs per frame
+(tracker share ≪ 1 %), frames lost before a track is deleted (track_buffer / fps seconds), memory per
+track. Crosscheck: run the official/ultralytics Kalman filter matrices and an assignment on synthetic
+detections in the venv (ultralytics is installed) to confirm matrix shapes, thresholds and op counts.
+Ids: `bytetrack-overview` (frame → detector → split by score (high / low) → predict tracks (Kalman) →
+first association (high, IoU, Hungarian) → second association (low, remaining tracks) → update → new /
+lost / removed tracks → output ids), `kalman` view (predict: x' = Fx, P' = FPFᵀ + Q; update with K),
+`association` view (IoU matrix, cost = 1 − IoU, threshold, assignment).
+
+### 26.2 Monocular depth — page `depth`, model `depth`
+Papers: DPT (Ranftl et al., ICCV 2021, arXiv:2103.13413), MiDaS (Ranftl et al., TPAMI 2022,
+arXiv:1907.01341; scale-and-shift-invariant loss), Depth Anything (Yang et al., CVPR 2024,
+arXiv:2401.10891), Depth Anything V2 (Yang et al., NeurIPS 2024, arXiv:2406.09414), metric depth
+(ZoeDepth arXiv:2302.12288, Depth Pro arXiv:2410.02073, Metric3D v2 — briefly, verify). Canonical
+**`depth-anything-v2-small`** (DINOv2 ViT-S/14 encoder + DPT head, 518×518 input — verify against HF
+`DepthAnythingForDepthEstimation` config: features, out channels, which encoder layers feed the head);
+configs `depth-anything-v2-base`, `depth-anything-v2-large`, `dpt-large` (ViT-L/16 at 384, HF
+`DPTForDepthEstimation` "Intel/dpt-large"). Knobs: `res` (multiple of the patch size), `B`. Metrics:
+params split (encoder / reassemble + fusion head), encoder MACs vs head MACs (the head is not small at
+high resolution — compute), tokens, reassemble scales (1/4, 1/8, 1/16, 1/32 — verify), output map size,
+fps ≈ on Jetson AGX Orin and H100 (existing hardware table, roofline), activation memory. Crosscheck:
+HF models on the meta device (params per module, shapes and MACs via hooks), like the earlier phases.
+Ids: `depth-overview` (image → patch embed → ViT encoder (×L) → taps at 4 layers → reassemble ×4 →
+fusion (RefineNet-style, coarse to fine) → head → depth map), `reassemble` view (tokens → drop/readout
+CLS → reshape to H/p × W/p → 1×1 conv → resample to the scale), `scale-shift` view (relative depth:
+prediction aligned to ground truth by a per-image scale and shift before the loss; metric needs camera
+intrinsics or a metric head).
+
+### 26.3 PointNet — page `pointnet`, model `pointnet`
+Papers: PointNet (Qi et al., CVPR 2017, arXiv:1612.00593), PointNet++ (Qi et al., NeurIPS 2017,
+arXiv:1706.02413); DGCNN / Point Transformer briefly (verify). Canonical **`pointnet-cls`**: ModelNet40
+classification, N = 1,024 points, input T-Net (3×3), shared MLP 64-64, feature T-Net (64×64, with the
+orthogonality regularizer), shared MLP 64-128-1024, max-pool, FC 512-256-40 with dropout, batch norm —
+verify against the official code (charlesq34/pointnet) and count params exactly (BN included). Configs:
+`pointnet-seg` (part segmentation: per-point features concatenated with the global feature — verify
+sizes), `pointnet-cls-no-tnet`, `pointnet2-ssg-cls` (set abstraction: farthest point sampling + ball query +
+mini-PointNet; verify sizes from the official repo). Knobs: `N` (points), `B`, `tnet` (0/1). Metrics: params
+(T-Nets share), MACs per point vs max-pool cost, MACs per cloud, critical-point count bound (≤ 1024 = the
+max-pool width), FPS/ball-query cost for PointNet++ (≈), fps on Jetson Orin ≈. Crosscheck: PyTorch modules
+built from the official architecture on the meta device (and real forward on CPU for shapes).
+Ids: `pointnet-overview` (points N×3 → input T-Net → shared MLP 64-64 → feature T-Net → shared MLP
+64-128-1024 → max-pool → global feature 1024 → FC → class scores; seg branch: concat per-point + global →
+MLP → per-point labels), `tnet` view, `maxpool` view (permutation invariance; critical points).
+
+### 26.4 Level-1 card (orchestrator)
+`nerf-3dgs` stays a map card: verify NeRF (ECCV 2020, arXiv:2003.08934) and add 3D Gaussian Splatting
+(Kerbl et al., ACM TOG 42(4) / SIGGRAPH 2023, arXiv:2308.04079) in the summary; link to the nearest
+level-2 pages (#depth).
+
+### 26.5 Visualizations
+`kalman-track` (2-D constant-velocity Kalman on a noisy synthetic track with an occlusion: predict, update,
+uncertainty ellipse; Q/R sliders), `hungarian-iou` (boxes of tracks vs detections, IoU matrix, assignment,
+ByteTrack's second pass with low-score boxes; synthetic), `depth-scale` (a synthetic depth profile vs a
+prediction off by scale and shift; the scale-and-shift-invariant alignment and the loss before/after),
+`pointnet-maxpool` (2-D toy: points → per-point features → max-pool; shuffle points (same output), drop
+non-critical points (same output), highlight critical points; synthetic).
+
+### 26.6 Ownership in Phase 14
+- **arch**: js/arch/primitives.js (new primitives only: Kalman predict/update cost, IoU matrix,
+  assignment cost, reassemble/resample, shared point MLP (conv1d k=1), max-pool over points, FPS/ball
+  query cost), js/arch/perception.js (models `bytetrack`, `depth`, `pointnet`), tests, crosscheck/perception.py +
+  expected JSONs (HF depth models on meta device; PyTorch PointNet from the official architecture;
+  ultralytics / official ByteTrack Kalman matrices).
+- **diagram**: engine extensions, js/ui/viz/{kalman-track,hungarian-iou,depth-scale,pointnet-maxpool}.js,
+  js/content/diagrams/{bytetrack,depth,pointnet}.js, dev/diagram.html.
+- **content-tracking**: js/content/bytetrack.js. **content-geometry**: js/content/depth.js and js/content/pointnet.js.
+- **orchestrator**: index.html + stubs, catalog (canonical ids `bytetrack-mot17`, `depth-anything-v2-small`,
+  `pointnet-cls`; nerf-3dgs card; roadmap status), SPEC, practice METRICS labels, integration.
