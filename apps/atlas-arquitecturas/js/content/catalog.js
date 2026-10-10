@@ -734,8 +734,8 @@
   add(card({
     id: 'nerf-3dgs', phase: 14, family: 'robot',
     title: 'NeRF y Gaussian Splatting', titleEn: 'NeRF and 3D Gaussian Splatting', short: 'NeRF / 3DGS',
-    summary: 'Representar una escena 3D a partir de fotos: NeRF con un MLP que da color y densidad por punto; Gaussian Splatting con millones de gaussianas que se rasterizan en tiempo real.',
-    freq: B, from: [], to: [],
+    summary: 'Representar una escena 3D a partir de fotos con poses: NeRF (Mildenhall et al., ECCV 2020) con un MLP que da color y densidad por punto y volume rendering; 3D Gaussian Splatting (Kerbl et al., SIGGRAPH 2023, arXiv:2308.04079) con millones de gaussianas 3D que se rasterizan en tiempo real.',
+    freq: B, from: ['depth'], to: [],
     paper: { title: 'NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis', authors: 'Mildenhall et al.', venue: 'ECCV 2020', arxiv: '2003.08934' },
     card: { in: 'fotos de una escena con poses de cámara', out: 'vistas nuevas (y geometría)',
       idea: 'NeRF: volume rendering de un MLP; 3DGS: gaussianas 3D rasterizadas', uso: 'reconstrucción de escenas, simulación para robots, digital twins' },
