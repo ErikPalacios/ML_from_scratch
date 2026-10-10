@@ -2253,8 +2253,22 @@
     if (pre) used.cellsColmax = true;
     // fase 14: mark:'assign' = una asignación 1 a 1 (permutación con semilla de las columnas); las últimas o.unmatched filas
     // dibujadas quedan sin pareja (∅ a la derecha: no pasaron el umbral). La asociación de un tracker
+    // fase 14 (revisión): con match:'max' (opt-in) la asignación es la de valor MÁXIMO (el tono es el IoU; el húngaro minimiza
+    // 1 − IoU) sobre las filas con pareja, y las últimas o.unmatched filas se atenúan (×0.15: no se solapan con nada). Los valores
+    // se sacan antes, en el mismo orden de la semilla que una tabla sin marca (cada fila + la celda 'pick'): con la misma semilla
+    // coinciden con la tabla de IoU de arriba. o.pale = [filas dibujadas]: las mismas filas atenuadas en cualquier otra tabla.
+    const PALE = 0.15, paleSet = Array.isArray(o.pale) ? new Set(o.pale) : null;
+    const nUn = Math.min(d.nR, Math.max(0, o.unmatched || 0));
+    const preA = mark === 'assign' && o.match === 'max'
+      ? Array.from({ length: d.nR }, (_, i) => { const row = Array.from({ length: d.nC }, () => rng()); rng(); return i >= d.nR - nUn ? row.map((v) => PALE * v) : row; })
+      : null;
     let perm = null;
-    if (mark === 'assign') {
+    if (preA) {
+      const free = Math.min(d.nR - nUn, d.nC);
+      const hu = ATLAS.Viz && ATLAS.Viz.hungarian ? ATLAS.Viz.hungarian(preA.slice(0, free).map((row) => row.map((v) => 1 - v))) : { col: [] };
+      perm = Array.from({ length: d.nR }, (_, i) => (i < free && hu.col[i] != null ? hu.col[i] : -1));
+      used.cellsAssign = true;
+    } else if (mark === 'assign') {
       const R2 = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng((o.seed || 11) + 101) : Math.random;
       perm = Array.from({ length: d.nC }, (_, j) => j);
       for (let j = perm.length - 1; j > 0; j--) { const k = Math.floor(R2() * (j + 1)); const t = perm[j]; perm[j] = perm[k]; perm[k] = t; }
@@ -2266,8 +2280,8 @@
       const isMoreR = d.moreR && i === d.nR;
       const yy = y0 + i * cs;
       if (isMoreR) { txt(gg, x0 + (d.nC * cs) / 2, yy + cs - 1, '⋮', 'ad-cells-ell', 'middle'); continue; }
-      const row = pre ? pre[i] : [];
-      if (!pre) for (let j = 0; j < d.nC; j++) row.push(rng());
+      const row = pre ? pre[i] : preA ? preA[i] : [];
+      if (!pre && !preA) { for (let j = 0; j < d.nC; j++) row.push(rng()); if (paleSet && paleSet.has(i)) for (let j = 0; j < d.nC; j++) row[j] *= PALE; }
       vals.push(row);
       if (pre && colBest.indexOf(i) >= 0) S('circle', { cx: r1(x0 - 5), cy: r1(yy + cs / 2), r: 2.2, class: 'ad-cell-crit' }, gg);
       if (perm && perm[i] < 0) txt(gg, x0 + colsDrawn * cs + 7, yy + cs - 1.5, '∅', 'ad-cells-ell', 'middle');
@@ -2309,7 +2323,7 @@
     const d = cellsDims(o, run);
     if (!d) return '';
     const quiet = ctl.mode === 'blank' || ctl.quiz;
-    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : o.mark === 'diag' ? 'la diagonal marcada' : o.mark === 'tril' ? 'solo el triángulo inferior estricto' : o.mark === 'assign' ? 'una pareja por fila, cada columna a lo sumo una vez' + (o.unmatched ? '; ' + o.unmatched + ' filas sin pareja' : '') : o.mark === 'colmax' ? 'el máximo de cada columna marcado (las filas que ganan alguna, con un punto)' + (o.pooled ? ' y, debajo, la fila de los máximos' : '') : '';
+    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : o.mark === 'diag' ? 'la diagonal marcada' : o.mark === 'tril' ? 'solo el triángulo inferior estricto' : o.mark === 'assign' ? 'una pareja por fila, cada columna a lo sumo una vez' + (o.match === 'max' ? ' (la de mayor valor total: las celdas más oscuras)' : '') + (o.unmatched ? '; ' + o.unmatched + (o.unmatched === 1 ? ' fila' : ' filas') + ' sin pareja' + (o.match === 'max' ? ' (claras: no se solapan con nada)' : '') : '') : o.mark === 'colmax' ? 'el máximo de cada columna marcado (las filas que ganan alguna, con un punto)' + (o.pooled ? ' y, debajo, la fila de los máximos' : '') : '';
     return 'tabla' + (quiet ? '' : ' de ' + fint(d.R) + ' × ' + fint(d.C)) + (what ? ', ' + what : '') + ' (tono ilustrativo)' + (o.caption && !quiet ? ': ' + plainSub(qText(o.caption, ctl, spec)) : '');
   }
 

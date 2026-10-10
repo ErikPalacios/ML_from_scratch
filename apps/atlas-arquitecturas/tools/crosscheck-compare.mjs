@@ -14,7 +14,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
   'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js', 'js/arch/vla.js', 'js/arch/finetune.js', 'js/arch/retrieval.js', 'js/arch/encdec.js',
-  'js/arch/recsys.js', 'js/arch/trees.js', 'js/arch/perception.js'];
+  'js/arch/recsys.js', 'js/arch/trees.js', 'js/arch/perception.js', 'js/arch/robotlearn.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -70,7 +70,8 @@ export function compareConfig(A, exp) {
   if (Object.keys(by).length) {
     const conv = sumOps(by, ['aten.convolution']);
     // conv_bn y bottleneck (backbone de DETR como bloques compuestos) son convs.
-    const convCalc = 2 * (p('conv2d') + p('conv_bn') + p('bottleneck'));
+    // Fase 15: conv1d y conv_transpose1d (U-Net 1-D de Diffusion Policy) también son aten.convolution.
+    const convCalc = 2 * (p('conv2d') + p('conv_bn') + p('bottleneck') + p('conv1d') + p('conv_transpose1d'));
     if (conv || convCalc) push('flops[convolution]', convCalc, conv, convCalc === conv);
     const lin = sumOps(by, ['aten.addmm', 'aten.mm']);
     // mm incluye la matriz de similitud de CLIP (I·Tᵀ).
@@ -283,6 +284,21 @@ export function compareConfig(A, exp) {
     push('span corruption [' + sc.what + ']', bad ? '(' + bad.slice(0, 3).join(', ') + ') → ' + [s0.tokens, s0.inputs, s0.targets].join(' / ') : rows.length + ' iguales',
       bad ? bad.slice(3).join(' / ') : rows.length + ' iguales', !bad && rows.length > 0);
   }
+  // Fase 15 (PPO). rl_checks: funciones de ATLAS.Arch.robotlearn (GAE, surrogate recortado, pérdida del valor, normalización de
+  // ventajas) ↔ el código oficial en torch float64 y una referencia en numpy (ya iguales entre sí en crosscheck/robotlearn.py);
+  // tolerancia 1e-9. Las salidas pueden ser matrices T×N (se comparan aplanadas).
+  const flat = (v) => (Array.isArray(v) ? v.flat(Infinity) : [v]);
+  for (const rc of exp.rl_checks || []) {
+    const fn = A.robotlearn && A.robotlearn[rc.fn];
+    if (!fn) { push('rl[' + rc.fn + ']', null, rc.fn, false, 'sin la función en ATLAS.Arch.robotlearn'); continue; }
+    const res = fn.apply(null, rc.args);
+    for (const [k, ref] of Object.entries(rc.out)) {
+      const v = k === 'value' || k === 'list' ? res : res[k];
+      const a = flat(v), b = flat(ref);
+      const ok = a.length === b.length && a.every((x, i) => near(x, b[i]));
+      push('rl[' + rc.what + '].' + k, a.length > 4 ? a.length + ' valores' : a.join(','), b.length > 4 ? b.length + ' valores' : b.join(','), ok);
+    }
+  }
   const hf = exp.alt && exp.alt.hf;
   if (hf) {
     push('hf params_total', t.params, hf.params_total, t.params === hf.params_total);
@@ -321,7 +337,7 @@ function regenerate() {
   // Fase 13: trees.py corre xgboost / lightgbm / catboost en un proceso aparte (sin torch). En macOS sin libomp de Homebrew, xgboost y
   // lightgbm encuentran el libomp.dylib que trae torch vía DYLD_FALLBACK_LIBRARY_PATH (no cambia nada del sistema).
   const omp = join(ROOT, '.venv', 'lib', 'python3.13', 'site-packages', 'torch', 'lib');
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py', 'retrieval.py', 'encdec.py', 'recsys.py', 'trees.py', 'perception.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py', 'retrieval.py', 'encdec.py', 'recsys.py', 'trees.py', 'perception.py', 'robotlearn.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const extra = script === 'trees.py' && existsSync(omp) ? { DYLD_FALLBACK_LIBRARY_PATH: omp + (process.env.DYLD_FALLBACK_LIBRARY_PATH ? ':' + process.env.DYLD_FALLBACK_LIBRARY_PATH : '') } : {};
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }, extra) });

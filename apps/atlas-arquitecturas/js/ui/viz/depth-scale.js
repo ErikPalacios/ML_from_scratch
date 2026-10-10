@@ -180,7 +180,7 @@
       out.innerHTML = '';
       const kv = (k, v) => { const sp = V.html('span', null, out); sp.innerHTML = sub(k) + ' <b>' + v + '</b>'; };
       kv('predicción cruda:', 'a = ' + state.a + ', b = ' + state.b);
-      kv('alineación:', 's = ' + L.s.toFixed(3) + ', t = ' + L.t.toFixed(3) + (Math.abs(state.a - 1) + Math.abs(state.b) > 1e-9 ? ' (≈ 1/a = ' + (1 / state.a).toFixed(3) + ', −b/a = ' + (-state.b / state.a).toFixed(3) + ')' : ''));
+      kv('alineación:', 's = ' + L.s.toFixed(3) + ', t = ' + L.t.toFixed(3) + (!state.glass && Math.abs(state.a - 1) + Math.abs(state.b) > 1e-9 ? ' (≈ 1/a = ' + (1 / state.a).toFixed(3) + ', −b/a = ' + (-state.b / state.a).toFixed(3) + ')' : ''));
       kv('pérdida sin alinear (MSE/2):', fl(raw));
       kv(lname + ' =', fl(L.loss) + (state.align === 'lsq' ? ' (MSE/2 tras alinear)' : ' (|·|/2 normalizado)'));
       // error en los píxeles buenos (en disparidad, en la escala de la verdad) y aporte del vidrio a la pérdida

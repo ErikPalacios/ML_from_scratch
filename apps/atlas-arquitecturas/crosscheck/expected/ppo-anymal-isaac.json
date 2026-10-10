@@ -1,0 +1,117 @@
+{
+  "config_id": "ppo-anymal-isaac",
+  "model": "rl-ppo",
+  "params_total": 571801,
+  "params_by_node": {
+    "actor": 286616,
+    "critic": 285185,
+    "log-std": 12,
+    "fc1": 241664
+  },
+  "shapes": {
+    "obs": [
+      235
+    ],
+    "act-std": [
+      12
+    ],
+    "action": [
+      12
+    ],
+    "logp": [
+      1
+    ],
+    "a-h1": [
+      512
+    ],
+    "a-h2": [
+      256
+    ],
+    "a-h3": [
+      128
+    ],
+    "act-mean": [
+      12
+    ],
+    "c-h1": [
+      512
+    ],
+    "c-h2": [
+      256
+    ],
+    "c-h3": [
+      128
+    ],
+    "value": [
+      1
+    ],
+    "a-z1": [
+      512
+    ],
+    "a-z2": [
+      256
+    ],
+    "a-z3": [
+      128
+    ],
+    "c-z1": [
+      512
+    ],
+    "c-z2": [
+      256
+    ],
+    "c-z3": [
+      128
+    ],
+    "rollout": [
+      24,
+      4096
+    ],
+    "advantages": [
+      24,
+      4096
+    ],
+    "returns": [
+      24,
+      4096
+    ],
+    "reward": [
+      1
+    ]
+  },
+  "flops_total": 1139968,
+  "flops_by_op": {
+    "aten.addmm": 1139968
+  },
+  "metrics_checks": {
+    "rolloutMacs": 57196150784,
+    "updateMacs": 722196234240,
+    "trainMacsPerSample": 1469312,
+    "rolloutBufferBytes": 108625920
+  },
+  "update_flops_by_op": {
+    "aten.addmm": 560317071360,
+    "aten.mm": 884075397120
+  },
+  "source": {
+    "lib": "torch (transcrito de rsl_rl v1.0.2 rsl_rl/modules/actor_critic.py, algorithms/ppo.py, storage/rollout_storage.py)",
+    "ctor": "ActorCritic(235, 235, 12, [512, 256, 128], [512, 256, 128], ELU, init_noise_std 1.0)",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "torchvision": "0.29.1",
+      "gymnasium": "1.4.0",
+      "mujoco": "3.15.0",
+      "ale-py": "0.12.1",
+      "diffusers": "0.41.0",
+      "numpy": "2.5.3"
+    }
+  },
+  "notes": [
+    "Dimensiones de legged_gym legged_robot_config.py (num_observations 235 = 48 + 187 alturas, num_actions 12); Isaac Gym no hace falta para la red.",
+    "rsl_rl usa UN módulo ELU compartido: las formas de a-z{i} / c-z{i} son las de su Linear.",
+    "Iteración real: 4096 × 24 con no_grad (act + evaluate), evaluate del bootstrap, 5 épocas × 4 minibatches de 24,576 con loss.backward(); el KL del lr adaptativo va en inference_mode (sin MACs)."
+  ]
+}

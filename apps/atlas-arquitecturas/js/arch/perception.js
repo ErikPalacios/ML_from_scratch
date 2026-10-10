@@ -18,7 +18,13 @@
    iou-1, cost-1, matches-1 · iou-2 / cost-2 / assign-2 (tracker › assoc-2 › …; no en sort ni si r = 0 o D_l = 0) ·
    kalman-update (tracker › update) → track-mean-new · track-manage (tracker › manage) → tracks-out.
    totals: params = los del detector (el tracker no tiene parámetros aprendidos); MACs = detector + productos de matrices del
-   Kalman; IoU y asignación en "otros" (≈). byNode.tracker = solo el tracker.
+   Kalman (las matmuls 8×8 SÍ son MACs); IoU, costos, asignación y gestión en "otros" (≈). byNode.tracker = solo el tracker.
+   Tracker frente al detector, todo en FLOPs: trackerFlops = 2 × MACs del Kalman, trackerOtherOps = "otros" del tracker (≈, 1 op
+   ≈ 1 FLOP), trackerOps = trackerFlops + trackerOtherOps; trackerShare = trackerOps / detectorFlops (= 2 × MACs del detector);
+   trackerShareKalman = trackerFlops / detectorFlops. La separación por score (split, 2 ops por caja) queda fuera de trackerOps.
+   Borrado: un track perdido sobrevive mientras lleve ≤ framesLost frames sin detección y se borra al siguiente (regla "> buffer":
+   frame_id − end_frame > max_time_lost en ByteTrack y ultralytics, time_since_update > max_age en sort.py; con max_age = 1, SORT
+   tolera UN frame sin detección y borra al segundo seguido).
    Kalman (primitives.kalmanCost, verificado contando las llamadas reales en el crosscheck): ByteTrack oficial 8-D, H densa +
    Cholesky: 1,088 MACs predict + 1,194 update por track; Ultralytics 8.4 KalmanFilterXYAH: 1,088 + 526 (H por slicing + solve);
    SORT (filterpy, 7-D, Joseph): 735 + 1,728.
@@ -96,11 +102,11 @@
     'bytetrack-mot17': Object.assign({}, BT_BASE, { label: 'ByteTrack · MOT17 (YOLOX-X @ 800×1440)', canonical: true, tracker: 'bytetrack', impl: 'dense-cholesky', n: 8,
       detector: 'yolox-x-mot17', trackHigh: 0.6, trackLow: 0.1, newTrackThresh: 0.7, matchThresh: 0.9, matchThresh2: 0.5, unconfirmedThresh: 0.7, fuseScore: true,
       trackBuffer: 30, bufferScalesWithFps: true, secondPass: true, matchThreshPaper: 0.8,
-      source: 'Zhang et al., ByteTrack, ECCV 2022, arXiv:2110.06864; repo oficial ifzhang/ByteTrack: tools/track.py (track_thresh 0.6, track_buffer 30, match_thresh 0.9 por defecto; el comando del README para MOT17 no los cambia), yolox/tracker/byte_tracker.py (score bajo > 0.1 fijo; det_thresh = track_thresh + 0.1 = 0.7; 2.ª asociación con umbral 0.5; no confirmados 0.7; fuse_score en la 1.ª asociación fuera de MOT20; buffer_size = int(frame_rate/30·track_buffer)), yolox/tracker/kalman_filter.py (8-D, H densa, Cholesky). El paper rechaza IoU < 0.2 (= costo 0.8, como tools/demo_track.py); el evaluador baja track_buffer a 14 / 25 y sube track_thresh en algunas secuencias de MOT17.' }),
+      source: 'Zhang et al., ByteTrack, ECCV 2022, arXiv:2110.06864; repo oficial ifzhang/ByteTrack: tools/track.py (track_thresh 0.6, track_buffer 30, match_thresh 0.9 por defecto; el comando del README para MOT17 no los cambia), yolox/tracker/byte_tracker.py (score bajo > 0.1 fijo; det_thresh = track_thresh + 0.1 = 0.7; 2.ª asociación con umbral 0.5; no confirmados 0.7; fuse_score en la 1.ª asociación fuera de MOT20; buffer_size = int(frame_rate/30·track_buffer), fórmula de la clase: el evaluador de MOT17 y el demo de video la construyen con frame_rate = 30 fijo), yolox/tracker/kalman_filter.py (8-D, H densa, Cholesky). El paper rechaza IoU < 0.2 (= costo 0.8, como tools/demo_track.py); el evaluador baja track_buffer a 14 / 25 y sube track_thresh en algunas secuencias de MOT17.' }),
     'sort': Object.assign({}, BT_BASE, { label: 'SORT (Kalman 7-D + Hungarian sobre IoU)', tracker: 'sort', impl: 'filterpy-joseph', n: 7,
       detector: 'yolox-x-mot17', trackHigh: 0.6, trackLow: 0.1, newTrackThresh: 0.6, matchThresh: 0.7, iouThreshold: 0.3, maxAge: 1, minHits: 3, fuseScore: false,
       trackBuffer: 1, bufferScalesWithFps: false, secondPass: false,
-      source: 'Bewley et al., SORT, ICIP 2016, arXiv:1602.00763; abewley/sort sort.py: KalmanFilter(dim_x = 7, dim_z = 4) de filterpy (u, v, s, r, u̇, v̇, ṡ), iou_threshold 0.3 (costo 1 − IoU ≤ 0.7), max_age 1, min_hits 3, lap.lapjv(extend_cost = True). Solo detecciones con score ≥ el umbral (0.6, como Sort(track_thresh) en el evaluador de ByteTrack); mismo detector que bytetrack-mot17 para aislar el tracker.' }),
+      source: 'Bewley et al., SORT, ICIP 2016, arXiv:1602.00763; abewley/sort sort.py: KalmanFilter(dim_x = 7, dim_z = 4) de filterpy (u, v, s, r, u̇, v̇, ṡ), iou_threshold 0.3 (costo −IoU; tras asignar se descartan los pares con IoU < 0.3), max_age 1 (se borra cuando time_since_update > max_age: tolera un frame sin detección), min_hits 3, lap.lapjv(extend_cost = True) sin cost_limit (scipy linear_sum_assignment si lap no está). Solo detecciones con score > el umbral (0.6, como Sort(track_thresh) en el evaluador de ByteTrack); mismo detector que bytetrack-mot17 para aislar el tracker. Ojo: el Sort que trae el repo de ByteTrack (yolox/sort_tracker/sort.py) usa max_age = 30 por defecto; aquí, el de abewley/sort (max_age = 1, el T_lost = 1 del paper).' }),
     'bytetrack-ultralytics': Object.assign({}, BT_BASE, { label: 'ByteTrack · Ultralytics (YOLOv8-L @ 640)', tracker: 'bytetrack', impl: 'slice-lu', n: 8,
       detector: 'yolov8l-640', trackHigh: 0.25, trackLow: 0.1, newTrackThresh: 0.25, matchThresh: 0.8, matchThresh2: 0.5, unconfirmedThresh: 0.7, fuseScore: true,
       trackBuffer: 30, bufferScalesWithFps: false, secondPass: true,
@@ -129,7 +135,8 @@
     c.born = c.nHigh - c.m1;
     c.lost = c.rest - c.m2;
     c.out = c.U + c.born;
-    // lapjv: con cost_limit (ByteTrack) cuadrada de lado filas + columnas; sin él (SORT, extend_cost) de lado máx(filas, columnas).
+    // lapjv: con cost_limit (ByteTrack) cuadrada de lado filas + columnas (n₁ = T + D_h, n₂ = r + D_l); sin él (SORT, extend_cost)
+    // de lado máx(filas, columnas). La 2.ª pasada usa r = T − m₁ filas: cota (incluye los perdidos; el oficial solo usa los tracked).
     c.n1 = c.tracker === 'sort' ? Math.max(T, c.nHigh) : T + c.nHigh;
     c.n2 = c.second ? c.rest + c.nLow : 0;
     c.framesLost = c.bufferScalesWithFps ? Math.floor(c.fps / 30 * c.trackBuffer) : c.trackBuffer;
@@ -154,8 +161,9 @@
       outMeta: { label: 'Detecciones del frame: caja (x₁, y₁, x₂, y₂) + score', tex: 'Z_t' } });
     const thr = { high: c.trackHigh, low: c.trackLow };
     const keepLow = c.tracker !== 'sort' && c.nLow > 0;   // sin detecciones bajas (lowPct = 0) no hay tensor dets-low
+    const ge = c.impl === 'slice-lu' ? '≥ ' : '> ';   // oficial y sort del repo de ByteTrack: score > umbral; ultralytics 8.4: ≥
     const sp = g.op('split-score', A.split_score(dets, { nHigh: c.nHigh, nLow: c.nLow, keepLow, thresholds: thr }), {
-      path: ['split'], out: keepLow ? ['dets-high', 'dets-low'] : 'dets-high', label: keepLow ? 'Separar por score: altas (≥ ' + c.trackHigh + ') y bajas (' + c.trackLow + ' < s < ' + c.trackHigh + ')' : 'Quedarse con las altas (≥ ' + c.trackHigh + '); las bajas se descartan',
+      path: ['split'], out: keepLow ? ['dets-high', 'dets-low'] : 'dets-high', label: keepLow ? 'Separar por score: altas (' + ge + c.trackHigh + ') y bajas (' + c.trackLow + ' < s < ' + c.trackHigh + ')' : 'Quedarse con las altas (' + ge + c.trackHigh + '); las bajas se descartan',
       type: 'tensorop', group: 'head',
       outMeta: keepLow ? [{ label: 'Detecciones altas (1.ª asociación)', tex: 'Z^{\\mathrm{high}}' }, { label: 'Detecciones bajas (2.ª asociación: oclusiones, desenfoque)', tex: 'Z^{\\mathrm{low}}' }] : { label: 'Detecciones altas', tex: 'Z^{\\mathrm{high}}' } });
     const hi = keepLow ? sp[0] : sp, lo = keepLow ? sp[1] : null;
@@ -170,12 +178,17 @@
       // la 2.ª asociación usa solo las filas de los r tracks sin pareja (r ≤ T)
       const iouRes = A.iou_matrix(rows === T ? pm : A.shape(['r', n], [rows, c.n], 'qry', 'seq'), dIn);
       const iou = g.op('iou-' + k, iouRes, { path: P.concat(['iou']), in: ['pred-mean', dIn.id], out: 'iou-' + k, where: Wt, label: 'IoU ' + label, type: 'attn', group: 'attn',
-        outMeta: { label: 'IoU de cada track con cada detección ' + (k === 1 ? 'alta' : 'baja'), tex: 'IoU_{' + k + '}' } });
-      const cl = c.tracker === 'sort' ? 'Costo −IoU (se descartan pares con IoU < ' + c.iouThreshold + ')' : fuse ? 'Costo 1 − IoU·score' : 'Costo 1 − IoU';
+        outMeta: { label: 'IoU de cada track con cada detección ' + (k === 1 ? 'alta' : 'baja'), tex: 'IoU_{' + k + '}',
+          note: k === 2 ? 'Filas = los ' + rows + ' tracks sin pareja de la 1.ª pasada: cota (incluye los perdidos; el código oficial solo usa los que estaban tracked).' : undefined } });
+      const sort = c.tracker === 'sort';
+      const cl = sort ? 'Costo −IoU (se descartan pares con IoU < ' + c.iouThreshold + ')' : fuse ? 'Costo 1 − IoU·score' : 'Costo 1 − IoU';
       const cost = g.op('cost-' + k, A.assoc_cost(iou, { fuse, thresh }), { path: P.concat(['cost']), out: 'cost-' + k, where: Wt, label: cl, type: 'attn', group: 'attn',
-        outMeta: { label: 'Matriz de costos (se rechaza todo par con costo > ' + thresh + ')', tex: 'C_' + k } });
-      return g.op('assign-' + k, A.linear_assignment(cost, { n: nn, matches, solver: 'lapjv', thresh, msym: 'm_' + k }), { path: P.concat(['assign']), out: 'matches-' + k, where: Wt,
-        label: 'Asignación óptima (Jonker-Volgenant, lapjv)', type: 'head', group: 'head', outMeta: { label: 'Parejas (track, detección) aceptadas', tex: 'M_' + k } });
+        outMeta: { label: sort ? 'Matriz de costos −IoU (tras asignar se descartan los pares con IoU < ' + c.iouThreshold + ')' : 'Matriz de costos (se rechaza todo par con costo > ' + thresh + ')', tex: 'C_' + k } });
+      const la = A.linear_assignment(cost, { n: nn, matches, solver: 'lapjv', thresh, msym: 'm_' + k });
+      la.detail.note = sort ? 'lapjv con extend_cost, sin cost_limit: matriz de lado máx(' + rows + ', ' + cols + ') = ' + nn + ' (≈ n³ peor caso)'
+        : 'lapjv con cost_limit: matriz extendida de lado filas + columnas = ' + rows + ' + ' + cols + ' = ' + nn + ' (≈ n³ peor caso)';
+      return g.op('assign-' + k, la, { path: P.concat(['assign']), out: 'matches-' + k, where: Wt,
+        label: 'Asignación óptima (Jonker-Volgenant, lapjv; matriz ' + nn + '×' + nn + (sort ? ')' : ', extendida)'), type: 'head', group: 'head', outMeta: { label: 'Parejas (track, detección) aceptadas', tex: 'M_' + k } });
     };
     const mt1 = assoc(1, hi, T, c.nHigh, c.fuseScore, c.matchThresh, c.n1, c.m1, 'tracks × detecciones altas');
     const ms = [mt1];
@@ -183,7 +196,7 @@
     const upd = g.op('kalman-update', A.kalman_update(pm, pc, ms, { impl: c.impl, m: c.m, U: c.U }), { path: ['tracker', 'update'], out: 'track-mean-new', where: Wt,
       label: 'Kalman: corregir los ' + c.U + ' tracks emparejados', type: 'mlp', group: 'mlp', outMeta: { label: 'Estados corregidos con su detección', tex: '\\hat x + K(z - H\\hat x)' } });
     g.op('track-manage', A.track_manage(upd, { out: c.out, born: c.born, lost: c.lost, ops: T + c.nDet }), { path: ['tracker', 'manage'], out: 'tracks-out', where: Wt,
-      label: 'Nuevos (' + c.born + '), perdidos (' + c.lost + ') y borrados tras ' + c.framesLost + ' frames', type: 'tensorop', group: 'resid',
+      label: 'Nuevos (' + c.born + '), perdidos (' + c.lost + ') y borrados con más de ' + c.framesLost + (c.framesLost === 1 ? ' frame' : ' frames') + ' sin detección', type: 'tensorop', group: 'resid',
       outMeta: { label: 'Tracks activos con su id (salida)', tex: '\\{(b_i, \\mathrm{id}_i)\\}' } });
     return g;
   }
@@ -196,8 +209,9 @@
     const costOps = ['cost-1', 'cost-2'].map(op).filter(Boolean).reduce((s, o) => s + o.other, 0);
     const assignOps = ['assign-1', 'assign-2'].map(op).filter(Boolean).reduce((s, o) => s + o.other, 0);
     const iouPairs = c.nTracks * c.nHigh + (c.second ? c.rest * c.nLow : 0);
-    const trackerMacs = trk.macs, trackerOps = 2 * trk.macs + trk.other;
-    return { k, trk, iouOps, costOps, assignOps, iouPairs, trackerMacs, trackerOps, detFlops: 2 * c.detMacs };
+    // Todo en FLOPs: 2 × MACs del Kalman + "otros" del tracker (≈ 1 FLOP por op), contra 2 × MACs del detector.
+    const trackerMacs = trk.macs, trackerOtherOps = trk.other, trackerOps = 2 * trk.macs + trk.other;
+    return { k, trk, iouOps, costOps, assignOps, iouPairs, trackerMacs, trackerOtherOps, trackerOps, detFlops: 2 * c.detMacs };
   }
   function btQuantities(c, r) {
     const p = btParts(c, r);
@@ -211,14 +225,15 @@
   function btMetrics(c, r, o) {
     const p = btParts(c, r), fps = c.fps;
     const kb = (c.n + c.n * c.n) * 8;   // float64 (numpy): media n + covarianza n²
-    const detAct = c.detector === 'yolov8l-640' ? A.metrics('yolov8l-640').actMemPerSample : 0;
-    const det = hwRows(c.detMacs, c.detParams, detAct, 1);
+    // Cota del detector: pesos + cómputo, sin activaciones en los dos detectores (YOLOX-X no tiene modelo en el calculador; YOLOv8-L
+    // lo tiene, pero su actMemPerSample es de entrenamiento). Los dos son compute-bound en Orin y H100: no cambia el número.
+    const det = hwRows(c.detMacs, c.detParams, 0, 1);
     const out = {
       tracker: c.tracker, kalmanImpl: c.impl, stateDim: c.n, measDim: c.m,
       kalmanPredictMacs: p.k.predict, kalmanUpdateMacs: p.k.update, kalmanMacsPerTrack: p.k.predict + p.k.update, kalmanFlopsPerTrack: 2 * (p.k.predict + p.k.update),
       nDet: c.nDet, nHigh: c.nHigh, nLow: c.nLow, nTracks: c.nTracks, matches1: c.m1, matches2: c.m2, updates: c.U, born: c.born, lost: c.lost,
       iouPairs: p.iouPairs, iouOps: p.iouOps + p.costOps, assignSizes: c.second ? [c.n1, c.n2] : [c.n1], assignN1: c.n1, assignN2: c.n2, assignOps: p.assignOps,
-      trackerMacs: p.trackerMacs, trackerFlops: 2 * p.trackerMacs, trackerOps: p.trackerOps, trackerParams: 0,
+      trackerMacs: p.trackerMacs, trackerFlops: 2 * p.trackerMacs, trackerOtherOps: p.trackerOtherOps, trackerOps: p.trackerOps, trackerParams: 0,
       detectorConfig: c.detector, detectorLabel: c.detLabel, detectorParams: c.detParams, detectorMacs: c.detMacs, detectorFlops: p.detFlops,
       trackerShare: p.trackerOps / p.detFlops, trackerShareKalman: 2 * p.trackerMacs / p.detFlops, assignShareTracker: p.assignOps / p.trackerOps,
       framesLost: c.framesLost, secondsLost: c.framesLost / fps, fps,
@@ -242,7 +257,7 @@
   }
   const BT_UNITS = {
     kalmanPredictMacs: 'macs', kalmanUpdateMacs: 'macs', kalmanMacsPerTrack: 'macs', kalmanFlopsPerTrack: 'count', trackerMacs: 'macs', detectorMacs: 'macs',
-    trackerFlops: 'count', trackerOps: 'count', detectorFlops: 'count', iouOps: 'count', assignOps: 'count', iouPairs: 'count',
+    trackerFlops: 'count', trackerOtherOps: 'count', trackerOps: 'count', detectorFlops: 'count', iouOps: 'count', assignOps: 'count', iouPairs: 'count',
     detectorParams: 'params', trackerParams: 'params', trackerShare: 'pct', trackerShareKalman: 'pct', assignShareTracker: 'pct',
     stateDim: 'count', measDim: 'count', nDet: 'count', nHigh: 'count', nLow: 'count', nTracks: 'count', matches1: 'count', matches2: 'count', updates: 'count', born: 'count', lost: 'count',
     assignN1: 'count', assignN2: 'count', framesLost: 'count', secondsLost: 'ratio', fps: 'count', kalmanBytesPerTrack: 'bytes', trackMemBytes: 'bytes', paramMem: 'bytes',
@@ -268,8 +283,11 @@
 
   // ============================================================== depth
   const DA_SRC = 'Yang et al., Depth Anything V2, NeurIPS 2024, arXiv:2406.09414; HF ';
+  // posInterp: interpolación de la tabla de posición en el forward. DINOv2 de HF (Depth Anything): bicúbica, solo si la rejilla
+  // cambia (a 518 devuelve la tabla tal cual). DPT de HF (DPTViTEmbeddings._resize_pos_embed): bilineal y en TODO forward, también a
+  // 384 (24×24 → 24×24). En los dos casos se interpolan las N filas de la rejilla; la del CLS se copia.
   const DEPTH_BASE = { C: 3, res: 518, P: 14, headHidden: 32, factors: [4, 2, 1, 0.5], readout: 'ignore', layerScale: true, tapNorm: true, maskToken: true, finalLnIdle: false,
-    fusionUp: 'to-next', headUp: 'to-input', relative: true, eps: 1e-6, imgSize: 518 };
+    fusionUp: 'to-next', headUp: 'to-input', relative: true, eps: 1e-6, imgSize: 518, posInterp: 'bicubic', posInterpAlways: false };
   const DEPTH_CONFIGS = {
     'depth-anything-v2-small': Object.assign({}, DEPTH_BASE, { label: 'Depth Anything V2 Small (ViT-S/14 @ 518)', canonical: true, D: 384, L: 12, h: 6, Dmlp: 1536, taps: [3, 6, 9, 12],
       neck: [48, 96, 192, 384], F: 64, hf: 'depth-anything/Depth-Anything-V2-Small-hf', source: DA_SRC + 'depth-anything/Depth-Anything-V2-Small-hf (config.json: DINOv2 ViT-S/14, out_indices [3, 6, 9, 12], neck_hidden_sizes [48, 96, 192, 384], fusion_hidden_size 64, head_hidden_size 32, reassemble_factors [4, 2, 1, 0.5]; preprocessor 518×518, múltiplo de 14).' }),
@@ -278,8 +296,8 @@
     'depth-anything-v2-large': Object.assign({}, DEPTH_BASE, { label: 'Depth Anything V2 Large (ViT-L/14 @ 518)', D: 1024, L: 24, h: 16, Dmlp: 4096, taps: [5, 12, 18, 24],
       neck: [256, 512, 1024, 1024], F: 256, hf: 'depth-anything/Depth-Anything-V2-Large-hf', source: DA_SRC + 'depth-anything/Depth-Anything-V2-Large-hf (DINOv2 ViT-L/14, 24 capas, out_indices [5, 12, 18, 24], neck [256, 512, 1024, 1024], fusion 256).' }),
     'dpt-large': Object.assign({}, DEPTH_BASE, { label: 'DPT-Large (ViT-L/16 @ 384)', res: 384, imgSize: 384, P: 16, D: 1024, L: 24, h: 16, Dmlp: 4096, taps: [6, 12, 18, 24],
-      neck: [256, 512, 1024, 1024], F: 256, readout: 'project', layerScale: false, tapNorm: false, maskToken: false, finalLnIdle: true, fusionUp: 'x2', headUp: 'x2', eps: 1e-12,
-      hf: 'Intel/dpt-large', source: 'Ranftl et al., Vision Transformers for Dense Prediction (DPT), ICCV 2021, arXiv:2103.13413; HF Intel/dpt-large (DPTForDepthEstimation: ViT-L/16 a 384, backbone_out_indices [5, 11, 17, 23] = salidas de las capas 6, 12, 18, 24, readout_type project, neck [256, 512, 1024, 1024], fusion 256).' }),
+      neck: [256, 512, 1024, 1024], F: 256, readout: 'project', layerScale: false, tapNorm: false, maskToken: false, finalLnIdle: true, fusionUp: 'x2', headUp: 'x2', eps: 1e-12, posInterp: 'bilinear', posInterpAlways: true,
+      hf: 'Intel/dpt-large', source: 'Ranftl et al., Vision Transformers for Dense Prediction (DPT), ICCV 2021, arXiv:2103.13413; HF Intel/dpt-large (DPTForDepthEstimation: ViT-L/16 a 384, backbone_out_indices [5, 11, 17, 23] = salidas de las capas 6, 12, 18, 24, readout_type project, neck [256, 512, 1024, 1024], fusion 256; la tabla de posición se re-muestrea bilineal en cada forward, modeling_dpt.py _resize_pos_embed).' }),
   };
 
   function dApply(c, ov) {
@@ -288,7 +306,7 @@
       c.res = ov.res;
       if (c.res % c.P !== 0) throw new Error('La resolución ' + c.res + ' no es múltiplo del parche P = ' + c.P + '.');
       if (c.fusionUp === 'x2' && (c.res / c.P) % 2 !== 0) throw new Error('DPT: la rejilla ' + (c.res / c.P) + ' debe ser par (res múltiplo de ' + 2 * c.P + ') para que las fusiones ×2 calcen.');
-      if (c.res !== c.imgSize) notes.push('Position embeddings interpolados en el forward: la tabla guardada sigue siendo de ' + ((c.imgSize / c.P) * (c.imgSize / c.P) + 1) + ' filas (bicúbica a ' + ((c.res / c.P) * (c.res / c.P) + 1) + ').');
+      if (c.res !== c.imgSize) notes.push('Position embeddings interpolados en el forward: la tabla guardada sigue siendo de ' + ((c.imgSize / c.P) * (c.imgSize / c.P) + 1) + ' filas (' + (c.posInterp === 'bilinear' ? 'bilineal' : 'bicúbica') + ' a ' + ((c.res / c.P) * (c.res / c.P) + 1) + '; la del CLS se copia).');
     }
     c._notes = notes;
     return c;
@@ -345,13 +363,16 @@
       path: ['patch-embed', 'conv'], out: 'x-patch-grid', where: Wenc, label: 'Patch embedding (conv P×P, stride P)', type: 'conv', group: 'embed', outMeta: { label: 'Rejilla de parches embebidos', tex: 'X_{\\mathrm{grid}}' } });
     const xp = g.op('patch-flatten', A.flatten(grid, { sym: ['N', 'D'] }), { path: ['patch-embed', 'flatten'], out: 'x-patches', where: Wenc, label: 'Aplanar la rejilla en secuencia', type: 'tensorop', group: 'embed', outMeta: { label: 'Patches embebidos', tex: 'X_p E' } });
     const xc = g.op('cls', A.cls_token(xp, { outSym: 'N+1' }), { path: ['cls'], out: 'x-cls-cat', where: Wenc, label: 'Token CLS (se antepone)', type: 'embed', group: 'embed', outMeta: { label: 'CLS + patches', tex: '[x_{\\mathrm{cls}};\\,X_p E]' } });
-    const pe = A.pos_embed_learned({ rows: c.N + 1, rowsSym: 'N+1', D: c.D, mod: 'img', interpolatedFrom: c.posRows !== c.N + 1 ? c.posRows : null });
-    if (c.posRows !== c.N + 1) {
-      // La tabla guardada no cambia: se interpola (bicúbica) en cada forward. Parámetros = filas guardadas · D.
+    const resized = c.posRows !== c.N + 1, interp = resized || c.posInterpAlways;
+    const pe = A.pos_embed_learned({ rows: c.N + 1, rowsSym: 'N+1', D: c.D, mod: 'img', interpolatedFrom: resized ? c.posRows : null });
+    if (resized) {
+      // La tabla guardada no cambia: se interpola en el forward. Parámetros = filas guardadas · D.
       pe.params = c.posRows * c.D; pe.paramArith = c.posRows + '·' + c.D + ' = ' + fint(pe.params); pe.paramFormula = '(N_0{+}1)\\cdot D';
-      pe.other = (c.N + 1) * c.D * A.OTHER_COST.bicubic;
     }
-    const ep = g.op('pos-embed', pe, { path: ['pos-embed'], out: 'e-pos', where: Wenc, label: 'Position embeddings aprendidos' + (c.posRows !== c.N + 1 ? ' (interpolados de ' + c.posRows + ' filas)' : ''), type: 'embed', group: 'embed',
+    // Costo ≈ de la interpolación: N filas de la rejilla × D × ops por salida (bilineal 4, bicúbica 16). DPT la corre siempre.
+    if (interp) { pe.other = c.N * c.D * A.OTHER_COST[c.posInterp]; pe.detail = Object.assign({}, pe.detail, { interp: c.posInterp, everyForward: !!c.posInterpAlways }); }
+    const modeTxt = c.posInterp === 'bilinear' ? 'bilineal' : 'bicúbica';
+    const ep = g.op('pos-embed', pe, { path: ['pos-embed'], out: 'e-pos', where: Wenc, label: 'Position embeddings aprendidos' + (resized ? ' (interpolación ' + modeTxt + ' de ' + c.posRows + ' filas)' : interp ? ' (re-muestreo ' + modeTxt + ' en cada forward: rejilla ' + (c.imgSize / c.P) + '×' + (c.imgSize / c.P) + ' → ' + c.g + '×' + c.g + ')' : ''), type: 'embed', group: 'embed',
       outMeta: { label: 'Tabla de posición', tex: 'E_{\\mathrm{pos}}' } });
     const x0 = g.op('add-pos', A.add(xc, ep), { path: ['add-pos'], out: 'x0', where: Wenc, label: 'Suma de posición', type: 'tensorop', group: 'embed', outMeta: { label: 'Entrada al encoder', tex: 'x_0' } });
     const xL = c.layerScale
@@ -487,7 +508,9 @@
     paper: { title: 'Depth Anything V2', authors: 'Yang et al.', venue: 'NeurIPS 2024', year: 2024, arxiv: '2406.09414',
       note: 'DPT: Ranftl et al., Vision Transformers for Dense Prediction, ICCV 2021, arXiv:2103.13413. MiDaS: Ranftl et al., TPAMI 2022, arXiv:1907.01341. Depth Anything (V1): Yang et al., CVPR 2024, arXiv:2401.10891.' },
     configs: DEPTH_CONFIGS,
-    knobs: { res: [252, 364, 518, 616, 728] },
+    // res: múltiplos de 14 para Depth Anything (252…728) y de 32 para DPT-Large (384, 768); el explorador apaga los que no valen
+    // para la config (invalidReason), y cada config tiene al menos un valor distinto de su base.
+    knobs: { res: [252, 364, 384, 518, 616, 728, 768] },
     hardware: HW.map((h) => Object.assign({}, h)),
     applyKnobs: dApply,
     resolve: dResolve,
@@ -503,11 +526,11 @@
       source: PN_SRC + 'models/pointnet_cls.py y transform_nets.py (T-Net de entrada 3×3 y de features 64×64; conv 64-64 y 64-128-1024; fc 512-256-40 con dropout keep 0.7; BN en todo salvo la última capa), train.py --num_point 1024.' },
     'pointnet-seg': { label: 'PointNet · segmentación de partes (N = 2,048, 50 partes)', arch: 'pointnet', task: 'seg', N: 2048, K: 50, tnet: 1,
       source: PN_SRC + 'models/pointnet_seg.py (la red de segmentación de la Fig. 2: concat 64 + 1024 = 1088 → 512-256-128-128 → 50); N = 2,048 como part_seg/train.py. Los números de partes del paper usan part_seg/pointnet_part_seg.py, una variante más grande (concatena out1…out5 y la etiqueta de categoría).' },
-    'pointnet-cls-no-tnet': { label: 'PointNet sin T-Nets (vanilla)', arch: 'pointnet', task: 'cls', N: 1024, K: 40, tnet: 0,
+    'pointnet-cls-no-tnet': { label: 'PointNet sin T-Nets (vanilla)', arch: 'pointnet', task: 'cls', N: 1024, K: 40, tnet: 0, dropouts: 1,
       source: PN_SRC + 'models/pointnet_cls_basic.py (conv 64-64-64-128-1024, fc 512-256-40, un solo dropout): la arquitectura de pointnet_cls sin las dos T-Nets.' },
     'pointnet2-ssg-cls': { label: 'PointNet++ SSG · clasificación (N = 1,024)', arch: 'pointnet2', task: 'cls', N: 1024, K: 40, tnet: 0,
       sa: [{ S: 512, r: 0.2, k: 32, mlp: [64, 64, 128] }, { S: 128, r: 0.4, k: 64, mlp: [128, 128, 256] }, { all: true, mlp: [256, 512, 1024] }],
-      source: 'Qi et al., PointNet++, NeurIPS 2017, arXiv:1706.02413; charlesq34/pointnet2 models/pointnet2_cls_ssg.py: SA1 512 centros, r 0.2, 32 vecinos, MLP 64-64-128; SA2 128, r 0.4, 64, MLP 128-128-256; SA3 group_all 256-512-1024; use_xyz (xyz relativo concatenado: +3 canales); fc 512-256-40 con dropout keep 0.5.' },
+      source: 'Qi et al., PointNet++, NeurIPS 2017, arXiv:1706.02413; charlesq34/pointnet2 models/pointnet2_cls_ssg.py: SA1 512 centros, r 0.2, 32 vecinos, MLP 64-64-128; SA2 128, r 0.4, 64, MLP 128-128-256; SA3 group_all 256-512-1024; use_xyz (+3 canales: xyz relativo al centro en SA1 y SA2, absoluto en SA3 con group_all, sample_and_group_all de utils/pointnet_util.py); fc 512-256-40 con dropout keep 0.5.' },
   };
   function pnApply(c, ov) {
     const notes = [];
@@ -570,7 +593,8 @@
       return g;
     }
     const W = ['Cabeza de clasificación'];
-    const f1 = mlp('fc1', gl, 512, ['head', 'fc1'], 'f1', { where: W, label: 'FC 1024 → 512 (+ BN + ReLU; dropout)' });
+    // pointnet_cls.py: dropout tras fc1 y fc2; pointnet_cls_basic.py (sin T-Nets): uno solo, tras fc2.
+    const f1 = mlp('fc1', gl, 512, ['head', 'fc1'], 'f1', { where: W, label: 'FC 1024 → 512 (+ BN + ReLU' + (c.dropouts === 1 ? ')' : '; dropout)') });
     const f2 = mlp('fc2', f1, 256, ['head', 'fc2'], 'f2', { where: W, label: 'FC 512 → 256 (+ BN + ReLU; dropout)' });
     mlp('fc3', f2, c.K, ['head', 'fc3'], 'logits', { where: W, prim: { bn: false, relu: false, coutSym: 'K' }, label: 'FC 256 → K = ' + c.K + ' (logits)', olabel: 'Logits de clase', tex: 'z' });
     return g;
@@ -583,7 +607,7 @@
       if (s.all) {
         // group_all: un único grupo con todos los centros que quedan: [xyz; features] → 1 × S × (3 + C) (aquí S × (3 + C)).
         grp = g.op(sa + '-group', A.concat_global(xyz, feats, { sym: String(3 + Cprev) }), { path: [sa, 'group'], out: sa + '-grouped', where: W,
-          label: 'Agrupar todo: [xyz; features] de los ' + xyz.num[0] + ' centros', type: 'tensorop', group: 'embed', outMeta: { label: 'Un solo grupo con todos los puntos', tex: '[X;\\,H]' } });
+          label: 'Agrupar todo: [xyz absoluto; features] de los ' + xyz.num[0] + ' centros', type: 'tensorop', group: 'embed', outMeta: { label: 'Un solo grupo con todos los puntos', tex: '[X;\\,H]' } });
       } else {
         const ctr = g.op(sa + '-fps', A.fps_sample(xyz, { S: s.S, sym: 'S_' + (j + 1) }), { path: [sa, 'fps'], out: sa + '-xyz', where: W, label: 'Farthest point sampling: ' + s.S + ' centros', type: 'attn', group: 'attn',
           outMeta: { label: s.S + ' centros bien repartidos', tex: 'X_{' + (j + 1) + '}' } });
@@ -596,7 +620,7 @@
       }
       let h = grp;
       s.mlp.forEach((co, q) => { h = mlp(sa + '-mlp' + (q + 1), h, co, [sa, 'mlp' + (q + 1)], sa + '-h' + (q + 1), { where: W }); });
-      feats = g.op(sa + '-pool', A.max_pool_points(h), { path: [sa, 'maxpool'], out: s.all ? 'global' : sa + '-out', where: W, label: 'Max-pool dentro de cada región', type: 'attn', group: 'attn',
+      feats = g.op(sa + '-pool', A.max_pool_points(h), { path: [sa, 'maxpool'], out: s.all ? 'global' : sa + '-out', where: W, label: s.all ? 'Max-pool global sobre los ' + h.num[0] + ' centros' : 'Max-pool dentro de cada región', type: 'attn', group: 'attn',
         outMeta: { label: s.all ? 'Feature global (1024)' : 'Una feature de ' + s.mlp[s.mlp.length - 1] + ' por centro', tex: s.all ? 'g' : 'H_{' + (j + 1) + '}' } });
       Cprev = s.mlp[s.mlp.length - 1];
     });
@@ -617,12 +641,16 @@
     }
     const n = r.totals.byNode, z = { params: 0, macs: 0 };
     const itn = n['input-tnet'] || z, ftn = n['feature-tnet'] || z;
-    return { perPoint, global, pool, itn, ftn };
+    // Cota de puntos críticos = criticalMax del max-pool global (min(entradas, canales)): min(N, 1024) en PointNet; en PointNet++ el
+    // pool global ve los 128 centros de SA2, así que ≤ 128 aunque N crezca.
+    const gp = r.ops.find((x) => x.id === 'max-pool' || x.id === 'sa3-pool');
+    const crit = gp && gp.detail && gp.detail.criticalMax != null ? gp.detail.criticalMax : Math.min(c.N, 1024);
+    return { perPoint, global, pool, itn, ftn, crit, poolGlobal: gp ? gp.other : 0 };
   }
   function pnQuantities(c, r) {
     const p = pnParts(c, r);
     const q = { N: c.N, K: c.K, tokens: c.N, inputTnetParams: p.itn.params, featureTnetParams: p.ftn.params, tnetParams: p.itn.params + p.ftn.params,
-      perPointMacs: p.perPoint, globalMacs: p.global, macsPerPoint: p.perPoint / c.N, maxpoolOps: p.pool, criticalPointsMax: Math.min(c.N, 1024), globalDim: 1024 };
+      perPointMacs: p.perPoint, globalMacs: p.global, macsPerPoint: p.perPoint / c.N, maxpoolOps: p.pool, criticalPointsMax: p.crit, globalDim: 1024 };
     return q;
   }
   function pnMetrics(c, r, o) {
@@ -635,8 +663,8 @@
       inputTnetParams: p.itn.params, featureTnetParams: p.ftn.params, tnetParams: p.itn.params + p.ftn.params, tnetParamsShare: (p.itn.params + p.ftn.params) / t.params,
       tnetMacs: p.itn.macs + p.ftn.macs, tnetMacsShare: (p.itn.macs + p.ftn.macs) / t.macs,
       perPointMacs: p.perPoint, globalMacs: p.global, macsPerPoint: p.perPoint / c.N, perPointMacsShare: p.perPoint / t.macs,
-      maxpoolOps: p.pool, maxpoolShare: p.pool / (2 * t.macs + p.pool), globalDim: 1024, criticalPointsMax: Math.min(c.N, 1024),
-      maxpoolOpsGlobal: (r.ops.find((x) => x.id === 'max-pool' || x.id === 'sa3-pool') || { other: 0 }).other,
+      maxpoolOps: p.pool, maxpoolShare: p.pool / (2 * t.macs + p.pool), globalDim: 1024, criticalPointsMax: p.crit,
+      maxpoolOpsGlobal: p.poolGlobal,
       orthoRegMacs: c.tnet && c.arch === 'pointnet' ? 64 * 64 * 64 : 0,
       msOrin: hw[0].ms, fpsOrin: hw[0].fps, boundOrin: hw[0].bound, msH100: hw[1].ms, fpsH100: hw[1].fps, boundH100: hw[1].bound,
       hardware: hw, hardwareSource: ORIN.source + ' · ' + H100.source, estimate: true,
@@ -649,7 +677,7 @@
     out.nScaling = guarded(() => [512, 1024, 2048, 4096, 16384].filter((N) => c.arch !== 'pointnet2' || N >= c.sa[0].S).map((N) => {
       const rr = A.run(r.id, Object.assign({}, arch, { N })), pp = pnParts(rr.config, rr);
       const mm = A.metrics(r.id, Object.assign({}, arch, { N }));
-      return { N, macs: rr.totals.macs, perPointMacs: pp.perPoint, maxpoolOps: pp.pool, criticalPointsMax: Math.min(N, 1024), fpsOrin: roof(rr.totals.macs, rr.totals.params, mm.actMemPerSample / mm.bytesPerElement * 2, ORIN, 1).fps };
+      return { N, macs: rr.totals.macs, perPointMacs: pp.perPoint, maxpoolOps: pp.pool, criticalPointsMax: pp.crit, fpsOrin: roof(rr.totals.macs, rr.totals.params, mm.actMemPerSample / mm.bytesPerElement * 2, ORIN, 1).fps };
     }));
     return out;
   }

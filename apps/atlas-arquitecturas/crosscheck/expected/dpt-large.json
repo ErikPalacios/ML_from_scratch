@@ -207,7 +207,8 @@
   "notes": [
     "Construido en meta desde la config.json del checkpoint (sin pesos), atención eager. FlopCounterMode = 2 × MACs de convs, conv transpuestas, matmuls y bmm de la atención; las interpolaciones bilineales y la de la posición no cuentan.",
     "params_by_path fusion>fusion-4>rcu1: la RCU 1 de la primera fusión existe pero el forward no la usa (no hay entrada residual): el calculador la cuenta como idle_params.",
-    "DPT-Large: readout 'project' (concatena el CLS a cada token → Linear 2048 → 1024 + GELU); la LayerNorm final de DPTModel se aplica a la última capa pero el neck usa las salidas intermedias (hidden_states 6, 12, 18 y 24) sin ella."
+    "DPT-Large: readout 'project' (concatena el CLS a cada token → Linear 2048 → 1024 + GELU); la LayerNorm final de DPTModel se aplica a la última capa pero el neck usa las salidas intermedias (hidden_states 6, 12, 18 y 24) sin ella.",
+    "DPT-Large: DPTViTEmbeddings._resize_pos_embed re-muestrea la tabla de posición con interpolate(mode='bilinear') en CADA forward, también a 384 (24×24 → 24×24); DINOv2 (Depth Anything) usa bicúbica y solo si la rejilla cambia."
   ],
   "override_checks": [
     {

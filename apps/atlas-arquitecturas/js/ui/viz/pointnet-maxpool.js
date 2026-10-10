@@ -47,7 +47,7 @@
       for (let i = 1; i < 6; i++) P.push([-0.45 + i * 0.17, -0.25]);            // asiento
       for (let i = 1; i < 6; i++) P.push([-0.45, -0.25 - i * 0.14]);            // pata trasera
       for (let i = 1; i < 6; i++) P.push([0.4, -0.25 - i * 0.14]);              // pata delantera
-      P.push([0.4, -0.25], [-0.2, 0.55]);
+      P.push([-0.2, 0.85], [-0.2, 0.55]);
       return P;
     }
     const P = [];

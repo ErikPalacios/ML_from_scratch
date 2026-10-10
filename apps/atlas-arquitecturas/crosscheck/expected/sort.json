@@ -316,7 +316,7 @@
   "notes": [
     "Carga de referencia del calculador (knobs por defecto): nDet 50 (40 altas + 10 bajas, lowPct 20), nTracks 50, fps 30.",
     "MACs del tracker = productos de matrices del Kalman contados en las llamadas reales con sus formas (np.dot, multi_dot, solve, inv, cho_factor, cho_solve; factorizaciones con las fórmulas de libro). IoU y asignación no son MACs (el calculador las pone en 'otros' ≈).",
-    "SORT solo usa las detecciones altas (40): 40 updates; los 10 tracks restantes quedan sin pareja y, con max_age 1, se borran al frame siguiente.",
+    "SORT solo usa las detecciones altas (40): 40 updates; los 10 tracks restantes quedan sin pareja (time_since_update = 1) y, con max_age 1, sobreviven este frame: sort.py borra cuando time_since_update > max_age, o sea si tampoco aparecen en el siguiente.",
     "filterpy: predict = F·x 49 + F·P·Fᵀ 686; update = P·Hᵀ 196 + H·x 28 + H·PHᵀ 112 + inv(S) 62 + PHᵀ·S⁻¹ 112 + K·y 28 + K·H 196 + (I−KH)·P·(I−KH)ᵀ 686 + K·R·Kᵀ 308 (forma de Joseph).",
     "lapjv con extend_cost y sin cost_limit: cuadrada de lado máx(T, D) = 50."
   ]

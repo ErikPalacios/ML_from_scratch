@@ -527,8 +527,8 @@ def tracking():
         "kalman": {"filterpy": so}, "detector": yx, "frame_port": sfr,
         "source": {"lib": "filterpy 1.4.5 (KalmanFilter real) + matrices de abewley/sort", "versions": versions()},
         "notes": common_notes + [
-            "SORT solo usa las detecciones altas (40): 40 updates; los 10 tracks restantes quedan sin pareja y, con max_age 1, se borran "
-            "al frame siguiente.",
+            "SORT solo usa las detecciones altas (40): 40 updates; los 10 tracks restantes quedan sin pareja (time_since_update = 1) y, "
+            "con max_age 1, sobreviven este frame: sort.py borra cuando time_since_update > max_age, o sea si tampoco aparecen en el siguiente.",
             "filterpy: predict = F·x 49 + F·P·Fᵀ 686; update = P·Hᵀ 196 + H·x 28 + H·PHᵀ 112 + inv(S) 62 + PHᵀ·S⁻¹ 112 + K·y 28 + K·H 196 + "
             "(I−KH)·P·(I−KH)ᵀ 686 + K·R·Kᵀ 308 (forma de Joseph).",
             "lapjv con extend_cost y sin cost_limit: cuadrada de lado máx(T, D) = 50.",
@@ -709,7 +709,9 @@ def depth(cid):
         ] + (["Depth Anything: la LayerNorm final de DINOv2 se aplica a CADA una de las 4 salidas intermedias (Dinov2Backbone, "
               "apply_layernorm); el mask_token (iBOT) no se usa en inferencia; el CLS se descarta antes del reassemble."] if kind == "da" else
              ["DPT-Large: readout 'project' (concatena el CLS a cada token → Linear 2048 → 1024 + GELU); la LayerNorm final de DPTModel "
-              "se aplica a la última capa pero el neck usa las salidas intermedias (hidden_states 6, 12, 18 y 24) sin ella."]),
+              "se aplica a la última capa pero el neck usa las salidas intermedias (hidden_states 6, 12, 18 y 24) sin ella.",
+              "DPT-Large: DPTViTEmbeddings._resize_pos_embed re-muestrea la tabla de posición con interpolate(mode='bilinear') en CADA "
+              "forward, también a 384 (24×24 → 24×24); DINOv2 (Depth Anything) usa bicúbica y solo si la rejilla cambia."]),
     }
     oc_res = 364 if kind == "da" else 512
     sh2, fl2, total2 = depth_forward(model, kind, oc_res)
@@ -831,7 +833,7 @@ class SA(nn.Module):
 
     def forward(s, xyz, feats):   # xyz N×3, feats N×C o None
         if s.S is None:
-            g = torch.cat([xyz, feats], -1)[None]                       # 1 × N × (3 + C): group_all
+            g = torch.cat([xyz, feats], -1)[None]                       # 1 × N × (3 + C): group_all, xyz ABSOLUTO (sample_and_group_all)
             new_xyz = torch.zeros(1, 3)
         else:
             new_xyz = xyz[fps(xyz, s.S)]

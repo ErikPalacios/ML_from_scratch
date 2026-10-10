@@ -8,7 +8,7 @@
        1ª pasada: tracks activos + perdidos × detecciones ALTAS (s > track_thresh), costo 1 − IoU·s, umbral match_thresh.
        2ª pasada: los tracks activos que quedaron × detecciones BAJAS (0.1 < s < track_thresh), costo 1 − IoU, umbral 0.5.
        Detecciones altas sin pareja con s ≥ track_thresh + 0.1 → tracks nuevos; tracks sin pareja → perdidos (se borran tras
-       max_time_lost frames); bajas sin pareja → se descartan (son casi siempre fondo). Los tracks "sin confirmar" (de un frame)
+       más de max_time_lost frames seguidos sin detección); bajas sin pareja → se descartan (son casi siempre fondo). Los tracks "sin confirmar" (de un frame)
        tienen su propia pasada con umbral 0.7: aquí no hay ninguno.
      SORT (Bewley et al., ICIP 2016, arXiv:1602.00763; sort.py): una pasada con las detecciones altas, asignación completa que
        maximiza el IoU y después se descartan las parejas con IoU < 0.3; las bajas se tiran antes de asociar.
@@ -237,7 +237,7 @@
       sc.tracks.forEach((tk) => {
         const f = res.fate.tracks[tk.id];
         if (f && f.det) li('<b>T' + tk.id + '</b> ← d' + f.det + (f.pass === 2 ? ' en la <b>2ª pasada</b> (score ' + sc.dets.find((d) => d.id === f.det).s.toFixed(2) + ')' : '') + ': update del Kalman, mismo id');
-        else li('<b>T' + tk.id + '</b>: sin detección → <b>perdido</b>' + (state.method === 'sort' ? ' (SORT lo borra con max_age = 1: si vuelve, id nuevo)' : ' (se sigue prediciendo; se borra después de ' + maxLost + ' frames)'));
+        else li('<b>T' + tk.id + '</b>: sin detección → <b>perdido</b>' + (state.method === 'sort' ? ' (SORT, max_age = 1: aguanta un frame sin detección; si tampoco aparece en el siguiente, se borra y, si vuelve, id nuevo)' : ' (se sigue prediciendo; se borra si pasa más de ' + maxLost + ' frames seguidos sin detección)'));
       });
       sc.dets.forEach((d) => {
         const f = res.fate.dets[d.id];

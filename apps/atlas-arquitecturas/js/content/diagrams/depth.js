@@ -65,7 +65,7 @@
       { id: 'head', op: 'head', costOf: 'head', label: 'Cabeza', sub: 'conv, ↑ H×W, conv, ReLU', x: 30, y: 42, w: 24, h: 10,
         tex: 'd = \\mathrm{ReLU}(\\mathrm{Conv}_{1\\times1}(\\mathrm{ReLU}(\\mathrm{Conv}_{3\\times3}(\\mathrm{Up}(\\mathrm{Conv}_{3\\times3}(g_1))))))',
         note: 'conv 3×3 (F → F/2), upsample bilineal a la resolución de entrada, conv 3×3 (→ 32), ReLU, conv 1×1 (→ 1) y ReLU: disparidad relativa ≥ 0 (el cielo, 0). Las convs a resolución completa hacen que la cabeza pese en MACs y en memoria de activaciones aunque tenga pocos parámetros. La versión métrica termina en sigmoide × profundidad máxima.' },
-      { id: 'depth', op: 'io', label: 'Profundidad relativa', sub: 'disparidad, H×W', expand: 'scale-shift', x: 2, y: 42, w: 24, h: 10,
+      { id: 'depth', op: 'io', label: 'Profundidad relativa', sub: 'disparidad, H×W', subNum: 'disparidad, {{tensor.depth.shape}}', expand: 'scale-shift', x: 2, y: 42, w: 24, h: 10,
         note: 'Un número por píxel: disparidad (1/profundidad) relativa, correcta salvo una escala y un desplazamiento por imagen. Ábrelo para ver cómo se entrena con eso y qué hace falta para tener metros.' },
       { id: 'macs-bars', op: 'io', hideInBlank: true, label: 'MACs: encoder vs cabeza', x: 2, y: 57, w: 146, h: 24,
         bars: { unit: 'macs', labelW: 24, totalW: 12, rows: ROWS, segs: [{ op: 'attn', n: 'metrics.encoderMacs', label: 'encoder ViT' }, { op: 'conv', n: 'metrics.decoderMacs', label: 'cabeza DPT (reassemble + fusión + cabeza)' }],
@@ -75,8 +75,9 @@
     edges: [
       { from: 'image', to: 'patch-embed', kind: 'data', tensor: 'x-img', label: false },
       { from: 'patch-embed', to: 'encoder', kind: 'data', tensor: 'x0', label: false },
-      ...[0, 1, 2, 3].map((k) => ({ from: 'encoder', to: 'reassemble-' + (k + 1), kind: 'data', tensor: 'tap-' + (k + 1), fromSide: 'bottom', toSide: 'top', fromAt: TAP_AT[k], toAt: 0.5, labelSide: 'right', labelT: 0.5 })),
-      ...[0, 1, 2, 3].map((k) => ({ from: 'reassemble-' + (k + 1), to: 'fusion-' + (k + 1), kind: 'data', tensor: 'feat-' + (k + 1), labelSide: 'right', labelT: 0.5 })),
+      ...[0, 1, 2, 3].map((k) => ({ from: 'encoder', to: 'reassemble-' + (k + 1), kind: 'data', tensor: 'tap-' + (k + 1), fromSide: 'bottom', toSide: 'top', fromAt: TAP_AT[k], toAt: 0.5, labelSide: 'left', labelT: 0.5 })),
+      // rótulos a la izquierda de cada columna: a la derecha, el de la rama ×½ ((⌈H/2P⌉)×(⌈W/2P⌉)×F) se salía del dibujo
+      ...[0, 1, 2, 3].map((k) => ({ from: 'reassemble-' + (k + 1), to: 'fusion-' + (k + 1), kind: 'data', tensor: 'feat-' + (k + 1), labelSide: 'left', labelT: 0.5 })),
       { from: 'fusion-4', to: 'fusion-3', kind: 'data', tensor: 'fused-4', label: false },
       { from: 'fusion-3', to: 'fusion-2', kind: 'data', tensor: 'fused-3', label: false },
       { from: 'fusion-2', to: 'fusion-1', kind: 'data', tensor: 'fused-2', label: false },
@@ -84,7 +85,7 @@
       { from: 'head', to: 'depth', kind: 'data', tensor: 'depth', label: false },
     ],
     walks: [
-      { id: 'forward', label: 'Recorrido con números (Depth Anything V2 Small a 518)', steps: [
+      { id: 'forward', label: 'Recorrido con números (la config dibujada)', steps: [
         { nodes: ['image', 'patch-embed'], edges: ['image>patch-embed', 'patch-embed>encoder'], tensors: ['x-img', 'x0'],
           text: 'La imagen de <b>' + q('tensor.x-img.shape') + '</b> se corta en parches de ' + q('metrics.P') + ': <b>' + q('tensor.x-patches.shape') + '</b>; con [CLS] y posición, <b>' + q('tensor.x0.shape') + '</b> tokens.' },
         { nodes: ['encoder'], edges: ['patch-embed>encoder'], tensors: ['x0'],
@@ -92,11 +93,11 @@
         { nodes: ['encoder', 'reassemble-1', 'reassemble-2', 'reassemble-3', 'reassemble-4'], edges: ['encoder>reassemble-1', 'encoder>reassemble-2', 'encoder>reassemble-3', 'encoder>reassemble-4'], tensors: ['tap-1', 'tap-2', 'tap-3', 'tap-4'],
           text: 'Cuatro taps (las capas resaltadas: un cuarto, la mitad, tres cuartos y la última en S y B) dan cuatro copias de <b>' + q('tensor.tap-1.shape') + '</b>: detalle local en las tempranas, contexto en las profundas.' },
         { expand: 'reassemble', nodes: ['rs-read', 'rs-grid', 'rs-proj', 'rs-resample'], edges: ['rs-read>rs-grid', 'rs-grid>rs-proj', 'rs-proj>rs-resample'], tensors: ['tok-1', 'grid-1', 'proj-1', 'rs-1'],
-          text: 'Reassemble del tap 1: sin el [CLS] (<b>' + q('tensor.tok-1.shape') + '</b>), a la rejilla (<b>' + q('tensor.grid-1.shape') + '</b>), conv 1×1 a <b>' + q('tensor.proj-1.shape') + '</b> y conv transpuesta ×4: <b>' + q('tensor.rs-1.shape') + '</b>.' },
+          text: 'Reassemble del tap 1: sin el [CLS] (Depth Anything lo descarta; DPT-Large lo concatena a cada token y proyecta: <b>' + q('tensor.tok-1.shape') + '</b>), a la rejilla (<b>' + q('tensor.grid-1.shape') + '</b>), conv 1×1 a <b>' + q('tensor.proj-1.shape') + '</b> y conv transpuesta ×4: <b>' + q('tensor.rs-1.shape') + '</b>.' },
         { nodes: ['reassemble-1', 'reassemble-2', 'reassemble-3', 'reassemble-4'], edges: ['reassemble-1>fusion-1', 'reassemble-2>fusion-2', 'reassemble-3>fusion-3', 'reassemble-4>fusion-4'], tensors: ['feat-1', 'feat-2', 'feat-3', 'feat-4'],
           text: 'Las cuatro escalas, todas con F canales: <b>' + q('tensor.feat-1.shape') + '</b>, <b>' + q('tensor.feat-2.shape') + '</b>, <b>' + q('tensor.feat-3.shape') + '</b> y <b>' + q('tensor.feat-4.shape') + '</b> (×4, ×2, ×1 y ×½ de la rejilla). Reassemble entero: ' + q('metrics.reassembleMacs') + '.' },
         { nodes: ['fusion-4', 'fusion-3', 'fusion-2', 'fusion-1'], edges: ['fusion-4>fusion-3', 'fusion-3>fusion-2', 'fusion-2>fusion-1'], tensors: ['fused-4', 'fused-3', 'fused-2', 'fused-1'],
-          text: 'Fusión de grueso a fino: cada bloque suma la escala más gruesa ya procesada con la suya y sube ×2, hasta <b>' + q('tensor.fused-1.shape') + '</b>. Fusión: ' + q('metrics.fusionMacs') + '.' },
+          text: 'Fusión de grueso a fino: cada bloque suma la escala más gruesa ya procesada con la suya y sube a la escala siguiente (×2, o al tamaño exacto: 19 → 37 en Depth Anything), hasta <b>' + q('tensor.fused-1.shape') + '</b>. Fusión: ' + q('metrics.fusionMacs') + '.' },
         { nodes: ['head', 'depth'], edges: ['fusion-1>head', 'head>depth'], tensors: ['depth'],
           text: 'La cabeza sube a la resolución de entrada y da <b>' + q('tensor.depth.shape') + '</b>: un número por píxel (' + q('metrics.headMacs') + ': convs a resolución completa).' },
         { nodes: ['macs-bars'], edges: [], tensors: [],
@@ -133,7 +134,7 @@
       { id: 'rs-neck', op: 'conv', ops: ['neck-conv-1'], opsExact: true, label: 'Conv 3×3 → F', sub: 'sin sesgo', x: 24, y: 67, w: 36, h: 7, note: 'Lleva cada escala a los mismos F canales, para poder sumarlas en la fusión.' },
       { id: 'rs-out', op: 'io', label: 'A la fusión 1', x: 30, y: 78, w: 24, h: 6, note: 'Entra al bloque de fusión de la escala más fina.' },
       { id: 'rs-scales', op: 'io', hideInBlank: true, label: 'Las 4 escalas', sub: 'después del resample', subNum: '×4: {{tensor.rs-1.shape}}\n×2: {{tensor.rs-2.shape}}\n×1: {{tensor.rs-3.shape}}\n×½: {{tensor.rs-4.shape}}', x: 70, y: 38, w: 32, h: 15,
-        note: 'Las cuatro ramas tienen la misma estructura: cambian los canales de la conv 1×1 y el re-muestreo (×4, ×2, ×1, ×½ de la rejilla de parches). Con patch 16 (DPT-Large) son 1/4, 1/8, 1/16 y 1/32 de la imagen; con patch 14 (Depth Anything) los strides en píxeles son 3.5, 7, 14 y ≈ 27.' },
+        note: 'Las cuatro ramas tienen la misma estructura: cambian los canales de la conv 1×1 y el re-muestreo (×4, ×2, ×1, ×½ de la rejilla de parches). Con patch 16 (DPT-Large) son 1/4, 1/8, 1/16 y 1/32 de la imagen; con patch 14 (Depth Anything) los strides en píxeles son 3.5, 7, 14 y ≈ 27 (518/19; nominal 28).' },
     ],
     edges: [
       { from: 'rs-in', to: 'rs-ln', kind: 'data', tensor: 'tap-1', labelSide: 'right', labelT: 0.5, when: IS_DA },
@@ -144,7 +145,7 @@
       { from: 'rs-grid', to: 'rs-proj', kind: 'data', tensor: 'grid-1', labelSide: 'right', labelT: 0.5 },
       { from: 'rs-proj', to: 'rs-resample', kind: 'data', tensor: 'proj-1', labelSide: 'right', labelT: 0.5 },
       { from: 'rs-resample', to: 'rs-neck', kind: 'data', tensor: 'rs-1', labelSide: 'right', labelT: 0.5 },
-      { from: 'rs-neck', to: 'rs-out', kind: 'data', tensor: 'feat-1', labelSide: 'right', labelT: 0.5 },
+      { from: 'rs-neck', to: 'rs-out', kind: 'data', tensor: 'feat-1', labelSide: 'right', labelT: 0.5, blankHide: 'rs-1' },
     ],
     legend: 'auto',
   }, PAGE));
@@ -153,7 +154,7 @@
   register(Object.assign({
     id: 'scale-shift', model: 'depth', calc: false, calcNote: 'Vista conceptual de la pérdida y de la salida: no agrega cómputo a la red (la alineación son unas sumas por imagen). La visualización de la página hace las cuentas.',
     kind: 'arch', title: 'Relativa vs métrica', parent: 'depth-overview', parentNode: 'depth',
-    caption: 'La red relativa predice disparidad correcta salvo una escala y un desplazamiento por imagen: con una sola imagen no se puede saber si la escena es chica y cercana o grande y lejana, y los datasets de entrenamiento usan unidades distintas. Al entrenar (arriba), la predicción se alinea con la verdad por imagen, (s, t) por mínimos cuadrados o mediana y escala, y recién entonces se mide el error (ℒ_{ssi} de MiDaS). Para metros (abajo) hace falta otra información: una cabeza métrica afinada en un dominio, los intrínsecos de la cámara o medidas externas (LiDAR, ToF, SLAM) para fijar s y t.',
+    caption: 'La red relativa predice disparidad correcta salvo una escala y un desplazamiento por imagen: con una sola imagen no se puede saber si la escena es chica y cercana o grande y lejana, y los datasets de entrenamiento usan unidades distintas. Al entrenar (arriba), la predicción se alinea con la verdad por imagen, (s, t) por mínimos cuadrados o mediana y escala, y recién entonces se mide el error (ℒ<sub>ssi</sub> de MiDaS). Para metros (abajo) hace falta otra información: una cabeza métrica afinada en un dominio, los intrínsecos de la cámara o medidas externas (LiDAR, ToF, SLAM) para fijar s y t.',
     grid: { w: 130, h: 52 }, direction: 'lr', maxCrossings: 0,
     mobileFocus: ['ss-align', 'ss-metric'], mobileFocusPad: 1,
     opLegend: { attn: 'La red (encoder ViT + DPT)', fuse: 'Alineación por imagen (2 números)', head: 'Pérdida / cabeza métrica' },
@@ -164,16 +165,16 @@
     ],
     nodes: [
       { id: 'ss-img', op: 'io', label: 'Imagen', image: true, x: 2, y: 4, w: 11, h: 11, note: 'Una imagen RGB; ningún dato de la cámara.' },
-      { id: 'ss-net', op: 'attn', label: 'Red relativa', sub: 'ViT + cabeza DPT', x: 19, y: 5, w: 18, h: 10, note: 'La red de la vista general: termina en ReLU (disparidad ≥ 0).' },
+      { id: 'ss-net', op: 'attn', label: 'Red relativa', sub: 'ViT + cabeza DPT', x: 21, y: 5, w: 16, h: 10, note: 'La red de la vista general: termina en ReLU (disparidad ≥ 0).' },
       { id: 'ss-pred', op: 'io', label: 'Predicción d̂', sub: 'disparidad relativa', x: 43, y: 5, w: 19, h: 10, note: 'Correcta salvo s y t: d̂ ≈ (d* − t)/s. Ordena bien lo que está más cerca y más lejos.' },
       { id: 'ss-gt', op: 'io', label: 'Verdad d*', sub: 'disparidad del dataset', x: 68, y: 19, w: 26, h: 9, note: 'De estéreo, LiDAR, SfM o sintética, cada dataset con su escala (y a veces su desplazamiento). En Depth Anything V2, pseudo-etiquetas del maestro.' },
       { id: 'ss-align', op: 'fuse', label: '(s, t) por imagen', sub: 'mín Σ (s·d̂ + t − d*)²', x: 68, y: 4, w: 26, h: 11,
         tex: '(s, t) = \\arg\\min_{s,t} \\sum_i (s\\,\\hat d_i + t - d^*_i)^2', note: 'Mínimos cuadrados con forma cerrada (ecuaciones normales de 2×2), o la versión robusta: t = mediana, s = desviación media absoluta, en la predicción y en la verdad por separado (Depth Anything).' },
-      { id: 'ss-loss', op: 'head', label: 'Pérdida ℒ_ssi', sub: '1/2M Σ ρ(s·d̂ + t − d*)', x: 100, y: 4, w: 28, h: 11,
+      { id: 'ss-loss', op: 'head', label: 'Pérdida ℒ_ssi', sub: '1/2M Σ ρ(s·d̂ + t − d*)', x: 104, y: 4, w: 24, h: 11,
         tex: '\\mathcal{L}_{ssi} = \\frac{1}{2M} \\sum_{i=1}^{M} \\rho\\big(s\\,\\hat d_i + t - d^*_i\\big)', note: 'MiDaS (Ranftl et al., TPAMI 2022): ρ = cuadrado (ssimse) o valor absoluto con el 20 % de residuos más grandes recortado (ssitrim). Invariante a escala y desplazamiento: permite mezclar datasets con unidades distintas. Se suma un término de gradiente multi-escala para bordes nítidos.' },
       { id: 'ss-intr', op: 'io', label: 'Intrínsecos / sensor', sub: 'focal f, LiDAR, ToF', x: 19, y: 37, w: 20, h: 10, note: 'Lo que fija la escala: la focal de la cámara (Metric3D normaliza a una cámara canónica; Depth Pro la estima) o unas pocas medidas métricas de otro sensor.' },
-      { id: 'ss-metric', op: 'head', label: 'Cabeza métrica', sub: 'o alinear con medidas', x: 68, y: 37, w: 26, h: 10, note: 'Tres caminos: afinar una cabeza métrica en un dominio (Depth Anything V2 metric, ZoeDepth; termina en sigmoide × profundidad máxima), condicionar en la cámara, o estimar s y t con medidas externas (dos incógnitas: hacen falta al menos dos medidas).' },
-      { id: 'ss-m', op: 'io', label: 'Profundidad en metros', sub: 'z = 1/(s·d̂ + t)', x: 100, y: 37, w: 28, h: 10, note: 'Un ajuste afín en disparidad no es una escala en profundidad: z = 1/(s·d̂ + t).' },
+      { id: 'ss-metric', op: 'head', label: 'Cabeza métrica', sub: 'o alinear con medidas', x: 68, y: 37, w: 26, h: 10, note: 'Tres caminos: afinar una cabeza métrica en un dominio (Depth Anything V2 metric, que termina en sigmoide × profundidad máxima; ZoeDepth, con "metric bins"), condicionar en la cámara, o estimar s y t con medidas externas (dos incógnitas: hacen falta al menos dos medidas).' },
+      { id: 'ss-m', op: 'io', label: 'Profundidad en metros', sub: 'z = 1/(s·d̂ + t)', x: 104, y: 37, w: 24, h: 10, note: 'Un ajuste afín en disparidad no es una escala en profundidad: z = 1/(s·d̂ + t).' },
     ],
     edges: [
       { from: 'ss-img', to: 'ss-net', kind: 'data', tag: 'RGB', tagStyle: 'plain', tagSide: 'above', tagT: 0.5 },

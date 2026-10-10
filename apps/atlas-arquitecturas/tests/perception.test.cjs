@@ -254,3 +254,75 @@ test('F14 run / metrics de todas las configs nuevas, cantidades en prosa y cross
   assert.strictEqual(Q.get('bytetrack-mot17.metrics.matchThresh').text, '0.9');
   assert.ok(Q.get('depth-anything-v2-small.metrics.decoderMacs').text.includes('MACs'));
 });
+
+// ---------------------------------------------------------------- revisión de la fase 14
+test('F14 revisión: tracker vs detector en FLOPs, lapjv extendido, regla de borrado y umbral alto', () => {
+  const m = A.metrics('bytetrack-mot17'), r = A.run('bytetrack-mot17');
+  // trackerOps = FLOPs del Kalman + "otros" del tracker; la fracción es contra los FLOPs (2 × MACs) del detector
+  assert.strictEqual(m.trackerOps, m.trackerFlops + m.trackerOtherOps);
+  assert.strictEqual(m.trackerFlops, 2 * m.trackerMacs);
+  assert.strictEqual(m.trackerOtherOps, r.totals.byNode.tracker.other);
+  assert.strictEqual(m.detectorFlops, 2 * m.detectorMacs);
+  assert.strictEqual(m.trackerShare, m.trackerOps / m.detectorFlops);
+  assert.strictEqual(m.trackerShareKalman, m.trackerFlops / m.detectorFlops);
+  // las matmuls del Kalman SÍ están en los MACs totales
+  assert.strictEqual(r.totals.macs, m.detectorMacs + m.trackerMacs);
+  // lapjv: lado T + D por pasada (ByteTrack) y máx(T, D) en SORT; la etiqueta lo dice
+  assert.match(op(r, 'assign-1').label, /90×90, extendida/);
+  assert.match(op(r, 'assign-1').detail.note, /50 \+ 40 = 90/);
+  assert.match(op(A.run('sort'), 'assign-1').detail.note, /máx\(50, 40\) = 50/);
+  // 2.ª pasada: filas = r (cota con los perdidos), dicho en la nota del tensor
+  assert.match(r.tensors['iou-2'].note, /cota/);
+  // borrado: "> buffer" → aguanta framesLost frames sin detección (SORT max_age 1: uno)
+  assert.match(op(A.run('sort'), 'track-manage').label, /más de 1 frame sin detección/);
+  assert.match(op(r, 'track-manage').label, /más de 30 frames sin detección/);
+  // umbral alto: oficial ">", ultralytics "≥"
+  assert.match(op(r, 'split-score').label, /altas \(> 0\.6\)/);
+  assert.match(op(A.run('bytetrack-ultralytics'), 'split-score').label, /altas \(≥ 0\.25\)/);
+  // SORT: costo −IoU y se descartan IoU < 0.3 (no "costo > 0.7")
+  assert.match(A.run('sort').tensors['cost-1'].label, /IoU < 0\.3/);
+});
+
+test('F14 revisión: DPT interpola la posición bilineal en cada forward; DINOv2 bicúbica solo si cambia la rejilla', () => {
+  const pe = (id, ov) => op(A.run(id, ov || {}), 'pos-embed');
+  // DPT-Large: bilineal a 384 (24×24 → 24×24) y a 768 (→ 48×48); N filas × D × 4 ops
+  assert.strictEqual(pe('dpt-large').other, 576 * 1024 * 4);
+  assert.strictEqual(pe('dpt-large', { res: 768 }).other, 48 * 48 * 1024 * 4);
+  assert.match(pe('dpt-large').label, /bilineal/);
+  assert.ok(A.run('dpt-large', { res: 768 }).notes.some((n) => /bilineal/.test(n)));
+  // Depth Anything a 518: sin interpolación; a 364: bicúbica (16 ops) de las 26² filas
+  assert.strictEqual(pe('depth-anything-v2-small').other, 0);
+  assert.strictEqual(pe('depth-anything-v2-small', { res: 364 }).other, 26 * 26 * 384 * 16);
+  // los parámetros no cambian
+  assert.strictEqual(A.run('dpt-large', { res: 768 }).totals.params, A.run('dpt-large').totals.params);
+});
+
+test('F14 revisión: cada config de cada modelo tiene al menos un valor de knob válido distinto de su base', () => {
+  for (const model of ['bytetrack', 'depth', 'pointnet']) {
+    const knobs = A.model(model).knobs;
+    for (const { id } of A.configs(model)) {
+      const cfg = A.run(id).config;
+      for (const k of Object.keys(knobs)) {
+        const ok = knobs[k].filter((v) => v !== cfg[k] && (() => { try { A.metrics(id, { [k]: v }); return true; } catch (e) { return false; } })());
+        // tnet solo aplica a PointNet; en PointNet++ ningún valor es válido a propósito
+        if (k === 'tnet' && cfg.arch === 'pointnet2') { assert.strictEqual(ok.length, 0); continue; }
+        assert.ok(ok.length >= 1, id + ': ningún valor válido de ' + k);
+      }
+    }
+  }
+  assert.ok(A.model('depth').knobs.res.indexOf(768) >= 0);
+});
+
+test('F14 revisión: PointNet++ acota los puntos críticos con los 128 centros; SA3 usa xyz absoluto; un dropout sin T-Nets', () => {
+  const m2 = A.metrics('pointnet2-ssg-cls');
+  assert.strictEqual(m2.criticalPointsMax, 128);
+  assert.ok(m2.nScaling.every((x) => x.criticalPointsMax === 128));
+  assert.strictEqual(A.metrics('pointnet-cls').criticalPointsMax, 1024);
+  assert.strictEqual(A.metrics('pointnet-cls', { N: 512 }).criticalPointsMax, 512);
+  const r2 = A.run('pointnet2-ssg-cls');
+  assert.match(op(r2, 'sa3-group').label, /absoluto/);
+  assert.match(op(r2, 'sa3-pool').label, /global/);
+  assert.match(A.model('pointnet').configs['pointnet2-ssg-cls'].source, /absoluto en SA3/);
+  assert.ok(!/dropout/.test(op(A.run('pointnet-cls-no-tnet'), 'fc1').label));
+  assert.match(op(A.run('pointnet-cls'), 'fc1').label, /dropout/);
+});

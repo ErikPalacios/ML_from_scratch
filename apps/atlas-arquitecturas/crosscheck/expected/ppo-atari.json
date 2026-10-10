@@ -1,0 +1,132 @@
+{
+  "config_id": "ppo-atari",
+  "model": "rl-ppo",
+  "params_total": 1686693,
+  "params_by_node": {
+    "trunk": 1684128,
+    "actor": 2052,
+    "critic": 513,
+    "conv1": 8224,
+    "fc": 1606144
+  },
+  "shapes": {
+    "obs": [
+      84,
+      84,
+      4
+    ],
+    "action": [
+      1
+    ],
+    "logp": [
+      1
+    ],
+    "t-c1": [
+      20,
+      20,
+      32
+    ],
+    "t-a1": [
+      20,
+      20,
+      32
+    ],
+    "t-c2": [
+      9,
+      9,
+      64
+    ],
+    "t-a2": [
+      9,
+      9,
+      64
+    ],
+    "t-c3": [
+      7,
+      7,
+      64
+    ],
+    "t-a3": [
+      7,
+      7,
+      64
+    ],
+    "t-flat": [
+      3136
+    ],
+    "t-fc": [
+      512
+    ],
+    "features": [
+      512
+    ],
+    "act-logits": [
+      4
+    ],
+    "value": [
+      1
+    ],
+    "rollout": [
+      128,
+      8
+    ],
+    "advantages": [
+      128,
+      8
+    ],
+    "returns": [
+      128,
+      8
+    ],
+    "reward": [
+      1
+    ]
+  },
+  "flops_total": 18691072,
+  "flops_by_op": {
+    "aten.convolution": 15474688,
+    "aten.addmm": 3216384
+  },
+  "metrics_checks": {
+    "rolloutMacs": 9644576768,
+    "updateMacs": 76062130176,
+    "trainMacsPerSample": 24759808,
+    "rolloutBufferBytes": 115634176
+  },
+  "update_flops_by_op": {
+    "aten.convolution": 47538241536,
+    "aten.addmm": 9880731648,
+    "aten.mm": 19761463296,
+    "aten.convolution_backward": 74943823872
+  },
+  "source": {
+    "lib": "torch (transcrito de CleanRL cleanrl/ppo_atari.py, fe8d8a0)",
+    "ctor": "Agent: Nature-CNN + actor 512 → 4 + critic 512 → 1",
+    "env": {
+      "actions": 4,
+      "meanings": [
+        "NOOP",
+        "FIRE",
+        "RIGHT",
+        "LEFT"
+      ]
+    },
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "torchvision": "0.29.1",
+      "gymnasium": "1.4.0",
+      "mujoco": "3.15.0",
+      "ale-py": "0.12.1",
+      "diffusers": "0.41.0",
+      "numpy": "2.5.3"
+    }
+  },
+  "notes": [
+    "Nature-CNN compartida: el tronco corre una vez por paso y alimenta al actor y al crítico.",
+    "Iteración real con los hiperparámetros de la Tabla 5 del paper (8 × 128, 3 épocas, 4 minibatches de 256; CleanRL usa 4 épocas por defecto).",
+    "obs se guarda en float32 en el buffer de CleanRL (4×84×84 por paso): domina los bytes del rollout."
+  ]
+}

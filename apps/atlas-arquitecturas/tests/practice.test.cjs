@@ -784,3 +784,25 @@ test('fase 11 (revisión): tarjetas de ANN solo con los símbolos de su índice;
   assert.strictEqual(P._fMetric('crossVsBiPerQuery', 3814994.6), '×3,810,000');
   assert.match(P._metricNote('bandwidth', 'ann'), /EPYC/);
 });
+
+test('fase 14 (revisión): métricas de bytetrack / depth / pointnet con etiqueta; tracker frente al detector en FLOPs; lapjv y borrado con su regla', () => {
+  const skip = /^(B|P|bytesPerElement|estimate|dtype)$/;
+  for (const cfg of ['bytetrack-mot17', 'sort', 'bytetrack-ultralytics', 'depth-anything-v2-small', 'dpt-large', 'pointnet-cls', 'pointnet-seg', 'pointnet-cls-no-tnet', 'pointnet2-ssg-cls']) {
+    const model = A.run(cfg).model, m = A.metrics(cfg, {});
+    for (const k of Object.keys(m)) if (typeof m[k] === 'number' && !skip.test(k)) assert.notStrictEqual(P._metricLabel(k, model), k, cfg + ': sin etiqueta: ' + k);
+  }
+  // perPointMacs es la suma sobre los N puntos; macsPerPoint, la de un punto
+  assert.match(P._metricLabel('perPointMacs', 'pointnet'), /× N/);
+  assert.strictEqual(P._metricLabel('macsPerPoint', 'pointnet'), 'MACs por punto');
+  // samplingShare de PointNet++ no es el muestreo deformable de Deformable DETR
+  assert.strictEqual(P._metricLabel('samplingShare', 'pointnet'), 'FPS + ball query');
+  assert.match(P._metricLabel('samplingShare', 'deformable-detr'), /deformable/);
+  // tracker / detector: ambos en FLOPs (no contra GMACs)
+  assert.match(P._metricNote('trackerShare', 'bytetrack'), /FLOPs del detector/);
+  assert.match(P._metricNote('assignN1', 'bytetrack'), /T \+ D/);
+  assert.match(P._metricNote('maxAge', 'bytetrack'), /time_since_update > max_age/);
+  assert.match(P._metricNote('nHigh', 'bytetrack'), /score > track_thresh/);
+  // tarjeta: n_1 = T + D_h (ByteTrack) y máx(T, D_h) (SORT)
+  const facts = (cfg) => Object.fromEntries(P._factPairs(A.run(cfg).config).map(([s, v]) => [s, v]));
+  assert.deepStrictEqual([facts('bytetrack-mot17').n_1, facts('bytetrack-mot17').n_2, facts('sort').n_1, facts('sort').n_2], [90, 20, 50, undefined]);
+});

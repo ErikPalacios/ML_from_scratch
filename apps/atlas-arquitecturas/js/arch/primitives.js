@@ -296,7 +296,9 @@
     gain: 10, cmp: 1,
     // Fase 14: IoU de un par de cajas (12 ops), centro/aspecto/alto → esquinas (7), un paso de farthest point sampling por par
     // (centro, punto: 10) y de ball query (9).
-    iou: 12, xyah: 7, fps: 10, ball: 9 };
+    iou: 12, xyah: 7, fps: 10, ball: 9,
+    // Fase 15: ELU (comparación + exp + resta ≈ 3) y Mish (x·tanh(softplus(x)) ≈ softplus 3 + tanh 5 + producto 1).
+    elu: 3, mish: 9 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -3073,7 +3075,7 @@
       other: n * n * n, detail: { rows: cost.num[0], cols: cost.num[1], n, matches: o.matches, solver: o.solver || 'lapjv', thresh: o.thresh, note: 'lapjv: matriz cuadrada de lado ' + n + ' (≈ n³ peor caso)' },
     });
   }
-  // split_score: separa las detecciones por score (alto ≥ τ_alto; bajo entre τ_bajo y τ_alto). Vista + 2 comparaciones por caja.
+  // split_score: separa las detecciones por score (alto > τ_alto, ≥ en ultralytics; bajo entre τ_bajo y τ_alto). Vista + 2 comparaciones por caja.
   function split_score(dets, o) {
     const outs = [shape([o.hiSym || 'D_h', dets.sym[1]], [o.nHigh, dets.num[1]], dets.mod, 'seq')];
     if (o.keepLow) outs.push(shape([o.loSym || 'D_l', dets.sym[1]], [o.nLow, dets.num[1]], dets.mod, 'seq'));
@@ -3188,6 +3190,120 @@
     });
   }
 
+  // ---- Fase 15 (aprendizaje de políticas: PPO; imitation learning: ACT, Diffusion Policy, BC; modelos en js/arch/robotlearn.js) ----
+  // Activaciones de las redes de política: ELU (rsl_rl / legged_gym) y Mish (U-Net 1-D de Diffusion Policy). Elementwise, sin MACs.
+  const elu = (x) => elementwise('elu', x, OTHER.elu);
+  const mish = (x) => elementwise('mish', x, OTHER.mish);
+  // policy_std: la desviación de una política gaussiana INDEPENDIENTE del estado: un vector aprendido de d_a (CleanRL: actor_logstd,
+  // σ = exp(log σ); rsl_rl: std directa). d_a parámetros, sin entrada de datos. o = {d, sym='d_a', param='log-std'|'std', mod}
+  function policy_std(o) {
+    const s = o.sym || 'd_a', logp = o.param !== 'std';
+    return result('policy_std', [], shape([s], [o.d], o.mod || null, 'vec'), {
+      paramTerms: [[o.d]], paramTex: symTexFactor(s), other: logp ? o.d : 0,
+      detail: { d: o.d, param: logp ? 'log-std' : 'std', note: logp ? 'σ = exp(log σ): un parámetro por dimensión de la acción, el mismo para todo estado' : 'σ aprendida directamente (rsl_rl: self.std), la misma para todo estado' },
+    });
+  }
+  // gaussian_sample: a = μ + σ·ε (ε ~ N(0, I)) y log π(a|s) = Σ_i [−(a_i − μ_i)²/(2σ_i²) − log σ_i − ½ log 2π]. → [acción d_a, log-prob 1].
+  // ≈ 2 ops por dimensión para muestrear + 6 para el log-prob.
+  function gaussian_sample(mean, std) {
+    const d = mean.num[mean.num.length - 1];
+    return result('gaussian_sample', [mean, std], [plain(mean), shape(['1'], [1], mean.mod, 'vec')], { other: 8 * d, detail: { d, dist: 'Normal(μ, σ)' } });
+  }
+  // categorical_sample: softmax sobre |A| logits y una muestra; log π(a|s) = log softmax. → [acción (un id), log-prob]. ≈ 6·|A| + 1.
+  function categorical_sample(logits) {
+    const n = logits.num[logits.num.length - 1];
+    return result('categorical_sample', [logits], [shape(['1'], [1], logits.mod, 'vec'), shape(['1'], [1], logits.mod, 'vec')], { other: n * (OTHER.softmax + 1) + 1, detail: { actions: n, dist: 'Categorical(softmax(z))' } });
+  }
+  // env_step: el simulador (MuJoCo, ALE, Isaac Gym) aplica la acción y devuelve la recompensa (y la observación siguiente). No es una
+  // red: 0 parámetros, 0 MACs; su costo es el del motor de física (fuera del calculador). o = {sim, dt}
+  function env_step(action, o) {
+    return result('env_step', [action], shape(['1'], [1], action.mod, 'vec'), { detail: { sim: (o && o.sim) || null, dt: (o && o.dt) || null, note: 'el simulador: no tiene parámetros ni MACs de la red' } });
+  }
+  // rollout_store: guarda cada transición (s, a, log π, V, r, done) de los N entornos durante T pasos: el buffer de un rollout de PPO,
+  // una celda por (paso, entorno) → T×N. Copia (sin costo). o = {T, N, Tsym, Nsym, fields}
+  function rollout_store(inputs, o) {
+    return result('rollout_store', inputs, shape([o.Tsym || 'T', o.Nsym || 'N'], [o.T, o.N], o.mod || null, 'mat'), { detail: { T: o.T, N: o.N, fields: o.fields || null, note: 'una celda por (paso, entorno)' } });
+  }
+  // gae_rollout: ventajas con GAE (Schulman et al., ICLR 2016, arXiv:1506.02438) sobre un rollout T×N, hacia atrás en t:
+  // δ_t = r_t + γ(1 − d_{t+1})V_{t+1} − V_t, Â_t = δ_t + γλ(1 − d_{t+1})Â_{t+1}; retornos R_t = Â_t + V_t. ≈ 8 ops por celda.
+  // → [ventajas T×N, retornos T×N]. o = {gamma, lambda}
+  function gae_rollout(rollout, o) {
+    const n = elems(rollout);
+    return result('gae_rollout', [rollout], [plain(rollout), plain(rollout)], { other: 8 * n, detail: { gamma: o && o.gamma != null ? o.gamma : null, lambda: o && o.lambda != null ? o.lambda : null, cells: n } });
+  }
+  // minibatch_select: M = T·N / n_mb muestras al azar (sin reemplazo dentro de la época) del rollout aplanado. Vista. → [M, M]. o = {M, sym}
+  function minibatch_select(a, b, o) {
+    const mk = (x) => shape([o.sym || 'M'], [o.M], x.mod, 'vec');
+    return result('minibatch_select', [a, b], [mk(a), mk(b)], { detail: { M: o.M, from: elems(a) } });
+  }
+  // policy_entropy: H[π(·|s)] promediada en el minibatch. Gaussiana: Σ_i (½ log 2πe + log σ_i) (no depende del estado si σ tampoco);
+  // categórica: −Σ p log p. → escalar. o = {kind: 'gaussian'|'categorical'}
+  function policy_entropy(x, o) {
+    const n = x.num[x.num.length - 1], cat = o && o.kind === 'categorical';
+    return result('policy_entropy', [x], shape(['1'], [1], x.mod, 'vec'), { other: cat ? n * (OTHER.softmax + 3) : 2 * n, detail: { kind: cat ? 'categorical' : 'gaussian' } });
+  }
+  // loss_sum: combinación lineal de pérdidas escalares (PPO: L = L_clip + c1·L_V − c2·H; ACT: L1 + β·KL). o = {coefs, formula}
+  function loss_sum(list, o) {
+    return result('loss_sum', list, shape(['1'], [1], list[0].mod, 'vec'), { other: 2 * list.length, detail: { coefs: (o && o.coefs) || null, formula: (o && o.formula) || null } });
+  }
+  // conv_transpose1d (Upsample1d de Diffusion Policy: k = 4, s = 2, p = 1 → T_o = 2T): T×C_in → T_o×C_out, T_o = (T − 1)s − 2p + k.
+  // Parámetros k·C_in·C_out + C_out; MACs T·k·C_in·C_out (cada posición de ENTRADA reparte C_in·C_out MACs en k salidas: la
+  // convención de FlopCounterMode para convoluciones transpuestas). o = {k, s, p=0, cout, coutSym, outSym, bias=true}
+  function conv_transpose1d(x, o) {
+    if (x.num.length !== 2) throw new Error('conv_transpose1d espera una entrada T×C.');
+    const [T, C] = x.num, Cs = x.sym[1], k = o.k, s = o.s || 1, p = o.p || 0, bias = o.bias !== false;
+    const To = (T - 1) * s - 2 * p + k, cout = o.cout, coutSym = o.coutSym || String(cout);
+    return result('conv_transpose1d', [x], shape([o.outSym || String(To), coutSym], [To, cout], o.mod || x.mod, 'seq'), {
+      paramTerms: [[k, C, cout]].concat(bias ? [[cout]] : []),
+      paramTex: texProd([String(k), Cs, coutSym]) + (bias ? ' + ' + symTexFactor(coutSym) : ''),
+      macTerms: [[T, k, C, cout]], macTex: texProd([x.sym[0], String(k), Cs, coutSym]),
+      other: bias ? To * cout * OTHER.bias : 0,
+      detail: { k, s, p, T, To, cin: C, cout, bias, transposed: true },
+    });
+  }
+  // film (FiLM, Perez et al. 2018; Diffusion Policy con cond_predict_scale): el condicionamiento predice por canal una escala γ y un
+  // sesgo β (vector 2C) y la salida es γ ⊙ x + β en cada posición. x: T×C, gb: 2C. 2 ops por elemento.
+  function film(x, gb) {
+    const C = x.num[x.num.length - 1];
+    if (gb.num.length !== 1 || gb.num[0] !== 2 * C) throw new Error('film: el vector de condición (' + shapeStr(gb) + ') no tiene 2·' + C + ' = escala + sesgo por canal.');
+    return result('film', [x, gb], plain(x), { other: 2 * elems(x), detail: { C, note: 'γ ⊙ x + β, γ y β predichos del condicionamiento (paso de difusión + observación)' } });
+  }
+  // spatial_softmax (Levine et al. 2016 / Finn et al. "Deep Spatial Autoencoders"; robomimic SpatialSoftmax): por cada uno de los K
+  // mapas h×w un softmax sobre las h·w posiciones y su posición esperada (x, y) ∈ [−1, 1]²: h×w×K → K×2 "keypoints". Rejillas de
+  // posición = buffers. ≈ softmax (5) + 2 productos y 2 sumas por posición y mapa.
+  function spatial_softmax(x, o) {
+    const [h, w, K] = x.num;
+    return result('spatial_softmax', [x], shape([x.sym[2], '2'], [K, 2], x.mod, 'seq'), {
+      other: h * w * K * (OTHER.softmax + 4), detail: { h, w, K, temperature: (o && o.temperature) || 1, note: 'E[x] y E[y] bajo softmax(mapa): dónde está cada keypoint' },
+    });
+  }
+  // reparameterize (CVAE de ACT): z = μ + exp(½ log σ²)·ε, ε ~ N(0, I). → z (d). ≈ 4 ops por dimensión.
+  function reparameterize(mu, logvar) {
+    return result('reparameterize', [mu, logvar], plain(mu), { other: 4 * elems(mu), detail: { d: elems(mu), note: 'z = μ + σ·ε: el muestreo queda fuera del camino del gradiente' } });
+  }
+  // kl_gaussian: KL(N(μ, σ²) ‖ N(0, I)) = −½ Σ (1 + log σ² − μ² − σ²) (ACT: kl_divergence, suma sobre las d dimensiones). → escalar.
+  function kl_gaussian(mu, logvar) {
+    return result('kl_gaussian', [mu, logvar], shape(['1'], [1], mu.mod, 'vec'), { other: 6 * elems(mu), detail: { d: elems(mu) } });
+  }
+  // l1_loss: |â − a| promediado (ACT: F.l1_loss enmascarado con ~is_pad). → escalar. ≈ 3 ops por elemento.
+  function l1_loss(pred, target) {
+    if (shapeStr(pred) !== shapeStr(target)) throw new Error('l1_loss: predicción y objetivo con formas distintas.');
+    return result('l1_loss', [pred, target], shape(['1'], [1], null, 'vec'), { other: 3 * elems(pred), detail: { masked: true } });
+  }
+  // temporal_ensemble (ACT): en el paso t hay hasta k predicciones de la acción (una por cada chunk que la cubre); se promedian con
+  // w_i = exp(−m·i) normalizados (i = 0 la más vieja; m = 0.01). k×d_a → d_a. ≈ 2·k·d_a.
+  function temporal_ensemble(actions, o) {
+    const [k, d] = actions.num;
+    return result('temporal_ensemble', [actions], shape([actions.sym[1]], [d], actions.mod, 'vec'), { other: 2 * k * d + 3 * k, detail: { k, d, m: (o && o.m) != null ? o.m : 0.01 } });
+  }
+  // execute_actions (receding horizon): de las T_p acciones predichas se ejecutan T_a (Diffusion Policy: desde la última observación).
+  // Vista. o = {start, count, sym}
+  function execute_actions(x, o) {
+    const d = x.num[1];
+    if (o.start + o.count > x.num[0]) throw new Error('execute_actions: ' + o.count + ' acciones desde ' + o.start + ' no caben en ' + x.num[0] + '.');
+    return result('execute_actions', [x], shape([o.sym || 'T_a', x.sym[1]], [o.count, d], x.mod, 'seq'), { detail: { start: o.start, count: o.count, predicted: x.num[0] } });
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -3235,6 +3351,9 @@
     // Fase 14
     kalmanCost, kalman_predict, kalman_update, iou_matrix, assoc_cost, linear_assignment, split_score, track_manage, layer_taps, readout, resample, rcu,
     point_mlp, max_pool_points, point_transform, tnet_transform, concat_global, fps_sample, ball_query, group_points,
+    // Fase 15
+    elu, mish, policy_std, gaussian_sample, categorical_sample, env_step, rollout_store, gae_rollout, minibatch_select, policy_entropy, loss_sum,
+    conv_transpose1d, film, spatial_softmax, reparameterize, kl_gaussian, l1_loss, temporal_ensemble, execute_actions,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -3491,7 +3610,7 @@
     { id: 'iou_matrix', name: 'Matriz de IoU', paramTex: '0', macTex: '0', outTex: 'T\\times n,\\ D\\times 5 \\to T\\times D', note: 'IoU de cada track predicho con cada detección: ≈ 12 ops por par (sin MACs).' },
     { id: 'assoc_cost', name: 'Costo de asociación', paramTex: '0', macTex: '0', outTex: 'T\\times D \\to T\\times D', note: '1 − IoU; ByteTrack fusiona el score en la 1.ª asociación: 1 − IoU·score.' },
     { id: 'linear_assignment', name: 'Asignación (Jonker-Volgenant)', paramTex: '0', macTex: '0', outTex: 'T\\times D \\to m\\times 2', note: 'lap.lapjv: O(n³) peor caso; con cost_limit (ByteTrack) la matriz se extiende a (T + D)×(T + D); sin él (SORT), a max(T, D).' },
-    { id: 'split_score', name: 'Separar por score', paramTex: '0', macTex: '0', outTex: 'n\\times 5 \\to D_h\\times 5,\\ D_l\\times 5', note: 'ByteTrack: altas (≥ τ_alto) para la 1.ª asociación; bajas (τ_bajo < s < τ_alto) para la 2.ª. SORT descarta las bajas.' },
+    { id: 'split_score', name: 'Separar por score', paramTex: '0', macTex: '0', outTex: 'n\\times 5 \\to D_h\\times 5,\\ D_l\\times 5', note: 'ByteTrack: altas (s > τ_alto; ultralytics: ≥) para la 1.ª asociación; bajas (τ_bajo < s < τ_alto) para la 2.ª. SORT descarta las bajas.' },
     { id: 'track_manage', name: 'Altas, pérdidas y bajas de tracks', paramTex: '0', macTex: '0', outTex: '\\to T_{\\mathrm{out}}\\times 5', note: 'Detección alta sin pareja → track nuevo; track sin pareja → perdido; perdido más de track_buffer frames → borrado.' },
     { id: 'layer_taps', name: 'Salidas intermedias del encoder', paramTex: '0', macTex: '0', outTex: '(N{+}1)\\times D \\to 4\\times (N{+}1)\\times D', note: 'DPT lee 4 capas (p. ej. 3, 6, 9, 12 en ViT-S/B; 6, 12, 18, 24 en ViT-L de DPT): rasgos de bajo y alto nivel.' },
     { id: 'readout', name: 'Readout (qué hacer con el CLS)', paramTex: '0\\ \\text{o}\\ 2D^2 + D', macTex: '0\\ \\text{o}\\ N\\cdot 2D^2', outTex: '(N{+}1)\\times D \\to N\\times D', note: 'ignore: descartar el CLS (Depth Anything); add: sumarlo; project: concatenarlo a cada token y Linear 2D → D + GELU (DPT-Large).' },
@@ -3505,6 +3624,26 @@
     { id: 'fps_sample', name: 'Farthest point sampling', paramTex: '0', macTex: '0', outTex: 'N\\times 3 \\to S\\times 3', note: 'S iteraciones secuenciales, cada una mide N distancias: ≈ 10·S·N ops (sin MACs de matmul).' },
     { id: 'ball_query', name: 'Ball query', paramTex: '0', macTex: '0', outTex: 'N\\times 3,\\ S\\times 3 \\to S\\times k', note: 'Hasta k vecinos dentro del radio r de cada centro: ≈ 9·S·N ops (fuerza bruta).' },
     { id: 'group_points', name: 'Agrupar vecinos', paramTex: '0', macTex: '0', outTex: '\\to S\\times k\\times(3{+}C)', note: 'xyz relativo al centro + features de cada vecino: la entrada del mini-PointNet de cada región.' },
+    // Fase 15 (aprendizaje de políticas: PPO; imitation learning: ACT, Diffusion Policy, BC)
+    { id: 'elu', name: 'ELU', paramTex: '0', macTex: '0', outTex: 'D \\to D', note: 'x si x > 0; e^x − 1 si no (legged_gym / rsl_rl). Elementwise; ≈ 3 ops por elemento en "otros".' },
+    { id: 'mish', name: 'Mish', paramTex: '0', macTex: '0', outTex: 'T\\times C \\to T\\times C', note: 'x·tanh(softplus(x)) (U-Net 1-D de Diffusion Policy). ≈ 9 ops por elemento.' },
+    { id: 'policy_std', name: 'Desviación de la política (log σ)', paramTex: 'd_a', macTex: '0', outTex: '\\to d_a', note: 'Un vector aprendido, el MISMO para todo estado (state-independent): σ = exp(log σ). La red solo predice la media μ(s).' },
+    { id: 'gaussian_sample', name: 'Muestrear la acción (gaussiana)', paramTex: '0', macTex: '0', outTex: 'd_a,\\ d_a \\to d_a,\\ 1', note: 'a = μ + σ·ε y log π(a|s) = Σ log N(a_i; μ_i, σ_i): el log-prob se guarda para el ratio de PPO.' },
+    { id: 'categorical_sample', name: 'Muestrear la acción (categórica)', paramTex: '0', macTex: '0', outTex: '|A| \\to 1,\\ 1', note: 'softmax sobre los logits de las |A| acciones discretas (Atari) y una muestra; se guarda log π(a|s).' },
+    { id: 'env_step', name: 'Paso del entorno (simulador)', paramTex: '0', macTex: '0', outTex: 'd_a \\to 1', note: 'El simulador aplica la acción y devuelve r y la observación siguiente. Sin parámetros ni MACs de la red: su costo es el motor de física.' },
+    { id: 'rollout_store', name: 'Buffer del rollout', paramTex: '0', macTex: '0', outTex: '\\to T\\times N', note: 'Guarda (s, a, log π, V, r, done) de N entornos durante T pasos: N·T muestras por iteración de PPO.' },
+    { id: 'gae_rollout', name: 'Ventajas GAE', paramTex: '0', macTex: '0', outTex: 'T\\times N \\to T\\times N,\\ T\\times N', note: 'δ_t = r_t + γV_{t+1} − V_t, Â_t = Σ_l (γλ)^l δ_{t+l} (hacia atrás en t); retornos = Â + V. λ = 0: TD de un paso; λ = 1: Monte Carlo.' },
+    { id: 'minibatch_select', name: 'Minibatch', paramTex: '0', macTex: '0', outTex: 'T\\times N \\to M', note: 'M = N·T / n_mb muestras al azar; K épocas × n_mb minibatches = pasos de gradiente por iteración.' },
+    { id: 'policy_entropy', name: 'Entropía de la política', paramTex: '0', macTex: '0', outTex: 'd_a \\to 1', note: 'Bono de exploración (c₂·H). Gaussiana: Σ (½ log 2πe + log σ_i); categórica: −Σ p log p.' },
+    { id: 'loss_sum', name: 'Suma de pérdidas', paramTex: '0', macTex: '0', outTex: '1,\\ 1,\\ \\ldots \\to 1', note: 'PPO: L = −L_clip + c₁L_V − c₂H. ACT: L1 + β·KL.' },
+    { id: 'conv_transpose1d', name: 'ConvTranspose1d', paramTex: 'k\\,C_{in}\\,C_{out} + C_{out}', macTex: 'T\\,k\\,C_{in}\\,C_{out}', outTex: 'T\\times C \\to 2T\\times C', note: 'Upsample1d de Diffusion Policy (k = 4, s = 2, p = 1): duplica el largo de la secuencia de acciones.' },
+    { id: 'film', name: 'FiLM', paramTex: '0', macTex: '0', outTex: 'T\\times C,\\ 2C \\to T\\times C', note: 'γ ⊙ x + β por canal, con γ y β predichos del condicionamiento (Linear cond → 2C, contado aparte).' },
+    { id: 'spatial_softmax', name: 'Spatial softmax', paramTex: '0', macTex: '0', outTex: 'h\\times w\\times K \\to K\\times 2', note: 'Softmax sobre las posiciones de cada mapa y su (x, y) esperado: K keypoints en vez de un promedio global (que tira el "dónde").' },
+    { id: 'reparameterize', name: 'Reparametrización', paramTex: '0', macTex: '0', outTex: 'd,\\ d \\to d', note: 'z = μ + σ·ε (CVAE de ACT, solo al entrenar). En inferencia z = 0 (la media del prior).' },
+    { id: 'kl_gaussian', name: 'KL al prior', paramTex: '0', macTex: '0', outTex: 'd,\\ d \\to 1', note: 'KL(N(μ, σ²) ‖ N(0, I)) = −½ Σ (1 + log σ² − μ² − σ²); ACT la pesa con β = 10.' },
+    { id: 'l1_loss', name: 'Pérdida L1', paramTex: '0', macTex: '0', outTex: 'k\\times d_a \\to 1', note: 'ACT usa L1 (no L2) sobre el chunk: modela con más precisión las secuencias de acciones.' },
+    { id: 'temporal_ensemble', name: 'Temporal ensembling', paramTex: '0', macTex: '0', outTex: 'k\\times d_a \\to d_a', note: 'Promedio de las predicciones de la acción actual que hicieron los chunks solapados, w_i = exp(−m·i) (m = 0.01): consulta la política en CADA paso.' },
+    { id: 'execute_actions', name: 'Ejecutar T_a de T_p', paramTex: '0', macTex: '0', outTex: 'T_p\\times d_a \\to T_a\\times d_a', note: 'Receding horizon: se predicen T_p acciones y se ejecutan T_a antes de volver a observar.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -3860,6 +3999,9 @@
     t5_rel_bias: 1, add_rel_bias: 1, pad_or_trim: 1,
     // Fase 14: las salidas intermedias del encoder de DPT (copias de x_ℓ, ya contadas en su capa) y la separación por score (vista).
     layer_taps: 1, split_score: 1,
+    // Fase 15: vistas y entradas que no son activaciones de la red (buffer del rollout, minibatch, acciones ejecutadas) y la desviación
+    // aprendida (tabla de parámetros).
+    rollout_store: 1, minibatch_select: 1, execute_actions: 1, policy_std: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).
