@@ -94,7 +94,7 @@
     "ubj_bytes": 26599908,
     "json_bytes": 42808048,
     "json_bytes_per_node": 57.58475743618441,
-    "train_seconds": 29.2
+    "train_seconds": 28.9
   },
   "notes": [
     "Modelo real de xgboost 3.4.1 (hist) con N = 50,000 × F = 100 sintéticos (y = Xw + ε, semilla 13); el calculador corre con N = 50,000 (calc_overrides).",

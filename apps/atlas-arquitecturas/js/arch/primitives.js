@@ -185,7 +185,17 @@
     return p3(ms / 86400e3) + ' días';
   }
 
-  function pct(x, decimals) { return (x * 100).toFixed(decimals === undefined ? 1 : decimals) + ' %'; }
+  // Con el decimal por defecto, una fracción que NO es exactamente 0 ni 1 no se imprime como '0.0 %' ni '100.0 %' (fase 13, revisión:
+  // 99.979 % de los parámetros en tablas junto a 164,736 de MLP): cerca de 100 %, decimales hasta que el complemento tenga 2
+  // cifras ('99.979 %'); debajo de 0.05 %, 2 cifras significativas ('0.021 %'). Con `decimals` explícito, sin cambios.
+  function pct(x, decimals) {
+    const p = x * 100;
+    if (decimals === undefined && isFinite(p)) {
+      if (p >= 99.95 && p < 100) return p.toFixed(Math.min(8, Math.ceil(-Math.log10(100 - p)) + 1)) + ' %';
+      if (p !== 0 && Math.abs(p) < 0.05) return p.toPrecision(2) + ' %';
+    }
+    return p.toFixed(decimals === undefined ? 1 : decimals) + ' %';
+  }
   // Porcentaje para prosa y tablas (fase 10, revisión): 1 decimal desde 1 %; por debajo de 1 % (y ≠ 0), 3 cifras
   // significativas — 0.000848 → '0.0848 %', 0.005196 → '0.520 %' (con 1 decimal serían '0.1 %' y '0.5 %': −18 % y −4 %).
   // Desde 1 % es idéntico a pct(x): 0.1234 → '12.3 %'. Lo usan quantities.js ({{metrics.…}} en %, node.….paramsPct), la
@@ -193,7 +203,7 @@
   function pctAuto(x) {
     const p = x * 100;
     if (p !== 0 && isFinite(p) && Math.abs(p) < 1) return p.toPrecision(3) + ' %';
-    return pct(x);
+    return pct(x);   // cerca de 100 % (sin llegar): más decimales, ver pct
   }
 
   // Símbolos: texto plano y LaTeX.
@@ -2920,10 +2930,12 @@
     const nodes = o.kind === 'leafwise' ? 2 * o.leaves - 1 : Math.pow(2, o.depth) - 1;
     return { nodes, evals: nodes * o.F * o.bins };
   }
-  // quantize_bins: X (N×F floats) → índices de bin (N×F, 1 byte con ≤ 256 bins): búsqueda binaria en los cortes de cada feature
-  // (≈ log₂ bins comparaciones por valor; se hace UNA vez antes del boosting). o = {bins}
+  // quantize_bins: X (N×F floats) → índices de bin (N×F, 1 byte con ≤ 256 valores guardados): búsqueda binaria en los cortes de
+  // cada feature (≈ log₂ bins comparaciones por valor; se hace UNA vez antes del boosting). o = {bins, storedBins = bins}: storedBins
+  // decide el ancho del índice (XGBoost: max_bin = 256 → 1 byte aunque su histograma tenga 257 cortes; medido con QuantileDMatrix).
   function quantize_bins(X, o) {
-    return result('quantize_bins', [X], plain(X), { other: Math.round(elems(X) * Math.log2(o.bins)), detail: { bins: o.bins, bytes: elems(X) * (o.bins <= 256 ? 1 : 2), note: 'una vez, antes del primer árbol' } });
+    const sb = o.storedBins || o.bins;
+    return result('quantize_bins', [X], plain(X), { other: Math.round(elems(X) * Math.log2(o.bins)), detail: { bins: o.bins, storedBins: sb, bytes: elems(X) * (sb <= 256 ? 1 : 2), note: 'una vez, antes del primer árbol' } });
   }
   // grad_hess: gradiente y hessiana de la pérdida en cada fila, con las predicciones F_{t−1}: error cuadrático g = F − y, h = 1;
   // logística g = σ(F) − y, h = σ(1 − σ). y, F (N) → g, h (N). o = {loss = 'squared' | 'logistic'}
@@ -2978,7 +2990,10 @@
   //              split_conditions, base_weights, loss_changes, sum_hessian) + 2 de 1 byte (default_left, split_type) = 34 B; + ≈ 660 B
   //              de encabezado por árbol + ≈ 830 B fijos (ajustados con 4 modelos: error < 0.1 %).
   //   'xgb-json' (.json, texto): ≈ 58 B por nodo (números en decimal).
-  //   'lgb-text' (model_to_string / save_model): ≈ 96 B por hoja (los arreglos del árbol en texto) + ≈ 68 B por feature (encabezado).
+  //   'lgb-text' (model_to_string / save_model, TEXTO): ≈ 88 B por hoja (los arreglos del árbol en decimal) + ≈ 160 B por árbol
+  //              (encabezado de cada Tree=) + ≈ 70 B por feature (nombres, rangos) + ≈ 6 KB fijos. Ajustado con 16 modelos de
+  //              lightgbm 4.7.0 (L = 15–255, K = 100–500, F = 10–1,000, objetivo lineal y no lineal): error ± 3 % (el texto depende
+  //              de los dígitos de cada número; la fórmula anterior, 96·hojas + 68·F, llegaba a +8 %).
   //   'cb-cbm'   (CatBoost .cbm, binario): por árbol 2^d valores de hoja + 2^d pesos de hoja (double: 16·2^d B) + ≈ 17 B por corte
   //              (d) + ≈ 88 B por feature (bordes usados).
   // o = {format, nodes, leaves, K, depth, F}
@@ -2987,7 +3002,7 @@
     let bytes, perNode;
     if (f === 'xgb-ubj') { perNode = 34; bytes = 34 * o.nodes + 660 * o.K + 830; }
     else if (f === 'xgb-json') { perNode = 58; bytes = 58 * o.nodes; }
-    else if (f === 'lgb-text') { perNode = 96; bytes = 96 * o.leaves + 68 * o.F; }
+    else if (f === 'lgb-text') { perNode = 88; bytes = 88 * o.leaves + 160 * o.K + 70 * o.F + 6000; }
     else if (f === 'cb-cbm') { perNode = null; bytes = o.K * (16 * Math.pow(2, o.depth) + 17 * o.depth) + 88 * o.F; }
     else throw new Error('tree_bytes: formato desconocido "' + f + '" (xgb-ubj, xgb-json, lgb-text, cb-cbm).');
     return { format: f, bytes, perNode, estimate: true };

@@ -88,7 +88,7 @@ test('F13 logq_correct y primitivas de árboles (a mano)', () => {
   assert.strictEqual(A.leaf_sum(A.shape(['K'], [500], 'lat', 'vec'), { base: true }).params, 1);
   // bytes del modelo por formato (≈, verificados con modelos reales en crosscheck/trees.py)
   assert.strictEqual(A.tree_bytes({ format: 'xgb-ubj', nodes: 63500, K: 500 }).bytes, 34 * 63500 + 660 * 500 + 830);
-  assert.strictEqual(A.tree_bytes({ format: 'lgb-text', leaves: 15500, F: 100 }).bytes, 96 * 15500 + 68 * 100);
+  assert.strictEqual(A.tree_bytes({ format: 'lgb-text', leaves: 15500, K: 500, F: 100 }).bytes, 88 * 15500 + 160 * 500 + 70 * 100 + 6000);   // ± 3 % en 16 modelos
   assert.strictEqual(A.tree_bytes({ format: 'cb-cbm', K: 500, depth: 6, F: 100 }).bytes, 500 * (16 * 64 + 17 * 6) + 88 * 100);
   assert.throws(() => A.tree_bytes({ format: 'onnx' }), /formato/);
   for (const id of ['embedding_bag', 'embedding_tables', 'pairwise_dot', 'cross_layer', 'logq_correct', 'histogram_build', 'split_find', 'grow_tree', 'tree_predict']) {
@@ -256,4 +256,59 @@ test('F13 todas las configs: run y metrics sin NaN, units para cada métrica num
     assert.ok(r.order.length >= 9, id + ' con pocos tensores');
     assert.ok(r.config.source && r.config.label, id + ' sin fuente');
   }
+});
+
+// ---------------------------------------------------------------- revisión de la fase 13
+test('F13 revisión GBDT: oblivious = d cortes + 2^d hojas; camino leaf-wise no es cota; 1 byte por celda con max_bin 256; lgb-text', () => {
+  const cb = A.metrics('catboost-oblivious-d6', {});
+  assert.deepStrictEqual([cb.nodesPerTree, cb.paramsPerTree, cb.internalNodes, cb.nodes, cb.measuredNodes, cb.measuredFullShare], [70, 70, 500 * 6, 500 * 70, 35000, 1]);
+  assert.deepStrictEqual(J(A.run('catboost-oblivious-d6').tensors.tree.num), [70]);
+  // leaf-wise: el camino balanceado (K·⌈log₂ L⌉) queda ENTRE los dos medidos (objetivo lineal arriba, no lineal abajo)
+  const lg = A.metrics('lightgbm-500-l31', {});
+  assert.ok(lg.comparisonsMeasuredNonlinear < lg.comparisonsPerPrediction && lg.comparisonsPerPrediction < lg.comparisonsMeasured, JSON.stringify([lg.comparisonsMeasuredNonlinear, lg.comparisonsMeasured]));
+  assert.ok(lg.comparisonsMeasuredNonlinear >= 500 && lg.comparisonsMeasured <= lg.comparisonsMax);   // las cotas reales: K ≤ camino ≤ K·(L − 1)
+  assert.strictEqual(A.metrics('lightgbm-500-l31', { leaves: 63 }).comparisonsMeasuredNonlinear, undefined);
+  // índice de bin: XGBoost max_bin 256 → 1 byte (aunque el histograma tenga 257 entradas); CatBoost 254 bordes → 255 bins → 1 byte
+  const x = A.metrics('xgboost-500-d6', {});
+  assert.strictEqual(x.binnedDataBytes, 1000000 * 100);
+  assert.strictEqual(A.run('xgboost-500-d6').ops.find((o) => o.id === 'binning').detail.bytes, 1000000 * 100);
+  assert.strictEqual(A.metrics('catboost-oblivious-d6', {}).binnedDataBytes, 1000000 * 100);
+  // lgb-text: el knob leaves mueve el tamaño ≈ 88 B por hoja
+  const l63 = A.metrics('lightgbm-500-l31', { leaves: 63 }), l31 = A.metrics('lightgbm-500-l31', { leaves: 31 });
+  assert.strictEqual(l63.modelBytes - l31.modelBytes, 88 * 500 * 32);
+});
+
+test('F13 revisión recsys: punto de quiebre (≤ 5 %), DCN de rango ≥ D/2, MLPerf medido vs cota de entrenamiento, lookups por request', () => {
+  const dc = A.metrics('dlrm-dcnv2', {});
+  assert.ok(Math.abs(dc.arithmeticIntensity / dc.ridgePoint - 1) < 0.05);
+  assert.strictEqual(dc.bound, '≈ en el punto de quiebre');
+  assert.deepStrictEqual(['dlrm-criteo-kaggle', 'dlrm-mlperf', 'wide-and-deep'].map((id) => A.metrics(id, {}).bound), ['cómputo', 'cómputo', 'cómputo']);
+  assert.strictEqual(A.metrics('dlrm-dcnv2', { bits: 16 }).bound, 'cómputo');
+  assert.strictEqual(dc.crossParamsFullRank, 3 * (3456 * 3456 + 3456));
+  assert.ok(A.run('dlrm-dcnv2', { dim: 32 }).notes.some((n) => /ya no ahorra/.test(n)));
+  assert.ok(!A.run('dlrm-dcnv2', { dim: 64 }).notes.some((n) => /ya no ahorra/.test(n)));
+  // MLPerf: entrenamiento con su propia arquitectura, por GPU (≈ 321× en H100, ≈ 101× en A100)
+  const mp = A.metrics('dlrm-mlperf', {});
+  assert.strictEqual(mp.measuredTrainPerGpu, 1671168 / 8);
+  assert.ok(Math.abs(mp.trainCeilingVsMeasuredH100 - 321) < 1 && Math.abs(mp.trainCeilingVsMeasuredA100 - 101.3) < 0.5, mp.trainCeilingVsMeasuredH100 + ' ' + mp.trainCeilingVsMeasuredA100);
+  assert.strictEqual(A.metrics('dlrm-mlperf', { bits: 16 }).measuredTrainPerGpu, undefined);
+  assert.strictEqual(A.metrics('dlrm-criteo-kaggle', {}).measuredTrainPerGpu, undefined);
+  assert.match(A.recsys.measured.source, /sin tope \(91\.10 GiB/i);
+  // W&D a 4 bits: bytes enteros
+  assert.ok(Number.isInteger(A.metrics('wide-and-deep', { bits: 4 }).embeddingBytes));
+  // two-tower: un request lee solo la torre de usuario (55 filas, 13,312 B); el par de entrenamiento, 60
+  const t = A.metrics('two-tower-base', {});
+  assert.deepStrictEqual([t.userLookupsPerRequest, t.userLookupBytesPerRequest, t.lookupsPerExample], [55, (1 + 50) * 64 * 4 + 4 * 16 * 4, 60]);
+  assert.strictEqual(t.userTowerParamsWithShared, t.userTowerParams + 2000000 * 64);
+  assert.strictEqual(A.metrics('two-tower-base', { hist: 0 }).userTowerParamsWithShared, A.metrics('two-tower-base', { hist: 0 }).userTowerParams);
+  assert.ok(A.metrics('two-tower-base', { k: 1000 }).topkOps > t.topkOps);
+});
+
+test('F13 revisión: pctAuto no imprime 100.0 % para una fracción < 1', () => {
+  assert.strictEqual(A.fmt.pctAuto(0.99979), '99.979 %');
+  assert.strictEqual(A.fmt.pctAuto(1), '100.0 %');
+  assert.strictEqual(A.fmt.pctAuto(0.5), '50.0 %');
+  assert.strictEqual(A.fmt.pctAuto(0.9994), '99.9 %');
+  assert.strictEqual(A.fmt.pctAuto(0.00848), '0.848 %');
+  assert.deepStrictEqual([A.fmt.pct(0.99979), A.fmt.pct(1), A.fmt.pct(0.0002), A.fmt.pct(0), A.fmt.pct(0.123), A.fmt.pct(0.99979, 1)], ['99.979 %', '100.0 %', '0.020 %', '0.0 %', '12.3 %', '100.0 %']);
 });

@@ -205,8 +205,9 @@
         V.svg('rect', { x: r1(cx - bw / 2), y: r1(y), width: r1(bw), height: r1(h3), class: 'viz-hs-hit' }, gEl);
         gEl.addEventListener('click', () => { state.k = i; draw(); });
       });
-      // umbral elegido: línea vertical a través de los tres paneles
-      V.svg('path', { d: 'M' + r1(cutX) + ' 40V' + r1(y + h3 + 2), class: 'viz-hs-cut' }, svg);
+      // umbral elegido: línea vertical a través de los tres paneles (cortada en los títulos de cada panel)
+      const y2 = 48 + h1 + 30;
+      V.svg('path', { d: 'M' + r1(cutX) + ' 46V' + r1(48 + h1 + 2) + 'M' + r1(cutX) + ' ' + r1(y2 - 2) + 'V' + r1(y2 + h2 + 14) + 'M' + r1(cutX) + ' ' + r1(y - 2) + 'V' + r1(y + h3 + 2), class: 'viz-hs-cut' }, svg);
       if (sc.best >= 0 && !narrow) t(svg, X(sc.best + 1), Yg(sc.splits[sc.best].gain) - 6, 'mejor', 'viz-n', 'middle');
       // cuentas a la derecha (ancho) o abajo (angosto)
       const lines = [
@@ -242,8 +243,9 @@
       const pick = (o, ks) => { for (const k of ks) if (o && Number.isFinite(o[k])) return o[k]; return null; };
       kv('config:', (run.label || cfgId));
       const bins = pick(cfg, ['bins', 'maxBin', 'max_bin']), F = pick(cfg, ['F', 'features']), N = pick(cfg, ['N', 'rows']);
-      if (bins != null) kv('bins reales:', fint(bins));
-      if (F != null && bins != null) kv('cortes candidatos por nodo (bins × F):', fint(bins * F));
+      const nbins = pick(cfg, ['histBins']) || bins;
+      if (nbins != null) kv('bins por feature (a lo sumo):', fint(nbins));
+      if (F != null && nbins != null) kv('cortes candidatos por nodo ((bins − 1) × F):', fint((nbins - 1) * F));
       if (N != null && F != null) kv('filas × features (N × F):', fint(N) + ' × ' + fint(F));
       const sf = pick(met, ['splitEvalsPerTree']);
       if (sf != null) kv('cortes evaluados por árbol (calculador):', fint(sf));

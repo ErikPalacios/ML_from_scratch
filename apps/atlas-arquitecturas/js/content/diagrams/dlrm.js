@@ -4,7 +4,7 @@
      dlrm-overview  13 features densas → bottom MLP → un vector de d; 26 categóricas → 26 tablas de embeddings (lookups) → 26
                     vectores de d; interacción (productos punto por par en DLRM, capas cruzadas en DCN v2) → top MLP → sigmoide
                     → CTR. Abajo, del calculador: parámetros por config (las tablas son casi todo), bytes de las tablas contra la
-                    memoria de una GPU y, por muestra, bytes leídos vs FLOPs (intensidad aritmética: limitado por memoria).
+                    memoria de una GPU y, por muestra, bytes leídos vs FLOPs (intensidad aritmética: los lookups, limitados por memoria; la muestra completa, cerca o arriba del punto de quiebre).
        interaction  la interacción por dentro (configs con producto punto): apilar los 27 vectores → T·Tᵀ (27 × 27) →
                     triángulo inferior estricto (351) → concatenar con la salida densa (367) → top MLP.
        funnel       el embudo de recomendación (calc:false, números de las configs con prefijo): catálogo → recuperación
@@ -30,15 +30,16 @@
   ATLAS.registerDiagram(Object.assign({
     id: 'dlrm-overview', model: 'dlrm', config: C, configs: ALL, configsNote: 'Wide & Deep no tiene interacción explícita: está en las barras de abajo', kind: 'arch',
     title: 'DLRM — vista general',
-    caption: 'Un ranker de CTR: dada una pareja (usuario, anuncio o ítem) con 13 features numéricas y 26 categóricas, predice la probabilidad de clic. Las numéricas pasan por un MLP chico (bottom MLP) hasta un vector de d; cada categórica es un id que busca su fila en su propia tabla de embeddings (26 tablas, algunas de millones de filas). La interacción cruza todos esos vectores de a pares (productos punto en DLRM, capas cruzadas en DCN v2) y el top MLP da un logit. Abajo, del calculador: casi todos los parámetros están en las tablas, que pueden no entrar en una GPU, y cada lookup lee una fila al azar sin hacer cuentas (limitado por memoria); con tablas grandes y anchas (MLPerf, DCN v2) eso decide el tiempo del modelo entero.',
+    caption: 'Un ranker de CTR: dada una pareja (usuario, anuncio o ítem) con 13 features numéricas y 26 categóricas, predice la probabilidad de clic. Las numéricas pasan por un MLP chico (bottom MLP) hasta un vector de d; cada categórica es un id que busca su fila en su propia tabla de embeddings (26 tablas, algunas de millones de filas). La interacción cruza todos esos vectores de a pares (productos punto en DLRM, capas cruzadas en DCN v2) y el top MLP da un logit. Abajo, del calculador: casi todos los parámetros están en las tablas, que pueden no entrar en una GPU, y cada lookup lee una fila al azar sin hacer cuentas (limitado por memoria). El modelo entero no lo está en Criteo Kaggle ni en MLPerf (los MLP dominan); con muchos lookups anchos por muestra (DLRM-DCNv2: 214 multi-hot de d = 128) la memoria pesa tanto como el cómputo: queda justo en el punto de quiebre de la GPU.',
     grid: { w: 150, h: 98 }, direction: 'lr', maxCrossings: 0,
     mobileFocus: ['embeddings', 'interaction'], mobileFocusPad: 1,
     modLegend: { txt: 'Tensor de las categóricas (ids, embeddings; rayado)', lat: 'Tensor denso (numéricas, MLP)' },
+    opLegend: { fuse: 'Interacción entre features' },
     legendText: { bars: 'Barras: ancho proporcional (lineal, del calculador); fila resaltada = la config dibujada; línea = la memoria de una GPU', cells: 'Matriz de productos punto (tono ilustrativo): solo cuenta el triángulo inferior; el resto, gris' },
     nodes: [
       { id: 'dense', op: 'io', label: 'Features densas', sub: 'n_d números', subNum: '{{tensor.dense.shape}} números', x: 1, y: 4, w: 18, h: 10,
         note: 'Las 13 features numéricas de Criteo (conteos, normalizados con log(1 + x)).' },
-      { id: 'bottom-mlp', op: 'mlp', costOf: 'bottom-mlp', label: 'Bottom MLP', sub: 'n_d → … → d, ReLU', subNum: '{{tensor.dense.shape}} → … → {{tensor.bot-out.shape}}, ReLU', x: 24, y: 4, w: 26, h: 10,
+      { id: 'bottom-mlp', op: 'mlp', costOf: 'bottom-mlp', label: 'Bottom MLP', sub: 'n_d → … → d, ReLU', blankSub: 'n_d → …, ReLU', subNum: '{{tensor.dense.shape}} → … → {{tensor.bot-out.shape}}, ReLU', x: 24, y: 4, w: 26, h: 10,
         note: 'Un MLP chico que lleva las features densas al mismo ancho d que los embeddings, para poder cruzarlas con ellos. ReLU en todas sus capas (también la última, como en el código de referencia).' },
       { id: 'sparse', op: 'io', label: 'Features categóricas', sub: 'un id por campo', subNum: '{{tensor.sparse-ids.shape}} ids', x: 1, y: 23, w: 18, h: 12,
         note: 'Los 26 campos categóricos de Criteo (anunciante, sitio, dispositivo… anonimizados), cada uno como un id entero dentro de su tabla. En DLRM-DCNv2 (MLPerf v3) son multi-hot: varios ids por campo, sumados.' },
@@ -63,7 +64,7 @@
       { id: 'per-sample', op: 'io', hideInBlank: true, label: 'Por muestra: bytes vs FLOPs', sub: 'lookups: limitados por memoria',
         subNum: 'lookups: {{metrics.lookupsPerSample}} filas = {{metrics.lookupBytesPerSample}}, {{metrics.embeddingIntensity}} FLOP/byte · MLPs e interacción: {{metrics.macsPerSample}}\nmodelo entero: {{metrics.arithmeticIntensity}} FLOP/byte vs ridge de la H100 {{metrics.ridgePoint}} → límite: {{metrics.bound}} · lookups = {{metrics.embeddingMsShare}} del tiempo del lote',
         x: 1, y: 87, w: 148, h: 10,
-        note: 'Cada muestra lee {{metrics.lookupBytesPerSample}} de filas al azar y hace {{metrics.macsPerSample}} en los MLP y la interacción. Un lookup casi no hace cuentas por byte ({{metrics.embeddingIntensity}} FLOP/byte: sumar filas): esa parte está limitada por el ancho de banda de memoria siempre. Que el modelo entero lo esté depende de cuánto pesan los MLP: con d = 16 y 26 lookups (Criteo Kaggle) domina el cómputo; con d = 128 y 214 lookups multi-hot (DCN v2) domina la memoria. Repartido entre GPUs se suma la red (el all-to-all de los embeddings). ≈ {{metrics.samplesPerSecH100}} muestras/s en una H100 por el roofline.' },
+        note: 'Cada muestra lee {{metrics.lookupBytesPerSample}} de filas al azar y hace {{metrics.macsPerSample}} en los MLP y la interacción. Un lookup casi no hace cuentas por byte ({{metrics.embeddingIntensity}} FLOP/byte: sumar filas): esa parte está limitada por el ancho de banda de memoria siempre. Que el modelo entero lo esté depende de cuánto pesan los MLP: con d = 16 y 26 lookups (Criteo Kaggle) domina el cómputo; con d = 128 y 214 lookups multi-hot (DCN v2) queda en el límite: {{dlrm-dcnv2.metrics.arithmeticIntensity}} contra {{dlrm-dcnv2.metrics.ridgePoint}} FLOP/byte, ≈ mitad memoria y mitad cómputo (un empate, no un modelo limitado por memoria). Repartido entre GPUs se suma la red (el all-to-all de los embeddings). ≈ {{metrics.samplesPerSecH100}} muestras/s en una H100 por el roofline.' },
     ],
     edges: [
       { from: 'dense', to: 'bottom-mlp', kind: 'data', tensor: 'dense', label: false },
@@ -81,15 +82,15 @@
         { nodes: ['sparse', 'embeddings'], edges: ['sparse>embeddings', 'embeddings>interaction'], tensors: ['sparse-ids', 'emb'],
           text: 'Cada uno de los <b>' + q('tensor.sparse-ids.shape') + '</b> ids busca su fila en su tabla: <b>' + q('tensor.emb.shape') + '</b>. Cero MACs, pero ' + q('metrics.lookupBytesPerSample') + ' leídos de direcciones al azar en ' + q('metrics.embeddingBytes') + ' de tablas.' },
         { nodes: ['interaction'], edges: ['interaction>top-mlp'], tensors: ['top-in'],
-          text: 'Los 27 vectores se cruzan de a pares: la matriz <b>' + q('tensor.gram.shape') + '</b> de productos punto, de la que se toman los <b>' + q('tensor.pairs.shape') + '</b> del triángulo inferior; con la salida densa, <b>' + q('tensor.top-in.shape') + '</b> números al top MLP.' },
+          text: 'En DLRM (Criteo Kaggle) los 27 vectores se cruzan de a pares: la matriz <b>' + k2(C, 'tensor.gram.shape') + '</b> de productos punto, de la que se toman los <b>' + k2(C, 'tensor.pairs.shape') + '</b> del triángulo inferior (DCN v2, en cambio: capas cruzadas con pesos sobre el vector concatenado). Al top MLP: <b>' + q('tensor.top-in.shape') + '</b> números (en DLRM, la salida densa + los cruces).' },
         { expand: 'interaction', nodes: ['ix-gram', 'ix-tril'], edges: ['ix-gram>ix-tril'], tensors: ['gram', 'pairs'],
-          text: 'Por dentro: Z = T·Tᵀ es simétrica y su diagonal es la norma de cada vector, así que basta el triángulo inferior estricto: 27·26/2 = <b>' + q('tensor.pairs.shape') + '</b> cruces.' },
+          text: 'Por dentro (producto punto, Criteo Kaggle): Z = T·Tᵀ es simétrica y su diagonal es la norma al cuadrado de cada vector, así que basta el triángulo inferior estricto: 27·26/2 = <b>' + k2(C, 'tensor.pairs.shape') + '</b> cruces.' },
         { nodes: ['top-mlp', 'ctr', 'out'], edges: ['top-mlp>ctr', 'ctr>out'], tensors: ['logit', 'ctr'],
           text: 'El top MLP da un logit y la sigmoide la probabilidad de clic. Todo el cómputo de la muestra: ' + q('metrics.macsPerSample') + '.' },
         { nodes: ['params-bars', 'bytes-bars', 'per-sample'], edges: [], tensors: [],
-          text: 'A escala: ' + q('metrics.embeddingParamsShare') + ' de los parámetros están en las tablas (' + q('metrics.embeddingBytes') + '). Por muestra se leen ' + q('metrics.lookupBytesPerSample') + ' al azar para hacer ' + q('metrics.macsPerSample') + ': ' + q('metrics.arithmeticIntensity') + ' FLOP/byte contra el ridge de la H100 (' + q('metrics.ridgePoint') + '): límite por ' + q('metrics.bound') + '. Cambia a DLRM-DCNv2 arriba para ver el caso limitado por memoria.' },
+          text: 'A escala: los MLP son solo el ' + q('metrics.mlpParamsShare') + ' de los parámetros; casi todo está en las tablas (' + q('metrics.embeddingBytes') + '). Por muestra se leen ' + q('metrics.lookupBytesPerSample') + ' al azar para hacer ' + q('metrics.macsPerSample') + ': ' + q('metrics.arithmeticIntensity') + ' FLOP/byte contra el ridge de la H100 (' + q('metrics.ridgePoint') + ') → límite: ' + q('metrics.bound') + '. Compara en el selector Criteo Kaggle (d = 16, 26 lookups: cómputo de sobra) con DLRM-DCNv2 (d = 128, 214 lookups multi-hot: prácticamente en el ridge, un empate).' },
         { expand: 'funnel', nodes: ['fn-ranking'], edges: [], tensors: [],
-          text: 'Dónde corre: en el ranking del embudo, una vez por cada uno de los k = ' + q('cfg.k') + ' candidatos que trajo la recuperación: ' + q('metrics.rankingMacsPerRequest') + ' por request.' },
+          text: 'Dónde corre: en el ranking del embudo, una vez por cada uno de los k = ' + k2(C, 'cfg.k') + ' candidatos que trajo la recuperación: con Criteo Kaggle, ' + k2(C, 'metrics.rankingMacsPerRequest') + ' por request (la config del embudo).' },
       ] },
     ],
     legend: 'auto',
@@ -99,10 +100,11 @@
   ATLAS.registerDiagram(Object.assign({
     id: 'interaction', model: 'dlrm', config: C, configs: DOT, configsNote: 'es la interacción con producto punto; la de DCN v2 está en la visualización de cruces', kind: 'arch',
     title: 'Interacción: productos punto por par', parent: 'dlrm-overview', parentNode: 'interaction',
-    caption: 'Los 27 vectores de d (la salida del bottom MLP y los 26 embeddings) se apilan en T y se multiplican por su transpuesta: Z = T·Tᵀ tiene el producto punto de cada par de vectores. Z es simétrica y su diagonal es la norma de cada vector, así que DLRM se queda con el triángulo inferior estricto (sin la diagonal): un número por par de campos, sin pesos. Se concatenan con la salida densa y van al top MLP.',
+    caption: 'Los 27 vectores de d (la salida del bottom MLP y los 26 embeddings) se apilan en T y se multiplican por su transpuesta: Z = T·Tᵀ tiene el producto punto de cada par de vectores. Z es simétrica y su diagonal es la norma al cuadrado de cada vector, así que DLRM se queda con el triángulo inferior estricto (sin la diagonal): un número por par de campos, sin pesos. Se concatenan con la salida densa y van al top MLP.',
     grid: { w: 100, h: 85 }, direction: 'tb', maxCrossings: 0,
     mobileFocus: ['ix-gram', 'ix-tril'],
     modLegend: { txt: 'Tensor de las categóricas (ids, embeddings; rayado)', lat: 'Tensor denso (numéricas, MLP)' },
+    opLegend: { fuse: 'Productos punto entre features' },
     legendText: { cells: 'Matriz de productos punto (tono ilustrativo): solo cuenta el triángulo inferior estricto; el resto, gris' },
     nodes: [
       { id: 'ix-bot', op: 'io', label: 'Salida del bottom MLP', sub: 'un vector de d', x: 4, y: 1, w: 32, h: 7, note: 'Las features densas ya llevadas a d números.' },
@@ -112,7 +114,7 @@
         cells: { rows: 'tensor.gram.0', cols: 'tensor.gram.1', maxR: 27, maxC: 27, cell: 8, mark: 'tril', label: '{{tensor.gram.shape}}', seed: 27 },
         tex: 'Z = T T^{\\top},\\quad z_{ij} = t_i \\cdot t_j', note: 'Un bmm de 27 × d por d × 27: {{metrics.interactionMacs}} (el código de referencia calcula la matriz entera, aunque use la mitad). Tonos ilustrativos.' },
       { id: 'ix-tril', op: 'tensorop', shape: 'pill', symbol: 'pick', ops: ['interact-tril'], opsExact: true, label: 'triángulo inferior estricto', x: 26, y: 62, w: 48, h: 4,
-        tex: '\\{\\, z_{ij} : j < i \\,\\}', note: '27·26/2 = 351 productos (arch_interaction_itself = False: sin la diagonal).' },
+        tex: '\\{\\, z_{ij} : j < i \\,\\}', note: '27·26/2 = 351 productos (<code>arch_interaction_itself = False</code>: sin la diagonal).' },
       { id: 'ix-concat', op: 'tensorop', shape: 'concat', ops: ['interact-concat'], opsExact: true, label: '‖ con la salida densa', labelPos: 'right', x: 48, y: 72, w: 4, h: 4, note: 'Se concatena la salida densa (d) delante de los 351 cruces: 367 en Criteo Kaggle.' },
       { id: 'ix-out', op: 'io', label: 'Al top MLP', x: 38, y: 80, w: 24, h: 4.5, note: 'La entrada del top MLP.' },
     ],

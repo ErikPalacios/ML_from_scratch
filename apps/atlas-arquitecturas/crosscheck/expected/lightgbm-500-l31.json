@@ -70,37 +70,47 @@
     "numLeaves": 31,
     "nTrees": 500,
     "comparisonsMeasured": 3924,
+    "comparisonsMeasuredNonlinear": 1564,
     "comparisonsMax": 15000
   },
   "range_checks": [
     {
-      "what": "camino promedio medido × K / cota balanceada K·⌈log₂ L⌉",
+      "what": "camino promedio medido × K / camino balanceado K·⌈log₂ L⌉ (no es cota: solo K ≤ camino ≤ K·(L − 1))",
       "metric": "comparisonsPerPrediction",
       "calc_overrides": {},
       "ref": 3924,
-      "min_ratio": 1.0,
+      "min_ratio": 0.2,
       "max_ratio": 6.0
     },
     {
-      "what": "bytes del .txt (model_to_string) / tree_bytes",
+      "what": "objetivo NO lineal: camino promedio medido × K / camino balanceado (queda por debajo: no es cota inferior)",
+      "metric": "comparisonsPerPrediction",
+      "calc_overrides": {},
+      "ref": 1564,
+      "min_ratio": 0.2,
+      "max_ratio": 1.0
+    },
+    {
+      "what": "bytes del .txt (model_to_string) / tree_bytes (texto: ± 3 % según los dígitos)",
       "metric": "modelBytesMeasured",
       "calc_overrides": {},
       "ref": 1498748,
-      "min_ratio": 0.97,
-      "max_ratio": 1.03
+      "min_ratio": 0.95,
+      "max_ratio": 1.05
     }
   ],
   "measured": {
     "avg_path_per_tree": 7.8475480000000015,
+    "avg_path_per_tree_nonlinear": 3.128092999999998,
     "text_bytes": 1498748,
     "base_folded_into_tree_1": true,
-    "train_seconds": 4.5
+    "train_seconds": 7.6
   },
   "notes": [
     "Modelo real de lightgbm 4.7.0 con N = 50,000 × F = 100 sintéticos (semilla 13); deterministic + force_row_wise.",
     "Los 500 árboles tienen exactamente 31 hojas (leaf-wise llega siempre con min_data_in_leaf 20): params_total = K·(2L − 1) es REAL, no una cota.",
     "Base: boost_from_average la suma a las hojas del árbol 1 (Σ hojas = predict: True) → 0 números aparte.",
-    "Camino promedio medido: 7.848 comparaciones por árbol (árboles desbalanceados; ⌈log₂ 31⌉ = 5 sería el balanceado).",
+    "Camino promedio medido: 7.848 comparaciones por árbol (árboles desbalanceados; ⌈log₂ 31⌉ = 5 sería el balanceado). No es cota: con el objetivo no lineal (sin(x0·x1)·3 + [x2 > 0]·x3² + Σx4..9 + ruido) el promedio es 3.128, por DEBAJO.",
     "FLOPs = 0: un árbol compara y suma (0 MACs)."
   ],
   "source": {

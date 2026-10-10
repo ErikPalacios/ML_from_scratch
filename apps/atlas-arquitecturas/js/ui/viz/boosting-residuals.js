@@ -124,7 +124,7 @@
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'img' }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); V.rich(e, s); return e; };
       t(svg, 8, 15, narrow ? 'Boosting: cada árbol ajusta el residuo' : 'Gradient boosting: F_m = F_{m−1} + η·f_m, y cada árbol f_m se ajusta al residuo de los anteriores', 'viz-t');
-      t(svg, 8, 29, 'η = ' + state.eta + ' · profundidad ' + state.depth + ' (hasta ' + (1 << state.depth) + ' hojas) · M = ' + m + ' árboles', 'viz-s');
+      t(svg, 8, 29, 'η = ' + state.eta + ' · profundidad ' + state.depth + (narrow ? '' : ' (hasta ' + (1 << state.depth) + ' hojas)') + ' · M = ' + m + ' árboles', 'viz-s');
 
       const yLo = -1.9, yHi = 2.3;
       const panel = (x0, y0, w, h, title) => {

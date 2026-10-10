@@ -459,7 +459,8 @@ test('F13 GBDT: modelos reales de xgboost / lightgbm / catboost (N = 50,000); de
     assert.strictEqual(r.exp.flops_total, 0, id);
     assert.ok(r.checks.some((c) => c.what === 'metrics[measuredNodes]' && c.ok), id);
     assert.ok(r.checks.some((c) => c.what === 'metrics[nTrees]' && c.ok), id);
-    assert.ok(r.checks.some((c) => /^faiss\[bytes/.test(c.what) && c.ok), id + ': bytes del modelo guardado');
+    assert.ok(r.checks.some((c) => /^(xgboost|lightgbm|catboost)\[bytes/.test(c.what) && c.ok), id + ': bytes del modelo guardado');
+    assert.ok(!r.checks.some((c) => /^faiss\[/.test(c.what)), id + ': las comprobaciones de GBDT llevan el nombre de la librería, no faiss');
     assert.ok(r.exp.notes.some((n) => /FLOPs = 0/.test(n)), id);
   }
   const x = await find('xgboost-500-d6');

@@ -80,7 +80,7 @@
       const W = narrow ? Math.max(300, lab + M * cs + 12) : Zx + M * cs + 210;
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'group', 'aria-label': 'DLRM: ' + M + ' vectores de ' + D + ', matriz de productos punto ' + M + '×' + M + ' y su triángulo inferior estricto' }, stage);
       t(svg, 8, 15, narrow ? 'DLRM: Z = T·Tᵀ, triángulo inferior' : 'DLRM: apilar los m vectores en T, Z = T·Tᵀ y quedarse con el triángulo inferior estricto', 'viz-t');
-      t(svg, 8, 29, 'm = ' + M + ' vectores de d = ' + D + ' → ' + (M * (M - 1) / 2) + ' productos punto (uno por par de campos, sin pesos)', 'viz-s');
+      t(svg, 8, 29, narrow ? 'm = ' + M + ', d = ' + D + ' → ' + (M * (M - 1) / 2) + ' productos punto, sin pesos' : 'm = ' + M + ' vectores de d = ' + D + ' → ' + (M * (M - 1) / 2) + ' productos punto (uno por par de campos, sin pesos)', 'viz-s');
       const top = 64;
       // T
       t(svg, lab, top - 10, 'T (m × d)', 'viz-n');
@@ -161,7 +161,7 @@
         yEnd += 45;
       }
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + r1(yEnd));
-      note.textContent = 'Valores ilustrativos (m = ' + M + ' campos de d = ' + D + '). La capa cruzada multiplica x₀ coordenada a coordenada por una transformación lineal de xₗ: en la primera capa, la coordenada i suma Wᵢⱼ·x₀ᵢ·x₀ⱼ sobre todas las j, así que cada par de coordenadas (también dentro del mismo campo) tiene su peso. Apilar L capas da cruces de grado L + 1. Es más expresiva que el producto punto de DLRM pero cuesta (m·d)² parámetros por capa; DCN-Mix los baja con matrices de rango bajo (U·Vᵀ).';
+      note.textContent = 'Valores ilustrativos (m = ' + M + ' campos de d = ' + D + '). La capa cruzada multiplica x₀ coordenada a coordenada por una transformación lineal de xₗ: en la primera capa, la coordenada i suma Wᵢⱼ·x₀ᵢ·x₀ⱼ sobre todas las j, así que cada par de coordenadas (también dentro del mismo campo) tiene su peso. Apilar L capas da cruces de grado L + 1. Es más expresiva que el producto punto de DLRM pero cuesta (m·d)² parámetros por capa; la variante de rango bajo de DCN v2 los baja con W ≈ U·Vᵀ (la que usa MLPerf, rango 512), y DCN-Mix mezcla varias de esas matrices de rango bajo como expertos.';
     }
 
     function readout() {

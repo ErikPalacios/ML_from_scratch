@@ -61,8 +61,10 @@
     "depth_default": 6
   },
   "metrics_checks": {
-    "measuredNodes": 63500,
+    "measuredNodes": 35000,
     "measuredLeaves": 32000,
+    "nodesPerTree": 70,
+    "internalNodes": 3000,
     "leavesPerTree": 64,
     "paramsPerTree": 70,
     "nTrees": 500,
@@ -83,11 +85,11 @@
     "max_borders_used": 68,
     "scale": 1.0,
     "bias": 0.010423293337225914,
-    "train_seconds": 2.6
+    "train_seconds": 2.5
   },
   "notes": [
     "Modelo real de catboost 1.2.10 (SymmetricTree) con N = 50,000 × F = 100 sintéticos (semilla 13); learning_rate 0.1 fijo.",
-    "Cada árbol: 6 cortes (uno por nivel, compartido) + 64 hojas → params_total = K·70 + 1 (bias de get_scale_and_bias; scale = 1 no es aprendido).",
+    "Cada árbol: 6 cortes (uno por nivel, compartido) + 64 hojas → params_total = K·70 + 1 (bias de get_scale_and_bias; scale = 1 no es aprendido). Nodos guardados = cortes + hojas = 70 por árbol (el árbol binario equivalente tendría 127).",
     "border_count 254 → hasta 255 bins; el modelo guarda solo los bordes usados (máx. 68 por feature).",
     "FLOPs = 0: un árbol compara y suma (0 MACs)."
   ],

@@ -2144,17 +2144,18 @@
     if (pad > 0) S('rect', { x: r1(x0 + live * cw), y: r1(y0), width: r1(W - live * cw), height: rows * cs, class: 'ad-wave-pad' }, gg);
   }
 
-  // fase 13: node.hist = {n:16, split:9, seed?, left?, right?}: histograma ILUSTRATIVO de una feature en n bins (GBDT): una barra
+  // fase 13: node.hist = {n:16, split:9, seed?, h?:52, left?, right?}: histograma ILUSTRATIVO de una feature en n bins (GBDT): una barra
   // con signo por bin (G_b = Σ g de sus filas), los bins a la izquierda del corte en azul y los de la derecha en verde azulado,
   // la línea punteada del corte y los rótulos de cada lado (left/right, por omisión "G_L, H_L" y "G_R, H_R"). Los valores son de
   // una semilla: lo que dice el dibujo es la estructura (sumas por bin, un corte entre bins), no un número.
-  const HIST_H = () => 52;
+  // o.h = alto reservado (px; 52 por omisión): las barras ocupan ese alto menos 22 px (las etiquetas G_L / G_R van debajo)
+  const HIST_H = (o) => Math.max(52, (o && +o.h) || 52);
   function drawHist(g, o, r, used, ctl, spec) {
     used.hist = true;
     const n = Math.max(2, o.n || 16), k = Math.max(1, Math.min(n - 1, o.split || Math.round(n * 0.6)));
     const rng = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng(o.seed || 16) : Math.random;
     const gg = S('g', { class: 'ad-hist' }, g);
-    const x0 = r.x + 12, W = r.w - 24, bw = W / n, y0 = r.y + r.h - HIST_H() + 4, bh = 30, zero = y0 + bh / 2;
+    const x0 = r.x + 12, W = r.w - 24, bw = W / n, y0 = r.y + r.h - HIST_H(o) + 4, bh = HIST_H(o) - 22, zero = y0 + bh / 2;
     S('path', { d: 'M' + P([x0, zero]) + 'H' + r1(x0 + W), class: 'ad-hist-axis' }, gg);
     for (let b = 0; b < n; b++) {
       const sg = (b < k ? 1 : -1) * (rng() < 0.15 ? -1 : 1), v = sg * (0.25 + 0.75 * rng());
@@ -2585,7 +2586,7 @@
     else if (t && !isMap) g.setAttribute('aria-label', (e.tag && e.tag !== 'K,V' ? plainSub(qText(e.tag, ctl, ctl.building)) + ': ' : '') + plainSub(t.label || e.tensor) + (blankShapeHidden(ctl, t, ge.key + '@' + e.tensor) ? '' : ', ' + shapeSay(t)) + fromTo());
     // arista de control con etiqueta (sin tensor): el lector de pantalla oye qué decide y entre qué bloques
     // fase 9: en una vista sin calculador (calc:false) las aristas de datos tampoco tienen tensor: también dicen su etiqueta
-    if (!t && !isMap && (kind === 'control' || (ctl.building && ctl.building.calc === false)) && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(qText(e.tag, ctl, ctl.building)) + (e.loop ? ', se repite' : '') + (e.tie ? ' (pesos compartidos entre ' + plainSub(nodeLabelOf(ctl, e.from)) + ' y ' : kind === 'control' ? ' (control, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' : ' (flujo, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ') + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
+    if (!t && !isMap && (kind === 'control' || (ctl.building && ctl.building.calc === false)) && e.tag) { g.setAttribute('role', 'img'); g.setAttribute('aria-label', plainSub(qText(e.tag, ctl, ctl.building)) + (e.loop ? ', se repite' : '') + (e.tie ? ' (pesos compartidos entre ' + plainSub(nodeLabelOf(ctl, e.from)) + ' y ' : (ctl.building && ctl.building.edgeLegendAria && ctl.building.edgeLegend && ctl.building.edgeLegend[kind]) ? ' (' + plainSub(ctl.building.edgeLegend[kind]) + ', de ' : kind === 'control' ? ' (control, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ' : ' (flujo, de ' + plainSub(nodeLabelOf(ctl, e.from)) + ' a ') + plainSub(nodeLabelOf(ctl, e.to)) + ')'); }
     if (e.dot) { const dp = e.fromPt ? ge.pts[0] : ge.pts.length > 2 ? ge.pts[1] : ge.pts[0]; S('circle', { cx: r1(dp[0]), cy: r1(dp[1]), r: 2.8, class: 'ad-dot' }, g); }
     if ((kind === 'cross' || e.tag) && e.tag !== false) {   // tag:false = arista cross sin etiqueta (chips de texto de YOLO-World)
       const la = labelAnchor(ge.pts0 || ge.pts, Object.assign({}, e, { labelT: e.tagT == null ? 0.25 : e.tagT, labelSeg: e.tagSeg != null ? e.tagSeg : e.labelSeg, labelSide: e.tagSide && e.tagSide !== 'on' ? e.tagSide : null }));
@@ -2689,7 +2690,7 @@
         if (k.id === 'cross') { S('path', { d: 'M2 8H20', class: 'ad-ln ad-ln--cross-out' }, g); S('path', { d: 'M2 8H20', class: 'ad-ln ad-ln--cross-in' }, g); }
         else S('path', { d: 'M2 8H19', class: 'ad-ln' }, g);
         arrowHead(g, [[2, 8], [25, 8]], 'ad-head' + (k.id === 'cross' ? ' ad-head--hollow' : ''), k.id === 'control' ? 5 : 7);
-      }, (view.spec && view.spec.edgeLegend && view.spec.edgeLegend[k.id]) || k.title);   // spec.edgeLegend: texto propio por tipo
+      }, (view.spec && view.spec.edgeLegend && view.spec.edgeLegend[k.id]) || k.title);   // spec.edgeLegend: texto propio por tipo (con spec.edgeLegendAria, también en el aria de las aristas con tag)
     }
     for (const mk of MAP_KINDS) {
       if (!used.map.has(mk)) continue;
@@ -2767,7 +2768,7 @@
     if (used.closed) item((s) => { const g = S('g', { class: 'ad-node--closed' }, s); S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-box' }, g); }, 'Caja negra: pesos cerrados (no se ve por dentro)');
     if (used.bins) item((s) => { const g = S('g', { class: 'ad-bins' }, s); S('rect', { x: 2, y: 4, width: 22, height: 8, class: 'ad-bins-track' }, g); S('path', { d: 'M5 4V12M8 4V12M11 4V12M14 4V12M17 4V12M20 4V12', class: 'ad-bins-tick' }, g); S('rect', { x: 13, y: 3, width: 4, height: 10, class: 'ad-bins-on' }, g); }, 'Bins de una dimensión de la acción (resaltado: el del ejemplo, ilustrativo)');
     if (used.maskGrid) item((s) => { [[3, 3, 1], [9, 3, 0], [15, 3, 0], [3, 9, 1], [9, 9, 1], [15, 9, 0]].forEach(([x, y, on]) => S('rect', { x, y, width: 5, height: 5, class: on ? 'ad-mask-on ad-mod--img' : 'ad-mask-off' }, s)); }, 'Máscara de atención: fila = query, columna = key; llena = permitido, vacía = bloqueado (−∞)' + (used.maskRun ? '; filas atenuadas = no corren en el paso' : ''));
-    if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, 'Bloque repetido × L');
+    if (used.repeat) item((s) => { S('rect', { x: 7, y: 6, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 4.5, y: 3.5, width: 16, height: 9, rx: 2, class: 'ad-stack' }, s); S('rect', { x: 2, y: 1, width: 16, height: 9, rx: 2, class: 'ad-frame' }, s); }, LT.repeat || 'Bloque repetido × L');
     if (used.heads) item((s) => { const g = S('g', { class: 'ad-op--attn' }, s); for (let i = 3; i >= 0; i--) S('rect', { x: 2 + i * 2.5, y: 5 - i * 1.5, width: 14, height: 9, rx: 2, class: 'ad-box' + (i ? ' ad-box--deck' : '') }, g); }, 'Una carta por cabeza (h)');
     if (used.batch) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--batch' }, s); }, 'Marco discontinuo: formas con lote (B)');
     if (used.train) item((s) => { S('rect', { x: 2, y: 2, width: 22, height: 12, rx: 3, class: 'ad-frame ad-frame--train' }, s); }, 'Marco gris discontinuo: solo en entrenamiento');

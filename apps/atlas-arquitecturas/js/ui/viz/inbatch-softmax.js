@@ -2,15 +2,16 @@
    Atlas de Arquitecturas — js/ui/viz/inbatch-softmax.js
    Visualización "inbatch-softmax" (SPEC §7.8, §25.4): la pérdida de entrenamiento del two-tower con negativos del lote y la
    corrección logQ (Yi et al., "Sampling-Bias-Corrected Neural Modeling for Large Corpus Item Recommendations", RecSys 2019).
-   Un lote ILUSTRATIVO de B pares (usuario i, ítem que vio i) tomado de un flujo donde los ítems aparecen con probabilidad
-   Q_j (Zipf: unos pocos son muy populares) → logits s_ij = u_i·v_j / τ (B×B; diagonal = positivos, el resto = negativos del
+   Un lote ILUSTRATIVO de B pares (usuario i, ítem que vio i): B extracciones (con reemplazo) de un flujo donde cada
+   extracción es el ítem j con probabilidad Q_j (Zipf: unos pocos son muy populares) → logits s_ij = u_i·v_j / τ (B×B; diagonal = positivos, el resto = negativos del
    lote) → corregidos s_ij − log Q_j → softmax por fila → L = promedio de −log p_ii. Sin corrección, los ítems populares son
    negativos mucho más seguido de lo que les tocaría (aparecen en más lotes) y el modelo aprende a bajarles el puntaje; restar
    log Q_j a cada columna compensa ese muestreo (es la corrección del sampled softmax). Si un ítem aparece dos veces en el lote,
    la celda fuera de la diagonal es un falso negativo (mismo ítem). Abajo: veces esperadas que cada ítem del catálogo es negativo
-   en 1,000 lotes, ∝ (B − 1)·Q_j. Números del calculador (no ilustrativos): B, dim y la matriz B×B de la config (two-tower-base).
+   en 1,000 lotes = 1,000·B·(B − 1)·Q_j (cada una de las B·(B − 1) celdas fuera de la diagonal es el ítem j con probabilidad Q_j). Números del calculador (no ilustrativos): B, dim y la matriz B×B de la config (two-tower-base).
    Q_j: en el paper se estima en streaming (un arreglo con el último paso en que se vio cada ítem y un promedio móvil del
-   intervalo entre apariciones; Q ≈ 1 / intervalo).
+   intervalo entre apariciones; Q ≈ 1 / intervalo, la probabilidad de que el ítem caiga en un lote). Por extracción o por lote,
+   log Q cambia en una constante (≈ log B para ítems no muy populares), que la softmax de cada fila ignora.
    params: { config:'two-tower-base', B:6 (4|6|8), view:'logits'|'corr'|'softmax', correct:true }
    No toca el DOM al cargar.
    ========================================================================== */
@@ -69,7 +70,7 @@
     const stage = V.html('div', { class: 'viz-stage' }, wrap);
     const out = V.html('div', { class: 'viz-readout', 'aria-live': 'polite' }, wrap);
     const real = V.html('div', { class: 'viz-real' }, wrap);
-    V.html('p', { class: 'viz-note', text: 'Lote, ítems y embeddings ilustrativos (12 ítems con popularidad de Zipf). Fila = usuario, columna = ítem del lote; la diagonal es el ítem que ese usuario vio (positivo) y el resto de la fila son los negativos: los positivos de los OTROS pares, gratis porque sus vectores ya se calcularon. Como un ítem entra al lote con probabilidad Qⱼ, los populares son negativos muchísimas más veces que los raros (barras de abajo); sin corregir, el modelo aprende a castigarlos. Restar log Qⱼ a su columna (Yi et al., RecSys 2019) compensa ese muestreo. Recuadro punteado: el mismo ítem dos veces en el lote, un falso negativo.' }, wrap);
+    V.html('p', { class: 'viz-note' }, wrap, 'Lote, ítems y embeddings ilustrativos (12 ítems con popularidad de Zipf). Fila = usuario, columna = ítem del lote; la diagonal es el ítem que ese usuario vio (positivo) y el resto de la fila son los negativos: los positivos de los OTROS pares, gratis porque sus vectores ya se calcularon. Cada uno de los B ítems del lote se extrae con probabilidad Q<sub>j</sub> (por extracción), así que el ítem j aparece ≈ B·Q<sub>j</sub> veces por lote y los populares son negativos muchísimas más veces que los raros (barras de abajo); sin corregir, el modelo aprende a castigarlos. Restar log Q<sub>j</sub> a su columna (Yi et al., RecSys 2019) compensa ese muestreo; si Q se mide por lote en vez de por extracción, log Q cambia en una constante (≈ log B) que la softmax de cada fila ignora. Recuadro punteado: el mismo ítem dos veces en el lote, un falso negativo.');
 
     let lastNarrow = null;
     function draw() {
@@ -89,7 +90,7 @@
       lastNarrow = narrow;
       stage.innerHTML = '';
       const cs = narrow ? Math.max(30, Math.min(40, Math.floor((cw - 120) / B))) : 48;
-      const ML = narrow ? 56 : 80, TOP = narrow ? 128 : 136;
+      const ML = narrow ? 56 : 80, TOP = narrow ? 146 : 160;
       const need = ML + B * cs + 64;
       const W = narrow ? Math.max(300, need) : Math.max(620, ML + B * cs + 140);
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'group', 'aria-label': 'Matriz ' + B + '×' + B + ' de usuarios (filas) por ítems del lote (columnas)' }, stage);
@@ -104,7 +105,7 @@
         V.svg('rect', { x: r1(x + cs * 0.3), y: r1(TOP - 30 - bh), width: r1(cs * 0.4), height: r1(Math.max(1, bh)), class: 'viz-ib-q' }, svg);
         t(svg, x + cs / 2, TOP - 18, (100 * QZ[j]).toFixed(QZ[j] < 0.1 ? 1 : 0) + '%', 'viz-s', 'middle');
         t(svg, x + cs / 2, TOP - 6, (-lq[k]).toFixed(1), 'viz-ib-lq', 'middle');
-        const tt = V.svg('text', { class: 'viz-s', transform: 'translate(' + r1(x + cs / 2 + 3) + ',' + r1(TOP - 70) + ') rotate(-40)' }, svg);
+        const tt = V.svg('text', { class: 'viz-s', transform: 'translate(' + r1(x + cs / 2 + 3) + ',' + r1(TOP - 70) + ') rotate(-60)' }, svg);
         tt.textContent = ITEMS[j];
       });
       t(svg, ML - 6, TOP - 18, 'Q_j', 'viz-s', 'end');
@@ -128,15 +129,17 @@
       const lx = ML + B * cs + 10;
       t(svg, lx, TOP - 6, '−log p_ii', 'viz-s');
       use.forEach((row, i) => t(svg, lx, TOP + i * cs + cs / 2 + 4, (-Math.log(softmax(row)[i])).toFixed(2), 'viz-n'));
-      // ---- veces esperadas que cada ítem del catálogo es negativo en 1,000 lotes: 1000·(B − 1)·Q_j
+      // ---- veces esperadas que cada ítem del catálogo es negativo en 1,000 lotes: 1000·B·(B − 1)·Q_j (B·(B − 1) celdas
+      //      fuera de la diagonal por lote, cada una es el ítem j con probabilidad Q_j por extracción)
       let y = TOP + B * cs + 52;
-      t(svg, 8, y - 22, narrow ? 'veces que cada ítem es negativo (1,000 lotes)' : 'veces esperadas que cada ítem del catálogo es negativo en 1,000 lotes = 1,000·(B − 1)·Q_j', 'viz-n');
-      const bw = (W - 40) / ITEMS.length, hB = 60, nMax = 1000 * (B - 1) * qMax;
+      t(svg, 8, y - 22, narrow ? 'veces que cada ítem es negativo (1,000 lotes)' : 'veces esperadas que cada ítem del catálogo es negativo en 1,000 lotes ≈ 1,000·B·(B − 1)·Q_j', 'viz-n');
+      const bw = (W - 40) / ITEMS.length, hB = 60, nMax = 1000 * B * (B - 1) * qMax;
       ITEMS.forEach((name, j) => {
-        const n = 1000 * (B - 1) * QZ[j], hh = hB * n / nMax;
+        const n = 1000 * B * (B - 1) * QZ[j], hh = hB * n / nMax;
         const x = 8 + j * bw;
         V.svg('rect', { x: r1(x + 2), y: r1(y + hB - hh), width: r1(bw - 4), height: r1(Math.max(1, hh)), class: 'viz-ib-neg' + (bt.items.indexOf(j) >= 0 ? ' is-in' : '') }, svg);
-        t(svg, x + bw / 2, y + hB - hh - 3, fint(n), 'viz-ib-nv', 'middle');
+        // angosto: en miles (≈ 25 px por barra no alcanzan para 5 cifras)
+        t(svg, x + bw / 2, y + hB - hh - 3, narrow && n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k' : fint(n), 'viz-ib-nv', 'middle');
         const tt = V.svg('text', { class: 'viz-s', transform: 'translate(' + r1(x + bw / 2 + 3) + ',' + r1(y + hB + 10) + ') rotate(40)' }, svg);
         tt.textContent = name;
       });

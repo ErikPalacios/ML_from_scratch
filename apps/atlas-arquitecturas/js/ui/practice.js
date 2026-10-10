@@ -769,17 +769,21 @@
     nTrees: { label: 'Árboles', kind: 'count', note: 'número de rondas de boosting' },
     depth: { label: 'Profundidad máxima', kind: 'count', note: '' },
     leavesPerTree: { label: 'Hojas por árbol', kind: 'count', note: '≤ 2^profundidad' },
-    nodesPerTree: { label: 'Nodos por árbol', kind: 'count', note: 'internos + hojas' },
+    nodesPerTree: { label: 'Nodos por árbol', kind: 'count', note: 'internos + hojas (oblivious: d cortes + 2^d hojas)' },
     paramsPerTree: { label: 'Valores guardados por árbol', kind: 'count', note: 'umbrales + valores de hoja' },
-    internalNodes: { label: 'Nodos internos (splits)', kind: 'count', note: 'todos los árboles' },
+    internalNodes: { label: 'Nodos internos (splits)', kind: 'count', note: 'todos los árboles (oblivious: d cortes por árbol)' },
     nodes: { label: 'Nodos del ensamble', kind: 'count', note: 'todos los árboles, internos + hojas' },
     leaves: { label: 'Hojas del ensamble', kind: 'count', note: 'todos los árboles' },
-    modelBytes: { label: 'Tamaño del modelo', kind: 'bytes', note: '≈ bytes por nodo × nodos (formato binario)' },
-    comparisonsPerPrediction: { label: 'Comparaciones por predicción', kind: 'count', note: '≈ árboles × profundidad del camino' },
-    pathDepth: { label: 'Profundidad media del camino', kind: 'count', note: 'raíz → hoja' },
+    modelBytes: { label: 'Tamaño del modelo', kind: 'bytes', note: '≈ formato por defecto de la librería (binario en XGBoost y CatBoost, texto en LightGBM), árboles llenos' },
+    comparisonsPerPrediction: { label: 'Comparaciones por predicción', kind: 'count', note: '≈ árboles × profundidad (leaf-wise: camino de un árbol balanceado; no es cota)' },
+    comparisonsMax: { label: 'Comparaciones por predicción (máximo)', kind: 'count', note: 'leaf-wise: árboles × (L − 1)' },
+    comparisonsMeasured: { label: 'Comparaciones por predicción (medidas)', kind: 'count', note: 'camino promedio del modelo real × árboles' },
+    comparisonsMeasuredNonlinear: { label: 'Comparaciones medidas con otro objetivo', kind: 'count', note: 'objetivo no lineal: queda por debajo del camino balanceado' },
+    numLeaves: { label: 'Hojas por árbol (num_leaves)', kind: 'count', note: 'leaf-wise' },
+    pathDepth: { label: 'Comparaciones por árbol (≈)', kind: 'count', note: 'profundidad d; leaf-wise: ⌈log₂ L⌉ (camino balanceado)' },
     predictionsPerSecCpu: { label: 'Predicciones/s en CPU (≈)', kind: 'count', note: 'todos los núcleos; estimado' },
     predictionUsOneCore: { label: 'µs por predicción en un núcleo (≈)', kind: 'avg', note: 'estimado' },
-    histogramRowsPerTree: { label: 'Filas que pasan por histogramas por árbol', kind: 'count', note: '≈ N × niveles (con el truco de la resta, menos)' },
+    histogramRowsPerTree: { label: 'Filas que pasan por histogramas por árbol', kind: 'count', note: '≈ N × (1 + (niveles − 1)/2): ya con el truco de la resta' },
     histogramAddsPerTree: { label: 'Sumas a histogramas por árbol', kind: 'count', note: '≈ filas × features' },
     histogramBytesPerNode: { label: 'Bytes de un histograma por nodo', kind: 'bytes', note: 'features × bins × (G, H)' },
     splitEvalsPerTree: { label: 'Evaluaciones de split por árbol', kind: 'count', note: 'nodos × features × bins' },
@@ -788,16 +792,16 @@
     trainOps: { label: 'Operaciones de todo el entrenamiento (≈)', kind: 'count', note: '' },
     trainSecCpu: { label: 'Segundos de entrenamiento en CPU (≈)', kind: 'avg', note: 'cota a pico; el real es más lento' },
     histogramShareTrain: { label: 'Histogramas', kind: 'pct', note: '% de las operaciones de entrenamiento' },
-    binnedDataBytes: { label: 'Datos binneados', kind: 'bytes', note: 'N × F × 1 byte' },
+    binnedDataBytes: { label: 'Datos binneados', kind: 'bytes', note: 'N × F × 1 byte (≤ 256 bins guardados)' },
     rawDataBytes: { label: 'Datos originales', kind: 'bytes', note: 'N × F × 4 bytes' },
     cpuCores: { label: 'Núcleos de CPU', kind: 'count', note: '' },
     cpuHz: { label: 'Frecuencia de CPU (Hz)', kind: 'count', note: '' },
-    modelBytesJson: { label: 'Tamaño del modelo en JSON', kind: 'bytes', note: 'medido' },
+    modelBytesJson: { label: 'Tamaño del modelo en JSON', kind: 'bytes', note: '≈ 58 B por nodo, árboles llenos (no medido)' },
     measuredN: { label: 'Filas del entrenamiento medido', kind: 'count', note: 'datos sintéticos' },
     measuredNodes: { label: 'Nodos medidos', kind: 'count', note: 'del modelo real entrenado' },
     measuredLeaves: { label: 'Hojas medidas', kind: 'count', note: 'del modelo real entrenado' },
-    measuredFullShare: { label: 'Árboles completos', kind: 'pct', note: '% de árboles que llegan a 2^profundidad hojas' },
-    modelBytesMeasured: { label: 'Tamaño medido del modelo', kind: 'bytes', note: 'archivo guardado' },
+    measuredFullShare: { label: 'Nodos medidos / árbol lleno', kind: 'pct', note: 'nodos del modelo real ÷ cota de árboles llenos' },
+    modelBytesMeasured: { label: 'Tamaño del modelo con los nodos medidos', kind: 'bytes', note: 'fórmula con los nodos medidos (≈ archivo: < 0.1 % XGBoost, ± 3 % LightGBM)' },
     nItems: { label: 'Ítems en el catálogo', kind: 'count', note: 'filas de la tabla de ítems = vectores del índice' },
     hist: { label: 'Largo del historial n_hist', kind: 'count', note: 'ítems vistos que se promedian' },
     idBuckets: { label: 'Buckets del id de usuario', kind: 'count', note: 'filas de la tabla con hashing' },
@@ -824,8 +828,12 @@
     inBatchLogitsMacsPerPair: { label: 'MACs de logits por ejemplo', kind: 'ops', note: 'B × dim' },
     inBatchNegatives: { label: 'Negativos in-batch por ejemplo', kind: 'count', note: 'B − 1' },
     inBatchLogitsShare: { label: 'Logits in-batch', kind: 'pct', note: '% del cómputo de un paso' },
-    lookupsPerExample: { label: 'Lookups por ejemplo', kind: 'count', note: 'filas de tablas leídas' },
-    lookupBytesPerExample: { label: 'Bytes de lookups por ejemplo', kind: 'bytes', note: '' },
+    lookupsPerExample: { label: 'Lookups por ejemplo de entrenamiento', kind: 'count', note: 'filas leídas por par usuario + ítem' },
+    lookupBytesPerExample: { label: 'Bytes de lookups por ejemplo de entrenamiento', kind: 'bytes', note: 'usuario + ítem, fp32' },
+    userLookupsPerRequest: { label: 'Lookups por request', kind: 'count', note: 'solo la torre de usuario (id, historial, categóricas)' },
+    userLookupBytesPerRequest: { label: 'Bytes de lookups por request', kind: 'bytes', note: 'torre de usuario, fp32' },
+    userTowerParamsWithShared: { label: 'Parámetros que lee la torre de usuario', kind: 'count', note: 'con la tabla de ítems que lee para el historial' },
+    topkOps: { label: 'Comparaciones del top-k (≈)', kind: 'count', note: 'N_items × log₂ k (heap de tamaño k)' },
     trainStepMsH100: { label: 'ms por paso de entrenamiento (≈ H100)', kind: 'ms', note: 'roofline' },
     indexBytes16: { label: 'Memoria del índice en fp16', kind: 'bytes', note: '' },
     itemCorpusMacs: { label: 'MACs de codificar todo el catálogo', kind: 'ops', note: 'offline' },
@@ -842,8 +850,8 @@
     wideParams: { label: 'Parámetros de la parte wide', kind: 'count', note: '' },
     deepEmbeddingParams: { label: 'Embeddings de la parte deep', kind: 'count', note: '' },
     gpusToHoldTables: { label: 'GPUs para guardar las tablas (≈)', kind: 'count', note: 'por memoria HBM' },
-    lookupsPerSample: { label: 'Lookups por muestra', kind: 'count', note: 'uno por feature categórica' },
-    lookupBytesPerSample: { label: 'Bytes de lookups por muestra', kind: 'bytes', note: 'tablas × dim × bytes' },
+    lookupsPerSample: { label: 'Lookups por muestra', kind: 'count', note: 'filas leídas (uno por feature en one-hot; W&D 52, DCN v2 multi-hot 214)' },
+    lookupBytesPerSample: { label: 'Bytes de lookups por muestra', kind: 'bytes', note: 'lookups × d × bytes' },
     lookupBytesPerSample32: { label: 'Bytes de lookups por muestra en fp32', kind: 'bytes', note: '' },
     bottomMlpMacs: { label: 'MACs del MLP de abajo', kind: 'ops', note: 'features densas' },
     topMlpMacs: { label: 'MACs del MLP de arriba', kind: 'ops', note: '' },
@@ -862,6 +870,12 @@
     mlpMsBatch: { label: 'ms de MLPs por lote (≈)', kind: 'ms', note: '' },
     embeddingMsShare: { label: 'Lookups', kind: 'pct', note: '% del tiempo por lote' },
     trainSamplesPerSecH100: { label: 'Muestras/s de entrenamiento en H100 (≈ tope)', kind: 'count', note: 'roofline' },
+    trainSamplesPerSecA100: { label: 'Muestras/s de entrenamiento en A100 40 GB (≈ tope)', kind: 'count', note: 'roofline (312 TFLOPS bf16, 1.555 TB/s)' },
+    measuredTrainPerGpu: { label: 'Muestras/s medidas por GPU (MLPerf, A100)', kind: 'count', note: '1,671,168 / 8; tablas sin tope' },
+    trainCeilingVsMeasuredH100: { label: 'Cota H100 / medido por GPU', kind: 'ratio', note: 'entrenamiento, arquitectura de MLPerf' },
+    trainCeilingVsMeasuredA100: { label: 'Cota A100 / medido por GPU', kind: 'ratio', note: 'entrenamiento, misma GPU que la medición' },
+    crossRank: { label: 'Rango de las capas de cruce r', kind: 'count', note: 'DCN v2' },
+    crossParamsFullRank: { label: 'Parámetros de cruce con matriz llena', kind: 'count', note: 'capas × (D² + D): contra 2·D·r + D de bajo rango' },
     rankingMacsPerRequest: { label: 'MACs de rankear un request', kind: 'ops', note: 'k candidatos' },
     rankingLookupBytesPerRequest: { label: 'Bytes de lookups por request', kind: 'bytes', note: 'k candidatos' },
     rankingMsH100: { label: 'ms de rankear un request (≈ H100)', kind: 'ms', note: 'roofline' },
@@ -1208,6 +1222,8 @@
   // Porcentaje: 1 decimal desde 1 %; debajo de 1 %, 3 cifras significativas (0.0848 %, 0.520 %: "0.1 %" sería −18 %).
   // Mismo criterio que ATLAS.Arch.fmt.pctAuto (prosa {{metrics.…Share}} y tablas compare); ≥ 1 % igual que antes.
   function fPctAuto(v) {
+    const f = ATLAS.Arch && ATLAS.Arch.fmt;
+    if (f && typeof f.pctAuto === 'function') return f.pctAuto(v);   // incluye cerca de 100 %: 99.979 %, no 100.0 %
     const p = v * 100;
     return (p !== 0 && Math.abs(p) < 1 ? p.toPrecision(3) : (Math.round(p * 10) / 10).toFixed(1)) + ' %';
   }
@@ -2158,7 +2174,10 @@
         .forEach(([k, v, n]) => { if (typeof v === 'number' && !has(k)) out.push([k, v, n]); });
     }
     if (typeof c.nTrees === 'number' && typeof c.F === 'number') {
-      [['F', c.F, 'features'], ['n_bins', c.histBins, 'bins del histograma por feature'], ['n_nodes', c.kind === 'oblivious' ? c.depth + c.leavesPerTree : c.nodesPerTree, c.kind === 'oblivious' ? 'valores por árbol (oblivious: d splits + 2^d hojas)' : 'nodos por árbol'],
+      // nodesPerTree ya es d + 2^d en oblivious (trees.js): el mismo número que el tensor `tree`.
+      const iN = out.findIndex(([x]) => x === 'N');
+      if (iN >= 0 && out[iN].length < 3) out[iN] = ['N', out[iN][1], 'filas de entrenamiento'];
+      [['F', c.F, 'features'], ['n_bins', c.histBins, 'bins del histograma por feature'], ['n_nodes', c.nodesPerTree, c.kind === 'oblivious' ? 'valores por árbol (oblivious: d cortes + 2^d hojas)' : 'nodos por árbol'],
         ['K', c.nTrees, 'árboles']].forEach(([k, v, n]) => { if (typeof v === 'number' && !has(k)) out.push([k, v, n]); });
     }
     // Fase 12 (encoder-decoder): T_in / T_out; Whisper: T_in = las 1,500 posiciones del encoder, S muestras, n_mels.
@@ -2782,7 +2801,13 @@
     // Fase 12: encoder una vez + decoder por token; T_in fijo en Whisper, así que `tokens` no sirve de fila.
     t5: ['encoderMacs', 'decoderMacsPerToken', 'totalGenerationMacs', 'encoderShare', 'crossKvBytes', 'selfKvCacheBytes', 'generationMs'],
     whisper: ['encoderMacs', 'decoderMacsPerToken', 'totalGenerationMacs', 'encoderShare', 'crossKvBytes', 'selfKvCacheBytes', 'generationMs', 'paddingShare', 'speedVsRealtime'],
+    // Fase 13: sin atención (tablas, MLPs, búsqueda; árboles: nodos y comparaciones).
+    'two-tower': ['params', 'embeddingParams', 'userTowerMacs', 'indexBytes', 'bruteForceMacs', 'inBatchLogitsMacs', 'lookupBytesPerExample', 'userLookupBytesPerRequest'],
+    dlrm: ['params', 'embeddingParams', 'embeddingBytes', 'lookupBytesPerSample', 'macsPerSample', 'interactionMacs', 'arithmeticIntensity', 'rankingMacsPerRequest'],
+    gbdt: ['nodes', 'modelBytes', 'comparisonsPerPrediction', 'histogramAddsPerTree', 'splitEvalsPerTree', 'trainOps'],
   };
+  // Modelos sin atención: la tabla del what-if no agrega la línea "Atención (solo QKᵀ y A·V)" (two-tower tiene scoreMacs = u·v).
+  const WI_NO_ATTN = { 'two-tower': 1, dlrm: 1, gbdt: 1 };
   // Etiqueta de un factor COMO OPCIÓN: la misma regla para todas las opciones (correcta, distractores
   // y las del autor), así el formato no delata la respuesta: "≈" + 2 cifras significativas.
   // 3.98 → "≈ ×4" · 15.88 → "≈ ×16" · 4.45 → "≈ ×4.5" · 0.25 → "≈ ÷4" · 1.003 → "≈ ×1".
@@ -2938,7 +2963,7 @@
             h('td', { class: 'mono num', title: fMetricExact(k, a) }, fMetric(k, a)),
             h('td', { class: 'mono num' }, metricKind(k) === 'bool' ? (a === b ? '=' : 'cambia') : metricKind(k) === 'pct' ? fVsBase(k, a, b).replace(' vs base', '') : b ? fFactor(a / b) : '—'));
         })))));
-      const sb = attnSplit(base), sa = attnSplit(alt);
+      const sb = WI_NO_ATTN[wm] ? null : attnSplit(base), sa = WI_NO_ATTN[wm] ? null : attnSplit(alt);
       if (sb && sa) expl.appendChild(h('p', { class: 'muted small' }, 'Atención (solo QKᵀ y A·V), en % de los MACs: ' + Math.round(sb.share * 1000) / 10 + ' % → ' + Math.round(sa.share * 1000) / 10 + ' %.'
         + (typeof base.attnMacsShare === 'number' && typeof alt.attnMacsShare === 'number' ? ' Bloque de atención (con proyecciones): ' + Math.round(base.attnMacsShare * 1000) / 10 + ' % → ' + Math.round(alt.attnMacsShare * 1000) / 10 + ' %.' : '')));
       if (item.explain) { const x = h('div', { class: 'pxw__note', html: fill(item.explain, o.pageCtx) }); decorate(x); expl.appendChild(x); }

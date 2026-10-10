@@ -26,7 +26,7 @@
    xgboost-2000-d8: 2,000 árboles de profundidad 8 (más capacidad: 511 nodos por árbol lleno).
    catboost-oblivious-d6: 500 árboles SIMÉTRICOS (oblivious, grow_policy SymmetricTree, default) de profundidad 6 (default),
      border_count 254 → 255 bins, l2_leaf_reg 3: un corte por NIVEL compartido por todos los nodos: 6 umbrales + 64 hojas por
-     árbol; predecir = 6 comparaciones → índice de 6 bits → leer la hoja (sin saltos impredecibles).
+     árbol (nodesPerTree = 70, no 127); predecir = 6 comparaciones → índice de 6 bits → leer la hoja (sin saltos impredecibles).
    Knobs: nTrees, depth (por hojas: tope 2^d hojas), leaves (solo leaf-wise), F, N, bins.
 
    ---------------------------------------------------------------- nodos y ops (op.path) → tensores
@@ -38,18 +38,27 @@
 
    ---------------------------------------------------------------- metrics (units en metrics.units)
    nodes / leaves / internalNodes / nodesPerTree / leavesPerTree / paramsPerTree (ÁRBOLES LLENOS: cota superior; CatBoost y las
-   hojas de LightGBM son exactos; XGBoost poda las ramas sin ganancia: measuredNodes / measuredLeaves / measuredFullShare del modelo
-   real del crosscheck), modelBytes (formato por defecto de la librería, ≈ tree_bytes con los nodos llenos), modelBytesMeasured
-   (con los nodos medidos), modelBytesJson (XGBoost), comparisonsPerPrediction (K·d; leaf-wise: K·⌈log₂ L⌉, el camino de un árbol
-   BALANCEADO, cota inferior ≈), comparisonsMax (leaf-wise: K·(L − 1)), comparisonsMeasured (camino promedio medido × K),
+   hojas de LightGBM son exactos; XGBoost poda las ramas sin ganancia: measuredNodes / measuredLeaves / measuredFullShare = nodos
+   medidos ÷ cota llena (fracción de NODOS, no de árboles) del modelo real del crosscheck). Oblivious (CatBoost): lo GUARDADO por
+   árbol son d cortes (uno por nivel, compartido) + 2^d hojas → internalNodes = K·d, nodesPerTree = paramsPerTree = d + 2^d (70
+   con d = 6), igual que el tensor `tree` y el crosscheck; el árbol binario equivalente tendría 2^(d+1) − 1 nodos.
+   modelBytes (formato por defecto de la librería, ≈ tree_bytes con los nodos llenos), modelBytesMeasured (tree_bytes con los nodos
+   medidos: ≈ el archivo), modelBytesJson (XGBoost: ≈ 58 B por nodo con árboles LLENOS, no medido), comparisonsPerPrediction (K·d;
+   leaf-wise: K·⌈log₂ L⌉ ≈ el camino de un árbol BALANCEADO — NO es cota: el promedio ponderado por datos de un árbol desbalanceado
+   puede quedar por encima (3,924 medido en el crosscheck) o por debajo (1,564 con el objetivo no lineal del crosscheck); las únicas cotas son
+   K ≤ camino ≤ K·(L − 1)), comparisonsMax (leaf-wise: K·(L − 1)), comparisonsMeasured (camino promedio medido × K; comparisonsMeasuredNonlinear: lo mismo
+   con el objetivo no lineal del crosscheck, por debajo del balanceado),
    predictionsPerSecCpu (≈ cota: 1 comparación por ciclo y núcleo en los 96 núcleos del EPYC 9654), predictionUsOneCore,
    histogramRowsPerTree, histogramAddsPerTree (2·filas·F: G y H), histogramBytesPerNode (F·n_bins·2·8: sumas en fp64),
    splitEvalsPerTree (nodos evaluados × F × n_bins), trainOpsPerTree, trainOps (K × árbol + binning), trainSecCpu (≈ cota a 1 op
-   por ciclo y núcleo), binnedDataBytes (N·F·1 byte), rawDataBytes (N·F·4), histogramShareTrain.
+   por ciclo y núcleo), binnedDataBytes (N·F·1 byte con ≤ 256 bins guardados: XGBoost mira max_bin — 256 → 1 byte aunque su
+   histograma tenga 257 entradas; medido con QuantileDMatrix: la misma memoria con max_bin 64 y 256, crece con 257 —; LightGBM
+   max_bin; CatBoost border_count + 1), rawDataBytes (N·F·4), histogramShareTrain.
 
    ---------------------------------------------------------------- desviaciones respecto de SPEC §25.3 (añadidos)
    - nodos / hojas = árboles LLENOS (cota); los modelos reales de XGBoost quedan por debajo (measured*), los de LightGBM (31 hojas)
-     y CatBoost (64) llegan siempre. comparisons para leaf-wise = K·⌈log₂ L⌉ (≈ cota inferior), no K·d (no hay d).
+     y CatBoost (64) llegan siempre. comparisons para leaf-wise = K·⌈log₂ L⌉ (≈ camino de un árbol balanceado; no es cota), no
+     K·d (no hay d).
    - bins: el knob es el max_bin / border_count de la librería; el histograma de XGBoost tiene max_bin + 1 entradas por feature.
    - Hardware: la CPU de retrieval.js (EPYC 9654, 96 núcleos a 2.4 GHz): cotas a 1 op por ciclo y núcleo.
    ========================================================================== */
@@ -72,13 +81,13 @@
       nTrees: 500, depth: 6, bins: 256, format: 'xgb-ubj', measured: { N: 50000, nodes: 61942, leaves: 31221 },
       source: 'Chen y Guestrin, XGBoost, KDD 2016, arXiv:1603.02754. xgboost 3.4.1: tree_method auto → hist (grow_quantile_histmaker), max_bin 256, λ 1, γ 0, min_child_weight 1 (save_config). η = 0.1 y N = 1M × F = 100: carga de referencia elegida aquí.' }),
     'lightgbm-500-l31': Object.assign({}, GB_BASE, { label: 'LightGBM · 500 árboles de 31 hojas (leaf-wise)', lib: 'lightgbm', kind: 'leafwise',
-      nTrees: 500, leaves: 31, depth: 0, bins: 255, lambda: 0, format: 'lgb-text', measured: { N: 50000, nodes: 30500, leaves: 15500, avgPath: 7.847548 },
+      nTrees: 500, leaves: 31, depth: 0, bins: 255, lambda: 0, format: 'lgb-text', measured: { N: 50000, nodes: 30500, leaves: 15500, avgPath: 7.847548, avgPathNonlinear: 3.128093 },
       source: 'Ke et al., LightGBM, NeurIPS 2017. lightgbm 4.7.0: num_leaves 31, max_depth −1, max_bin 255, min_data_in_leaf 20, lambda_l2 0, boost_from_average (la base va en las hojas del árbol 1).' }),
     'xgboost-2000-d8': Object.assign({}, GB_BASE, { label: 'XGBoost · 2,000 árboles de profundidad 8', lib: 'xgboost', kind: 'depthwise',
       nTrees: 2000, depth: 8, bins: 256, format: 'xgb-ubj', measured: { N: 50000, nodes: 743392, leaves: 372696 },
       source: 'xgboost 3.4.1 (defaults como xgboost-500-d6) con max_depth 8 y 2,000 rondas: más capacidad (y más riesgo de sobreajuste).' }),
     'catboost-oblivious-d6': Object.assign({}, GB_BASE, { label: 'CatBoost · 500 árboles simétricos (oblivious) de profundidad 6', lib: 'catboost', kind: 'oblivious',
-      nTrees: 500, depth: 6, bins: 254, lambda: 3, format: 'cb-cbm', measured: { N: 50000, nodes: 63500, leaves: 32000 },
+      nTrees: 500, depth: 6, bins: 254, lambda: 3, format: 'cb-cbm', measured: { N: 50000, nodes: 35000, leaves: 32000 },
       source: 'Prokhorenkova et al., CatBoost, NeurIPS 2018, arXiv:1706.09516. catboost 1.2.10: depth 6, border_count 254, l2_leaf_reg 3, grow_policy SymmetricTree (defaults; get_all_params). 500 iteraciones y η = 0.1 elegidos aquí (el default es 1,000 con η automático).' }),
   };
 
@@ -97,17 +106,22 @@
       if (c.depth && c.leavesEff < c.leaves) (c._notes = c._notes || []).push('max_depth = ' + c.depth + ' limita los árboles a ' + c.leavesEff + ' hojas');
       c.leavesPerTree = c.leavesEff;
       c.internalPerTree = c.leavesEff - 1;
-      c.pathDepth = Math.ceil(Math.log2(c.leavesEff));   // camino de un árbol balanceado (≈ cota inferior)
+      c.pathDepth = Math.ceil(Math.log2(c.leavesEff));   // ≈ camino de un árbol balanceado (no es cota: el real puede quedar arriba o abajo)
     } else {
       if (c.depth < 1 || c.depth > 16) throw new Error(W + 'depth = ' + c.depth + ' (1 a 16).');
       c.leavesPerTree = Math.pow(2, c.depth);
-      c.internalPerTree = c.leavesPerTree - 1;
+      // Oblivious: un corte por NIVEL (compartido por los 2^l nodos del nivel) → se guardan d cortes, no 2^d − 1.
+      c.internalPerTree = c.kind === 'oblivious' ? c.depth : c.leavesPerTree - 1;
       c.pathDepth = c.depth;
     }
     if (c.bins < 2 || c.bins > 65536) throw new Error(W + 'bins = ' + c.bins + ' (2 a 65,536).');
     c.histBins = c.lib === 'xgboost' ? c.bins + 1 : c.lib === 'catboost' ? c.bins + 1 : c.bins;
     c.nodesPerTree = c.internalPerTree + c.leavesPerTree;
-    c.paramsPerTree = (c.kind === 'oblivious' ? c.depth : c.internalPerTree) + c.leavesPerTree;
+    c.paramsPerTree = c.internalPerTree + c.leavesPerTree;
+    // Ancho del índice de bin guardado (1 byte si caben ≤ 256 valores): XGBoost decide con max_bin (= c.bins; su corte 257 es
+    // máx + ε y no agrega un valor guardado), LightGBM con max_bin y CatBoost con border_count + 1 bins.
+    c.storedBins = c.lib === 'xgboost' ? c.bins : c.histBins;
+    c.binBytes = c.storedBins <= 256 ? 1 : 2;
     c.base = c.lib === 'lightgbm' ? 0 : 1;
     return c;
   }
@@ -118,7 +132,7 @@
     const X = g.input('X', shp(['N', 'F'], [c.N, c.F], 'lat', 'seq'), { label: 'Datos de entrenamiento: N filas × F features', tex: 'X' });
     const y = g.input('y', shp(['N'], [c.N], 'lat', 'vec'), { label: 'Objetivo de cada fila', tex: 'y' });
     const fp = g.input('F-prev', shp(['N'], [c.N], 'lat', 'vec'), { label: 'Predicción actual F_{t−1} de cada fila (la suma de los árboles anteriores)', tex: 'F_{t-1}' });
-    const xb = g.op('binning', A.quantize_bins(X, { bins: c.histBins }), { path: ['binning'], out: 'Xb', where: ['Preparación (una vez)'], label: 'Discretizar cada feature en ≤ ' + c.histBins + ' bins (cuantiles)', type: 'tensorop', group: 'embed',
+    const xb = g.op('binning', A.quantize_bins(X, { bins: c.histBins, storedBins: c.storedBins }), { path: ['binning'], out: 'Xb', where: ['Preparación (una vez)'], label: 'Discretizar cada feature en ≤ ' + c.histBins + ' bins (cuantiles)', type: 'tensorop', group: 'embed',
       outMeta: { label: 'Índice de bin de cada valor (1 byte)', tex: '\\mathrm{bin}(X)' } });
     const [gr, he] = g.op('grad-hess', A.grad_hess(y, fp, { loss: c.loss }), { path: ['gradients'], out: ['g', 'h'], where: Wt, repeat: K, label: 'Gradiente y hessiana de la pérdida en cada fila', type: 'tensorop', group: 'head',
       outMeta: [{ label: 'Gradientes g_i = ∂ℓ/∂F', tex: 'g' }, { label: 'Hessianas h_i = ∂²ℓ/∂F²', tex: 'h' }] });
@@ -138,7 +152,7 @@
     const Wp = ['Inferencia (una muestra)'];
     const x = g.input('x', shp(['F'], [c.F], 'lat', 'vec'), { label: 'Una muestra: F features (sin discretizar: se compara con los umbrales)', tex: 'x' });
     const li = g.op('predict-walk', A.tree_predict(x, { K, comparisons: K * c.pathDepth }), { path: ['predict', 'walk'], out: 'leaf-ids', where: Wp,
-      label: 'Bajar por los K árboles (' + (c.kind === 'leafwise' ? '≈ ' : '') + fint(K * c.pathDepth) + ' comparaciones)', type: 'tensorop', group: 'head',
+      label: 'Bajar por los K árboles (' + (c.kind === 'leafwise' ? '≈ ' : '') + fint(K * c.pathDepth) + ' comparaciones' + (c.kind === 'leafwise' ? ', camino balanceado' : '') + ')', type: 'tensorop', group: 'head',
       outMeta: { label: 'La hoja a la que cae x en cada árbol', tex: '\\ell_t(x)' } });
     g.op('predict-sum', A.leaf_sum(li, { base: !!c.base }), { path: ['predict', 'sum'], out: 'y-hat', where: Wp, label: 'Sumar los valores de hoja' + (c.base ? ' + la base' : ' (la base ya está en el árbol 1)'), type: 'head', group: 'head',
       outMeta: { label: 'Predicción', tex: '\\hat y = b + \\textstyle\\sum_t w_t(\\ell_t(x))' } });
@@ -181,11 +195,11 @@
       histogramRowsPerTree: k.histRows, histogramAddsPerTree: k.histAdds, histogramBytesPerNode: c.F * c.histBins * 2 * 8,
       splitEvalsPerTree: k.evals, trainOpsPerTree: k.perTree, binningOps: k.binning, trainOps: K * k.perTree + k.binning,
       trainSecCpu: (K * k.perTree + k.binning) / cyc, histogramShareTrain: K * k.histAdds / (K * k.perTree + k.binning),
-      binnedDataBytes: c.N * c.F * (c.histBins <= 256 ? 1 : 2), rawDataBytes: c.N * c.F * 4,
+      binnedDataBytes: c.N * c.F * c.binBytes, rawDataBytes: c.N * c.F * 4,
       cpuCores: CPU.cores, cpuHz: CPU.hz, hardwareSource: CPU.source, estimate: true,
       // actMem / paramMem genéricos (tensores × repeat, bf16) no aplican a árboles: memoria de entrenamiento ≈ datos discretizados +
       // g, h y F en fp32 (3·4·N) + un histograma por nodo de un nivel (depthwise: 2^(d−1) nodos; leaf-wise: L hojas); paramMem = el modelo.
-      actMem: c.N * c.F * (c.histBins <= 256 ? 1 : 2) + 12 * c.N + (c.kind === 'leafwise' ? c.leavesPerTree : Math.pow(2, Math.max(0, c.depth - 1))) * c.F * c.histBins * 16,
+      actMem: c.N * c.F * c.binBytes + 12 * c.N + (c.kind === 'leafwise' ? c.leavesPerTree : Math.pow(2, Math.max(0, c.depth - 1))) * c.F * c.histBins * 16,
       paramMem: k.bytes(k.nodes, k.leaves),
       units: GB_UNITS,
     };
@@ -197,6 +211,8 @@
       out.measuredN = k.meas.N; out.measuredNodes = k.meas.nodes; out.measuredLeaves = k.meas.leaves; out.measuredFullShare = k.meas.nodes / k.nodes;
       out.modelBytesMeasured = k.bytes(k.meas.nodes, k.meas.leaves);
       if (k.meas.avgPath) out.comparisonsMeasured = Math.round(K * k.meas.avgPath);
+      // El mismo modelo con un objetivo no lineal (crosscheck): el camino promedio queda POR DEBAJO del balanceado.
+      if (k.meas.avgPathNonlinear) out.comparisonsMeasuredNonlinear = Math.round(K * k.meas.avgPathNonlinear);
     }
     const arch = {};
     Object.keys(r.overrides || {}).forEach((x) => { if (x in A.model('gbdt').knobs) arch[x] = r.overrides[x]; });
@@ -209,7 +225,7 @@
   }
   const GB_UNITS = {
     nTrees: 'count', depth: 'count', leavesPerTree: 'count', nodesPerTree: 'count', paramsPerTree: 'count', internalNodes: 'count', nodes: 'count', leaves: 'count', params: 'params',
-    modelBytes: 'bytes', modelBytesJson: 'bytes', modelBytesMeasured: 'bytes', comparisonsPerPrediction: 'count', comparisonsMax: 'count', comparisonsMeasured: 'count', pathDepth: 'count',
+    modelBytes: 'bytes', modelBytesJson: 'bytes', modelBytesMeasured: 'bytes', comparisonsPerPrediction: 'count', comparisonsMax: 'count', comparisonsMeasured: 'count', comparisonsMeasuredNonlinear: 'count', pathDepth: 'count',
     predictionsPerSecCpu: 'count', predictionUsOneCore: 'ratio', histogramRowsPerTree: 'count', histogramAddsPerTree: 'count', histogramBytesPerNode: 'bytes', splitEvalsPerTree: 'count',
     trainOpsPerTree: 'count', binningOps: 'count', trainOps: 'count', trainSecCpu: 'ratio', histogramShareTrain: 'pct', binnedDataBytes: 'bytes', rawDataBytes: 'bytes', actMem: 'bytes', paramMem: 'bytes',
     cpuCores: 'count', cpuHz: 'count', measuredN: 'count', measuredNodes: 'count', measuredLeaves: 'count', measuredFullShare: 'pct', numLeaves: 'count',

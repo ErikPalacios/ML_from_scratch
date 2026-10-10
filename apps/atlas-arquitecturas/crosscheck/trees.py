@@ -13,7 +13,9 @@ y = X·w + ε (semilla 13), regresión con error cuadrático. Lo que se verifica
   del calculador (exactos) y ↔ la cota llena (rango);
 - formas: X, y, g, h (objetivo propio de 1 ronda), bins por feature del histograma, hojas por muestra (pred_leaf), predicción;
 - bytes del modelo guardado (.ubj, .txt, .cbm) ↔ primitives.tree_bytes con los nodos medidos (rango ±1–3 %);
-- camino promedio de LightGBM (leaf-wise) en 2,000 filas ↔ el measured del calculador (exacto) y ≥ la cota K·⌈log₂ L⌉.
+- camino promedio de LightGBM (leaf-wise) en 2,000 filas ↔ el measured del calculador (exacto) y, en rango, ↔ K·⌈log₂ L⌉ (el camino
+  de un árbol BALANCEADO, que NO es cota: el promedio ponderado por datos de un árbol desbalanceado puede quedar arriba — 3,924 aquí —
+  o abajo — 1,564 con el objetivo no lineal, que el crosscheck también comprueba —; el rango solo exige las cotas reales K ≤ camino ≤ K·(L − 1)).
 FLOPs: 0 en los dos lados (los árboles comparan y suman; no hay matmuls): el JSON lo dice.
 """
 import json
@@ -48,6 +50,27 @@ def data():
     w = rng.standard_normal(F).astype(np.float32)
     y = (X @ w + rng.standard_normal(N).astype(np.float32))
     return X, y
+
+
+def data_nonlinear():
+    """Segundo objetivo (no lineal, pocas features útiles) con las mismas X: el camino promedio de LightGBM queda POR DEBAJO del
+    camino balanceado (la mayoría de las filas cae en hojas poco profundas)."""
+    X, _ = data()
+    rng = np.random.default_rng(SEED + 1)
+    y = (np.sin(X[:, 0] * X[:, 1]) * 3 + (X[:, 2] > 0) * X[:, 3] ** 2 + X[:, 4:10].sum(1) + 0.5 * rng.standard_normal(N)).astype(np.float32)
+    return X, y
+
+
+def lgb_avg_path(b, X, K):
+    """Comparaciones promedio por predicción (Σ árboles) sobre 2,000 filas: profundidad de la hoja a la que cae cada fila."""
+    dm = b.dump_model()
+    leaf = b.predict(X[:2000], pred_leaf=True)
+    tot = 0.0
+    for ti, tr in enumerate(dm["tree_info"]):
+        dd = {}
+        leaf_depths(tr["tree_structure"], 0, dd)
+        tot += float(np.mean([dd[int(li)] for li in leaf[:, ti]]))
+    return tot / K
 
 
 def file_size(save, ext):
@@ -174,12 +197,10 @@ def lgb_expected(cid, K):
     assert set(nl) == {L}, set(nl)
     nodes, leaves = sum(2 * n - 1 for n in nl), sum(nl)
     leaf = b.predict(X[:2000], pred_leaf=True)
-    tot = 0.0
-    for ti, tr in enumerate(dm["tree_info"]):
-        dd = {}
-        leaf_depths(tr["tree_structure"], 0, dd)
-        tot += float(np.mean([dd[int(li)] for li in leaf[:, ti]]))
-    avg = tot / K
+    avg = lgb_avg_path(b, X, K)
+    Xn, yn = data_nonlinear()
+    bn = lgb.train({"objective": "regression", "verbose": -1, "num_threads": THREADS, "deterministic": True, "force_row_wise": True, "seed": 0}, lgb.Dataset(Xn, yn), K)
+    avg_nl = lgb_avg_path(bn, Xn, K)
     # base dentro del árbol 1: Σ valores de hoja = predicción
     lv = [[None] * n for n in nl]
 
@@ -211,17 +232,20 @@ def lgb_expected(cid, K):
         "params_real_total": nodes,
         "defaults": {k: p(k) for k in ["num_leaves", "max_depth", "learning_rate", "max_bin", "min_data_in_leaf", "lambda_l2", "boost_from_average"]},
         "metrics_checks": {"measuredNodes": nodes, "measuredLeaves": leaves, "nodesPerTree": 2 * L - 1, "leavesPerTree": L, "numLeaves": L, "nTrees": K,
-                           "comparisonsMeasured": int(round(K * avg)), "comparisonsMax": K * (L - 1)},
+                           "comparisonsMeasured": int(round(K * avg)), "comparisonsMeasuredNonlinear": int(round(K * avg_nl)), "comparisonsMax": K * (L - 1)},
         "range_checks": [
-            {"what": "camino promedio medido × K / cota balanceada K·⌈log₂ L⌉", "metric": "comparisonsPerPrediction", "calc_overrides": {}, "ref": int(round(K * avg)), "min_ratio": 1.0, "max_ratio": (L - 1) / np.ceil(np.log2(L))},
-            {"what": "bytes del .txt (model_to_string) / tree_bytes", "metric": "modelBytesMeasured", "calc_overrides": {}, "ref": txt, "min_ratio": 0.97, "max_ratio": 1.03},
+            {"what": "camino promedio medido × K / camino balanceado K·⌈log₂ L⌉ (no es cota: solo K ≤ camino ≤ K·(L − 1))", "metric": "comparisonsPerPrediction", "calc_overrides": {},
+             "ref": int(round(K * avg)), "min_ratio": float(1 / np.ceil(np.log2(L))), "max_ratio": float((L - 1) / np.ceil(np.log2(L)))},
+            {"what": "objetivo NO lineal: camino promedio medido × K / camino balanceado (queda por debajo: no es cota inferior)", "metric": "comparisonsPerPrediction", "calc_overrides": {},
+             "ref": int(round(K * avg_nl)), "min_ratio": float(1 / np.ceil(np.log2(L))), "max_ratio": 1.0},
+            {"what": "bytes del .txt (model_to_string) / tree_bytes (texto: ± 3 % según los dígitos)", "metric": "modelBytesMeasured", "calc_overrides": {}, "ref": txt, "min_ratio": 0.95, "max_ratio": 1.05},
         ],
-        "measured": {"avg_path_per_tree": avg, "text_bytes": txt, "base_folded_into_tree_1": base_folded, "train_seconds": round(time.time() - t0, 1)},
+        "measured": {"avg_path_per_tree": avg, "avg_path_per_tree_nonlinear": avg_nl, "text_bytes": txt, "base_folded_into_tree_1": base_folded, "train_seconds": round(time.time() - t0, 1)},
         "notes": [
             f"Modelo real de lightgbm {lgb.__version__} con N = {N:,} × F = {F} sintéticos (semilla {SEED}); deterministic + force_row_wise.",
             f"Los {K} árboles tienen exactamente {L} hojas (leaf-wise llega siempre con min_data_in_leaf 20): params_total = K·(2L − 1) es REAL, no una cota.",
             f"Base: boost_from_average la suma a las hojas del árbol 1 (Σ hojas = predict: {base_folded}) → 0 números aparte.",
-            f"Camino promedio medido: {avg:.3f} comparaciones por árbol (árboles desbalanceados; ⌈log₂ {L}⌉ = {int(np.ceil(np.log2(L)))} sería el balanceado).",
+            f"Camino promedio medido: {avg:.3f} comparaciones por árbol (árboles desbalanceados; ⌈log₂ {L}⌉ = {int(np.ceil(np.log2(L)))} sería el balanceado). No es cota: con el objetivo no lineal (sin(x0·x1)·3 + [x2 > 0]·x3² + Σx4..9 + ruido) el promedio es {avg_nl:.3f}, por DEBAJO.",
             "FLOPs = 0: un árbol compara y suma (0 MACs).",
         ],
         "source": dict(lib="lightgbm", ctor=f"lgb.train({{'objective': 'regression', 'deterministic': True, 'force_row_wise': True, 'num_threads': {THREADS}, 'seed': 0}}, Dataset(X, y), {K})", **versions()),
@@ -262,7 +286,8 @@ def cb_expected(cid, K, d):
         "params_real_total": sum(splits) + int(lc.sum()) + 1,
         "defaults": dict({k: allp[k] for k in ["border_count", "l2_leaf_reg", "grow_policy", "boosting_type"]},
                          depth_default=cb.CatBoostRegressor(iterations=1, verbose=0, thread_count=THREADS, allow_writing_files=False).fit(X[:1000], y[:1000]).get_all_params()["depth"]),
-        "metrics_checks": {"measuredNodes": K * (2 ** (d + 1) - 1), "measuredLeaves": int(lc.sum()), "leavesPerTree": 2 ** d, "paramsPerTree": per_tree, "nTrees": K,
+        "metrics_checks": {"measuredNodes": sum(splits) + int(lc.sum()), "measuredLeaves": int(lc.sum()), "nodesPerTree": per_tree, "internalNodes": sum(splits),
+                           "leavesPerTree": 2 ** d, "paramsPerTree": per_tree, "nTrees": K,
                            "comparisonsPerPrediction": K * d},
         "range_checks": [
             {"what": "bytes del .cbm / tree_bytes", "metric": "modelBytesMeasured", "calc_overrides": {}, "ref": cbm, "min_ratio": 0.97, "max_ratio": 1.03},
@@ -270,7 +295,7 @@ def cb_expected(cid, K, d):
         "measured": {"cbm_bytes": cbm, "max_borders_used": borders, "scale": scale, "bias": bias, "train_seconds": round(time.time() - t0, 1)},
         "notes": [
             f"Modelo real de catboost {cb.__version__} (SymmetricTree) con N = {N:,} × F = {F} sintéticos (semilla {SEED}); learning_rate 0.1 fijo.",
-            f"Cada árbol: {d} cortes (uno por nivel, compartido) + {2 ** d} hojas → params_total = K·{per_tree} + 1 (bias de get_scale_and_bias; scale = 1 no es aprendido).",
+            f"Cada árbol: {d} cortes (uno por nivel, compartido) + {2 ** d} hojas → params_total = K·{per_tree} + 1 (bias de get_scale_and_bias; scale = 1 no es aprendido). Nodos guardados = cortes + hojas = {per_tree} por árbol (el árbol binario equivalente tendría {2 ** (d + 1) - 1}).",
             f"border_count {allp['border_count']} → hasta {int(allp['border_count']) + 1} bins; el modelo guarda solo los bordes usados (máx. {borders} por feature).",
             "FLOPs = 0: un árbol compara y suma (0 MACs).",
         ],

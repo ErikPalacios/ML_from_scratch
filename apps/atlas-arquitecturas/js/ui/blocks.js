@@ -638,7 +638,7 @@
         h('span', { class: 'mono muted' }, ' = ' + fmtInt(o[valKey]) + (nRep(o) > 1 ? ' × ' + nRep(o) : ''))))));
   }
   const pct = (x, tot) => (tot > 0 ? (x / tot * 100) : 0);
-  const pctTxt = (x, tot) => { const p = pct(x, tot); return p === 0 ? '0 %' : p < 0.1 ? '< 0.1 %' : p.toFixed(1) + ' %'; };
+  const pctTxt = (x, tot) => { const p = pct(x, tot); return p === 0 ? '0 %' : p < 0.1 ? '< 0.1 %' : p >= 99.95 && p < 100 ? '> 99.9 %' : p.toFixed(1) + ' %'; };
   function pctBar(x, tot) {
     return h('span', { class: 'pbar', 'aria-hidden': 'true' }, h('i', { style: { width: Math.max(0.5, Math.min(100, pct(x, tot))).toFixed(1) + '%' } }));
   }
@@ -797,7 +797,8 @@
     latencyMs: { label: 'ms por consulta en CPU (≈ cota)', get: (r) => vlmMetric(r, 'latencyMs'), fmt: 'ms' },
     // Fase 13 (recomendación y árboles)
     nTrees: { label: 'Árboles', get: (r) => r.config && r.config.nTrees, fmt: 'int' },
-    depth: { label: 'Profundidad máxima', get: (r) => r.config && r.config.depth, fmt: 'int' },
+    // LightGBM (leaf-wise) sin max_depth: depth = 0 es "sin límite" (max_depth −1), no profundidad 0; manda num_leaves.
+    depth: { label: 'Profundidad máxima', get: (r) => (!r.config ? null : r.config.kind === 'leafwise' && !r.config.depth ? 'sin límite (' + r.config.leavesPerTree + ' hojas)' : r.config.depth), fmt: 'int' },
     leaves: { label: 'Hojas del ensamble', get: (r) => vlmMetric(r, 'leaves'), fmt: 'int' },
     nodes: { label: 'Nodos del ensamble', get: (r) => vlmMetric(r, 'nodes'), fmt: 'int' },
     modelBytes: { label: 'Tamaño del modelo (≈)', get: (r) => vlmMetric(r, 'modelBytes'), fmt: 'bytes' },

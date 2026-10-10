@@ -257,10 +257,13 @@ export function compareConfig(A, exp) {
     const v = fn(ac.args)[ac.key];
     push('faiss[' + ac.what + ']', v, ac.ref, ac.tol ? rel(v, ac.ref) <= ac.tol : v === ac.ref);
   }
+  // Fase 13: los range_checks de GBDT comparan con modelos reales de xgboost / lightgbm / catboost: la etiqueta es la librería
+  // (exp.source.lib), no 'faiss' (el mecanismo es el mismo).
+  const rtag = (exp.source && exp.source.lib) || 'faiss';
   for (const rc of exp.range_checks || []) {
     const v = A.metrics(exp.config_id, Object.assign({}, ov, rc.calc_overrides))[rc.metric];
     const ratio = rc.ref / v;
-    push('faiss[' + rc.what + '] = ' + ratio.toFixed(3), v, rc.ref, ratio >= rc.min_ratio && ratio <= rc.max_ratio, 'rango [' + rc.min_ratio + ', ' + rc.max_ratio + ']');
+    push(rtag + '[' + rc.what + '] = ' + ratio.toFixed(3), v, rc.ref, ratio >= rc.min_ratio && ratio <= rc.max_ratio, 'rango [' + (+rc.min_ratio.toFixed(4)) + ', ' + (+rc.max_ratio.toFixed(4)) + ']');
   }
   // Fase 12 (T5). bucket_checks: buckets de posición relativa de HF (T5Attention._relative_position_bucket, CPU) para cada
   // posición relativa de range[0] … range[1] ↔ A.t5RelativeBucket, uno por uno.

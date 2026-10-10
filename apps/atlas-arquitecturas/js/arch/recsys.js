@@ -79,12 +79,25 @@
    - dlrm: la interacción dot cuenta la matriz ENTERA (n²·d MACs, el bmm de la referencia y de FlopCounterMode); los pares útiles
      n(n−1)/2·d van en metrics.interactionMacsUseful.
    - dlrm: arithmeticIntensity sale por partes: las tablas son ≈ 0.25 op/B (memoria pura) pero en Criteo Kaggle / MLPerf el MLP
-     domina los FLOPs por muestra y la intensidad TOTAL en fp32 queda cerca del punto de quiebre del H100; ver metrics
-     (embeddingMsShare: qué parte del tiempo ≈ es de las tablas).
+     domina los FLOPs por muestra y la intensidad TOTAL queda por ENCIMA del punto de quiebre del H100 (584 y 369 vs ≈ 295 FLOP/B);
+     DLRM-DCNv2 (214 lookups multi-hot) queda justo EN el punto de quiebre (≈ 293 vs 295: mitad tablas, mitad MLP; con tablas en
+     fp16 o MLPs en TF32 cae del lado del cómputo). Supuesto de precisión: las tablas a `bits` (32 por defecto) y los MLPs al pico
+     bf16 denso de la H100. `bound` (y los demás *Bound) dicen "≈ en el punto de quiebre" si cómputo y memoria están a ≤ 5 %
+     (roof()). embeddingMsShare: qué parte del tiempo ≈ es de las tablas.
    - Las cotas de samples/s son de roofline IDEAL (1 GPU, sin all-to-all de las tablas repartidas, sin el costo real de los gathers
      aleatorios de filas de 64–512 B): quedan órdenes de magnitud por encima de lo medido. Número medido citable (A.recsys.measured):
      README de torchrec_dlrm de MLPerf — DLRM sobre Criteo 1TB (d 128, 13-512-256-128, 1024-1024-512-256-1), 8 × A100 40 GB,
-     lote global 16,384: ≈ 1,671,168 registros/s de ENTRENAMIENTO (43 min por época).
+     lote global 16,384: ≈ 1,671,168 registros/s de ENTRENAMIENTO (43 min por época) = 208,896 por GPU, con las tablas SIN tope
+     (91.10 GiB en total), no las de 40M filas de dlrm-mlperf (97.4 GiB). La comparación justa es de ENTRENAMIENTO con la arquitectura
+     de MLPerf: metrics de dlrm-mlperf trainSamplesPerSecH100 (≈ 67.0M/s) y trainSamplesPerSecA100 (misma cota en una A100 40 GB),
+     measuredTrainPerGpu (208,896) y trainCeilingVsMeasuredH100 / …A100 (≈ 320× y ≈ 100×: 2.5 y 2 órdenes de magnitud); NO la cota
+     de inferencia de Kaggle (samplesPerSecH100 de dlrm-criteo-kaggle ≈ 1.02·10⁹/s, ≈ 4,870× lo medido).
+   - dlrm-dcnv2 con `dim` chico: si 2r ≥ (n_s + 1)·d el "bajo rango" (2·D·r + D por capa) ya no ahorra frente a la matriz llena
+     (D² + D): nota en run() y metrics.crossParamsFullRank para comparar.
+   - two-tower: lookups por REQUEST = solo la torre de usuario (user-id + historial + 4 categóricas = 55 filas, 13,312 B en la
+     canónica): userLookupsPerRequest / userLookupBytesPerRequest; lookupsPerExample (60) es el PAR de entrenamiento (usuario + ítem).
+     userTowerParams cuenta su tabla de usuarios y sus categóricas; la tabla de ítems que lee para el historial se cuenta en la torre
+     de ítem (userTowerParamsWithShared la suma). topkOps ≈ N_items·log₂ k (heap de tamaño k sobre los puntajes).
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -97,9 +110,16 @@
 
   // ------------------------------------------------------------------ hardware (≈, roofline sin overheads)
   const H100 = Object.assign({ id: 'h100', label: 'H100 SXM' }, A.model('llm').hardware);   // 3.35 TB/s, 989 TFLOPS bf16 denso, 80 GB
+  // A100 SXM 40 GB (la GPU de la corrida medida de MLPerf, A.recsys.measured): solo para comparar esa medición con su propia cota.
+  const A100 = { id: 'a100-40gb', label: 'A100 SXM 40 GB', peakFlops: 312e12, bandwidth: 1.555e12, hbmBytes: 40e9,
+    source: 'NVIDIA A100 Tensor Core GPU datasheet: 312 TFLOPS bf16 denso (Tensor Core), 1,555 GB/s de HBM2 en la versión de 40 GB.' };
+  // Cota de roofline: el máximo de cómputo y memoria. Si los dos tiempos están a ≤ 5 % (intensidad ≈ punto de quiebre: DLRM-DCNv2,
+  // 293 vs 295 FLOP/B), `bound` lo dice en vez de elegir un lado por menos del 1 %.
+  const TIE = 0.05;
   const roof = (flops, bytes, hw) => {
     const tc = flops / hw.peakFlops, tm = bytes / hw.bandwidth;
-    return { ms: 1000 * Math.max(tc, tm), bound: tc >= tm ? 'cómputo' : 'memoria', computeMs: 1000 * tc, memoryMs: 1000 * tm };
+    const tie = tc > 0 && tm > 0 && Math.abs(tc / tm - 1) <= TIE;
+    return { ms: 1000 * Math.max(tc, tm), bound: tie ? '≈ en el punto de quiebre' : tc >= tm ? 'cómputo' : 'memoria', computeMs: 1000 * tc, memoryMs: 1000 * tm };
   };
   const pathOf = (r, key) => r.totals.byPath[key] || { params: 0, macs: 0, other: 0 };
   const nodeOf = (r, id) => r.totals.byNode[id] || { params: 0, macs: 0, other: 0 };
@@ -247,10 +267,13 @@
     const embOps = ops.filter((o) => o.prim === 'embedding_bag' || o.prim === 'embedding_tables');
     const embParams = sum(embOps.map((o) => o.params * A.paramRep(o)));
     const lookups = sum(embOps.map((o) => o.detail.lookups));
+    // Lo que lee UN request: solo la torre de usuario (user-id, historial, categóricas); fp32.
+    const userOps = embOps.filter((o) => ['user-id-embed', 'hist-embed', 'user-cat-embed'].indexOf(o.id) >= 0);
+    const userLookups = sum(userOps.map((o) => o.detail.lookups)), userLookupBytes = sum(userOps.map((o) => o.detail.lookups * o.detail.D * 4));
     const userTower = pathOf(r, 'user-tower'), itemTower = pathOf(r, 'item-tower');
     const mlpParams = pathOf(r, 'user-tower>mlp').params + pathOf(r, 'item-tower>mlp').params;
     return {
-      embParams, mlpParams, lookups,
+      embParams, mlpParams, lookups, userLookups, userLookupBytes,
       userTowerMacs: userTower.macs, itemTowerMacs: itemTower.macs, userTowerParams: userTower.params, itemTowerParams: itemTower.params,
       idTableParams: c.ids ? c.idBuckets * c.idDim + c.nItems * c.idDim : 0,
       userIdParams: c.ids ? c.idBuckets * c.idDim : 0, itemIdParams: c.ids ? c.nItems * c.idDim : 0,
@@ -278,9 +301,12 @@
     // Paso de entrenamiento ≈ 3 × forward (backward = 2 × forward) del lote: B pares por las torres + la matriz B×B.
     const trainStepMacs = 3 * (B * towersMacs + inBatch);
     const step = roof(2 * trainStepMacs, B * rowsBytes * 3 + 2 * 2 * p.mlpParams, H100);
-    const corpus = roof(2 * c.nItems * p.itemTowerMacs, 2 * p.itemTowerParams + c.nItems * (c.ids ? c.idDim : 0) * 4, H100);
+    // Catálogo offline: los pesos del MLP de ítem una vez (bf16) + leer TODA la tabla de ítems y sus categóricas una vez (fp32).
+    const itemMlp = pathOf(r, 'item-tower>mlp').params;
+    const corpus = roof(2 * c.nItems * p.itemTowerMacs, 2 * itemMlp + 4 * (p.itemTowerParams - itemMlp), H100);
     const scan = roof(2 * c.nItems * c.dim, c.nItems * c.dim * 4, H100);
-    const userQ = roof(2 * p.userTowerMacs, rowsBytes + 2 * pathOf(r, 'user-tower>mlp').params, H100);
+    // Un request: las filas de la torre de USUARIO (no las del ítem) + los pesos de su MLP en bf16.
+    const userQ = roof(2 * p.userTowerMacs, p.userLookups ? p.userLookupBytes + 2 * pathOf(r, 'user-tower>mlp').params : 2 * pathOf(r, 'user-tower>mlp').params, H100);
     const out = {
       B, dim: c.dim, nItems: c.nItems, hist: c.hist, k: c.k, idBuckets: c.ids ? c.idBuckets : 0, idDim: c.ids ? c.idDim : 0,
       embeddingParams: p.embParams, mlpParams: p.mlpParams, otherParams: t.params - p.embParams - p.mlpParams, embeddingParamsShare: p.embParams / t.params, mlpParamsShare: p.mlpParams / t.params,
@@ -290,6 +316,9 @@
       towersMacsPerPair: towersMacs, scoreMacs: c.dim,
       inBatchLogitsMacs: inBatch, inBatchLogitsMacsPerPair: B * c.dim, inBatchNegatives: B - 1, inBatchLogitsShare: inBatch / (B * towersMacs + inBatch),
       lookupsPerExample: p.lookups, lookupBytesPerExample: rowsBytes,
+      userLookupsPerRequest: p.userLookups, userLookupBytesPerRequest: p.userLookupBytes,
+      userTowerParamsWithShared: p.userTowerParams + (c.hist ? p.itemIdParams : 0),
+      topkOps: Math.round(c.nItems * Math.log2(c.k)),
       trainStepMacs, trainStepMsH100: step.ms, trainStepBound: step.bound,
       indexBytes: c.nItems * c.dim * 4, indexBytes16: c.nItems * c.dim * 2, itemCorpusMacs: c.nItems * p.itemTowerMacs, itemCorpusMsH100: corpus.ms,
       bruteForceMacs: c.nItems * c.dim, bruteForceMsH100: scan.ms, bruteForceBound: scan.bound,
@@ -309,7 +338,7 @@
     embeddingParams: 'params', mlpParams: 'params', otherParams: 'params', embeddingParamsShare: 'pct', mlpParamsShare: 'pct', userIdParams: 'params', itemIdParams: 'params', categoricalParams: 'params',
     embeddingBytes: 'bytes', embeddingBytes16: 'bytes', mlpBytes: 'bytes', userTowerMacs: 'macs', itemTowerMacs: 'macs', userTowerParams: 'params', itemTowerParams: 'params',
     towersMacsPerPair: 'macs', scoreMacs: 'macs', inBatchLogitsMacs: 'macs', inBatchLogitsMacsPerPair: 'macs', inBatchNegatives: 'count', inBatchLogitsShare: 'pct',
-    lookupsPerExample: 'count', lookupBytesPerExample: 'bytes', trainStepMacs: 'macs', trainStepMsH100: 'ms', indexBytes: 'bytes', indexBytes16: 'bytes',
+    lookupsPerExample: 'count', lookupBytesPerExample: 'bytes', userLookupsPerRequest: 'count', userLookupBytesPerRequest: 'bytes', userTowerParamsWithShared: 'params', topkOps: 'count', trainStepMacs: 'macs', trainStepMsH100: 'ms', indexBytes: 'bytes', indexBytes16: 'bytes',
     itemCorpusMacs: 'macs', itemCorpusMsH100: 'ms', bruteForceMacs: 'macs', bruteForceMsH100: 'ms', userEncodeMsH100: 'ms', servingMacsPerRequest: 'macs', servingMsH100: 'ms',
     bruteForceShareServing: 'pct', bandwidth: 'count', peakFlops: 'count',
   };
@@ -333,6 +362,9 @@
   });
 
   // ==================================================================== modelo `dlrm`
+  // Lo medido citable (ENTRENAMIENTO, arquitectura de dlrm-mlperf pero con las tablas de Criteo 1TB SIN tope).
+  const MEASURED = { trainRecordsPerSec: 1671168, gpus: 8, gpu: 'A100 40GB', globalBatch: 16384, perGpu: 1671168 / 8, tablesGiB: 91.10,
+    source: 'mlcommons/training, recommendation_v2/torchrec_dlrm/README (Preliminary Training Results: 8 GPUs, lote 2048 × 8, lr 15). Entrenamiento en A100 (no H100), con las tablas de Criteo 1TB SIN tope (91.10 GiB en total), no las de 40M filas de dlrm-mlperf (97.4 GiB).' };
   // Criteo Kaggle (Display Advertising Challenge) procesado por facebookresearch/dlrm (sin filtrar ids raros): filas por feature
   // C1 … C26 (Desai et al., ROBE, arXiv:2108.02191, §7.5). Suma 33,762,577.
   const KAGGLE_ROWS = [1460, 583, 10131227, 2202608, 305, 24, 12517, 633, 3, 93145, 5683, 8351593, 3194, 27, 14992, 5461306, 10, 5652, 2173, 4, 7046547, 18, 15, 286181, 105, 142572];
@@ -375,6 +407,9 @@
     c.topIn = c.arch === 'dot' ? c.dim + c.pairs : c.arch === 'dcn' ? c.nVec * c.dim : c.nSparse * c.dim + c.nDense;
     c.topSizes = [c.topIn].concat(c.top, [1]);
     c.totalRows = sum(c.rowsEff);
+    // DCN v2 de bajo rango: 2·D·r + D parámetros por capa contra D² + D llena; con 2r ≥ D (d chico) ya no ahorra nada.
+    if (c.arch === 'dcn' && c.rank && 2 * c.rank >= c.topIn)
+      (c._notes = c._notes || []).push('r = ' + c.rank + ' y (n_s + 1)·d = ' + c.topIn + ': con 2r ≥ D el "bajo rango" (2·D·r) ya no ahorra frente a la matriz llena (D²)');
     if (c.maxRows) (c._notes = c._notes || []).push('tablas recortadas a ' + fint(c.maxRows) + ' filas (hashing: ids distintos comparten fila)');
     return c;
   }
@@ -460,7 +495,7 @@
       lookupsPerSample: p.lookups, pairs: c.pairs, nVec: c.nVec, topIn: c.topIn, bits: c.bits, B: c.B, k: c.k,
       embeddingParams: p.embParams, mlpParams: p.mlpParams, interactionParams: p.interactionParams, embeddingParamsShare: p.embParams / t.params,
       bottomMlpMacs: p.bottom.macs, topMlpMacs: p.top.macs, interactionMacs: p.inter.macs, macsPerSample: t.macs,
-      embeddingBytes: p.embParams * c.bits / 8, lookupBytesPerSample: p.rowBytes(c.bits),
+      embeddingBytes: Math.ceil(p.embParams * c.bits / 8), lookupBytesPerSample: p.rowBytes(c.bits),
     };
   }
 
@@ -479,7 +514,10 @@
     const rank = roof(c.k * flopsPerSample, c.k * lookupBytes, H100);
     // Entrenamiento ≈: forward + backward (2×) en MLPs e interacción; en las tablas, leer la fila y escribir su actualización (≈ 3×).
     const train = roof(3 * B * flopsPerSample, 3 * B * lookupBytes, H100);
-    const embBytes = p.embParams * c.bits / 8;
+    const trainA100 = roof(3 * B * flopsPerSample, 3 * B * lookupBytes, A100);
+    // Con 4 bits y d = 1 (parte wide) una fila ocupa medio byte: se redondea hacia arriba (bytes enteros).
+    const bytesAt = (bits) => Math.ceil(p.embParams * bits / 8);
+    const embBytes = bytesAt(c.bits);
     const largest = Math.max.apply(null, c.rowsEff);
     const out = {
       B, k: c.k, bits: c.bits, dim: c.dim, tables: c.nSparse, totalRows: c.totalRows, largestTableRows: largest, largestTableBytes: largest * c.dim * c.bits / 8,
@@ -494,15 +532,26 @@
       arithmeticIntensity: flopsPerSample / bytesPerSample, bytesPerSample, ridgePoint: H100.peakFlops / H100.bandwidth,
       samplesPerSecH100: 1000 * B / batch.ms, batchMsH100: batch.ms, bound: batch.bound, embeddingMsBatch: embMs, mlpMsBatch: mlpMs, embeddingMsShare: embMs / (embMs + mlpMs),
       trainStepMsH100: train.ms, trainSamplesPerSecH100: 1000 * B / train.ms, trainBound: train.bound,
+      trainSamplesPerSecA100: 1000 * B / trainA100.ms, trainBoundA100: trainA100.bound,
       rankingMacsPerRequest: c.k * t.macs, rankingLookupBytesPerRequest: c.k * lookupBytes, rankingMsH100: rank.ms, rankingBound: rank.bound,
       bandwidth: H100.bandwidth, peakFlops: H100.peakFlops, hbmBytes: H100.hbmBytes, hardwareSource: H100.source,
       units: DLRM_UNITS,
     };
     if (c.arch === 'dot') out.interactionMacsUseful = c.pairs * c.dim;
-    out.bitsScaling = [32, 16, 8, 4].map((b) => ({ bits: b, embeddingBytes: p.embParams * b / 8, lookupBytesPerSample: p.rowBytes(b), gpusToHoldTables: Math.ceil(p.embParams * b / 8 / H100.hbmBytes) }));
+    if (c.arch === 'dcn') { out.crossRank = c.rank; out.crossParamsFullRank = c.crossLayers * (c.topIn * c.topIn + c.topIn); }
+    // La corrida medida de MLPerf (A.recsys.measured) es la arquitectura de dlrm-mlperf ENTRENANDO en A100: solo ahí (y sin knobs que
+    // cambien el modelo o la precisión) se compara con su cota de entrenamiento, por GPU.
+    const archKnobs = ['dim', 'maxRows', 'bits'].some((x) => r.overrides && r.overrides[x] !== undefined);
+    if (r.id === 'dlrm-mlperf' && !archKnobs) {
+      const perGpu = MEASURED.trainRecordsPerSec / MEASURED.gpus;
+      out.measuredTrainPerGpu = perGpu;
+      out.trainCeilingVsMeasuredH100 = out.trainSamplesPerSecH100 / perGpu;
+      out.trainCeilingVsMeasuredA100 = out.trainSamplesPerSecA100 / perGpu;
+    }
+    out.bitsScaling = [32, 16, 8, 4].map((b) => ({ bits: b, embeddingBytes: bytesAt(b), lookupBytesPerSample: p.rowBytes(b), gpusToHoldTables: Math.ceil(bytesAt(b) / H100.hbmBytes) }));
     out.maxRowsScaling = [100000, 1000000, 10000000, 40000000].map((m) => {
       const rows = sum(c.rows.map((n) => Math.min(n, m)));
-      return { maxRows: m, totalRows: rows, embeddingBytes: rows * c.dim * c.bits / 8 * (c.arch === 'wd' ? (c.dim + 1) / c.dim : 1) };
+      return { maxRows: m, totalRows: rows, embeddingBytes: Math.ceil(rows * (c.arch === 'wd' ? c.dim + 1 : c.dim) * c.bits / 8) };
     });
     out.kScaling = [50, 100, 500, 1000, 5000].map((k) => ({ k, rankingMacsPerRequest: k * t.macs, rankingMsH100: roof(k * flopsPerSample, k * lookupBytes, H100).ms }));
     return out;
@@ -514,6 +563,7 @@
     lookupsPerSample: 'count', lookupBytesPerSample: 'bytes', lookupBytesPerSample32: 'bytes', bottomMlpMacs: 'macs', topMlpMacs: 'macs', interactionMacs: 'macs', interactionMacsUseful: 'macs',
     mlpMacsPerSample: 'macs', macsPerSample: 'macs', flopsPerSample: 'count', interactionMacsShare: 'pct', embeddingIntensity: 'ratio', arithmeticIntensity: 'ratio', bytesPerSample: 'bytes',
     ridgePoint: 'ratio', samplesPerSecH100: 'count', batchMsH100: 'ms', embeddingMsBatch: 'ms', mlpMsBatch: 'ms', embeddingMsShare: 'pct', trainStepMsH100: 'ms', trainSamplesPerSecH100: 'count',
+    trainSamplesPerSecA100: 'count', measuredTrainPerGpu: 'count', trainCeilingVsMeasuredH100: 'ratio', trainCeilingVsMeasuredA100: 'ratio', crossRank: 'count', crossParamsFullRank: 'params',
     rankingMacsPerRequest: 'macs', rankingLookupBytesPerRequest: 'bytes', rankingMsH100: 'ms', bandwidth: 'count', peakFlops: 'count', hbmBytes: 'bytes',
   };
 
@@ -533,7 +583,7 @@
   });
 
   // Ayudas para la UI / pruebas (no son parte del contrato de run()).
-  A.recsys = { h100: Object.assign({}, H100),
-    measured: { trainRecordsPerSec: 1671168, gpus: 8, gpu: 'A100 40GB', globalBatch: 16384, source: 'mlcommons/training, recommendation_v2/torchrec_dlrm/README (Preliminary Training Results: 8 GPUs, lote 2048 × 8, lr 15)' }, KAGGLE_ROWS: KAGGLE_ROWS.slice(), TB_ROWS: TB_ROWS.slice(), DCN_HOTS: DCN_HOTS.slice(),
+  A.recsys = { h100: Object.assign({}, H100), a100: Object.assign({}, A100),
+    measured: Object.assign({}, MEASURED), KAGGLE_ROWS: KAGGLE_ROWS.slice(), TB_ROWS: TB_ROWS.slice(), DCN_HOTS: DCN_HOTS.slice(),
     userCats: USER_CATS.map((x) => Object.assign({}, x)), itemCats: ITEM_CATS.map((x) => Object.assign({}, x)) };
 })(typeof window !== 'undefined' ? window : globalThis);
