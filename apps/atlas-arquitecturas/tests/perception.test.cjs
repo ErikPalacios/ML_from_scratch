@@ -326,3 +326,14 @@ test('F14 revisión: PointNet++ acota los puntos críticos con los 128 centros; 
   assert.ok(!/dropout/.test(op(A.run('pointnet-cls-no-tnet'), 'fc1').label));
   assert.match(op(A.run('pointnet-cls'), 'fc1').label, /dropout/);
 });
+
+test('F14 revisión (2): FLOPs del detector con su unidad; la 2.ª pasada dice que es una cota con los perdidos', () => {
+  const Q = ATLAS.Quantities;
+  assert.strictEqual(A.metrics('bytetrack-mot17').units.detectorFlops, 'flops');
+  assert.strictEqual(Q.get('bytetrack-mot17.metrics.detectorFlops').text, '790.27 GFLOPs');
+  assert.strictEqual(Q.get('bytetrack-mot17.metrics.detectorMacs').text, '395.14 GMACs');
+  const r = A.run('bytetrack-mot17');
+  assert.match(op(r, 'iou-2').detail.note, /cota.*perdidos/);
+  assert.match(op(r, 'assign-2').detail.note, /20 \(≈ n³ peor caso; cota.*perdidos/);
+  assert.doesNotMatch(op(r, 'assign-1').detail.note, /cota/);
+});

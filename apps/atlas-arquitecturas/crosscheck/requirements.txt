@@ -43,3 +43,8 @@ narwhals==2.26.0
 # filterpy (el KalmanFilter de SORT). Sin dependencias nuevas (usan numpy y scipy).
 lap==0.5.12
 filterpy==1.4.5
+# fase 15 (crosscheck/robotlearn.py): dimensiones de obs/acción leídas de los entornos reales (HalfCheetah-v4 con MuJoCo, Breakout con
+# ALE). Solo se construye el entorno; no se simula ni se entrena.
+gymnasium==1.4.0
+mujoco==3.15.0
+ale-py==0.12.1

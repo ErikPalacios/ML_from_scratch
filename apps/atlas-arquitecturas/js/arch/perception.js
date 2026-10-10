@@ -177,6 +177,9 @@
       const P = ['tracker', 'assoc-' + k];
       // la 2.ª asociación usa solo las filas de los r tracks sin pareja (r ≤ T)
       const iouRes = A.iou_matrix(rows === T ? pm : A.shape(['r', n], [rows, c.n], 'qry', 'seq'), dIn);
+      // Fase 14 (revisión, n4): la 2.ª pasada es una cota: sus r = T − m₁ filas incluyen los tracks perdidos.
+      const bound2 = k === 2 ? 'cota: las ' + rows + ' filas son los tracks sin pareja de la 1.ª pasada e incluyen los perdidos; el código oficial solo usa los que estaban tracked' : null;
+      if (bound2) iouRes.detail = Object.assign({}, iouRes.detail, { note: 'IoU de ' + rows + ' × ' + cols + ' pares (' + bound2 + ')' });
       const iou = g.op('iou-' + k, iouRes, { path: P.concat(['iou']), in: ['pred-mean', dIn.id], out: 'iou-' + k, where: Wt, label: 'IoU ' + label, type: 'attn', group: 'attn',
         outMeta: { label: 'IoU de cada track con cada detección ' + (k === 1 ? 'alta' : 'baja'), tex: 'IoU_{' + k + '}',
           note: k === 2 ? 'Filas = los ' + rows + ' tracks sin pareja de la 1.ª pasada: cota (incluye los perdidos; el código oficial solo usa los que estaban tracked).' : undefined } });
@@ -186,7 +189,7 @@
         outMeta: { label: sort ? 'Matriz de costos −IoU (tras asignar se descartan los pares con IoU < ' + c.iouThreshold + ')' : 'Matriz de costos (se rechaza todo par con costo > ' + thresh + ')', tex: 'C_' + k } });
       const la = A.linear_assignment(cost, { n: nn, matches, solver: 'lapjv', thresh, msym: 'm_' + k });
       la.detail.note = sort ? 'lapjv con extend_cost, sin cost_limit: matriz de lado máx(' + rows + ', ' + cols + ') = ' + nn + ' (≈ n³ peor caso)'
-        : 'lapjv con cost_limit: matriz extendida de lado filas + columnas = ' + rows + ' + ' + cols + ' = ' + nn + ' (≈ n³ peor caso)';
+        : 'lapjv con cost_limit: matriz extendida de lado filas + columnas = ' + rows + ' + ' + cols + ' = ' + nn + ' (≈ n³ peor caso' + (bound2 ? '; ' + bound2 : '') + ')';
       return g.op('assign-' + k, la, { path: P.concat(['assign']), out: 'matches-' + k, where: Wt,
         label: 'Asignación óptima (Jonker-Volgenant, lapjv; matriz ' + nn + '×' + nn + (sort ? ')' : ', extendida)'), type: 'head', group: 'head', outMeta: { label: 'Parejas (track, detección) aceptadas', tex: 'M_' + k } });
     };

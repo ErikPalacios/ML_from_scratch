@@ -3224,18 +3224,6 @@
   function rollout_store(inputs, o) {
     return result('rollout_store', inputs, shape([o.Tsym || 'T', o.Nsym || 'N'], [o.T, o.N], o.mod || null, 'mat'), { detail: { T: o.T, N: o.N, fields: o.fields || null, note: 'una celda por (paso, entorno)' } });
   }
-  // gae_rollout: ventajas con GAE (Schulman et al., ICLR 2016, arXiv:1506.02438) sobre un rollout T×N, hacia atrás en t:
-  // δ_t = r_t + γ(1 − d_{t+1})V_{t+1} − V_t, Â_t = δ_t + γλ(1 − d_{t+1})Â_{t+1}; retornos R_t = Â_t + V_t. ≈ 8 ops por celda.
-  // → [ventajas T×N, retornos T×N]. o = {gamma, lambda}
-  function gae_rollout(rollout, o) {
-    const n = elems(rollout);
-    return result('gae_rollout', [rollout], [plain(rollout), plain(rollout)], { other: 8 * n, detail: { gamma: o && o.gamma != null ? o.gamma : null, lambda: o && o.lambda != null ? o.lambda : null, cells: n } });
-  }
-  // minibatch_select: M = T·N / n_mb muestras al azar (sin reemplazo dentro de la época) del rollout aplanado. Vista. → [M, M]. o = {M, sym}
-  function minibatch_select(a, b, o) {
-    const mk = (x) => shape([o.sym || 'M'], [o.M], x.mod, 'vec');
-    return result('minibatch_select', [a, b], [mk(a), mk(b)], { detail: { M: o.M, from: elems(a) } });
-  }
   // policy_entropy: H[π(·|s)] promediada en el minibatch. Gaussiana: Σ_i (½ log 2πe + log σ_i) (no depende del estado si σ tampoco);
   // categórica: −Σ p log p. → escalar. o = {kind: 'gaussian'|'categorical'}
   function policy_entropy(x, o) {
@@ -3352,7 +3340,7 @@
     kalmanCost, kalman_predict, kalman_update, iou_matrix, assoc_cost, linear_assignment, split_score, track_manage, layer_taps, readout, resample, rcu,
     point_mlp, max_pool_points, point_transform, tnet_transform, concat_global, fps_sample, ball_query, group_points,
     // Fase 15
-    elu, mish, policy_std, gaussian_sample, categorical_sample, env_step, rollout_store, gae_rollout, minibatch_select, policy_entropy, loss_sum,
+    elu, mish, policy_std, gaussian_sample, categorical_sample, env_step, rollout_store, policy_entropy, loss_sum,
     conv_transpose1d, film, spatial_softmax, reparameterize, kl_gaussian, l1_loss, temporal_ensemble, execute_actions,
   };
 
@@ -3632,7 +3620,8 @@
     { id: 'categorical_sample', name: 'Muestrear la acción (categórica)', paramTex: '0', macTex: '0', outTex: '|A| \\to 1,\\ 1', note: 'softmax sobre los logits de las |A| acciones discretas (Atari) y una muestra; se guarda log π(a|s).' },
     { id: 'env_step', name: 'Paso del entorno (simulador)', paramTex: '0', macTex: '0', outTex: 'd_a \\to 1', note: 'El simulador aplica la acción y devuelve r y la observación siguiente. Sin parámetros ni MACs de la red: su costo es el motor de física.' },
     { id: 'rollout_store', name: 'Buffer del rollout', paramTex: '0', macTex: '0', outTex: '\\to T\\times N', note: 'Guarda (s, a, log π, V, r, done) de N entornos durante T pasos: N·T muestras por iteración de PPO.' },
-    { id: 'gae_rollout', name: 'Ventajas GAE', paramTex: '0', macTex: '0', outTex: 'T\\times N \\to T\\times N,\\ T\\times N', note: 'δ_t = r_t + γV_{t+1} − V_t, Â_t = Σ_l (γλ)^l δ_{t+l} (hacia atrás en t); retornos = Â + V. λ = 0: TD de un paso; λ = 1: Monte Carlo.' },
+    { id: 'td_error', name: 'Error TD', paramTex: '0', macTex: '0', outTex: 'T\\times N \\to T\\times N', note: 'δ_t = r_t + γ(1 − d_{t+1})V_{t+1} − V_t para cada (paso, entorno); el último paso usa V(s_T) del bootstrap. ≈ 4 ops por celda.' },
+    { id: 'gae_scan', name: 'Ventajas GAE (recursión)', paramTex: '0', macTex: '0', outTex: 'T\\times N \\to T\\times N', note: 'Â_t = δ_t + γλ(1 − d_{t+1})Â_{t+1}, hacia atrás en t (= Σ_l (γλ)^l δ_{t+l}); retornos R = Â + V. λ = 0: TD de un paso; λ = 1: Monte Carlo.' },
     { id: 'minibatch_select', name: 'Minibatch', paramTex: '0', macTex: '0', outTex: 'T\\times N \\to M', note: 'M = N·T / n_mb muestras al azar; K épocas × n_mb minibatches = pasos de gradiente por iteración.' },
     { id: 'policy_entropy', name: 'Entropía de la política', paramTex: '0', macTex: '0', outTex: 'd_a \\to 1', note: 'Bono de exploración (c₂·H). Gaussiana: Σ (½ log 2πe + log σ_i); categórica: −Σ p log p.' },
     { id: 'loss_sum', name: 'Suma de pérdidas', paramTex: '0', macTex: '0', outTex: '1,\\ 1,\\ \\ldots \\to 1', note: 'PPO: L = −L_clip + c₁L_V − c₂H. ACT: L1 + β·KL.' },
@@ -4001,7 +3990,7 @@
     layer_taps: 1, split_score: 1,
     // Fase 15: vistas y entradas que no son activaciones de la red (buffer del rollout, minibatch, acciones ejecutadas) y la desviación
     // aprendida (tabla de parámetros).
-    rollout_store: 1, minibatch_select: 1, execute_actions: 1, policy_std: 1,
+    rollout_store: 1, rollout_fields: 1, bootstrap_value: 1, minibatch_select: 1, execute_actions: 1, policy_std: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).

@@ -18,9 +18,10 @@
    Ops (path): [atari] trunk-conv1 … trunk-relu4 (trunk › …) obs → features · actor-fc{i} / actor-act{i} (actor › fc{i} / act{i})
    → a-h{i}, a-z{i} · actor-mean (actor › mean) → act-mean | actor-logits (actor › logits) → act-logits · log-std (actor › log-std)
    → act-std · sample → action, logp · critic-fc{i} / critic-act{i} (critic › …) → c-h{i}, c-z{i} · critic-value (critic › value)
-   → value · env-step → reward · store (buffer) → rollout (T×N) · gae → advantages, returns (T×N) · minibatch (update ›
-   minibatch) → mb-adv, mb-ret (M) · clip-loss / value-loss / entropy / total-loss (update › …) → loss-clip, loss-value,
-   loss-entropy, loss.
+   → value · env-step → reward · store (buffer) → rollout (T×N) · gae › {unpack → rewards, values, dones; bootstrap → last-value;
+   td-error → deltas; gae-scan → advantages; returns → returns; [rsl_rl: adv-norm sobre el lote]} · update › minibatch › {select →
+   mb-obs, mb-action, mb-logp-old, mb-adv(-raw), mb-ret; [CleanRL: adv-norm → mb-adv]} · update › clip-loss › {new-logp, ratio, clip,
+   surr, surr-min, clip-mean → loss-clip} · value-loss / entropy / total-loss (update › …) → loss-value, loss-entropy, loss.
 
    ---------------------------------------------------------------- imitation (grafo = UNA inferencia de la política)
    Configs: act-aloha (canónica, inferencia: z = 0), act-aloha-train (forward de ENTRENAMIENTO con el encoder CVAE y las pérdidas;
@@ -51,7 +52,7 @@
   'use strict';
   const ATLAS = (root.ATLAS = root.ATLAS || {});
   const A = ATLAS.Arch;
-  if (!A || !A.defineModel || !A.film || !A.gae_rollout) throw new Error('robotlearn.js necesita js/arch/primitives.js (fase 15) antes.');
+  if (!A || !A.defineModel || !A.film || !A.rollout_store) throw new Error('robotlearn.js necesita js/arch/primitives.js (fase 15) antes.');
   if (!A.perception || !A.perception.roof) throw new Error('robotlearn.js necesita perception.js antes (roofline Orin / H100).');
   const shp = (sym, num, mod, layout) => A.shape(sym, num, mod, layout);
   const fint = (n) => A.fmt.int(n);
@@ -124,6 +125,8 @@
     c.budgetSteps = c.iterations * c.samples;
     c.controlHz = 1 / c.dt;
     c.tokens = c.samples;
+    // Valor del knob `hidden` en la config resuelta: ancho de la 1.ª capa oculta (MLP) o de la fc del tronco (Atari).
+    c.hidden = c.net === 'mlp' ? c.actorHidden[0] : c.fc;
     return c;
   }
 
@@ -172,7 +175,7 @@
         label: 'Linear → μ (media de la acción, ' + c.actDim + ')', type: 'head', group: 'head', outMeta: { label: 'Media de la acción μ_θ(s)', tex: '\\mu_\\theta(s)' } });
     } else {
       logits = g.op('actor-logits', A.linear(feat, { dout: c.actDim, doutSym: '|A|' }), { path: ['actor', 'logits'], out: 'act-logits', where: WA,
-        label: 'Linear ' + c.fc + ' → |A| = ' + c.actDim + ' (logits)', type: 'head', group: 'head', outMeta: { label: 'Logits de las acciones discretas', tex: 'z_\\theta(s)' } });
+        label: 'Linear ' + c.fc + ' → |A| = ' + c.actDim + ' (logits)', type: 'head', group: 'head', outMeta: { label: 'Logits de las ' + c.actDim + ' acciones discretas', tex: 'z_\\theta(s)' } });
     }
     if (cont) {
       std = g.op('log-std', A.policy_std({ d: c.actDim, sym: 'd_a', param: c.stdParam, mod: 'act' }), { path: ['actor', 'log-std'], out: 'act-std', where: WA,
@@ -190,14 +193,56 @@
       label: 'Paso del entorno (' + c.sim + '): aplica a_t, devuelve r_t y s_{t+1}', type: 'tensorop', group: 'other', outMeta: { label: 'Recompensa del paso', tex: 'r_t' } });
     const roll = g.op('store', A.rollout_store([obs, action, logp, value, reward], { T: c.horizon, N: c.nEnvs, fields: bufferFields(c).map((f) => f.name), mod: 'lat' }), { path: ['buffer'], out: 'rollout',
       label: 'Buffer: N = ' + fint(c.nEnvs) + ' entornos × T = ' + fint(c.horizon) + ' pasos', type: 'tensorop', group: 'other', outMeta: { label: 'Rollout (s, a, log π, V, r, done) por paso y entorno', tex: '\\mathcal{D}' } });
-    const [adv, ret] = g.op('gae', A.gae_rollout(roll, { gamma: c.gamma, lambda: c.lambda }), { path: ['gae'], out: ['advantages', 'returns'],
-      label: 'GAE (γ = ' + c.gamma + ', λ = ' + c.lambda + '), hacia atrás en t', type: 'tensorop', group: 'other',
-      outMeta: [{ label: 'Ventajas Â_t', tex: '\\hat A_t' }, { label: 'Retornos R_t = Â_t + V_t (objetivo del crítico)', tex: 'R_t' }] });
+    // ---- GAE (vista `gae`): gae › unpack / bootstrap / td-error / gae-scan / returns [/ adv-norm en rsl_rl]. Sin MACs; "otros"
+    // ≈ 4 + 3 + 1 = 8 por celda (δ: 4, recursión: 3, retorno: 1). El costo del crítico sobre s_T está en metrics().bootstrapMacs.
+    const WG = ['GAE (γ = ' + c.gamma + ', λ = ' + c.lambda + ')'];
+    const TN = () => shp(['T', 'N'], [c.horizon, c.nEnvs], 'lat', 'mat');
+    const nT = c.samples, rsl = c.impl === 'rsl_rl';
+    const [rews, vals, dns] = g.op('gae-unpack', ext('rollout_fields', [roll], [TN(), TN(), TN()], { detail: { note: 'vista: las columnas r, V y done del buffer' } }), {
+      path: ['gae', 'unpack'], out: ['rewards', 'values', 'dones'], where: WG, label: 'Leer r_t, V(s_t) y done_t del buffer (T×N)', type: 'tensorop', group: 'other',
+      outMeta: [{ label: 'Recompensas r_t (T×N)', tex: 'r_t' }, { label: 'Valores guardados V(s_t) (T×N)', tex: 'V_t' }, { label: 'Fin de episodio d_t (T×N)', tex: 'd_t' }] });
+    const trunkNote = c.net === 'nature-cnn' ? ' (y el tronco)' : '';
+    const lastV = g.op('bootstrap', ext('bootstrap_value', [value], shp(['N'], [c.nEnvs], 'lat', 'vec'), { detail: { note: 'V(s_T) de cada entorno: el crítico' + trunkNote + ' sobre la observación que sigue al último paso; su costo, N × (crítico' + trunkNote + '), está en metrics().bootstrapMacs' } }), {
+      path: ['gae', 'bootstrap'], out: 'last-value', where: WG, label: 'Bootstrap: V(s_T) con el crítico (una vez por entorno)', type: 'tensorop', group: 'other',
+      outMeta: { label: 'Valor del estado que sigue al último paso (N)', tex: 'V(s_T)' } });
+    const delta = g.op('td-error', ext('td_error', [rews, vals, dns, lastV], TN(), { other: 4 * nT, detail: { gamma: c.gamma, formula: 'δ_t = r_t + γ(1 − d_{t+1})V_{t+1} − V_t' } }), {
+      path: ['gae', 'td-error'], out: 'deltas', where: WG, label: 'Error TD: δ_t = r_t + γ·V_{t+1}·(1 − d) − V_t', type: 'tensorop', group: 'other', outMeta: { label: 'Errores TD δ_t (T×N)', tex: '\\delta_t' } });
+    const advRaw = g.op('gae-scan', ext('gae_scan', [delta, dns], TN(), { other: 3 * nT, detail: { gamma: c.gamma, lambda: c.lambda, formula: 'Â_t = δ_t + γλ(1 − d_{t+1})Â_{t+1}, hacia atrás en t' } }), {
+      path: ['gae', 'gae-scan'], out: rsl ? 'adv-raw' : 'advantages', where: WG, label: 'Recursión hacia atrás: Â_t = δ_t + γλ·Â_{t+1}', type: 'tensorop', group: 'other',
+      outMeta: { label: rsl ? 'Ventajas Â_t (sin normalizar)' : 'Ventajas Â_t', tex: '\\hat A_t' } });
+    const ret = g.op('returns', ext('gae_returns', [advRaw, vals], TN(), { other: nT, detail: { formula: 'R_t = Â_t + V_t' } }), {
+      path: ['gae', 'returns'], out: 'returns', where: WG, label: 'Retornos: R_t = Â_t + V_t', type: 'tensorop', group: 'other', outMeta: { label: 'Retornos R_t = Â_t + V_t (objetivo del crítico)', tex: 'R_t' } });
+    // Normalización de ventajas: rsl_rl (v1.0.2 rollout_storage.py compute_returns) sobre TODO el lote; CleanRL por minibatch (norm_adv).
+    const adv = rsl ? g.op('adv-norm', ext('normalize_adv', [advRaw], TN(), { other: 4 * nT, detail: { scope: 'lote', note: '(Â − media)/(desvío + 1e-8) sobre las N·T muestras (rsl_rl compute_returns)' } }), {
+      path: ['gae', 'adv-norm'], out: 'advantages', where: WG, label: 'Normalizar Â en todo el lote (media 0, desvío 1)', type: 'tensorop', group: 'other',
+      outMeta: { label: 'Ventajas Â_t (normalizadas en el lote)', tex: '\\hat A_t' } }) : advRaw;
     const WU = ['Actualización (K = ' + c.epochs + ' épocas × ' + c.minibatches + ' minibatches)'];
-    const [mbA, mbR] = g.op('minibatch', A.minibatch_select(adv, ret, { M: c.M }), { path: ['update', 'minibatch'], out: ['mb-adv', 'mb-ret'], where: WU,
-      label: 'Minibatch de M = ' + fint(c.M) + ' muestras', type: 'tensorop', group: 'other', outMeta: [{ label: 'Ventajas del minibatch (normalizadas)', tex: '\\hat A' }, { label: 'Retornos del minibatch', tex: 'R' }] });
-    const lc = g.op('clip-loss', A.ppo_clip_loss(mbA, mbA, { eps: c.clipEps, kind: 'ppo' }), { path: ['update', 'clip-loss'], in: ['mb-adv'], out: 'loss-clip', where: WU,
-      label: 'Surrogate recortado: min(r·Â, clip(r, 1 ± ' + c.clipEps + ')·Â)', type: 'head', group: 'head', outMeta: { label: 'Pérdida de la política (−L^CLIP)', tex: '-L^{CLIP}' } });
+    // ---- minibatch (M muestras del lote aplanado) y la pérdida recortada por dentro (vista `clip`): update › clip-loss › …
+    const M = c.M, vM = (mod) => shp(['M'], [M], mod || 'lat', 'vec');
+    const mbObs = c.net === 'nature-cnn' ? shp(['M', '84·84·4'], [M, c.obsElems], 'img', 'seq') : shp(['M', 'd_obs'], [M, c.obsDim], 'lat', 'seq');
+    const mbAct = c.discrete ? vM('act') : shp(['M', 'd_a'], [M, c.actDim], 'act', 'seq');
+    const [mbO, mbAc, mbLo, mbAraw, mbR] = g.op('minibatch', ext('minibatch_select', [roll, adv, ret], [mbObs, mbAct, vM(), vM(), vM()], { detail: { M, from: nT, note: 'M = N·T / ' + c.minibatches + ': índices barajados, sin reemplazo dentro de la época' } }), {
+      path: ['update', 'minibatch', 'select'], out: ['mb-obs', 'mb-action', 'mb-logp-old', rsl ? 'mb-adv' : 'mb-adv-raw', 'mb-ret'], where: WU,
+      label: 'Minibatch de M = ' + fint(M) + ' muestras (índices barajados)', type: 'tensorop', group: 'other',
+      outMeta: [{ label: 'Observaciones del minibatch', tex: 's' }, { label: 'Acciones guardadas en el rollout', tex: 'a' }, { label: 'log π_old guardado en el rollout', tex: '\\log\\pi_{old}' },
+        { label: rsl ? 'Ventajas del minibatch (ya normalizadas en el lote)' : 'Ventajas del minibatch (sin normalizar)', tex: '\\hat A' }, { label: 'Retornos del minibatch', tex: 'R' }] });
+    const mbA = rsl ? mbAraw : g.op('adv-norm', ext('normalize_adv', [mbAraw], vM(), { other: 4 * M, detail: { scope: 'minibatch', note: '(Â − media)/(desvío + 1e-8) dentro del minibatch (CleanRL norm_adv = True)' } }), {
+      path: ['update', 'minibatch', 'adv-norm'], out: 'mb-adv', where: WU, label: 'Normalizar Â en el minibatch (media 0, desvío 1)', type: 'tensorop', group: 'other',
+      outMeta: { label: 'Ventajas del minibatch (normalizadas)', tex: '\\hat A' } });
+    const WCL = WU.concat(['PPO-clip']);
+    const cop = (id, res, out, extra) => g.op(id, res, Object.assign({ path: ['update', 'clip-loss', id], out, where: WCL }, extra));
+    const mbLp = cop('new-logp', ext('policy_logprob', [mbO, mbAc], vM(), { detail: { note: 'el actor con gradiente sobre las M observaciones; sus MACs (forward + backward) están en metrics().updateMacs, no en este grafo de un paso' } }), 'mb-logp',
+      { label: 'Actor con gradiente: log π_θ(a|s) de la acción guardada', type: 'mlp', group: 'mlp', outMeta: { label: 'log π_θ(a|s) con los θ actuales', tex: '\\log\\pi_\\theta' } });
+    const rat = cop('ratio', ext('ppo_ratio', [mbLp, mbLo], vM(), { other: 2 * M, detail: { formula: 'r = exp(log π_θ − log π_old)' } }), 'mb-ratio',
+      { label: 'r = exp(log π_θ − log π_old)', type: 'tensorop', group: 'other', outMeta: { label: 'Cociente r_t(θ) = π_θ / π_old', tex: 'r_t(\\theta)' } });
+    const ratc = cop('clip', ext('clamp', [rat], vM(), { other: 2 * M, detail: { lo: 1 - c.clipEps, hi: 1 + c.clipEps } }), 'mb-ratio-clip',
+      { label: 'clip(r, 1 − ' + c.clipEps + ', 1 + ' + c.clipEps + ')', type: 'tensorop', group: 'other', outMeta: { label: 'Cociente recortado', tex: '\\mathrm{clip}(r, 1\\pm\\epsilon)' } });
+    const [s1, s2] = cop('surr', ext('ppo_surrogates', [rat, ratc, mbA], [vM(), vM()], { other: 2 * M }), ['surr1', 'surr2'],
+      { label: 'r·Â y clip(r)·Â', type: 'tensorop', group: 'other', outMeta: [{ label: 'Surrogate sin recortar r·Â', tex: 'r\\hat A' }, { label: 'Surrogate recortado clip(r)·Â', tex: '\\mathrm{clip}(r)\\hat A' }] });
+    const smin = cop('surr-min', ext('elementwise_min', [s1, s2], vM(), { other: M }), 'surr-min',
+      { label: 'min de los dos (cota pesimista)', type: 'tensorop', group: 'other', outMeta: { label: 'min(r·Â, clip(r)·Â) por muestra', tex: '\\min(\\cdot)' } });
+    const lc = cop('clip-mean', ext('mean', [smin], shp(['1'], [1], 'lat', 'vec'), { other: M }), 'loss-clip',
+      { label: '−media sobre el minibatch', type: 'head', group: 'head', outMeta: { label: 'Pérdida de la política (−L^CLIP)', tex: '-L^{CLIP}' } });
     const lv = g.op('value-loss', A.value_loss(mbR, mbR, { eps: c.clipEps }), { path: ['update', 'value-loss'], in: ['mb-ret'], out: 'loss-value', where: WU,
       label: 'Pérdida del crítico (V − R)², recortada', type: 'head', group: 'head', outMeta: { label: 'Pérdida del valor L^V', tex: 'L^{V}' } });
     const le = g.op('entropy', A.policy_entropy(cont ? std : logits, { kind: cont ? 'gaussian' : 'categorical' }), { path: ['update', 'entropy'], out: 'loss-entropy', where: WU,
@@ -529,9 +574,9 @@
     const hw = [ceilSym(c.H, 32, 'H'), ceilSym(c.W, 32, 'W')];
     const feat = g.op('input-proj', A.conv2d(c5, { k: 1, cout: D, coutSym: 'D', bias: true, outSym: hw }), { path: ['input-proj'], out: 'feat', repeat: cams, paramRepeat: 1,
       label: 'Conv 1×1: 512 → D = ' + D + ' (por cámara)', type: 'conv', group: 'embed', outMeta: { label: 'Rasgos de una cámara (' + c.fh + '×' + c.fw + '×' + D + ')', tex: 'F_c' } });
-    const fseq = g.op('cam-flatten', A.flatten(feat, { sym: ['h·w', 'D'] }), { path: ['cam-concat'], out: 'feat-seq', repeat: cams, paramRepeat: 1, label: 'Aplanar la rejilla', type: 'tensorop', group: 'embed',
+    const fseq = g.op('cam-flatten', A.flatten(feat, { sym: ['H/32·W/32', 'D'] }), { path: ['cam-concat'], out: 'feat-seq', repeat: cams, paramRepeat: 1, label: 'Aplanar la rejilla', type: 'tensorop', group: 'embed',
       outMeta: { label: 'Tokens de una cámara', tex: 'F_c' } });
-    const posc = g.op('pos-enc', A.sine_pos_encoding({ H: c.fh, W: c.fw, D, rowsSym: 'h·w' }), { path: ['pos-enc'], out: 'pos-cam', repeat: cams, paramRepeat: 1,
+    const posc = g.op('pos-enc', A.sine_pos_encoding({ H: c.fh, W: c.fw, D, rowsSym: 'H/32·W/32' }), { path: ['pos-enc'], out: 'pos-cam', repeat: cams, paramRepeat: 1,
       label: 'PE seno/coseno 2-D (buffer)', type: 'embed', group: 'embed', outMeta: { label: 'Posición 2-D de una cámara', tex: 'p_c' } });
     const catOut = [shp(['N_img', 'D'], [c.Nimg, D], 'img', 'seq'), shp(['N_img', 'D'], [c.Nimg, D], 'img', 'seq')];
     const [itok, ipos] = g.op('cam-concat', ext('concat_cameras', [fseq, posc], catOut, { detail: { cams, note: 'torch.cat(…, axis=3): las cámaras se pegan a lo ANCHO (' + c.fh + '×' + cams * c.fw + ') y se aplanan' } }), {
@@ -633,7 +678,7 @@
   }
 
   // Bloque residual condicionado de la U-Net 1-D (ConditionalResidualBlock1D): conv → GN → Mish → FiLM → conv → GN → Mish + atajo.
-  function resBlock(g, x, cond, cout, pre, P, c) {
+  function resBlock(g, x, cond, cout, pre, P, c, outId) {
     const rep = c.steps, WU = ['U-Net 1-D (red de ruido, × ' + c.steps + ' pasos)'];
     const cin = x.num[1];
     // Los pesos existen una vez: la red corre `steps` veces con los mismos (paramRepeat 1).
@@ -651,7 +696,7 @@
     y = o('mish2', A.mish(y), 'mish2', { label: 'Mish', type: 'mlp', group: 'act', outMeta: L('Mish 2', '\\mathrm{Mish}') });
     let sc = x;
     if (cin !== cout) sc = o('res-conv', A.conv1d(x, { k: 1, cout, coutSym: cs, outSym: ts }), 'res-conv', { label: 'Atajo: Conv1d 1×1 ' + cin + ' → ' + cout, type: 'conv', group: 'embed', outMeta: L('atajo proyectado', 'W_s x') });
-    return o('add', A.residual_add(y, sc), 'add', { label: 'Suma residual', type: 'tensorop', group: 'resid', outMeta: L('salida del bloque', 'h + x') });
+    return o('add', A.residual_add(y, sc), 'add', Object.assign({ label: 'Suma residual', type: 'tensorop', group: 'resid', outMeta: L('salida del bloque', 'h + x') }, outId ? { out: outId } : {}));
   }
 
   function dpBuild(c, g) {
@@ -686,14 +731,15 @@
     dd.forEach((w, i) => {
       const lv = 'down-' + (i + 1), pre = 'd' + (i + 1);
       x = resBlock(g, x, cond, w, pre + '-r1', ['unet', lv, 'r1'], c);
-      x = resBlock(g, x, cond, w, pre + '-r2', ['unet', lv, 'r2'], c);
+      // Salida del nivel (= el skip, antes de bajar): d1-out T_p×256, d2-out T_p/2×512, d3-out T_p/4×1024.
+      x = resBlock(g, x, cond, w, pre + '-r2', ['unet', lv, 'r2'], c, pre + '-out');
       skips.push(x);
       if (i < dd.length - 1) x = o(pre + '-down', A.conv1d(x, { k: 3, s: 2, p: 1, cout: w, coutSym: String(w), outSym: Ts[i + 1] }), [lv, 'down'], { label: 'Conv1d k3 s2: bajar ×2 el largo', type: 'conv', group: 'embed',
         outMeta: { label: 'U-Net · ' + lv + ': secuencia a la mitad', tex: '\\downarrow' } });
     });
     const mid = dd[dd.length - 1];
     x = resBlock(g, x, cond, mid, 'm-r1', ['unet', 'mid', 'r1'], c);
-    x = resBlock(g, x, cond, mid, 'm-r2', ['unet', 'mid', 'r2'], c);
+    x = resBlock(g, x, cond, mid, 'm-r2', ['unet', 'mid', 'r2'], c, 'm-out');
     // Subida: en cada nivel se concatena el skip del mismo largo (el último de bajada primero; el skip del nivel 1 no se usa).
     const ups = dd.slice(0, -1).reverse();
     ups.forEach((w, i) => {
@@ -704,7 +750,7 @@
       x = resBlock(g, x, cond, w, pre + '-r1', ['unet', lv, 'r1'], c);
       x = resBlock(g, x, cond, w, pre + '-r2', ['unet', lv, 'r2'], c);
       const Tn = x.num[0] * 2;
-      x = o(pre + '-up', A.conv_transpose1d(x, { k: 4, s: 2, p: 1, cout: w, coutSym: String(w), outSym: Ts[dd.length - 2 - i] || String(Tn) }), [lv, 'up'], { label: 'ConvTranspose1d k4 s2: subir ×2 el largo', type: 'conv', group: 'embed',
+      x = o(pre + '-up', A.conv_transpose1d(x, { k: 4, s: 2, p: 1, cout: w, coutSym: String(w), outSym: Ts[dd.length - 2 - i] || String(Tn) }), [lv, 'up'], { out: pre + '-out', label: 'ConvTranspose1d k4 s2: subir ×2 el largo', type: 'conv', group: 'embed',
         outMeta: { label: 'U-Net · ' + lv + ': secuencia al doble', tex: '\\uparrow' } });
     });
     const d0 = dd[0];
@@ -832,6 +878,7 @@
     };
     if (c.family === 'act') Object.assign(out, { tokens: c.N, imageTokens: c.Nimg, encoderMacs: p.enc.macs, decoderMacs: p.dec.macs, deadDecoderMacs: p.deadDec, deadDecoderShare: p.deadDec / t.macs,
       decoderLayersUsed: 1, decoderLayers: c.Ldec, encoderLayers: c.Lenc, klWeight: c.klWeight, latentDim: c.latent, ensembleM: c.ensembleM, temporalAgg: c.temporalAgg,
+      inferenceHzTE: c.controlHz, fitsControlTEOrin: hw[0].ms <= 1000 / c.controlHz, fitsControlNoTEOrin: hw[0].ms <= 1000 * c.chunk / c.controlHz,
       inferenceHzNoTE: c.controlHz / c.chunk, macsPerSecondNoTE: t.macs * c.controlHz / c.chunk, paperParamsM: c.paperParamsM, paperLatencyMs: c.paperLatencyMs,
       demos: c.demos, batch: c.batch, episodeStepsMin: c.episodeSteps[0], episodeStepsMax: c.episodeSteps[1] });
     if (/^dp/.test(c.family)) Object.assign(out, { steps: c.steps, trainSteps: c.trainSteps, stepMacs: p.stepMacs, denoiseMacs: p.policy.macs, denoiseShare: p.policy.macs / t.macs,
@@ -854,7 +901,7 @@
     totalParams: 'params', visionMacs: 'macs', policyMacs: 'macs', macsPerInference: 'macs', flopsPerInference: 'count', visionMacsShare: 'pct', actionsPerInference: 'count',
     controlHz: 'ratio', inferenceHz: 'ratio', macsPerSecond: 'count', msOrin: 'ms', msH100: 'ms', maxHzOrin: 'ratio', maxHzH100: 'ratio',
     tokens: 'count', imageTokens: 'count', encoderMacs: 'macs', decoderMacs: 'macs', deadDecoderMacs: 'macs', deadDecoderShare: 'pct', decoderLayersUsed: 'count', decoderLayers: 'count',
-    encoderLayers: 'count', klWeight: 'ratio', latentDim: 'count', ensembleM: 'ratio', inferenceHzNoTE: 'ratio', macsPerSecondNoTE: 'count', paperParamsM: 'ratio', paperLatencyMs: 'ms',
+    encoderLayers: 'count', inferenceHzTE: 'ratio', klWeight: 'ratio', latentDim: 'count', ensembleM: 'ratio', inferenceHzNoTE: 'ratio', macsPerSecondNoTE: 'count', paperParamsM: 'ratio', paperLatencyMs: 'ms',
     demos: 'count', batch: 'count', episodeStepsMin: 'count', episodeStepsMax: 'count', steps: 'count', trainSteps: 'count', stepMacs: 'macs', denoiseMacs: 'macs', denoiseShare: 'pct',
     obsSteps: 'count', obsFeat: 'count', globalCond: 'count', condDim: 'count', paperDParamsM: 'ratio', paperVParamsM: 'ratio', paperSteps: 'count', paperExecuted: 'count',
     paperLatencySteps: 'count', paperEmb: 'count', idleParams: 'params', mlpIn: 'count',
@@ -866,7 +913,7 @@
     paper: { title: 'Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware (ACT)', authors: 'Zhao et al.', venue: 'RSS 2023', year: 2023, arxiv: '2304.13705',
       note: 'Diffusion Policy: Chi et al., RSS 2023 / IJRR 2024, arXiv:2303.04137. DAgger: Ross et al., AISTATS 2011, arXiv:1011.0686. BC: Pomerleau, ALVINN, NeurIPS 1989.' },
     configs: IM_CONFIGS,
-    knobs: { chunk: [1, 10, 16, 50, 100], cams: [1, 2, 3, 4], steps: [1, 4, 8, 16, 100], res: [96, 216, 240, 480] },
+    knobs: { chunk: [1, 10, 16, 50, 100], cams: [1, 2, 3, 4], steps: [1, 4, 8, 16, 100], res: [96, 216, 240, 432, 480] },
     hardware: HW.map((h) => Object.assign({}, h)),
     applyKnobs: imApply,
     resolve: imResolve,

@@ -670,7 +670,7 @@
     ],
     freq: B, minutes: 60,
     from: ['rl-ppo', 'stable-diffusion'], to: ['pi0'],
-    paper: { title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion', authors: 'Chi et al.', venue: 'RSS 2023', arxiv: '2303.04137' },
+    paper: { title: 'Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware (ACT)', authors: 'Zhao et al.', venue: 'RSS 2023', arxiv: '2304.13705' },
     model: 'imitation', canonical: 'act-aloha',
     card: { in: 'observaciones + demostraciones', out: 'chunk de acciones',
       idea: 'regresión (o difusión) de las acciones del experto', uso: 'manipulación con pocas decenas de demostraciones' },

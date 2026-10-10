@@ -243,6 +243,20 @@
       refOffload: { label: 'Log-probs de la referencia precalculados', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' log-probs de la referencia precalculados' },
       gradCkpt: { label: 'Gradient checkpointing', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' gradient checkpointing' },
     },
+    // Fase 15 (RL y aprendizaje por imitación)
+    'rl-ppo': {
+      nEnvs: { label: 'Entornos en paralelo N', sym: 'N', show: (v) => 'N = ' + fInt(v), phrase: (v) => fInt(v) + (v === 1 ? ' entorno' : ' entornos en paralelo') },
+      horizon: { label: 'Pasos por rollout T', sym: 'T', show: (v) => 'T = ' + fInt(v), phrase: (v) => 'rollouts de T = ' + fInt(v) + ' pasos por entorno' },
+      epochs: { label: 'Épocas por update K', sym: 'K', show: (v) => 'K = ' + v, phrase: (v) => 'K = ' + v + (v === 1 ? ' época' : ' épocas') + ' por update' },
+      minibatches: { label: 'Minibatches por época', show: (v) => v + ' minibatch' + (v === 1 ? '' : 'es'), phrase: (v) => v + ' minibatch' + (v === 1 ? '' : 'es') + ' por época' },
+      hidden: { label: 'Ancho de las capas ocultas', show: (v) => fInt(v), phrase: (v) => 'capas ocultas de ' + fInt(v) },
+    },
+    imitation: {
+      chunk: { label: 'Acciones por chunk', sym: 'k', show: (v) => v + (v === 1 ? ' acción' : ' acciones'), phrase: (v) => 'chunks de ' + v + (v === 1 ? ' acción' : ' acciones') },
+      cams: { label: 'Cámaras', show: (v) => v + (v === 1 ? ' cámara' : ' cámaras'), phrase: (v) => (v === 1 ? 'una sola cámara' : v + ' cámaras') },
+      steps: { label: 'Pasos de denoising', show: (v) => v + (v === 1 ? ' paso' : ' pasos'), phrase: (v) => v + (v === 1 ? ' paso' : ' pasos') + ' de denoising' },
+      res: { label: 'Alto de la imagen', show: (v) => 'H = ' + v, phrase: (v) => 'imágenes de alto ' + v },
+    },
     // Fase 14 (percepción)
     bytetrack: {
       nDet: { label: 'Detecciones por frame', show: (v) => fInt(v) + ' detecciones', phrase: (v) => fInt(v) + ' detecciones por frame' },
@@ -781,6 +795,96 @@
     centroidBytesTouched: { label: 'Bytes de centroides leídos por consulta', kind: 'bytes', note: 'coarse · d · 4' },
     centroidBytesShare: { label: 'Centroides', kind: 'pct', note: '% de los bytes leídos por consulta' },
     latencyMsCachedCentroids: { label: 'ms por consulta con los centroides en caché (≈ cota)', kind: 'ms', note: 'misma cota sin leer los centroides de DRAM' },
+    // Fase 15 (RL y aprendizaje por imitación)
+    obsDim: { label: 'Dimensión de la observación d_obs', kind: 'count', note: 'números que ve la política' },
+    actDim: { label: 'Dimensión de la acción', kind: 'count', note: 'continua: d_a; discreta: |A| acciones' },
+    nEnvs: { label: 'Entornos en paralelo N', kind: 'count', note: 'se simulan a la vez' },
+    horizon: { label: 'Pasos por entorno y rollout T', kind: 'count', note: '' },
+    epochs: { label: 'Épocas por update K', kind: 'count', note: 'pasadas sobre el mismo rollout' },
+    minibatches: { label: 'Minibatches por época', kind: 'count', note: '' },
+    minibatchSize: { label: 'Tamaño del minibatch M', kind: 'count', note: 'N·T / minibatches' },
+    samplesPerUpdate: { label: 'Muestras por update', kind: 'count', note: 'N × T' },
+    gradStepsPerUpdate: { label: 'Pasos de gradiente por update', kind: 'count', note: 'K × minibatches' },
+    sampleReuse: { label: 'Veces que se usa cada muestra', kind: 'count', note: '= K épocas (on-policy: luego se descarta)' },
+    actorParams: { label: 'Parámetros del actor', kind: 'count', note: '' },
+    trunkParams: { label: 'Parámetros del tronco compartido', kind: 'count', note: 'Atari: la CNN que comparten actor y crítico' },
+    actorMacs: { label: 'MACs del actor por paso', kind: 'ops', note: 'un entorno, una acción' },
+    criticMacs: { label: 'MACs del crítico por paso', kind: 'ops', note: '' },
+    trunkMacs: { label: 'MACs del tronco por paso', kind: 'ops', note: '' },
+    stepFlops: { label: 'FLOPs por paso del entorno', kind: 'flopCount', note: '2 × MACs de actor + crítico' },
+    firstLayerMacs: { label: 'MACs de la primera capa', kind: 'ops', note: 'su backward no calcula gradiente de la entrada' },
+    bootstrapMacs: { label: 'MACs del bootstrap V(s_T)', kind: 'ops', note: 'un forward del crítico por entorno al cerrar el rollout' },
+    trainMacsPerSample: { label: 'MACs de entrenamiento por muestra', kind: 'ops', note: 'forward + backward' },
+    backwardMacsPerSample: { label: 'MACs del backward por muestra', kind: 'ops', note: '≈ 2 × forward, menos la primera capa' },
+    trainToForward: { label: 'Entrenamiento / forward', kind: 'ratio', note: 'exacto: 3 × forward menos el gradiente de la entrada' },
+    iterationMacs: { label: 'MACs por iteración', kind: 'ops', note: 'rollout + update' },
+    iterationFlops: { label: 'FLOPs por iteración', kind: 'flopCount', note: '2 × MACs' },
+    rolloutBufferBytes: { label: 'Memoria del buffer del rollout', kind: 'bytes', note: 'fp32: obs, acción, log π, V, r, done…' },
+    bufferBytesPerSample: { label: 'Bytes del buffer por muestra', kind: 'bytes', note: '' },
+    paramBytes: { label: 'Memoria de los pesos (fp32)', kind: 'bytes', note: '' },
+    adamBytes: { label: 'Memoria de los momentos de Adam', kind: 'bytes', note: '2 × pesos en fp32' },
+    iterations: { label: 'Iteraciones (rollout + update)', kind: 'count', note: 'presupuesto / (N·T)' },
+    budgetSteps: { label: 'Pasos del entorno en total', kind: 'count', note: '' },
+    budgetMacs: { label: 'MACs de todo el entrenamiento', kind: 'ops', note: '' },
+    budgetFlops: { label: 'FLOPs de todo el entrenamiento', kind: 'flopCount', note: '2 × MACs' },
+    gamma: { label: 'Descuento γ', kind: 'ratio', note: '' },
+    lambda: { label: 'λ de GAE', kind: 'ratio', note: '' },
+    clipEps: { label: 'ε del clipping', kind: 'ratio', note: '' },
+    lr: { label: 'Learning rate', kind: 'ratio', note: '' },
+    entCoef: { label: 'Coeficiente de entropía', kind: 'ratio', note: '' },
+    vfCoef: { label: 'Coeficiente de la pérdida del valor', kind: 'ratio', note: '' },
+    controlHz: { label: 'Frecuencia de control', kind: 'hz', note: 'acciones por segundo que pide el robot o el entorno' },
+    dt: { label: 'Paso de control (s)', kind: 'ratio', note: '1 / frecuencia de control' },
+    policyMsOrin: { label: 'ms de la política en Jetson AGX Orin (≈)', kind: 'ms', note: 'roofline, batch 1' },
+    policyHzOrin: { label: 'Hz de la política en Orin (≈ tope)', kind: 'hz', note: 'roofline, batch 1' },
+    policyMsH100: { label: 'ms de la política en H100 (≈)', kind: 'ms', note: 'roofline, batch 1' },
+    rolloutInferMsH100: { label: 'ms de inferencia del rollout en H100 (≈)', kind: 'ms', note: 'solo la red, sin el simulador' },
+    epochsCleanRL: { label: 'Épocas en CleanRL', kind: 'count', note: 'el paper usa 3 en Atari' },
+    paperMinutes: { label: 'Minutos de entrenamiento citados', kind: 'count', note: 'legged_gym: Rudin et al.' },
+    paperUpdates: { label: 'Updates citados', kind: 'count', note: '' },
+    stepsPerSecondCited: { label: 'Pasos del simulador por segundo (≈, citado)', kind: 'count', note: 'muestras × updates / tiempo del paper' },
+    desiredKl: { label: 'KL objetivo del LR adaptativo', kind: 'ratio', note: 'rsl_rl' },
+    executed: { label: 'Acciones ejecutadas por inferencia', kind: 'count', note: 'ACT con ensamble: 1; Diffusion Policy: T_a' },
+    cvaeParams: { label: 'Parámetros del encoder CVAE', kind: 'count', note: 'solo entrenamiento' },
+    policyMacs: { label: 'MACs de la política (sin visión)', kind: 'ops', note: '' },
+    macsPerInference: { label: 'MACs por inferencia', kind: 'ops', note: 'visión + política' },
+    flopsPerInference: { label: 'FLOPs por inferencia', kind: 'flopCount', note: '2 × MACs' },
+    actionsPerInference: { label: 'Acciones ejecutadas por inferencia', kind: 'count', note: '' },
+    inferenceHz: { label: 'Inferencias por segundo', kind: 'hz', note: 'las que pide el control' },
+    macsPerSecond: { label: 'MACs por segundo de control', kind: 'count', note: 'MACs por inferencia × inferencias/s' },
+    maxHzOrin: { label: 'Inferencias/s en Orin (≈ tope)', kind: 'hz', note: 'roofline, batch 1' },
+    maxHzH100: { label: 'Inferencias/s en H100 (≈ tope)', kind: 'hz', note: 'roofline, batch 1' },
+    deadDecoderMacs: { label: 'MACs de capas del decoder descartadas', kind: 'ops', note: 'ACT usa hs[0]: la salida de la primera capa' },
+    deadDecoderShare: { label: 'Decoder descartado', kind: 'pct', note: '% de los MACs por inferencia' },
+    decoderLayersUsed: { label: 'Capas del decoder que se usan', kind: 'count', note: '' },
+    decoderLayers: { label: 'Capas del decoder', kind: 'count', note: '' },
+    encoderLayers: { label: 'Capas del encoder', kind: 'count', note: '' },
+    klWeight: { label: 'Peso β del KL', kind: 'ratio', note: '' },
+    latentDim: { label: 'Ancho del latente z', kind: 'count', note: '' },
+    ensembleM: { label: 'm del ensamble temporal', kind: 'ratio', note: 'pesos w_i = exp(−m·i)' },
+    inferenceHzTE: { label: 'Inferencias/s con ensamble temporal', kind: 'hz', note: 'una por paso de control' },
+    inferenceHzNoTE: { label: 'Inferencias/s sin ensamble', kind: 'hz', note: 'una cada k pasos' },
+    macsPerSecondNoTE: { label: 'MACs por segundo sin ensamble', kind: 'count', note: '' },
+    paperParamsM: { label: 'Parámetros citados en el paper (M)', kind: 'ratio', note: '' },
+    paperLatencyMs: { label: 'Latencia citada en el paper', kind: 'ms', note: '' },
+    demos: { label: 'Demostraciones', kind: 'count', note: '' },
+    batch: { label: 'Batch de entrenamiento', kind: 'count', note: '' },
+    episodeStepsMin: { label: 'Pasos por episodio (mín.)', kind: 'count', note: '' },
+    episodeStepsMax: { label: 'Pasos por episodio (máx.)', kind: 'count', note: '' },
+    trainSteps: { label: 'Pasos de difusión en entrenamiento', kind: 'count', note: '' },
+    denoiseMacs: { label: 'MACs de todos los pasos de denoising', kind: 'ops', note: 'pasos × MACs por paso' },
+    denoiseShare: { label: 'Denoising', kind: 'pct', note: '% de los MACs por inferencia' },
+    obsSteps: { label: 'Pasos de observación T_o', kind: 'count', note: '' },
+    obsFeat: { label: 'Rasgos por paso de observación', kind: 'count', note: 'cámaras × rasgos + estado' },
+    globalCond: { label: 'Condición global de la observación', kind: 'count', note: 'T_o × rasgos por paso' },
+    paperDParamsM: { label: 'Parámetros citados del U-Net (M)', kind: 'ratio', note: '' },
+    paperSteps: { label: 'Pasos de inferencia citados', kind: 'count', note: '' },
+    condDim: { label: 'Ancho de la condición de FiLM', kind: 'count', note: 'paso de difusión + observación' },
+    paperVParamsM: { label: 'Parámetros citados del encoder de visión (M)', kind: 'ratio', note: '' },
+    paperExecuted: { label: 'T_a citado en el paper', kind: 'count', note: '' },
+    paperLatencySteps: { label: 'Pasos de la latencia citada', kind: 'count', note: '' },
+    paperEmb: { label: 'Ancho citado del transformer', kind: 'count', note: '' },
+    mlpIn: { label: 'Entrada del MLP', kind: 'count', note: 'rasgos aplanados + estado' },
     // Fase 14 (percepción para robótica)
     stateDim: { label: 'Dimensión del estado del Kalman', kind: 'count', note: 'x, y, a, h y sus velocidades' },
     measDim: { label: 'Dimensión de la medición', kind: 'count', note: 'la caja: x, y, a, h' },
@@ -809,7 +913,7 @@
     trackerParams: { label: 'Parámetros del tracker', kind: 'count', note: 'no aprende nada' },
     detectorParams: { label: 'Parámetros del detector', kind: 'count', note: '' },
     detectorMacs: { label: 'MACs del detector por frame', kind: 'ops', note: '' },
-    detectorFlops: { label: 'FLOPs del detector por frame', kind: 'count', note: '' },
+    detectorFlops: { label: 'FLOPs del detector por frame', kind: 'flopCount', note: '2 × MACs del detector' },
     trackerShare: { label: 'Tracker / detector', kind: 'pct', note: 'operaciones del tracker (≈) / FLOPs del detector (2 × MACs)' },
     trackerShareKalman: { label: 'Kalman / detector', kind: 'pct', note: 'FLOPs del Kalman / FLOPs del detector' },
     assignShareTracker: { label: 'Asignación', kind: 'pct', note: '% de las operaciones del tracker' },
@@ -1288,7 +1392,7 @@
   const DIFFUSION = { 'stable-diffusion': true, dit: true };   // fase 8: modelos cuyo samplingMacs es el costo por imagen
   // Etiqueta: la del modelo (labels[model]: «Celdas A» en YOLO) o la general.
   const metricLabel = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.labels && model && m.labels[model]) || m.label || k; };
-  const UNIT_KIND = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count', ms: 'ms', duration: 'duration' };
+  const UNIT_KIND = { ratio: 'ratio', count: 'count', bytes: 'bytes', pct: 'pct', macs: 'ops', params: 'count', ms: 'ms', duration: 'duration', flops: 'flopCount' };
   // Tipo de formato: el de METRICS; si la clave no está, por su nombre (las métricas que añade cada modelo
   // siguen la convención …Mem/…Cache = bytes, …Share = fracción, …Macs = MACs; como js/core/quantities.js).
   function metricKind(key) {
@@ -1335,6 +1439,8 @@
     if (kind === 'bool') return v ? 'sí' : 'no';
     if (kind === 'bytes') return fBytes(v);
     if (kind === 'ops') return fOps(v, metricKey(key) === 'flops' ? 'FLOPs' : 'MACs');
+    // 'flopCount' (fase 14, revisión): un conteo de FLOPs (no un pico FLOPS): '790.27 GFLOPs'.
+    if (kind === 'flopCount') return fOps(v, 'FLOPs');
     if (kind === 'pct') return fPctAuto(v);
     if (kind === 'ratio') return '×' + fRatio(v);
     if (kind === 'intensity') return fRatio(v) + ' FLOPs/B';
@@ -1370,6 +1476,7 @@
     if (kind === 'hz') return String(+v.toFixed(2)) + ' Hz';
     if (kind === 'bw') return fInt(v) + ' B/s';
     if (kind === 'flops') return fInt(v) + ' FLOPS';
+    if (kind === 'flopCount') return fInt(v) + ' FLOPs';
     if (kind === 'avg') return String(+v.toFixed(3));
     return fInt(v) + (kind === 'bytes' ? ' bytes' : '');
   }
@@ -2302,6 +2409,22 @@
       if (typeof sa.S === 'number' && !has('S_' + (i + 1))) out.push(['S_' + (i + 1), sa.S, 'centros del set abstraction ' + (i + 1) + ' (FPS)']);
       if (typeof sa.k === 'number' && !has('k_' + (i + 1))) out.push(['k_' + (i + 1), sa.k, 'vecinos por centro (ball query, r = ' + sa.r + ')']);
     });
+    // Fase 15: PPO (d_obs, d_a, h_i del MLP o h de la fc de Atari, T pasos × N entornos, M del minibatch), ACT (N_img, d_z, k) y
+    // Diffusion Policy (K keypoints, T_o / T_p / T_a, c = ancho de la condición de FiLM) — símbolos de js/arch/robotlearn.js.
+    if (typeof c.nEnvs === 'number' && typeof c.horizon === 'number') {
+      [['d_obs', Array.isArray(c.actorHidden) ? c.obsDim : null, 'números de la observación'], ['d_a', Array.isArray(c.actorHidden) ? c.actDim : null, 'dimensiones de la acción continua'],
+        ['h', Array.isArray(c.actorHidden) ? null : c.fc, 'ancho de la fc del tronco'],
+        ['T', c.horizon, 'pasos por entorno en cada rollout'], ['N', c.nEnvs, 'entornos en paralelo'], ['M', c.M, 'muestras por minibatch = N·T / minibatches']]
+        .forEach(([k, v, n]) => { if (typeof v === 'number' && !has(k)) out.push([k, v, n]); });
+      (c.actorHidden || []).forEach((v, i) => { if (!has('h_' + (i + 1))) out.push(['h_' + (i + 1), v, 'ancho de la capa oculta ' + (i + 1) + ' (actor y crítico)']); });
+    }
+    if (typeof c.chunk === 'number' && typeof c.cams === 'number') {
+      [['N_img', c.Nimg, 'tokens de imagen de todas las cámaras'], ['d_z', c.Lenc ? c.latent : null, 'ancho del latente z del CVAE'], ['k', c.Lenc ? c.chunk : null, 'acciones por chunk'],
+        ['K', c.kp, 'keypoints del spatial softmax'], ['T_o', c.obsSteps, 'pasos de observación'], ['T_p', c.obsSteps ? c.chunk : null, 'acciones predichas'],
+        ['T_a', c.obsSteps ? c.executed : null, 'acciones ejecutadas antes de volver a observar'], ['d_a', c.obsSteps ? c.actionDim : null, 'dimensiones de la acción'],
+        ['c', c.condDim, 'ancho de la condición de FiLM (paso de difusión + observación)']]
+        .forEach(([k, v, n]) => { if (typeof v === 'number' && !has(k)) out.push([k, v, n]); });
+    }
     // Fase 12 (encoder-decoder): T_in / T_out; Whisper: T_in = las 1,500 posiciones del encoder, S muestras, n_mels.
     if (typeof c.Tout === 'number' && (typeof c.Tin === 'number' || typeof c.nMels === 'number')) {
       const tin = typeof c.Tin === 'number' ? c.Tin : c.encPos;
@@ -2465,7 +2588,8 @@
     if (all.every((o) => pRep(o) === 0)) return null;
     // repeticiones de los PESOS (paramRepeat): con pesos compartidos (LLaVA con varias imágenes) no es el repeat de los MACs
     const rep = Math.max(...all.map(pRep));
-    const mixed = all.some((o) => pRep(o) !== rep);
+    // …o pesos compartidos entre ejecuciones (Diffusion Policy: 2 cámaras × T_o pasos, un ResNet por cámara): el diagrama da el total.
+    const mixed = all.some((o) => pRep(o) !== rep || (o.repeat != null && o.paramRepeat != null && o.paramRepeat > 1 && o.paramRepeat < o.repeat));
     const group = !!loc.group;
     const whole = group || mixed;                 // total del modelo para ese bloque (Σ op × paramRepeat)
     const times = (o) => (whole ? pRep(o) : 1);

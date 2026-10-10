@@ -816,6 +816,22 @@
     macsPerPoint: { label: 'MACs por punto', get: (r) => vlmMetric(r, 'macsPerPoint'), fmt: 'si', unit: 'MACs' },
     globalMacs: { label: 'MACs después del max-pool', get: (r) => vlmMetric(r, 'globalMacs'), fmt: 'si', unit: 'MACs' },
     maxpoolOps: { label: 'Comparaciones del max-pool', get: (r) => vlmMetric(r, 'maxpoolOps'), fmt: 'si' },
+    // Fase 15 (RL y aprendizaje por imitación)
+    trunkParams: { label: 'Parámetros del tronco compartido', get: (r) => vlmMetric(r, 'trunkParams'), fmt: 'si' },
+    actorParams: { label: 'Parámetros del actor', get: (r) => vlmMetric(r, 'actorParams'), fmt: 'si' },
+    criticParams: { label: 'Parámetros del crítico', get: (r) => vlmMetric(r, 'criticParams'), fmt: 'si' },
+    nEnvs: { label: 'Entornos en paralelo N', get: (r) => vlmMetric(r, 'nEnvs'), fmt: 'int' },
+    horizon: { label: 'Pasos por entorno y rollout T', get: (r) => vlmMetric(r, 'horizon'), fmt: 'int' },
+    samplesPerUpdate: { label: 'Muestras por update (N × T)', get: (r) => vlmMetric(r, 'samplesPerUpdate'), fmt: 'int' },
+    minibatchSize: { label: 'Tamaño del minibatch', get: (r) => vlmMetric(r, 'minibatchSize'), fmt: 'int' },
+    epochs: { label: 'Épocas por update K', get: (r) => vlmMetric(r, 'epochs'), fmt: 'int' },
+    gradStepsPerUpdate: { label: 'Pasos de gradiente por update', get: (r) => vlmMetric(r, 'gradStepsPerUpdate'), fmt: 'int' },
+    actorMacs: { label: 'MACs del actor por paso', get: (r) => vlmMetric(r, 'actorMacs'), fmt: 'si', unit: 'MACs' },
+    updateMacs: { label: 'MACs del update (fwd + bwd, K épocas)', get: (r) => vlmMetric(r, 'updateMacs'), fmt: 'si', unit: 'MACs' },
+    rolloutBufferBytes: { label: 'Memoria del buffer del rollout (fp32)', get: (r) => vlmMetric(r, 'rolloutBufferBytes'), fmt: 'bytes' },
+    macsPerInference: { label: 'MACs por inferencia', get: (r) => vlmMetric(r, 'macsPerInference'), fmt: 'si', unit: 'MACs' },
+    actionsPerInference: { label: 'Acciones ejecutadas por inferencia', get: (r) => vlmMetric(r, 'actionsPerInference'), fmt: 'int' },
+    inferenceHz: { label: 'Inferencias por segundo (Hz)', get: (r) => vlmMetric(r, 'inferenceHz'), fmt: 'raw' },
     // Fase 13 (recomendación y árboles)
     nTrees: { label: 'Árboles', get: (r) => r.config && r.config.nTrees, fmt: 'int' },
     // LightGBM (leaf-wise) sin max_depth: depth = 0 es "sin límite" (max_depth −1), no profundidad 0; manda num_leaves.

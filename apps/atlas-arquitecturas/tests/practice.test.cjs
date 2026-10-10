@@ -21,7 +21,7 @@ function load() {
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
 // Revisión de la fase 10: lora y rlhf-dpo también entran en las barridas (drills de parámetros = diagrama, de formas = tarjeta).
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit', 'lora', 'rlhf-dpo', 'bert', 'retrieval', 'ann', 't5', 'whisper', 'two-tower', 'dlrm', 'gbdt', 'bytetrack', 'depth', 'pointnet'];
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit', 'lora', 'rlhf-dpo', 'bert', 'retrieval', 'ann', 't5', 'whisper', 'two-tower', 'dlrm', 'gbdt', 'bytetrack', 'depth', 'pointnet', 'rl-ppo', 'imitation'];
 const diagrams = ATLAS.diagrams();
 // Fase 7 (VLM): símbolos de la torre de visión que la tarjeta de datos debe mostrar además de los genéricos (H, W, C, P, D, L,
 // h, D_mlp, N, T, V, G): D_v, h_v, d_v, L_v, N_p y, en Qwen2-VL, F (frames). Mientras practice.js (factPairs) no los incluya,
@@ -805,4 +805,9 @@ test('fase 14 (revisión): métricas de bytetrack / depth / pointnet con etiquet
   // tarjeta: n_1 = T + D_h (ByteTrack) y máx(T, D_h) (SORT)
   const facts = (cfg) => Object.fromEntries(P._factPairs(A.run(cfg).config).map(([s, v]) => [s, v]));
   assert.deepStrictEqual([facts('bytetrack-mot17').n_1, facts('bytetrack-mot17').n_2, facts('sort').n_1, facts('sort').n_2], [90, 20, 50, undefined]);
+});
+
+test('fase 14 (revisión 2): FLOPs del detector como conteo de FLOPs (no pico FLOPS ni entero suelto)', () => {
+  assert.strictEqual(P._metricKind('detectorFlops'), 'flopCount');
+  assert.match(P._fMetric('detectorFlops', 790270560000), /^790\.27 GFLOPs$/);
 });

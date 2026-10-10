@@ -80,6 +80,62 @@
     ],
     "reward": [
       1
+    ],
+    "rewards": [
+      128,
+      8
+    ],
+    "values": [
+      128,
+      8
+    ],
+    "dones": [
+      128,
+      8
+    ],
+    "last-value": [
+      8
+    ],
+    "deltas": [
+      128,
+      8
+    ],
+    "mb-obs": [
+      256,
+      28224
+    ],
+    "mb-action": [
+      256
+    ],
+    "mb-logp-old": [
+      256
+    ],
+    "mb-logp": [
+      256
+    ],
+    "mb-ratio": [
+      256
+    ],
+    "mb-ratio-clip": [
+      256
+    ],
+    "surr1": [
+      256
+    ],
+    "surr2": [
+      256
+    ],
+    "surr-min": [
+      256
+    ],
+    "mb-adv": [
+      256
+    ],
+    "mb-ret": [
+      256
+    ],
+    "mb-adv-raw": [
+      256
     ]
   },
   "flops_total": 18691072,

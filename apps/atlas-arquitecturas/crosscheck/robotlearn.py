@@ -534,6 +534,14 @@ def rl_config(cid, dims):
                  "Iteración real: 4096 × 24 con no_grad (act + evaluate), evaluate del bootstrap, 5 épocas × 4 minibatches de 24,576 con loss.backward(); el KL del lr adaptativo va en inference_mode (sin MACs)."]
     T_, N_ = (2048, 1) if cid == "ppo-mujoco" else (128, 8) if cid == "ppo-atari" else (24, 4096)
     shapes.update({"rollout": [T_, N_], "advantages": [T_, N_], "returns": [T_, N_], "reward": [1]})
+    # Vistas gae y clip: las formas de los tensores del código oficial (buffers T×N, bootstrap N, minibatch M = N·T / n_mb).
+    M_ = N * T // nmb
+    obs_flat = 84 * 84 * 4 if cid == "ppo-atari" else (shapes["obs"][0])
+    shapes.update({"rewards": [T_, N_], "values": [T_, N_], "dones": [T_, N_], "last-value": [N_], "deltas": [T_, N_],
+                   "mb-obs": [M_, obs_flat], "mb-action": [M_] if cid == "ppo-atari" else [M_, shapes["action"][0]],
+                   "mb-logp-old": [M_], "mb-logp": [M_], "mb-ratio": [M_], "mb-ratio-clip": [M_], "surr1": [M_], "surr2": [M_], "surr-min": [M_],
+                   "mb-adv": [M_], "mb-ret": [M_]})
+    shapes["adv-raw" if cid == "ppo-anymal-isaac" else "mb-adv-raw"] = [T_, N_] if cid == "ppo-anymal-isaac" else [M_]
     samples = N * T
     assert uf % (2 * K * samples) == 0, (cid, uf)
     data = {
@@ -1055,9 +1063,9 @@ def dp_config(cid):
     enc_names = {"c5": "obs_nets.0.nets.0", "kp-logits": "obs_nets.0.nets.1.nets", "keypoints": "obs_nets.0.nets.1", "cam-feat-pre": "obs_nets.0.nets.3",
                  "bb-stem-conv": "obs_nets.0.nets.0.0", "bb-pool": "obs_nets.0.nets.0.3", "c2": "obs_nets.0.nets.0.4", "c3": "obs_nets.0.nets.0.5", "c4": "obs_nets.0.nets.0.6"}
     if cid == "diffusion-policy-cnn":
-        net_names = {"t-emb": "diffusion_step_encoder", "d1-r1-add": "down_modules.0.0", "d1-r2-add": "down_modules.0.1", "d1-down": "down_modules.0.2",
-                     "d2-r2-add": "down_modules.1.1", "d2-down": "down_modules.1.2", "d3-r2-add": "down_modules.2.1", "m-r2-add": "mid_modules.1",
-                     "u1-r1-add": "up_modules.0.0", "u1-up": "up_modules.0.2", "u2-r1-add": "up_modules.1.0", "u2-up": "up_modules.1.2",
+        net_names = {"t-emb": "diffusion_step_encoder", "d1-r1-add": "down_modules.0.0", "d1-out": "down_modules.0.1", "d1-down": "down_modules.0.2",
+                     "d2-out": "down_modules.1.1", "d2-down": "down_modules.1.2", "d3-out": "down_modules.2.1", "m-out": "mid_modules.1",
+                     "u1-r1-add": "up_modules.0.0", "u1-out": "up_modules.0.2", "u2-r1-add": "up_modules.1.0", "u2-out": "up_modules.1.2",
                      "final-conv": "final_conv.0.block.0", "d1-r1-film-lin": "down_modules.0.0.cond_encoder.1"}
     else:
         net_names = {"x-emb": "input_emb", "cond-obs-emb": "cond_obs_emb", "memory": "encoder", "d-out": "decoder.layers.7", "x-ln": "ln_f", "d-u": "decoder.layers.0.linear1"}
