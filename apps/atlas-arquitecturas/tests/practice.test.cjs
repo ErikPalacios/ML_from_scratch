@@ -811,3 +811,53 @@ test('fase 14 (revisión 2): FLOPs del detector como conteo de FLOPs (no pico FL
   assert.strictEqual(P._metricKind('detectorFlops'), 'flopCount');
   assert.match(P._fMetric('detectorFlops', 790270560000), /^790\.27 GFLOPs$/);
 });
+
+test('fase 15 (revisión): rl-ppo e imitation con etiquetas propias en las claves compartidas; las de fases anteriores intactas', () => {
+  const skip = /^(B|P|bytesPerElement|estimate|dtype)$/;
+  for (const model of ['rl-ppo', 'imitation']) for (const { id: cfg } of A.configs(model)) {
+    const m = A.metrics(cfg, {});
+    for (const k of Object.keys(m)) if (typeof m[k] === 'number' && !skip.test(k)) assert.notStrictEqual(P._metricLabel(k, model), k, cfg + ': sin etiqueta: ' + k);
+  }
+  // nada de CLS, "3 × forward × B", prefill + decode, flow, imagen cuadrada ni padding en las páginas de la fase 15
+  const borrowed = /CLS|3 × forward|prefill|decode|flow|cuadrada|padding|H_a|knob H|P3–P5|strides 8 a 64|LLaVA|ViT/;
+  for (const k of ['tokens', 'stepMacs', 'rolloutMacs', 'updateMacs', 'updateShare']) assert.ok(!borrowed.test(P._metricLabel(k, 'rl-ppo') + ' ' + P._metricNote(k, 'rl-ppo')), 'rl-ppo ' + k);
+  for (const k of ['stepMacs', 'visionMacs', 'visionMacsShare', 'headParams', 'imageTokens', 'chunk', 'steps', 'res', 'actionDim', 'actionsPerInference'])
+    assert.ok(!borrowed.test(P._metricLabel(k, 'imitation') + ' ' + P._metricNote(k, 'imitation')), 'imitation ' + k);
+  assert.match(P._metricNote('tokens', 'imitation'), /sin CLS/);
+  // el chunk PREDICHO no son las acciones ejecutadas
+  assert.match(P._metricLabel('actionsPerInference', 'imitation'), /predichas/);
+  assert.match(P._metricLabel('executed', 'imitation'), /ejecutadas/);
+  assert.strictEqual(P._metricLabel('stepMacs', 'rl-ppo'), 'MACs por paso del entorno (actor + crítico)');
+  assert.strictEqual(P._metricLabel('stepMacs', 'imitation'), 'MACs de una pasada de la red de ruido');
+  // etiquetas de las fases anteriores sin cambios
+  assert.strictEqual(P._metricLabel('stepMacs', 'bert'), 'MACs por paso de entrenamiento (≈)');
+  assert.strictEqual(P._metricNote('stepMacs', 'bert'), '3 × forward × B');
+  assert.strictEqual(P._metricLabel('chunk', 'pi0'), 'Acciones por chunk H_a');
+  assert.strictEqual(P._metricLabel('steps', 'pi0'), 'Pasos de flow (integración)');
+  assert.strictEqual(P._metricLabel('tokens', 'vit'), 'Tokens');
+  assert.strictEqual(P._metricLabel('tokens', 'sam'), 'Tokens del encoder N');
+  assert.strictEqual(P._metricLabel('visionMacsShare', 'llava'), 'Visión: % del prefill');
+  assert.strictEqual(P._metricLabel('visionMacsShare', 'openvla'), 'MACs de visión (% de la acción)');
+  assert.strictEqual(P._metricLabel('rolloutMacs', 'rlhf-dpo'), 'MACs de la generación');
+  assert.strictEqual(P._metricNote('res', 'depth'), 'imagen cuadrada res × res');
+  // knob res = alto H con aspecto 4:3 (imitation); depth sigue con su texto
+  assert.strictEqual(P._changeText({ res: 240 }, 'imitation'), 'imágenes de 240×320 (H×W)');
+  assert.match(P._changeText({ res: 518 }, 'depth'), /^resolución /);
+});
+
+test('fase 15 (revisión): METRICS sin claves duplicadas (una clave repetida pisa en silencio a la anterior)', () => {
+  const src = readFileSync(join(ROOT, 'js/ui/practice.js'), 'utf8').split('\n');
+  const a = src.findIndex((l) => /const METRICS = \{/.test(l));
+  let b = a + 1; while (!/^  \};/.test(src[b])) b++;
+  const seen = new Map(), dups = [];
+  for (let i = a + 1; i < b; i++) { const m = /^    '?([A-Za-z_][\w-]*)'?:\s*\{/.exec(src[i]); if (m) { if (seen.has(m[1])) dups.push(m[1] + ' (líneas ' + seen.get(m[1]) + ' y ' + (i + 1) + ')'); else seen.set(m[1], i + 1); } }
+  assert.ok(seen.size > 900, 'se leyeron ' + seen.size + ' claves');
+  assert.deepStrictEqual(dups, []);
+});
+
+test('fase 15 (revisión): drills de BC-MLP por cámara (una ResNet por cámara, no «una sola capa»)', () => {
+  const R = A.run('bc-mlp');
+  const prompts = P._drillCandidates([{ model: 'imitation', configs: ['bc-mlp'], pool: 'all' }], ['params']).map((c) => { const np = P._nodeParams(R, 'imitation', c.node); return np.label + np.qual; });
+  assert.ok(prompts.some((p) => /\(la de una cámara; hay 4 cámaras\)/.test(p)), prompts.join(' | '));
+  assert.ok(!prompts.some((p) => /una sola capa; hay 4\)/.test(p)), prompts.join(' | '));
+});

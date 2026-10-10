@@ -510,6 +510,12 @@ dtype), actMem(B,dtype), kvCache(B,ctx,dtype)?…}`; `overrides` may change only
 Edges never carry free-text shapes: a `data/cross/query/skip` edge must name a `tensor` (validator
 error otherwise), and its label is rendered from the calculator. Walk steps reference ids only.
 
+`calc: false` views (Phase 9) have no calculator run: `model` + `calcNote`, no `config`, text tags on edges.
+Phase 15 adds opt-in `inheritConfig:'<config id>'` on such views: un-prefixed `{{cfg.*}}` / `{{metrics.*}}`
+in their text resolve against the config of the root that opened them (so PPO's `clip` / `gae` views show
+ANYmal's M and T × N when opened from ANYmal), falling back to `inheritConfig` when opened alone. The
+validator checks the quantities against `inheritConfig`.
+
 ### 7.3 Tensor glyphs (proportional)
 A tensor is drawn as a small isometric box whose three visible extents map to its dims:
 - `seq` (`N×D`): length ∝ `log2(N)`, depth ∝ `log2(D)`; `grid` (`H×W×C`): face ∝ `log2(H)`,
@@ -1838,7 +1844,7 @@ arXiv:2109.11978; legged_gym / rsl_rl), domain randomization (Tobin et al., IROS
 contrast). Canonical **`ppo-mujoco`**: PPO paper's MuJoCo setup (Table 3 / §6.1: separate policy and value
 MLPs 64-64 tanh, Gaussian policy with state-independent log-std, horizon 2048, Adam 3e-4, 10 epochs,
 minibatch 64, γ 0.99, λ 0.95, ε 0.2 — verify) on HalfCheetah (obs 17, act 6 — verify with gymnasium docs).
-Configs: `ppo-atari` (Table 5: Nature-CNN shared actor-critic, 8 actors × 128 steps, 3 epochs, minibatch
+Configs: `ppo-atari` (Table 5 hyperparameters; network: the PPO paper reuses A3C's, the smaller Mnih 2013 net — the calculator follows CleanRL's Nature-CNN shared actor-critic; 8 actors × 128 steps, 3 epochs, minibatch
 32 × 8, ε 0.1 × α annealed — verify), `ppo-anymal-isaac` (legged_gym rough terrain / rsl_rl defaults:
 4,096 envs × 24 steps, MLP 512-256-128 ELU actor and critic, 5 epochs, 4 minibatches, obs/act dims from the
 repo — verify). Knobs: `nEnvs`, `horizon`, `epochs`, `minibatches`, `hidden`. Metrics: actor / critic params,
@@ -1853,7 +1859,7 @@ next rollout), `clip` view (ratio r_t, clip(r, 1−ε, 1+ε), min with A_t), `ga
 Σ(γλ)^l δ).
 
 ### 27.2 Imitation — page `imitation`, model `imitation`
-Papers: ALVINN (Pomerleau 1989) / behavior cloning, DAgger (Ross et al., AISTATS 2011, arXiv:1011.0686),
+Papers: ALVINN (Pomerleau, NIPS 1988) / behavior cloning, DAgger (Ross et al., AISTATS 2011, arXiv:1011.0686),
 ACT / ALOHA (Zhao et al., RSS 2023, arXiv:2304.13705; repo tonyzhaozh/act), Diffusion Policy (Chi et al.,
 RSS 2023 / IJRR 2024, arXiv:2303.04137; repo real-stanford/diffusion_policy), Mobile ALOHA (arXiv:2401.02117)
 and LeRobot briefly, implicit BC / IBC (Florence et al., CoRL 2021) briefly, VQ-BeT briefly (verify).

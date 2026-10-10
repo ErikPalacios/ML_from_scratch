@@ -830,7 +830,9 @@
     updateMacs: { label: 'MACs del update (fwd + bwd, K épocas)', get: (r) => vlmMetric(r, 'updateMacs'), fmt: 'si', unit: 'MACs' },
     rolloutBufferBytes: { label: 'Memoria del buffer del rollout (fp32)', get: (r) => vlmMetric(r, 'rolloutBufferBytes'), fmt: 'bytes' },
     macsPerInference: { label: 'MACs por inferencia', get: (r) => vlmMetric(r, 'macsPerInference'), fmt: 'si', unit: 'MACs' },
-    actionsPerInference: { label: 'Acciones ejecutadas por inferencia', get: (r) => vlmMetric(r, 'actionsPerInference'), fmt: 'int' },
+    // el chunk predicho (ACT k, Diffusion Policy T_p, BC k), no las que se ejecutan: esas son `executed` (ACT con ensamble 1, DP T_a)
+    actionsPerInference: { label: 'Acciones predichas por inferencia (chunk k / T_p)', get: (r) => vlmMetric(r, 'actionsPerInference'), fmt: 'int' },
+    executed: { label: 'Acciones ejecutadas por inferencia', get: (r) => vlmMetric(r, 'executed'), fmt: 'int' },
     inferenceHz: { label: 'Inferencias por segundo (Hz)', get: (r) => vlmMetric(r, 'inferenceHz'), fmt: 'raw' },
     // Fase 13 (recomendación y árboles)
     nTrees: { label: 'Árboles', get: (r) => r.config && r.config.nTrees, fmt: 'int' },

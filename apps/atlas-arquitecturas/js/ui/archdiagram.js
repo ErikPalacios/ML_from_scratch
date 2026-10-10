@@ -2953,6 +2953,13 @@
       const spec = ATLAS.diagram(id);
       const cfgOk = !reqConfig || !Array.isArray(spec.configs) || spec.configs.indexOf(reqConfig) >= 0;
       opts.config = cfgOk ? reqConfig : undefined;
+      // fase 15 (revisión): spec.inheritConfig = vista calc:false (sin corrida) cuyos {{…}} SIN prefijo siguen la config de la raíz
+      // (PPO-clip y GAE por dentro: M, ε, γ, λ, T × N de MuJoCo o de ANYmal); si la raíz no da una, la del string. Opt-in: solo
+      // las vistas que lo declaran; ctl.runFor sigue sin correr el calculador para ellas (no tienen spec.config).
+      if (!opts.config && spec.calc === false && !spec.config && spec.inheritConfig) {
+        const okC = (c) => c && (!Array.isArray(spec.configs) || spec.configs.indexOf(c) >= 0);
+        opts.config = okC(spec0.config) ? spec0.config : typeof spec.inheritConfig === 'string' ? spec.inheritConfig : undefined;
+      }
       cfgNote.hidden = cfgOk;
       cfgNote.textContent = '';
       if (cfgOk && ctl.xref && reqConfig === ctl.xref.config) {

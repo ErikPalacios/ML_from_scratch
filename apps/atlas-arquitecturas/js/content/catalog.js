@@ -673,7 +673,7 @@
     paper: { title: 'Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware (ACT)', authors: 'Zhao et al.', venue: 'RSS 2023', arxiv: '2304.13705' },
     model: 'imitation', canonical: 'act-aloha',
     card: { in: 'observaciones + demostraciones', out: 'chunk de acciones',
-      idea: 'regresión (o difusión) de las acciones del experto', uso: 'manipulación con pocas decenas de demostraciones' },
+      idea: 'regresión (o difusión) de las acciones del experto', uso: 'manipulación con decenas a cientos de demostraciones' },
   }));
 
   // ------------------------------------------------------------------ tarjetas de nivel 1 (solo Mapa)
@@ -844,7 +844,7 @@
       note: 'Two-tower + ranking (DLRM / Wide & Deep) y gradient boosted trees, y por qué siguen ganando en tabulares.' },
     { phase: 14, block: 3, status: 'done', title: 'Fase 14 — Percepción para robótica', items: ['bytetrack', 'depth', 'pointnet', 'nerf-3dgs'],
       note: 'Tracking (Kalman + matching húngaro), profundidad monocular, PointNet; NeRF y Gaussian Splatting a nivel 1. Opcional.' },
-    { phase: 15, block: 3, status: 'next', title: 'Fase 15 — RL e imitation learning', items: ['rl-ppo', 'imitation'],
+    { phase: 15, block: 3, status: 'done', title: 'Fase 15 — RL e imitation learning', items: ['rl-ppo', 'imitation'],
       note: 'Policy gradient, PPO, behavior cloning, ACT y Diffusion Policy; conecta con las fases 8 y 9. Opcional.' },
   ];
 

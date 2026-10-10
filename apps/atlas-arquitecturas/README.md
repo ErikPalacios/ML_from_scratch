@@ -8,9 +8,16 @@ vista, entrenamiento, inferencia, modos de falla, preguntas de entrevista y prá
 Empieza por lo que combina atención y visión (ViT, Swin, CLIP, DETR, SAM, VLMs, VLA) y sigue con LLMs,
 retrieval y ML de industria. La hoja de ruta completa (15 fases) está en `docs/ROADMAP.md`.
 
-**Fase 1 (esta):** la app completa (navegación, progreso, buscador, práctica, flashcards, glosario),
-el **Mapa** de familias, el **Repaso de atención** (enlazado al Laboratorio Transformer), **ViT**
-completo y la hoja de **formas y fórmulas**. El resto de los modelos aparece como *Próximamente*.
+**Estado: las 15 fases están completas.**
+- **Visión:** ViT, Swin, CLIP, DETR / Deformable DETR, Grounding DINO, YOLO-World, SAM / SAM 2.
+- **LLMs y VLMs:** LLM decoder e inferencia, LLaVA, Qwen2-VL.
+- **Difusión y robótica:** Stable Diffusion, DiT / flow matching, RT-2, OpenVLA y π0.
+- **Fine-tuning y alineación:** LoRA, RLHF / DPO.
+- **Texto, búsqueda y recomendación:** BERT, retrieval, ANN, T5, Whisper, two-tower, DLRM, GBDT.
+- **Percepción para robótica:** ByteTrack, depth y PointNet.
+- **Aprendizaje de políticas:** RL con PPO e imitation learning (BC, ACT, Diffusion Policy).
+
+Además, el Mapa, el Repaso de atención y la hoja de formas y fórmulas.
 
 ## Cómo abrirla
 

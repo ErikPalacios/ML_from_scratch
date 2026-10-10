@@ -12,9 +12,13 @@
    agregar y reentrenar: la banda de lo visto crece hasta cubrir los estados a los que la política llega (aquí, D ← máx |d|
    visitado por las corridas de la iteración anterior, hasta el borde de la pista).
    Cotas (costo extra respecto del experto, en unidades de ε = error por paso en la distribución de entrenamiento):
-       BC: ≤ T²·ε (Ross y Bagnell, AISTATS 2010, Thm 2.1)    DAgger: ≤ u·T·ε + O(1) (Ross et al. 2011, §3; aquí u = 1)
-       action chunking de k pasos (ACT, Zhao et al. 2023, arXiv:2304.13705): el horizonte efectivo baja a ⌈T/k⌉ decisiones
-       → ⌈T/k⌉²·ε (el ARGUMENTO del paper aplicado a la cota de BC; heurístico, no un teorema; el ε por chunk puede ser mayor).
+       BC: ≤ T²·ε (Ross y Bagnell, AISTATS 2010, Thm 2.1)
+       DAgger: ≤ u·T·ε_N + O(1) (Ross et al. 2011, Thm 3.2; ε_N en las distribuciones de la propia política; aquí u = 1)
+       action chunking de k pasos (ACT, Zhao et al. 2023, arXiv:2304.13705): el horizonte efectivo baja a ⌈T/k⌉ decisiones.
+       En PASOS (la unidad de las otras dos curvas): ⌈T/k⌉ decisiones, cada error puede costar hasta T pasos →
+       ⌈T/k⌉·T·ε ≈ T²·ε/k (heurístico, no un teorema; supone el mismo ε por chunk que por paso). Es una reducción de k
+       veces, la que reclama el paper ("k-fold reduction"); contar en chunks (⌈T/k⌉²) la exageraría a k². Cuadra con el
+       ejercicio (d) de la página: T = 100, k = 10, ε = 0.01 → costo exacto del juguete ≈ 5.3 pasos ≤ cota 10.
    k y la frecuencia de control salen del calculador (ATLAS.Arch.run / metrics de act-aloha).
    params: { config:'act-aloha', method:'bc'|'dagger', T:200, seed:0, k:<chunk> }
    Puro (sin DOM) para tests: ATLAS.Viz.covshift = { demos, policy, rollout, dagger, bounds }.
@@ -61,7 +65,7 @@
     return hist;
   }
   // cotas en unidades de ε
-  const bounds = (T, k) => ({ bc: T * T, dagger: T, chunk: Math.pow(Math.ceil(T / Math.max(1, k)), 2) });
+  const bounds = (T, k) => ({ bc: T * T, dagger: T, chunk: Math.ceil(T / Math.max(1, k)) * T });
 
   function render(el, params) {
     const V = ATLAS.Viz, Ar = ATLAS.Arch;
@@ -89,7 +93,7 @@
     const all = [];
     const grp = (lab) => { const g = V.html('div', { class: 'viz-ctl', role: 'group', 'aria-label': lab }, ctl); V.html('span', { class: 'viz-ctl-l', text: lab }, g); return g; };
     const chips = (g, vals, key, label) => vals.forEach((v) => { const b = V.html('button', { type: 'button', class: 'viz-chip', 'aria-pressed': 'false', text: label(v) }, g); b.addEventListener('click', () => { state[key] = v; draw(); }); b._k = key; b._v = v; all.push(b); });
-    chips(grp('Política'), ['bc', 'dagger'], 'method', (v) => (v === 'bc' ? 'behavior cloning' : 'DAgger (2 iteraciones)'));
+    chips(grp('Política'), ['bc', 'dagger'], 'method', (v) => (v === 'bc' ? 'behavior cloning' : 'DAgger (1 iteración)'));
     chips(grp('Chunk k (cotas)'), KS, 'k', (v) => String(v) + (v === kCfg ? ' (config)' : ''));
     const gT = V.html('label', { class: 'viz-ctl viz-pc-sl' }, ctl);
     V.html('span', { class: 'viz-ctl-l', text: 'Pasos T' }, gT);
@@ -107,7 +111,7 @@
     function draw() {
       all.forEach((b) => b.setAttribute('aria-pressed', String(state[b._k] === b._v)));
       inT.value = state.T; outT.textContent = state.T + ' (' + (state.T / hz).toFixed(1) + ' s a ' + hz + ' Hz)';
-      const hist = state.method === 'dagger' ? dagger(D0, state.T, 2, state.seed) : [D0];
+      const hist = state.method === 'dagger' ? dagger(D0, state.T, 1, state.seed) : [D0];   // una iteración basta en el juguete: la 2.ª ya no sale de lo visto y no agrega estados
       const D = hist[hist.length - 1];
       const runs = []; for (let m = 0; m < M; m++) runs.push(rollout(D, state.T, state.seed * 977 + 31 + m));
       const selI = state.sel != null ? state.sel : Math.max(0, runs.findIndex((r) => r.off >= 0));
@@ -176,7 +180,7 @@
       let ly = narrow ? y3 + h3 + 44 : y3 + 12, lx = narrow ? 8 : gx0 + w3 + 22;
       const B = bounds(state.T, state.k);
       const fmtN = (v) => (ATLAS.Arch && ATLAS.Arch.fmt && ATLAS.Arch.fmt.int ? ATLAS.Arch.fmt.int(v) : String(v));
-      const leg = [['viz-cs-bc', 'BC: T² → ' + fmtN(B.bc)], ['viz-cs-dg', 'DAgger: T → ' + fmtN(B.dagger)], ['viz-cs-ch', 'chunks de ' + state.k + ': ⌈T/k⌉² → ' + fmtN(B.chunk)], ['viz-cs-exp', 'experto (pista)'], ['viz-cs-run', 'política (pista)']];
+      const leg = [['viz-cs-bc', 'BC: T² → ' + fmtN(B.bc)], ['viz-cs-dg', 'DAgger: u·T, u = 1 → ' + fmtN(B.dagger)], ['viz-cs-ch', 'chunks de ' + state.k + ': ⌈T/k⌉·T → ' + fmtN(B.chunk)], ['viz-cs-exp', 'experto (pista)'], ['viz-cs-run', 'política (pista)']];
       leg.forEach(([c, s]) => {
         const iw = 26 + s.length * 6.5 + 12;
         if (narrow && lx > 8 && lx + iw > W - 8) { lx = 8; ly += 16; }
@@ -191,11 +195,11 @@
       out.innerHTML = '';
       const kv = (k, v) => { const sp = V.html('span', null, out); sp.innerHTML = sub(k) + ' <b>' + v + '</b>'; };
       kv('se salen de la pista:', nOff + ' de ' + M + ' corridas' + (cur.off >= 0 ? ' (la resaltada, en el paso ' + cur.off + ')' : ''));
-      kv('estados vistos |d| ≤', hist.map((x) => x.toFixed(2)).join(' → ') + (state.method === 'dagger' ? ' (demos → iteración 1 → 2)' : ' (solo demos del experto)'));
+      kv('estados vistos |d| ≤', hist.map((x) => x.toFixed(2)).join(' → ') + (state.method === 'dagger' ? ' (demos → iteración 1)' : ' (solo demos del experto)'));
       kv('punto sin retorno |d| ≈', pnr.toFixed(2) + (pnr >= WIDTH ? ' (fuera de la pista: no hay)' : ''));
       kv('decisiones por episodio:', state.T + ' paso a paso · ' + Math.ceil(state.T / state.k) + ' con chunks de ' + state.k);
       kv('config ' + ((run && run.label) || cfgId) + ':', 'k = ' + kCfg + ' acciones por inferencia a ' + hz + ' Hz');
-      note.innerHTML = sub('Juguete: el experto corrige hacia el centro y sus demostraciones casi nunca se alejan; la política copia bien DENTRO de la banda (con un sesgo chico) y extrapola mal FUERA. Un desvío por ruido la saca de lo visto, ahí corrige menos, se aleja más: el error se compone y la probabilidad de salirse crece con el largo del episodio (la cota de BC crece como T²). DAgger deja manejar a la política, pide al experto la acción correcta en los estados a los que ELLA llega y reentrena con todo junto: la banda cubre lo que la política visita y el costo crece como T. Action chunking (ACT) no agrega datos: predice k acciones por inferencia, así que hay ⌈T/k⌉ decisiones en lugar de T (el argumento del paper aplicado a la cota de BC; heurístico: cada chunk puede equivocarse más y se ejecuta sin realimentación entre inferencias, por eso ACT promedia chunks solapados con temporal ensembling).');
+      note.innerHTML = sub('Juguete: el experto corrige hacia el centro y sus demostraciones casi nunca se alejan; la política copia bien DENTRO de la banda (con un sesgo chico) y extrapola mal FUERA. Un desvío por ruido la saca de lo visto, ahí corrige menos, se aleja más: el error se compone y la probabilidad de salirse crece con el largo del episodio (la cota de BC crece como T²). DAgger deja manejar a la política, pide al experto la acción correcta en los estados a los que ELLA llega y reentrena con todo junto: la banda cubre lo que la política visita y la cota crece como u·T·ε_N (lineal si los errores son recuperables, u = O(1); ε_N es el error en los estados que visita la propia política). Action chunking (ACT) no agrega datos: predice k acciones por inferencia, así que hay ⌈T/k⌉ decisiones en lugar de T; contada en pasos, la cota baja de T² a ⌈T/k⌉·T ≈ T²/k, k veces (el argumento del paper aplicado a la cota de BC; heurístico: cada chunk puede equivocarse más y se ejecuta sin realimentación entre inferencias, por eso ACT promedia chunks solapados con temporal ensembling).');
     }
     stage.addEventListener('keydown', (ev) => {
       const k = ev.key;

@@ -255,7 +255,8 @@
       chunk: { label: 'Acciones por chunk', sym: 'k', show: (v) => v + (v === 1 ? ' acción' : ' acciones'), phrase: (v) => 'chunks de ' + v + (v === 1 ? ' acción' : ' acciones') },
       cams: { label: 'Cámaras', show: (v) => v + (v === 1 ? ' cámara' : ' cámaras'), phrase: (v) => (v === 1 ? 'una sola cámara' : v + ' cámaras') },
       steps: { label: 'Pasos de denoising', show: (v) => v + (v === 1 ? ' paso' : ' pasos'), phrase: (v) => v + (v === 1 ? ' paso' : ' pasos') + ' de denoising' },
-      res: { label: 'Alto de la imagen', show: (v) => 'H = ' + v, phrase: (v) => 'imágenes de alto ' + v },
+      // res = alto H; el ancho sale del aspecto 4:3 (robotlearn.js imResolve: W = 4H/3)
+      res: { label: 'Alto de la imagen', show: (v) => 'H = ' + v, phraseFirst: true, phrase: (v) => 'imágenes de ' + v + '×' + Math.round(4 * v / 3) + ' (H×W)' },
     },
     // Fase 14 (percepción)
     bytetrack: {
@@ -327,7 +328,7 @@
     const c = change || {};
     const one = (k, v) => {
       const d = knobDef(k, model);
-      if (k === 'res') return 'resolución ' + knobShow(k, v, model);
+      if (k === 'res' && !(d && d.phraseFirst)) return 'resolución ' + knobShow(k, v, model);
       if (d && d.phrase) return d.phrase(v);
       return d && /=/.test(knobShow(k, v, model)) ? knobLabel(k, model).replace(/\s+\S+$/, '').toLowerCase() + ' ' + knobShow(k, v, model) : knobLabel(k, model) + ' = ' + knobShow(k, v, model);
     };
@@ -835,21 +836,24 @@
     vfCoef: { label: 'Coeficiente de la pérdida del valor', kind: 'ratio', note: '' },
     controlHz: { label: 'Frecuencia de control', kind: 'hz', note: 'acciones por segundo que pide el robot o el entorno' },
     dt: { label: 'Paso de control (s)', kind: 'ratio', note: '1 / frecuencia de control' },
-    policyMsOrin: { label: 'ms de la política en Jetson AGX Orin (≈)', kind: 'ms', note: 'roofline, batch 1' },
-    policyHzOrin: { label: 'Hz de la política en Orin (≈ tope)', kind: 'hz', note: 'roofline, batch 1' },
-    policyMsH100: { label: 'ms de la política en H100 (≈)', kind: 'ms', note: 'roofline, batch 1' },
+    // Una MLP de miles de parámetros: el roofline da microsegundos; manda el piso de lanzar cada kernel (≈ 5–10 µs).
+    policyMsOrin: { label: 'ms de la política en Jetson AGX Orin (≈ roofline)', kind: 'ms', note: 'roofline, batch 1, sin el overhead de lanzar kernels (≈ 5–10 µs cada uno): en una MLP chica manda ese piso' },
+    policyHzOrin: { label: 'Hz de la política en Orin (≈ tope del roofline)', kind: 'hz', note: 'roofline, batch 1, sin overhead de kernels: no es alcanzable en una MLP chica' },
+    policyMsH100: { label: 'ms de la política en H100 (≈ roofline)', kind: 'ms', note: 'roofline, batch 1, sin el overhead de lanzar kernels (≈ 5–10 µs cada uno)' },
     rolloutInferMsH100: { label: 'ms de inferencia del rollout en H100 (≈)', kind: 'ms', note: 'solo la red, sin el simulador' },
     epochsCleanRL: { label: 'Épocas en CleanRL', kind: 'count', note: 'el paper usa 3 en Atari' },
+    vfCoefCleanRL: { label: 'Coeficiente del valor en CleanRL', kind: 'ratio', note: 'el paper usa c₁ = 1 en Atari' },
     paperMinutes: { label: 'Minutos de entrenamiento citados', kind: 'count', note: 'legged_gym: Rudin et al.' },
     paperUpdates: { label: 'Updates citados', kind: 'count', note: '' },
-    stepsPerSecondCited: { label: 'Pasos del simulador por segundo (≈, citado)', kind: 'count', note: 'muestras × updates / tiempo del paper' },
+    stepsPerSecondCited: { label: 'Pasos del simulador por segundo (≥ ≈, derivado)', kind: 'count', note: 'muestras × updates / tiempo citado («menos de 20 minutos»: cota inferior)' },
     desiredKl: { label: 'KL objetivo del LR adaptativo', kind: 'ratio', note: 'rsl_rl' },
     executed: { label: 'Acciones ejecutadas por inferencia', kind: 'count', note: 'ACT con ensamble: 1; Diffusion Policy: T_a' },
     cvaeParams: { label: 'Parámetros del encoder CVAE', kind: 'count', note: 'solo entrenamiento' },
     policyMacs: { label: 'MACs de la política (sin visión)', kind: 'ops', note: '' },
     macsPerInference: { label: 'MACs por inferencia', kind: 'ops', note: 'visión + política' },
     flopsPerInference: { label: 'FLOPs por inferencia', kind: 'flopCount', note: '2 × MACs' },
-    actionsPerInference: { label: 'Acciones ejecutadas por inferencia', kind: 'count', note: '' },
+    // el chunk PREDICHO (ACT k, Diffusion Policy T_p, BC k); las que se ejecutan son `executed` (ACT con ensamble 1, DP T_a)
+    actionsPerInference: { label: 'Acciones predichas por inferencia (chunk k / T_p)', kind: 'count', note: 'las ejecutadas son otra métrica: ACT con ensamble 1, Diffusion Policy T_a' },
     inferenceHz: { label: 'Inferencias por segundo', kind: 'hz', note: 'las que pide el control' },
     macsPerSecond: { label: 'MACs por segundo de control', kind: 'count', note: 'MACs por inferencia × inferencias/s' },
     maxHzOrin: { label: 'Inferencias/s en Orin (≈ tope)', kind: 'hz', note: 'roofline, batch 1' },
@@ -885,6 +889,7 @@
     paperLatencySteps: { label: 'Pasos de la latencia citada', kind: 'count', note: '' },
     paperEmb: { label: 'Ancho citado del transformer', kind: 'count', note: '' },
     mlpIn: { label: 'Entrada del MLP', kind: 'count', note: 'rasgos aplanados + estado' },
+    W: { label: 'Ancho de la imagen W', kind: 'count', note: '4H/3 (aspecto 4:3)' },
     // Fase 14 (percepción para robótica)
     stateDim: { label: 'Dimensión del estado del Kalman', kind: 'count', note: 'x, y, a, h y sus velocidades' },
     measDim: { label: 'Dimensión de la medición', kind: 'count', note: 'la caja: x, y, a, h' },
@@ -1387,6 +1392,39 @@
     // ANN (fase 11): el roofline de la búsqueda es la CPU (FAISS), no la H100.
     METRICS.bandwidth.notes = Object.assign({}, METRICS.bandwidth.notes, { ann: 'el del roofline de la búsqueda: CPU AMD EPYC 9654, 1 socket (460.8 GB/s)' });
     METRICS.peakFlops.notes = Object.assign({}, METRICS.peakFlops.notes, { ann: 'CPU AMD EPYC 9654: fp32 ≈ 7.37 TFLOPS (derivado)' }); }
+  // Fase 15 (revisión): rl-ppo e imitation leen claves compartidas con fases anteriores (tokens, stepMacs, rolloutMacs, chunk,
+  // steps, res…) cuya etiqueta general habla de otra cosa (CLS, "3 × forward × B", prefill + decode, flow, imagen cuadrada).
+  // Solo se AGREGAN labels / notes de estos dos modelos: la etiqueta general y las de los otros modelos no cambian.
+  { const F15 = {
+      tokens: { 'rl-ppo': ['Muestras por update (N × T)', 'transiciones del rollout: no hay secuencia de tokens'],
+        imitation: ['Tokens / largo de la secuencia', 'ACT: N_img + 2 (z y articulaciones), sin CLS · Diffusion Policy: T_p acciones · BC-MLP: 1 (no hay secuencia)'] },
+      stepMacs: { 'rl-ppo': ['MACs por paso del entorno (actor + crítico)', 'forward de una observación, un entorno (inferencia, no entrenamiento)'],
+        imitation: ['MACs de una pasada de la red de ruido', 'un paso de denoising (× pasos = MACs de todos los pasos de denoising)'] },
+      rolloutMacs: { 'rl-ppo': ['MACs del rollout', 'N·T × (actor + crítico) + el bootstrap V(s_T) de cada entorno'] },
+      updateMacs: { 'rl-ppo': ['MACs del update (fwd + bwd, K épocas)', 'K × N·T × MACs de entrenamiento por muestra (actor + crítico)'] },
+      updateShare: { 'rl-ppo': ['Update (forward + backward)', '% de los MACs de la iteración (rollout + update)'] },
+      visionParams: { imitation: ['Parámetros de la visión', 'ACT: una ResNet-18 compartida por las cámaras + conv 1×1 · Diffusion Policy y BC: una ResNet-18 por cámara'] },
+      visionMacs: { imitation: ['MACs de la visión', 'ResNet-18 sobre todas las cámaras (en Diffusion Policy también los T_o pasos), con la proyección de rasgos'] },
+      visionMacsShare: { imitation: ['Visión: % de los MACs por inferencia', '% de los MACs por inferencia'] },
+      policyParams: { imitation: [null, 'ACT: transformer y proyecciones (sin visión, CVAE ni cabezas) · Diffusion Policy: la red de ruido · BC: el MLP'] },
+      headParams: { imitation: ['Parámetros de las cabezas de acción', 'ACT: Linear D → 14 y D → 1 (relleno) · Diffusion Policy: la capa de salida de la red de ruido · BC: la última lineal'] },
+      imageTokens: { imitation: ['Tokens de imagen N_img', 'cámaras · (H/32) · (W/32)'] },
+      chunk: { imitation: ['Acciones por chunk (k / T_p)', 'ACT y BC: k · Diffusion Policy: T_p (horizonte predicho)'] },
+      steps: { imitation: ['Pasos de denoising (DDIM)', 'pasadas de la red de ruido por inferencia'] },
+      res: { imitation: ['Alto de la imagen H', 'imágenes 4:3: W = 4H/3 (ACT 480×640, Diffusion Policy 216×288 tras el recorte)'] },
+      actionDim: { imitation: ['Dimensión de la acción d_a', '14 articulaciones (ALOHA) o 2 (Push-T), sin relleno'] },
+      decoderMacs: { imitation: [null, 'ACT: todas las capas del decoder, aunque el código solo usa la salida de la primera'] },
+      msOrin: { imitation: [null, 'roofline, batch 1; Diffusion Policy relee los pesos de la red de ruido en cada paso (visión + K × red)'] },
+      msH100: { imitation: [null, 'roofline, batch 1; Diffusion Policy relee los pesos de la red de ruido en cada paso (visión + K × red)'] },
+    };
+    Object.keys(F15).forEach((k) => {
+      if (!METRICS[k]) throw new Error('practice.js: falta la métrica ' + k + ' para las etiquetas de la fase 15');
+      Object.keys(F15[k]).forEach((model) => {
+        const [lab, note] = F15[k][model];
+        if (lab) METRICS[k].labels = Object.assign({}, METRICS[k].labels, { [model]: lab });
+        if (note) METRICS[k].notes = Object.assign({}, METRICS[k].notes, { [model]: note });
+      });
+    }); }
   const metricNote = (k, model) => { const m = METRICS[metricKey(k)] || {}; return (m.notes && model && m.notes[model]) || m.note || ''; };
   const metricKey = (k) => (k === 'kv' ? 'kvCache' : k);
   const DIFFUSION = { 'stable-diffusion': true, dit: true };   // fase 8: modelos cuyo samplingMacs es el costo por imagen
@@ -2630,6 +2668,9 @@
     else if (rep > 1) qual = isSwin
       ? (pairUnit ? ' (una sola pareja de bloques; hay ' + rep + ')' : ' (un solo bloque; el stage tiene ' + rep + ' pares)')
       : ' (una sola capa; hay ' + sym + ')';
+    // Fase 15 (revisión): BC-MLP repite por CÁMARA (una ResNet-18 y una proyección por cámara, sin compartir): la unidad es la
+    // cámara, no la capa. Solo ops cuyo contexto dice "por cámara" (ACT comparte la ResNet: paramRepeat 1, no entra aquí).
+    if (!group && !mixed && rep > 1 && typeof cfg.cams === 'number' && rep === cfg.cams && all.every((o) => (o.where || []).some((w) => /por cámara/.test(String(w))))) qual = ' (la de una cámara; hay ' + rep + ' cámaras)';
     // LLaVA: la capa repetida del ViT cuenta L_v − 1 = 23 (hasta la penúltima, de donde salen las features); la 24 es otra
     // op (la que HF calcula y descarta). Todas tienen los mismos parámetros: la pregunta es por UNA capa de las L_v = 24.
     const vlmVis = cfg.Lv != null && inPath('vision-encoder');
@@ -3051,9 +3092,13 @@
     'two-tower': ['params', 'embeddingParams', 'userTowerMacs', 'indexBytes', 'bruteForceMacs', 'inBatchLogitsMacs', 'lookupBytesPerExample', 'userLookupBytesPerRequest'],
     dlrm: ['params', 'embeddingParams', 'embeddingBytes', 'lookupBytesPerSample', 'macsPerSample', 'interactionMacs', 'arithmeticIntensity', 'rankingMacsPerRequest'],
     gbdt: ['nodes', 'modelBytes', 'comparisonsPerPrediction', 'histogramAddsPerTree', 'splitEvalsPerTree', 'trainOps'],
+    // Fase 15: PPO compara el rollout y el update (no hay tokens ni atención); imitation, la inferencia (visión, denoising, Hz).
+    'rl-ppo': ['samplesPerUpdate', 'minibatchSize', 'gradStepsPerUpdate', 'totalParams', 'rolloutMacs', 'updateMacs', 'rolloutBufferBytes'],
+    imitation: ['tokens', 'params', 'macsPerInference', 'visionMacs', 'denoiseMacs', 'actionsPerInference', 'executed', 'inferenceHz', 'msOrin'],
   };
   // Modelos sin atención: la tabla del what-if no agrega la línea "Atención (solo QKᵀ y A·V)" (two-tower tiene scoreMacs = u·v).
-  const WI_NO_ATTN = { 'two-tower': 1, dlrm: 1, gbdt: 1 };
+  // 'zero': la línea solo aparece si alguna de las dos corridas tiene atención (imitation: ACT y DP-T sí; DP-CNN y BC-MLP no).
+  const WI_NO_ATTN = { 'two-tower': 1, dlrm: 1, gbdt: 1, 'rl-ppo': 1, imitation: 'zero' };
   // Etiqueta de un factor COMO OPCIÓN: la misma regla para todas las opciones (correcta, distractores
   // y las del autor), así el formato no delata la respuesta: "≈" + 2 cifras significativas.
   // 3.98 → "≈ ×4" · 15.88 → "≈ ×16" · 4.45 → "≈ ×4.5" · 0.25 → "≈ ÷4" · 1.003 → "≈ ×1".
@@ -3209,8 +3254,9 @@
             h('td', { class: 'mono num', title: fMetricExact(k, a) }, fMetric(k, a)),
             h('td', { class: 'mono num' }, metricKind(k) === 'bool' ? (a === b ? '=' : 'cambia') : metricKind(k) === 'pct' ? fVsBase(k, a, b).replace(' vs base', '') : b ? fFactor(a / b) : '—'));
         })))));
-      const sb = WI_NO_ATTN[wm] ? null : attnSplit(base), sa = WI_NO_ATTN[wm] ? null : attnSplit(alt);
-      if (sb && sa) expl.appendChild(h('p', { class: 'muted small' }, 'Atención (solo QKᵀ y A·V), en % de los MACs: ' + Math.round(sb.share * 1000) / 10 + ' % → ' + Math.round(sa.share * 1000) / 10 + ' %.'
+      const noAttn = WI_NO_ATTN[wm] === 1;
+      const sb = noAttn ? null : attnSplit(base), sa = noAttn ? null : attnSplit(alt);
+      if (sb && sa && !(WI_NO_ATTN[wm] === 'zero' && !sb.attn && !sa.attn)) expl.appendChild(h('p', { class: 'muted small' }, 'Atención (solo QKᵀ y A·V), en % de los MACs: ' + Math.round(sb.share * 1000) / 10 + ' % → ' + Math.round(sa.share * 1000) / 10 + ' %.'
         + (typeof base.attnMacsShare === 'number' && typeof alt.attnMacsShare === 'number' ? ' Bloque de atención (con proyecciones): ' + Math.round(base.attnMacsShare * 1000) / 10 + ' % → ' + Math.round(alt.attnMacsShare * 1000) / 10 + ' %.' : '')));
       if (item.explain) { const x = h('div', { class: 'pxw__note', html: fill(item.explain, o.pageCtx) }); decorate(x); expl.appendChild(x); }
     }

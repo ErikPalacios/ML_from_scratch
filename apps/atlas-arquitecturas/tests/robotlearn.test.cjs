@@ -230,6 +230,30 @@ test('F15 diffusion-policy-cnn: YAML real_hybrid (T_o 2, T_p 16, T_a 8, DDIM 8 d
   assert.throws(() => A.run('act-aloha', { steps: 4 }), /Diffusion Policy/);
 });
 
+test('F15 roofline de Diffusion Policy: los pesos de la red de ruido se releen en cada paso de denoising (no caben en caché)', () => {
+  const HWs = A.robotlearn.hardware(), orin = HWs.find((h) => h.id === 'orin'), h100 = HWs.find((h) => h.id === 'h100');
+  for (const id of ['diffusion-policy-cnn', 'diffusion-policy-transformer']) for (const steps of [1, 8, 16, 100]) {
+    const m = A.metrics(id, { steps });
+    // piso de memoria: visión una vez + steps × red de ruido, en bf16
+    const wBytes = 2 * (m.visionParams + steps * m.policyParams);
+    assert.ok(m.msOrin >= 1000 * wBytes / orin.bandwidth * (1 - 1e-12), id + ' steps ' + steps + ': ' + m.msOrin);
+    assert.ok(m.msH100 >= 1000 * wBytes / h100.bandwidth * (1 - 1e-12), id + ' steps ' + steps + ': ' + m.msH100);
+  }
+  // el piso del reviewer: U-Net 100 pasos ≥ 2 bytes · 100 · 66.7 M / 204.8 GB/s ≈ 65 ms
+  const d100 = A.metrics('diffusion-policy-cnn', { steps: 100 });
+  assert.ok(d100.msOrin >= 1000 * 2 * 100 * d100.policyParams / orin.bandwidth);
+  const d = A.metrics('diffusion-policy-cnn');
+  assert.ok(d.msOrin > 6.2 && d.msOrin < 6.4, 'DP-CNN Orin ≈ 6.3 ms: ' + d.msOrin);
+  assert.ok(d100.msOrin > 60 && d100.msOrin < 70, 'DP-CNN 100 pasos ≈ 67 ms: ' + d100.msOrin);
+  assert.ok(d100.msOrin / d.msOrin > 10, 'la latencia escala con los pasos');
+  // la tabla de escalado usa la misma regla que metrics()
+  for (const row of d.stepsScaling) assert.ok(near(row.msOrin, A.metrics('diffusion-policy-cnn', { steps: row.steps }).msOrin, 1e-12), 'stepsScaling ' + row.steps);
+  for (const row of d.chunkScaling) assert.ok(near(row.msOrin, A.metrics('diffusion-policy-cnn', { chunk: row.chunk }).msOrin, 1e-12), 'chunkScaling ' + row.chunk);
+  for (const row of d.camsScaling) assert.ok(near(row.msOrin, A.metrics('diffusion-policy-cnn', { cams: row.cams }).msOrin, 1e-12), 'camsScaling ' + row.cams);
+  // actionsPerInference es el chunk PREDICHO; executed, lo que se ejecuta
+  assert.deepStrictEqual([d.actionsPerInference, d.executed], [16, 8]);
+});
+
 test('F15 diffusion-policy-transformer y bc-mlp: tamaños del YAML y de CNNMLP', () => {
   const t = A.metrics('diffusion-policy-transformer');
   assert.deepStrictEqual([t.totalParams, t.policyParams, t.visionParams], [31387458, 8993282, 22394176]);

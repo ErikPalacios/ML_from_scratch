@@ -479,6 +479,7 @@ function checkDiagram(d) {
   if (noCalc) {
     if (!d.model) err(where, 'falta model (con calc: false, el id del modelo de la página)');
     if (d.config) err(where, 'calc: false no lleva config (no hay corrida del calculador)');
+    if (d.inheritConfig != null && (typeof d.inheritConfig !== 'string' || (Arch && !configIds.has(d.inheritConfig)))) err(where, 'inheritConfig debe ser una config del calculador (la de los {{…}} sin prefijo si la raíz no da una)');
     if (!d.calcNote || typeof d.calcNote !== 'string') err(where, 'calc: false necesita calcNote (por qué no hay números del calculador)');
     else checkHtml(where + '.calcNote', d.calcNote, true);
   } else if (!isMap) {
@@ -646,7 +647,10 @@ function checkDiagram(d) {
   if (d.legend && d.legend !== 'auto' && !Array.isArray(d.legend)) err(where, 'legend debe ser "auto" o una lista');
 }
 for (const d of Object.values(diagrams)) {
-  qDefaultConfig = d.kind !== 'map' && d.config && configIds.has(d.config) ? d.config : null;
+  // fase 15 (revisión): una vista calc:false con inheritConfig (PPO-clip y GAE por dentro de PPO) resuelve sus {{…}} sin prefijo
+  // con la config de la raíz (archdiagram.js, mountView); aquí se revisan con la config por omisión que declara
+  const dc = d.config || (d.calc === false && typeof d.inheritConfig === 'string' ? d.inheritConfig : null);
+  qDefaultConfig = d.kind !== 'map' && dc && configIds.has(dc) ? dc : null;
   try { checkDiagram(d); } finally { qDefaultConfig = null; }
 }
 

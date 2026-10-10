@@ -89,8 +89,8 @@
     'ppo-atari': { label: 'PPO · Atari Breakout (Nature-CNN compartida)', impl: 'cleanrl', env: 'BreakoutNoFrameskip-v4', sim: 'ALE',
       net: 'nature-cnn', obsH: 84, obsW: 84, frames: 4, actDim: 4, discrete: true, fc: 512, act: 'relu',
       nEnvs: 8, horizon: 128, epochs: 3, minibatches: 4, gamma: 0.99, lambda: 0.95, clipEps: 0.1, lr: 2.5e-4, entCoef: 0.01, vfCoef: 1, maxGradNorm: 0.5,
-      annealed: true, budget: 10000000, dt: 4 / 60, epochsCleanRL: 4,
-      source: PPO_SRC + 'Tabla 5 (8 actores × 128 pasos, 3 épocas, minibatch 32 × 8 = 256, ε = 0.1·α y Adam 2.5e-4·α con α de 1 a 0, c₁ = 1, c₂ = 0.01, γ 0.99, λ 0.95; 40 M frames = 10 M pasos con frameskip 4). Red: Nature-CNN (Mnih et al. 2015) compartida por actor y crítico como CleanRL cleanrl/ppo_atari.py (conv 8×8/4 → 32, 4×4/2 → 64, 3×3/1 → 64, fc 3136 → 512; cabezas 512 → |A| y 512 → 1); el paper dice "la misma arquitectura que [Mni+16]". CleanRL usa update_epochs = 4: el calculador sigue al paper (3). BreakoutNoFrameskip-v4: |A| = 4 (ale-py 0.12.1), obs 84×84 en gris con 4 frames apilados.' },
+      annealed: true, budget: 10000000, dt: 4 / 60, epochsCleanRL: 4, vfCoefCleanRL: 0.5,
+      source: PPO_SRC + 'Tabla 5 (8 actores × 128 pasos, 3 épocas, minibatch 32 × 8 = 256, ε = 0.1·α y Adam 2.5e-4·α con α de 1 a 0, c₁ = 1, c₂ = 0.01, γ 0.99, λ 0.95; 40 M frames = 10 M pasos con frameskip 4). Red: Nature-CNN (Mnih et al. 2015) compartida por actor y crítico como CleanRL cleanrl/ppo_atari.py (conv 8×8/4 → 32, 4×4/2 → 64, 3×3/1 → 64, fc 3136 → 512; cabezas 512 → |A| y 512 → 1); el paper dice "la misma arquitectura que [Mni+16]" (A3C, que usa la CNN más chica de Mnih et al. 2013: conv 16 → 32 y fc 256; el calculador sigue a CleanRL / baselines). CleanRL usa update_epochs = 4 y vf_coef = 0.5: el calculador sigue al paper (3 épocas, c₁ = 1). BreakoutNoFrameskip-v4: |A| = 4 (ale-py 0.12.1), obs 84×84 en gris con 4 frames apilados.' },
     'ppo-anymal-isaac': { label: 'PPO · ANYmal C en terreno irregular (Isaac Gym, 4,096 entornos)', impl: 'rsl_rl', env: 'anymal_c_rough', sim: 'Isaac Gym (PhysX, GPU)',
       net: 'mlp', obsDim: 235, actDim: 12, discrete: false, actorHidden: [512, 256, 128], criticHidden: [512, 256, 128], act: 'elu', stdParam: 'std',
       nEnvs: 4096, horizon: 24, epochs: 5, minibatches: 4, gamma: 0.99, lambda: 0.95, clipEps: 0.2, lr: 1e-3, adaptiveLr: true, desiredKl: 0.01, entCoef: 0.01, vfCoef: 1, maxGradNorm: 1,
@@ -302,6 +302,7 @@
     if (c.paperMinutes) Object.assign(out, { paperMinutes: c.paperMinutes, paperUpdates: c.maxIterations, paperGpu: c.paperGpu,
       stepsPerSecondCited: c.samples * c.maxIterations / (60 * c.paperMinutes), paperSource: 'Rudin et al. 2021, §4 y nota 2: 1500 actualizaciones en menos de 20 minutos (RTX A6000)' });
     if (c.epochsCleanRL) out.epochsCleanRL = c.epochsCleanRL;
+    if (c.vfCoefCleanRL) out.vfCoefCleanRL = c.vfCoefCleanRL;
     if (c.desiredKl) out.desiredKl = c.desiredKl;
     const arch = archOverrides(r, 'rl-ppo');
     const row = (ov) => { const rr = A.run(r.id, Object.assign({}, arch, ov)), pp = rlParts(rr.config, rr);
@@ -320,7 +321,7 @@
     rolloutBufferBytes: 'bytes', bufferBytesPerSample: 'bytes', paramBytes: 'bytes', adamBytes: 'bytes', gradBytes: 'bytes', iterations: 'count', budgetSteps: 'count',
     budgetMacs: 'macs', budgetFlops: 'count', gamma: 'ratio', lambda: 'ratio', clipEps: 'ratio', lr: 'ratio', entCoef: 'ratio', vfCoef: 'ratio', controlHz: 'ratio', dt: 'ratio',
     policyMsOrin: 'ms', policyHzOrin: 'ratio', policyMsH100: 'ms', rolloutInferMsH100: 'ms', paperMinutes: 'count', paperUpdates: 'count', stepsPerSecondCited: 'count',
-    epochsCleanRL: 'count', desiredKl: 'ratio',
+    epochsCleanRL: 'count', vfCoefCleanRL: 'ratio', desiredKl: 'ratio',
   };
 
   A.defineModel({
@@ -546,6 +547,8 @@
       c.ph = d5(d5(d5(c.fh))); c.pw = d5(d5(d5(c.fw)));
       if (c.ph < 1 || c.pw < 1) throw new Error(W + 'la imagen es muy chica para las tres convs 5×5 del CNNMLP (mapa ' + c.fh + '×' + c.fw + ').');
       c.camFlat = 32 * c.ph * c.pw; c.mlpIn = c.camFlat * c.cams + c.stateDim; c.executed = c.chunk; c.tokens = 1;
+      // CNNMLP fija la entrada del MLP en 768·cámaras + 14 (detr_vae.py): con otra resolución el código oficial falla al armar el MLP.
+      if (c.camFlat !== 768) (c._notes = c._notes || []).push('rasgo por cámara ' + c.camFlat + ' ≠ 768: el CNNMLP oficial fija mlp(768·cámaras + 14) y fallaría; el calculador adapta la entrada del MLP');
     } else {
       if (c.executed + c.obsSteps - 1 > c.chunk) throw new Error(W + 'chunk T_p = ' + c.chunk + ' < T_o − 1 + T_a = ' + (c.obsSteps - 1 + c.executed) + ' (las acciones ejecutadas no caben).');
       if (c.family === 'dp-cnn' && c.chunk % 4 !== 0) throw new Error(W + 'la U-Net 1-D baja dos veces ×2: T_p = ' + c.chunk + ' debe ser múltiplo de 4.');
@@ -862,15 +865,21 @@
     if (c.family === 'bc') Object.assign(q, { mlpIn: c.mlpIn, camFlat: c.camFlat });
     return q;
   }
+  // Pesos leídos por inferencia (≈, para el roofline): en Diffusion Policy la red de ruido (U-Net / transformer) corre K veces
+  // y sus pesos NO caben en la caché (Orin L2 4 MB, H100 L2 50 MB; U-Net 133 MB en bf16): se releen en cada paso de denoising.
+  // Pesos = visión (una vez) + K × red de ruido. ACT y BC: una pasada, pesos una vez.
+  function weightReads(c, r, p) {
+    return /^dp/.test(c.family) ? r.totals.params + (c.steps - 1) * p.policy.params : r.totals.params;
+  }
   function imMetrics(c, r, o) {
     const p = imParts(c, r), t = r.totals;
-    const act = inferAct(r, o);
-    const hw = [ORIN, H100].map((h) => { const x = roof(t.macs, t.params, act, h, 1); return { id: h.id, label: h.label, ms: x.ms, hz: x.fps, bound: x.bound, estimate: true }; });
+    const act = inferAct(r, o), wReads = weightReads(c, r, p);
+    const hw = [ORIN, H100].map((h) => { const x = roof(t.macs, wReads, act, h, 1); return { id: h.id, label: h.label, ms: x.ms, hz: x.fps, bound: x.bound, estimate: true }; });
     const out = {
       family: c.family, cams: c.cams, res: c.H, W: c.W, chunk: c.chunk, actionDim: c.actionDim, executed: c.executed,
       visionParams: p.vision.params, policyParams: p.policy.params, cvaeParams: p.cvae.params, headParams: p.head.params, totalParams: t.params,
       visionMacs: p.vision.macs, policyMacs: p.policy.macs, macsPerInference: t.macs, flopsPerInference: 2 * t.macs, visionMacsShare: p.vision.macs / t.macs,
-      actionsPerInference: c.family === 'act' ? c.chunk : c.family === 'bc' ? c.chunk : c.chunk, controlHz: c.controlHz, inferenceHz: c.inferenceHz,
+      actionsPerInference: c.chunk, controlHz: c.controlHz, inferenceHz: c.inferenceHz,
       macsPerSecond: t.macs * c.inferenceHz,
       msOrin: hw[0].ms, msH100: hw[1].ms, maxHzOrin: hw[0].hz, maxHzH100: hw[1].hz, boundOrin: hw[0].bound, boundH100: hw[1].bound,
       fitsControlOrin: hw[0].ms <= 1000 / c.inferenceHz, hardware: hw, hardwareSource: ORIN.source + ' · ' + H100.source, estimate: true,
@@ -888,7 +897,7 @@
     if (c.family === 'bc') Object.assign(out, { idleParams: p.idle.params, mlpIn: c.mlpIn });
     const arch = archOverrides(r, 'imitation');
     const row = (ov) => { const rr = A.run(r.id, Object.assign({}, arch, ov)), m = rr.totals, cc = rr.config;
-      const x = roof(m.macs, m.params, inferAct(rr, { actMemPerSample: A.metrics(r.id, Object.assign({}, arch, ov)).actMemPerSample, by: 2 }), ORIN, 1);
+      const x = roof(m.macs, weightReads(cc, rr, imParts(cc, rr)), inferAct(rr, { actMemPerSample: A.metrics(r.id, Object.assign({}, arch, ov)).actMemPerSample, by: 2 }), ORIN, 1);
       return { macsPerInference: m.macs, inferenceHz: cc.inferenceHz, macsPerSecond: m.macs * cc.inferenceHz, msOrin: x.ms }; };
     if (/^dp/.test(c.family)) out.stepsScaling = guarded(() => [1, 4, 8, 16, 100].filter((s) => s <= c.trainSteps).map((s) => Object.assign({ steps: s }, row({ steps: s }))));
     const chunks = c.family === 'act' ? [1, 10, 50, 100, 200] : c.family === 'bc' ? [1, 10, 50, 100] : [8, 16, 32, 64];
@@ -911,7 +920,7 @@
     id: 'imitation',
     label: 'Imitation learning: BC, ACT y Diffusion Policy',
     paper: { title: 'Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware (ACT)', authors: 'Zhao et al.', venue: 'RSS 2023', year: 2023, arxiv: '2304.13705',
-      note: 'Diffusion Policy: Chi et al., RSS 2023 / IJRR 2024, arXiv:2303.04137. DAgger: Ross et al., AISTATS 2011, arXiv:1011.0686. BC: Pomerleau, ALVINN, NeurIPS 1989.' },
+      note: 'Diffusion Policy: Chi et al., RSS 2023 / IJRR 2024, arXiv:2303.04137. DAgger: Ross et al., AISTATS 2011, arXiv:1011.0686. BC: Pomerleau, ALVINN, NIPS 1988 (actas de 1989).' },
     configs: IM_CONFIGS,
     knobs: { chunk: [1, 10, 16, 50, 100], cams: [1, 2, 3, 4], steps: [1, 4, 8, 16, 100], res: [96, 216, 240, 432, 480] },
     hardware: HW.map((h) => Object.assign({}, h)),

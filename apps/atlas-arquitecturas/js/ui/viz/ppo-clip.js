@@ -9,7 +9,7 @@
    (en r = 1 ± ε exacto la derivada lateral cambia: se toma el valor de dentro de la banda, convención para un conjunto de
    medida cero). Es la cota pesimista: se ignora el cambio de r cuando MEJORA el objetivo más allá de 1 ± ε, pero no
    cuando lo empeora.
-   Abajo, un minibatch ILUSTRATIVO de n muestras (r_i, Â_i): Â normalizada por minibatch (como CleanRL / rsl_rl) y la
+   Abajo, un minibatch ILUSTRATIVO de n muestras (r_i, Â_i): Â normalizada por minibatch (como CleanRL; rsl_rl normaliza sobre el batch entero) y la
    dispersión de r crece con la época (en la 1.ª época del 1.er minibatch r = 1 exacto: θ = θ_old). Se cuentan
    clipfrac = mean(|r − 1| > ε) (la métrica que registra CleanRL) y la fracción con gradiente CERO (solo la mitad de esos:
    los que el recorte "protege" según el signo de Â).
@@ -113,7 +113,7 @@
         V.svg('rect', { x: r1(X(1 - eps)), y: r1(y0), width: r1(X(1 + eps) - X(1 - eps)), height: ph, class: 'viz-pc-band' }, svg);
         const z0 = A > 0 ? 1 + eps : 0, z1 = A > 0 ? R_MAX : 1 - eps;
         V.svg('rect', { x: r1(X(z0)), y: r1(y0), width: r1(X(z1) - X(z0)), height: ph, class: 'viz-pc-zero' }, svg);
-        t(svg, (X(z0) + X(z1)) / 2, y0 + 14, '∂L/∂r = 0', 'viz-pc-zt', 'middle');
+        t(svg, (X(z0) + X(z1)) / 2, A > 0 ? y0 + 14 : y0 + ph - 6, '∂L/∂r = 0', 'viz-pc-zt', 'middle');   // A < 0: el eje L = 0 corre arriba
         // ejes
         V.svg('path', { d: 'M' + r1(x0) + ' ' + r1(Y(0)) + 'H' + r1(x0 + pw), class: 'viz-pc-axis' }, svg);
         V.svg('path', { d: 'M' + r1(X(1)) + ' ' + r1(y0) + 'V' + r1(y0 + ph), class: 'viz-pc-one' }, svg);
@@ -121,7 +121,7 @@
         [1 - eps, 1 + eps].forEach((v) => t(svg, X(v), y0 + ph + 26, v.toFixed(2), 'viz-pc-et', 'middle'));
         (A > 0 ? [0, 1, 2] : [0, -1, -2]).forEach((v) => t(svg, x0 - 5, Y(v) + 4, String(v).replace('-', '−'), 'viz-s', 'end'));
         t(svg, x0 + pw, y0 + ph + 26, 'r', 'viz-n', 'end');
-        t(svg, x0, y0 - 6, A > 0 ? 'A > 0: la acción fue mejor de lo esperado' : 'A < 0: la acción fue peor de lo esperado', 'viz-n');
+        t(svg, x0, y0 - 6, A > 0 ? (narrow ? 'A > 0: mejor de lo esperado' : 'A > 0: la acción fue mejor de lo esperado') : (narrow ? 'A < 0: peor de lo esperado' : 'A < 0: la acción fue peor de lo esperado'), 'viz-n');
         // curvas: r·A (sin recortar), clip(r)·A y el mínimo (lo que se optimiza)
         const N = 200;
         const path = (f) => { let d = ''; for (let i = 0; i <= N; i++) { const r = R_MAX * i / N; d += (i ? 'L' : 'M') + r1(X(r)) + ' ' + r1(Y(f(r))); } return d; };
@@ -132,8 +132,11 @@
         const L = surrogate(state.r, A, eps), g = dSurrogate(state.r, A, eps);
         V.svg('path', { d: 'M' + r1(X(state.r)) + ' ' + r1(y0) + 'V' + r1(y0 + ph), class: 'viz-pc-cur' }, svg);
         V.svg('circle', { cx: r1(X(state.r)), cy: r1(Y(L)), r: 5, class: 'viz-pc-pt' + (g === 0 ? ' is-zero' : '') }, svg);
-        const lab = 'L = ' + f2(L) + (g === 0 ? ' · grad 0' : ''), flip = X(state.r) + 8 + lab.length * 6.8 > x0 + pw - 4;
-        t(svg, X(state.r) + (flip ? -8 : 8), Y(L) + (A > 0 ? -9 : 17), lab, 'viz-pc-lab', flip ? 'end' : null);
+        // la etiqueta va del lado donde la curva se aleja: min(·) no baja con r si A > 0 (arriba a la izquierda queda libre) y no
+        // sube si A < 0 (abajo a la izquierda); sin lugar a la izquierda, al lado opuesto en diagonal. Siempre dentro del panel
+        const lab = 'L = ' + f2(L) + (g === 0 ? ' · grad 0' : ''), right = X(state.r) - 8 - lab.length * 6.8 < x0 + 2;
+        const ly0 = Y(L) + ((A > 0) !== right ? -9 : 17);
+        t(svg, X(state.r) + (right ? 8 : -8), Math.max(y0 + 12, Math.min(y0 + ph - 4, ly0)), lab, 'viz-pc-lab', right ? null : 'end');
       });
       // leyenda de curvas
       let ly = (narrow ? panels[1][1] : panels[0][1]) + ph + 48, lx = 8;

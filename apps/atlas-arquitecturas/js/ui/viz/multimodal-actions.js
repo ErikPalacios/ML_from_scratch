@@ -118,11 +118,11 @@
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'img' }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); V.rich(e, s); return e; };
       t(svg, 8, 15, narrow ? 'MSE promedia los modos; difusión elige uno' : 'Demos que rodean el obstáculo por los dos lados: la regresión MSE promedia y choca; la difusión elige un lado', 'viz-t');
-      t(svg, 8, 29, narrow ? 'T_p = ' + Tp + ' (se ejecutan ' + Ta + ') · K = ' + state.K + ' · ' + NS + ' muestras' : 'chunk de T_p = ' + Tp + ' waypoints (se ejecutan T_a = ' + Ta + ') · K = ' + state.K + ' pasos · ' + NS + ' muestras de ruido', 'viz-s');
+      t(svg, 8, 29, narrow ? 'T_p = ' + Tp + ' (se ejecutan ' + Ta + ') · K = ' + state.K : 'chunk de T_p = ' + Tp + ' waypoints (se ejecutan T_a = ' + Ta + ') · K = ' + state.K + ' pasos · ' + NS + ' muestras de ruido', 'viz-s');
 
       // ---- escena (unidades [0, 1]²)
       // escala uniforme: x ∈ [−0.04, 1.04], y ∈ 0.5 ± YH (lo que se sale, recortado al marco)
-      const sw = narrow ? W - 16 : 520, k = sw / 1.08, sh = 2 * YH * k, sx = 8, sy = 44;
+      const sw = narrow ? W - 16 : 520, k = sw / 1.08, sh = 2 * YH * k, sx = 8, sy = narrow ? 44 : 52;   // ancho: el subtítulo no toca el título del latente
       const P = (q) => [sx + (q[0] + 0.04) * k, sy + sh / 2 + Math.max(-YH, Math.min(YH, q[1] - 0.5)) * k];
       V.svg('rect', { x: sx, y: sy, width: r1(sw), height: r1(sh), class: 'viz-pc-bg' }, svg);
       const oc = P([0.5, 0.5]);
@@ -191,7 +191,7 @@
         kv('costo por inferencia:', (obsMacs != null ? 'encoder ' + fm(obsMacs) + ' + ' : '') + state.K + ' × ' + fm(stepMacs) + ' = ' + fm((obsMacs || 0) + state.K * stepMacs));
       }
       kv('config ' + ((run && run.label) || cfgId) + ':', 'T_p = ' + Tp + ', T_a = ' + Ta + ', K = ' + kCfg + ' pasos');
-      note.innerHTML = sub('La pérdida MSE se minimiza con la media condicional de las acciones: si la mitad de las demos esquiva por arriba y la otra mitad por abajo, la media va derecho al obstáculo (y con 70/30 queda a mitad de camino: tampoco es una demo). Un modelo generativo aprende la distribución entera y muestrea UN modo por inferencia. Aquí el denoiser es el óptimo exacto de la mezcla (sin red): con K = 1 paso, DDIM devuelve E[x₀ | x_T] ≈ la media, igual que MSE; cada paso más compromete la muestra con un lado. El precio: K pasadas de la red de denoising por inferencia (el encoder de observaciones corre una vez). Diffusion Policy predice un chunk de T_p acciones y ejecuta solo las T_a primeras antes de volver a inferir (receding horizon): el chunk mantiene el modo elegido de un paso al siguiente, lo que evita oscilar entre los dos lados.');
+      note.innerHTML = sub('La pérdida MSE se minimiza con la media condicional de las acciones: si la mitad de las demos esquiva por arriba y la otra mitad por abajo, la media va derecho al obstáculo (y con 70/30 queda a mitad de camino: tampoco es una demo). Un modelo generativo aprende la distribución entera y muestrea UN modo por inferencia. Aquí el denoiser es el óptimo exacto de la mezcla (sin red): con K = 1 paso, DDIM devuelve E[x₀ | x_T] ≈ la media, igual que MSE; cada paso más compromete la muestra con un lado. El precio: K pasadas de la red de denoising por inferencia (el encoder de observaciones corre una vez). Diffusion Policy predice un chunk de T_p acciones y ejecuta solo T_a, desde la del paso actual, antes de volver a inferir (receding horizon): el chunk mantiene el modo elegido de un paso al siguiente, lo que evita oscilar entre los dos lados.');
     }
     stage.addEventListener('keydown', (ev) => {
       const k = ev.key;

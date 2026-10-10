@@ -172,18 +172,22 @@
       curve((o) => o.b2, 'viz-gae-bias');
       curve((o) => o.v, 'viz-gae-var');
       curve((o) => o.b2 + o.v, 'viz-gae-mse');
+      // el mínimo de sesgo² + varianza en la grilla de λ (se mueve con t y con el error del crítico: no es una constante)
+      const best = bvs.reduce((a, o) => (o.b2 + o.v < a.b2 + a.v ? o : a), bvs[0]);
+      V.svg('circle', { cx: r1(X3(best.L)), cy: r1(Y3(best.b2 + best.v)), r: 3.2, class: 'viz-gae-min' }, svg);
       V.svg('path', { d: 'M' + r1(X3(lam)) + ' ' + r1(y3) + 'V' + r1(y3 + h3), class: 'viz-pc-cur' }, svg);
       [0, 0.5, 1].forEach((v) => t(svg, X3(v), y3 + h3 + 13, String(v), 'viz-s', 'middle'));
       t(svg, X3(0), y3 + h3 + 26, 'TD(0)', 'viz-s', 'middle'); t(svg, X3(1), y3 + h3 + 26, 'Monte Carlo', 'viz-s', 'end');
       t(svg, x0 + w3 / 2, y3 + h3 + 26, 'λ', 'viz-n', 'middle');
       // leyenda (de todos los paneles)
       let ly = y3 + h3 + 50, lx = 8;
-      const leg = [['rect', 'viz-gae-r', 'r_t'], ['line', 'viz-gae-v', 'V (crítico)'], ['line', 'viz-gae-vs', 'V* (verdadero)'], ['rect', 'viz-gae-d', 'δ_t'], ['rect', 'viz-gae-a', 'Â_t'], ['rect', 'viz-gae-w', '(γλ)ˡ'], ['line', 'viz-gae-bias', 'sesgo²'], ['line', 'viz-gae-var', 'varianza'], ['line', 'viz-gae-mse', 'sesgo² + varianza']];
+      const leg = [['rect', 'viz-gae-r', 'r_t'], ['line', 'viz-gae-v', 'V (crítico)'], ['line', 'viz-gae-vs', 'V* (verdadero)'], ['rect', 'viz-gae-d', 'δ_t'], ['rect', 'viz-gae-a', 'Â_t'], ['rect', 'viz-gae-w', '(γλ)ˡ'], ['line', 'viz-gae-bias', 'sesgo²'], ['line', 'viz-gae-var', 'varianza'], ['line', 'viz-gae-mse', 'sesgo² + varianza'], ['dot', 'viz-gae-min', 'su mínimo']];
       if (!narrow) { lx = x0 + w3 + 24; ly = y3 + 10; }
       leg.forEach(([k, cls, s]) => {
         const iw = 26 + s.length * 6.6 + 12;
         if (narrow) { if (lx > 8 && lx + iw > W - 8) { lx = 8; ly += 16; } }
         if (k === 'rect') V.svg('rect', { x: lx, y: ly - 10, width: 14, height: 10, class: cls }, svg);
+        else if (k === 'dot') V.svg('circle', { cx: lx + 9, cy: ly - 4, r: 3.2, class: cls }, svg);
         else V.svg('path', { d: 'M' + lx + ' ' + (ly - 4) + 'h18', class: cls }, svg);
         t(svg, lx + 24, ly, s, 'viz-s');
         if (narrow) lx += iw; else ly += 15;
@@ -206,8 +210,9 @@
       kv('R_' + st + ' = Â + V (objetivo del crítico) =', f3(Ar_[st] + ep.v[st]));
       kv('sesgo =', f3(bv.bias));
       kv('varianza =', f3(bv.variance));
+      kv('mínimo de sesgo² + varianza (Â_' + st + '): λ ≈', best.L.toFixed(2));
       kv('config ' + ((run && run.label) || cfgId) + ':', 'γ = ' + g0 + ', λ = ' + l0);
-      note.innerHTML = sub('λ elige cuánto confiar en el crítico. Con λ = 0, Â_t = δ_t: un paso de recompensa real y el resto lo pone V(s_{t+1}); poca varianza, pero si el crítico se equivoca, Â hereda su error (sesgo γ·e_{t+1}). Con λ = 1 es el retorno Monte Carlo menos V(s_t): sin sesgo si el episodio termina (el −V(s_t) es línea de base: no sesga el gradiente), pero suma el ruido de todas las recompensas futuras. Los valores típicos (λ = 0.95, γ = 0.99) quedan cerca del mínimo de la suma. Si el rollout se corta sin terminar (lo normal con horizontes fijos de 2048 o 24 pasos), el último δ usa V(s_T) del crítico: hasta λ = 1 queda ese sesgo. Juguete: transiciones deterministas, recompensas con ruido σ = ' + SIG_R + ' y un crítico con error inventado; la recursión y la forma cerrada son las mismas que en CleanRL o rsl&#95;rl.');
+      note.innerHTML = sub('λ elige cuánto confiar en el crítico. Con λ = 0, Â_t = δ_t: un paso de recompensa real y el resto lo pone V(s_{t+1}); poca varianza, pero si el crítico se equivoca, Â hereda su error (sesgo γ·e_{t+1}). Con λ = 1 es el retorno Monte Carlo menos V(s_t): sin sesgo si el episodio termina (el −V(s_t) es línea de base: no sesga el gradiente), pero suma el ruido de todas las recompensas futuras. En este juguete el mínimo de la suma (el punto sobre la curva) cae en λ ≈ ' + best.L.toFixed(2) + ' para t = ' + st + ' y se mueve con t: depende de dónde se equivoca el crítico, y aquí su error es inventado. En la práctica no se calcula: λ = 0.95 es el default de CleanRL y rsl&#95;rl, y el paper de GAE encontró lo mejor en λ ∈ [0.96, 0.99] con γ ∈ [0.99, 0.995] (§6.3.2). Si el rollout se corta sin terminar (lo normal con horizontes fijos de 2048 o 24 pasos), el último δ usa V(s_T) del crítico: hasta λ = 1 queda ese sesgo. Juguete: transiciones deterministas, recompensas con ruido σ = ' + SIG_R + ' y un crítico con error inventado; la recursión y la forma cerrada son las mismas que en CleanRL o rsl&#95;rl.');
     }
     stage.addEventListener('keydown', (ev) => {
       const k = ev.key;

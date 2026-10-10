@@ -1394,6 +1394,7 @@ tr.is-walk > * { background: var(--accent-soft); }
 .viz-gae-bias { fill: none; stroke: var(--bad); stroke-width: 2; }
 .viz-gae-var { fill: none; stroke: var(--op-conv); stroke-width: 2; stroke-dasharray: 6 3; }
 .viz-gae-mse { fill: none; stroke: var(--ink); stroke-width: 2.4; }
+.viz-gae-min { fill: var(--ink); stroke: var(--surface); stroke-width: 1.2; }
 /* covariate-shift: pista neutra, banda vista = acento suave, política = op-attn, experto = ink */
 .viz-cs-road { fill: var(--surface-2); stroke: none; }
 .viz-cs-cov { fill: var(--accent); fill-opacity: .16; stroke: none; }
