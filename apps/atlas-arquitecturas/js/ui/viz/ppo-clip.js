@@ -73,7 +73,7 @@
     const chipsE = EPSS.map((v) => { const b = V.html('button', { type: 'button', class: 'viz-chip', 'aria-pressed': 'false', text: String(v) + (v === eps0 ? ' (config)' : '') }, gE); b.addEventListener('click', () => { state.eps = v; draw(); }); b._v = v; return b; });
     const slider = (label, min, max, stp, aria, onIn) => {
       const g = V.html('label', { class: 'viz-ctl viz-pc-sl' }, ctl);
-      V.html('span', { class: 'viz-ctl-l', text: label, style: 'text-transform:none' }, g);
+      V.html('span', { class: 'viz-ctl-l', style: 'text-transform:none' }, g).innerHTML = sub(label);
       const inp = V.html('input', { type: 'range', min, max, step: stp, 'aria-label': aria }, g);
       const o = V.html('output', { class: 'viz-pc-out' }, g);
       inp.addEventListener('input', () => { onIn(+inp.value); draw(); });
@@ -99,7 +99,7 @@
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'img' }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); V.rich(e, s); return e; };
       t(svg, 8, 15, narrow ? 'L_{CLIP} = min(r·A, clip(r, 1−ε, 1+ε)·A)' : 'Objetivo recortado de PPO: L_{CLIP}(r) = min(r·A, clip(r, 1 − ε, 1 + ε)·A), con r = π_θ(a|s) / π_{θ_old}(a|s)', 'viz-t');
-      t(svg, 8, 29, 'ε = ' + eps + ' · A = +1 (izquierda) y A = −1 (derecha) · zona roja: ∂L/∂r = 0', 'viz-s');
+      t(svg, 8, 29, narrow ? 'ε = ' + eps + ' · arriba A = +1 · abajo A = −1' : 'ε = ' + eps + ' · A = +1 (izquierda) y A = −1 (derecha) · zona roja: ∂L/∂r = 0', 'viz-s');
 
       // ---- dos paneles: A = +1 y A = −1
       const pw = narrow ? W - 56 : (W - 120) / 2, ph = narrow ? 150 : 180;
@@ -132,8 +132,8 @@
         const L = surrogate(state.r, A, eps), g = dSurrogate(state.r, A, eps);
         V.svg('path', { d: 'M' + r1(X(state.r)) + ' ' + r1(y0) + 'V' + r1(y0 + ph), class: 'viz-pc-cur' }, svg);
         V.svg('circle', { cx: r1(X(state.r)), cy: r1(Y(L)), r: 5, class: 'viz-pc-pt' + (g === 0 ? ' is-zero' : '') }, svg);
-        const lx = X(state.r) + (state.r > 1.45 ? -8 : 8);
-        t(svg, lx, Y(L) + (A > 0 ? -9 : 17), 'L = ' + f2(L) + (g === 0 ? ' · grad 0' : ''), 'viz-pc-lab', state.r > 1.45 ? 'end' : null);
+        const lab = 'L = ' + f2(L) + (g === 0 ? ' · grad 0' : ''), flip = X(state.r) + 8 + lab.length * 6.8 > x0 + pw - 4;
+        t(svg, X(state.r) + (flip ? -8 : 8), Y(L) + (A > 0 ? -9 : 17), lab, 'viz-pc-lab', flip ? 'end' : null);
       });
       // leyenda de curvas
       let ly = (narrow ? panels[1][1] : panels[0][1]) + ph + 48, lx = 8;

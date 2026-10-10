@@ -151,7 +151,7 @@
             tex: R`A = \mathrm{T}_3(P) = \mathrm{reshape}_{3\times3}\big(W\,\phi(P) + b\big),\quad b = \mathrm{vec}(I_3),\ W = 0\ \text{al inicio};\qquad P' = P\,A\ \in \mathbb{R}^{N\times 3}`,
             in: [TN.pts], out: [TN.ptsT],
             what: R`φ es una mini-PointNet (MLP compartido 64-128-1024, max-pool, FC 512-256). La última lineal da 9 números que se reacomodan en 3×3; ${sh('pts')} · 3×3 → ${sh('ptsT')}. En el código oficial, la primera capa es una conv de 1×3 sobre (x, y, z): equivale a una lineal 3 → 64 por punto.`,
-            why: R`La clase no debería depender de cómo está orientada o escalada la nube. En vez de imponer la invarianza, la red aprende a llevar la entrada a una pose canónica (la idea de los spatial transformers). Es una matriz afín cualquiera, no una rotación: puede escalar y sesgar. Ayuda poco pero ayuda: +0.8 puntos en ModelNet40 (Tabla 5 de ${PN}).` },
+            why: R`La clase no debería depender de cómo está orientada o escalada la nube. En vez de imponer la invarianza, la red aprende a llevar la entrada a una pose canónica (la idea de los spatial transformers). Es una matriz afín cualquiera, no una rotación: puede escalar y sesgar. Ayuda poco pero ayuda: en ModelNet40, +0.8 puntos solo (87.1 → 87.9) y +1.8 sobre el T-Net de features regularizado (87.4 → 89.2; Tabla 5 de ${PN}).` },
 
           { t: 'h3', text: '2. MLP compartido = convolución 1×1' },
           { t: 'op', block: ND.mlp1, model: 'pointnet', title: 'La misma lineal para cada punto (64-64)',

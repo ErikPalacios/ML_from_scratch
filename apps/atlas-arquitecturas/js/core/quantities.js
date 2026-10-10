@@ -139,7 +139,7 @@
       if (typeof v === 'boolean') return num(v, v ? 'sí' : 'no');
       if (typeof v === 'string') return num(v, v);
       if (typeof v !== 'number') return null;
-      // Unidad: la del mapa del modelo (metrics.units: {clave: 'bytes'|'pct'|'ratio'|'count'}) o, si no
+      // Unidad: la del mapa del modelo (metrics.units: {clave: 'bytes'|'pct'|'ratio'|'count'|'macs'|'flops'|'ms'}) o, si no
       // está, por el nombre: …Mem, …Mem2x, …MemAllLayers, …MemBatch, …Cache = bytes; …Share = fracción.
       const unit = (m.units && m.units[parts[1]]) || metricUnitByName(parts[1]);
       if (unit === 'bytes') return num(v, f.bytes(v));
@@ -147,6 +147,8 @@
       if (unit === 'ratio') return num(v, fRatio(v));
       // 'macs' (mapa units del modelo): cómputo con el formato único de la app (fmt.ops): '1.81 GMACs', '2.98 TMACs'.
       if (unit === 'macs') return num(v, f.ops(v));
+      // 'flops' (fase 14, revisión): igual en FLOPs: '790.27 GFLOPs' (FLOPs del detector frente al tracker).
+      if (unit === 'flops') return num(v, f.ops(v, 'FLOPs'));
       // 'ms' (fase 8): milisegundos con 3 cifras significativas (1.62, 2.54, 83.8, 121); la prosa añade ' ms'.
       if (unit === 'ms') return num(v, fMs(v));
       if (unit === 'duration') return num(v, f.duration ? f.duration(v) : fMs(v) + ' ms');

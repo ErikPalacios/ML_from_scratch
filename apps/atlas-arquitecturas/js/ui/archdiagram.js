@@ -2252,7 +2252,7 @@
     const colBest = pre ? Array.from({ length: d.nC }, (_, j) => { let b = 0; for (let i = 1; i < d.nR; i++) if (pre[i][j] > pre[b][j]) b = i; return b; }) : null;
     if (pre) used.cellsColmax = true;
     // fase 14: mark:'assign' = una asignación 1 a 1 (permutación con semilla de las columnas); las últimas o.unmatched filas
-    // dibujadas quedan sin pareja (∅ a la derecha: no pasaron el umbral). La asociación de un tracker
+    // dibujadas quedan sin pareja (∅ a la derecha: no pasaron el umbral): la asociación de un tracker.
     // fase 14 (revisión): con match:'max' (opt-in) la asignación es la de valor MÁXIMO (el tono es el IoU; el húngaro minimiza
     // 1 − IoU) sobre las filas con pareja, y las últimas o.unmatched filas se atenúan (×0.15: no se solapan con nada). Los valores
     // se sacan antes, en el mismo orden de la semilla que una tabla sin marca (cada fila + la celda 'pick'): con la misma semilla
@@ -2323,7 +2323,7 @@
     const d = cellsDims(o, run);
     if (!d) return '';
     const quiet = ctl.mode === 'blank' || ctl.quiz;
-    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : o.mark === 'diag' ? 'la diagonal marcada' : o.mark === 'tril' ? 'solo el triángulo inferior estricto' : o.mark === 'assign' ? 'una pareja por fila, cada columna a lo sumo una vez' + (o.match === 'max' ? ' (la de mayor valor total: las celdas más oscuras)' : '') + (o.unmatched ? '; ' + o.unmatched + (o.unmatched === 1 ? ' fila' : ' filas') + ' sin pareja' + (o.match === 'max' ? ' (claras: no se solapan con nada)' : '') : '') : o.mark === 'colmax' ? 'el máximo de cada columna marcado (las filas que ganan alguna, con un punto)' + (o.pooled ? ' y, debajo, la fila de los máximos' : '') : '';
+    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : o.mark === 'diag' ? 'la diagonal marcada' : o.mark === 'tril' ? 'solo el triángulo inferior estricto' : o.mark === 'assign' ? 'una pareja por fila, cada columna a lo sumo una vez' + (o.match === 'max' ? ' (la de mayor valor total: las celdas de tono más intenso)' : '') + (o.unmatched ? '; ' + o.unmatched + (o.unmatched === 1 ? ' fila' : ' filas') + ' sin pareja' + (o.match === 'max' ? ' (claras: no se solapan con nada)' : '') : '') : o.mark === 'colmax' ? 'el máximo de cada columna marcado (las filas que ganan alguna, con un punto)' + (o.pooled ? ' y, debajo, la fila de los máximos' : '') : '';
     return 'tabla' + (quiet ? '' : ' de ' + fint(d.R) + ' × ' + fint(d.C)) + (what ? ', ' + what : '') + ' (tono ilustrativo)' + (o.caption && !quiet ? ': ' + plainSub(qText(o.caption, ctl, spec)) : '');
   }
 

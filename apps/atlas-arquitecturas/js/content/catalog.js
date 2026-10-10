@@ -654,7 +654,7 @@
     freq: B, minutes: 60,
     from: [], to: ['rlhf-dpo', 'imitation'],
     paper: { title: 'Proximal Policy Optimization Algorithms', authors: 'Schulman et al.', venue: 'arXiv 2017', arxiv: '1707.06347' },
-    model: 'rl-ppo', canonical: null,
+    model: 'rl-ppo', canonical: 'ppo-mujoco',
     card: { in: 'observaciones + recompensa', out: 'política (distribución de acciones)',
       idea: 'subir la probabilidad de las acciones con ventaja positiva, sin pasos grandes', uso: 'locomoción en simulación, RLHF' },
   }));
@@ -671,7 +671,7 @@
     freq: B, minutes: 60,
     from: ['rl-ppo', 'stable-diffusion'], to: ['pi0'],
     paper: { title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion', authors: 'Chi et al.', venue: 'RSS 2023', arxiv: '2303.04137' },
-    model: 'imitation', canonical: null,
+    model: 'imitation', canonical: 'act-aloha',
     card: { in: 'observaciones + demostraciones', out: 'chunk de acciones',
       idea: 'regresión (o difusión) de las acciones del experto', uso: 'manipulación con pocas decenas de demostraciones' },
   }));

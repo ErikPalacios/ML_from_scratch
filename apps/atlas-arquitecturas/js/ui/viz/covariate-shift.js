@@ -120,7 +120,7 @@
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'img' }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); V.rich(e, s); return e; };
       t(svg, 8, 15, narrow ? (state.method === 'bc' ? 'Behavior cloning: un error lleva a estados no vistos' : 'DAgger: el experto etiqueta lo que visita la política') : (state.method === 'bc' ? 'Behavior cloning: un error chico lleva a estados que nunca vio, donde se equivoca más' : 'DAgger: la política maneja, el experto etiqueta esos estados, se reentrena'), 'viz-t');
-      t(svg, 8, 29, M + ' corridas de ' + state.T + ' pasos · banda: estados vistos en el entrenamiento (|d| ≤ ' + D.toFixed(2) + ')', 'viz-s');
+      t(svg, 8, 29, narrow ? M + ' corridas · ' + state.T + ' pasos · vistos: |d| ≤ ' + D.toFixed(2) : M + ' corridas de ' + state.T + ' pasos · banda: estados vistos en el entrenamiento (|d| ≤ ' + D.toFixed(2) + ')', 'viz-s');
 
       // ---- la pista: centro c(s), normal n(s); el desvío d se dibuja a escala (|d| = 1 = borde)
       const x0 = 16, x1 = W - 16, yc = 56 + (narrow ? 70 : 80), amp = narrow ? 34 : 50, half = narrow ? 26 : 30;

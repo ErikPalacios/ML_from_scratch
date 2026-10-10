@@ -257,7 +257,7 @@
   }
   const BT_UNITS = {
     kalmanPredictMacs: 'macs', kalmanUpdateMacs: 'macs', kalmanMacsPerTrack: 'macs', kalmanFlopsPerTrack: 'count', trackerMacs: 'macs', detectorMacs: 'macs',
-    trackerFlops: 'count', trackerOtherOps: 'count', trackerOps: 'count', detectorFlops: 'count', iouOps: 'count', assignOps: 'count', iouPairs: 'count',
+    trackerFlops: 'count', trackerOtherOps: 'count', trackerOps: 'count', detectorFlops: 'flops', iouOps: 'count', assignOps: 'count', iouPairs: 'count',
     detectorParams: 'params', trackerParams: 'params', trackerShare: 'pct', trackerShareKalman: 'pct', assignShareTracker: 'pct',
     stateDim: 'count', measDim: 'count', nDet: 'count', nHigh: 'count', nLow: 'count', nTracks: 'count', matches1: 'count', matches2: 'count', updates: 'count', born: 'count', lost: 'count',
     assignN1: 'count', assignN2: 'count', framesLost: 'count', secondsLost: 'ratio', fps: 'count', kalmanBytesPerTrack: 'bytes', trackMemBytes: 'bytes', paramMem: 'bytes',

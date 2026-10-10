@@ -119,7 +119,7 @@
       const svg = V.svg('svg', { class: 'viz-svg', viewBox: '0 0 ' + W + ' 10', style: 'max-width:' + W + 'px', role: 'img' }, stage);
       const t = (p, x, y, s, cls, anchor) => { const e = V.svg('text', { x: r1(x), y: r1(y), class: cls, 'text-anchor': anchor || null }, p); V.rich(e, s); return e; };
       t(svg, 8, 15, narrow ? 'Â_t = Σ_l (γλ)ˡ δ_{t+l}' : 'GAE: δ_t = r_t + γV(s_{t+1}) − V(s_t)  ·  Â_t = δ_t + γλ·Â_{t+1} = Σ_l (γλ)ˡ δ_{t+l}', 'viz-t');
-      t(svg, 8, 29, 'γ = ' + gamma + ' · λ = ' + lam.toFixed(2) + ' · episodio de ' + T + ' pasos (' + (state.end === 'cut' ? 'el rollout se corta: bootstrap con V(s_T)' : 'termina: V(s_T) = 0') + ')', 'viz-s');
+      t(svg, 8, 29, 'γ = ' + gamma + ' · λ = ' + lam.toFixed(2) + (narrow ? ' · ' + T + ' pasos, ' + (state.end === 'cut' ? 'corte: bootstrap' : 'termina') : ' · episodio de ' + T + ' pasos (' + (state.end === 'cut' ? 'el rollout se corta: bootstrap con V(s_T)' : 'termina: V(s_T) = 0') + ')'), 'viz-s');
 
       // ---- panel 1: recompensas y valores
       const x0 = 44, pw = W - 56, slot = pw / (T + 1);
@@ -128,7 +128,7 @@
       const vals1 = ep.r.concat(ep.v, ep.vStar);
       let lo1 = Math.min(0, ...vals1), hi1 = Math.max(...vals1); const p1 = (hi1 - lo1) * 0.08; lo1 -= p1; hi1 += p1;
       const Y1 = (v) => y1 + h1 - h1 * (v - lo1) / (hi1 - lo1);
-      t(svg, x0, y1 - 6, 'recompensa r_t (barras) · V(s_t) del crítico (línea) · V*(s_t) verdadero (punteada)', 'viz-n');
+      t(svg, x0, y1 - 6, narrow ? 'r_t (barras) · V (línea) · V* (punteada)' : 'recompensa r_t (barras) · V(s_t) del crítico (línea) · V*(s_t) verdadero (punteada)', 'viz-n');
       V.svg('rect', { x: x0, y: y1, width: r1(pw), height: h1, class: 'viz-pc-bg' }, svg);
       V.svg('path', { d: 'M' + x0 + ' ' + r1(Y1(0)) + 'H' + r1(x0 + pw), class: 'viz-pc-axis' }, svg);
       const bw = Math.max(4, slot * 0.5);
@@ -137,7 +137,7 @@
       line(ep.vStar, 'viz-gae-vs', T + 1);
       line(ep.v, 'viz-gae-v', T + 1);
       ep.v.forEach((v, i) => { if (i <= T) V.svg('circle', { cx: r1(X(i)), cy: r1(Y1(v)), r: 2.6, class: 'viz-gae-vd' + (i === T && state.end === 'cut' ? ' is-boot' : '') }, svg); });
-      t(svg, X(T), y1 + h1 - 4, state.end === 'cut' ? 's_T: bootstrap' : 's_T terminal', 'viz-s', 'middle');
+      t(svg, x0 + pw - 4, y1 + h1 - 4, state.end === 'cut' ? 's_T: bootstrap' : 's_T terminal', 'viz-s', 'end');
       [0, 5, 10, 15].forEach((i) => t(svg, X(i), y1 + h1 + 13, String(i), 'viz-s', 'middle'));
 
       // ---- panel 2: δ_t y Â_t, con los pesos (γλ)^l del paso elegido
@@ -145,7 +145,7 @@
       const vals2 = d.concat(Ar_);
       let lo2 = Math.min(0, ...vals2), hi2 = Math.max(0, ...vals2); const p2 = (hi2 - lo2) * 0.1; lo2 -= p2; hi2 += p2;
       const Y2 = (v) => y2 + h2 - h2 * (v - lo2) / (hi2 - lo2);
-      t(svg, x0, y2 - 6, narrow ? 'δ_t (delgadas) · Â_t (gruesas) · pesos de Â_' + state.t : 'δ_t (barras delgadas) · Â_t (barras gruesas) · en sombra: el peso (γλ)ˡ de cada δ futuro en Â_' + state.t, 'viz-n');
+      t(svg, x0, y2 - 6, narrow ? 'δ_t · Â_t (gruesas) · sombra: pesos de Â_' + state.t : 'δ_t (barras delgadas) · Â_t (barras gruesas) · en sombra: el peso (γλ)ˡ de cada δ futuro en Â_' + state.t, 'viz-n');
       V.svg('rect', { x: x0, y: y2, width: r1(pw), height: h2, class: 'viz-pc-bg' }, svg);
       // pesos (γλ)^l desde t: sombra de alto proporcional
       for (let l = 0; state.t + l < T; l++) {

@@ -167,8 +167,8 @@
       { id: 'ss-img', op: 'io', label: 'Imagen', image: true, x: 2, y: 4, w: 11, h: 11, note: 'Una imagen RGB; ningún dato de la cámara.' },
       { id: 'ss-net', op: 'attn', label: 'Red relativa', sub: 'ViT + cabeza DPT', x: 21, y: 5, w: 16, h: 10, note: 'La red de la vista general: termina en ReLU (disparidad ≥ 0).' },
       { id: 'ss-pred', op: 'io', label: 'Predicción d̂', sub: 'disparidad relativa', x: 43, y: 5, w: 19, h: 10, note: 'Correcta salvo s y t: d̂ ≈ (d* − t)/s. Ordena bien lo que está más cerca y más lejos.' },
-      { id: 'ss-gt', op: 'io', label: 'Verdad d*', sub: 'disparidad del dataset', x: 68, y: 19, w: 26, h: 9, note: 'De estéreo, LiDAR, SfM o sintética, cada dataset con su escala (y a veces su desplazamiento). En Depth Anything V2, pseudo-etiquetas del maestro.' },
-      { id: 'ss-align', op: 'fuse', label: '(s, t) por imagen', sub: 'mín Σ (s·d̂ + t − d*)²', x: 68, y: 4, w: 26, h: 11,
+      { id: 'ss-gt', op: 'io', label: 'Verdad d*', sub: 'disparidad del dataset', x: 68, y: 19, w: 24, h: 9, note: 'De estéreo, LiDAR, SfM o sintética, cada dataset con su escala (y a veces su desplazamiento). En Depth Anything V2, pseudo-etiquetas del maestro.' },
+      { id: 'ss-align', op: 'fuse', label: '(s, t) por imagen', sub: 'mín Σ (s·d̂ + t − d*)²', x: 68, y: 4, w: 24, h: 11,
         tex: '(s, t) = \\arg\\min_{s,t} \\sum_i (s\\,\\hat d_i + t - d^*_i)^2', note: 'Mínimos cuadrados con forma cerrada (ecuaciones normales de 2×2), o la versión robusta: t = mediana, s = desviación media absoluta, en la predicción y en la verdad por separado (Depth Anything).' },
       { id: 'ss-loss', op: 'head', label: 'Pérdida ℒ_ssi', sub: '1/2M Σ ρ(s·d̂ + t − d*)', x: 104, y: 4, w: 24, h: 11,
         tex: '\\mathcal{L}_{ssi} = \\frac{1}{2M} \\sum_{i=1}^{M} \\rho\\big(s\\,\\hat d_i + t - d^*_i\\big)', note: 'MiDaS (Ranftl et al., TPAMI 2022): ρ = cuadrado (ssimse) o valor absoluto con el 20 % de residuos más grandes recortado (ssitrim). Invariante a escala y desplazamiento: permite mezclar datasets con unidades distintas. Se suma un término de gradiente multi-escala para bordes nítidos.' },
@@ -177,14 +177,15 @@
       { id: 'ss-m', op: 'io', label: 'Profundidad en metros', sub: 'z = 1/(s·d̂ + t)', x: 104, y: 37, w: 24, h: 10, note: 'Un ajuste afín en disparidad no es una escala en profundidad: z = 1/(s·d̂ + t).' },
     ],
     edges: [
-      { from: 'ss-img', to: 'ss-net', kind: 'data', tag: 'RGB', tagStyle: 'plain', tagSide: 'above', tagT: 0.5 },
+      // sin rótulo: la imagen ya se ve (el "RGB" tapaba la punta de la flecha en un tramo de 8 u)
+      { from: 'ss-img', to: 'ss-net', kind: 'data' },
       { from: 'ss-net', to: 'ss-pred', kind: 'data', tag: 'd̂', tagStyle: 'plain', tagSide: 'above', tagT: 0.5 },
       { from: 'ss-pred', to: 'ss-align', kind: 'data', tag: 'd̂', tagStyle: 'plain', tagSide: 'above', tagT: 0.5 },
       { from: 'ss-gt', to: 'ss-align', kind: 'data', tag: 'd*', tagStyle: 'plain', tagSide: 'right', tagT: 0.5 },
       { from: 'ss-align', to: 'ss-loss', kind: 'data', tag: 's·d̂ + t', tagStyle: 'plain', tagSide: 'above', tagT: 0.5 },
       { from: 'ss-pred', to: 'ss-metric', kind: 'data', fromSide: 'bottom', toSide: 'top', fromAt: 0.5, toAt: 0.3, via: [[52.5, 33.5], [75.8, 33.5]], tag: 'd̂', tagStyle: 'plain', tagSide: 'left', tagSeg: 0, tagT: 0.6 },
       { from: 'ss-intr', to: 'ss-metric', kind: 'data', tag: 'f o medidas', tagStyle: 'plain', tagSide: 'above', tagT: 0.5 },
-      { from: 'ss-metric', to: 'ss-m', kind: 'data', tag: 'metros', tagStyle: 'plain', tagSide: 'above', tagT: 0.5 },
+      { from: 'ss-metric', to: 'ss-m', kind: 'data' },
     ],
     legend: 'auto',
   }, PAGE));

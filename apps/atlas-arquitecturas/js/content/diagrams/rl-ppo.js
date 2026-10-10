@@ -85,7 +85,7 @@
       { from: 'env-step', to: 'buffer', kind: 'data', tensor: 'reward', fromAt: 0.3, toAt: 0.06, labelSide: 'above', labelT: 0.5, tag: 'r_t', tagStyle: 'plain', tagSide: 'below', tagT: 0.5 },
       { from: 'sample', to: 'buffer', kind: 'data', tensor: 'logp', fromSide: 'top', toSide: 'top', fromAt: 0.5, toAt: 0.4, via: [[56, 2.6], [140.6, 2.6]], label: false, tag: 'a, log π_old(a|s)', tagStyle: 'plain', tagSide: 'on', tagSeg: 1, tagT: 0.5 },
       { from: 'critic', to: 'buffer', kind: 'data', tensor: 'value', toAt: 0.88, labelSide: 'above', labelT: 0.5, tag: 'V(s_t)', tagStyle: 'plain', tagSide: 'below', tagT: 0.5 },
-      { from: 'buffer', to: 'gae', kind: 'data', tensor: 'rollout', fromSide: 'bottom', toSide: 'top', labelSide: 'right', labelT: 0.5 },
+      { from: 'buffer', to: 'gae', kind: 'data', tensor: 'rollout', fromSide: 'bottom', toSide: 'top', labelSide: 'right', labelT: 0.78 },
       { from: 'gae', to: 'minibatch', kind: 'data', tensor: 'advantages', labelSide: 'above', labelT: 0.5, tag: 'Â, R', tagStyle: 'plain', tagSide: 'below', tagT: 0.5 },
       { from: 'minibatch', to: 'value-loss', kind: 'data', tensor: 'mb-ret', fromAt: 0.12, toAt: 0.5, midX: 80, label: false, tag: 'R', tagStyle: 'plain', tagSide: 'above', tagSeg: 2, tagT: 0.5 },
       { from: 'minibatch', to: 'clip-loss', kind: 'data', tensor: 'mb-adv', fromAt: 0.55, toAt: 0.5, midX: 78, labelSide: 'below', labelSeg: 2, labelT: 0.5 },

@@ -75,7 +75,8 @@
     const kCfg = Math.max(1, Math.round(pick(met, ['steps'], pick(cfg, ['steps', 'inferenceSteps'], 8))));
     const stepMacs = pick(met, ['stepMacs'], null);
     const obsMacs = pick(met, ['visionMacs'], null);
-    const STEPS = [1, 2, 5, 10, 100];   // + los de la config (8 en el YAML de Diffusion Policy) if (STEPS.indexOf(kCfg) < 0) { STEPS.push(kCfg); STEPS.sort((a, b) => a - b); }
+    const STEPS = [1, 2, 5, 10, 100];   // + los de la config (8 en el YAML de Diffusion Policy)
+    if (STEPS.indexOf(kCfg) < 0) { STEPS.push(kCfg); STEPS.sort((a, b) => a - b); }
     const num = (v, d) => (Number.isFinite(+v) && v != null && v !== '' ? +v : d);
     const state = {
       K: STEPS.indexOf(+params.steps) >= 0 ? +params.steps : kCfg,

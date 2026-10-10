@@ -68,6 +68,8 @@
         tex: 'K = P^- H^\\top (H P^- H^\\top + R)^{-1},\\quad x = x^- + K (z - H x^-)',
         note: 'Cada track con pareja corrige su predicción con la caja detectada z: la ganancia K decide cuánto creerle a la detección y cuánto a la predicción. Solo corre en los tracks emparejados (m₁ + m₂).' },
       { id: 'manage', op: 'tensorop', shape: 'rect', costOf: 'manage', label: 'Gestión de tracks', sub: 'nuevos, perdidos, borrados', x: 121, y: 44, w: 24, h: 10,
+        // SORT (sort.py): sin track_buffer; max_age = 1 con la regla time_since_update > max_age, y min_hits = 3 para reportar
+        when: { if: IS_SORT, set: { note: 'SORT (sort.py): cada detección sin pareja abre un track nuevo, que se reporta recién cuando lleva <code>min_hits</code> = 3 emparejamientos seguidos. Los tracks sin pareja se borran cuando los frames seguidos sin detección superan <code>max_age</code> = {{metrics.framesLost}}: toleran un frame y se borran al segundo (si el objeto vuelve, id nuevo). No hay perdidos que se sigan buscando como en ByteTrack.' } },
         note: 'Las detecciones altas sin pareja con score ≥ {{metrics.newTrackThresh}} abren tracks nuevos (id nuevo). Los tracks sin pareja pasan a perdidos: se siguen prediciendo y se borran cuando los frames seguidos sin detección superan {{metrics.framesLost}} (<code>track_buffer</code> = {{metrics.trackBuffer}} a {{metrics.fps}} fps ≈ {{metrics.secondsLost}} s; en SORT, <code>max_age</code>). Un track recién creado se confirma en el frame siguiente.' },
       { id: 'tracks-out', op: 'io', label: 'Tracks + id', sub: 'salida', x: 148, y: 44, w: 11, h: 10,
         note: 'La salida del frame: los tracks activos con su caja y su id. Lo que mide MOTA / IDF1 / HOTA: que el mismo objeto conserve el mismo id.' },
@@ -186,7 +188,7 @@
     opLegend: { fuse: 'Asociación (sin parámetros)' },
     modLegend: { qry: 'Tensor: cajas, IoU y parejas' },
     edgeLegend: { control: 'Lo que queda sin pareja (sin tensor propio)' },
-    legendText: { cells: 'Tabla de IoU (tono ilustrativo: más oscuro = más solapamiento)', cellsAssign: 'Matriz (tono = IoU, ilustrativo): recuadro = la pareja elegida, una por fila y por columna, con el menor costo total (el mayor IoU); ∅ = sin pareja: su fila no se solapa con nada (costo ≥ θ)' },
+    legendText: { cells: 'Tabla de IoU (tono ilustrativo: más intenso = más solapamiento)', cellsAssign: 'Matriz (tono = IoU, ilustrativo): recuadro = la pareja elegida, una por fila y por columna, con el menor costo total (el mayor IoU); ∅ = sin pareja: su fila no se solapa con nada (costo ≥ θ)' },
     nodes: [
       { id: 'as-tracks', op: 'io', label: 'Tracks predichos', sub: 'T cajas (Kalman)', x: 6, y: 1, w: 36, h: 7, note: 'Las cajas de todos los tracks (activos y perdidos) donde el Kalman predice que están en este frame.' },
       { id: 'as-dets', op: 'io', label: 'Detecciones altas', sub: 'D cajas con score', x: 66, y: 1, w: 36, h: 7, note: 'Las detecciones con score > {{metrics.trackHigh}}.' },
