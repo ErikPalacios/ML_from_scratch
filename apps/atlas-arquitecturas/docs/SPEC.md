@@ -1815,3 +1815,79 @@ non-critical points (same output), highlight critical points; synthetic).
 - **content-tracking**: js/content/bytetrack.js. **content-geometry**: js/content/depth.js and js/content/pointnet.js.
 - **orchestrator**: index.html + stubs, catalog (canonical ids `bytetrack-mot17`, `depth-anything-v2-small`,
   `pointnet-cls`; nerf-3dgs card; roadmap status), SPEC, practice METRICS labels, integration.
+
+## 27. Phase 15 shared facts — RL (policy gradient, PPO) and imitation learning (BC, ACT, Diffusion Policy) (every F15 agent MUST use exactly these)
+
+Phase 1–14 lessons apply. Last phase. Thesis: **two ways to get a robot policy** — RL optimises a reward by
+trial and error (policy gradient → PPO's clipped surrogate, GAE; massive parallel simulation, sim-to-real),
+imitation learns from demonstrations (behavior cloning and its covariate shift; ACT predicts chunks of
+actions with a transformer + CVAE; Diffusion Policy denoises action sequences, handling multimodal
+demonstrations). Links: #rlhf-dpo (the same PPO on tokens), #stable-diffusion / #dit (diffusion, DDPM/DDIM),
+#pi0 / #openvla (VLAs: flow-matching action chunks, action tokens), #detr (ACT's encoder-decoder),
+#resnet (backbones). The calculator makes the costs concrete: policy/value network sizes, samples and
+gradient steps per PPO update, rollout memory; ACT/DP params and MACs per inference, actions per
+inference, denoising steps, control Hz on Jetson Orin ≈. Verify every number against papers / official
+code and cite; the source wins.
+
+### 27.1 RL — page `rl-ppo`, model `rl-ppo`
+Papers: REINFORCE (Williams 1992), policy gradient theorem (Sutton et al., NeurIPS 1999), TRPO (Schulman
+et al., ICML 2015, arXiv:1502.05477), GAE (Schulman et al., ICLR 2016, arXiv:1506.02438), PPO (Schulman et
+al., arXiv:1707.06347), "Implementation Matters" (Engstrom et al., ICLR 2020) / "The 37 implementation
+details of PPO" (ICLR blog track 2022) briefly, massively parallel legged locomotion (Rudin et al., CoRL 2021,
+arXiv:2109.11978; legged_gym / rsl_rl), domain randomization (Tobin et al., IROS 2017), SAC briefly (off-policy
+contrast). Canonical **`ppo-mujoco`**: PPO paper's MuJoCo setup (Table 3 / §6.1: separate policy and value
+MLPs 64-64 tanh, Gaussian policy with state-independent log-std, horizon 2048, Adam 3e-4, 10 epochs,
+minibatch 64, γ 0.99, λ 0.95, ε 0.2 — verify) on HalfCheetah (obs 17, act 6 — verify with gymnasium docs).
+Configs: `ppo-atari` (Table 5: Nature-CNN shared actor-critic, 8 actors × 128 steps, 3 epochs, minibatch
+32 × 8, ε 0.1 × α annealed — verify), `ppo-anymal-isaac` (legged_gym rough terrain / rsl_rl defaults:
+4,096 envs × 24 steps, MLP 512-256-128 ELU actor and critic, 5 epochs, 4 minibatches, obs/act dims from the
+repo — verify). Knobs: `nEnvs`, `horizon`, `epochs`, `minibatches`, `hidden`. Metrics: actor / critic params,
+MACs per env step (actor) and per update (forward+backward ≈ 3×), samples per update, gradient steps per
+update, sample reuse (epochs), rollout buffer bytes, env steps to a given budget, wall-clock ≈ only as cited
+(e.g. legged_gym minutes on one GPU). Crosscheck: PyTorch actor/critic modules built as in CleanRL /
+rsl_rl (param counts, MACs via hooks); GAE and the clipped objective checked numerically against a numpy
+reference in crosscheck (no simulator required; gymnasium only if it installs cleanly, for obs/act dims).
+Ids: `ppo-overview` (envs ×N → observations → actor π_θ (sample a) → env step → rewards → buffer → critic
+V_φ → GAE advantages → K epochs × minibatches of clipped surrogate + value loss + entropy → updated θ, φ →
+next rollout), `clip` view (ratio r_t, clip(r, 1−ε, 1+ε), min with A_t), `gae` view (δ_t = r + γV' − V, Â =
+Σ(γλ)^l δ).
+
+### 27.2 Imitation — page `imitation`, model `imitation`
+Papers: ALVINN (Pomerleau 1989) / behavior cloning, DAgger (Ross et al., AISTATS 2011, arXiv:1011.0686),
+ACT / ALOHA (Zhao et al., RSS 2023, arXiv:2304.13705; repo tonyzhaozh/act), Diffusion Policy (Chi et al.,
+RSS 2023 / IJRR 2024, arXiv:2303.04137; repo real-stanford/diffusion_policy), Mobile ALOHA (arXiv:2401.02117)
+and LeRobot briefly, implicit BC / IBC (Florence et al., CoRL 2021) briefly, VQ-BeT briefly (verify).
+Canonical **`act-aloha`**: ACT as released (4 cameras 480×640 — verify — through a ResNet-18 backbone each,
+transformer encoder 4 layers + decoder 7 layers, d 512, 8 heads, FFN 3,200, chunk k = 100, CVAE style
+encoder 4 layers with latent 32, joint dim 14, 50 Hz control, temporal ensembling — verify every number
+against the repo/paper). Configs: `diffusion-policy-cnn` (Chi et al. CNN-based: ResNet-18 with GroupNorm and
+spatial softmax, 1-D temporal conditional U-Net with FiLM, T_o = 2, T_p = 16, T_a = 8, DDPM 100 training
+steps, inference steps per the repo (DDIM) — verify), `diffusion-policy-transformer` (if sizes are clear in
+the repo, else skip and say so), `bc-mlp` (reference BC baseline, documented). Knobs: `chunk` (k or T_p),
+`cams`, `steps` (denoising), `res`. Metrics: params split (vision backbone(s) / transformer or U-Net / CVAE
+encoder / action head), MACs per inference (vision vs policy; × denoising steps for DP), actions per
+inference, inferences per second needed for the control rate, control Hz ≈ on Jetson Orin and H100
+(roofline; existing hardware table), training samples, CVAE KL weight (β) as cited. Crosscheck: PyTorch
+modules transcribed from the official repos on the meta device (param counts per module, MACs via hooks);
+torchvision ResNet-18 for the backbones.
+Ids: `act-overview` (cameras ×4 → ResNet-18 → features + joint state + z → transformer encoder → decoder
+with k queries → k × 14 actions → temporal ensembling → robot), `act-cvae` view (training: style encoder on
+the action sequence → z ~ N(μ, σ); inference z = 0), `diffusion-policy` view (obs encoder → U-Net
+conditioned on obs, noisy action sequence → K denoising steps → T_p actions, execute T_a, receding horizon).
+
+### 27.3 Visualizations
+`ppo-clip` (surrogate L(r) for A > 0 and A < 0 with the clip band; ε slider; show where the gradient is
+zero), `gae` (synthetic reward trace and value estimates; Â for γ, λ sliders; λ = 0 is TD, λ = 1 is MC),
+`covariate-shift` (2-D track: BC policy drifts with compounding error ∝ T² vs DAgger corrections and
+action chunking; synthetic, labelled), `multimodal-actions` (two valid demonstrations around an obstacle:
+MSE regression averages into a collision; a diffusion/sampling policy picks one mode; synthetic).
+
+### 27.4 Ownership in Phase 15
+- **arch**: js/arch/primitives.js (new primitives only: Gaussian policy head, value head, GAE / PPO loss cost
+  accounting, 1-D conv U-Net blocks, FiLM, spatial softmax, CVAE reparameterisation), js/arch/robotlearn.js
+  (models `rl-ppo`, `imitation`), tests, crosscheck/robotlearn.py + expected JSONs.
+- **diagram**: engine extensions, js/ui/viz/{ppo-clip,gae,covariate-shift,multimodal-actions}.js,
+  js/content/diagrams/{rl-ppo,imitation}.js, dev/diagram.html.
+- **content-rl**: js/content/rl-ppo.js. **content-imitation**: js/content/imitation.js.
+- **orchestrator**: index.html + stubs, catalog (canonical ids `ppo-mujoco`, `act-aloha`; roadmap status),
+  SPEC, practice METRICS labels, integration.
