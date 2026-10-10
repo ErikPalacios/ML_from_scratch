@@ -1282,3 +1282,78 @@ tr.is-walk > * { background: var(--accent-soft); }
 .ad-hist-bar.is-r { fill: var(--op-head); }
 .ad-hist-cut { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 3 2; }
 .ad-hist-lab { font: 600 10.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+
+/* ------------------------------------------------------------ fase 14 (tracking, profundidad, PointNet): visualizaciones */
+.viz-kf-sl, .viz-dsc-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-kf-sl input[type="range"], .viz-dsc-sl input[type="range"] { width: 130px; accent-color: var(--accent); }
+.viz-kf-out, .viz-dsc-out { min-width: 5.6em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-kf-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* kalman-track: verdad gris punteada, detecciones = color del detector (op-conv), estimación = acento */
+.viz-kf-bg, .viz-dsc-bg, .viz-pn-bg { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-kf-occ { fill: var(--muted); fill-opacity: .14; stroke: none; }
+.viz-kf-occt { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+.viz-kf-true { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 4 3; }
+.viz-kf-z { fill: var(--op-conv); stroke: var(--surface); stroke-width: .8; }
+.viz-kf-z.is-fut { fill-opacity: .3; }
+.viz-kf-z.is-cur { stroke: var(--ink); stroke-width: 1.4; }
+.viz-kf-est { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-kf-est.is-new { stroke: var(--op-attn); }
+.viz-kf-id { font: 700 10.5px var(--font-mono); fill: var(--accent-ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-kf-id.is-new { fill: var(--op-attn); }
+.viz-kf-ell-pr { fill: none; stroke: var(--ink); stroke-width: 1.3; stroke-dasharray: 4 3; }
+.viz-kf-ell { fill: var(--accent); fill-opacity: .18; stroke: var(--accent); stroke-width: 1.6; }
+.viz-kf-prx { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.viz-kf-xdot { fill: var(--accent); stroke: var(--surface); stroke-width: 1.2; }
+.viz-kf-sig { stroke: var(--op-conv); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-kf-sline { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.viz-kf-cur { stroke: var(--ink); stroke-width: 1.4; }
+/* hungarian-iou: tracks = acento punteado, detecciones = op-conv (sólidas; finas si el score es bajo) */
+.viz-hiou-trk { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
+.viz-hiou-trk.is-out { stroke-opacity: .35; }
+.viz-hiou-trk.is-lost { stroke: var(--bad); }
+.viz-hiou-trk.is-sel, .viz-hiou-det.is-sel { stroke: var(--ink); stroke-width: 3; stroke-opacity: 1; }
+.viz-hiou-tl { font: 700 10.5px var(--font-mono); fill: var(--accent-ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-hiou-tl.is-out { fill-opacity: .55; }
+.viz-hiou-det { fill: none; stroke: var(--op-conv); stroke-width: 2; }
+.viz-hiou-det.is-low { stroke-width: 1.2; stroke-dasharray: 2 2; }
+.viz-hiou-det.is-out { stroke-opacity: .35; }
+.viz-hiou-det.is-gone { stroke: var(--muted); stroke-opacity: .5; }
+.viz-hiou-dl { font: 600 10px var(--font-mono); fill: var(--op-conv); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-hiou-dl.is-low { fill: var(--muted); }
+.viz-hiou-dl.is-out { fill-opacity: .6; }
+.viz-hiou-link { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 2 2; }
+.viz-hiou-cell { stroke: none; }
+.viz-hiou-cell.is-off { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: .8; stroke-dasharray: 2 2; }
+.viz-hiou-fate { margin: 8px 0 0; padding-left: 18px; font-size: var(--fs-sm, 13.5px); }
+.viz-hiou-fate li { margin: 2px 0; }
+/* depth-scale: verdad = ink, cruda = op-conv punteada, alineada = acento */
+.viz-dsc-band { fill: var(--muted); fill-opacity: .08; stroke: none; }
+.viz-dsc-band.is-glass { fill: var(--bad); fill-opacity: .12; }
+.viz-dsc-bt { font: 500 10px var(--font-mono); fill: var(--muted); }
+.viz-dsc-zero { stroke: var(--muted); stroke-width: 1; }
+.viz-dsc-gt { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.viz-dsc-raw { fill: none; stroke: var(--op-conv); stroke-width: 1.8; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.viz-dsc-al { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-dsc-res { stroke: var(--accent); stroke-width: 1.6; }
+.viz-dsc-res.is-cut { stroke: var(--bad); }
+.viz-dsc-cut { fill: var(--bad); stroke: var(--surface); stroke-width: .8; }
+/* pointnet-maxpool: features = op-mlp; críticos con borde grueso */
+.viz-pn-pt { fill: var(--surface); stroke: var(--ink); stroke-width: 1.2; }
+.viz-pn-pt.is-crit { fill: var(--op-mlp); stroke: var(--ink); stroke-width: 2.2; }
+.viz-pn-pt.is-off { fill: none; stroke: var(--muted); stroke-opacity: .5; stroke-dasharray: 2 2; }
+.viz-pn-pt.is-hl { stroke: var(--accent); stroke-width: 3; }
+.viz-pn-cell { stroke: none; }
+.viz-pn-cell.is-max { stroke: var(--ink); stroke-width: 2; }
+.viz-pn-rl { font: 500 9px var(--font-mono); fill: var(--muted); }
+.viz-pn-hit { fill: transparent; stroke: none; cursor: default; }
+.viz-pn-hit:focus-visible { outline: none; stroke: var(--focus); stroke-width: 2.5; }
+.viz-pn-rowsel { fill: none; stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+.viz-pn-g { stroke: var(--op-mlp); stroke-width: 1; }
+.viz-pn-g.is-chg { stroke: var(--bad); stroke-width: 2.2; }
+.viz-pn-gv { font: 600 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-pn-gv.is-chg { fill: var(--bad); }
+.viz-pn-ok { font: 700 11.5px var(--font-mono); fill: var(--ok); }
+.viz-pn-bad { font: 700 11.5px var(--font-mono); fill: var(--bad); }
+/* fase 14: tabla con el máximo por columna (max-pool de PointNet): filas críticas y la fila de los máximos */
+.ad-cell-crit { fill: var(--ink); stroke: none; }
+.ad-cell-pool { fill: none; stroke: var(--muted); stroke-width: 1.2; }

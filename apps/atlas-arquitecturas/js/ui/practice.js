@@ -243,6 +243,22 @@
       refOffload: { label: 'Log-probs de la referencia precalculados', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' log-probs de la referencia precalculados' },
       gradCkpt: { label: 'Gradient checkpointing', show: (v) => (v ? 'sí' : 'no'), phrase: (v) => (v ? 'con' : 'sin') + ' gradient checkpointing' },
     },
+    // Fase 14 (percepción)
+    bytetrack: {
+      nDet: { label: 'Detecciones por frame', show: (v) => fInt(v) + ' detecciones', phrase: (v) => fInt(v) + ' detecciones por frame' },
+      nTracks: { label: 'Tracks activos', show: (v) => fInt(v) + ' tracks', phrase: (v) => fInt(v) + ' tracks activos' },
+      fps: { label: 'Frames por segundo', show: (v) => v + ' fps', phrase: (v) => 'video a ' + v + ' fps' },
+      lowPct: { label: 'Detecciones de baja confianza (%)', show: (v) => v + ' %', phrase: (v) => (v ? v + ' % de detecciones de baja confianza' : 'sin detecciones de baja confianza') },
+    },
+    depth: {
+      res: { label: 'Resolución de entrada', show: (v) => v + '×' + v, phrase: (v) => 'imágenes de ' + v + '×' + v },
+      B: { label: 'Batch B', show: (v) => 'B = ' + fInt(v), phrase: (v) => 'B = ' + fInt(v) + ' imágenes' },
+    },
+    pointnet: {
+      N: { label: 'Puntos N', show: (v) => 'N = ' + fInt(v), phrase: (v) => 'nubes de ' + fInt(v) + ' puntos' },
+      B: { label: 'Batch B', show: (v) => 'B = ' + fInt(v), phrase: (v) => 'B = ' + fInt(v) + ' nubes' },
+      tnet: { label: 'T-Nets', show: (v) => (v ? 'con T-Net' : 'sin T-Net'), phrase: (v) => (v ? 'con' : 'sin') + ' T-Nets' },
+    },
     // Fase 13 (recomendación y árboles)
     'two-tower': {
       B: { label: 'Lote B (negativos in-batch)', show: (v) => 'B = ' + fInt(v), phrase: (v) => 'B = ' + fInt(v) + ' (' + fInt(v - 1) + ' negativos in-batch por ejemplo)' },
@@ -765,6 +781,88 @@
     centroidBytesTouched: { label: 'Bytes de centroides leídos por consulta', kind: 'bytes', note: 'coarse · d · 4' },
     centroidBytesShare: { label: 'Centroides', kind: 'pct', note: '% de los bytes leídos por consulta' },
     latencyMsCachedCentroids: { label: 'ms por consulta con los centroides en caché (≈ cota)', kind: 'ms', note: 'misma cota sin leer los centroides de DRAM' },
+    // Fase 14 (percepción para robótica)
+    stateDim: { label: 'Dimensión del estado del Kalman', kind: 'count', note: 'x, y, a, h y sus velocidades' },
+    measDim: { label: 'Dimensión de la medición', kind: 'count', note: 'la caja: x, y, a, h' },
+    kalmanPredictMacs: { label: 'MACs del predict de un track', kind: 'ops', note: 'x′ = Fx, P′ = FPFᵀ + Q' },
+    kalmanUpdateMacs: { label: 'MACs del update de un track', kind: 'ops', note: 'ganancia K y corrección' },
+    kalmanMacsPerTrack: { label: 'MACs del Kalman por track', kind: 'ops', note: 'predict + update' },
+    kalmanFlopsPerTrack: { label: 'FLOPs del Kalman por track', kind: 'count', note: '2 × MACs' },
+    nDet: { label: 'Detecciones por frame', kind: 'count', note: '' },
+    nHigh: { label: 'Detecciones de alta confianza', kind: 'count', note: 'score ≥ track_thresh' },
+    nLow: { label: 'Detecciones de baja confianza', kind: 'count', note: 'entre el umbral bajo y track_thresh' },
+    nTracks: { label: 'Tracks activos', kind: 'count', note: '' },
+    matches1: { label: 'Asociaciones de la primera pasada', kind: 'count', note: 'alta confianza' },
+    matches2: { label: 'Asociaciones de la segunda pasada', kind: 'count', note: 'baja confianza con los tracks que quedaron' },
+    updates: { label: 'Updates del Kalman por frame', kind: 'count', note: '' },
+    born: { label: 'Tracks nuevos por frame', kind: 'count', note: '' },
+    lost: { label: 'Tracks perdidos por frame', kind: 'count', note: '' },
+    iouPairs: { label: 'Pares de IoU por frame', kind: 'count', note: 'tracks × detecciones, las dos pasadas' },
+    iouOps: { label: 'Operaciones de IoU (≈)', kind: 'count', note: '' },
+    assignN1: { label: 'Lado de la matriz de la primera asignación', kind: 'count', note: 'lapjv con cost_limit: T + D' },
+    assignN2: { label: 'Lado de la matriz de la segunda asignación', kind: 'count', note: '' },
+    assignOps: { label: 'Operaciones de la asignación (≈ cota n³)', kind: 'count', note: 'peor caso de lapjv' },
+    trackerMacs: { label: 'MACs del tracker por frame', kind: 'ops', note: 'solo el Kalman' },
+    trackerFlops: { label: 'FLOPs del tracker por frame', kind: 'count', note: '' },
+    trackerOps: { label: 'Operaciones del tracker por frame (≈)', kind: 'count', note: 'Kalman + IoU + asignación' },
+    trackerParams: { label: 'Parámetros del tracker', kind: 'count', note: 'no aprende nada' },
+    detectorParams: { label: 'Parámetros del detector', kind: 'count', note: '' },
+    detectorMacs: { label: 'MACs del detector por frame', kind: 'ops', note: '' },
+    detectorFlops: { label: 'FLOPs del detector por frame', kind: 'count', note: '' },
+    trackerShare: { label: 'Tracker', kind: 'pct', note: '% del cómputo por frame (≈)' },
+    trackerShareKalman: { label: 'Kalman', kind: 'pct', note: '% del cómputo por frame' },
+    assignShareTracker: { label: 'Asignación', kind: 'pct', note: '% de las operaciones del tracker' },
+    framesLost: { label: 'Frames antes de borrar un track', kind: 'count', note: 'track_buffer (escalado por fps en el código oficial)' },
+    secondsLost: { label: 'Segundos antes de borrar un track', kind: 'avg', note: '' },
+    fps: { label: 'Frames por segundo del video', kind: 'count', note: '' },
+    kalmanBytesPerTrack: { label: 'Bytes del Kalman por track', kind: 'bytes', note: 'media + covarianza en float64' },
+    trackMemBytes: { label: 'Memoria de todos los tracks', kind: 'bytes', note: '' },
+    trackHigh: { label: 'Umbral de alta confianza', kind: 'avg', note: 'track_thresh' },
+    trackLow: { label: 'Umbral de baja confianza', kind: 'avg', note: '' },
+    newTrackThresh: { label: 'Umbral para crear un track', kind: 'avg', note: '' },
+    matchThresh: { label: 'Umbral de costo de la primera asociación', kind: 'avg', note: 'sobre 1 − IoU (con score)' },
+    matchThresh2: { label: 'Umbral de costo de la segunda asociación', kind: 'avg', note: '' },
+    unconfirmedThresh: { label: 'Umbral para tracks sin confirmar', kind: 'avg', note: '' },
+    matchThreshPaper: { label: 'Umbral de costo del paper', kind: 'avg', note: 'rechaza IoU < 0.2' },
+    iouThreshold: { label: 'IoU mínimo (SORT)', kind: 'avg', note: '' },
+    maxAge: { label: 'Frames sin detección antes de borrar (SORT)', kind: 'count', note: '' },
+    minHits: { label: 'Detecciones para confirmar (SORT)', kind: 'count', note: '' },
+    detectorMsOrin: { label: 'ms del detector en Jetson AGX Orin (≈)', kind: 'ms', note: 'roofline' },
+    detectorFpsOrin: { label: 'Frames/s del detector en Orin (≈ tope)', kind: 'hz', note: 'roofline' },
+    detectorMsH100: { label: 'ms del detector en H100 (≈)', kind: 'ms', note: 'roofline' },
+    detectorFpsH100: { label: 'Frames/s del detector en H100 (≈ tope)', kind: 'hz', note: 'roofline' },
+    grid: { label: 'Lado de la grilla de parches', kind: 'count', note: 'resolución / parche' },
+    outH: { label: 'Alto del mapa de profundidad', kind: 'count', note: '' },
+    outW: { label: 'Ancho del mapa de profundidad', kind: 'count', note: '' },
+    reassembleParams: { label: 'Parámetros del reassemble', kind: 'count', note: 'las 4 ramas' },
+    fusionParams: { label: 'Parámetros de la fusión', kind: 'count', note: '' },
+    reassembleMacs: { label: 'MACs del reassemble', kind: 'ops', note: '' },
+    fullResHeadMacs: { label: 'MACs de la cabeza a resolución completa', kind: 'ops', note: '' },
+    fullResHeadMacsShare: { label: 'Cabeza a resolución completa', kind: 'pct', note: '% de los MACs' },
+    msOrin: { label: 'ms en Jetson AGX Orin (≈)', kind: 'ms', note: 'roofline' },
+    fpsOrin: { label: 'Frames/s en Jetson AGX Orin (≈ tope)', kind: 'hz', note: 'roofline' },
+    msH100: { label: 'ms en H100 (≈)', kind: 'ms', note: 'roofline' },
+    fpsH100: { label: 'Frames/s en H100 (≈ tope)', kind: 'hz', note: 'roofline' },
+    inputTnetParams: { label: 'Parámetros del T-Net de entrada', kind: 'count', note: '3×3' },
+    featureTnetParams: { label: 'Parámetros del T-Net de features', kind: 'count', note: '64×64' },
+    tnetParams: { label: 'Parámetros de los T-Net', kind: 'count', note: '' },
+    tnetParamsShare: { label: 'T-Nets', kind: 'pct', note: '% de los parámetros' },
+    tnetMacs: { label: 'MACs de los T-Net', kind: 'ops', note: '' },
+    tnetMacsShare: { label: 'T-Nets', kind: 'pct', note: '% de los MACs' },
+    perPointMacs: { label: 'MACs por punto (todos los puntos)', kind: 'ops', note: 'MLP compartido × N' },
+    globalMacs: { label: 'MACs después del max-pool', kind: 'ops', note: 'FC sobre el vector global' },
+    macsPerPoint: { label: 'MACs por punto', kind: 'count', note: '' },
+    perPointMacsShare: { label: 'Parte por punto', kind: 'pct', note: '% de los MACs' },
+    maxpoolOps: { label: 'Comparaciones de los max-pool', kind: 'count', note: 'incluye los de los T-Net' },
+    maxpoolShare: { label: 'Max-pool', kind: 'pct', note: '% del cómputo' },
+    globalDim: { label: 'Ancho del vector global', kind: 'count', note: '' },
+    criticalPointsMax: { label: 'Puntos críticos (cota)', kind: 'count', note: '≤ ancho del max-pool' },
+    maxpoolOpsGlobal: { label: 'Comparaciones del max-pool global', kind: 'count', note: '' },
+    orthoRegMacs: { label: 'MACs del regularizador ortogonal', kind: 'ops', note: '‖I − AAᵀ‖²' },
+    fpsOps: { label: 'Operaciones de farthest point sampling (≈)', kind: 'count', note: 'PointNet++' },
+    ballQueryOps: { label: 'Operaciones de ball query (≈)', kind: 'count', note: 'PointNet++' },
+    groupOps: { label: 'Operaciones de agrupamiento (≈)', kind: 'count', note: 'PointNet++' },
+    K: { label: 'Clases K', kind: 'count', note: '' },
     // Fase 13 (recomendación y árboles)
     nTrees: { label: 'Árboles', kind: 'count', note: 'número de rondas de boosting' },
     depth: { label: 'Profundidad máxima', kind: 'count', note: '' },
@@ -2180,6 +2278,24 @@
       [['F', c.F, 'features'], ['n_bins', c.histBins, 'bins del histograma por feature'], ['n_nodes', c.nodesPerTree, c.kind === 'oblivious' ? 'valores por árbol (oblivious: d cortes + 2^d hojas)' : 'nodos por árbol'],
         ['K', c.nTrees, 'árboles']].forEach(([k, v, n]) => { if (typeof v === 'number' && !has(k)) out.push([k, v, n]); });
     }
+    // Fase 14: ByteTrack (frame H×W del detector, n_det, D_h, D_l, T, m_1, r, m_2, U, T_out), DPT / Depth Anything (C_1…C_4
+    // = canales del reassemble, F = canales de la fusión) y PointNet++ (S_i centros, k_i vecinos) — símbolos de js/arch/perception.js.
+    if (typeof c.nDet === 'number' && typeof c.detH === 'number') {
+      [['H', c.detH, 'alto del frame que ve el detector'], ['W', c.detW, 'ancho del frame que ve el detector'], ['n_det', c.nDet, 'detecciones del frame'],
+        ['D_h', c.nHigh, 'detecciones de alta confianza'], ['D_l', c.second ? c.nLow : null, 'detecciones de baja confianza'],
+        ['T', c.nTracks, 'tracks activos (predichos)'], ['m_1', c.m1, 'parejas de la primera asociación'],
+        ['r', c.second ? c.rest : null, 'tracks que quedan para la segunda pasada'], ['m_2', c.second ? c.m2 : null, 'parejas de la segunda asociación'],
+        ['U', c.U, 'tracks que reciben update'], ['T_out', c.out, 'tracks que salen del frame']]
+        .forEach(([k, v, n]) => { if (typeof v === 'number' && !has(k)) out.push([k, v, n]); });
+    }
+    if (Array.isArray(c.neck) && Array.isArray(c.taps)) {
+      c.neck.forEach((v, i) => { if (!has('C_' + (i + 1))) out.push(['C_' + (i + 1), v, 'canales del reassemble ' + (i + 1)]); });
+      if (typeof c.F === 'number' && !has('F')) out.push(['F', c.F, 'canales de la fusión']);
+    }
+    if (Array.isArray(c.sa)) c.sa.forEach((sa, i) => {
+      if (typeof sa.S === 'number' && !has('S_' + (i + 1))) out.push(['S_' + (i + 1), sa.S, 'centros del set abstraction ' + (i + 1) + ' (FPS)']);
+      if (typeof sa.k === 'number' && !has('k_' + (i + 1))) out.push(['k_' + (i + 1), sa.k, 'vecinos por centro (ball query, r = ' + sa.r + ')']);
+    });
     // Fase 12 (encoder-decoder): T_in / T_out; Whisper: T_in = las 1,500 posiciones del encoder, S muestras, n_mels.
     if (typeof c.Tout === 'number' && (typeof c.Tin === 'number' || typeof c.nMels === 'number')) {
       const tin = typeof c.Tin === 'number' ? c.Tin : c.encPos;

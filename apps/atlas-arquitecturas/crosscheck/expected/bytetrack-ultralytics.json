@@ -1,0 +1,267 @@
+{
+  "config_id": "bytetrack-ultralytics",
+  "model": "bytetrack",
+  "params_total": 43691520,
+  "params_by_node": {
+    "detector": 43691520,
+    "tracker": 0
+  },
+  "flops_total": 165148679800,
+  "flops_by_node": {
+    "detector": 165148518400,
+    "tracker": 161400
+  },
+  "metrics_checks": {
+    "kalmanPredictMacs": 1088,
+    "kalmanUpdateMacs": 526,
+    "stateDim": 8,
+    "measDim": 4,
+    "trackHigh": 0.25,
+    "trackLow": 0.1,
+    "newTrackThresh": 0.25,
+    "matchThresh": 0.8,
+    "trackBuffer": 30,
+    "framesLost": 30,
+    "assignN1": 90,
+    "assignN2": 20,
+    "matchThresh2": 0.5,
+    "trackerMacs": 80700
+  },
+  "shapes": {
+    "frame": [
+      640,
+      640,
+      3
+    ],
+    "pred-mean": [
+      50,
+      8
+    ],
+    "pred-cov": [
+      50,
+      8,
+      8
+    ],
+    "iou-1": [
+      50,
+      40
+    ],
+    "iou-2": [
+      10,
+      10
+    ],
+    "cost-1": [
+      50,
+      40
+    ],
+    "cost-2": [
+      10,
+      10
+    ],
+    "track-mean-new": [
+      50,
+      8
+    ],
+    "matches-1": [
+      40,
+      2
+    ],
+    "matches-2": [
+      10,
+      2
+    ]
+  },
+  "frame_run": {
+    "yaml": {
+      "tracker_type": "bytetrack",
+      "track_high_thresh": 0.25,
+      "track_low_thresh": 0.1,
+      "new_track_thresh": 0.25,
+      "track_buffer": 30,
+      "match_thresh": 0.8,
+      "fuse_score": true
+    },
+    "yaml_path": "ultralytics/cfg/trackers/bytetrack.yaml",
+    "kalman_macs": 80700,
+    "predict_macs": 54400,
+    "update_macs": 26300,
+    "predicted_tracks": 50,
+    "lapjv": [
+      {
+        "shape": [
+          50,
+          40
+        ],
+        "cost_limit": 0.8,
+        "n": 90,
+        "matches": 40
+      },
+      {
+        "shape": [
+          10,
+          10
+        ],
+        "cost_limit": 0.5,
+        "n": 20,
+        "matches": 10
+      }
+    ],
+    "tracks_out": 50,
+    "max_frames_lost": 30,
+    "calls": 153
+  },
+  "kalman": {
+    "ultralytics": {
+      "predict": 1088,
+      "update": 526,
+      "multi_predict_5": 5440,
+      "F": [
+        8,
+        8
+      ],
+      "H": [
+        4,
+        8
+      ],
+      "calls": [
+        [
+          "dot",
+          [
+            [
+              8
+            ],
+            [
+              8,
+              8
+            ]
+          ],
+          64
+        ],
+        [
+          "multi_dot",
+          [
+            [
+              8,
+              8
+            ],
+            [
+              8,
+              8
+            ],
+            [
+              8,
+              8
+            ]
+          ],
+          1024
+        ],
+        [
+          "solve",
+          [
+            [
+              4,
+              4
+            ],
+            [
+              4,
+              8
+            ]
+          ],
+          110
+        ],
+        [
+          "dot",
+          [
+            [
+              4
+            ],
+            [
+              4,
+              8
+            ]
+          ],
+          32
+        ],
+        [
+          "multi_dot",
+          [
+            [
+              8,
+              4
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              4,
+              8
+            ]
+          ],
+          384
+        ],
+        [
+          "dot",
+          [
+            [
+              5,
+              8
+            ],
+            [
+              8,
+              8
+            ]
+          ],
+          320
+        ],
+        [
+          "dot",
+          [
+            [
+              8,
+              8
+            ],
+            [
+              5,
+              8,
+              8
+            ]
+          ],
+          2560
+        ],
+        [
+          "dot",
+          [
+            [
+              5,
+              8,
+              8
+            ],
+            [
+              8,
+              8
+            ]
+          ],
+          2560
+        ]
+      ]
+    }
+  },
+  "source": {
+    "lib": "ultralytics 8.4.174 (BYTETracker y KalmanFilterXYAH reales) + lap 0.5.12",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    },
+    "detector": "crosscheck/expected/yolov8l-640.json (fase 4)"
+  },
+  "notes": [
+    "Carga de referencia del calculador (knobs por defecto): nDet 50 (40 altas + 10 bajas, lowPct 20), nTracks 50, fps 30.",
+    "MACs del tracker = productos de matrices del Kalman contados en las llamadas reales con sus formas (np.dot, multi_dot, solve, inv, cho_factor, cho_solve; factorizaciones con las fórmulas de libro). IoU y asignación no son MACs (el calculador las pone en 'otros' ≈).",
+    "Frame real: 50 tracks confirmados en el frame 1; en el frame 2, 40 detecciones altas (0.9) en el mismo lugar y 10 bajas (0.15) sobre los otros 10 tracks. multi_predict de 50 tracks = 50 × 1,088 MACs; 50 updates (40 en la 1.ª asociación con fuse_score y 10 en la 2.ª, umbral 0.5) × 526 MACs.",
+    "lapjv: 1.ª llamada 50×40 con cost_limit 0.8 → cuadrada de 90; 2.ª 10×10 con cost_limit 0.5 → 20. Los no confirmados (vacío) no llaman a lapjv.",
+    "KalmanFilterXYAH 8.4: project por slicing (sin H·P·Hᵀ), K con np.linalg.solve(S, P[:, :4]ᵀ): update = LU 14 + 8 lados 96 + y·Kᵀ 32 + K·S·Kᵀ 384 = 526."
+  ]
+}

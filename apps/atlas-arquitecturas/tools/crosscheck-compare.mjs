@@ -14,7 +14,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED = join(ROOT, 'crosscheck', 'expected');
 const FILES = ['js/arch/primitives.js', 'js/arch/transformer.js', 'js/arch/vit.js', 'js/arch/resnet.js', 'js/arch/swin.js', 'js/arch/clip.js', 'js/arch/detr.js',
   'js/arch/grounding-dino.js', 'js/arch/yolo-world.js', 'js/arch/sam.js', 'js/arch/llm.js', 'js/arch/vlm.js', 'js/arch/diffusion.js', 'js/arch/vla.js', 'js/arch/finetune.js', 'js/arch/retrieval.js', 'js/arch/encdec.js',
-  'js/arch/recsys.js', 'js/arch/trees.js'];
+  'js/arch/recsys.js', 'js/arch/trees.js', 'js/arch/perception.js'];
 export const FLOP_TOL = 0.005;   // 0.5 % (en la práctica la diferencia es 0)
 
 export function loadArch(root = ROOT) {
@@ -321,7 +321,7 @@ function regenerate() {
   // Fase 13: trees.py corre xgboost / lightgbm / catboost en un proceso aparte (sin torch). En macOS sin libomp de Homebrew, xgboost y
   // lightgbm encuentran el libomp.dylib que trae torch vía DYLD_FALLBACK_LIBRARY_PATH (no cambia nada del sistema).
   const omp = join(ROOT, '.venv', 'lib', 'python3.13', 'site-packages', 'torch', 'lib');
-  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py', 'retrieval.py', 'encdec.py', 'recsys.py', 'trees.py']) {
+  for (const script of ['transformer.py', 'vit.py', 'resnet.py', 'swin.py', 'clip.py', 'detr.py', 'grounding_dino.py', 'yolo_world.py', 'sam.py', 'llm.py', 'vlm.py', 'diffusion.py', 'vla.py', 'finetune.py', 'retrieval.py', 'encdec.py', 'recsys.py', 'trees.py', 'perception.py']) {
     console.log('▸ .venv/bin/python crosscheck/' + script);
     const extra = script === 'trees.py' && existsSync(omp) ? { DYLD_FALLBACK_LIBRARY_PATH: omp + (process.env.DYLD_FALLBACK_LIBRARY_PATH ? ':' + process.env.DYLD_FALLBACK_LIBRARY_PATH : '') } : {};
     const r = spawnSync(py, [script], { cwd: join(ROOT, 'crosscheck'), stdio: 'inherit', env: Object.assign({}, process.env, { HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', YOLO_OFFLINE: '1', PYTHONDONTWRITEBYTECODE: '1' }, extra) });

@@ -293,7 +293,10 @@
     // Fase 11: tanh (pooler de BERT), máximo por fila (MaxSim de ColBERT).
     tanh: 5, max: 1,
     // Fase 13: candidato de corte de un GBDT (G_L, H_L acumulados, G_R y H_R por resta, ganancia con 3 divisiones) y una comparación.
-    gain: 10, cmp: 1 };
+    gain: 10, cmp: 1,
+    // Fase 14: IoU de un par de cajas (12 ops), centro/aspecto/alto → esquinas (7), un paso de farthest point sampling por par
+    // (centro, punto: 10) y de ball query (9).
+    iou: 12, xyah: 7, fps: 10, ball: 9 };
 
   // Resultado común de una primitiva.
   function result(prim, inputs, out, o) {
@@ -3008,6 +3011,183 @@
     return { format: f, bytes, perNode, estimate: true };
   }
 
+  // ---- Fase 14 (percepción: SORT / ByteTrack, DPT / Depth Anything, PointNet / PointNet++; modelos en js/arch/perception.js) ----
+  // Kalman de un tracker: costo EXACTO por track con la convención del calculador: MACs = productos de matrices DENSAS tal como los
+  // escribe cada implementación (m·n·k por producto m×k · k×n); factorizaciones con las fórmulas de libro (MACs): Cholesky
+  // m(m²−1)/6, LU (m−1)m(2m−1)/6 y m(m−1) por cada lado derecho (sustitución adelante + atrás). n = dimensión del estado, m = de la
+  // medición. impl: 'dense-cholesky' (ByteTrack oficial: H densa, scipy cho_factor / cho_solve), 'slice-lu' (Ultralytics 8.4,
+  // KalmanFilterXYAH: H = [I 0] por slicing, np.linalg.solve), 'filterpy-joseph' (SORT con filterpy 1.4.5: inv(S) y la forma de
+  // Joseph (I − KH)P(I − KH)ᵀ + KRKᵀ). predict (las tres): x·Fᵀ (n²) + F·P·Fᵀ (2n³). Verificado en crosscheck/perception.py contando
+  // las llamadas reales (np.dot, multi_dot, solve, inv, cho_factor, cho_solve) con sus formas.
+  function kalmanCost(impl, n, m) {
+    const chol = m * (m * m - 1) / 6, lu = (m - 1) * m * (2 * m - 1) / 6, rhs = m * (m - 1);
+    const pred = [['x·Fᵀ', n * n], ['F·P·Fᵀ', 2 * n * n * n]];
+    let upd;
+    if (impl === 'dense-cholesky') upd = [['H·x', m * n], ['H·P·Hᵀ', m * n * n + m * n * m], ['P·Hᵀ', n * n * m], ['Cholesky(S)', chol], ['K: cho_solve con ' + n + ' lados', n * rhs], ['y·Kᵀ', m * n], ['K·S·Kᵀ', n * m * m + n * m * n]];
+    else if (impl === 'slice-lu') upd = [['LU(S)', lu], ['K: solve con ' + n + ' lados', n * rhs], ['y·Kᵀ', m * n], ['K·S·Kᵀ', n * m * m + n * m * n]];
+    else if (impl === 'filterpy-joseph') upd = [['P·Hᵀ', n * n * m], ['H·x', m * n], ['H·(PHᵀ)', m * n * m], ['inv(S): LU + ' + m + ' lados', lu + m * rhs], ['K = PHᵀ·S⁻¹', n * m * m], ['K·y', n * m], ['K·H', n * m * n], ['(I−KH)·P·(I−KH)ᵀ', 2 * n * n * n], ['K·R·Kᵀ', n * m * m + n * m * n]];
+    else throw new Error('Kalman: implementación desconocida "' + impl + '" (dense-cholesky, slice-lu, filterpy-joseph).');
+    const sum = (a) => a.reduce((s, p) => s + p[1], 0);
+    // "otros" (≈, elementwise): predict = Q (n² sumas + 2n para armarla; filterpy además α²·(FPFᵀ): n²);
+    // update = R (m² + 2m) + innovación (m) + x + Ky (n) + P − … (n²; Joseph: I − KH y la suma de KRKᵀ: 2n²).
+    const predOther = n * n + 2 * n + (impl === 'filterpy-joseph' ? n * n : 0);
+    const updOther = m * m + 2 * m + m + n + n * n + (impl === 'filterpy-joseph' ? n * n : 0);
+    return { impl, n, m, predict: sum(pred), update: sum(upd), predictParts: pred, updateParts: upd, predictOther: predOther, updateOther: updOther };
+  }
+  // kalman_predict: T tracks (medias T×n, covarianzas T×n×n) → las predichas (velocidad constante). o = {impl, m}
+  function kalman_predict(mean, cov, o) {
+    const T = mean.num[0], n = mean.num[1], k = kalmanCost(o.impl, n, o.m);
+    return result('kalman_predict', [mean, cov], [plain(mean), plain(cov)], {
+      macs: T * k.predict, macTex: mean.sym[0] + '\\,(n^2 + 2n^3)', macArith: T + '·(' + (n * n) + ' + ' + (2 * n * n * n) + ') = ' + int(T * k.predict),
+      other: T * k.predictOther, detail: { impl: o.impl, n, m: o.m, tracks: T, perTrack: k.predict, parts: k.predictParts, note: 'x′ = Fx, P′ = FPFᵀ + Q en cada track del pool (tracked + lost)' },
+    });
+  }
+  // kalman_update: los U tracks emparejados se corrigen con su detección (K = PHᵀS⁻¹). Entradas: medias y covarianzas predichas
+  // (T filas) + los emparejamientos; salida: U×n medias corregidas. o = {impl, m, U}
+  function kalman_update(mean, cov, matches, o) {
+    const n = mean.num[1], U = o.U, k = kalmanCost(o.impl, n, o.m);
+    return result('kalman_update', [mean, cov].concat(matches || []), shape([o.Usym || 'U', mean.sym[1]], [U, n], mean.mod, 'seq'), {
+      macs: U * k.update, macTex: (o.Usym || 'U') + '\\cdot c_{\\mathrm{upd}}', macArith: U + '·' + int(k.update) + ' = ' + int(U * k.update),
+      other: U * k.updateOther, detail: { impl: o.impl, n, m: o.m, updates: U, perTrack: k.update, parts: k.updateParts, note: 'S = HPHᵀ + R, K = PHᵀS⁻¹, x = x + K(z − Hx), P = P − KSKᵀ' },
+    });
+  }
+  // iou_matrix: IoU de cada track predicho (x, y, a, h → caja) con cada detección: T×n, D×5 → T×D. "otros" ≈ 12 ops por par
+  // (4 min/máx, 2 restas, 2 recortes en 0, 1 producto, 2 sumas de la unión, 1 división) + 7 por track (xyah → tlbr) + 3 por caja (área).
+  function iou_matrix(tracks, dets, o) {
+    const T = tracks.num[0], D = dets.num[0];
+    return result('iou_matrix', [tracks, dets], shape([tracks.sym[0], dets.sym[0]], [T, D], (o && o.mod) || dets.mod, 'mat'), {
+      other: T * D * OTHER.iou + T * OTHER.xyah + (T + D) * 3, detail: { T, D, pairs: T * D, opsPerPair: OTHER.iou },
+    });
+  }
+  // assoc_cost: costo de asociación desde la IoU: 1 − IoU (1 op); con fuse (ByteTrack, 1.ª asociación): 1 − IoU·score (+3).
+  function assoc_cost(iou, o) {
+    const per = 1 + (o && o.fuse ? 3 : 0);
+    return result('assoc_cost', [iou], plain(iou), { other: elems(iou) * per, detail: { fuse: !!(o && o.fuse), thresh: o && o.thresh } });
+  }
+  // linear_assignment: Jonker-Volgenant (lap.lapjv) sobre la matriz de costos. Con cost_limit (ByteTrack) lapjv la extiende a un
+  // cuadrado de lado T + D; sin él, con extend_cost (SORT), a max(T, D). "otros" ≈ n³ (peor caso de JV; en la práctica, mucho menos).
+  // o = {n, matches, solver, thresh}
+  function linear_assignment(cost, o) {
+    const n = o.n;
+    return result('linear_assignment', [cost], shape([o.msym || 'm', '2'], [o.matches, 2], cost.mod, 'seq'), {
+      other: n * n * n, detail: { rows: cost.num[0], cols: cost.num[1], n, matches: o.matches, solver: o.solver || 'lapjv', thresh: o.thresh, note: 'lapjv: matriz cuadrada de lado ' + n + ' (≈ n³ peor caso)' },
+    });
+  }
+  // split_score: separa las detecciones por score (alto ≥ τ_alto; bajo entre τ_bajo y τ_alto). Vista + 2 comparaciones por caja.
+  function split_score(dets, o) {
+    const outs = [shape([o.hiSym || 'D_h', dets.sym[1]], [o.nHigh, dets.num[1]], dets.mod, 'seq')];
+    if (o.keepLow) outs.push(shape([o.loSym || 'D_l', dets.sym[1]], [o.nLow, dets.num[1]], dets.mod, 'seq'));
+    return result('split_score', [dets], outs.length === 1 ? outs[0] : outs, { other: 2 * dets.num[0], detail: { high: o.nHigh, low: o.nLow, keepLow: !!o.keepLow, thresholds: o.thresholds || null } });
+  }
+  // track_manage: altas (detecciones altas sin pareja con score ≥ τ_nuevo → track nuevo), perdidos (sin pareja → lost), borrados
+  // (lost más de track_buffer frames). Contabilidad: ≈ 1 op por track y por detección. o = {out, born, lost}
+  function track_manage(x, o) {
+    return result('track_manage', [x], shape([o.outSym || 'T_out', '5'], [o.out, 5], x.mod, 'seq'), { other: o.ops || 0, detail: { born: o.born, lost: o.lost, out: o.out } });
+  }
+  // layer_taps (DPT): salidas intermedias del encoder (las capas o.layers, 1-based): copias (N+1)×D de x_ℓ. Sin costo (vista).
+  function layer_taps(x, o) {
+    return result('layer_taps', [x], o.layers.map(() => plain(x)), { detail: { layers: o.layers.slice() } });
+  }
+  // readout (DPT, Ranftl et al. 2021 §3): qué hacer con el CLS al pasar de (N+1)×D a N×D. 'ignore': descartarlo (Depth Anything);
+  // 'add': sumarlo a cada token (N·D sumas); 'project': concatenarlo a cada token (N×2D) → Linear 2D → D + GELU (DPT-Large).
+  function readout(x, o) {
+    const N = x.num[0] - 1, D = x.num[1], Ds = x.sym[1], mode = o.mode || 'ignore';
+    const out = shape([o.sym || 'N', Ds], [N, D], x.mod, 'seq');
+    if (mode === 'project') {
+      return result('readout', [x], out, {
+        paramTerms: [[2 * D, D], [D]], paramTex: '2' + symTexFactor(Ds) + '\\cdot ' + symTexFactor(Ds) + ' + ' + symTexFactor(Ds),
+        macTerms: [[N, 2 * D, D]], macTex: 'N\\cdot 2' + symTexFactor(Ds) + '\\cdot ' + symTexFactor(Ds),
+        other: N * D * (OTHER.bias + OTHER.gelu), detail: { mode, N, D },
+      });
+    }
+    return result('readout', [x], out, { other: mode === 'add' ? N * D : 0, detail: { mode, N, D } });
+  }
+  // resample (DPT reassemble): factor de escala de la rejilla de parches. > 1: ConvTranspose2d k = s = factor (con sesgo);
+  // 1: identidad; < 1: Conv2d 3×3, stride 1/factor, padding 1 (redondeo de PyTorch). o = {factor, outSym}
+  function resample(x, o) {
+    const f = o.factor, C = x.num[2];
+    let r;
+    if (f > 1) r = conv_transpose2d(x, { k: f, s: f, cout: C, coutSym: x.sym[2], outSym: o.outSym });
+    else if (f === 1) r = result('resample', [x], plain(x), {});
+    else r = conv2d(x, { k: 3, s: Math.round(1 / f), p: 1, cout: C, coutSym: x.sym[2], floor: true, outSym: o.outSym });
+    r.prim = 'resample';
+    r.detail = Object.assign({}, r.detail, { factor: f, kind: f > 1 ? 'conv-transpose' : f === 1 ? 'identity' : 'conv-stride' });
+    return r;
+  }
+  // rcu (residual conv unit de RefineNet / DPT, "PreActResidualLayer" de HF): x + conv(ReLU(conv(ReLU(x)))), dos conv 3×3 C→C con
+  // sesgo. Parámetros 2·(9C² + C); MACs 2·H·W·9C².
+  function rcu(x) {
+    const [H, W, C] = x.num, Cs = x.sym[2];
+    return result('rcu', [x], plain(x), {
+      paramTerms: [[2, 9, C, C], [2, C]], paramTex: '2\\,(9' + symTexFactor(Cs) + '^2 + ' + symTexFactor(Cs) + ')',
+      macTerms: [[2, H, W, 9, C, C]], macTex: '2\\cdot ' + texProd([x.sym[0], x.sym[1]]) + '\\cdot 9' + symTexFactor(Cs) + '^2',
+      other: H * W * C * (2 * OTHER.relu + 2 * OTHER.bias + OTHER.add), detail: { C, convs: 2, k: 3 },
+    });
+  }
+  // point_mlp (PointNet: "shared MLP" = conv 1×1 / Conv1d k = 1 sobre cada punto, con sesgo + BatchNorm + ReLU como el código
+  // oficial en TF): las dimensiones delanteras son puntos (N) o grupos (S×k); la última, canales. Parámetros c_in·c_out + c_out (+ 2c_out
+  // de BN); MACs (puntos)·c_in·c_out. o = {cout, coutSym, bn = true, relu = true, bias = true}
+  function point_mlp(x, o) {
+    const nd = x.num.length, cin = x.num[nd - 1], cinS = x.sym[nd - 1], rows = x.num.slice(0, nd - 1), rowsS = x.sym.slice(0, nd - 1);
+    const cout = o.cout, cs = o.coutSym || String(cout), bn = o.bn !== false, relu = o.relu !== false, bias = o.bias !== false;
+    const out = shape(rowsS.concat([cs]), rows.concat([cout]), o.mod || x.mod, nd === 1 ? 'vec' : x.layout);
+    const pTerms = [[cin, cout]].concat(bias ? [[cout]] : []).concat(bn ? [[2, cout]] : []);
+    const R = prod(rows);
+    return result('point_mlp', [x], out, {
+      paramTerms: pTerms, paramTex: texProd([cinS, cs]) + (bias ? ' + ' + symTexFactor(cs) : '') + (bn ? ' + ' + texScale(2, cs) : ''),
+      macTerms: [rows.concat([cin, cout])], macTex: texProd(rowsS.concat([cinS, cs])),
+      other: R * cout * ((bias ? OTHER.bias : 0) + (bn ? OTHER.batchnorm : 0) + (relu ? OTHER.relu : 0)),
+      detail: { cin, cout, bn, relu, bias, rows: R, note: bn ? 'BN: β y γ (2C) parámetros; media y varianza móviles = buffers' : null },
+    });
+  }
+  // max_pool_points: máximo sobre el eje de puntos (el penúltimo): N×C → C; S×k×C → S×C. Función SIMÉTRICA: el orden de los puntos
+  // no importa. "otros" = (N − 1)·C comparaciones. detail.criticalMax = min(N, C): cada canal elige UN punto (el que gana el máximo).
+  function max_pool_points(x, o) {
+    const nd = x.num.length, N = x.num[nd - 2], C = x.num[nd - 1], lead = x.num.slice(0, nd - 2), leadS = x.sym.slice(0, nd - 2);
+    const out = shape(leadS.concat([x.sym[nd - 1]]), lead.concat([C]), x.mod, lead.length ? 'seq' : 'vec');
+    return result('max_pool_points', [x], out, { other: prod(lead) * (N - 1) * C * OTHER.max, detail: { N, C, groups: prod(lead), criticalMax: Math.min(N, C), note: (o && o.note) || null } });
+  }
+  // point_transform (T-Net aplicada): X·A con A de K×K para cada punto: N×K → N×K, MACs N·K² (un bmm).
+  function point_transform(x, A) {
+    const N = x.num[0], K = x.num[1];
+    if (A.num[0] !== K || A.num[1] !== K) throw new Error('point_transform: la matriz no es ' + K + '×' + K + '.');
+    return result('point_transform', [x, A], plain(x), { macTerms: [[N, K, K]], macTex: texProd([x.sym[0], x.sym[1], x.sym[1]]), detail: { N, K } });
+  }
+  // tnet_transform (salida de la T-Net): Linear 256 → K² (pesos iniciados en 0, sesgo = la identidad aplanada) → K×K.
+  function tnet_transform(x, o) {
+    const din = x.num[0], K = o.K;
+    return result('tnet_transform', [x], shape([String(K), String(K)], [K, K], x.mod, 'mat'), {
+      paramTerms: [[din, K * K], [K * K]], paramTex: x.sym[0] + '\\cdot K^2 + K^2', macTerms: [[din, K * K]], macTex: x.sym[0] + '\\cdot K^2',
+      other: K * K, detail: { K, init: 'W = 0, b = I (empieza como la identidad)' },
+    });
+  }
+  // concat_global (segmentación de PointNet): cada punto recibe [su feature local; la global repetida]: N×C_l, C_g → N×(C_l + C_g).
+  // Con g de N×C_g (PointNet++, SA con group_all) concatena por punto: [xyz; features] → N×(3 + C).
+  function concat_global(pts, g, o) {
+    const N = pts.num[0], per = g.num.length === 2;
+    if (per && g.num[0] !== N) throw new Error('concat_global: ' + N + ' y ' + g.num[0] + ' puntos.');
+    const Cg = per ? g.num[1] : g.num[0], C = pts.num[1] + Cg;
+    return result('concat_global', [pts, g], shape([pts.sym[0], (o && o.sym) || String(C)], [N, C], pts.mod, 'seq'), { detail: { local: pts.num[1], global: Cg, perPoint: per } });
+  }
+  // fps_sample (PointNet++): farthest point sampling de S centros entre N puntos: cada iteración mide la distancia del último elegido a
+  // los N puntos y actualiza la mínima. ≈ S·N·10 ops (3 restas, 3 productos, 2 sumas, 1 mín, 1 comparación del argmax). S×3.
+  function fps_sample(xyz, o) {
+    const N = xyz.num[0];
+    return result('fps_sample', [xyz], shape([o.sym || 'S', xyz.sym[1]], [o.S, xyz.num[1]], xyz.mod, 'seq'), { other: o.S * N * OTHER.fps, detail: { N, S: o.S, opsPerPair: OTHER.fps, note: 'secuencial en S (cada centro depende del anterior)' } });
+  }
+  // ball_query (PointNet++): para cada centro, hasta k vecinos dentro del radio r (rellena repitiendo el primero). ≈ S·N·9 ops.
+  function ball_query(xyz, centers, o) {
+    const N = xyz.num[0], S = centers.num[0];
+    return result('ball_query', [xyz, centers], shape([centers.sym[0], o.kSym || 'k'], [S, o.k], xyz.mod, 'seq'), { other: S * N * OTHER.ball, detail: { N, S, k: o.k, r: o.r } });
+  }
+  // group_points (PointNet++): junta los k vecinos de cada centro: xyz relativo al centro (3) [+ sus features C] → S×k×(3 + C).
+  function group_points(idx, centers, feats, o) {
+    const S = idx.num[0], k = idx.num[1], C = feats ? feats.num[1] : 0;
+    return result('group_points', [idx, centers, feats].filter(Boolean), shape([idx.sym[0], idx.sym[1], o.sym || String(3 + C)], [S, k, 3 + C], (o && o.mod) || centers.mod, 'seq'), {
+      other: S * k * 3, detail: { S, k, xyz: 3, features: C, note: 'xyz relativo al centro (traslación normalizada) + features' },
+    });
+  }
+
   const PRIMS = {
     linear, conv2d, layernorm, rmsnorm, gelu, embedding_lookup, pos_embed_learned, cls_token,
     concat_tokens, flatten, split_heads, merge_heads, attention_scores, scale, softmax,
@@ -3052,6 +3232,9 @@
     // Fase 13
     embedding_bag, embedding_tables, stack_rows, logq_correct, flatten_vec, pairwise_dot, tril_select, cross_mix, cross_layer,
     treeHistRows, treeSplitEvals, quantize_bins, grad_hess, histogram_build, split_find, grow_tree, tree_update, tree_predict, leaf_sum, tree_bytes,
+    // Fase 14
+    kalmanCost, kalman_predict, kalman_update, iou_matrix, assoc_cost, linear_assignment, split_score, track_manage, layer_taps, readout, resample, rcu,
+    point_mlp, max_pool_points, point_transform, tnet_transform, concat_global, fps_sample, ball_query, group_points,
   };
 
   // Tabla genérica de fórmulas (ref-formas). Símbolos de SPEC §6.2.
@@ -3302,6 +3485,26 @@
     { id: 'tree_update', name: 'Actualizar predicciones', paramTex: '0', macTex: '0', outTex: 'N \\to N', note: 'F_t = F_{t−1} + η·árbol_t(x): cada fila baja por el árbol nuevo.' },
     { id: 'tree_predict', name: 'Recorrer los árboles', paramTex: '0', macTex: '0', outTex: 'F \\to K', note: 'Una muestra baja por los K árboles: K·d comparaciones (por profundidad), 0 MACs. Por hojas (LightGBM) la profundidad del camino depende de los datos.' },
     { id: 'leaf_sum', name: 'Suma de hojas', paramTex: '1', macTex: '0', outTex: 'K \\to 1', note: 'ŷ = base + Σ_t w_t(x) (η ya está dentro de los valores de hoja). Para clasificación, σ(ŷ).' },
+    // Fase 14 (percepción: tracking, profundidad monocular, nubes de puntos)
+    { id: 'kalman_predict', name: 'Kalman: predicción', paramTex: '0', macTex: 'T\\,(n^2 + 2n^3)', outTex: 'T\\times n,\\ T\\times n\\times n \\to T\\times n,\\ T\\times n\\times n', note: 'x′ = Fx, P′ = FPFᵀ + Q (velocidad constante) en cada track. n = 8 (ByteTrack: x, y, a, h y velocidades) → 1,088 MACs por track; SORT n = 7 → 735.' },
+    { id: 'kalman_update', name: 'Kalman: corrección', paramTex: '0', macTex: 'U\\cdot c_{\\mathrm{upd}}', outTex: 'T\\times n \\to U\\times n', note: 'S = HPHᵀ + R, K = PHᵀS⁻¹, x += K(z − Hx), P −= KSKᵀ. Por track: 1,194 MACs (ByteTrack oficial: H densa + Cholesky), 526 (Ultralytics: H por slicing + solve), 1,728 (SORT/filterpy: inv(S) + forma de Joseph).' },
+    { id: 'iou_matrix', name: 'Matriz de IoU', paramTex: '0', macTex: '0', outTex: 'T\\times n,\\ D\\times 5 \\to T\\times D', note: 'IoU de cada track predicho con cada detección: ≈ 12 ops por par (sin MACs).' },
+    { id: 'assoc_cost', name: 'Costo de asociación', paramTex: '0', macTex: '0', outTex: 'T\\times D \\to T\\times D', note: '1 − IoU; ByteTrack fusiona el score en la 1.ª asociación: 1 − IoU·score.' },
+    { id: 'linear_assignment', name: 'Asignación (Jonker-Volgenant)', paramTex: '0', macTex: '0', outTex: 'T\\times D \\to m\\times 2', note: 'lap.lapjv: O(n³) peor caso; con cost_limit (ByteTrack) la matriz se extiende a (T + D)×(T + D); sin él (SORT), a max(T, D).' },
+    { id: 'split_score', name: 'Separar por score', paramTex: '0', macTex: '0', outTex: 'n\\times 5 \\to D_h\\times 5,\\ D_l\\times 5', note: 'ByteTrack: altas (≥ τ_alto) para la 1.ª asociación; bajas (τ_bajo < s < τ_alto) para la 2.ª. SORT descarta las bajas.' },
+    { id: 'track_manage', name: 'Altas, pérdidas y bajas de tracks', paramTex: '0', macTex: '0', outTex: '\\to T_{\\mathrm{out}}\\times 5', note: 'Detección alta sin pareja → track nuevo; track sin pareja → perdido; perdido más de track_buffer frames → borrado.' },
+    { id: 'layer_taps', name: 'Salidas intermedias del encoder', paramTex: '0', macTex: '0', outTex: '(N{+}1)\\times D \\to 4\\times (N{+}1)\\times D', note: 'DPT lee 4 capas (p. ej. 3, 6, 9, 12 en ViT-S/B; 6, 12, 18, 24 en ViT-L de DPT): rasgos de bajo y alto nivel.' },
+    { id: 'readout', name: 'Readout (qué hacer con el CLS)', paramTex: '0\\ \\text{o}\\ 2D^2 + D', macTex: '0\\ \\text{o}\\ N\\cdot 2D^2', outTex: '(N{+}1)\\times D \\to N\\times D', note: 'ignore: descartar el CLS (Depth Anything); add: sumarlo; project: concatenarlo a cada token y Linear 2D → D + GELU (DPT-Large).' },
+    { id: 'resample', name: 'Re-muestreo de la rejilla', paramTex: 'f^2 C^2 + C\\ \\text{o}\\ 9C^2 + C', macTex: 'h\\,w\\,f^2 C^2\\ \\text{o}\\ \\tfrac{h}{2}\\tfrac{w}{2}\\,9C^2', outTex: 'h\\times w\\times C \\to fh\\times fw\\times C', note: 'Factor 4 y 2: ConvTranspose2d k = s = f; 1: identidad; ½: Conv2d 3×3 stride 2. Así salen las 4 escalas de DPT.' },
+    { id: 'rcu', name: 'Residual conv unit', paramTex: '2\\,(9C^2 + C)', macTex: '2\\,h\\,w\\,9C^2', outTex: 'h\\times w\\times C \\to h\\times w\\times C', note: 'x + conv(ReLU(conv(ReLU(x)))): el bloque de las fusiones tipo RefineNet de DPT.' },
+    { id: 'point_mlp', name: 'MLP compartido por punto', paramTex: 'C_{in}C_{out} + C_{out} + 2C_{out}', macTex: 'N\\,C_{in}\\,C_{out}', outTex: 'N\\times C_{in} \\to N\\times C_{out}', note: 'Conv 1×1 (Conv1d k = 1): los MISMOS pesos en cada punto. Con sesgo + BatchNorm (β, γ) + ReLU como el código oficial.' },
+    { id: 'max_pool_points', name: 'Max-pool sobre los puntos', paramTex: '0', macTex: '0', outTex: 'N\\times C \\to C', note: 'Función simétrica: el resultado no cambia si permutas los puntos. (N − 1)·C comparaciones; a lo sumo min(N, C) puntos críticos.' },
+    { id: 'point_transform', name: 'Aplicar la T-Net', paramTex: '0', macTex: 'N\\,K^2', outTex: 'N\\times K,\\ K\\times K \\to N\\times K', note: 'Cada punto (o su feature) × la matriz K×K que predijo la T-Net.' },
+    { id: 'tnet_transform', name: 'Salida de la T-Net', paramTex: '256\\,K^2 + K^2', macTex: '256\\,K^2', outTex: '256 \\to K\\times K', note: 'Pesos en 0 y sesgo = identidad: al inicio la T-Net no transforma. K = 64: 1,052,672 parámetros (un tercio del modelo).' },
+    { id: 'concat_global', name: 'Concatenar la feature global', paramTex: '0', macTex: '0', outTex: 'N\\times 64,\\ 1024 \\to N\\times 1088', note: 'Segmentación: cada punto ve su contexto local y el global.' },
+    { id: 'fps_sample', name: 'Farthest point sampling', paramTex: '0', macTex: '0', outTex: 'N\\times 3 \\to S\\times 3', note: 'S iteraciones secuenciales, cada una mide N distancias: ≈ 10·S·N ops (sin MACs de matmul).' },
+    { id: 'ball_query', name: 'Ball query', paramTex: '0', macTex: '0', outTex: 'N\\times 3,\\ S\\times 3 \\to S\\times k', note: 'Hasta k vecinos dentro del radio r de cada centro: ≈ 9·S·N ops (fuerza bruta).' },
+    { id: 'group_points', name: 'Agrupar vecinos', paramTex: '0', macTex: '0', outTex: '\\to S\\times k\\times(3{+}C)', note: 'xyz relativo al centro + features de cada vecino: la entrada del mini-PointNet de cada región.' },
   ];
   function primitives() { return PRIM_INFO.map((p) => Object.assign({}, p)); }
 
@@ -3655,6 +3858,8 @@
     // Fase 12: el sesgo relativo de T5 (constante por stack, calculado de la tabla), los scores con sesgo (previos al softmax)
     // y el audio rellenado (entrada cruda).
     t5_rel_bias: 1, add_rel_bias: 1, pad_or_trim: 1,
+    // Fase 14: las salidas intermedias del encoder de DPT (copias de x_ℓ, ya contadas en su capa) y la separación por score (vista).
+    layer_taps: 1, split_score: 1,
   };
 
   // metrics: números derivados para el explorador de escala y el "¿qué pasa si…?" (SPEC §6.5).

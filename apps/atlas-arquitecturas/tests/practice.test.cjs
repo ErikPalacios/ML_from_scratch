@@ -21,7 +21,7 @@ function load() {
 const ATLAS = load();
 const P = ATLAS.Practice, A = ATLAS.Arch;
 // Revisión de la fase 10: lora y rlhf-dpo también entran en las barridas (drills de parámetros = diagrama, de formas = tarjeta).
-const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit', 'lora', 'rlhf-dpo', 'bert', 'retrieval', 'ann', 't5', 'whisper', 'two-tower', 'dlrm', 'gbdt'];
+const MODELS = ['vit', 'swin', 'clip', 'detr', 'deformable-detr', 'grounding-dino', 'yolov8', 'yolo-world', 'sam', 'sam2', 'llm', 'llava', 'qwen2-vl', 'stable-diffusion', 'dit', 'lora', 'rlhf-dpo', 'bert', 'retrieval', 'ann', 't5', 'whisper', 'two-tower', 'dlrm', 'gbdt', 'bytetrack', 'depth', 'pointnet'];
 const diagrams = ATLAS.diagrams();
 // Fase 7 (VLM): símbolos de la torre de visión que la tarjeta de datos debe mostrar además de los genéricos (H, W, C, P, D, L,
 // h, D_mlp, N, T, V, G): D_v, h_v, d_v, L_v, N_p y, en Qwen2-VL, F (frames). Mientras practice.js (factPairs) no los incluya,
@@ -108,10 +108,10 @@ test('drills de formas: cada dimensión sale de los datos de la tarjeta o del te
       t.sym.forEach((sym, i) => {
         const str = String(sym);
         if (/^\d+$/.test(str)) return;
-        const e = str.replace(/K_cls/g, 'Kcls').replace(/C_5/g, 'C5').replace(/\bhLK\b/g, '(h*L*K)').replace(/\bLK\b/g, '(L*K)')
-          .replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/²/g, '**2').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+        const e = str.replace(/\/(\d+)([A-Za-z]\w*)/g, '/($1$2)').replace(/K_cls/g, 'Kcls').replace(/C_5/g, 'C5').replace(/\bhLK\b/g, '(h*L*K)').replace(/\bLK\b/g, '(L*K)')
+          .replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/²/g, '**2').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2').replace(/⌈/g, 'Math.ceil(').replace(/⌉/g, ')');   // ⌈x⌉ = techo
         const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-        if (ids.some((x) => !(x in known))) {
+        if (ids.some((x) => !(x in known) && x !== 'Math' && x !== 'ceil')) {
           assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + c.tensor + ': «' + str + '» no sale de los datos (' + t.label + ')');
           return;
         }
@@ -172,10 +172,10 @@ test('fase 4: toda forma de Grounding DINO, YOLOv8 y YOLO-World sale de los dato
       t.sym.forEach((sym, i) => {
         const str = String(sym);
         if (/^\d+$/.test(str)) return;
-        const e = str.replace(/\bhLK\b/g, '(h*L*K)').replace(/\bLK\b/g, '(L*K)').replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh')
-          .replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+        const e = str.replace(/\/(\d+)([A-Za-z]\w*)/g, '/($1$2)').replace(/\bhLK\b/g, '(h*L*K)').replace(/\bLK\b/g, '(L*K)').replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh')
+          .replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2').replace(/⌈/g, 'Math.ceil(').replace(/⌉/g, ')');   // ⌈x⌉ = techo
         const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-        if (ids.some((x) => !(x in known))) {
+        if (ids.some((x) => !(x in known) && x !== 'Math' && x !== 'ceil')) {
           assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
           return;
         }
@@ -280,9 +280,9 @@ test('fase 5: toda forma de SAM y SAM 2 sale de los datos de la tarjeta o de su 
       t.sym.forEach((sym, i) => {
         const str = String(sym);
         if (/^\d+$/.test(str)) return;
-        const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/²/g, '**2').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+        const e = str.replace(/\/(\d+)([A-Za-z]\w*)/g, '/($1$2)').replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/²/g, '**2').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2').replace(/⌈/g, 'Math.ceil(').replace(/⌉/g, ')');   // ⌈x⌉ = techo
         const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-        if (ids.some((x) => !(x in known))) {
+        if (ids.some((x) => !(x in known) && x !== 'Math' && x !== 'ceil')) {
           assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
           return;
         }
@@ -388,9 +388,9 @@ test('fase 6: toda forma del modelo llm (prefill y decode, denso y MoE) sale de 
         t.sym.forEach((sym, i) => {
           const str = String(sym);
           if (/^\d+$/.test(str)) return;
-          const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+          const e = str.replace(/\/(\d+)([A-Za-z]\w*)/g, '/($1$2)').replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
           const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-          if (ids.some((x) => !(x in known))) {
+          if (ids.some((x) => !(x in known) && x !== 'Math' && x !== 'ceil')) {
             // decode: ctx (contexto de la KV cache) va en la etiqueta del tensor con su número
             const v = ids.includes('ctx') ? Function('ctx', 'return ' + e.replace(/[A-Za-z_]+(?<!ctx)\b/g, (m) => (m in known ? known[m] : m)))(R.config.ctx) : t.num[i];
             assert.strictEqual(v, t.num[i], cfg + ' ' + id + ': ' + str);
@@ -510,9 +510,9 @@ test('fase 7: toda forma de LLaVA y Qwen2-VL (imagen, varias imágenes, video) s
         t.sym.forEach((sym, i) => {
           const str = String(sym);
           if (/^\d+$/.test(str)) return;
-          const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+          const e = str.replace(/\/(\d+)([A-Za-z]\w*)/g, '/($1$2)').replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
           const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-          if (ids.some((x) => !(x in known))) {
+          if (ids.some((x) => !(x in known) && x !== 'Math' && x !== 'ceil')) {
             assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
             return;
           }
@@ -548,9 +548,9 @@ test('fase 8: toda forma de Stable Diffusion (inferencia, entrenamiento, SDXL) y
         t.sym.forEach((sym, i) => {
           const str = String(sym);
           if (/^\d+$/.test(str)) return;
-          const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/²/g, '**2').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+          const e = str.replace(/\/(\d+)([A-Za-z]\w*)/g, '/($1$2)').replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/²/g, '**2').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
           const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-          if (ids.some((x) => !(x in known))) {
+          if (ids.some((x) => !(x in known) && x !== 'Math' && x !== 'ceil')) {
             assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
             return;
           }
@@ -662,9 +662,9 @@ test('fase 9: toda forma de OpenVLA y π0 (1 y 3 cámaras, otros H / pasos / T) 
         t.sym.forEach((sym, i) => {
           const str = String(sym);
           if (/^\d+$/.test(str)) return;
-          const e = str.replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
+          const e = str.replace(/\/(\d+)([A-Za-z]\w*)/g, '/($1$2)').replace(/D_\{?mlp\}?/g, 'Dmlp').replace(/d_h/g, 'dh').replace(/·/g, '*').replace(/(\d)([A-Za-z(])/g, '$1*$2');
           const ids = e.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-          if (ids.some((x) => !(x in known))) {
+          if (ids.some((x) => !(x in known) && x !== 'Math' && x !== 'ceil')) {
             assert.ok(new RegExp('\\b' + t.num[i] + '\\b').test(text), cfg + ' ' + id + ': «' + str + '» no sale de los datos (' + t.label + ')');
             return;
           }

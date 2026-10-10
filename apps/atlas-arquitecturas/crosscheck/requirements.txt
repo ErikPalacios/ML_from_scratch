@@ -39,3 +39,7 @@ graphviz==0.21
 plotly==7.1.0
 pandas==3.0.6
 narwhals==2.26.0
+# fase 14 (crosscheck/perception.py): lap (lapjv de Jonker-Volgenant, el que usan ByteTrack, SORT y el BYTETracker de ultralytics) y
+# filterpy (el KalmanFilter de SORT). Sin dependencias nuevas (usan numpy y scipy).
+lap==0.5.12
+filterpy==1.4.5

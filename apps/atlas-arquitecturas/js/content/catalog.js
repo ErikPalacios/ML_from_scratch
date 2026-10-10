@@ -603,7 +603,7 @@
     freq: B, minutes: 60,
     from: ['yolo*', 'detr'], to: [],
     paper: { title: 'ByteTrack: Multi-Object Tracking by Associating Every Detection Box', authors: 'Zhang et al.', venue: 'ECCV 2022', arxiv: '2110.06864' },
-    model: 'bytetrack', canonical: null,
+    model: 'bytetrack', canonical: 'bytetrack-mot17',
     card: { in: 'detecciones por frame', out: 'tracks con id persistente',
       idea: 'Kalman predice, el matching húngaro asocia', uso: 'video analítica, robots móviles, conteo' },
   }));
@@ -620,7 +620,7 @@
     freq: B, minutes: 60,
     from: ['vit'], to: [],
     paper: { title: 'Vision Transformers for Dense Prediction', authors: 'Ranftl et al.', venue: 'ICCV 2021', arxiv: '2103.13413' },
-    model: 'depth', canonical: null,
+    model: 'depth', canonical: 'depth-anything-v2-small',
     card: { in: 'imagen', out: 'mapa de profundidad por píxel',
       idea: 'ViT + decoder denso que reensambla tokens en varias escalas', uso: 'navegación, manipulación, AR' },
   }));
@@ -637,7 +637,7 @@
     freq: B, minutes: 45,
     from: ['resnet*'], to: [],
     paper: { title: 'PointNet: Deep Learning on Point Sets for 3D Classification and Segmentation', authors: 'Qi et al.', venue: 'CVPR 2017', arxiv: '1612.00593' },
-    model: 'pointnet', canonical: null,
+    model: 'pointnet', canonical: 'pointnet-cls',
     card: { in: 'N puntos (x, y, z)', out: 'clase de la nube o etiqueta por punto',
       idea: 'MLP por punto + max-pool: no importa el orden', uso: 'LiDAR, bin picking, segmentación 3D' },
   }));
@@ -842,9 +842,9 @@
       note: 'T5 y Whisper (cross-attention), y las tarjetas completas de GNNs, Mamba/SSMs, GANs y RNN/LSTM. Fase ligera.' },
     { phase: 13, block: 2, status: 'done', title: 'Fase 13 — Recomendación y árboles', items: ['two-tower', 'dlrm', 'gbdt'],
       note: 'Two-tower + ranking (DLRM / Wide & Deep) y gradient boosted trees, y por qué siguen ganando en tabulares.' },
-    { phase: 14, block: 3, status: 'next', title: 'Fase 14 — Percepción para robótica', items: ['bytetrack', 'depth', 'pointnet', 'nerf-3dgs'],
+    { phase: 14, block: 3, status: 'done', title: 'Fase 14 — Percepción para robótica', items: ['bytetrack', 'depth', 'pointnet', 'nerf-3dgs'],
       note: 'Tracking (Kalman + matching húngaro), profundidad monocular, PointNet; NeRF y Gaussian Splatting a nivel 1. Opcional.' },
-    { phase: 15, block: 3, status: 'later', title: 'Fase 15 — RL e imitation learning', items: ['rl-ppo', 'imitation'],
+    { phase: 15, block: 3, status: 'next', title: 'Fase 15 — RL e imitation learning', items: ['rl-ppo', 'imitation'],
       note: 'Policy gradient, PPO, behavior cloning, ACT y Diffusion Policy; conecta con las fases 8 y 9. Opcional.' },
   ];
 

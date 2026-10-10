@@ -1609,7 +1609,43 @@
     if (isSlot(n.id)) return true;
     return (spec.edges || []).some((e) => e.from === n.id && isSlot(e.to));
   }
+  // fase 14: layers.taps = clave de una LISTA de capas (1-based) de las que se toman features (los 4 taps de DPT): la tira se
+  // parte en tantos tramos iguales como taps y cada tramo dibuja sus capas, con el tap al final (resaltado, "tap k" debajo). Así
+  // el tap k queda siempre a k/n del ancho, y las aristas que salen de él usan un fromAt fijo para cualquier config.
+  function listKey(run, key) {
+    if (Array.isArray(key)) return key;
+    if (!run || key == null) return null;
+    const parts = String(key).split('.'), ns = parts[0], rest = parts.slice(1).join('.');
+    const v = ns === 'cfg' ? cfgPath(run.config, rest) : ns === 'metrics' ? cfgPath(metricsOf(run), rest) : undefined;
+    return Array.isArray(v) && v.every(Number.isFinite) ? v : null;
+  }
+  function layerTaps(run, o) {
+    const L = numKey(run, o.L), taps = o.taps ? listKey(run, o.taps) : null;
+    if (!(L > 0) || !taps || !taps.length) return null;
+    return { L, taps: taps.slice().sort((a, b) => a - b) };
+  }
+  function drawLayerTaps(g, o, r, run, used, lt) {
+    used.layersTaps = true;
+    const gg = S('g', { class: 'ad-layers' }, g);
+    const x0 = r.x + 12, W = r.w - 24, y = r.y + r.h - LAYERS_H + 2, ch = 13, n = lt.taps.length;
+    let prev = 0;
+    lt.taps.forEach((tp, k) => {
+      const last = k === n - 1 ? Math.max(tp, lt.L) : tp;
+      const seg = [];
+      for (let i = prev + 1; i <= last; i++) seg.push(i);
+      prev = last;
+      const sx = x0 + k * W / n, cw = (W / n) / Math.max(1, seg.length);
+      seg.forEach((c, i) => {
+        const x = sx + i * cw, isTap = c === tp;
+        S('rect', { x: r1(x + 1), y: r1(y), width: r1(Math.max(1, cw - 2)), height: ch, rx: 2, class: 'ad-layer' + (isTap ? ' is-tap' : '') }, gg);
+        if (cw >= 13 || isTap) txt(gg, x + cw / 2, y + 9.8, String(c), 'ad-layer-n', 'middle');
+        if (isTap) txt(gg, x + cw / 2, y + ch + 11, (o.tapLabel || 'tap') + ' ' + (k + 1), 'ad-layer-cap is-tap', 'middle');
+      });
+    });
+  }
   function drawLayers(g, o, r, run, used, neutral) {
+    const lt = o.taps ? layerTaps(run, o) : null;
+    if (lt) return drawLayerTaps(g, o, r, run, used, lt);
     const L = numKey(run, o.L);
     const tap = tapOf(run, o, L);
     if (!(L > 0) || !(tap > 0)) return;
@@ -1707,7 +1743,8 @@
     // fase 10 (revisión): legendSegs = la muestra de la leyenda con los colores de los dos primeros tramos (PPO no tiene tono "loop")
     if (o.legendSegs) used.costSplitCls = segs.slice(0, 2).map(cls);
     // fase 9: unit:'ms' = la barra del TIEMPO (≈ roofline del calculador) en vez de los MACs
-    const A = arch(), ops = o.unit === 'ms' ? (v) => (v >= 100 ? Math.round(v) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + ' ms' : (v) => (A && A.fmt && A.fmt.ops ? A.fmt.ops(v) : fsi(v) + 'MACs');
+    // fase 14: unit:'flops' = FLOPs (el tracker cuenta operaciones, no MACs: Kalman + IoU + asignación)
+    const A = arch(), ops = o.unit === 'ms' ? (v) => (v >= 100 ? Math.round(v) : v >= 10 ? v.toFixed(1) : v.toFixed(2)) + ' ms' : o.unit === 'flops' ? (v) => (A && A.fmt && A.fmt.ops ? A.fmt.ops(v, 'FLOPs') : fsi(v) + 'FLOPs') : (v) => (A && A.fmt && A.fmt.ops ? A.fmt.ops(v) : fsi(v) + 'MACs');
     const tot = segs.reduce((a, sg) => a + sg.v, 0) || 1;
     const gg = S('g', { class: 'ad-cs' }, g);
     const x0 = r.x + 12, W = r.w - 24, y = r.y + r.h - COST_H(o) + 4, bh = 14;
@@ -1720,7 +1757,8 @@
     S('rect', { x: x0, y, width: W, height: bh, class: 'ad-cs-frame' }, gg);
     // fase 10 (revisión): pct1 = un decimal por debajo de 10 % (el rollout de PPO: "2.7 %" como el caption, no "3 %")
     // fase 11 (revisión): pct1:'all' = un decimal en todos los tramos (el reranker: "94.8 %", como el rótulo del carril)
-    const pct = (v) => { const f = 100 * v / tot; return o.pct1 && f > 0 && (f < 10 || (o.pct1 === 'all' && f < 99.95)) ? f.toFixed(1) + ' %' : f > 0 && f < 1 ? '<1 %' : (f > 99 && f < 100 ? '>99 %' : Math.round(f) + ' %'); };
+    // fase 14: pctSig = debajo de 1 %, 3 cifras significativas ('0.0123 %', como …Share en la prosa) en vez de '<1 %'
+    const pct = (v) => { const f = 100 * v / tot; if (o.pctSig && f > 0 && f < 1) return f.toPrecision(3) + ' %'; return o.pct1 && f > 0 && (f < 10 || (o.pct1 === 'all' && f < 99.95)) ? f.toFixed(1) + ' %' : f > 0 && f < 1 ? '<1 %' : (f > 99 && f < 100 ? '>99 %' : Math.round(f) + ' %'); };
     segs.forEach((sg, i) => {
       const yy = y + bh + 14 + i * 14;
       S('rect', { x: x0, y: r1(yy - 8.5), width: 9, height: 9, class: cls(sg) }, gg);
@@ -2185,12 +2223,16 @@
     return { R, C, nR, nC, cs, moreR: R > maxR, moreC: C > maxC };
   }
   const CELLS_TOP = (o) => (o.label ? (o.sum ? 28 : 16) : (o.sum ? 14 : 6));
-  const CELLS_H = (o, run) => { const d = cellsDims(o, run); if (!d) return 0; return CELLS_TOP(o) + (d.nR + (d.moreR ? 1 : 0)) * d.cs + (o.sum ? 14 : 0) + (o.caption ? 15 : 0) + 6; };
+  // fase 14: mark:'colmax' = el máximo de cada COLUMNA marcado (max-pool de PointNet sobre los puntos: filas = puntos), las filas que
+  // ganan alguna columna con un punto a la izquierda (puntos críticos) y, con pooled:true, una fila extra debajo con el máximo de
+  // cada columna (el vector global). Los otros marks no cambian (sin pooled, el alto es el de siempre).
+  const CELLS_POOL = (o, d) => (o.mark === 'colmax' && o.pooled ? d.cs + 10 : 0);
+  const CELLS_H = (o, run) => { const d = cellsDims(o, run); if (!d) return 0; return CELLS_TOP(o) + (d.nR + (d.moreR ? 1 : 0)) * d.cs + CELLS_POOL(o, d) + (o.sum ? 14 : 0) + (o.caption ? 15 : 0) + 6; };
   function drawCells(g, o, r, run, used, ctl, spec) {
     const d = cellsDims(o, run);
     if (!d) return;
     const mark = o.mark || 'none';
-    if (mark === 'rows') used.cellsRows = true; else used.cells = true;
+    if (mark === 'rows') used.cellsRows = true; else if (mark !== 'colmax' && mark !== 'assign') used.cells = true;
     const quiet = ctl.mode === 'blank' || ctl.quiz;
     const gg = S('g', { class: 'ad-cells' }, g);
     const rng = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng(o.seed || 11) : Math.random;
@@ -2205,13 +2247,30 @@
     const litSet = mark === 'rows' && Array.isArray(o.litRows) ? new Set(o.litRows.filter((i) => i < d.nR)) : null;
     const isLit = (i) => (litSet ? litSet.has(i) : i < lit);
     const vals = [];
+    // colmax: los valores se sacan antes (hace falta el máximo de cada columna); mismo orden de la semilla que el resto
+    const pre = mark === 'colmax' ? Array.from({ length: d.nR }, () => Array.from({ length: d.nC }, () => rng())) : null;
+    const colBest = pre ? Array.from({ length: d.nC }, (_, j) => { let b = 0; for (let i = 1; i < d.nR; i++) if (pre[i][j] > pre[b][j]) b = i; return b; }) : null;
+    if (pre) used.cellsColmax = true;
+    // fase 14: mark:'assign' = una asignación 1 a 1 (permutación con semilla de las columnas); las últimas o.unmatched filas
+    // dibujadas quedan sin pareja (∅ a la derecha: no pasaron el umbral). La asociación de un tracker
+    let perm = null;
+    if (mark === 'assign') {
+      const R2 = (ATLAS.Viz && ATLAS.Viz.rng) ? ATLAS.Viz.rng((o.seed || 11) + 101) : Math.random;
+      perm = Array.from({ length: d.nC }, (_, j) => j);
+      for (let j = perm.length - 1; j > 0; j--) { const k = Math.floor(R2() * (j + 1)); const t = perm[j]; perm[j] = perm[k]; perm[k] = t; }
+      const free = Math.min(d.nR, Math.max(0, d.nR - (o.unmatched || 0)));
+      perm = Array.from({ length: d.nR }, (_, i) => (i < free && i < d.nC ? perm[i] : -1));
+      used.cellsAssign = true;
+    }
     for (let i = 0; i < rowsDrawn; i++) {
       const isMoreR = d.moreR && i === d.nR;
       const yy = y0 + i * cs;
       if (isMoreR) { txt(gg, x0 + (d.nC * cs) / 2, yy + cs - 1, '⋮', 'ad-cells-ell', 'middle'); continue; }
-      const row = [];
-      for (let j = 0; j < d.nC; j++) row.push(rng());
+      const row = pre ? pre[i] : [];
+      if (!pre) for (let j = 0; j < d.nC; j++) row.push(rng());
       vals.push(row);
+      if (pre && colBest.indexOf(i) >= 0) S('circle', { cx: r1(x0 - 5), cy: r1(yy + cs / 2), r: 2.2, class: 'ad-cell-crit' }, gg);
+      if (perm && perm[i] < 0) txt(gg, x0 + colsDrawn * cs + 7, yy + cs - 1.5, '∅', 'ad-cells-ell', 'middle');
       const best = row.indexOf(Math.max(...row)), pick = Math.floor(rng() * d.nC);
       for (let j = 0; j < colsDrawn; j++) {
         const xx = x0 + j * cs;
@@ -2221,7 +2280,7 @@
         else if (mark === 'tril' && j >= i) S('rect', { x: r1(xx + 0.5), y: r1(yy + 0.5), width: r1(cs - 1), height: r1(cs - 1), class: 'ad-cell-off' }, gg);
         else S('rect', { x: r1(xx + 0.5), y: r1(yy + 0.5), width: r1(cs - 1), height: r1(cs - 1), class: 'ad-cell', style: 'fill-opacity:' + (Math.round((0.12 + 0.75 * row[j]) * 100) / 100) }, gg);
         // fase 13: diag = la diagonal marcada (los positivos de la matriz B×B del lote)
-        if ((mark === 'rowmax' && j === best) || (mark === 'pick' && j === pick) || (mark === 'diag' && j === i)) S('rect', { x: r1(xx - 0.5), y: r1(yy - 0.5), width: r1(cs + 1), height: r1(cs + 1), class: 'ad-cell-mark' }, gg);
+        if ((mark === 'rowmax' && j === best) || (mark === 'pick' && j === pick) || (mark === 'diag' && j === i) || (mark === 'colmax' && colBest[j] === i) || (mark === 'assign' && perm[i] === j)) S('rect', { x: r1(xx - 0.5), y: r1(yy - 0.5), width: r1(cs + 1), height: r1(cs + 1), class: 'ad-cell-mark' }, gg);
       }
       if (sumW) {
         const xs = x0 + colsDrawn * cs + 10;
@@ -2233,13 +2292,24 @@
       txt(gg, xs + cs / 2, y0 - 5, 'máx', 'ad-cells-ell', 'middle');
       if (!quiet) txt(gg, xs + cs / 2, yb + 11, String(o.sum), 'ad-cells-sum', 'middle');
     }
-    if (o.caption && !quiet) txt(gg, r.x + r.w / 2, y0 + rowsDrawn * cs + (sumW ? 14 : 0) + 12, qText(o.caption, ctl, spec), 'ad-gqa-cap', 'middle');
+    const poolH = CELLS_POOL(o, d);
+    if (poolH) {
+      // el vector global: una celda por columna con el máximo de la columna (en el mismo tono), debajo de una flecha
+      const yp = y0 + rowsDrawn * cs + 10;
+      for (let j = 0; j < colsDrawn; j++) {
+        const xx = x0 + j * cs;
+        if (d.moreC && j === d.nC) { txt(gg, xx + cs / 2, yp + cs - 2, '…', 'ad-cells-ell', 'middle'); continue; }
+        S('rect', { x: r1(xx + 0.5), y: r1(yp + 0.5), width: r1(cs - 1), height: r1(cs - 1), class: 'ad-cell is-max', style: 'fill-opacity:' + (Math.round((0.12 + 0.75 * pre[colBest[j]][j]) * 100) / 100) }, gg);
+      }
+      S('path', { d: 'M' + P([x0 - 9, yp - 8]) + 'V' + r1(yp + cs / 2) + 'H' + r1(x0 - 2), class: 'ad-cell-pool' }, gg);
+    }
+    if (o.caption && !quiet) txt(gg, r.x + r.w / 2, y0 + rowsDrawn * cs + poolH + (sumW ? 14 : 0) + 12, qText(o.caption, ctl, spec), 'ad-gqa-cap', 'middle');
   }
   function cellsWords(o, run, ctl, spec) {
     const d = cellsDims(o, run);
     if (!d) return '';
     const quiet = ctl.mode === 'blank' || ctl.quiz;
-    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : o.mark === 'diag' ? 'la diagonal marcada' : o.mark === 'tril' ? 'solo el triángulo inferior estricto' : '';
+    const what = o.mark === 'rowmax' ? 'el máximo de cada fila marcado' + (o.sum ? ' y sumado' : '') : o.mark === 'pick' ? 'una celda leída por fila' : o.mark === 'rows' ? 'filas resaltadas: las que se recorren' : o.mark === 'diag' ? 'la diagonal marcada' : o.mark === 'tril' ? 'solo el triángulo inferior estricto' : o.mark === 'assign' ? 'una pareja por fila, cada columna a lo sumo una vez' + (o.unmatched ? '; ' + o.unmatched + ' filas sin pareja' : '') : o.mark === 'colmax' ? 'el máximo de cada columna marcado (las filas que ganan alguna, con un punto)' + (o.pooled ? ' y, debajo, la fila de los máximos' : '') : '';
     return 'tabla' + (quiet ? '' : ' de ' + fint(d.R) + ' × ' + fint(d.C)) + (what ? ', ' + what : '') + ' (tono ilustrativo)' + (o.caption && !quiet ? ': ' + plainSub(qText(o.caption, ctl, spec)) : '');
   }
 
@@ -2410,7 +2480,8 @@
     if (n.cells && run) { const cw = cellsWords(n.cells, run, ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {})); if (cw) parts.push(cw); }
     if (n.layered) parts.push(layeredWords(n.layered, ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {})));
     if (n.strip && run) { const sg = stripSegs(n.strip, run); if (sg) parts.push('prompt: ' + sg.map((x) => (x.count === false ? '' : fint(x.v) + ' ') + (x.label || '')).join(' + ')); }
-    if (n.layers && run) { const L = numKey(run, n.layers.L); const tp = tapOf(run, n.layers, L); if (L && tp) parts.push(layersNeutral(ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {}), n) ? L + ' capas' : 'features de la capa ' + tp + ' de ' + L); }
+    if (n.layers && run && n.layers.taps) { const lt = layerTaps(run, n.layers); if (lt) parts.push(lt.L + ' capas; features de las capas ' + lt.taps.join(', ')); }
+    else if (n.layers && run) { const L = numKey(run, n.layers.L); const tp = tapOf(run, n.layers, L); if (L && tp) parts.push(layersNeutral(ctl, ctl.building || (ctl.cur() ? ctl.cur().spec : {}), n) ? L + ' capas' : 'features de la capa ' + tp + ' de ' + L); }
     if (n.expand) parts.push('se puede abrir');
     if (n.xref && n.xref.length) parts.push('con enlace a otra página');
     return parts.join('; ');
@@ -2728,6 +2799,7 @@
     }
     if (used.posIds) item((s) => { const t = S('text', { x: 13, y: 12, 'text-anchor': 'middle', class: 'ad-pos-n is-var' }, s); t.textContent = 't h w'; }, 'Ids de posición (t, h, w) de M-RoPE: ilustrativo');
     if (used.dropfirst) item((s) => { const g = S('g', { class: 'ad-glyph ad-mod--img' }, s); S('rect', { x: 9, y: 4, width: 15, height: 9, class: 'ad-face ad-face--front', fill: 'var(--surface)' }, g); S('rect', { x: 2, y: 4, width: 7, height: 9, class: 'ad-tokdrop' }, s); S('path', { d: 'M3 5L8 12M8 5L3 12', class: 'ad-tokdrop-x' }, s); }, 'Token descartado (CLS): no sigue al proyector');
+    if (used.layersTaps) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-layer' + (i % 2 ? ' is-tap' : '') }, s)); }, ((view.spec && view.spec.legendText) || {}).layersTaps || 'Capas del encoder: resaltadas = las que dan features (taps)');
     if (used.layers) item((s) => { [2, 8, 14, 20].forEach((x, i) => S('rect', { x, y: 3, width: 5, height: 10, rx: 1, class: 'ad-layer' + (i === 2 ? ' is-tap' : i === 3 ? ' is-off' : '') }, s)); }, 'Capas del encoder: resaltada = de la que se toman las features; atenuada = no se usa');
     if (used.frozen) item((s) => { const g = S('g', { class: 'ad-train ad-train--frozen' }, s); S('rect', { x: 1, y: 1, width: 24, height: 14, rx: 7, class: 'ad-train-bg' }, g); trainIcon(g, true, 13, 8); }, 'Congelado: sus pesos no se actualizan en esta etapa');
     // fase 10: congelado solo con el rayado (trainPill:false) o en un tramo de barra: la muestra es el rayado
@@ -2762,6 +2834,8 @@
     if (used.tokKeep) item((s) => { const g = S('g', { class: 'ad-toks' }, s); S('rect', { x: 2, y: 3, width: 22, height: 10, rx: 2, class: 'ad-tok is-seg0 is-keep' }, g); }, LT.tokKeep || 'Elegido y sin cambio (10 % de los elegidos): también entra en la pérdida');
     if (used.hist) item((s) => { const g = S('g', { class: 'ad-hist' }, s); [[2, 4, 4], [6, 2, 6], [10, 5, 3]].forEach(([x, y, h]) => S('rect', { x, y: 8 - h, width: 3, height: h, class: 'ad-hist-bar is-l' }, g)); [[16, 8, 4], [20, 8, 6]].forEach(([x, y, h]) => S('rect', { x, y, width: 3, height: h, class: 'ad-hist-bar is-r' }, g)); S('path', { d: 'M14.5 1V15', class: 'ad-hist-cut' }, g); }, LT.hist || 'Histograma (ilustrativo): una barra por bin con la suma de gradientes; línea punteada = el corte');
     if (used.cells) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [[2, 2, .25], [8, 2, .8], [14, 2, .4], [2, 8, .6], [8, 8, .2], [14, 8, .9]].forEach(([x, y, v]) => S('rect', { x, y, width: 5, height: 5, class: 'ad-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 7.5, y: 1.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('rect', { x: 13.5, y: 7.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); }, LT.cells || 'Tabla (ilustrativa: el tono no es un valor real); recuadro = la celda elegida por fila');
+    if (used.cellsAssign) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [[2, 2, .3], [8, 2, .9], [14, 2, .4], [2, 8, .7], [8, 8, .2], [14, 8, .3]].forEach(([x, y, v]) => S('rect', { x, y, width: 5, height: 5, class: 'ad-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 7.5, y: 1.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('rect', { x: 1.5, y: 7.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); }, LT.cellsAssign || 'Matriz (tono ilustrativo): recuadro = la pareja elegida (una por fila y por columna); ∅ = sin pareja');
+    if (used.cellsColmax) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [[6, 2, .3], [12, 2, .9], [18, 2, .4], [6, 8, .8], [12, 8, .2], [18, 8, .5]].forEach(([x, y, v]) => S('rect', { x, y, width: 5, height: 5, class: 'ad-cell', style: 'fill-opacity:' + v }, g)); S('rect', { x: 11.5, y: 1.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('rect', { x: 5.5, y: 7.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('rect', { x: 17.5, y: 7.5, width: 6, height: 6, class: 'ad-cell-mark' }, g); S('circle', { cx: 2.5, cy: 4.5, r: 1.8, class: 'ad-cell-crit' }, g); S('circle', { cx: 2.5, cy: 10.5, r: 1.8, class: 'ad-cell-crit' }, g); }, LT.cellsColmax || 'Tabla (tono ilustrativo): recuadro = el máximo de cada columna; punto = fila que gana alguna');
     if (used.cellsRows) item((s) => { const g = S('g', { class: 'ad-cells' }, s); [2, 6, 10].forEach((y, i) => S('rect', { x: 2, y, width: 22, height: 3, class: 'ad-cell-row' + (i === 1 ? ' is-lit' : '') }, g)); }, LT.cellsRows || 'Filas: listas del índice; resaltadas = las que se recorren');
     if (used.layered) item((s) => { const g = S('g', { class: 'ad-layered' }, s); S('path', { d: 'M4 3H24L21 7H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M4 9H24L21 13H1Z', class: 'ad-lay-plane' }, g); S('path', { d: 'M8 5L8 11', class: 'ad-lay-drop' }, g); S('path', { d: 'M8 11L16 11', class: 'ad-lay-path' }, g); S('circle', { cx: 8, cy: 5, r: 2.6, class: 'ad-lay-ep' }, g); S('path', { d: 'M19 11L21 9L23 11L21 13Z', class: 'ad-lay-q' }, g); }, LT.layered || 'Grafo por capas (ilustrativo): la ruta resaltada es la búsqueda codiciosa');
     if (used.matrix) item((s) => { const g = S('g', { class: 'ad-op--embed' }, s); S('rect', { x: 3, y: 2, width: 12, height: 12, class: 'ad-mat-box' }, g); S('rect', { x: 18, y: 2, width: 3, height: 12, class: 'ad-mat-box' + (used.matrixClamped ? ' is-clamped' : '') }, g); }, LT.matrix || 'Matriz de pesos a escala (lineal): filas × columnas');
