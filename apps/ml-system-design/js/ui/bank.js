@@ -156,11 +156,17 @@
       on: { click: () => (panelRef.isOpen() && panelRef.tab() === k ? panelRef.close(true) : panelRef.open(k)) },
     }, h('span', { html: icon(ic) }), label);
     const sessEl = h('p', { class: 'bank__sess mono small', 'aria-live': 'polite' });
+    const confirmSlot = h('div', { class: 'bank__confirm', hidden: true });
+    const resetLevelsBtn = h('button', { type: 'button', class: 'btn btn--text btn--sm', on: { click: askResetLevels } }, 'Reiniciar niveles');
     wrap.appendChild(h('div', { class: 'bank__controls' },
       h('div', { class: 'bank__row' }, h('span', { class: 'px-k' }, 'Temas'), chipsEl),
       h('div', { class: 'bank__row' }, h('span', { class: 'px-k' }, 'Nivel'), modeSeg,
         h('span', { class: 'bank__tools' }, openBtn('formulario', 'Formulario', 'approx'), openBtn('numeros', 'Números de referencia', 'ref'))),
-      sessEl));
+      h('div', { class: 'bank__row bank__row--sess' }, sessEl,
+        h('span', { class: 'bank__resets' },
+          h('button', { type: 'button', class: 'btn btn--text btn--sm', title: 'Pone en cero los contadores de esta sesión y empieza de nuevo', on: { click: resetSession } }, h('span', { html: icon('reset') }), 'Reiniciar sesión'),
+          resetLevelsBtn)),
+      confirmSlot));
     const stage = h('div', { class: 'bank__stage' });
     wrap.appendChild(stage);
 
@@ -199,7 +205,7 @@
     function paintChips() {
       chipsEl.innerHTML = '';
       const allOn = selected.length === topicIds.length;
-      chipsEl.appendChild(h('button', { type: 'button', class: 'bank__chip', 'aria-pressed': String(allOn), on: { click: () => { if (allOn) return; selected = topicIds.slice(); persist(); paintChips(); } } }, 'Todos'));
+      chipsEl.appendChild(h('button', { type: 'button', class: 'bank__chip', 'aria-pressed': String(allOn), on: { click: () => { if (allOn) return; selected = topicIds.slice(); persist(); paintChips(); onSelectionChange(); } } }, 'Todos'));
       topicIds.forEach((t) => {
         const st = topicStat(store, bank.id, t);
         const on = selected.indexOf(t) >= 0;
@@ -209,18 +215,56 @@
           on: { click: () => {
             if (on && selected.length === 1) return;   // al menos un tema
             selected = on ? selected.filter((x) => x !== t) : selected.concat(t);
-            persist(); paintChips();
+            persist(); paintChips(); onSelectionChange();
           } },
         }, topicTitle(bank, t), h('span', { class: 'bank__lv mono' }, 'Nv ' + st.level)));
       });
     }
     function setMode(k) {
+      if (k === mode) return;
       mode = k;
       Object.keys(modeBtns).forEach((x) => modeBtns[x].setAttribute('aria-pressed', String(x === k)));
       persist();
+      onSelectionChange(true);
+    }
+    // Cambiaste temas o nivel: si el problema en curso ya no corresponde, se cambia por uno nuevo
+    // (sin contarlo). Si ya lo terminaste, el siguiente sale con la selección nueva.
+    function onSelectionChange(levelChanged) {
+      const pb = S.problem;
+      if (!pb || pb.done) return;
+      const off = selected.indexOf(pb.topic) < 0 || (levelChanged && mode !== 'auto' && +mode !== pb.level);
+      if (off) { startNext(false); if (D.toast) D.toast('Nuevo problema con tu selección'); }
+    }
+    function skip() {
+      S.problem = makeProblem(bank, selected, mode, store);
+      paintProblem(true);
+    }
+    function resetSession() {
+      S.count = 0; S.ok = 0; S.streak = 0; S.queue = []; S.problem = null;
+      confirmSlot.hidden = true;
+      paintProblem(false);
+      if (D.toast) D.toast('Sesión reiniciada');
+    }
+    function askResetLevels() {
+      confirmSlot.innerHTML = '';
+      confirmSlot.appendChild(h('div', { class: 'bank__confirm-row', role: 'group', 'aria-label': 'Confirmar reinicio de niveles' },
+        h('span', null, '¿Reiniciar niveles y aciertos de ' + bank.title + '? Todos los temas vuelven a nivel 1.'),
+        h('button', { type: 'button', class: 'btn btn--sm btn--danger', on: { click: () => {
+          const all = store.pref('problemStats') || {};
+          delete all[bank.id];
+          store.setPref('problemStats', all);
+          confirmSlot.hidden = true;
+          paintChips();
+          resetSession();
+          if (D.toast) D.toast('Niveles reiniciados');
+        } } }, 'Sí, reiniciar'),
+        h('button', { type: 'button', class: 'btn btn--sm btn--text', on: { click: () => { confirmSlot.hidden = true; resetLevelsBtn.focus(); } } }, 'No')));
+      confirmSlot.hidden = false;
+      confirmSlot.querySelector('.btn--danger').focus();
     }
     function persist() {
-      savePrefs(store, bank.id, { topics: selected.slice(), mode });
+      // «Todos» se guarda como null: así un tema que se agregue después al banco aparece ya seleccionado.
+      savePrefs(store, bank.id, { topics: selected.length === topicIds.length ? null : selected.slice(), mode });
       S.queue = [];
     }
     function paintSess() {
@@ -311,7 +355,8 @@
         card.appendChild(h('div', { class: 'dq__actions' },
           h('button', { type: 'button', class: 'btn btn--primary', on: { click: () => check() } }, 'Comprobar'),
           d.hint && !pb.hinted ? h('button', { type: 'button', class: 'btn btn--sm', on: { click: () => { pb.hinted = true; paintProblem(false); focusInput(); } } }, h('span', { html: icon('question') }), 'Pista: cómo plantearlo') : null,
-          h('button', { type: 'button', class: 'btn btn--text btn--sm', on: { click: giveUp } }, 'Ver solución')));
+          h('button', { type: 'button', class: 'btn btn--text btn--sm', on: { click: giveUp } }, 'Ver solución'),
+          h('button', { type: 'button', class: 'btn btn--text btn--sm', title: 'Otro problema, sin contar este', on: { click: skip } }, 'Saltar problema')));
       }
       stage.appendChild(card);
       if (MSD.Blocks && MSD.Blocks.decorate) safe(() => MSD.Blocks.decorate(card));

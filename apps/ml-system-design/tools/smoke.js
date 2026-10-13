@@ -761,6 +761,45 @@
     button('Ver solución').click();
     ok('banco: ver solución cuenta como fallo y muestra los pasos', await waitFor(() => MSD.Bank.current('estimaciones').done && !MSD.Bank.current('estimaciones').ok && $('#page .bank__part .dq__steps'), 800));
     ok('banco: 2 fallos seguidos bajan a nivel 1', ((store.pref('problemStats') || {}).estimaciones || {}).trafico.level === 1);
+    // Cambiar de tema a media pregunta cambia el problema (sin contarlo)
+    button('Siguiente problema').click();
+    await waitFor(() => MSD.Bank.current('estimaciones') && !MSD.Bank.current('estimaciones').done, 800);
+    const countBefore = txt($('#page .bank__sess'));
+    $('#page .bank__chip[data-topic="costo"]').click();
+    $('#page .bank__chip[data-topic="trafico"]').click();
+    ok('banco: cambiar de tema cambia el problema en curso', await waitFor(() => MSD.Bank.current('estimaciones').topic === 'costo' && $('#page .bank__card .chip') && /Costo/.test(txt($('#page .bank__card .chip'))), 800), MSD.Bank.current('estimaciones').topic);
+    ok('banco: el cambio no cuenta como problema', txt($('#page .bank__sess')) === countBefore);
+    const prevPb = MSD.Bank.current('estimaciones');
+    button('Saltar problema').click();
+    ok('banco: saltar da otro problema sin contarlo', await waitFor(() => MSD.Bank.current('estimaciones') !== prevPb && !MSD.Bank.current('estimaciones').done, 800) && txt($('#page .bank__sess')) === countBefore);
+    button('Reiniciar sesión').click();
+    ok('banco: reiniciar sesión vuelve al inicio con contadores en cero', await waitFor(() => !MSD.Bank.current('estimaciones') && !!button('Empezar'), 800) && /^Elige temas/.test(txt($('#page .bank__sess'))));
+    button('Reiniciar niveles').click();
+    const yesBtn = await waitFor(() => button('Sí, reiniciar'), 800);
+    ok('banco: reiniciar niveles pide confirmación', !!yesBtn);
+    yesBtn.click();
+    ok('banco: reiniciar niveles borra los niveles', await waitFor(() => !((store.pref('problemStats') || {}).estimaciones), 800));
+    // Casos completos: «Diseña un proyecto» y «Arregla o mejora» traen una decisión, cálculos y la solución de cada parte
+    for (const tp of ['proyecto', 'diagnostico']) {
+      const chip = $('#page .bank__chip[data-topic="' + tp + '"]');
+      ok('banco: tema ' + tp, !!chip);
+      if (!chip) continue;
+      if (chip.getAttribute('aria-pressed') !== 'true') chip.click();
+      for (const c of $$('#page .bank__chip[data-topic]')) if (c.dataset.topic !== tp && c.getAttribute('aria-pressed') === 'true') c.click();
+      (button('Empezar') || button('Siguiente problema')).click();
+      const cur = await waitFor(() => { const p = MSD.Bank.current('estimaciones'); return p && !p.done && p.topic === tp && p; }, 800);
+      ok('banco: problema de ' + tp, !!cur, cur && cur.topic);
+      if (!cur) continue;
+      const parts = cur.data.parts;
+      ok('banco: ' + tp + ' trae decisión y cálculos (' + cur.tpl.id + ')', parts.some((p) => Array.isArray(p.choices)) && parts.filter((p) => !Array.isArray(p.choices)).length >= 2);
+      const pb = await answerAll(true);
+      ok('banco: ' + tp + ' resuelto bien (' + pb.tpl.id + ')', pb.done && pb.ok);
+      ok('banco: ' + tp + ' muestra los pasos de cada parte', $$('#page .bank__part .dq__steps').length === parts.length);
+      checkOverflow('#problemas (' + tp + ')');
+    }
+    // Deja seleccionados todos los temas otra vez («Todos» se guarda como null para que un tema nuevo aparezca seleccionado)
+    button('Todos').click();
+    ok('banco: «Todos» se guarda sin lista fija', ((store.pref('problemPrefs') || {}).estimaciones || {}).topics === null);
     // Apuntes
     button('Formulario').click();
     const panel = await waitFor(() => { const p = byId('drill-panel'); return p && !p.hidden && p; }, 800);

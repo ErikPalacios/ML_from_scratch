@@ -929,3 +929,7 @@
 .bank__card .dq__q { font-size: 16.5px; }
 .dpanel__h { margin: 8px 0 0; font: 600 13px/1.2 var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 @media (max-width: 767px) { .bank__tools { margin-left: 0; } }
+.bank__row--sess { justify-content: space-between; }
+.bank__resets { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.bank__resets .ico { width: 13px; height: 13px; }
+.bank__confirm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--rule-strong); font-size: 14px; }

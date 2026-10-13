@@ -87,13 +87,20 @@ se agrega con sus propios archivos `mNN-practica*.js` y el botón aparece solo.
 
 **Banco de problemas** (Parte 3 del índice, `#problemas`) da un problema tras otro con números
 nuevos. La primera sección es **Estimaciones** (tráfico, latencia, disponibilidad, hardware, costo,
-almacenamiento y red, y escenarios completos encadenados). Cada tema tiene 3 niveles; en modo
-**Auto**, 3 aciertos seguidos sin pista suben de nivel y 2 fallos lo bajan (también puedes fijar el
-nivel). **Pista** muestra cómo plantearlo sin los números; cada parte se corrige al momento con la
-solución paso a paso, y al final se explica qué decide ese número en el diseño. **Formulario** y
-**Números de referencia** se abren a la derecha. Las secciones viven en `js/content/banco-*.js`
-(`MSD.problemBank.<id>`: temas, fórmulas, tarjetas y plantillas `gen(r)`); una sección nueva aparece
-sola en la página.
+almacenamiento y red, y escenarios completos encadenados), más dos temas de casos completos de
+entrevista: **Diseña un proyecto** («queremos lograr esto, ¿qué haces?»: requisitos → patrón o
+hardware → tamaño → trade-off con números) y **Arregla o mejora** («tenemos este problema, ¿cómo lo
+arreglas?»: síntomas del dashboard → causa raíz → arreglo → impacto). Cada tema tiene 3 niveles; en
+modo **Auto**, 3 aciertos seguidos sin pista suben de nivel y 2 fallos lo bajan (también puedes fijar
+el nivel). **Pista** muestra cómo plantearlo sin los números; cada parte se corrige al momento con la
+solución paso a paso, y al final se explica qué decide ese número en el diseño. Si cambias de tema o
+de nivel a media pregunta, el problema cambia en ese momento sin contarse; **Saltar problema** da
+otro, **Reiniciar sesión** pone los contadores en cero y **Reiniciar niveles** (con confirmación)
+regresa todos los temas a nivel 1. **Formulario** y **Números de referencia** se abren a la derecha.
+Las secciones viven en `js/content/banco-*.js` (`MSD.problemBank.<id>`: temas, fórmulas, tarjetas y
+plantillas `gen(r)`); una sección nueva aparece sola en la página, y un archivo puede sumar temas a
+una sección existente si se carga después de ella (`banco-proyectos.js` suma los dos temas de casos a
+Estimaciones).
 
 ## Tus notas
 

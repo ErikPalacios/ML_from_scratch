@@ -344,7 +344,14 @@ store.backend() / store.onStatus(fn)
   relative | `tolAbs` absolute | exact when tol 0, `steps`) or choice (`choices`, `answer` index). Endless
   stream; topic round-robin; adaptive level per topic (Auto: 3 correct in a row without hint → up, 2 misses
   → down) or fixed level; stats in pref `problemStats`, selection in `problemPrefs`; right-side panel
-  (Formulario / Números de referencia) reuses `MSD.Drill.makePanel`.
+  (Formulario / Números de referencia) reuses `MSD.Drill.makePanel`. Session controls: deselecting the
+  current problem's topic or changing the fixed level replaces an unfinished problem without counting it;
+  "Saltar problema" (not counted), "Reiniciar sesión" (counters to zero), "Reiniciar niveles" (inline
+  confirm, deletes `problemStats[bankId]`). A file loaded after a section may extend it:
+  `banco-proyectos.js` pushes topics `proyecto` ("Diseña un proyecto": requirements → pattern/hardware →
+  size → trade-off) and `diagnostico` ("Arregla o mejora": symptoms → root cause → fix → impact) into
+  `estimaciones`; their templates mix choice parts (decisions computed from the generated numbers) with
+  numeric parts.
 - **"En esta página" (right TOC) is collapsible**: its title is a toggle; collapsed it becomes a vertical
   tab and the content column widens to `--content-wide` (big diagrams fit). Pref `tocCollapsed`.
 - **Search**: input at the top of the sidebar; results in a popover/list (keyboard navigable)
