@@ -37,7 +37,7 @@
 
   // "1,200" · "1200" · "1.2k" · "3.5 M" · "1e6" · "0,5" → número (null si no se entiende).
   function parseNum(str) {
-    let s = String(str || '').trim().toLowerCase().replace(/\s+/g, '').replace(/^≈/, '');
+    let s = String(str || '').trim().toLowerCase().replace(/\s+/g, '').replace(/^≈/, '').replace(/%$/, '');
     if (!s) return null;
     let mult = 1;
     const suf = /([kmb])$/.exec(s);
@@ -94,18 +94,18 @@
   }
 
   // ------------------------------------------------------------------ panel de apuntes (derecha)
-  let notesPanel = null;
-  function apuntesPanel(mod, store) {
-    const b = bankOf(mod) || {};
-    let tab = 'formulario';
+  // makePanel({title, tabs: [{id, label, paint(body)}]}): panel lateral derecho no modal con pestañas
+  // (lo usan la práctica de un módulo y el banco de problemas). Esc lo cierra.
+  function makePanel(o) {
+    let tab = o.tabs[0].id;
     const tabs = {};
     const body = h('div', { class: 'dpanel__body' });
     const panel = h('aside', { class: 'dpanel', id: 'drill-panel', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'drill-panel-title', hidden: true },
       h('header', { class: 'dpanel__head' },
-        h('h2', { class: 'dpanel__title', id: 'drill-panel-title', tabindex: '-1' }, 'Apuntes de ' + mod.toUpperCase()),
+        h('h2', { class: 'dpanel__title', id: 'drill-panel-title', tabindex: '-1' }, o.title),
         h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Cerrar los apuntes', on: { click: () => close(true) } }, h('span', { html: icon('close') }))),
-      h('div', { class: 'seg dpanel__tabs', role: 'tablist', 'aria-label': 'Apuntes' }, [['formulario', 'Formulario'], ['notas', 'Notas rápidas'], ['mias', 'Mis notas']].map(([k, t]) =>
-        (tabs[k] = h('button', { type: 'button', role: 'tab', 'aria-selected': String(k === tab), 'aria-pressed': String(k === tab), on: { click: () => setTab(k) } }, t)))),
+      h('div', { class: 'seg dpanel__tabs', role: 'tablist', 'aria-label': 'Apuntes' }, o.tabs.map((t) =>
+        (tabs[t.id] = h('button', { type: 'button', role: 'tab', 'aria-selected': String(t.id === tab), 'aria-pressed': String(t.id === tab), on: { click: () => setTab(t.id) } }, t.label)))),
       body);
     let ret = null;
     panel.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); } });
@@ -116,26 +116,8 @@
     }
     function paint() {
       body.innerHTML = '';
-      if (tab === 'formulario') {
-        (b.formulas || []).forEach((f) => body.appendChild(h('div', { class: 'dform' },
-          h('p', { class: 'dform__t' }, f.title),
-          h('p', { class: 'dform__expr mono' }, f.expr),
-          f.ex ? h('p', { class: 'dform__ex muted small' }, f.ex) : null)));
-        if (!(b.formulas || []).length) body.appendChild(h('p', { class: 'muted' }, 'Este módulo no tiene formulario.'));
-      } else if (tab === 'notas') {
-        (b.quick || []).forEach((c) => body.appendChild(h('section', { class: 'dquick' }, h('h3', { class: 'dquick__t' }, c.title), h('div', { class: 'dquick__html', html: String(c.html || '') }))));
-        if (!(b.quick || []).length) body.appendChild(h('p', { class: 'muted' }, 'Todavía no hay notas rápidas para este módulo.'));
-      } else {
-        const mine = safe(() => store.listNotes({ page: mod }), []);
-        if (!mine.length) body.appendChild(h('p', { class: 'muted' }, 'No tienes notas en ' + mod.toUpperCase() + '. Mientras lees el módulo, usa «Nota» en la barra flotante; aquí aparecen para repasarlas.'));
-        mine.forEach((n) => body.appendChild(h('div', { class: 'note note--' + n.kind },
-          h('header', { class: 'note__head' },
-            h('span', { class: 'chip ' + (n.kind === 'term' ? 'chip--accent' : 'chip--warn') }, n.kind === 'term' ? 'Término' : 'Nota'),
-            n.kind === 'term' ? h('strong', { class: 'note__term' }, n.term) : null,
-            n.section ? h('a', { class: 'note__where', href: '#' + mod + '.' + n.section }, sectionTitle(mod, n.section)) : null),
-          h('div', { class: 'note__text' }, n.text))));
-      }
-      if (MSD.Blocks && MSD.Blocks.decorate && tab === 'notas') safe(() => MSD.Blocks.decorate(body));
+      const t = o.tabs.find((x) => x.id === tab);
+      if (t) t.paint(body);
     }
     function open(k) {
       if (k) setTab(k); else paint();
@@ -156,6 +138,41 @@
       document.querySelectorAll('[data-drill-open]').forEach((bt) => bt.setAttribute('aria-expanded', String(!panel.hidden && bt.dataset.drillOpen === tab)));
     }
     return { panel, open, close, isOpen: () => !panel.hidden, tab: () => tab };
+  }
+  // Piezas de los apuntes, reutilizables.
+  function paintFormulas(body, list, emptyText) {
+    (list || []).forEach((f) => body.appendChild(h('div', { class: 'dform' },
+      h('p', { class: 'dform__t' }, f.title),
+      h('p', { class: 'dform__expr mono' }, f.expr),
+      f.ex ? h('p', { class: 'dform__ex muted small' }, f.ex) : null)));
+    if (!(list || []).length) body.appendChild(h('p', { class: 'muted' }, emptyText || 'Sin fórmulas.'));
+  }
+  function paintQuick(body, list, emptyText) {
+    (list || []).forEach((c) => body.appendChild(h('section', { class: 'dquick' }, h('h3', { class: 'dquick__t' }, c.title), h('div', { class: 'dquick__html', html: String(c.html || '') }))));
+    if (!(list || []).length) body.appendChild(h('p', { class: 'muted' }, emptyText || 'Sin notas.'));
+    if (MSD.Blocks && MSD.Blocks.decorate) safe(() => MSD.Blocks.decorate(body));
+  }
+
+  let notesPanel = null;
+  function apuntesPanel(mod, store) {
+    const b = bankOf(mod) || {};
+    return makePanel({
+      title: 'Apuntes de ' + mod.toUpperCase(),
+      tabs: [
+        { id: 'formulario', label: 'Formulario', paint: (body) => paintFormulas(body, b.formulas, 'Este módulo no tiene formulario.') },
+        { id: 'notas', label: 'Notas rápidas', paint: (body) => paintQuick(body, b.quick, 'Todavía no hay notas rápidas para este módulo.') },
+        { id: 'mias', label: 'Mis notas', paint: (body) => {
+          const mine = safe(() => store.listNotes({ page: mod }), []);
+          if (!mine.length) body.appendChild(h('p', { class: 'muted' }, 'No tienes notas en ' + mod.toUpperCase() + '. Mientras lees el módulo, usa «Nota» en la barra flotante; aquí aparecen para repasarlas.'));
+          mine.forEach((n) => body.appendChild(h('div', { class: 'note note--' + n.kind },
+            h('header', { class: 'note__head' },
+              h('span', { class: 'chip ' + (n.kind === 'term' ? 'chip--accent' : 'chip--warn') }, n.kind === 'term' ? 'Término' : 'Nota'),
+              n.kind === 'term' ? h('strong', { class: 'note__term' }, n.term) : null,
+              n.section ? h('a', { class: 'note__where', href: '#' + mod + '.' + n.section }, sectionTitle(mod, n.section)) : null),
+            h('div', { class: 'note__text' }, n.text))));
+        } },
+      ],
+    });
   }
 
   // ------------------------------------------------------------------ página
@@ -214,7 +231,8 @@
           h('li', null, 'Rondas jugadas: ', h('b', null, String(st.rounds)), st.best !== null ? [' · mejor: ', h('b', null, st.best + ' %'), ' · última: ', h('b', null, st.last + ' %')] : null)),
         h('div', { class: 'drill__start' },
           h('button', { type: 'button', class: 'btn btn--primary btn--lg', on: { click: start } }, h('span', { html: icon('play') }), 'Nueva ronda'),
-          h('span', { class: 'muted small' }, ROUND_MCQ + ' de opción múltiple + ' + ROUND_CALC + ' cálculos · Enter comprueba y pasa a la siguiente'))));
+          h('span', { class: 'muted small' }, ROUND_MCQ + ' de opción múltiple + ' + ROUND_CALC + ' cálculos · Enter comprueba y pasa a la siguiente')),
+        h('p', { class: 'small' }, '¿Quieres solo cálculos, sin parar y con dificultad que sube? ', h('a', { href: '#problemas.estimaciones' }, 'Banco de problemas → Estimaciones'), '.')));
     }
 
     function start() {
@@ -370,5 +388,5 @@
   }
 
   // current(mod): la ronda en curso (solo lectura; la usa la prueba de humo para contestar).
-  MSD.Drill = { render, hasDrill, parseNum, current: (mod) => rounds[mod] || null };
+  MSD.Drill = { render, hasDrill, parseNum, fmt, makePanel, paintFormulas, paintQuick, shuffle, R, current: (mod) => rounds[mod] || null };
 })(typeof window !== 'undefined' ? window : globalThis);

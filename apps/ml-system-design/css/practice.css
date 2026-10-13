@@ -888,3 +888,44 @@
 .drill, .drill__stage, .dq { min-width: 0; }
 .dq__tags .chip { white-space: normal; max-width: 100%; height: auto; min-height: 22px; line-height: 1.3; padding-block: 2px; overflow-wrap: anywhere; }
 .dq__q, .dq__otext, .dq__res { overflow-wrap: anywhere; }
+
+/* =============================================================================
+   Banco de problemas (js/ui/bank.js): #problemas
+   ========================================================================== */
+.bank__secs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 6px 0 14px; }
+.bank__sec { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: var(--r-1); color: var(--muted); text-decoration: none; font-size: 14px; }
+.bank__sec[aria-current="page"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--rule-strong); font-weight: 500; }
+.bank__controls { display: grid; gap: 10px; margin-bottom: 18px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: var(--r-2); background: var(--surface); }
+.bank__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.bank__row > .px-k { min-width: 48px; margin: 0; }
+.bank__topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.bank__chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px;
+  border: 1px solid var(--rule-strong); border-radius: 999px; background: var(--surface); color: var(--muted); font: 500 14px/1 var(--font-body); cursor: pointer;
+}
+.bank__chip:hover { color: var(--ink); }
+.bank__chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
+.bank__lv { font-size: 11.5px; padding: 1px 6px; border-radius: 8px; background: var(--surface-2); color: var(--muted); }
+.bank__chip[aria-pressed="true"] .bank__lv { background: var(--surface); color: var(--accent-ink); }
+.bank__tools { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.bank__tools .btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
+.bank__sess { margin: 0; color: var(--muted); }
+.bank__start { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 20px; border: 1px dashed var(--rule-strong); border-radius: var(--r-2); }
+.bank__parts { margin: 0; padding-left: 22px; display: grid; gap: 14px; }
+.bank__part { padding-left: 4px; }
+.bank__part::marker { font: 600 14px var(--font-mono); color: var(--muted); }
+.bank__part.is-ok::marker { color: var(--ok); }
+.bank__part.is-bad::marker { color: var(--bad); }
+.bank__ask { font-size: 16px; line-height: 1.5; margin-bottom: 8px; }
+.bank__verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 0 6px; }
+.bank__verdict .ico { width: 14px; height: 14px; }
+.bank__part.is-ok .bank__verdict > .ico, .bank__part.is-ok .bank__verdict { color: var(--ok); }
+.bank__part.is-bad .bank__verdict { color: var(--bad); }
+.bank__verdict b { color: var(--ink); }
+.bank__hint, .bank__takeaway { padding: 10px 12px; border-radius: var(--r-2); border-left: 3px solid var(--accent); background: var(--accent-soft); font-size: 15px; line-height: 1.5; }
+.bank__hint .px-k, .bank__takeaway .px-k { margin: 0 0 4px; }
+.bank__takeaway { border-left-color: var(--store); background: var(--store-soft); }
+.bank__level { margin: 0; color: var(--accent-ink); }
+.bank__card .dq__q { font-size: 16.5px; }
+.dpanel__h { margin: 8px 0 0; font: 600 13px/1.2 var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+@media (max-width: 767px) { .bank__tools { margin-left: 0; } }

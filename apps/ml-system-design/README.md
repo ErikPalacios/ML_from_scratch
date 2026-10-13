@@ -83,6 +83,18 @@ panel a la derecha sin salir de la ronda. El banco vive en `js/content/m01-pract
 notas rápidas) y `js/content/m01-practica-calc.js` (formulario y plantillas de cálculo); otro módulo
 se agrega con sus propios archivos `mNN-practica*.js` y el botón aparece solo.
 
+## Banco de problemas
+
+**Banco de problemas** (Parte 3 del índice, `#problemas`) da un problema tras otro con números
+nuevos. La primera sección es **Estimaciones** (tráfico, latencia, disponibilidad, hardware, costo,
+almacenamiento y red, y escenarios completos encadenados). Cada tema tiene 3 niveles; en modo
+**Auto**, 3 aciertos seguidos sin pista suben de nivel y 2 fallos lo bajan (también puedes fijar el
+nivel). **Pista** muestra cómo plantearlo sin los números; cada parte se corrige al momento con la
+solución paso a paso, y al final se explica qué decide ese número en el diseño. **Formulario** y
+**Números de referencia** se abren a la derecha. Las secciones viven en `js/content/banco-*.js`
+(`MSD.problemBank.<id>`: temas, fórmulas, tarjetas y plantillas `gen(r)`); una sección nueva aparece
+sola en la página.
+
 ## Tus notas
 
 Al final de cada sección hay un botón **Agregar nota**: escribe una duda, un resumen o un **término
@@ -272,7 +284,7 @@ registra errores.
 index.html              documento; carga css/ y js/ en el orden de SPEC §2.1
 css/                    app.css (tokens, layout, bloques) · components.css (diagrama, código) · practice.css
 js/core/                registry.js (catálogo, registro, plantillas) · store.js (estado y guardado)
-js/ui/                  dom · blocks · diagram · code · practice · flashcards · reference · notes · drill
+js/ui/                  dom · blocks · diagram · code · practice · flashcards · reference · notes · drill · bank
 js/content/             catalog.js · reference-files.js (generado) · un archivo por módulo/caso
 js/app.js               router, barra lateral, búsqueda, páginas del shell
 reference/c01/          archivos reales del caso C01 (gateway FastAPI, Triton, K8s, monitoreo…)

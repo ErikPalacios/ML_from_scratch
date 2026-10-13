@@ -715,6 +715,65 @@
     await go('#inicio');
   });
 
+  // ------------------------------------------------------------------ 9d. banco de problemas
+  await step('banco de problemas', async () => {
+    await go('#problemas');
+    ok('banco: título', txt(byId('page-title')) === 'Banco de problemas');
+    ok('banco: está en el índice', !!$('#nav .nav__item[data-id="problemas"][aria-current="page"]'));
+    const bank = MSD.problemBank && MSD.problemBank.estimaciones;
+    ok('banco: sección Estimaciones cargada', !!bank && bank.templates.length >= 30, bank && bank.templates.length);
+    // Solo Tráfico, modo Auto: 3 aciertos seguidos suben a nivel 2
+    for (const c of $$('#page .bank__chip[data-topic]')) if (c.dataset.topic !== 'trafico' && c.getAttribute('aria-pressed') === 'true') c.click();
+    ok('banco: filtro de tema', $$('#page .bank__chip[data-topic][aria-pressed="true"]').map((c) => c.dataset.topic).join() === 'trafico');
+    const answerAll = async (good) => {
+      const pb = MSD.Bank.current('estimaciones');
+      for (let k = 0; k < pb.data.parts.length; k++) {
+        const part = pb.data.parts[k];
+        const cur = await waitFor(() => $('#page .bank__part.is-current'), 800);
+        if (Array.isArray(part.choices)) $('input[value="' + (good ? part.answer : (part.answer + 1) % part.choices.length) + '"]', cur).click();
+        else $('input', cur).value = String(good ? part.answer : part.answer * 10 + 7);
+        button('Comprobar', $('#page .bank__card')).click();
+        await sleep(40);
+      }
+      return pb;
+    };
+    button('Empezar').click();
+    for (let i = 0; i < 3; i++) {
+      await waitFor(() => MSD.Bank.current('estimaciones') && !MSD.Bank.current('estimaciones').done, 800);
+      const pb = await answerAll(true);
+      ok('banco: problema ' + (i + 1) + ' resuelto bien (' + pb.tpl.id + ')', pb.done && pb.ok);
+      if (i === 0) ok('banco: muestra la solución y qué decide el número', !!$('#page .bank__part .dq__steps') && !!$('#page #pb-res'));
+      if (i < 2) button('Siguiente problema').click();
+    }
+    ok('banco: 3 aciertos seguidos suben a nivel 2', ((store.pref('problemStats') || {}).estimaciones || {}).trafico.level === 2);
+    ok('banco: el chip muestra el nivel nuevo', /Nv 2/.test(txt($('#page .bank__chip[data-topic="trafico"]'))));
+    // Un problema mal y uno con «Ver solución»
+    button('Siguiente problema').click();
+    await waitFor(() => MSD.Bank.current('estimaciones') && !MSD.Bank.current('estimaciones').done, 800);
+    const bad = await answerAll(false);
+    ok('banco: respuesta fuera de rango es incorrecta', bad.done && !bad.ok);
+    button('Siguiente problema').click();
+    await waitFor(() => MSD.Bank.current('estimaciones') && !MSD.Bank.current('estimaciones').done, 800);
+    if (MSD.Bank.current('estimaciones').data.hint) {
+      button('Pista').click();
+      ok('banco: la pista muestra el planteamiento', !!(await waitFor(() => $('#page .bank__hint'), 600)));
+    }
+    button('Ver solución').click();
+    ok('banco: ver solución cuenta como fallo y muestra los pasos', await waitFor(() => MSD.Bank.current('estimaciones').done && !MSD.Bank.current('estimaciones').ok && $('#page .bank__part .dq__steps'), 800));
+    ok('banco: 2 fallos seguidos bajan a nivel 1', ((store.pref('problemStats') || {}).estimaciones || {}).trafico.level === 1);
+    // Apuntes
+    button('Formulario').click();
+    const panel = await waitFor(() => { const p = byId('drill-panel'); return p && !p.hidden && p; }, 800);
+    ok('banco: el formulario se abre con fórmulas', !!panel && $$('.dform', panel).length >= 10);
+    button('Números de referencia', panel).click();
+    ok('banco: números de referencia', $$('.dquick', panel).length >= 3);
+    checkOverflow('#problemas (apuntes abiertos)');
+    key('Escape', $('.dpanel__title', panel));
+    checkOverflow('#problemas');
+    await go('#inicio');
+    ok('banco: al salir se quita el panel', !byId('drill-panel'));
+  });
+
   // ------------------------------------------------------------------ 10. ruta desconocida
   await step('no encontrado', async () => {
     await go('#no-existe-esta-ruta');

@@ -24,6 +24,7 @@
     practica: { title: 'Simulador de entrevista', short: 'Simulador', ico: 'practice', part: 3 },
     historial: { title: 'Historial de práctica', short: 'Historial', ico: 'list', part: 3 },
     flashcards: { title: 'Flashcards', short: 'Flashcards', ico: 'cards', part: 3 },
+    problemas: { title: 'Banco de problemas', short: 'Banco de problemas', ico: 'approx', part: 3 },
     'mis-notas': { title: 'Mis notas', short: 'Mis notas', ico: 'note', part: 3 },
     'ref-numeros': { title: 'Números que debes saber', short: 'Números que debes saber', ico: 'ref', part: 4 },
     'ref-herramientas': { title: 'Herramientas por categoría', short: 'Herramientas por categoría', ico: 'ref', part: 4 },
@@ -34,7 +35,7 @@
     { id: 'home', label: null, ids: ['inicio'] },
     { id: 'p1', label: 'Parte 1 — Fundamentos', ids: MODULE_IDS },
     { id: 'p2', label: 'Parte 2 — Casos de diseño', ids: CASE_IDS },
-    { id: 'p3', label: 'Parte 3 — Práctica', ids: ['practica', 'historial', 'flashcards', 'mis-notas'] },
+    { id: 'p3', label: 'Parte 3 — Práctica', ids: ['practica', 'historial', 'flashcards', 'problemas', 'mis-notas'] },
     { id: 'p4', label: 'Parte 4 — Referencias', ids: ['ref-numeros', 'ref-herramientas', 'ref-comandos', 'glosario'] },
   ];
   const STATE_LABEL = { done: 'completado', progress: 'en curso', ready: 'disponible', soon: 'próximamente' };
@@ -1048,6 +1049,7 @@
       else if (id === 'flashcards') layout = delegate(c, 'Flashcards', r);
       else if (id === 'mis-notas') layout = delegate(c, 'Notes', r);
       else if (/^practicar-m\d\d$/.test(id)) layout = delegate(c, 'Drill', r);
+      else if (id === 'problemas') layout = delegate(c, 'Bank', r);
       else if (/^ref-(numeros|herramientas|comandos)$/.test(id) && (getPage(id) || {}).ready) layout = renderSheet(c, getPage(id));
       else if (id === 'glosario' || /^ref-(numeros|herramientas|comandos)$/.test(id)) layout = delegate(c, 'Reference', r, id === 'glosario' ? null : () => renderSoon(c, id));
       else layout = renderNotFound(c, r);

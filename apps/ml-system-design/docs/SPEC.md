@@ -337,6 +337,14 @@ store.backend() / store.onStatus(fn)
   {q, unit, answer, tol, steps}}` with random numbers each round). A round = 6 multiple choice (unseen
   first, pref `drillSeen`) + 4 calculations; stats in pref `drillStats`. A right-side panel shows
   Formulario / Notas rápidas / Mis notas. The module page shows a "Practicar mNN" call to action.
+- **Problem bank** (js/ui/bank.js, `MSD.Bank`, route `#problemas` / `#problemas.<bankId>`, nav item in
+  Parte 3): sections are `MSD.problemBank[id]` from `js/content/banco-*.js` → `{id, title, summary, topics,
+  formulas (by topic), quick (reference cards), templates:[{id, topic, level 1–3, title, ref
+  'page.section', gen(r) → {q, parts, hint, takeaway}}]}`; parts are numeric (`answer`, `unit`, `tol`
+  relative | `tolAbs` absolute | exact when tol 0, `steps`) or choice (`choices`, `answer` index). Endless
+  stream; topic round-robin; adaptive level per topic (Auto: 3 correct in a row without hint → up, 2 misses
+  → down) or fixed level; stats in pref `problemStats`, selection in `problemPrefs`; right-side panel
+  (Formulario / Números de referencia) reuses `MSD.Drill.makePanel`.
 - **"En esta página" (right TOC) is collapsible**: its title is a toggle; collapsed it becomes a vertical
   tab and the content column widens to `--content-wide` (big diagrams fit). Pref `tocCollapsed`.
 - **Search**: input at the top of the sidebar; results in a popover/list (keyboard navigable)
