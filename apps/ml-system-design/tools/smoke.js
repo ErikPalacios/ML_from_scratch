@@ -804,6 +804,7 @@
     button('Formulario').click();
     const panel = await waitFor(() => { const p = byId('drill-panel'); return p && !p.hidden && p; }, 800);
     ok('banco: el formulario se abre con fórmulas', !!panel && $$('.dform', panel).length >= 10);
+    ok('banco: las fórmulas no muestran etiquetas HTML', !$$('.dform', panel).some((el) => /<\/?[a-z]/i.test(el.textContent)));
     button('Números de referencia', panel).click();
     ok('banco: números de referencia', $$('.dquick', panel).length >= 3);
     checkOverflow('#problemas (apuntes abiertos)');
@@ -811,6 +812,57 @@
     checkOverflow('#problemas');
     await go('#inicio');
     ok('banco: al salir se quita el panel', !byId('drill-panel'));
+  });
+
+  // ------------------------------------------------------------------ 9e. banco: casos de diseño
+  await step('banco: casos de diseño', async () => {
+    const bank = MSD.problemBank && MSD.problemBank.casos;
+    ok('casos: sección cargada', !!bank && bank.templates.length >= 30, bank && bank.templates.length);
+    if (!bank) return;
+    await go('#problemas.casos');
+    ok('casos: la sección queda activa', !!$('#page .bank__sec[aria-current="page"][href="#problemas.casos"]'));
+    ok('casos: la barra muestra las secciones', $$('#page .bank__sec').length >= 2);
+    const topics = bank.topics.map((t) => t.id);
+    ok('casos: un chip por tema', topics.every((t) => $('#page .bank__chip[data-topic="' + t + '"]')), topics);
+    ok('casos: cada tema tiene nivel 1', topics.every((t) => bank.templates.some((x) => x.topic === t && x.level === 1)));
+    const solve = async () => {
+      const pb = MSD.Bank.current('casos');
+      for (let k = 0; k < pb.data.parts.length; k++) {
+        const part = pb.data.parts[k];
+        const cur = await waitFor(() => $('#page .bank__part.is-current'), 800);
+        if (Array.isArray(part.choices)) $('input[value="' + part.answer + '"]', cur).click();
+        else $('input', cur).value = String(part.answer);
+        button('Comprobar', $('#page .bank__card')).click();
+        await sleep(40);
+      }
+      return pb;
+    };
+    // Un problema de nivel 1 por tema: decisión + cálculo, resuelto bien, con los pasos de cada parte
+    for (const tp of topics) {
+      const chip = $('#page .bank__chip[data-topic="' + tp + '"]');
+      if (chip.getAttribute('aria-pressed') !== 'true') chip.click();
+      for (const c of $$('#page .bank__chip[data-topic]')) if (c.dataset.topic !== tp && c.getAttribute('aria-pressed') === 'true') c.click();
+      const go2 = button('Empezar') || button('Siguiente problema');
+      if (go2) go2.click();
+      const cur = await waitFor(() => { const p = MSD.Bank.current('casos'); return p && !p.done && p.topic === tp && p; }, 800);
+      ok('casos: problema de ' + tp, !!cur, cur && cur.topic);
+      if (!cur) continue;
+      ok('casos: ' + tp + ' empieza en nivel 1 (' + cur.tpl.id + ')', cur.level === 1);
+      ok('casos: ' + tp + ' trae una decisión y un cálculo', cur.data.parts.some((p) => Array.isArray(p.choices)) && cur.data.parts.some((p) => !Array.isArray(p.choices)));
+      const pb = await solve();
+      ok('casos: ' + tp + ' resuelto bien (' + pb.tpl.id + ')', pb.done && pb.ok);
+      ok('casos: ' + tp + ' muestra los pasos de cada parte', $$('#page .bank__part .dq__steps').length === pb.data.parts.length);
+      checkOverflow('#problemas.casos (' + tp + ')');
+    }
+    button('Todos').click();
+    button('Formulario').click();
+    const panel = await waitFor(() => { const p = byId('drill-panel'); return p && !p.hidden && p; }, 800);
+    ok('casos: formulario con fórmulas de los temas', !!panel && $$('.dform', panel).length >= topics.length);
+    ok('casos: las fórmulas no muestran etiquetas HTML', !$$('.dform', panel).some((el) => /<\/?[a-z]/i.test(el.textContent)));
+    button('Números de referencia', panel).click();
+    ok('casos: tarjetas de referencia (patrón, piezas y números)', $$('.dquick', panel).length >= 5);
+    key('Escape', $('.dpanel__title', panel));
+    await go('#inicio');
   });
 
   // ------------------------------------------------------------------ 10. ruta desconocida

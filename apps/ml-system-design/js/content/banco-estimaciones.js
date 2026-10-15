@@ -71,8 +71,8 @@
       { topic: 'trafico', title: 'Vaciar un backlog', expr: 'tiempo = backlog ÷ (capacidad − llegada)', ex: '60,000 ÷ (200 − 50) = 400 s ≈ 7 min; con capacidad 60: 100 min' },
 
       { topic: 'latencia', title: 'Little', expr: 'L = λ · W (W promedio, en segundos; nunca el p99)', ex: '500 req/s × 0.05 s = 25 en vuelo · techo con el timeout: 500 × 0.15 s = 75' },
-      { topic: 'latencia', title: 'Utilización y cola (M/M/1)', expr: 'ρ = llegadas ÷ capacidad · W = S ÷ (1 − ρ) · W<sub>q</sub> = ρS ÷ (1 − ρ) · p99 ≈ 4.6 × W', ex: 'S = 10 ms: ρ 0.5 → W 20 ms · ρ 0.8 → 50 ms · ρ 0.9 → 100 ms' },
-      { topic: 'latencia', title: 'Fan-out y cola', expr: 'P(lento) = 1 − 0.99ᴺ ≈ 1 − e<sup>−N/100</sup> · percentil por backend para 1 % ≈ 1 − 0.01 ÷ N', ex: 'N = 10 → 9.6 % · N = 100 → 63 %, y cada backend tendría que cumplir su p99.99' },
+      { topic: 'latencia', title: 'Utilización y cola (M/M/1)', expr: 'ρ = llegadas ÷ capacidad · W = S ÷ (1 − ρ) · espera en cola W_q = ρS ÷ (1 − ρ) · p99 ≈ 4.6 × W', ex: 'S = 10 ms: ρ 0.5 → W 20 ms · ρ 0.8 → 50 ms · ρ 0.9 → 100 ms' },
+      { topic: 'latencia', title: 'Fan-out y cola', expr: 'P(lento) = 1 − 0.99ᴺ ≈ 1 − e^(−N/100) · percentil por backend para 1 % ≈ 1 − 0.01 ÷ N', ex: 'N = 10 → 9.6 % · N = 100 → 63 %, y cada backend tendría que cumplir su p99.99' },
       { topic: 'latencia', title: 'Presupuesto serial', expr: 'en serie se suma cada tramo (la suma de p99 es pesimista: sirve para repartir) · física: RTT ≥ 1 ms por cada 100 km', ex: 'c01: ≈ 150 ms pesimista de un SLO de 200 ms · costa a costa (3,500 km): ≥ 35 ms, medido 60–80' },
       { topic: 'latencia', title: 'LLM con streaming', expr: 'e2e = TTFT + (tokens − 1) × TPOT · tokens/s = 1 ÷ TPOT', ex: '0.6 + 249 × 0.04 ≈ 10.6 s · 40 ms → 25 tokens/s (una persona lee 4–7)' },
 

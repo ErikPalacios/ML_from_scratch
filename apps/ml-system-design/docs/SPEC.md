@@ -352,6 +352,13 @@ store.backend() / store.onStatus(fn)
   size → trade-off) and `diagnostico` ("Arregla o mejora": symptoms → root cause → fix → impact) into
   `estimaciones`; their templates mix choice parts (decisions computed from the generated numbers) with
   numeric parts.
+  Second section `casos` ("Casos de diseño", route `#problemas.casos`): full interview cases with concrete
+  requirements (volume, latency SLO, budget, freshness): pattern → estimate → size and cost against the
+  budget → trade-off (level 3 adds failure mode / monitoring). Topics follow M02's patterns plus LLMs:
+  `sincrono`, `batch`, `asincrono`, `llm`, `hibrido`, `streaming`, `edge`; every topic has level-1
+  templates. `banco-casos.js` defines the section (topics, quick cards — its own pattern cards plus the
+  number cards shared from `estimaciones` — and helpers in `B.util`); each topic's templates and formulas
+  live in `banco-casos-<topic>.js`, loaded after it.
 - **"En esta página" (right TOC) is collapsible**: its title is a toggle; collapsed it becomes a vertical
   tab and the content column widens to `--content-wide` (big diagrams fit). Pref `tocCollapsed`.
 - **Search**: input at the top of the sidebar; results in a popover/list (keyboard navigable)

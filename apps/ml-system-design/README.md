@@ -102,6 +102,14 @@ plantillas `gen(r)`); una sección nueva aparece sola en la página, y un archiv
 una sección existente si se carga después de ella (`banco-proyectos.js` suma los dos temas de casos a
 Estimaciones).
 
+La segunda sección es **Casos de diseño** (`#problemas.casos`): casos completos de entrevista con
+requisitos concretos (volumen, latencia, presupuesto, frescura). Eliges el patrón, estimas, dimensionas,
+comparas contra el presupuesto y defiendes el trade-off. Los temas siguen los patrones de M2, en orden de
+lo que más se ve en trabajos reales: Online síncrono, Batch, Asíncrono con colas, LLMs y RAG, Híbridos,
+Streaming y Edge. Todos tienen nivel 1 para empezar. `banco-casos.js` define la sección (temas, tarjetas
+de referencia y utilidades en `B.util`) y cada tema vive en su archivo `banco-casos-<tema>.js`, cargado
+después.
+
 ## Tus notas
 
 Al final de cada sección hay un botón **Agregar nota**: escribe una duda, un resumen o un **término
