@@ -1,0 +1,10 @@
+# Dependencias para correr TODOS los tests de c14 (pytest desde reference/c14). No entran a ninguna imagen.
+# El DAG de Airflow NO se instala aquí: orchestration/tests/test_dag.py se salta solo si no hay Airflow
+# (ver orchestration/requirements.txt para validarlo con Airflow de verdad).
+-r train/requirements.txt  # los tests usan exactamente las versiones de la imagen
+pytest==9.1.1  # runner de tests
+# --- transitivas ---
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0

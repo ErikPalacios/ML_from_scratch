@@ -227,22 +227,39 @@
   }
 
   // ------------------------------------------------------------------ barra lateral
+  // Parte 2 agrupada por patrón de M2, en orden de lo que más se ve en trabajos reales (catálogo: pattern).
+  const CASE_PATTERNS = [
+    ['sincrono', 'Online síncrono'], ['batch', 'Batch'], ['asincrono', 'Asíncrono con colas'], ['llm', 'LLMs y RAG'],
+    ['hibrido', 'Híbridos'], ['streaming', 'Streaming'], ['edge', 'Edge y on-device'],
+  ];
+  function casesByPattern(ids) {
+    const known = CASE_PATTERNS.map((p) => p[0]);
+    const out = CASE_PATTERNS.map(([k, label]) => ({ label, ids: ids.filter((id) => meta(id).pattern === k) }));
+    out.push({ label: 'Otros', ids: ids.filter((id) => known.indexOf(meta(id).pattern) < 0) });
+    return out.filter((sg) => sg.ids.length);
+  }
+
   function buildNav() {
     els.nav.innerHTML = '';
+    const navItem = (id) => {
+      const m = meta(id);
+      const numEl = /^[mc]\d\d$/.test(id)
+        ? h('span', { class: 'nav__num' }, id.slice(1))
+        : h('span', { class: 'nav__num', html: icon(m.ico || 'dot') });
+      return h('li', null, h('a', {
+        class: 'nav__item', href: '#' + id, dataset: { id },
+        on: { click: () => { if (S.drawerOpen) closeDrawer(false); } },
+      }, numEl, h('span', { class: 'nav__title' }, m.short || m.title), h('span', { class: 'nav__mk' })));
+    };
     for (const g of NAV_GROUPS) {
-      const list = h('ul', { class: 'nav__list' });
-      for (const id of g.ids) {
-        const m = meta(id);
-        const numEl = /^[mc]\d\d$/.test(id)
-          ? h('span', { class: 'nav__num' }, id.slice(1))
-          : h('span', { class: 'nav__num', html: icon(m.ico || 'dot') });
-        list.appendChild(h('li', null, h('a', {
-          class: 'nav__item', href: '#' + id, dataset: { id },
-          on: { click: () => { if (S.drawerOpen) closeDrawer(false); } },
-        }, numEl, h('span', { class: 'nav__title' }, m.short || m.title), h('span', { class: 'nav__mk' }))));
+      const box = h('div', { class: 'nav__group', role: g.label ? 'group' : null, 'aria-label': g.label || null },
+        g.label ? h('p', { class: 'nav__label', 'aria-hidden': 'true' }, g.label) : null);
+      const subs = g.id === 'p2' ? casesByPattern(g.ids) : [{ label: null, ids: g.ids }];
+      for (const sg of subs) {
+        if (sg.label) box.appendChild(h('p', { class: 'nav__sub', 'aria-hidden': 'true' }, sg.label));
+        box.appendChild(h('ul', { class: 'nav__list', role: sg.label ? 'group' : null, 'aria-label': sg.label || null }, sg.ids.map(navItem)));
       }
-      els.nav.appendChild(h('div', { class: 'nav__group', role: g.label ? 'group' : null, 'aria-label': g.label || null },
-        g.label ? h('p', { class: 'nav__label', 'aria-hidden': 'true' }, g.label) : null, list));
+      els.nav.appendChild(box);
     }
     updateNavMarkers();
   }

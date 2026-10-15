@@ -1,4 +1,4 @@
-/* Banco de problemas · Casos de diseño · Streaming: inferencia y features sobre eventos: particiones, consumer lag, ventanas, frescura, eventos tardíos.
+/* Banco de problemas · Mini-casos por patrón · Streaming: inferencia y features sobre eventos: particiones, consumer lag, ventanas, frescura, eventos tardíos.
    Se carga DESPUÉS de banco-casos.js (que define la sección, las tarjetas y B.util). Contrato y convenciones:
    ver el encabezado de banco-casos.js. */
 (function (root) {

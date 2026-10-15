@@ -96,7 +96,9 @@
     ok('módulos del shell cargados', ['App', 'Blocks', 'Diagram', 'Code', 'Practice', 'Flashcards', 'Reference', 'Notes', 'store', 'dom'].every((k) => !!MSD[k]),
       ['App', 'Blocks', 'Diagram', 'Code', 'Practice', 'Flashcards', 'Reference', 'Notes', 'store', 'dom'].filter((k) => !MSD[k]));
     ok('m01 y c01 listos', MSD.getPage('m01').ready && MSD.getPage('c01').ready);
-    ok('28 ítems en el índice', $$('#nav .nav__item').filter((a) => /^[mc]\d\d$/.test(a.dataset.id)).length === 28);
+    const NCOURSE = MSD.MODULE_IDS.length + MSD.CASE_IDS.length;
+    ok(NCOURSE + ' ítems en el índice', $$('#nav .nav__item').filter((a) => /^[mc]\d\d$/.test(a.dataset.id)).length === NCOURSE);
+    ok('índice: la Parte 2 agrupada por patrón', $$('#nav .nav__sub').length >= 5 && $$('#nav .nav__sub').some((p) => /síncrono/i.test(txt(p))));
     notes.viewport = innerWidth + '×' + innerHeight + (drawerMode() ? ' (cajón)' : '') + (matchMedia('(prefers-color-scheme: dark)').matches ? ' oscuro' : ' claro');
     notes.backend = store.backend();
   });
@@ -105,7 +107,7 @@
   await step('inicio', async () => {
     await go('#inicio');
     ok('inicio: título', txt(byId('page-title')) === 'Ronda de Diseño ML');
-    ok('inicio: uptime strip de 28 celdas', $$('#page .uptime:not(.uptime--compact) .ucell').filter((c) => !c.closest('.uptime__legend')).length === 28);
+    ok('inicio: uptime strip de ' + (MSD.MODULE_IDS.length + MSD.CASE_IDS.length) + ' celdas', $$('#page .uptime:not(.uptime--compact) .ucell').filter((c) => !c.closest('.uptime__legend')).length === MSD.MODULE_IDS.length + MSD.CASE_IDS.length);
     ok('inicio: hoja de ruta', $$('#page .roadmap__item').length > 0);
     ok('inicio: tarjetas "Ahora"', $$('#page .now-card').length === 2);
     ok('inicio: sin bloques rotos', broken().length === 0, broken());
@@ -192,14 +194,15 @@
     ok('m01: anillo de progreso en el índice', !!(await waitFor(() => $('#nav .nav__item[data-id="m01"] .ring'), 1500)));
     ok('m01: celda "en curso" en el uptime compacto', !!(await waitFor(() => $('#side-uptime .ucell--progress'), 1500)));
     ok('m01: marca en el TOC', !!(await waitFor(() => $('#toc li.is-read[data-sec="' + first + '"], #page .page-toc li.is-read[data-sec="' + first + '"]'), 1500)));
-    // Todas leídas + completado → "done" y contador 1/28.
+    // Todas leídas + completado → "done" y contador 1/N.
     for (const s of p.sections) if (!store.isSectionRead('m01', s.id)) $('#page .read-toggle[data-sec="' + s.id + '"]').click();
     await sleep(60);
     $('#page .complete-toggle').click();
     ok('m01: módulo completado', store.pageProgress('m01').completed);
     ok('m01: check en el índice', !!(await waitFor(() => $('#nav .nav__item[data-id="m01"] .mk-done'), 1500)));
-    ok('m01: contador del índice 1/28', await waitFor(() => txt($('#side-uptime .side-uptime__count')) === '1/28', 1500), txt($('#side-uptime .side-uptime__count')));
-    ok('m01: contador de la barra superior 1/28', txt(byId('topbar-progress')) === '1/28');
+    const NTOT = MSD.MODULE_IDS.length + MSD.CASE_IDS.length;
+    ok('m01: contador del índice 1/' + NTOT, await waitFor(() => txt($('#side-uptime .side-uptime__count')) === '1/' + NTOT, 1500), txt($('#side-uptime .side-uptime__count')));
+    ok('m01: contador de la barra superior 1/' + NTOT, txt(byId('topbar-progress')) === '1/' + NTOT);
     ok('m01: celda "completado" en el uptime compacto', $$('#side-uptime .ucell--done').length === 1);
     checkOverflow('#m01 (final)');
   });
@@ -312,7 +315,7 @@
   // ------------------------------------------------------------------ 5. práctica: hub, reloj, autosave, rúbrica, historial
   await step('práctica', async () => {
     await go('#practica');
-    ok('practica: 13 casos en el hub', $$('#page .phub__item').length === 13, $$('#page .phub__item').length);
+    ok('practica: ' + MSD.CASE_IDS.length + ' casos en el hub', $$('#page .phub__item').length === MSD.CASE_IDS.length, $$('#page .phub__item').length);
     ok('practica: framework de 7 pasos', $$('#page .fwstrip__seg').length === 7);
     checkOverflow('#practica');
 

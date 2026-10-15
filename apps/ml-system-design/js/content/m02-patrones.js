@@ -2,7 +2,7 @@
    Ronda de Diseño ML — js/content/m02-patrones.js
    Módulo 02: patrones de inferencia. Quién espera la predicción; online síncrona,
    asíncrona con colas, batch, streaming, edge, híbridos; semántica de entrega,
-   reintentos, idempotencia y DLQ; tabla de decisión con los 13 casos.
+   reintentos, idempotencia y DLQ; tabla de decisión con todos los casos.
    Contrato: docs/SPEC.md §5. Los números del caso 1 salen de SPEC §8 (no cambiarlos aquí).
    ========================================================================== */
 (function (root) {
@@ -691,7 +691,7 @@ def on_event(r, ev):
             ['<b>Streaming</b>', 'ms a segundos', 'Segundos', 'Consumidores siempre encendidos + log durable', 'Alta: estado, event time, reprocesos', 'Silencioso: features viejas sin ningún error', 'Consumer lag (y particiones)', 'Lag en tiempo, throughput, eventos tardíos, reprocesos'],
             ['<b>Edge / on-device</b>', 'ms sin red', 'La del sensor', 'Hardware por sitio o del usuario; poco costo de nube', 'Alta: flota, OTA, compatibilidad', 'Por dispositivo o por versión, y difícil de ver', 'No escala: se dimensiona por dispositivo', 'Versiones en la flota, heartbeat, latencia en el dispositivo, métricas agregadas'],
           ] },
-          { t: 'h3', text: 'Los 13 casos, por patrón' },
+          { t: 'h3', text: 'Los casos, por patrón' },
           { t: 'table', head: ['Caso', 'Patrón principal', 'Por qué'], rows: [
             ['<a href="#c01">c01</a> API de clasificación', 'Online síncrona + batch (backfill)', 'El vendedor espera en el formulario; las 200 M fotos viejas existen antes y van en batch'],
             ['<a href="#c02">c02</a> Video multicámara', 'Edge + streaming', 'El video no cabe en el enlace y las alertas sirven en segundos: se detecta cerca de la cámara y se procesan eventos'],
@@ -706,6 +706,8 @@ def on_event(r, ev):
             ['<a href="#c11">c11</a> RAG empresarial', 'Online + ingestion batch o streaming', 'La pregunta se responde en el request; los documentos y sus permisos se indexan fuera del request, con frescura de minutos'],
             ['<a href="#c12">c12</a> Agente con herramientas', 'Online de varios pasos → workflow asíncrono', 'Un loop largo que llama APIs reales: estado persistente, timeouts por paso e idempotencia en cada herramienta con efectos'],
             ['<a href="#c13">c13</a> Speech-to-text', 'Streaming inference sobre una conexión larga', 'Audio en fragmentos por WebSocket o gRPC bidireccional; resultados parciales mientras la persona habla'],
+            ['<a href="#c14">c14</a> Pronóstico de demanda', 'Batch', 'Las ventas de ayer, el calendario y las promociones existen antes y nadie espera en línea: se calcula cada noche y el ERP lee la tabla publicada a las 04:00'],
+            ['<a href="#c15">c15</a> CTR de anuncios', 'Online síncrona', 'La página pide los anuncios al cargarse: se puntúan los candidatos y se subasta en ≤ 50 ms con el contexto del request; entrenamiento y calibración son batch diarios'],
           ], note: 'Los casos que todavía están en Próximamente ya tienen su enunciado para practicar: esta columna es la primera decisión que deberías tomar en cada uno.' },
           { t: 'callout', kind: 'interview', title: 'Cómo decir la elección', html: `<p>Estructura: el requisito que decide → el patrón → la alternativa descartada con la condición que te haría cambiar.</p><ul><li>"The seller is waiting on the form, so this is synchronous, with a 300 ms timeout and a fallback. If the product could show the category a minute later, I'd switch to a queue with big batches; it would be much cheaper."</li><li>"Nobody is blocked on this result, so I'll accept the job, return a 202 with a job ID, and process it asynchronously from a queue."</li><li>"The set of users is known ahead of time and a day of staleness is fine, so I'll precompute nightly and serve a lookup; the fresh session signal is handled by an online re-ranker."</li><li>"I'm deliberately not using Kafka here: at 50 jobs per second a managed queue is simpler, and we don't need replay or multiple consumers."</li></ul>` },
           { t: 'followups', items: [

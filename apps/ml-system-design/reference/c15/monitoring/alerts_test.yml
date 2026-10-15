@@ -1,0 +1,445 @@
+# Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
+#   promtool test rules alerts_test.yml
+# Se consulta ALERTS{alertstate="firing"} (no hay que copiar las anotaciones); AdServerLatencyHigh además
+# prueba el texto renderizado. Notación de promtool: '0+100x20' = empieza en 0 y suma 100 por intervalo,
+# 20 veces (21 valores); segmentos separados por espacio continúan la serie: '0+100x20 2097+97x39'.
+# Los momentos de cada test dejan margen: rate() extrapola en los bordes de la ventana.
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- AdServerLatencyHigh
+  # 1,000 requests/min. Hasta el minuto 20 todo ≤ 40 ms; después el 3 % tarda entre 50 y 75 ms → p99 > 0.05
+  # desde el ≈ 22 → firing en el ≈ 27. p99 = 0.05 + 0.025 × (990 − 970) / 30 ≈ 0.0667 (interpolación lineal
+  # dentro del bucket (0.05, 0.075]).
+  - interval: 1m
+    input_series:
+      - series: 'ad_request_duration_seconds_bucket{le="0.04"}'
+        values: '0+1000x20 20970+970x39'
+      - series: 'ad_request_duration_seconds_bucket{le="0.05"}'
+        values: '0+1000x20 20970+970x39'
+      - series: 'ad_request_duration_seconds_bucket{le="0.075"}'
+        values: '0+1000x60'
+      - series: 'ad_request_duration_seconds_bucket{le="+Inf"}'
+        values: '0+1000x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: AdServerLatencyHigh
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: AdServerLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "ad-api: p99 66.67ms (> 50 ms)"
+              description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(ad_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado; escala el Deployment (una noticia grande lleva el pico de ≈ 3,500 a ≈ 6,000 RPS). La página no espera: los slots se llenan con el programático."
+              runbook_url: "https://runbooks.example.com/c15/ad-latency"
+
+  # 0.5 % entre 50 y 75 ms: el p99 sigue dentro del bucket de 50 ms.
+  - interval: 1m
+    input_series:
+      - series: 'ad_request_duration_seconds_bucket{le="0.05"}'
+        values: '0+995x60'
+      - series: 'ad_request_duration_seconds_bucket{le="0.075"}'
+        values: '0+1000x60'
+      - series: 'ad_request_duration_seconds_bucket{le="+Inf"}'
+        values: '0+1000x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AdServerLatencyHigh"}
+        eval_time: 60m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- AdFallbackRateHigh
+  # 1,000 requests/min por el modelo; desde el minuto 11, 30/min por el fallback (≈ 2.9 %) → > 2 % desde el
+  # ≈ 12 → firing en el ≈ 22 (for: 10m), con cause="model_fallback". El 0.3 % de errores no alcanza.
+  - interval: 1m
+    input_series:
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+1000x40'
+      - series: 'ad_requests_total{path="fallback"}'
+        values: '0x10 30+30x29'
+      - series: 'ad_requests_total{path="error"}'
+        values: '0+3x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AdFallbackRateHigh", alertstate="firing"}
+        eval_time: 18m
+        exp_samples: []
+      - expr: ALERTS{alertname="AdFallbackRateHigh", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AdFallbackRateHigh", alertstate="firing", severity="page", cause="model_fallback"}'
+            value: 1
+
+  # 0.8 % de los requests en excepción (path="error") → cause="errors".
+  - interval: 1m
+    input_series:
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+992x40'
+      - series: 'ad_requests_total{path="error"}'
+        values: '0+8x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AdFallbackRateHigh", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AdFallbackRateHigh", alertstate="firing", severity="page", cause="errors"}'
+            value: 1
+
+  # Sin ninguna serie del ad-api (caído o sin scrape) → cause="no_metrics".
+  - interval: 1m
+    input_series:
+      - series: 'up{job="otra-cosa"}'
+        values: '1x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AdFallbackRateHigh", alertstate="firing"}
+        eval_time: 15m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AdFallbackRateHigh", alertstate="firing", severity="page", cause="no_metrics"}'
+            value: 1
+
+  # 1 % de fallback sostenido (un pod con el executor saturado): no alcanza.
+  - interval: 1m
+    input_series:
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+990x60'
+      - series: 'ad_requests_total{path="fallback"}'
+        values: '0+10x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AdFallbackRateHigh"}
+        eval_time: 60m
+        exp_samples: []
+
+  # ---------------------------------------------------------------- CalibrationRatioOff
+  # Clicks y clicks esperados por minuto, constantes desde el inicio (src="model"). Ojo con la primera hora:
+  # rate(…[1h]) con menos de 1 h de datos casi no extrapola, así que los "esperados por hora" crecen de a
+  # poco (10/min llega a 200/h a los ≈ 20 min) y el `for` empieza a contar cuando se pasa el volumen mínimo.
+  #   top/established     esperados 10/min (600/h)    clicks 7/min    → 0.70: fuera de [0.8, 1.25] → page a los ≈ 50 min
+  #   in_article/estab.   esperados 20/min (1,200/h)  clicks 17/min   → 0.85: solo fuera de [0.9, 1.1] → ticket a los ≈ 170 min
+  #                       (llega a 1,000/h a los ≈ 50 min, + for: 2h)
+  #   bottom/new          esperados 30/min (1,800/h)  SIN serie de clicks (nunca hubo uno) → 0 por el `or` → page a los ≈ 37
+  #   top/new             esperados 2/min (120/h < 200) clicks 0.5/min → 0.25 pero sin volumen: no alerta
+  #   in_article/estab. de EXPLORACIÓN (src="explore") en 0.5: no entra a la alerta (otra recording rule)
+  - interval: 1m
+    input_series:
+      - series: 'ad_expected_clicks_total{slot="top", src="model", ad_age="established"}'
+        values: '0+10x240'
+      - series: 'ad_clicks_total{slot="top", src="model", ad_age="established"}'
+        values: '0+7x240'
+      - series: 'ad_expected_clicks_total{slot="in_article", src="model", ad_age="established"}'
+        values: '0+20x240'
+      - series: 'ad_clicks_total{slot="in_article", src="model", ad_age="established"}'
+        values: '0+17x240'
+      - series: 'ad_expected_clicks_total{slot="bottom", src="model", ad_age="new"}'
+        values: '0+30x240'
+      - series: 'ad_expected_clicks_total{slot="top", src="model", ad_age="new"}'
+        values: '0+2x240'
+      - series: 'ad_clicks_total{slot="top", src="model", ad_age="new"}'
+        values: '0+0.5x240'
+      - series: 'ad_expected_clicks_total{slot="in_article", src="explore", ad_age="established"}'
+        values: '0+2x240'
+      - series: 'ad_clicks_total{slot="in_article", src="explore", ad_age="established"}'
+        values: '0+1x240'
+    promql_expr_test:
+      - expr: ALERTS{alertname="CalibrationRatioOff", alertstate="firing"}
+        eval_time: 20m
+        exp_samples: []
+      - expr: ALERTS{alertname="CalibrationRatioOff", alertstate="firing"}
+        eval_time: 60m
+        exp_samples:
+          - labels: 'ALERTS{alertname="CalibrationRatioOff", alertstate="firing", severity="page", slot="top", ad_age="established"}'
+            value: 1
+          - labels: 'ALERTS{alertname="CalibrationRatioOff", alertstate="firing", severity="page", slot="bottom", ad_age="new"}'
+            value: 1
+      - expr: ALERTS{alertname="CalibrationRatioOff", alertstate="firing", severity="ticket"}
+        eval_time: 150m
+        exp_samples: []
+      - expr: ALERTS{alertname="CalibrationRatioOff", alertstate="firing", severity="ticket"}
+        eval_time: 185m
+        exp_samples:
+          - labels: 'ALERTS{alertname="CalibrationRatioOff", alertstate="firing", severity="ticket", slot="in_article", ad_age="established"}'
+            value: 1
+      # El cociente (redondeado a centésimas: la división de dos rates extrapolados deja decimales sueltos)
+      - expr: round(ad:calibration_ratio:rate1h * 100) / 100
+        eval_time: 90m
+        exp_samples:
+          - labels: '{slot="top", ad_age="established"}'
+            value: 0.7
+          - labels: '{slot="in_article", ad_age="established"}'
+            value: 0.85
+          - labels: '{slot="bottom", ad_age="new"}'
+            value: 0
+          - labels: '{slot="top", ad_age="new"}'
+            value: 0.25
+      - expr: round(ad:calibration_ratio_explore:rate6h * 100) / 100
+        eval_time: 90m
+        exp_samples:
+          - labels: '{slot="in_article"}'
+            value: 0.5
+
+  # ---------------------------------------------------------------- CTRDrop + RPMDrop
+  # Ocho días de series cada 10 min (1,153 puntos). Cambio en el punto 1,080 (minuto 10,800 = día 7.5):
+  # todo lo de antes es "la semana pasada" para lo de después.
+  #   top: 12,000 impresiones visibles / 10 min (20/s); CTR 1 % → 0.7 % → CTRDrop (0.7 < 0.8)
+  #   in_article: CTR 0.8 % estable → no
+  #   RPM: 66,000 requests / 10 min (110/s); ingreso 165 → 123.75 por 10 min → RPM 2.5 → 1.875 (75 %) → RPMDrop
+  - interval: 10m
+    input_series:
+      - series: 'ad_viewable_impressions_total{slot="top", src="model", ad_age="established"}'
+        values: '0+12000x1152'
+      - series: 'ad_clicks_total{slot="top", src="model", ad_age="established"}'
+        values: '0+120x1080 129684+84x71'
+      - series: 'ad_viewable_impressions_total{slot="in_article", src="model", ad_age="established"}'
+        values: '0+12000x1152'
+      - series: 'ad_clicks_total{slot="in_article", src="model", ad_age="established"}'
+        values: '0+96x1152'
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+66000x1152'
+      - series: 'ad_click_revenue_usd_total'
+        values: '0+165x1080 178323.75+123.75x71'
+    promql_expr_test:
+      - expr: ALERTS{alertname=~"CTRDrop|RPMDrop", alertstate="firing"}
+        eval_time: 10790m
+        exp_samples: []
+      # CTRDrop: el cociente cruza 0.8 cuando la ventana de 1 h tiene > 2/3 de datos nuevos (≈ 40 min) y
+      # necesita 1 h más (for: 1h). RPMDrop cruza 0.85 a los ≈ 40 min y necesita 30 min (grupo cada 5 min).
+      - expr: ALERTS{alertname=~"CTRDrop|RPMDrop", alertstate="firing"}
+        eval_time: 10860m
+        exp_samples: []
+      - expr: ALERTS{alertname=~"CTRDrop|RPMDrop", alertstate="firing"}
+        eval_time: 10960m
+        exp_samples:
+          - labels: 'ALERTS{alertname="CTRDrop", alertstate="firing", severity="ticket", slot="top"}'
+            value: 1
+          - labels: 'ALERTS{alertname="RPMDrop", alertstate="firing", severity="page"}'
+            value: 1
+      - expr: round(ad:rpm:rate1h * 1000) / 1000
+        eval_time: 11000m
+        exp_samples:
+          - labels: '{}'
+            value: 1.875
+
+  # ---------------------------------------------------------------- UserFeatureStoreStale
+  # El job de intereses escribe cada 15 min (el gauge es el timestamp de su última corrida, expuesto en cada
+  # scrape) y se traba después de la corrida de las 01:00 (3,600 s): a los 120 min el atraso pasa de 1 h →
+  # firing a los ≈ 136 (for: 15m), cause="stale". Las consultas funcionan bien.
+  - interval: 1m
+    input_series:
+      - series: 'userfeat_last_update_timestamp_seconds'
+        values: '0x14 900x14 1800x14 2700x14 3600x200'
+      - series: 'ad_user_feature_lookups_total'
+        values: '0+1000x260'
+      - series: 'ad_user_feature_defaults_total{reason="missing"}'
+        values: '0+300x260'
+    promql_expr_test:
+      - expr: ALERTS{alertname="UserFeatureStoreStale", alertstate="firing"}
+        eval_time: 125m
+        exp_samples: []
+      - expr: ALERTS{alertname="UserFeatureStoreStale", alertstate="firing"}
+        eval_time: 145m
+        exp_samples:
+          - labels: 'ALERTS{alertname="UserFeatureStoreStale", alertstate="firing", severity="ticket", cause="stale"}'
+            value: 1
+
+  # Desde el minuto 10, el 8 % de las consultas vence su timeout (el 30 % sin perfil es normal y no cuenta) →
+  # firing a los ≈ 27, cause="lookups_failing". El job está al día (su timestamp avanza con el reloj).
+  - interval: 1m
+    input_series:
+      - series: 'userfeat_last_update_timestamp_seconds'
+        values: '0+60x40'
+      - series: 'ad_user_feature_lookups_total'
+        values: '0+1000x40'
+      - series: 'ad_user_feature_defaults_total{reason="timeout"}'
+        values: '0x10 80+80x29'
+      - series: 'ad_user_feature_defaults_total{reason="missing"}'
+        values: '0+300x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="UserFeatureStoreStale", alertstate="firing"}
+        eval_time: 20m
+        exp_samples: []
+      - expr: ALERTS{alertname="UserFeatureStoreStale", alertstate="firing"}
+        eval_time: 35m
+        exp_samples:
+          - labels: 'ALERTS{alertname="UserFeatureStoreStale", alertstate="firing", severity="ticket", cause="lookups_failing"}'
+            value: 1
+
+  # El job no existe (su serie no aparece en 30 min) → cause="job_missing".
+  - interval: 1m
+    input_series:
+      - series: 'ad_user_feature_lookups_total'
+        values: '0+1000x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="UserFeatureStoreStale", alertstate="firing"}
+        eval_time: 20m
+        exp_samples:
+          - labels: 'ALERTS{alertname="UserFeatureStoreStale", alertstate="firing", severity="ticket", cause="job_missing"}'
+            value: 1
+
+  # ---------------------------------------------------------------- AdEventLogLag
+  # ad-events recibe 1,000 mensajes/s. Desde el minuto 10, el consumer ad-billing se atrasa 30,000 mensajes
+  # por minuto (procesa la mitad): lag en segundos = lag / 1,000 > 300 desde el minuto 20 → firing en el
+  # ≈ 25. El joiner de entrenamiento va al día (5 s): no alerta.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_topic_partition_current_offset{topic="ad-events", partition="0"}'
+        values: '0+60000x40'
+      - series: 'kafka_consumergroup_lag{consumergroup="ad-billing", topic="ad-events", partition="0"}'
+        values: '1000x10 31000+30000x29'
+      - series: 'kafka_consumergroup_lag{consumergroup="ad-training-joiner", topic="ad-events", partition="0"}'
+        values: '5000x40'
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+1000x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AdEventLogLag", alertstate="firing"}
+        eval_time: 18m
+        exp_samples: []
+      - expr: ALERTS{alertname="AdEventLogLag", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AdEventLogLag", alertstate="firing", severity="page", cause="billing_lag", consumergroup="ad-billing"}'
+            value: 1
+      - expr: ad:event_log_lag_seconds
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ad:event_log_lag_seconds{consumergroup="ad-billing"}'
+            value: 601
+          - labels: 'ad:event_log_lag_seconds{consumergroup="ad-training-joiner"}'
+            value: 5
+
+  # Kafka no confirma clicks desde el minuto 10 (1 por minuto), y el 0.2 % de los eventos serve se descarta
+  # en el ad-api: dos causas a la vez. El consumer va al día.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_topic_partition_current_offset{topic="ad-events", partition="0"}'
+        values: '0+60000x40'
+      - series: 'kafka_consumergroup_lag{consumergroup="ad-billing", topic="ad-events", partition="0"}'
+        values: '1000x40'
+      - series: 'ad_click_log_failures_total'
+        values: '0x10 1+1x29'
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+1000x40'
+      - series: 'ad_event_log_dropped_total{type="serve"}'
+        values: '0x10 2+2x29'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AdEventLogLag", alertstate="firing"}
+        eval_time: 10m
+        exp_samples: []
+      - expr: ALERTS{alertname="AdEventLogLag", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AdEventLogLag", alertstate="firing", severity="page", cause="click_log_failures"}'
+            value: 1
+          - labels: 'ALERTS{alertname="AdEventLogLag", alertstate="firing", severity="page", cause="events_dropped"}'
+            value: 1
+
+  # kafka_exporter no reporta el lag del consumer de facturación: no sabemos si se cobra → cause="no_lag_metric".
+  # Además, el joiner de entrenamiento lleva 8,000 s de atraso → el ticket.
+  - interval: 1m
+    input_series:
+      - series: 'kafka_topic_partition_current_offset{topic="ad-events", partition="0"}'
+        values: '0+60000x60'
+      - series: 'kafka_consumergroup_lag{consumergroup="ad-training-joiner", topic="ad-events", partition="0"}'
+        values: '8000000x60'
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+1000x60'
+    promql_expr_test:
+      - expr: ALERTS{alertname="AdEventLogLag", alertstate="firing"}
+        eval_time: 45m
+        exp_samples:
+          - labels: 'ALERTS{alertname="AdEventLogLag", alertstate="firing", severity="page", cause="no_lag_metric", consumergroup="ad-billing", topic="ad-events"}'
+            value: 1
+          - labels: 'ALERTS{alertname="AdEventLogLag", alertstate="firing", severity="ticket", consumergroup="ad-training-joiner"}'
+            value: 1
+
+  # ---------------------------------------------------------------- BudgetPacingOff
+  # El controlador de pacing publica cada minuto hasta el minuto 10 y se detiene (el gauge queda en 600 s):
+  # atraso > 300 s desde el minuto 15 → firing en el ≈ 25 (for: 10m). Presupuestos y gasto, normales.
+  - interval: 1m
+    input_series:
+      - series: 'pacing_last_run_timestamp_seconds'
+        values: '0+60x10 600x40'
+      - series: 'pacing_spend_vs_plan_ratio'
+        values: '1x50'
+      - series: 'pacing_planned_spend_usd'
+        values: '20000x50'
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+1000x50'
+    promql_expr_test:
+      - expr: ALERTS{alertname="BudgetPacingOff", alertstate="firing"}
+        eval_time: 22m
+        exp_samples: []
+      - expr: ALERTS{alertname="BudgetPacingOff", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="BudgetPacingOff", alertstate="firing", severity="page", cause="controller_stale"}'
+            value: 1
+
+  # El Redis de presupuestos falla en el 8 % de los requests desde el minuto 10 → cause="budget_store_errors".
+  - interval: 1m
+    input_series:
+      - series: 'pacing_last_run_timestamp_seconds'
+        values: '0+60x40'
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+1000x40'
+      - series: 'ad_dependency_errors_total{dependency="budget", kind="timeout"}'
+        values: '0x10 80+80x29'
+    promql_expr_test:
+      - expr: ALERTS{alertname="BudgetPacingOff", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="BudgetPacingOff", alertstate="firing", severity="page", cause="budget_store_errors"}'
+            value: 1
+
+  # El gasto va a 1.35× del plan desde el minuto 30 con un plan de US$20,000 → ticket a los ≈ 61. En la
+  # madrugada (plan de US$1,000) un 2× no dice nada: no alerta. Y sin el controlador (sin serie) → page.
+  - interval: 1m
+    input_series:
+      - series: 'pacing_last_run_timestamp_seconds{instance="a"}'
+        values: '0+60x90'
+      - series: 'pacing_spend_vs_plan_ratio{instance="a"}'
+        values: '1x30 1.35x60'
+      - series: 'pacing_planned_spend_usd{instance="a"}'
+        values: '20000x90'
+      - series: 'pacing_spend_vs_plan_ratio{instance="madrugada"}'
+        values: '2x90'
+      - series: 'pacing_planned_spend_usd{instance="madrugada"}'
+        values: '1000x90'
+    promql_expr_test:
+      - expr: ALERTS{alertname="BudgetPacingOff", alertstate="firing"}
+        eval_time: 50m
+        exp_samples: []
+      - expr: ALERTS{alertname="BudgetPacingOff", alertstate="firing"}
+        eval_time: 70m
+        exp_samples:
+          - labels: 'ALERTS{alertname="BudgetPacingOff", alertstate="firing", severity="ticket", instance="a"}'
+            value: 1
+
+  - interval: 1m
+    input_series:
+      - series: 'ad_requests_total{path="model"}'
+        values: '0+1000x30'
+    promql_expr_test:
+      - expr: ALERTS{alertname="BudgetPacingOff", alertstate="firing"}
+        eval_time: 25m
+        exp_samples:
+          - labels: 'ALERTS{alertname="BudgetPacingOff", alertstate="firing", severity="page", cause="controller_missing"}'
+            value: 1
+
+  # Un pod deja de recargar su índice en el minuto 10 (la edad crece de a 60 s por minuto); el otro recarga
+  # cada minuto. > 300 s desde el minuto 15 → firing en el ≈ 25, cause="index_stale". El controlador, al día.
+  - interval: 1m
+    input_series:
+      - series: 'ad_index_age_seconds{pod="ad-api-a"}'
+        values: '0x10 60+60x30'
+      - series: 'ad_index_age_seconds{pod="ad-api-b"}'
+        values: '30x40'
+      - series: 'pacing_last_run_timestamp_seconds'
+        values: '0+60x40'
+    promql_expr_test:
+      - expr: ALERTS{alertname="BudgetPacingOff", alertstate="firing"}
+        eval_time: 20m
+        exp_samples: []
+      - expr: ALERTS{alertname="BudgetPacingOff", alertstate="firing"}
+        eval_time: 30m
+        exp_samples:
+          - labels: 'ALERTS{alertname="BudgetPacingOff", alertstate="firing", severity="page", cause="index_stale"}'
+            value: 1

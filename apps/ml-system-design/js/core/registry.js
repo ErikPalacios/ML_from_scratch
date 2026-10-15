@@ -107,7 +107,7 @@
   };
 
   const MODULE_IDS = Array.from({ length: 15 }, (_, i) => 'm' + String(i + 1).padStart(2, '0'));
-  const CASE_IDS = Array.from({ length: 13 }, (_, i) => 'c' + String(i + 1).padStart(2, '0'));
+  const CASE_IDS = Array.from({ length: 15 }, (_, i) => 'c' + String(i + 1).padStart(2, '0'));
 
   // ------------------------------------------------------------------ estado
   let catalog = null;                 // lo define js/content/catalog.js

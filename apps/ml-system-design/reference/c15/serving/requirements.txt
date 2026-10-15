@@ -1,0 +1,32 @@
+# Dependencias de RUNTIME del ad-api, fijadas con == (incluye transitivas: esta lista ES el lock).
+# Generada con `uv pip compile` para Linux x86_64 (manylinux) y Python 3.13 (el de la imagen).
+# Por qué fijar las transitivas: sin lock, un rebuild del mismo commit puede traer otra pydantic u otra
+# numpy y cambiar el comportamiento sin que nadie toque el código.
+# SIN scikit-learn: el serving aplica la isotónica con np.interp (model.py), así que la imagen no carga
+# sklearn ni scipy y el modelo no es un pickle. La imagen copia features.py, model.py, auction.py,
+# tokens.py y ad_api.py. Tests: pip install -r ../requirements-dev.txt (no entra a la imagen).
+
+# --- directas ---
+fastapi==0.143.2  # framework ASGI: validación del request, lifespan, BackgroundTasks
+uvicorn==0.54.0  # servidor ASGI; 1 proceso por contenedor (escala con réplicas, no con workers)
+uvloop==0.23.0  # event loop más rápido; uvicorn lo usa solo si está instalado
+httptools==0.9.0  # parser HTTP en C; uvicorn lo prefiere a h11 si está instalado
+prometheus-client==0.26.0  # /metrics
+numpy==2.5.4  # pesos del modelo y scoring; MISMA versión que training (el artefacto se escribe allá)
+# zoneinfo usa la base de zonas del sistema y, si no la hay (Windows, o una imagen sin el paquete tzdata
+# del sistema operativo), este paquete; sin ninguna de las dos, ZoneInfo("America/Mexico_City") falla
+tzdata==2026.5
+
+# --- transitivas (uv pip compile) ---
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+h11==0.16.0
+idna==3.20
+opentelemetry-api==1.45.1
+pydantic==2.14.1
+pydantic-core==2.50.1
+starlette==1.8.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4

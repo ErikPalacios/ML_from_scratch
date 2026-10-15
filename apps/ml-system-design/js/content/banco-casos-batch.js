@@ -1,4 +1,4 @@
-/* Banco de problemas · Casos de diseño · Batch: precomputar y servir un lookup: ventana de la corrida, workers, spot, incremental vs completo, backfills.
+/* Banco de problemas · Mini-casos por patrón · Batch: precomputar y servir un lookup: ventana de la corrida, workers, spot, incremental vs completo, backfills.
    Se carga DESPUÉS de banco-casos.js (que define la sección, las tarjetas y B.util). Contrato y convenciones:
    ver el encabezado de banco-casos.js. Las decisiones que dependen de los números se eligen primero (cada resultado
    sale con frecuencia pareja) y después se toma una combinación de entradas que lo produce con ≥ 10 % de margen y con

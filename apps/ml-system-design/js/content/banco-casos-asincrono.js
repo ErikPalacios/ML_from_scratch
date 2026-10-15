@@ -1,4 +1,4 @@
-/* Banco de problemas · Casos de diseño · Asíncrono con colas: nadie espera en línea (segundos a horas): 202 + job_id, workers por Little, backlog y vaciado, escalar a cero, prioridades, reintentos y DLQ.
+/* Banco de problemas · Mini-casos por patrón · Asíncrono con colas: nadie espera en línea (segundos a horas): 202 + job_id, workers por Little, backlog y vaciado, escalar a cero, prioridades, reintentos y DLQ.
    Se carga DESPUÉS de banco-casos.js (que define la sección, las tarjetas y B.util). Contrato y convenciones:
    ver el encabezado de banco-casos.js. Las decisiones que dependen de los números se eligen primero (cada resultado
    sale con frecuencia pareja) y después se toma una combinación de entradas que lo produce con ≥ 10 % de margen y con

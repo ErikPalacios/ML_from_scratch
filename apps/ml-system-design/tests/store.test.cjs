@@ -185,7 +185,8 @@ test('JSON corrupto en localStorage: estado vacío y copia de respaldo', () => {
 });
 
 test('progreso de página y del curso', () => {
-  const { store } = makeEnv();
+  const { store, MSD } = makeEnv();
+  const TOTAL = MSD.MODULE_IDS.length + MSD.CASE_IDS.length;
   assert.deepStrictEqual(Object.assign({}, store.pageProgress('m01')), { read: 0, total: 4, pct: 0, completed: false });
   assert.strictEqual(store.pageState('m01'), 'ready');
   assert.strictEqual(store.pageState('m02'), 'soon');
@@ -197,10 +198,10 @@ test('progreso de página y del curso', () => {
   store.setPageCompleted('m01', true);
   assert.strictEqual(store.pageState('m01'), 'done');
   const cp = store.courseProgress();
-  assert.strictEqual(cp.total, 28);
+  assert.strictEqual(cp.total, TOTAL);   // 15 módulos + los casos del catálogo
   assert.strictEqual(cp.done, 1);
   assert.strictEqual(cp.ready, 1);
-  assert.strictEqual(cp.pct, 4);
+  assert.strictEqual(cp.pct, Math.round(100 / TOTAL));
   store.setSectionRead('m01', 'a', false);
   assert.strictEqual(store.isSectionRead('m01', 'a'), false);
 });

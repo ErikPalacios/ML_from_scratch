@@ -40,7 +40,7 @@ fuentes del sistema y funciona igual.
 | parte | qué hay | estado en la fase 1 |
 |---|---|---|
 | **1 — Fundamentos** | 15 módulos (M01–M15): el mapa de la entrevista, patrones de inferencia, latencia y capacidad, hardware, contenedores, orquestación, model servers, optimización, datos y features, MLOps, despliegue seguro, monitoreo, nube, LLMs, seguridad. | M01 completo; el resto, Próximamente |
-| **2 — Casos de diseño** | 13 casos (C01–C13). Cada uno sigue la misma plantilla de 15 secciones: enunciado, preguntas de aclaración, requisitos, estimaciones, arquitectura, datos, serving, evaluación, monitoreo, fallas, trade-offs, costo, archivos de referencia, preguntas de seguimiento y checklist final. | C01 completo; los demás con enunciado practicable |
+| **2 — Casos de diseño** | 15 casos (C01–C15), agrupados en el índice por patrón de M2 (online síncrono, batch, asíncrono con colas, LLMs y RAG, híbridos, streaming, edge); la hoja de ruta del Inicio lista los que vienen. Cada uno sigue la misma plantilla de 15 secciones: enunciado, preguntas de aclaración, requisitos, estimaciones, arquitectura, datos, serving, evaluación, monitoreo, fallas, trade-offs, costo, archivos de referencia, preguntas de seguimiento y checklist final. | C01 completo; los demás con enunciado practicable |
 | **3 — Práctica** | **Simulador** de 45 minutos con reloj, framework de 7 pasos que te dice en qué paso deberías ir, autoguardado, rúbrica de 6 dimensiones y resultado con tus puntos débiles; **Historial** de intentos; **Flashcards** con repetición espaciada (Leitner, 5 cajas). | completo |
 | **4 — Referencias** | **Glosario ES–EN** con buscador y frase de ejemplo en inglés; hojas de números, herramientas por categoría y comandos de Docker/kubectl. | glosario completo; las hojas, Próximamente |
 
@@ -102,7 +102,7 @@ plantillas `gen(r)`); una sección nueva aparece sola en la página, y un archiv
 una sección existente si se carga después de ella (`banco-proyectos.js` suma los dos temas de casos a
 Estimaciones).
 
-La segunda sección es **Casos de diseño** (`#problemas.casos`): casos completos de entrevista con
+La segunda sección es **Mini-casos por patrón** (`#problemas.casos`): casos cortos de entrevista con
 requisitos concretos (volumen, latencia, presupuesto, frescura). Eliges el patrón, estimas, dimensionas,
 comparas contra el presupuesto y defiendes el trade-off. Los temas siguen los patrones de M2, en orden de
 lo que más se ve en trabajos reales: Online síncrono, Batch, Asíncrono con colas, LLMs y RAG, Híbridos,

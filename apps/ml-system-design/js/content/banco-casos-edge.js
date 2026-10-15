@@ -1,4 +1,4 @@
-/* Banco de problemas · Casos de diseño · Edge y on-device: el modelo junto al dato: ancho de banda, FPS por dispositivo, flota y OTA, on-device vs servidor.
+/* Banco de problemas · Mini-casos por patrón · Edge y on-device: el modelo junto al dato: ancho de banda, FPS por dispositivo, flota y OTA, on-device vs servidor.
    Se carga DESPUÉS de banco-casos.js (que define la sección, las tarjetas y B.util). Contrato y convenciones:
    ver el encabezado de banco-casos.js. */
 (function (root) {

@@ -1,4 +1,4 @@
-/* Banco de problemas · Casos de diseño · Online síncrono: alguien espera la respuesta (ms a ≈ 1 s): presupuesto de latencia, réplicas, CPU vs GPU, batching dinámico, timeouts y fallback.
+/* Banco de problemas · Mini-casos por patrón · Online síncrono: alguien espera la respuesta (ms a ≈ 1 s): presupuesto de latencia, réplicas, CPU vs GPU, batching dinámico, timeouts y fallback.
    Se carga DESPUÉS de banco-casos.js (que define la sección, las tarjetas y B.util). Contrato y convenciones:
    ver el encabezado de banco-casos.js.
    Plantillas: sin-01 ¿quién espera? (N1) · sin-02 presupuesto de latencia (N1) · sin-03 CPU o GPU (N2) ·

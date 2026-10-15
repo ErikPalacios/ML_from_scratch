@@ -1,0 +1,295 @@
+# Alertas del caso c15 (ad server con modelo de CTR), Prometheus: 8 alertas en 3 grupos (11 reglas) + recording rules.
+#   Sistema: AdServerLatencyHigh, AdFallbackRateHigh, UserFeatureStoreStale, AdEventLogLag (2), BudgetPacingOff (2)
+#   Modelo:  CalibrationRatioOff (2), CTRDrop
+#   Negocio: RPMDrop
+# Severidades: page = alguien lo mira YA (es dinero por minuto: cobros mal calculados, presupuestos que se
+# gastan antes de tiempo, clicks que no se registran); ticket = horario laboral, con dueño (equipo de ads).
+# El ruteo vive en Alertmanager, no aquí.
+# Umbrales ILUSTRATIVOS: salen del SLO (p99 ≤ 50 ms), del objetivo de calibración del caso (0.9–1.1) y de la
+# línea base de cada métrica; ajústalos con tus datos.
+# De dónde sale cada métrica:
+#   ad_*                                   → serving/ad_api.py (un test exige que cada ad_*_total / _bucket /
+#                                            _seconds de aquí exista en su /metrics)
+#   kafka_consumergroup_lag, kafka_topic_partition_current_offset → kafka_exporter (danielqsj/kafka_exporter)
+#   userfeat_last_update_timestamp_seconds → el job que escribe los intereses de 30 días en el online store
+#                                            (gauge propio, corre cada ≈ 15 min, ilustrativo)
+#   pacing_last_run_timestamp_seconds, pacing_spend_vs_plan_ratio, pacing_planned_spend_usd → el controlador
+#                                            de pacing (cada minuto calcula serve_rate por campaña; fuera de
+#                                            esta carpeta)
+# Validación: `promtool check rules alerts.yml` y `promtool test rules alerts_test.yml` (Prometheus 3.15.0).
+
+groups:
+  # ------------------------------------------------------------------ recording rules
+  - name: c15-recording
+    rules:
+      # p99 server-side de POST /v1/ads. Buckets EXACTOS en 0.04 y 0.05: sin ellos histogram_quantile
+      # interpola entre buckets vecinos y el p99 "cerca del SLO" es ruido.
+      - record: ad:request_latency_p99:rate5m
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(ad_request_duration_seconds_bucket[5m])))
+      # Fracción de requests rankeados SIN modelo, y fracción que terminó en excepción (los dos salen 200 a
+      # la página con el programático: sin esto, perder el modelo se ve como "todo 200 OK").
+      - record: ad:fallback_ratio:rate5m
+        expr: |
+          sum(rate(ad_requests_total{path="fallback"}[5m])) / sum(rate(ad_requests_total[5m]))
+      - record: ad:error_ratio:rate5m
+        expr: |
+          sum(rate(ad_requests_total{path="error"}[5m])) / sum(rate(ad_requests_total[5m]))
+      # Calibración: clicks ÷ clicks esperados (Σ pCTR de impresiones VISIBLES), por slot y edad del anuncio,
+      # del tráfico rankeado por el modelo (src="model"). 1 h: con ≈ 44k clicks por hora en el caso (est.),
+      # hay volumen por slice.
+      # Trampa: un counter que nunca se incrementó NO EXISTE (prometheus_client crea la serie de un label en
+      # el primer inc). Si el handler de clicks se rompe, ad_clicks_total de ese slice no aparece y el cociente
+      # queda vacío: la alerta no vería el peor caso (0 clicks). `or 0 * esperados` rellena con 0.
+      - record: ad:calibration_ratio:rate1h
+        expr: |
+          (
+            sum by (slot, ad_age) (rate(ad_clicks_total{src="model"}[1h]))
+              or
+            0 * sum by (slot, ad_age) (rate(ad_expected_clicks_total{src="model"}[1h]))
+          )
+            / sum by (slot, ad_age) (rate(ad_expected_clicks_total{src="model"}[1h]))
+      # Clicks esperados por hora del slice: el volumen mínimo para creerle al cociente.
+      - record: ad:expected_clicks_per_hour:rate1h
+        expr: |
+          3600 * sum by (slot, ad_age) (rate(ad_expected_clicks_total{src="model"}[1h]))
+      # La misma calibración en el tráfico de EXPLORACIÓN (≈ 1 %, elegido al azar): sin el sesgo de selección
+      # de la subasta. 6 h por volumen. No alerta: es la primera consulta del runbook de CalibrationRatioOff.
+      - record: ad:calibration_ratio_explore:rate6h
+        expr: |
+          sum by (slot) (rate(ad_clicks_total{src="explore"}[6h]))
+            / sum by (slot) (rate(ad_expected_clicks_total{src="explore"}[6h]))
+      # CTR por slot (todos los src), ahora y la misma hora de la semana pasada. `offset` sobre las series
+      # CRUDAS y no sobre la recording rule: una regla recién creada no tiene historia y la alerta quedaría
+      # ciega una semana. Requiere retención ≥ 8 días de los crudos (Prometheus guarda 15 por defecto).
+      - record: ad:ctr:rate1h
+        expr: |
+          sum by (slot) (rate(ad_clicks_total[1h])) / sum by (slot) (rate(ad_viewable_impressions_total[1h]))
+      - record: ad:ctr_1w_ago:rate1h
+        expr: |
+          sum by (slot) (rate(ad_clicks_total[1h] offset 1w))
+            / sum by (slot) (rate(ad_viewable_impressions_total[1h] offset 1w))
+      # RPM: ingreso por clicks por cada 1,000 páginas (una página = un request de anuncios).
+      - record: ad:rpm:rate1h
+        expr: |
+          1000 * sum(rate(ad_click_revenue_usd_total[1h])) / sum(rate(ad_requests_total[1h]))
+      - record: ad:rpm_1w_ago:rate1h
+        expr: |
+          1000 * sum(rate(ad_click_revenue_usd_total[1h] offset 1w)) / sum(rate(ad_requests_total[1h] offset 1w))
+      # Consultas de user features (con consentimiento) que no llegaron por timeout o error. "missing" (persona
+      # sin perfil) no entra: es la línea base de usuarios nuevos, no una falla.
+      - record: ad:user_feature_failure_ratio:rate5m
+        expr: |
+          sum(rate(ad_user_feature_defaults_total{reason=~"timeout|error"}[5m]))
+            / sum(rate(ad_user_feature_lookups_total[5m]))
+      # Segundos de atraso de cada consumer de ad-events: lag en mensajes ÷ ritmo de producción del tópico.
+      # Mide el atraso aunque el consumer no procese nada (consumer caído).
+      - record: ad:event_log_lag_seconds
+        expr: |
+          sum by (consumergroup) (kafka_consumergroup_lag{topic="ad-events"})
+            / on () group_left ()
+          sum(rate(kafka_topic_partition_current_offset{topic="ad-events"}[5m]))
+      # Eventos serve/impression descartados en el ad-api (buffer lleno), por request.
+      - record: ad:event_log_loss_ratio:rate5m
+        expr: |
+          sum(rate(ad_event_log_dropped_total[5m])) / sum(rate(ad_requests_total[5m]))
+      # Requests en los que el Redis de presupuestos falló (timeout o error).
+      - record: ad:budget_error_ratio:rate5m
+        expr: |
+          sum(rate(ad_dependency_errors_total{dependency="budget"}[5m])) / sum(rate(ad_requests_total[5m]))
+
+  # ------------------------------------------------------------------ sistema
+  - name: c15-system
+    rules:
+      # SLO: p99 ≤ 50 ms server-side. El ad-api se da 40 ms internos y cada dependencia tiene timeout, así que
+      # un p99 > 50 ms casi nunca es "Redis lento" (eso termina en fallback o sin caps): es CPU del pod (el
+      # hash de features y el scoring son CPU), el event loop bloqueado o el pico de una noticia.
+      - alert: AdServerLatencyHigh
+        expr: ad:request_latency_p99:rate5m > 0.05
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "ad-api: p99 {{ $value | humanizeDuration }} (> 50 ms)"
+          description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(ad_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado; escala el Deployment (una noticia grande lleva el pico de ≈ 3,500 a ≈ 6,000 RPS). La página no espera: los slots se llenan con el programático."
+          runbook_url: "https://runbooks.example.com/c15/ad-latency"
+
+      # Más de 2 % de los requests sin modelo, o más de 0.5 % en excepción, o el ad-api sin métricas, durante
+      # 10 min. Con label `cause`: los runbooks son distintos (modelo/executor, bug, caído).
+      - alert: AdFallbackRateHigh
+        expr: |
+          label_replace(ad:fallback_ratio:rate5m > 0.02, "cause", "model_fallback", "", "")
+            or
+          label_replace(ad:error_ratio:rate5m > 0.005, "cause", "errors", "", "")
+            or
+          label_replace(absent_over_time(ad_requests_total[5m]), "cause", "no_metrics", "", "")
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "ad-api degradado ({{ $labels.cause }}: {{ $value | humanizePercentage }})"
+          description: "model_fallback: sum by (reason) (rate(ad_fallback_total[5m])) dice si es timeout del modelo (CPU), error (artefacto nuevo, scores fuera de [0, 1]) o modelo sin cargar. Mientras dure se rankea por bid × CTR histórico: RPM más bajo, nada roto. errors: logs del ad-api (request_id). no_metrics: up{job=\"ad-api\"}; la página está llenando todo con el programático."
+          runbook_url: "https://runbooks.example.com/c15/ad-fallback"
+
+      # Los intereses de 30 días están congelados (el job no escribe hace > 1 h, o desapareció) o > 5 % de las
+      # consultas fallan, durante 15 min. Nada se rompe: el modelo decide con contexto solo y los anuncios
+      # segmentados por interés no participan. Por eso es ticket; si cuesta mucho, lo dirá RPMDrop.
+      - alert: UserFeatureStoreStale
+        expr: |
+          label_replace(time() - max(userfeat_last_update_timestamp_seconds) > 3600, "cause", "stale", "", "")
+            or
+          label_replace(absent_over_time(userfeat_last_update_timestamp_seconds[30m]), "cause", "job_missing", "", "")
+            or
+          label_replace(ad:user_feature_failure_ratio:rate5m > 0.05, "cause", "lookups_failing", "", "")
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "User features degradadas ({{ $labels.cause }}: {{ $value | humanize }})"
+          description: "stale / job_missing: el job de intereses no corre (¿falló, se trabó, cambió de keyspace?); el online store sirve perfiles viejos. lookups_failing: latencia o errores del online store (ad_stage_duration_seconds{stage=\"user_features\"}). Revisa también ad_filtered_total{reason=\"interest\"}: sube cuando los perfiles no llegan."
+          runbook_url: "https://runbooks.example.com/c15/user-features"
+
+      # ad-events es FACTURACIÓN (clicks con precio) y el set de entrenamiento. Page: el consumer de facturación
+      # atrasado > 5 min (el gasto OFICIAL se ve tarde; el pacing sigue con el camino rápido que suma el click
+      # al Redis de presupuestos, pero si ese también falla, las campañas se pasan), clicks sin ack de Kafka
+      # sostenidos, eventos descartados > 0.1 %, o sin métrica de lag (kafka_exporter caído: ciegos).
+      - alert: AdEventLogLag
+        expr: |
+          label_replace(ad:event_log_lag_seconds{consumergroup="ad-billing"} > 300, "cause", "billing_lag", "", "")
+            or
+          label_replace(increase(ad_click_log_failures_total[5m]) > 0, "cause", "click_log_failures", "", "")
+            or
+          label_replace(ad:event_log_loss_ratio:rate5m > 0.001, "cause", "events_dropped", "", "")
+            or
+          label_replace(absent_over_time(kafka_consumergroup_lag{consumergroup="ad-billing", topic="ad-events"}[10m]),
+                        "cause", "no_lag_metric", "", "")
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "ad-events con atraso o pérdida ({{ $labels.cause }}: {{ $value | humanize }})"
+          description: "billing_lag: el consumer ad-billing no avanza (¿caído? ¿rebalanceando?): la facturación se atrasa; el pacing depende solo del camino rápido (ad_dependency_errors_total{dependency=\"budget_spend\"} debe estar en 0). click_log_failures: Kafka no confirma clicks; se reconstruyen del access log del balanceador. events_dropped: buffer del productor lleno en el ad-api (Kafka lento). no_lag_metric: kafka_exporter no reporta."
+          runbook_url: "https://runbooks.example.com/c15/event-log"
+      # El joiner del set de entrenamiento puede atrasarse más: el modelo se entrena una vez al día.
+      - alert: AdEventLogLag
+        expr: ad:event_log_lag_seconds{consumergroup="ad-training-joiner"} > 7200
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Joiner de entrenamiento atrasado {{ $value | humanizeDuration }}"
+          description: "Si el entrenamiento diario corre con un día incompleto, frénalo: un día con la mitad de las impresiones sesga el CTR por hora."
+          runbook_url: "https://runbooks.example.com/c15/event-log"
+
+      # El controlador de pacing no corre hace > 5 min (o desapareció), o > 5 % de los requests no pueden leer
+      # presupuestos, o el índice de anuncios de algún pod tiene > 5 min (sirve campañas pausadas), durante
+      # 10 min. Sin pacing al día, una campaña con presupuesto de mañana se gasta en una hora; sin lectura de
+      # presupuestos, el ad-api deja fuera esas campañas (fail-closed) y la página se llena con el programático;
+      # con el índice viejo, lo servido después de una pausa no se cobra (ad_clicks_not_billed_total).
+      - alert: BudgetPacingOff
+        expr: |
+          label_replace(time() - max(pacing_last_run_timestamp_seconds) > 300, "cause", "controller_stale", "", "")
+            or
+          label_replace(absent_over_time(pacing_last_run_timestamp_seconds[10m]), "cause", "controller_missing", "", "")
+            or
+          label_replace(ad:budget_error_ratio:rate5m > 0.05, "cause", "budget_store_errors", "", "")
+            or
+          label_replace(max(ad_index_age_seconds) > 300, "cause", "index_stale", "", "")
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: "Pacing / presupuestos fuera de servicio ({{ $labels.cause }})"
+          description: "controller_*: el job de pacing no publica serve_rate (¿caído?). budget_store_errors: Redis de presupuestos (ad_stage_duration_seconds{stage=\"budget\"}, ad_filtered_total{reason=\"budget_unknown\"}). index_stale: un pod no recarga el índice (max by (pod) (ad_index_age_seconds)); las pausas no le llegan."
+          runbook_url: "https://runbooks.example.com/c15/pacing"
+      # El gasto de hoy va > 20 % arriba o abajo del plan, durante 30 min, con un plan que ya no es ruido
+      # (a las 00:30 el plan acumulado es chico y cualquier cociente salta). Arriba: las campañas se agotan
+      # temprano y la tarde queda sin demanda directa. Abajo: sub-entrega (anunciantes que no gastan lo que
+      # compraron). `and` sin on(): las dos series salen del mismo controlador y se emparejan por sus labels.
+      - alert: BudgetPacingOff
+        expr: |
+          (pacing_spend_vs_plan_ratio > 1.2 or pacing_spend_vs_plan_ratio < 0.8)
+            and
+          pacing_planned_spend_usd > 5000
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Gasto de hoy a {{ $value | humanize }}× del plan"
+          description: "¿Una noticia grande (más tráfico que el plan)? ¿Cambió el pCTR (CalibrationRatioOff) y con él los precios? ¿Campañas nuevas grandes? Revisa ad_filtered_total{reason=\"pacing\"} y el serve_rate por campaña."
+          runbook_url: "https://runbooks.example.com/c15/pacing"
+
+  # ------------------------------------------------------------------ modelo
+  - name: c15-model
+    rules:
+      # Calibración fuera de [0.8, 1.25] en un slice con ≥ 200 clicks esperados por hora, durante 30 min: page.
+      # Es dinero: con el pCTR inflado, anuncios que no valen la reserva la pasan y el precio que sale de la
+      # reserva se divide por un pCTR grande; desinflado, al revés. 200 esperados: el ruido de Poisson (≈ 7 %)
+      # no saca solo el cociente de la banda.
+      # Paréntesis obligatorios: en PromQL `and` se evalúa antes que `or`.
+      - alert: CalibrationRatioOff
+        expr: |
+          (ad:calibration_ratio:rate1h < 0.8 or ad:calibration_ratio:rate1h > 1.25)
+            and on (slot, ad_age)
+          ad:expected_clicks_per_hour:rate1h >= 200
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: "Calibración {{ $labels.slot }}/{{ $labels.ad_age }}: {{ $value | humanize }} (clicks ÷ esperados)"
+          description: "¿Coincide con un modelo nuevo (model_version en los eventos serve)? Rollback primero. Si no: compara con ad:calibration_ratio_explore:rate6h; si la exploración está en ≈ 1 y esto no, es sesgo de selección de la subasta, no el modelo. Revisa también neg_rate del artefacto (¿cambió w en training?) y el retraso de los beacons."
+          runbook_url: "https://runbooks.example.com/c15/calibration"
+      # Fuera de [0.9, 1.1] (el objetivo del caso) pero dentro de [0.8, 1.25], con ≥ 1,000 esperados por hora,
+      # durante 2 h: ticket (re-entrenar, re-calibrar con un holdout fresco).
+      - alert: CalibrationRatioOff
+        expr: |
+          (
+            (ad:calibration_ratio:rate1h < 0.9 and ad:calibration_ratio:rate1h >= 0.8)
+              or
+            (ad:calibration_ratio:rate1h > 1.1 and ad:calibration_ratio:rate1h <= 1.25)
+          )
+            and on (slot, ad_age)
+          ad:expected_clicks_per_hour:rate1h >= 1000
+        for: 2h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Calibración {{ $labels.slot }}/{{ $labels.ad_age }}: {{ $value | humanize }} (objetivo 0.9–1.1)"
+          description: "Deriva lenta: re-ajusta la isotónica con el holdout de ayer (training/calibration.py) y mira qué slice se movió (sección, anuncios nuevos)."
+          runbook_url: "https://runbooks.example.com/c15/calibration"
+
+      # CTR de un slot < 80 % de la misma hora de la semana pasada, durante 1 h, con volumen. La hora del día
+      # y las noticias cambian el CTR: comparar con "hace una hora" daría falsas alarmas cada mañana.
+      - alert: CTRDrop
+        expr: |
+          ad:ctr:rate1h / ad:ctr_1w_ago:rate1h < 0.8
+            and on (slot)
+          sum by (slot) (rate(ad_viewable_impressions_total[1h])) > 10
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "CTR en {{ $labels.slot }}: {{ $value | humanizePercentage }} de la semana pasada"
+          description: "¿Modelo nuevo? ¿Más fallback (AdFallbackRateHigh)? ¿User features caídas? ¿Cambió el layout de la página (el slot se ve menos: ad_viewable_impressions_total por request)? ¿Creatividades nuevas de un anunciante grande?"
+          runbook_url: "https://runbooks.example.com/c15/ctr-drop"
+
+  # ------------------------------------------------------------------ negocio
+  # Ventanas de 1 h vs la semana pasada: cambian lento, se evalúan cada 5 min.
+  - name: c15-business
+    interval: 5m
+    rules:
+      # RPM < 85 % de la misma hora de la semana pasada, durante 30 min, con tráfico. Es la métrica del negocio
+      # (≈ US$7.5 M/mes en el caso: un 15 % abajo son ≈ US$1.5k por hora, est.) y la única que ve un precio mal
+      # calculado o un ranking malo que devuelve 200 en 5 ms. Page.
+      - alert: RPMDrop
+        expr: |
+          ad:rpm:rate1h / ad:rpm_1w_ago:rate1h < 0.85
+            and
+          sum(rate(ad_requests_total[1h])) > 100
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: "RPM a {{ $value | humanizePercentage }} de la misma hora de la semana pasada"
+          description: "¿Deploy de modelo, de la subasta o de la reserva? ¿Calibración (CalibrationRatioOff)? ¿Fill rate (ad_slots_total{fill=\"programmatic\"})? ¿Campañas grandes que terminaron o se agotaron (BudgetPacingOff)? ¿Feriado o campaña especial la semana pasada (Buen Fin, Hot Sale)?"
+          runbook_url: "https://runbooks.example.com/c15/rpm-drop"

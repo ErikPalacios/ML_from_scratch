@@ -1,4 +1,5 @@
-/* Banco de problemas · Casos de diseño: casos completos de entrevista, agrupados por patrón (M2) más LLMs y RAG.
+/* Banco de problemas · Mini-casos por patrón: casos cortos de entrevista (decisión + cálculos), agrupados por patrón (M2)
+   más LLMs y RAG. Los casos completos, con las 15 secciones y el simulador, están en la Parte 2.
    Este archivo define la sección (MSD.problemBank.casos): temas, tarjetas de referencia y utilidades. Las
    plantillas viven en un archivo por tema que se carga DESPUÉS de este (y de banco-estimaciones.js):
      banco-casos-sincrono.js · banco-casos-batch.js · banco-casos-asincrono.js · banco-casos-llm.js ·
@@ -95,7 +96,7 @@
 
   MSD.problemBank.casos = {
     id: 'casos',
-    title: 'Casos de diseño',
+    title: 'Mini-casos por patrón',
     summary: 'Casos completos de entrevista con requisitos concretos (volumen, latencia, presupuesto, frescura): eliges el patrón, estimas, dimensionas, comparas contra el presupuesto y defiendes el trade-off. Agrupados por patrón de M2, más LLMs y RAG.',
     // En orden de lo que más se ve en trabajos reales.
     topics: [

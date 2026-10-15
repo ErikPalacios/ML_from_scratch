@@ -1,4 +1,4 @@
-/* Banco de problemas · Casos de diseño · Híbridos: dos patrones juntos: precomputar candidatos + ranking online, caché frente al modelo, camino rápido y camino lento.
+/* Banco de problemas · Mini-casos por patrón · Híbridos: dos patrones juntos: precomputar candidatos + ranking online, caché frente al modelo, camino rápido y camino lento.
    Se carga DESPUÉS de banco-casos.js (que define la sección, las tarjetas y B.util). Contrato y convenciones:
    ver el encabezado de banco-casos.js.
    Plantillas: hib-01 candidatos en batch + re-rank online (N1) · hib-02 caché delante del modelo (N2) ·

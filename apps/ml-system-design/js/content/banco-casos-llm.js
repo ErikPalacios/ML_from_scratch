@@ -1,4 +1,4 @@
-/* Banco de problemas · Casos de diseño · LLMs y RAG: costo por tokens, TTFT y streaming de tokens, contexto de RAG, jobs offline con LLM, agentes y cascadas.
+/* Banco de problemas · Mini-casos por patrón · LLMs y RAG: costo por tokens, TTFT y streaming de tokens, contexto de RAG, jobs offline con LLM, agentes y cascadas.
    Se carga DESPUÉS de banco-casos.js (que define la sección, las tarjetas y B.util). Contrato y convenciones:
    ver el encabezado de banco-casos.js. Precios por millón de tokens: la lista ilustrativa de c10 (US$2.50 / US$10)
    y supuestos realistas para 2026, rotulados en cada enunciado; prefijo en caché ≈ 10 % del precio de entrada y

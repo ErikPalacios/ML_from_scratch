@@ -1,6 +1,6 @@
 /* =============================================================================
    Ronda de Diseño ML — js/content/catalog.js
-   Catálogo completo: los 15 módulos, los 13 casos (listos o no) y las páginas especiales,
+   Catálogo completo: los 15 módulos, los casos (listos o no) y las páginas especiales,
    más la hoja de ruta por fases. Solo metadatos: el contenido de cada módulo/caso vive en
    su propio archivo (js/content/<id>-*.js) y se registra con MSD.register.
    Contrato: docs/SPEC.md §5.1–§5.2. Sin DOM (se carga también en Node).
@@ -309,7 +309,7 @@
   // sin escala ni latencia; el candidato debe preguntarlos.
   const cases = [
     {
-      id: 'c01', num: 1,
+      id: 'c01', num: 1, pattern: 'sincrono',
       title: 'API de clasificación de imágenes',
       titleEn: 'Image classification API',
       short: 'API de clasificación',
@@ -354,7 +354,7 @@
       ],
     },
     {
-      id: 'c02', num: 2,
+      id: 'c02', num: 2, pattern: 'edge',
       title: 'Detección de objetos en video en tiempo real con múltiples cámaras',
       titleEn: 'Real-time multi-camera video object detection',
       short: 'Detección en video',
@@ -380,7 +380,7 @@
       prompt: 'Tenemos cámaras instaladas en varias ubicaciones y queremos detectar ciertos objetos y eventos en el video en tiempo real para generar alertas. Diseña el sistema.',
     },
     {
-      id: 'c03', num: 3,
+      id: 'c03', num: 3, pattern: 'edge',
       title: 'Inspección visual en línea de manufactura / detección de EPP en planta',
       titleEn: 'Manufacturing visual inspection / PPE detection on the plant floor',
       short: 'Inspección visual en planta',
@@ -407,7 +407,7 @@
       prompt: 'Una planta de manufactura quiere usar cámaras para detectar automáticamente piezas defectuosas en la línea de producción y también si los operarios usan su equipo de protección. Diseña el sistema.',
     },
     {
-      id: 'c04', num: 4,
+      id: 'c04', num: 4, pattern: 'asincrono',
       title: 'Segmentación de imágenes médicas o industriales',
       titleEn: 'Medical or industrial image segmentation',
       short: 'Segmentación de imágenes',
@@ -433,7 +433,7 @@
       prompt: 'Un cliente genera todos los días imágenes en las que un especialista marca a mano ciertas regiones. Queremos un sistema que haga esa segmentación automáticamente y ayude a los especialistas. Diseña el sistema.',
     },
     {
-      id: 'c05', num: 5,
+      id: 'c05', num: 5, pattern: 'asincrono',
       title: 'Procesamiento de documentos / OCR',
       titleEn: 'Document processing / OCR',
       short: 'Documentos y OCR',
@@ -459,7 +459,7 @@
       prompt: 'Recibimos muchos documentos de clientes —facturas, formularios, identificaciones— y un equipo los captura a mano en nuestro sistema. Queremos automatizar ese proceso. Diseña el sistema.',
     },
     {
-      id: 'c06', num: 6,
+      id: 'c06', num: 6, pattern: 'hibrido',
       title: 'Moderación de contenido a gran escala',
       titleEn: 'Content moderation at scale',
       short: 'Moderación de contenido',
@@ -485,7 +485,7 @@
       prompt: 'Somos una red social y los usuarios publican texto e imágenes. Necesitamos detectar el contenido que viola nuestras políticas y actuar sobre él. Diseña el sistema.',
     },
     {
-      id: 'c07', num: 7,
+      id: 'c07', num: 7, pattern: 'hibrido',
       title: 'Búsqueda semántica y multimodal con embeddings',
       titleEn: 'Semantic and multimodal search with embeddings',
       short: 'Búsqueda con embeddings',
@@ -511,7 +511,7 @@
       prompt: 'Tenemos un catálogo grande de productos con fotos y descripciones. Queremos que los usuarios puedan encontrar productos describiendo lo que buscan o subiendo una foto. Diseña el sistema.',
     },
     {
-      id: 'c08', num: 8,
+      id: 'c08', num: 8, pattern: 'hibrido',
       title: 'Sistema de recomendación',
       titleEn: 'Recommendation system',
       short: 'Sistema de recomendación',
@@ -537,7 +537,7 @@
       prompt: 'Queremos que la pantalla de inicio de nuestra app le muestre a cada usuario una selección personalizada. Diseña el sistema de recomendación.',
     },
     {
-      id: 'c09', num: 9,
+      id: 'c09', num: 9, pattern: 'sincrono',
       title: 'Detección de fraude en tiempo real',
       titleEn: 'Real-time fraud detection',
       short: 'Fraude en tiempo real',
@@ -563,7 +563,7 @@
       prompt: 'Somos una plataforma de pagos y estamos perdiendo dinero por transacciones fraudulentas. Queremos detectarlas en el momento en que ocurren. Diseña el sistema.',
     },
     {
-      id: 'c10', num: 10,
+      id: 'c10', num: 10, pattern: 'llm',
       title: 'Servir un LLM propio a escala',
       titleEn: 'Serving your own LLM at scale',
       short: 'Servir un LLM propio',
@@ -589,7 +589,7 @@
       prompt: 'Queremos dejar de depender de un proveedor externo de LLMs y servir un modelo open-weights en nuestra propia infraestructura para varios productos internos. Diseña el sistema.',
     },
     {
-      id: 'c11', num: 11,
+      id: 'c11', num: 11, pattern: 'llm',
       title: 'RAG empresarial',
       titleEn: 'Enterprise RAG',
       short: 'RAG empresarial',
@@ -615,7 +615,7 @@
       prompt: 'Los empleados pierden mucho tiempo buscando información en documentos internos, wikis y tickets. Queremos un asistente que responda sus preguntas usando esa información. Diseña el sistema.',
     },
     {
-      id: 'c12', num: 12,
+      id: 'c12', num: 12, pattern: 'llm',
       title: 'Agente con herramientas',
       titleEn: 'Tool-using agent',
       short: 'Agente con herramientas',
@@ -641,7 +641,7 @@
       prompt: 'Queremos un asistente de soporte que no solo responda preguntas, sino que resuelva los casos de los clientes usando nuestros sistemas internos. Diseña el sistema.',
     },
     {
-      id: 'c13', num: 13,
+      id: 'c13', num: 13, pattern: 'streaming',
       title: 'Speech-to-text en tiempo real',
       titleEn: 'Real-time speech-to-text',
       short: 'Speech-to-text en vivo',
@@ -665,6 +665,58 @@
         'Evaluar por slices (idioma, acento, ruido) y monitorear en producción',
       ],
       prompt: 'Queremos agregar subtítulos en vivo a las llamadas y reuniones de nuestra plataforma. Diseña el sistema de transcripción.',
+    },
+    {
+      id: 'c14', num: 14, pattern: 'batch',
+      title: 'Pronóstico de demanda para retail',
+      titleEn: 'Retail demand forecasting',
+      short: 'Pronóstico de demanda',
+      summary: 'Pronosticar cada noche cuánto va a vender cada producto en cada tienda para que los pedidos salgan a tiempo. Es el caso clásico de batch: una ventana fija, millones de series, demanda censurada por los agotados y un fallback que nunca deja a las tiendas sin pedido.',
+      topics: [
+        'Batch nocturno con ventana fija y publicación atómica',
+        'Millones de series: un modelo global (GBDT) vs un modelo por serie',
+        'Pronósticos por cuantiles (P50 y P90) para el inventario de seguridad',
+        'Demanda censurada: los días agotados no son demanda cero',
+        'Calendario, quincenas, promociones y productos nuevos',
+        'Backtesting con origen móvil: WAPE, sesgo y cobertura',
+        'Validar antes de publicar y fallback con el pronóstico de ayer',
+        'Del error del modelo al negocio: agotados y merma',
+      ],
+      freq: 'alta', minutes: 120, difficulty: 'media',
+      connects: ['m02', 'm09', 'm10', 'm12', 'm13'],
+      tests: [
+        'Diseñar un pipeline batch con ventana de tiempo, dependencias de datos y fallback',
+        'Elegir el nivel del modelo (global vs por serie) y la pérdida (cuantiles)',
+        'Evaluar con backtesting temporal y métricas que entiende el negocio',
+        'Manejar demanda censurada, intermitente y productos nuevos',
+      ],
+      prompt: 'Somos una cadena de supermercados. Cada noche las tiendas le piden mercancía al centro de distribución y hoy cada gerente arma su pedido a ojo: tenemos productos agotados y mucha merma. Queremos pronosticar la demanda. Diseña el sistema.',
+    },
+    {
+      id: 'c15', num: 15, pattern: 'sincrono',
+      title: 'Predicción de clics en anuncios (CTR)',
+      titleEn: 'Ad click-through rate prediction',
+      short: 'CTR de anuncios',
+      summary: 'Elegir qué anuncios mostrar en cada página en pocos milisegundos, con un modelo que predice la probabilidad de clic. El dinero depende de que esa probabilidad esté calibrada, no solo de ordenar bien, y los datos de entrenamiento llegan muestreados y con sesgo de posición.',
+      topics: [
+        'Presupuesto de latencia del ad server dentro de la carga de la página',
+        'Filtrado de candidatos: segmentación, frecuencia y presupuesto',
+        'Ranking por bid × pCTR y precio por clic (subasta de segundo precio)',
+        'Calibración: por qué un AUC alto no alcanza',
+        'Muestreo de negativos y cómo corregir la probabilidad',
+        'Features con hashing, frescura y entrenamiento diario',
+        'Sesgo de posición, exploración y anuncios nuevos',
+        'Métricas: log loss, NE, RPM y guardrails de experiencia',
+      ],
+      freq: 'alta', minutes: 120, difficulty: 'alta',
+      connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'c08', 'c09'],
+      tests: [
+        'Cumplir un presupuesto de latencia estricto puntuando cientos de candidatos',
+        'Explicar por qué la calibración importa cuando la predicción multiplica dinero',
+        'Diseñar el pipeline de impresiones y clics sin fugas ni sesgos',
+        'Medir el impacto con A/B sin romper los presupuestos de los anunciantes',
+      ],
+      prompt: 'Somos una app de noticias y vivimos de los anuncios. En cada página elegimos qué anuncios mostrar y queremos que sean los que tienen más probabilidad de recibir clic, sin arruinar la experiencia. Diseña el sistema.',
     },
   ];
 
@@ -831,6 +883,17 @@
       items: ['c11', 'c12'],
       note: 'Sobre M14 y c10: darle al modelo tus documentos con citas (c11) y dejarlo actuar con herramientas, timeouts y guardrails (c12).',
     },
+    {
+      phase: 14, status: 'done',
+      title: 'Fase 14 — Pronóstico de demanda y CTR de anuncios',
+      items: ['c14', 'c15'],
+      note: 'Más casos por patrón: un batch nocturno con millones de series (c14) y un ranking síncrono donde la calibración vale dinero (c15).',
+    },
+    { phase: 15, status: 'next', items: [], title: 'Fase 15 — Copiloto de soporte y tiempo estimado de entrega', note: 'Un LLM con humano en el loop (c16) y un híbrido online + streaming (c17).' },
+    { phase: 16, status: 'later', items: [], title: 'Fase 16 — Siniestros con fotos y mantenimiento predictivo', note: 'Asíncrono con visión (c18) y streaming de sensores con edge (c19).' },
+    { phase: 17, status: 'later', items: [], title: 'Fase 17 — Churn y crédito en el checkout', note: 'Batch con A/B y uplift (c20) y online síncrono con regulación (c21).' },
+    { phase: 18, status: 'later', items: [], title: 'Fase 18 — Extracción con LLMs y autocompletado', note: 'Un LLM en batch a escala (c22) y un híbrido con latencia extrema (c23).' },
+    { phase: 19, status: 'later', items: [], title: 'Fase 19 — Visión on-device', note: 'Edge en el celular: escaneo de identificaciones (c24).' },
   ];
 
   // Respuestas del entrevistador para el simulador (salen de la sección 'aclaracion' de cada caso;
@@ -1194,6 +1257,66 @@
       {
         "topic": "Restricciones",
         "a": "Ya existen <b>Kubernetes en AWS con nodos GPU</b> (hay L4), Prometheus y Kafka. Todo corre en <b>una sola región de AWS (us-east-1, tres zonas)</b>, también los media servers, para todos los usuarios. Las transcripciones guardadas se retienen ≈ <b>30 días</b> (configurable por organización), y hay un indicador visible de “subtítulos activados”. Hay clientes en México (LFPDPPP), Brasil, EE. UU. y algunos en la Unión Europea. El presupuesto no tiene un número cerrado."
+      }
+    ],
+    c14: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Cadena de supermercados en México: <b>≈ 400 tiendas</b> surtidas por <b>4 centros de distribución</b>. Cada noche el <b>ERP de reabasto</b> calcula el pedido de cada tienda a su CD; hoy la sugerencia sale de una hoja de cálculo (lo vendido el mismo día de la semana pasada) y cada gerente la ajusta a ojo. Los ajustes seguirán permitidos y quedan registrados. También verían el pronóstico el equipo de categorías y la planeación de los CD. Pan, leche y refrescos llegan directo del proveedor: fuera de alcance."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Entra cada noche: ventas del POS por tienda, producto y día (netas de devoluciones), inventario al cierre con una marca de agotado, el plan de promociones y precios de marketing (conocido ≥ 14 días antes) y atributos de tiendas y productos. El ERP espera, por tienda × producto, un pronóstico diario de los próximos <b>14 días</b> con un valor central (<b>P50</b>) y uno alto (<b>P90</b>), y pide max(0, pronóstico de 2 días + inventario de seguridad del P90 − existencia − en camino), redondeado al empaque."
+      },
+      {
+        "topic": "Escala",
+        "a": "≈ 25,000 productos activos; cada tienda maneja ≈ 12,000 → <b>≈ 4.8 M series</b> tienda × producto, con ≈ 2 años de historia diaria. ≈ 30 % de las ventas son frescos (vida de anaquel de 2 a 10 días). Cola larga: ≈ 60 % de las series vende menos de 1 unidad al día; el 20 % de las series hace ≈ 80 % de las unidades. Entran ≈ 150 productos nuevos por semana y se abren ≈ 10 tiendas al año."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "Nadie espera una respuesta en línea. Las tiendas cierran a las 22:00 (hora local); las ventas llegan al warehouse a las <b>00:30</b> (las tiendas con mala conexión, hasta la <b>01:30</b>) y el inventario al cierre a la 01:00. El <b>ERP corre a las 04:00</b> y el pronóstico tiene que estar publicado a las <b>03:30</b>. El ERP nunca debe correr sin pronóstico."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "No hay modelo: la sugerencia es lo que se vendió el mismo día de la semana pasada, y cada gerente la ajusta, promociones incluidas. Medido contra las ventas, ese número tiene <b>WAPE ≈ 45 %</b> a nivel tienda × producto × día en el 20 % de las series que más venden. Hay agotados en ≈ 8 % de las revisiones de anaquel de esas series."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "Ventas diarias del POS netas de devoluciones (las devoluciones y cancelaciones a veces se procesan días después), con 2 años de historia. Inventario al cierre por tienda y producto, con una marca de <b>agotado</b> (existencia 0 al cierre o producto marcado como no disponible). Calendario de promociones y precios. Atributos: formato, región y tamaño de la tienda; categoría, perecedero, vida de anaquel y empaque del producto. El surtido de cada tienda está en el ERP."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Ventas ≈ US$5 B al año; merma de frescos ≈ 4 % de sus ventas (≈ US$60 M); ventas perdidas por agotados ≈ 3 % (≈ US$150 M). Metas: <b>−25 % de agotados</b> y <b>−20 % de merma</b>, sin subir los días de inventario de abarrotes; WAPE ≤ 35 % en las series principales. El CD entrega en 1 día y se pide todos los días. Hay warehouse y Airflow gestionado; el equipo de ML son 3 personas. Infraestructura: del orden de miles de dólares al mes."
+      }
+    ],
+    c15: [
+      {
+        "topic": "Usuarios y quién llama",
+        "a": "Un <b>medio de noticias latinoamericano</b> (app y sitio web, en español) con <b>ad server propio</b>. La página de cada artículo lo llama en paralelo a su contenido: <b>un request por página</b> para sus 3 slots. Los anunciantes son locales (retail, autos, educación, inmobiliarias) y compran campañas <b>CPC</b> directas o de autoservicio, desde una UI o con el equipo comercial. La demanda programática (header bidding, exchanges) ya existe, solo llena lo que nuestras campañas no llenan y está <b>fuera de alcance</b>."
+      },
+      {
+        "topic": "Entrada y salida",
+        "a": "Entrada por request: sección, dispositivo, ciudad o estado aproximado (por la IP), hora, consentimiento y un id seudónimo. Salida: para cada uno de los <b>3 slots</b> (banner arriba, dentro del texto, abajo), un anuncio con su markup, o nada para que lo llene el programático. Hay <b>≈ 2,500 anuncios activos</b> de ≈ 600 campañas, segmentados por sección, dispositivo, región, hora e intereses de 30 días (solo con consentimiento). Cada campaña puede tener <b>tope de frecuencia</b> por persona (p. ej. 5 al día) y <b>presupuesto diario</b> repartido en el día."
+      },
+      {
+        "topic": "Escala",
+        "a": "≈ <b>12 M de usuarios al día</b> × ≈ 8 páginas de artículo = <b>≈ 100 M de páginas vistas al día</b> (≈ 1,160 por segundo). Pico diario ≈ 3× (≈ 3,500 RPS, de 07 a 09 h). Una <b>noticia de última hora</b> lleva el tráfico hasta <b>≈ 6,000 RPS durante 10–30 min</b>, a veces en un par de minutos. Un request de anuncios por página: ≈ <b>300 M de impresiones al día</b>."
+      },
+      {
+        "topic": "Latencia y disponibilidad",
+        "a": "<b>p99 ≤ 50 ms server-side</b> en el ad server. El contenido se pinta primero y los anuncios cargan en paralelo: <b>la página nunca espera</b>. Si el ad server no contesta a tiempo, esos slots van al programático, así que una caída cuesta ingreso, no la página. Un anunciante que pausa una campaña espera que deje de salir en <b>≈ 1 minuto</b>."
+      },
+      {
+        "topic": "Modelo actual",
+        "a": "<b>No hay modelo</b>: se ordena por <b>bid × el CTR promedio de la campaña en los últimos 7 días</b>, sin personalización ni trabajo de calibración. Una campaña nueva empieza con el CTR promedio de su sección. Bids CPC de ≈ US$0.05 a US$1.50. <b>RPM ≈ US$2.5</b> (≈ US$7.5 M al mes en este inventario). Meta: <b>+5–10 % de RPM</b> sin empeorar CTR, costo por clic de los anunciantes, fill rate, latencia de la página, sesiones por persona al día ni quejas sobre anuncios."
+      },
+      {
+        "topic": "Datos y labels",
+        "a": "La impresión se registra cuando el anuncio es <b>viewable</b> (un beacon de la página); el clic pasa por un redirect <code>/click</code>. Los dos van al topic de Kafka <code>ad-events</code>. Label acordado: <b>clic dentro de 30 min</b> de una impresión viewable. CTR promedio <b>≈ 0.35 %</b> (0.1–1.5 % según slot y sección): ≈ <b>1.05 M de clics al día</b>. De la persona, el historial de secciones leídas. Hay bots y algún anunciante que reclama clics; hoy solo se filtran los user agents de bots declarados."
+      },
+      {
+        "topic": "Restricciones",
+        "a": "Se ordena por <b>eCPM = bid × pCTR × 1000</b>, con <b>reserva de eCPM ≈ US$0.80</b> (debajo, el slot va al programático). El ganador paga por clic un <b>segundo precio generalizado</b>: eCPM del siguiente ÷ (1000 × su pCTR) + US$0.01, con tope en su bid; sin siguiente, la reserva. Un anunciante no ocupa dos slots de la misma página. Personalización <b>solo con consentimiento</b>; nada de categorías sensibles (salud, religión, política); eventos crudos por persona ≈ 90 días; LFPDPPP. Sin techo fijo de infraestructura."
       }
     ],
   };

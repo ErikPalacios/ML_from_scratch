@@ -313,6 +313,8 @@ html.drawer-open, html.modal-open { overflow: hidden; }
   font: 600 11.5px/1.35 var(--font-display); letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
 }
 .nav__list { list-style: none; margin: 0; padding: 0; }
+.nav__sub { margin: 8px 0 2px; padding: 0 8px 0 38px; font: 500 11.5px/1.35 var(--font-display); letter-spacing: .02em; color: var(--muted); }
+.nav__label + .nav__sub { margin-top: 2px; }
 .nav__item {
   position: relative;
   display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; column-gap: 6px;

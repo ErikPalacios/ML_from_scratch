@@ -1,0 +1,37 @@
+# Eventos comerciales con fecha ANUNCIADA cada año (caso c14). Los lee calendar_mx.load_events.
+# Por qué es un archivo de datos y no código: nadie en ninguna ley fija la fecha del Buen Fin ni la del
+# Hot Sale; las anuncian los organizadores semanas antes. Quien las actualiza es el equipo comercial o de
+# planeación, con revisión en un PR (el archivo está versionado), sin tocar Python.
+# Qué pasa si falta un año: calendar_mx.require_event_dates falla en cuanto el rango que se pronostica (o la
+# historia con la que se entrena) toca la ventana típica del evento. Mejor una falla ruidosa y el fallback
+# que un Buen Fin tratado como fin de semana normal.
+# Fechas consultadas en octubre de 2026; las de 2026 del Buen Fin vienen de notas de prensa que citan a los
+# organizadores: confírmalas en elbuenfin.org antes de usarlas.
+
+announced:
+  buen_fin:
+    # El Buen Fin cae alrededor del puente del tercer lunes de noviembre (fracción VI del art. 74 de la LFT)
+    typical_window: {from: "11-01", to: "11-30"}
+    dates:
+      2024: {start: 2024-11-15, end: 2024-11-18}  # 14.ª edición (viernes a lunes), comunicado de la Secretaría de Economía
+      2025: {start: 2025-11-13, end: 2025-11-17}  # 15.ª edición, cinco días (jueves a lunes)
+      2026: {start: 2026-11-13, end: 2026-11-17}  # 16.ª edición (viernes a martes); confirmar en elbuenfin.org
+  hot_sale:
+    # Evento de venta en línea de la AMVO: en un supermercado pesa sobre todo en el canal en línea
+    typical_window: {from: "05-01", to: "06-15"}
+    dates:
+      # 2024 no está: queda antes de la historia de 2 años del caso (que empieza en octubre de 2024). Si tu
+      # historia es más larga, agrégalo; las notas de prensa no coinciden en la fecha de inicio (13 o 15 de
+      # mayo de 2024, adelantado por las elecciones): verifícala antes de usarla.
+      2025: {start: 2025-05-26, end: 2025-06-03}  # 12.ª edición, nueve días
+      2026: {start: 2026-05-25, end: 2026-06-02}  # hotsale.com.mx
+
+# Fracción IX del art. 74: el día de la jornada electoral que fijen las leyes electorales, en elecciones
+# ordinarias. Lista de fechas (YYYY-MM-DD). Las locales cambian por estado: si las necesitas, van por
+# tienda, no en este calendario nacional. Vacía a propósito: agrega la del año que vas a pronosticar.
+election_days: []
+
+# Periodos de vacaciones del calendario escolar oficial (SEP), uno por renglón:
+#   - {start: YYYY-MM-DD, end: YYYY-MM-DD}
+# Vacía a propósito: cópialos del calendario publicado de cada ciclo; aquí no se inventan fechas.
+school_vacations: []

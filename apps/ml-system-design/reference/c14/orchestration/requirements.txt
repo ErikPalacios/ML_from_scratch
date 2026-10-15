@@ -1,0 +1,10 @@
+# Lo que necesita el entorno de AIRFLOW para este DAG (no la imagen del job: el job corre en su propia imagen,
+# train/requirements.txt). Solo sirve aquí para validar el DAG: orchestration/tests/test_dag.py.
+# Airflow se instala SIEMPRE con su archivo de constraints oficial (fija ≈ 700 dependencias), p. ej.:
+#   pip install -r requirements.txt \
+#     -c https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.13.txt
+apache-airflow==3.3.2  # Deadline Alerts (desde 3.1) y el Task SDK (airflow.sdk)
+apache-airflow-providers-cncf-kubernetes==10.22.0  # KubernetesPodOperator (node_selector con plantilla)
+pytest==9.1.1  # para correr test_dag.py en este mismo entorno
+# Falta a propósito el provider de tu warehouse (Postgres, Snowflake, BigQuery…): lo usan los sensores a
+# través de Connection.get(...).get_hook(); el test no los ejecuta.

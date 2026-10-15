@@ -1,0 +1,215 @@
+/* =============================================================================
+   Ronda de Diseño ML — js/content/c14-archivos.js
+   Caso 14, sección 13 "Archivos de referencia": los archivos REALES de
+   reference/c14/ (embebidos en MSD.files por tools/embed-reference.mjs) agrupados
+   por pieza (calendario, features, modelo, backtest, job nocturno, DAG, alertas),
+   con el porqué de cada uno, trampas y cómo correrlos.
+   Contrato: docs/SPEC.md §5.5, §6 (fila 13), §8n. Sin DOM: se carga también en Node.
+   ========================================================================== */
+(function (root) {
+  'use strict';
+  const MSD = (root.MSD = root.MSD || {});
+
+  // Enlaces internos cortos: sección de este caso y cualquier página o sección del curso.
+  const C = (sec, txt) => '<a href="#c14.' + sec + '">' + txt + '</a>';
+  const L = (hash, txt) => '<a href="#' + hash + '">' + txt + '</a>';
+  const E = (txt) => '<span class="est">' + txt + '</span>';
+  // Archivo embebido: el nombre visible es la ruta dentro de reference/c14/.
+  const F = (path, lang, note) => ({ name: path, lang, src: 'c14/' + path, note });
+
+  MSD.addSection('c14', {
+    id: 'archivos',
+    title: 'Archivos de referencia',
+    titleEn: 'Reference files',
+    blocks: [
+      { t: 'p', html: 'Esto no es pseudocódigo: son los archivos de <code>reference/c14/</code>, probados hasta donde se puede sin warehouse, sin Spark, sin Kubernetes y sin Airflow corriendo. Hay seis piezas: el calendario de México (feriados de la Ley Federal del Trabajo, quincenas y eventos comerciales); las features point-in-time del pronóstico directo a 14 días, con los días agotados fuera; el modelo por cuantiles (P50 y P90) con su backtest y su gate de promoción; el job nocturno, que completa, valida, publica con un compare-and-swap o sirve el fallback; el DAG de Airflow 3 con su Deadline Alert de las 03:30 y su guardia de las 03:45; y las 8 alertas con sus tests. Cada línea importante trae un comentario con el <b>porqué</b>. Son la versión concreta de lo que defiendes en ' + C('datos', 'datos') + ', ' + C('serving', 'serving') + ', ' + C('evaluacion', 'evaluación') + ', ' + C('monitoreo', 'monitoreo') + ' y ' + C('fallas', 'fallas') + ': qué ve el modelo la noche del 15, qué pasa si tres tiendas no mandaron sus ventas y qué lee el ERP a las 04:00 si todo lo demás falló.' },
+      { t: 'callout', kind: 'skip',
+        html: 'En la entrevista nadie te pide el algoritmo de Pascua ni el SQL de un sensor. Primera pasada: el mapa, los callouts de trampas y la tabla de degradación. Lo que sí debes poder decir sin mirar: <code>run_date</code> es el último día de ventas cerrado y nada posterior entra a una feature; los lags son del mismo día de la semana que el target, el más reciente que <b>ya pasó</b>; un día agotado no es demanda (NaN en lags, fuera de los targets); una tienda que no reportó no vendió "0": se imputa y se marca; el job escribe una partición inmutable, la valida <b>leída de vuelta</b> y mueve un puntero con compare-and-swap; si algo falla, el ERP recibe el pronóstico de ayer corrido un día; y la alerta de "tarde" no depende del orquestador que está tarde.' },
+      { t: 'callout', kind: 'note', title: 'Qué se ejecutó y qué no',
+        html: '<ul>' +
+          '<li><b>Ejecutado</b> (macOS, Apple Silicon, sin warehouse, sin Spark, sin Kubernetes, sin Pushgateway, sin daemon de Docker): 66 tests de las cuatro carpetas con pytest en venvs limpios con Python 3.13.16 y 3.12.15 (el de los tests del DAG se salta sin Airflow). El leakage: las features con todo lo posterior a run_date envenenado salen idénticas valor por valor. La censura, contra la demanda <b>verdadera</b> del generador sintético: sin la máscara de agotados, el sesgo del P50 pasa de ' + E('≈ −16 %') + ' a ' + E('≈ −34 %') + ' (de ' + E('≈ −20 %') + ' a ' + E('≈ −51 %') + ' en promociones). El backtest: WAPE ' + E('≈ 0.61') + ' contra ' + E('≈ 0.86') + ' del seasonal naive. El job con fakes del warehouse y del Pushgateway, pero Parquet y puntero JSON de verdad: noche normal, re-run idempotente, tiendas sin datos, modelo roto, dos noches malas, escala ×10, guardia, corte de las 03:55, fechas de eventos faltantes, swap concurrente. La CLI en modo demo. El DAG con <b>Airflow 3.3.2</b> y el provider de Kubernetes 10.22.0 en un venv aparte: import, timetable del scheduler (logical_date a las 00:30 locales, deadline a las 03:30), plantillas y serialización (10 tests). <code>promtool check rules</code> y <code>promtool test rules</code> de Prometheus 3.15.0 (binario oficial con sha256 verificado): las 8 alertas, y 14 mutaciones de umbrales y ramas, todas detectadas.</li>' +
+          '<li><b>No ejecutado</b>: el DAG nunca corrió (no hay scheduler, triggerer, Kubernetes ni warehouse; el SQL de los sensores es ilustrativo). No hay adaptadores reales de warehouse, lake, vista con CAS ni Pushgateway, porque no se publica código de red sin probar. El panel de pandas corre con cientos de series, no con 4.8 M: los tiempos del caso no se midieron. LightGBM no carga en esta máquina; el modelo es HistGradientBoosting de scikit-learn. Los datos son sintéticos y los umbrales, ilustrativos. El <code>README.md</code> de <code>reference/c14</code> trae la tabla completa.</li>' +
+          '</ul>' },
+
+      { t: 'h3', text: 'Mapa: qué sección del caso implementa cada archivo' },
+      { t: 'table',
+        head: ['Archivo', 'Implementa', 'Qué mirar'],
+        rows: [
+          ['<code>calendar_mx.py</code>, <code>retail_events.yaml</code> <small>features</small>', C('datos', '6 · Datos'), 'El art. 74 de la LFT con sus lunes y el 1 de octubre sexenal; quincenas corridas al día hábil anterior (supuesto); eventos fijos y anunciados; <code>require_event_dates</code> falla si el horizonte toca el Buen Fin de un año sin fechas'],
+          ['<code>build_features.py</code> <small>features</small>', C('datos', '6 · Datos') + ', ' + L('m09.leakage', 'M9'), 'Las 4 reglas del docstring: corte en run_date, agotados como NaN, plan de promos as-of, faltante ≠ 0; los lags del mismo día de la semana; las filas directas h = 1…14'],
+          ['<code>train_quantile.py</code>, <code>synthetic.py</code> <small>train</small>', C('datos', '6 · Datos') + ', ' + C('tradeoffs', '11 · Trade-offs'), 'Las 4 trampas: el P50 congelado en 0 y el jittering de conteos, el cruce de cuantiles, el vocabulario de categóricas que viaja con el modelo, el early stopping aleatorio'],
+          ['<code>backtest.py</code> <small>train</small>', C('evaluacion', '8 · Evaluación') + ', ' + L('m10.gate', 'M10'), 'WAPE, sesgo, pinball y cobertura con un ejemplo a mano; el corte <code>target_date ≤ O</code> en cada origen; el gate de 2 puntos por segmento'],
+          ['<code>run_forecast.py</code>, <code>validate_output.py</code> <small>batch</small>', C('serving', '7 · Serving') + ', ' + C('fallas', '10 · Fallas'), 'La noche en 7 pasos; la partición direccionada por contenido; las 7 reglas del gate; las 4 reglas del puntero; el fallback corrido; las métricas de un intento'],
+          ['<code>forecast_nightly_dag.py</code>, <code>nightly_rules.py</code> <small>orchestration</small>', C('arquitectura', '5 · Arquitectura') + ', ' + L('m10.pipelines-entrenamiento', 'M10'), 'Sensores que nunca fallan por datos incompletos, spot y luego on-demand, fallback con <code>all_failed</code>, Deadline Alert, guardia de las 03:45, <code>run_date_for</code>'],
+          ['<code>alerts.yml</code>, <code>alerts_test.yml</code> <small>monitoring</small>', C('monitoreo', '9 · Monitoreo') + ', ' + L('m12.runbooks', 'M12'), 'Las 8 alertas, sus recording rules y los tests de promtool'],
+        ],
+        note: 'Orden de lectura sugerido: <code>build_features.py</code> → <code>train_quantile.py</code> → <code>run_forecast.py</code> → <code>validate_output.py</code> → <code>forecast_nightly_dag.py</code> → <code>backtest.py</code> → <code>calendar_mx.py</code> → <code>alerts.yml</code>. Primero qué ve el modelo, después qué hace la noche con su salida, y al final cómo se evalúa y se opera.' },
+
+      // ------------------------------------------------------------------ calendario
+      { t: 'h3', text: 'El calendario: lo que dice la ley y lo que es supuesto' },
+      { t: 'code', title: 'Feriados, quincenas y eventos comerciales',
+        caption: 'Biblioteca estándar + pandas + PyYAML. <code>pytest features/tests/test_calendar_mx.py</code>: 9 tests.',
+        files: [
+          F('features/calendar_mx.py', 'python', 'El docstring separa tres fuentes. Los días de descanso obligatorio salen del <b>art. 74 de la LFT</b> (texto vigente de la Cámara de Diputados): tres de ellos son "el primer/tercer lunes" que conmemoran el 5 de febrero, el 21 de marzo y el 20 de noviembre, y la fracción VII se reformó en 2024 (DOF 30-09-2024): ahora es el 1 de octubre de cada seis años, y el 1 de octubre de 2024 cae dentro de la historia de dos años. Los eventos con regla fija se calculan (Semana Santa con el algoritmo de Pascua). Los anunciados (Buen Fin, Hot Sale) se leen del YAML. Las quincenas son el 15 y el último día del mes; la ley (art. 88) solo fija el plazo máximo de pago, así que correrlas al día hábil anterior es un <b>supuesto</b> marcado como tal, con <code>payday_rule="nominal"</code> para probarlo contra tus ventas.'),
+          F('features/retail_events.yaml', 'yaml', 'Datos, no código: las fechas las anuncian los organizadores cada año. 2024 y 2025 del Buen Fin, 2025 y 2026 del Hot Sale (2026 confirmado en hotsale.com.mx) y el Buen Fin 2026 de notas de prensa (confírmalo). El Hot Sale 2024 no está a propósito: queda antes de la historia del caso y las fuentes no coinciden en su inicio. <code>election_days</code> y <code>school_vacations</code> vacías: aquí no se inventan fechas.'),
+          F('features/tests/test_calendar_mx.py', 'python', 'Los lunes de 2026 y 2027, el 1 de octubre de 2024 y no el de 2025, Pascua de 2024 a 2027, Viernes Santo que <b>no</b> es feriado, el 15 de febrero de 2026 (domingo) que se paga el viernes 13, el 15 de marzo de 2027 (lunes feriado) que se paga el 12, las distancias que no se cortan el 31 de diciembre, y las fechas faltantes: en enero de 2027 no se exige el Buen Fin 2027, en noviembre sí.'),
+        ] },
+      { t: 'table', caption: 'Los días de descanso obligatorio de 2026 que calcula <code>federal_holidays(2026)</code>',
+        head: ['Fracción', 'Regla', '2026'],
+        rows: [
+          ['I', '1 de enero', 'jueves 1 de enero'],
+          ['II', 'primer lunes de febrero (5 de febrero)', 'lunes 2 de febrero'],
+          ['III', 'tercer lunes de marzo (21 de marzo)', 'lunes 16 de marzo'],
+          ['IV · V', '1 de mayo · 16 de septiembre', 'viernes 1 de mayo · miércoles 16 de septiembre'],
+          ['VI', 'tercer lunes de noviembre (20 de noviembre)', 'lunes 16 de noviembre: dentro del Buen Fin (13 al 17)'],
+          ['VII', '1 de octubre cada seis años (transmisión del Ejecutivo)', 'no aplica (2024, 2030)'],
+          ['VIII · IX', '25 de diciembre · jornada electoral', 'viernes 25 de diciembre · la que configures'],
+        ],
+        note: 'Los supermercados abren en esos días: lo que cambia es cómo compra la gente (el puente, la víspera). Por eso las features son "días al siguiente feriado" y "días desde el anterior", no solo "es feriado".' },
+      { t: 'callout', kind: 'trap', title: 'Trampa: el Buen Fin tratado como un fin de semana normal',
+        html: 'Si las fechas del Buen Fin de este año no están configuradas, el calendario no falla: marca esos días como normales, el modelo pronostica una semana típica y el ERP pide de menos en el fin de semana más grande del año. Por eso <code>require_event_dates</code> revisa el rango que se pronostica contra la ventana típica de cada evento anunciado y <b>falla en voz alta</b> si falta el año: el job truena, el DAG publica el fallback y <code>ForecastRunFailed</code> le dice a alguien que agregue tres líneas al YAML. En enero no exige el Buen Fin (nadie lo anunció todavía); desde mediados de octubre, cuando el horizonte llega a noviembre, sí.' },
+
+      // ------------------------------------------------------------------ features
+      { t: 'h3', text: 'Las features: nada después de run_date, nada de agotados como demanda' },
+      { t: 'code', title: 'Panel point-in-time, lags del mismo día de la semana y filas directas a 14 días',
+        caption: 'numpy y pandas. <code>pytest features/tests/test_build_features.py</code>: 10 tests, incluido el de leakage.',
+        files: [
+          F('features/build_features.py', 'python', 'Las 4 reglas del docstring, cada una con su trampa. El panel es denso (series × días): los lags son índices y los promedios, <code>nanmean</code> sobre columnas; con 4.8 M series × 70 días son ' + E('≈ 336 M celdas') + ', así que en producción es el mismo cálculo en Spark o en un nodo grande con Polars/DuckDB. <code>build_panel</code> y <code>Panel.until</code> son el único corte en run_date. <code>features_for_origin</code> arma una fila por serie y horizonte con <code>sw_lag_1…4</code> (el mismo día de la semana que el target, ya pasado), promedios de 7 y 28 días sin días agotados, cuántos días agotados hubo (la "bandera" de los lags), la edad de la serie (<code>new_item</code> si tiene menos de 28 días), el nivel de la categoría en la tienda, y el calendario y el plan de promociones <b>del target_date</b>, que se conocen por adelantado. <code>attach_targets</code> es el único lugar que lee el futuro, y solo para el target.'),
+          F('features/tests/test_build_features.py', 'python', 'El de leakage cambia todas las ventas posteriores a run_date (×100 + 7) y voltea los agotados: las features salen idénticas, y también si los datos se cortan en run_date. Los lags coinciden con los lags 7/14/21/28 del caso para h ≤ 7 y con 14…35 para h = 8…14. Un viernes agotado vuelve NaN el lag de ese viernes y no entra al promedio de 7 días (y con <code>mask_oos=False</code> entraría como demanda). Una tienda que no reportó queda NaN, se imputa con su semana pasada y solo sus filas llevan <code>imputed_input</code>. Una rebaja publicada <b>después</b> de run_date no se usa. Un calendario que no cubre el horizonte falla.'),
+        ] },
+      { t: 'table', caption: 'Qué día lee <code>sw_lag_1</code> según el horizonte (run_date = jueves 15 de octubre de 2026)',
+        head: ['h', 'target_date', 'sw_lag_1 (el mismo día, ya pasado)', 'Lag respecto del target'],
+        rows: [
+          ['1', 'viernes 16', 'viernes 9', '7 días'],
+          ['7', 'jueves 22', 'jueves 15 (run_date)', '7 días'],
+          ['8', 'viernes 23', 'viernes 9 (el 16 todavía no pasó)', '14 días'],
+          ['14', 'jueves 29', 'jueves 15', '14 días'],
+        ],
+        note: 'Un "lag 7" literal para h = 10 sería el 18 de octubre: el futuro. Es el leakage más común de un pronóstico directo, y no lo ves en el backtest si las features se calculan una vez para todo el periodo.' },
+      { t: 'callout', kind: 'trap', title: 'Trampa: un día agotado no es demanda baja',
+        html: 'Si el anaquel se vació a las 15:00, la venta del día es lo que había, no lo que la gente quería. Entrenar con esos días enseña que "agotado = poca demanda": el modelo pronostica menos, el ERP pide menos, se agota más y el lazo se cierra solo. En el test con la demanda verdadera del generador, sin la máscara el P50 queda ' + E('≈ 18 puntos') + ' más abajo en total y ' + E('≈ 31') + ' en promociones (los agotados se concentran donde la demanda es alta), y el P90 ' + E('≈ 6 %') + ' más chico: menos inventario de seguridad justo donde falta. Por eso los días con <code>oos_flag</code> son NaN en los lags y fuera de los targets, y <code>oos_days_28</code> le dice al modelo cuánta historia perdió (' + L('m09.leakage', 'M9') + ').' },
+
+      // ------------------------------------------------------------------ modelo
+      { t: 'h3', text: 'El modelo: cuantiles de piezas, no de números reales' },
+      { t: 'code', title: 'GBDT global por cuantiles, línea base y datos sintéticos',
+        caption: 'scikit-learn 1.9.1. <code>pytest train/tests/test_train_quantile.py</code>: 7 tests (el de censura entrena 2 modelos: ' + E('≈ 20–40 s') + ').',
+        files: [
+          F('train/train_quantile.py', 'python', 'En la entrevista dices LightGBM (<code>objective="quantile"</code>, <code>alpha=0.5</code> y <code>0.9</code>; ojo, el default de alpha es 0.9); aquí es <code>HistGradientBoostingRegressor(loss="quantile")</code>, el mismo tipo de algoritmo sin dependencias nativas. El modelo no recibe <code>store_id</code> ni <code>sku_id</code> (miles de niveles; HistGradientBoosting admite como máximo 255 categorías por feature): recibe atributos y la historia de la serie. Las 4 trampas del docstring: el P50 congelado (abajo), el cruce de cuantiles (se ordenan por fila), las categóricas (vocabulario fijo que viaja con el modelo) y el early stopping con un 10 % al azar (apagado; desde scikit-learn 1.7 se le puede pasar un corte temporal). La versión del modelo es un hash de datos, parámetros y vocabulario, y <code>load</code> se niega a cargar con otra versión de scikit-learn.'),
+          F('train/synthetic.py', 'python', 'Datos <b>sintéticos</b>: semana con picos de viernes a domingo, quincenas (+20 % el día de pago), promos con elasticidad inventada, feriados y eventos del calendario real, demanda sobredispersa con ' + E('≈ 60 %') + ' de series que venden menos de 1 al día, y agotados que empiezan 3× más en promociones. Trae la demanda <b>verdadera</b>, que en la vida real nunca ves en un día agotado: con ella se mide la censura.'),
+          F('train/tests/test_train_quantile.py', 'python', 'El P50 congelado reproducido con una feature continua y arreglado con jittering; el cruce de cuantiles a mano; el seasonal naive con sus respaldos; la censura contra la demanda verdadera; la versión estable y las piezas enteras; la trampa de los códigos de categoría (con <code>.cat.codes</code> la noche en que solo hay supers, el modelo los lee como express) y el guardado que rechaza otra versión de scikit-learn.'),
+        ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: el P50 que se queda en 0 para todas las series',
+        html: 'La primera versión de esta referencia publicaba un P50 de 0 para <b>todas</b> las filas, también para las que venden 4 piezas al día, y el gate la bloqueaba cada noche. La causa, medida con scikit-learn 1.9.1: con 62 % de días en cero, el boosting arranca en la mediana global (0); en una fila con y = 0 = predicción, la pinball da el mismo gradiente que en una fila con venta, ningún split gana, cada árbol sale plano y el modelo nunca se mueve (el P90 sí aprende: su punto de partida no es 0). El arreglo es el "jittering" de conteos (Machado y Santos Silva, <i>Quantiles for Counts</i>, JASA 2005): se entrena con z = y + u, u uniforme en [0, 1), que no tiene empates, y el cuantil del conteo se recupera exacto con ⌈Q<sub>z</sub> − 1⌉: un Q<sub>z</sub>(0.5) de 3.4 es un P50 de 3 piezas. No se verificó si LightGBM se congela igual (aquí no carga): pruébalo si tus series tienen más de la mitad de días en 0.' },
+      { t: 'calc', title: 'Del cuantil de z al de las piezas', rows: [
+        { label: 'Serie rápida, P50', expr: 'Q_z(0.5) = 3.4 → ⌈3.4 − 1⌉', value: '3 piezas' },
+        { label: 'Serie lenta, P50', expr: 'Q_z(0.5) = 0.7 → ⌈0.7 − 1⌉', value: '0 piezas' },
+        { label: 'Serie lenta, P90', expr: 'Q_z(0.9) = 1.6 → ⌈1.6 − 1⌉', value: '1 pieza' },
+      ], result: 'Por qué funciona: z = y + u vive en [y, y + 1), así que el cuantil de z cae entre el cuantil de y y una pieza más. Los pronósticos quedan en piezas enteras, y la cobertura del P90 sale ≥ 90 % por construcción (el cuantil de un entero salta de pieza en pieza): ' + E('≈ 95 %') + ' en el backtest y ' + E('≈ 97 %') + ' en las series lentas. Para un producto que vende 0.3 al día, el pedido lo maneja el P90, como dice el caso.' },
+
+      // ------------------------------------------------------------------ backtest
+      { t: 'h3', text: 'Backtest por origen móvil y el gate de promoción' },
+      { t: 'code', title: 'Métricas por segmento, orígenes semanales y el gate de 2 puntos',
+        caption: '<code>pytest train/tests/test_backtest.py</code>: 7 tests. <code>python train/train_quantile.py</code> (con <code>PYTHONPATH=features:train</code>) imprime el backtest de 4 orígenes contra el seasonal naive.',
+        files: [
+          F('train/backtest.py', 'python', 'El docstring empieza con las métricas sobre un ejemplo de 3 días. <code>run_backtest</code> hace en cada origen O lo que haría producción: entrena con lo que se sabía en O (filas con <code>target_date ≤ O</code>, incluidas las de orígenes recientes con horizonte corto) en una ventana de 52 semanas, pronostica O + 1 … O + 14 y evalúa sin días agotados. Los segmentos del caso se traslapan (fresco/seco, rápido/lento, promo/sin promo, nuevos), y "rápido" se decide con los 28 días ANTES del origen. <code>promotion_gate</code>: el candidato debe ganar en WAPE total y no empeorar ningún segmento grande más de 2 puntos; un segmento con pocas filas no vota, pero se reporta.'),
+          F('train/tests/test_backtest.py', 'python', 'Las métricas contra el cálculo a mano; un día agotado con un error enorme no cambia nada; un <code>fit</code> espía que verifica que ningún entrenamiento vio un target_date posterior a su origen; el modelo contra el seasonal naive; y el gate: mejora el total pero los frescos empeoran 3 puntos → bloquea; 1.5 puntos → pasa; no mejorar el total → bloquea.'),
+        ] },
+      { t: 'calc', title: 'Las métricas con 3 días (F = pronóstico, A = venta)', rows: [
+        { label: 'F = [10, 0, 5], A = [8, 2, 5]', expr: '|F − A| = [2, 2, 0]', value: 'Σ = 4' },
+        { label: 'WAPE', expr: '4 ÷ (8 + 2 + 5)', value: '0.267' },
+        { label: 'Sesgo', expr: '(15 − 15) ÷ 15', value: '0 (los errores se compensan)' },
+        { label: 'Pinball 0.9 de F', expr: '(0.1 · 2 + 0.9 · 2 + 0) ÷ 3', value: '0.667' },
+        { label: 'Cobertura de P90 = [12, 1, 5]', expr: '8 ≤ 12 sí · 2 ≤ 1 no · 5 ≤ 5 sí', value: '2 de 3' },
+      ], result: 'El WAPE dice cuánto te equivocas pesado por volumen (el MAPE explota con series que venden casi 0); el sesgo dice hacia dónde; la pinball es lo que minimiza cada modelo; la cobertura dice si el inventario de seguridad alcanza. Por eso se reportan juntos, por segmento (' + C('evaluacion', 'evaluación') + ').' },
+      { t: 'kv', items: [
+        ['WAPE del modelo vs seasonal naive', '≈ 0.61 · ≈ 0.86', '2 orígenes, datos sintéticos (≈ 60 % de series lentas): los números absolutos no significan nada'],
+        ['Cobertura del P90', '≈ 0.95 · ≈ 0.97 en lentas', 'piezas enteras: ≥ 90 % por construcción'],
+        ['Sesgo del P50', '≈ −20 % · ≈ −67 % en lentas', 'negativo por diseño: la mediana de una demanda asimétrica queda abajo de la media'],
+      ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: los cuantiles no se suman',
+        html: 'El P50 de una serie que vende 0.3 al día es 0; el de una que vende 4 suele quedar abajo de la media. Sumar P50 de 400 tiendas para el centro de distribución subestima el total (en el backtest sintético, el sesgo del P50 es ' + E('≈ −20 %') + '), y un gate que compara Σ P50 con el <b>promedio</b> de las últimas semanas bloquea noches buenas: medido en 5 noches de dos conjuntos sintéticos, daba 0× en una categoría de productos lentos y entre 0.62× y 1.0× en las demás. El gate de <code>validate_output.py</code> compara medianas con medianas (Σ P50 contra Σ de las medianas de los últimos 4 mismos días: 0.73× a 1.06× en esas noches), <code>ForecastBiasDrift</code> compara contra el sesgo del backtest y no contra 0, y para el agregado del centro de distribución hace falta la media: un tercer modelo o un pronóstico del agregado.' },
+
+      // ------------------------------------------------------------------ job
+      { t: 'h3', text: 'El job nocturno: escribir, validar, publicar o servir el fallback' },
+      { t: 'code', title: 'Completitud, gate, compare-and-swap, fallback corrido y métricas de un batch',
+        caption: 'pandas, pyarrow y prometheus-client. <code>pytest batch/tests</code>: 28 tests (entrena un modelo chico una vez, ' + E('≈ 10–20 s') + '). Demo: <code>python run_forecast.py nightly --run-date 2026-10-14 --demo-dir /tmp/c14-demo</code> desde <code>batch/</code>.',
+        files: [
+          F('batch/run_forecast.py', 'python', 'Léelo desde el docstring (la noche en 7 pasos y las 4 reglas del puntero) y <code>_nightly</code>. Las tiendas sin ventas de run_date se imputan y se cuentan. Si el horizonte toca un evento sin fechas, falla antes de gastar media hora en features. Si el modelo no carga o el predict lanza, fallback. La partición es un directorio inmutable con el hash del contenido en el nombre: re-correr con los mismos datos no escribe nada. Se valida lo <b>escrito</b>, no el DataFrame en memoria. El puntero se mueve con compare-and-swap: nunca hacia atrás, un fallback no reemplaza al modelo de la misma noche y después de las 03:55 lo que el ERP leyó no se cambia. Cada intento empuja sus métricas con pushadd, aun si falla. Las interfaces (warehouse, particiones, puntero, métricas) tienen adaptadores locales de verdad para los tests y la demo; los de producción no se publican.'),
+          F('batch/validate_output.py', 'python', 'La tabla del docstring: <code>row_count</code> (series × 14 ± 0.5 %), <code>unique_keys</code>, <code>nulls</code>, <code>negatives</code>, <code>quantile_order</code>, <code>category_band</code> (±30 %, medianas contra medianas; con promo o feriado se ensancha a [1/3×, 3×], así que piezas contra cajas bloquea igual) e <code>imputed_stores</code> (≤ 5 %). Ninguna regla lanza por un dato malo: lo reporta. El fallback pasa solo por las reglas de estructura.'),
+          F('batch/tests/test_run_forecast.py', 'python', 'Cada test es una noche: la normal publica el modelo y las métricas; correrla otra vez es <code>already_published</code> con una sola versión en disco; 1 tienda de 25 sin datos (4 %) se imputa y se publica; 2 (8 %) bloquean y se sirve el naive; el modelo roto sirve lo de ayer corrido (los horizontes 2…14 de ayer son los 1…13 de hoy, con el mismo número para el mismo día); dos noches malas corren dos días; un modelo que pronostica cajas (×10) choca con la banda aunque haya eventos; el guardia publica, el modelo lo reemplaza a las 03:50 y a las 04:10 ya no; un re-run de la noche anterior no retrocede el puntero; sin fechas del Buen Fin el job falla pero el fallback sale; un swap concurrente es un conflicto, no una sobrescritura; con el Pushgateway caído la noche se publica igual; y cada métrica <code>forecast_*</code> de las alertas existe en lo que empuja el job.'),
+          F('batch/tests/test_validate_output.py', 'python', 'Cada regla en su borde exacto: 7 filas faltantes de 1,400 (0.5 %) pasan y 8 no; 1.296× pasa y 1.301× no; con la categoría explicada, 2.5× pasa y 10× o 1/10× no; 5 % de tiendas imputadas pasa y 5.25 % no; un nulo en cualquier llave o valor bloquea, también en el fallback.'),
+          F('train/requirements.txt', 'text', 'El lock completo de la imagen del job (14 paquetes), generado con <code>uv pip compile</code> para Linux x86_64 y Python 3.13: la <b>misma</b> imagen entrena el domingo y corre cada noche, porque un modelo guardado con joblib no es portable entre versiones de scikit-learn.'),
+        ] },
+      { t: 'table', caption: 'Qué recibe el ERP según lo que falle (columna <code>fallback</code> y label <code>reason</code>)',
+        head: ['Qué falla', 'Qué se publica', '<code>reason</code>', 'Se ve en'],
+        rows: [
+          ['Nada', 'el modelo', '<code>none</code>', '<code>forecast_published_fallback{reason="none"} 0</code>'],
+          ['≤ 5 % de tiendas sin datos', 'el modelo, esas tiendas con <code>imputed_input</code>', '<code>none</code>', '<code>InputDataIncomplete</code> (&gt; 2 %)'],
+          ['&gt; 5 % de tiendas sin datos, o cualquier regla del gate', 'el fallback', '<code>validation_blocked</code>', '<code>ForecastValidationBlocked</code> (page)'],
+          ['El modelo no carga o el predict lanza', 'el fallback', '<code>prediction_error</code>', '<code>FallbackForecastServed</code>'],
+          ['El job truena dos veces (OOM, spot, warehouse, fechas)', 'el fallback, desde el DAG', '<code>job_failed</code>', '<code>ForecastRunFailed</code>, que se resuelve con el fallback'],
+          ['El DAG se atora', 'el fallback del guardia de las 03:45', '<code>guard</code>', 'Deadline Alert y <code>ForecastRunLate</code>'],
+          ['El modelo termina después de las 03:55', 'nada nuevo: se queda lo que el ERP leyó', '—', '<code>forecast_late_not_published 1</code>'],
+        ],
+        note: 'El fallback es el último pronóstico publicado, corrido: de ayer, sus horizontes 2…14 pasan a 1…13 y el día 14 sale del seasonal naive; con dos noches malas se corre dos días; sin nada publicado, todo es naive. El ERP <b>siempre</b> recibe un pronóstico, y nunca uno que no pase las reglas de estructura.' },
+      { t: 'callout', kind: 'trap', title: 'Trampa: el 0 que borra el último éxito',
+        html: 'Un job batch no tiene <code>/metrics</code>: empuja al Pushgateway al terminar. Con <code>pushadd</code> solo se reemplazan las métricas que vienen en el push, y eso es lo que permite que "último éxito" y "última falla" convivan. Pero un Gauge de <code>prometheus_client</code> sin labels se exporta con <b>0</b> aunque nadie lo toque: si el registro de un intento fallido trae también el gauge del éxito, ese 0 pisa el timestamp real y <code>ForecastRunFailed</code> ve un éxito en 1970. Por eso cada intento arma un registro nuevo con SOLO lo que pasó en él (<code>JobMetrics</code>), y el test exige que un intento exitoso no empuje la métrica de falla, ni siquiera en 0.' },
+      { t: 'callout', kind: 'senior', title: 'Señal senior: el puntero tiene reglas, no solo atomicidad',
+        html: 'Decir "escribo la tabla nueva y hago un swap atómico" es la mitad. La otra mitad es qué swaps están <b>prohibidos</b>: un re-run tardío de la noche anterior no puede retroceder el puntero; el guardia que corre después de un éxito no puede reemplazar al modelo con un fallback; y después de las 03:55 lo que el ERP ya leyó no se cambia, porque lo publicado tiene que ser lo que se usó para pedir (auditoría). En el warehouse eso es una fila de control con <code>UPDATE … WHERE partition = :esperado</code> y el <code>CREATE OR REPLACE VIEW forecast_current</code> en la misma transacción (' + L('m02.batch', 'M2') + ').' },
+
+      // ------------------------------------------------------------------ DAG
+      { t: 'h3', text: 'El DAG: Airflow orquesta, el job computa' },
+      { t: 'code', title: 'forecast_nightly y forecast_fallback_guard en Airflow 3',
+        caption: 'Validado con Airflow 3.3.2 (no ejecutado). <code>pytest orchestration/tests</code>: 5 tests sin Airflow; con <code>orchestration/requirements.txt</code> instalado, 10.',
+        files: [
+          F('orchestration/forecast_nightly_dag.py', 'python', 'Cron <code>30 0 * * *</code> en <code>America/Mexico_City</code>: en Airflow 3, un cron usa <code>CronTriggerTimetable</code> y el logical_date es la hora de disparo (las 00:30 del 16; el run_date es el 15). Dos sensores <code>@task.sensor</code> en modo reschedule que terminan cuando reportaron todas las tiendas o a la 01:30. El job en un <code>KubernetesPodOperator</code> con la imagen por digest, en spot y con el reintento en on-demand (el <code>node_selector</code> de Karpenter es una plantilla: <code>capacity_for(ti.try_number, ti.max_tries)</code>), tope de 90 min. <code>publish_fallback</code> con <code>trigger_rule="all_failed"</code>, siempre on-demand. El <code>DeadlineAlert</code> (logical_date + 3 h = 03:30) avisa por un <code>AsyncCallback</code>. Y el guardia de las 03:45, en otro DAG, porque un DAG atorado no llega a su propia tarea de fallback.'),
+          F('orchestration/nightly_rules.py', 'python', 'Lo que decide, sin Airflow: <code>run_date_for</code> (la hora local, no la macro <code>ds</code>, que va en UTC), <code>inputs_ready</code> (nunca "falla por datos incompletos": a la 01:30 sigue con lo que hay y el gate decide), <code>capacity_for</code> y el callback del deadline, que manda una alerta a la API v2 de Alertmanager en un thread para no bloquear el event loop del triggerer.'),
+          F('orchestration/tests/test_dag.py', 'python', 'Con Airflow de verdad: los dos DAGs, el timetable del scheduler calculando la siguiente corrida (00:30 locales del 16 → deadline 03:30), los reintentos, el <code>all_failed</code>, las plantillas renderizadas (spot en el intento 1, on-demand en el 2; run_date 15) y la serialización que haría el procesador de DAGs. Sin Airflow se salta solo.'),
+          F('orchestration/tests/test_nightly_rules.py', 'python', 'run_date de una corrida programada y de una manual a las 19:00 (que en UTC ya es mañana), el sensor antes y después del corte, spot y on-demand, y el cuerpo de la alerta.'),
+          F('orchestration/requirements.txt', 'text', 'Solo para validar el DAG: Airflow 3.3.2 y el provider de Kubernetes, siempre con el archivo de constraints oficial de Airflow.'),
+        ] },
+      { t: 'steps', items: [
+        { title: '00:30 · sensores', meta: 'reschedule, poke cada 5 min', html: 'Ventas e inventario de run_date: terminan cuando reportaron todas las tiendas o a la 01:30. Un sensor que vence su <code>timeout</code> falla <b>sin</b> reintentos (así lo trata Airflow), y entonces corre el fallback.' },
+        { title: '≈ 01:30 · run_forecast', meta: 'spot · 90 min · 1 reintento on-demand', html: 'Los 7 pasos del job. Si los dos intentos fallan, <code>publish_fallback</code>.' },
+        { title: '03:30 · Deadline Alert', meta: 'triggerer → Alertmanager', html: 'Solo si el run sigue corriendo: si terminó antes (aunque haya fallado), Airflow borra el deadline. Para eso están <code>ForecastRunFailed</code> y <code>FallbackForecastServed</code>.' },
+        { title: '03:45 · guardia', meta: 'otro DAG, on-demand', html: 'Si nada de esta noche está publicado, publica el fallback. Si ya hay algo, no hace nada.' },
+        { title: '03:55 · corte', meta: 'el job', html: 'El puntero de esta noche ya no se mueve. A las 04:00 corre el ERP.' },
+      ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: la "SLA" de Airflow 2 y la fecha en UTC',
+        html: 'En Airflow 2 esto era <code>sla=</code> en la tarea; Airflow 3.0 quitó esa función y 3.1 trajo los Deadline Alerts (marcados como experimentales en la documentación), que es lo que usa el DAG. Y la otra: <code>ds</code> formatea el logical_date en UTC; en la Ciudad de México (UTC−6) cualquier corrida después de las 18:00 ya es "mañana" en UTC. <code>run_date_for</code> convierte a la hora de las tiendas antes de restar el día, y un test lo prueba con una corrida manual a las 19:00.' },
+
+      // ------------------------------------------------------------------ alertas
+      { t: 'h3', text: 'Las 8 alertas y sus tests' },
+      { t: 'code', title: 'Reglas de Prometheus y tests de promtool',
+        caption: '<code>promtool check rules alerts.yml</code> y <code>promtool test rules alerts_test.yml</code> (' + E('≈ 5 s') + ').',
+        files: [
+          F('monitoring/alerts.yml', 'yaml', 'Pipeline: <code>ForecastRunLate</code> (el run_date publicado tiene más de 51.5 h desde su medianoche, o no hay métrica: page; no depende de Airflow), <code>ForecastRunFailed</code> (la última falla es más nueva que el último éxito: page), <code>InputDataIncomplete</code> (&gt; 2 % de tiendas imputadas: ticket), <code>ForecastValidationBlocked</code> (page: antes de las 03:55 alguien puede revisar si fue un falso positivo) y <code>FallbackForecastServed</code> (ticket, con el <code>reason</code>). Modelo: <code>WAPEDegraded</code> (WAPE de 7 días más de 5 puntos arriba del backtest) y <code>ForecastBiasDrift</code> (el sesgo se mueve más de 10 puntos contra el del backtest). Negocio: <code>StockoutRateUp</code> (agotados 1.25× la semana anterior y arriba de 6 %). Las <code>forecast_eval_*</code> y <code>retail_oos_rate_7d</code> vienen de jobs diarios que no están en esta carpeta.'),
+          F('monitoring/alerts_test.yml', 'yaml', 'El minuto exacto en que cada alerta pasa a firing y los casos que no deben disparar: la noche siguiente publicada a tiempo, 1 % de tiendas imputadas, el reintento que resuelve la falla, un sesgo de −5 puntos en series rápidas, los frescos de 8 % a 9 % de agotados.'),
+        ] },
+      { t: 'callout', kind: 'trap', title: 'Trampa: la alerta de "tarde" que depende del que está tarde',
+        html: 'El Deadline Alert vive en Airflow: si el scheduler o el triggerer están caídos, su callback tampoco corre, justo la noche en que más importa. <code>ForecastRunLate</code> mira otra cosa: la edad del run_date publicado (una métrica que el job empuja al publicar), con solo Prometheus y el Pushgateway. La cuenta: la noche de R se publica antes de las 03:30 de R + 1, ' + E('≈ 27.5 h') + ' después de la medianoche de R; la siguiente vence 24 h después, así que si a las 51.5 h sigue publicado R, la noche de R + 1 no llegó. Y si la métrica desaparece (Pushgateway sin persistencia), también es "tarde": la rama <code>absent</code>, con su test.' },
+
+      // ------------------------------------------------------------------ correrlo
+      { t: 'h3', text: 'Cómo correrlo en tu máquina' },
+      { t: 'steps', items: [
+        { title: 'Todos los tests (sin warehouse, Spark ni Airflow)', meta: '≈ 1–5 min',
+          html: '<code>cd reference/c14</code>, crea un venv (Python 3.13 o 3.12), <code>pip install -r requirements-dev.txt</code> y <code>pytest</code>: 66 tests de las cuatro carpetas (<code>test_dag.py</code> se salta sin Airflow).' },
+        { title: 'Una noche, y la siguiente', meta: '2 min',
+          html: 'En <code>batch/</code>, con <code>PYTHONPATH=../features:../train</code>: <code>python run_forecast.py nightly --run-date 2026-10-14 --demo-dir /tmp/c14-demo</code> entrena el modelo sintético y publica. Repítelo (sale <code>already_published</code>: mismo hash), corre <code>fallback --run-date 2026-10-15</code> (el pronóstico del 14, corrido) y después <code>nightly --run-date 2026-10-15</code> (el modelo reemplaza al fallback). Mira <code>/tmp/c14-demo/forecast_current.json</code> y las métricas que imprime cada corrida.' },
+        { title: 'Rompe el leakage a propósito', meta: '5 min',
+          html: 'En <code>features/build_features.py</code>, cambia <code>last_same = r + h - 7 * int(np.ceil(h / 7))</code> por <code>last_same = r + h - 7</code> (el "lag 7" literal) y corre <code>pytest features/tests</code>: fallan con <code>IndexError</code>, porque para h = 8…14 ese día todavía no pasó y el panel termina en run_date. Esa es la defensa: un solo corte, estructural; el futuro ni siquiera está en el arreglo.' },
+        { title: 'Congela el P50', meta: '5 min',
+          html: 'En <code>train/train_quantile.py</code>, entrena con <code>rows["target"]</code> en lugar de <code>jitter(...)</code> y corre <code>pytest batch/tests</code>: con los datos de esos tests (62 % de días en cero) el P50 vuelve a 0, la banda por categoría bloquea y seis noches salen con el fallback en lugar del modelo. Los tests de <code>train/</code> siguen pasando: su conjunto sintético tiene menos ceros, y el congelamiento depende de los datos.' },
+        { title: 'Las alertas con promtool', meta: '≈ 5 s',
+          html: 'Baja el release de Prometheus para tu sistema (trae <code>promtool</code>) y, en <code>monitoring/</code>: <code>promtool check rules alerts.yml</code> y <code>promtool test rules alerts_test.yml</code>. Lleva 51.5 a 53 en <code>ForecastRunLate</code> y vuelve a correr: su test falla.' },
+        { title: 'El DAG con Airflow de verdad', meta: '≈ 5 min',
+          html: 'En otro venv: <code>pip install -r orchestration/requirements.txt -c https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.13.txt</code> y <code>pytest orchestration/tests</code>: 10 tests, incluidos el timetable y la serialización.' },
+      ] },
+
+      { t: 'callout', kind: 'interview',
+        html: '“The forecast is a nightly batch with a hard deadline: the ERP reads at 4 a.m. Features are computed as of the last closed day, lags use the same weekday that has already happened, and stocked-out days are masked out of lags and targets, because their sales are a lower bound on demand. One global quantile GBDT predicts P50 and P90 for every store and SKU across 14 horizons. The job writes an immutable partition, validates what it wrote, and publishes by compare-and-swapping a view; if the model fails or the gate blocks, the ERP gets yesterday’s forecast shifted by one day. Lateness is alerted from the age of the published forecast, so it doesn’t depend on the scheduler being healthy.”' },
+      { t: 'callout', kind: 'connect',
+        html: 'Cada archivo aterriza un módulo: ' + L('m02.batch', 'M2 Patrones') + ' (precomputar, validar y mover un puntero; frescura con número), ' + L('m09.leakage', 'M9') + ' y ' + L('m09.skew', 'M9') + ' (point-in-time, una definición para entrenar y servir), ' + L('m09.validacion-datos', 'M9') + ' (el gate como expectativas de datos), ' + L('m10.gate', 'M10') + ' y ' + L('m10.pipelines-entrenamiento', 'M10') + ' (gate de promoción, orquestación), ' + L('m05.registries', 'M5') + ' (imagen por digest), ' + L('m06.nodos', 'M6') + ' y ' + L('m13.spot', 'M13') + ' (Karpenter, spot y su último intento on-demand), ' + L('m12.drift', 'M12') + ', ' + L('m12.prometheus-grafana', 'M12') + ' y ' + L('m12.runbooks', 'M12') + ' (sesgo, alertas, runbooks) y ' + L('m15.degradacion', 'M15') + ' (el ERP siempre recibe algo). Point-in-time con etiquetas que tardan meses: ' + L('c09.datos', 'caso 9') + '; log-and-wait y skew en un ranking: ' + L('c08.datos', 'caso 8') + '.' },
+    ],
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
