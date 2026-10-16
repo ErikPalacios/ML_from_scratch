@@ -10,6 +10,8 @@
 # De dónde sale cada métrica:
 #   ad_*                                   → serving/ad_api.py (un test exige que cada ad_*_total / _bucket /
 #                                            _seconds de aquí exista en su /metrics)
+#   aws_applicationelb_target_response_time_p99 → TargetResponseTime del ALB (CloudWatch, estadística p99) vía
+#                                            yet-another-cloudwatch-exporter (YACE), con sus labels por defecto
 #   kafka_consumergroup_lag, kafka_topic_partition_current_offset → kafka_exporter (danielqsj/kafka_exporter)
 #   userfeat_last_update_timestamp_seconds → el job que escribe los intereses de 30 días en el online store
 #                                            (gauge propio, corre cada ≈ 15 min, ilustrativo)
@@ -22,7 +24,8 @@ groups:
   # ------------------------------------------------------------------ recording rules
   - name: c15-recording
     rules:
-      # p99 server-side de POST /v1/ads. Buckets EXACTOS en 0.04 y 0.05: sin ellos histogram_quantile
+      # p99 server-side de POST /v1/ads, del histograma que llena RequestClock (ad_api.py): de que la app recibe
+      # el request al último byte de la respuesta. Buckets EXACTOS en 0.04 y 0.05: sin ellos histogram_quantile
       # interpola entre buckets vecinos y el p99 "cerca del SLO" es ruido.
       - record: ad:request_latency_p99:rate5m
         expr: |
@@ -36,8 +39,10 @@ groups:
         expr: |
           sum(rate(ad_requests_total{path="error"}[5m])) / sum(rate(ad_requests_total[5m]))
       # Calibración: clicks ÷ clicks esperados (Σ pCTR de impresiones VISIBLES), por slot y edad del anuncio,
-      # del tráfico rankeado por el modelo (src="model"). 1 h: con ≈ 44k clicks por hora en el caso (est.),
-      # hay volumen por slice.
+      # del tráfico rankeado por el modelo (src="model"). Los dos lados sobre las mismas impresiones (ad_api.py):
+      # ad_clicks_total cuenta solo clicks de impresiones con beacon y ≤ 30 min después de la vista; los demás
+      # van a ad_clicks_outside_label_total{reason}. 1 h: con ≈ 44k clicks por hora en el caso (est.), hay
+      # volumen por slice.
       # Trampa: un counter que nunca se incrementó NO EXISTE (prometheus_client crea la serie de un label en
       # el primer inc). Si el handler de clicks se rompe, ad_clicks_total de ese slice no aparece y el cociente
       # queda vacío: la alerta no vería el peor caso (0 clicks). `or 0 * esperados` rellena con 0.
@@ -101,17 +106,27 @@ groups:
   # ------------------------------------------------------------------ sistema
   - name: c15-system
     rules:
-      # SLO: p99 ≤ 50 ms server-side. El ad-api se da 40 ms internos y cada dependencia tiene timeout, así que
-      # un p99 > 50 ms casi nunca es "Redis lento" (eso termina en fallback o sin caps): es CPU del pod (el
-      # hash de features y el scoring son CPU), el event loop bloqueado o el pico de una noticia.
+      # SLO: p99 ≤ 50 ms server-side, visto desde dos lugares (label `cause`):
+      #   server  el histograma del ad-api. El servicio se da 40 ms y cada dependencia tiene timeout, así que un
+      #           p99 > 50 ms casi nunca es "Redis lento" (eso termina en fallback o sin caps): es CPU del pod (el
+      #           hash de features y el scoring son CPU) o el event loop bloqueado entre etapas.
+      #   lb      el p99 de TargetResponseTime del ALB en el target group del ad-api (que solo sirve POST /v1/ads:
+      #           /v1/imp y /v1/click van aparte, ver README). Es lo único que ve la espera ANTES de que el proceso
+      #           tome el request: con el pod saturado por el pico de una noticia, la cola crece ahí y el
+      #           histograma puede seguir bajo 50 ms (el deadline corta lo de adentro). Llega minutos tarde:
+      #           el ALB publica en CloudWatch cada 60 s y el exporter lo lee con su propio intervalo.
       - alert: AdServerLatencyHigh
-        expr: ad:request_latency_p99:rate5m > 0.05
+        expr: |
+          label_replace(ad:request_latency_p99:rate5m > 0.05, "cause", "server", "", "")
+            or
+          label_replace(max(aws_applicationelb_target_response_time_p99{dimension_TargetGroup=~"targetgroup/ad-api/.+"}) > 0.05,
+                        "cause", "lb", "", "")
         for: 5m
         labels:
           severity: page
         annotations:
-          summary: "ad-api: p99 {{ $value | humanizeDuration }} (> 50 ms)"
-          description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(ad_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado; escala el Deployment (una noticia grande lleva el pico de ≈ 3,500 a ≈ 6,000 RPS). La página no espera: los slots se llenan con el programático."
+          summary: "ad-api: p99 {{ $value | humanizeDuration }} (> 50 ms, {{ $labels.cause }})"
+          description: "server: ¿qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(ad_stage_duration_seconds_bucket[5m]))); si ninguna, CPU throttling o event loop bloqueado. lb: la espera está antes del handler (cola del pod); mira la CPU y ad_fallback_total{reason=~\"model_timeout|deadline\"}. En los dos: escala el Deployment (una noticia grande lleva el pico de ≈ 3,500 a ≈ 6,000 RPS). La página no espera: los slots se llenan con el programático."
           runbook_url: "https://runbooks.example.com/c15/ad-latency"
 
       # Más de 2 % de los requests sin modelo, o más de 0.5 % en excepción, o el ad-api sin métricas, durante
@@ -237,7 +252,7 @@ groups:
           severity: page
         annotations:
           summary: "Calibración {{ $labels.slot }}/{{ $labels.ad_age }}: {{ $value | humanize }} (clicks ÷ esperados)"
-          description: "¿Coincide con un modelo nuevo (model_version en los eventos serve)? Rollback primero. Si no: compara con ad:calibration_ratio_explore:rate6h; si la exploración está en ≈ 1 y esto no, es sesgo de selección de la subasta, no el modelo. Revisa también neg_rate del artefacto (¿cambió w en training?) y el retraso de los beacons."
+          description: "¿Coincide con un modelo nuevo (model_version en los eventos serve)? Rollback primero. Si no: compara con ad:calibration_ratio_explore:rate6h; si la exploración está en ≈ 1 y esto no, es sesgo de selección de la subasta, no el modelo, y es dinero igual: el precio de los ganadores sale de un pCTR inflado; se corrige ajustando la isotónica con impresiones que eligió ese mismo modelo, vigilando el slice de anuncios nuevos. Revisa también neg_rate del artefacto (¿cambió w en training?) y el retraso de los beacons."
           runbook_url: "https://runbooks.example.com/c15/calibration"
       # Fuera de [0.9, 1.1] (el objetivo del caso) pero dentro de [0.8, 1.25], con ≥ 1,000 esperados por hora,
       # durante 2 h: ticket (re-entrenar, re-calibrar con un holdout fresco).

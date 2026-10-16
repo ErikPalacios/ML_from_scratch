@@ -133,7 +133,7 @@ groups:
 
       # El sesgo del P50 se mueve más de 10 puntos contra el del backtest. Contra el backtest y no contra 0:
       # con demanda asimétrica (intermitente, promos) la mediana queda abajo de la media, así que el P50
-      # tiene sesgo negativo por construcción (≈ −20 % en el backtest sintético; −60 % en series lentas).
+      # tiene sesgo negativo por construcción (≈ −21 % en el backtest sintético; ≈ −70 % en series lentas).
       # Negativo = pide de menos → agotados; positivo = pide de más → merma en frescos.
       - alert: ForecastBiasDrift
         expr: abs(forecast:eval_bias_delta) > 0.10

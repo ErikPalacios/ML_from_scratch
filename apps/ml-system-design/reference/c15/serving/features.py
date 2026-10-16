@@ -43,7 +43,7 @@ from __future__ import annotations  # anotaciones como texto: sintaxis moderna s
 
 import functools  # lru_cache: los strings calientes (secciones, anuncios) no se re-hashean
 import hashlib  # blake2b: hash ESTABLE entre procesos, máquinas y versiones de Python
-import unicodedata  # NFC: "política" escrito con acento combinado y con acento precompuesto es lo mismo
+import unicodedata  # NFC: "política" con la tilde combinada o precompuesta es lo mismo; NFKD: quitar tildes
 from collections.abc import Iterable, Mapping, Sequence  # tipos de entrada
 from datetime import datetime  # hora y día local del request
 from zoneinfo import ZoneInfo  # zona horaria del publisher (requiere tzdata en imágenes mínimas)
@@ -92,7 +92,8 @@ CROSSES = (
 MAX_INTERESTS = 5  # secciones leídas en 30 días que entran como features (las más leídas)
 # Secciones que NUNCA entran al perfil de la persona (ni como feature ni para segmentar). El contexto de
 # la página sí puede ser "salud" (es dónde aparece el anuncio, no quién es la persona). La lista la
-# decide legal y la política del publisher; esto es un ejemplo, no asesoría legal.
+# decide legal y la política del publisher; esto es un ejemplo, no asesoría legal. Se escriben SIN
+# tildes y se comparan sin tildes (_fold): "Política", "POLÍTICA" y "politica" son la misma sección.
 SENSITIVE_SECTIONS = frozenset({"salud", "religion", "politica"})
 MISSING = "__none__"  # valor explícito de "no sé": aprende su propio peso (no es lo mismo que "nada")
 
@@ -112,6 +113,16 @@ def norm(value: object) -> str:
     s = unicodedata.normalize("NFC", str(value)).strip().lower()
     s = s.replace("=", "_").replace("|", "_")
     return s or MISSING
+
+
+def _fold(value: str) -> str:
+    """Sin tildes ("política" → "politica"): SOLO para comparar contra SENSITIVE_SECTIONS.
+
+    norm() conserva las tildes (cambiarlo movería los índices de todas las features: otra
+    FEATURE_SET_VERSION). Pero un filtro que compara "política" contra "politica" deja pasar justo la
+    forma en que se escribe en español. NFKD separa la letra de su tilde y se descarta la tilde.
+    """
+    return "".join(c for c in unicodedata.normalize("NFKD", value) if not unicodedata.combining(c))
 
 
 @functools.lru_cache(maxsize=1 << 18)  # ≈ 262k strings (est. de las distintas activas: decenas de miles)
@@ -162,11 +173,12 @@ def clean_interests(sections: Iterable[object] | None) -> tuple[str, ...]:
     del usuario). Se queda con las primeras MAX_INTERESTS que no son sensibles y las ordena (el orden no
     cambia los índices, pero un orden canónico hace comparables los logs). La limpieza se hace AQUÍ
     aunque el job ya filtre: es la última puerta antes del modelo, en training y en serving.
+    Lo sensible se compara sin tildes: "Política" (o en NFD, o "POLÍTICA") no pasa la puerta.
     """
     out: list[str] = []
     for s in sections or ():
         v = norm(s)
-        if v == MISSING or v in SENSITIVE_SECTIONS or v in out:
+        if v == MISSING or _fold(v) in SENSITIVE_SECTIONS or v in out:
             continue
         out.append(v)
         if len(out) == MAX_INTERESTS:

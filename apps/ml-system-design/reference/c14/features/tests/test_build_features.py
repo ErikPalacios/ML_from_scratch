@@ -41,7 +41,7 @@ def tiny(oos_days=(), missing=None):
     series = pd.DataFrame({"store_id": ["T1", "T1", "T2", "T2"], "sku_id": ["A", "B", "A", "B"],
                            "listed_date": pd.Timestamp("2025-01-01")})
     stores = pd.DataFrame({"store_id": ["T1", "T2"], "format": "super", "region": "centro"})
-    skus = pd.DataFrame({"sku_id": ["A", "B"], "category": ["lacteos", "abarrotes"], "perishable": [True, False],
+    skus = pd.DataFrame({"sku_id": ["A", "B"], "category": ["salchichoneria", "abarrotes"], "perishable": [True, False],
                          "shelf_life_days": [10, 365]})
     promo = pd.DataFrame(columns=["store_id", "sku_id", "date", "price", "regular_price", "promo_flag"])
     panel = bf.build_panel(sales, stock, series, dates[0], RUN, missing)
@@ -201,6 +201,26 @@ def test_new_items_and_category_level(cfg):
     # nivel de categoría en la tienda: con un solo SKU por categoría, es su propio promedio de 28 días
     b = f[(f.store_id == "T1") & (f.sku_id == "B")].iloc[0]
     assert b["cat_store_mean_28"] == pytest.approx(b["roll_mean_28"]) == pytest.approx(2.0)
+
+
+def test_days_before_listing_are_unknown_not_zero(cfg):
+    """Regla 4: antes del alta la serie no se vendía. Un producto listado hace 10 días promedia sus 11 días."""
+    sales, stock, series, stores, skus, promo, _ = tiny()
+    listed = RUN - pd.Timedelta(days=10)  # lunes 5 de octubre
+    young = series.assign(listed_date=[listed] + [pd.Timestamp("2025-01-01")] * 3)  # solo T1/A es nuevo
+    panel = bf.build_panel(sales, stock, young, pd.Timestamp("2026-08-01"), RUN)
+    assert np.isnan(panel.units[0, :-11]).all() and not np.isnan(panel.units[0, -11:]).any()
+    f = features(panel, cfg, stores, skus, promo)
+    a = f[(f.store_id == "T1") & (f.sku_id == "A")].set_index("horizon")
+    days = np.array([units_on(sales, "T1", "A", listed + pd.Timedelta(days=i)) for i in range(11)])
+    assert a.loc[1, "roll_mean_28"] == pytest.approx(days.mean())  # no esos 11 días más 17 ceros
+    assert a.loc[1, "zero_share_28"] == pytest.approx((days == 0).mean())
+    # h = 1 (viernes 16): el viernes 9 ya estaba listado; el 2 de octubre, el 25 y el 18 de septiembre no
+    assert a.loc[1, "sw_lag_1"] == units_on(sales, "T1", "A", RUN - pd.Timedelta(days=6))
+    assert a.loc[1, ["sw_lag_2", "sw_lag_3", "sw_lag_4"]].isna().all()
+    assert a.loc[1, "sw_mean_4"] == a.loc[1, "sw_lag_1"]
+    # las series viejas no cambian: sin NaN en su historia
+    assert not np.isnan(panel.units[1:]).any()
 
 
 def test_share_of_slow_series_in_the_synthetic_data_is_like_the_case():

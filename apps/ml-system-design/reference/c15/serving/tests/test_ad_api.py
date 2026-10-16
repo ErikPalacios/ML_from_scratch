@@ -3,6 +3,8 @@ contrato de métricas con alerts.yml. Todo con fakes en memoria salvo el modelo 
 """
 
 import asyncio
+import itertools
+import json
 import re
 import statistics
 import time
@@ -95,12 +97,13 @@ def make_client(world, trained_model):
     def factory(ads=None, model="trained", users=None, freq=None, budget=None, events=None, clock=None,
                 fallback=None, **settings_kw):
         ads = ads if ads is not None else [Ad(**a) for a in world.ads]
+        ids = itertools.count(1)  # ids de serve deterministas: pacing y exploración re-jugables en el test
         deps = Deps(
             index=InMemoryTargetingIndex(ads), freq=freq or InMemoryFrequencyStore(clock or Clock()),
             budget=budget or InMemoryBudgetStore(open_budgets(ads)), users=users or StaticUserFeatureStore(),
             model=trained_model if model == "trained" else model,
             fallback_ctr=fallback or SmoothedCTR({}, PRIORS), dedupe=InMemoryDedupeStore(clock or Clock()),
-            events=events or BufferedEventLog(), clock=clock or Clock(),
+            events=events or BufferedEventLog(), clock=clock or Clock(), new_id=lambda: f"srv-{next(ids):06d}",
             settings=Settings(token_keys=KEYS, token_kid="t1",
                               exploration_rate=settings_kw.pop("exploration_rate", 0.0), **settings_kw))
         client = TestClient(create_app(deps))  # `with`: UN event loop vivo, como uvicorn
@@ -138,7 +141,7 @@ def served_ads(out):
 
 # ------------------------------------------------------------------------------------------ el request
 def test_fills_three_slots_one_ad_per_advertiser_signed_prices(make_client):
-    users = StaticUserFeatureStore({"u1": {"interests": ["autos", "politica"]}})
+    users = StaticUserFeatureStore({"u1": {"interests": ["autos", "Política"]}})  # como lo escribe el CMS
     client, deps = make_client(users=users)
     out = ask(client, request_id="req-00000001", user_id="u1", consent=True)
     assert out["path"] == "model" and out["model_version"] == "lr-test"
@@ -153,7 +156,7 @@ def test_fills_three_slots_one_ad_per_advertiser_signed_prices(make_client):
         assert p["src"] == "model" and 0 < p["p"] < 1 and p["px"] <= bid
         assert p["px"] * p["p"] * 1000 >= 0.80 - 1e-9  # el ingreso esperado por mil pasa la reserva
     serve = deps.events.records[-1]
-    assert serve["type"] == "serve" and serve["interests"] == ["autos"]  # "politica" nunca entra al perfil
+    assert serve["type"] == "serve" and serve["interests"] == ["autos"]  # "Política" nunca entra al perfil
     assert (serve["context"]["hour"], serve["context"]["dow"]) == (8, 3)  # hora LOCAL, logueada
     assert out["latency_ms"] < 40
 
@@ -274,6 +277,32 @@ def test_smoothed_ctr_numbers_from_the_docstring():
     assert s.ctr("z", "top") == pytest.approx(3.5 / 6_000)  # ≈ 0.06 %
 
 
+def test_the_budget_counts_from_when_the_app_receives_the_request(make_client):
+    """RequestClock: el deadline y el histograma del SLO arrancan ANTES de leer el body. Si el body (o el event
+    loop) tarda 36 ms en llegar al handler, al modelo ya no le queda tiempo y el histograma lo ve."""
+    client, _ = make_client()
+    body = json.dumps({"section": "deportes", "device": "mobile"}).encode()
+    sent = []
+
+    async def receive():
+        await asyncio.sleep(0.036)  # lo que un reloj dentro del handler no vería
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST", "scheme": "http",
+             "path": "/v1/ads", "raw_path": b"/v1/ads", "root_path": "", "query_string": b"", "state": {},
+             "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())],
+             "client": ("10.0.0.1", 50000), "server": ("ad-api", 80)}
+    asyncio.run(client.app(scope, receive, send))
+    out = json.loads(b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body"))
+    assert out["path"] == "fallback" and out["latency_ms"] >= 36  # quedaban < 5 ms: el modelo ni empieza
+    assert metric(client, "ad_fallback_total", reason="deadline") == 1
+    assert metric(client, "ad_request_duration_seconds_count") == 1
+    assert metric(client, "ad_request_duration_seconds_bucket", le="0.03") == 0  # el SLI vio los 36 ms
+
+
 # ------------------------------------------------------------------------------------------ subasta y exploración
 def test_an_advertiser_never_takes_two_slots(make_client):
     big = [Ad(f"big{i}", f"cb{i}", "v-big", 1.5, "autos", "native") for i in range(3)]
@@ -315,7 +344,8 @@ def test_new_ads_get_the_boost_only_with_the_model(make_client, world, trained_m
 def test_viewable_beacon_counts_once_with_expected_clicks(make_client):
     clock = Clock()
     client, deps = make_client(clock=clock)
-    s = served_ads(ask(client, request_id="req-imp-0001"))[0]
+    out = ask(client, request_id="req-imp-0001")
+    s = served_ads(out)[0]
     tok = token_of(s["impression_url"])
     p = T.verify(tok, KEYS, now=T0, max_age_s=60)
     clock.t = T0 + 2
@@ -325,11 +355,15 @@ def test_viewable_beacon_counts_once_with_expected_clicks(make_client):
     assert metric(client, "ad_expected_clicks_total", slot=p["slot"]) == pytest.approx(p["p"])
     assert metric(client, "ad_impression_duplicates_total") == 1
     imps = [e for e in deps.events.records if e["type"] == "impression"]
-    assert len(imps) == 1 and imps[0]["imp_id"] == "req-imp-0001:" + p["slot"]
-    clock.t = T0 + 11 * 60  # 11 min después del serve: beacon vencido
-    other = token_of(served_ads(ask(client, request_id="req-imp-0002"))[0]["impression_url"])
-    clock.t += 11 * 60
-    client.get("/v1/imp", params={"t": other})
+    assert len(imps) == 1 and imps[0]["imp_id"] == out["request_id"] + ":" + p["slot"]  # el id del SERVIDOR
+    assert metric(client, "ad_beacon_delay_seconds_bucket", le="2.0") == 1  # 2 s después del serve
+    # Vigencia de 60 min desde el serve: una vista tardía (nota larga, pestaña de fondo) todavía cuenta
+    later = [token_of(s["impression_url"]) for s in served_ads(ask(client, request_id="req-imp-0002"))]
+    clock.t += 59 * 60
+    client.get("/v1/imp", params={"t": later[0]})
+    assert metric(client, "ad_viewable_impressions_total") == 2
+    clock.t += 2 * 60  # 61 min: vencido
+    client.get("/v1/imp", params={"t": later[1]})
     assert metric(client, "ad_impressions_rejected_total", reason="expired") == 1
 
 
@@ -399,6 +433,58 @@ def test_index_age_is_exported(make_client, world):
     assert metric(client, "ad_index_age_seconds") == pytest.approx(90)
 
 
+def test_click_on_an_ad_the_index_no_longer_has_goes_home_and_is_not_billed(make_client, world):
+    ads = [Ad(**a) for a in world.ads]
+    client, deps = make_client(ads=ads)
+    s = served_ads(ask(client))[0]
+    # Dado de baja y ya fuera del índice (get() debe guardar las bajas ≥ 24 h; si falla, esto es lo que pasa)
+    deps.index = InMemoryTargetingIndex([a for a in ads if a.ad_id != s["ad_id"]], loaded_at=T0)
+    r = client.get("/v1/click", params={"t": token_of(s["click_url"])}, follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "https://www.example.com"  # la home
+    [ck] = [e for e in deps.events.records if e["type"] == "click"]
+    assert ck["billable"] is False and ck["price"] == 0.0 and deps.budget.spend_log == []  # no hubo visita
+    assert metric(client, "ad_clicks_not_billed_total", reason="unknown_ad") == 1
+
+
+def test_the_serve_id_is_the_servers_even_if_the_page_repeats_its_own(make_client):
+    clock = Clock()
+    client, deps = make_client(clock=clock)
+    first = ask(client, request_id="page-session-0001")
+    clock.t = T0 + 120  # otra nota en la misma página (sin recargar): la página repite su request_id
+    second = ask(client, request_id="page-session-0001")
+    assert first["request_id"] != second["request_id"]
+    for out in (first, second):
+        client.get("/v1/click", params={"t": token_of(served_ads(out)[0]["click_url"])}, follow_redirects=False)
+    assert len([e for e in deps.events.records if e["type"] == "click"]) == 2  # dos impresiones, dos clicks
+    assert len(deps.budget.spend_log) == 2  # y dos cobros, no uno deduplicado
+    serves = [e for e in deps.events.records if e["type"] == "serve"]
+    assert [e["page_request_id"] for e in serves] == ["page-session-0001"] * 2  # el de la página solo traza
+    assert len({pl["imp_id"] for e in serves for pl in e["placements"]}) == 6
+
+
+def test_realtime_calibration_counts_only_clicks_the_label_calls_positive(make_client):
+    """El numerador del cociente sobre las mismas impresiones que el denominador: click de una impresión CON
+    beacon, ≤ 30 min después de la vista. Sin beacon o tardío, se cobra igual pero va aparte, con su motivo."""
+    assert Settings().click_window_s == BTS.LabelConfig().click_window_s  # UNA ventana para las dos cosas
+    clock = Clock()
+    client, deps = make_client(clock=clock)
+    a, b, c = (token_of(s["click_url"]) for s in served_ads(ask(client)))
+    clock.t = T0 + 5  # a: click sin beacon (perdido, o el click navegó antes del segundo de visibilidad)
+    client.get("/v1/click", params={"t": a}, follow_redirects=False)
+    assert metric(client, "ad_clicks_outside_label_total", reason="no_beacon") == 1
+    assert metric(client, "ad_expected_clicks_total") == 0  # su impresión no sumó pCTR: tampoco su click
+    clock.t = T0 + 10  # b y c: visibles a los 10 s
+    client.get("/v1/imp", params={"t": b})
+    client.get("/v1/imp", params={"t": c})
+    clock.t = T0 + 10 + 29 * 60  # c: click a los 29 min de la vista → en la etiqueta
+    client.get("/v1/click", params={"t": c}, follow_redirects=False)
+    clock.t = T0 + 10 + 31 * 60  # b: a los 31 min → se cobra, pero en el entrenamiento es un negativo
+    client.get("/v1/click", params={"t": b}, follow_redirects=False)
+    assert metric(client, "ad_clicks_total") == 1 and metric(client, "ad_viewable_impressions_total") == 2
+    assert metric(client, "ad_clicks_outside_label_total", reason="late") == 1
+    assert len(deps.budget.spend_log) == 3  # la facturación no cambia: los tres se cobran
+
+
 def test_click_without_kafka_ack_still_redirects_and_is_counted(make_client):
     client, _ = make_client(events=FailingClickLog())
     s = served_ads(ask(client, request_id="req-click-03"))[0]
@@ -433,7 +519,7 @@ def test_the_training_row_rebuilds_the_indices_the_model_scored(make_client):
     out = ask(client, request_id="req-e2e-0001", user_id="u1", consent=True)
     s = served_ads(out)[0]
     serve = deps.events.records[-1]
-    imp = {"type": "impression", "event_id": "i1", "imp_id": f"req-e2e-0001:{s['slot']}", "ts": T0 + 2}
+    imp = {"type": "impression", "event_id": "i1", "imp_id": f"{out['request_id']}:{s['slot']}", "ts": T0 + 2}
     rows, _ = BTS.build([serve], [imp], [], as_of=T0 + 3 * 3600, cfg=BTS.LabelConfig(neg_rate=1.0))
     [row] = rows
     ad = deps.index.get(s["ad_id"])

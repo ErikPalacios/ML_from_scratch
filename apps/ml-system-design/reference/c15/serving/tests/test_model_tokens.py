@@ -48,7 +48,7 @@ def test_correction_is_a_logit_shift_of_ln_w():
 
 
 def test_correcting_twice_is_the_trap():
-    # Un modelo entrenado con peso 1/w ya predice en escala real (0.35 %); corregirlo OTRA vez lo deja ≈ w veces abajo
+    # Un modelo entrenado con peso 1/w ya predice en escala real (0.35 %); corregirlo OTRA vez lo multiplica por ≈ w
     corrected_again = float(M.correct_downsampling(0.0035, 0.05))
     assert corrected_again == pytest.approx(0.0035 * 0.05, rel=0.01)  # ≈ 0.0175 %: 20 veces menos
 

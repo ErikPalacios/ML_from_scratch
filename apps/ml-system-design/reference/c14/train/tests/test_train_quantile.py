@@ -85,7 +85,7 @@ def test_ignoring_censored_days_underforecasts_where_it_hurts(cfg):
     (pm, tm), (pn, tn) = res[True], res[False]
     a = tm["demand"].to_numpy()
     promo = tm["promo_flag"].to_numpy() == 1
-    assert bias(pn["p50"], a) < bias(pm["p50"], a) - 0.08  # ≈ −0.34 contra ≈ −0.16 (medido)
+    assert bias(pn["p50"], a) < bias(pm["p50"], a) - 0.08  # ≈ −0.34 contra ≈ −0.15 (medido)
     assert bias(pn["p50"][promo], a[promo]) < bias(pm["p50"][promo], a[promo]) - 0.15
     assert coverage(pm["p90"][promo], a[promo]) >= coverage(pn["p90"][promo], a[promo]) + 0.02
     assert pm["p90"].sum() > 1.03 * pn["p90"].sum()  # menos inventario de seguridad sin la máscara
@@ -120,8 +120,8 @@ def test_category_codes_trap_and_the_fixed_vocabulary():
         pd.DataFrame({"fmt": pd.Categorical(fmt), "x": x}), y)
     assert np.allclose(m2.predict(pd.DataFrame({"fmt": night.astype("category"), "x": 0.0})), 5.0, atol=0.3)
     # 3) El vocabulario del modelo: misma categoría, mismo código siempre; lo desconocido → NaN
-    vocab = {"format": ["express", "hiper", "super"], "region": ["centro"], "category": ["lacteos"]}
-    rows = pd.DataFrame({"format": ["super", "nuevo"], "region": "centro", "category": "lacteos", "f": 1.0})
+    vocab = {"format": ["express", "hiper", "super"], "region": ["centro"], "category": ["salchichoneria"]}
+    rows = pd.DataFrame({"format": ["super", "nuevo"], "region": "centro", "category": "salchichoneria", "f": 1.0})
     mat = tq.to_matrix(rows, vocab, ["f", "format", "region", "category"])
     assert list(mat["format"].cat.categories) == vocab["format"]
     assert mat["format"].cat.codes.tolist() == [2, -1]  # "nuevo" no recibe el código de otra categoría

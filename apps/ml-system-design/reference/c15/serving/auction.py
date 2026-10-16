@@ -56,7 +56,9 @@ class Bid:
     advertiser_id: str
     bid: float  # CPC máximo en US$ (lo que el anunciante está dispuesto a pagar por click)
     pctr: Mapping[str, float]  # slot → pCTR EN ESE slot (ya con el efecto de posición)
-    boost: float = 1.0  # multiplicador de ranking para anuncios nuevos (≥ 1); no toca el precio
+    # Anuncios nuevos: multiplica la puntuación de ranking (≥ 1) y baja el precio del propio anuncio (paga lo
+    # mínimo para conservar ese lugar); nunca sube el precio de otro ni cuenta para la reserva (regla 6)
+    boost: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -73,7 +75,10 @@ class Placement:
     price: float  # US$ por click (GSP, con tope en el bid)
     price_source: Literal["next_ad", "reserve"]  # qué fijó el precio: el siguiente o la reserva
     runner_up: str | None  # ad_id del siguiente (None si no hubo): evidencia para una disputa
-    propensity: float = 1.0  # P(este anuncio en este slot | la política): 1 en la subasta, 1/n en exploración
+    # P(este anuncio en este slot | lo elegido en los slots anteriores): 1 en la subasta; 1/n en exploración,
+    # con n = elegibles que QUEDABAN en el slot. Es la marginal solo en el primer slot (ver run_exploration)
+    propensity: float = 1.0
+    eligible: int = 0  # exploración: anuncios sobre la reserva en este slot ANTES de sacar los ya colocados
     explored: bool = False
 
 
@@ -157,8 +162,16 @@ def run_exploration(bids: Sequence[Bid], slots: Sequence[str], *, reserve_ecpm: 
 
     Para qué: el log de la subasta normal solo tiene lo que el modelo ya prefería; con este tráfico se
     evalúa un modelo nuevo sin el sesgo del viejo y se mide el efecto de posición sin confusión (en la
-    subasta, los mejores anuncios van siempre arriba). La propensity (1 / candidatos elegibles en ese slot)
-    se loguea: es el peso para estimadores off-policy (IPS).
+    subasta, los mejores anuncios van siempre arriba).
+    Propensity: se loguea 1/n, con n = elegibles que QUEDABAN en el slot (lo elegido arriba ya sacó a su
+    anunciante). Es P(anuncio en el slot | lo elegido en los slots anteriores), no la probabilidad marginal
+    que pide IPS por slot. Ejemplo: 3 anuncios de 3 anunciantes, los 3 sobre la reserva en los 3 slots: se
+    loguea 1/3, 1/2 y 1, pero cada anuncio cae en cada slot con probabilidad 1/3 (un test lo mide).
+      - slot de arriba: la propensity logueada ES la marginal;
+      - slots de abajo: si cada anunciante tiene un solo anuncio y los slots comparten los mismos elegibles,
+        la marginal es 1/eligible (`eligible` = los que pasan la reserva en ese slot sin sacar a nadie: cada
+        orden es igual de probable); si no, hay que sumar sobre lo que pudieron tomar los slots anteriores,
+        y para eso hace falta loguear los conjuntos de elegibles (esta referencia loguea solo su tamaño).
     Precio: el de la reserva (lo mínimo para pasarla) + incremento, con tope en el bid. El anunciante nunca
     paga más que en una subasta normal, en la que paga al menos eso; la exploración la paga el publisher.
     Se respeta "un anuncio por anunciante": el elegido saca a su anunciante de los slots siguientes.
@@ -166,16 +179,17 @@ def run_exploration(bids: Sequence[Bid], slots: Sequence[str], *, reserve_ecpm: 
     placed: set[str] = set()
     out: list[Placement] = []
     for slot in slots:
-        eligible = sorted(_eligible(bids, slot, reserve_ecpm, placed), key=lambda b: b.ad_id)  # orden fijo
+        pool = _eligible(bids, slot, reserve_ecpm, set())  # sobre la reserva en este slot, sin sacar a nadie
+        eligible = sorted((b for b in pool if b.advertiser_id not in placed), key=lambda b: b.ad_id)  # orden fijo
         if not eligible:
             continue
         rng = random.Random(int.from_bytes(hashlib.sha256(f"{seed}|{slot}".encode()).digest()[:8], "big"))
-        winner = rng.choice(eligible)  # uniforme: propensity = 1 / n
+        winner = rng.choice(eligible)  # uniforme entre los que quedan: propensity = 1 / n
         price, _ = _price(winner, slot, None, reserve_ecpm, increment)
         out.append(Placement(slot=slot, ad_id=winner.ad_id, campaign_id=winner.campaign_id,
                              advertiser_id=winner.advertiser_id, bid=winner.bid, pctr=winner.pctr[slot],
                              ecpm=round(ecpm(winner.bid, winner.pctr[slot]), 6), price=price,
                              price_source="reserve", runner_up=None,
-                             propensity=1.0 / len(eligible), explored=True))
+                             propensity=1.0 / len(eligible), eligible=len(pool), explored=True))
         placed.add(winner.advertiser_id)
     return out

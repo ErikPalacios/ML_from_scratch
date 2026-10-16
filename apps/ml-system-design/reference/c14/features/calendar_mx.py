@@ -33,9 +33,10 @@ Tres tipos de fechas, tres fuentes distintas (y por eso tres funciones distintas
 
 3. Eventos con fecha ANUNCIADA cada año (Buen Fin, Hot Sale): ninguna ley fija la fecha; la anuncian los
    organizadores (el Buen Fin, la Secretaría de Economía con el sector privado; el Hot Sale, la AMVO). Por
-   eso viven en retail_events.yaml, no en el código, y si el horizonte toca su ventana típica y el año no
-   está configurado, `require_event_dates` falla EN VOZ ALTA: tratar el Buen Fin como un fin de semana
-   normal es peor que no correr (el fallback cubre la noche; un pronóstico 30 % abajo, no).
+   eso viven en retail_events.yaml, no en el código, y si las features del horizonte tocan su ventana
+   típica (los targets y los 30 días que mira hacia adelante `days_to_<evento>`) y el año no está
+   configurado, `require_event_dates` falla EN VOZ ALTA: tratar el Buen Fin como un fin de semana normal
+   es peor que no correr (el fallback cubre la noche; un pronóstico 30 % abajo, no).
 
 Quincenas: los días 15 y último de cada mes (supuesto del caso). La LFT (art. 88) solo pone el plazo
 máximo de pago (una semana para trabajo material, quince días para los demás), no qué día se paga cuando
@@ -71,7 +72,8 @@ OCT1_REFORM_YEAR = 2024
 
 
 class MissingEventDates(RuntimeError):
-    """El horizonte (o la historia) toca la ventana típica de un evento anunciado sin fechas configuradas."""
+    """Lo que miran las features del horizonte (o de la historia) toca la ventana típica de un evento
+    anunciado sin fechas configuradas."""
 
 
 # ------------------------------------------------------------------------------- reglas de fechas
@@ -184,23 +186,28 @@ def _window_for(name: str, cfg: dict, year: int) -> tuple[dt.date, dt.date]:
 
 
 def require_event_dates(cfg: dict, start: dt.date, end: dt.date) -> None:
-    """Falla si [start, end] toca la ventana típica de un evento anunciado cuyo año no está configurado.
+    """Falla si lo que miran las features de [start, end] toca la ventana típica de un evento anunciado
+    cuyo año no está configurado.
 
+    Lo que miran llega CAP_DAYS después de `end`: `days_to_<evento>` de un target cuenta hasta 30 días
+    hacia adelante, y sin las fechas del año diría "lejos" (30) en vez de la distancia real, sin error.
     El job nocturno la llama con el horizonte (run_date + 1 … run_date + 14) y el entrenamiento con toda
     la historia. Así, en enero de 2027 el job NO exige el Buen Fin de 2027 (todavía no se anuncia), pero
-    a partir de mediados de octubre, cuando el horizonte llega a noviembre, sí.
+    desde mediados de septiembre (run_date + 14 + 30 llega al 1 de noviembre, inicio de la ventana) sí.
     """
+    look_to = end + dt.timedelta(days=CAP_DAYS)  # hasta dónde mira days_to_<evento> del último target
     missing = []
     for name in ANNOUNCED_EVENTS:
         configured = {int(y) for y in (cfg["announced"][name].get("dates") or {})}
-        for year in range(start.year, end.year + 1):
+        for year in range(start.year, look_to.year + 1):
             w0, w1 = _window_for(name, cfg, year)
-            if w0 <= end and start <= w1 and year not in configured:  # los intervalos se cruzan
+            if w0 <= look_to and start <= w1 and year not in configured:  # los intervalos se cruzan
                 missing.append(f"{name} {year}")
     if missing:
         raise MissingEventDates(
             "faltan fechas en retail_events.yaml para: " + ", ".join(missing)
-            + " (el rango " + f"{start}…{end} toca su ventana típica)"
+            + f" (el rango {start}…{end}, con los {CAP_DAYS} días que mira days_to_<evento>, toca su"
+            " ventana típica)"
         )
 
 

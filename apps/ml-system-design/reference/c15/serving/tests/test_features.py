@@ -81,9 +81,12 @@ def test_sensitive_sections_never_reach_the_profile():
     got = F.clean_interests(["politica", "Deportes", "salud", "autos", "deportes", "religion", "economia",
                              "tecnologia", "mundo", "espectaculos"])
     assert got == ("autos", "deportes", "economia", "mundo", "tecnologia")  # 5 primeras no sensibles, ordenadas
-    raw = F.make_raw(CTX, ["politica", "salud", "autos"], AD)
+    # Como se escriben en español: con tilde, en NFD (otro CMS) o en mayúsculas. La comparación es sin tildes
+    nfd = unicodedata.normalize("NFD", "política")
+    assert F.clean_interests(["Política", nfd, "POLÍTICA", "religión", "Salud", "autos"]) == ("autos",)
+    raw = F.make_raw(CTX, ["politica", "Política", "salud", "autos"], AD)
     strings = F.feature_strings(raw)
-    assert not any(s.startswith("interest=politica") or s.startswith("interest=salud") for s in strings)
+    assert not any(s.startswith(("interest=pol", "interest=salud")) for s in strings)
     # el CONTEXTO sí puede ser "salud": es dónde aparece el anuncio, no quién es la persona
     assert "section=salud" in F.feature_strings(F.make_raw({**CTX, "section": "salud"}, [], AD))
 

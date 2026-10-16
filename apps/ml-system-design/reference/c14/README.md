@@ -21,10 +21,12 @@ c14/
 │   ├── calendar_mx.py       # feriados del art. 74 de la LFT (lunes, 1 de octubre sexenal), quincenas con
 │   │                        #   corrimiento al día hábil anterior (SUPUESTO), eventos fijos y anunciados
 │   ├── retail_events.yaml   # fechas del Buen Fin y del Hot Sale por año (dato, no código); falta un año →
-│   │                        #   el job falla en voz alta si el horizonte toca su ventana
+│   │                        #   el job falla en voz alta si el horizonte, con los 30 días que mira
+│   │                        #   days_to_<evento>, toca su ventana
 │   ├── build_features.py    # panel series × días, corte en run_date, agotados como NaN, faltante ≠ 0,
 │   │                        #   lags del mismo día de la semana, plan de promos as-of, filas directas h = 1…14
-│   └── tests/               # test_calendar_mx.py (9), test_build_features.py (10: sin leakage, máscara, imputación)
+│   └── tests/               # test_calendar_mx.py (10), test_build_features.py (11: sin leakage, máscara,
+│                            #   imputación, días antes del alta)
 ├── train/
 │   ├── synthetic.py         # datos SINTÉTICOS: semana, quincenas, promos, eventos, agotados ligados a la demanda
 │   ├── train_quantile.py    # HistGradientBoosting quantile 0.5/0.9 con jittering de conteos, vocabulario
@@ -34,9 +36,10 @@ c14/
 │   └── tests/               # test_train_quantile.py (7), test_backtest.py (7)
 ├── batch/
 │   ├── run_forecast.py      # el job: completitud → features → predict → partición inmutable → gate →
-│   │                        #   compare-and-swap del puntero | fallback corrido; métricas al Pushgateway; CLI
+│   │                        #   compare-and-swap del puntero | fallback corrido (sin features); métricas al
+│   │                        #   Pushgateway; CLI
 │   ├── validate_output.py   # las 7 reglas del gate, con el detalle de cada una
-│   └── tests/               # test_validate_output.py (13), test_run_forecast.py (15)
+│   └── tests/               # test_validate_output.py (14), test_run_forecast.py (19)
 ├── orchestration/
 │   ├── forecast_nightly_dag.py  # forecast_nightly (sensores, KubernetesPodOperator, spot → on-demand,
 │   │                            #   fallback, Deadline Alert 03:30) + forecast_fallback_guard (03:45)
@@ -58,7 +61,8 @@ c14/
 2. `train/train_quantile.py` — las 4 trampas del docstring. La 0 se encontró aquí: con 62 % de días en
    cero, el modelo del P50 de scikit-learn se queda en 0 para TODAS las filas, también las que venden 4.
 3. `batch/run_forecast.py` — el docstring (la noche en 7 pasos, las reglas del puntero) y `_nightly`.
-4. `batch/validate_output.py` — la tabla de reglas y por qué la banda compara medianas con medianas.
+4. `batch/validate_output.py` — la tabla de reglas y por qué la banda compara medianas con medianas, y solo
+   con las series rápidas.
 5. `orchestration/forecast_nightly_dag.py` y `nightly_rules.py` — la línea de tiempo de la noche.
 6. `train/backtest.py` — métricas con un ejemplo a mano y el corte `target_date ≤ O`.
 7. `features/calendar_mx.py` — qué dice la ley y qué es supuesto.
@@ -75,10 +79,12 @@ y pronostica `target_date = 16 … 29` (horizontes 1–14).
              logical_date = 00:30 del 16 → run_date_for() = 15, no la macro `ds`, que va en UTC)
 00:30–01:30  wait_sales y wait_stock (sensores en reschedule, poke cada 5 min): terminan cuando reportaron
              las 400 tiendas o a la 01:30, lo que pase antes. Nunca fallan por datos incompletos
-≈ 01:30      run_forecast: KubernetesPodOperator con la imagen del job (por digest), spot; tope 90 min
+≈ 01:30      run_forecast: KubernetesPodOperator con la imagen del job (por digest), spot; ≤ 60 min por
+             intento (de la 01:30 a las 03:30 hay 120 = 2 × 60); el tope de 90 min solo corta un intento colgado
                1. completitud: las tiendas sin ventas del 15 se imputan con el mismo día de la semana
                   pasada (el jueves 8), flag imputed_input
-               2. retail_events.yaml cubre el horizonte (si toca noviembre, el Buen Fin del año) o falla
+               2. retail_events.yaml cubre el horizonte y los 30 días que mira days_to_<evento> (si eso toca
+                  noviembre, el Buen Fin del año) o falla
                3. features point-in-time (70 días de historia) + calendario y plan de promos del target
                4. P50/P90 (piezas enteras), rearrangement; si el modelo falla → fallback
                5. partición forecast_daily/run_date=2026-10-15/part-<hash>/ (inmutable; mismo contenido =
@@ -86,8 +92,9 @@ y pronostica `target_date = 16 … 29` (horizontes 1–14).
                6. gate sobre lo ESCRITO (7 reglas); si bloquea → fallback
                7. compare-and-swap de forecast_current → el ERP ve la noche nueva de golpe
              si falla: un reintento en on-demand; si también falla → publish_fallback (all_failed)
-03:30        Deadline Alert: si el run sigue corriendo, el triggerer manda la alerta a Alertmanager
-             (Prometheus tiene su propia ForecastRunLate con la edad del run_date publicado)
+03:30        Deadline Alert: si el run sigue corriendo o terminó en falla, el triggerer manda la alerta a
+             Alertmanager (un run exitoso antes de las 03:30 borra el deadline aunque haya servido el
+             fallback; Prometheus tiene su propia ForecastRunLate con la edad del run_date publicado)
 03:45        forecast_fallback_guard: si nada del 15 está publicado, publica el fallback
 03:55        corte: después, el job ya no mueve el puntero de esta noche (el ERP está por leer)
 04:00        el ERP lee forecast_current
@@ -112,7 +119,10 @@ mañana       el job de evaluación (no incluido) cruza forecast_daily con las v
 El fallback es el último pronóstico publicado, corrido: si era de ayer, sus horizontes 2…14 pasan a ser
 1…13 (mismo día pronosticado, visto desde más cerca) y el día 14 sale del seasonal naive; con dos noches
 malas se corre dos días; sin nada publicado, todo es seasonal naive. El ERP **siempre** recibe un
-pronóstico, y el fallback también pasa por las reglas de estructura (nunca se publica basura).
+pronóstico, y el fallback también pasa por las reglas de estructura (nunca se publica basura). El del DAG
+y el del guardia no arman features, porque el job pudo haber fallado justo ahí (memoria, `price_promo`,
+el calendario): su naive solo lee 28 días de ventas e inventario, y si el warehouse no responde, se
+publica lo corrido (horizontes 1…13).
 
 ### `forecast_daily` (la salida)
 
@@ -159,7 +169,7 @@ Métricas de otros componentes (no están aquí; solo en los tests de promtool):
 | Negocio | `StockoutRateUp` | agotados de 7 días > 1.25× la semana anterior y > 6 %; 6 h | ticket |
 
 Dos trampas de estas reglas: el sesgo del P50 **no es 0 por diseño** (con demanda asimétrica la mediana
-queda abajo de la media: ≈ −20 % en el backtest sintético, ≈ −67 % en las series lentas), así que
+queda abajo de la media: ≈ −21 % en el backtest sintético, ≈ −70 % en las series lentas), así que
 `ForecastBiasDrift` compara contra el sesgo del backtest y no contra cero; y las métricas de un batch se
 sirven en cada scrape (el Pushgateway lo hace solo): con una muestra por hora, el lookback de 5 min deja la
 serie "ausente" y el `absent()` de ForecastRunLate dispararía por error (los tests usan series por minuto
@@ -171,7 +181,7 @@ por eso).
 cd reference/c14
 python3 -m venv .venv && . .venv/bin/activate      # Python 3.13 (o 3.12)
 pip install -r requirements-dev.txt
-pytest                                              # 66 tests + 1 archivo que se salta (test_dag.py)
+pytest                                              # 73 tests + 1 archivo que se salta (test_dag.py)
 
 cd monitoring
 promtool check rules alerts.yml                     # promtool viene en el release de Prometheus
@@ -202,15 +212,18 @@ cat /tmp/c14-demo/forecast_current.json
 
 La demo usa un warehouse en memoria con datos sintéticos (6 tiendas × 20 SKUs, del 1 de septiembre de 2025
 en adelante), particiones Parquet y un puntero JSON en `--demo-dir`, e imprime en stdout las métricas que
-empujaría al Pushgateway. Usa la hora real de tu máquina para el corte de las 03:55.
+empujaría al Pushgateway. La demo simula las 02:00 de la noche de cada `--run-date`; el corte de las 03:55
+lo prueban los tests.
 
 ## Desplegar (resumen)
 
 Faltan los adaptadores reales, que no se publican porque no se pudieron probar aquí: `Warehouse` (las
 lecturas del día, con el plan de promociones as-of y `reported_stores` desde la carga del POS),
 `PartitionStore` (una tabla en formato abierto —Iceberg/Delta— donde sobrescribir una partición es un
-commit atómico), `Publisher` (una fila de control + `CREATE OR REPLACE VIEW forecast_current` en la misma
-transacción, con `UPDATE … WHERE partition = :esperado` como compare-and-swap) y `MetricsSink`
+commit atómico), `Publisher` (una fila de control con `UPDATE … WHERE partition = :esperado` como
+compare-and-swap; en motores con DDL transaccional —Postgres, Redshift— `CREATE OR REPLACE VIEW
+forecast_current` en la misma transacción; en Snowflake o BigQuery, en un segundo paso idempotente que el
+job repite si muere entre los dos y que regenera la vista desde la fila de control) y `MetricsSink`
 (`pushadd_to_gateway`). Imagen: `train/requirements.txt` + el código de `features/`, `train/` y `batch/`,
 `OMP_NUM_THREADS` igual a los cores pedidos, entrypoint `python run_forecast.py`. El modelo sale del
 registry con `train_quantile.load(ruta)`, que se niega a cargar con otra versión de scikit-learn. En
@@ -224,13 +237,15 @@ de Docker:
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.16 y 3.12.15 | 66 passed + test_dag.py saltado (sin Airflow); ≈ 1.3 min con la máquina libre, ≈ 5 min con otros procesos pesados |
+| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.16 y 3.12.15 | 73 passed + test_dag.py saltado (sin Airflow); ≈ 45 s con la máquina libre, ≈ 3 min con otros procesos pesados |
 | Sin leakage | features con TODO lo posterior a run_date envenenado (ventas ×100 + 7, agotados al revés) y con los datos cortados en run_date | idénticas, valor por valor |
-| Censura | dos modelos, con y sin la máscara de agotados, contra la demanda VERDADERA del generador | sin máscara: sesgo del P50 ≈ −34 % (≈ −51 % en promos) contra ≈ −16 % (≈ −20 %); P90 ≈ 6 % menor y cobertura en promos 0.87 contra 0.91 |
+| Censura | dos modelos, con y sin la máscara de agotados, contra la demanda VERDADERA del generador | sin máscara: sesgo del P50 ≈ −34 % (≈ −49 % en promos) contra ≈ −15 % (≈ −17 %); P90 ≈ 6 % menor y cobertura en promos 0.88 contra 0.91 |
 | El P50 congelado | HistGradientBoosting quantile 0.5 con 62 % de ceros (scikit-learn 1.9.1) | predice 0 para todas las filas; con jittering, ≈ 4 en las rápidas y 0 en las lentas |
-| Backtest | 2 orígenes semanales, datos sintéticos | WAPE ≈ 0.61 contra ≈ 0.86 del seasonal naive; cobertura del P90 ≈ 0.95 (entero: ≥ 90 % por construcción) |
-| El job | fakes del warehouse y del Pushgateway, partición Parquet y puntero JSON de verdad, reloj inyectable | noche normal, re-run idempotente, 1 y 2 tiendas sin datos, modelo roto, dos noches malas, escala ×10, guardia, corte de las 03:55, run viejo, fechas de eventos faltantes, swap concurrente, Pushgateway caído: cada uno sale por el camino esperado |
-| La CLI | `run_forecast.py nightly/fallback/ensure-published --demo-dir` | las 5 llamadas de la demo de arriba dan published, already_published, published (fallback), published y stale |
+| Backtest | 2 orígenes semanales, datos sintéticos | WAPE ≈ 0.60 contra ≈ 0.86 del seasonal naive; cobertura del P90 ≈ 0.95 (≈ 0.97 en las lentas: entero, ≥ 90 % por construcción) y la estricta, A < P90, ≈ 0.82 (≤ 90 %: calibrado); sesgo del P50 ≈ −21 % (≈ −70 % en las lentas) |
+| El job | fakes del warehouse y del Pushgateway, partición Parquet y puntero JSON de verdad, reloj inyectable | noche normal, re-run idempotente, 1 y 2 tiendas sin datos, modelo roto, dos noches malas, escala ×10, ×2 y ×0.45 en una noche sin eventos, guardia sin features (su día 14 es idéntico al naive del job), corte de las 03:55, run viejo, fechas de eventos faltantes, warehouse caído (el fallback del DAG publica 1…13), bloqueo de ayer con falla temprana, swap concurrente, Pushgateway caído: cada uno sale por el camino esperado |
+| La CLI | `run_forecast.py nightly/fallback/ensure-published --demo-dir` | las 5 llamadas de la demo de arriba dan published, already_published, published (fallback), published y stale, también con el reloj de la máquina después de las 03:55 (la demo simula las 02:00) |
+| La banda por categoría | el modelo real cada 2 noches: 129 del conjunto de los tests y 222 de cuatro conjuntos de la demo (semillas 0–3); la regla anterior (todas las series, calendario de 35 días, promo ≥ 10 %) contra la nueva | noches buenas bloqueadas: 0, 0, 178, 20 y 15 → 0, 0, 50, 1 y 11 (las 50 de la semilla 1 son un modelo que pronostica bajo una categoría); un error ×2 atrapado en 41–104 → 105–161 noches por conjunto |
+| El fallback sin features | 10,000 series sintéticas, `tracemalloc` | ≈ 220 B por fila contra ≈ 725 B del job con features (no cuenta los buffers de Arrow) |
 | El DAG | Airflow **3.3.2** + apache-airflow-providers-cncf-kubernetes **10.22.0** (constraints oficiales) en un venv aparte: import, forma, timetable del scheduler, plantillas, serialización; además DagBag sin errores de import (con una base SQLite local) | 10 passed; logical_date = 00:30 locales → deadline 03:30 locales; `run_date_for` = 15 |
 | Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 12 reglas OK; los tests de las 8 alertas pasan; 14 mutaciones (umbrales al otro lado, ramas `absent`/`unless` quitadas, `for` más largo, `abs` quitado) hacen fallar algún test |
 | Sintaxis | `python -m py_compile` de todos los `.py`; YAML con PyYAML | OK |
@@ -246,9 +261,11 @@ de Docker:
 - Escala: el panel denso de pandas corre con cientos de series. Con 4.8 M series × 70 días son ≈ 336 M
   celdas (≈ 1.3 GB en float32, estimación): en producción es Polars/DuckDB en un nodo grande o Spark (el
   trade-off del caso), y los tiempos del caso (features 20–40 min, predict 2–3 min) no se midieron aquí.
-- LightGBM no carga en esta máquina (falta libomp): el modelo es HistGradientBoosting de scikit-learn. No
-  se verificó si el quantile de LightGBM también se congela con mayoría de ceros: revísalo si tus series
-  tienen más de la mitad de días en 0.
+- LightGBM no carga en esta máquina (falta libomp): el modelo es HistGradientBoosting de scikit-learn. Que
+  el quantile de LightGBM no se congela con mayoría de ceros sale de leer su código, no de una corrida
+  (src/objective/regression_objective.hpp: con predicción = venta el gradiente es 1 − α, distinto del −α
+  de una fila con venta, así que los splits ganan): la prueba es barata si tus series tienen más de la
+  mitad de días en 0.
 - Las fechas del Buen Fin 2026 vienen de notas de prensa que citan a los organizadores (confírmalas); la
   regla de las quincenas en fin de semana es un supuesto; `election_days` y `school_vacations` están vacías
   a propósito.

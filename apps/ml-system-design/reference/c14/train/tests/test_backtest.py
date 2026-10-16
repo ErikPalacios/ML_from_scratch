@@ -35,6 +35,7 @@ def test_oos_and_unknown_days_do_not_count():
                        "model_p50": [10, 0, 5, 500.0], "model_p90": [12, 1, 5, 900.0]})
     m = bt.metrics(df)
     assert m["n"] == 3 and m["wape"] == pytest.approx(4 / 15) and m["coverage_90"] == pytest.approx(2 / 3)
+    assert m["coverage_90_strict"] == pytest.approx(1 / 3)  # 5 ≤ 5 sí, 5 < 5 no
 
 
 def test_segments_overlap_and_use_only_what_was_known_at_the_origin():
@@ -87,10 +88,13 @@ def test_model_beats_the_seasonal_naive_and_the_p90_covers(data):
     res = bt.run_backtest(data, n_origins=2, params=FAST)
     model = bt.metrics_by_segment(res, "model").set_index("segment")
     naive = bt.metrics_by_segment(res, "naive").set_index("segment")
-    assert model.loc["all", "wape"] < naive.loc["all", "wape"] - 0.10  # ≈ 0.61 contra ≈ 0.86 (medido)
+    assert model.loc["all", "wape"] < naive.loc["all", "wape"] - 0.10  # ≈ 0.60 contra ≈ 0.86 (medido)
     assert model.loc["all", "pinball_90"] < naive.loc["all", "pinball_90"]
-    # El P90 de un conteo es un entero: cubre ≥ 90 % por construcción (≈ 0.95 medido; 0.97 en las lentas)
+    # El P90 de un conteo es un entero: cubre ≥ 90 % por construcción (≈ 0.95 medido; 0.97 en las lentas).
+    # Calibrado quiere decir A ≤ P90 en ≥ 90 % y A < P90 en ≤ 90 %, también en las lentas.
     assert 0.88 <= model.loc["all", "coverage_90"] <= 0.97
+    for seg in ("all", "slow"):
+        assert model.loc[seg, "coverage_90_strict"] <= 0.90 <= model.loc[seg, "coverage_90"]
     # El sesgo del P50 es NEGATIVO por construcción con demanda asimétrica: la mediana < la media.
     # En las series lentas, la mediana es 0 (la mitad de los días no vende nada).
     assert model.loc["all", "bias"] < 0 and model.loc["slow", "bias"] < model.loc["fast", "bias"]

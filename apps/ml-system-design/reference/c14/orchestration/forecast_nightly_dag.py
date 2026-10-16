@@ -11,13 +11,18 @@ La noche (hora de las tiendas, America/Mexico_City):
          inventario al cierre. Terminan cuando reportaron todas las tiendas o a la 01:30, lo que pase
          antes: a la 01:30 se sigue con lo que hay (el job imputa; el gate bloquea si falta > 5 %).
   ≈01:30 run_forecast: el job en su propia imagen (KubernetesPodOperator), en spot; si falla, UN
-         reintento en on-demand (`capacity_for`). Tope de 90 min por intento: un reintento cabe en la
-         ventana si el primero falla temprano.
+         reintento en on-demand (`capacity_for`). Presupuesto: ≤ 60 min por intento (de la 01:30 a las
+         03:30 hay 120 min = 2 × 60: cabe un reintento completo). El execution_timeout de 90 min solo corta
+         un intento colgado: si uno llega a él, el reintento ya no cabe con margen antes de las 03:30 (y si
+         no termina a tiempo, el guardia de las 03:45 publica el fallback).
          Si los dos intentos fallan → publish_fallback (trigger_rule all_failed): el pronóstico de ayer
          corrido un día.
-  03:30  Deadline Alert: si el DAG run sigue corriendo, el callback avisa a Alertmanager. (Si el run
-         TERMINÓ antes, aunque haya terminado en falla, Airflow borra el deadline y no avisa: para eso
-         están ForecastRunFailed y FallbackForecastServed en Prometheus.)
+  03:30  Deadline Alert: si el DAG run sigue corriendo o terminó en falla (aquí, solo si también falló
+         publish_fallback), el callback avisa a Alertmanager. (Solo un run que termina con ÉXITO antes de
+         las 03:30 borra su deadline, aunque haya servido el fallback: para eso están
+         FallbackForecastServed y la regla de Prometheus. Si el run terminó en falla, el callback sí avisa
+         a las 03:30. Revisado en el código de Airflow 3.3.2: el deadline solo se borra en la rama de
+         éxito del run.)
   03:45  forecast_fallback_guard: si nada de esta noche está publicado, publica el fallback.
   03:55  el job ya no mueve el puntero de esta noche (run_forecast.PUBLISH_CUTOFF).
   04:00  el ERP lee forecast_current.
@@ -153,7 +158,11 @@ with DAG(
     # de features); con Spark, este pod solo lanza el job del cluster y espera.
     forecast = job_pod("run_forecast", "nightly", cpu="32", memory="256Gi",
                        retries=1, retry_delay=timedelta(minutes=2), execution_timeout=timedelta(minutes=90))
-    # El fallback lee la partición de ayer y calcula el naive: chico, siempre on-demand y con reintentos.
+    # El fallback NO arma features (el job pudo haber fallado justo ahí): lee la partición de ayer y, para el
+    # día 14, 28 días de ventas e inventario (run_forecast.light_naive). Con 10,000 series sintéticas pidió
+    # ≈ 220 B por fila contra ≈ 725 B del job con features (tracemalloc, sin los buffers de Arrow) → ≈ 14 GiB
+    # a 67 M filas (estimación lineal, no medida a escala). Siempre on-demand y con reintentos; los recursos
+    # son ILUSTRATIVOS.
     fallback = job_pod("publish_fallback", "fallback", cpu="4", memory="32Gi", capacity="on-demand",
                        trigger_rule=TriggerRule.ALL_FAILED, retries=2, retry_delay=timedelta(minutes=1),
                        execution_timeout=timedelta(minutes=15))
@@ -173,6 +182,6 @@ with DAG(
 ) as guard:
     # Idempotente: si esta noche ya hay algo publicado (modelo o fallback), no hace nada. Existe porque el
     # Deadline Alert AVISA pero no publica, y un DAG atorado (sensor colgado, pod Pending sin nodos) no
-    # llega a su propia tarea de fallback.
+    # llega a su propia tarea de fallback. Mismo camino que publish_fallback: sin features.
     job_pod("ensure_published", "ensure-published", cpu="4", memory="32Gi", capacity="on-demand",
             retries=1, retry_delay=timedelta(minutes=1), execution_timeout=timedelta(minutes=9))

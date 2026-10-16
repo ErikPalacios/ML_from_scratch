@@ -77,9 +77,10 @@ def late_alert(dag_id: str, run_id: str, deadline_time: str, run_date: str) -> l
         "labels": {"alertname": "ForecastRunLate", "severity": "page", "source": "airflow_deadline",
                    "dag_id": dag_id},
         "annotations": {
-            "summary": f"{dag_id}: run_date {run_date} sin terminar a las 03:30 (deadline {deadline_time})",
+            "summary": f"{dag_id}: run_date {run_date} sin terminar con éxito a las 03:30 (deadline {deadline_time})",
             "description": "El guardia publica el fallback a las 03:45; el ERP lee a las 04:00. Revisa el run "
-                           f"{run_id} en Airflow: ¿sensores esperando, reintento en on-demand, pod pendiente?",
+                           f"{run_id} en Airflow: ¿sensores esperando, reintento en on-demand, pod pendiente, "
+                           "o falló también publish_fallback?",
         },
     }]
 

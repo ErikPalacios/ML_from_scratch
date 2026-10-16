@@ -12,7 +12,9 @@ El orden de las operaciones (el mismo que aplica el serving, model.HashedLogisti
   3. q' = isotónica(q)                          opcional: arregla lo que la corrección no arregla (la forma)
 La isotónica se ajusta con un holdout FRESCO y SIN submuestrear (build_training_set con neg_rate = 1),
 de días que el modelo no vio. Si se ajusta sobre el set de entrenamiento, aprende a perdonar el
-sobreajuste del modelo.
+sobreajuste del modelo. En el caso: la mitad del día siguiente (hash del imp_id con su propia sal); la
+otra mitad es el set del gate, que así no mide a la isotónica sobre sus propios datos (el split y el gate
+no están en esta carpeta).
 
 Ejemplo de bins de confiabilidad (cuantiles: cada bin con la misma cantidad de impresiones):
   bin   impresiones   pCTR medio   CTR observado   observado ÷ esperado
@@ -27,7 +29,9 @@ CTR altos y subestima los bajos. Por eso los bins por cuantiles.
 Trampa de la maldición del ganador (razonamiento, no una medición): si el pCTR tiene ruido, los anuncios
 sobreestimados ganan la subasta más seguido. Entre las impresiones SERVIDAS, observados ÷ esperados tiende
 a quedar bajo 1 aunque el modelo esté calibrado sobre todos los candidatos. El tráfico de exploración
-(elegido al azar) es el que mide la calibración sin ese sesgo: compara los dos (ver alerts.yml).
+(elegido al azar) es el que mide la calibración sin ese sesgo: compara los dos (ver alerts.yml). Y la
+selección igual es dinero: el precio de los ganadores sale de un pCTR inflado; se corrige ajustando la
+isotónica con impresiones que eligió ese mismo modelo, vigilando el slice de anuncios nuevos.
 """
 
 from __future__ import annotations  # anotaciones como texto: sintaxis moderna sin costo en runtime

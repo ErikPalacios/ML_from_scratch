@@ -17,7 +17,7 @@ explain in depth all the engineering around them.**
 
 The full app has four parts:
 - **Parte 1 — Fundamentos**: 15 modules (m01…m15).
-- **Parte 2 — Casos de diseño**: 13 cases (c01…c13), each following a **mandatory 15-section template** (§6).
+- **Parte 2 — Casos de diseño**: 15 cases (c01…c15), each following a **mandatory 15-section template** (§6).
 - **Parte 3 — Modo práctica**: 45-min timed simulator with a text area → then solution + self-evaluation
   rubric by sections (aclaración, estimaciones, arquitectura, trade-offs, monitoreo, comunicación);
   plus a **flashcards** bank.
@@ -197,13 +197,13 @@ drawer (focus-trapped, Esc closes, backdrop click closes). Sticky elements use
 ## 4. Shell architecture
 
 ### 4.1 Pages and IDs
-- Modules: `m01`…`m15`. Cases: `c01`…`c13`.
+- Modules: `m01`…`m15`. Cases: `c01`…`c15`.
 - Special pages: `inicio` (home/dashboard), `practica` (simulator hub: choose a case),
   `practica-cNN` (a running/finished practice session for case NN), `historial` (practice
   history), `flashcards`, `mis-notas` (the user's own notes and terms), `glosario`, `ref-numeros`, `ref-herramientas`, `ref-comandos`,
   `buscar` (search results, optional).
 - Sidebar groups (in this order): **Inicio** · **Parte 1 — Fundamentos** (m01–m15) ·
-  **Parte 2 — Casos de diseño** (c01–c13) · **Parte 3 — Práctica** (Simulador, Historial,
+  **Parte 2 — Casos de diseño** (c01–c15, grouped by M2 pattern) · **Parte 3 — Práctica** (Simulador, Historial,
   Flashcards, Mis notas) · **Parte 4 — Referencias** (Números que debes saber, Herramientas por categoría,
   Docker y kubectl, Glosario ES–EN). Each item shows its number, short title, and a state marker
   (done ✓ / progress ring / "Próx." pill for not-ready).
@@ -384,7 +384,7 @@ MSD.register(page)                    // one call per content file for modules/c
 MSD.addSection(pageId, section)       // add/replace a section of a page (for split files)
 MSD.getPage(id) → {…meta, …content, ready:bool, sections:[…]} | null   // sections ordered (template order for cases)
 MSD.listPages(kind?) → [merged pages in course order]   // kind: 'module' | 'case'
-MSD.courseOrder() → ['m01',…,'m15','c01',…,'c13']
+MSD.courseOrder() → ['m01',…,'m15','c01',…,'c15']
 MSD.flashcards() → all cards from all registered pages (+ catalog.flashcards)
 MSD.glossary() → merged, de-duplicated (by en.toLowerCase()), sorted by en
 MSD.searchIndex() → [{type:'page'|'section'|'term'|'card', id, title, text, href}]
@@ -399,7 +399,7 @@ MSD.files[path] → string              // embedded reference files (generated)
 Catalog object shape (`js/content/catalog.js` calls `MSD.defineCatalog(...)` once):
 ```js
 { version: 1,
-  items: { m01:{…}, …, m15:{…}, c01:{…}, …, c13:{…},
+  items: { m01:{…}, …, m15:{…}, c01:{…}, …, c15:{…},
            inicio:{id,kind:'special',title,short,summary}, practica:{…}, historial:{…}, flashcards:{…},
            glosario:{…}, 'ref-numeros':{…, topics}, 'ref-herramientas':{…, topics}, 'ref-comandos':{…, topics} },
   roadmap: [ {phase:1, title:'Fase 1 — …', status:'done'|'next'|'later', items:[ids], note:html} ],
@@ -556,7 +556,7 @@ filters with a case/diacritic-insensitive match.
 | 7 | `cerrar` | Fallas, trade-offs y cierre | Failure modes, trade-offs & wrap-up | 3 | 42–45 |
 
 ### 7.2 Simulator
-- `practica` hub: list all 13 cases (ready or not) with prompt excerpt, difficulty, freq, best score,
+- `practica` hub: list all 15 cases (ready or not) with prompt excerpt, difficulty, freq, best score,
   "Empezar" / "Continuar borrador" / "Ver intentos". Ready cases say "con solución"; others "solución
   en una fase posterior".
 - `practica-cNN` session: the prompt (large, quoted), the `tests` hint and, if the case has `facts`,
@@ -1450,18 +1450,23 @@ the forecast later). The ML system produces **forecasts**; it does not place ord
 - Nightly timeline (local time): stores close 22:00; POS sales land in the warehouse by **00:30** (stores with bad
   connectivity up to 01:30); inventory snapshot (on hand at close) by 01:00; **forecast published by 03:30**;
   **ERP runs at 04:00**. Missing store data at 01:30 → impute from that store's own history and flag `imputed_input`
-  (waiting would miss 04:00). Target runtime ≤ 90 min so one retry fits in the window.
+  (waiting would miss 04:00). Target runtime **≤ 60 min per attempt**: the job starts at the 01:30 cutoff at the
+  latest, so 01:30 → 03:30 = 120 min = 2 × 60 leaves room for one full retry; the DAG's 90-min `execution_timeout`
+  per attempt only stops a hung attempt (after a hang to the cap the retry no longer fits with margin, and the
+  03:45 guard publishes the fallback; the pointer of the night freezes at 03:55).
 - Data (names): `sales_daily` (units net of returns), `stock_daily` (on hand at close; **`oos_flag`** when on hand = 0 at
   close or the item was marked unavailable), `price_promo` (planned promos and prices, known ≥ 14 days ahead from the
   marketing calendar), `calendar_mx` (federal holidays, **paydays (quincenas) on the 15th and the last day of the
   month**, Buen Fin, Hot Sale, Día de Muertos, Christmas, school calendar), `store_attrs`, `sku_attrs` (category
   hierarchy, perishable flag, shelf life, case pack) → `features_daily` → model → `forecast_daily`.
-- Pipeline: **Airflow** DAG **`forecast_nightly`** with data-completeness sensors, retries and an SLA at 03:30; feature
+- Pipeline: **Airflow** DAG **`forecast_nightly`** with data-completeness sensors, retries and a 03:30 deadline (Airflow 3
+  removed task `sla=`: the reference uses a Deadline Alert, plus a 03:45 fallback guard in a separate DAG); feature
   build on **Spark** (or one large node with Polars/DuckDB — the narrative's trade-off) on **spot** with on-demand for
   the last retry; publish = write partition `run_date` and **atomically swap the view `forecast_current`**.
 - Model: **one global GBDT (LightGBM-class)** across all series, **direct multi-horizon** (horizon h is a feature):
-  lags 7/14/21/28 days, rolling means 7/28, same-weekday averages, day of week, days to/after holidays, payday flags,
-  promo flag and discount depth, price vs regular price, store and SKU attributes, category aggregates. **Two quantile
+  lags = the 4 most recent same-weekday values already known at the origin (7/14/21/28 days for h ≤ 7; 14/21/28/35
+  for h 8–14: a lag shorter than the horizon is the future), rolling means 7/28, same-weekday averages, day of week,
+  days to/after holidays, payday flags, promo flag and discount depth, price vs regular price, store and SKU attributes, category aggregates. **Two quantile
   models (α = 0.5 and α = 0.9, pinball loss).** Baseline to beat per segment: **seasonal naive** (same weekday last
   week). Deep models (DeepAR/TFT-class) are a trade-off, not the default. The reference files use scikit-learn's
   `HistGradientBoostingRegressor(loss='quantile')` (same algorithm family, no native dependencies); the narrative says
@@ -1480,12 +1485,18 @@ the forecast later). The ML system produces **forecasts**; it does not place ord
   → ≈ 2–3 min on 32 vCPU**; the feature build over 2 years of daily data is the heavier step (≈ 20–40 min on the Spark
   cluster, est.). Compute is not the problem; the window, data completeness and correctness are.
 - Validation gate before publishing: row count = expected series × 14 (± 0.5 %); no nulls or negatives; p90 ≥ p50;
-  per category, next-7-day total vs the average of the last 4 same weekdays within ±30 % unless a promo/holiday flag
-  explains it; stores with imputed inputs ≤ 5 %. **Fallback** when the run fails or the gate blocks: **yesterday's
-  forecast shifted one day** (horizons 2..14 → 1..13; day 14 from seasonal naive), flag `fallback` — the ERP always
+  per category, Σ P50 of the next 7 days vs Σ of each series' **median** of its last 4 same weekdays, within ±30 %,
+  counting **fast series only** (≥ 1 unit/day over the last 28 days, not new items; quantiles don't add up: against
+  an average, a category of slow sellers reads 0×); a holiday/event in the 7 forecast days or a category campaign
+  (promo on ≥ 20 % of its SKU-days) **widens** the band to [1/3×, 3×], never removes it; a category with no fast
+  series or a reference < 20 units doesn't vote (thresholds illustrative); stores with imputed inputs ≤ 5 %.
+  **Fallback** when the run fails or the gate blocks: **yesterday's forecast shifted one day** (horizons 2..14 → 1..13; day 14 from seasonal naive), flag `fallback` — the ERP always
   gets a forecast.
 - Evaluation: **WAPE** = Σ|F − A| / ΣA (store×SKU×day, and aggregated store×category×week); **bias** = (ΣF − ΣA)/ΣA;
-  **pinball loss** and **P90 coverage** (share of actuals ≤ P90; target ≈ 90 %); all computed on non-OOS days only;
+  **pinball loss** and **P90 coverage** (share of actuals ≤ P90: ≈ 90 % for continuous quantities such as kg; for
+  integer unit counts a calibrated P90 has share(A < P90) ≤ 90 % ≤ share(A ≤ P90), so ≈ 95 % overall and ≈ 97 % on
+  slow series is expected by construction in the reference backtest: report both shares, per segment, against the
+  backtest value); all computed on non-OOS days only;
   **rolling-origin backtest** (last 8 weekly origins) by segment (fresh/dry, fast/slow, promo/non-promo, new SKUs).
   Online: **pilot by store** — ≈ 40 treatment stores matched to 40 control stores (format, region, sales) for 8 weeks,
   difference-in-differences on OOS rate and fresh waste (hedged on the statistics).
@@ -1503,8 +1514,9 @@ the forecast later). The ML system produces **forecasts**; it does not place ord
   (rolling-origin backtest; WAPE, bias, pinball, coverage by segment; excludes OOS days), requirements.txt, tests/},
   batch/{run_forecast.py (nightly job: input-completeness check with imputation flag, features, predict, write the
   partition, validate, atomic publish behind an interface (fake in tests), fallback shift), validate_output.py (the
-  gate rules above), tests/}, orchestration/forecast_nightly_dag.py (Airflow DAG with sensors, retries and the 03:30
-  SLA — not executed here, syntax-checked only), monitoring/alerts.yml (+ promtool tests), README.md.
+  gate rules above), tests/}, orchestration/forecast_nightly_dag.py (Airflow 3 DAG with sensors, retries, the 03:30
+  Deadline Alert and the 03:45 guard — never run here; parsed and serialized with Airflow 3.3.2 in its tests),
+  monitoring/alerts.yml (+ promtool tests), README.md.
 
 ## 8o. Case c15 — shared facts (every c15 agent MUST use exactly these)
 Scenario: a **Latin American news publisher** (app + mobile web, Spanish) monetized with ads. It runs its **own ad
@@ -1549,19 +1561,26 @@ slots and is **out of scope**.
 - Training data: label = **click within 30 min** of a viewable impression (window documented); **negative
   downsampling** keeps all clicks and **w = 5 %** of non-clicks (≈ 16 M rows/day, est.), storing w; the prediction p of
   a model trained on downsampled data is corrected with **q = p / (p + (1 − p) / w)**; training **daily** (warm start) on
-  a sliding window of the last 14 days. **Position bias**: slot position is a training feature, fixed to a reference
-  position at serving (a separate position model is the alternative — hedged). **Exploration**: ≈ 1 % of requests rank
-  randomly among eligible ads above the reserve (propensity logged) for unbiased evaluation; new ads get an exploration
+  a sliding window of the last 14 days. **Position bias**: slot and slot × format are training features in reserved
+  hashed indices; at serving, one position-free score per candidate plus each slot's learned term gives, exactly, the
+  per-slot pCTR the auction and the GSP price use (in the DNN the slot terms stay outside the crosses, as an additive
+  logit term); exploration verifies the terms (a separate position model is the alternative — hedged).
+  **Exploration**: ≈ 1 % of requests rank randomly among eligible ads above the reserve for unbiased evaluation; the
+  log carries the propensity (1 ÷ the eligible ads left in that slot, conditional on the slots above) and `eligible`
+  (ads above the reserve in that slot), from which per-slot IPS takes the marginal; new ads get an exploration
   boost for their first ≈ 10,000 impressions.
 - Calibration checks: **calibration ratio = observed clicks ÷ expected clicks (Σ pCTR)** per hour and per slice (slot,
   section, new vs old ads), target 0.9–1.1; reliability bins and ECE; isotonic (or Platt) recalibration on a fresh
-  holdout after the downsampling correction.
+  holdout after the downsampling correction (half of the next day, split by imp_id hash with its own salt; the other
+  half is the gate's set, so the gate never measures the isotonic on its own data).
 - Evaluation: offline **log loss**, **normalized entropy (NE)** = average log loss ÷ entropy of the background CTR, AUC
-  and calibration ratio, by slice; online A/B with user-level randomization and **budget-split** so each arm spends its
-  own share of every campaign's budget (hedged); primary metric **RPM**; guardrails: CTR, advertisers' average cost
+  and calibration ratio, by slice; online A/B with user-level randomization for consented traffic and request-level
+  randomization for traffic without consent (no id), reported as its own stratum, plus **budget-split** so each arm
+  spends its own share of every campaign's budget (hedged); primary metric **RPM**; guardrails: CTR, advertisers' average cost
   per click, fill rate, page latency, sessions per user per day (ad load must not hurt engagement), ad complaints.
-- Serving cost (est.): design peak 6,000 RPS × ≈ 8 ms of CPU per request ≈ **48 cores busy** → planned at 50 % ≈ 96
-  vCPU + N+1 → **≈ 7 × c7i.4xlarge (16 vCPU)** at the peak, autoscaling to ≈ 3 off-peak; Redis (frequency caps,
+- Serving cost (est.): design peak 6,000 RPS × ≈ 8 ms of CPU per request ≈ **48 vCPU busy** → planned at 50 % ≈ 96
+  vCPU + N+1 → **≈ 7 × c7i.4xlarge (16 vCPU)** at the peak (the feature hash is pure Python and holds the GIL: ≈ 1 vCPU
+  per process, so each instance runs several single-process workers or pods), autoscaling to ≈ 3 off-peak; Redis (frequency caps,
   budgets, user features) ≈ US$2–4k/month; Kafka and storage for `ad-events` ≈ US$3–5k/month; training ≈
   US$1–2k/month → **≈ US$12–20k/month** vs US$7.5 M/month of revenue.
 - Privacy and policy (general principles, no legal advice): consent for personalization (no consent → contextual-only

@@ -28,7 +28,7 @@ from calendar_mx import calendar_table  # feriados, quincenas y eventos reales d
 
 WEEKLY = np.array([0.90, 0.85, 0.95, 0.95, 1.10, 1.30, 1.15])  # lunes…domingo (inventado)
 CATEGORIES = {  # categoría → (perecedero, vida de anaquel en días)
-    "frutas_verduras": (True, 5), "lacteos": (True, 10), "panaderia": (True, 3),
+    "frutas_verduras": (True, 5), "salchichoneria": (True, 10), "carnes": (True, 3),
     "abarrotes": (False, 365), "limpieza": (False, 730),
 }
 FORMATS = {"hiper": 1.6, "super": 1.0, "express": 0.5}  # multiplicador de volumen por formato

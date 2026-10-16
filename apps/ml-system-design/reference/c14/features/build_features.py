@@ -23,6 +23,9 @@ Las 4 reglas del archivo, cada una con la trampa que evita:
 4. Un faltante no es un cero: un día sin renglón de venta de una tienda que reportó = 0 unidades (el POS
    solo registra ventas); un día de una tienda que NO reportó = NaN (no sabemos). Para run_date, el job
    imputa esa tienda con su mismo día de la semana pasada y la marca `imputed_input` (`impute_missing`).
+   Y un día ANTES de que la serie se listara también es NaN: no se vendía, así que no es demanda 0. En su
+   promedio de 28 días, un producto listado hace 10 días promedia sus 11 días de venta, no esos 11 más 17
+   ceros que nunca existieron (`build_panel`; `attach_targets` ya lo hacía con los targets).
 
 Por qué un panel denso (series × días) en numpy: con la ventana de features (≈ 10 semanas) los lags son
 índices y los promedios son `nanmean` sobre un rango de columnas, sin joins por fila. En producción es el
@@ -119,6 +122,9 @@ def build_panel(sales: pd.DataFrame, stock: pd.DataFrame, series: pd.DataFrame, 
     s = sales.merge(rows, on=KEYS, how="inner")  # series fuera del surtido activo: se ignoran
     np.add.at(units, (s["_row"].to_numpy(), (s["date"] - start).dt.days.to_numpy()),
               np.clip(s["units"].to_numpy(dtype=float), 0, None))  # neto negativo (devoluciones) → 0
+    if "listed_date" in series:  # regla 4: antes del alta no se vendía; NaN, no demanda 0
+        first = (pd.to_datetime(series["listed_date"]) - start).dt.days.to_numpy(dtype=float)  # NaT → NaN
+        units[np.arange(n_t)[None, :] < first[:, None]] = np.nan  # sin fecha de alta: serie vieja, nada
     oos = np.zeros((n_s, n_t), dtype=bool)  # sin snapshot de inventario = no sabemos de agotado: False
     o = stock[stock["oos_flag"].astype(bool)].merge(rows, on=KEYS, how="inner")
     oos[o["_row"].to_numpy(), (o["date"] - start).dt.days.to_numpy()] = True
@@ -162,10 +168,24 @@ def promo_as_of(promo: pd.DataFrame, run_date) -> pd.DataFrame:
     return known.assign(date=pd.to_datetime(known["date"]))
 
 
-def _nanmean(a: np.ndarray, axis: int = 1) -> np.ndarray:
-    with warnings.catch_warnings():  # ventana toda NaN (serie nueva o siempre agotada) → NaN, sin aviso
+def row_nanmean(a: np.ndarray) -> np.ndarray:
+    """Promedio por fila sin NaN (días agotados, sin reporte o antes del alta)."""
+    with warnings.catch_warnings():  # ventana toda NaN (serie sin días conocidos) → NaN, sin aviso
         warnings.simplefilter("ignore", RuntimeWarning)
-        return np.nanmean(a, axis=axis)
+        return np.nanmean(a, axis=1)
+
+
+def same_weekday_lags(d: np.ndarray, r: int, h: int) -> np.ndarray:
+    """(series, 4): la demanda de los últimos 4 mismos días de la semana que el target r + h, YA pasados.
+
+    Columnas del panel `d` (r = run_date). Para h ≤ 7 son los lags 7/14/21/28 del target; para h = 8…14,
+    14/21/28/35 (el target − 7 todavía no pasó). Los usan las features y el naive del fallback: una sola
+    definición. Los 4 caen siempre en [r − 27, r]. Una columna antes del inicio del panel es NaN.
+    """
+    # El mismo día de la semana que el target más reciente que YA pasó: r + h − 7·⌈h/7⌉.
+    last_same = r + h - 7 * int(np.ceil(h / 7))
+    cols = [last_same - 7 * j for j in range(N_SW_LAGS)]
+    return np.column_stack([d[:, c] if c >= 0 else np.full(len(d), np.nan) for c in cols])
 
 
 def features_for_origin(panel: Panel, run_date, calendar: pd.DataFrame, promo: pd.DataFrame,
@@ -185,8 +205,8 @@ def features_for_origin(panel: Panel, run_date, calendar: pd.DataFrame, promo: p
     w7, w28 = slice(max(0, r - 6), r + 1), slice(max(0, r - 27), r + 1)
     known28 = (~np.isnan(d[:, w28])).sum(axis=1)
     base = p.series[KEYS].copy()
-    base["roll_mean_7"] = _nanmean(d[:, w7])
-    base["roll_mean_28"] = _nanmean(d[:, w28])
+    base["roll_mean_7"] = row_nanmean(d[:, w7])
+    base["roll_mean_28"] = row_nanmean(d[:, w28])
     with np.errstate(invalid="ignore", divide="ignore"):  # 0/0 → NaN en series sin días conocidos
         base["zero_share_28"] = np.where(known28 > 0, (d[:, w28] == 0).sum(axis=1) / known28, np.nan)
     base["oos_days_7"] = oos[:, w7].sum(axis=1)
@@ -203,16 +223,13 @@ def features_for_origin(panel: Panel, run_date, calendar: pd.DataFrame, promo: p
     base["cat_store_mean_28"] = cat.groupby(["store_id", "category"])["v"].transform("mean").to_numpy()
     blocks = []
     for h in horizons:
-        # El mismo día de la semana que el target más reciente que YA pasó: r + h − 7·⌈h/7⌉.
-        last_same = r + h - 7 * int(np.ceil(h / 7))
-        cols = [last_same - 7 * j for j in range(N_SW_LAGS)]
-        lags = np.column_stack([d[:, c] if c >= 0 else np.full(len(d), np.nan) for c in cols])
+        lags = same_weekday_lags(d, r, h)  # el mismo día de la semana que el target, ya pasado (regla 1)
         blk = base.copy()
         blk["horizon"] = h
         blk["target_date"] = run_date + pd.Timedelta(days=h)
         for j in range(N_SW_LAGS):
             blk[f"sw_lag_{j + 1}"] = lags[:, j]
-        blk["sw_mean_4"] = _nanmean(lags)
+        blk["sw_mean_4"] = row_nanmean(lags)
         blocks.append(blk)
     rows = pd.concat(blocks, ignore_index=True)
     rows.insert(0, "run_date", run_date)

@@ -30,10 +30,38 @@ tests:
       - eval_time: 35m
         alertname: AdServerLatencyHigh
         exp_alerts:
-          - exp_labels: {severity: page}
+          - exp_labels: {severity: page, cause: server}
             exp_annotations:
-              summary: "ad-api: p99 66.67ms (> 50 ms)"
-              description: "¿Qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(ad_stage_duration_seconds_bucket[5m]))). Si ninguna: CPU throttling o event loop bloqueado; escala el Deployment (una noticia grande lleva el pico de ≈ 3,500 a ≈ 6,000 RPS). La página no espera: los slots se llenan con el programático."
+              summary: "ad-api: p99 66.67ms (> 50 ms, server)"
+              description: "server: ¿qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(ad_stage_duration_seconds_bucket[5m]))); si ninguna, CPU throttling o event loop bloqueado. lb: la espera está antes del handler (cola del pod); mira la CPU y ad_fallback_total{reason=~\"model_timeout|deadline\"}. En los dos: escala el Deployment (una noticia grande lleva el pico de ≈ 3,500 a ≈ 6,000 RPS). La página no espera: los slots se llenan con el programático."
+              runbook_url: "https://runbooks.example.com/c15/ad-latency"
+
+  # El pod saturado: el histograma del ad-api sigue bajo 40 ms (el deadline corta lo de adentro y lo demás va
+  # a fallback), pero el ALB ve el p99 en 120 ms desde el minuto 20: la espera está ANTES del proceso →
+  # cause="lb" en el ≈ 25. El target group de los clicks (otro) también está lento y no cuenta.
+  - interval: 1m
+    input_series:
+      - series: 'ad_request_duration_seconds_bucket{le="0.04"}'
+        values: '0+1000x40'
+      - series: 'ad_request_duration_seconds_bucket{le="0.05"}'
+        values: '0+1000x40'
+      - series: 'ad_request_duration_seconds_bucket{le="+Inf"}'
+        values: '0+1000x40'
+      - series: 'aws_applicationelb_target_response_time_p99{dimension_LoadBalancer="app/ads/50dc6c495c0c9188", dimension_TargetGroup="targetgroup/ad-api/73e2d6bc24d8a067"}'
+        values: '0.02x19 0.12x21'
+      - series: 'aws_applicationelb_target_response_time_p99{dimension_LoadBalancer="app/ads/50dc6c495c0c9188", dimension_TargetGroup="targetgroup/ad-clicks/0d1e2f3a4b5c6d7e"}'
+        values: '0.3x40'
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: AdServerLatencyHigh
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: AdServerLatencyHigh
+        exp_alerts:
+          - exp_labels: {severity: page, cause: lb}
+            exp_annotations:
+              summary: "ad-api: p99 120ms (> 50 ms, lb)"
+              description: "server: ¿qué etapa creció? histogram_quantile(0.99, sum by (le, stage) (rate(ad_stage_duration_seconds_bucket[5m]))); si ninguna, CPU throttling o event loop bloqueado. lb: la espera está antes del handler (cola del pod); mira la CPU y ad_fallback_total{reason=~\"model_timeout|deadline\"}. En los dos: escala el Deployment (una noticia grande lleva el pico de ≈ 3,500 a ≈ 6,000 RPS). La página no espera: los slots se llenan con el programático."
               runbook_url: "https://runbooks.example.com/c15/ad-latency"
 
   # 0.5 % entre 50 y 75 ms: el p99 sigue dentro del bucket de 50 ms.

@@ -112,6 +112,28 @@ class Racing(rf.LocalPointer):
         return False
 
 
+class DeadWarehouse:
+    """El warehouse no responde: cualquier lectura lanza."""
+
+    def __getattr__(self, name):
+        def boom(*args, **kwargs):
+            raise ConnectionError("warehouse caído")
+        return boom
+
+
+def scaled(real, factor):
+    """Un modelo que multiplica todo por `factor`: piezas contra cajas, o una feature que se fue a la mitad."""
+
+    class Scaled:
+        version = f"gbdt-q-x{factor}"
+
+        def predict(self, rows):
+            p = real.predict(rows)
+            return p.assign(p50=p["p50"] * factor, p90=p["p90"] * factor)
+
+    return Scaled
+
+
 # ----------------------------------------------------------------------------- una noche normal
 def test_a_normal_night_publishes_the_model(tmp_path, data, model_path, cfg):
     d = make_deps(tmp_path, data, model_path, cfg)
@@ -215,6 +237,24 @@ def test_a_broken_scale_is_blocked_by_the_category_band(tmp_path, data, model_pa
     assert d.metrics.last("forecast_validation_failed_checks", check="category_band") >= 1
 
 
+def test_a_uniform_error_is_blocked_on_a_night_without_events(tmp_path, data, model_path, cfg):
+    """×2 o ×0.45 en todo: sin feriado ni campaña en los 7 días pronosticados, la banda de ±30 % lo atrapa.
+
+    El 5 de octubre de 2026, el último feriado (16 de septiembre) está en las semanas de referencia: eso ya
+    no "explica" nada, porque la referencia es la mediana de 4 mismos días y lo amortigua.
+    """
+    night = dt.date(2026, 10, 5)
+    real = tq.load(model_path)
+    ok = rf.run_nightly(night, make_deps(tmp_path / "x1", data, model_path, cfg, clock=Clock(night)))
+    assert ok.gate.ok and not ok.published.fallback  # el modelo de verdad pasa esa misma noche
+    for factor in (2.0, 0.45):
+        d = make_deps(tmp_path / f"x{factor}", data, model_path, cfg, clock=Clock(night),
+                      load_model=scaled(real, factor))
+        out = rf.run_nightly(night, d)
+        assert "category_band" in out.gate.failed, factor
+        assert out.published.fallback and out.published.reason == "validation_blocked"
+
+
 # --------------------------------------------------------------- el guardia y las reglas del puntero
 def test_guard_then_model_before_the_cutoff_then_late_night(tmp_path, data, model_path, cfg):
     d = make_deps(tmp_path, data, model_path, cfg)
@@ -244,7 +284,9 @@ def test_an_old_night_never_replaces_a_newer_one(tmp_path, data, model_path, cfg
 def test_missing_event_dates_fail_loudly_but_the_fallback_still_works(tmp_path, data, model_path, cfg):
     no_bf = yaml.safe_load(yaml.safe_dump(cfg))  # copia
     no_bf["announced"]["buen_fin"]["dates"].pop(2026)
-    night = dt.date(2026, 10, 20)  # el horizonte llega al 3 de noviembre: toca la ventana del Buen Fin
+    # El horizonte llega al 28 de octubre; con los 30 días que mira days_to_buen_fin, toca la ventana del
+    # Buen Fin (1 de noviembre): la noche del 14 ya exige sus fechas, aunque ningún target caiga en noviembre
+    night = dt.date(2026, 10, 14)
     d = make_deps(tmp_path, data, model_path, no_bf, clock=Clock(night))
     with pytest.raises(cm.MissingEventDates, match="buen_fin 2026"):
         rf.run_nightly(night, d)
@@ -253,6 +295,60 @@ def test_missing_event_dates_fail_loudly_but_the_fallback_still_works(tmp_path, 
     assert out.published.fallback and out.published.reason == "job_failed"
     assert d.metrics.last("forecast_last_success_timestamp_seconds") > d.metrics.last(
         "forecast_last_failure_timestamp_seconds") - 1  # ForecastRunFailed se resuelve con el fallback
+
+
+def test_the_dag_fallback_survives_a_dead_warehouse(tmp_path, data, model_path, cfg):
+    """El job truena porque el warehouse no responde; el fallback del DAG no lo necesita: publica lo corrido."""
+    d = make_deps(tmp_path, data, model_path, cfg)
+    yesterday = d.store.read(rf.run_nightly(R, d).published.partition)
+    d.warehouse, d.clock = DeadWarehouse(), Clock(R + DAY)
+    with pytest.raises(ConnectionError):
+        rf.run_nightly(R + DAY, d)
+    out = rf.run_fallback(R + DAY, d)
+    assert out.published.fallback and out.published.reason == "job_failed"
+    fc = d.store.read(out.published.partition)
+    assert sorted(fc["horizon"].unique()) == list(range(1, 14)) and fc["fallback"].all()  # sin naive: 1…13
+    m = fc.merge(yesterday, on=["store_id", "sku_id", "target_date"], suffixes=("", "_y"))
+    assert len(m) == len(fc) and (m["horizon"] == m["horizon_y"] - 1).all()
+    np.testing.assert_allclose(m["p50"], m["p50_y"])
+    assert rf.ensure_published(R + DAY, d).status == "nothing_to_do"  # el guardia ya no toca la noche
+
+
+def test_the_guard_never_builds_features_and_its_naive_is_the_same(tmp_path, data, model_path, cfg, monkeypatch):
+    """El guardia (y el fallback del DAG) no arman features: el día 14 sale de 28 días de ventas e inventario,
+    con la MISMA definición de lags que las features, así que da lo mismo que el naive del job."""
+    d = make_deps(tmp_path, data, model_path, cfg)
+    rf.run_nightly(R, d)
+    night = R + DAY
+    rows = rf._features(night, d, d.warehouse.active_series(night))[0]  # lo que haría el job, para comparar
+
+    def no_features(*args, **kwargs):
+        raise AssertionError("el fallback armó features")
+
+    monkeypatch.setattr(rf, "_features", no_features)
+    d.clock = Clock(night, 3, 45)
+    out = rf.ensure_published(night, d)
+    assert out.published.reason == "guard"
+    fc = d.store.read(out.published.partition)
+    assert len(fc) == n_series(d, night) * 14  # el día 14 de todas las series, del naive sin features
+    full = rf.naive_forecast(rows)
+    day14 = fc[fc["horizon"] == 14].merge(full[full["horizon"] == 14], on=["store_id", "sku_id"], suffixes=("", "_f"))
+    assert len(day14) == n_series(d, night)
+    np.testing.assert_array_equal(day14["p50"], day14["p50_f"])
+    np.testing.assert_array_equal(day14["p90"], day14["p90_f"])
+
+
+def test_yesterdays_block_does_not_survive_a_night_that_fails_early(tmp_path, data, model_path, cfg):
+    """Con pushadd, el 1 de ForecastValidationBlocked se quedaría en el Pushgateway si la noche siguiente falla
+    antes de validar (warehouse caído, fechas de eventos): el job empuja el 0 antes de su primera lectura."""
+    d = make_deps(tmp_path, data, model_path, cfg, reported={R: stores(data, minus=["T001", "T002"])})
+    assert rf.run_nightly(R, d).gate.failed == ["imputed_stores"]
+    assert d.metrics.last("forecast_validation_blocked") == 1
+    d.warehouse, d.clock = DeadWarehouse(), Clock(R + DAY)
+    with pytest.raises(ConnectionError):
+        rf.run_nightly(R + DAY, d)
+    assert d.metrics.last("forecast_validation_blocked") == 0  # ya no dispara por la noche de ayer
+    assert d.metrics.last("forecast_last_failure_timestamp_seconds") is not None  # ForecastRunFailed sí
 
 
 def test_a_concurrent_swap_is_a_conflict_not_an_overwrite(tmp_path, data, model_path, cfg):

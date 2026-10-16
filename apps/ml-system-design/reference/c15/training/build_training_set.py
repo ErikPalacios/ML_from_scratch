@@ -4,18 +4,19 @@ Entradas (en producción, particiones diarias del tópico ad-events en el lake; 
 poder probarlo). Los tres tipos los escribe serving/ad_api.py:
   serves       evento "serve": request_id, ts, context (section, device, geo, hour, dow), interests (solo
                con consentimiento), model_version y, por slot vendido: imp_id, slot, atributos del anuncio,
-               pctr, price, src (model | explore | fallback), propensity
+               pctr, price, src (model | explore | fallback), propensity y eligible (exploración, para IPS)
   impressions  beacon de impresión VISIBLE (la página lo manda con ≥ 50 % de píxeles en pantalla ≥ 1 s):
                imp_id, ts
   clicks       click con token válido: imp_id, ts, price; `invalid` = True si después lo marcó el filtro de
                tráfico inválido (IVT)
 Etiqueta: label = 1 si hay un click de esa impresión entre el serve y 30 min después de que fue visible.
 
-Ejemplo con 4 impresiones de un request servido a las 12:00:00 (build a las 13:30, ventana 30 min):
-  top         visible 12:00:02, click 12:00:20             → positiva
-  in_article  visible 12:01:00, sin click                   → negativa (si el muestreo la conserva)
-  bottom      nunca visible                                 → NO es fila (nadie la vio)
-  otra        visible 13:20:00                              → pendiente: su ventana cierra a las 13:50
+Ejemplo con las 3 impresiones de un request servido a las 12:00:00 y una de otro request (build a las
+13:30, ventana 30 min, gracia 30 min):
+  top           visible 12:00:02, click 12:00:20           → positiva
+  in_article    visible 12:01:00, sin click                 → negativa (si el muestreo la conserva)
+  bottom        nunca visible                               → NO es fila (nadie la vio)
+  otro request  visible 13:20:00                            → pendiente: su ventana cierra a las 13:50 (+ gracia)
 
 Reglas (cada una evita un error que no da ningún mensaje):
   1. SOLO VISIBLES. Una impresión servida que nadie vio (el slot de abajo en una nota que nadie scrolleó)
@@ -23,7 +24,11 @@ Reglas (cada una evita un error que no da ningún mensaje):
      "no funciona" cuando en realidad no se ve, y la calibración se movería con la tasa de visibilidad.
      Excepción, la regla de interacción del MRC (Viewable Ad Impression Measurement Guidelines, 2014): un
      click válido cuenta como visible aunque el beacon no haya llegado (bloqueado, perdido, o el click fue
-     antes del segundo de visibilidad). Se marca `viewable_by_click` para medirlo aparte.
+     antes del segundo de visibilidad). El precio de la regla: si el beacon se pierde por algo que no depende
+     del click (la red), de esas impresiones solo entran las que tuvieron click, y el CTR del set sube
+     ≈ pérdida ÷ (1 − pérdida) (≈ 3 % con 3 % de beacons perdidos, medido en el mundo sintético). La
+     calibración en tiempo real del ad-api cuenta solo clicks de impresiones con beacon, así que lo ve: el
+     modelo entrenado con este set marca ≈ 0.97 ahí. Por eso se marca `viewable_by_click`, para medirlo aparte.
   2. DEDUPE. Los eventos llegan at-least-once (reintentos de la página y del productor): por event_id, y
      por imp_id: el segundo beacon o el segundo click de la misma impresión no son otra impresión ni otro
      positivo.
@@ -63,9 +68,12 @@ MINUTE_S = 60.0
 
 @dataclass(frozen=True)
 class LabelConfig:
-    click_window_s: float = 30 * MINUTE_S  # dato del caso: click ≤ 30 min desde la impresión visible
-    # Gracia para eventos tardíos (un celular sin red manda el beacon al reconectar). Mide el p99 del
-    # retraso de llegada de ad-events y ponlo aquí; 30 min es ilustrativo.
+    # Dato del caso: click ≤ 30 min desde la impresión visible. El ad-api usa la MISMA ventana para la
+    # calibración en tiempo real (ad_api.Settings.click_window_s; un test exige que sean iguales)
+    click_window_s: float = 30 * MINUTE_S
+    # Gracia para el retraso de llegada de ad-events al lake (productor con buffer, consumer atrasado,
+    # particiones que cierran tarde). Mide su p99 y ponlo aquí; 30 min es ilustrativo. No cubre beacons
+    # viejos: el ad-api rechaza los de más de IMP_MAX_AGE_S desde el serve y esos nunca llegan al log.
     late_grace_s: float = 30 * MINUTE_S
     neg_rate: float = 0.05  # w: fracción de no-clicks que se conserva (dato del caso: 5 %)
     uniform_rate: float = 1.0  # < 1 solo para achicar un holdout (las dos clases por igual)
@@ -173,7 +181,8 @@ def build(serves: Iterable[dict], impressions: Iterable[dict], clicks: Iterable[
             "imp_id": iid, "request_id": sv["request_id"], "serve_ts": sv["ts"], "view_ts": view_ts,
             "click_ts": click_ts if label else None, "label": label, "slot": pl["slot"],
             "ad_id": pl["ad_id"], "campaign_id": pl["campaign_id"], "advertiser_id": pl["advertiser_id"],
-            "src": pl["src"], "propensity": pl.get("propensity", 1.0), "pctr_served": pl.get("pctr"),
+            "src": pl["src"], "propensity": pl.get("propensity", 1.0), "eligible": pl.get("eligible", 0),
+            "pctr_served": pl.get("pctr"),
             "model_version": sv.get("model_version"), "viewable_by_click": int(by_click),
             "raw": F.make_raw(sv["context"], sv.get("interests") or (), pl),  # regla 8
             "neg_rate": cfg.neg_rate, "uniform_rate": cfg.uniform_rate,

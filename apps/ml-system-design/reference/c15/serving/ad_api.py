@@ -2,17 +2,27 @@
 
 La página pide anuncios EN PARALELO a su contenido: si el ad-api tarda o falla, la nota se ve igual y los
 slots se llenan con el fallback programático. SLO del caso: p99 ≤ 50 ms server-side, a ≈ 3,500 RPS de pico
-diario y ≈ 6,000 RPS en una noticia de último momento. Este servicio se da 40 ms internos (BUDGET_MS); el
-resto es la cola del event loop y escribir la respuesta. Presupuesto por etapa (estimaciones del caso):
+diario y ≈ 6,000 RPS en una noticia de último momento. Este servicio se da 40 ms internos (BUDGET_MS),
+contados desde que la app recibe el request (RequestClock, abajo); el resto del SLO es la espera antes de
+que el proceso lo tome, serializar y escribir la respuesta. Presupuesto p99 por etapa (estimaciones del
+caso, a medir) y el timeout que lo hace cumplir (ilustrativo):
 
-  targeting           índice en memoria: ≈ 2,500 anuncios → los que coinciden con la página    ≈ 1–5 ms
-  frequency caps      Redis: impresiones de hoy de esta persona por campaña  ┐
-  presupuesto/pacing  Redis: gasto de hoy y tasa de pacing por campaña       ├ EN PARALELO, 8–10 ms c/u
-  user features       online store: secciones leídas en 30 días (consent)    ┘
-  filtros             intereses, caps, presupuesto, pacing (en memoria) → ≈ 150 elegibles   < 1 ms
-  features + modelo   hash de los candidatos + LR (o la DNN) en CPU, en un executor        ≤ 10 ms
-  subasta             GSP greedy por slot, un anuncio por anunciante (auction.py)           < 1 ms
-  respuesta           tokens HMAC por slot, evento "serve" al log (sin esperar a Kafka)     < 1 ms
+  etapa                qué hace                                                    p99 del caso  timeout
+  candidatos           índice en memoria: ≈ 2,500 anuncios → los que coinciden con   ≈ 5 ms        —
+                       la página; después de las lecturas, filtros → ≈ 150 elegibles
+  caps y presupuesto   Redis, en paralelo con la de abajo: caps de hoy (un MGET),    ≈ 5 ms        8 ms c/u
+                       gasto y serve_rate por campaña
+  user features        online store, en paralelo: secciones de 30 días (consent)     ≈ 5–8 ms      10 ms
+  features + modelo    hash de los candidatos + LR (o la DNN) en un executor         ≈ 5–10 ms     10 ms
+  subasta + respuesta  GSP por slot (auction.py), tokens HMAC, evento "serve"        ≈ 3 ms        —
+  overhead             parseo, event loop, GC, serialización                        ≈ 10 ms       —
+
+Dónde se mide (#m03, "dónde mides cambia el número"): RequestClock, un middleware ASGI puro, toma la hora
+en que la app recibe POST /v1/ads, antes de leer y validar el body. De ahí cuentan el deadline de 40 ms y
+ad_request_duration_seconds, que termina con el último byte de la respuesta. Lo que ningún reloj del
+proceso ve es la espera ANTES de que el proceso tome el request (la cola de accept, un event loop
+saturado): esa la ve el balanceador, y por eso AdServerLatencyHigh tiene una rama con su p99 (alerts.yml).
+Con el pod saturado, lo primero que aparece es esa cola y los fallbacks por model_timeout o deadline.
 
 Degradación (campo `path` de la respuesta y de ad_requests_total{path}):
   - user features no llegan (timeout, error, sin perfil) → solo contexto: intereses vacíos, los anuncios
@@ -61,6 +71,7 @@ from fastapi.exceptions import RequestValidationError  # 422 sin repetir el inpu
 from fastapi.responses import JSONResponse, RedirectResponse, Response  # respuestas explícitas
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel, Field  # validación del request
+from starlette.types import ASGIApp, Message, Receive, Scope, Send  # tipos del middleware ASGI puro
 
 import auction as A  # serving/auction.py: subasta pura
 import features as F  # serving/features.py: LA definición de features (la misma del entrenamiento)
@@ -100,20 +111,31 @@ class Settings:
     timezone: str = os.getenv("PUBLISHER_TZ", "America/Mexico_City")  # hora local y "día" del cap
     freq_ttl_s: int = int(os.getenv("FREQ_TTL_S", str(2 * 86400)))  # la llave es por día; el TTL la limpia
     budget_snapshot_max_age_s: float = float(os.getenv("BUDGET_SNAPSHOT_MAX_AGE_S", "60"))
-    imp_max_age_s: float = float(os.getenv("IMP_MAX_AGE_S", "600"))  # beacon > 10 min después: sospechoso
+    # Vigencia del beacon, contada desde el SERVE. Una vista tardía (pestaña de fondo, nota larga, slot de abajo)
+    # también es una impresión: si su beacon se rechaza, esa impresión solo llega al set de entrenamiento
+    # cuando tiene click (regla de interacción) y entra solo como positiva. 60 min (ilustrativo, ≥ ventana +
+    # gracia de la etiqueta); fíjalo con ad_beacon_delay_seconds y ad_impressions_rejected_total{reason="expired"}
+    imp_max_age_s: float = float(os.getenv("IMP_MAX_AGE_S", "3600"))
     click_max_age_s: float = float(os.getenv("CLICK_MAX_AGE_S", "86400"))  # ilustrativo: política comercial
+    # La ventana de la ETIQUETA: la misma de build_training_set.LabelConfig.click_window_s (un test lo exige).
+    # La calibración en tiempo real cuenta solo los clicks que el entrenamiento llamaría positivos
+    click_window_s: float = float(os.getenv("CLICK_WINDOW_S", "1800"))
     dedupe_ttl_s: int = int(os.getenv("DEDUPE_TTL_S", str(86400 + 3600)))  # ≥ la vida del token
     base_url: str = os.getenv("AD_BASE_URL", "https://ads.example.com")  # host de /v1/imp y /v1/click
     home_url: str = os.getenv("HOME_URL", "https://www.example.com")  # destino si un click no se puede leer
     events_topic: str = os.getenv("EVENTS_TOPIC", "ad-events")
-    model_workers: int = int(os.getenv("MODEL_WORKERS", "2"))  # ≈ cores del pod dedicados al modelo
+    # Hilos del executor: sacan el scoring del event loop, pero el hash de features es Python puro y comparte
+    # el GIL (≈ 1 core por proceso, #m07): más CPU = más réplicas de un proceso, no más hilos
+    model_workers: int = int(os.getenv("MODEL_WORKERS", "2"))
     token_keys: dict[str, bytes] = field(default_factory=lambda: _env_keys(os.getenv("TOKEN_KEYS", "")))
     token_kid: str = os.getenv("TOKEN_ACTIVE_KID", "")
 
 
 # ---------------------------------------------------------------------------- request y anuncios
 class AdRequest(BaseModel):
-    request_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")  # la página puede mandarlo
+    # Id de la PÁGINA, solo para trazar (se loguea como page_request_id). El id del serve, que es la llave de
+    # dedupe, cobro y join de entrenamiento, lo genera el servidor: uno de la página puede repetirse
+    request_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
     section: str = Field(min_length=1, max_length=40)  # contexto: sección de la nota
     device: Literal["mobile", "desktop", "tablet"]
     geo: str | None = Field(default=None, max_length=12)  # región gruesa (p. ej. "MX-NLE"); la calcula el edge por IP
@@ -142,8 +164,9 @@ class Ad:
     target_interests: frozenset[str] | None = None  # segmentación por interés: exige consentimiento
     freq_cap_per_day: int | None = 5  # cap de la CAMPAÑA por persona por día (copiado a cada anuncio)
     lifetime_impressions: int = 0  # para el boost de anuncios nuevos
-    # Cuándo se pausó (None = activo). El índice guarda las pausadas recientes SOLO para get(): el click de
-    # una impresión servida antes de la pausa todavía tiene que redirigir y cobrarse
+    # Cuándo se pausó (None = activo). El índice guarda las pausadas y las dadas de baja de las últimas 24 h
+    # (CLICK_MAX_AGE_S) SOLO para get(): el click de una impresión servida antes de la pausa todavía tiene
+    # que redirigir y cobrarse
     paused_at: float | None = None
 
     def attrs(self) -> dict[str, str]:
@@ -164,6 +187,9 @@ class TargetingIndex(Protocol):
 
     loaded_at = cuándo se armó: su edad es una métrica (ad_index_age_seconds) con alerta. Un pod con un
     índice viejo sirve anuncios ya pausados.
+    candidates() devuelve solo activos; get() también los pausados y los dados de baja durante al menos
+    CLICK_MAX_AGE_S (24 h), para que el click de una impresión ya servida redirija a su landing y se cobre.
+    Un click de un anuncio que get() ya no conoce va a la home y NO se cobra: el anunciante no recibió la visita.
     """
 
     loaded_at: float
@@ -207,9 +233,14 @@ class CTRModel(Protocol):
 
 
 class DedupeStore(Protocol):
-    """Producción: Redis SET key 1 NX EX ttl. True = primera vez."""
+    """Producción: Redis. first_time = SET key <valor> NX EX ttl (True = primera vez); value = GET key.
 
-    async def first_time(self, key: str, ttl_s: int) -> bool: ...
+    La llave de la impresión guarda la hora de la vista: el click la lee para saber si cae en la etiqueta.
+    """
+
+    async def first_time(self, key: str, ttl_s: int, value: float = 1.0) -> bool: ...
+
+    async def value(self, key: str) -> float | None: ...
 
 
 class EventLog(Protocol):
@@ -332,14 +363,18 @@ class StaticUserFeatureStore:
 class InMemoryDedupeStore:
     def __init__(self, clock: Callable[[], float] = time.time) -> None:
         self._clock = clock
-        self._seen: dict[str, float] = {}
+        self._seen: dict[str, tuple[float, float]] = {}  # llave → (vence, valor)
 
-    async def first_time(self, key: str, ttl_s: int) -> bool:
+    async def first_time(self, key: str, ttl_s: int, value: float = 1.0) -> bool:
         now = self._clock()
-        if self._seen.get(key, 0.0) > now:
+        if self._seen.get(key, (0.0, 0.0))[0] > now:
             return False
-        self._seen[key] = now + ttl_s
+        self._seen[key] = (now + ttl_s, value)
         return True
+
+    async def value(self, key: str) -> float | None:
+        expires, value = self._seen.get(key, (0.0, 0.0))
+        return value if expires > self._clock() else None
 
 
 class BufferedEventLog:
@@ -371,9 +406,11 @@ class Metrics:
         r = self.registry = CollectorRegistry()
         self.requests = Counter("ad_requests_total", "Requests de anuncios por camino", ["path"], registry=r)
         self.invalid = Counter("ad_invalid_requests_total", "Requests que no validan (422)", registry=r)
+        # El SLI del SLO: de que la app recibe POST /v1/ads al último byte de la respuesta (RequestClock).
         # Buckets EXACTOS en 0.04 (presupuesto interno) y 0.05 (SLO): sin ellos histogram_quantile
         # interpola entre vecinos y la alerta oscila alrededor del umbral.
-        self.duration = Histogram("ad_request_duration_seconds", "Latencia server-side de POST /v1/ads",
+        self.duration = Histogram("ad_request_duration_seconds",
+                                  "Latencia server-side de POST /v1/ads: de recibir el request al último byte",
                                   buckets=(0.002, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.075, 0.1, 0.25, 0.5),
                                   registry=r)
         self.stage = Histogram("ad_stage_duration_seconds", "Latencia por etapa", ["stage"],
@@ -401,8 +438,17 @@ class Metrics:
         self.expected = Counter("ad_expected_clicks_total", "Σ pCTR de impresiones visibles", lab, registry=r)
         self.imp_rejected = Counter("ad_impressions_rejected_total", "Beacons rechazados", ["reason"], registry=r)
         self.imp_dupes = Counter("ad_impression_duplicates_total", "Beacons repetidos", registry=r)
-        self.clicks = Counter("ad_clicks_total", "Clicks válidos (firma, vigencia, primero de su impresión)", lab,
-                              registry=r)
+        # Del serve al beacon aceptado: con qué datos se fija IMP_MAX_AGE_S (¿cuánto queda cerca del límite?)
+        self.beacon_delay = Histogram("ad_beacon_delay_seconds", "Del serve al beacon visible aceptado",
+                                      buckets=(1, 2, 5, 10, 30, 60, 120, 300, 600, 1200, 1800, 2700, 3600),
+                                      registry=r)
+        # El numerador del cociente: los clicks que la etiqueta llama positivos, sobre las mismas impresiones
+        # que sumaron su pCTR al denominador (con beacon, ≤ 30 min después de la vista). Los demás se cobran
+        # igual y se cuentan aparte, con su motivo
+        self.clicks = Counter("ad_clicks_total", "Clicks de la etiqueta: con beacon y ≤ 30 min después de la vista",
+                              lab, registry=r)
+        self.clicks_outside = Counter("ad_clicks_outside_label_total",
+                                      "Clicks válidos fuera de la etiqueta (se cobran igual)", ["reason"], registry=r)
         self.not_billed = Counter("ad_clicks_not_billed_total", "Clicks válidos que no se cobran", ["reason"],
                                   registry=r)
         self.index_age = Gauge("ad_index_age_seconds", "Edad del índice de anuncios de este pod", registry=r)
@@ -412,6 +458,45 @@ class Metrics:
         self.click_log_failures = Counter("ad_click_log_failures_total", "Clicks que Kafka no confirmó", registry=r)
         self.log_dropped = Counter("ad_event_log_dropped_total", "Eventos descartados (buffer lleno)", ["type"],
                                    registry=r)
+
+
+class RequestClock:
+    """Middleware ASGI puro: el reloj de POST /v1/ads arranca cuando la app RECIBE el request.
+
+    Antes de leer y validar el body: el deadline de 40 ms y el histograma del SLO cuentan también la lectura
+    y la validación (un reloj en la primera línea del handler no las ve, y el deadline tampoco). El
+    histograma termina con el último byte de la respuesta (serializar y escribir cuentan), ANTES de las
+    BackgroundTasks (los caps), que la página no espera.
+    Lo que ningún reloj del proceso ve es lo de antes: aceptar la conexión, leer el request y que la tarea
+    consiga su turno en un event loop saturado. Con el pod saturado es la mayor parte de la espera (README:
+    la demo a concurrencia 32), y solo la ve el balanceador: la rama `lb` de AdServerLatencyHigh.
+    """
+
+    PATH = "/v1/ads"
+
+    def __init__(self, app: ASGIApp, histogram: Histogram) -> None:
+        self.app, self.histogram = app, histogram
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] != "POST" or scope["path"] != self.PATH:
+            await self.app(scope, receive, send)
+            return
+        t0 = time.perf_counter()
+        scope.setdefault("state", {})["t0"] = t0  # el handler arranca su deadline desde aquí
+        observed = False
+
+        async def timed_send(message: Message) -> None:
+            nonlocal observed
+            await send(message)
+            if message["type"] == "http.response.body" and not message.get("more_body", False) and not observed:
+                observed = True
+                self.histogram.observe(time.perf_counter() - t0)
+
+        try:
+            await self.app(scope, receive, timed_send)
+        finally:
+            if not observed:  # una excepción antes de responder también es latencia
+                self.histogram.observe(time.perf_counter() - t0)
 
 
 # ---------------------------------------------------------------------------- app
@@ -439,6 +524,7 @@ class Deps:
     events: EventLog
     settings: Settings = field(default_factory=Settings)
     clock: Callable[[], float] = time.time  # el reloj del servicio: es el ts que se loguea
+    new_id: Callable[[], str] = lambda: uuid.uuid4().hex  # id del serve (los tests lo hacen determinista)
 
 
 def create_app(deps: Deps) -> FastAPI:
@@ -472,6 +558,7 @@ def create_app(deps: Deps) -> FastAPI:
 
     app = FastAPI(title="ad-api", lifespan=lifespan)
     app.state.metrics = m
+    app.add_middleware(RequestClock, histogram=m.duration)  # el SLI y el deadline empiezan al recibir
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
@@ -506,16 +593,19 @@ def create_app(deps: Deps) -> FastAPI:
         for slot in F.SLOTS:
             m.slots.labels(slot=slot, fill="programmatic").inc()
         m.requests.labels(path=path).inc()
-        m.duration.observe(time.perf_counter() - t0)
         return {"request_id": rid, "path": path, "exploration": False, "model_version": None,
                 "feature_set_version": F.FEATURE_SET_VERSION,
                 "slots": [{"slot": sl, "fill": "programmatic"} for sl in F.SLOTS],
                 "latency_ms": round((time.perf_counter() - t0) * 1000, 2), **extra}
 
     @app.post("/v1/ads")
-    async def ads(req: AdRequest, background: BackgroundTasks) -> dict:
-        t0 = time.perf_counter()
-        rid = req.request_id or uuid.uuid4().hex
+    async def ads(req: AdRequest, request: Request, background: BackgroundTasks) -> dict:
+        t0 = getattr(request.state, "t0", None)  # RequestClock: cuando la app recibió el request
+        t0 = time.perf_counter() if t0 is None else t0
+        # El id del serve lo genera el SERVIDOR: es la llave de dedupe, cobro y join de entrenamiento, y el de
+        # la página puede repetirse (navegación sin recargar, reintentos, un bug): dos páginas con el mismo id
+        # serían una sola impresión para el dedupe y para la factura. El de la página solo traza.
+        rid = deps.new_id()
         try:
             return await serve(req, rid, t0, background)
         except Exception:  # noqa: BLE001 — el ad server nunca rompe la página: programático y se cuenta
@@ -654,12 +744,13 @@ def create_app(deps: Deps) -> FastAPI:
             logged.append({"imp_id": f"{rid}:{slot}", "slot": slot, **ad.attrs(), "bid": p.bid,
                            "pctr": p.pctr, "ecpm": p.ecpm, "price": p.price, "price_source": p.price_source,
                            "runner_up": p.runner_up, "src": src, "propensity": p.propensity,
-                           "boost": boost_of[p.ad_id]})
+                           "eligible": p.eligible, "boost": boost_of[p.ad_id]})
 
         latency_ms = round((time.perf_counter() - t0) * 1000, 2)
         # 7) Evento "serve" (no bloquea): lo decidido + los valores CRUDOS de las features. El user_id solo
         #    con consentimiento. Es la fuente del set de entrenamiento y la evidencia de una disputa.
-        record = {"type": "serve", "event_id": uuid.uuid4().hex, "request_id": rid, "ts": ts,
+        record = {"type": "serve", "event_id": uuid.uuid4().hex, "request_id": rid,
+                  "page_request_id": req.request_id, "ts": ts,
                   "user_id": uid, "consent": req.consent, "context": ctx, "interests": list(interests),
                   "path": path, "fallback_reason": fallback_reason, "exploration": explore,
                   "exploration_rate": s.exploration_rate,
@@ -674,8 +765,7 @@ def create_app(deps: Deps) -> FastAPI:
         if uid and placements:
             background.add_task(bump_caps, uid, sorted({p.campaign_id for p in placements.values()}), day)
 
-        m.requests.labels(path=path).inc()
-        m.duration.observe(time.perf_counter() - t0)
+        m.requests.labels(path=path).inc()  # la latencia la observa RequestClock, con el último byte
         return {"request_id": rid, "path": path, "exploration": explore,
                 "model_version": deps.model.version if path == "model" else None,
                 "feature_set_version": F.FEATURE_SET_VERSION, "slots": out_slots, "latency_ms": latency_ms}
@@ -698,12 +788,22 @@ def create_app(deps: Deps) -> FastAPI:
             counter.labels(reason=e.reason).inc()
             return None
 
-    async def first_time(key: str) -> bool:
-        res = await timed("dedupe", deps.dedupe.first_time(key, s.dedupe_ttl_s), s.dedupe_timeout_s)
+    async def first_time(key: str, value: float = 1.0) -> bool:
+        res = await timed("dedupe", deps.dedupe.first_time(key, s.dedupe_ttl_s, value), s.dedupe_timeout_s)
         if isinstance(res, Exception):
             dep_error("dedupe", res)
             return True  # fail-open: se cuenta; build_training_set y facturación deduplican después por imp_id
         return bool(res)
+
+    async def outside_label(iid: str, now: float) -> str | None:
+        """Por qué un click NO entra al numerador del cociente (None = entra): sin beacon o tardío."""
+        res = await timed("dedupe", deps.dedupe.value("imp:" + iid), s.dedupe_timeout_s)
+        if isinstance(res, Exception):
+            dep_error("dedupe", res)
+            return None  # sin saberlo, cuenta: lo más probable es que tenga beacon y esté a tiempo
+        if res is None:
+            return "no_beacon"
+        return "late" if now - res > s.click_window_s else None
 
     @app.get("/v1/imp", status_code=204)
     async def impression(t: str = Query(..., max_length=2048)) -> Response:
@@ -714,15 +814,18 @@ def create_app(deps: Deps) -> FastAPI:
         if payload is None:
             return Response(status_code=204)
         iid = T.imp_id(payload)
-        if not await first_time("imp:" + iid):
+        now = deps.clock()
+        # La llave de la impresión guarda la hora de la vista: el click la lee para saber si cae en la etiqueta
+        if not await first_time("imp:" + iid, value=now):
             m.imp_dupes.inc()
             return Response(status_code=204)
+        m.beacon_delay.observe(max(now - float(payload["ts"]), 0.0))
         labels = {"slot": payload["slot"], "src": payload["src"], "ad_age": ad_age(deps.index.get(payload["ad"]))}
         m.viewable.labels(**labels).inc()
-        m.expected.labels(**labels).inc(float(payload["p"]))
+        m.expected.labels(**labels).inc(float(payload["p"]))  # el pCTR firmado al servir
         rec = {"type": "impression", "event_id": uuid.uuid4().hex, "imp_id": iid, "request_id": payload["rid"],
                "ad_id": payload["ad"], "campaign_id": payload["c"], "slot": payload["slot"], "src": payload["src"],
-               "pctr": payload["p"], "serve_ts": payload["ts"], "ts": deps.clock()}
+               "pctr": payload["p"], "serve_ts": payload["ts"], "ts": now}
         if not deps.events.publish(rec):
             m.log_dropped.labels(type="impression").inc()
         return Response(status_code=204)
@@ -754,9 +857,17 @@ def create_app(deps: Deps) -> FastAPI:
             return redirect(landing)
         now = deps.clock()
         price = float(payload["px"])  # el precio de la SUBASTA, firmado: no se recalcula al hacer click
-        # Pausada DESPUÉS del serve: la impresión era legítima, se cobra. Servida DESPUÉS de la pausa (un pod
-        # con el índice atrasado): no se cobra; es el reclamo de facturación que se evita
-        billable = not (ad and ad.paused_at is not None and float(payload["ts"]) >= ad.paused_at)
+        # No se cobra: un anuncio que el índice ya no conoce (la persona va a la home: el anunciante no recibió
+        # la visita; get() guarda las bajas 24 h para que esto sea raro), ni uno servido DESPUÉS de su pausa
+        # (un pod con el índice atrasado: es el reclamo de facturación que se evita). Pausado DESPUÉS del serve:
+        # la impresión era legítima, se cobra
+        if ad is None:
+            not_billed = "unknown_ad"
+        elif ad.paused_at is not None and float(payload["ts"]) >= ad.paused_at:
+            not_billed = "served_after_pause"
+        else:
+            not_billed = None
+        billable = not_billed is None
         rec = {"type": "click", "event_id": uuid.uuid4().hex, "imp_id": iid, "request_id": payload["rid"],
                "ad_id": payload["ad"], "campaign_id": payload["c"], "slot": payload["slot"], "src": payload["src"],
                "price": price if billable else 0.0, "billable": billable, "serve_ts": payload["ts"], "ts": now}
@@ -766,9 +877,18 @@ def create_app(deps: Deps) -> FastAPI:
         res = await timed("click_log", deps.events.publish_and_wait(rec), s.click_log_timeout_s)
         if isinstance(res, Exception):
             m.click_log_failures.inc()
-        m.clicks.labels(slot=payload["slot"], src=payload["src"], ad_age=ad_age(ad)).inc()
+        # Calibración en tiempo real: el numerador cuenta lo que la etiqueta llama positivo, sobre las mismas
+        # impresiones que sumaron su pCTR al denominador: click de una impresión CON beacon, ≤ 30 min después de
+        # la vista. Uno sin beacon (perdido, o el click navegó antes) o tardío se cobra igual, pero va aparte: su
+        # impresión no sumó pCTR, o en el entrenamiento es un negativo. Contándolos, con 3 % de beacons perdidos
+        # y 2 % de clicks tardíos, un modelo calibrado para la etiqueta marca ≈ 1.05 en vez de 1.
+        reason = await outside_label(iid, now)
+        if reason:
+            m.clicks_outside.labels(reason=reason).inc()
+        else:
+            m.clicks.labels(slot=payload["slot"], src=payload["src"], ad_age=ad_age(ad)).inc()
         if not billable:
-            m.not_billed.labels(reason="served_after_pause").inc()
+            m.not_billed.labels(reason=not_billed).inc()
             return redirect(landing)
         m.revenue.inc(price)
         _, _, day = F.local_time(now, s.timezone)  # el gasto cuenta en el día del click
@@ -822,6 +942,6 @@ def demo_app() -> FastAPI:
     return create_app(Deps(
         index=InMemoryTargetingIndex(ads), freq=InMemoryFrequencyStore(),
         budget=InMemoryBudgetStore({c: CampaignBudget(**b) for c, b in world.budgets().items()}),
-        users=StaticUserFeatureStore({"u-demo": {"interests": ["autos", "deportes", "politica"]}}),
+        users=StaticUserFeatureStore({"u-demo": {"interests": ["autos", "deportes", "Política"]}}),
         model=model, fallback_ctr=SmoothedCTR(world.ctr_table(), world.slot_priors()),
         dedupe=InMemoryDedupeStore(), events=BufferedEventLog(echo=True), settings=settings))

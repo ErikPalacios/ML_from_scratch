@@ -5,9 +5,9 @@ La noche de punta a punta (run_date = último día de ventas cerrado; la noche d
  1. Completitud: qué tiendas reportaron ventas de run_date. Las que no, se imputan con su mismo día de la
     semana pasada (build_features.impute_missing) y sus filas llevan `imputed_input`. Esperar a la última
     tienda haría perder las 04:00; el gate decide si son demasiadas (> 5 %).
- 2. Calendario: si el horizonte toca la ventana del Buen Fin o del Hot Sale y faltan sus fechas, el job
-    FALLA (calendar_mx.require_event_dates) y el DAG publica el fallback: mejor eso que un Buen Fin
-    pronosticado como semana normal.
+ 2. Calendario: si el horizonte, con los 30 días que mira hacia adelante `days_to_<evento>`, toca la
+    ventana del Buen Fin o del Hot Sale y faltan sus fechas, el job FALLA (calendar_mx.require_event_dates)
+    y el DAG publica el fallback: mejor eso que un Buen Fin pronosticado como semana normal.
  3. Features point-in-time del origen run_date, horizontes 1–14 (build_features).
  4. Predicción P50/P90 con el modelo del registry. Si el modelo no carga o el predict lanza: fallback.
  5. Escritura de la partición run_date como un directorio INMUTABLE cuyo nombre es el hash del contenido:
@@ -20,6 +20,9 @@ La noche de punta a punta (run_date = último día de ventas cerrado; la noche d
 El fallback (`publish_fallback`): el último pronóstico publicado, corrido. Si era de ayer, los horizontes
 2…14 pasan a 1…13 y el día 14 sale del seasonal naive; si eran dos noches malas, se corre 2 días; si no hay
 nada publicado, todo es seasonal naive. Flag `fallback` = True. El ERP SIEMPRE recibe un pronóstico.
+Cuando lo llaman el DAG o el guardia, el job ya falló, quizá por las features (memoria, `price_promo`, el
+calendario), así que el fallback no las arma: su naive (`light_naive`) solo lee ventas e inventario de los
+últimos 28 días. Si ni eso responde (warehouse caído), publica lo corrido: los horizontes 1…13.
 
 Reglas del puntero (`publish`), cada una con su porqué:
 - Idempotente: si ya apunta a lo mismo, no hace nada.
@@ -32,8 +35,12 @@ Reglas del puntero (`publish`), cada una con su porqué:
 Interfaces (`Warehouse`, `PartitionStore`, `Publisher`, `MetricsSink`): las implementaciones reales
 (warehouse, lake, vista con CAS, Pushgateway) no están aquí porque no se pudieron probar; las locales
 (`LocalPartitionStore`, `LocalPointer`) son de verdad (archivos con rename atómico) y las usan los tests y
-la demo. En el warehouse, el puntero es una fila de control + `CREATE OR REPLACE VIEW forecast_current`
-en la misma transacción, con `UPDATE … WHERE partition = :esperado` como compare-and-swap.
+la demo. En el warehouse, el puntero es una fila de control con `UPDATE … WHERE partition = :esperado`
+como compare-and-swap (una fila afectada = ganó). La vista: en motores con DDL transaccional (Postgres,
+Redshift), `CREATE OR REPLACE VIEW forecast_current` en la misma transacción; en Snowflake (un DDL hace
+commit implícito) o BigQuery (sus transacciones no admiten DDL sobre objetos permanentes), en un segundo
+paso idempotente que el job repite si muere entre los dos, y que regenera la vista desde la fila de
+control (no desde lo que el job cree que publicó: así dos jobs no la dejan apuntando al perdedor).
 
 Métricas (empujadas al Pushgateway al terminar cada intento, con pushadd: solo se reemplazan las métricas
 con el mismo nombre, así un intento fallido no borra el timestamp del último éxito). Nombres en
@@ -72,7 +79,16 @@ PUBLISH_CUTOFF = dt.time(3, 55)  # el ERP lee a las 04:00: 5 min de margen para 
 HORIZONS = bf.HORIZONS
 FORECAST_COLUMNS = ["run_date", "store_id", "sku_id", "target_date", "horizon", "p50", "p90",
                     "model_version", "imputed_input", "fallback", "new_item"]  # forecast_daily (el caso)
-PROMO_SHARE_EXPLAINS = 0.10  # ≥ 10 % de los SKU-día de una categoría en promo explica un salto (ILUSTRATIVO)
+# Una categoría con ≥ 20 % de sus SKU-día de la semana en promo tiene una campaña que explica un salto
+# (ILUSTRATIVO). Tiene que quedar arriba del nivel NORMAL de promos: con 10 %, la tasa de todos los días de
+# los datos sintéticos, el puro ruido "explicaba" ≈ 40–45 % de las categorías en una noche típica. En
+# producción, contra la tasa de la propia categoría en sus semanas de referencia.
+PROMO_SHARE_EXPLAINS = 0.20
+# Solo las series "rápidas" (≥ 1 pieza al día en sus últimos 28 días, como en backtest.py) y con 4 semanas de
+# historia votan en la banda por categoría: en una lenta, el P50 es 0 por construcción y la mediana de 4 días
+# no (validate_output); una nueva no tiene referencia.
+BAND_MIN_RATE = 1.0
+NAIVE_DAYS = 28  # el naive del fallback: los 4 mismos días de la semana de CUALQUIER horizonte caen aquí
 
 
 # ----------------------------------------------------------------------------------- registros
@@ -194,12 +210,18 @@ def shift_forecast(prev: pd.DataFrame, run_date: dt.date, series: pd.DataFrame,
     keep["run_date"] = rd
     keep["fallback"] = True
     keep = keep[keep["horizon"].between(1, max(HORIZONS))]
-    parts = [keep]
+    return fill_missing(keep, naive)
+
+
+def fill_missing(keep: pd.DataFrame | None, naive: pd.DataFrame | None) -> pd.DataFrame:
+    """Lo corrido + del naive solo los (serie, horizonte) que faltan; esquema forecast_daily, ordenado."""
+    parts = [] if keep is None else [keep]
     if naive is not None:
-        have = keep[[*bf.KEYS, "horizon"]].assign(_have=True)
-        fill = naive.merge(have, on=[*bf.KEYS, "horizon"], how="left")
-        fill = fill[fill["_have"].isna()].drop(columns="_have")
-        parts.append(fill.assign(fallback=True))
+        if keep is not None:
+            have = keep[[*bf.KEYS, "horizon"]].assign(_have=True)
+            naive = naive.merge(have, on=[*bf.KEYS, "horizon"], how="left")
+            naive = naive[naive["_have"].isna()].drop(columns="_have")
+        parts.append(naive.assign(fallback=True))
     out = pd.concat(parts, ignore_index=True)
     return out[FORECAST_COLUMNS].sort_values(["store_id", "sku_id", "horizon"]).reset_index(drop=True)
 
@@ -217,29 +239,76 @@ def gate_context(rows: pd.DataFrame, series: pd.DataFrame, sku_attrs: pd.DataFra
                  run_date: dt.date, imputed_share: float) -> GateContext:
     """Arma la referencia por categoría y qué categorías quedan "explicadas" esta noche.
 
-    Referencia: por serie y día pronosticado (horizontes 1–7), la MEDIANA de sus últimos 4 mismos días de
-    la semana (sw_lag_1…4, que ya están en las filas de features; los días agotados no cuentan), sumada por
-    categoría. Medianas contra medianas: Σ P50 no se compara con un promedio (validate_output).
+    Referencia: por serie RÁPIDA y día pronosticado (horizontes 1–7), la MEDIANA de sus últimos 4 mismos
+    días de la semana (sw_lag_1…4, que ya están en las filas de features; los días agotados no cuentan),
+    sumada por categoría. Medianas contra medianas: Σ P50 no se compara con un promedio; y solo las rápidas,
+    porque en una serie lenta el P50 es 0 por construcción y la mediana de 4 días no (validate_output). Una
+    serie nueva tampoco vota: sin 4 semanas de historia no tiene referencia.
     """
     rd = pd.Timestamp(run_date)
     week = rows[rows["horizon"].between(1, 7)]
-    lags = week[["sw_lag_1", "sw_lag_2", "sw_lag_3", "sw_lag_4"]].to_numpy(dtype=float)
+    # Votan las rápidas con 4 semanas de historia: una serie nueva (new_item) no tiene sus 4 mismos días
+    fast = week[(week["roll_mean_28"].fillna(0).to_numpy() >= BAND_MIN_RATE) & ~week["new_item"].to_numpy(bool)]
+    lags = fast[["sw_lag_1", "sw_lag_2", "sw_lag_3", "sw_lag_4"]].to_numpy(dtype=float)
     with warnings.catch_warnings():  # una fila con los 4 días agotados → NaN, sin aviso
         warnings.simplefilter("ignore", RuntimeWarning)
         med = np.nanmedian(lags, axis=1)
-    ref = week.assign(ref=med).groupby("category", as_index=False)["ref"].sum().rename(columns={"ref": "ref_7d"})
-    # Calendario: un feriado o evento en los próximos 7 días o en las 4 semanas de referencia lo explica
-    # todo (mueve a todas las categorías). Promo: la categoría con ≥ 10 % de sus SKU-día en promo.
-    win = calendar[(calendar["date"] >= rd - pd.Timedelta(days=27)) & (calendar["date"] <= rd + pd.Timedelta(days=7))]
+    ref = fast.assign(ref=med).groupby("category", as_index=False)["ref"].sum().rename(columns={"ref": "ref_7d"})
+    # Calendario: un feriado o evento en los 7 días que se pronostican lo explica todo (mueve a todas las
+    # categorías). Solo esos 7: un evento en las semanas de referencia no hace falta explicarlo (cae en 1
+    # de los 4 mismos días de la semana, y la mediana lo amortigua), y con esa excusa el 75 % de las noches
+    # de 2026 quedaba "explicado": la banda de ±30 % casi no se aplicaba.
+    win = calendar[(calendar["date"] > rd) & (calendar["date"] <= rd + pd.Timedelta(days=7))]
     ev_cols = [c for c in win.columns if c.startswith("ev_")] + ["is_holiday"]
     explained = set(sku_attrs["category"]) if win[ev_cols].to_numpy().any() else set()
-    share = week.groupby("category")["promo_flag"].mean()
+    share = week.groupby("category")["promo_flag"].mean()  # promo: una campaña de la categoría
     explained |= set(share[share >= PROMO_SHARE_EXPLAINS].index)
     return GateContext(
         expected_series=len(series), horizons=len(HORIZONS),
         sku_category=sku_attrs[["sku_id", "category"]], category_reference=ref,
+        band_series=fast[bf.KEYS].drop_duplicates(),
         explained_categories=frozenset(explained), imputed_store_share=imputed_share,
     )
+
+
+def light_naive(run_date: dt.date, deps: JobDeps, series: pd.DataFrame,
+                keep: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Seasonal naive de lo que el corrimiento no cubre, SIN features: el del fallback del DAG y del guardia.
+
+    Esos dos corren cuando el job ya falló, quizá por las features (memoria, `price_promo`, el calendario),
+    y no pueden depender de lo mismo. El naive solo necesita ventas e inventario de los últimos 28 días: los
+    4 mismos días de la semana de cualquier horizonte caen ahí (`bf.same_weekday_lags`, la misma definición
+    que las features). Ni promociones, ni calendario, ni atributos, ni el panel de 70 días. Y solo para lo
+    que falta en `keep` (lo corrido): con el pronóstico de ayer, el día 14 de cada serie y los 14 días de
+    las series que ayer no estaban; sin nada publicado, todo.
+    """
+    wh = deps.warehouse
+    start = run_date - dt.timedelta(days=NAIVE_DAYS - 1)
+    missing = sorted(set(series["store_id"]) - wh.reported_stores(run_date))  # regla 4: no reportó ≠ 0
+    gaps = pd.DataFrame({"store_id": missing, "date": pd.Timestamp(run_date)})
+    panel = bf.impute_missing(bf.build_panel(wh.sales(start, run_date), wh.stock(start, run_date), series,
+                                             start, run_date, gaps))
+    d, r, rd = panel.demand(), NAIVE_DAYS - 1, pd.Timestamp(run_date)
+    need = np.ones((len(series), len(HORIZONS)), dtype=bool)  # (serie, horizonte) sin pronóstico corrido
+    if keep is not None and len(keep):
+        pos = panel.series[bf.KEYS].assign(_i=np.arange(len(series)))
+        have = keep[[*bf.KEYS, "horizon"]].merge(pos, on=bf.KEYS, how="inner")
+        need[have["_i"].to_numpy(), have["horizon"].to_numpy(dtype=int) - 1] = False
+    s = panel.series
+    age = (rd - pd.to_datetime(s["listed_date"])).dt.days if "listed_date" in s else pd.Series(np.nan, s.index)
+    base = s[bf.KEYS].assign(run_date=rd, imputed_input=panel.imputed, roll_mean_28=bf.row_nanmean(d),
+                             new_item=age.fillna(365).to_numpy() < bf.NEW_ITEM_DAYS)  # como features_for_origin
+    blocks = []
+    for h in HORIZONS:
+        sel = need[:, h - 1]
+        if not sel.any():
+            continue
+        lags = bf.same_weekday_lags(d[sel], r, h)
+        blk = base[sel].assign(horizon=h, target_date=rd + pd.Timedelta(days=h), sw_mean_4=bf.row_nanmean(lags))
+        for j in range(bf.N_SW_LAGS):
+            blk[f"sw_lag_{j + 1}"] = lags[:, j]
+        blocks.append(blk)
+    return naive_forecast(pd.concat(blocks, ignore_index=True)) if blocks else None  # None: no falta nada
 
 
 # ---------------------------------------------------------------------------------- el job
@@ -284,26 +353,39 @@ def publish(new: Published, deps: JobDeps, m: JobMetrics, rows_published: int) -
 
 
 def publish_fallback(run_date: dt.date, deps: JobDeps, m: JobMetrics, reason: str,
-                     rows: pd.DataFrame | None = None) -> Outcome:
-    """Publica el fallback de `run_date`. Idempotente y sin depender del modelo ni del calendario."""
+                     rows: pd.DataFrame | None = None, series: pd.DataFrame | None = None) -> Outcome:
+    """Publica el fallback de `run_date`. Idempotente, sin el modelo, sin el calendario y sin features.
+
+    Con `rows` (el job ya armó las features: el modelo falló o el gate bloqueó), el naive sale de ahí. Sin
+    ellas (el DAG cuando el job falló dos veces, el guardia de las 03:45), sale de `light_naive`: el
+    fallback no puede fallar por lo mismo que tiró al job. Si el warehouse no responde ni para el surtido,
+    se usan las series de lo publicado y se publica solo lo corrido (horizontes 1…13 si era de ayer).
+    """
     cur = deps.publisher.current()
     rd = run_date.isoformat()
     if cur is not None and cur.run_date >= rd:
         return Outcome("nothing_to_do", cur)  # ya hay algo de esta noche (o más nuevo): no se toca
-    series = deps.warehouse.active_series(run_date)
-    if rows is None:  # el DAG o el guardia llaman sin features: se intenta el naive; si no se puede, sin él
+    prev = deps.store.read(cur.partition) if cur is not None else None
+    warehouse_ok = True
+    if series is None:
         try:
-            rows = _features(run_date, deps, series)[0]
-        except Exception:  # noqa: BLE001 - el fallback no puede fallar por lo mismo que tiró al job
+            series = deps.warehouse.active_series(run_date)
+        except Exception:  # noqa: BLE001 - sin surtido de hoy, el de lo último publicado
+            if prev is None:
+                raise
+            log.exception("sin surtido del warehouse: se corren las series del último pronóstico publicado")
+            series, warehouse_ok = prev[bf.KEYS].drop_duplicates().reset_index(drop=True), False
+    keep = shift_forecast(prev, run_date, series, None) if prev is not None else None
+    naive = None
+    if rows is not None:
+        naive = naive_forecast(rows)
+    elif warehouse_ok:
+        try:
+            naive = light_naive(run_date, deps, series, keep)
+        except Exception:  # noqa: BLE001 - sin naive, lo corrido: el pedido usa los primeros 2 días
             log.exception("sin seasonal naive para el fallback: se publican solo los horizontes corridos")
-            rows = None
-    naive = naive_forecast(rows) if rows is not None else None
-    if cur is not None:
-        prev = deps.store.read(cur.partition)
-        fc = shift_forecast(prev, run_date, series, naive)
-    elif naive is not None:
-        fc = naive.sort_values(["store_id", "sku_id", "horizon"]).reset_index(drop=True)
-    else:
+    fc = fill_missing(keep, naive) if keep is not None or naive is not None else None
+    if fc is None or fc.empty:
         raise RuntimeError("no hay pronóstico publicado ni datos para un naive: no hay fallback posible")
     pid = deps.store.write(run_date, fc)
     written = deps.store.read(pid)
@@ -329,15 +411,16 @@ def _features(run_date: dt.date, deps: JobDeps, series: pd.DataFrame):
 
 
 def _nightly(run_date: dt.date, deps: JobDeps, m: JobMetrics) -> Outcome:
+    # Valor de arranque, ANTES de cualquier lectura: con pushadd, el "bloqueado" de ayer seguiría en el
+    # Pushgateway si hoy el job falla antes de validar (warehouse caído, fechas de eventos), y
+    # ForecastValidationBlocked dispararía por una noche que ya pasó.
+    m.set("forecast_validation_blocked", 0, "1 si el gate bloqueó la publicación")
     wh = deps.warehouse
     series = wh.active_series(run_date)
     n_stores = series["store_id"].nunique()
     # Paso 2 primero: si faltan fechas de eventos, falla ANTES de gastar 30 min en features
     calendar_mx.require_event_dates(deps.events_cfg, run_date + dt.timedelta(days=1),
                                     run_date + dt.timedelta(days=max(HORIZONS)))
-    # Valor de arranque: con pushadd, el "bloqueado" de ayer seguiría en el Pushgateway si hoy el job
-    # falla antes de validar, y ForecastValidationBlocked dispararía por una noche que ya pasó.
-    m.set("forecast_validation_blocked", 0, "1 si el gate bloqueó la publicación")
     rows, missing, calendar = _features(run_date, deps, series)
     m.set("forecast_input_stores_expected", n_stores, "tiendas activas en el surtido")
     m.set("forecast_input_stores_imputed", len(missing), "tiendas sin ventas de run_date al corte (imputadas)")
@@ -351,7 +434,7 @@ def _nightly(run_date: dt.date, deps: JobDeps, m: JobMetrics) -> Outcome:
               "fracción de filas con P90 < P50 antes de ordenarlos")
     except Exception:  # noqa: BLE001
         log.exception("el modelo falló: fallback")
-        return publish_fallback(run_date, deps, m, "prediction_error", rows)
+        return publish_fallback(run_date, deps, m, "prediction_error", rows, series)
     pid = deps.store.write(run_date, fc)  # paso 5
     written = deps.store.read(pid)
     ctx = gate_context(rows, series, wh.sku_attrs(), calendar, run_date, len(missing) / max(n_stores, 1))
@@ -362,7 +445,7 @@ def _nightly(run_date: dt.date, deps: JobDeps, m: JobMetrics) -> Outcome:
               "elementos que fallan cada regla del gate", check=c.name)
     if not gate.ok:
         log.error("gate bloqueado: %s", "; ".join(f"{c.name}: {c.detail}" for c in gate.checks if not c.ok))
-        out = publish_fallback(run_date, deps, m, "validation_blocked", rows)
+        out = publish_fallback(run_date, deps, m, "validation_blocked", rows, series)
     else:
         out = publish(Published(run_date.isoformat(), pid, fallback=False), deps, m, len(written))  # paso 7
     out.gate, out.imputed_stores = gate, missing
@@ -505,14 +588,19 @@ def build_production_deps() -> JobDeps:  # pragma: no cover
 
 
 def demo_deps(root: Path, run_date: dt.date) -> JobDeps:  # pragma: no cover - lo prueba el README
-    """Todo local: datos sintéticos, modelo entrenado al vuelo y guardado en <root>/model."""
+    """Todo local: datos sintéticos, modelo entrenado al vuelo y guardado en <root>/model.
+
+    El reloj es el de la noche de `run_date` (las 02:00 del día siguiente), no el de tu máquina: con la hora
+    real, después de las 03:55 de esa noche cualquier re-run saldría `late_not_published`. El corte lo
+    prueban los tests con un reloj inyectado.
+    """
     import train_quantile as tq
     from synthetic import make_synthetic
 
     events = calendar_mx.load_events(Path(__file__).resolve().parents[1] / "features" / "retail_events.yaml")
     start = pd.Timestamp("2025-09-01")  # fijo: todas las noches de la demo ven LOS MISMOS datos sintéticos
     if not start + pd.Timedelta(days=120) <= pd.Timestamp(run_date) <= start + pd.Timedelta(days=700):
-        raise SystemExit("la demo cubre run_date entre 2025-12-30 y 2027-08-01")
+        raise SystemExit("la demo cubre run_date entre 2025-12-30 y 2027-08-02")
     data = make_synthetic(start=str(start.date()), days=730, events_cfg=events)
     model_dir = root / "model"
     if not model_dir.exists() or not any(model_dir.iterdir()):
@@ -522,9 +610,12 @@ def demo_deps(root: Path, run_date: dt.date) -> JobDeps:  # pragma: no cover - l
                                  data.sales, data.stock)
         tq.save(tq.fit(pool[pool["target_date"] <= pd.Timestamp(run_date)]), model_dir)
     path = next(p for p in model_dir.iterdir() if p.is_dir())
+    night = dt.datetime.combine(run_date + dt.timedelta(days=1), dt.time(2, 0), TZ)  # las 02:00 de esa noche
+    real0 = dt.datetime.now(dt.timezone.utc)  # y avanza con el tiempo real: la duración sí es la medida
     return JobDeps(warehouse=TableWarehouse(data), store=LocalPartitionStore(root / "forecast_daily"),
                    publisher=LocalPointer(root / "forecast_current.json"), load_model=lambda: tq.load(path),
-                   events_cfg=events, metrics=PrintMetrics())
+                   events_cfg=events, metrics=PrintMetrics(),
+                   clock=lambda: night + (dt.datetime.now(dt.timezone.utc) - real0))
 
 
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover

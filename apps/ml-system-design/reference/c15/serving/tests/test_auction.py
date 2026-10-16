@@ -133,5 +133,20 @@ def test_exploration_is_uniform_priced_at_reserve_and_one_per_advertiser():
     assert A.run_exploration(bids, SLOTS, seed="e1") == A.run_exploration(bids, SLOTS, seed="e1")  # re-jugable
 
 
+def test_logged_propensity_is_conditional_and_the_marginal_is_one_over_eligible():
+    # 3 anuncios de 3 anunciantes, los 3 sobre la reserva en los 3 slots (eCPM 10, 8 y 5)
+    bids = [bid(x, "v" + x, 1.0, 0.01) for x in "ABC"]
+    seen = Counter()
+    for i in range(6000):
+        out = A.run_exploration(bids, SLOTS, seed=f"m{i}")
+        # Lo logueado es condicional: 1/3 arriba, 1/2 con uno ya colocado, 1 con dos colocados
+        assert [round(p.propensity, 3) for p in out] == [0.333, 0.5, 1.0]
+        assert all(p.eligible == 3 for p in out)
+        seen.update((p.ad_id, p.slot) for p in out)
+    # La marginal (la que pide IPS por slot) es 1/3 en los TRES slots = 1/eligible: cada orden es igual de
+    # probable. Pesar el slot de abajo con 1/propensity = 1 en vez de 3 subestima 3 veces su ingreso
+    assert all(0.30 < seen[(a, s)] / 6000 < 0.37 for a in "ABC" for s in SLOTS)
+
+
 def test_nothing_above_reserve_means_no_placements():
     assert A.run_auction([bid("L", "vL", 0.05, 0.002)], SLOTS, seed="q") == []  # eCPM 0.10

@@ -10,7 +10,7 @@ RUN = pd.Timestamp("2026-10-15")
 
 
 def forecast(n_series=100, p50=1.0, p90=2.0):
-    """n_series SKUs en una tienda × 14 horizontes; la mitad lácteos y la mitad abarrotes."""
+    """n_series SKUs en una tienda × 14 horizontes; la mitad salchichonería y la mitad abarrotes."""
     rows = [{"run_date": RUN, "store_id": "T1", "sku_id": f"P{i:03d}", "target_date": RUN + pd.Timedelta(days=h),
              "horizon": h, "p50": p50, "p90": p90, "model_version": "m1", "imputed_input": False,
              "fallback": False, "new_item": False} for i in range(n_series) for h in range(1, 15)]
@@ -19,9 +19,10 @@ def forecast(n_series=100, p50=1.0, p90=2.0):
 
 def ctx(n_series=100, ref=None, explained=frozenset(), imputed=0.0, **kw):
     cats = pd.DataFrame({"sku_id": [f"P{i:03d}" for i in range(n_series)],
-                         "category": ["lacteos" if i % 2 else "abarrotes" for i in range(n_series)]})
+                         "category": ["salchichoneria" if i % 2 else "abarrotes" for i in range(n_series)]})
     # referencia por defecto = exactamente lo pronosticado: 50 SKUs × 7 días × 1.0 = 350 por categoría
-    ref = ref if ref is not None else pd.DataFrame({"category": ["lacteos", "abarrotes"], "ref_7d": [350.0, 350.0]})
+    if ref is None:
+        ref = pd.DataFrame({"category": ["salchichoneria", "abarrotes"], "ref_7d": [350.0, 350.0]})
     return GateContext(expected_series=n_series, sku_category=cats, category_reference=ref,
                        explained_categories=frozenset(explained), imputed_store_share=imputed, **kw)
 
@@ -57,30 +58,42 @@ def test_duplicates_nulls_negatives_and_crossed_quantiles():
 
 
 def test_category_band_is_plus_minus_30_percent():
-    # lácteos pronostica 350 en 7 días; con referencia 270 → 1.296× (dentro); con 269 → 1.301× (fuera)
-    inside = pd.DataFrame({"category": ["lacteos", "abarrotes"], "ref_7d": [270.0, 350.0]})
-    outside = pd.DataFrame({"category": ["lacteos", "abarrotes"], "ref_7d": [269.0, 350.0]})
+    # salchichonería pronostica 350 en 7 días; con referencia 270 → 1.296× (dentro); con 269 → 1.301× (fuera)
+    inside = pd.DataFrame({"category": ["salchichoneria", "abarrotes"], "ref_7d": [270.0, 350.0]})
+    outside = pd.DataFrame({"category": ["salchichoneria", "abarrotes"], "ref_7d": [269.0, 350.0]})
     assert validate(forecast(), ctx(ref=inside)).ok
     res = validate(forecast(), ctx(ref=outside))
-    assert res.failed == ["category_band"] and "lacteos: 1.30×" in res.checks[5].detail
-    low = pd.DataFrame({"category": ["lacteos", "abarrotes"], "ref_7d": [350.0, 520.0]})  # 0.67×
+    assert res.failed == ["category_band"] and "salchichoneria: 1.30×" in res.checks[5].detail
+    low = pd.DataFrame({"category": ["salchichoneria", "abarrotes"], "ref_7d": [350.0, 520.0]})  # 0.67×
     assert validate(forecast(), ctx(ref=low)).failed == ["category_band"]
 
 
 def test_a_promo_or_holiday_widens_the_band_but_does_not_remove_it():
-    buen_fin = pd.DataFrame({"category": ["lacteos", "abarrotes"], "ref_7d": [140.0, 350.0]})  # 2.5×
+    buen_fin = pd.DataFrame({"category": ["salchichoneria", "abarrotes"], "ref_7d": [140.0, 350.0]})  # 2.5×
     assert validate(forecast(), ctx(ref=buen_fin)).failed == ["category_band"]
-    res = validate(forecast(), ctx(ref=buen_fin, explained={"lacteos"}))
-    assert res.ok and "explicadas por promo o calendario: lacteos" in res.checks[5].detail
+    res = validate(forecast(), ctx(ref=buen_fin, explained={"salchichoneria"}))
+    assert res.ok and "explicadas por promo o calendario: salchichoneria" in res.checks[5].detail
     # piezas contra cajas (10×) bloquea aunque la categoría esté "explicada"
-    cases = pd.DataFrame({"category": ["lacteos", "abarrotes"], "ref_7d": [35.0, 350.0]})
-    assert validate(forecast(), ctx(ref=cases, explained={"lacteos"})).failed == ["category_band"]
-    tenth = pd.DataFrame({"category": ["lacteos", "abarrotes"], "ref_7d": [3500.0, 350.0]})
-    assert validate(forecast(), ctx(ref=tenth, explained={"lacteos"})).failed == ["category_band"]
+    cases = pd.DataFrame({"category": ["salchichoneria", "abarrotes"], "ref_7d": [35.0, 350.0]})
+    assert validate(forecast(), ctx(ref=cases, explained={"salchichoneria"})).failed == ["category_band"]
+    tenth = pd.DataFrame({"category": ["salchichoneria", "abarrotes"], "ref_7d": [3500.0, 350.0]})
+    assert validate(forecast(), ctx(ref=tenth, explained={"salchichoneria"})).failed == ["category_band"]
+
+
+def test_only_the_fast_series_vote_in_the_band():
+    """Las lentas no votan: su P50 es 0 por construcción y la mediana de sus 4 días no (0 y 1 promedian 0.5).
+    Tampoco detectarían una escala rota: 0 × 10 = 0."""
+    fc = forecast()  # 100 series con p50 = 1: abarrotes las pares, salchichonería las nones
+    fast = pd.DataFrame({"store_id": "T1", "sku_id": [f"P{i:03d}" for i in range(0, 100, 4)]})  # 25 abarrotes
+    ref = pd.DataFrame({"category": ["abarrotes"], "ref_7d": [175.0]})  # 25 rápidas × 7 días × 1.0
+    assert validate(fc, ctx(ref=ref, band_series=fast)).ok  # 175 contra 175
+    assert validate(fc, ctx(ref=ref)).failed == ["category_band"]  # votando todas: 350 contra 175 = 2×
+    tenx = fc.assign(p50=fc["p50"] * 10, p90=fc["p90"] * 10)
+    assert validate(tenx, ctx(ref=ref, band_series=fast)).failed == ["category_band"]  # la escala rota se ve
 
 
 def test_category_without_reference_does_not_vote():
-    only_one = pd.DataFrame({"category": ["abarrotes"], "ref_7d": [350.0]})  # lácteos es nueva
+    only_one = pd.DataFrame({"category": ["abarrotes"], "ref_7d": [350.0]})  # salchichonería es nueva
     assert validate(forecast(), ctx(ref=only_one)).ok
 
 

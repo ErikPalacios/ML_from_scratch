@@ -4,8 +4,8 @@ Por qué cuantiles y no "el promedio": el ERP pide con orden = máx(0, pronósti
 revisión) + inventario de seguridad − existencia − en tránsito), y el inventario de seguridad sale del P90.
 Un modelo de error cuadrático da la media: con demanda sesgada a la derecha (promos, quincenas) la media
 queda arriba de la mediana y el P90 hay que inventarlo con un supuesto de distribución. Dos modelos con
-pérdida pinball (α = 0.5 y α = 0.9) estiman cada cuantil directo, y `backtest.py` mide si el P90 cubre
-≈ 90 % de los días.
+pérdida pinball (α = 0.5 y α = 0.9) estiman cada cuantil directo, y `backtest.py` mide si el P90 está
+calibrado (en piezas enteras: A ≤ P90 en ≥ 90 % de los días y A < P90 en ≤ 90 %).
 
 En la entrevista dices LightGBM (objective="quantile" con alpha=0.5 y alpha=0.9; ojo: el default de alpha
 es 0.9); aquí es HistGradientBoostingRegressor(loss="quantile", quantile=…) de scikit-learn (opción

@@ -11,24 +11,29 @@ reglas son baratas, tontas a propósito y se leen en voz alta en la entrevista:
 | nulls              | un p50 vacío se vuelve 0 en muchos ERPs: no pedir nada        | 0 nulos                  |
 | negatives          | demanda negativa                                              | 0 negativos              |
 | quantile_order     | P90 < P50: inventario de seguridad negativo                   | 0 filas                  |
-| category_band      | escala rota (unidades vs cajas, un feature que se fue a 0)    | ±30 % vs los últimos 4 mismos días de la semana; con promo o feriado, entre 1/3× y 3× |
+| category_band      | escala rota (unidades vs cajas, un feature que se fue a 0)    | ±30 % vs los últimos 4 mismos días (series rápidas); con promo o feriado en los 7 días, 1/3×–3× |
 | imputed_stores     | demasiadas tiendas sin datos de anoche                        | ≤ 5 % de las tiendas     |
 
 Se valida la partición LEÍDA de vuelta, no el DataFrame en memoria: así también se atrapan los errores
 de escritura (un tipo que cambió, una columna que el writer tiró). Cada regla devuelve su detalle, y la
 lista de reglas que fallan es la etiqueta `check` de la métrica `forecast_validation_failed_checks`.
 
-La banda por categoría compara medianas con medianas. Trampa que la primera versión de este gate pisó:
-los cuantiles no se suman. El P50 de una serie que vende 0.3 piezas al día es 0 (la mayoría de los días
-no vende nada); en una que vende 4, el P50 suele quedar abajo de la media (la demanda es asimétrica).
-Contra el PROMEDIO de las últimas 4 semanas, Σ P50 de 7 días daba 0× en una categoría de productos
-lentos y entre 0.62× y 1.0× en las demás (medido en 5 noches de dos conjuntos sintéticos), y el
-gate bloqueaba noches buenas. La referencia que arma run_forecast es del mismo tipo que el P50: por serie
-y día, la MEDIANA de sus últimos 4 mismos días de la semana, sumada por categoría
-(`category_reference.ref_7d`); con ella, las mismas noches quedan entre 0.73× y 1.06×. Una categoría cuya
-referencia es casi 0 (puros productos lentos) no vota: su cociente es ruido. Por la misma razón, el
-planeador del centro de distribución no debe sumar P50 de tiendas: el agregado necesita la media (un
-tercer modelo, o un pronóstico del agregado).
+La banda por categoría compara medianas con medianas, y solo en las series rápidas. Trampa que la primera
+versión de este gate pisó: los cuantiles no se suman. El P50 de una serie que vende 0.3 piezas al día es 0
+(la mayoría de los días no vende nada); en una que vende 4, el P50 suele quedar abajo de la media (la
+demanda es asimétrica). Contra el PROMEDIO de los últimos 4 mismos días, Σ P50 de 7 días quedaba en
+≈ 0.74× la noche típica y en 0× en una categoría de productos lentos (129 noches del conjunto sintético de
+los tests, con el modelo de los tests), y el gate bloqueaba noches buenas. La referencia que arma
+run_forecast es del mismo tipo que el P50: por serie y día, la MEDIANA de sus últimos 4 mismos días de la
+semana, sumada por categoría (`category_reference.ref_7d`). Y solo votan las series rápidas (≥ 1 pieza al
+día en 28 días) con 4 semanas de historia (`band_series`): en una lenta, la mediana de 4 días tampoco es su
+P50 (0 y 1 promedian 0.5; el P50 entero es 0), y en otro conjunto sintético una categoría de puros
+productos lentos quedaba abajo de 0.6× en el 95 % de las noches (0.25× la noche típica); además, una
+serie lenta no delata una escala rota (0 × 10 = 0). Con todas las series, esas 129 noches quedan entre
+0.69× y 1.61×; solo con las rápidas, entre 0.76× y 1.14×. Una categoría sin series rápidas, o con
+referencia casi 0, no vota: su cociente es ruido. Por la misma razón, el planeador del centro de
+distribución no debe sumar P50 de tiendas: el agregado necesita la media (un tercer modelo, o un
+pronóstico del agregado).
 
 El fallback pasa por las reglas de ESTRUCTURA (`structural_only=True`): nunca se publica basura, pero un
 fallback no se bloquea por la banda de categoría (es un pronóstico viejo a propósito: el ERP siempre recibe
@@ -52,6 +57,7 @@ class GateContext:
     horizons: int = 14
     sku_category: pd.DataFrame | None = None  # sku_id, category (para la banda por categoría)
     category_reference: pd.DataFrame | None = None  # category, ref_7d: Σ medianas de los últimos 4 mismos días
+    band_series: pd.DataFrame | None = None  # store_id, sku_id de las series que votan en la banda (None: todas)
     min_reference: float = 20.0  # piezas en 7 días: con menos, la categoría no vota (ILUSTRATIVO)
     explained_categories: frozenset[str] = frozenset()  # promo o feriado/evento explican la desviación
     imputed_store_share: float = 0.0
@@ -118,9 +124,13 @@ def check_quantile_order(fc: pd.DataFrame) -> Check:
     return Check("quantile_order", n == 0, f"{n} filas con p90 < p50", n)
 
 
-def category_totals(fc: pd.DataFrame, sku_category: pd.DataFrame) -> pd.DataFrame:
-    """Σ p50 de los horizontes 1–7 por categoría: los próximos 7 días, una semana completa de días."""
-    week = fc[_num(fc["horizon"]).between(1, 7)].merge(sku_category, on="sku_id", how="left")
+def category_totals(fc: pd.DataFrame, sku_category: pd.DataFrame,
+                    band_series: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Σ p50 de los horizontes 1–7 por categoría (solo `band_series`, si viene): una semana completa de días."""
+    week = fc[_num(fc["horizon"]).between(1, 7)]
+    if band_series is not None:
+        week = week.merge(band_series[["store_id", "sku_id"]], on=["store_id", "sku_id"], how="inner")
+    week = week.merge(sku_category, on="sku_id", how="left")
     week = week.assign(p50=_num(week["p50"]))
     return week.groupby("category", as_index=False)["p50"].sum().rename(columns={"p50": "next_7d"})
 
@@ -129,13 +139,15 @@ def check_category_band(fc: pd.DataFrame, ctx: GateContext) -> Check:
     """Cada categoría: Σ P50 de los próximos 7 días vs Σ de las medianas de los últimos 4 mismos días, ±30 %.
 
     Los 7 días cubren cada día de la semana una vez, así que la referencia es "una semana típica de las
-    últimas 4", medida con medianas como el P50 (docstring del módulo). Una categoría con promo o un
-    feriado/evento en la ventana (o en las 4 semanas de referencia) queda "explicada": su banda se ensancha
-    a [1/3×, 3×] y se reporta aparte. Sin referencia (nueva) o con referencia casi 0, no vota.
+    últimas 4", medida con medianas como el P50 y solo en las series de `band_series` (docstring del
+    módulo). Una categoría con una campaña de promo o un feriado/evento en los 7 días que se pronostican
+    queda "explicada": su banda se ensancha a [1/3×, 3×] y se reporta aparte. Sin referencia (nueva, o sin
+    series rápidas) o con referencia casi 0, no vota.
     """
     if ctx.sku_category is None or ctx.category_reference is None:
         return Check("category_band", True, "sin referencia: no se evaluó")
-    t = category_totals(fc, ctx.sku_category).merge(ctx.category_reference, on="category", how="left")
+    t = category_totals(fc, ctx.sku_category, ctx.band_series).merge(ctx.category_reference, on="category",
+                                                                       how="left")
     t = t[t["ref_7d"] >= ctx.min_reference].copy()  # sin referencia o casi 0: no vota
     t["ratio"] = t["next_7d"] / t["ref_7d"]
     t["explained"] = t["category"].isin(ctx.explained_categories)

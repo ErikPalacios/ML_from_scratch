@@ -1,7 +1,7 @@
 # Tests unitarios de alerts.yml con promtool: series sintéticas → ¿dispara o no, y cuándo?
 #   promtool test rules alerts_test.yml
 # Notación de promtool: '0+100x20' = empieza en 0 y suma 100 por intervalo, 20 veces (21 valores);
-# '1000x59 3000x30' = 60 valores de 1000 y luego 31 de 3000; '_x29' = 30 intervalos SIN muestra.
+# '1000x59 3000x30' = 60 valores de 1000 y luego 31 de 3000; '_x29' = 29 muestras faltantes (minutos 0–28).
 # El reloj de promtool empieza en 0 (epoch): time() en el minuto m vale 60·m.
 # Todas las series van cada 1 min aunque el job empuje una vez por noche: el Pushgateway las sirve en cada
 # scrape. Con una muestra por hora, el lookback de 5 min deja la serie "ausente" casi todo el tiempo y el
@@ -59,8 +59,8 @@ tests:
             value: 1
 
   # ---------------------------------------------------------------- ForecastRunFailed
-  # Último éxito en t = 1000 s. A los 30 min un intento falla (t = 2000 s) → firing a los ≈ 36 min. A los
-  # 60 min el reintento termina bien (t = 3000 s) → se resuelve sola.
+  # Último éxito en t = 1000 s. En el minuto 29 un intento falla (t = 2000 s) → firing en el minuto 34 (for:
+  # 5m). En el minuto 60 el reintento termina bien (t = 3000 s) → se resuelve sola.
   - interval: 1m
     input_series:
       - series: 'forecast_last_success_timestamp_seconds{job="forecast_nightly"}'

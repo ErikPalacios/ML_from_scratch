@@ -3,8 +3,10 @@
 # Hot Sale; las anuncian los organizadores semanas antes. Quien las actualiza es el equipo comercial o de
 # planeación, con revisión en un PR (el archivo está versionado), sin tocar Python.
 # Qué pasa si falta un año: calendar_mx.require_event_dates falla en cuanto el rango que se pronostica (o la
-# historia con la que se entrena) toca la ventana típica del evento. Mejor una falla ruidosa y el fallback
-# que un Buen Fin tratado como fin de semana normal.
+# historia con la que se entrena), más los 30 días que mira hacia adelante days_to_<evento>, toca la
+# ventana típica del evento: el Buen Fin del año tiene que estar aquí a mediados de septiembre (según notas
+# de prensa, las fechas de 2025 ya se conocían en julio, y las de 2026, a más tardar, a principios de
+# septiembre). Mejor una falla ruidosa y el fallback que un Buen Fin tratado como fin de semana normal.
 # Fechas consultadas en octubre de 2026; las de 2026 del Buen Fin vienen de notas de prensa que citan a los
 # organizadores: confírmalas en elbuenfin.org antes de usarlas.
 

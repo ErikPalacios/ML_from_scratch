@@ -1,5 +1,6 @@
 """Tests del calendario: feriados del art. 74 de la LFT, quincenas con su supuesto, eventos y fechas faltantes."""
 
+import copy
 import datetime as dt
 from pathlib import Path
 
@@ -106,6 +107,23 @@ def test_missing_announced_dates_fail_loudly(cfg):
         cm.require_event_dates(cfg, D(2024, 1, 1), D(2026, 10, 15))
     # La historia del caso (2 años desde octubre de 2024) sí está completa
     cm.require_event_dates(cfg, D(2024, 10, 16), D(2026, 10, 29))
+
+
+def test_missing_dates_fail_as_soon_as_days_to_event_would_be_wrong(cfg):
+    """days_to_<evento> mira 30 días adelante: sin el año, diría 30 ("lejos") antes de que el horizonte toque
+    noviembre. La noche del 10 de octubre de 2026 el horizonte llega al 24, pero sus days_to_buen_fin no."""
+    no_bf = copy.deepcopy(cfg)
+    no_bf["announced"]["buen_fin"]["dates"].pop(2026)
+    with_dates = cm.calendar_table(D(2026, 10, 11), D(2026, 10, 24), cfg)
+    without = cm.calendar_table(D(2026, 10, 11), D(2026, 10, 24), no_bf)
+    assert (with_dates["days_to_buen_fin"] < cm.CAP_DAYS).sum() == 10  # 29…20 días al 13 de noviembre
+    assert (without["days_to_buen_fin"] == cm.CAP_DAYS).all()  # sin fechas: "lejos", sin error
+    with pytest.raises(cm.MissingEventDates, match="buen_fin 2026"):
+        cm.require_event_dates(no_bf, D(2026, 10, 11), D(2026, 10, 24))  # run_date = 10 de octubre
+    # La frontera con la ventana típica (1 de noviembre): run_date 17 de septiembre pasa, el 18 ya no
+    cm.require_event_dates(no_bf, D(2026, 9, 18), D(2026, 10, 1))
+    with pytest.raises(cm.MissingEventDates):
+        cm.require_event_dates(no_bf, D(2026, 9, 19), D(2026, 10, 2))
 
 
 def test_event_config_is_validated(tmp_path):

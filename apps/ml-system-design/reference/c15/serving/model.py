@@ -3,7 +3,9 @@
 Por qué este modelo como baseline: predice ≈ 150 candidatos en microsegundos de CPU (sumar ≈ 25 pesos por
 fila), se entrena todos los días en minutos y, como minimiza log loss, sale bien calibrado en la
 distribución con la que se entrenó. La DNN con embeddings (tipo DCN/DeepFM) es el siguiente paso del caso
-y se sirve igual: en CPU, un batch por request, con la misma corrección al final.
+y se sirve igual: en CPU, un batch por request, con la misma corrección al final, y con slot y
+slot × formato como término aditivo del logit (fuera de los cruces), para que predict_slots siga siendo
+exacto: un scoring por candidato más el término de cada slot.
 
 Qué viaja DENTRO del artefacto (y por qué no en la configuración del serving):
   weights, bias            los pesos (2^24 float32 ≈ 64 MiB) y el sesgo
@@ -50,7 +52,8 @@ def correct_downsampling(p: np.ndarray | float, w: float) -> np.ndarray:
     training/calibration.py la importa de aquí (una sola implementación para el serving, la evaluación y
     la recalibración). w = 1 no cambia nada (no hubo submuestreo).
     Trampa: corregir un modelo que YA se entrenó con peso 1/w en los negativos es corregir dos veces (el
-    peso ya devolvió la escala real) y deja los pCTR ≈ w veces más bajos. Una de las dos, nunca ambas.
+    peso ya devolvió la escala real) y deja los pCTR multiplicados por ≈ w (con w = 5 %, ≈ 20 veces más
+    bajos: 0.35 % → ≈ 0.0175 %). Una de las dos, nunca ambas.
     """
     if not 0.0 < w <= 1.0:
         raise ValueError(f"neg_rate fuera de (0, 1]: {w}")

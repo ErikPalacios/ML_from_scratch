@@ -10,7 +10,11 @@ F = [10, 0, 5], A = [8, 2, 5] → errores |F − A| = [2, 2, 0].
 - pinball de un cuantil q: por fila, q·(A − F) si te quedaste corto, (1 − q)·(F − A) si te pasaste. Con
   q = 0.9 quedarse corto cuesta 9 veces más que pasarse: por eso el P90 queda arriba.
   Con F = P90 = [10, 0, 5]: [0.1·2, 0.9·2, 0] → promedio 2.0 ÷ 3 ≈ 0.667.
-- cobertura del P90 = fracción de días con A ≤ P90. Meta ≈ 90 %: 97 % quiere decir inventario de más.
+- cobertura del P90 = fracción de días con A ≤ P90. En cantidades continuas (kg), meta ≈ 90 %. En piezas
+  enteras, un P90 calibrado cumple A < P90 en ≤ 90 % de los días y A ≤ P90 en ≥ 90 % (el cuantil de un
+  conteo salta de pieza en pieza): con una demanda de 0.3 al día, P90 = 1 cubre ≈ 96 %, así que ≈ 97 % en
+  series lentas es lo esperado, no inventario de más. Por eso `metrics` reporta las dos (`coverage_90` y
+  `coverage_90_strict`), y por segmento se compara contra el campeón, no contra 0.90.
 Todas se calculan SOLO en días evaluables: target conocido y sin agotado (la venta de un día agotado es
 una cota inferior: contra ella, el modelo que pronostica bien la demanda "se ve" sobreestimado).
 
@@ -64,13 +68,18 @@ def pinball(q: float, f, a) -> float:
     return float(np.mean(np.maximum(q * diff, (q - 1) * diff))) if len(diff) else float("nan")
 
 
-def coverage(p90, a) -> float:
-    a = np.asarray(a, float)
-    return float(np.mean(a <= np.asarray(p90, float))) if len(a) else float("nan")
+def coverage(p90, a, strict: bool = False) -> float:
+    """Fracción de días con A ≤ P90 (con `strict`, A < P90: en piezas enteras, ≤ 90 % si está calibrado)."""
+    a, p = np.asarray(a, float), np.asarray(p90, float)
+    return float(np.mean(a < p if strict else a <= p)) if len(a) else float("nan")
 
 
 def evaluable(df: pd.DataFrame) -> np.ndarray:
-    """Días que cuentan: target conocido (no agotado, serie listada, tienda que reportó)."""
+    """Días que cuentan: target conocido (no agotado, serie ya listada).
+
+    La historia del entrenamiento y del backtest está completa (las cargas tardías ya llegaron): los días
+    sin reporte solo existen en run_date, y ahí el job los imputa.
+    """
     ok = df["target"].notna().to_numpy().copy()  # pandas 3 (copy-on-write) devuelve vistas de solo lectura
     if "target_oos" in df:
         ok &= ~df["target_oos"].to_numpy(dtype=bool)  # redundante con target NaN; explícito a propósito
@@ -88,7 +97,8 @@ def metrics(df: pd.DataFrame, pred: str = "model") -> dict:
         "bias": bias(p50, a),
         "pinball_50": pinball(0.5, p50, a),
         "pinball_90": pinball(0.9, p90, a),
-        "coverage_90": coverage(p90, a),
+        "coverage_90": coverage(p90, a),  # A ≤ P90: ≥ 90 % si está calibrado
+        "coverage_90_strict": coverage(p90, a, strict=True),  # A < P90: ≤ 90 % si está calibrado (piezas)
     }
 
 

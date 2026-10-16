@@ -682,8 +682,8 @@
         'Validar antes de publicar y fallback con el pronóstico de ayer',
         'Del error del modelo al negocio: agotados y merma',
       ],
-      freq: 'alta', minutes: 120, difficulty: 'media',
-      connects: ['m02', 'm09', 'm10', 'm12', 'm13'],
+      freq: 'alta', minutes: 133, difficulty: 'media',
+      connects: ['m02', 'm09', 'm10', 'm11', 'm12', 'm13', 'c09'],
       tests: [
         'Diseñar un pipeline batch con ventana de tiempo, dependencias de datos y fallback',
         'Elegir el nivel del modelo (global vs por serie) y la pérdida (cuantiles)',
@@ -708,7 +708,7 @@
         'Sesgo de posición, exploración y anuncios nuevos',
         'Métricas: log loss, NE, RPM y guardrails de experiencia',
       ],
-      freq: 'alta', minutes: 120, difficulty: 'alta',
+      freq: 'alta', minutes: 130, difficulty: 'alta',
       connects: ['m02', 'm03', 'm09', 'm11', 'm12', 'c08', 'c09'],
       tests: [
         'Cumplir un presupuesto de latencia estricto puntuando cientos de candidatos',
@@ -1270,11 +1270,11 @@
       },
       {
         "topic": "Escala",
-        "a": "≈ 25,000 productos activos; cada tienda maneja ≈ 12,000 → <b>≈ 4.8 M series</b> tienda × producto, con ≈ 2 años de historia diaria. ≈ 30 % de las ventas son frescos (vida de anaquel de 2 a 10 días). Cola larga: ≈ 60 % de las series vende menos de 1 unidad al día; el 20 % de las series hace ≈ 80 % de las unidades. Entran ≈ 150 productos nuevos por semana y se abren ≈ 10 tiendas al año."
+        "a": "≈ 25,000 productos activos; cada tienda maneja ≈ 12,000 → <b>≈ 4.8 M series</b> tienda × producto, con ≈ 2 años de historia diaria. ≈ 30 % de las ventas son frescos (vida de anaquel de 2 a 10 días). Cola larga: ≈ 60 % de las series vende menos de 1 unidad al día; el 20 % de las series hace ≈ 80 % de las unidades. Entran ≈ 150 productos nuevos por semana y se abren ≈ 10 tiendas al año. Para un producto nuevo, el equipo de categorías sabe a qué se parece."
       },
       {
         "topic": "Latencia y disponibilidad",
-        "a": "Nadie espera una respuesta en línea. Las tiendas cierran a las 22:00 (hora local); las ventas llegan al warehouse a las <b>00:30</b> (las tiendas con mala conexión, hasta la <b>01:30</b>) y el inventario al cierre a la 01:00. El <b>ERP corre a las 04:00</b> y el pronóstico tiene que estar publicado a las <b>03:30</b>. El ERP nunca debe correr sin pronóstico."
+        "a": "Nadie espera una respuesta en línea. Las tiendas cierran a las 22:00, hora local (las de Baja California, una o dos horas después que las del centro, según la época del año); las ventas llegan al warehouse a las <b>00:30</b> (las tiendas con mala conexión, hasta la <b>01:30</b>) y el inventario al cierre a la 01:00. El <b>ERP corre a las 04:00</b> y el pronóstico tiene que estar publicado a las <b>03:30</b>. El ERP nunca debe correr sin pronóstico."
       },
       {
         "topic": "Modelo actual",
@@ -1282,7 +1282,7 @@
       },
       {
         "topic": "Datos y labels",
-        "a": "Ventas diarias del POS netas de devoluciones (las devoluciones y cancelaciones a veces se procesan días después), con 2 años de historia. Inventario al cierre por tienda y producto, con una marca de <b>agotado</b> (existencia 0 al cierre o producto marcado como no disponible). Calendario de promociones y precios. Atributos: formato, región y tamaño de la tienda; categoría, perecedero, vida de anaquel y empaque del producto. El surtido de cada tienda está en el ERP."
+        "a": "Ventas diarias del POS netas de devoluciones (las devoluciones y cancelaciones a veces se procesan días después), con 2 años de historia. Inventario al cierre por tienda y producto, con una marca de <b>agotado</b> (existencia 0 al cierre o producto marcado como no disponible). Calendario de promociones y precios. Atributos: formato, región y tamaño de la tienda; categoría, perecedero, vida de anaquel y empaque del producto. El surtido de cada tienda está en el ERP. Lo que mueve la demanda: las <b>quincenas</b> (días 15 y último de cada mes), los feriados, el <b>Buen Fin</b> (noviembre), el Hot Sale (sobre todo en línea), Día de Muertos, Navidad y el aguinaldo, Semana Santa, el regreso a clases y las fiestas locales de cada ciudad. Las promociones las define marketing y llegan en su calendario."
       },
       {
         "topic": "Restricciones",
@@ -1296,7 +1296,7 @@
       },
       {
         "topic": "Entrada y salida",
-        "a": "Entrada por request: sección, dispositivo, ciudad o estado aproximado (por la IP), hora, consentimiento y un id seudónimo. Salida: para cada uno de los <b>3 slots</b> (banner arriba, dentro del texto, abajo), un anuncio con su markup, o nada para que lo llene el programático. Hay <b>≈ 2,500 anuncios activos</b> de ≈ 600 campañas, segmentados por sección, dispositivo, región, hora e intereses de 30 días (solo con consentimiento). Cada campaña puede tener <b>tope de frecuencia</b> por persona (p. ej. 5 al día) y <b>presupuesto diario</b> repartido en el día."
+        "a": "Entrada por request: sección, dispositivo, ciudad o estado aproximado (por la IP), consentimiento y un id seudónimo; la hora local la pone el ad server. Salida: para cada uno de los <b>3 slots</b> (banner arriba, dentro del texto, abajo), un anuncio con su markup, o nada para que lo llene el programático. Hay <b>≈ 2,500 anuncios activos</b> de ≈ 600 campañas, segmentados por sección, dispositivo, región, hora e intereses de 30 días (solo con consentimiento); después de segmentación, topes y presupuestos quedan <b>≈ 150 elegibles</b> por request. Cada campaña puede tener <b>tope de frecuencia</b> por persona (p. ej. 5 al día) y <b>presupuesto diario</b> repartido en el día."
       },
       {
         "topic": "Escala",
@@ -1312,7 +1312,7 @@
       },
       {
         "topic": "Datos y labels",
-        "a": "La impresión se registra cuando el anuncio es <b>viewable</b> (un beacon de la página); el clic pasa por un redirect <code>/click</code>. Los dos van al topic de Kafka <code>ad-events</code>. Label acordado: <b>clic dentro de 30 min</b> de una impresión viewable. CTR promedio <b>≈ 0.35 %</b> (0.1–1.5 % según slot y sección): ≈ <b>1.05 M de clics al día</b>. De la persona, el historial de secciones leídas. Hay bots y algún anunciante que reclama clics; hoy solo se filtran los user agents de bots declarados."
+        "a": "La impresión se registra cuando el anuncio es <b>viewable</b> (un beacon de la página); el clic pasa por un redirect <code>/click</code>. Los dos van al topic de Kafka <code>ad-events</code>. Label acordado: <b>clic dentro de 30 min</b> de una impresión viewable. CTR promedio <b>≈ 0.35 %</b> (0.1–1.5 % según slot y sección): ≈ <b>1.05 M de clics al día</b>. De la persona, el historial de secciones leídas. Hay bots y algún anunciante que reclama clics; hoy solo se filtran los user agents de bots declarados, y un clic inválido no se cobra."
       },
       {
         "topic": "Restricciones",
