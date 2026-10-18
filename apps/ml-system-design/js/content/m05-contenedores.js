@@ -259,6 +259,7 @@ CMD uvicorn app.main:app --host 0.0.0.0 --workers 4` },
           ], caption: 'Compáralo con el del c01: mismas funciones, ninguno de estos problemas.' },
           { t: 'callout', kind: 'senior', html: `<p>El Dockerfile es parte del contrato de reproducibilidad, igual que el dataset versionado. Lo que un revisor senior pregunta no es "¿funciona?" sino "¿qué imagen sale si lo construyo dentro de seis meses?". La respuesta correcta es "la misma", y se logra con base por digest, dependencias fijadas con hash, builds solo en CI y la imagen identificada por digest desde ahí en adelante.</p>` },
           { t: 'callout', kind: 'skip', html: `<p>Cache mounts de BuildKit (<code>RUN --mount=type=cache</code>), heredocs, <code>COPY --link</code>, attestations de SBOM y provenance en el build: útiles para acelerar el CI o para auditoría, irrelevantes en la ronda de diseño.</p>` },
+          { t: 'callout', kind: 'connect', html: `Para escribir uno desde cero con la documentación abierta, y para leer un fallo en minutos, usa el <a href="https://cheat-sheets-ml.vercel.app/docker/" target="_blank" rel="noopener">cheat sheet de Docker</a>. Su revisor de Dockerfile marca los errores típicos de esta sección; el Dockerfile del gateway pasa sin avisos.` },
         ],
       },
 

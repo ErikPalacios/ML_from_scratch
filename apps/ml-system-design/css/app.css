@@ -330,6 +330,7 @@ html.drawer-open, html.modal-open { overflow: hidden; }
 .nav__item .ico { color: var(--muted); }
 .nav__title { overflow-wrap: anywhere; }  /* títulos largos en 2 líneas en vez de cortarlos con … */
 .nav__item.is-soon .nav__title { color: var(--muted); }
+.nav__item--ext .nav__mk { color: var(--muted); font-size: 13px; }
 .nav__mk { display: inline-flex; align-items: center; justify-content: flex-end; min-width: 16px; }
 .mk-done { color: var(--ok); display: inline-flex; }
 .mk-soon {

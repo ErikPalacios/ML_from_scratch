@@ -38,6 +38,8 @@
     { id: 'p3', label: 'Parte 3 — Práctica', ids: ['practica', 'historial', 'flashcards', 'problemas', 'mis-notas'] },
     { id: 'p4', label: 'Parte 4 — Referencias', ids: ['ref-numeros', 'ref-herramientas', 'ref-comandos', 'glosario'] },
   ];
+  // Sitio aparte con las hojas de estudio (formulario de estimaciones, Docker…): enlace al final de la Parte 4.
+  const CHEAT_SHEETS_URL = 'https://cheat-sheets-ml.vercel.app/';
   const STATE_LABEL = { done: 'completado', progress: 'en curso', ready: 'disponible', soon: 'próximamente' };
   const FREQ_LABEL = { alta: 'alta', media: 'media', baja: 'baja' };
   const PRIO = { core: ['prio--core', 'Esencial'], extra: ['prio--extra', 'Extra'], skip: ['prio--skip', 'Sáltate esto'] };
@@ -259,6 +261,14 @@
         if (sg.label) box.appendChild(h('p', { class: 'nav__sub', 'aria-hidden': 'true' }, sg.label));
         box.appendChild(h('ul', { class: 'nav__list', role: sg.label ? 'group' : null, 'aria-label': sg.label || null }, sg.ids.map(navItem)));
       }
+      if (g.id === 'p4') {
+        box.appendChild(h('ul', { class: 'nav__list' }, h('li', null, h('a', {
+          class: 'nav__item nav__item--ext', href: CHEAT_SHEETS_URL, target: '_blank', rel: 'noopener',
+          title: 'Cheat sheets: formulario de estimaciones y Docker, en web y PDF (se abre en otra pestaña)',
+          on: { click: () => { if (S.drawerOpen) closeDrawer(false); } },
+        }, h('span', { class: 'nav__num', html: icon('link') }), h('span', { class: 'nav__title' }, 'Cheat sheets'),
+        h('span', { class: 'nav__mk', 'aria-hidden': 'true' }, '↗')))));
+      }
       els.nav.appendChild(box);
     }
     updateNavMarkers();
@@ -287,6 +297,7 @@
     const notesN = safe(() => store.listNotes().length, 0);
     els.nav.querySelectorAll('.nav__item').forEach((a) => {
       const id = a.dataset.id;
+      if (!id) return; // enlace externo (cheat sheets): sin estado ni marcador
       const mk = a.querySelector('.nav__mk');
       const m = meta(id);
       let html = '';
