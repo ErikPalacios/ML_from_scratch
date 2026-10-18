@@ -1,0 +1,1440 @@
+{
+  "sections": [
+    {
+      "id": "run",
+      "num": 4,
+      "title": "docker run y el ciclo de vida",
+      "question": "¿Cómo arrancas un contenedor, lo miras por dentro y entiendes por qué se detuvo?",
+      "templates": [
+        {
+          "code": "docker run -d --name {nombre} -p {puerto_host}:{puerto_cont} -e {VAR}={valor} {imagen}:{tag}",
+          "note": "Las flags van <b>antes</b> de la imagen; lo que escribas después de la imagen reemplaza al <code>CMD</code>."
+        },
+        {
+          "code": "docker run --rm -it --entrypoint {programa} {imagen}:{tag} {args}",
+          "note": "<code>--entrypoint</code> cambia el programa y descarta el <code>CMD</code> de la imagen; lo que va después de la imagen son sus argumentos."
+        },
+        {
+          "code": "docker run -d --name {nombre} --restart {política} --memory {mem} --cpus {cpus} {imagen}:{tag}",
+          "note": "Qué hace Docker cuando el proceso termina y cuánto puede usar: lo que en Kubernetes hacen el kubelet y <code>resources.limits</code>."
+        },
+        {
+          "code": "docker ps -a --filter name={nombre}\ndocker logs -f {nombre}\ndocker exec -it {nombre} {programa}\ndocker stop {nombre} && docker rm {nombre}",
+          "note": "Después todo va por nombre: ver el estado (incluidos los que terminaron), seguir los logs, entrar, parar y borrar."
+        }
+      ],
+      "formulas": [
+        "d_k = \\min\\!\\left(0.1\\,\\text{s}\\cdot 2^{\\,k-1},\\; 60\\,\\text{s}\\right)",
+        "m_{\\text{total}} = 2\\,m"
+      ],
+      "vars": [
+        [
+          "{nombre}",
+          "nombre del contenedor; único en el host, aunque esté parado",
+          "gw"
+        ],
+        [
+          "{puerto_host}",
+          "puerto de tu Mac",
+          "8080"
+        ],
+        [
+          "{puerto_cont}",
+          "puerto donde escucha el proceso dentro del contenedor",
+          "8080"
+        ],
+        [
+          "{VAR}",
+          "nombre de una variable de entorno",
+          "MODEL_NAME"
+        ],
+        [
+          "{valor}",
+          "su valor",
+          "classifier"
+        ],
+        [
+          "{imagen}",
+          "repositorio de la imagen",
+          "classifier-gateway"
+        ],
+        [
+          "{tag}",
+          "versión de la imagen",
+          "dev (en CI, el commit: 3f9c2ab)"
+        ],
+        [
+          "{programa}",
+          "ejecutable que corre en lugar del ENTRYPOINT, o el que lanzas con exec",
+          "sh (para entrar a una imagen de NGC sin su script de entrada)"
+        ],
+        [
+          "{args}",
+          "argumentos del programa",
+          "-c 'ls /models'"
+        ],
+        [
+          "{política}",
+          "no (default), on-failure[:N], always o unless-stopped",
+          "unless-stopped (como el gateway en Compose)"
+        ],
+        [
+          "{mem}",
+          "tope de RAM, con sufijo b, k, m o g; mínimo 6m",
+          "512m"
+        ],
+        [
+          "{cpus}",
+          "tope de CPU en cores; acepta fracciones",
+          "1.5"
+        ],
+        [
+          "d_k",
+          "espera antes del reinicio número k; vuelve a 0.1 s si el contenedor alcanzó a correr 10 s",
+          "0.1 s, 0.2 s, 0.4 s… hasta 60 s"
+        ],
+        [
+          "k",
+          "número de reinicio seguido",
+          "1, 2, 3"
+        ],
+        [
+          "m, m_total",
+          "valor de --memory y lo que el contenedor puede usar entre RAM y swap si no fijas --memory-swap (la VM de Docker Desktop trae 1 GB de swap)",
+          "32m → 64m en total"
+        ]
+      ],
+      "pieces": [
+        [
+          "-d · -it",
+          "-d: segundo plano e imprime el ID. -it: stdin abierto y una terminal, para shells y REPLs.",
+          "docker run -it --rm python:3.12-slim"
+        ],
+        [
+          "--rm · --name",
+          "--rm borra el contenedor y sus volúmenes anónimos al salir; --name le da un nombre para los demás comandos.",
+          "--rm --name gw"
+        ],
+        [
+          "-p {puerto_host}:{puerto_cont}",
+          "Publica un puerto: el host escucha y reenvía al contenedor. Primero va el host (sección 6).",
+          "-p 8080:8080"
+        ],
+        [
+          "-e · --env-file",
+          "Variables de entorno: una por flag, o un archivo con una línea VAR=valor por variable.",
+          "-e TRITON_URL=triton:8000"
+        ],
+        [
+          "-v · --mount",
+          "Monta una carpeta del host o un volumen; --mount también un tmpfs (sección 7).",
+          "-v ./config:/etc/app:ro"
+        ],
+        [
+          "--restart",
+          "Qué hace Docker cuando el proceso termina: no, on-failure[:N], always o unless-stopped. Incompatible con --rm.",
+          "--restart unless-stopped"
+        ],
+        [
+          "--memory · --cpus",
+          "Topes de RAM (pasar RAM + swap: OOM kill, exit 137) y de CPU (pasarlo lo frena, no lo mata).",
+          "--memory 512m --cpus 1"
+        ],
+        [
+          "--entrypoint · -w · --user",
+          "Cambian el programa, el directorio de trabajo (lo crea si falta) y el UID:GID del proceso.",
+          "--entrypoint sh -w /srv --user 10001:10001"
+        ],
+        [
+          "docker ps -a",
+          "Lista también los contenedores que terminaron; STATUS trae el exit code.",
+          "Exited (137) 5 seconds ago"
+        ],
+        [
+          "docker logs -f",
+          "stdout y stderr del contenedor, aunque ya haya terminado; -f sigue, -n da las últimas líneas.",
+          "docker logs -f -n 50 gw"
+        ],
+        [
+          "docker exec -it",
+          "Proceso nuevo dentro de un contenedor que corre; no es el PID 1 ni reinicia nada.",
+          "docker exec -it gw sh"
+        ],
+        [
+          "docker inspect -f",
+          "JSON completo del contenedor; -f extrae campos con una plantilla Go.",
+          "docker inspect -f '{{.State.ExitCode}} {{.State.OOMKilled}}' gw"
+        ],
+        [
+          "docker stats",
+          "CPU, memoria contra su tope, red y disco en vivo; --no-stream da una sola lectura.",
+          "docker stats --no-stream gw"
+        ],
+        [
+          "docker stop · kill · rm -f",
+          "stop: SIGTERM, espera 10 s y SIGKILL. kill: SIGKILL inmediato. rm -f: borra aunque corra, con SIGKILL.",
+          "docker stop -t 30 gw"
+        ]
+      ],
+      "tables": [
+        {
+          "caption": "Políticas de reinicio (--restart en docker run, restart: en Compose)",
+          "head": [
+            "Política",
+            "Reinicia cuando…",
+            "Después de docker stop",
+            "Al reiniciar Docker (o Docker Desktop)"
+          ],
+          "rows": [
+            [
+              "no (default)",
+              "nunca",
+              "queda parado",
+              "no arranca"
+            ],
+            [
+              "on-failure[:N]",
+              "el exit code no es 0, hasta N veces",
+              "queda parado",
+              "no arranca"
+            ],
+            [
+              "always",
+              "termina por cualquier motivo",
+              "queda parado",
+              "arranca otra vez, aunque lo hayas parado tú"
+            ],
+            [
+              "unless-stopped",
+              "termina por cualquier motivo",
+              "queda parado",
+              "arranca solo si estaba corriendo"
+            ]
+          ],
+          "note": "Las esperas entre reinicios crecen (100 ms, 200 ms, 400 ms… hasta 1 min). Ninguna política mira el HEALTHCHECK: solo el exit code."
+        }
+      ],
+      "example": {
+        "title": "El gateway de C01 con docker run, sin Triton",
+        "lang": "bash",
+        "code": "# Desde reference/c01. El gateway solo no necesita GPU (en tu Mac corre emulado como amd64)\ndocker build --platform linux/amd64 -t classifier-gateway:dev gateway/\n\n# Los valores del servicio gateway de docker-compose.yml, como flags\ndocker run -d --name gw -p 8080:8080 \\\n  -e MODEL_NAME=classifier -e INFER_TIMEOUT_S=0.15 \\\n  --restart unless-stopped --memory 512m --cpus 1 \\\n  classifier-gateway:dev\n\ndocker ps --filter name=gw      # STATUS: Up … (health: starting) y, a los segundos, (healthy)\ncurl -i localhost:8080/healthz   # 200: el proceso vive\ncurl -i localhost:8080/readyz    # 503: sin Triton no está listo\ndocker inspect -f '{{.State.Health.Status}} user={{.Config.User}} cwd={{.Config.WorkingDir}}' gw\ndocker logs -f -n 20 gw          # Ctrl+C deja de seguir; el contenedor sigue\ndocker stop -t 30 gw && docker inspect -f 'exit={{.State.ExitCode}}' gw\ndocker rm gw",
+        "source": "reference/c01/gateway/Dockerfile y el servicio gateway de reference/c01/docker-compose.yml, escritos como docker run",
+        "notes": [
+          "Cada <code>-e</code> sale del bloque <code>environment:</code> del servicio <code>gateway</code>, y <code>--restart unless-stopped</code> de su línea <code>restart:</code>. <code>TRITON_URL</code> queda fuera a propósito: sin él, el gateway apunta a <code>localhost:8000</code> (sección 6).",
+          "<code>(healthy)</code> en <code>docker ps</code> sale del <code>HEALTHCHECK</code> del Dockerfile, que le pega a <code>/healthz</code> con Python porque la imagen slim no trae curl.",
+          "<code>/healthz</code> en 200 y <code>/readyz</code> en 503 a la vez es la degradación diseñada de C01: el proceso vive, pero no puede inferir.",
+          "<code>inspect</code> confirma lo que fijó el Dockerfile: <code>healthy user=10001 cwd=/srv</code> (<code>USER 10001</code>, <code>WORKDIR /srv</code>).",
+          "<code>docker stop -t 30</code> da <code>exit=0</code> porque el <code>CMD</code> está en forma exec: uvicorn es el PID 1, recibe SIGTERM y drena. Los 30 s son los que el gateway tiene en k8s después del SIGTERM (sección 5)."
+        ]
+      },
+      "figure": {
+        "kind": "lifecycle",
+        "caption": "Estados de un contenedor y los comandos que lo mueven. restarting solo existe con una política de reinicio; docker ps sin -a esconde los created, exited y dead.",
+        "data": {
+          "states": [
+            "imagen",
+            "created",
+            "running",
+            "paused",
+            "restarting",
+            "exited",
+            "dead",
+            "eliminado"
+          ],
+          "pseudo": [
+            "imagen",
+            "eliminado"
+          ],
+          "edges": [
+            [
+              "imagen",
+              "created",
+              "docker create"
+            ],
+            [
+              "imagen",
+              "running",
+              "docker run (= create + start)"
+            ],
+            [
+              "created",
+              "running",
+              "docker start"
+            ],
+            [
+              "running",
+              "paused",
+              "docker pause"
+            ],
+            [
+              "paused",
+              "running",
+              "docker unpause"
+            ],
+            [
+              "running",
+              "exited",
+              "el proceso termina · docker stop · docker kill · OOM"
+            ],
+            [
+              "running",
+              "restarting",
+              "el proceso termina y la política pide reiniciar"
+            ],
+            [
+              "restarting",
+              "running",
+              "tras 100 ms, 200 ms, 400 ms… (tope 1 min)"
+            ],
+            [
+              "exited",
+              "running",
+              "docker start · docker restart"
+            ],
+            [
+              "created",
+              "eliminado",
+              "docker rm"
+            ],
+            [
+              "exited",
+              "eliminado",
+              "docker rm (o --rm al salir)"
+            ],
+            [
+              "running",
+              "eliminado",
+              "docker rm -f (SIGKILL)"
+            ],
+            [
+              "exited",
+              "dead",
+              "falló el borrado (raro)"
+            ]
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>run = create + start</b>, con las flags antes de la imagen. Ante un contenedor caído, siempre <code>ps -a</code> → <code>logs</code> → <code>inspect</code> (estado, exit code, <code>OOMKilled</code>, <code>RestartCount</code>).",
+      "trap": "Trampa: <code>docker ps</code> sin <code>-a</code> esconde los contenedores que terminaron; el que \"desapareció\" sigue ahí con su exit code y sus logs. Y una política de reinicio no arregla un bug: con <code>--restart always</code>, un error al arrancar se vuelve un bucle de reinicios cada vez más espaciados (hasta 1 min) que lo disimula. Mira <code>RestartCount</code> y los logs antes de subir límites.",
+      "lab": {
+        "goal": "Provocar los finales típicos de un contenedor (termina enseguida, falla y se reinicia, muere por OOM, se frena por CPU) y leerlos con ps -a, logs, inspect y stats.",
+        "steps": [
+          {
+            "cmd": "docker run -d --name lab-run python:3.12-slim\ndocker ps --filter name=lab-run\ndocker ps -a --filter name=lab-run",
+            "expect": "El primer comando imprime un ID. docker ps muestra solo la cabecera; docker ps -a muestra lab-run con STATUS Exited (0): el CMD de la imagen es python3 (un REPL) y, sin -i, lee fin de archivo y termina sin error."
+          },
+          {
+            "cmd": "docker run -it --rm python:3.12-slim",
+            "expect": "Ahora sí aparece el prompt >>> porque -i deja stdin abierto y -t da una terminal. Sal con exit(); por el --rm, el contenedor ya no figura en docker ps -a."
+          },
+          {
+            "cmd": "docker run -d --name lab-crash --restart on-failure:3 python:3.12-slim python -c \"import sys; print('arranco y fallo', flush=True); sys.exit(1)\"\nsleep 8\ndocker inspect -f '{{.State.Status}} exit={{.State.ExitCode}} reinicios={{.RestartCount}}' lab-crash\ndocker logs lab-crash",
+            "expect": "exited exit=1 reinicios=3, y cuatro líneas arranco y fallo: el arranque más 3 reinicios, separados por 100, 200 y 400 ms. Si alcanzas a correr docker ps -a durante el primer segundo, verás Restarting (1)."
+          },
+          {
+            "cmd": "docker run --name lab-oom --memory 32m --memory-swap 32m python:3.12-slim python -c \"b = bytearray(300 * 1024 * 1024); print('cupo')\"\necho \"exit del run: $?\"\ndocker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' lab-oom",
+            "expect": "No imprime cupo: el run devuelve 137 e inspect dice exit=137 oom=true. El kernel mató a python al pasar los 32 MB, sin swap porque --memory-swap es igual a --memory (sin ese flag tendría 32 MB más de swap). oom=true confirma memoria; un false no la descarta del todo si nadie corrió stop ni kill: containerd a veces pierde el evento de OOM."
+          },
+          {
+            "cmd": "docker run -d --name lab-cpu --cpus 0.5 --memory 128m python:3.12-slim python -c \"while True: pass\"\nsleep 3\ndocker stats --no-stream lab-cpu",
+            "expect": "CPU % ronda el 50 % (medio core) y MEM USAGE / LIMIT muestra el tope de 128MiB. Pasarse de CPU no mata el contenedor: lo frena."
+          }
+        ],
+        "fix": "Lee antes de tocar nada: exit 1 con un traceback en los logs es tu código; 137 con oom=true es el tope de memoria; Exited (0) es que el proceso terminó. Para el OOM, mide con docker stats y deja margen: docker run --rm --memory 512m python:3.12-slim python -c \"b = bytearray(300 * 1024 * 1024); print('cupo')\" imprime cupo. Limpia con docker rm -f lab-run lab-crash lab-oom lab-cpu.",
+        "needs": "Docker Desktop corriendo (si está apagado, el CLI responde failed to connect to the docker API at unix:///Users/…/.docker/run/docker.sock, o Cannot connect to the Docker daemon at …). La primera vez se baja python:3.12-slim, ≈ 44 MB para arm64.",
+        "verified": "docs",
+        "verified_note": "No ejecutado aquí: no había daemon de Docker en la sesión. Comandos, flags, defaults y mensajes verificados contra docs.docker.com y el código de moby 29.9.1. El backoff (100 ms ×2, tope 1 min) y el conteo de on-failure:N salen de su restart manager: la doc dice que la política aplica después de 10 s arriba, pero en el código esos 10 s solo devuelven la espera a 100 ms. OOMKilled lo marca un evento de containerd que se puede perder (containerd #8893)."
+      },
+      "links": [
+        "#ref-comandos.docker",
+        "#ref-comandos.depurar",
+        "#m05.compose-local",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "pid1",
+      "num": 5,
+      "title": "ENTRYPOINT vs CMD, PID 1 y señales",
+      "question": "¿Quién es el PID 1 de tu contenedor y qué hace cuando llega SIGTERM?",
+      "templates": [
+        {
+          "code": "CMD [\"{ejecutable}\", \"{arg}\"]",
+          "note": "Forma exec: lista JSON con comillas dobles. Docker ejecuta el programa sin shell y ese proceso es el PID 1."
+        },
+        {
+          "code": "ENTRYPOINT [\"{ejecutable}\"]\nCMD [\"{arg}\"]",
+          "note": "<code>ENTRYPOINT</code> fija el programa y <code>CMD</code> trae los argumentos por defecto: lo que pongas después de la imagen en <code>docker run</code> reemplaza solo al <code>CMD</code>."
+        },
+        {
+          "code": "#!/bin/sh\nset -e\n{preparación}\nexec \"$@\"",
+          "note": "Script de entrada (<code>ENTRYPOINT [\"/entrypoint.sh\"]</code>): prepara y, con <code>exec</code>, le cede el PID 1 al <code>CMD</code>."
+        },
+        {
+          "code": "docker run --init --stop-timeout {segundos} {imagen}",
+          "note": "<code>--init</code> pone tini como PID 1 para reenviar señales; <code>--stop-timeout</code> cambia los 10 s antes del SIGKILL. En Compose: <code>init: true</code> y <code>stop_grace_period</code>."
+        }
+      ],
+      "formulas": [
+        "\\text{código de salida} = 128 + n_{\\text{señal}}",
+        "t_{\\text{drenado}} + \\text{margen} \\le t_{\\text{gracia}} = T_{\\text{k8s}} - t_{\\text{preStop}}"
+      ],
+      "vars": [
+        [
+          "{ejecutable}",
+          "programa que queda como PID 1",
+          "uvicorn"
+        ],
+        [
+          "{arg}",
+          "un argumento por elemento de la lista",
+          "\"app.main:app\", \"--host\", \"0.0.0.0\""
+        ],
+        [
+          "{preparación}",
+          "lo que el script hace antes de ceder el control",
+          "generar un archivo de config desde variables de entorno"
+        ],
+        [
+          "{segundos}",
+          "plazo entre SIGTERM y SIGKILL",
+          "30"
+        ],
+        [
+          "{imagen}",
+          "imagen con su tag",
+          "lab-pid1:exec"
+        ],
+        [
+          "n_señal",
+          "número de la señal que terminó al proceso",
+          "9 (SIGKILL) → 137; 15 (SIGTERM) → 143"
+        ],
+        [
+          "t_gracia",
+          "plazo de SIGTERM a SIGKILL (docker stop -t, stop_grace_period)",
+          "10 s por defecto en docker stop y Compose; 30 s en el k8s del gateway (45 − 15 de preStop)"
+        ],
+        [
+          "T_k8s",
+          "terminationGracePeriodSeconds: plazo total en Kubernetes, preStop incluido",
+          "45 s en k8s/gateway.yaml"
+        ],
+        [
+          "t_preStop",
+          "espera antes del SIGTERM (solo en Kubernetes); corre dentro del plazo total de Kubernetes",
+          "15 s en el gateway de C01"
+        ],
+        [
+          "t_drenado",
+          "lo que el servidor tarda en terminar lo que tiene en curso",
+          "hasta 20 s (--timeout-graceful-shutdown 20)"
+        ],
+        [
+          "margen",
+          "colchón para el resto del apagado",
+          "10 s"
+        ]
+      ],
+      "pieces": [
+        [
+          "Forma exec",
+          "Lista JSON: Docker ejecuta el programa directo, sin shell; tampoco expande $VARIABLES.",
+          "CMD [\"uvicorn\", \"app.main:app\"]"
+        ],
+        [
+          "Forma shell",
+          "Docker la envuelve en /bin/sh -c; en imágenes Debian, sh queda como PID 1.",
+          "CMD uvicorn app.main:app"
+        ],
+        [
+          "ENTRYPOINT",
+          "El programa fijo de la imagen; los argumentos de docker run se le agregan al final.",
+          "ENTRYPOINT [\"/opt/nvidia/nvidia_entrypoint.sh\"] (bases de NGC)"
+        ],
+        [
+          "CMD",
+          "Comando o argumentos por defecto; se reemplaza con lo que va después de la imagen.",
+          "docker run classifier-triton:… tritonserver --help"
+        ],
+        [
+          "PID 1",
+          "Primer proceso del contenedor: el kernel le descarta las señales sin handler (salvo SIGKILL) y, si muere, muere todo.",
+          "docker top gw"
+        ],
+        [
+          "SIGTERM (15)",
+          "El aviso de docker stop y del kubelet: deja de aceptar trabajo, termina lo que tienes y sal.",
+          "docker stop -t 30 gw"
+        ],
+        [
+          "SIGKILL (9)",
+          "Muerte inmediata; no se puede atrapar. Llega cuando vence el plazo.",
+          "docker kill gw"
+        ],
+        [
+          "Plazo (grace period)",
+          "docker stop -t, --stop-timeout o stop_grace_period: 10 s por defecto; en Kubernetes, 30 s.",
+          "terminationGracePeriodSeconds: 45 (gateway de C01)"
+        ],
+        [
+          "STOPSIGNAL · --stop-signal",
+          "Cambian la primera señal de docker stop (SIGTERM por defecto).",
+          "STOPSIGNAL SIGINT"
+        ],
+        [
+          "--init · tini",
+          "PID 1 mínimo que reenvía señales y recoge zombis; devuelve el código de salida del hijo.",
+          "docker run --init … · init: true"
+        ],
+        [
+          "exec \"$@\"",
+          "Última línea de un script de entrada: el shell se reemplaza por el CMD, que pasa a ser PID 1.",
+          "el entrypoint de NGC hace exec del CMD"
+        ],
+        [
+          "JSONArgsRecommended",
+          "Aviso de BuildKit al construir un CMD o ENTRYPOINT en forma shell.",
+          "...to prevent unintended behavior related to OS signals"
+        ],
+        [
+          "uvicorn --timeout-graceful-shutdown",
+          "Con SIGTERM deja de aceptar, espera hasta N s las requests en curso y corre el shutdown del lifespan.",
+          "--timeout-graceful-shutdown 20"
+        ],
+        [
+          "gunicorn --graceful-timeout",
+          "TERM es apagado ordenado: espera a los workers hasta N s (30 por defecto); INT o QUIT, rápido.",
+          "gunicorn app.main:app -k uvicorn_worker.UvicornWorker -b 0.0.0.0:8080 --graceful-timeout 20"
+        ]
+      ],
+      "tables": [
+        {
+          "caption": "Qué ejecuta Docker según combines ENTRYPOINT y CMD (la tabla de la referencia del Dockerfile)",
+          "head": [
+            "",
+            "Sin ENTRYPOINT",
+            "ENTRYPOINT exec_entry p1_entry (shell)",
+            "ENTRYPOINT [\"exec_entry\", \"p1_entry\"] (exec)"
+          ],
+          "rows": [
+            [
+              "Sin CMD",
+              "error: no se permite",
+              "/bin/sh -c exec_entry p1_entry",
+              "exec_entry p1_entry"
+            ],
+            [
+              "CMD [\"exec_cmd\", \"p1_cmd\"] (exec)",
+              "exec_cmd p1_cmd",
+              "/bin/sh -c exec_entry p1_entry",
+              "exec_entry p1_entry exec_cmd p1_cmd"
+            ],
+            [
+              "CMD exec_cmd p1_cmd (shell)",
+              "/bin/sh -c exec_cmd p1_cmd",
+              "/bin/sh -c exec_entry p1_entry",
+              "exec_entry p1_entry /bin/sh -c exec_cmd p1_cmd"
+            ]
+          ],
+          "note": "Las cuatro combinaciones con ambas instrucciones: solo exec + exec da lo que quieres. ENTRYPOINT en forma shell ignora el CMD y, en bases Debian, deja a sh como PID 1; ENTRYPOINT exec con CMD shell le pasa \"/bin/sh -c …\" como argumentos. Si la imagen base define CMD y tú agregas ENTRYPOINT, ese CMD se borra: vuelve a declararlo."
+        },
+        {
+          "caption": "Códigos de salida que vas a ver",
+          "head": [
+            "Código",
+            "Qué pasó",
+            "Cómo lo confirmas"
+          ],
+          "rows": [
+            [
+              "0",
+              "Terminó bien, también si atrapó SIGTERM y salió limpio",
+              "el log muestra el apagado"
+            ],
+            [
+              "1 u otro código",
+              "Lo eligió tu proceso (1: una excepción sin atrapar en Python)",
+              "docker logs: el traceback"
+            ],
+            [
+              "125",
+              "Falló Docker mismo (flag inválida, imagen que no existe o pull denegado, error del daemon): el contenedor nunca corrió",
+              "el mensaje del CLI, p. ej. The container name \"/gw\" is already in use"
+            ],
+            [
+              "126",
+              "El comando existe pero no se puede ejecutar (permisos, es un directorio)",
+              "permission denied: un script sin chmod +x"
+            ],
+            [
+              "127",
+              "Comando no encontrado",
+              "exec: \"uvicorn\": executable file not found in $PATH"
+            ],
+            [
+              "130 = 128 + 2",
+              "SIGINT: Ctrl+C",
+              "lo apretaste en un docker run -it"
+            ],
+            [
+              "137 = 128 + 9",
+              "SIGKILL: el OOM killer o el fin del plazo (docker stop, docker kill)",
+              "inspect: OOMKilled true es memoria; false es plazo vencido o kill, salvo que nadie lo haya parado"
+            ],
+            [
+              "143 = 128 + 15",
+              "Murió por SIGTERM: no lo manejó (lo típico con --init y un proceso sin handler) o lo re-lanzó al terminar de drenar (uvicorn, si no es PID 1)",
+              "inspect: ExitCode 143"
+            ],
+            [
+              "255",
+              "Lo devuelve runc (no está en la tabla de Docker): el contenedor ya arrancó, pero el kernel no pudo ejecutar el entrypoint",
+              "docker logs: exec /ruta: exec format error (otra arquitectura) o no such file or directory (shebang con CRLF o intérprete ausente, como bash en Alpine)"
+            ]
+          ],
+          "note": "125: falló Docker y el contenedor nunca corrió. 126 y 127: docker run cuando no pudo arrancar tu comando (el contenedor queda en Created), o un shell adentro con el mismo significado. 255: runc, con el contenedor ya arrancado. El resto es el exit code de tu proceso."
+        }
+      ],
+      "example": {
+        "title": "Cómo se apaga el gateway de C01",
+        "lang": "dockerfile",
+        "code": "#   --timeout-graceful-shutdown 20  en SIGTERM termina los requests en curso (< terminationGracePeriodSeconds)\nCMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\", \"--workers\", \"1\", \\\n     \"--timeout-keep-alive\", \"75\", \"--no-access-log\", \"--timeout-graceful-shutdown\", \"20\"]",
+        "source": "reference/c01/gateway/Dockerfile (últimas líneas)",
+        "notes": [
+          "Lista JSON con comillas dobles: forma exec. uvicorn es el PID 1 y le llega directo el SIGTERM de <code>docker stop</code> o del kubelet.",
+          "<code>--timeout-graceful-shutdown 20</code>: con SIGTERM, uvicorn deja de aceptar conexiones, espera hasta 20 s las requests en curso y corre el shutdown del lifespan. Sin el flag espera sin límite.",
+          "En Kubernetes, <code>k8s/gateway.yaml</code> fija <code>terminationGracePeriodSeconds: 45</code> con un preStop de 15 s, y el plazo corre desde el preStop: después del SIGTERM al gateway le quedan 30 s (20 de drenado + margen). Por eso en Docker se usan 30 s: <code>docker stop -t 30</code> o <code>stop_grace_period: 30s</code>. Triton: preStop de 10 s + <code>--exit-timeout-secs=30</code> + margen = 60.",
+          "El <code>docker-compose.yml</code> no fija <code>stop_grace_period</code>: Compose usa 10 s, menos que los 20 s de drenado. En desarrollo casi no importa; para ensayar el apagado de producción, agrégale tú <code>stop_grace_period: 30s</code> al gateway (es una sugerencia: no está en el archivo).",
+          "El worker del caso C04 (<code>reference/c04/worker/Dockerfile</code>) parte de una base de NGC cuyo <code>ENTRYPOINT</code> imprime el banner y hace exec del <code>CMD</code>: el patrón <code>exec \"$@\"</code>, que deja a python como el proceso que recibe SIGTERM."
+        ]
+      },
+      "figure": {
+        "kind": "signals",
+        "caption": "docker stop manda SIGTERM al PID 1, espera el plazo (10 s por defecto) y manda SIGKILL. Cada carril es un PID 1 distinto y su código de salida.",
+        "data": {
+          "grace_s": 10,
+          "events": [
+            {
+              "t": 0,
+              "label": "docker stop: SIGTERM al PID 1"
+            },
+            {
+              "t": 10,
+              "label": "vence el plazo: SIGKILL"
+            }
+          ],
+          "lanes": [
+            {
+              "name": "Forma shell: sh es el PID 1",
+              "exit": "137",
+              "events": [
+                {
+                  "t": 0,
+                  "label": "SIGTERM a sh: sin handler, el kernel lo descarta"
+                },
+                {
+                  "t": 10,
+                  "label": "SIGKILL → exit 137"
+                }
+              ]
+            },
+            {
+              "name": "Forma exec con handler (uvicorn, tu app)",
+              "exit": "0",
+              "events": [
+                {
+                  "t": 0,
+                  "label": "SIGTERM a la app"
+                },
+                {
+                  "t": 0.3,
+                  "label": "drena y sale → exit 0"
+                }
+              ]
+            },
+            {
+              "name": "--init (tini) + proceso sin handler",
+              "exit": "143",
+              "events": [
+                {
+                  "t": 0,
+                  "label": "tini reenvía SIGTERM al hijo"
+                },
+                {
+                  "t": 0.1,
+                  "label": "muere por la señal → exit 143"
+                }
+              ]
+            },
+            {
+              "name": "Drenado configurado de 20 s con plazo de 10 s (gateway en Compose)",
+              "exit": "137 si todavía drenaba",
+              "events": [
+                {
+                  "t": 0,
+                  "label": "SIGTERM: uvicorn deja de aceptar y drena"
+                },
+                {
+                  "t": 10,
+                  "label": "SIGKILL a lo que siga en curso"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>el PID 1 solo recibe las señales que sabe manejar</b>. Forma exec + un servidor que maneje SIGTERM (uvicorn, gunicorn, Triton); si no controlas el proceso, <code>--init</code>; en un script de entrada, <code>exec \"$@\"</code> al final. <b>137</b> = te mataron, <b>143</b> = murió por SIGTERM, <b>0</b> = salió solo.",
+      "trap": "Trampa: la forma exec no basta si tu proceso no maneja SIGTERM. Python no instala un handler (solo convierte SIGINT en <code>KeyboardInterrupt</code>), así que un script propio como PID 1 ignora <code>docker stop</code> y muere a los 10 s con 137. Y la forma shell no falla igual en todas las bases: en Debian y Ubuntu, <code>/bin/sh</code> (dash) se queda como PID 1; en Alpine (busybox) y donde <code>/bin/sh</code> es bash, <code>sh -c</code> suele hacer exec del último comando y tu proceso queda como PID 1 por casualidad: basta un pipe (<code>|</code>) para que deje de serlo.",
+      "lab": {
+        "goal": "Ver quién es el PID 1, cuánto tarda docker stop y con qué código sale en cuatro casos: forma shell, forma exec con handler, PID 1 sin handler y --init.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-docker/pid1 && cd ~/lab-docker/pid1\ncat > app.py <<'EOF'\nimport os, signal, sys, time\n\ndef apagar(signum, frame):\n    print(\"SIGTERM recibido: cierro limpio\", flush=True)\n    sys.exit(0)\n\nsignal.signal(signal.SIGTERM, apagar)\nprint(f\"app lista, mi PID es {os.getpid()}\", flush=True)\nwhile True:\n    time.sleep(1)\nEOF\nprintf 'FROM python:3.12-slim\\nCOPY app.py /app.py\\nCMD python -u /app.py\\n' > Dockerfile.shell\nprintf 'FROM python:3.12-slim\\nCOPY app.py /app.py\\nCMD [\"python\", \"-u\", \"/app.py\"]\\n' > Dockerfile.exec\ndocker build -t lab-pid1:shell -f Dockerfile.shell .\ndocker build -q -t lab-pid1:exec -f Dockerfile.exec .",
+            "expect": "Dos imágenes que solo difieren en la línea CMD. El primer build termina con el aviso JSONArgsRecommended (…to prevent unintended behavior related to OS signals): BuildKit ya sospecha de la forma shell."
+          },
+          {
+            "cmd": "docker run -d --name pid1-shell lab-pid1:shell\nsleep 1\ndocker logs pid1-shell\ndocker top pid1-shell",
+            "expect": "El log dice app lista, mi PID es N, con N distinto de 1. docker top muestra dos procesos: /bin/sh -c python -u /app.py (el PID 1 del contenedor) y su hijo python -u /app.py. En una base Debian como esta, /bin/sh es dash y se queda esperando a su hijo."
+          },
+          {
+            "cmd": "time docker stop pid1-shell\ndocker inspect -f 'exit={{.State.ExitCode}}' pid1-shell\ndocker logs pid1-shell",
+            "expect": "docker stop tarda ≈ 10 s (zsh lo reporta al final de la línea, como … total), exit=137, y en el log no aparece SIGTERM recibido: sh, sin handler y como PID 1, descartó la señal; al vencer el plazo llegó el SIGKILL."
+          },
+          {
+            "cmd": "docker run -d --name pid1-exec lab-pid1:exec\nsleep 1\ndocker logs pid1-exec\ntime docker stop pid1-exec\ndocker inspect -f 'exit={{.State.ExitCode}}' pid1-exec\ndocker logs pid1-exec",
+            "expect": "Ahora el log dice mi PID es 1, docker stop vuelve en menos de un segundo, exit=0, y el log termina con SIGTERM recibido: cierro limpio."
+          },
+          {
+            "cmd": "docker run -d --name pid1-sinhandler python:3.12-slim python -c \"import time; time.sleep(600)\"\ntime docker stop pid1-sinhandler\ndocker run -d --name pid1-init --init python:3.12-slim python -c \"import time; time.sleep(600)\"\ntime docker stop pid1-init\ndocker inspect -f '{{.Name}} exit={{.State.ExitCode}}' pid1-sinhandler pid1-init",
+            "expect": "Sin handler, python como PID 1 también ignora SIGTERM: ≈ 10 s y /pid1-sinhandler exit=137. Con --init, tini es el PID 1 y le reenvía la señal a python, que ya no es PID 1 y muere con la acción por defecto: menos de un segundo y /pid1-init exit=143 (128 + 15)."
+          }
+        ],
+        "fix": "Forma exec y un proceso que maneje SIGTERM (uvicorn, gunicorn, Triton o un handler propio); si no controlas el proceso, --init (en Compose, init: true). En un script de entrada, termina con exec \"$@\". Limpia con docker rm -f pid1-shell pid1-exec pid1-sinhandler pid1-init, docker rmi lab-pid1:shell lab-pid1:exec y cd ~ && rm -rf ~/lab-docker/pid1.",
+        "needs": "Docker Desktop corriendo (si está apagado, el CLI responde failed to connect to the docker API at unix:///Users/…/.docker/run/docker.sock, o Cannot connect to the Docker daemon at …). La primera vez se baja python:3.12-slim, ≈ 44 MB para arm64.",
+        "verified": "docs",
+        "verified_note": "No ejecutado aquí: no había daemon de Docker en la sesión. Comandos, flags, defaults y mensajes verificados contra docs.docker.com y el código de moby 29.9.1, BuildKit, uvicorn y tini. Que dash se quede como PID 1 sale del parche 0004 de Debian, que desactiva el exec de sh -c (dash 0.5.12-12 de trixie, la base de python:3.12-slim); que tini salga con 128 + n, de su código."
+      },
+      "links": [
+        "#m05.dockerfile-ml",
+        "#m06.alta-disponibilidad",
+        "#c01.archivos",
+        "#ref-comandos.depurar"
+      ]
+    },
+    {
+      "id": "redes",
+      "num": 6,
+      "title": "Redes y puertos",
+      "question": "¿Quién puede llegar a tu contenedor, por qué puerto y con qué nombre?",
+      "templates": [
+        {
+          "code": "docker run -d -p {ip_host}:{puerto_host}:{puerto_cont} {imagen}",
+          "note": "Si omites la IP (<code>-p 8080:8080</code>), Docker publica en todas las interfaces (<code>0.0.0.0</code> y <code>[::]</code>); con <code>127.0.0.1</code>, solo tu máquina."
+        },
+        {
+          "code": "docker network create {red}\ndocker run -d --name {nombre} --network {red} {imagen}\n# otro contenedor de la red lo encuentra como http://{nombre}:{puerto_cont}",
+          "note": "En una red definida por ti, Docker resuelve los nombres de contenedor. Entre contenedores se usa el puerto <b>del contenedor</b>, sin <code>-p</code>."
+        },
+        {
+          "code": "uvicorn {app} --host 0.0.0.0 --port {puerto_cont}",
+          "note": "Dentro del contenedor, escucha en todas las interfaces: con el default de uvicorn (<code>127.0.0.1</code>) solo aceptaría conexiones del propio contenedor."
+        },
+        {
+          "code": "http://host.docker.internal:{puerto_host}",
+          "note": "Desde un contenedor hacia un servicio de tu Mac (Docker Desktop). En un Linux sin Desktop: <code>--add-host host.docker.internal=host-gateway</code>."
+        }
+      ],
+      "vars": [
+        [
+          "{ip_host}",
+          "interfaz del host donde se publica; si la omites, todas",
+          "127.0.0.1"
+        ],
+        [
+          "{puerto_host}",
+          "puerto del host",
+          "8080"
+        ],
+        [
+          "{puerto_cont}",
+          "puerto donde escucha el proceso adentro",
+          "8080 (gateway), 8000 (Triton)"
+        ],
+        [
+          "{imagen}",
+          "imagen con su tag",
+          "classifier-gateway:dev"
+        ],
+        [
+          "{red}",
+          "red definida por ti",
+          "lab-net; en Compose, classifier-c01_default"
+        ],
+        [
+          "{nombre}",
+          "nombre del contenedor o del servicio: es su nombre DNS en la red",
+          "triton"
+        ],
+        [
+          "{app}",
+          "módulo y objeto ASGI",
+          "app.main:app"
+        ]
+      ],
+      "pieces": [
+        [
+          "-p {puerto_host}:{puerto_cont}",
+          "El host escucha en el primero y reenvía al segundo; primero va el host.",
+          "-p 8080:80 (host 8080 → contenedor 80)"
+        ],
+        [
+          "-p 127.0.0.1:{puerto_host}:{puerto_cont}",
+          "Publica solo en el loopback del host: nadie más de tu red lo ve.",
+          "-p 127.0.0.1:9090:9090"
+        ],
+        [
+          "-P",
+          "Publica todos los puertos de EXPOSE en puertos altos al azar del host.",
+          "docker run -P … y luego docker port"
+        ],
+        [
+          "EXPOSE",
+          "Documenta el puerto para quien corre la imagen (y lo usa -P); no publica nada.",
+          "EXPOSE 8080 (gateway de C01)"
+        ],
+        [
+          "docker port",
+          "Muestra qué puerto del host apunta a cuál del contenedor.",
+          "8000/tcp -> 127.0.0.1:8001"
+        ],
+        [
+          "bridge por defecto",
+          "La red de docker run sin --network: los contenedores se ven solo por IP, sin DNS por nombre.",
+          "docker network ls → bridge"
+        ],
+        [
+          "Red definida por ti",
+          "docker network create: DNS por nombre de contenedor y aislamiento del resto.",
+          "docker network create lab-net"
+        ],
+        [
+          "Red de Compose",
+          "Compose crea la red del proyecto y cada servicio se resuelve por su nombre.",
+          "classifier-c01_default · triton:8000"
+        ],
+        [
+          "docker network connect",
+          "Conecta a otra red un contenedor que ya corre.",
+          "docker network connect lab-net lab-web"
+        ],
+        [
+          "localhost adentro",
+          "Es el propio contenedor: ni tu Mac ni el contenedor de al lado.",
+          "default localhost:8000 de TRITON_URL en app/main.py"
+        ],
+        [
+          "0.0.0.0 vs 127.0.0.1 (bind)",
+          "Adentro, 0.0.0.0 acepta lo que llega por la red de Docker; 127.0.0.1, solo lo del propio contenedor.",
+          "--host 0.0.0.0 en el CMD del gateway"
+        ],
+        [
+          "gunicorn -b",
+          "Su default es 127.0.0.1:8000 (0.0.0.0:$PORT si existe PORT): en un contenedor, pásale -b 0.0.0.0.",
+          "-b 0.0.0.0:8080"
+        ],
+        [
+          "host.docker.internal",
+          "Nombre que Docker Desktop resuelve a la IP interna de tu Mac.",
+          "curl http://host.docker.internal:8000"
+        ]
+      ],
+      "example": {
+        "title": "Puertos y nombres en el compose de C01",
+        "lang": "yaml",
+        "code": "name: classifier-c01  # prefijo de contenedores y red: no choca con otros proyectos compose\n\nservices:\n  triton:\n    # (…)\n    ports:\n      - \"8000:8000\"  # HTTP/REST KServe v2 (el gateway) y /v2/health/*\n      - \"8001:8001\"  # gRPC (perf_analyzer, clientes que lo prefieran)\n      - \"8002:8002\"  # métricas Prometheus nv_*\n    # (…)\n\n  gateway:\n    # (…)\n    ports:\n      - \"8080:8080\"  # la API pública: POST /v1/classify\n    environment:  # misma configuración que en k8s, solo cambian los valores\n      TRITON_URL: \"triton:8000\"  # nombre del servicio en la red de compose, sin http://\n      # (…)",
+        "source": "reference/c01/docker-compose.yml (extracto)",
+        "notes": [
+          "<code>name: classifier-c01</code> le pone nombre al proyecto: Compose crea la red <code>classifier-c01_default</code> y los contenedores <code>classifier-c01-triton-1</code>, <code>classifier-c01-gateway-1</code>.",
+          "<code>TRITON_URL: \"triton:8000\"</code>: nombre del servicio + puerto del contenedor. Si faltara, <code>app/main.py</code> usa su default <code>localhost:8000</code>, que dentro del gateway es el gateway mismo, y <code>/readyz</code> queda en 503.",
+          "Los <code>ports:</code> son para entrar desde tu Mac (curl, perf_analyzer, la UI de Prometheus). Entre contenedores no hacen falta: Prometheus scrapea <code>gateway:8080</code> y <code>triton:8002</code> por la red.",
+          "<code>EXPOSE 8080</code> en el Dockerfile del gateway solo documenta; lo que abre el puerto es <code>\"8080:8080\"</code>. Y su <code>CMD</code> lleva <code>--host 0.0.0.0</code> para que ese puerto llegue al proceso.",
+          "Los puertos van entre comillas porque el spec de Compose recomienda escribirlos siempre como string: YAML puede leer <code>xx:yy</code> como un número en base 60."
+        ]
+      },
+      "figure": {
+        "kind": "network",
+        "caption": "La red de Compose de C01 vista desde tu Mac: entras por los puertos publicados; adentro, cada servicio es un nombre DNS y se usa el puerto del contenedor.",
+        "data": {
+          "host": "tu Mac",
+          "vm": "VM Linux de Docker Desktop (sin docker0 visible desde el Mac)",
+          "network": "classifier-c01_default",
+          "containers": [
+            {
+              "name": "triton",
+              "port": 8000,
+              "published": "8000:8000 · 8001:8001 · 8002:8002",
+              "dns": "triton"
+            },
+            {
+              "name": "gateway",
+              "port": 8080,
+              "published": "8080:8080",
+              "dns": "gateway",
+              "calls": [
+                "triton:8000"
+              ]
+            },
+            {
+              "name": "prometheus",
+              "port": 9090,
+              "published": "9090:9090",
+              "dns": "prometheus",
+              "calls": [
+                "gateway:8080",
+                "triton:8002"
+              ]
+            }
+          ],
+          "notes": [
+            "Desde el Mac: localhost:8080, localhost:9090 (puertos publicados por Docker Desktop).",
+            "Entre contenedores: servicio:puerto del contenedor, sin -p.",
+            "localhost dentro del gateway es el gateway.",
+            "Del contenedor a tu Mac: host.docker.internal.",
+            "Adentro, cada servidor escucha en 0.0.0.0."
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>-p es host:contenedor</b> y solo sirve para entrar desde afuera; entre contenedores usas <b>servicio:puerto del contenedor</b> en una red con nombre (Compose ya crea una). Adentro, <code>localhost</code> es el propio contenedor y el servidor escucha en <code>0.0.0.0</code>.",
+      "trap": "Trampa: <code>-p 8080:8080</code> sin IP publica en todas las interfaces. Docker Desktop deja ese puerto accesible desde tu red local, y en un servidor Linux la referencia de Compose advierte que así se saltan las reglas del firewall del host. Publica lo interno (Prometheus, una base, un notebook) en <code>127.0.0.1</code>. Y desde tu Mac no llegas a la IP de un contenedor, porque el bridge vive dentro de la VM: usa el puerto publicado.",
+      "lab": {
+        "goal": "Ver por qué localhost y el bridge por defecto no sirven entre contenedores, arreglarlo con una red propia, y provocar el error de un servidor que escucha en 127.0.0.1.",
+        "steps": [
+          {
+            "cmd": "docker run -d --name lab-web python:3.12-slim python -u -m http.server 8000 --bind 0.0.0.0\ndocker run --rm python:3.12-slim python -c \"import urllib.request as u; print(u.urlopen('http://localhost:8000', timeout=3).status)\"",
+            "expect": "El segundo comando termina en urllib.error.URLError: <urlopen error [Errno 111] Connection refused>: localhost es el contenedor cliente, donde nadie escucha en el 8000."
+          },
+          {
+            "cmd": "docker run --rm python:3.12-slim python -c \"import urllib.request as u; print(u.urlopen('http://lab-web:8000', timeout=3).status)\"",
+            "expect": "Falla el DNS: urllib.error.URLError: <urlopen error [Errno -2] Name or service not known> (el resolver contestó que lab-web no existe) o, según el DNS de la VM, [Errno -3] Temporary failure in name resolution. Los dos están en el bridge por defecto, que no resuelve nombres de contenedor."
+          },
+          {
+            "cmd": "docker network create lab-net\ndocker network connect lab-net lab-web\ndocker run --rm --network lab-net python:3.12-slim python -c \"import urllib.request as u; print(u.urlopen('http://lab-web:8000', timeout=3).status)\"",
+            "expect": "Imprime 200: en una red creada por ti, Docker resuelve lab-web a su IP en esa red. Compose hace lo mismo con la red del proyecto (classifier-c01_default en C01)."
+          },
+          {
+            "cmd": "docker run -d --name lab-loop -p 127.0.0.1:8001:8000 python:3.12-slim python -u -m http.server 8000 --bind 127.0.0.1\nsleep 1\ndocker logs lab-loop\ncurl -sS --max-time 5 127.0.0.1:8001\ndocker exec lab-loop python -c \"import urllib.request as u; print(u.urlopen('http://localhost:8000', timeout=3).status)\"",
+            "expect": "El log dice Serving HTTP on 127.0.0.1 port 8000. Desde tu Mac, curl falla sin respuesta HTTP (en Docker Desktop suele ser Empty reply from server o Connection reset by peer); desde adentro, 200. Si adentro funciona y afuera no, el servidor escucha solo en el loopback del contenedor."
+          },
+          {
+            "cmd": "docker rm -f lab-loop\ndocker run -d --name lab-loop -p 127.0.0.1:8001:8000 python:3.12-slim python -u -m http.server 8000 --bind 0.0.0.0\nsleep 1\ncurl -sS -o /dev/null -w \"%{http_code}\\n\" 127.0.0.1:8001\ndocker port lab-loop",
+            "expect": "200, y docker port muestra 8000/tcp -> 127.0.0.1:8001: publicado solo en el loopback de tu Mac, con el servidor escuchando en todas las interfaces del contenedor."
+          }
+        ],
+        "fix": "Entre contenedores: una red definida por ti (o la de Compose) y http://nombre:puerto-del-contenedor; si un nombre no resuelve, revisa primero el nombre y la red (docker network inspect lab-net lista quién está conectado). Desde tu Mac: -p y un servidor que escuche en 0.0.0.0 (uvicorn --host 0.0.0.0). Limpia con docker rm -f lab-web lab-loop y docker network rm lab-net.",
+        "needs": "Docker Desktop corriendo (si está apagado, el CLI responde failed to connect to the docker API at unix:///Users/…/.docker/run/docker.sock, o Cannot connect to the Docker daemon at …). La primera vez se baja python:3.12-slim, ≈ 44 MB para arm64. curl ya viene en macOS.",
+        "verified": "docs",
+        "verified_note": "No ejecutado aquí: no había daemon de Docker en la sesión. Comandos, flags, defaults y mensajes verificados contra docs.docker.com y el código de moby 29.9.1. Los textos de DNS son los de glibc (la imagen es Debian); en alpine, Python (musl) dice Name does not resolve y las herramientas de busybox, bad address 'lab-web'. El error exacto de curl contra un servidor en 127.0.0.1 no está documentado; por eso van las dos variantes."
+      },
+      "links": [
+        "#m05.compose-local",
+        "#ref-comandos.compose",
+        "#ref-comandos.docker",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "volumenes",
+      "num": 7,
+      "title": "Volúmenes y permisos",
+      "question": "¿Dónde quedan tus datos cuando el contenedor muere, y quién puede escribirlos?",
+      "templates": [
+        {
+          "code": "-v {ruta_host}:{ruta_cont}:ro\n--mount type=bind,src={ruta_host},dst={ruta_cont},readonly",
+          "note": "Bind mount: un archivo o carpeta de tu máquina adentro del contenedor; <code>:ro</code> para que el proceso solo pueda leer."
+        },
+        {
+          "code": "-v {volumen}:{ruta_cont}\n--mount type=volume,src={volumen},dst={ruta_cont}",
+          "note": "Volumen nombrado: lo maneja Docker, se crea si no existe y sobrevive a <code>docker rm</code>."
+        },
+        {
+          "code": "--tmpfs {ruta_cont}:size={tamaño}\n--mount type=tmpfs,dst={ruta_cont},tmpfs-size={tamaño}",
+          "note": "En memoria: rápido, cuenta para <code>--memory</code> y se borra al parar el contenedor."
+        },
+        {
+          "code": "RUN mkdir -p {ruta_cont} && chown {uid}:{gid} {ruta_cont}\nUSER {uid}:{gid}",
+          "note": "La carpeta de datos ya existe en la imagen con el dueño del <code>USER</code>: un volumen nuevo montado ahí hereda ese dueño."
+        }
+      ],
+      "vars": [
+        [
+          "{ruta_host}",
+          "archivo o carpeta de tu máquina; en Compose, relativa con ./",
+          "./monitoring/prometheus.yml"
+        ],
+        [
+          "{ruta_cont}",
+          "ruta absoluta dentro del contenedor",
+          "/etc/prometheus/prometheus.yml"
+        ],
+        [
+          "{volumen}",
+          "nombre del volumen",
+          "prom-data"
+        ],
+        [
+          "{tamaño}",
+          "tope del tmpfs; sin tope, hasta el 50 % de la RAM del host",
+          "64m"
+        ],
+        [
+          "{uid}",
+          "UID numérico del USER",
+          "10001 (gateway de C01); 65534 = nobody (Prometheus)"
+        ],
+        [
+          "{gid}",
+          "GID numérico",
+          "10001"
+        ]
+      ],
+      "pieces": [
+        [
+          "Bind mount",
+          "Archivo o carpeta del host dentro del contenedor; tapa lo que la imagen tenía en esa ruta.",
+          "./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+        ],
+        [
+          "Volumen nombrado",
+          "Almacenamiento de Docker; si está vacío al crear el contenedor, copia lo que la imagen tenía ahí, con dueño.",
+          "-v prom-data:/prometheus"
+        ],
+        [
+          "Volumen anónimo",
+          "Como el nombrado, con nombre al azar; lo crean VOLUME o -v /ruta, y --rm lo borra.",
+          "VOLUME [\"/prometheus\"] en la imagen de Prometheus"
+        ],
+        [
+          "tmpfs",
+          "Sistema de archivos en RAM: cuenta para --memory y desaparece al parar.",
+          "--tmpfs /tmp:size=64m"
+        ],
+        [
+          ":ro · readonly",
+          "Monta en solo lectura; escribir da Read-only file system.",
+          "la config de Prometheus en C01"
+        ],
+        [
+          "-v vs --mount",
+          "-v crea la carpeta del host si falta; --mount falla con bind source path does not exist.",
+          "--mount type=bind,src=./config,dst=/config"
+        ],
+        [
+          "--read-only",
+          "La capa del contenedor queda de solo lectura; solo se escribe en los montajes (volúmenes, bind mounts sin :ro, tmpfs).",
+          "--read-only --tmpfs /tmp (como readOnlyRootFilesystem en k8s)"
+        ],
+        [
+          "--user {uid}:{gid}",
+          "UID y GID del proceso. Los permisos se comparan por número, no por nombre.",
+          "--user \"$(id -u):$(id -g)\""
+        ],
+        [
+          "chown en el build",
+          "Deja la carpeta de datos con el dueño del USER; los volúmenes nuevos lo heredan.",
+          "RUN chown -R nobody:nobody /etc/prometheus /prometheus"
+        ],
+        [
+          "Capa escribible",
+          "Lo que el proceso escribe fuera de volúmenes; se pierde con docker rm.",
+          "un log escrito en /srv sin volumen"
+        ],
+        [
+          "docker volume ls · inspect · rm · prune",
+          "Lista, muestra dónde vive (Mountpoint), borra uno; prune borra los anónimos sin uso (-a, también nombrados).",
+          "docker volume inspect -f '{{.Mountpoint}}' prom-data"
+        ],
+        [
+          "VirtioFS (Docker Desktop)",
+          "Cómo pasan tus carpetas del Mac a la VM: el default; la alternativa es gRPC FUSE.",
+          "se ve en Settings > General (no hace falta tocarlo)"
+        ]
+      ],
+      "example": {
+        "title": "Los montajes de C01, y el que le falta",
+        "lang": "yaml",
+        "code": "  prometheus:\n    image: prom/prometheus:v3.13.3  # tag fijo (nunca latest): 3.13 es la LTS vigente (soporte hasta 2027-07-31); sube de parche dentro de 3.13.x\n    ports:\n      - \"9090:9090\"  # UI: http://localhost:9090/alerts muestra las 6 alertas y su estado\n    volumes:  # montados en la ruta que usa el CMD por defecto de la imagen: no hace falta `command`\n      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro\n      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro",
+        "source": "reference/c01/docker-compose.yml (servicio prometheus, sin su depends_on)",
+        "notes": [
+          "Bind mounts de archivos sueltos con <code>:ro</code>: la config entra desde el repo y Prometheus solo la lee. Cambiarla no exige reconstruir nada: basta con que Prometheus la vuelva a leer (reiniciar el contenedor alcanza).",
+          "Las rutas con <code>./</code> son relativas a la carpeta del compose: <code>docker compose config</code> las muestra absolutas, con <code>type: bind</code> y <code>read_only: true</code>.",
+          "Lo que no se monta: la imagen de Prometheus declara <code>VOLUME [\"/prometheus\"]</code> para su base de series. Sin un volumen nombrado, Docker crea uno anónimo por contenedor: <code>docker compose down -v</code> lo borra y un <code>down</code> + <code>up</code> arranca con otro vacío.",
+          "Para conservarla: <code>- prom-data:/prometheus</code> en el servicio y <code>prom-data:</code> bajo un <code>volumes:</code> de primer nivel. Funciona sin chown porque la imagen ya trae <code>/prometheus</code> con dueño <code>nobody</code> y un volumen nuevo copia ese dueño. Un bind mount de una carpeta tuya, en Linux, falla con <code>open /prometheus/queries.active: permission denied</code>.",
+          "El gateway muestra el otro lado: el código entra con dueño root y el proceso corre como <code>USER 10001</code>, así que no puede modificarse. En k8s el único lugar escribible es un <code>emptyDir</code> en <code>/tmp</code> (<code>k8s/gateway.yaml</code>); en Docker, el equivalente es <code>--read-only --tmpfs /tmp</code>."
+        ]
+      },
+      "figure": {
+        "kind": "volumes",
+        "caption": "Los tres montajes: de dónde salen los datos, quién es el dueño y qué sobrevive. En Docker Desktop, todo lo que no es tu carpeta vive dentro de la VM.",
+        "data": {
+          "head": [
+            "",
+            "Bind mount",
+            "Volumen nombrado",
+            "tmpfs"
+          ],
+          "rows": [
+            [
+              "Con -v",
+              "-v ./config:/etc/app:ro",
+              "-v datos:/datos",
+              "--tmpfs /tmp:size=64m"
+            ],
+            [
+              "Con --mount",
+              "type=bind,src=./config,dst=/etc/app,readonly",
+              "type=volume,src=datos,dst=/datos",
+              "type=tmpfs,dst=/tmp,tmpfs-size=64m"
+            ],
+            [
+              "Dónde viven los datos",
+              "En tu carpeta del Mac; cruzan a la VM por VirtioFS",
+              "En la VM: /var/lib/docker/volumes/datos/_data",
+              "En la RAM de la VM"
+            ],
+            [
+              "Si la ruta del host no existe",
+              "-v la crea como carpeta; --mount falla",
+              "el volumen se crea",
+              "no aplica"
+            ],
+            [
+              "Lo que la imagen tenía en esa ruta",
+              "queda tapado",
+              "si el volumen está vacío, se copia con dueño y permisos",
+              "queda tapado"
+            ],
+            [
+              "Dueño de la raíz",
+              "el del host; en Linux se compara su UID con el del proceso",
+              "root, o el dueño que esa carpeta tenía en la imagen",
+              "root, modo 1777"
+            ],
+            [
+              "¿Sobrevive a docker rm?",
+              "sí: es tu carpeta",
+              "sí, hasta docker volume rm o compose down -v",
+              "no: se borra al parar"
+            ],
+            [
+              "Velocidad en tu Mac",
+              "la más lenta con muchos archivos chicos",
+              "la del disco de la VM",
+              "la de la memoria"
+            ],
+            [
+              "Úsalo para",
+              "código y config en desarrollo",
+              "bases, caches, modelos descargados",
+              "temporales que no deben tocar disco"
+            ]
+          ],
+          "notes": [
+            "Todo lo de la VM (imágenes, capas, volúmenes) vive en el disco virtual de Docker Desktop: ~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw.",
+            "Docker Desktop comparte por defecto /Users, /Volumes, /private, /tmp y /var/folders."
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>bind = tu carpeta, volumen = carpeta de Docker, tmpfs = RAM</b>. Los permisos se comparan por número: crea la carpeta de datos en el Dockerfile con el dueño del <code>USER</code> y un volumen nuevo hereda ese dueño. Nunca <code>chmod 777</code>: arregla el dueño.",
+      "trap": "Trampa: tu Mac no es buen juez de permisos. En Docker Desktop, un bind mount pasa por el sistema de archivos compartido de la VM y los dueños no se comportan como en Linux: lo que funciona en tu laptop puede fallar en el servidor Linux, donde el UID 10001 del contenedor no coincide con el dueño de la carpeta del host. Valida con volúmenes nombrados (viven en la VM, con permisos de Linux de verdad) o en CI sobre Linux. Y en Mac, los bind mounts con miles de archivos chicos (un venv, un dataset de imágenes) son lentos: ponlos en un volumen.",
+      "lab": {
+        "goal": "Provocar el Permission denied de un usuario no root en un volumen, ver de quién es la carpeta y arreglarlo desde el Dockerfile; de paso, un bind mount de solo lectura.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-docker/vol && cd ~/lab-docker/vol\ndocker volume create lab-datos\ndocker run --rm --user 10001:10001 -v lab-datos:/datos python:3.12-slim sh -c 'id; ls -ldn /datos; touch /datos/ok'",
+            "expect": "uid=10001 gid=10001 groups=10001; la carpeta aparece como drwxr-xr-x … 0 0 … /datos (de root) y touch: cannot touch '/datos/ok': Permission denied."
+          },
+          {
+            "cmd": "docker volume inspect -f '{{.Mountpoint}}' lab-datos",
+            "expect": "/var/lib/docker/volumes/lab-datos/_data: una ruta dentro de la VM de Docker Desktop, no de tu Mac; no la vas a encontrar en Finder."
+          },
+          {
+            "cmd": "printf 'FROM python:3.12-slim\\nRUN mkdir -p /datos && chown 10001:10001 /datos\\nUSER 10001:10001\\n' > Dockerfile\ndocker build -q -t lab-vol .\ndocker run --rm -v lab-datos:/datos lab-vol sh -c 'ls -ldn /datos; touch /datos/ok && echo escribí'\ndocker run --rm -v lab-datos:/datos python:3.12-slim ls -ln /datos",
+            "expect": "Ahora /datos es de 10001 10001 e imprime escribí: el volumen estaba vacío, así que al crear el contenedor Docker copió la carpeta de la imagen con su dueño. El último comando (otro contenedor, otra imagen) sigue viendo ok: el dato vive en el volumen."
+          },
+          {
+            "cmd": "mkdir -p config && echo 'umbral: 0.5' > config/app.yaml\ndocker run --rm -v \"$PWD/config:/config:ro\" python:3.12-slim sh -c 'cat /config/app.yaml; touch /config/x'",
+            "expect": "Lee umbral: 0.5 y después falla con touch: cannot touch '/config/x': Read-only file system."
+          }
+        ],
+        "fix": "Crea la carpeta de datos en la imagen con el dueño del USER (como hace la imagen de Prometheus con nobody) y usa volúmenes nombrados para lo que se escribe. Para un volumen que ya existe y quedó de root, un chown de una vez: docker run --rm -v lab-datos:/datos python:3.12-slim chown -R 10001:10001 /datos. En un servidor Linux con bind mounts, alinea UIDs (--user \"$(id -u):$(id -g)\") o cambia el dueño de la carpeta del host. Limpia con docker volume rm lab-datos, docker rmi lab-vol y cd ~ && rm -rf ~/lab-docker/vol.",
+        "needs": "Docker Desktop corriendo (si está apagado, el CLI responde failed to connect to the docker API at unix:///Users/…/.docker/run/docker.sock, o Cannot connect to the Docker daemon at …). La primera vez se baja python:3.12-slim, ≈ 44 MB para arm64. ~/lab-docker está dentro de /Users, que Docker Desktop comparte por defecto.",
+        "verified": "docs",
+        "verified_note": "No ejecutado aquí: no había daemon de Docker en la sesión. Comandos, flags, defaults y mensajes verificados contra docs.docker.com y el código de moby 29.9.1. La copia del contenido y del dueño a un volumen vacío sale de populateVolume en moby (solo al crear el contenedor) y de CopyDir de containerd/continuity; la doc no habla del dueño."
+      },
+      "links": [
+        "#m05.compose-local",
+        "#m05.dockerfile-ml",
+        "#m05.imagen-capas",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "compose",
+      "num": 8,
+      "title": "Docker Compose",
+      "question": "¿Cómo levantas varios servicios en orden, con su configuración, y los apagas sin perder datos?",
+      "templates": [
+        {
+          "code": "services:\n  {servicio}:\n    build: {contexto}\n    ports:\n      - \"{puerto_host}:{puerto_cont}\"\n    depends_on:\n      {dependencia}:\n        condition: service_healthy",
+          "note": "Un bloque por servicio; su nombre es también su nombre DNS en la red del proyecto. <code>build</code> construye desde una carpeta; <code>image</code> baja una imagen hecha."
+        },
+        {
+          "code": "  {dependencia}:\n    image: {imagen}\n    healthcheck:\n      test: [\"CMD\", \"curl\", \"-fsS\", \"{url_salud}\"]\n      interval: {intervalo}\n      retries: {reintentos}\n      start_period: {arranque}",
+          "note": "El healthcheck corre <b>dentro</b> del contenedor: el binario tiene que existir en la imagen (Triton trae curl; una slim de Python, no)."
+        },
+        {
+          "code": "docker compose up --build -d\ndocker compose logs -f {servicio}\ndocker compose exec {servicio} {comando}\ndocker compose down",
+          "note": "Construir y levantar en segundo plano, seguir un servicio, entrar a uno que corre y bajar todo. <code>down -v</code> borra además los volúmenes."
+        }
+      ],
+      "formulas": [
+        "t_{\\text{unhealthy}} \\approx \\text{arranque} + (\\text{reintentos} - 1) \\times \\text{intervalo}"
+      ],
+      "vars": [
+        [
+          "{servicio}",
+          "nombre del servicio (y su nombre DNS)",
+          "gateway"
+        ],
+        [
+          "{contexto}",
+          "carpeta con el Dockerfile, relativa al compose",
+          "./gateway"
+        ],
+        [
+          "{puerto_host}",
+          "puerto de tu Mac",
+          "8080"
+        ],
+        [
+          "{puerto_cont}",
+          "puerto del contenedor",
+          "8080"
+        ],
+        [
+          "{dependencia}",
+          "servicio que tiene que estar sano antes",
+          "triton"
+        ],
+        [
+          "{imagen}",
+          "imagen con tag fijo",
+          "prom/prometheus:v3.13.3"
+        ],
+        [
+          "{url_salud}",
+          "endpoint que responde 2xx solo si el servicio puede atender",
+          "http://localhost:8000/v2/health/ready"
+        ],
+        [
+          "{intervalo}",
+          "interval: cada cuánto corre el chequeo (default 30s)",
+          "5s"
+        ],
+        [
+          "{reintentos}",
+          "retries: fallos seguidos para declarar unhealthy (default 3)",
+          "3"
+        ],
+        [
+          "{arranque}",
+          "start_period: tiempo de arranque en que los fallos no cuentan (default 0s)",
+          "60s"
+        ],
+        [
+          "{comando}",
+          "lo que corres dentro del servicio",
+          "sh, o curl -fsS localhost:8000/v2/health/ready"
+        ],
+        [
+          "t_unhealthy",
+          "cuándo se declara unhealthy un servicio que nunca queda listo (con start_period, el primer fallo que cuenta cae al terminar el start_period)",
+          "C01: 60 + 2 × 5 ≈ 70 s"
+        ]
+      ],
+      "pieces": [
+        [
+          "build · image",
+          "build construye desde una carpeta (imagen proyecto-servicio); image baja una imagen de un registry.",
+          "build: ./gateway · image: prom/prometheus:v3.13.3"
+        ],
+        [
+          "ports",
+          "Igual que -p, siempre entre comillas; solo para entrar desde tu máquina.",
+          "\"127.0.0.1:9090:9090\""
+        ],
+        [
+          "environment · env_file",
+          "Variables del contenedor; si ambas definen la misma, gana environment.",
+          "TRITON_URL: \"triton:8000\""
+        ],
+        [
+          ".env del proyecto",
+          "Solo sirve para interpolar ${VAR} en el YAML; no entra solo al contenedor.",
+          "image: app:${TAG:-dev}"
+        ],
+        [
+          "volumes",
+          "Con ./ es un bind mount; con un nombre, un volumen (declarado en volumes: de primer nivel).",
+          "./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro"
+        ],
+        [
+          "networks",
+          "Por defecto, una red del proyecto donde cada servicio se resuelve por su nombre.",
+          "classifier-c01_default"
+        ],
+        [
+          "depends_on + condition",
+          "service_started (default), service_healthy o service_completed_successfully: qué esperar antes de arrancar.",
+          "triton: condition: service_healthy"
+        ],
+        [
+          "healthcheck",
+          "test, interval, timeout, retries, start_period, start_interval; defaults 30s, 30s, 3, 0s, 5s.",
+          "Triton en C01: 5s, 2s, 3, 60s"
+        ],
+        [
+          "restart",
+          "Igual que --restart: mira el exit code, nunca la salud.",
+          "restart: unless-stopped"
+        ],
+        [
+          "profiles",
+          "El servicio solo arranca con --profile o si lo nombras en el comando; sin profiles, siempre.",
+          "profiles: [debug]"
+        ],
+        [
+          "stop_grace_period · init",
+          "Plazo entre SIGTERM y SIGKILL (10 s por defecto); init: true pone tini como PID 1.",
+          "stop_grace_period: 30s (sugerencia para el gateway)"
+        ],
+        [
+          "develop.watch",
+          "Al guardar: sync copia, rebuild reconstruye, sync+restart copia y reinicia. Solo servicios con build.",
+          "docker compose up --watch"
+        ],
+        [
+          "up --build -d · logs -f · exec",
+          "Construir y levantar en segundo plano; seguir los logs de un servicio; entrar a uno que corre.",
+          "docker compose exec triton nvidia-smi"
+        ],
+        [
+          "down -v · config",
+          "down borra contenedores y red (-v, también volúmenes); config valida y muestra el YAML final.",
+          "docker compose config -q"
+        ]
+      ],
+      "example": {
+        "title": "El orden de arranque de C01",
+        "lang": "yaml",
+        "code": "name: classifier-c01  # prefijo de contenedores y red: no choca con otros proyectos compose\n\nservices:\n  triton:\n    build: ./triton  # imagen con el modelo horneado (misma que se sube al registry para k8s)\n    # (…)\n    healthcheck:\n      # ready = servidor arriba Y modelo cargado (con --strict-readiness); la imagen de Triton trae curl\n      test: [\"CMD\", \"curl\", \"-fsS\", \"http://localhost:8000/v2/health/ready\"]\n      interval: 5s\n      timeout: 2s\n      retries: 3\n      start_period: 60s  # cargar el engine + warmup tarda; no marcar unhealthy mientras tanto\n\n  gateway:\n    build: ./gateway  # imagen multi-stage de gateway/Dockerfile\n    ports:\n      - \"8080:8080\"  # la API pública: POST /v1/classify\n    environment:  # misma configuración que en k8s, solo cambian los valores\n      TRITON_URL: \"triton:8000\"  # nombre del servicio en la red de compose, sin http://\n      # (…)\n    depends_on:\n      triton:\n        condition: service_healthy  # no arranca hasta que el modelo esté listo (evita 503 al inicio)\n    restart: unless-stopped  # si el proceso muere, Docker lo levanta (en k8s lo hace el kubelet)",
+        "source": "reference/c01/docker-compose.yml (extracto: sin la GPU, shm_size ni Prometheus)",
+        "notes": [
+          "El healthcheck de Triton le pega a <code>/v2/health/ready</code>, que con <code>--strict-readiness</code> solo da 200 con el modelo cargado: sano = listo para inferir, no solo proceso vivo.",
+          "<code>start_period: 60s</code>: mientras carga el engine, los fallos no cuentan. Si nunca queda listo, se declara unhealthy a los ≈ 60 + 2 × 5 = 70 s (el primer fallo que cuenta cae al terminar el start_period) y <code>up</code> falla con <code>dependency failed to start: container classifier-c01-triton-1 is unhealthy</code>.",
+          "<code>condition: service_healthy</code>: Compose espera a que Triton esté healthy antes de arrancar el gateway. Con <code>depends_on</code> corto solo esperaría a que el contenedor arranque, y el gateway respondería 503 mientras carga el modelo.",
+          "<code>restart: unless-stopped</code> levanta el gateway si su proceso muere; no hace nada si Triton se vuelve unhealthy después: Docker no reinicia por salud.",
+          "Para iterar sobre el gateway: <code>docker compose up -d --build gateway</code> reconstruye y recrea el gateway; Triton sigue corriendo si no cambió. Con <code>develop.watch</code> y <code>sync</code>, ojo: el código del gateway es de root y el proceso corre como 10001, y watch exige que el <code>USER</code> pueda escribir el destino; con <code>rebuild</code> no hay ese problema.",
+          "Correrlo entero necesita GPU NVIDIA y el NVIDIA Container Toolkit: en tu Mac, practica el patrón con el lab."
+        ]
+      },
+      "figure": {
+        "kind": "compose",
+        "caption": "El compose de C01: Triton tiene que estar healthy para que arranque el gateway; Prometheus solo espera a que los otros dos arranquen.",
+        "data": {
+          "project": "classifier-c01",
+          "network": "classifier-c01_default",
+          "services": [
+            {
+              "name": "triton",
+              "build": "./triton",
+              "ports": "8000, 8001, 8002",
+              "healthcheck": "curl -fsS http://localhost:8000/v2/health/ready · interval 5s · timeout 2s · retries 3 · start_period 60s",
+              "extra": "GPU (deploy.resources.reservations.devices) · shm_size 1g",
+              "depends_on": []
+            },
+            {
+              "name": "gateway",
+              "build": "./gateway",
+              "ports": "8080",
+              "restart": "unless-stopped",
+              "env": "TRITON_URL=triton:8000",
+              "depends_on": [
+                [
+                  "triton",
+                  "service_healthy"
+                ]
+              ]
+            },
+            {
+              "name": "prometheus",
+              "image": "prom/prometheus:v3.13.3",
+              "ports": "9090",
+              "volumes": "./monitoring/prometheus.yml y alerts.yml → /etc/prometheus (:ro)",
+              "depends_on": [
+                [
+                  "gateway",
+                  "service_started"
+                ],
+                [
+                  "triton",
+                  "service_started"
+                ]
+              ]
+            }
+          ],
+          "order": [
+            "triton arranca",
+            "triton healthy (con 60 s de start_period)",
+            "gateway arranca",
+            "prometheus arranca"
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>depends_on ordena; la condición decide qué se espera</b>: <code>service_started</code> (default) espera al contenedor, <code>service_healthy</code> espera a su healthcheck. Ciclo diario: <code>up --build -d</code> → <code>logs -f</code> → <code>exec</code> → <code>down</code>, y <code>-v</code> solo si quieres perder los datos.",
+      "trap": "Trampa: <code>depends_on: [db]</code> sin condición no espera a que la base acepte conexiones, y <code>restart</code> no mira la salud: un servicio unhealthy no se reinicia solo. Además, <code>docker compose down -v</code> borra los volúmenes del proyecto y la base de desarrollo se va con ellos. Y el <code>.env</code> de la carpeta solo interpola el YAML: para que una variable llegue al contenedor, pásala en <code>environment</code> o <code>env_file</code>.",
+      "lab": {
+        "goal": "Ver a una API arrancar antes de que su dependencia acepte conexiones, y arreglarlo con healthcheck y condition: service_healthy: el patrón triton → gateway de C01, sin GPU.",
+        "steps": [
+          {
+            "cmd": "mkdir -p ~/lab-docker/compose && cd ~/lab-docker/compose\ncat > compose.yaml <<'EOF'\nname: lab-compose\nservices:\n  db:\n    image: python:3.12-slim\n    init: true\n    # Simula una base (o Triton cargando el engine): tarda 8 s en aceptar conexiones\n    command: [\"sh\", \"-c\", \"sleep 8 && exec python -u -m http.server 8000 --bind 0.0.0.0\"]\n  api:\n    image: python:3.12-slim\n    init: true\n    # Al arrancar se conecta una vez a db, como una app que abre su pool de conexiones\n    command: [\"python\", \"-c\", \"import urllib.request as u; print('db respondió', u.urlopen('http://db:8000', timeout=2).status)\"]\n    depends_on:\n      - db\nEOF\ndocker compose up -d\nsleep 2\ndocker compose ps -a\ndocker compose logs api",
+            "expect": "up -d vuelve enseguida. ps -a muestra api en Exited (1) y db en Up; el log de api termina en [Errno 111] Connection refused: arrancó cuando el contenedor db ya existía, pero su servidor todavía no escuchaba."
+          },
+          {
+            "cmd": "cat > compose.yaml <<'EOF'\nname: lab-compose\nservices:\n  db:\n    image: python:3.12-slim\n    init: true\n    command: [\"sh\", \"-c\", \"sleep 8 && exec python -u -m http.server 8000 --bind 0.0.0.0\"]\n    healthcheck:\n      test: [\"CMD\", \"python\", \"-c\", \"import urllib.request as u; u.urlopen('http://localhost:8000', timeout=1)\"]\n      interval: 2s\n      timeout: 2s\n      retries: 3\n      start_period: 30s\n      start_interval: 1s\n  api:\n    image: python:3.12-slim\n    init: true\n    command: [\"python\", \"-c\", \"import urllib.request as u; print('db respondió', u.urlopen('http://db:8000', timeout=2).status)\"]\n    depends_on:\n      db:\n        condition: service_healthy\nEOF\ndocker compose config -q && docker compose up -d --force-recreate\ndocker compose ps -a\ndocker compose logs api",
+            "expect": "Ahora up -d tarda unos 10 s: Compose muestra db en Waiting y luego Healthy, y recién entonces arranca api. El log de api dice db respondió 200 y su estado es Exited (0)."
+          },
+          {
+            "cmd": "docker inspect -f '{{.State.Health.Status}} fallos_seguidos={{.State.Health.FailingStreak}}' lab-compose-db-1",
+            "expect": "healthy fallos_seguidos=0. Con -f '{{json .State.Health}}' ves además la salida de los últimos chequeos: lo primero que miras cuando un healthcheck falla y no sabes por qué."
+          },
+          {
+            "cmd": "sed -i '' 's#localhost:8000#localhost:9999#' compose.yaml\ndocker compose up -d --force-recreate",
+            "expect": "Opcional, el caso unhealthy: el chequeo apunta a un puerto vacío. A los ≈ 34 s (30 de start_period + 2 chequeos más, cada 2 s), up falla con dependency failed to start: container lab-compose-db-1 is unhealthy, y api no arranca."
+          }
+        ],
+        "fix": "Un healthcheck que pruebe lo que de verdad necesitas (que acepte conexiones, que el modelo esté cargado) y depends_on con condition: service_healthy. Además, que la app reintente al conectar: el orden de arranque no la protege si la dependencia se reinicia después. Limpia con docker compose down y cd ~ && rm -rf ~/lab-docker/compose; si terminaste todos los labs, docker rmi python:3.12-slim.",
+        "needs": "Docker Desktop corriendo (si está apagado, el CLI responde failed to connect to the docker API at unix:///Users/…/.docker/run/docker.sock, o Cannot connect to the Docker daemon at …). La primera vez se baja python:3.12-slim, ≈ 44 MB para arm64. Compose v2 o posterior (docker compose, sin guion); start_interval necesita Engine 25 o más nuevo.",
+        "verified": "docs",
+        "verified_note": "No ejecutado aquí: no había daemon de Docker en la sesión. Comandos, flags, defaults y mensajes verificados contra docs.docker.com y el código de moby 29.9.1. Los dos compose.yaml del lab pasan docker compose config con Compose v5.0.2; los mensajes Waiting, Healthy y dependency failed to start salen del código de Compose v5.6.0, y los tiempos del healthcheck, de daemon/health.go."
+      },
+      "links": [
+        "#m05.compose-local",
+        "#ref-comandos.compose",
+        "#m06.objetos-basicos",
+        "#c01.archivos"
+      ]
+    }
+  ]
+}

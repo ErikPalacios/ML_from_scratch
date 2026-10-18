@@ -1,0 +1,1418 @@
+{
+  "sections": [
+    {
+      "id": "gpu",
+      "num": 9,
+      "title": "GPU y CUDA en contenedores",
+      "question": "¿Qué trae tu imagen, qué pone el host y cómo le pides la GPU a Docker?",
+      "templates": [
+        {
+          "code": "docker run --rm --gpus {gpus} {imagen}:{tag} nvidia-smi",
+          "note": "Prueba mínima. Si falla con una imagen chica, el problema está en el host (driver o toolkit), no en tu imagen."
+        },
+        {
+          "code": "docker run --rm --device nvidia.com/gpu={id} {imagen}:{tag} nvidia-smi -L",
+          "note": "La misma petición con CDI. Desde Engine 29.2, <code>--gpus</code> también usa CDI cuando el toolkit generó la especificación."
+        },
+        {
+          "code": "devices: [{ driver: nvidia, count: {n}, capabilities: [gpu] }]",
+          "note": "En Compose, bajo <code>deploy.resources.reservations</code>. <code>capabilities</code> es obligatorio; <code>count</code> o <code>device_ids</code>, nunca los dos."
+        },
+        {
+          "code": "pip install torch=={version} --index-url https://download.pytorch.org/whl/{variante}",
+          "note": "La variante fija el CUDA que viaja en la imagen: <code>cu126</code> (driver ≥ 525), <code>cu130</code> (≥ 580) o <code>cpu</code> (sin CUDA)."
+        }
+      ],
+      "formulas": [
+        "\\text{CUDA}_{\\text{imagen}} \\;\\le\\; \\text{CUDA}_{\\max}(\\text{driver del host})",
+        "\\text{12.x} \\Rightarrow \\text{driver} \\ge 525 \\qquad \\text{13.x} \\Rightarrow \\text{driver} \\ge 580 \\qquad (\\text{minor version compatibility})"
+      ],
+      "vars": [
+        [
+          "{gpus}",
+          "qué GPUs ve el contenedor: all, un número, device=0 o '\"device=0,2\"'",
+          "all (model/build_engine.sh de C01)"
+        ],
+        [
+          "{imagen}:{tag}",
+          "la imagen que pruebas",
+          "nvidia/cuda:12.6.3-base-ubuntu22.04 o classifier-triton:2026-09-01-resnet50-fp16"
+        ],
+        [
+          "{id}",
+          "nombre del device en la especificación CDI: all, un índice o un UUID",
+          "all"
+        ],
+        [
+          "{n}",
+          "cuántas GPUs reserva el servicio (o all)",
+          "1 (servicio triton del docker-compose.yml de C01)"
+        ],
+        [
+          "{version}",
+          "versión de torch fijada con ==",
+          "2.14.0 (model/requirements.txt de C01; desde PyPI trae CUDA 13.0)"
+        ],
+        [
+          "{variante}",
+          "índice de wheels de PyTorch: cpu, cu126, cu130 o cu132 (los de torch 2.14.0)",
+          "cu126 si el driver del nodo es R535"
+        ],
+        [
+          "CUDA_imagen",
+          "el CUDA que trae la imagen: runtime y librerías",
+          "12.6 (tritonserver:24.08-py3)"
+        ],
+        [
+          "CUDA_max(driver)",
+          "el CUDA más nuevo que soporta el driver: lo que dice nvidia-smi en CUDA Version",
+          "12.2 con un driver R535"
+        ]
+      ],
+      "pieces": [
+        [
+          "Driver NVIDIA",
+          "Módulo del kernel y libcuda del host. Su versión fija el CUDA máximo; nunca va en la imagen.",
+          "nvidia-smi → Driver Version"
+        ],
+        [
+          "NVIDIA Container Toolkit",
+          "Se instala en el host; al crear el contenedor monta /dev/nvidia*, libcuda y nvidia-smi.",
+          "sudo nvidia-ctk runtime configure --runtime=docker"
+        ],
+        [
+          "--gpus all · --gpus 2 · --gpus device=0",
+          "Pide GPUs al crear el contenedor. Sin este flag (ni --device por CDI) no ve ninguna, salvo con runtime nvidia por defecto.",
+          "docker run --rm --gpus device=0 IMAGEN nvidia-smi"
+        ],
+        [
+          "--gpus '\"device=0,2\"'",
+          "Lista con coma: comillas dobles dentro de simples, porque la coma separa opciones.",
+          "solo las GPUs 0 y 2"
+        ],
+        [
+          "--device nvidia.com/gpu=all",
+          "La GPU por CDI: el toolkit (≥ 1.18) genera la especificación en /var/run/cdi.",
+          "--device nvidia.com/gpu=0"
+        ],
+        [
+          "nvidia-ctk cdi list",
+          "Lista los nombres CDI que el host puede inyectar.",
+          "nvidia.com/gpu=0 · nvidia.com/gpu=all"
+        ],
+        [
+          "NVIDIA_VISIBLE_DEVICES",
+          "Qué GPUs expone el runtime: all, índices, UUIDs, none o void.",
+          "all en nvidia/cuda y en las imágenes de NGC"
+        ],
+        [
+          "NVIDIA_REQUIRE_CUDA",
+          "Requisito de la imagen: el hook clásico no arranca el contenedor si el driver no cumple; CDI no lo verifica.",
+          "empieza con cuda>=12.6 en nvidia/cuda:12.6.3"
+        ],
+        [
+          "-runtime vs -devel",
+          "runtime trae librerías para correr; devel suma nvcc, headers y estáticas.",
+          "12.6.3: ≈ 1.5 GB contra ≈ 4.1 GB comprimidas (amd64)"
+        ],
+        [
+          "torch cpu · cu126 · cu130",
+          "El índice de wheels elige qué CUDA viaja con torch, o ninguno.",
+          "wheel cpu ≈ 0.2 GB; cu126 ≈ 0.9 GB más librerías nvidia-* (amd64)"
+        ],
+        [
+          "deploy.resources.reservations.devices",
+          "La GPU en Compose: driver, count o device_ids, y capabilities: [gpu].",
+          "count: 1 en C01"
+        ],
+        [
+          "--shm-size=1g · shm_size: 1g",
+          "/dev/shm es de 64 MB por defecto: corto para Triton y el DataLoader.",
+          "shm_size: 1g en C01"
+        ],
+        [
+          "torch.cuda.is_available()",
+          "Prueba dentro de TU imagen: driver, toolkit, flag y wheel tienen que estar bien a la vez.",
+          "False = falta alguna de esas piezas"
+        ]
+      ],
+      "example": {
+        "title": "El Dockerfile de Triton de C01",
+        "lang": "dockerfile",
+        "code": "# Release de NGC: DEBE ser el mismo YY.MM que la imagen tensorrt usada en model/build_engine.sh\n# (misma versión de TensorRT). Un engine de otra versión no carga.\nFROM nvcr.io/nvidia/tritonserver:24.08-py3\n\n# El model repository completo: classifier/config.pbtxt + classifier/1/model.plan\nCOPY model_repository /models\n\n# Falla el BUILD si falta el engine (no se versiona en git): mejor aquí que un pod en CrashLoop\nRUN test -f /models/classifier/1/model.plan\n\n# 8000 HTTP/REST (KServe v2, lo usa el gateway) · 8001 gRPC · 8002 métricas Prometheus (nv_*)\nEXPOSE 8000 8001 8002\n\nCMD [\"tritonserver\", \\\n     \"--model-repository=/models\", \\\n     \"--model-control-mode=none\", \\\n     \"--disable-auto-complete-config\", \\\n     \"--exit-on-error=true\", \\\n     \"--strict-readiness=true\", \\\n     \"--http-port=8000\", \\\n     \"--grpc-port=8001\", \\\n     \"--metrics-port=8002\", \\\n     \"--exit-timeout-secs=30\", \\\n     \"--log-format=ISO8601\"]",
+        "source": "reference/c01/triton/Dockerfile (extracto)",
+        "notes": [
+          "<code>FROM …tritonserver:24.08-py3</code>: la base trae CUDA 12.6, cuDNN 9.3 y TensorRT 10.3. El driver <b>no</b> viene: lo monta el toolkit del host al arrancar el contenedor.",
+          "El Dockerfile no menciona la GPU: se pide al <b>correr</b> (<code>--gpus</code> o la reserva de Compose). Construir esta imagen no necesita GPU; cargar el engine, sí.",
+          "<code>RUN test -f …/model.plan</code>: el engine se compila aparte, en una T4 y con <code>tensorrt:24.08-py3</code> (<code>build_engine.sh</code> corre <code>docker run --rm --gpus all …</code>). Un engine de otra GPU u otro TensorRT no carga.",
+          "Driver del nodo: CUDA 12.6 pide ≥ 560, o las ramas R470, R525, R535 y R545 en GPUs de data center, gracias a la forward compatibility que traen las imágenes de NGC. La T4 es de data center; una GeForce, no.",
+          "<code>--exit-on-error=true</code> y <code>--strict-readiness=true</code>: sin GPU, el modelo no carga y Triton termina, así que el healthcheck de Compose nunca llega a <code>healthy</code>. Es una falla ruidosa a propósito.",
+          "La imagen pesa varios GB comprimida y también se publica para arm64: en tu Mac el pull funcionaría… y no te serviría, porque no hay GPU NVIDIA. No la bajes para practicar."
+        ]
+      },
+      "figure": {
+        "kind": "gpu-stack",
+        "caption": "Arriba, lo que viaja en la imagen; abajo, lo que pone el host y el hardware. La regla vive en la frontera: el CUDA de la imagen tiene que caber debajo del driver.",
+        "data": {
+          "rows": [
+            {
+              "layer": "Tu servidor",
+              "where": "imagen",
+              "c01": "tritonserver 24.08",
+              "check": "docker logs (tabla de modelos en READY)"
+            },
+            {
+              "layer": "Framework",
+              "where": "imagen",
+              "c01": "TensorRT 10.3",
+              "check": "notas de la release 24.08 de NGC"
+            },
+            {
+              "layer": "Librerías de CUDA",
+              "where": "imagen",
+              "c01": "CUDA 12.6 · cuDNN 9.3",
+              "check": "torch.version.cuda o la variable CUDA_VERSION"
+            },
+            {
+              "layer": "NVIDIA Container Toolkit",
+              "where": "host",
+              "c01": "monta /dev/nvidia*, libcuda y nvidia-smi",
+              "check": "nvidia-ctk cdi list"
+            },
+            {
+              "layer": "Driver NVIDIA",
+              "where": "host",
+              "c01": "el de la AMI de los nodos g4dn",
+              "check": "nvidia-smi (Driver Version y CUDA Version)"
+            },
+            {
+              "layer": "GPU",
+              "where": "hardware",
+              "c01": "T4 · sm_75 · 16 GB (el engine se compiló para ella)",
+              "check": "nvidia-smi -L"
+            }
+          ],
+          "rule": "CUDA de la imagen ≤ CUDA máximo del driver; minor version y forward compatibility son las excepciones, con límites",
+          "request": "--gpus all · --device nvidia.com/gpu=all · deploy.resources.reservations.devices",
+          "mac": "En tu Mac faltan las tres capas de abajo: no hay GPU NVIDIA, ni driver, ni toolkit."
+        }
+      },
+      "memo": "Cómo recordarla: <b>la imagen trae CUDA, el host trae el driver y el flag trae la GPU</b>. Si falta cualquiera de los tres, <code>torch.cuda.is_available()</code> da <code>False</code>; la cabecera de <code>nvidia-smi</code> dice qué CUDA aguanta el driver, no cuál trae tu imagen.",
+      "trap": "Trampa: un servicio con <code>\"cuda\" if torch.cuda.is_available() else \"cpu\"</code> arranca feliz sin GPU (olvidaste <code>--gpus</code>, el driver es viejo o instalaste la wheel <code>cpu</code>) y corre decenas de veces más lento sin un solo error. Si esperas GPU, verifícala al arrancar y termina el proceso si no está. Y nunca instales el driver dentro de la imagen.",
+      "lab": null,
+      "lab_omitted": "Can't run on a Mac: the --gpus error text depends on the Engine version and CDI (29.3+ may say 'failed to discover GPU vendor from CDI' instead of 'could not select device driver'), and nvidia/cuda is not an allowed small image.",
+      "links": [
+        "#m05.cuda",
+        "#m05.gpu-en-contenedor",
+        "#ref-comandos.docker-gpu",
+        "#c01.archivos",
+        "#m06.gpus-k8s"
+      ]
+    },
+    {
+      "id": "arquitecturas",
+      "num": 10,
+      "title": "arm64 (tu Mac) vs amd64 (el servidor)",
+      "question": "¿Para qué CPU es tu imagen y qué pasa cuando no coincide con la del servidor?",
+      "templates": [
+        {
+          "code": "docker build --platform linux/amd64 -t {imagen}:{tag} {contexto}",
+          "note": "En tu Mac, sin <code>--platform</code> la imagen sale <code>linux/arm64</code>. Para el servidor, amd64; mejor aún, que la construya CI."
+        },
+        {
+          "code": "docker buildx build --platform linux/amd64,linux/arm64 -t {registry}/{imagen}:{tag} --push {contexto}",
+          "note": "Multi-arquitectura: un índice con un manifest por plataforma, y cada máquina baja el suyo."
+        },
+        {
+          "code": "docker image inspect --format '{{.Os}}/{{.Architecture}}' {imagen}:{tag}",
+          "note": "Imagen local: ¿de qué arquitectura es? Con <code>--platform linux/amd64</code> miras una variante de una imagen multi-plataforma."
+        },
+        {
+          "code": "docker buildx imagetools inspect {registry}/{imagen}:{tag}",
+          "note": "Imagen en el registry: lista las plataformas del índice leyendo el manifest, sin descargar capas."
+        }
+      ],
+      "vars": [
+        [
+          "{imagen}:{tag}",
+          "nombre y versión de la imagen",
+          "classifier-gateway:3f9c2ab"
+        ],
+        [
+          "{contexto}",
+          "directorio que se manda al builder",
+          "gateway/ (desde reference/c01)"
+        ],
+        [
+          "{registry}",
+          "dónde vive la imagen para los nodos",
+          "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+        ]
+      ],
+      "pieces": [
+        [
+          "linux/amd64 (x86_64)",
+          "La CPU de casi todos los servidores y nodos de nube.",
+          "g4dn y c6i de C01; uname -m → x86_64"
+        ],
+        [
+          "linux/arm64 (aarch64, arm64/v8)",
+          "Tu Mac con Apple Silicon; también Graviton, Grace y Jetson.",
+          "uname -m → aarch64 dentro de un contenedor en tu Mac"
+        ],
+        [
+          "--platform",
+          "Elige la variante al construir, bajar o correr. Sin él, Docker usa la del host.",
+          "--platform linux/amd64"
+        ],
+        [
+          "Índice (manifest list)",
+          "Un tag que apunta a un manifest por plataforma; cada cliente baja el suyo.",
+          "python:3.12-slim: 8 plataformas"
+        ],
+        [
+          "Attestation manifest",
+          "La provenance que el build agrega por defecto; en el índice aparece como unknown/unknown.",
+          "--provenance=false la quita"
+        ],
+        [
+          "Emulación (QEMU o Rosetta)",
+          "Docker Desktop traduce binarios amd64 en tu Mac: funciona, pero mucho más lento.",
+          "QEMU viene incluido; Rosetta es opcional"
+        ],
+        [
+          "WARNING: … does not match the detected host platform",
+          "Corriste una imagen de otra plataforma sin pedirla: va emulada.",
+          "linux/amd64 contra linux/arm64/v8"
+        ],
+        [
+          "exec format error",
+          "El kernel no reconoce el binario: otra arquitectura sin emulación, o un script sin shebang.",
+          "exec /usr/local/bin/python3: exec format error"
+        ],
+        [
+          "no matching manifest for … in the manifest list entries",
+          "El índice no trae tu plataforma: el pull falla antes de bajar capas.",
+          "no matching manifest for linux/amd64 …"
+        ],
+        [
+          "docker image inspect --platform",
+          "Inspecciona una variante de una imagen multi-plataforma local (API 1.49 o más).",
+          "--platform linux/amd64"
+        ],
+        [
+          "docker buildx imagetools inspect",
+          "Plataformas y digests de una imagen remota, sin hacer pull.",
+          "Platform: linux/amd64"
+        ],
+        [
+          "Wheels por arquitectura",
+          "pip elige el wheel de la CPU del contenedor; si falta, compila o falla.",
+          "xformers 0.0.35 en Linux: solo x86_64"
+        ],
+        [
+          "--only-binary=:all:",
+          "Si falta el wheel, el build falla en ese paso, en vez de compilar bajo emulación.",
+          "el pip install del gateway de C01"
+        ]
+      ],
+      "example": {
+        "title": "El gateway de C01: wheels verificados para x86_64",
+        "lang": "dockerfile",
+        "code": "# Misma versión de Python que en los tests (3.13); en producción fija además el digest (@sha256:…)\nFROM python:3.13-slim AS builder\n# PIP_NO_CACHE_DIR: el cache de pip no sirve dentro de una imagen, solo pesa\nENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1\n# venv en ruta fija: se copia entero a la etapa final y el PATH lo encuentra\nRUN python -m venv /opt/venv\nENV PATH=\"/opt/venv/bin:$PATH\"\n# Primero SOLO requirements.txt: esta capa queda en cache mientras no cambien las dependencias,\n# así editar main.py no reinstala numpy y Pillow en cada build\nCOPY requirements.txt .\n# --only-binary: solo wheels precompilados; si falta uno, el build falla aquí en vez de intentar\n# compilar (y necesitar gcc) en silencio. Verificado: los 37 paquetes tienen wheel cp313 manylinux x86_64.\nRUN pip install --only-binary=:all: -r requirements.txt\n\n# ---------------------------------------------------------------- etapa 2: runtime\nFROM python:3.13-slim AS runtime",
+        "source": "reference/c01/gateway/Dockerfile (extracto)",
+        "notes": [
+          "<code>python:3.13-slim</code> es un índice multi-plataforma: el mismo <code>FROM</code> baja la variante arm64 en tu Mac y la amd64 con <code>--platform linux/amd64</code> o en CI.",
+          "El comentario dice <b>x86_64</b>: la verificación de wheels es por arquitectura. Un build nativo en tu Mac busca wheels <code>manylinux…aarch64</code>; si alguno no existe, <code>--only-binary</code> lo hace fallar justo en este paso.",
+          "Con <code>--platform linux/amd64</code> en tu Mac, este <code>RUN</code> corre emulado. Como solo instala wheels, tarda más pero termina; compilar código nativo bajo emulación es lo que se vuelve lentísimo.",
+          "El venv no es portable entre arquitecturas: trae binarios (<code>.so</code>) de numpy y Pillow. Por eso el <code>.dockerignore</code> de C01 deja fuera <code>.venv/</code>: un venv de macOS no sirve en Linux.",
+          "En CI va el comando del curso: <code>docker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/</code>. Se construye una vez, para la arquitectura de los nodos."
+        ]
+      },
+      "figure": {
+        "kind": "arch",
+        "caption": "Filas: dónde y cómo construiste la imagen. Columnas: dónde corre. Que corra en tu Mac no prueba nada sobre el servidor.",
+        "data": {
+          "run_on": [
+            "tu Mac (arm64)",
+            "servidor (amd64)"
+          ],
+          "rows": [
+            {
+              "build": "docker build en tu Mac, sin --platform",
+              "image": "linux/arm64",
+              "cells": [
+                {
+                  "ok": true,
+                  "text": "nativa"
+                },
+                {
+                  "ok": false,
+                  "text": "exec format error, o no matching manifest al bajarla"
+                }
+              ]
+            },
+            {
+              "build": "docker build --platform linux/amd64, o CI en un runner amd64",
+              "image": "linux/amd64",
+              "cells": [
+                {
+                  "ok": true,
+                  "text": "emulada: mucho más lenta"
+                },
+                {
+                  "ok": true,
+                  "text": "nativa"
+                }
+              ]
+            },
+            {
+              "build": "docker buildx build --platform linux/amd64,linux/arm64 --push",
+              "image": "índice amd64 + arm64",
+              "cells": [
+                {
+                  "ok": true,
+                  "text": "baja arm64: nativa"
+                },
+                {
+                  "ok": true,
+                  "text": "baja amd64: nativa"
+                }
+              ]
+            },
+            {
+              "build": "imagen de GPU (Triton 24.08 de C01)",
+              "image": "índice amd64 + arm64, con CUDA",
+              "cells": [
+                {
+                  "ok": false,
+                  "text": "baja arm64, pero no hay GPU NVIDIA: el modelo no carga"
+                },
+                {
+                  "ok": true,
+                  "text": "si el driver alcanza"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>la imagen es de la CPU donde la construiste</b>, salvo que pidas otra con <code>--platform</code>. Tu Mac habla arm64, el servidor amd64, y CI construye para el servidor.",
+      "trap": "Trampa: que funcione en tu Mac no prueba nada. Docker Desktop corre amd64 emulado avisando solo con un <code>WARNING</code>, y una imagen arm64 corre perfecta en tu Mac y muere en el servidor. Y medir latencia con una imagen amd64 en tu Mac mide al emulador, no a tu código.",
+      "lab": {
+        "goal": "Construir la misma imagen para arm64 y para amd64 en tu Mac, confirmar la arquitectura de cada una y medir cuánto cuesta la emulación.",
+        "steps": [
+          {
+            "cmd": "cd \"$(mktemp -d)\" && printf 'FROM python:3.12-slim\\nCMD [\"python\", \"-c\", \"import platform; print(platform.machine())\"]\\n' > Dockerfile && cat Dockerfile",
+            "expect": "Un Dockerfile de dos líneas cuyo CMD imprime la arquitectura que ve Python."
+          },
+          {
+            "cmd": "docker build -t w3-arch:nativa . && docker build --platform linux/amd64 -t w3-arch:amd64 .",
+            "expect": "Dos builds. El segundo baja la variante amd64 de python:3.12-slim (≈ 43 MB comprimida)."
+          },
+          {
+            "cmd": "for t in nativa amd64; do docker image inspect --format \"$t → {{.Os}}/{{.Architecture}}\" w3-arch:$t; done",
+            "expect": "nativa → linux/arm64 y amd64 → linux/amd64."
+          },
+          {
+            "cmd": "docker run --rm w3-arch:nativa; docker run --rm w3-arch:amd64",
+            "expect": "aarch64. Después, WARNING: The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8) and no specific platform was requested, y x86_64: corrió emulada."
+          },
+          {
+            "cmd": "time docker run --rm w3-arch:nativa python -c \"sum(i * i for i in range(10**7))\"; time docker run --rm --platform linux/amd64 w3-arch:amd64 python -c \"sum(i * i for i in range(10**7))\"",
+            "expect": "Anota los dos valores total de time: la amd64 tarda claramente más. Cuánto depende de si Docker Desktop emula con QEMU o con Rosetta. Ese costo es del emulador, no de tu código."
+          },
+          {
+            "cmd": "docker buildx imagetools inspect python:3.12-slim | grep Platform",
+            "expect": "Una línea por plataforma (linux/amd64, linux/arm64/v8, linux/arm/v7, linux/s390x…) y varias unknown/unknown, que son las attestations. Lo lee del registry sin bajar capas."
+          },
+          {
+            "cmd": "docker build --platform linux/amd64,linux/arm64 -t w3-arch:multi . && docker image inspect --platform linux/amd64 --format '{{.Architecture}}' w3-arch:multi",
+            "expect": "amd64. Funciona en local porque Docker Desktop usa por defecto el image store de containerd, que guarda índices. Con el image store clásico necesitarías un builder docker-container y --push."
+          },
+          {
+            "cmd": "docker rmi w3-arch:nativa w3-arch:amd64 w3-arch:multi",
+            "expect": "Untagged y Deleted para las tres."
+          }
+        ],
+        "fix": "Para el servidor, construye con --platform linux/amd64 o, mejor, en CI; para servir a las dos arquitecturas, docker buildx build --platform linux/amd64,linux/arm64 … --push. Antes de desplegar, docker buildx imagetools inspect debe listar linux/amd64. Si un paquete no tiene wheel para una de las dos, el build de esa plataforma falla: cambia de paquete, fíjalo a una versión con wheel o construye solo la plataforma que necesitas.",
+        "needs": "Docker Desktop corriendo; ≈ 0.1 GB de descarga (python:3.12-slim en dos arquitecturas).",
+        "verified": "docs"
+      },
+      "links": [
+        "#m05.dockerfile-ml",
+        "#m05.registries",
+        "#ref-comandos.docker",
+        "#m05.por-que-contenedores"
+      ]
+    },
+    {
+      "id": "diagnostico",
+      "num": 12,
+      "title": "Diagnóstico: las 10 fallas típicas",
+      "question": "¿Qué ves, con qué comando lo confirmas y qué lo arregla?",
+      "templates": [
+        {
+          "code": "docker ps -a --filter name={nombre}",
+          "note": "¿Sigue vivo? STATUS dice <code>Up</code> o <code>Exited (código)</code>, y hace cuánto."
+        },
+        {
+          "code": "docker logs --tail {n} {nombre}",
+          "note": "Lo último que dijo tu proceso. Funciona con el contenedor parado: por eso no lo borres antes de leerlo."
+        },
+        {
+          "code": "docker inspect --format '{{.State.ExitCode}} {{.State.OOMKilled}} {{.State.Error}}' {nombre}",
+          "note": "Lo que el log no dice: el código, si lo mató el OOM killer y el error del runtime."
+        },
+        {
+          "code": "docker run --rm -it --entrypoint sh {imagen}:{tag}",
+          "note": "La imagen sin su CMD: para mirar archivos, <code>PATH</code> y usuario cuando el contenedor muere al arrancar."
+        }
+      ],
+      "formulas": [
+        "\\text{exit code} = 128 + n_{\\text{señal}}",
+        "137 = 128 + 9\\ (\\text{SIGKILL}) \\qquad 143 = 128 + 15\\ (\\text{SIGTERM})"
+      ],
+      "vars": [
+        [
+          "{nombre}",
+          "nombre del contenedor; en Compose es proyecto-servicio-índice",
+          "gw, o classifier-c01-triton-1"
+        ],
+        [
+          "{n}",
+          "cuántas líneas finales del log",
+          "50"
+        ],
+        [
+          "{imagen}:{tag}",
+          "la imagen que quieres mirar por dentro",
+          "classifier-gateway:3f9c2ab"
+        ],
+        [
+          "exit code",
+          "lo que muestran docker ps -a y docker inspect",
+          "137"
+        ],
+        [
+          "n_señal",
+          "número de la señal que terminó el proceso",
+          "2 = SIGINT (Ctrl+C); 9 = SIGKILL (OOM, o docker stop agotó su plazo: 10 s por defecto); 15 = SIGTERM"
+        ]
+      ],
+      "pieces": [
+        [
+          "docker ps -a",
+          "Todos los contenedores, también los muertos, con STATUS y exit code.",
+          "Exited (137) 2 minutes ago"
+        ],
+        [
+          "docker logs",
+          "stdout y stderr del contenedor, esté corriendo o parado.",
+          "docker logs --tail 50 gw"
+        ],
+        [
+          "docker inspect --format '{{.State…}}'",
+          "Estado exacto: ExitCode, OOMKilled, Error y Health.",
+          "137 true"
+        ],
+        [
+          "docker events",
+          "Eventos del daemon en vivo: die, oom, kill, health_status.",
+          "docker events --filter container=gw"
+        ],
+        [
+          "docker stats",
+          "CPU y memoria de cada contenedor contra su límite, en vivo.",
+          "MEM USAGE / LIMIT"
+        ],
+        [
+          "docker port",
+          "Qué puertos del host apuntan al contenedor.",
+          "8080/tcp -> 0.0.0.0:8080"
+        ],
+        [
+          "docker exec -it {nombre} sh",
+          "Proceso nuevo dentro de un contenedor que corre: env, archivos, id.",
+          "docker exec gw id"
+        ],
+        [
+          "docker run --entrypoint sh",
+          "La imagen sin su CMD, para cuando el contenedor muere al arrancar.",
+          "docker run --rm -it --entrypoint sh IMAGEN"
+        ],
+        [
+          "docker build --progress=plain",
+          "Log completo del build: qué pasos salieron CACHED y cuál se rehízo.",
+          "#7 CACHED"
+        ],
+        [
+          "docker history",
+          "Capas con su tamaño y la instrucción que las creó.",
+          "la capa de 2 GB y su COPY"
+        ],
+        [
+          "docker system df",
+          "Espacio de imágenes, contenedores, volúmenes y cache de build.",
+          "Build Cache 12 GB"
+        ],
+        [
+          "docker network inspect",
+          "Qué contenedores están en esa red y con qué IP.",
+          "docker network inspect classifier-c01_default"
+        ],
+        [
+          "docker compose ps -a · logs",
+          "Estado y health de cada servicio; logs con el nombre del servicio.",
+          "triton (health: starting)"
+        ]
+      ],
+      "example": {
+        "title": "C01: el gateway no arranca porque Triton nunca queda healthy",
+        "lang": "bash",
+        "code": "cd reference/c01\ndocker compose up -d --build\n# dependency failed to start: container classifier-c01-triton-1 is unhealthy\n\ndocker compose ps -a                  # triton: unhealthy o Exited; gateway: Created, nunca arrancó\ndocker compose logs --tail 50 triton  # ¿cargó el modelo? ¿ve la GPU?\ndocker inspect --format '{{json .State.Health}}' classifier-c01-triton-1   # salidas del healthcheck\ndocker inspect --format '{{.State.ExitCode}} {{.State.OOMKilled}}' classifier-c01-triton-1\ndocker compose exec triton nvidia-smi # solo si sigue corriendo: ¿hay GPU adentro?",
+        "source": "reference/c01/docker-compose.yml (healthcheck y depends_on) + comandos del curso",
+        "notes": [
+          "Decide el healthcheck de Triton: <code>curl -fsS …/v2/health/ready</code> cada 5 s, 3 reintentos y <code>start_period: 60s</code>. El gateway espera con <code>condition: service_healthy</code>.",
+          "<code>.State.Health</code> guarda las últimas salidas del chequeo: un error de conexión de curl mientras Triton carga (abre sus puertos al terminar) o un fallo si el modelo no quedó listo con <code>--strict-readiness</code>.",
+          "Si el log de Triton dice que no ve la GPU o que el engine no carga, el arreglo está en el host o en <code>build_engine.sh</code>, no en el compose.",
+          "Exit 137 con <code>OOMKilled true</code> es RAM, no VRAM: mira <code>docker stats</code> mientras carga el engine.",
+          "Si la carga es lenta pero sana, sube <code>start_period</code> en vez de quitar la condición: sin ella, el gateway arranca y responde 503."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Las 10 fallas, más o menos en el orden en que aparecen. Cada fila: síntoma, cómo confirmarlo, causa típica y arreglo.",
+        "data": {
+          "head": [
+            "Falla",
+            "Síntoma",
+            "Confírmalo con",
+            "Causa típica",
+            "Arreglo"
+          ],
+          "rows": [
+            [
+              "Sale en el acto",
+              "docker ps no lo muestra; docker ps -a dice Exited (0), (1) o (255) a los pocos segundos, o Created si ni llegó a arrancar (comando no encontrado: 127 en inspect)",
+              "docker ps -a · docker logs NOMBRE · docker inspect -f '{{.State.ExitCode}}' NOMBRE",
+              "El CMD terminó (un script, un python sin servidor) o la app falló al arrancar: variable faltante, archivo, módulo o comando no encontrado",
+              "Un proceso en primer plano que no termine (servidor en forma exec); lee el traceback; entra con docker run --rm -it --entrypoint sh IMAGEN"
+            ],
+            [
+              "Exit 137 (OOM)",
+              "Exited (137) sin traceback; en un RUN del build, Killed",
+              "docker inspect -f '{{.State.OOMKilled}} {{.State.ExitCode}}' NOMBRE → true 137 · docker stats",
+              "Pico de RAM sobre --memory, o sobre la memoria de la VM de Docker Desktop: pesos cargados a RAM, batch grande, workers que duplican el modelo",
+              "Mide el pico y fija --memory con margen; menos workers o batch. Con OOMKilled false, lo más probable es un SIGKILL externo (docker stop agotó su plazo, 10 s por defecto); si nadie hizo stop ni kill, sospecha memoria igual: el evento OOM a veces se pierde"
+            ],
+            [
+              "exec format error",
+              "Muere al instante con exec /ruta: exec format error en el log y exit 255",
+              "docker image inspect --format '{{.Os}}/{{.Architecture}}' IMAGEN contra uname -m del servidor · head -1 del script",
+              "Imagen arm64 (construida en tu Mac) en un servidor amd64, o un script de entrypoint sin #! en la primera línea; si el #! termina en CRLF, el error es no such file or directory",
+              "--platform linux/amd64 (mejor: build en CI); #!/bin/sh como primera línea y finales de línea LF"
+            ],
+            [
+              "Puerto no accesible",
+              "curl localhost:8080 desde tu Mac falla (Connection refused, Empty reply o se cuelga) aunque la app responde adentro",
+              "docker port NOMBRE · docker logs NOMBRE (¿escucha en 127.0.0.1?)",
+              "Faltó -p; -p al revés (es HOST:CONTENEDOR); la app escucha en 127.0.0.1 dentro del contenedor, el default de uvicorn y Flask",
+              "-p 8080:8080 y --host 0.0.0.0, como el CMD del gateway de C01"
+            ],
+            [
+              "Connection refused entre contenedores",
+              "El gateway de C01 responde 503 Triton no disponible (status 503 en su log); otro cliente dice [Errno 111] Connection refused o no resuelve el nombre",
+              "docker compose ps (¿healthy?) · docker network inspect RED · docker exec NOMBRE env | grep URL",
+              "Usa localhost (es el propio contenedor); el destino aún no escucha (Triton abre puertos tras cargar el modelo); usa el puerto publicado en vez del interno; redes distintas",
+              "Nombre del servicio y puerto del contenedor (TRITON_URL=triton:8000 en C01); depends_on con condition: service_healthy; reintentos"
+            ],
+            [
+              "Permission denied en un volumen",
+              "PermissionError: [Errno 13] Permission denied: '/data/…' o touch: /data/x: Permission denied",
+              "docker exec NOMBRE id · docker exec NOMBRE ls -ldn /data",
+              "La imagen corre sin root (USER 10001, como el gateway de C01) y el volumen es de root, o el bind mount trae el UID del host (en Linux)",
+              "Crea el directorio en la imagen con chown 10001:10001 (un volumen nombrado nuevo copia ese dueño) o usa --user con el UID dueño; nunca chmod 777 ni root"
+            ],
+            [
+              "Cache de build que no se usa",
+              "Cambias una línea de código y el build reinstala todas las dependencias",
+              "docker build --progress=plain . (qué pasos dicen CACHED y cuál fue el primero en rehacerse)",
+              "COPY . . antes de pip install; .dockerignore sin .git ni datos; arriba, un ARG que cambia en cada build; en CI, un runner sin cache",
+              "requirements.txt → pip install → código, como C01; .dockerignore estricto; los ARG que cambian, abajo; en CI, --cache-from y --cache-to"
+            ],
+            [
+              "Imagen enorme",
+              "Pesa GB para un servicio CPU, los pulls tardan minutos, o aparece no space left on device",
+              "docker image ls IMAGEN · docker history --no-trunc IMAGEN · docker system df",
+              "torch con CUDA en un servicio CPU (varios GB de librerías nvidia-*), base completa o -devel, cache de pip, un checkpoint copiado, borrar en un RUN posterior",
+              "Base slim y multi-stage; wheel cpu; PIP_NO_CACHE_DIR=1; .dockerignore; limpiar en el mismo RUN; pesos grandes fuera de la imagen"
+            ],
+            [
+              "CUDA no disponible",
+              "torch.cuda.is_available() da False y el servicio va lento; o could not select device driver",
+              "nvidia-smi en el host · docker run --rm --gpus all ubuntu nvidia-smi · torch.version.cuda en tu imagen",
+              "Faltó --gpus o la reserva de Compose; host sin toolkit (o tu Mac); driver más viejo que el CUDA de la imagen; wheel cpu",
+              "Pide la GPU; instala el toolkit; elige el CUDA de la imagen según el driver (cu126 con R535); falla al arrancar si no hay GPU"
+            ],
+            [
+              "Funciona en local, no en CI",
+              "El build o los tests pasan en tu Mac y fallan en el runner; a veces un COPY con not found",
+              "Log del runner con --progress=plain · uname -m en ambos · git status --ignored · docker build --no-cache en local",
+              "Otra arquitectura (wheels y binarios distintos); archivos que no están en git; tu cache esconde un paso roto; credenciales o límite de pulls en el runner",
+              "Reproduce con --platform linux/amd64 --no-cache; fija versiones y digests; commitea o genera lo que falta; secretos del runner, nunca en la imagen"
+            ]
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>ps -a → logs → inspect</b>, en ese orden. El STATUS dice si murió y con qué código; los logs, por qué; <code>inspect</code>, lo que los logs no cuentan (OOMKilled, Health, Error). Recién después cambias algo.",
+      "trap": "Trampa: borrar el contenedor (o haberlo corrido con <code>--rm</code>) antes de leer su log y su exit code: se va la evidencia. Y no arregles a ciegas subiendo memoria o corriendo como root: un 137 con <code>OOMKilled false</code> suele ser un stop que agotó el plazo (aunque, si nadie hizo stop ni kill, puede ser memoria: el evento OOM a veces se pierde), y root tapa un problema de permisos que reaparece en producción.",
+      "lab": {
+        "goal": "Provocar cinco de las fallas en tu Mac (sale en el acto, OOM, exec format error y CRLF, puerto en 127.0.0.1, volumen sin permiso), confirmarlas con el comando de la tabla y arreglarlas.",
+        "steps": [
+          {
+            "cmd": "docker run -d --name w3-sale python:3.12-slim python -c \"print('listo')\"; sleep 2; docker ps -a --filter name=w3-sale --format '{{.Status}}'; docker logs w3-sale",
+            "expect": "Exited (0) … y listo. No es un error: el CMD terminó. Un servidor no debe terminar."
+          },
+          {
+            "cmd": "docker run --name w3-oom --memory 32m --memory-swap 32m python:3.12-slim python -c \"x = b'x' * (512 * 1024 * 1024)\"; echo \"exit=$?\"; docker inspect --format '{{.State.ExitCode}} {{.State.OOMKilled}}' w3-oom",
+            "expect": "exit=137 sin traceback, y 137 true: el kernel lo mató por memoria. Con --memory-swap igual a --memory no hay swap que lo disimule."
+          },
+          {
+            "cmd": "mkdir -p /tmp/w3-diag && cd /tmp/w3-diag && printf 'echo hola\\n' > sin-shebang.sh && printf '#!/bin/sh\\r\\necho hola\\r\\n' > crlf.sh && chmod +x sin-shebang.sh crlf.sh && printf 'FROM alpine:3.24\\nCOPY sin-shebang.sh crlf.sh /\\n' > Dockerfile && docker build -q -t w3-diag .",
+            "expect": "Imprime el id de la imagen (sha256:…). Dos scripts: uno sin shebang y otro con finales de línea CRLF."
+          },
+          {
+            "cmd": "docker run --rm --entrypoint /sin-shebang.sh w3-diag; echo \"exit=$?\"; docker run --rm --entrypoint /crlf.sh w3-diag; echo \"exit=$?\"",
+            "expect": "exec /sin-shebang.sh: exec format error y exit=255; después, exec /crlf.sh: no such file or directory y exit=255. Los dos archivos existen: lo que falla es ejecutarlos."
+          },
+          {
+            "cmd": "od -c crlf.sh | head -1; tr -d '\\r' < crlf.sh > lf.sh && od -c lf.sh | head -1",
+            "expect": "La primera línea muestra \\r \\n después de #!/bin/sh; la segunda, solo \\n. Ese \\r convierte el intérprete en /bin/sh\\r, que no existe."
+          },
+          {
+            "cmd": "docker run -d --name w3-port -p 127.0.0.1:8000:8000 python:3.12-slim python -m http.server 8000 --bind 127.0.0.1; sleep 2; curl -sS -o /dev/null -w '%{http_code}\\n' 127.0.0.1:8000",
+            "expect": "curl falla (Empty reply from server o Connection reset by peer, según la versión de Docker Desktop) y escribe 000: el puerto está publicado, pero el servidor escucha solo en el 127.0.0.1 del contenedor."
+          },
+          {
+            "cmd": "docker rm -f w3-port && docker run -d --name w3-port -p 127.0.0.1:8000:8000 python:3.12-slim python -m http.server 8000 --bind 0.0.0.0; sleep 2; curl -sS -o /dev/null -w '%{http_code}\\n' 127.0.0.1:8000",
+            "expect": "200. El 127.0.0.1 de -p es el de tu Mac: publica solo para tu máquina. Adentro, escuchar en 0.0.0.0 es lo que hace el CMD del gateway de C01 con --host 0.0.0.0."
+          },
+          {
+            "cmd": "docker run --rm -v w3-datos:/data --user 10001 alpine:3.24 touch /data/x; docker run --rm -v w3-datos:/data alpine:3.24 ls -ldn /data",
+            "expect": "touch: /data/x: Permission denied, y /data es de 0 0 (root) con drwxr-xr-x: el volumen nuevo lo creó root y el proceso es el UID 10001."
+          },
+          {
+            "cmd": "docker run --rm -v w3-datos:/data alpine:3.24 chown 10001:10001 /data && docker run --rm -v w3-datos:/data --user 10001 alpine:3.24 sh -c 'touch /data/x && ls -ln /data'",
+            "expect": "x aparece con dueño 10001. En un Dockerfile se logra lo mismo creando el directorio con chown: un volumen nombrado nuevo copia el dueño y los permisos del directorio de la imagen."
+          },
+          {
+            "cmd": "cd ~ && docker rm -f w3-sale w3-oom w3-port; docker volume rm w3-datos; docker rmi w3-diag; rm -rf /tmp/w3-diag",
+            "expect": "Los nombres de lo que se borró. alpine:3.24 y python:3.12-slim quedan en cache para otros labs."
+          }
+        ],
+        "fix": "Sale en el acto: un servidor en primer plano. OOM: un --memory medido, no adivinado. exec format error: el shebang (o la plataforma correcta). CRLF: tr -d '\\r', y en el repo un .gitattributes con *.sh text eol=lf para que no vuelva. Puerto: --host 0.0.0.0. Volumen: el directorio con el dueño correcto en la imagen. Confirma cada arreglo con el mismo comando que mostró la falla.",
+        "needs": "Docker Desktop corriendo; alpine:3.24 y python:3.12-slim (≈ 50 MB); curl, que viene con macOS.",
+        "verified": "docs"
+      },
+      "links": [
+        "#ref-comandos.depurar",
+        "#ref-comandos.docker",
+        "#m05.imagen-capas",
+        "#m05.tamano",
+        "#m05.compose-local",
+        "#ref-comandos.compose"
+      ]
+    },
+    {
+      "id": "errores",
+      "num": 13,
+      "title": "Errores de un vistazo",
+      "question": "Lees el mensaje: ¿qué significa, qué corres primero y dónde está la explicación?",
+      "templates": [
+        {
+          "code": "docker: Error response from daemon: {mensaje}",
+          "note": "Tu proceso nunca corrió: lo rechazó el daemon, o runc al crear el contenedor. <code>docker run</code> sale con 125; con 126 si el comando no es ejecutable y con 127 si no existe."
+        },
+        {
+          "code": "ERROR: failed to build: failed to solve: {paso}: {causa}",
+          "note": "Falló el build. Lo útil está al final o en las líneas de arriba del paso que falló: míralas con <code>--progress=plain</code>."
+        },
+        {
+          "code": "exec {ruta}: {errno}",
+          "note": "El contenedor ya había arrancado y el kernel rechazó el exec de tu entrypoint: runc lo escribe en el log y sale con 255. El errno dice por qué: <code>exec format error</code> o <code>no such file or directory</code>."
+        },
+        {
+          "code": "docker logs {nombre}",
+          "note": "Todo lo demás lo dijo tu proceso: un Traceback, <code>Connection refused</code>, <code>Killed</code>. Ahí no hay prefijo de Docker."
+        }
+      ],
+      "vars": [
+        [
+          "{mensaje}",
+          "el error que devolvió el daemon",
+          "could not select device driver \"\" with capabilities: [[gpu]]"
+        ],
+        [
+          "{paso}",
+          "el paso del build que falló",
+          "process \"/bin/sh -c pip install --only-binary=:all: -r requirements.txt\" did not complete successfully"
+        ],
+        [
+          "{causa}",
+          "la razón concreta, al final de la cadena",
+          "exit code: 1"
+        ],
+        [
+          "{ruta}",
+          "el ejecutable o script que runc intentó correr",
+          "/entrypoint.sh"
+        ],
+        [
+          "{errno}",
+          "el error del kernel al ejecutarlo",
+          "exec format error"
+        ],
+        [
+          "{nombre}",
+          "el contenedor cuyo proceso habló",
+          "gw (el gateway de C01)"
+        ]
+      ],
+      "pieces": [
+        [
+          "exit 0",
+          "Terminó bien… y por eso el contenedor se fue.",
+          "un CMD que no se queda sirviendo"
+        ],
+        [
+          "exit 1 (u otro)",
+          "Lo devolvió tu proceso; 1 es el error genérico. En Python, casi siempre hay un Traceback en docker logs.",
+          "ModuleNotFoundError"
+        ],
+        [
+          "exit 125",
+          "Falló Docker: flag inválido, imagen que no existe o pull denegado, error del daemon. El contenedor nunca corrió.",
+          "unknown flag: --gpu"
+        ],
+        [
+          "exit 126",
+          "El comando existe pero no se puede ejecutar (sin permiso, o es un directorio). runc lo detecta al crear el contenedor.",
+          "docker run busybox /etc"
+        ],
+        [
+          "exit 127",
+          "El comando no existe en la imagen o no está en el PATH. runc lo detecta al crear el contenedor.",
+          "executable file not found in $PATH"
+        ],
+        [
+          "exit 130",
+          "128 + 2, SIGINT: lo cortaste con Ctrl+C.",
+          "Ctrl+C en docker run -it"
+        ],
+        [
+          "exit 137",
+          "128 + 9, SIGKILL: OOM si OOMKilled es true; si es false, casi siempre docker stop agotó su plazo (10 s por defecto), pero no descarta OOM.",
+          "OOMKilled true"
+        ],
+        [
+          "exit 143",
+          "128 + 15: un SIGTERM que tu proceso no manejó. Si lo maneja y sale limpio, verás 0.",
+          "docker stop"
+        ],
+        [
+          "exit 255",
+          "Fuera de la tabla de Docker: el contenedor arrancó y el kernel rechazó el exec del entrypoint (runc ≥ 1.2).",
+          "exec format error · CRLF en el shebang"
+        ],
+        [
+          "docker: Error response from daemon:",
+          "Prefijo de los rechazos del daemon.",
+          "port is already allocated"
+        ],
+        [
+          "ERROR: failed to build: failed to solve:",
+          "Prefijo de los fallos de BuildKit.",
+          "\"/requirements.txt\": not found"
+        ]
+      ],
+      "example": {
+        "title": "Cómo leer un error largo: uvicorn no está en el PATH",
+        "lang": "text",
+        "code": "# Una variante rota del gateway de C01: su etapa runtime perdió ENV PATH=\"/opt/venv/bin:$PATH\"\n$ docker run --rm classifier-gateway:roto\ndocker: Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: exec: \"uvicorn\": executable file not found in $PATH: unknown\n\nRun 'docker run --help' for more information\n$ echo $?\n127",
+        "source": "Forma típica del mensaje con Docker 29 y runc; el CMD es el de reference/c01/gateway/Dockerfile",
+        "notes": [
+          "Léelo de derecha a izquierda: lo último es la causa (<code>exec: \"uvicorn\": executable file not found in $PATH</code>); lo de antes son las capas que lo reenvían: daemon, containerd, shim y runc. El texto del medio cambia entre versiones; el final, no.",
+          "En el Dockerfile real de C01, uvicorn vive en <code>/opt/venv/bin</code> y la etapa runtime lo pone en el <code>PATH</code>. Si se perdiera esa línea, o el <code>COPY --from=builder /opt/venv /opt/venv</code>, este sería el error.",
+          "Exit 127: Docker lo traduce a comando no encontrado. Falla al crear el contenedor, así que no hay nada en <code>docker logs</code>.",
+          "Primer comando: <code>docker run --rm --entrypoint sh classifier-gateway:roto -c 'echo $PATH; ls /opt/venv/bin | head'</code>."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Quiz: el mensaje como lo ves en la terminal; responde qué significa, qué corres primero y en qué sección está.",
+        "data": {}
+      },
+      "memo": "Cómo recordarla: <b>de dónde viene el mensaje dice dónde mirar</b>. <code>docker:</code> es el CLI o el daemon; <code>failed to solve</code>, el build; <code>exec …</code>, runc al arrancar; el resto lo dijo tu proceso y está en <code>docker logs</code>.",
+      "trap": "Trampa: buscar en Google la primera línea larga del error. La parte útil está al final (la causa concreta) o en las líneas de arriba (en el build). Y en Docker 29 algunos textos cambiaron: un tutorial viejo cita <code>Cannot connect to the Docker daemon</code> o <code>the input device is not a TTY</code>, y tú puedes ver otra redacción del mismo problema.",
+      "lab": {
+        "goal": "Reconocer los 26 mensajes en 5 minutos: para cada uno, decir en voz alta de qué capa viene (CLI, daemon, build, runc o tu proceso), la causa más probable y el primer comando.",
+        "steps": [
+          {
+            "cmd": "ronda() { printf '%s\\n' 'Cannot connect to the Docker daemon' 'failed to connect to the docker API' 'permission denied while trying to connect to the docker API' 'exec format error' 'executable file not found in $PATH' 'exec /entrypoint.sh: no such file or directory' 'port is already allocated' 'pull access denied' 'manifest unknown · failed to resolve reference' 'no matching manifest for linux/arm64/v8' 'could not select device driver \"\" with capabilities: [[gpu]]' '\"/requirements.txt\": not found' 'did not complete successfully: exit code: 1' 'no space left on device' 'OOMKilled' 'the input device is not a TTY · cannot attach stdin to a TTY-enabled container' 'is already in use by container' 'requested access to the resource is denied' 'dependency failed to start' 'Name or service not known · Temporary failure in name resolution' '[Errno 111] Connection refused' 'ModuleNotFoundError' 'CUDA driver version is insufficient for CUDA runtime version' 'error getting credentials' 'invalid reference format' 'unknown flag' | sort -R | head -5; }; ronda",
+            "expect": "Cinco mensajes al azar. Para cada uno, en menos de 30 s y en voz alta: la capa, la causa probable y el primer comando. Después compáralo con la tabla."
+          },
+          {
+            "cmd": "ronda",
+            "expect": "Otra ronda de cinco. Repite hasta completar 5 minutos; la meta es 5 de 5 sin mirar."
+          },
+          {
+            "cmd": "docker run --gpu all alpine:3.24 true; echo \"exit=$?\"",
+            "expect": "unknown flag: --gpu, la línea de uso, Run 'docker run --help' for more information y exit=125. Lo rechaza el CLI, así que no necesita Docker Desktop corriendo."
+          },
+          {
+            "cmd": "docker run MiImagen; echo \"exit=$?\"",
+            "expect": "docker: invalid reference format: repository name (library/MiImagen) must be lowercase y exit=125."
+          },
+          {
+            "cmd": "echo | docker run -it alpine:3.24 true",
+            "expect": "Con Docker CLI 29.0–29.3: the input device is not a TTY. Desde 29.4: cannot attach stdin to a TTY-enabled container because stdin is not a terminal. Es el mismo problema: -t sin terminal."
+          }
+        ],
+        "fix": "Los que fallaste: abre su sección (el enlace de la lista) y haz su laboratorio, si tiene. Repite la ronda otro día: la meta es 5 de 5 en menos de 2 minutos.",
+        "needs": "Una terminal de macOS; Docker Desktop corriendo solo para los dos últimos pasos.",
+        "verified": "docs"
+      },
+      "links": [
+        "#ref-comandos.depurar",
+        "#ref-comandos.docker",
+        "#ref-comandos.docker-gpu",
+        "#ref-comandos.compose"
+      ]
+    }
+  ],
+  "diagnosticador": [
+    {
+      "id": "se-apaga-solo",
+      "symptom": "Mi contenedor arranca y se apaga solo a los pocos segundos.",
+      "first": "docker ps -a --filter name=NOMBRE",
+      "causes": [
+        {
+          "cause": "El CMD terminó: era un script o un comando que no se queda sirviendo (Exited (0)).",
+          "check": "docker logs NOMBRE · docker inspect --format '{{.Config.Cmd}}' NOMBRE",
+          "fix": "Que el CMD sea el servidor en primer plano y en forma exec, como el del gateway de C01."
+        },
+        {
+          "cause": "La app falló al arrancar: variable de entorno faltante, archivo o módulo no encontrado (Exited (1)).",
+          "check": "docker logs --tail 50 NOMBRE (el Traceback)",
+          "fix": "Pasa la configuración con -e o --env-file y revisa WORKDIR y las rutas del COPY."
+        },
+        {
+          "cause": "El kernel rechazó el exec del entrypoint ya arrancado: otra arquitectura sin emulación, script sin shebang o con CRLF (Exited (255)).",
+          "check": "docker logs NOMBRE (exec …: exec format error, o no such file or directory)",
+          "fix": "--platform linux/amd64 en el build; #!/bin/sh como primera línea; finales de línea LF."
+        },
+        {
+          "cause": "Lo mató el kernel por memoria (Exited (137)).",
+          "check": "docker inspect --format '{{.State.OOMKilled}}' NOMBRE",
+          "fix": "Mide el pico con docker stats y fija --memory con margen."
+        }
+      ]
+    },
+    {
+      "id": "no-carga-localhost",
+      "symptom": "Abro localhost:8080 en el navegador y no carga, aunque el contenedor está Up.",
+      "first": "docker port NOMBRE",
+      "causes": [
+        {
+          "cause": "No publicaste el puerto (faltó -p) o lo publicaste al revés.",
+          "check": "docker port NOMBRE (vacío, o con otro puerto)",
+          "fix": "docker run -p 8080:8080 … (primero el host, después el contenedor)."
+        },
+        {
+          "cause": "La app escucha en 127.0.0.1 dentro del contenedor.",
+          "check": "docker logs NOMBRE (por ejemplo, Uvicorn running on http://127.0.0.1:8000)",
+          "fix": "--host 0.0.0.0, como el CMD del gateway de C01."
+        },
+        {
+          "cause": "El proceso escucha en otro puerto que el que publicaste (EXPOSE solo documenta, no publica).",
+          "check": "docker logs NOMBRE (en qué puerto arrancó) contra docker port NOMBRE",
+          "fix": "Alinea el lado derecho de -p con el puerto real del proceso."
+        }
+      ]
+    },
+    {
+      "id": "puerto-ocupado",
+      "symptom": "docker run falla diciendo que el puerto ya está en uso.",
+      "first": "docker ps --filter publish=8080",
+      "causes": [
+        {
+          "cause": "Otro contenedor ya publica ese puerto (port is already allocated).",
+          "check": "docker ps --filter publish=8080",
+          "fix": "docker rm -f el contenedor viejo, o usa otro puerto del host."
+        },
+        {
+          "cause": "Un proceso de tu Mac ya escucha ahí (address already in use): otro servidor de desarrollo, o AirPlay en el 5000 y el 7000.",
+          "check": "lsof -nP -iTCP:8080 -sTCP:LISTEN",
+          "fix": "Detén ese proceso o publica en otro puerto del host: -p 8081:8080."
+        }
+      ]
+    },
+    {
+      "id": "no-encuentra-otro-servicio",
+      "symptom": "El gateway no logra hablar con Triton (u otro contenedor): Connection refused o no resuelve el nombre.",
+      "first": "docker compose ps",
+      "causes": [
+        {
+          "cause": "Usa localhost: dentro de un contenedor es el propio contenedor.",
+          "check": "docker exec NOMBRE env | grep URL",
+          "fix": "El nombre del servicio y el puerto del contenedor: TRITON_URL=triton:8000, como en C01."
+        },
+        {
+          "cause": "Están en redes distintas, o en la red bridge por defecto, donde los nombres no se resuelven.",
+          "check": "docker network inspect RED --format '{{range .Containers}}{{.Name}} {{end}}'",
+          "fix": "Ponlos en la misma red definida por ti; Compose ya crea una por proyecto."
+        },
+        {
+          "cause": "El destino todavía no escucha: Triton abre sus puertos al terminar de cargar el modelo.",
+          "check": "docker compose ps (health: starting) · docker compose logs triton",
+          "fix": "depends_on con condition: service_healthy, y reintentos con backoff en el cliente."
+        },
+        {
+          "cause": "Usas el puerto publicado en el host en vez del puerto del contenedor.",
+          "check": "La línea ports del compose: en \"9000:8000\", el interno es 8000",
+          "fix": "Entre contenedores, siempre el puerto del contenedor."
+        }
+      ]
+    },
+    {
+      "id": "muere-sin-log",
+      "symptom": "El contenedor muere y el log no dice nada.",
+      "first": "docker inspect --format '{{.State.ExitCode}} {{.State.OOMKilled}} {{.State.Error}}' NOMBRE",
+      "causes": [
+        {
+          "cause": "OOM: el kernel lo mató sin dejarlo escribir (137 y true).",
+          "check": "docker stats mientras arranca · docker events --filter event=oom",
+          "fix": "Un --memory medido con margen, o menos memoria: batch, workers, pesos cargados por partes."
+        },
+        {
+          "cause": "Un SIGKILL externo: docker stop agotó su plazo (10 s por defecto) y lo mató (137 y false).",
+          "check": "docker events --filter container=NOMBRE (kill y die)",
+          "fix": "Que el proceso maneje SIGTERM (CMD en forma exec) o dale más plazo: docker stop -t 30 (en Compose, stop_grace_period: 30s), como pide el gateway de C01."
+        },
+        {
+          "cause": "Python bufferea stdout y las últimas líneas se perdieron con el proceso.",
+          "check": "docker inspect --format '{{.Config.Env}}' NOMBRE (¿está PYTHONUNBUFFERED=1?)",
+          "fix": "ENV PYTHONUNBUFFERED=1, como en el gateway de C01."
+        }
+      ]
+    },
+    {
+      "id": "build-lento",
+      "symptom": "Cada build tarda minutos aunque solo cambié una línea.",
+      "first": "docker build --progress=plain .",
+      "causes": [
+        {
+          "cause": "COPY . . antes de instalar dependencias: cualquier cambio invalida el pip install.",
+          "check": "En el log, el primer paso sin CACHED es el COPY grande",
+          "fix": "COPY requirements.txt → RUN pip install → COPY del código, como el gateway de C01."
+        },
+        {
+          "cause": "El contexto incluye cosas que cambian siempre: .git, logs, datasets.",
+          "check": "La línea transferring context del log, y tu .dockerignore",
+          "fix": "Un .dockerignore estricto, como el de C01."
+        },
+        {
+          "cause": "Construyes para linux/amd64 en tu Mac y un paso compila bajo emulación.",
+          "check": "El paso lento es un pip install que dice Building wheel for …",
+          "fix": "--only-binary=:all: con wheels disponibles, o el build en CI con un runner amd64."
+        },
+        {
+          "cause": "En CI cada runner empieza sin cache.",
+          "check": "En CI ningún paso sale CACHED",
+          "fix": "--cache-from y --cache-to (por ejemplo, type=registry o type=gha)."
+        }
+      ]
+    },
+    {
+      "id": "imagen-gigante",
+      "symptom": "Mi imagen pesa varios GB y el pull tarda una eternidad.",
+      "first": "docker history --no-trunc IMAGEN",
+      "causes": [
+        {
+          "cause": "torch con CUDA en un servicio que corre en CPU.",
+          "check": "docker run --rm IMAGEN pip list | grep -i nvidia",
+          "fix": "La wheel cpu: --index-url https://download.pytorch.org/whl/cpu."
+        },
+        {
+          "cause": "Base completa o -devel en la imagen final.",
+          "check": "La primera capa grande del history",
+          "fix": "Base slim o -runtime, y compilar en una etapa builder."
+        },
+        {
+          "cause": "Un checkpoint, un dataset o .git entraron con COPY . .",
+          "check": "docker run --rm IMAGEN du -sh /app (o tu WORKDIR)",
+          "fix": ".dockerignore; los pesos grandes, fuera de la imagen."
+        },
+        {
+          "cause": "Borraste archivos en un RUN posterior: siguen en la capa de abajo.",
+          "check": "Dos capas: una que suma GB y otra con rm que suma casi 0 B",
+          "fix": "Limpia en el mismo RUN, o evita el archivo (PIP_NO_CACHE_DIR=1)."
+        }
+      ]
+    },
+    {
+      "id": "pytorch-sin-gpu",
+      "symptom": "PyTorch no ve la GPU dentro del contenedor: torch.cuda.is_available() da False.",
+      "first": "nvidia-smi (en el host)",
+      "causes": [
+        {
+          "cause": "Estás en tu Mac: no hay GPU NVIDIA que pasar.",
+          "check": "uname -m en tu terminal de macOS → arm64",
+          "fix": "Practica en CPU con la wheel cpu, o usa una VM Linux con GPU."
+        },
+        {
+          "cause": "No pediste la GPU (--gpus o la reserva de Compose).",
+          "check": "docker inspect --format '{{json .HostConfig.DeviceRequests}}' NOMBRE (null)",
+          "fix": "--gpus all, o deploy.resources.reservations.devices con capabilities: [gpu]."
+        },
+        {
+          "cause": "El driver del host es más viejo que el CUDA de la imagen.",
+          "check": "nvidia-smi (CUDA Version) contra torch.version.cuda",
+          "fix": "Una wheel con un CUDA que quepa (cu126 con R535) o un driver más nuevo en el host."
+        },
+        {
+          "cause": "Instalaste la wheel cpu de torch.",
+          "check": "python -c \"import torch; print(torch.__version__)\" → termina en +cpu",
+          "fix": "El índice cu126 o cu130, según el driver."
+        }
+      ]
+    },
+    {
+      "id": "exec-format-servidor",
+      "symptom": "En el servidor el contenedor muere con exec format error, y en mi Mac funciona.",
+      "first": "docker image inspect --format '{{.Os}}/{{.Architecture}}' IMAGEN",
+      "causes": [
+        {
+          "cause": "La construiste en tu Mac sin --platform: es arm64.",
+          "check": "docker buildx imagetools inspect REGISTRY/IMAGEN:TAG (no aparece linux/amd64)",
+          "fix": "docker buildx build --platform linux/amd64 … --push, idealmente en CI."
+        },
+        {
+          "cause": "El script de entrypoint no tiene shebang.",
+          "check": "head -1 entrypoint.sh",
+          "fix": "#!/bin/sh como primera línea."
+        },
+        {
+          "cause": "Un RUN descarga un binario de la arquitectura equivocada (el release arm64 de una herramienta).",
+          "check": "El URL de ese RUN: ¿dice arm64 o aarch64?",
+          "fix": "Declara ARG TARGETARCH en esa etapa y úsalo para elegir el binario de cada plataforma."
+        }
+      ]
+    },
+    {
+      "id": "permiso-volumen",
+      "symptom": "Mi app no puede escribir en el volumen: Permission denied.",
+      "first": "docker exec NOMBRE id",
+      "causes": [
+        {
+          "cause": "El proceso no es root (USER 10001) y el volumen es de root.",
+          "check": "docker exec NOMBRE ls -ldn /data",
+          "fix": "Crea /data en la imagen con chown 10001:10001 antes de usarlo, o haz chown una vez sobre el volumen."
+        },
+        {
+          "cause": "Bind mount en Linux: los archivos traen el UID del host, que no coincide con el del proceso.",
+          "check": "ls -ln en el host contra docker exec NOMBRE id",
+          "fix": "--user con el UID dueño de la carpeta, o una carpeta con un UID fijo y conocido."
+        },
+        {
+          "cause": "Montaste el volumen en solo lectura.",
+          "check": "docker inspect --format '{{json .Mounts}}' NOMBRE (\"RW\": false)",
+          "fix": "Quita :ro si de verdad necesita escribir; en C01 los YAML de Prometheus van :ro a propósito."
+        }
+      ]
+    },
+    {
+      "id": "local-si-ci-no",
+      "symptom": "En mi Mac el build pasa y en CI falla.",
+      "first": "docker build --platform linux/amd64 --no-cache --progress=plain .",
+      "causes": [
+        {
+          "cause": "Otra arquitectura: el runner es amd64 y un wheel o binario no existe ahí, o al revés.",
+          "check": "uname -m en el runner, y el paso de pip que falla",
+          "fix": "Versiones con wheel para amd64; reproduce en local con --platform linux/amd64."
+        },
+        {
+          "cause": "Un archivo existe en tu disco pero no en git (ignorado o sin commit).",
+          "check": "git status --ignored · git ls-files | grep NOMBRE",
+          "fix": "Commitéalo o genéralo en el pipeline."
+        },
+        {
+          "cause": "Tu cache local esconde un paso roto: un apt-get update viejo, un tag que se movió.",
+          "check": "docker build --no-cache en local",
+          "fix": "Fija versiones y la base por digest."
+        },
+        {
+          "cause": "El runner no tiene credenciales o choca con el límite de pulls de Docker Hub.",
+          "check": "El log dice pull access denied o You have reached your pull rate limit",
+          "fix": "docker login con un secreto del CI, o un mirror o pull-through cache."
+        }
+      ]
+    },
+    {
+      "id": "docker-no-responde",
+      "symptom": "Ningún comando de docker funciona: todos fallan al conectar.",
+      "first": "docker context ls",
+      "causes": [
+        {
+          "cause": "Docker Desktop no está corriendo, o todavía está arrancando.",
+          "check": "El error dice failed to connect to the docker API … o Cannot connect to the Docker daemon …",
+          "fix": "Abre Docker Desktop, espera a que el motor esté listo y reintenta docker info."
+        },
+        {
+          "cause": "El contexto o DOCKER_HOST apuntan a otro lado.",
+          "check": "docker context ls (el * marca el activo) · echo $DOCKER_HOST",
+          "fix": "docker context use desktop-linux y unset DOCKER_HOST."
+        },
+        {
+          "cause": "En un servidor Linux, tu usuario no tiene permiso sobre el socket.",
+          "check": "ls -l /var/run/docker.sock · id -nG",
+          "fix": "Usa sudo, o pide que te agreguen al grupo docker (equivale a root en esa máquina)."
+        }
+      ]
+    },
+    {
+      "id": "no-baja-imagen",
+      "symptom": "No puedo bajar la imagen: docker pull o el FROM fallan.",
+      "first": "docker buildx imagetools inspect IMAGEN:TAG",
+      "causes": [
+        {
+          "cause": "Nombre o tag mal escrito (manifest unknown, o not found).",
+          "check": "imagetools inspect con un tag que sí existe",
+          "fix": "Corrige el tag; en producción, fíjalo por digest."
+        },
+        {
+          "cause": "Repositorio privado sin login (pull access denied).",
+          "check": "docker login REGISTRY y reintenta",
+          "fix": "Login con las credenciales del registry; en ECR, aws ecr get-login-password | docker login --username AWS --password-stdin REGISTRY."
+        },
+        {
+          "cause": "La imagen no tiene variante para tu plataforma (no matching manifest).",
+          "check": "Las líneas Platform de imagetools inspect",
+          "fix": "--platform linux/amd64 (correrá emulada) o una imagen multi-arquitectura."
+        },
+        {
+          "cause": "Límite de pulls de Docker Hub (HTTP 429).",
+          "check": "El error dice You have reached your pull rate limit",
+          "fix": "docker login (200 pulls cada 6 h en vez de 100 por IP) o un mirror."
+        }
+      ]
+    },
+    {
+      "id": "compose-no-arranca",
+      "symptom": "docker compose up se queda esperando y el gateway nunca arranca.",
+      "first": "docker compose ps -a",
+      "causes": [
+        {
+          "cause": "La dependencia nunca queda healthy (dependency failed to start: … is unhealthy).",
+          "check": "docker inspect --format '{{json .State.Health}}' classifier-c01-triton-1",
+          "fix": "Arregla lo que dice el último chequeo; si solo es lenta, sube start_period."
+        },
+        {
+          "cause": "El healthcheck usa una herramienta que la imagen no trae, como curl en una imagen slim.",
+          "check": "docker compose exec SERVICIO sh -c 'command -v curl'",
+          "fix": "Chequea con Python, como el HEALTHCHECK del gateway de C01."
+        },
+        {
+          "cause": "start_period más corto que la carga del modelo.",
+          "check": "docker compose logs -t triton: cuánto tarda en quedar READY",
+          "fix": "start_period ≥ el peor tiempo de carga medido (60 s en C01)."
+        }
+      ]
+    }
+  ],
+  "errores": [
+    {
+      "msg": "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?",
+      "meaning": "El socket existe pero nadie responde: el daemon está apagado o todavía arrancando (en tu Mac, Docker Desktop). Antes de Docker 29 salía también si el socket no existía.",
+      "first": "docker context ls",
+      "section": "diagnostico",
+      "topic": "daemon"
+    },
+    {
+      "msg": "failed to connect to the docker API at unix:///Users/…/.docker/run/docker.sock; check if the path is correct and if the daemon is running",
+      "meaning": "La versión de Docker 29 cuando el socket no existe: Docker Desktop no está corriendo o el contexto apunta a otro lado.",
+      "first": "docker context ls",
+      "section": "diagnostico",
+      "topic": "daemon"
+    },
+    {
+      "msg": "permission denied while trying to connect to the docker API at unix:///var/run/docker.sock",
+      "meaning": "Linux: el daemon corre, pero tu usuario no puede abrir el socket (antes decía …the Docker daemon socket at…).",
+      "first": "ls -l /var/run/docker.sock && id -nG",
+      "section": "diagnostico",
+      "topic": "daemon"
+    },
+    {
+      "msg": "exec /usr/local/bin/python3: exec format error",
+      "meaning": "El kernel no reconoce el binario: imagen de otra arquitectura (arm64 de tu Mac en un servidor amd64) o script sin shebang. Exit 255.",
+      "first": "docker image inspect --format '{{.Os}}/{{.Architecture}}' IMAGEN",
+      "section": "arquitecturas",
+      "topic": "arquitectura"
+    },
+    {
+      "msg": "exec: \"uvicorn\": executable file not found in $PATH",
+      "meaning": "El comando del CMD o ENTRYPOINT no está en el PATH de la imagen (no se instaló, o el PATH no incluye el venv). Exit 127.",
+      "first": "docker run --rm --entrypoint sh IMAGEN -c 'echo $PATH; command -v uvicorn'",
+      "section": "diagnostico",
+      "topic": "cmd"
+    },
+    {
+      "msg": "exec /entrypoint.sh: no such file or directory",
+      "meaning": "El archivo existe, pero falta su intérprete: el del shebang (CRLF en #!/bin/sh\\r, o #!/bin/bash en Alpine) o el loader de un binario glibc en Alpine. Exit 255.",
+      "first": "head -1 entrypoint.sh | od -c",
+      "section": "diagnostico",
+      "topic": "cmd"
+    },
+    {
+      "msg": "Bind for 0.0.0.0:8080 failed: port is already allocated · bind: address already in use",
+      "meaning": "Ese puerto del host ya está tomado: por otro contenedor (allocated) o por otro proceso de tu Mac (address already in use; AirPlay usa el 5000).",
+      "first": "docker ps --filter publish=8080; lsof -nP -iTCP:8080 -sTCP:LISTEN",
+      "section": "diagnostico",
+      "topic": "red"
+    },
+    {
+      "msg": "pull access denied for mi-imagen, repository does not exist or may require 'docker login'",
+      "meaning": "El registry no te da ese repositorio: nombre mal escrito, repo privado sin login, o una imagen que solo existe en tu máquina.",
+      "first": "docker image ls mi-imagen",
+      "section": "diagnostico",
+      "topic": "registry"
+    },
+    {
+      "msg": "manifest for python:3.99-slim not found: manifest unknown · failed to resolve reference \"docker.io/library/python:3.99-slim\": …: not found",
+      "meaning": "El repositorio existe, pero ese tag no. El primer texto es del image store clásico; el segundo, del de containerd, el default de Docker Desktop y de Engine 29.",
+      "first": "docker buildx imagetools inspect python:3.99-slim (si también falla, el tag no existe en el registry)",
+      "section": "diagnostico",
+      "topic": "registry"
+    },
+    {
+      "msg": "no matching manifest for linux/arm64/v8 in the manifest list entries",
+      "meaning": "El índice de la imagen no trae variante para tu plataforma: en tu Mac, una imagen solo amd64; en el servidor, una solo arm64.",
+      "first": "docker buildx imagetools inspect IMAGEN",
+      "section": "arquitecturas",
+      "topic": "arquitectura"
+    },
+    {
+      "msg": "could not select device driver \"\" with capabilities: [[gpu]]",
+      "meaning": "Pediste GPU (--gpus o la reserva de Compose) y el daemon no tiene driver de GPU: falta el NVIDIA Container Toolkit, o estás en tu Mac. Desde Engine 29.3, con CDI activo, el mismo caso puede decir failed to discover GPU vendor from CDI.",
+      "first": "nvidia-smi",
+      "section": "gpu",
+      "topic": "gpu"
+    },
+    {
+      "msg": "failed to compute cache key: failed to calculate checksum of ref …: \"/requirements.txt\": not found",
+      "meaning": "Un COPY pide algo que no está en el contexto: ruta fuera del contexto, mal escrita o excluida por .dockerignore.",
+      "first": "ls gateway/requirements.txt && cat gateway/.dockerignore",
+      "section": "diagnostico",
+      "topic": "build"
+    },
+    {
+      "msg": "failed to solve: process \"/bin/sh -c pip install -r requirements.txt\" did not complete successfully: exit code: 1",
+      "meaning": "Un RUN falló dentro del build. La causa está en las líneas de arriba: un wheel que no existe para tu arquitectura, sin red, algo que hay que compilar.",
+      "first": "docker build --progress=plain . 2>&1 | tail -n 40",
+      "section": "arquitecturas",
+      "topic": "build"
+    },
+    {
+      "msg": "no space left on device",
+      "meaning": "Se llenó el disco donde Docker guarda imágenes, capas y cache de build (en tu Mac, el disco virtual de la VM de Docker Desktop).",
+      "first": "docker system df",
+      "section": "diagnostico",
+      "topic": "disco"
+    },
+    {
+      "msg": "\"OOMKilled\": true · Exited (137) · Killed",
+      "meaning": "El kernel mató el proceso por pasar el límite de memoria del contenedor o de la VM. Sin traceback; Killed lo imprime el shell padre.",
+      "first": "docker inspect --format '{{.State.OOMKilled}} {{.State.ExitCode}}' NOMBRE",
+      "section": "diagnostico",
+      "topic": "memoria"
+    },
+    {
+      "msg": "the input device is not a TTY · cannot attach stdin to a TTY-enabled container because stdin is not a terminal",
+      "meaning": "Usaste -t (de -it) sin una terminal: en CI, en un pipe o en cron. El primer texto es de Docker CLI hasta 29.3; el segundo, desde 29.4.",
+      "first": "docker run -i IMAGEN … (sin -t)",
+      "section": "diagnostico",
+      "topic": "cli"
+    },
+    {
+      "msg": "Conflict. The container name \"/gw\" is already in use by container \"…\"",
+      "meaning": "Ya existe un contenedor con ese nombre, quizá parado: los nombres son únicos aunque el contenedor no corra.",
+      "first": "docker ps -a --filter name=gw",
+      "section": "diagnostico",
+      "topic": "cli"
+    },
+    {
+      "msg": "requested access to the resource is denied",
+      "meaning": "Al hacer push: no tienes permiso de escritura en ese repositorio. Falta docker login, el tag no lleva tu registry o tu usuario (sin prefijo, va a docker.io), o tu cuenta no puede escribir ahí.",
+      "first": "docker image ls --format '{{.Repository}}:{{.Tag}}' | grep NOMBRE",
+      "section": "diagnostico",
+      "topic": "registry"
+    },
+    {
+      "msg": "dependency failed to start: container classifier-c01-triton-1 is unhealthy",
+      "meaning": "Compose esperaba service_healthy y el healthcheck de la dependencia agotó sus reintentos, o el start_period no alcanzó para cargar el modelo.",
+      "first": "docker inspect --format '{{json .State.Health}}' classifier-c01-triton-1",
+      "section": "diagnostico",
+      "topic": "compose"
+    },
+    {
+      "msg": "Name or service not known · Temporary failure in name resolution",
+      "meaning": "El primero: el resolver respondió que ese nombre no existe (typo, el servicio no está en tu red o el contenedor no corre). El segundo: no respondió o falló (sin red, --network none, DNS de la VM); según el DNS de arriba, también sale con un nombre inexistente. En los dos, revisa primero el nombre y la red.",
+      "first": "docker network inspect RED --format '{{range .Containers}}{{.Name}} {{end}}'",
+      "section": "diagnostico",
+      "topic": "red"
+    },
+    {
+      "msg": "[Errno 111] Connection refused (a localhost, desde un contenedor)",
+      "meaning": "Dentro de un contenedor, localhost es el propio contenedor. Usa el nombre del servicio (triton:8000) o host.docker.internal para llegar a tu Mac.",
+      "first": "docker exec NOMBRE env | grep URL",
+      "section": "diagnostico",
+      "topic": "red"
+    },
+    {
+      "msg": "ModuleNotFoundError: No module named 'app'",
+      "meaning": "Python no encuentra tu paquete: el WORKDIR o el COPY no coinciden con lo que asume el CMD, el código quedó fuera por .dockerignore, o falta la dependencia.",
+      "first": "docker run --rm --entrypoint sh IMAGEN -c 'pwd && ls'",
+      "section": "diagnostico",
+      "topic": "cmd"
+    },
+    {
+      "msg": "CUDA driver version is insufficient for CUDA runtime version",
+      "meaning": "El driver del host es más viejo que el CUDA de tu imagen, y no aplica ni minor version ni forward compatibility.",
+      "first": "nvidia-smi",
+      "section": "gpu",
+      "topic": "gpu"
+    },
+    {
+      "msg": "error getting credentials - err: exec: \"docker-credential-desktop\": executable file not found in $PATH",
+      "meaning": "Tu ~/.docker/config.json pide un credential helper que no está en el PATH: típico con un PATH recortado o tras desinstalar Docker Desktop.",
+      "first": "cat ~/.docker/config.json",
+      "section": "diagnostico",
+      "topic": "registry"
+    },
+    {
+      "msg": "invalid reference format: repository name (library/MiImagen) must be lowercase",
+      "meaning": "El nombre de imagen no es válido: mayúsculas, espacios, o un tag vacío (gateway:$TAG con TAG sin definir).",
+      "first": "echo \"gateway:$TAG\"",
+      "section": "diagnostico",
+      "topic": "cli"
+    },
+    {
+      "msg": "unknown flag: --gpu",
+      "meaning": "Ese subcomando no conoce el flag: un typo (es --gpus), un flag de otro subcomando o de otra versión. Lo rechaza el CLI: exit 125.",
+      "first": "docker run --help | grep -i gpu",
+      "section": "gpu",
+      "topic": "cli"
+    }
+  ]
+}

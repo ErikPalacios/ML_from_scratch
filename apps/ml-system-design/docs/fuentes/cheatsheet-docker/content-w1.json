@@ -1,0 +1,1708 @@
+{
+  "sections": [
+    {
+      "id": "bolsillo",
+      "num": 0,
+      "title": "Números y códigos de bolsillo",
+      "question": "¿Qué números conviene saberse de memoria para leer un fallo en segundos?",
+      "templates": [
+        {
+          "code": "docker run --rm {imagen} {comando}; echo \"exit=$?\"",
+          "note": "El exit code del contenedor llega a tu shell: <code>125</code>, <code>126</code> y <code>127</code> los pone Docker, y <code>255</code>, runc; cualquier otro es de tu proceso. Si el daemon no corre, el CLI sale con 1 (antes de la 29.1.3, <code>docker run</code> daba 125 o 127)."
+        },
+        {
+          "code": "docker ps -a --filter name={contenedor}",
+          "note": "STATUS dice <code>Exited (137) 5 seconds ago</code>: el código queda ahí aunque el contenedor ya no corra."
+        },
+        {
+          "code": "docker stop -t {segundos} {contenedor}",
+          "note": "SIGTERM, espera <code>{segundos}</code> (10 por defecto en Linux) y después SIGKILL."
+        }
+      ],
+      "formulas": [
+        "\\text{exit code} \\;=\\; 128 + n_{\\text{señal}} \\qquad \\text{(cuando una señal mató al proceso)}",
+        "130 = 128 + 2\\ (\\text{INT}) \\qquad 137 = 128 + 9\\ (\\text{KILL}) \\qquad 139 = 128 + 11\\ (\\text{SEGV}) \\qquad 143 = 128 + 15\\ (\\text{TERM})",
+        "t_{\\text{SIGKILL}} \\;=\\; t_{\\text{SIGTERM}} + t_{\\text{gracia}} \\qquad t_{\\text{gracia}} = 10\\ \\text{s por defecto}"
+      ],
+      "vars": [
+        [
+          "{imagen}",
+          "imagen a correr",
+          "classifier-gateway:3f9c2ab (en el lab, busybox:1.38)"
+        ],
+        [
+          "{comando}",
+          "comando que reemplaza al CMD de la imagen",
+          "python -c \"import app.main\""
+        ],
+        [
+          "{contenedor}",
+          "nombre o ID del contenedor",
+          "gw"
+        ],
+        [
+          "{segundos}",
+          "plazo entre SIGTERM y SIGKILL",
+          "30 para el gateway: drena hasta 20 s y en k8s tiene 30 s tras el SIGTERM"
+        ],
+        [
+          "n_señal",
+          "número de la señal que mató al proceso (kill -l las lista)",
+          "9 = SIGKILL, 15 = SIGTERM"
+        ],
+        [
+          "t_gracia",
+          "plazo de SIGTERM a SIGKILL",
+          "10 s en Docker y en compose; en k8s/gateway.yaml, 45 − 15 de preStop = 30 s"
+        ]
+      ],
+      "pieces": [
+        [
+          "0",
+          "Terminó bien.",
+          "un job que procesó todo y salió"
+        ],
+        [
+          "1 u otro",
+          "Lo decidió tu proceso: excepción no capturada, sys.exit(1) o su propio código. La causa está en docker logs.",
+          "ImportError al arrancar main.py"
+        ],
+        [
+          "125",
+          "Falló Docker y el contenedor nunca corrió: flag inválido, nombre en uso, imagen inexistente o pull denegado, error del daemon.",
+          "docker run --foo busybox:1.38"
+        ],
+        [
+          "126",
+          "El comando existe pero no se puede ejecutar: sin permiso de ejecución, o es un directorio.",
+          "docker run busybox:1.38 /etc"
+        ],
+        [
+          "127",
+          "El comando no existe en la imagen o no está en el PATH.",
+          "exec: \"uvicorn\": executable file not found in $PATH"
+        ],
+        [
+          "130",
+          "128 + 2 (SIGINT): lo cortaste con Ctrl+C.",
+          "docker run -it … y Ctrl+C"
+        ],
+        [
+          "137",
+          "128 + 9 (SIGKILL): OOM killer, docker kill o fin del plazo de docker stop.",
+          "OOMKilled true en docker inspect = memoria"
+        ],
+        [
+          "139",
+          "128 + 11 (SIGSEGV): segfault en código nativo, como una extensión C/C++ o una librería incompatible.",
+          "un .so compilado contra otra versión"
+        ],
+        [
+          "143",
+          "128 + 15 (SIGTERM): el proceso murió por el SIGTERM sin atraparlo.",
+          "docker stop de un sleep corrido con --init"
+        ],
+        [
+          "255",
+          "Lo devuelve runc (no está en la tabla de Docker): el contenedor ya arrancó, pero el kernel no pudo ejecutar el entrypoint.",
+          "docker logs: exec /app/run.sh: exec format error (otra arquitectura), o no such file or directory (shebang con CRLF)"
+        ],
+        [
+          "Docker.raw",
+          "Disco de la VM Linux de Docker Desktop con imágenes, contenedores, volúmenes y caché; docker system df desglosa qué lo ocupa.",
+          "Settings → Resources → Advanced → Disk image location (por defecto ~/Library/Containers/com.docker.docker/Data/vms/0/data)"
+        ],
+        [
+          "/var/lib/docker/volumes",
+          "La ruta que muestra docker volume inspect existe dentro de la VM, no en tu Mac.",
+          "Mountpoint: /var/lib/docker/volumes/datos/_data"
+        ],
+        [
+          "BuildKit",
+          "Builder por defecto de Docker Desktop y de Docker Engine (desde 23.0): cache mounts, secretos, etapas en paralelo.",
+          "docker build ya usa BuildKit"
+        ],
+        [
+          "failed to connect to the docker API",
+          "No existe el socket del daemon: Docker Desktop no está corriendo. El CLI sale con 1 (docker run también, desde la 29.1.3).",
+          "at unix:///Users/…/.docker/run/docker.sock; check if the path is correct and if the daemon is running"
+        ]
+      ],
+      "example": {
+        "title": "Parar el gateway del C01 sin cortar requests",
+        "lang": "bash",
+        "code": "# El CMD del gateway drena hasta 20 s tras el SIGTERM (--timeout-graceful-shutdown 20);\n# docker stop solo espera 10 s por defecto: dale los mismos 30 s que tiene en k8s\ndocker stop -t 30 gw\n\n# ¿Cómo terminó? STATUS dice \"Exited (código) …\"; OOMKilled=true confirma memoria\ndocker ps -a --filter name=gw\ndocker inspect -f '{{.State.ExitCode}} {{.State.OOMKilled}}' gw\n\n# En Kubernetes: 45 s de plazo total, y el preStop (sleep 15) gasta 15 antes del SIGTERM\ngrep -n -e terminationGracePeriodSeconds -e sleep k8s/gateway.yaml",
+        "source": "reference/c01/gateway/Dockerfile (CMD) y reference/c01/k8s/gateway.yaml",
+        "notes": [
+          "<code>--timeout-graceful-shutdown 20</code> está en el CMD del gateway: es el tiempo que uvicorn se da para terminar los requests en curso.",
+          "<code>docker stop</code> espera 10 s y manda SIGKILL: con requests en vuelo, al gateway dale <code>-t 30</code>. En compose el equivalente es <code>stop_grace_period</code> (también 10 s por defecto); el <code>docker-compose.yml</code> del C01 no lo fija, así que <code>stop_grace_period: 30s</code> sería un agregado tuyo.",
+          "<code>137</code> con <code>OOMKilled true</code> confirma memoria. Con <code>false</code> suele ser el plazo vencido o un <code>docker kill</code>, pero si nadie hizo stop ni kill no descartes la memoria: containerd puede perder el evento de OOM.",
+          "Si lo arrancaste con <code>--rm</code>, después del stop ya no existe: para ver su exit code, córrelo sin <code>--rm</code>.",
+          "Por qué 30: en el clúster manda <code>terminationGracePeriodSeconds: 45</code>, que empieza a contar con el preStop (<code>sleep 15</code>); tras el SIGTERM, a uvicorn le quedan 30 s."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Tamaños comprimidos para linux/amd64, leídos en Docker Hub en octubre de 2026 (aprox.): es lo que viaja por la red en cada pull. Los tags se republican con parches, así que cambian un poco.",
+        "data": {
+          "head": [
+            "Imagen",
+            "Comprimida (amd64, aprox.)",
+            "Qué trae",
+            "Úsala para"
+          ],
+          "rows": [
+            [
+              "python:3.12",
+              "≈ 410 MB",
+              "Debian + toolchain (buildpack-deps): gcc, headers",
+              "La etapa builder si algo se compila"
+            ],
+            [
+              "python:3.12-slim",
+              "≈ 43 MB",
+              "Debian mínimo + Python",
+              "La final de casi cualquier servicio Python"
+            ],
+            [
+              "python:3.12-alpine",
+              "≈ 21 MB",
+              "Alpine (musl) + Python",
+              "Herramientas chicas; no para ML (sección 3)"
+            ],
+            [
+              "nvidia/cuda:13.4.3-base-ubuntu24.04",
+              "≈ 0.2 GB",
+              "Lo mínimo de CUDA (cudart)",
+              "Traes el resto tú"
+            ],
+            [
+              "nvidia/cuda:13.4.3-runtime-ubuntu24.04",
+              "≈ 1.95 GB",
+              "Librerías de CUDA de runtime",
+              "La final de una imagen GPU que espera CUDA instalado"
+            ],
+            [
+              "nvidia/cuda:13.4.3-devel-ubuntu24.04",
+              "≈ 4.6 GB",
+              "+ nvcc, headers y librerías estáticas",
+              "Solo la etapa builder"
+            ],
+            [
+              "nvidia/cuda:12.6.3-{runtime,devel}-ubuntu22.04",
+              "≈ 1.53 / 4.06 GB",
+              "Lo mismo con CUDA 12.6",
+              "Nodos con driver anterior a la rama 580 (CUDA 13 la exige)"
+            ],
+            [
+              "nvcr.io/nvidia/tritonserver:24.08-py3",
+              "≈ 9.2 GB",
+              "Triton con sus backends",
+              "El serving del C01 (cifra del módulo 5 del curso)"
+            ]
+          ],
+          "note": "En disco ocupan más: descomprimidas, ≈ 2–3× (aprox.). Con el image store de containerd (el default de Docker Desktop), docker images muestra DISK USAGE (en disco: capas descomprimidas y también las comprimidas) y CONTENT SIZE (las capas comprimidas). En arm64, las de Python pesan parecido; las de CUDA, más."
+        }
+      },
+      "memo": "Por encima de 128 (salvo 255), resta 128 y busca la señal: <b>137 = 9 = KILL</b> (memoria, o se acabó el plazo) y <b>143 = 15 = TERM</b>. <code>125</code>, <code>126</code> y <code>127</code> dicen que Docker no pudo arrancar tu comando: falla de Docker, no es ejecutable, no existe.",
+      "trap": "Leer <code>137</code> como \"falta de memoria\" sin mirar <code>OOMKilled</code>: también da 137 un <code>docker stop</code> cuyo proceso ignoró el SIGTERM durante los 10 s. Y en Mac, buscar <code>/var/lib/docker</code> en Finder: esa ruta vive dentro de la VM.",
+      "lab": {
+        "goal": "Provocar los códigos 125, 127 y 137 (OOM, sin swap), y ver por qué un docker stop tarda 10 s y termina en 137 en vez de 143.",
+        "steps": [
+          {
+            "cmd": "docker run --foo busybox:1.38; echo \"exit=$?\"",
+            "expect": "unknown flag: --foo y exit=125: el CLI lo rechaza antes de hablar con el daemon."
+          },
+          {
+            "cmd": "docker run --rm busybox:1.38 no-existe; echo \"exit=$?\"",
+            "expect": "Un error del daemon que incluye exec: \"no-existe\": executable file not found in $PATH, y exit=127."
+          },
+          {
+            "cmd": "docker run --name lab-oom --memory 32m --memory-swap 32m python:3.12-slim python -c 'x = b\"x\" * (200 * 1024 * 1024)'; echo \"exit=$?\"\ndocker inspect -f '{{.State.OOMKilled}}' lab-oom",
+            "expect": "exit=137 y, casi siempre, true: sin swap (--memory-swap igual a --memory), el kernel mató a Python al pasar los 32 MB. Si ves false, containerd perdió el evento de OOM; un 137 sin stop ni kill ya apunta a memoria."
+          },
+          {
+            "cmd": "docker run -d --name lab-stop busybox:1.38 sleep 300\ntime docker stop lab-stop\ndocker inspect -f '{{.State.ExitCode}}' lab-stop",
+            "expect": "Unos 10 s de espera y 137: sleep es el PID 1, no instala handler de SIGTERM y el kernel le descarta la señal; al final llega el SIGKILL."
+          },
+          {
+            "cmd": "docker run -d --init --name lab-init busybox:1.38 sleep 300\ntime docker stop lab-init\ndocker inspect -f '{{.State.ExitCode}}' lab-init",
+            "expect": "Menos de un segundo y 143: docker-init (tini) es el PID 1, le reenvía el SIGTERM a sleep y sleep muere por esa señal (128 + 15)."
+          },
+          {
+            "cmd": "docker rm -f lab-oom lab-stop lab-init",
+            "expect": "Los tres nombres impresos: no queda nada del lab."
+          }
+        ],
+        "fix": "El 137 del paso 4 se arregla con un PID 1 que maneje SIGTERM: --init en docker run (init: true en compose), o un servidor que lo atrape (uvicorn, Triton) en un CMD con forma exec. Confírmalo con time docker stop: vuelve en menos de un segundo.",
+        "needs": "Docker Desktop corriendo (si no, los comandos fallan con failed to connect to the docker API) e internet para bajar busybox:1.38 y python:3.12-slim",
+        "verified": "docs"
+      },
+      "links": [
+        "#ref-comandos.depurar",
+        "#ref-comandos.docker",
+        "#m05.tamano"
+      ]
+    },
+    {
+      "id": "cadena",
+      "num": null,
+      "title": "La cadena",
+      "question": "¿Qué comandos llevan tu Dockerfile hasta un contenedor corriendo en otra máquina?",
+      "templates": [
+        {
+          "code": "docker build --platform {plataforma} -t {repo}:{tag} {contexto}",
+          "note": "Dockerfile + contexto → imagen. <code>{plataforma}</code> es la del nodo, no la de tu Mac."
+        },
+        {
+          "code": "docker tag {repo}:{tag} {registry}/{repo}:{tag}",
+          "note": "Un segundo nombre para la misma imagen (mismo ID): el registry va dentro del nombre."
+        },
+        {
+          "code": "docker push {registry}/{repo}:{tag}",
+          "note": "Sube las capas que faltan y termina con <code>{tag}: digest: sha256:… size: …</code>."
+        },
+        {
+          "code": "docker run -d --name {nombre} -p {puerto_host}:{puerto_contenedor} {registry}/{repo}@sha256:{digest}",
+          "note": "Si la imagen no está local, <code>run</code> hace el pull; por digest, de exactamente ese contenido."
+        }
+      ],
+      "vars": [
+        [
+          "{plataforma}",
+          "sistema y arquitectura de la máquina donde correrá",
+          "linux/amd64 (nodos g4dn, c6i)"
+        ],
+        [
+          "{repo}",
+          "nombre del repositorio, en minúsculas",
+          "classifier-gateway"
+        ],
+        [
+          "{tag}",
+          "versión legible; en el C01, el commit",
+          "3f9c2ab (git rev-parse --short HEAD)"
+        ],
+        [
+          "{contexto}",
+          "directorio con el Dockerfile y lo que este copia",
+          "gateway/ (desde reference/c01)"
+        ],
+        [
+          "{registry}",
+          "host del registry",
+          "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+        ],
+        [
+          "{digest}",
+          "los 64 caracteres hex del digest que devolvió el push",
+          "9b1c… (recortado)"
+        ],
+        [
+          "{nombre}",
+          "nombre del contenedor",
+          "gw"
+        ],
+        [
+          "{puerto_host}",
+          "puerto en tu máquina",
+          "8080"
+        ],
+        [
+          "{puerto_contenedor}",
+          "puerto donde escucha el proceso (el del EXPOSE)",
+          "8080"
+        ]
+      ],
+      "pieces": [
+        [
+          "Dockerfile",
+          "La receta: instrucciones que el builder ejecuta en orden.",
+          "reference/c01/gateway/Dockerfile"
+        ],
+        [
+          "contexto",
+          "Archivos que el builder puede leer: el último argumento de docker build, menos .dockerignore.",
+          "gateway/"
+        ],
+        [
+          "docker build -t",
+          "Construye la imagen y le pone nombre:tag.",
+          "docker build -t classifier-gateway:3f9c2ab gateway/"
+        ],
+        [
+          "--platform",
+          "Arquitectura de destino; en Apple Silicon, sin este flag sale arm64.",
+          "--platform linux/amd64"
+        ],
+        [
+          "imagen",
+          "Capas de solo lectura + config (CMD, ENV, USER); se identifica por su digest.",
+          "classifier-gateway:3f9c2ab"
+        ],
+        [
+          "docker tag",
+          "Agrega un nombre a una imagen que ya existe; no copia nada.",
+          "docker tag classifier-gateway:3f9c2ab $REG/classifier-gateway:3f9c2ab"
+        ],
+        [
+          "docker login",
+          "Autentica contra el registry y guarda la credencial (Docker Desktop usa el llavero de macOS).",
+          "aws ecr get-login-password … | docker login …"
+        ],
+        [
+          "docker push",
+          "Sube las capas que el registry no tiene y publica el tag.",
+          "Layer already exists = esa capa ya estaba"
+        ],
+        [
+          "registry",
+          "Almacén de imágenes: repositorios, tags y manifests por digest.",
+          "ECR en el C01; registry:3 en el lab"
+        ],
+        [
+          "docker pull",
+          "Baja las capas que faltan, por tag o por digest.",
+          "docker pull $REG/classifier-gateway@sha256:9b1c…"
+        ],
+        [
+          "docker run",
+          "Crea y arranca un contenedor; si falta la imagen, la baja primero.",
+          "Unable to find image '…' locally"
+        ],
+        [
+          "contenedor",
+          "Proceso + capa escribible sobre la imagen; lo que escribe se pierde al borrarlo.",
+          "gw"
+        ],
+        [
+          "docker buildx build --push",
+          "Build y push en un solo paso: lo que hace CI.",
+          "docker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$TAG --push gateway/"
+        ],
+        [
+          "docker ps / docker logs",
+          "¿Corre, con qué salud, y qué imprime?",
+          "docker logs -f gw"
+        ]
+      ],
+      "example": {
+        "title": "La cadena completa del gateway del C01",
+        "lang": "bash",
+        "code": "# Desde reference/c01. El tag es el commit corto: sabes exactamente qué código corre\nTAG=$(git rev-parse --short HEAD)\nREG=123456789012.dkr.ecr.us-east-1.amazonaws.com\n\n# 1) Dockerfile + contexto → imagen, para los nodos x86 (no para tu Mac)\ndocker build --platform linux/amd64 -t classifier-gateway:$TAG gateway/\n\n# 2) Segundo nombre con el registry delante: mismo IMAGE ID, nada se copia\ndocker tag classifier-gateway:$TAG $REG/classifier-gateway:$TAG\n\n# 3) Login y push: la última línea trae el digest (3f9c2ab: digest: sha256:… size: …)\naws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REG\ndocker push $REG/classifier-gateway:$TAG\n\n# 4) En otra máquina: pull por digest y run (run también hace el pull si falta)\ndocker pull $REG/classifier-gateway@sha256:9b1c…\ndocker run -d --name gw -p 8080:8080 -e MODEL_NAME=classifier $REG/classifier-gateway@sha256:9b1c…\n\n# 5) El contenedor: ¿corre y está sano?\ndocker ps --filter name=gw\ncurl -i localhost:8080/healthz",
+        "source": "reference/c01 (gateway/ y k8s/gateway.yaml) y el ciclo diario de la hoja de comandos",
+        "notes": [
+          "El tag es el commit (<code>git rev-parse --short HEAD</code>): de un contenedor llegas al código exacto. Es el mismo <code>classifier-gateway:3f9c2ab</code> de <code>k8s/gateway.yaml</code>.",
+          "<code>--platform linux/amd64</code>: sin él, tu Mac construye arm64 y el nodo x86 no la puede ejecutar.",
+          "<code>docker tag</code> no duplica nada: <code>docker images</code> muestra el mismo ID con dos nombres.",
+          "El push imprime el digest; desde ahí, pull y run van por <code>@sha256:</code> (sección 11). <code>9b1c…</code> está recortado: el real tiene 64 caracteres.",
+          "En tu Mac, correr la imagen amd64 imprime <code>WARNING: The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8)</code>: corre emulada; sirve para probar, no para medir latencia."
+        ]
+      },
+      "figure": {
+        "kind": "chain",
+        "caption": "Cuatro cosas (Dockerfile, imagen, registry, contenedor) unidas por cinco comandos. El nombre de la imagen decide a qué registry va el push.",
+        "data": {
+          "steps": [
+            {
+              "label": "Dockerfile",
+              "type": "artifact",
+              "detail": "reference/c01/gateway/Dockerfile + contexto gateway/"
+            },
+            {
+              "label": "build",
+              "type": "command",
+              "cmd": "docker build --platform linux/amd64 -t classifier-gateway:3f9c2ab gateway/"
+            },
+            {
+              "label": "imagen",
+              "type": "artifact",
+              "detail": "classifier-gateway:3f9c2ab en tu máquina (docker images)"
+            },
+            {
+              "label": "tag",
+              "type": "command",
+              "cmd": "docker tag classifier-gateway:3f9c2ab 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:3f9c2ab"
+            },
+            {
+              "label": "push",
+              "type": "command",
+              "cmd": "docker push 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:3f9c2ab",
+              "out": "3f9c2ab: digest: sha256:… size: …"
+            },
+            {
+              "label": "registry",
+              "type": "artifact",
+              "detail": "repo classifier-gateway en ECR (us-east-1), tags inmutables"
+            },
+            {
+              "label": "pull",
+              "type": "command",
+              "cmd": "docker pull 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway@sha256:9b1c…"
+            },
+            {
+              "label": "run",
+              "type": "command",
+              "cmd": "docker run -d --name gw -p 8080:8080 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway@sha256:9b1c…"
+            },
+            {
+              "label": "contenedor",
+              "type": "artifact",
+              "detail": "gw: uvicorn como PID 1, escuchando en :8080"
+            }
+          ],
+          "notes": [
+            "Antes del push va docker login contra ese registry (sección 11).",
+            "En CI, build y push son un solo paso: docker buildx build --platform linux/amd64 --push."
+          ]
+        }
+      },
+      "memo": "<b>Cuatro cosas, cinco verbos</b>: Dockerfile → <code>build</code> → imagen → <code>tag</code> y <code>push</code> → registry → <code>pull</code> y <code>run</code> → contenedor.",
+      "trap": "Hacer <code>docker push classifier-gateway:3f9c2ab</code> sin el host delante: sin registry en el nombre, Docker apunta a Docker Hub (<code>docker.io/library/classifier-gateway</code>), no a tu ECR.",
+      "lab": {
+        "goal": "Recorrer la cadena completa contra un registry local y ver que el nombre de la imagen decide de dónde se baja.",
+        "steps": [
+          {
+            "cmd": "docker run -d --name lab-registry -p 127.0.0.1:5001:5000 registry:3\nsleep 2; curl -s localhost:5001/v2/_catalog",
+            "expect": "{\"repositories\":[]}: un registry vacío en tu Mac. Se usa el 5001 porque en macOS el 5000 suele estar ocupado por AirPlay Receiver."
+          },
+          {
+            "cmd": "cd \"$(mktemp -d)\"\nprintf 'FROM busybox:1.38\\nCMD [\"echo\", \"hola desde la cadena\"]\\n' > Dockerfile\ndocker build -t lab-hola:v1 .",
+            "expect": "El build muestra una línea naming to docker.io/library/lab-hola:v1: sin host en el nombre, Docker asume Docker Hub."
+          },
+          {
+            "cmd": "docker run --rm localhost:5001/lab-hola:v1",
+            "expect": "Unable to find image 'localhost:5001/lab-hola:v1' locally y después un error de pull con not found: ese nombre no existe ni en tu máquina ni en el registry."
+          },
+          {
+            "cmd": "docker tag lab-hola:v1 localhost:5001/lab-hola:v1\ndocker push localhost:5001/lab-hola:v1",
+            "expect": "El push termina con v1: digest: sha256:… size: …"
+          },
+          {
+            "cmd": "docker rmi lab-hola:v1 localhost:5001/lab-hola:v1\ndocker run --rm localhost:5001/lab-hola:v1",
+            "expect": "Unable to find image … locally, el pull desde localhost:5001 y la línea hola desde la cadena."
+          },
+          {
+            "cmd": "curl -s localhost:5001/v2/_catalog",
+            "expect": "{\"repositories\":[\"lab-hola\"]}"
+          },
+          {
+            "cmd": "docker rm -f -v lab-registry\ndocker rmi localhost:5001/lab-hola:v1 registry:3",
+            "expect": "lab-registry, Untagged y Deleted: -v borra también el volumen anónimo del registry (/var/lib/registry). Solo queda busybox:1.38."
+          }
+        ],
+        "fix": "Una imagen solo llega a un registry si su nombre empieza con ese host: docker tag … localhost:5001/… y docker push. Confírmalo borrando la copia local y corriéndola otra vez: el pull sale del registry.",
+        "needs": "Docker Desktop corriendo, curl (viene con macOS) e internet para bajar registry:3 y busybox:1.38",
+        "verified": "docs"
+      },
+      "links": [
+        "#m05.registries",
+        "#ref-comandos.docker",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "anatomia",
+      "num": 1,
+      "title": "Anatomía de un Dockerfile",
+      "question": "¿Qué escribes, en qué orden y por qué?",
+      "templates": [
+        {
+          "code": "FROM {imagen}:{tag} AS {etapa}",
+          "note": "Cada <code>FROM</code> abre una etapa limpia; <code>AS</code> le da nombre para <code>COPY --from</code>."
+        },
+        {
+          "code": "COPY --from={etapa} {origen} {destino}",
+          "note": "Sin <code>--from</code> copia del contexto, y los archivos quedan de root; con <code>--from</code>, BuildKit conserva el dueño que tenían en esa etapa. <code>--chown</code> fija otro."
+        },
+        {
+          "code": "ENV {VAR}={valor}",
+          "note": "Persiste en la imagen y en cada contenedor. <code>ARG</code>, en cambio, vive solo durante el build."
+        },
+        {
+          "code": "CMD [\"{ejecutable}\", \"{arg}\", \"…\"]",
+          "note": "Forma exec: lista JSON con comillas dobles, y tu proceso es el PID 1. ENTRYPOINT y CMD en detalle: sección 5."
+        }
+      ],
+      "vars": [
+        [
+          "{imagen}",
+          "imagen base",
+          "python"
+        ],
+        [
+          "{tag}",
+          "versión de la base",
+          "3.13-slim"
+        ],
+        [
+          "{etapa}",
+          "nombre de la etapa",
+          "builder, runtime"
+        ],
+        [
+          "{origen}",
+          "ruta en la otra etapa (o en el contexto)",
+          "/opt/venv"
+        ],
+        [
+          "{destino}",
+          "ruta en la imagen que estás armando",
+          "/opt/venv"
+        ],
+        [
+          "{VAR}",
+          "variable de entorno",
+          "PYTHONUNBUFFERED"
+        ],
+        [
+          "{valor}",
+          "su valor",
+          "1"
+        ],
+        [
+          "{ejecutable}",
+          "programa que será el PID 1",
+          "uvicorn"
+        ],
+        [
+          "{arg}",
+          "argumentos, uno por elemento de la lista",
+          "app.main:app, --port, 8080"
+        ]
+      ],
+      "pieces": [
+        [
+          "# syntax=docker/dockerfile:1",
+          "Primera línea: usa la versión estable más reciente del frontend de Dockerfile 1.x.",
+          "línea 1 del gateway"
+        ],
+        [
+          "FROM",
+          "Imagen base y nombre de etapa; cada FROM empieza una etapa nueva y limpia.",
+          "FROM python:3.13-slim AS runtime"
+        ],
+        [
+          "WORKDIR",
+          "Directorio de trabajo para lo que sigue (RUN, COPY, CMD); lo crea si no existe.",
+          "WORKDIR /srv"
+        ],
+        [
+          "COPY",
+          "Copia desde el contexto (quedan de root) o desde otra etapa (conservan su dueño); --chown fija otro.",
+          "COPY --from=builder /opt/venv /opt/venv"
+        ],
+        [
+          "ADD",
+          "Como COPY, pero además baja URLs, clona repos git y descomprime tar locales. Para archivos locales, COPY.",
+          "ADD --checksum=sha256:… https://…/x.tar.gz /opt/"
+        ],
+        [
+          "RUN",
+          "Ejecuta un comando durante el build y guarda lo que cambió como una capa.",
+          "RUN python -m venv /opt/venv"
+        ],
+        [
+          "ENV",
+          "Variable de entorno para el build y para cada contenedor; queda en la imagen.",
+          "ENV PYTHONUNBUFFERED=1"
+        ],
+        [
+          "ARG",
+          "Variable solo de build (--build-arg); su valor queda en docker history (fila del ARG y RUN siguientes).",
+          "ARG GIT_SHA"
+        ],
+        [
+          "EXPOSE",
+          "Documenta el puerto donde escucha el proceso; no publica nada (eso es -p en docker run).",
+          "EXPOSE 8080"
+        ],
+        [
+          "USER",
+          "Usuario de los RUN siguientes y del proceso; con UID numérico, Kubernetes puede verificar runAsNonRoot.",
+          "USER 10001"
+        ],
+        [
+          "HEALTHCHECK",
+          "Comando que Docker corre cada --interval; exit 0 = healthy, 1 = unhealthy. Kubernetes lo ignora.",
+          "HEALTHCHECK --interval=10s --timeout=2s … CMD […]"
+        ],
+        [
+          "CMD",
+          "Comando por defecto del contenedor; en forma exec, tu proceso es el PID 1.",
+          "CMD [\"uvicorn\", \"app.main:app\", …]"
+        ],
+        [
+          "ENTRYPOINT",
+          "Ejecutable fijo; CMD pasa a ser sus argumentos (detalle en la sección 5).",
+          "las imágenes de NGC: /opt/nvidia/nvidia_entrypoint.sh"
+        ],
+        [
+          "LABEL",
+          "Metadatos clave=valor (repo, commit); no agrega contenido a la imagen.",
+          "LABEL org.opencontainers.image.revision=\"3f9c2ab\""
+        ]
+      ],
+      "example": {
+        "title": "El Dockerfile del gateway de C01",
+        "lang": "dockerfile",
+        "code": "# syntax=docker/dockerfile:1\nFROM python:3.13-slim AS builder\nENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1\nRUN python -m venv /opt/venv\nENV PATH=\"/opt/venv/bin:$PATH\"\nCOPY requirements.txt .\nRUN pip install --only-binary=:all: -r requirements.txt\n\nFROM python:3.13-slim AS runtime\nENV PYTHONDONTWRITEBYTECODE=1 \\\n    PYTHONUNBUFFERED=1 \\\n    PATH=\"/opt/venv/bin:$PATH\"\nRUN groupadd --system --gid 10001 app && \\\n    useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app\nWORKDIR /srv\nCOPY --from=builder /opt/venv /opt/venv\nCOPY app/ ./app/\nUSER 10001\nEXPOSE 8080\nHEALTHCHECK --interval=10s --timeout=2s --start-period=10s --retries=3 \\\n    CMD [\"python\", \"-c\", \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=1)\"]\nCMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\", \"--workers\", \"1\", \\\n     \"--timeout-keep-alive\", \"75\", \"--no-access-log\", \"--timeout-graceful-shutdown\", \"20\"]",
+        "source": "reference/c01/gateway/Dockerfile (todas las instrucciones; sin los comentarios)",
+        "notes": [
+          "Dos <code>FROM</code>, dos etapas: <code>builder</code> arma el venv; <code>runtime</code> arranca de una slim limpia y solo recibe <code>/opt/venv</code> por <code>COPY --from=builder</code>.",
+          "<code>ENV PATH=\"/opt/venv/bin:$PATH\"</code> en las dos etapas: así se encuentra el <code>uvicorn</code> del venv; sin eso, el contenedor sale con 127.",
+          "<code>COPY requirements.txt .</code> y <code>pip install</code> van antes de <code>COPY app/</code>: editar el código no reinstala las 37 dependencias (sección 2).",
+          "<code>groupadd</code> y <code>useradd</code> crean el UID 10001 y <code>USER 10001</code> lo activa; <code>COPY app/</code> sin <code>--chown</code> deja el código de root: el proceso lo lee pero no lo modifica.",
+          "<code>EXPOSE 8080</code> solo documenta. El <code>HEALTHCHECK</code> usa Python porque la slim no trae curl, y Kubernetes lo ignora (allá mandan las probes).",
+          "<code>CMD</code> en forma exec con <code>--workers 1</code>: uvicorn es el PID 1 y recibe el SIGTERM (sección 5)."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Qué hace cada instrucción y cuándo actúa. El contenido de la imagen sale de FROM, RUN, COPY y ADD; el resto es configuración.",
+        "data": {
+          "head": [
+            "Instrucción",
+            "¿Toca el filesystem?",
+            "¿Cuándo actúa?",
+            "¿Qué queda en la imagen?"
+          ],
+          "rows": [
+            [
+              "FROM",
+              "Pone las capas de la base",
+              "Build",
+              "Las capas de la base"
+            ],
+            [
+              "RUN",
+              "Sí: una capa con lo que cambió",
+              "Build",
+              "El resultado; el comando, en docker history"
+            ],
+            [
+              "COPY / ADD",
+              "Sí: una capa con los archivos",
+              "Build",
+              "Los archivos copiados"
+            ],
+            [
+              "WORKDIR",
+              "Solo crea el directorio si falta",
+              "Build y run",
+              "El directorio de trabajo"
+            ],
+            [
+              "ENV",
+              "No",
+              "Build y run",
+              "La variable (la ves con docker inspect)"
+            ],
+            [
+              "ARG",
+              "No",
+              "Solo build",
+              "Nada en la config; sí en docker history"
+            ],
+            [
+              "USER",
+              "No",
+              "Build (los RUN siguientes) y run",
+              "El usuario del proceso"
+            ],
+            [
+              "EXPOSE",
+              "No",
+              "Ninguno: documenta",
+              "El puerto, como metadato"
+            ],
+            [
+              "HEALTHCHECK",
+              "No",
+              "Run (docker y compose; Kubernetes lo ignora)",
+              "El comando de salud"
+            ],
+            [
+              "CMD / ENTRYPOINT",
+              "No",
+              "Run",
+              "El comando de arranque"
+            ],
+            [
+              "LABEL",
+              "No",
+              "Ninguno",
+              "Metadatos clave=valor"
+            ]
+          ],
+          "note": "docker image inspect muestra la config (ENV, USER, ExposedPorts, Cmd, Healthcheck); docker history, una fila por instrucción, también las de la base."
+        }
+      },
+      "memo": "Léelo en dos tiempos: lo que corre en <b>build</b> (FROM, RUN, COPY, ARG) arma el filesystem; lo que vale en <b>run</b> (ENV, USER, WORKDIR, HEALTHCHECK, CMD) es la configuración con la que arranca el contenedor.",
+      "trap": "Creer que <code>EXPOSE 8080</code> abre el puerto: sin <code>-p 8080:8080</code> nada llega desde tu Mac. Y comentar al final de una instrucción (<code>FROM python:3.13-slim # base</code>): en un Dockerfile, <code>#</code> solo es comentario al inicio de la línea.",
+      "lab": {
+        "goal": "Ver qué hace cada instrucción en run: EXPOSE no publica, HEALTHCHECK sí corre, ENV llega al contenedor y ARG no, aunque queda en el historial.",
+        "steps": [
+          {
+            "cmd": "cd \"$(mktemp -d)\"\ncat > Dockerfile <<'EOF'\nFROM python:3.12-slim\nARG BUILD_NOTE=solo-en-build\nENV APP_PORT=8000\nWORKDIR /srv\nRUN echo \"hola, build $BUILD_NOTE\" > index.html\nUSER 10001\nEXPOSE 8000\nHEALTHCHECK --interval=5s --timeout=2s --retries=3 \\\n  CMD [\"python\", \"-c\", \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=1)\"]\nCMD [\"python\", \"-m\", \"http.server\", \"8000\"]\nEOF\ndocker build -t lab-anat:1 .",
+            "expect": "El build muestra una línea naming to docker.io/library/lab-anat:1."
+          },
+          {
+            "cmd": "docker run -d --name lab-anat lab-anat:1\nsleep 8; curl -sS localhost:8000; docker ps --filter name=lab-anat --format \"{{.Status}}\"",
+            "expect": "curl: (7) Failed to connect to localhost port 8000 …, pero STATUS dice Up … (healthy): el servidor responde adentro y EXPOSE no publicó nada."
+          },
+          {
+            "cmd": "docker port lab-anat; docker exec lab-anat sh -c 'id -u; env | grep -E \"APP_PORT|BUILD_NOTE\"'",
+            "expect": "docker port no imprime nada; id -u da 10001 y solo aparece APP_PORT=8000: el ARG no llega al contenedor."
+          },
+          {
+            "cmd": "docker history --no-trunc lab-anat:1 | grep BUILD_NOTE",
+            "expect": "Las filas del ARG y del RUN muestran BUILD_NOTE=solo-en-build: el valor de un ARG queda a la vista de quien tenga la imagen."
+          },
+          {
+            "cmd": "docker rm -f lab-anat\ndocker run -d --name lab-anat -p 127.0.0.1:8000:8000 lab-anat:1\nsleep 2; curl -s localhost:8000",
+            "expect": "hola, build solo-en-build: con -p, el puerto sí llega a tu Mac."
+          },
+          {
+            "cmd": "docker rm -f lab-anat\ndocker rmi lab-anat:1",
+            "expect": "El contenedor y la imagen del lab, borrados."
+          }
+        ],
+        "fix": "Publica con -p (host:contenedor); EXPOSE solo lo documenta. Y nada secreto en ARG ni ENV: para eso está RUN --mount=type=secret (sección 3). Confírmalo con curl y con docker history.",
+        "needs": "Docker Desktop corriendo, curl e internet para bajar python:3.12-slim",
+        "verified": "docs"
+      },
+      "links": [
+        "#m05.dockerfile-ml",
+        "#c01.archivos",
+        "#ref-comandos.docker"
+      ]
+    },
+    {
+      "id": "capas-cache",
+      "num": 2,
+      "title": "Capas, caché y .dockerignore",
+      "question": "¿Por qué cambiar una línea a veces reconstruye todo, y cómo lo evitas?",
+      "templates": [
+        {
+          "code": "COPY {archivo_deps} .",
+          "note": "Primero solo el archivo de dependencias: esta capa cambia cuando cambian las dependencias, no cuando cambia el código."
+        },
+        {
+          "code": "RUN --mount=type=cache,target={dir_cache} pip install -r {archivo_deps}",
+          "note": "Cache mount: si la capa se rehace, pip reusa lo que ya bajó. No lo combines con <code>PIP_NO_CACHE_DIR=1</code>, que apaga ese cache."
+        },
+        {
+          "code": "COPY {código} {destino}",
+          "note": "El código al final: cambia en cada commit y solo invalida lo que viene después."
+        },
+        {
+          "code": "docker build --pull --no-cache -t {imagen}:{tag} {contexto}",
+          "note": "Build desde cero: <code>--pull</code> trae la base más reciente y <code>--no-cache</code> rehace cada paso."
+        }
+      ],
+      "formulas": [
+        "\\text{rebuild}_i \\;=\\; \\text{cambió}_i \\;\\lor\\; \\text{rebuild}_{i-1} \\qquad \\text{rebuild}_0 = \\text{cambió la base}",
+        "k \\;=\\; \\min\\{\\, i : \\text{cambió}_i \\,\\} \\;\\;\\Rightarrow\\;\\; \\text{se rehacen } k,\\, k{+}1,\\, \\dots,\\, n",
+        "B_{\\text{deploy}} \\;\\approx\\; \\sum_{i \\,\\ge\\, k} s_i \\qquad T_{\\text{build}} \\;\\approx\\; \\sum_{i \\,\\ge\\, k} t_i"
+      ],
+      "vars": [
+        [
+          "{archivo_deps}",
+          "lockfile o lista de dependencias",
+          "requirements.txt"
+        ],
+        [
+          "{dir_cache}",
+          "directorio de cache del gestor de paquetes",
+          "/root/.cache/pip"
+        ],
+        [
+          "{código}",
+          "lo que cambia en cada commit",
+          "app/"
+        ],
+        [
+          "{destino}",
+          "dónde queda en la imagen",
+          "./app/ (dentro de WORKDIR /srv)"
+        ],
+        [
+          "{imagen}",
+          "nombre de la imagen",
+          "classifier-gateway"
+        ],
+        [
+          "{tag}",
+          "versión",
+          "3f9c2ab"
+        ],
+        [
+          "{contexto}",
+          "directorio que recibe el builder",
+          "gateway/"
+        ],
+        [
+          "cambió_i",
+          "la instrucción i cambió su texto, sus archivos (COPY/ADD) o un ARG que usa",
+          "editar main.py cambia COPY app/"
+        ],
+        [
+          "rebuild_i",
+          "la capa i se vuelve a construir",
+          "todo lo que está debajo de un COPY . . invalidado"
+        ],
+        [
+          "k",
+          "primera instrucción que cambió",
+          "COPY app/ (si solo tocaste código)"
+        ],
+        [
+          "s_i, t_i",
+          "tamaño y tiempo de build de la capa i",
+          "app/ ≈ 48 KB; venv ≈ 44 MB comprimido"
+        ],
+        [
+          "B_deploy",
+          "bytes que baja un nodo que ya tenía la versión anterior",
+          "≈ 48 KB con el orden del C01"
+        ],
+        [
+          "T_build",
+          "tiempo del build",
+          "≈ 2–5 s si solo cambia app/ (estimación del módulo 5 del curso)"
+        ]
+      ],
+      "pieces": [
+        [
+          "capa",
+          "Diff de archivos que deja un RUN, COPY o ADD; se comparte entre imágenes por digest.",
+          "venv del gateway: ≈ 44 MB comprimido"
+        ],
+        [
+          "CACHED",
+          "BuildKit reutilizó el paso: misma instrucción, mismos archivos, mismas capas anteriores.",
+          "#8 CACHED con --progress=plain"
+        ],
+        [
+          "RUN (caché)",
+          "Compara el texto del comando, no lo que descarga: un RUN igual no se vuelve a ejecutar solo.",
+          "RUN apt-get update se queda viejo"
+        ],
+        [
+          "COPY / ADD (caché)",
+          "Comparan un checksum de los archivos copiados; el mtime no cuenta.",
+          "editar main.py invalida COPY app/"
+        ],
+        [
+          "ARG (caché)",
+          "Un valor nuevo invalida desde su primer uso, y los RUN posteriores lo reciben como variable.",
+          "ARG GIT_SHA arriba = reinstalar en cada commit"
+        ],
+        [
+          "contexto",
+          "Los archivos que el builder puede leer: el último argumento de docker build.",
+          "gateway/ en docker build … gateway/"
+        ],
+        [
+          ".dockerignore",
+          "Patrones fuera del contexto, relativos a su raíz; ** para cualquier profundidad, ! para excepciones.",
+          "**/__pycache__/, .env, **/*.plan"
+        ],
+        [
+          "Dockerfile.dockerignore",
+          "Ignore propio de un Dockerfile, a su lado; tiene prioridad sobre el de la raíz.",
+          "api/Dockerfile.dockerignore para docker build -f api/Dockerfile ."
+        ],
+        [
+          "RUN --mount=type=cache",
+          "Directorio que persiste entre builds para el cache del gestor de paquetes; no entra en la imagen.",
+          "target=/root/.cache/pip"
+        ],
+        [
+          "--no-cache",
+          "Rehace todos los pasos, pero sobre la base que ya tienes.",
+          "docker build --no-cache …"
+        ],
+        [
+          "--no-cache-filter",
+          "Ignora la caché solo en las etapas que nombras.",
+          "--no-cache-filter builder"
+        ],
+        [
+          "--pull",
+          "Vuelve a resolver y bajar las imágenes base aunque ya las tengas.",
+          "trae el último parche de python:3.13-slim"
+        ],
+        [
+          "docker builder prune",
+          "Borra la caché de build colgante (dangling); con -a, toda la que no se usa. Libera disco en la VM.",
+          "cuando docker system df muestra GB de caché"
+        ]
+      ],
+      "example": {
+        "title": "El .dockerignore del gateway del C01",
+        "lang": "text",
+        "code": "# Lo que NO entra al contexto de build del gateway: builds más rápidos y sin filtrar basura a la imagen\n# Tests y su config: no corren en producción (se corren en CI antes del build)\ntests/\npytest.ini\nrequirements-dev.txt\n# Artefactos locales de Python en cualquier carpeta: se regeneran, y un venv de macOS no sirve en Linux\n**/__pycache__/\n**/*.pyc\n**/.pytest_cache/\n.venv/\nvenv/\n# Control de versiones y editores\n.git/\n.gitignore\n.vscode/\n.idea/\n# Secretos locales: jamás dentro de una imagen (se inyectan como env/Secret en runtime)\n.env\n*.pem\n# Imágenes de prueba y modelos en cualquier carpeta (**/): el gateway no los necesita (el modelo vive en Triton)\n**/*.jpg\n**/*.jpeg\n**/*.png\n**/*.onnx\n**/*.plan",
+        "source": "reference/c01/gateway/.dockerignore",
+        "notes": [
+          "Los patrones son relativos a la raíz del contexto (<code>gateway/</code>) y <code>**/</code> los aplica a cualquier profundidad. A diferencia de <code>.gitignore</code>, un <code>*.pyc</code> sin <code>**/</code> solo cubriría la raíz.",
+          "<code>**/__pycache__/</code> y <code>**/*.pyc</code>: correr pytest en tu Mac crea <code>app/__pycache__</code>; sin estas líneas, <code>COPY app/</code> los copiaría (basura en la imagen y otro checksum para esa capa).",
+          "<code>tests/</code>, <code>pytest.ini</code> y <code>requirements-dev.txt</code>: los tests corren en CI antes del build; la imagen no los necesita.",
+          "<code>.env</code> y <code>*.pem</code>: secretos locales fuera del contexto; con un <code>COPY . .</code> terminarían en una capa.",
+          "<code>**/*.onnx</code>, <code>**/*.plan</code> e imágenes: el modelo vive en Triton, y un checkpoint en el contexto alarga los builds (lo ves en <code>transferring context</code>)."
+        ]
+      },
+      "figure": {
+        "kind": "layers",
+        "caption": "El gateway con COPY . . arriba (antipatrón). Editas app/main.py: COPY . . cambia su checksum y se rehace todo lo de abajo, incluidos ≈ 44 MB comprimidos de dependencias que no cambiaron. Con el orden del C01 (requirements.txt antes que app/) solo se rehace la capa del código, ≈ 48 KB. Tamaños comprimidos aproximados, del módulo 5 del curso.",
+        "data": {
+          "layers": [
+            {
+              "instr": "FROM python:3.13-slim",
+              "size_mb": 43,
+              "cached": true
+            },
+            {
+              "instr": "ENV PIP_NO_CACHE_DIR=1 PYTHONUNBUFFERED=1",
+              "size_mb": 0,
+              "cached": true
+            },
+            {
+              "instr": "WORKDIR /srv",
+              "size_mb": 0,
+              "cached": true
+            },
+            {
+              "instr": "COPY . .",
+              "size_mb": 0.05,
+              "cached": false
+            },
+            {
+              "instr": "RUN pip install --only-binary=:all: -r requirements.txt",
+              "size_mb": 44,
+              "cached": false
+            },
+            {
+              "instr": "USER 10001",
+              "size_mb": 0,
+              "cached": false
+            },
+            {
+              "instr": "CMD [\"uvicorn\", \"app.main:app\", …]",
+              "size_mb": 0,
+              "cached": false
+            }
+          ],
+          "changed_at": 3
+        }
+      },
+      "memo": "<b>Lo que cambia poco, arriba; lo que cambia en cada commit, abajo.</b> La caché se corta en la primera instrucción que cambió y desde ahí se rehace todo.",
+      "trap": "<code>ARG GIT_SHA</code> (o <code>COPY . .</code>) al principio del Dockerfile: el valor cambia en cada commit y, como los <code>RUN</code> que siguen lo reciben como variable de entorno, pueden perder la caché y reinstalar todo. Declara ese ARG al final, junto al LABEL que lo usa. Y <code>--no-cache</code> no trae una base nueva: eso es <code>--pull</code>.",
+      "lab": {
+        "goal": "Ver la cascada: con COPY . . arriba, editar una línea de código reinstala numpy; con el orden del C01, no. Después, ver cómo un checkpoint en el contexto engorda la imagen y cómo lo saca .dockerignore.",
+        "steps": [
+          {
+            "cmd": "cd \"$(mktemp -d)\"\nprintf 'numpy==2.5.3\\n' > requirements.txt\nprintf 'import numpy as np\\nprint(\"v1\", np.__version__)\\n' > app.py\ncat > Dockerfile <<'EOF'\nFROM python:3.12-slim\nWORKDIR /app\nCOPY . .\nRUN pip install --no-cache-dir -r requirements.txt\nCMD [\"python\", \"app.py\"]\nEOF\ndocker build -t lab-cache:mal .",
+            "expect": "El primer build baja la base e instala numpy (unos segundos)."
+          },
+          {
+            "cmd": "printf 'import numpy as np\\nprint(\"v2\", np.__version__)\\n' > app.py\ndocker build --progress=plain -t lab-cache:mal . 2>&1 | grep -E 'CACHED|Collecting'",
+            "expect": "Collecting numpy==2.5.3 otra vez: cambió app.py, se invalidó COPY . . y todo lo que sigue. Solo los pasos de arriba salen CACHED."
+          },
+          {
+            "cmd": "cat > Dockerfile <<'EOF'\nFROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nCMD [\"python\", \"app.py\"]\nEOF\ndocker build -t lab-cache:bien .\nprintf 'import numpy as np\\nprint(\"v3\", np.__version__)\\n' > app.py\ndocker build --progress=plain -t lab-cache:bien . 2>&1 | grep -B1 CACHED",
+            "expect": "El paso RUN pip install … aparece seguido de CACHED y no hay Collecting: solo se rehízo COPY . . al final."
+          },
+          {
+            "cmd": "dd if=/dev/urandom of=checkpoint.pt bs=1m count=200\ndocker build --progress=plain -t lab-cache:bien . 2>&1 | grep 'transferring context'\ndocker images lab-cache",
+            "expect": "transferring context de unos 200 MB, y lab-cache:bien unos 200 MB más pesada que lab-cache:mal: COPY . . metió el checkpoint en la imagen. En Docker 29 míralo en CONTENT SIZE; DISK USAGE suma además la copia descomprimida (los datos aleatorios no se comprimen)."
+          },
+          {
+            "cmd": "printf '*.pt\\n' > .dockerignore\ndocker build --progress=plain -t lab-cache:bien . 2>&1 | grep 'transferring context'\ndocker images lab-cache",
+            "expect": "El contexto vuelve a pesar unos pocos kB y la imagen vuelve a su tamaño. Ojo: *.pt solo cubre la raíz del contexto; para subcarpetas, **/*.pt."
+          },
+          {
+            "cmd": "rm -f checkpoint.pt\ndocker rmi lab-cache:mal lab-cache:bien\ndocker image prune -f",
+            "expect": "Untagged y Deleted; prune borra las imágenes sin tag que dejaron los rebuilds (Docker 29 ya no las lista por defecto) y cualquier otra colgante de tu Mac."
+          }
+        ],
+        "fix": "Dependencias antes que el código y un .dockerignore estricto (checkpoints, datos, .git, .env, venvs). Confírmalo editando el código: el paso de pip tiene que salir CACHED.",
+        "needs": "Docker Desktop corriendo e internet para bajar python:3.12-slim y la wheel de numpy",
+        "verified": "docs"
+      },
+      "links": [
+        "#m05.imagen-capas",
+        "#m05.dockerfile-ml",
+        "#ref-comandos.docker"
+      ]
+    },
+    {
+      "id": "imagenes-chicas",
+      "num": 3,
+      "title": "Imágenes chicas y seguras",
+      "question": "¿Cómo dejas en la imagen final solo lo que el proceso necesita para correr, y nada que no deba estar?",
+      "templates": [
+        {
+          "code": "FROM {imagen}:{tag}@sha256:{digest} AS builder",
+          "note": "Base fijada por contenido; el tag queda para humanos y para Renovate o Dependabot. Fija el digest del índice multi-plataforma, no el de amd64."
+        },
+        {
+          "code": "COPY --from=builder {artefacto} {artefacto}",
+          "note": "Lo único que cruza de etapa: el venv, un binario, unas wheels."
+        },
+        {
+          "code": "RUN apt-get update && apt-get install -y --no-install-recommends {paquetes} && rm -rf /var/lib/apt/lists/*",
+          "note": "Todo en un solo RUN: lo que borras en otro RUN sigue en la capa anterior."
+        },
+        {
+          "code": "RUN --mount=type=secret,id={id},env={VAR} {comando}",
+          "note": "El secreto existe solo durante ese RUN; se pasa con <code>docker build --secret id={id},env={VAR} .</code>"
+        }
+      ],
+      "formulas": [
+        "S_{\\text{final}} \\;=\\; S_{\\text{base run}} + \\sum_{k \\,\\in\\, \\text{etapa final}} s_k \\qquad (S_{\\text{builder}}\\ \\text{no aparece})",
+        "S \\;=\\; \\sum_i s_i, \\quad s_i \\ge 0 \\;\\;\\Rightarrow\\;\\; \\text{borrar en una capa posterior no resta}"
+      ],
+      "vars": [
+        [
+          "{imagen}",
+          "imagen base",
+          "python"
+        ],
+        [
+          "{tag}",
+          "versión legible",
+          "3.13-slim"
+        ],
+        [
+          "{digest}",
+          "hash del índice multi-plataforma de esa base",
+          "lo imprime docker buildx imagetools inspect python:3.13-slim"
+        ],
+        [
+          "{artefacto}",
+          "lo que la etapa final necesita para correr",
+          "/opt/venv"
+        ],
+        [
+          "{paquetes}",
+          "paquetes del sistema que el proceso usa en runtime",
+          "ffmpeg (forwarder del C02)"
+        ],
+        [
+          "{id}",
+          "nombre del secreto en el build",
+          "hf_token"
+        ],
+        [
+          "{VAR}",
+          "variable de entorno que lo expone en ese RUN",
+          "HF_TOKEN"
+        ],
+        [
+          "{comando}",
+          "lo que necesita el secreto",
+          "python download_weights.py"
+        ],
+        [
+          "S_final, S_base run",
+          "tamaño de la imagen final y de su base",
+          "≈ 43 MB de python:3.13-slim + el venv"
+        ],
+        [
+          "s_i, s_k",
+          "tamaño de cada capa",
+          "el venv del gateway, ≈ 44 MB comprimido"
+        ]
+      ],
+      "pieces": [
+        [
+          "multi-stage",
+          "Varias FROM; la final copia solo artefactos con COPY --from y lo demás se descarta.",
+          "builder → runtime en el gateway del C01"
+        ],
+        [
+          "--target",
+          "Construye solo hasta una etapa: para depurar o correr tests.",
+          "docker build --target builder -t gw:builder gateway/"
+        ],
+        [
+          "python:3.12 (full)",
+          "Debian + toolchain (buildpack-deps): gcc y headers; ≈ 410 MB comprimida.",
+          "etapa builder si algo se compila"
+        ],
+        [
+          "python:3.12-slim",
+          "Debian mínimo + Python; ≈ 43 MB comprimida.",
+          "la final del gateway (3.13-slim)"
+        ],
+        [
+          "python:3.12-alpine",
+          "musl en vez de glibc: pip no puede usar las wheels manylinux.",
+          "torch 2.14.0 no tiene wheel musllinux"
+        ],
+        [
+          "-runtime vs -devel",
+          "devel suma nvcc, headers y librerías estáticas: ≈ 2.5–2.7 GB más, comprimida.",
+          "nvidia/cuda:13.4.3-devel… solo en builder"
+        ],
+        [
+          "--no-cache-dir / PIP_NO_CACHE_DIR=1",
+          "pip no guarda en la capa una copia de lo que bajó.",
+          "ENV PIP_NO_CACHE_DIR=1 (gateway)"
+        ],
+        [
+          "--only-binary=:all:",
+          "Solo wheels: si falta una, el build falla en vez de compilar sin avisar.",
+          "pip install --only-binary=:all: -r requirements.txt"
+        ],
+        [
+          "--no-install-recommends",
+          "apt instala solo las dependencias obligatorias, no las recomendadas.",
+          "apt-get install -y --no-install-recommends ffmpeg"
+        ],
+        [
+          "rm -rf /var/lib/apt/lists/*",
+          "Borra los índices de apt; solo resta si va en el mismo RUN que el install.",
+          "última línea del RUN de apt del C02"
+        ],
+        [
+          "USER (UID numérico)",
+          "Proceso sin root; con un número, Kubernetes puede verificar runAsNonRoot.",
+          "USER 10001"
+        ],
+        [
+          "@sha256: en FROM",
+          "Fija la base por contenido; el tag se republica con cada parche.",
+          "python:3.13-slim@sha256:…"
+        ],
+        [
+          "RUN --mount=type=secret",
+          "Monta el secreto en /run/secrets/ID (o como env) solo durante ese RUN; no queda en capas ni historial.",
+          "docker build --secret id=hf_token,env=HF_TOKEN ."
+        ]
+      ],
+      "example": {
+        "title": "El forwarder del C02: multi-stage, apt limpio y UID fijo",
+        "lang": "dockerfile",
+        "code": "# syntax=docker/dockerfile:1\nFROM python:3.13-slim AS builder\nENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1\nRUN python -m venv /opt/venv\nENV PATH=\"/opt/venv/bin:$PATH\"\nCOPY requirements.txt .\nRUN pip install --only-binary=:all: -r requirements.txt\n\nFROM python:3.13-slim AS runtime\nRUN apt-get update && \\\n    apt-get install -y --no-install-recommends ffmpeg && \\\n    rm -rf /var/lib/apt/lists/*\nENV PYTHONDONTWRITEBYTECODE=1 \\\n    PYTHONUNBUFFERED=1 \\\n    PATH=\"/opt/venv/bin:$PATH\" \\\n    DATA_DIR=/var/lib/forwarder\nRUN groupadd --system --gid 10001 app && \\\n    useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app && \\\n    mkdir -p /var/lib/forwarder && chown app:app /var/lib/forwarder\nWORKDIR /srv\nCOPY --from=builder /opt/venv /opt/venv\nCOPY app.py rules.py ./\nUSER 10001\nCMD [\"python\", \"app.py\"]",
+        "source": "reference/c02/edge/forwarder/Dockerfile (todas las instrucciones; sin los comentarios)",
+        "notes": [
+          "Mismo esqueleto que el gateway del C01: <code>builder</code> arma <code>/opt/venv</code> con <code>--only-binary=:all:</code> y <code>PIP_NO_CACHE_DIR=1</code>; la final copia solo el venv y el código.",
+          "<code>apt-get update</code>, <code>install --no-install-recommends ffmpeg</code> y <code>rm -rf /var/lib/apt/lists/*</code> en un solo <code>RUN</code>: si la limpieza fuera en otro RUN, las listas seguirían en la capa del install.",
+          "ffmpeg va en la etapa final porque el proceso lo ejecuta en runtime; lo que solo sirve para construir se queda en <code>builder</code>.",
+          "El UID 10001 es dueño solo de <code>/var/lib/forwarder</code> (la cola SQLite): el código sigue siendo de root y de solo lectura.",
+          "Sin <code>HEALTHCHECK</code> a propósito: no hay puerto que consultar (el revisor lo marca como info, y está bien).",
+          "Multi-stage no es obligatorio: el C03 usa una sola etapa porque no hay nada que compilar y lo pesado ya viene en la base."
+        ]
+      },
+      "figure": {
+        "kind": "multistage",
+        "caption": "El caso donde multi-stage paga de verdad: CUDA. Las bases 13.4.3 pesan ≈ 4.6 GB (devel) y ≈ 1.95 GB (runtime), comprimidas para amd64 en Docker Hub; la final no paga nvcc ni headers en cada pull. Patrón ilustrativo, no construido aquí; es el mismo builder → runtime con COPY --from del gateway del C01.",
+        "data": {
+          "stages": [
+            {
+              "name": "builder",
+              "base": "nvidia/cuda:13.4.3-devel-ubuntu24.04",
+              "steps": [
+                "RUN apt-get … python3-venv python3-dev (update, install y limpieza en un RUN)",
+                "RUN python3 -m venv /opt/venv y pip install de tus dependencias",
+                "RUN pip install de tu extensión: nvcc la compila"
+              ],
+              "size_mb": 4603
+            },
+            {
+              "name": "runtime",
+              "base": "nvidia/cuda:13.4.3-runtime-ubuntu24.04",
+              "steps": [
+                "RUN apt-get … python3 (sin -dev; mismo RUN con limpieza)",
+                "COPY --from=builder /opt/venv /opt/venv",
+                "USER 10001",
+                "CMD [\"/opt/venv/bin/python\", \"-m\", \"servicio\"]"
+              ],
+              "size_mb": 1953
+            }
+          ],
+          "copies": [
+            {
+              "from": "builder",
+              "what": "/opt/venv (dependencias y la extensión ya compilada)"
+            }
+          ]
+        }
+      },
+      "memo": "<b>Construye gordo, corre flaco</b>: compiladores, headers y caches se quedan en el builder; a la imagen final solo llega lo que copias con <code>COPY --from</code>.",
+      "trap": "Limpiar en otro <code>RUN</code> (<code>RUN rm -rf /var/lib/apt/lists/*</code> después del install) no resta un byte: el archivo sigue en la capa de abajo. Y Alpine para ML: con musl, pip no puede usar las wheels manylinux, y torch no publica wheels musllinux (en Alpine, <code>pip install torch</code> termina en <code>No matching distribution found for torch</code>).",
+      "lab": {
+        "goal": "Comparar en docker images una imagen de una etapa (con el compilador adentro) y la misma en multi-stage (solo el binario).",
+        "steps": [
+          {
+            "cmd": "cd \"$(mktemp -d)\"\nprintf '#include <stdio.h>\\nint main(void) { puts(\"hola\"); return 0; }\\n' > hola.c\ncat > Dockerfile.single <<'EOF'\nFROM alpine:3.24\nWORKDIR /src\nRUN apk add --no-cache gcc musl-dev\nCOPY hola.c .\nRUN gcc -static -O2 -o /usr/local/bin/hola hola.c\nCMD [\"hola\"]\nEOF\ndocker build -f Dockerfile.single -t lab-ms:single .",
+            "expect": "Una imagen que trae gcc, binutils y headers, aunque el proceso solo necesita el binario."
+          },
+          {
+            "cmd": "cat > Dockerfile.multi <<'EOF'\nFROM alpine:3.24 AS builder\nWORKDIR /src\nRUN apk add --no-cache gcc musl-dev\nCOPY hola.c .\nRUN gcc -static -O2 -o /usr/local/bin/hola hola.c\n\nFROM alpine:3.24\nCOPY --from=builder /usr/local/bin/hola /usr/local/bin/hola\nUSER 10001\nCMD [\"hola\"]\nEOF\ndocker build -f Dockerfile.multi -t lab-ms:multi .",
+            "expect": "La etapa builder sale CACHED (son las mismas instrucciones del paso 1) y la final solo agrega el binario."
+          },
+          {
+            "cmd": "docker images lab-ms\ndocker history lab-ms:single",
+            "expect": "single pesa más de 10 veces lo que pesa multi (en cualquiera de las dos columnas), y en docker history la capa del apk add domina; multi son unos pocos MB: alpine más un binario estático."
+          },
+          {
+            "cmd": "docker run --rm lab-ms:multi\ndocker run --rm lab-ms:multi id -u",
+            "expect": "hola y 10001: corre igual, sin compilador y sin root."
+          },
+          {
+            "cmd": "docker rmi lab-ms:single lab-ms:multi",
+            "expect": "Untagged y Deleted: las imágenes del lab, borradas."
+          }
+        ],
+        "fix": "Compila en una etapa builder y copia solo el artefacto con COPY --from. En Python es el mismo patrón: venv armado en el builder y COPY --from=builder /opt/venv /opt/venv (gateway del C01, forwarder del C02). Confírmalo con docker images y docker history.",
+        "needs": "Docker Desktop corriendo e internet para bajar alpine:3.24 y los paquetes de apk",
+        "verified": "docs"
+      },
+      "links": [
+        "#m05.tamano",
+        "#m05.cuda",
+        "#m05.dockerfile-ml",
+        "#m15.secretos"
+      ]
+    },
+    {
+      "id": "registries",
+      "num": 11,
+      "title": "Registries y tags inmutables",
+      "question": "¿Cómo nombras, subes y bajas una imagen para que lo que corre sea siempre lo que probaste?",
+      "templates": [
+        {
+          "code": "{registry}/{namespace}/{repo}:{tag}@sha256:{digest}",
+          "note": "La referencia completa. Todo es opcional salvo <code>{repo}</code>; con digest, el tag queda solo como nombre legible."
+        },
+        {
+          "code": "aws ecr get-login-password --region {región} | docker login --username AWS --password-stdin {registry}",
+          "note": "Login a ECR: token de 12 horas, usuario <code>AWS</code>. En GHCR: <code>echo $CR_PAT | docker login ghcr.io -u {usuario} --password-stdin</code>."
+        },
+        {
+          "code": "docker push {registry}/{repo}:{git_sha}",
+          "note": "Termina con <code>{git_sha}: digest: sha256:… size: …</code>. Un tag por commit: nunca se reusa."
+        },
+        {
+          "code": "docker run --rm {registry}/{repo}@sha256:{digest}",
+          "note": "Por digest corre exactamente ese contenido, hoy y dentro de un año: nunca trae actualizaciones por su cuenta."
+        }
+      ],
+      "formulas": [
+        "\\texttt{python} \\;\\equiv\\; \\texttt{docker.io/library/python:latest}",
+        "\\text{digest} \\;=\\; \\texttt{sha256:}\\,\\mathrm{SHA256}(\\text{bytes del manifest})",
+        "\\text{tag} \\mapsto \\text{digest}\\ \\ (\\text{se puede mover}) \\qquad \\text{digest} \\mapsto \\text{contenido}\\ \\ (\\text{fijo})"
+      ],
+      "vars": [
+        [
+          "{registry}",
+          "host del registry",
+          "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+        ],
+        [
+          "{namespace}",
+          "usuario u organización (opcional)",
+          "ninguno en el ECR del C01; tu usuario u org en GHCR"
+        ],
+        [
+          "{repo}",
+          "repositorio",
+          "classifier-gateway"
+        ],
+        [
+          "{tag}",
+          "nombre legible que se puede mover",
+          "3f9c2ab"
+        ],
+        [
+          "{digest}",
+          "64 caracteres hex del SHA-256 del manifest",
+          "9b1c… (de docker push o de imagetools inspect)"
+        ],
+        [
+          "{región}",
+          "región de AWS del registry",
+          "us-east-1"
+        ],
+        [
+          "{usuario}",
+          "tu usuario de GitHub",
+          "la cuenta que creó el token"
+        ],
+        [
+          "{git_sha}",
+          "commit corto",
+          "3f9c2ab = $(git rev-parse --short HEAD)"
+        ]
+      ],
+      "pieces": [
+        [
+          "registry",
+          "Host donde vive la imagen; sin host en el nombre, Docker usa docker.io.",
+          "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+        ],
+        [
+          "repo",
+          "Ruta del repositorio en minúsculas; con mayúsculas falla con invalid reference format: repository name (…) must be lowercase.",
+          "classifier-gateway"
+        ],
+        [
+          ":tag",
+          "Nombre legible que apunta a un digest; si falta, latest.",
+          ":3f9c2ab"
+        ],
+        [
+          "@sha256:",
+          "Hash del manifest: identifica el contenido y no se puede mover.",
+          "@sha256:9b1c…"
+        ],
+        [
+          "latest",
+          "Solo el tag por defecto: no significa la versión más nueva.",
+          "docker pull python baja python:latest"
+        ],
+        [
+          "docker login --password-stdin",
+          "Guarda la credencial (en Mac, en el llavero) sin dejar el token en el historial del shell.",
+          "… | docker login --username AWS --password-stdin $REG"
+        ],
+        [
+          "token de ECR",
+          "Lo da aws ecr get-login-password y vale 12 horas.",
+          "cada job de CI vuelve a hacer login"
+        ],
+        [
+          "GHCR",
+          "ghcr.io/NAMESPACE/IMAGEN; PAT classic con write:packages, o GITHUB_TOKEN en Actions.",
+          "echo $CR_PAT | docker login ghcr.io -u USUARIO --password-stdin"
+        ],
+        [
+          "docker push",
+          "Sube las capas que faltan; cada tag termina con tag: digest: sha256:… size: ….",
+          "Layer already exists = ya estaba"
+        ],
+        [
+          "docker pull …@sha256:",
+          "Baja exactamente ese contenido; nunca trae parches por su cuenta.",
+          "docker pull $REG/classifier-gateway@sha256:9b1c…"
+        ],
+        [
+          "docker run --pull",
+          "missing (default): si el tag ya está local, no consulta al registry; always lo fuerza.",
+          "docker run --pull=always …:latest"
+        ],
+        [
+          "tags inmutables",
+          "El registry (ECR, Artifact Registry, Docker Hub) rechaza volver a subir un tag; en ECR, docker push falla con tag invalid: … cannot be overwritten because the repository is immutable.",
+          "aws ecr put-image-tag-mutability --repository-name classifier-gateway --image-tag-mutability IMMUTABLE"
+        ],
+        [
+          "RepoDigests",
+          "repo@sha256 de la imagen local; con el image store de containerd aparece aunque nunca la hayas subido.",
+          "docker image inspect --format '{{index .RepoDigests 0}}' IMAGEN"
+        ],
+        [
+          "límite de Docker Hub",
+          "Sin login: 100 pulls cada 6 horas por IP (o /64 de IPv6); cuenta Personal: 200.",
+          "un clúster detrás de un NAT comparte la IP"
+        ]
+      ],
+      "example": {
+        "title": "Release del gateway: build una vez, desplegar por digest",
+        "lang": "bash",
+        "code": "REG=123456789012.dkr.ecr.us-east-1.amazonaws.com\nSHA=$(git rev-parse --short HEAD)\n\n# Login: el token de ECR vale 12 h (GHCR: echo $CR_PAT | docker login ghcr.io -u USUARIO --password-stdin)\naws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REG\n\n# Build una vez, para la arquitectura de los nodos, con el commit como tag; --push sube al terminar\ndocker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/\n\n# El digest es la identidad: es lo que se firma, se escanea y se despliega\ndocker buildx imagetools inspect $REG/classifier-gateway:$SHA     # línea Digest: sha256:…\n\n# Desplegar por digest (k8s/gateway.yaml del C01 usa el tag :3f9c2ab)\nkubectl -n classifier set image deployment/gateway gateway=$REG/classifier-gateway@sha256:9b1c…",
+        "source": "adaptado de release.sh (js/content/m05-contenedores.js, sección 8) y reference/c01/k8s/gateway.yaml",
+        "notes": [
+          "El tag es el commit (<code>3f9c2ab</code>): de un pod llegas al código exacto, y en un repo con tags inmutables nadie lo puede reusar.",
+          "<code>--platform linux/amd64</code> y <code>--push</code>: CI construye una vez, para los nodos, y sube en el mismo paso.",
+          "<code>docker buildx imagetools inspect</code> lee el índice en el registry sin bajar la imagen: la línea <code>Digest:</code> es lo que firmas y despliegas.",
+          "<code>k8s/gateway.yaml</code> del C01 referencia el tag; desplegar por <code>@sha256:</code> te blinda contra un tag reescrito en un repo mutable.",
+          "El rollback es volver al digest anterior: la lifecycle policy del registry tiene que conservar las últimas releases."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Las partes de una referencia de imagen, con los valores del C01 y lo que Docker asume cuando falta cada una.",
+        "data": {
+          "head": [
+            "Parte",
+            "En el C01",
+            "Si falta",
+            "Regla"
+          ],
+          "rows": [
+            [
+              "{registry}",
+              "123456789012.dkr.ecr.us-east-1.amazonaws.com",
+              "docker.io (Docker Hub)",
+              "Host DNS o IP con puerto opcional; Docker lo reconoce si tiene un punto, dos puntos o es localhost"
+            ],
+            [
+              "{namespace}",
+              "ninguno (ECR acepta repos sin él)",
+              "library, solo en Docker Hub",
+              "Usuario u organización, en minúsculas"
+            ],
+            [
+              "{repo}",
+              "classifier-gateway",
+              "obligatorio",
+              "Minúsculas y dígitos, con separadores . _ -"
+            ],
+            [
+              ":{tag}",
+              ":3f9c2ab",
+              "latest",
+              "Hasta 128 caracteres: letras, dígitos, _ . -; no empieza con . ni -"
+            ],
+            [
+              "@sha256:{digest}",
+              "@sha256:9b1c… (64 hex)",
+              "se resuelve el tag",
+              "SHA-256 del manifest; si está, manda sobre el tag"
+            ]
+          ],
+          "note": "El nombre, sin el tag, admite hasta 255 caracteres. lab/app sin punto ni dos puntos en el primer componente va a docker.io/lab/app."
+        }
+      },
+      "memo": "<b>El tag es un nombre; el digest es el contenido.</b> Etiqueta con el commit, despliega por <code>@sha256:</code> y deja <code>latest</code> para humanos.",
+      "trap": "<code>latest</code> no es \"la última versión\": es el tag que se usa cuando no pones ninguno. <code>docker run</code> no lo vuelve a bajar si ya lo tienes (<code>--pull=missing</code>), Kubernetes lo consulta en cada arranque (<code>imagePullPolicy: Always</code>) y no hay rollback: ya apunta a la versión rota.",
+      "lab": {
+        "goal": "Ver que un tag se mueve y un digest no: dos tags para la misma imagen, un latest que cambia de contenido y un run por digest que siempre trae lo mismo.",
+        "steps": [
+          {
+            "cmd": "docker run -d --name lab-registry -p 127.0.0.1:5001:5000 registry:3",
+            "expect": "El ID del contenedor: un registry local en localhost:5001 (si sigue corriendo del lab de la cadena, salta este paso)."
+          },
+          {
+            "cmd": "cd \"$(mktemp -d)\"\nprintf 'FROM busybox:1.38\\nCMD [\"echo\", \"soy v1\"]\\n' > Dockerfile\ndocker build -t localhost:5001/lab/app:a1b2c3d -t localhost:5001/lab/app:latest .\ndocker images localhost:5001/lab/app",
+            "expect": "Dos nombres, a1b2c3d y latest, con el mismo ID: un tag es solo un nombre."
+          },
+          {
+            "cmd": "docker push localhost:5001/lab/app:a1b2c3d\ndocker push localhost:5001/lab/app:latest\nREF=$(docker image inspect --format '{{index .RepoDigests 0}}' localhost:5001/lab/app:a1b2c3d)\necho $REF",
+            "expect": "Los dos push terminan con el mismo digest: sha256:…, y REF queda como localhost:5001/lab/app@sha256:…"
+          },
+          {
+            "cmd": "printf 'FROM busybox:1.38\\nCMD [\"echo\", \"soy v2\"]\\n' > Dockerfile\ndocker build -t localhost:5001/lab/app:e4f5a6b -t localhost:5001/lab/app:latest .\ndocker push localhost:5001/lab/app:latest",
+            "expect": "El push de latest imprime otro digest: latest ya apunta a v2, mientras a1b2c3d sigue en v1."
+          },
+          {
+            "cmd": "docker run --rm localhost:5001/lab/app:latest\ndocker run --rm localhost:5001/lab/app:a1b2c3d\ndocker run --rm \"$REF\"",
+            "expect": "soy v2, soy v1, soy v1: el mismo nombre latest cambió de contenido; el digest no puede."
+          },
+          {
+            "cmd": "docker rm -f -v lab-registry\ndocker rmi localhost:5001/lab/app:latest localhost:5001/lab/app:e4f5a6b localhost:5001/lab/app:a1b2c3d",
+            "expect": "Untagged y Deleted; -v borra también el volumen anónimo del registry. Quedan registry:3 y busybox:1.38: bórralos con docker rmi si quieres."
+          }
+        ],
+        "fix": "En los deploys usa @sha256: (o un tag de commit en un repo con tags inmutables, como IMMUTABLE en ECR) y deja latest solo para humanos. Confírmalo corriendo por digest después de mover latest: el contenido no cambia.",
+        "needs": "Docker Desktop corriendo e internet para bajar registry:3 y busybox:1.38",
+        "verified": "docs"
+      },
+      "links": [
+        "#m05.registries",
+        "#m05.imagen-capas",
+        "#m11.rollback",
+        "#m15.supply-chain"
+      ]
+    }
+  ],
+  "revisor": [
+    {
+      "id": "from-sin-tag",
+      "severity": "error",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*FROM[ \\t]+(?:--\\S+[ \\t]+)*(?!scratch(?:[ \\t]|$))(?![^\\s]*\\$)((?:[^\\s:@/]+(?::\\d+)?\\/)*[^\\s:@/]+)(?::latest)?(?=[ \\t]|$)(?<![ \\t]AS[ \\t]+\\1[ \\t]*\\r?\\n[\\s\\S]*)",
+      "flags": "im",
+      "test": "match",
+      "message": "FROM sin tag o con :latest: la base puede cambiar sin que cambie tu Dockerfile.",
+      "why": "latest es solo el tag por defecto y se mueve con cada publicación: dos builds del mismo commit pueden salir distintos.",
+      "fix": "Fija la versión (FROM python:3.13-slim) y, en producción, también el digest (@sha256:…).",
+      "example_bad": "FROM python:latest",
+      "example_good": "FROM python:3.13-slim AS builder\nFROM builder AS test"
+    },
+    {
+      "id": "copy-todo-antes-de-deps",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)(?<!^[ \\t]*RUN\\b(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*?(?:\\b(?:uv[ \\t]+(?:pip[ \\t]+)?sync|poetry[ \\t]+install|npm[ \\t]+(?:ci|install)|(?:conda|mamba|micromamba)[ \\t]+env[ \\t]+(?:create|update))\\b|\\bpip3?[ \\t]+install\\b(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*?[ \\t](?:-r|--requirement)(?=[ \\t=]))(?:(?!^[ \\t]*FROM\\b)[\\s\\S])*)[ \\t]*COPY(?:[ \\t]+--\\S+)*[ \\t]+\\.\\/?[ \\t]+\\S+[ \\t]*$(?:(?!^[ \\t]*FROM\\b)[\\s\\S])*?^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*RUN\\b(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*\\b(?:pip3?[ \\t]+install\\b(?!(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*--no-deps)|uv[ \\t]+sync\\b|poetry[ \\t]+install\\b|(?:conda|mamba|micromamba)[ \\t]+install\\b|npm[ \\t]+(?:ci|install)\\b))",
+      "flags": "im",
+      "test": "match",
+      "message": "COPY . . antes de instalar dependencias: cualquier cambio de código reinstala todo.",
+      "why": "Un archivo editado cambia el checksum de COPY . . y la caché se corta ahí: pip install se rehace en cada build.",
+      "fix": "Copia primero solo el archivo de dependencias (COPY requirements.txt .), instala, y copia el código al final. Si las dependencias ya se instalaron antes (uv sync --no-install-project, poetry install --no-root), el segundo install tras COPY . . está bien y la regla no salta.",
+      "example_bad": "FROM python:3.13-slim\nWORKDIR /app\nCOPY . .\nRUN pip install --no-cache-dir -r requirements.txt",
+      "example_good": "FROM python:3.13-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . ."
+    },
+    {
+      "id": "add-archivo-local",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*ADD(?:[ \\t]+--\\S+)*[ \\t]+(?!-)(?!\\[)(?!(?:https?|git|ssh):\\/\\/|git@)(?!\\S*\\.(?:tar|tgz|tbz2?|txz|tar\\.(?:gz|bz2|xz|zst))(?=[ \\t]))\\S+[ \\t]+\\S",
+      "flags": "im",
+      "test": "match",
+      "message": "ADD con un archivo local: usa COPY.",
+      "why": "ADD además baja URLs, clona repos y descomprime tar; con archivos locales, COPY hace exactamente lo que se lee.",
+      "fix": "Cambia ADD por COPY; deja ADD para una URL con --checksum o para un tar que quieras extraer.",
+      "example_bad": "ADD app/ /srv/app/",
+      "example_good": "COPY app/ /srv/app/\nADD --checksum=sha256:0123abcd https://example.com/tool.tar.gz /opt/"
+    },
+    {
+      "id": "apt-sin-no-install-recommends",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)(?![\\s\\S]*^[ \\t]*FROM\\b)[ \\t]*RUN\\b(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*\\bapt(?:-get)?(?:[ \\t]+-\\S+)*[ \\t]+install\\b)(?!(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*--no-install-recommends)",
+      "flags": "im",
+      "test": "match",
+      "message": "apt-get install sin --no-install-recommends en la etapa final: entran paquetes que nadie pidió.",
+      "why": "Los paquetes recomendados engordan la imagen y suman superficie para CVEs sin que tu proceso los use.",
+      "fix": "apt-get install -y --no-install-recommends PAQUETES, en el mismo RUN que el update y la limpieza.",
+      "example_bad": "RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*",
+      "example_good": "RUN apt-get update && \\\n    apt-get install -y --no-install-recommends ffmpeg && \\\n    rm -rf /var/lib/apt/lists/*"
+    },
+    {
+      "id": "apt-sin-limpiar-listas",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)(?![\\s\\S]*^[ \\t]*FROM\\b)[ \\t]*RUN\\b(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*\\bapt(?:-get)?(?:[ \\t]+-\\S+)*[ \\t]+install\\b)(?!(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*(?:rm[ \\t]+-[a-z]*r[a-z]*[ \\t]+(?:-\\S+[ \\t]+)*\\/var\\/lib\\/apt\\/lists|target=\\/var\\/lib\\/apt\\b))",
+      "flags": "im",
+      "test": "match",
+      "message": "apt-get install en la etapa final sin rm -rf /var/lib/apt/lists/* en el mismo RUN.",
+      "why": "Los índices de apt quedan en la capa del install; borrarlos en otro RUN no resta un byte.",
+      "fix": "Termina el mismo RUN con && rm -rf /var/lib/apt/lists/* (o usa un cache mount en /var/lib/apt).",
+      "example_bad": "RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg\nRUN rm -rf /var/lib/apt/lists/*",
+      "example_good": "RUN apt-get update && \\\n    apt-get install -y --no-install-recommends ffmpeg && \\\n    rm -rf /var/lib/apt/lists/*"
+    },
+    {
+      "id": "pip-sin-no-cache-dir",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)(?![\\s\\S]*^[ \\t]*FROM\\b)[ \\t]*(?<!(?:\\bPIP_NO_CACHE_DIR[ \\t]*=|\\bENV[ \\t]+PIP_NO_CACHE_DIR[ \\t])[\\s\\S]*)RUN\\b(?!(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*--mount=\\S*type=cache)(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*(?<!\\buv[ \\t]{1,8})\\bpip3?[ \\t]+install\\b)(?!(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*--no-cache-dir)",
+      "flags": "im",
+      "test": "match",
+      "message": "pip install en la etapa final sin --no-cache-dir (ni PIP_NO_CACHE_DIR ni cache mount): el cache de pip queda en la imagen.",
+      "why": "pip guarda una copia de todo lo que bajó; dentro de una imagen no sirve, y con torch son GB.",
+      "fix": "Agrega --no-cache-dir, o ENV PIP_NO_CACHE_DIR=1 como el gateway del C01, o RUN --mount=type=cache,target=/root/.cache/pip.",
+      "example_bad": "FROM python:3.13-slim\nRUN pip install -r requirements.txt",
+      "example_good": "FROM python:3.13-slim\nENV PIP_NO_CACHE_DIR=1\nRUN pip install --only-binary=:all: -r requirements.txt"
+    },
+    {
+      "id": "sin-user",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*USER[ \\t]+(?!(?:root|0)(?::\\S*)?[ \\t]*$)\\S+[^\\n]*$(?![\\s\\S]*^[ \\t]*(?:USER|FROM)\\b)|^[ \\t]*#[^\\n]*\\brunAs(?:User|NonRoot)\\b",
+      "flags": "im",
+      "test": "nomatch",
+      "message": "La etapa final no cambia de usuario (o vuelve a root): el proceso corre como root.",
+      "why": "Si alguien explota el proceso, es root dentro del contenedor: un paso menos para llegar al nodo.",
+      "fix": "Agrega USER con UID numérico (USER 10001) en la etapa final, después de instalar lo que necesite root. Si el usuario lo fija Kubernetes (runAsUser), como en el triton del C01, dilo en un comentario y la regla lo acepta.",
+      "example_bad": "FROM python:3.13-slim\nCOPY app/ ./app/\nCMD [\"python\", \"-m\", \"app\"]",
+      "example_good": "FROM python:3.13-slim\nCOPY app/ ./app/\nUSER 10001\nCMD [\"python\", \"-m\", \"app\"]"
+    },
+    {
+      "id": "cmd-forma-shell",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*(?:CMD|ENTRYPOINT)[ \\t]+(?:(?!\\[)\\S|\\[[ \\t]*')",
+      "flags": "im",
+      "test": "match",
+      "message": "CMD o ENTRYPOINT en forma shell (o con comillas simples): tu proceso puede no ser PID 1.",
+      "why": "Docker la corre como /bin/sh -c. En bases Debian o Ubuntu (como python:3.12-slim), sh se queda como PID 1 y no reenvía el SIGTERM: docker stop termina en SIGKILL (137). En Alpine, sh suele hacer exec del comando, pero no cuentes con eso.",
+      "fix": "Forma exec con comillas dobles: CMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"].",
+      "example_bad": "CMD uvicorn app.main:app --host 0.0.0.0 --port 8080",
+      "example_good": "CMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]"
+    },
+    {
+      "id": "secreto-en-env-arg",
+      "severity": "error",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*(?:ENV|ARG)\\b(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*(?<=[\\s{$])(?!(?:[a-z0-9]+_)*public(?:_|[^a-z0-9_]|$))(?:[a-z0-9]+_)*(?:api_?key|key|token|password|passwd|pwd|secret|credentials?)(?:_[a-z0-9]+)*(?<!_(?:file|path|dir))(?=[ \\t]*=|[\\s\"'}]|$))",
+      "flags": "im",
+      "test": "match",
+      "message": "Posible secreto en ENV o ARG (KEY, TOKEN, PASSWORD, SECRET): queda en la imagen o en su historial.",
+      "why": "ENV persiste en la config de la imagen y el valor de un ARG se ve en docker history: quien hace pull, lo lee.",
+      "fix": "En el build, RUN --mount=type=secret,id=hf_token,env=HF_TOKEN con docker build --secret; en runtime, variables o Secrets al arrancar.",
+      "example_bad": "ARG HF_TOKEN\nRUN python download_weights.py",
+      "example_good": "RUN --mount=type=secret,id=hf_token,env=HF_TOKEN python download_weights.py"
+    },
+    {
+      "id": "apt-update-solo",
+      "severity": "error",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*RUN\\b(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*\\bapt(?:-get)?(?:[ \\t]+-\\S+)*[ \\t]+update\\b)(?!(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*\\b(?:install|upgrade)\\b)",
+      "flags": "im",
+      "test": "match",
+      "message": "apt-get update en un RUN sin install: esa capa queda en caché con listas viejas.",
+      "why": "La caché compara el texto del RUN: el update no se repite, y un día el install pide versiones que ya no están en el mirror.",
+      "fix": "Une update, install --no-install-recommends y rm -rf /var/lib/apt/lists/* en un solo RUN.",
+      "example_bad": "RUN apt-get update\nRUN apt-get install -y --no-install-recommends ffmpeg",
+      "example_good": "RUN apt-get update && \\\n    apt-get install -y --no-install-recommends ffmpeg && \\\n    rm -rf /var/lib/apt/lists/*"
+    },
+    {
+      "id": "sudo-en-run",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*RUN\\b(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*(?:^|[\\s;&|(])sudo\\b)",
+      "flags": "im",
+      "test": "match",
+      "message": "sudo en un RUN: el build ya corre como root, o como el USER que fijaste.",
+      "why": "Docker desaconseja sudo en imágenes: su manejo de TTY y señales es impredecible y deja una vía para escalar privilegios.",
+      "fix": "Haz los pasos que piden root antes del USER; si necesitas bajar privilegios al arrancar, usa gosu.",
+      "example_bad": "USER 10001\nRUN sudo apt-get update",
+      "example_good": "RUN apt-get update && \\\n    apt-get install -y --no-install-recommends ffmpeg && \\\n    rm -rf /var/lib/apt/lists/*\nUSER 10001"
+    },
+    {
+      "id": "sin-expose",
+      "severity": "info",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*EXPOSE[ \\t]+\\S",
+      "flags": "im",
+      "test": "nomatch",
+      "message": "No hay EXPOSE: si es un servicio, documenta su puerto.",
+      "why": "EXPOSE no publica nada, pero dice dónde escucha el proceso y docker run -P lo usa.",
+      "fix": "Agrega EXPOSE con el puerto del proceso (EXPOSE 8080 en el gateway); en un worker sin puerto, ignora el aviso.",
+      "example_bad": "FROM python:3.13-slim\nCMD [\"python\", \"-m\", \"http.server\", \"8080\"]",
+      "example_good": "FROM python:3.13-slim\nEXPOSE 8080\nCMD [\"python\", \"-m\", \"http.server\", \"8080\"]"
+    },
+    {
+      "id": "sin-healthcheck",
+      "severity": "info",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*HEALTHCHECK[ \\t]+\\S|^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*FROM[ \\t]+(?:--\\S+[ \\t]+)*nvcr\\.io\\/[^\\n]*$(?![\\s\\S]*^[ \\t]*FROM\\b)",
+      "flags": "im",
+      "test": "nomatch",
+      "message": "No hay HEALTHCHECK: docker ps y compose no sabrán si el proceso responde.",
+      "why": "Con HEALTHCHECK, depends_on: service_healthy espera al servicio de verdad; Kubernetes lo ignora y usa sus probes.",
+      "fix": "Agrega HEALTHCHECK --interval=10s --timeout=2s CMD [...] contra tu /healthz, o ignora el aviso si solo despliegas en Kubernetes. No salta con bases de NGC (nvcr.io): su chequeo va en compose o en las probes, como el triton del C01.",
+      "example_bad": "FROM python:3.13-slim\nCMD [\"python\", \"app.py\"]",
+      "example_good": "FROM python:3.13-slim\nHEALTHCHECK --interval=10s --timeout=2s --start-period=10s --retries=3 \\\n    CMD [\"python\", \"-c\", \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=1)\"]\nCMD [\"python\", \"app.py\"]"
+    },
+    {
+      "id": "cd-en-run",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*RUN\\b(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*(?:^|[\\s;&|(])cd[ \\t]+\\S)",
+      "flags": "im",
+      "test": "match",
+      "message": "cd dentro de RUN: el cambio de directorio muere con ese RUN.",
+      "why": "Cada RUN arranca en el WORKDIR; RUN cd /app no afecta a la instrucción siguiente y esconde dónde corre cada comando.",
+      "fix": "Usa WORKDIR /app antes de los comandos que lo necesitan.",
+      "example_bad": "RUN cd /app && pip install --no-cache-dir -r requirements.txt",
+      "example_good": "WORKDIR /app\nRUN pip install --no-cache-dir -r requirements.txt"
+    },
+    {
+      "id": "curl-pipe-sh",
+      "severity": "warn",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*RUN\\b(?=(?:[^\\\\\\n]|\\\\(?![ \\t]*\\r?\\n)[^\\n]|\\\\[ \\t]*\\r?\\n(?:[ \\t]*#[^\\n]*\\r?\\n)*)*\\b(?:curl|wget)\\b[^|\\n]*(?:\\\\[ \\t]*\\r?\\n[^|\\n]*)*\\|[ \\t]*(?:sudo[ \\t]+)?(?:(?:ba|z|da|k)?sh|python3?)\\b)",
+      "flags": "im",
+      "test": "match",
+      "message": "curl | sh (o wget | bash): ejecutas un script remoto sin verificarlo.",
+      "why": "Lo que corre depende del servidor el día del build, y sin pipefail un curl que falla deja el RUN en verde.",
+      "fix": "Descarga a un archivo con su sha256 verificado (ADD --checksum o sha256sum -c) y después ejecútalo; o instala un paquete con versión fija.",
+      "example_bad": "RUN curl -fsSL https://example.com/install.sh | sh",
+      "example_good": "ADD --checksum=sha256:0123abcd https://example.com/install.sh /tmp/install.sh\nRUN sh /tmp/install.sh"
+    },
+    {
+      "id": "comentario-en-linea",
+      "severity": "error",
+      "pattern": "^(?<!\\\\[ \\t]*\\r?\\n)[ \\t]*(?:FROM|COPY|ADD|ENV|ARG|WORKDIR|USER|EXPOSE|LABEL|STOPSIGNAL|VOLUME)\\b(?:[^\\n#\"']|\"[^\"\\n]*\"|'[^'\\n]*')*[ \\t]#(?:[ \\t]|$)",
+      "flags": "im",
+      "test": "match",
+      "message": "# después de una instrucción: en un Dockerfile no es comentario, es un argumento más.",
+      "why": "Solo es comentario al inicio de la línea: FROM, COPY o EXPOSE fallan con argumentos raros, y en un ENV puede terminar dentro del valor.",
+      "fix": "Pon el comentario en su propia línea, encima de la instrucción, como en el Dockerfile del C01.",
+      "example_bad": "FROM python:3.13-slim # base",
+      "example_good": "# base\nFROM python:3.13-slim"
+    }
+  ]
+}
