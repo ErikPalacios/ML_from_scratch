@@ -1,0 +1,35 @@
+[
+  {
+    "id": "estimaciones",
+    "title": "Formulario de estimaciones",
+    "topic": "ML System Design",
+    "summary": "Todas las cuentas de las estimaciones del C01 en notación matemática: tráfico, presupuesto de latencia, GPUs (y sin GPU), VRAM, CPU de preprocesamiento, red, almacenamiento, costo mensual y backfill, con ejemplos resueltos y gráficas.",
+    "sample": "<i>W</i> = <i>S</i> / (1 − <i>ρ</i>)",
+    "sample_kind": "math",
+    "facts": [
+      "11 secciones",
+      "Ejemplos resueltos del C01",
+      "Calculadora"
+    ],
+    "page": "formulario-estimaciones.html",
+    "pdf": "formulario-estimaciones.pdf",
+    "updated": "2026-10-16"
+  },
+  {
+    "id": "docker",
+    "title": "Cheat sheet de Docker",
+    "topic": "Contenedores",
+    "summary": "Para escribir un Dockerfile desde cero con la documentación abierta y diagnosticar una falla en minutos: sintaxis con variables, ejemplos reales del C01, figuras, trampas típicas y laboratorios opcionales.",
+    "sample": "docker run --rm -p <var>puerto</var>:8000 <var>imagen</var>:<var>tag</var>",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "Diagnosticador de síntomas",
+      "Revisor de Dockerfile",
+      "Quiz de errores"
+    ],
+    "page": "cheatsheet-docker.html",
+    "pdf": "cheatsheet-docker.pdf",
+    "updated": "2026-10-18"
+  }
+]

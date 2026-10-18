@@ -5,8 +5,9 @@
 // Uso:
 //   node gen-docker.mjs src <dir>   → <dir>/head.html, wrap.html, script.js y src.html (con KaTeX de cdnjs)
 //   node gen-docker.mjs build       → lo anterior en ./out, renderiza [data-tex] a MathML estático con
-//                                     tools/browser-check.mjs y escribe cheatsheet-docker.html (HEAD + wrap + script)
-//                                     y local.html (con doctype/html/head/body, para ver y para el PDF)
+//                                     tools/browser-check.mjs (de la app ml-system-design) y escribe out/artifact.html
+//                                     (HEAD + wrap + script, para el Artifact de claude.ai) y ../cheatsheet-docker.html
+//                                     (con doctype/html/head/body: la página del sitio y la fuente del PDF)
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import vm from 'node:vm';
@@ -14,7 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const APP = '/Users/erikpalacios/Documents/ML_from_scratch/ClaudeApss/.claude/worktrees/fase-7-ronda-diseno-ml-7020fd/apps/ml-system-design';
+const APP = join(HERE, '../../../../ml-system-design'); // ejemplos del C01, módulos del curso y browser-check.mjs
 const readJSON = (f) => JSON.parse(readFileSync(join(HERE, f), 'utf8'));
 const W1 = readJSON('content-w1.json'), W2 = readJSON('content-w2.json'), W3 = readJSON('content-w3.json');
 const C01_DOCKERFILE = readFileSync(join(APP, 'reference/c01/gateway/Dockerfile'), 'utf8');
@@ -1324,7 +1325,7 @@ else if (mode === 'build') {
   (r.stdout || '').split('\n').filter((l) => !l.startsWith('[eval] ')).forEach((l) => l && console.log('  ' + l));
   if (v.n !== v.total || v.errors.length) throw new Error('hay fórmulas sin renderizar');
   const page = HEAD + '\n' + v.html + '\n<script>' + JS + '</script>';
-  writeFileSync(join(HERE, 'cheatsheet-docker.html'), page);
-  writeFileSync(join(HERE, 'local.html'), '<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">' + HEAD + '</head><body>' + v.html + '\n<script>' + JS + '</script></body></html>');
+  writeFileSync(join(out, 'artifact.html'), page);
+  writeFileSync(join(HERE, '..', 'cheatsheet-docker.html'), '<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">' + HEAD + '</head><body>' + v.html + '\n<script>' + JS + '</script></body></html>');
   console.log('final', page.length, 'bytes');
 }

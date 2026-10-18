@@ -1,0 +1,122 @@
+#!/usr/bin/env node
+// Arma el sitio en dist/ (lo que sube a Vercel). Sin dependencias: corre igual en tu Mac y en Vercel.
+//   index.html          = site/hub.html con una tarjeta por hoja de sheets.json
+//   <id>/index.html     = la página de la hoja (sheets/<id>/<page>) + barra para volver a la portada
+//   <id>/<pdf>          = el PDF de la hoja
+//   sw.js               = site/sw.js con el hash del build y la lista de páginas (abre sin conexión)
+//   manifest e íconos   = copiados de site/
+// Las páginas de las hojas ya vienen con las fórmulas en MathML: se generan con sheets/<id>/fuentes/.
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, rmSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const SITE = join(ROOT, 'site');
+const OUT = join(ROOT, 'dist');
+const SHEETS = JSON.parse(readFileSync(join(ROOT, 'sheets.json'), 'utf8'));
+const ASSETS = ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+
+const fail = (msg) => { console.error('[build] ERROR: ' + msg); process.exit(1); };
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const fecha = (iso) => { const [y, m, d] = iso.split('-').map(Number); return `${d} de ${MESES[m - 1]} de ${y}`; };
+const mb = (bytes) => (bytes / 1e6).toFixed(1) + ' MB';
+
+const HEAD = [
+  '<link rel="manifest" href="/manifest.webmanifest">',
+  '<link rel="icon" href="/icon.svg" type="image/svg+xml">',
+  '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
+  '<meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">',
+  '<meta name="theme-color" content="#0E131A" media="(prefers-color-scheme: dark)">',
+  '<meta name="mobile-web-app-capable" content="yes">',
+  '<meta name="apple-mobile-web-app-capable" content="yes">',
+  '<meta name="apple-mobile-web-app-title" content="Cheat sheets">',
+].join('\n');
+// el service worker solo se registra servido por http(s): abriendo el archivo con doble clic no aplica.
+const REGISTER = `<script>
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+}
+</script>`;
+// Barra de cada hoja: volver a la portada y bajar el PDF. Usa los tokens de color de la hoja.
+const BAR_CSS = `
+body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.hub-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; padding-top: 14px; font: 600 14.5px/1.3 var(--f-display); }
+.hub-bar a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; min-height: 40px; }
+.hub-bar a:hover { text-decoration: underline; }
+.hub-bar a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.hub-bar .hub-pdf { border: 1px solid var(--rule); background: var(--paper); border-radius: 999px; padding: 0 14px; color: var(--ink); }
+.hub-bar .hub-pdf:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+.hub-bar + .hero { padding-top: 22px; }
+@media print { .hub-bar { display: none !important; } }
+`;
+
+function inject(html, where, { head = '', css = '', afterWrap = '', beforeBody = '' }) {
+  if (!/<\/title>/i.test(html) || !/<\/style>/i.test(html) || !/<\/body>/i.test(html)) fail(where + ': falta </title>, </style> o </body>');
+  html = html.replace(/<\/title>/i, (m) => m + '\n' + head);
+  if (css) html = html.replace(/<\/style>/i, (m) => css + m);
+  if (afterWrap) {
+    if (!html.includes('<div class="wrap">')) fail(where + ': falta <div class="wrap">');
+    html = html.replace('<div class="wrap">', (m) => m + afterWrap);
+  }
+  const i = html.lastIndexOf('</body>');
+  return html.slice(0, i) + beforeBody + '\n' + html.slice(i);
+}
+
+rmSync(OUT, { recursive: true, force: true });
+mkdirSync(OUT, { recursive: true });
+const pages = {};
+
+// 1 · una carpeta por hoja
+const ids = new Set();
+for (const s of SHEETS) {
+  for (const k of ['id', 'title', 'topic', 'summary', 'sample', 'sample_kind', 'facts', 'page', 'pdf', 'updated']) if (!(k in s)) fail(`la hoja ${s.id || '?'} no tiene "${k}" en sheets.json`);
+  if (!/^[a-z0-9-]+$/.test(s.id) || ids.has(s.id)) fail(`id inválido o repetido: ${s.id}`);
+  ids.add(s.id);
+  const dir = join(ROOT, 'sheets', s.id);
+  for (const f of [s.page, s.pdf]) if (!existsSync(join(dir, f))) fail(`falta sheets/${s.id}/${f}`);
+  s.pdfSize = statSync(join(dir, s.pdf)).size;
+  const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><a href="/">← Todas las cheat sheets</a><a class="hub-pdf" href="${esc(s.pdf)}">PDF · ${mb(s.pdfSize)}</a></nav>`;
+  const html = inject(readFileSync(join(dir, s.page), 'utf8'), s.id, { head: HEAD, css: BAR_CSS, afterWrap: bar, beforeBody: REGISTER });
+  mkdirSync(join(OUT, s.id), { recursive: true });
+  writeFileSync(join(OUT, s.id, 'index.html'), html);
+  copyFileSync(join(dir, s.pdf), join(OUT, s.id, s.pdf));
+  pages[`/${s.id}/`] = html;
+}
+
+// 2 · portada
+const card = (s) => `    <article class="sheet" id="${esc(s.id)}">
+      <div class="strip"><span class="${s.sample_kind === 'math' ? 'math' : 'code'}">${s.sample}</span></div>
+      <div class="sheet__body">
+        <p class="topic">${esc(s.topic)}</p>
+        <h2><a href="${esc(s.id)}/">${esc(s.title)}</a></h2>
+        <p class="sum">${esc(s.summary)}</p>
+        <ul class="facts">${s.facts.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+        <div class="actions">
+          <a class="btn btn--primary" href="${esc(s.id)}/">Abrir la hoja</a>
+          <a class="btn" href="${esc(s.id)}/${esc(s.pdf)}">PDF <small>${mb(s.pdfSize)}</small></a>
+        </div>
+        <p class="updated">Actualizada el ${fecha(s.updated)}</p>
+      </div>
+    </article>`;
+let hub = readFileSync(join(SITE, 'hub.html'), 'utf8');
+if (!hub.includes('<!--HOJAS-->')) fail('site/hub.html no tiene el marcador <!--HOJAS-->');
+hub = inject(hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n')), 'portada', { head: HEAD, beforeBody: REGISTER });
+writeFileSync(join(OUT, 'index.html'), hub);
+pages['/'] = hub;
+
+// 3 · service worker, manifest e íconos
+const order = ['/', ...SHEETS.map((s) => `/${s.id}/`)];
+const hash = createHash('sha256');
+for (const p of order) hash.update(p).update(pages[p]);
+for (const s of SHEETS) hash.update(readFileSync(join(ROOT, 'sheets', s.id, s.pdf)));
+const build = hash.digest('hex').slice(0, 12);
+const sw = readFileSync(join(SITE, 'sw.js'), 'utf8');
+if ((sw.match(/__BUILD__/g) || []).length !== 1 || (sw.match(/__PAGES__/g) || []).length !== 1) fail('site/sw.js debe tener un __BUILD__ y un __PAGES__');
+writeFileSync(join(OUT, 'sw.js'), sw.replace('__BUILD__', build).replace('__PAGES__', JSON.stringify(order)));
+for (const f of ASSETS) {
+  if (!existsSync(join(SITE, f))) fail('falta site/' + f);
+  copyFileSync(join(SITE, f), join(OUT, f));
+}
+console.log(`[build] dist/ listo · build ${build} · ${SHEETS.length} hojas: ${SHEETS.map((s) => s.id).join(', ')}`);

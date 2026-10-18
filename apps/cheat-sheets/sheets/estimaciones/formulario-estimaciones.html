@@ -79,7 +79,9 @@ svg .f-c1 { fill: var(--c1); } svg .f-c2 { fill: var(--c2); } svg .f-c3 { fill: 
 .sw.hatch { background: repeating-linear-gradient(45deg, var(--paper) 0 3px, var(--muted) 3px 5px); }
 .worked { margin-top: 18px; }
 .worked h3 { margin: 0 0 6px; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
-ol.steps { margin: 0; padding-left: 26px; display: grid; gap: 2px; }
+ol.steps { margin: 0; padding-left: 26px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+ol.steps > li { min-width: 0; }
+@media (max-width: 480px) { .mb math { font-size: 1.08em; } }
 ol.steps li::marker { font: 700 14px var(--f-display); color: var(--muted); }
 ol.steps .mb { padding: 4px 0; }
 .notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
