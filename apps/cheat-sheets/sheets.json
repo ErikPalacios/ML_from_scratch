@@ -33,6 +33,23 @@
     "updated": "2026-10-18"
   },
   {
+    "id": "kubernetes",
+    "title": "Cheat sheet de Kubernetes",
+    "topic": "Orquestación",
+    "summary": "Para escribir y leer manifests con la documentación abierta, operar con kubectl y diagnosticar un pod roto rápido: sintaxis con variables, ejemplos reales del C01, figuras de cada proceso (el lazo de control, el rollout, las probes, el scheduling), trampas típicas y laboratorios opcionales.",
+    "sample": "kubectl apply -f <var>manifest</var>.yaml -n <var>namespace</var>",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de YAML con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-kubernetes.html",
+    "pdf": "cheatsheet-kubernetes.pdf",
+    "updated": "2026-10-20"
+  },
+  {
     "id": "recorrido",
     "title": "Del dato a producción",
     "topic": "MLOps de punta a punta",

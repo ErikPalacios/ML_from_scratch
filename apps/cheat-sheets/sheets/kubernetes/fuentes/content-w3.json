@@ -1,0 +1,1641 @@
+{
+ "sections": [
+  {
+   "id": "rollouts",
+   "num": 10,
+   "title": "Rollouts, rollback, PodDisruptionBudget y canary",
+   "question": "¿Cómo cambias de versión sin cortar el servicio, cómo vuelves atrás y qué te protege cuando alguien vacía un nodo?",
+   "templates": [
+    {
+     "code": "kubectl rollout status deploy/{nombre} -n {ns} --timeout={plazo}",
+     "note": "Un <b>rollout</b> es el cambio de versión de un Deployment: entran pods nuevos y salen los viejos, poco a poco. Este comando espera a que termine y sale con error si se traba."
+    },
+    {
+     "code": "kubectl rollout history deploy/{nombre} -n {ns}\nkubectl rollout undo deploy/{nombre} -n {ns} --to-revision={n}",
+     "note": "Cada cambio del template (el molde de los pods) crea una <b>revisión</b>: un ReplicaSet nuevo, y los viejos quedan guardados en 0 réplicas. <code>undo</code> vuelve a una revisión; sin <code>--to-revision</code>, a la anterior."
+    },
+    {
+     "code": "apiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata: { name: {nombre}, namespace: {ns} }\nspec:\n  minAvailable: {disponibles}\n  selector: { matchLabels: { app.kubernetes.io/name: {app} } }",
+     "note": "Un <b>PodDisruptionBudget</b> (PDB) dice cuántos pods deben seguir listos cuando alguien vacía un nodo a propósito (un <b>drain</b>: sacarle los pods para apagarlo o actualizarlo). Usa <code>minAvailable</code> o <code>maxUnavailable</code>, nunca los dos."
+    },
+    {
+     "code": "strategy:\n  canary:\n    steps:\n      - setWeight: {peso}\n      - pause: { duration: {espera} }",
+     "note": "<b>Argo Rollouts</b> es un controlador que se instala aparte. Con él, un <b>canary</b> manda un porcentaje chico del tráfico a la versión nueva y espera antes de subirlo. <code>pause: {}</code> espera hasta que alguien lo promueva."
+    }
+   ],
+   "formulas": [
+    "\\text{pods}_{\\text{máx}} = r + \\lceil r \\cdot \\text{maxSurge} \\rceil \\qquad \\text{listos}_{\\text{mín}} = r - \\lfloor r \\cdot \\text{maxUnavailable} \\rfloor",
+    "\\text{evicciones permitidas} = \\max\\left(0,\\ \\text{sanos} - \\text{minAvailable}\\right)"
+   ],
+   "vars": [
+    [
+     "{nombre}",
+     "nombre del Deployment o del PDB",
+     "triton, gateway"
+    ],
+    [
+     "{ns}",
+     "namespace: la carpeta lógica donde vive el objeto",
+     "classifier"
+    ],
+    [
+     "{plazo}",
+     "cuánto espera el comando antes de rendirse (no cambia el Deployment)",
+     "25m (Triton: nodo GPU, imagen y engine, un pod a la vez)"
+    ],
+    [
+     "{n}",
+     "número de revisión, sacado de rollout history",
+     "3"
+    ],
+    [
+     "{disponibles}",
+     "pods que deben quedar listos (número o %)",
+     "1"
+    ],
+    [
+     "{app}",
+     "label que comparten los pods que proteges",
+     "triton"
+    ],
+    [
+     "{peso}",
+     "porcentaje del tráfico para la versión nueva",
+     "5, después 25 (el canary de M11)"
+    ],
+    [
+     "{espera}",
+     "cuánto se queda en ese porcentaje",
+     "4h"
+    ],
+    [
+     "r",
+     "réplicas deseadas del Deployment",
+     "2 en Triton"
+    ],
+    [
+     "maxSurge",
+     "pods de más durante el rollout; si es %, se redondea hacia arriba",
+     "1 en Triton (default 25 %)"
+    ],
+    [
+     "maxUnavailable",
+     "pods de menos durante el rollout; si es %, se redondea hacia abajo",
+     "0 en Triton (default 25 %)"
+    ],
+    [
+     "sanos",
+     "pods del PDB con la condición Ready en True",
+     "2"
+    ],
+    [
+     "minAvailable",
+     "el mínimo que pide el PDB",
+     "1 → 1 evicción permitida"
+    ]
+   ],
+   "pieces": [
+    [
+     "kubectl rollout status",
+     "Espera el fin del rollout. Sale con error si vence el plazo del Deployment o --timeout.",
+     "deploy/triton --timeout=25m"
+    ],
+    [
+     "kubectl rollout history",
+     "Lista las revisiones guardadas; con --revision=N muestra el template de una.",
+     "REVISION · CHANGE-CAUSE"
+    ],
+    [
+     "kubectl rollout undo",
+     "Vuelve a la revisión anterior (o a --to-revision=N) creando una revisión nueva con el template viejo.",
+     "deployment.apps/triton rolled back"
+    ],
+    [
+     "kubectl rollout restart",
+     "Recrea todos los pods con la misma imagen, de a poco (rolling update).",
+     "releer un Secret que se lee al arrancar"
+    ],
+    [
+     "kubectl rollout pause · resume",
+     "Congela el Deployment: los cambios no arrancan rollout hasta resume. En pausa no hay undo.",
+     "juntar varios cambios en uno"
+    ],
+    [
+     "kubernetes.io/change-cause",
+     "Anotación del Deployment que se copia a la revisión: llena la columna CHANGE-CAUSE.",
+     "\"classifier 2026-09-15-resnet50-fp16\""
+    ],
+    [
+     "revisionHistoryLimit",
+     "Cuántos ReplicaSets viejos guarda para volver atrás. Default 10; con 0 no hay undo.",
+     "5 en C01"
+    ],
+    [
+     "progressDeadlineSeconds",
+     "Plazo para avanzar. Si vence: Progressing=False con ProgressDeadlineExceeded. Default 600 s. No revierte solo.",
+     "900 en Triton"
+    ],
+    [
+     "PodDisruptionBudget",
+     "Mínimo de pods listos cuando alguien desaloja pods a propósito: drain, upgrade del cluster o un autoscaler que apaga nodos.",
+     "minAvailable: 1 en Triton"
+    ],
+    [
+     "unhealthyPodEvictionPolicy: AlwaysAllow",
+     "Deja desalojar pods que corren pero no están Ready, aunque el PDB esté al límite. El default (IfHealthyBudget) no.",
+     "un pod en CrashLoopBackOff que traba un drain"
+    ],
+    [
+     "kubectl drain NODO",
+     "Marca el nodo para que no reciba pods nuevos y desaloja los que tiene, respetando los PDB.",
+     "--ignore-daemonsets"
+    ],
+    [
+     "Rollout (Argo Rollouts)",
+     "Recurso que reemplaza al Deployment y agrega pasos de canary: setWeight, pause, analysis.",
+     "el gateway de C01 en M11"
+    ],
+    [
+     "AnalysisTemplate",
+     "Consulta métricas (Prometheus) durante el canary y lo aborta si un criterio falla.",
+     "5xx > 0.5 % aborta"
+    ],
+    [
+     "kubectl argo rollouts promote · abort",
+     "promote avanza un canary en pausa; abort lo detiene y vuelve a la versión estable.",
+     "promote gateway -n classifier"
+    ]
+   ],
+   "example": {
+    "title": "C01: cómo cambia de versión Triton y qué lo protege en un drain",
+    "lang": "yaml",
+    "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: triton  # kube_deployment_status_replicas_available{deployment=\"triton\"} → alerta TritonNotReady\n  namespace: classifier\n  # …\nspec:\n  # Sin \"replicas\": las gestiona el HPA que crea KEDA. Si lo fijas aquí, cada `kubectl apply`\n  # resetea la escala y pelea con el autoscaler.\n  revisionHistoryLimit: 5  # ReplicaSets viejos para `kubectl rollout undo`\n  progressDeadlineSeconds: 900  # un pod con nodo GPU nuevo tarda ≈ 4–11 min: el default de 600 s vence en el caso pesimista\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 1  # de a un pod nuevo: cada pod necesita una GPU libre (Karpenter/cluster-autoscaler agrega el nodo)\n      maxUnavailable: 0  # nunca bajar de la capacidad actual durante un deploy\n  # …\n---\napiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: triton\n  namespace: classifier\nspec:\n  # Evicciones VOLUNTARIAS (drain de nodos, upgrades del cluster, consolidación de Karpenter):\n  # siempre queda al menos 1 Triton sirviendo. No protege de fallas involuntarias (eso es N+1).\n  minAvailable: 1\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: triton",
+    "source": "reference/c01/k8s/triton.yaml (extracto: estrategia del Deployment y PodDisruptionBudget; # … marca líneas omitidas)",
+    "notes": [
+     "<code>maxSurge: 1</code> y <code>maxUnavailable: 0</code>: cada pod nuevo necesita una GPU libre <b>antes</b> de que se vaya uno viejo. Si no hay, queda Pending y el rollout espera; los viejos siguen sirviendo.",
+     "<code>progressDeadlineSeconds: 900</code>: un pod de GPU en un nodo nuevo tarda ≈ 4–11 min (nodo, imagen, engine). Con el default de 600 s, un rollout sano pero lento podría marcarse como fallido.",
+     "<code>revisionHistoryLimit: 5</code> guarda 5 ReplicaSets viejos (el default es 10): son las versiones a las que <code>rollout undo</code> puede volver. En C01 el modelo va horneado en la imagen, así que volver al tag anterior es volver al modelo anterior.",
+     "El PDB frena un <code>kubectl drain</code>, o a Karpenter (el autoscaler de nodos) cuando junta pods para apagar un nodo, si eso dejaría 0 Triton listos. No frena tu propio rollout (eso lo controla <code>maxUnavailable</code>) ni la muerte de un nodo (eso lo cubre tener 2 réplicas).",
+     "Con 2 réplicas, <code>minAvailable: 1</code> permite 1 evicción (desalojo) a la vez. Con <code>minAvailable: 2</code> no se permitiría ninguna y los upgrades del cluster se quedarían trabados.",
+     "Con <code>maxUnavailable: 0</code>, un <code>rollout undo</code> también necesita una GPU libre para el pod que vuelve: el rollback no es instantáneo."
+    ]
+   },
+   "figure": {
+    "kind": "rollout",
+    "caption": "Triton en C01: 2 réplicas, maxSurge 1, maxUnavailable 0. Nunca hay menos de 2 pods listos ni más de 3 en total. Si el pod nuevo no llega a Ready, todo se queda en el paso 2: los viejos siguen sirviendo, a los 900 s aparece ProgressDeadlineExceeded y volver es kubectl rollout undo.",
+    "data": {
+     "replicas": 2,
+     "max_surge": 1,
+     "max_unavailable": 0,
+     "steps": [
+      {
+       "old": 2,
+       "new": 0,
+       "ready_new": 0,
+       "label": "inicio: 2 pods viejos sirven"
+      },
+      {
+       "old": 2,
+       "new": 1,
+       "ready_new": 0,
+       "label": "+1 pod nuevo: espera GPU, imagen y engine"
+      },
+      {
+       "old": 2,
+       "new": 1,
+       "ready_new": 1,
+       "label": "el nuevo pasa la readiness"
+      },
+      {
+       "old": 1,
+       "new": 1,
+       "ready_new": 1,
+       "label": "sale un viejo"
+      },
+      {
+       "old": 1,
+       "new": 2,
+       "ready_new": 1,
+       "label": "+1 pod nuevo"
+      },
+      {
+       "old": 1,
+       "new": 2,
+       "ready_new": 2,
+       "label": "el segundo nuevo queda listo"
+      },
+      {
+       "old": 0,
+       "new": 2,
+       "ready_new": 2,
+       "label": "fin: 2 pods nuevos"
+      }
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>status → history → undo</b>. Cada cambio del template deja una revisión, y volver atrás es elegir una. El PDB cuida los drains; <code>maxUnavailable</code> cuida tu rollout.",
+   "trap": "Trampa: creer que Kubernetes vuelve atrás solo. Un rollout trabado marca <code>ProgressDeadlineExceeded</code> y se queda ahí: el rollback lo haces tú, o una herramienta como Argo Rollouts. Y con GitOps (una herramienta como Argo CD aplica lo que está en git), un <code>rollout undo</code> dura hasta el próximo sync: el rollback de verdad es un revert en git.",
+   "lab": {
+    "goal": "Hacer un rollout sano, romper el siguiente con un tag que no existe, ver cómo se traba sin cortar el servicio, volver atrás con undo y comprobar qué permite un PDB.",
+    "steps": [
+     {
+      "cmd": "kubectl create namespace lab-k8s && kubectl create deployment web -n lab-k8s --image=nginx:1.29-alpine --replicas=2 && kubectl patch deploy web -n lab-k8s -p '{\"spec\":{\"progressDeadlineSeconds\":60}}' && kubectl rollout status deploy/web -n lab-k8s",
+      "expect": "namespace/lab-k8s created, deployment.apps/web created, deployment.apps/web patched y, al final, deployment \"web\" successfully rolled out. El plazo de 60 s es solo para el lab: así ves el fallo en un minuto."
+     },
+     {
+      "cmd": "kubectl set image deploy/web -n lab-k8s nginx=nginx:1.30-alpine && kubectl annotate deploy/web -n lab-k8s kubernetes.io/change-cause=\"nginx 1.30\" && kubectl rollout status deploy/web -n lab-k8s",
+      "expect": "deployment.apps/web image updated, deployment.apps/web annotated, algunas líneas Waiting for deployment \"web\" rollout to finish… y successfully rolled out. El contenedor se llama nginx porque create deployment lo nombra como la imagen."
+     },
+     {
+      "cmd": "kubectl set image deploy/web -n lab-k8s nginx=nginx:no-existe && kubectl annotate deploy/web -n lab-k8s --overwrite kubernetes.io/change-cause=\"tag roto\" && kubectl rollout status deploy/web -n lab-k8s; echo \"exit=$?\"",
+      "expect": "Se queda en Waiting for deployment \"web\" rollout to finish: 1 out of 2 new replicas have been updated... y, en un minuto, error: deployment \"web\" exceeded its progress deadline y exit=1."
+     },
+     {
+      "cmd": "kubectl get pods -n lab-k8s; kubectl get deploy web -n lab-k8s -o jsonpath='{.status.conditions[?(@.type==\"Progressing\")].reason}{\"\\n\"}'",
+      "expect": "Dos pods Running (los de 1.30) y uno en ErrImagePull o ImagePullBackOff; después, ProgressDeadlineExceeded. Nadie volvió atrás: el Deployment solo avisa, y el servicio nunca bajó de 2 pods."
+     },
+     {
+      "cmd": "kubectl rollout history deploy/web -n lab-k8s",
+      "expect": "Tres revisiones: 1 con CHANGE-CAUSE <none>, 2 con nginx 1.30 y 3 con tag roto."
+     },
+     {
+      "cmd": "kubectl rollout undo deploy/web -n lab-k8s && kubectl rollout status deploy/web -n lab-k8s && kubectl rollout history deploy/web -n lab-k8s",
+      "expect": "deployment.apps/web rolled back y successfully rolled out. En el historial ya no está la 2: reaparece como 4 (nginx 1.30), porque volver atrás crea una revisión nueva con el template viejo. El pod roto se borró."
+     },
+     {
+      "cmd": "kubectl create pdb web -n lab-k8s --selector=app=web --min-available=2 && sleep 3 && kubectl get pdb web -n lab-k8s",
+      "expect": "poddisruptionbudget.policy/web created y una fila con MIN AVAILABLE 2 y ALLOWED DISRUPTIONS 0: con 2 pods y un mínimo de 2, un drain no podría sacar ninguno. Así se traba un upgrade del cluster."
+     },
+     {
+      "cmd": "kubectl patch pdb web -n lab-k8s --type=merge -p '{\"spec\":{\"minAvailable\":1}}' && sleep 3 && kubectl get pdb web -n lab-k8s",
+      "expect": "poddisruptionbudget.policy/web patched y ALLOWED DISRUPTIONS 1: se puede sacar un pod a la vez, como con el PDB de Triton en C01."
+     },
+     {
+      "cmd": "kubectl delete namespace lab-k8s",
+      "expect": "namespace \"lab-k8s\" deleted. El Deployment, sus ReplicaSets y el PDB se van con el namespace."
+     }
+    ],
+    "fix": "Rollout trabado: kubectl rollout undo para mitigar y después corrige el tag. En producción, progressDeadlineSeconds según tu cold start medido (900 s en Triton), no 60. En un PDB, minAvailable menor que las réplicas.",
+    "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind. Baja nginx:1.29-alpine y nginx:1.30-alpine.",
+    "verified": "docs"
+   },
+   "links": [
+    "#m06.alta-disponibilidad",
+    "#m11.canary",
+    "#m11.rollback",
+    "#m11.blue-green",
+    "#ref-comandos.rollouts",
+    "#c01.fallas"
+   ]
+  },
+  {
+   "id": "kubectl",
+   "num": 11,
+   "title": "kubectl: mirar, entrar, depurar",
+   "question": "¿Cómo le preguntas al cluster qué hay, qué cambiaría y si tienes permiso, antes de tocar nada?",
+   "templates": [
+    {
+     "code": "kubectl {verbo} {tipo}/{nombre} -n {ns} -o {formato}",
+     "note": "Casi todo kubectl tiene esta forma: un verbo, un recurso, el <b>namespace</b> (la carpeta lógica donde vive) y el formato de salida. Para mirar o cambiar algo, kubectl siempre pasa por el <b>API server</b>, la puerta de entrada del cluster."
+    },
+    {
+     "code": "kubectl config current-context\nkubectl config use-context {contexto}\nkubectl config set-context --current --namespace={ns}",
+     "note": "Un <b>contexto</b> junta cluster, usuario y namespace por defecto. Vive en tu <b>kubeconfig</b>, el archivo de clusters y credenciales de kubectl (<code>~/.kube/config</code>). Míralo antes de cambiar algo."
+    },
+    {
+     "code": "kubectl get {tipo}/{nombre} -n {ns} -o jsonpath='{{ruta}}{\"\\n\"}'\nkubectl explain {tipo}.{campo}\nkubectl diff -f {archivo}",
+     "note": "Mirar fino: un campo exacto con <b>JSONPath</b> (una ruta dentro del objeto, como <code>.status.readyReplicas</code>), la documentación de un campo y qué cambiaría si aplicas (exit 0 = nada, 1 = hay diferencias)."
+    },
+    {
+     "code": "kubectl exec -it -n {ns} {pod} -c {contenedor} -- {comando}\nkubectl port-forward -n {ns} svc/{nombre} {local}:{puerto}\nkubectl auth can-i {verbo} {tipo} -n {ns}",
+     "note": "Entrar a un contenedor, abrir un túnel a un pod y preguntar si puedes. <b>RBAC</b> (los permisos de Kubernetes) decide si puedes hacer las dos primeras; <code>auth can-i</code> se lo pregunta."
+    }
+   ],
+   "vars": [
+    [
+     "{verbo}",
+     "lo que haces",
+     "get, describe, delete · en can-i: list, create"
+    ],
+    [
+     "{tipo}",
+     "clase de recurso, con nombre largo o corto",
+     "deployment (deploy), service (svc), pods (po)"
+    ],
+    [
+     "{nombre}",
+     "nombre del objeto",
+     "triton"
+    ],
+    [
+     "{ns}",
+     "namespace",
+     "classifier"
+    ],
+    [
+     "{formato}",
+     "cómo imprime la respuesta",
+     "wide, yaml, json, name, jsonpath='…'"
+    ],
+    [
+     "{contexto}",
+     "entrada del kubeconfig: cluster + usuario + namespace",
+     "docker-desktop · en EKS, por defecto el ARN del cluster (su identificador en AWS)"
+    ],
+    [
+     "{ruta}",
+     "camino al campo dentro del objeto; empieza con punto",
+     ".status.readyReplicas"
+    ],
+    [
+     "{campo}",
+     "camino al campo para explain, sin punto inicial",
+     "spec.progressDeadlineSeconds"
+    ],
+    [
+     "{archivo}",
+     "manifest local",
+     "k8s/triton.yaml"
+    ],
+    [
+     "{pod}",
+     "nombre del pod, o deploy/NOMBRE para que elija uno",
+     "deploy/triton"
+    ],
+    [
+     "{contenedor}",
+     "contenedor dentro del pod",
+     "triton"
+    ],
+    [
+     "{comando}",
+     "lo que corres adentro",
+     "nvidia-smi, sh"
+    ],
+    [
+     "{local}",
+     "puerto en tu máquina",
+     "8000"
+    ],
+    [
+     "{puerto}",
+     "puerto del Service (o del pod)",
+     "8000"
+    ]
+   ],
+   "pieces": [
+    [
+     "kubectl config get-contexts",
+     "Lista tus contextos; el asterisco marca el activo.",
+     "docker-desktop · arn:aws:eks:…:cluster/NOMBRE"
+    ],
+    [
+     "-n NS · -A",
+     "Un namespace, o todos a la vez (--all-namespaces).",
+     "-n classifier · -n keda"
+    ],
+    [
+     "-o wide",
+     "Agrega columnas: en pods, la IP y el nodo.",
+     "en qué nodo GPU cayó cada Triton"
+    ],
+    [
+     "-o yaml",
+     "El objeto completo como lo guarda el cluster, con defaults y status. Oculta managedFields (quién cambió cada campo).",
+     "kubectl get deploy triton -o yaml"
+    ],
+    [
+     "-o jsonpath='{…}'",
+     "Saca solo los campos que pides. Para scripts y respuestas cortas.",
+     "'{.status.readyReplicas}'"
+    ],
+    [
+     "-l · --show-labels · -L",
+     "Filtra por label, muestra todas, o pone una label como columna.",
+     "-l app.kubernetes.io/name=triton"
+    ],
+    [
+     "-w",
+     "Se queda mirando y muestra cada cambio.",
+     "kubectl get pods -w"
+    ],
+    [
+     "kubectl explain",
+     "Documentación de un campo, servida por tu cluster y su versión.",
+     "explain deploy.spec.progressDeadlineSeconds"
+    ],
+    [
+     "kubectl diff -f",
+     "Qué cambiaría si aplicas, calculado por el servidor. Exit 0 sin cambios, 1 con cambios.",
+     "diff -f k8s/triton.yaml"
+    ],
+    [
+     "kubectl api-resources",
+     "Todos los tipos: nombre corto, grupo y si viven en un namespace.",
+     "pdb, hpa, scaledobjects"
+    ],
+    [
+     "kubectl exec -it … -- sh",
+     "Abre una terminal, o corre un comando, dentro de un contenedor que ya corre.",
+     "-- nvidia-smi"
+    ],
+    [
+     "kubectl port-forward",
+     "Túnel de tu máquina a un solo pod, sin exponer el servicio.",
+     "svc/triton 8000:8000"
+    ],
+    [
+     "kubectl debug -it --image --target",
+     "Agrega un contenedor temporal con herramientas a un pod que corre.",
+     "imágenes sin shell"
+    ],
+    [
+     "kubectl auth can-i",
+     "Pregunta si puedes hacer algo. Responde yes o no.",
+     "create pods --subresource=exec"
+    ]
+   ],
+   "example": {
+    "title": "C01: una sesión de inspección de Triton, de menor a mayor riesgo",
+    "lang": "bash",
+    "code": "# ¿Dónde estoy? Antes de tocar nada\nkubectl config current-context      # en EKS: arn:aws:eks:us-east-1:123456789012:cluster/…\nkubectl config set-context --current --namespace=classifier\n\n# ¿Qué hay y dónde corre?\nkubectl get pods -l app.kubernetes.io/name=triton -o wide\nkubectl get deploy triton -o jsonpath='{.spec.strategy.rollingUpdate}{\"\\n\"}'   # {\"maxSurge\":1,\"maxUnavailable\":0}\n\n# ¿Qué cambiaría si aplico lo que está en git?\nkubectl diff -f k8s/triton.yaml; echo \"exit=$?\"     # 0 = igual, 1 = hay diferencias\n\n# ¿Puedo entrar? exec necesita create sobre pods/exec\nkubectl auth can-i create pods --subresource=exec\n\n# Túnel: localhost:8000 y :8002 → los mismos puertos de UN pod detrás de svc/triton\nkubectl port-forward svc/triton 8000:8000 8002:8002\n\n# En otra terminal\ncurl -s localhost:8000/v2/health/ready -o /dev/null -w \"%{http_code}\\n\"   # 200 = listo\ncurl -s localhost:8002/metrics | grep nv_inference_queue_duration_us     # la señal de KEDA\n\n# ¿Triton ve la GPU y cuánta memoria ocupa?\nkubectl exec -it deploy/triton -- nvidia-smi",
+    "source": "Comandos de ref-comandos (kubectl-basicos), con los nombres de reference/c01/k8s/triton.yaml",
+    "notes": [
+     "Con <code>set-context --current --namespace=classifier</code> ya no repites <code>-n classifier</code>. Queda guardado en tu kubeconfig para ese contexto: la próxima vez, míralo.",
+     "<code>kubectl diff</code> le pide al API server un <b>dry-run</b> (calcula el resultado sin guardarlo): el servidor aplica sus defaults y su validación, así que ves lo que de verdad cambiaría, no una comparación de texto con tu archivo.",
+     "<code>port-forward</code> a <code>svc/triton</code> elige <b>un</b> pod y se corta si ese pod muere. Sirve para una prueba de humo, no para un load test: no reparte como el Service.",
+     "<code>exec</code> y <code>port-forward</code> piden el verbo <code>create</code> sobre <code>pods/exec</code> y <code>pods/portforward</code>. Desde 1.35 el API server lo exige también cuando kubectl se conecta por WebSocket, el canal que usan las versiones nuevas; antes, por esa vía alcanzaba con <code>get</code>. En producción suelen estar restringidos: <code>auth can-i</code> responde antes de que lo intentes.",
+     "<code>exec deploy/triton</code> elige un pod del Deployment. Para uno en particular, usa el nombre del pod."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Pregunta → comando → qué mirar. De arriba hacia abajo, de lo que solo lee a lo que ya abre una conexión a un pod.",
+    "data": {
+     "head": [
+      "Quieres saber",
+      "Comando",
+      "Qué mirar"
+     ],
+     "rows": [
+      [
+       "¿En qué cluster estoy?",
+       "kubectl config current-context",
+       "El nombre del contexto; en EKS, el ARN del cluster"
+      ],
+      [
+       "¿Qué namespace uso si no pongo -n?",
+       "kubectl config view --minify -o jsonpath='{..namespace}'",
+       "Vacío = default"
+      ],
+      [
+       "¿Qué pods hay y dónde corren?",
+       "kubectl get pods -n classifier -o wide",
+       "STATUS, READY, RESTARTS y NODE"
+      ],
+      [
+       "¿Qué tiene de verdad el cluster?",
+       "kubectl get deploy triton -n classifier -o yaml",
+       "La spec con defaults y el status"
+      ],
+      [
+       "¿Qué significa este campo?",
+       "kubectl explain deploy.spec.progressDeadlineSeconds",
+       "Tipo, descripción y default"
+      ],
+      [
+       "¿Cómo se llama ese recurso?",
+       "kubectl api-resources",
+       "SHORTNAMES, APIVERSION y NAMESPACED"
+      ],
+      [
+       "¿Qué cambiaría si aplico?",
+       "kubectl diff -f k8s/triton.yaml",
+       "Líneas con - y +; exit 0 o 1"
+      ],
+      [
+       "¿Puedo hacerlo?",
+       "kubectl auth can-i create pods --subresource=exec -n classifier",
+       "yes o no"
+      ],
+      [
+       "¿Qué puedo hacer en total?",
+       "kubectl auth can-i --list -n classifier",
+       "Recursos y verbos permitidos"
+      ],
+      [
+       "¿Responde desde mi máquina?",
+       "kubectl port-forward -n classifier svc/triton 8000:8000",
+       "Forwarding from 127.0.0.1:8000 -> 8000"
+      ]
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>¿dónde? → ¿qué hay? → ¿qué es? → ¿qué cambiaría? → ¿puedo?</b>: <code>config current-context</code>, <code>get</code>, <code>explain</code>, <code>diff</code>, <code>auth can-i</code>. Recién después, <code>apply</code> o <code>exec</code>.",
+   "trap": "Trampa: correr algo que cambia el cluster sin mirar el contexto. Un <code>delete</code> en producción, cuando creías estar en staging, no se deshace. Y con GitOps (una herramienta como Argo CD aplica lo que está en git), un <code>kubectl edit</code> o un <code>scale</code> se pierde en el próximo sync: el cambio va en git.",
+   "lab": {
+    "goal": "Practicar el recorrido completo en un namespace propio: contexto, get con formatos, explain, diff, exec, port-forward y permisos con RBAC.",
+    "steps": [
+     {
+      "cmd": "kubectl config current-context && kubectl config get-contexts",
+      "expect": "docker-desktop (o kind-kind con kind). En get-contexts, el * marca el activo."
+     },
+     {
+      "cmd": "kubectl create namespace lab-k8s && kubectl create deployment web -n lab-k8s --image=nginx:1.30-alpine --replicas=2 && kubectl expose deployment web -n lab-k8s --port=80 && kubectl rollout status deploy/web -n lab-k8s",
+      "expect": "namespace/lab-k8s created, deployment.apps/web created, service/web exposed y deployment \"web\" successfully rolled out."
+     },
+     {
+      "cmd": "kubectl get pods -n lab-k8s -o wide --show-labels",
+      "expect": "Dos pods web-… en Running, con IP y NODE, y las labels app=web y pod-template-hash=… (esta última la pone el Deployment)."
+     },
+     {
+      "cmd": "kubectl get deploy web -n lab-k8s -o jsonpath='{.spec.strategy}{\"\\n\"}{.spec.revisionHistoryLimit}{\"\\n\"}'",
+      "expect": "{\"rollingUpdate\":{\"maxSurge\":\"25%\",\"maxUnavailable\":\"25%\"},\"type\":\"RollingUpdate\"} y 10: defaults que no escribiste, pero que el cluster guardó."
+     },
+     {
+      "cmd": "kubectl explain deployment.spec.revisionHistoryLimit",
+      "expect": "GROUP: apps, KIND: Deployment, VERSION: v1, FIELD: revisionHistoryLimit <integer> y una descripción que termina en Defaults to 10."
+     },
+     {
+      "cmd": "kubectl create deployment web -n lab-k8s --image=nginx:1.30-alpine --replicas=3 --dry-run=client -o yaml > /tmp/web-lab.yaml && kubectl diff -f /tmp/web-lab.yaml; echo \"exit=$?\"",
+      "expect": "Un diff con replicas de 2 a 3, la generation que subiría y la anotación last-applied-configuration que agregaría apply; después, exit=1. No cambió nada: diff solo compara."
+     },
+     {
+      "cmd": "kubectl exec -n lab-k8s deploy/web -- nginx -v",
+      "expect": "nginx version: nginx/1.30.x, desde uno de los dos pods."
+     },
+     {
+      "cmd": "kubectl port-forward -n lab-k8s svc/web 8080:80 & sleep 2; curl -s localhost:8080 | grep -o '<title>.*</title>'; kill %1",
+      "expect": "Forwarding from 127.0.0.1:8080 -> 80 (y la línea de [::1]), Handling connection for 8080 y <title>Welcome to nginx!</title>. El túnel llegó a un solo pod."
+     },
+     {
+      "cmd": "kubectl auth can-i list pods -n lab-k8s --as=ana; kubectl create role lector -n lab-k8s --verb=get,list,watch --resource=pods && kubectl create rolebinding lector-ana -n lab-k8s --role=lector --user=ana && kubectl auth can-i list pods -n lab-k8s --as=ana && kubectl auth can-i delete pods -n lab-k8s --as=ana",
+      "expect": "no; role.rbac.authorization.k8s.io/lector created; rolebinding.rbac.authorization.k8s.io/lector-ana created; yes; no. Un Role da verbos sobre recursos en un namespace; un RoleBinding se los da a alguien. --as (actuar como otro usuario) funciona porque tu usuario local es admin."
+     },
+     {
+      "cmd": "kubectl get pods -n lab-k8s --as=ana && kubectl delete pod -n lab-k8s -l app=web --as=ana",
+      "expect": "La lista sale bien; el delete falla con Error from server (Forbidden): pods \"web-…\" is forbidden: User \"ana\" cannot delete resource \"pods\" in API group \"\" in the namespace \"lab-k8s\"."
+     },
+     {
+      "cmd": "kubectl delete namespace lab-k8s; rm -f /tmp/web-lab.yaml",
+      "expect": "namespace \"lab-k8s\" deleted. El Role y el RoleBinding se van con el namespace."
+     }
+    ],
+    "fix": "Si un comando hace algo distinto de lo que esperabas, corre primero kubectl config current-context y revisa el -n: casi siempre es el cluster o el namespace equivocado.",
+    "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind. Baja nginx:1.30-alpine; curl viene con macOS.",
+    "verified": "docs"
+   },
+   "links": [
+    "#ref-comandos.kubectl-basicos",
+    "#ref-comandos.entrevista",
+    "#m15.secretos",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "diagnostico",
+   "num": 12,
+   "title": "Diagnóstico: el método y la tabla de estados",
+   "question": "Tu pod no funciona: ¿qué miras primero, qué después, y qué te dice cada estado?",
+   "templates": [
+    {
+     "code": "kubectl get pods -n {ns} -o wide",
+     "note": "<b>Estado</b>: en qué fase se trabó (STATUS), si está listo para recibir tráfico (READY), cuántas veces se reinició (RESTARTS) y en qué nodo corre."
+    },
+    {
+     "code": "kubectl describe pod {pod} -n {ns}\nkubectl events -n {ns} --for pod/{pod}",
+     "note": "<b>Eventos</b>: avisos del scheduler (el que elige nodo) y del kubelet (el agente que corre los pods en cada nodo), en orden. Casi siempre el porqué está aquí."
+    },
+    {
+     "code": "kubectl logs {pod} -n {ns} -c {contenedor} --previous",
+     "note": "<b>Logs</b>: lo que escribió el intento que murió. Sin <code>--previous</code> ves el intento actual, que quizá todavía no falló."
+    },
+    {
+     "code": "kubectl exec -it {pod} -n {ns} -c {contenedor} -- sh\nkubectl debug -it {pod} -n {ns} --image=busybox:1.38 --target={contenedor}",
+     "note": "<b>Exec</b>: mirar por dentro (variables, archivos, red). Si la imagen no trae shell, <code>debug</code> agrega un contenedor temporal con herramientas."
+    }
+   ],
+   "formulas": [
+    "\\text{exit code} = 128 + n_{\\text{señal}} \\qquad 137 = 128 + 9\\ (\\text{SIGKILL}) \\qquad 143 = 128 + 15\\ (\\text{SIGTERM})",
+    "t_{\\text{espera}} = \\min\\left(10\\ \\text{s} \\cdot 2^{\\,k-1},\\ 300\\ \\text{s}\\right)"
+   ],
+   "vars": [
+    [
+     "{ns}",
+     "namespace del pod",
+     "classifier"
+    ],
+    [
+     "{pod}",
+     "nombre del pod (sale de get pods)",
+     "triton-5f6b…-7tq2m"
+    ],
+    [
+     "{contenedor}",
+     "contenedor dentro del pod; hace falta si hay más de uno",
+     "triton"
+    ],
+    [
+     "exit code",
+     "lo que muestra describe en Last State",
+     "137"
+    ],
+    [
+     "n_señal",
+     "número de la señal que terminó el proceso",
+     "9 = SIGKILL (OOMKilled, o venció el plazo de gracia); 15 = SIGTERM"
+    ],
+    [
+     "k",
+     "número de reinicio seguido",
+     "1, 2, 3…"
+    ],
+    [
+     "t_espera",
+     "espera antes de reiniciar en CrashLoopBackOff",
+     "10, 20, 40… hasta 300 s; vuelve a 10 s tras 10 min corriendo bien"
+    ]
+   ],
+   "pieces": [
+    [
+     "Pending",
+     "El pod existe, pero no tiene nodo todavía, o espera algo antes de crear contenedores.",
+     "FailedScheduling: Insufficient nvidia.com/gpu"
+    ],
+    [
+     "ContainerCreating",
+     "Ya tiene nodo: baja la imagen, monta los volúmenes y crea el contenedor.",
+     "la imagen de Triton, de varios GB"
+    ],
+    [
+     "ErrImagePull · ImagePullBackOff",
+     "No pudo bajar la imagen; reintenta con esperas crecientes, hasta 5 min.",
+     "tag inexistente, 403 de ECR"
+    ],
+    [
+     "CreateContainerConfigError",
+     "No puede armar el contenedor: falta un Secret, un ConfigMap o una clave, o choca runAsNonRoot (pediste no ser root).",
+     "secret \"triton-token\" not found"
+    ],
+    [
+     "Running · READY 0/1",
+     "El proceso corre, pero falla la readiness (el chequeo de ¿le mando tráfico?): no recibe requests del Service.",
+     "Triton cargando el engine"
+    ],
+    [
+     "Running · READY 1/1",
+     "Listo: está en los endpoints del Service, la lista de pods a los que manda tráfico.",
+     "lo normal"
+    ],
+    [
+     "CrashLoopBackOff",
+     "El contenedor muere una y otra vez; el kubelet espera más antes de cada reinicio.",
+     "exit 1 al cargar el modelo"
+    ],
+    [
+     "OOMKilled (en Last State)",
+     "Pasó su límite de memoria y el kernel lo mató: exit 137, sin línea en el log.",
+     "pesos leídos a RAM"
+    ],
+    [
+     "Error · Completed",
+     "El contenedor terminó: con un código distinto de 0, o con 0.",
+     "un CMD que no se queda sirviendo"
+    ],
+    [
+     "RunContainerError · StartError",
+     "containerd (crea los contenedores en EKS y kind) no encuentra o no puede ejecutar el comando: StartError, exit 128.",
+     "executable file not found in $PATH"
+    ],
+    [
+     "Terminating",
+     "Se borra: corre el preStop (paso previo al apagado), llega el SIGTERM y el plazo de gracia pone el tope.",
+     "hasta 60 s en Triton"
+    ],
+    [
+     "Evicted",
+     "El kubelet lo sacó porque al nodo le faltó memoria o disco. Fase Failed.",
+     "The node was low on resource: memory"
+    ],
+    [
+     "Unknown",
+     "No se pudo saber el estado del pod, casi siempre porque su nodo no responde.",
+     "nodo NotReady"
+    ]
+   ],
+   "example": {
+    "title": "C01: un deploy deja un Triton nuevo en CrashLoopBackOff",
+    "lang": "bash",
+    "code": "# Deploy de un Triton nuevo: el pod nuevo no arranca y el rollout no termina\nkubectl get pods -n classifier -l app.kubernetes.io/name=triton -o wide\n# NAME              READY  STATUS            RESTARTS      AGE  IP         NODE\n# triton-7d9c…-x2k4p  1/1    Running           0             3d   10.0.1.12  ip-10-0-1-5…\n# triton-7d9c…-q8n7d  1/1    Running           0             3d   10.0.2.40  ip-10-0-2-9…\n# triton-5f6b…-7tq2m  0/1    CrashLoopBackOff  4 (40s ago)   6m   10.0.1.77  ip-10-0-1-31…\n\nkubectl describe pod -n classifier triton-5f6b…-7tq2m\n#     Last State:  Terminated\n#       Reason:    Error\n#       Exit Code: 1\n#   Warning  BackOff  …  kubelet  Back-off restarting failed container triton in pod …\n\nkubectl logs -n classifier triton-5f6b…-7tq2m --previous | tail -n 20\n# el error al cargar model.plan: Triton sale si un modelo no carga (--exit-on-error)\n\nkubectl rollout undo deploy/triton -n classifier     # ya con la causa: vuelve al tag anterior\nkubectl rollout status deploy/triton -n classifier --timeout=25m",
+    "source": "Comandos de ref-comandos (depurar) con los nombres de reference/c01/k8s/triton.yaml; salidas abreviadas, forma típica con kubectl 1.3x",
+    "notes": [
+     "El orden importa: <code>get</code> dice dónde se trabó; <code>describe</code>, por qué (Last State, Exit Code y Events); <code>logs --previous</code>, qué dijo el proceso al morir.",
+     "Exit 1 con <code>Reason: Error</code> es tu aplicación: no subas memoria. Exit 137 con <code>Reason: OOMKilled</code> sí es memoria.",
+     "<code>4 (40s ago)</code> en RESTARTS: cuántas veces y hace cuánto fue el último. Entre intentos, la espera crece: 10 s, 20 s, 40 s… hasta 5 min. Ese default sigue igual en 1.37; desde 1.35, un admin puede bajar el tope por nodo en la configuración del kubelet.",
+     "Con <code>maxSurge: 1</code> y <code>maxUnavailable: 0</code> (entra un pod nuevo antes de que salga uno viejo), los dos Triton viejos siguen sirviendo: no hay caída, así que diagnosticas sin apuro antes de decidir.",
+     "Guarda <code>describe</code> y <code>logs --previous</code> antes de borrar nada: los eventos duran 1 h por defecto, y borrar el pod se lleva su log.",
+     "Con containerd (EKS, kind) la tabla de exit codes no es la de Docker: un comando que no existe o no es ejecutable da <code>Reason: StartError</code> y <code>Exit Code: 128</code>; 126 y 127 solo salen si un shell dentro del contenedor los devuelve, y 125 no aparece."
+    ]
+   },
+   "figure": {
+    "kind": "lifecycle",
+    "caption": "Pending, Running, Succeeded, Failed y Unknown son las cinco fases del pod. El resto es el motivo del contenedor que kubectl muestra en STATUS; READY dice si pasa la readiness.",
+    "data": {
+     "states": [
+      "Pending",
+      "ContainerCreating",
+      "ImagePullBackOff",
+      "CreateContainerConfigError",
+      "Running · 0/1",
+      "Running · 1/1",
+      "CrashLoopBackOff",
+      "Terminating",
+      "Evicted"
+     ],
+     "edges": [
+      [
+       "Pending",
+       "ContainerCreating",
+       "el scheduler le asigna nodo"
+      ],
+      [
+       "ContainerCreating",
+       "ImagePullBackOff",
+       "no baja la imagen (antes, ErrImagePull)"
+      ],
+      [
+       "ImagePullBackOff",
+       "Running · 0/1",
+       "el pull por fin funciona"
+      ],
+      [
+       "ContainerCreating",
+       "CreateContainerConfigError",
+       "falta un Secret, ConfigMap o clave"
+      ],
+      [
+       "CreateContainerConfigError",
+       "Running · 0/1",
+       "creas lo que faltaba"
+      ],
+      [
+       "ContainerCreating",
+       "Running · 0/1",
+       "arranca el proceso"
+      ],
+      [
+       "Running · 0/1",
+       "Running · 1/1",
+       "la readiness pasa"
+      ],
+      [
+       "Running · 1/1",
+       "Running · 0/1",
+       "la readiness falla: sale del Service"
+      ],
+      [
+       "Running · 0/1",
+       "CrashLoopBackOff",
+       "el contenedor termina (exit 1, OOMKilled; en un Deployment, también exit 0)"
+      ],
+      [
+       "Running · 1/1",
+       "CrashLoopBackOff",
+       "muere y vuelve a morir"
+      ],
+      [
+       "CrashLoopBackOff",
+       "Running · 0/1",
+       "reinicio tras la espera"
+      ],
+      [
+       "Running · 1/1",
+       "Terminating",
+       "delete, rollout o scale-down"
+      ],
+      [
+       "Running · 1/1",
+       "Evicted",
+       "al nodo le falta memoria o disco"
+      ]
+     ],
+     "phases": {
+      "Pending": [
+       "Pending",
+       "ContainerCreating",
+       "ImagePullBackOff",
+       "CreateContainerConfigError"
+      ],
+      "Running": [
+       "Running · 0/1",
+       "Running · 1/1",
+       "CrashLoopBackOff",
+       "Terminating"
+      ],
+      "Failed": [
+       "Evicted"
+      ]
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>estado → eventos → logs → exec</b>. <code>get</code> dice en qué fase se trabó; <code>describe</code> y <code>events</code>, por qué; <code>logs --previous</code>, qué dijo al morir; <code>exec</code>, cómo se ve por dentro.",
+   "trap": "Trampa: borrar el pod o hacer <code>rollout restart</code> para “arreglarlo”. Se lleva el log del intento que murió, y el pod nuevo sale igual de roto. Y no te quedes en STATUS: <code>CrashLoopBackOff</code> es el síntoma; la causa está en el Exit Code y en el log.",
+   "lab": {
+    "goal": "Provocar cuatro fallas típicas (imagen que no existe, proceso que muere, Secret que falta, readiness que falla), reconocerlas con get, describe, logs y events, y arreglar una.",
+    "steps": [
+     {
+      "cmd": "kubectl create namespace lab-k8s && kubectl run tag-roto -n lab-k8s --image=nginx:no-existe && kubectl run sale -n lab-k8s --image=busybox:1.38 -- sh -c 'echo arrancando; exit 1'",
+      "expect": "namespace/lab-k8s created, pod/tag-roto created y pod/sale created."
+     },
+     {
+      "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Pod\nmetadata: {name: cfg}\nspec:\n  containers:\n    - name: app\n      image: busybox:1.38\n      command: [\"sleep\", \"3600\"]\n      env:\n        - name: TOKEN\n          valueFrom: {secretKeyRef: {name: no-existe, key: token}}\n---\napiVersion: v1\nkind: Pod\nmetadata: {name: listo, labels: {app: listo}}\nspec:\n  containers:\n    - name: web\n      image: nginx:1.30-alpine\n      readinessProbe:\n        httpGet: {path: /listo, port: 80}\nEOF",
+      "expect": "pod/cfg created y pod/listo created. cfg pide un Secret que no existe; listo tiene una readiness contra un path que nginx no sirve."
+     },
+     {
+      "cmd": "sleep 30; kubectl get pods -n lab-k8s",
+      "expect": "tag-roto 0/1 ErrImagePull o ImagePullBackOff; sale 0/1 CrashLoopBackOff (o Error entre reinicios); cfg 0/1 CreateContainerConfigError; listo 0/1 Running."
+     },
+     {
+      "cmd": "kubectl events -n lab-k8s --for pod/tag-roto",
+      "expect": "Failed to pull image \"nginx:no-existe\": … not found (el texto del medio depende del runtime de tu cluster), Error: ErrImagePull, Back-off pulling image \"nginx:no-existe\" y Error: ImagePullBackOff."
+     },
+     {
+      "cmd": "kubectl logs sale -n lab-k8s --previous; kubectl describe pod sale -n lab-k8s | grep -A3 'Last State'",
+      "expect": "arrancando, y Last State: Terminated, Reason: Error, Exit Code: 1. El log del intento que murió dice lo que pasó; RESTARTS sube en cada vuelta."
+     },
+     {
+      "cmd": "kubectl events -n lab-k8s --for pod/cfg",
+      "expect": "Un Warning con Error: secret \"no-existe\" not found. El pod no arranca hasta que el Secret exista."
+     },
+     {
+      "cmd": "kubectl events -n lab-k8s --for pod/listo --types=Warning; kubectl expose pod listo -n lab-k8s --port=80 && sleep 2 && kubectl get endpointslices -n lab-k8s -l kubernetes.io/service-name=listo -o jsonpath='{.items[0].endpoints[0].conditions.ready}{\"\\n\"}'",
+      "expect": "Readiness probe failed: HTTP probe failed with statuscode: 404, service/listo exposed y false: el pod corre, pero el Service no le manda tráfico."
+     },
+     {
+      "cmd": "kubectl create secret generic no-existe -n lab-k8s --from-literal=token=abc && sleep 20 && kubectl get pod cfg -n lab-k8s",
+      "expect": "secret/no-existe created y cfg 1/1 Running: el kubelet reintenta solo (si todavía no, espera unos segundos más y repite el get)."
+     },
+     {
+      "cmd": "kubectl delete namespace lab-k8s",
+      "expect": "namespace \"lab-k8s\" deleted."
+     }
+    ],
+    "fix": "Cada falla tiene su arreglo: el tag correcto; un comando que no termine en error; crear el Secret antes que el pod; una readiness contra un path que exista. Confírmalo con el mismo comando que te mostró la falla.",
+    "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind. Baja busybox:1.38 y nginx:1.30-alpine.",
+    "verified": "docs"
+   },
+   "links": [
+    "#ref-comandos.depurar",
+    "#ref-comandos.autoscaling-cmds",
+    "#c01.fallas",
+    "#m06.objetos-basicos",
+    "#m06.cold-starts"
+   ]
+  },
+  {
+   "id": "errores",
+   "num": 13,
+   "title": "Errores que debes reconocer rápido",
+   "question": "Lees el mensaje: ¿quién lo dijo, qué significa, qué corres primero y dónde está la explicación?",
+   "templates": [
+    {
+     "code": "Error from server ({motivo}): {mensaje}",
+     "note": "Lo rechazó el <b>API server</b> (la puerta de entrada del cluster): permisos, validación o algo que no existe. Ese objeto no se creó ni cambió."
+    },
+    {
+     "code": "The {Kind} \"{nombre}\" is invalid: {campo}: {detalle}",
+     "note": "La validación rechazó tu YAML: un valor imposible, o un campo que ya no se puede cambiar."
+    },
+    {
+     "code": "Warning  {motivo}  {edad}  {origen}  {mensaje}",
+     "note": "Un evento en <code>describe</code> o <code>kubectl events</code>: lo dijo el scheduler, el kubelet o un controlador. Explica por qué el pod no avanza."
+    },
+    {
+     "code": "Last State: Terminated · Reason: {motivo} · Exit Code: {codigo}",
+     "note": "Cómo murió el intento anterior del contenedor. Lo que pasó adentro está en <code>kubectl logs --previous</code>."
+    }
+   ],
+   "vars": [
+    [
+     "{motivo}",
+     "la razón corta, en CamelCase",
+     "Forbidden, NotFound · FailedScheduling, BackOff · OOMKilled, Error"
+    ],
+    [
+     "{mensaje}",
+     "el texto que explica la razón",
+     "pods is forbidden: User \"ana\" cannot list resource \"pods\"…"
+    ],
+    [
+     "{Kind}",
+     "el tipo de objeto",
+     "Deployment"
+    ],
+    [
+     "{nombre}",
+     "el nombre del objeto",
+     "gateway"
+    ],
+    [
+     "{campo}",
+     "la ruta del campo con problema",
+     "spec.selector"
+    ],
+    [
+     "{detalle}",
+     "qué tiene de malo",
+     "field is immutable"
+    ],
+    [
+     "{edad}",
+     "hace cuánto, y cuántas veces se repitió",
+     "2m (x10 over 6m)"
+    ],
+    [
+     "{origen}",
+     "quién lo emitió",
+     "default-scheduler, kubelet, cluster-autoscaler"
+    ],
+    [
+     "{codigo}",
+     "exit code del proceso",
+     "137"
+    ]
+   ],
+   "pieces": [
+    [
+     "Error from server (Forbidden)",
+     "Casi siempre RBAC (permisos): te falta ese verbo sobre ese recurso en ese namespace. También: una cuota llena.",
+     "cannot list resource \"pods\""
+    ],
+    [
+     "Error from server (NotFound)",
+     "No existe con ese nombre en ese namespace; a veces el namespace es otro.",
+     "deployments.apps \"triton\" not found"
+    ],
+    [
+     "Error from server (AlreadyExists)",
+     "Hiciste create de algo que ya existe; apply lo actualizaría.",
+     "kubectl create -f dos veces"
+    ],
+    [
+     "Error from server (BadRequest)",
+     "El servidor no puede procesar el pedido: un campo desconocido, o logs de un contenedor que no arrancó.",
+     "strict decoding error: unknown field"
+    ],
+    [
+     "Error from server (Conflict)",
+     "Otro cambió el objeto entre que lo leíste y lo escribiste. Reintenta sobre la versión nueva.",
+     "the object has been modified"
+    ],
+    [
+     "The … is invalid:",
+     "La validación rechazó un valor: formato, rango o un campo inmutable.",
+     "spec.selector: … field is immutable"
+    ],
+    [
+     "error: You must be logged in to the server",
+     "El API server no acepta tus credenciales: vencidas o de una identidad que no conoce.",
+     "(Unauthorized)"
+    ],
+    [
+     "The connection to the server … was refused",
+     "No hay API server en esa dirección: cluster apagado o sin kubeconfig.",
+     "localhost:8080"
+    ],
+    [
+     "Unable to connect to the server",
+     "No llega a la dirección: red, VPN, DNS o un cluster que solo se alcanza desde su red privada.",
+     "dial tcp …:443: i/o timeout"
+    ],
+    [
+     "error: … (sin from server)",
+     "Lo dijo kubectl mismo: un flag, un archivo que no parsea, un tipo que no existe en el cluster.",
+     "the server doesn't have a resource type"
+    ],
+    [
+     "Warning FailedScheduling",
+     "El scheduler no encontró nodo; cuenta los nodos por motivo.",
+     "0/5 nodes are available"
+    ],
+    [
+     "Warning Failed · BackOff",
+     "El kubelet no pudo bajar la imagen, armar o arrancar el contenedor, y reintenta.",
+     "Back-off pulling image"
+    ],
+    [
+     "Warning Unhealthy",
+     "Falló una probe: Readiness, Liveness o Startup probe failed.",
+     "HTTP probe failed with statuscode: 503"
+    ],
+    [
+     "Last State: Terminated",
+     "Cómo murió el intento anterior: Reason y Exit Code.",
+     "OOMKilled · 137"
+    ]
+   ],
+   "example": {
+    "title": "Cómo leer un FailedScheduling largo: Triton no encuentra GPU",
+    "lang": "text",
+    "code": "$ kubectl describe pod -n classifier triton-5f6b…-9xk2w\n…\nEvents:\n  Type     Reason            Age  From                Message\n  ----     ------            ---  ----                -------\n  Warning  FailedScheduling  2m   default-scheduler   0/5 nodes are available: 2 Insufficient nvidia.com/gpu, 3 node(s) didn't match Pod's node affinity/selector. preemption: 0/5 nodes are available: 2 No preemption victims found for incoming pod, 3 Preemption is not helpful for scheduling.\n  Normal   TriggeredScaleUp  2m   cluster-autoscaler  pod triggered scale-up: [{… 2->3 (max: 4)}]",
+    "source": "Forma típica del evento en Kubernetes 1.3x con Cluster Autoscaler; los nombres y la label son los de reference/c01/k8s/triton.yaml",
+    "notes": [
+     "Léelo por partes: <code>0/5 nodes are available</code> es el total; después viene cuántos nodos fallaron por cada motivo. Esa lista es la causa.",
+     "Aquí, los 2 nodos GPU no tienen una T4 libre (<code>Insufficient nvidia.com/gpu</code>) y los 3 de CPU no tienen la label <code>workload=gpu-t4</code>. Lo segundo está bien: Triton no debe caer ahí.",
+     "Lo que sigue a <code>preemption:</code> dice que sacar otros pods no ayudaría. No es la causa: no hay nada que arreglar ahí.",
+     "<code>TriggeredScaleUp</code> es del Cluster Autoscaler (el que agrega nodos): pidió un nodo GPU más. El pod espera unos minutos y se programa solo. Si en cambio ves <code>NotTriggerScaleUp</code>, no encontró un grupo de nodos que pueda crecer y le sirva al pod: están en su máximo, ninguno trae la label o la GPU, o quedaron en pausa tras fallar (por ejemplo, sin cuota).",
+     "Si el motivo fuera un taint (una marca del nodo que rechaza pods), el texto depende de la versión: hasta 1.33 (y en 1.34.0–1.34.1) nombra el taint (<code>{nvidia.com/gpu: present}</code>); desde 1.35 (y 1.34.2 en adelante) solo dice <code>untolerated taint(s)</code>: míralo en el nodo."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Quiz: el mensaje tal como lo ves; responde quién lo dijo, qué significa, qué corres primero y en qué sección está.",
+    "data": {}
+   },
+   "memo": "Cómo recordarla: <b>quién habla dice dónde mirar</b>. <code>Error from server</code> es el API server (permisos, validación, no existe); un <code>Warning</code> en los eventos es el scheduler o el kubelet; <code>Last State</code> es cómo murió el proceso; lo demás lo dijo tu app y está en <code>kubectl logs</code>.",
+   "trap": "Trampa: leer solo la primera línea, o solo STATUS. En un <code>FailedScheduling</code>, el conteo por motivo dice qué arreglar y lo que sigue a <code>preemption:</code> no es la causa. Y algunos textos cambian según la versión: desde 1.35 (y 1.34.2) el scheduler ya no nombra el taint, y desde 1.33 el conflicto de zona de un volumen dice <code>didn't match PersistentVolume's node affinity</code> (antes, <code>had volume node affinity conflict</code>).",
+   "lab": {
+    "goal": "Reconocer los 26 mensajes en 5 minutos y provocar cuatro en tu cluster local: NotFound, Forbidden, un campo desconocido y un selector inmutable.",
+    "steps": [
+     {
+      "cmd": "ronda() { printf '%s\\n' '0/3 nodes are available: 3 Insufficient nvidia.com/gpu' 'node(s) had untolerated taint(s)' \"node(s) didn't match Pod's node affinity/selector\" 'Failed to pull image … not found · Back-off pulling image' 'no match for platform in manifest · exec format error' 'Back-off restarting failed container' 'container has runAsNonRoot and image will run as root' 'Readiness probe failed: HTTP probe failed with statuscode: 503' 'Liveness probe failed: … context deadline exceeded' 'Reason: OOMKilled · Exit Code: 137' 'The node was low on resource: memory' 'CUDA out of memory' '503 Service Temporarily Unavailable' \"couldn't auto-discover subnets\" 'Error: secret \"triton-token\" not found' 'Not authorized to perform sts:AssumeRoleWithWebIdentity' 'pods is forbidden: User \"ana\" cannot list resource \"pods\"' 'error: You must be logged in to the server (Unauthorized)' 'The connection to the server localhost:8080 was refused' 'no matches for kind \"ScaledObject\" in version \"keda.sh/v1alpha1\"' 'exceeded its progress deadline' \"Cannot evict pod as it would violate the pod's disruption budget\" 'failed to get cpu utilization: missing request for cpu' \"prometheus metrics 'prometheus' target may be lost, the result is empty\" 'strict decoding error: unknown field' '`selector` does not match template `labels`' | sort -R | head -5; }; ronda",
+      "expect": "Cinco mensajes al azar. Para cada uno, en menos de 30 s y en voz alta: quién lo dijo (API server, scheduler, kubelet, un controlador o tu app), la causa probable y el primer comando. Después compáralo con la lista."
+     },
+     {
+      "cmd": "ronda",
+      "expect": "Otra ronda de cinco. Repite hasta completar 5 minutos; la meta es 5 de 5 sin mirar."
+     },
+     {
+      "cmd": "kubectl get deploy triton -n default; kubectl get pods -n kube-system --as=ana; kubectl get scaledobjects",
+      "expect": "Error from server (NotFound): deployments.apps \"triton\" not found; Error from server (Forbidden): pods is forbidden: User \"ana\" cannot list resource \"pods\" in API group \"\" in the namespace \"kube-system\"; error: the server doesn't have a resource type \"scaledobjects\" (no tienes KEDA en local)."
+     },
+     {
+      "cmd": "kubectl create namespace lab-k8s && kubectl create deployment web -n lab-k8s --image=nginx:1.30-alpine --dry-run=client -o yaml | sed 's/replicas:/replicaz:/' | kubectl apply -f -",
+      "expect": "namespace/lab-k8s created y Error from server (BadRequest): error when creating \"STDIN\": Deployment in version \"v1\" cannot be handled as a Deployment: strict decoding error: unknown field \"spec.replicaz\". Un typo en un campo no se ignora."
+     },
+     {
+      "cmd": "kubectl create deployment web -n lab-k8s --image=nginx:1.30-alpine && kubectl patch deploy web -n lab-k8s --type=merge -p '{\"spec\":{\"selector\":{\"matchLabels\":{\"app\":\"otro\"}}}}'",
+      "expect": "deployment.apps/web created y The Deployment \"web\" is invalid: con dos errores, spec.template.metadata.labels: … `selector` does not match template `labels` y spec.selector: … field is immutable. Cambiar el selector rompe las dos reglas a la vez."
+     },
+     {
+      "cmd": "kubectl delete namespace lab-k8s",
+      "expect": "namespace \"lab-k8s\" deleted."
+     }
+    ],
+    "fix": "Los que fallaste: abre la sección de su tema (el enlace de la lista) y haz su laboratorio. Repite la ronda otro día: la meta es 5 de 5 en menos de 2 minutos.",
+    "needs": "Una terminal de macOS para la ronda; para los pasos 3 a 6, un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind.",
+    "verified": "docs"
+   },
+   "links": [
+    "#ref-comandos.depurar",
+    "#ref-comandos.kubectl-basicos",
+    "#ref-comandos.rollouts",
+    "#m06.gpus-k8s"
+   ]
+  }
+ ],
+ "diagnosticador": [
+  {
+   "id": "pending",
+   "symptom": "Mi pod se queda en Pending y nunca arranca.",
+   "first": "kubectl describe pod POD -n classifier",
+   "causes": [
+    {
+     "cause": "Ningún nodo tiene lugar: la suma de requests (lo que cada pod reserva) de CPU, memoria o nvidia.com/gpu no entra (Insufficient …). Con GPU: todas asignadas, o el device plugin (el pod de NVIDIA que anuncia las GPUs) no corre y el nodo no anuncia nvidia.com/gpu.",
+     "check": "kubectl describe node NODO (Allocatable contra Allocated resources) · kubectl get nodes -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\\.com/gpu'",
+     "fix": "Requests realistas, o deja que el autoscaler de nodos agregue uno. Cada pod se lleva una GPU entera. Un nodo GPU con <none>: revisa el DaemonSet (un pod por nodo) del device plugin."
+    },
+    {
+     "cause": "Un nodeSelector o una affinity (las labels de nodo que el pod exige) que ningún nodo cumple, o un taint (una marca del nodo que rechaza pods) que el pod no tolera (didn't match Pod's node affinity/selector; untolerated taint). En EKS, un pod que pide nvidia.com/gpu ya recibe sola la toleration de ese taint: el que falta suele ser otro.",
+     "check": "kubectl get nodes -L workload · kubectl get nodes -o 'custom-columns=NAME:.metadata.name,TAINTS:.spec.taints[*].key'",
+     "fix": "En C01: la label workload=gpu-t4 en el node group (grupo de nodos) de GPU. Tolerations para los taints propios del equipo; fuera de EKS, también la de nvidia.com/gpu, como la que ya trae Triton."
+    },
+    {
+     "cause": "El autoscaler de nodos no puede crear el nodo: grupo en su máximo, sin cuota de GPU o sin capacidad en la zona.",
+     "check": "kubectl events -n classifier --for pod/POD (NotTriggerScaleUp) · kubectl get configmap cluster-autoscaler-status -n kube-system -o yaml",
+     "fix": "Sube el máximo del grupo o la cuota; permite más tipos de instancia o zonas. Con Karpenter, mira kubectl get nodeclaims."
+    },
+    {
+     "cause": "Un volumen (PVC, un pedido de disco) sin enlazar, o un disco EBS que quedó en otra zona (pod has unbound immediate PersistentVolumeClaims; desde 1.33, didn't match PersistentVolume's node affinity; antes, had volume node affinity conflict).",
+     "check": "kubectl get pvc -n classifier",
+     "fix": "Para discos nuevos, una StorageClass (la receta del disco) con volumeBindingMode: WaitForFirstConsumer: el disco se crea en la zona donde cae el pod. Si el disco ya existe, el pod necesita un nodo en esa zona."
+    }
+   ]
+  },
+  {
+   "id": "container-creating",
+   "symptom": "El pod lleva minutos en ContainerCreating.",
+   "first": "kubectl events -n classifier --for pod/POD",
+   "causes": [
+    {
+     "cause": "Está bajando una imagen grande (la de Triton pesa varios GB). No es un error: es lento.",
+     "check": "kubectl events -n classifier --for pod/POD (Pulling image … y, al terminar, Successfully pulled image … in …)",
+     "fix": "Una imagen más chica o nodos con la imagen ya cargada; mide el pull y súmalo al cold start (lo que tarda un pod nuevo en servir)."
+    },
+    {
+     "cause": "Un volumen no se puede montar: un Secret o ConfigMap que no existe, o un disco que sigue pegado a otro nodo (FailedMount, Multi-Attach error).",
+     "check": "kubectl describe pod POD -n classifier (Events: FailedMount o FailedAttachVolume)",
+     "fix": "Crea el objeto en el mismo namespace. Un disco ReadWriteOnce se monta en un solo nodo a la vez: en un Deployment, usa la estrategia Recreate (baja el pod viejo antes de crear el nuevo) o un StatefulSet."
+    },
+    {
+     "cause": "En EKS, la red del pod: el CNI (el plugin que le da a cada pod una IP de la VPC) no consigue una, porque la subred se quedó sin IPs o el nodo llegó a su tope de IPs (FailedCreatePodSandBox, failed to assign an IP address to container).",
+     "check": "kubectl describe pod POD -n classifier · kubectl get pods -n kube-system -l k8s-app=aws-node",
+     "fix": "Subred sin IPs: subredes más grandes, o un rango de IPs secundario en la VPC para los pods. Nodo en su tope: prefix delegation en el VPC CNI (más IPs por nodo)."
+    }
+   ]
+  },
+  {
+   "id": "image-pull",
+   "symptom": "ImagePullBackOff o ErrImagePull: no baja la imagen.",
+   "first": "kubectl describe pod POD -n classifier",
+   "causes": [
+    {
+     "cause": "El tag o el nombre están mal escritos: esa imagen no existe (… not found).",
+     "check": "aws ecr describe-images --repository-name classifier-triton --image-ids imageTag=TAG",
+     "fix": "Corrige el tag; en producción, mejor fijar la imagen por digest (su hash sha256, que no cambia)."
+    },
+    {
+     "cause": "Sin permiso para leer del registry: el rol de IAM de los nodos no puede leer de ECR, o la policy del repositorio lo niega (403 Forbidden o 401 Unauthorized). Con otro registry privado, falta el imagePullSecret (el Secret con la clave del registry).",
+     "check": "aws iam list-attached-role-policies --role-name ROL_DE_LOS_NODOS · aws ecr get-repository-policy --repository-name classifier-triton · kubectl get pod POD -n classifier -o jsonpath='{.spec.imagePullSecrets}'",
+     "fix": "En EKS, la política AmazonEC2ContainerRegistryPullOnly en el rol de los nodos, sin un Deny en la policy del repositorio. Con otro registry privado, un imagePullSecret."
+    },
+    {
+     "cause": "La imagen no trae variante para la arquitectura del nodo: la construiste en tu Mac (no match for platform in manifest).",
+     "check": "docker buildx imagetools inspect REGISTRY/IMAGEN:TAG",
+     "fix": "docker buildx build --platform linux/amd64, mejor en CI."
+    },
+    {
+     "cause": "Límite de descargas de Docker Hub (429 Too Many Requests).",
+     "check": "kubectl events -n classifier --for pod/POD (429 en el mensaje del pull)",
+     "fix": "Copia la imagen a ECR, o usa un pull through cache de ECR (ECR la baja de Docker Hub una vez y la guarda), y bájala de ahí."
+    }
+   ]
+  },
+  {
+   "id": "crashloop",
+   "symptom": "CrashLoopBackOff: RESTARTS no para de subir.",
+   "first": "kubectl logs POD -n classifier --previous",
+   "causes": [
+    {
+     "cause": "La app falla al arrancar (Exit Code 1): falta una variable, o el modelo o el engine no cargan.",
+     "check": "kubectl logs POD -n classifier --previous",
+     "fix": "Arregla lo que dice el log. Si vino con un deploy, mientras tanto kubectl rollout undo."
+    },
+    {
+     "cause": "Lo mató la memoria (Reason: OOMKilled, Exit Code: 137).",
+     "check": "kubectl get pod POD -n classifier -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}'",
+     "fix": "Mide el pico y fija limits.memory con margen (mira el síntoma OOMKilled)."
+    },
+    {
+     "cause": "Una liveness o una startupProbe lo reinicia mientras carga o está lento (Liveness probe failed …, y después failed liveness probe, will be restarted).",
+     "check": "kubectl events -n classifier --for pod/POD",
+     "fix": "Una startupProbe que cubra la carga (C01: 60 × 5 s = 5 min) y una liveness barata, sin dependencias."
+    },
+    {
+     "cause": "El comando termina enseguida o no se puede ejecutar: Exit Code 0; con containerd (el runtime de EKS y kind), Reason StartError y exit 128; o exec format error si la imagen es de otra arquitectura.",
+     "check": "kubectl describe pod POD -n classifier (Last State: Reason y Exit Code)",
+     "fix": "Un servidor en primer plano, el comando correcto en la imagen y el build para linux/amd64."
+    }
+   ]
+  },
+  {
+   "id": "oomkilled",
+   "symptom": "OOMKilled: Exit Code 137 en Last State.",
+   "first": "kubectl describe pod POD -n classifier",
+   "causes": [
+    {
+     "cause": "Pico de RAM al cargar el modelo: los pesos pasan por la RAM antes de ir a la GPU.",
+     "check": "kubectl top pod POD -n classifier --containers (necesita metrics-server; solo muestra el presente)",
+     "fix": "Mide el pico (container_memory_working_set_bytes en Prometheus) y fija el límite con margen."
+    },
+    {
+     "cause": "/dev/shm en memoria (un emptyDir con medium: Memory) cuenta contra el límite del contenedor.",
+     "check": "kubectl exec -n classifier POD -- df -h /dev/shm",
+     "fix": "Incluye el sizeLimit de /dev/shm dentro del límite de memoria (en el Triton de C01, 1Gi dentro de 6Gi)."
+    },
+    {
+     "cause": "Demasiada concurrencia: varios decodes o workers en paralelo multiplican la memoria.",
+     "check": "kubectl get pod POD -n classifier -o jsonpath='{.spec.containers[0].env}'",
+     "fix": "Acota la concurrencia, como PREPROCESS_CONCURRENCY=2 en el gateway de C01."
+    },
+    {
+     "cause": "No es OOMKilled sino la VRAM: CUDA out of memory aparece en el log y no hay exit 137.",
+     "check": "kubectl logs POD -n classifier --previous | grep -i 'out of memory'",
+     "fix": "Batch o resolución más chicos, menos procesos por GPU u otra GPU. Subir limits.memory no ayuda."
+    }
+   ]
+  },
+  {
+   "id": "running-no-ready",
+   "symptom": "Running pero READY 0/1: no recibe tráfico.",
+   "first": "kubectl describe pod POD -n classifier",
+   "causes": [
+    {
+     "cause": "Todavía carga el modelo: Triton abre el puerto recién al terminar (connection refused en la probe).",
+     "check": "kubectl logs -f POD -n classifier",
+     "fix": "Espera. Si la carga es lenta, una startupProbe con margen."
+    },
+    {
+     "cause": "Una dependencia no está lista: el /readyz del gateway de C01 da 503 a propósito si Triton no responde.",
+     "check": "kubectl get endpointslices -n classifier -l kubernetes.io/service-name=triton",
+     "fix": "Arregla la dependencia; la readiness hace bien en sacar al pod."
+    },
+    {
+     "cause": "La probe apunta a un puerto o a un path que la app no sirve (statuscode: 404, o connection refused en otro puerto).",
+     "check": "kubectl get pod POD -n classifier -o jsonpath='{.spec.containers[0].readinessProbe}'",
+     "fix": "El mismo puerto (mejor por nombre, como port: http en C01) y un path que exista."
+    },
+    {
+     "cause": "Timeout corto con el proceso ocupado: timeoutSeconds vale 1 s por defecto.",
+     "check": "kubectl events -n classifier --for pod/POD --types=Warning (context deadline exceeded)",
+     "fix": "Un timeout realista (2 s en C01) y un endpoint de health barato."
+    }
+   ]
+  },
+  {
+   "id": "service-sin-trafico",
+   "symptom": "Los pods están Ready, pero el Service no les manda tráfico.",
+   "first": "kubectl get endpointslices -n classifier -l kubernetes.io/service-name=gateway",
+   "causes": [
+    {
+     "cause": "El selector del Service no coincide con las labels de los pods: el Service se queda sin endpoints.",
+     "check": "kubectl get svc gateway -n classifier -o jsonpath='{.spec.selector}' · kubectl get pods -n classifier --show-labels",
+     "fix": "Las mismas labels en el selector del Service y en el template del Deployment."
+    },
+    {
+     "cause": "El targetPort no coincide con el puerto del contenedor, o con su nombre.",
+     "check": "kubectl get svc gateway -n classifier -o jsonpath='{.spec.ports}'",
+     "fix": "targetPort por nombre (http en C01): así no se desalinean."
+    },
+    {
+     "cause": "Una NetworkPolicy (un firewall entre pods) no deja pasar al que llama: en C01, al puerto 8000 de Triton solo entra el gateway, y al 8002 solo el namespace monitoring.",
+     "check": "kubectl get networkpolicy -n classifier · kubectl describe networkpolicy triton-ingress -n classifier",
+     "fix": "Permite el origen correcto con podSelector o namespaceSelector. Sin un plugin de red (CNI) que las aplique, no hacen nada."
+    },
+    {
+     "cause": "El cliente usa otro nombre o puerto: un nombre de DNS mal escrito, o el Service de otro namespace.",
+     "check": "kubectl run dns -n classifier -it --rm --restart=Never --image=busybox:1.38 -- nslookup triton.classifier.svc.cluster.local",
+     "fix": "El nombre completo servicio.namespace.svc.cluster.local y el puerto del Service, como TRITON_URL en C01."
+    }
+   ]
+  },
+  {
+   "id": "alb-503-504",
+   "symptom": "El Ingress (el ALB) responde 503 o 504.",
+   "first": "kubectl describe ingress gateway -n classifier",
+   "causes": [
+    {
+     "cause": "503: el target group (la lista de pods a los que el ALB manda tráfico) no tiene targets registrados. En C01, ningún gateway pasa /readyz (por ejemplo, Triton caído) y no quedan endpoints listos.",
+     "check": "kubectl get endpointslices -n classifier -l kubernetes.io/service-name=gateway",
+     "fix": "Arregla la readiness o su dependencia; mientras, quien llama usa su plan B (en C01, el vendedor elige la categoría a mano)."
+    },
+    {
+     "cause": "El AWS Load Balancer Controller (el que crea el ALB a partir del Ingress) no actualizó el ALB, o ni lo creó (el Ingress queda sin ADDRESS): subredes sin tag o permisos de IAM (FailedBuildModel, FailedDeployModel).",
+     "check": "kubectl describe ingress gateway -n classifier (Events) · kubectl logs -n kube-system deploy/aws-load-balancer-controller",
+     "fix": "Subredes con el tag kubernetes.io/role/internal-elb=1 (ALB interno, como en C01) y la política de IAM del controlador."
+    },
+    {
+     "cause": "504: lo devuelve el gateway cuando Triton no responde en 150 ms (INFER_TIMEOUT_S en C01), o el ALB cuando el target (el pod registrado) no acepta la conexión en 10 s o no responde dentro del idle timeout (60 s en C01).",
+     "check": "kubectl logs -n classifier deploy/gateway --tail=50 · kubectl get targetgroupbindings -n classifier -o jsonpath='{.items[*].spec.targetGroupARN}' · aws elbv2 describe-target-health --target-group-arn ARN",
+     "fix": "Si es del gateway, Triton está saturado: mira su tiempo en cola y si KEDA escala. Si es del ALB, busca el target lento o caído."
+    },
+    {
+     "cause": "Errores solo durante cada deploy: un pod viejo se va antes de que el ALB deje de mandarle requests, o los viejos salen antes de que el ALB registre a los nuevos (suele verse como 502 o 503).",
+     "check": "kubectl get deploy gateway -n classifier -o jsonpath='{.spec.template.spec.containers[0].lifecycle}'",
+     "fix": "preStop con sleep (15 s en C01) para seguir atendiendo mientras el ALB lo saca, y el readiness gate del controlador (la label del namespace) para que el deploy espere a que el ALB vea sano al pod nuevo."
+    }
+   ]
+  },
+  {
+   "id": "rollout-trabado",
+   "symptom": "kubectl rollout status no termina, o falla con exceeded its progress deadline.",
+   "first": "kubectl get pods -n classifier -l app.kubernetes.io/name=triton -o wide",
+   "causes": [
+    {
+     "cause": "El pod nuevo no llega a Ready: CrashLoopBackOff, imagen que no baja o probe que falla.",
+     "check": "kubectl describe pod POD -n classifier",
+     "fix": "kubectl rollout undo deploy/triton -n classifier para mitigar; después arregla la causa."
+    },
+    {
+     "cause": "El pod nuevo está Pending: con maxSurge 1 y maxUnavailable 0 necesita una GPU libre, y no hay.",
+     "check": "kubectl events -n classifier --for pod/POD (FailedScheduling: Insufficient nvidia.com/gpu)",
+     "fix": "Espera el nodo nuevo. Si tarda más que el plazo, sube progressDeadlineSeconds (900 s en Triton)."
+    },
+    {
+     "cause": "El Deployment está en pausa (kubectl rollout pause).",
+     "check": "kubectl get deploy triton -n classifier -o jsonpath='{.spec.paused}'",
+     "fix": "kubectl rollout resume deploy/triton -n classifier"
+    },
+    {
+     "cause": "El ReplicaSet no puede crear pods: una ResourceQuota (el tope de recursos del namespace) llena o un ServiceAccount que no existe (FailedCreate).",
+     "check": "kubectl describe rs -n classifier -l app.kubernetes.io/name=triton",
+     "fix": "Ajusta la cuota del namespace o crea el ServiceAccount."
+    }
+   ]
+  },
+  {
+   "id": "hpa-no-escala",
+   "symptom": "El HPA no escala: TARGETS dice <unknown>, o no pasa del mínimo.",
+   "first": "kubectl describe hpa gateway -n classifier",
+   "causes": [
+    {
+     "cause": "No le llegan métricas: metrics-server (el que mide CPU y memoria de los pods) no está instalado o su API no responde.",
+     "check": "kubectl get apiservice v1beta1.metrics.k8s.io",
+     "fix": "Instala metrics-server; en EKS no siempre viene."
+    },
+    {
+     "cause": "Los pods no tienen request de CPU: el porcentaje no tiene contra qué medirse (missing request for cpu).",
+     "check": "kubectl get deploy gateway -n classifier -o jsonpath='{.spec.template.spec.containers[0].resources}'",
+     "fix": "requests.cpu en cada contenedor (1 en el gateway de C01)."
+    },
+    {
+     "cause": "Ya está en maxReplicas (ScalingLimited en True, TooManyReplicas).",
+     "check": "kubectl get hpa gateway -n classifier",
+     "fix": "Sube maxReplicas en git, después de mirar el costo."
+    },
+    {
+     "cause": "Con KEDA, la consulta a Prometheus vuelve vacía o falla (KEDAScalerFailed).",
+     "check": "kubectl describe scaledobject triton -n classifier",
+     "fix": "Que Prometheus lea las métricas de Triton (los ServiceMonitors de C01) y que la query devuelva un número."
+    }
+   ]
+  },
+  {
+   "id": "terminating",
+   "symptom": "Un pod se queda en Terminating.",
+   "first": "kubectl get pod POD -n classifier -o wide",
+   "causes": [
+    {
+     "cause": "Se está apagando en orden: preStop y SIGTERM dentro del plazo de gracia (hasta 60 s en Triton). Es normal.",
+     "check": "kubectl get pod POD -n classifier -o jsonpath='{.metadata.deletionGracePeriodSeconds}'",
+     "fix": "Espera. Si siempre llega al límite, revisa que la app maneje SIGTERM."
+    },
+    {
+     "cause": "Su nodo no responde (NotReady): nadie confirma que el contenedor paró.",
+     "check": "kubectl get nodes",
+     "fix": "Si el nodo murió, que el autoscaler lo reemplace o borra el Node. Último recurso: kubectl delete pod POD -n classifier --grace-period=0 --force (el contenedor podría seguir vivo en ese nodo)."
+    },
+    {
+     "cause": "Un finalizer (una marca que pide limpiar algo antes de borrar) que ningún controlador quita.",
+     "check": "kubectl get pod POD -n classifier -o jsonpath='{.metadata.finalizers}'",
+     "fix": "Arregla el controlador dueño del finalizer. Quitarlo a mano se salta su limpieza."
+    }
+   ]
+  },
+  {
+   "id": "evicted",
+   "symptom": "Pods desalojados: Evicted en describe (en STATUS puede verse Evicted, Error o ContainerStatusUnknown).",
+   "first": "kubectl get pods -n classifier --field-selector=status.phase=Failed",
+   "causes": [
+    {
+     "cause": "Al nodo le faltó memoria: salen primero los pods que usan más de lo que pidieron.",
+     "check": "kubectl describe node NODO (Conditions: MemoryPressure)",
+     "fix": "limits.memory igual a requests.memory, como en C01: el pod no puede pasarse de lo que reservó."
+    },
+    {
+     "cause": "Disco del nodo lleno: imágenes CUDA grandes, logs, emptyDir (carpeta temporal del pod) sin sizeLimit (The node was low on resource: ephemeral-storage).",
+     "check": "kubectl describe pod POD -n classifier (Message: The node was low on resource: …)",
+     "fix": "Un disco de nodo más grande para imágenes de GPU, y sizeLimit en los emptyDir."
+    },
+    {
+     "cause": "El pod pasó su propio límite de disco local o el sizeLimit de un emptyDir (Usage of EmptyDir volume … exceeds the limit).",
+     "check": "kubectl describe pod POD -n classifier",
+     "fix": "Sube ese límite o escribe menos en disco local. Borra los pods Failed después de leer su motivo."
+    }
+   ]
+  },
+  {
+   "id": "create-container-config-error",
+   "symptom": "CreateContainerConfigError: el contenedor ni se crea.",
+   "first": "kubectl describe pod POD -n classifier",
+   "causes": [
+    {
+     "cause": "Falta el Secret o el ConfigMap que usa env o envFrom (Error: secret \"…\" not found).",
+     "check": "kubectl get secret,configmap -n classifier",
+     "fix": "Créalo antes que el pod y en el mismo namespace: un pod no ve objetos de otro namespace."
+    },
+    {
+     "cause": "Existe, pero le falta la clave (couldn't find key … in ConfigMap …).",
+     "check": "kubectl get configmap NOMBRE -n classifier -o yaml",
+     "fix": "Agrega la clave, o marca la referencia con optional: true si de verdad es opcional."
+    },
+    {
+     "cause": "runAsNonRoot (pediste no correr como root) con una imagen que corre como root, o con un usuario que no es numérico.",
+     "check": "kubectl get pod POD -n classifier -o jsonpath='{.spec.securityContext}'",
+     "fix": "Un runAsUser numérico: 10001 en el gateway y 1000 en Triton (C01)."
+    }
+   ]
+  },
+  {
+   "id": "gpu-no-visible",
+   "symptom": "El pod de GPU corre, pero no ve la GPU (nvidia-smi falla o torch.cuda.is_available() da False).",
+   "first": "kubectl get pod POD -n classifier -o jsonpath='{.spec.containers[0].resources.limits}'",
+   "causes": [
+    {
+     "cause": "No pediste nvidia.com/gpu en limits: el device plugin (el pod de NVIDIA que reparte las GPUs) no le asigna ninguna. Ojo: según el runtime del nodo, una imagen de NVIDIA podría ver todas sin control.",
+     "check": "kubectl get pod POD -n classifier -o jsonpath='{.spec.containers[0].resources.limits}'",
+     "fix": "nvidia.com/gpu: 1 en limits, como Triton en C01."
+    },
+    {
+     "cause": "El pod cayó en un nodo sin GPU: sin el request de GPU y sin selector, nada lo lleva a uno.",
+     "check": "kubectl get pod POD -n classifier -o wide · kubectl get nodes -L workload",
+     "fix": "El request de GPU, más el nodeSelector y la toleration de C01."
+    },
+    {
+     "cause": "El driver del nodo es más viejo que el CUDA de la imagen (CUDA driver version is insufficient for CUDA runtime version).",
+     "check": "kubectl exec -n classifier POD -- nvidia-smi",
+     "fix": "Una imagen con un CUDA que ese driver soporte, o nodos con un driver más nuevo."
+    },
+    {
+     "cause": "La imagen trae PyTorch sin CUDA (el paquete para CPU).",
+     "check": "kubectl exec -n classifier POD -- python -c \"import torch; print(torch.__version__, torch.version.cuda)\"",
+     "fix": "El paquete de PyTorch con CUDA (por ejemplo, el de cu126) que soporte el driver del nodo."
+    }
+   ]
+  }
+ ],
+ "errores": [
+  {
+   "msg": "0/3 nodes are available: 3 Insufficient nvidia.com/gpu.",
+   "meaning": "El scheduler no encontró un nodo con una GPU libre: todas están asignadas (cada pod se lleva una entera), o el nodo no anuncia nvidia.com/gpu porque el device plugin (el pod de NVIDIA que anuncia las GPUs del nodo) no corre ahí. El pod queda Pending; si el autoscaler de nodos puede, agrega uno.",
+   "first": "kubectl get nodes -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\\.com/gpu'",
+   "topic": "gpu",
+   "section": "scheduling"
+  },
+  {
+   "msg": "node(s) had untolerated taint {nvidia.com/gpu: present} · node(s) had untolerated taint(s)",
+   "meaning": "Hay nodos, pero con un taint (una marca que rechaza pods) que tu pod no tolera. Según la versión, el mensaje nombra el taint (hasta 1.33, y en 1.34.0–1.34.1) o no (desde 1.35, y 1.34.2 en adelante): míralo en el nodo. En EKS, un pod que pide nvidia.com/gpu recibe sola la toleration de ese taint (la agrega ExtendedResourceToleration, un paso del API server): si un pod de GPU ve este mensaje, busca otro taint.",
+   "first": "kubectl get nodes -o 'custom-columns=NAME:.metadata.name,TAINTS:.spec.taints[*].key'",
+   "topic": "scheduling",
+   "section": "scheduling"
+  },
+  {
+   "msg": "node(s) didn't match Pod's node affinity/selector",
+   "meaning": "Ningún nodo tiene las labels que pide tu nodeSelector o tu affinity (las reglas de a qué nodos puede ir el pod). En C01, Triton pide workload=gpu-t4: si el grupo de nodos de GPU no tiene esa label, el pod no cae en ningún lado.",
+   "first": "kubectl get nodes -L workload",
+   "topic": "scheduling",
+   "section": "scheduling"
+  },
+  {
+   "msg": "Failed to pull image \"…\": … not found · Back-off pulling image \"…\"",
+   "meaning": "El kubelet no pudo bajar la imagen: primero ErrImagePull y después ImagePullBackOff, que reintenta con esperas crecientes, hasta 5 min. not found es un tag o un nombre mal escrito; 403 Forbidden o 401, permisos del registry. El texto del medio depende del runtime (containerd en EKS y kind).",
+   "first": "kubectl describe pod POD -n classifier",
+   "topic": "imagen",
+   "section": "diagnostico"
+  },
+  {
+   "msg": "no match for platform in manifest · exec /…: exec format error",
+   "meaning": "La imagen es de otra arquitectura: la construiste en tu Mac (arm64) y los nodos son amd64. Si su índice (la lista de variantes por arquitectura) no trae amd64, falla el pull; si es una imagen de una sola arquitectura, baja bien y muere al arrancar, con exec format error en el log.",
+   "first": "docker buildx imagetools inspect REGISTRY/IMAGEN:TAG",
+   "topic": "imagen",
+   "section": "diagnostico"
+  },
+  {
+   "msg": "Back-off restarting failed container triton in pod triton-…",
+   "meaning": "El evento del CrashLoopBackOff: el contenedor muere y el kubelet espera cada vez más antes de reiniciarlo (10 s, 20 s, 40 s… hasta 5 min). Es el síntoma; la causa está en el log del intento anterior y en el Exit Code.",
+   "first": "kubectl logs POD -n classifier --previous",
+   "topic": "arranque",
+   "section": "diagnostico"
+  },
+  {
+   "msg": "container has runAsNonRoot and image will run as root",
+   "meaning": "Pediste no correr como root (runAsNonRoot: true), pero la imagen arranca como root y no fijaste otro usuario: el kubelet no crea el contenedor (CreateContainerConfigError). Las imágenes de NGC (el catálogo de contenedores de NVIDIA) arrancan como root; por eso C01 fija runAsUser: 1000 en Triton.",
+   "first": "kubectl get pod POD -n classifier -o jsonpath='{.spec.securityContext}'",
+   "topic": "arranque",
+   "section": "diagnostico"
+  },
+  {
+   "msg": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+   "meaning": "La readiness respondió 503 (o cualquier código fuera de 200–399): el pod sale de los endpoints del Service (la lista de pods que reciben tráfico), sin reiniciarse. En C01, el /readyz del gateway da 503 a propósito cuando Triton no está listo.",
+   "first": "kubectl logs POD -n classifier --tail=50",
+   "topic": "probes",
+   "section": "probes"
+  },
+  {
+   "msg": "Liveness probe failed: Get \"http://…/healthz\": context deadline exceeded (Client.Timeout exceeded while awaiting headers) · Container gateway failed liveness probe, will be restarted",
+   "meaning": "La liveness no respondió dentro de timeoutSeconds (1 s por defecto) y, tras failureThreshold fallos seguidos, el kubelet reinició el contenedor. Bajo carga suele ser un timeout corto o una liveness cara, no un proceso colgado.",
+   "first": "kubectl get pod POD -n classifier -o jsonpath='{.spec.containers[0].livenessProbe}'",
+   "topic": "probes",
+   "section": "probes"
+  },
+  {
+   "msg": "Last State: Terminated · Reason: OOMKilled · Exit Code: 137",
+   "meaning": "El contenedor pasó su limits.memory y el kernel lo mató, sin dejar una línea en el log. Es RAM, no VRAM; en un servicio de modelos suele ser el pico al cargar los pesos.",
+   "first": "kubectl describe pod POD -n classifier",
+   "topic": "recursos",
+   "section": "recursos"
+  },
+  {
+   "msg": "The node was low on resource: memory.",
+   "meaning": "Un desalojo (eviction): al nodo le faltó memoria y el kubelet sacó pods, primero los que usaban más de lo que pidieron. El pod queda en fase Failed con Reason: Evicted. Si dice ephemeral-storage, lo que se llenó es el disco.",
+   "first": "kubectl describe node NODO",
+   "topic": "recursos",
+   "section": "recursos"
+  },
+  {
+   "msg": "CUDA out of memory. Tried to allocate …",
+   "meaning": "PyTorch se quedó sin memoria de la GPU (VRAM). Es una excepción en el log (torch.OutOfMemoryError, o torch.cuda.OutOfMemoryError según la versión), no un OOMKilled. Se arregla con batch o resolución más chicos, menos procesos por GPU u otra GPU, no subiendo limits.memory.",
+   "first": "kubectl exec -n classifier POD -- nvidia-smi",
+   "topic": "recursos",
+   "section": "recursos"
+  },
+  {
+   "msg": "503 Service Temporarily Unavailable (la respuesta del ALB)",
+   "meaning": "Lo generó el balanceador, no tu app: el target group (la lista de pods a los que el ALB manda tráfico) no tiene targets registrados. En C01 pasa si ningún gateway pasa /readyz (por ejemplo, con Triton caído). Si los targets registrados están todos unhealthy, el ALB igual les manda tráfico (fail open). Ojo: el gateway de C01 también responde 503, con su JSON y Retry-After, cuando corta carga; ese no es el ALB.",
+   "first": "kubectl get endpointslices -n classifier -l kubernetes.io/service-name=gateway",
+   "topic": "red",
+   "section": "servicios"
+  },
+  {
+   "msg": "Failed build model due to couldn't auto-discover subnets: unable to resolve at least one subnet",
+   "meaning": "El AWS Load Balancer Controller no encontró subredes para crear el ALB: les falta el tag kubernetes.io/role/elb (ALB público) o kubernetes.io/role/internal-elb (interno, como en C01). El Ingress se queda sin dirección.",
+   "first": "kubectl describe ingress gateway -n classifier",
+   "topic": "red",
+   "section": "servicios"
+  },
+  {
+   "msg": "Error: secret \"triton-token\" not found · couldn't find key MODEL_NAME in ConfigMap classifier/gateway-config",
+   "meaning": "CreateContainerConfigError: el pod usa un Secret, un ConfigMap o una clave que no existe en su namespace. El kubelet reintenta solo cuando lo creas.",
+   "first": "kubectl get secret,configmap -n classifier",
+   "topic": "config",
+   "section": "config"
+  },
+  {
+   "msg": "Not authorized to perform sts:AssumeRoleWithWebIdentity",
+   "meaning": "IRSA (el pod recibe un rol de IAM, es decir, permisos de AWS, a través de su ServiceAccount) no funciona: el pod no puede asumir ese rol. Casi siempre, la trust policy del rol (quién puede usarlo) no coincide con el namespace y el nombre del ServiceAccount, o apunta al OIDC provider (el emisor de tokens) de otro cluster. Lo verás en el log de tu app (lo dice el SDK de AWS), no en los eventos.",
+   "first": "kubectl get serviceaccount SA -n classifier -o yaml",
+   "topic": "config",
+   "section": "config"
+  },
+  {
+   "msg": "Error from server (Forbidden): pods is forbidden: User \"…\" cannot list resource \"pods\" in API group \"\" in the namespace \"classifier\"",
+   "meaning": "RBAC (los permisos de Kubernetes): tu identidad no tiene ese verbo sobre ese recurso en ese namespace. El mensaje dice quién, qué verbo, qué recurso y dónde.",
+   "first": "kubectl auth can-i list pods -n classifier",
+   "topic": "rbac",
+   "section": "kubectl"
+  },
+  {
+   "msg": "error: You must be logged in to the server (Unauthorized)",
+   "meaning": "El API server no acepta tus credenciales: vencieron, o son de una identidad que el cluster no conoce. En EKS: tu terminal usa otra identidad de IAM (otro usuario o rol de AWS), o esa identidad no tiene un access entry (el permiso de EKS que la conecta con el cluster) ni una entrada en el ConfigMap aws-auth, el método anterior.",
+   "first": "aws sts get-caller-identity",
+   "topic": "conexion",
+   "section": "kubectl"
+  },
+  {
+   "msg": "The connection to the server localhost:8080 was refused - did you specify the right host or port?",
+   "meaning": "kubectl no encontró un cluster: sin kubeconfig apunta a localhost:8080, donde no hay nada. Con el cluster local apagado, o un contexto que apunta a otro lado, sale el mismo mensaje con otra dirección.",
+   "first": "kubectl config current-context",
+   "topic": "conexion",
+   "section": "kubectl"
+  },
+  {
+   "msg": "no matches for kind \"ScaledObject\" in version \"keda.sh/v1alpha1\" · ensure CRDs are installed first",
+   "meaning": "El cluster no conoce ese tipo: falta su CRD (CustomResourceDefinition, la definición del tipo nuevo, que instala KEDA o el operador que sea). Instala el componente antes de aplicar sus objetos; si ya está, revisa el apiVersion.",
+   "first": "kubectl get crd scaledobjects.keda.sh",
+   "topic": "manifest",
+   "section": "manifest"
+  },
+  {
+   "msg": "error: deployment \"triton\" exceeded its progress deadline",
+   "meaning": "El rollout no avanzó dentro de progressDeadlineSeconds (600 s por defecto; 900 en Triton): Progressing=False con ProgressDeadlineExceeded. Kubernetes no vuelve atrás solo; los pods viejos siguen sirviendo.",
+   "first": "kubectl get pods -n classifier -l app.kubernetes.io/name=triton -o wide",
+   "topic": "rollout",
+   "section": "rollouts"
+  },
+  {
+   "msg": "Cannot evict pod as it would violate the pod's disruption budget.",
+   "meaning": "Un desalojo voluntario (un kubectl drain, el upgrade de un grupo de nodos) chocó con el PodDisruptionBudget: ahora no se permite sacar ese pod. kubectl drain reintenta cada 5 s. Si el PDB pide tantos pods como réplicas, nunca va a poder.",
+   "first": "kubectl get pdb -n classifier",
+   "topic": "rollout",
+   "section": "rollouts"
+  },
+  {
+   "msg": "failed to get cpu utilization: missing request for cpu in container gateway of Pod gateway-…",
+   "meaning": "El HPA (el autoscaler de pods) mide la CPU como porcentaje del request, y ese contenedor no tiene requests.cpu: no puede calcular la utilización y no escala.",
+   "first": "kubectl describe hpa gateway -n classifier",
+   "topic": "autoscaling",
+   "section": "autoscaling"
+  },
+  {
+   "msg": "prometheus metrics 'prometheus' target may be lost, the result is empty",
+   "meaning": "KEDA consultó a Prometheus y la respuesta vino vacía. En C01 aparece como error a propósito (ignoreNullValues: \"false\"): casi siempre falta el ServiceMonitor (el objeto que le dice a Prometheus qué leer) y Prometheus no lee las métricas de Triton. Con el default (true), KEDA lo tomaría como 0, en silencio.",
+   "first": "kubectl describe scaledobject triton -n classifier",
+   "topic": "autoscaling",
+   "section": "autoscaling"
+  },
+  {
+   "msg": "strict decoding error: unknown field \"spec.template.spec.containers[0].resource\"",
+   "meaning": "Un campo que no existe en ese lugar: un typo (resource en vez de resources) o mala indentación. kubectl valida en el servidor en modo estricto por defecto, así que lo rechaza en vez de ignorarlo.",
+   "first": "kubectl explain deployment.spec.template.spec.containers.resources",
+   "topic": "manifest",
+   "section": "manifest"
+  },
+  {
+   "msg": "spec.template.metadata.labels: Invalid value: …: `selector` does not match template `labels`",
+   "meaning": "El selector del Deployment no coincide con las labels del template de pods: el Deployment no podría encontrar sus propios pods. Pon las mismas labels en los dos lados, como app.kubernetes.io/name: gateway en C01.",
+   "first": "kubectl apply -f k8s/gateway.yaml --dry-run=server",
+   "topic": "manifest",
+   "section": "manifest"
+  }
+ ]
+}

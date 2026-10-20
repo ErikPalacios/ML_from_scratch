@@ -62,7 +62,7 @@ const SW = `(async () => {
   const reg = await Promise.race([navigator.serviceWorker.ready, wait(10000).then(() => null)]);
   if (!reg) return JSON.stringify({ error: 'el service worker no quedó listo' });
   for (let i = 0; i < 50 && !navigator.serviceWorker.controller; i++) await wait(100);
-  const name = (await caches.keys()).find((k) => k.startsWith('hojas-') && k !== 'hojas-fonts');
+  const name = (await caches.keys()).find((k) => k.startsWith('hojas-') && k !== 'hojas-fonts' && k !== 'hojas-cdn');
   const cached = name ? (await (await caches.open(name)).keys()).map((r) => new URL(r.url).pathname) : [];
   await fetch('/__offline');
   const results = {};
@@ -75,7 +75,10 @@ const SW = `(async () => {
     results[p] = title;
   }
   let pdf = null; try { const r = await fetch('${SHEETS[0] ? `/${SHEETS[0].id}/${SHEETS[0].pdf}` : ''}'); pdf = r.status; } catch (e) { pdf = 'sin red y sin copia (esperado si no se abrió antes)'; }
-  return JSON.stringify({ controller: !!navigator.serviceWorker.controller, cache: name, cached, offline: results, pdf });
+  // scripts de cdnjs que una hoja pidió (js-yaml del revisor): quedan en su caché para la próxima vez sin conexión
+  let cdn = [];
+  for (let i = 0; i < 30; i++) { cdn = (await caches.has('hojas-cdn')) ? (await (await caches.open('hojas-cdn')).keys()).map((r) => new URL(r.url).pathname) : []; if (cdn.length) break; await wait(100); }
+  return JSON.stringify({ controller: !!navigator.serviceWorker.controller, cache: name, cached, offline: results, pdf, cdn });
 })()`;
 
 // asíncrono: el servidor de arriba vive en este mismo proceso y tiene que seguir respondiendo

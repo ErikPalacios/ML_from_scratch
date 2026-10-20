@@ -1,0 +1,1854 @@
+{
+  "sections": [
+    {
+      "id": "bolsillo",
+      "num": 0,
+      "title": "Números y códigos de bolsillo",
+      "question": "¿Qué estados, números y códigos conviene saberse de memoria para leer un pod roto en segundos?",
+      "templates": [
+        {
+          "code": "kubectl get pods -n {namespace} -o wide",
+          "note": "Un pod es la unidad mínima de Kubernetes: uno o varios contenedores. Tres columnas cuentan su historia: <code>STATUS</code> (en qué paso está), <code>READY</code> (contenedores listos / total) y <code>RESTARTS</code> (cuántas veces lo reinició el kubelet, el agente que corre en cada máquina o nodo)."
+        },
+        {
+          "code": "kubectl describe pod {pod} -n {namespace}",
+          "note": "Busca <code>Last State: Terminated</code> con su <code>Reason</code> y su <code>Exit Code</code>: cómo murió el intento anterior. Al final, los <b>Events</b> dicen qué pasó y en qué orden."
+        },
+        {
+          "code": "kubectl logs {pod} -n {namespace} --previous",
+          "note": "El log del contenedor que murió. Sin <code>--previous</code> ves el intento actual, que quizás todavía no falló."
+        },
+        {
+          "code": "kubectl explain {recurso}.{campo}",
+          "note": "El cluster te explica el campo y, si tiene default, casi siempre lo dice, para tu versión. Ejemplo: <code>kubectl explain deployment.spec.progressDeadlineSeconds</code>."
+        }
+      ],
+      "formulas": [
+        "\\text{exit code} \\;=\\; 128 + n_{\\text{señal}} \\qquad 137 = 128 + 9\\ (\\text{KILL}) \\qquad 143 = 128 + 15\\ (\\text{TERM})",
+        "t_{\\text{app}} \\;=\\; t_{\\text{gracia}} - t_{\\text{preStop}} \\qquad t_{\\text{gracia}} = 30\\ \\text{s por defecto}",
+        "t_{\\text{espera}}(n) \\;=\\; \\min\\left(10 \\cdot 2^{\\,n-1},\\ 300\\right)\\ \\text{s} \\qquad (\\text{vuelve a 10 s tras 10 min corriendo bien})",
+        "\\text{surge} = \\lceil 0.25\\,N \\rceil \\qquad \\text{faltantes} = \\lfloor 0.25\\,N \\rfloor \\qquad (\\text{defaults del rolling update})"
+      ],
+      "vars": [
+        [
+          "{namespace}",
+          "carpeta lógica donde vive el pod",
+          "classifier"
+        ],
+        [
+          "{pod}",
+          "nombre del pod, como sale en get pods",
+          "triton-5c7d9b8f6d-q2x7k (ilustrativo)"
+        ],
+        [
+          "{recurso}",
+          "tipo de objeto, en minúsculas",
+          "deployment"
+        ],
+        [
+          "{campo}",
+          "ruta del campo dentro del objeto",
+          "spec.strategy.rollingUpdate.maxSurge"
+        ],
+        [
+          "n_señal",
+          "número de la señal que mató al proceso (kill -l las lista)",
+          "9 = SIGKILL, 15 = SIGTERM"
+        ],
+        [
+          "t_gracia",
+          "plazo total para apagarse: terminationGracePeriodSeconds",
+          "45 s en el gateway, 60 s en Triton"
+        ],
+        [
+          "t_preStop",
+          "lo que dura el preStop (un comando que corre antes de apagar); va dentro del plazo, antes del SIGTERM",
+          "15 s en el gateway, 10 s en Triton"
+        ],
+        [
+          "t_app",
+          "lo que le queda a tu proceso después del SIGTERM",
+          "45 − 15 = 30 s; uvicorn usa hasta 20"
+        ],
+        [
+          "n",
+          "número de la espera: el primer reinicio es inmediato, y la espera 1 va antes del segundo",
+          "la 4.ª espera es de 80 s; de la 6.ª en adelante, 300 s"
+        ],
+        [
+          "N",
+          "réplicas deseadas; surge y faltantes son los pods de más y de menos que permite un rolling update (el cambio de versión de a poco)",
+          "N = 3 → surge 1 y faltantes 0; N = 8 → 2 y 2"
+        ]
+      ],
+      "pieces": [
+        [
+          "Pending",
+          "El cluster aceptó el pod, pero todavía no tiene nodo o no terminó de preparar sus contenedores.",
+          "Triton esperando una GPU libre"
+        ],
+        [
+          "ContainerCreating",
+          "Ya tiene nodo: el kubelet baja la imagen, monta volúmenes y crea el contenedor.",
+          "pull de la imagen de Triton (varios GB)"
+        ],
+        [
+          "Running con READY 0/1",
+          "El proceso corre, pero falla la readinessProbe (el chequeo de ¿le mando tráfico?): no recibe requests.",
+          "Triton cargando el engine"
+        ],
+        [
+          "CrashLoopBackOff",
+          "Se cae una y otra vez; el kubelet espera antes de reiniciarlo: 10, 20, 40… hasta 300 s.",
+          "RESTARTS sube cada vez más lento"
+        ],
+        [
+          "ImagePullBackOff / ErrImagePull",
+          "No pudo bajar la imagen; reintenta con espera creciente.",
+          "tag inexistente o nodo sin permiso en el registry (ECR, el de AWS)"
+        ],
+        [
+          "CreateContainerConfigError",
+          "No pudo armar el contenedor: falta su configuración (Secret, ConfigMap) o pediste no-root (runAsNonRoot) y la imagen es root.",
+          "secret \"hf-token\" not found"
+        ],
+        [
+          "Completed / Error",
+          "Motivo que anota el runtime de contenedores al terminar: salió con 0 / salió con otro código.",
+          "Error con Exit Code 1: una excepción de Python"
+        ],
+        [
+          "OOMKilled · 137",
+          "Superó su límite de memoria: el kernel lo mató con SIGKILL (128 + 9), una señal que no se atrapa.",
+          "pico de RAM al cargar pesos, sin una línea de log"
+        ],
+        [
+          "137 sin OOMKilled",
+          "También SIGKILL, por otra causa: casi siempre no salió dentro del plazo de gracia al borrarlo o reiniciarlo.",
+          "Reason: Error y Exit Code: 137 tras un deploy"
+        ],
+        [
+          "143",
+          "128 + 15: murió por el SIGTERM (la señal de apágate). Normal en un deploy o al bajar réplicas.",
+          "un pod viejo de un rolling update"
+        ],
+        [
+          "StartError · 128",
+          "El runtime (containerd) no pudo ni arrancar el proceso: el comando no existe o no es ejecutable.",
+          "exec: \"uvicorn\": executable file not found in $PATH"
+        ],
+        [
+          "126 / 127",
+          "Solo aparecen si un shell dentro del contenedor los devuelve: no es ejecutable / no existe.",
+          "command: [\"sh\", \"-c\", \"uvicorn …\"] en una imagen sin uvicorn"
+        ],
+        [
+          "Terminating",
+          "Tiene orden de borrado: corre el preStop, recibe SIGTERM y tiene hasta el plazo de gracia para salir.",
+          "hasta 45 s en el gateway"
+        ],
+        [
+          "Evicted",
+          "El kubelet lo sacó del nodo porque se quedaba sin memoria o sin disco; el pod queda en Failed.",
+          "The node was low on resource: memory"
+        ]
+      ],
+      "example": {
+        "title": "El apagado del gateway del C01: 45 = 15 + 20 + margen",
+        "lang": "yaml",
+        "code": "    spec:\n      # preStop (15 s) + --timeout-graceful-shutdown de uvicorn (20 s) + margen\n      terminationGracePeriodSeconds: 45\n      # …\n      containers:\n        - name: gateway\n          # …\n          lifecycle:\n            preStop:\n              exec:\n                # El ALB tarda en desregistrar el target: seguimos atendiendo 15 s antes del SIGTERM\n                command: [\"sleep\", \"15\"]",
+        "source": "reference/c01/k8s/gateway.yaml (extracto; # … marca líneas omitidas)",
+        "notes": [
+          "<code>terminationGracePeriodSeconds: 45</code> es el plazo total (t_gracia). Empieza a contar cuando se ordena borrar el pod; sin el campo serían 30 s.",
+          "El <code>preStop</code> es un hook: algo que el kubelet corre dentro del contenedor antes de apagarlo. Aquí duerme 15 s dentro del plazo, y el pod sigue atendiendo mientras el balanceador (ALB) deja de mandarle requests.",
+          "Después llega el SIGTERM. A uvicorn le quedan 45 − 15 = 30 s y usa hasta 20 (<code>--timeout-graceful-shutdown 20</code>, en su Dockerfile): sobran 10 de margen.",
+          "Si a los 45 s el proceso sigue vivo, llega el SIGKILL: <code>Exit Code: 137</code> con <code>Reason: Error</code>, no <code>OOMKilled</code>. Si el preStop todavía corre al vencer el plazo, el kubelet da una sola prórroga de 2 s.",
+          "Es el mismo plazo que en Docker dabas con <code>docker stop -t</code> (10 s por defecto); en Kubernetes lo fija el pod, y su default es 30 s."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Los defaults que más aparecen al leer un manifest, junto a lo que fija el C01. Verificados contra Kubernetes 1.37 y la documentación de AWS, en octubre de 2026.",
+        "data": {
+          "head": [
+            "Campo",
+            "Default",
+            "En el C01",
+            "Por qué cambia"
+          ],
+          "rows": [
+            [
+              "terminationGracePeriodSeconds",
+              "30 s",
+              "gateway 45 · Triton 60",
+              "preStop + apagado del servidor + margen"
+            ],
+            [
+              "probes: periodSeconds / timeoutSeconds / failureThreshold",
+              "10 s / 1 s / 3",
+              "readiness del gateway y de Triton: 5 s / 2 s / 2",
+              "salir del Service en ≈ 10 s, con 2 s de holgura por chequeo"
+            ],
+            [
+              "probes: initialDelaySeconds / successThreshold",
+              "0 s / 1",
+              "liveness (¿reiniciar?) del gateway: 5 s · Triton: startupProbe (¿ya arrancó?)",
+              "la carga del modelo la cubre la startupProbe (60 × 5 s), no un retraso fijo"
+            ],
+            [
+              "rollingUpdate.maxSurge",
+              "25 %, redondea hacia arriba",
+              "gateway 25 % · Triton 1",
+              "cada pod extra de Triton es una GPU extra"
+            ],
+            [
+              "rollingUpdate.maxUnavailable",
+              "25 %, redondea hacia abajo",
+              "0 en los dos",
+              "nunca bajar de la capacidad actual durante un deploy"
+            ],
+            [
+              "revisionHistoryLimit",
+              "10",
+              "5",
+              "ReplicaSets viejos para rollout undo; 5 alcanzan"
+            ],
+            [
+              "progressDeadlineSeconds",
+              "600 s",
+              "Triton 900",
+              "un pod con nodo GPU nuevo tarda ≈ 4–11 min (estimación del curso)"
+            ],
+            [
+              "minReadySeconds",
+              "0",
+              "sin cambiar",
+              "el pod cuenta como disponible apenas está Ready"
+            ],
+            [
+              "Espera entre reinicios",
+              "1.er reinicio inmediato; después 10 s, ×2 hasta 300 s; vuelve a 10 s tras 10 min bien",
+              "—",
+              "es del kubelet; el tope se ajusta por nodo (maxContainerRestartPeriod, beta desde 1.35)"
+            ],
+            [
+              "HPA (autoscaler de réplicas)",
+              "cada 15 s · tolerancia 10 % · bajar tras 300 s de estabilización",
+              "gateway: baja 1 pod por minuto",
+              "no oscilar con el tráfico del día"
+            ],
+            [
+              "Service",
+              "type ClusterIP · targetPort = port",
+              "targetPort: http (por nombre)",
+              "el número del puerto puede cambiar sin tocar el Service"
+            ],
+            [
+              "ALB: deregistration delay / idle timeout",
+              "300 s / 60 s",
+              "30 s / 60 s",
+              "con 300 s, cada target viejo puede quedar hasta 5 min drenando"
+            ]
+          ],
+          "note": "Verbos de bolsillo, en orden: <code>get</code> (en qué paso está) → <code>describe</code> (por qué) → <code>logs --previous</code> (qué dijo al morir) → <code>events</code> (en qué orden pasó todo). Y <code>kubectl explain</code> te da el default de cualquier campo en la versión de tu propio cluster."
+        }
+      },
+      "memo": "Resta 128 y busca la señal: <b>137 = 9 = KILL</b> (memoria si <code>Reason</code> dice <code>OOMKilled</code>; si dice <code>Error</code>, casi siempre se acabó el plazo) y <b>143 = 15 = TERM</b> (apagado pedido). Los defaults que más muerden: <b>30 s</b> de gracia, probes <b>10 s / 1 s / 3</b> y rollout <b>25 % / 25 %</b>.",
+      "trap": "Copiar la tabla de exit codes de Docker. Con containerd (el runtime que usan EKS en AWS y kind en tu Mac), un comando que no existe no da 127: da <code>Reason: StartError</code> y <code>Exit Code: 128</code>, y el 125 no aparece (lo da el comando docker, no el runtime). Y leer <code>137</code> como falta de memoria sin mirar <code>Reason</code>.",
+      "lab": {
+        "goal": "Provocar Completed, Error, OOMKilled (137) y un apagado lento por el plazo de gracia, y leer cada uno donde Kubernetes lo deja.",
+        "steps": [
+          {
+            "cmd": "kubectl create namespace lab-k8s\nkubectl run ok -n lab-k8s --image=busybox:1.38 --restart=Never --command -- sh -c 'exit 0'\nkubectl run falla -n lab-k8s --image=busybox:1.38 --restart=Never --command -- sh -c 'exit 3'",
+            "expect": "namespace/lab-k8s created, pod/ok created y pod/falla created. --restart=Never crea pods que nadie reinicia."
+          },
+          {
+            "cmd": "sleep 20; kubectl get pods -n lab-k8s",
+            "expect": "ok en Completed y falla en Error, los dos con READY 0/1 y RESTARTS 0."
+          },
+          {
+            "cmd": "kubectl get pod falla -n lab-k8s -o jsonpath='{.status.containerStatuses[0].state.terminated.reason} {.status.containerStatuses[0].state.terminated.exitCode}{\"\\n\"}'",
+            "expect": "Error 3: el código es el que devolvió tu proceso; Error es el motivo que anota el runtime para cualquier código distinto de 0."
+          },
+          {
+            "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: oom\nspec:\n  restartPolicy: Never\n  containers:\n    - name: py\n      image: python:3.12-slim\n      command: [\"python\", \"-c\", \"x = b'x' * (200 * 1024 * 1024)\"]\n      resources:\n        requests: { memory: 64Mi }\n        limits: { memory: 64Mi }\nEOF\nsleep 30; kubectl get pod oom -n lab-k8s\nkubectl describe pod oom -n lab-k8s | grep -E 'Reason|Exit Code'",
+            "expect": "STATUS OOMKilled, y en describe Reason: OOMKilled y Exit Code: 137. Python pidió 200 MiB con un límite de 64 MiB y el kernel lo mató sin aviso. Si sigue en ContainerCreating, todavía baja la imagen: espera y repite."
+          },
+          {
+            "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Pod\nmetadata:\n  name: lento\nspec:\n  terminationGracePeriodSeconds: 10\n  containers:\n    - name: app\n      image: busybox:1.38\n      command: [\"sleep\", \"3600\"]\nEOF\nkubectl wait --for=condition=Ready pod/lento -n lab-k8s --timeout=60s\ntime kubectl delete pod lento -n lab-k8s",
+            "expect": "El delete tarda ≈ 10 s: sleep es el primer proceso del contenedor (PID 1) y no maneja SIGTERM, y a un PID 1 sin manejador el kernel no le entrega esa señal. Sigue vivo hasta que vence el plazo y llega el SIGKILL."
+          },
+          {
+            "cmd": "kubectl run rapido -n lab-k8s --image=busybox:1.38 --command -- sh -c 'trap \"exit 0\" TERM; sleep 3600 & wait'\nkubectl wait --for=condition=Ready pod/rapido -n lab-k8s --timeout=60s\ntime kubectl delete pod rapido -n lab-k8s",
+            "expect": "Uno o dos segundos: el shell atrapa el SIGTERM y sale solo, sin esperar el plazo (30 s por defecto)."
+          },
+          {
+            "cmd": "kubectl delete namespace lab-k8s",
+            "expect": "namespace \"lab-k8s\" deleted, tras unos segundos: borra todo lo que había adentro."
+          }
+        ],
+        "fix": "Cada código se arregla en otro lado. Error con un código: kubectl logs (con --previous si se reinició). OOMKilled: un límite de memoria medido, no adivinado. Un apagado que siempre agota el plazo: un proceso que atrape SIGTERM (uvicorn y Triton lo hacen) o un plazo más largo.",
+        "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind, e internet para bajar busybox:1.38 y python:3.12-slim (la misma del lab de OOM del cheat sheet de Docker)",
+        "verified": "docs"
+      },
+      "links": [
+        "#ref-comandos.depurar",
+        "#ref-comandos.kubectl-basicos",
+        "#m06.objetos-basicos",
+        "#m06.alta-disponibilidad"
+      ]
+    },
+    {
+      "id": "cadena",
+      "num": null,
+      "title": "La cadena: del YAML al pod que recibe tráfico",
+      "question": "¿Qué pasa, en orden, entre tu kubectl apply y el primer request que llega a un pod?",
+      "templates": [
+        {
+          "code": "kubectl apply -f {archivo} --dry-run=server",
+          "note": "El API server (la puerta del cluster) revisa el esquema, tus permisos y sus reglas de admisión (admission), sin guardar nada. Lo que falla aquí casi siempre fallaría igual en el apply real."
+        },
+        {
+          "code": "kubectl apply -f {archivo}",
+          "note": "Guarda el estado deseado en el cluster y vuelve en segundos: <b>no</b> espera a que los pods (las unidades que corren tus contenedores) estén listos."
+        },
+        {
+          "code": "kubectl rollout status deployment/{deploy} -n {namespace} --timeout={plazo}",
+          "note": "Espera el resto de la cadena: pods creados, con nodo, arrancados y Ready. Sale con error si vence el plazo."
+        },
+        {
+          "code": "kubectl get endpointslices -n {namespace} -l kubernetes.io/service-name={servicio}",
+          "note": "El último eslabón: las IPs de los pods detrás del Service (el nombre fijo que les reparte tráfico). <code>&lt;unset&gt;</code> = ninguna. Ojo: la columna lista también pods no listos; cuáles reciben tráfico lo dice <code>conditions.ready</code>."
+        }
+      ],
+      "formulas": [
+        "t_{\\text{hasta tráfico}} \\;\\approx\\; t_{\\text{nodo}} + t_{\\text{pull}} + t_{\\text{arranque}} + t_{\\text{readiness}}"
+      ],
+      "vars": [
+        [
+          "{archivo}",
+          "manifest (o carpeta) a aplicar",
+          "k8s/gateway.yaml"
+        ],
+        [
+          "{deploy}",
+          "nombre del Deployment",
+          "gateway"
+        ],
+        [
+          "{namespace}",
+          "namespace de los objetos",
+          "classifier"
+        ],
+        [
+          "{plazo}",
+          "cuánto esperar antes de dar el deploy por fallido",
+          "p. ej. 5m para el gateway; 25m para Triton (estimación del curso)"
+        ],
+        [
+          "{servicio}",
+          "nombre del Service",
+          "gateway"
+        ],
+        [
+          "t_nodo",
+          "esperar un nodo con espacio; si hay que crearlo, minutos",
+          "≈ 2–5 min para un g4dn nuevo (estimación del curso)"
+        ],
+        [
+          "t_pull",
+          "bajar la imagen al nodo; cero si ya estaba",
+          "segundos para el gateway; minutos para los varios GB de Triton"
+        ],
+        [
+          "t_arranque",
+          "el proceso arranca y carga lo que necesita",
+          "Triton carga el engine; su startupProbe (¿ya arrancó?) le da hasta 5 min"
+        ],
+        [
+          "t_readiness",
+          "hasta que pasa la readinessProbe (¿le mando tráfico?)",
+          "chequeo cada 5 s en el gateway"
+        ]
+      ],
+      "pieces": [
+        [
+          "kubeconfig y contexto",
+          "Archivo con tus clusters y credenciales; el contexto dice a cuál le habla kubectl ahora.",
+          "kubectl config current-context"
+        ],
+        [
+          "kubectl apply",
+          "Manda los objetos del archivo al API server: crea los que faltan y actualiza los que cambiaron.",
+          "kubectl apply -f k8s/gateway.yaml"
+        ],
+        [
+          "API server (kube-apiserver)",
+          "La única puerta del cluster: autentica, revisa permisos (RBAC), valida y guarda.",
+          "rechaza un typo: strict decoding error: unknown field"
+        ],
+        [
+          "admission",
+          "Paso del API server que completa o revisa el objeto antes de guardarlo: defaults, políticas, webhooks (programas externos).",
+          "el webhook del AWS LB Controller le agrega al pod un readiness gate (esperar a que el ALB lo vea sano)"
+        ],
+        [
+          "etcd",
+          "La base de datos del cluster: guarda el estado deseado de cada objeto.",
+          "en EKS la opera AWS"
+        ],
+        [
+          "Deployment controller",
+          "Lee el Deployment y crea un ReplicaSet (mantiene N copias iguales) a partir de su template, el molde del pod.",
+          "gateway-<hash>"
+        ],
+        [
+          "ReplicaSet controller",
+          "Crea los pods que faltan para llegar a las réplicas pedidas.",
+          "3 pods recién creados, en Pending"
+        ],
+        [
+          "scheduler (kube-scheduler)",
+          "Elige nodo para cada pod nuevo según lo que pide (requests), los vetos del nodo (taints) y la zona.",
+          "Triton solo en nodos workload=gpu-t4"
+        ],
+        [
+          "kubelet",
+          "El agente de cada nodo: arranca los contenedores del pod y corre sus probes (chequeos periódicos).",
+          "evento Started"
+        ],
+        [
+          "container runtime (containerd)",
+          "Baja la imagen y crea el proceso aislado, como Docker en tu Mac.",
+          "evento Pulled: cuánto tardó el pull"
+        ],
+        [
+          "plugin de red (CNI)",
+          "Le da una IP a cada pod; en EKS, una IP de la red privada de AWS (VPC CNI).",
+          "la IP que el balanceador (ALB) registra como target"
+        ],
+        [
+          "readinessProbe",
+          "Chequeo periódico de ¿le mando tráfico? Mientras falle, el pod no recibe requests del Service.",
+          "/readyz en el gateway"
+        ],
+        [
+          "EndpointSlice controller",
+          "Arma la lista de IP:puerto de los pods de cada Service y marca cuáles están listos.",
+          "label kubernetes.io/service-name=gateway"
+        ],
+        [
+          "kube-proxy y AWS LB Controller",
+          "kube-proxy arma reglas de red en cada nodo; el controller registra esas IPs en el ALB (balanceador de AWS).",
+          "target-type ip: el ALB va directo al pod"
+        ]
+      ],
+      "example": {
+        "title": "Los cuatro eslabones que unen el YAML con el tráfico (gateway del C01)",
+        "lang": "yaml",
+        "code": "  template:\n    metadata:\n      labels:\n        app.kubernetes.io/name: gateway\n        # …\n    spec:\n      # …\n      containers:\n        - name: gateway\n          # …\n          ports:\n            - name: http\n              containerPort: 8080\n          # …\n          readinessProbe:\n            httpGet:\n              path: /readyz\n              port: http\n# …\napiVersion: v1\nkind: Service\n# …\nspec:\n  type: ClusterIP  # el ALB (target-type ip) apunta directo a las IPs de los pods; el Service da los endpoints\n  selector:\n    app.kubernetes.io/name: gateway\n  ports:\n    - name: http\n      port: 8080\n      targetPort: http",
+        "source": "reference/c01/k8s/gateway.yaml (extracto del Deployment y del Service; # … marca líneas omitidas)",
+        "notes": [
+          "Las labels del <code>template</code> se copian a cada pod. <code>app.kubernetes.io/name: gateway</code> es lo que buscan el ReplicaSet, el Service y el reparto por zona.",
+          "El puerto del contenedor tiene nombre (<code>name: http</code>) y el Service apunta a ese nombre (<code>targetPort: http</code>), no al número 8080.",
+          "Mientras <code>/readyz</code> falle (Triton no responde o el modelo no cargó), el pod corre pero no recibe requests: su endpoint queda marcado como no listo.",
+          "El <code>selector</code> del Service busca esas labels en los pods. Un typo aquí no da ningún error: el Service existe, pero sin endpoints.",
+          "<code>type: ClusterIP</code>: el ALB (target-type ip) no pasa por la IP del Service. El AWS Load Balancer Controller lee los endpoints y registra directo las IPs de los pods."
+        ]
+      },
+      "figure": {
+        "kind": "chain",
+        "caption": "Once eslabones entre tu archivo y el primer request. kubectl apply termina en el cuarto, cuando etcd ya guardó el objeto. El resto lo hacen controllers, el scheduler y el kubelet, y cada uno mira al API server.",
+        "data": {
+          "steps": [
+            {
+              "label": "Manifest (YAML)",
+              "cmd": "kubectl diff -f k8s/gateway.yaml",
+              "note": "Tu estado deseado, en git. diff muestra qué cambiaría en el cluster (exit 1 si hay cambios)."
+            },
+            {
+              "label": "kubectl apply",
+              "cmd": "kubectl apply -f k8s/gateway.yaml",
+              "note": "Manda cada objeto al API server con tus credenciales. Vuelve en segundos: no espera pods."
+            },
+            {
+              "label": "API server",
+              "cmd": "kubectl apply --dry-run=server -f k8s/gateway.yaml",
+              "note": "Autentica, revisa permisos (RBAC), corre admission y valida el esquema. El objeto que rechaza no pasa a ningún eslabón más."
+            },
+            {
+              "label": "etcd",
+              "cmd": "kubectl get deployment gateway -n classifier -o yaml",
+              "note": "El objeto queda guardado con su spec; el status lo irán llenando los controllers."
+            },
+            {
+              "label": "Deployment controller",
+              "cmd": "kubectl get rs -n classifier -l app.kubernetes.io/name=gateway",
+              "note": "Crea (o escala) un ReplicaSet gateway-<hash> con el template."
+            },
+            {
+              "label": "ReplicaSet controller",
+              "cmd": "kubectl get pods -n classifier -l app.kubernetes.io/name=gateway",
+              "note": "Crea los pods que faltan. Nacen Pending: todavía sin nodo."
+            },
+            {
+              "label": "Scheduler",
+              "cmd": "kubectl get pods -n classifier -o wide",
+              "note": "Elige nodo según requests, taints y reparto por zona: se llena la columna NODE."
+            },
+            {
+              "label": "kubelet + containerd",
+              "cmd": "kubectl events -n classifier --for pod/POD",
+              "note": "En el nodo: baja la imagen, monta volúmenes y arranca el contenedor (Pulling, Pulled, Created, Started)."
+            },
+            {
+              "label": "Pod Ready",
+              "cmd": "kubectl get pods -n classifier -l app.kubernetes.io/name=gateway -w",
+              "note": "La readinessProbe /readyz pasa: READY 1/1. Con el readiness gate del ALB, además espera a que el ALB vea sano al pod."
+            },
+            {
+              "label": "EndpointSlice",
+              "cmd": "kubectl get endpointslices -n classifier -l kubernetes.io/service-name=gateway",
+              "note": "La IP del pod queda como lista para recibir tráfico."
+            },
+            {
+              "label": "Tráfico",
+              "cmd": "",
+              "note": "El ALB (target-type ip) le manda requests a la IP del pod cuando su health check pasa; dentro del cluster, kube-proxy reparte las conexiones."
+            }
+          ]
+        }
+      },
+      "memo": "<b>Apply guarda; los controllers construyen; la readiness abre la puerta.</b> Si el apply salió bien y no llega tráfico, recorre la cadena en orden: ¿ReplicaSet? ¿pods? ¿nodo? ¿Ready? ¿endpoints?",
+      "trap": "Creer que <code>kubectl apply</code> terminó el deploy: solo guardó el estado deseado y sale en segundos aunque la imagen no exista. Lo que pasa después lo dicen <code>rollout status</code>, los eventos y los endpoints. Y un selector con un typo no da error: el Service existe, sin endpoints.",
+      "lab": {
+        "goal": "Ver cada eslabón de la cadena con un Deployment y un Service de nginx, y después cortar el último: los endpoints.",
+        "steps": [
+          {
+            "cmd": "kubectl create namespace lab-k8s\nkubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels: { app: web }\n  template:\n    metadata:\n      labels: { app: web }\n    spec:\n      containers:\n        - name: nginx\n          image: nginx:1.30-alpine\n          ports:\n            - { name: http, containerPort: 80 }\n          readinessProbe:\n            httpGet: { path: /, port: http }\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: web\nspec:\n  selector: { app: web }\n  ports:\n    - { name: http, port: 80, targetPort: http }\nEOF",
+            "expect": "deployment.apps/web created y service/web created, en menos de un segundo: solo se guardó el estado deseado."
+          },
+          {
+            "cmd": "kubectl get deploy,rs,pods -n lab-k8s -o wide",
+            "expect": "El Deployment web, un ReplicaSet web-<hash> y dos pods web-<hash>-<sufijo>, quizás todavía en ContainerCreating, cada uno con su nodo."
+          },
+          {
+            "cmd": "kubectl events -n lab-k8s",
+            "expect": "Los eslabones en orden: ScalingReplicaSet (Deployment controller), SuccessfulCreate (ReplicaSet controller), Scheduled (scheduler), y Pulling, Pulled, Created y Started (kubelet). Si la imagen ya estaba en el nodo, Pulled dice already present on machine."
+          },
+          {
+            "cmd": "kubectl rollout status deployment/web -n lab-k8s --timeout=2m",
+            "expect": "deployment \"web\" successfully rolled out: los dos pods pasaron la readiness."
+          },
+          {
+            "cmd": "kubectl get endpointslices -n lab-k8s -l kubernetes.io/service-name=web",
+            "expect": "Una fila con 80 en PORTS y las dos IPs de los pods en ENDPOINTS."
+          },
+          {
+            "cmd": "kubectl scale deployment/web -n lab-k8s --replicas=0\nkubectl wait --for=delete pod -l app=web -n lab-k8s --timeout=60s\nkubectl get endpointslices -n lab-k8s -l kubernetes.io/service-name=web",
+            "expect": "ENDPOINTS en <unset>: el Service sigue existiendo, con su IP y su DNS, pero ya no tiene a quién mandar tráfico."
+          },
+          {
+            "cmd": "kubectl delete namespace lab-k8s",
+            "expect": "namespace \"lab-k8s\" deleted."
+          }
+        ],
+        "fix": "Cuando no llega tráfico, sigue la cadena en orden: get deploy,rs,pods → events → rollout status → endpointslices. El primer eslabón vacío o con error es tu problema.",
+        "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind, e internet para bajar nginx:1.30-alpine",
+        "verified": "docs"
+      },
+      "links": [
+        "#m06.objetos-basicos",
+        "#ref-comandos.kubectl-basicos",
+        "#ref-comandos.depurar",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "que-es",
+      "num": 1,
+      "title": "Qué es Kubernetes y cómo se trabaja",
+      "question": "¿Qué hace Kubernetes por ti, se programa o se configura, y qué partes tiene un cluster?",
+      "templates": [
+        {
+          "code": "aws eks update-kubeconfig --region {región} --name {cluster}",
+          "note": "Agrega el cluster de EKS (el Kubernetes gestionado de AWS) a tu kubeconfig, el archivo de clusters y credenciales de kubectl, y lo deja como contexto actual."
+        },
+        {
+          "code": "kubectl config use-context {contexto}",
+          "note": "Cambia de cluster. Un contexto junta cluster, usuario y namespace por defecto; <code>kubectl config current-context</code> dice dónde estás <b>antes</b> de cambiar algo."
+        },
+        {
+          "code": "kubectl get {kind} {nombre} -n {namespace} -o yaml",
+          "note": "Los dos estados del objeto, uno arriba del otro: <code>spec</code> (lo que pediste) y <code>status</code> (lo que el cluster logró hasta ahora)."
+        },
+        {
+          "code": "kubectl get nodes -L {label}",
+          "note": "Los nodos (las máquinas del cluster), con esa label (etiqueta clave=valor) como columna. En el C01: <code>-L workload,topology.kubernetes.io/zone</code>."
+        }
+      ],
+      "formulas": [
+        "C_{\\text{EKS}} \\;=\\; 0.10\\ \\tfrac{\\text{US\\$}}{\\text{h}} \\times 730\\ \\text{h} \\;\\approx\\; 73\\ \\text{US\\$ al mes por cluster} \\qquad (0.60\\ \\text{US\\$/h en soporte extendido})"
+      ],
+      "vars": [
+        [
+          "{región}",
+          "región de AWS del cluster",
+          "us-east-1"
+        ],
+        [
+          "{cluster}",
+          "nombre del cluster de EKS",
+          "el de tu equipo (el C01 no lo fija)"
+        ],
+        [
+          "{contexto}",
+          "nombre del contexto en tu kubeconfig",
+          "docker-desktop en tu Mac; en EKS, el ARN del cluster (su identificador en AWS)"
+        ],
+        [
+          "{kind}",
+          "tipo de objeto",
+          "deployment"
+        ],
+        [
+          "{nombre}",
+          "nombre del objeto",
+          "triton"
+        ],
+        [
+          "{namespace}",
+          "carpeta lógica del objeto (namespace)",
+          "classifier"
+        ],
+        [
+          "{label}",
+          "label de nodo que quieres ver como columna",
+          "workload (vale gpu-t4 en los nodos GPU del C01)"
+        ],
+        [
+          "C_EKS",
+          "lo que cobra AWS por el control plane, aparte de los nodos",
+          "0.10 US$/h en soporte estándar (14 meses por versión)"
+        ]
+      ],
+      "pieces": [
+        [
+          "cluster",
+          "Un grupo de máquinas (nodos) más el control plane que las gobierna.",
+          "el EKS del C01: nodos de CPU y nodos g4dn con T4"
+        ],
+        [
+          "nodo (node)",
+          "Una máquina, física o virtual (en EKS, una máquina virtual de AWS), donde corren tus pods (grupos de contenedores).",
+          "g4dn.xlarge con la label workload=gpu-t4"
+        ],
+        [
+          "control plane",
+          "El cerebro: guarda lo que pediste y decide qué hacer. No corre tus pods.",
+          "en EKS lo opera AWS"
+        ],
+        [
+          "kube-apiserver",
+          "Expone la API HTTP del cluster. Todo pasa por aquí, también kubectl.",
+          "kubectl get pods = un GET a la API"
+        ],
+        [
+          "etcd",
+          "Base de datos clave-valor, consistente y replicada, con todos los objetos.",
+          "en EKS: 3 instancias en 3 zonas"
+        ],
+        [
+          "kube-scheduler",
+          "Asigna un nodo a cada pod que todavía no tiene.",
+          "busca un nodo con una T4 libre para Triton"
+        ],
+        [
+          "kube-controller-manager",
+          "Corre los controllers: lazos que acercan lo real a lo deseado.",
+          "Deployment, ReplicaSet, EndpointSlice"
+        ],
+        [
+          "kubelet",
+          "El agente de cada nodo: arranca los contenedores de sus pods y los vigila.",
+          "reinicia un Triton que falla la liveness (¿sigue vivo?)"
+        ],
+        [
+          "container runtime",
+          "Baja imágenes y corre contenedores en el nodo.",
+          "containerd en los nodos de EKS"
+        ],
+        [
+          "kube-proxy y CNI",
+          "kube-proxy arma las reglas de los Services; el plugin de red (CNI) le da IP a cada pod.",
+          "aws-node (VPC CNI) en cada nodo de EKS"
+        ],
+        [
+          "add-on",
+          "Software extra que corre como pods del cluster: DNS, métricas, drivers.",
+          "CoreDNS, NVIDIA device plugin, KEDA"
+        ],
+        [
+          "controller propio u operator",
+          "Programa que vigila objetos y actúa: eso sí es código, y rara vez lo escribes tú.",
+          "KEDA: agrega el kind ScaledObject con una CRD (definición de un tipo nuevo) y crea un HPA (autoscaler de réplicas)"
+        ],
+        [
+          "kubectl",
+          "Herramienta de línea de comandos (CLI): lee tu kubeconfig y habla con la API. Tolera una versión menor de diferencia.",
+          "kubectl 1.37 con clusters 1.36 a 1.38"
+        ],
+        [
+          "Amazon EKS",
+          "Kubernetes gestionado: AWS opera el control plane; nodos y add-ons siguen siendo tuyos.",
+          "0.10 US$/h por cluster (≈ 73 al mes)"
+        ]
+      ],
+      "example": {
+        "title": "Lo que el C01 necesita en el cluster antes del primer apply",
+        "lang": "text",
+        "code": "Prerequisitos del cluster: NVIDIA device plugin, node group de `g4dn.xlarge` con label\n`workload=gpu-t4` y taint `nvidia.com/gpu=present:NoSchedule`, AWS Load Balancer Controller, KEDA,\nPrometheus (kube-prometheus-stack, con kube-state-metrics), un CNI que aplique NetworkPolicy (VPC CNI\ncon `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.34 por\n`trafficDistribution: PreferSameZone` (en 1.31–1.33 cámbialo por `PreferClose`).",
+        "source": "reference/c01/README.md (Desplegar en EKS, prerequisitos)",
+        "notes": [
+          "Nada de esta lista es parte del control plane que opera AWS: son nodos y add-ons que tu equipo instala o configura (con Helm, Terraform o como add-ons de EKS).",
+          "El NVIDIA device plugin es un DaemonSet (un pod por nodo; aquí, en cada nodo GPU) que le anuncia las GPUs al kubelet. Sin él, ningún nodo ofrece <code>nvidia.com/gpu</code> y Triton queda Pending.",
+          "La label y el taint (un veto que aleja a los demás pods) del grupo de nodos GPU son la mitad del acuerdo para ubicar a Triton. La otra mitad está en <code>triton.yaml</code>: el nodeSelector (en qué nodos puede caer) y la toleration (el permiso para ignorar ese veto). En EKS, un paso del API server, el admission plugin ExtendedResourceToleration, agregaría solo una toleration equivalente, porque Triton pide <code>nvidia.com/gpu</code>. Escribirla la deja explícita y sirve en cualquier cluster.",
+          "AWS Load Balancer Controller, KEDA y el Prometheus Operator son controllers: vigilan sus objetos (Ingress, ScaledObject, ServiceMonitor) y actúan. Los kinds nuevos que usa el C01 (ScaledObject, ServiceMonitor) llegan con CRDs: definiciones de tipos que se suman a la API.",
+          "Una NetworkPolicy necesita un plugin de red que la aplique. Sin él, el objeto se acepta y no hace nada.",
+          "≥ 1.34 se cumple de sobra: en octubre de 2026 la versión más nueva es la 1.37. La 1.34 deja de recibir parches el 27 de octubre de 2026; en EKS, su soporte estándar termina el 2 de diciembre de 2026."
+        ]
+      },
+      "figure": {
+        "kind": "cluster",
+        "caption": "El cluster del C01 en EKS, simplificado. Arriba, el control plane que opera AWS; abajo, los nodos de tu cuenta, cada uno con kubelet, containerd, kube-proxy y su plugin de red. Los nodos GPU llevan label y taint para que solo Triton caiga ahí.",
+        "data": {
+          "control_plane": [
+            "kube-apiserver (al menos 2 instancias en EKS)",
+            "etcd (3 instancias, en 3 zonas)",
+            "kube-scheduler",
+            "kube-controller-manager",
+            "cloud-controller-manager"
+          ],
+          "nodes": [
+            {
+              "name": "nodo CPU · us-east-1a",
+              "labels": "topology.kubernetes.io/zone=us-east-1a",
+              "pods": [
+                "gateway",
+                "gateway",
+                "CoreDNS",
+                "KEDA",
+                "aws-node (VPC CNI)",
+                "kube-proxy"
+              ]
+            },
+            {
+              "name": "nodo CPU · us-east-1b",
+              "labels": "topology.kubernetes.io/zone=us-east-1b",
+              "pods": [
+                "gateway",
+                "AWS LB Controller",
+                "Prometheus",
+                "aws-node (VPC CNI)",
+                "kube-proxy"
+              ]
+            },
+            {
+              "name": "nodo GPU g4dn.xlarge · us-east-1a",
+              "labels": "workload=gpu-t4 · taint nvidia.com/gpu=present:NoSchedule",
+              "pods": [
+                "triton",
+                "NVIDIA device plugin",
+                "aws-node (VPC CNI)",
+                "kube-proxy"
+              ]
+            },
+            {
+              "name": "nodo GPU g4dn.xlarge · us-east-1b",
+              "labels": "workload=gpu-t4 · taint nvidia.com/gpu=present:NoSchedule",
+              "pods": [
+                "triton",
+                "NVIDIA device plugin",
+                "aws-node (VPC CNI)",
+                "kube-proxy"
+              ]
+            }
+          ],
+          "managed_note": "AWS opera todo el control plane (0.10 US$/h por cluster) y tú no ves esos procesos como pods. Nodos, kubelet, containerd y add-ons corren en tu cuenta. Con EKS Auto Mode, AWS también opera los nodos y varios add-ons."
+        }
+      },
+      "memo": "Kubernetes funciona como un <b>termostato para contenedores</b>: tú fijas el estado deseado en YAML y los controllers corrigen sin parar hacia él. <b>Se configura</b> con YAML y <code>kubectl apply</code>; tu código vive en la imagen.",
+      "trap": "Pensar que <code>kubectl</code> le habla a los nodos o a los contenedores: solo le habla al API server, y todo lo demás lo hacen controllers que leen de ahí. Por eso un objeto aceptado todavía no es un pod corriendo. Y en EKS, buscar etcd o el scheduler en <code>kube-system</code>: AWS los corre fuera de tus nodos.",
+      "lab": {
+        "goal": "Ver el control plane de un cluster local y el lazo de control en acción: borras un pod y el cluster lo repone sin que nadie se lo pida.",
+        "steps": [
+          {
+            "cmd": "kubectl config current-context\nkubectl get nodes -o wide",
+            "expect": "docker-desktop (o kind-kind si usas kind) y al menos un nodo Ready, con su versión de Kubernetes."
+          },
+          {
+            "cmd": "kubectl get pods -n kube-system",
+            "expect": "Pods etcd-…, kube-apiserver-…, kube-scheduler-… y kube-controller-manager-… (el sufijo es el nombre del nodo), más coredns y kube-proxy. En un cluster local el control plane corre como pods; en EKS no los verías."
+          },
+          {
+            "cmd": "kubectl create namespace lab-k8s\nkubectl create deployment web -n lab-k8s --image=nginx:1.30-alpine --replicas=3\nkubectl rollout status deployment/web -n lab-k8s --timeout=2m",
+            "expect": "namespace/lab-k8s created, deployment.apps/web created y deployment \"web\" successfully rolled out."
+          },
+          {
+            "cmd": "POD=$(kubectl get pods -n lab-k8s -l app=web -o name | head -1)\nkubectl delete -n lab-k8s \"$POD\"\nkubectl get pods -n lab-k8s -l app=web",
+            "expect": "Otra vez 3 pods, uno con AGE de pocos segundos. Nadie lo pidió: el ReplicaSet vio 2 de 3 y creó otro."
+          },
+          {
+            "cmd": "kubectl get deployment web -n lab-k8s -o jsonpath='{.spec.replicas} {.status.readyReplicas}{\"\\n\"}'",
+            "expect": "3 3: spec (lo que pediste) y status (lo que hay). Si repites justo después de borrar un pod, verás 3 2 por un momento."
+          },
+          {
+            "cmd": "kubectl delete namespace lab-k8s",
+            "expect": "namespace \"lab-k8s\" deleted."
+          }
+        ],
+        "fix": "Cuando algo vuelve solo, no lo pelees borrándolo: cambia el estado deseado (el YAML, o kubectl scale si no hay autoscaler). El controller siempre gana.",
+        "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind, e internet para bajar nginx:1.30-alpine",
+        "verified": "docs"
+      },
+      "links": [
+        "#m06.por-que-k8s",
+        "#m06.objetos-basicos",
+        "#m13.managed-vs-self",
+        "#ref-comandos.kubectl-basicos"
+      ]
+    },
+    {
+      "id": "manifest",
+      "num": 2,
+      "title": "Anatomía de un manifest",
+      "question": "¿Qué partes tiene un manifest, quién escribe cada una y cómo se encuentran los objetos entre sí?",
+      "templates": [
+        {
+          "code": "apiVersion: {grupo}/{versión}\nkind: {Kind}\nmetadata:\n  name: {nombre}\n  namespace: {namespace}\n  labels:\n    {clave}: {valor}\nspec:\n  # el estado deseado: cambia según el kind",
+          "note": "Lo escribes tú. Los objetos básicos (grupo core) no llevan grupo: <code>apiVersion: v1</code> (Service, ConfigMap); el resto sí: <code>apps/v1</code>, <code>networking.k8s.io/v1</code>."
+        },
+        {
+          "code": "spec:\n  selector:\n    matchLabels:\n      {clave}: {valor}\n  template:\n    metadata:\n      labels:\n        {clave}: {valor}",
+          "note": "En un Deployment, las labels que busca el selector tienen que estar en las del template (el molde de los pods); si no, el API server lo rechaza."
+        },
+        {
+          "code": "kubectl api-resources --api-group={grupo}",
+          "note": "Qué tipos de objeto (kinds) existen en ese grupo, con su apiVersion y si van dentro de un namespace. Con <code>--api-group=keda.sh</code> ves si KEDA (el autoscaler por eventos del C01) está instalado."
+        },
+        {
+          "code": "kubectl get pods -n {namespace} -l {clave}={valor}",
+          "note": "Busca por label (etiqueta clave=valor), igual que un Service. Si aquí no sale ningún pod, el Service tampoco encuentra ninguno."
+        }
+      ],
+      "formulas": [
+        "\\{\\text{pares del selector}\\} \\;\\subseteq\\; \\{\\text{labels del pod}\\} \\;\\Longrightarrow\\; \\text{el objeto gobierna (o apunta a) ese pod}"
+      ],
+      "vars": [
+        [
+          "{grupo}",
+          "grupo de la API; el core no tiene",
+          "apps (Deployment), networking.k8s.io (Ingress), keda.sh (ScaledObject)"
+        ],
+        [
+          "{versión}",
+          "versión dentro del grupo",
+          "v1; v1alpha1 en el ScaledObject de KEDA"
+        ],
+        [
+          "{Kind}",
+          "tipo de objeto, en CamelCase",
+          "Deployment"
+        ],
+        [
+          "{nombre}",
+          "nombre único por kind y namespace, en minúsculas",
+          "gateway"
+        ],
+        [
+          "{namespace}",
+          "carpeta lógica del objeto",
+          "classifier"
+        ],
+        [
+          "{clave}",
+          "clave de una label",
+          "app.kubernetes.io/name"
+        ],
+        [
+          "{valor}",
+          "valor de esa label",
+          "gateway"
+        ]
+      ],
+      "pieces": [
+        [
+          "apiVersion",
+          "Grupo y versión de la API que define el kind. El core no lleva grupo.",
+          "apps/v1 · v1 · keda.sh/v1alpha1"
+        ],
+        [
+          "kind",
+          "Qué tipo de objeto es, en CamelCase.",
+          "Deployment, Service, ScaledObject"
+        ],
+        [
+          "metadata.name",
+          "Nombre único dentro de su kind y su namespace, en minúsculas.",
+          "gateway (Deployment) y gateway (Service): kinds distintos"
+        ],
+        [
+          "metadata.namespace",
+          "Carpeta lógica. Si falta, el objeto va al namespace de tu contexto (casi siempre default).",
+          "classifier"
+        ],
+        [
+          "metadata.labels",
+          "Etiquetas clave-valor para buscar y agrupar; es lo que miran los selectors (filtros por label).",
+          "app.kubernetes.io/name: gateway"
+        ],
+        [
+          "metadata.annotations",
+          "Notas para herramientas y controllers; no sirven para seleccionar.",
+          "alb.ingress.kubernetes.io/scheme: internal"
+        ],
+        [
+          "spec",
+          "El estado deseado: lo escribes tú.",
+          "réplicas, imagen, puertos, probes"
+        ],
+        [
+          "status",
+          "El estado real: lo escribe el cluster. No va en tu YAML.",
+          "readyReplicas, conditions"
+        ],
+        [
+          "spec.selector",
+          "Qué pods gobierna el objeto. En un Deployment no se puede cambiar después.",
+          "matchLabels: app.kubernetes.io/name: gateway"
+        ],
+        [
+          "spec.template",
+          "El molde de los pods que crea el controller. Cambiarlo dispara un rollout (cambio de versión).",
+          "labels, containers, probes"
+        ],
+        [
+          "--- (separador)",
+          "Separa varios objetos dentro de un mismo archivo YAML.",
+          "gateway.yaml: Deployment, Service, HPA e Ingress"
+        ],
+        [
+          "CRD (CustomResourceDefinition)",
+          "Agrega un kind nuevo a la API. Sin ella, apply falla con no matches for kind.",
+          "ScaledObject (KEDA), ServiceMonitor (Prometheus Operator)"
+        ],
+        [
+          "ownerReferences",
+          "Quién es dueño del objeto: al borrar al dueño, el cluster borra a los hijos.",
+          "Pod → ReplicaSet → Deployment"
+        ],
+        [
+          "app.kubernetes.io/*",
+          "Labels recomendadas: name, instance, version, component, part-of, managed-by.",
+          "part-of: classifier"
+        ]
+      ],
+      "example": {
+        "title": "El Deployment del gateway: tres lugares con labels, tres trabajos distintos",
+        "lang": "yaml",
+        "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\n  namespace: classifier\n  labels:\n    app.kubernetes.io/name: gateway\n    app.kubernetes.io/part-of: classifier\nspec:\n  # Sin \"replicas\": las decide el HPA de abajo (3–12)\n  revisionHistoryLimit: 5\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 25%  # pods nuevos antes de bajar viejos\n      maxUnavailable: 0  # capacidad completa durante todo el deploy\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: gateway\n  template:\n    metadata:\n      labels:\n        app.kubernetes.io/name: gateway\n        app.kubernetes.io/part-of: classifier",
+        "source": "reference/c01/k8s/gateway.yaml (líneas 4–27)",
+        "notes": [
+          "<code>apps/v1</code>: grupo <code>apps</code>, versión <code>v1</code>. El Service del mismo archivo usa <code>v1</code> a secas porque es del grupo core.",
+          "<code>metadata.labels</code> etiqueta al Deployment mismo: sirve para encontrarlo (<code>kubectl get deploy -l …</code>), no decide qué pods gobierna.",
+          "<code>spec.selector.matchLabels</code> decide qué pods son suyos. En <code>apps/v1</code> es obligatorio e inmutable: cambiarlo obliga a borrar y recrear el Deployment.",
+          "<code>spec.template.metadata.labels</code> se copia a cada pod. Tiene que contener al selector y puede tener labels de más (aquí, <code>part-of</code>).",
+          "No hay <code>status</code> ni <code>replicas</code>: el status lo escribe el cluster y las réplicas las decide el HPA (el autoscaler de réplicas) del mismo archivo."
+        ]
+      },
+      "figure": {
+        "kind": "control-loop",
+        "caption": "spec es la temperatura que fijas en el termostato y status la del cuarto: el controller los compara sin parar y actúa hasta que coinciden. Tú solo escribes spec.",
+        "data": {
+          "desired": "spec del Deployment gateway: 3 réplicas del template con la imagen :3f9c2ab (las 3 las fijó el HPA)",
+          "actual": "status: 2 réplicas listas, porque vaciaron un nodo para mantenimiento (drain) y desalojaron uno de los pods",
+          "actions": [
+            "ve la diferencia: 3 deseadas, 2 que existen",
+            "el ReplicaSet crea un pod nuevo con el mismo template",
+            "el scheduler le busca nodo y el kubelet lo arranca",
+            "pasa la readiness: status vuelve a 3 de 3 y el lazo queda quieto"
+          ],
+          "who": "Deployment y ReplicaSet controllers (dentro de kube-controller-manager)"
+        }
+      },
+      "memo": "<b>apiVersion + kind</b> dicen qué es; <b>metadata</b>, cómo se llama y dónde vive; <b>spec</b>, lo que quieres; <b>status</b>, lo que hay (lo escribe el cluster). Las <b>labels</b> son el pegamento: Services, PodDisruptionBudgets (cuántos pods deben quedar en pie en un mantenimiento) y NetworkPolicies (el firewall entre pods) encuentran pods por labels, nunca por nombre.",
+      "trap": "Copiar un manifest y cambiar solo <code>metadata.name</code>: si el selector y las labels quedan iguales, dos Deployments pelean por los mismos pods. Y olvidar el namespace en un archivo: el objeto cae en el namespace de tu contexto (casi siempre <code>default</code>) y desde <code>classifier</code> nadie lo ve.",
+      "lab": {
+        "goal": "Romper un manifest de tres maneras, leer qué contesta el API server en cada caso y ver quién escribe el status.",
+        "steps": [
+          {
+            "cmd": "kubectl create namespace lab-k8s\nkubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replica: 2\n  selector:\n    matchLabels: { app: web }\n  template:\n    metadata:\n      labels: { app: web }\n    spec:\n      containers:\n        - { name: nginx, image: \"nginx:1.30-alpine\" }\nEOF",
+            "expect": "namespace/lab-k8s created y después Error from server (BadRequest) con strict decoding error: unknown field \"spec.replica\". kubectl valida en el servidor y en modo estricto por defecto: un typo no pasa."
+          },
+          {
+            "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels: { app: web }\n  template:\n    metadata:\n      labels: { app: webb }\n    spec:\n      containers:\n        - { name: nginx, image: \"nginx:1.30-alpine\" }\nEOF",
+            "expect": "The Deployment \"web\" is invalid: spec.template.metadata.labels: Invalid value: … `selector` does not match template `labels`."
+          },
+          {
+            "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels: { app: web }\n  template:\n    metadata:\n      labels: { app: web }\n    spec:\n      containers:\n        - { name: nginx, image: \"nginx:1.30-alpine\" }\nEOF",
+            "expect": "resource mapping not found … no matches for kind \"Deployment\" in version \"v1\" y ensure CRDs are installed first: el kind existe, pero en apps/v1."
+          },
+          {
+            "cmd": "kubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels: { app: web }\n  template:\n    metadata:\n      labels: { app: web }\n    spec:\n      containers:\n        - { name: nginx, image: \"nginx:1.30-alpine\" }\nEOF\nkubectl rollout status deployment/web -n lab-k8s --timeout=2m\nkubectl get deployment web -n lab-k8s -o jsonpath='{.status.readyReplicas} {.status.conditions[*].type}{\"\\n\"}'",
+            "expect": "deployment.apps/web created, successfully rolled out y 2 Available Progressing: eso es status, y nadie lo escribió a mano."
+          },
+          {
+            "cmd": "kubectl create configmap prueba --from-literal=a=1\nkubectl get configmap prueba -n lab-k8s\nkubectl delete configmap prueba",
+            "expect": "configmap/prueba created, después Error from server (NotFound): configmaps \"prueba\" not found: sin -n fue al namespace de tu contexto (default), no a lab-k8s. El delete lo limpia."
+          },
+          {
+            "cmd": "kubectl delete namespace lab-k8s",
+            "expect": "namespace \"lab-k8s\" deleted."
+          }
+        ],
+        "fix": "Lee el error por su parte final. unknown field: typo o indentación. selector does not match: labels del template. no matches for kind: apiVersion equivocado o falta instalar el CRD. Para atraparlos antes, corre kubectl apply --dry-run=server en CI (las pruebas automáticas de cada cambio).",
+        "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind, e internet para bajar nginx:1.30-alpine",
+        "verified": "docs"
+      },
+      "links": [
+        "#m06.objetos-basicos",
+        "#ref-comandos.kubectl-basicos",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "deployments",
+      "num": 3,
+      "title": "Pods, ReplicaSets y Deployments",
+      "question": "¿Cómo mantiene Kubernetes N copias de tu servicio y cómo cambia de versión sin cortar?",
+      "templates": [
+        {
+          "code": "spec:\n  replicas: {n}\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: {extra}\n      maxUnavailable: {faltantes}",
+          "note": "Quita <code>replicas</code> si un autoscaler (HPA o KEDA) decide cuántas. Defaults de la estrategia: 25 % y 25 %."
+        },
+        {
+          "code": "kubectl get deploy,rs,pods -n {namespace} -l {selector}",
+          "note": "La cadena completa de un vistazo: el Deployment, sus ReplicaSets (uno por versión del template) y los pods."
+        },
+        {
+          "code": "kubectl set image deployment/{deploy} {contenedor}={imagen} -n {namespace}",
+          "note": "Cambia la imagen en el template y dispara un rollout (el cambio de versión de a poco). Sirve en un lab; en producción, el cambio va en git y se aplica."
+        },
+        {
+          "code": "kubectl rollout history deployment/{deploy} -n {namespace}",
+          "note": "Las revisiones guardadas: una por ReplicaSet, el actual y hasta <code>revisionHistoryLimit</code> viejos. Es a lo que puede volver <code>rollout undo</code>."
+        }
+      ],
+      "formulas": [
+        "\\text{surge} = \\lceil s \\cdot N \\rceil \\qquad \\text{faltantes} = \\lfloor u \\cdot N \\rfloor \\qquad (s = u = 0.25\\ \\text{por defecto})",
+        "\\text{disponibles} \\;\\ge\\; N - \\text{faltantes} \\qquad \\text{pods totales} \\;\\le\\; N + \\text{surge}",
+        "\\text{GPUs máx. durante el rollout} = (N + \\text{surge}) \\times \\text{GPUs por pod} \\qquad \\text{Triton: } (2 + 1) \\times 1 = 3"
+      ],
+      "vars": [
+        [
+          "{n}",
+          "réplicas deseadas",
+          "16 en el vLLM del c10; sin campo en el C01 (las deciden el HPA y KEDA)"
+        ],
+        [
+          "{extra}",
+          "maxSurge: pods de más durante el rollout (número o %)",
+          "25 % en el gateway, 1 en Triton"
+        ],
+        [
+          "{faltantes}",
+          "maxUnavailable: pods de menos durante el rollout",
+          "0 en el C01"
+        ],
+        [
+          "{namespace}",
+          "namespace del Deployment",
+          "classifier"
+        ],
+        [
+          "{selector}",
+          "label para filtrar",
+          "app.kubernetes.io/name=triton"
+        ],
+        [
+          "{deploy}",
+          "nombre del Deployment",
+          "triton"
+        ],
+        [
+          "{contenedor}",
+          "nombre del contenedor dentro del template",
+          "triton"
+        ],
+        [
+          "{imagen}",
+          "imagen nueva, con tag",
+          "123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-triton:2026-09-15-resnet50-fp16"
+        ],
+        [
+          "N",
+          "réplicas deseadas en ese momento",
+          "2 (mínimo de KEDA para Triton)"
+        ],
+        [
+          "s, u",
+          "maxSurge y maxUnavailable como fracción",
+          "0.25 por defecto"
+        ]
+      ],
+      "pieces": [
+        [
+          "Pod",
+          "La unidad mínima: uno o varios contenedores que comparten IP y volúmenes, en un solo nodo.",
+          "un pod de Triton = un contenedor + una T4"
+        ],
+        [
+          "contenedores del pod",
+          "Nacen y mueren con el pod y se hablan por localhost.",
+          "un agente de logs junto a la app"
+        ],
+        [
+          "sidecar nativo",
+          "Contenedor de arranque (initContainer) con restartPolicy: Always: arranca antes y se apaga después del principal (estable desde 1.33).",
+          "un proxy o un agente de métricas"
+        ],
+        [
+          "restartPolicy",
+          "Qué hace el kubelet (agente del nodo) al terminar un contenedor. En un Deployment, el del pod solo admite Always.",
+          "Always (Deployment) · OnFailure o Never (Job)"
+        ],
+        [
+          "ReplicaSet",
+          "Mantiene N pods iguales: si falta uno, lo crea; si sobra, lo borra.",
+          "triton-5c7d9b8f6d (ilustrativo)"
+        ],
+        [
+          "Deployment",
+          "Maneja ReplicaSets, uno por versión del template (el molde del pod), para cambiar de versión de a poco.",
+          "triton, gateway"
+        ],
+        [
+          "pod-template-hash",
+          "Label que el Deployment pone en cada ReplicaSet y sus pods para no mezclar versiones.",
+          "triton-5c7d9b8f6d-q2x7k"
+        ],
+        [
+          "RollingUpdate",
+          "Estrategia por defecto: sube pods nuevos y baja viejos de a poco.",
+          "gateway y Triton del C01"
+        ],
+        [
+          "Recreate",
+          "Borra todos los pods viejos antes de crear los nuevos: hay corte.",
+          "dos versiones que no pueden convivir"
+        ],
+        [
+          "maxSurge / maxUnavailable",
+          "Cuántos pods de más y de menos se permiten durante el rollout.",
+          "Triton: 1 y 0"
+        ],
+        [
+          "revisionHistoryLimit",
+          "ReplicaSets viejos (en 0 réplicas) que se guardan para volver atrás. Default 10.",
+          "5 en el C01"
+        ],
+        [
+          "progressDeadlineSeconds",
+          "Plazo para avanzar. Si vence: Progressing=False con ProgressDeadlineExceeded. No revierte solo.",
+          "900 s en Triton"
+        ],
+        [
+          "minReadySeconds",
+          "Segundos que un pod nuevo debe seguir Ready para contar como disponible. Default 0.",
+          "el C01 no lo usa"
+        ],
+        [
+          "StatefulSet · DaemonSet · Job",
+          "Otros controllers de pods: identidad estable · un pod por nodo · correr hasta terminar.",
+          "el NVIDIA device plugin es un DaemonSet"
+        ]
+      ],
+      "example": {
+        "title": "El Deployment de Triton: rolling update cuando cada pod es una GPU",
+        "lang": "yaml",
+        "code": "spec:\n  # Sin \"replicas\": las gestiona el HPA que crea KEDA. Si lo fijas aquí, cada `kubectl apply`\n  # resetea la escala y pelea con el autoscaler.\n  revisionHistoryLimit: 5  # ReplicaSets viejos para `kubectl rollout undo`\n  progressDeadlineSeconds: 900  # un pod con nodo GPU nuevo tarda ≈ 4–11 min: el default de 600 s vence en el caso pesimista\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 1  # de a un pod nuevo: cada pod necesita una GPU libre (Karpenter/cluster-autoscaler agrega el nodo)\n      maxUnavailable: 0  # nunca bajar de la capacidad actual durante un deploy\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: triton  # inmutable: debe coincidir con las labels del template\n  template:\n    metadata:\n      labels:\n        app.kubernetes.io/name: triton\n        app.kubernetes.io/part-of: classifier\n    spec:\n      # Tiempo total para apagar: preStop (10 s) + --exit-timeout-secs de Triton (30 s) + margen\n      terminationGracePeriodSeconds: 60",
+        "source": "reference/c01/k8s/triton.yaml (líneas 12–32)",
+        "notes": [
+          "Sin <code>replicas</code>: el número lo pone el HPA (el autoscaler de réplicas de Kubernetes) que KEDA crea y alimenta para Triton (mínimo 2). Si lo fijaras aquí, cada <code>kubectl apply</code> lo pisaría.",
+          "<code>maxSurge: 1</code> y <code>maxUnavailable: 0</code>: con 2 réplicas, el rollout tiene 3 pods un rato. El tercero necesita una T4 libre, o un nodo nuevo: por eso va de a uno.",
+          "<code>progressDeadlineSeconds: 900</code>: un pod que espera nodo GPU, imagen y engine puede pasar los 600 s del default. Vencido el plazo, el Deployment marca <code>ProgressDeadlineExceeded</code>, pero no revierte solo.",
+          "<code>revisionHistoryLimit: 5</code>: guarda 5 ReplicaSets viejos en 0 réplicas. Volver al modelo anterior con <code>kubectl rollout undo</code> es re-escalar uno de ellos.",
+          "El comentario del selector lo dice: es inmutable y tiene que coincidir con las labels del template. El Deployment, además, agrega <code>pod-template-hash</code> a cada ReplicaSet para no mezclar versiones."
+        ]
+      },
+      "figure": {
+        "kind": "hierarchy",
+        "caption": "Cada nivel maneja al de abajo: el Deployment, a sus ReplicaSets (uno por versión del template), y cada ReplicaSet, a sus pods. Durante un rollout conviven dos ReplicaSets.",
+        "data": {
+          "chain": [
+            {
+              "kind": "Deployment",
+              "name": "triton",
+              "note": "spec: el template nuevo (otra imagen), maxSurge 1, maxUnavailable 0; las réplicas (2 a 4) las escribe el HPA de KEDA"
+            },
+            {
+              "kind": "ReplicaSet",
+              "name": "triton-<hash nuevo>",
+              "note": "sube de 0 a 2 de a un pod; el viejo, triton-<hash viejo>, baja de 2 a 0 y queda guardado para rollout undo"
+            },
+            {
+              "kind": "Pod",
+              "name": "triton-<hash nuevo>-<sufijo>",
+              "note": "nace Pending hasta que hay una T4 libre; cuenta como disponible cuando pasa la readiness. Si su contenedor muere, el kubelet lo reinicia dentro del mismo pod"
+            }
+          ],
+          "selector": "app.kubernetes.io/name=triton (y pod-template-hash, que agrega el Deployment)"
+        }
+      },
+      "memo": "<b>Deployment → ReplicaSet → Pod</b>: el Deployment cambia de versión, el ReplicaSet cuenta copias y el pod corre. Un rollout es un ReplicaSet nuevo que sube mientras el viejo baja, al ritmo de <b>maxSurge</b> (de más) y <b>maxUnavailable</b> (de menos).",
+      "trap": "Esperar un rollout al editar un ConfigMap (la configuración que vive aparte del pod) o al escalar: solo cambiar <code>spec.template</code> dispara uno. Y en un servicio de GPU, el surge por defecto pide GPUs extra que quizás no existen: el pod nuevo queda Pending y el deploy se queda a medias.",
+      "lab": {
+        "goal": "Ver un rolling update de verdad (un ReplicaSet nuevo que sube mientras el viejo baja), uno que se traba con una imagen inexistente y el rollback.",
+        "steps": [
+          {
+            "cmd": "kubectl create namespace lab-k8s\nkubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 3\n  strategy:\n    type: RollingUpdate\n    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }\n  selector:\n    matchLabels: { app: web }\n  template:\n    metadata:\n      labels: { app: web }\n    spec:\n      containers:\n        - name: nginx\n          image: nginx:1.30-alpine\n          readinessProbe:\n            httpGet: { path: /, port: 80 }\nEOF\nkubectl rollout status deployment/web -n lab-k8s --timeout=2m\nkubectl get rs -n lab-k8s",
+            "expect": "Un solo ReplicaSet web-<hash> con DESIRED, CURRENT y READY en 3."
+          },
+          {
+            "cmd": "kubectl get rs -n lab-k8s -w",
+            "expect": "Déjalo corriendo en otra terminal: vas a ver cómo cambian los números en el paso siguiente."
+          },
+          {
+            "cmd": "kubectl set image deployment/web nginx=nginx:1.31-alpine -n lab-k8s\nkubectl rollout status deployment/web -n lab-k8s --timeout=2m",
+            "expect": "En la otra terminal, un ReplicaSet nuevo sube 1, 2, 3 mientras el viejo baja 2, 1, 0, nunca con menos de 3 pods listos (maxUnavailable 0). Termina con successfully rolled out."
+          },
+          {
+            "cmd": "kubectl rollout history deployment/web -n lab-k8s",
+            "expect": "Las revisiones 1 y 2: una por ReplicaSet. El viejo sigue ahí, en 0 réplicas."
+          },
+          {
+            "cmd": "kubectl set image deployment/web nginx=nginx:9.99-noexiste -n lab-k8s\nkubectl rollout status deployment/web -n lab-k8s --timeout=30s\nkubectl get pods -n lab-k8s",
+            "expect": "error: timed out waiting for the condition. Un pod nuevo en ErrImagePull o ImagePullBackOff y los 3 viejos Running: con maxUnavailable 0, una versión rota no le quita capacidad al servicio."
+          },
+          {
+            "cmd": "kubectl rollout undo deployment/web -n lab-k8s\nkubectl rollout status deployment/web -n lab-k8s --timeout=2m",
+            "expect": "deployment.apps/web rolled back y successfully rolled out: el ReplicaSet de la 1.31 volvió a ser el actual y el pod roto desapareció."
+          },
+          {
+            "cmd": "kubectl delete namespace lab-k8s",
+            "expect": "namespace \"lab-k8s\" deleted. Corta con Ctrl+C el watch de la otra terminal."
+          }
+        ],
+        "fix": "Un rollout trabado no se arregla con rollout restart: se arregla la causa (imagen, readiness, GPU libre) o se vuelve atrás con rollout undo. Con GitOps (el cluster se sincroniza solo con lo que hay en git), el rollback es un revert en git.",
+        "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind, dos terminales e internet para bajar nginx:1.30-alpine y nginx:1.31-alpine",
+        "verified": "docs"
+      },
+      "links": [
+        "#m06.objetos-basicos",
+        "#m06.alta-disponibilidad",
+        "#ref-comandos.rollouts",
+        "#m11.rollback"
+      ]
+    },
+    {
+      "id": "servicios",
+      "num": 4,
+      "title": "Services, DNS e Ingress",
+      "question": "¿Cómo encuentra el tráfico a tus pods si cambian de IP cada vez que se recrean?",
+      "templates": [
+        {
+          "code": "apiVersion: v1\nkind: Service\nmetadata:\n  name: {servicio}\nspec:\n  selector:\n    {clave}: {valor}\n  ports:\n    - name: {nombre_puerto}\n      port: {puerto}\n      targetPort: {puerto_pod}",
+          "note": "Un nombre y una IP estables delante de los pods (las unidades que corren tus contenedores) que cumplen el selector, el filtro por labels. Sin <code>type</code> es ClusterIP: solo se alcanza desde dentro del cluster."
+        },
+        {
+          "code": "{servicio}.{namespace}.svc.cluster.local:{puerto}",
+          "note": "El nombre completo en el DNS interno del cluster (CoreDNS). Desde el mismo namespace alcanza con <code>{servicio}</code>; desde otro, con <code>{servicio}.{namespace}</code>."
+        },
+        {
+          "code": "spec:\n  ingressClassName: {clase}\n  rules:\n    - http:\n        paths:\n          - path: {ruta}\n            pathType: {tipo}\n            backend:\n              service:\n                name: {servicio}\n                port:\n                  name: {nombre_puerto}",
+          "note": "Un Ingress solo describe reglas HTTP (qué ruta va a qué Service): lo implementa el controller de su clase (<code>alb</code> = AWS Load Balancer Controller). Sin controller, no pasa nada."
+        },
+        {
+          "code": "kubectl port-forward svc/{servicio} {puerto_local}:{puerto} -n {namespace}",
+          "note": "Un túnel desde tu laptop hasta <b>un</b> pod detrás del Service, para probar sin exponer nada. No sirve para pruebas de carga."
+        }
+      ],
+      "formulas": [
+        "t_{\\text{keep-alive}}^{\\,\\text{app}} \\;>\\; t_{\\text{idle}}^{\\,\\text{ALB}} \\qquad 75\\ \\text{s} > 60\\ \\text{s} \\qquad (\\text{si no, el ALB reusa conexiones que la app ya cerró: 502})"
+      ],
+      "vars": [
+        [
+          "{servicio}",
+          "nombre del Service (y de su DNS)",
+          "triton"
+        ],
+        [
+          "{clave}",
+          "clave de la label que busca el selector",
+          "app.kubernetes.io/name"
+        ],
+        [
+          "{valor}",
+          "valor de esa label",
+          "triton"
+        ],
+        [
+          "{nombre_puerto}",
+          "nombre del puerto; obligatorio si el Service tiene varios",
+          "http"
+        ],
+        [
+          "{puerto}",
+          "puerto del Service, al que llamas",
+          "8000"
+        ],
+        [
+          "{puerto_pod}",
+          "puerto del contenedor, por número o por nombre; si falta, igual a port",
+          "http (= containerPort 8000)"
+        ],
+        [
+          "{namespace}",
+          "namespace del Service",
+          "classifier"
+        ],
+        [
+          "{clase}",
+          "ingressClassName: qué controller atiende el Ingress",
+          "alb"
+        ],
+        [
+          "{ruta}",
+          "path de la regla",
+          "/v1/classify"
+        ],
+        [
+          "{tipo}",
+          "pathType: Exact, Prefix o ImplementationSpecific",
+          "Exact"
+        ],
+        [
+          "{puerto_local}",
+          "puerto en tu laptop",
+          "8000"
+        ],
+        [
+          "t_keep-alive app",
+          "cuánto deja la app abierta una conexión sin uso",
+          "75 s (--timeout-keep-alive de uvicorn)"
+        ],
+        [
+          "t_idle ALB",
+          "cuánto deja el balanceador de AWS (ALB) abierta una conexión sin uso; default 60 s",
+          "60 s en el C01"
+        ]
+      ],
+      "pieces": [
+        [
+          "Service",
+          "Nombre e IP estables delante de los pods que cumplen su selector.",
+          "triton, gateway"
+        ],
+        [
+          "ClusterIP (default)",
+          "IP virtual solo dentro del cluster; kube-proxy (reglas de red en cada nodo) reparte por conexión, no por request.",
+          "Triton: nunca expuesto afuera"
+        ],
+        [
+          "NodePort",
+          "Abre el mismo puerto (30000–32767 por defecto) en todos los nodos.",
+          "lo necesita un ALB en modo instance"
+        ],
+        [
+          "LoadBalancer",
+          "Le pide a la nube un balanceador externo para el Service.",
+          "en AWS, un balanceador de red (NLB) con el AWS LB Controller"
+        ],
+        [
+          "headless (clusterIP: None)",
+          "Sin IP virtual: el DNS devuelve directo las IPs de los pods listos.",
+          "asr-worker del c13: el router elige el pod"
+        ],
+        [
+          "selector",
+          "Las labels que busca el Service; solo admite igualdad (clave = valor).",
+          "app.kubernetes.io/name: triton"
+        ],
+        [
+          "port / targetPort",
+          "port: al que llamas. targetPort: el del contenedor; si falta, vale lo mismo que port.",
+          "8000 → http"
+        ],
+        [
+          "EndpointSlice",
+          "Lista de IP:puerto de los pods del Service, con cuáles están listos.",
+          "kubernetes.io/service-name=triton"
+        ],
+        [
+          "DNS del cluster (CoreDNS)",
+          "Traduce el nombre del Service a su IP: servicio.namespace.svc.cluster.local.",
+          "triton.classifier.svc.cluster.local"
+        ],
+        [
+          "trafficDistribution",
+          "Preferencia de ruteo: PreferSameZone manda a pods de la misma zona si hay (estable desde 1.35).",
+          "Service triton: no cruzar de zona"
+        ],
+        [
+          "Ingress",
+          "Reglas HTTP (host, path) hacia Services. Su API está congelada: no recibe cambios nuevos.",
+          "/v1/classify → gateway:http"
+        ],
+        [
+          "IngressClass y controller",
+          "Quién implementa el Ingress; sin controller, el Ingress no hace nada.",
+          "ingressClassName: alb"
+        ],
+        [
+          "Gateway API",
+          "El reemplazo que recomienda Kubernetes para Ingress: Gateway + HTTPRoute.",
+          "para diseños nuevos"
+        ],
+        [
+          "NetworkPolicy",
+          "Firewall entre pods, por labels. Lo aplica el plugin de red, si lo soporta.",
+          "solo el gateway entra a Triton:8000"
+        ]
+      ],
+      "example": {
+        "title": "El Ingress del gateway: un ALB interno que va directo a los pods",
+        "lang": "yaml",
+        "code": "apiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: gateway\n  namespace: classifier\n  annotations:\n    alb.ingress.kubernetes.io/scheme: internal\n    # ip: el ALB manda directo a la IP del pod (sin NodePort ni salto extra de kube-proxy)\n    alb.ingress.kubernetes.io/target-type: ip\n    alb.ingress.kubernetes.io/listen-ports: '[{\"HTTPS\": 443}]'\n    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000\n    # El health check del ALB usa la misma señal que la readiness de k8s\n    alb.ingress.kubernetes.io/healthcheck-path: /readyz\n    alb.ingress.kubernetes.io/success-codes: \"200\"\n    # Drenado al sacar un pod: 30 s (el default de 300 s hace eternos los deploys)\n    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30\n    # Idle timeout 60 s < --timeout-keep-alive 75 de uvicorn: el ALB siempre cierra primero (sin 502)\n    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60\nspec:\n  ingressClassName: alb  # lo atiende el AWS Load Balancer Controller\n  rules:\n    - http:\n        paths:\n          - path: /v1/classify\n            pathType: Exact\n            backend:\n              service:\n                name: gateway\n                port:\n                  name: http",
+        "source": "reference/c01/k8s/gateway.yaml (el Ingress completo, sin 3 líneas de comentario)",
+        "notes": [
+          "<code>ingressClassName: alb</code>: el AWS Load Balancer Controller ve este objeto y crea un balanceador de aplicaciones de AWS (ALB). Sin ese controller instalado, el Ingress existe y nada pasa.",
+          "<code>scheme: internal</code> (también el default): el ALB solo se alcanza desde la red privada (VPC). <code>internet-facing</code> lo expondría a internet.",
+          "<code>target-type: ip</code>: el ALB registra las IPs de los pods y les manda tráfico directo. El Service gateway no está en el camino: el controller solo lee sus endpoints. El default, <code>instance</code>, exigiría un Service NodePort (o LoadBalancer).",
+          "<code>healthcheck-path: /readyz</code>: el ALB y la readiness de Kubernetes miran la misma señal. Sin la anotación, el ALB revisaría <code>/</code>.",
+          "<code>deregistration_delay</code> en 30 s (el default de AWS es 300) y el preStop de 15 s del Deployment trabajan juntos. El pod sigue atendiendo mientras el ALB deja de mandarle requests.",
+          "Solo <code>/v1/classify</code>, con <code>pathType: Exact</code>: <code>/metrics</code>, <code>/healthz</code> y <code>/readyz</code> no quedan expuestos fuera del cluster."
+        ]
+      },
+      "figure": {
+        "kind": "network",
+        "caption": "El camino de un request del C01. El ALB va directo a las IPs de los pods del gateway (target-type ip). El gateway llama a Triton por el DNS de su Service, y kube-proxy elige un pod listo, de su zona si hay.",
+        "data": {
+          "hops": [
+            {
+              "name": "Cliente en la VPC",
+              "port": "HTTPS 443",
+              "note": "el backend del marketplace u otro equipo; resuelve el DNS del ALB interno"
+            },
+            {
+              "name": "ALB interno (Ingress gateway)",
+              "port": "443 → regla /v1/classify (Exact)",
+              "note": "lo crea el AWS Load Balancer Controller; health check a /readyz; deregistro en 30 s"
+            },
+            {
+              "name": "Service gateway (ClusterIP)",
+              "port": "8080 → targetPort http",
+              "note": "no está en el camino del ALB: el controller lee sus endpoints para registrar targets"
+            },
+            {
+              "name": "EndpointSlice del gateway",
+              "port": "IP del pod:8080",
+              "note": "label kubernetes.io/service-name=gateway; un pod que falla la readiness queda como no listo"
+            },
+            {
+              "name": "Pods gateway",
+              "port": "containerPort 8080 (http)",
+              "note": "readiness /readyz; preStop de 15 s mientras el ALB lo desregistra"
+            },
+            {
+              "name": "Service triton (ClusterIP, PreferSameZone)",
+              "port": "8000 → http",
+              "note": "TRITON_URL = triton.classifier.svc.cluster.local:8000; kube-proxy elige un pod listo"
+            },
+            {
+              "name": "Pods triton",
+              "port": "8000 (http) · 8002 (metrics)",
+              "note": "la NetworkPolicy solo deja entrar al gateway al 8000 y al namespace monitoring al 8002"
+            }
+          ],
+          "dns": "triton.classifier.svc.cluster.local → IP virtual del Service (ClusterIP), estable aunque los pods cambien de IP"
+        }
+      },
+      "memo": "<b>Los pods cambian de IP; el Service no.</b> El selector busca pods por labels, el EndpointSlice marca cuáles están listos y el DNS da <code>servicio.namespace.svc.cluster.local</code>. El Ingress (o Gateway API) es la puerta HTTP desde afuera, y siempre necesita un controller.",
+      "trap": "Un Service con un selector que no coincide no da error: existe, tiene IP y DNS, y cada llamada falla porque no tiene endpoints. Lo ves con <code>kubectl get endpointslices -l kubernetes.io/service-name=…</code>. Y una NetworkPolicy en un cluster cuyo plugin de red no la aplica se acepta sin aviso y no bloquea nada.",
+      "lab": {
+        "goal": "Llamar a un Service por DNS desde otro pod, ver cómo la readiness saca a un pod del reparto y romper el selector.",
+        "steps": [
+          {
+            "cmd": "kubectl create namespace lab-k8s\nkubectl apply -n lab-k8s -f - <<'EOF'\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  replicas: 2\n  selector:\n    matchLabels: { app: web }\n  template:\n    metadata:\n      labels: { app: web }\n    spec:\n      containers:\n        - name: nginx\n          image: nginx:1.30-alpine\n          ports:\n            - { name: http, containerPort: 80 }\n          readinessProbe:\n            httpGet: { path: /, port: http }\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: web\nspec:\n  selector: { app: web }\n  ports:\n    - { name: http, port: 80, targetPort: http }\nEOF\nkubectl rollout status deployment/web -n lab-k8s --timeout=2m",
+            "expect": "deployment.apps/web created, service/web created y deployment \"web\" successfully rolled out."
+          },
+          {
+            "cmd": "kubectl run cliente -n lab-k8s --rm -it --restart=Never --image=busybox:1.38 -- wget -qO- http://web.lab-k8s.svc.cluster.local",
+            "expect": "El HTML de bienvenida de nginx (Welcome to nginx!), y el pod cliente se borra solo al terminar (--rm): el DNS del Service te llevó a uno de los pods."
+          },
+          {
+            "cmd": "POD=$(kubectl get pods -n lab-k8s -l app=web -o name | head -1)\nkubectl exec -n lab-k8s \"$POD\" -- rm /usr/share/nginx/html/index.html\nsleep 40; kubectl get pods -n lab-k8s -l app=web",
+            "expect": "Un pod en READY 0/1 y Running. Sin index.html, nginx responde 403 en /; la readiness falla 3 veces seguidas (≈ 30 s con los defaults) y el pod deja de estar listo, sin reiniciarse."
+          },
+          {
+            "cmd": "kubectl get endpointslices -n lab-k8s -l kubernetes.io/service-name=web -o jsonpath='{range .items[*].endpoints[*]}{.addresses[0]}{\" ready=\"}{.conditions.ready}{\"\\n\"}{end}'",
+            "expect": "Dos IPs: una con ready=true y otra con ready=false. El Service solo le manda tráfico a la primera."
+          },
+          {
+            "cmd": "kubectl patch service web -n lab-k8s -p '{\"spec\":{\"selector\":{\"app\":\"webb\"}}}'\nkubectl get endpointslices -n lab-k8s -l kubernetes.io/service-name=web\nkubectl run cliente -n lab-k8s --rm -it --restart=Never --image=busybox:1.38 -- wget -qO- -T 5 http://web",
+            "expect": "service/web patched, ENDPOINTS en <unset> y wget falla (conexión rechazada o timeout): el Service existe, pero su selector ya no encuentra pods."
+          },
+          {
+            "cmd": "kubectl delete namespace lab-k8s",
+            "expect": "namespace \"lab-k8s\" deleted."
+          }
+        ],
+        "fix": "Si un Service no responde, mira primero sus endpoints (¿hay IPs listas?). Después compara el selector con las labels de los pods (kubectl get pods --show-labels) y el targetPort con el puerto del contenedor.",
+        "needs": "un cluster local: Kubernetes de Docker Desktop (Dashboard → vista Kubernetes → Create cluster; contexto docker-desktop) o kind, e internet para bajar nginx:1.30-alpine y busybox:1.38",
+        "verified": "docs"
+      },
+      "links": [
+        "#c01.serving",
+        "#m06.alta-disponibilidad",
+        "#ref-comandos.kubectl-basicos",
+        "#c01.archivos"
+      ]
+    }
+  ],
+  "revisor": [
+    {
+      "id": "sin-requests",
+      "severity": "error",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. For every container in podSpec.containers and podSpec.initContainers: effective request of a resource r = resources.requests[r] ?? resources.limits[r] (Kubernetes copies a lone limit into the request). Flag the container if the effective request of 'cpu' or of 'memory' is undefined. Do not flag a resource when the input also has a LimitRange with the same metadata.namespace (missing = '') and a spec.limits[] item of type 'Container' whose defaultRequest[r] or default[r] is set. One finding per container, naming the missing resources.",
+      "message": "Contenedor sin request de CPU o de memoria.",
+      "why": "El scheduler (el que elige nodo) reserva espacio según los requests: sin ellos, el pod puede caer en un nodo ya lleno y es de los primeros en salir si falta memoria. Y un autoscaler por CPU (HPA) no puede calcular su utilización.",
+      "fix": "Declara resources.requests de cpu y memory en cada contenedor, también en los de GPU, como el C01.",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: triton\nspec:\n  containers:\n    - name: triton\n      image: nvcr.io/nvidia/tritonserver:24.08-py3\n      resources:\n        limits:\n          nvidia.com/gpu: 1",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: triton\nspec:\n  containers:\n    - name: triton\n      image: nvcr.io/nvidia/tritonserver:24.08-py3\n      resources:\n        requests:\n          cpu: \"2\"\n          memory: 6Gi\n        limits:\n          memory: 6Gi\n          nvidia.com/gpu: 1"
+    },
+    {
+      "id": "sin-limite-memoria",
+      "severity": "warn",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. For every container in podSpec.containers and podSpec.initContainers: flag it when resources.requests.memory is defined and resources.limits.memory is undefined (when both are missing, sin-requests already reports it). Do not flag when the input has a LimitRange in the same metadata.namespace with a spec.limits[] item of type 'Container' whose default.memory is set.",
+      "message": "Contenedor con request de memoria pero sin límite.",
+      "why": "Sin límite puede crecer hasta llenar el nodo, y entonces el kubelet desaloja pods, a veces vecinos sanos. Con límite igual al request, pasarse es un OOMKilled claro en ese contenedor.",
+      "fix": "Agrega resources.limits.memory igual al request, como el C01 (1Gi en el gateway, 6Gi en Triton).",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  containers:\n    - name: gateway\n      image: classifier-gateway:3f9c2ab\n      resources:\n        requests:\n          cpu: \"1\"\n          memory: 1Gi",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  containers:\n    - name: gateway\n      image: classifier-gateway:3f9c2ab\n      resources:\n        requests:\n          cpu: \"1\"\n          memory: 1Gi\n        limits:\n          memory: 1Gi"
+    },
+    {
+      "id": "sin-readiness",
+      "severity": "error",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet"
+      ],
+      "check": "Pod labels = spec.template.metadata.labels. The workload is behind a Service when the input has a Service with the same metadata.namespace (missing = ''), spec.type other than 'ExternalName', and a non-empty spec.selector map whose every key/value equals the pod labels. Flag such a workload when no entry of spec.template.spec.containers has a readinessProbe. Workloads that no Service in the input selects are not checked (a queue worker like the c04 one needs none).",
+      "message": "Pods detrás de un Service sin readinessProbe.",
+      "why": "Sin readiness, el pod cuenta como listo apenas arranca el contenedor: el Service le manda requests mientras el modelo todavía carga, en cada deploy y en cada scale-up.",
+      "fix": "Agrega una readinessProbe que pase solo con el modelo cargado (/readyz en el gateway, /v2/health/ready en Triton).",
+      "example_bad": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\nspec:\n  selector:\n    matchLabels: { app: gateway }\n  template:\n    metadata:\n      labels: { app: gateway }\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab\n          ports:\n            - { name: http, containerPort: 8080 }\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: gateway\nspec:\n  selector: { app: gateway }\n  ports:\n    - { name: http, port: 8080, targetPort: http }",
+      "example_good": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\nspec:\n  selector:\n    matchLabels: { app: gateway }\n  template:\n    metadata:\n      labels: { app: gateway }\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab\n          ports:\n            - { name: http, containerPort: 8080 }\n          readinessProbe:\n            httpGet: { path: /readyz, port: http }\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: gateway\nspec:\n  selector: { app: gateway }\n  ports:\n    - { name: http, port: 8080, targetPort: http }"
+    },
+    {
+      "id": "imagen-sin-tag",
+      "severity": "error",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. For every container in podSpec.containers and podSpec.initContainers, read image. Flag if image is missing or empty. If image contains '@' (a digest), it is pinned: do not flag. Otherwise take the text after the last '/'; flag if it has no ':' (no tag, so Kubernetes uses latest) or if the text after that ':' is exactly 'latest'. A ':' before the last '/' is a registry port, not a tag (localhost:5000/app has no tag).",
+      "message": "Imagen sin tag o con :latest.",
+      "why": "latest no es una versión: se mueve con cada push, así que no sabes qué corre ni a qué volver en un rollback. Además, sin tag o con :latest el default es imagePullPolicy: Always: en cada arranque se consulta el registry y se bajan las capas que cambiaron.",
+      "fix": "Usa un tag que nunca se reutilice, como el commit (classifier-gateway:3f9c2ab), y en producción también el digest (@sha256:…), como c04, c10 y c13.",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  containers:\n    - name: gateway\n      image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  containers:\n    - name: gateway\n      image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:3f9c2ab"
+    },
+    {
+      "id": "selector-no-coincide",
+      "severity": "error",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet"
+      ],
+      "check": "sel = spec.selector, labels = spec.template.metadata.labels ?? {}. Flag if sel is missing or has neither matchLabels nor matchExpressions. Otherwise every matchLabels pair must equal labels[key], and every matchExpressions item must hold on labels: In (key present and its value in values), NotIn (key absent or value not in values), Exists (key present), DoesNotExist (key absent). Flag if any requirement fails.",
+      "message": "El selector no coincide con las labels del template.",
+      "why": "El API server lo rechaza (selector does not match template labels). Y si el Deployment ya existe, su selector no se puede cambiar (es inmutable en apps/v1): arregla las labels del template.",
+      "fix": "Copia los mismos pares clave: valor del selector en spec.template.metadata.labels (el template puede tener labels de más).",
+      "example_bad": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: gateway\n  template:\n    metadata:\n      labels:\n        app.kubernetes.io/name: gatway\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab",
+      "example_good": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: gateway\n  template:\n    metadata:\n      labels:\n        app.kubernetes.io/name: gateway\n        app.kubernetes.io/part-of: classifier\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab"
+    },
+    {
+      "id": "service-sin-pods",
+      "severity": "warn",
+      "kinds": [
+        "Service"
+      ],
+      "check": "Evaluate only if the input contains at least one workload (Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet, Job, CronJob). For each Service with spec.type other than 'ExternalName' and a non-empty spec.selector map: flag it if no workload in the same metadata.namespace (missing = '') has pod labels containing every key/value of the selector. Pod labels = spec.template.metadata.labels, spec.jobTemplate.spec.template.metadata.labels for CronJob, metadata.labels for Pod. Services without a selector are skipped (their endpoints are managed by hand).",
+      "message": "El selector del Service no encuentra ningún pod en este YAML.",
+      "why": "Un Service sin pods no da error: tiene IP y DNS, pero no tiene endpoints y cada llamada falla. Casi siempre es un typo en una label.",
+      "fix": "Haz que spec.selector coincida con las labels del template; si los pods viven en otro archivo, ignora el aviso.",
+      "example_bad": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: triton\nspec:\n  selector:\n    matchLabels: { app.kubernetes.io/name: triton }\n  template:\n    metadata:\n      labels: { app.kubernetes.io/name: triton }\n    spec:\n      containers:\n        - name: triton\n          image: classifier-triton:2026-09-01-resnet50-fp16\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: triton\nspec:\n  selector: { app.kubernetes.io/name: triton-server }\n  ports:\n    - { name: http, port: 8000 }",
+      "example_good": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: triton\nspec:\n  selector:\n    matchLabels: { app.kubernetes.io/name: triton }\n  template:\n    metadata:\n      labels: { app.kubernetes.io/name: triton }\n    spec:\n      containers:\n        - name: triton\n          image: classifier-triton:2026-09-01-resnet50-fp16\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: triton\nspec:\n  selector: { app.kubernetes.io/name: triton }\n  ports:\n    - { name: http, port: 8000 }"
+    },
+    {
+      "id": "targetport-sin-puerto",
+      "severity": "error",
+      "kinds": [
+        "Service"
+      ],
+      "check": "For each Service with a non-empty spec.selector, collect the workloads in the input it selects (same rule as service-sin-pods); skip the Service if there are none. Candidate ports = ports[] of every container in podSpec.containers of those workloads, plus initContainers with restartPolicy 'Always' (native sidecars). For each item of spec.ports: tp = targetPort ?? port. If tp is a string, flag when no candidate port has name === tp. If tp is a number, flag only when at least one candidate port is declared and none has containerPort === tp (declaring ports is optional, so a pod with none cannot be judged).",
+      "message": "targetPort no coincide con ningún puerto del contenedor.",
+      "why": "Con un nombre que no existe, el pod no entra a los endpoints de ese puerto. Con un número equivocado, el tráfico llega a un puerto donde nadie escucha: connection refused.",
+      "fix": "Nombra el puerto en el contenedor (name: http) y usa ese nombre en targetPort, como el C01.",
+      "example_bad": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\nspec:\n  selector:\n    matchLabels: { app: gateway }\n  template:\n    metadata:\n      labels: { app: gateway }\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab\n          ports:\n            - { name: http, containerPort: 8080 }\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: gateway\nspec:\n  selector: { app: gateway }\n  ports:\n    - { name: http, port: 8080, targetPort: web }",
+      "example_good": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\nspec:\n  selector:\n    matchLabels: { app: gateway }\n  template:\n    metadata:\n      labels: { app: gateway }\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab\n          ports:\n            - { name: http, containerPort: 8080 }\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: gateway\nspec:\n  selector: { app: gateway }\n  ports:\n    - { name: http, port: 8080, targetPort: http }"
+    },
+    {
+      "id": "gpu-sin-toleration",
+      "severity": "info",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. Applies when any container in podSpec.containers or podSpec.initContainers has resources.limits['nvidia.com/gpu'] or resources.requests['nvidia.com/gpu'] > 0. A toleration t tolerates a taint x when (t.key is empty and t.operator === 'Exists') or (t.key === x.key and (t.operator === 'Exists' or ((t.operator ?? 'Equal') === 'Equal' and (t.value ?? '') === (x.value ?? '')))), and t.effect is empty or equals x.effect. How to decide the taints: if the input contains Node objects, GPU nodes are those with status.allocatable['nvidia.com/gpu'] > 0; flag when every GPU node has at least one NoSchedule or NoExecute taint not tolerated by podSpec.tolerations. Otherwise the reviewer cannot see the cluster, so it assumes the usual GPU-pool taint (key nvidia.com/gpu, effect NoSchedule, any value; C01, c04, c10 and c13 use it) and flags when no toleration has (key 'nvidia.com/gpu' with operator Exists or Equal, or empty key with operator Exists) and an effect that is empty or 'NoSchedule'. Always severity info, never an error: in EKS (every platform version) and GKE the ExtendedResourceToleration admission plugin adds the toleration {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule} to every pod that requests nvidia.com/gpu, so such a pod still schedules there. It only bites on clusters without that plugin (it is off by default upstream: kubeadm, kind, Docker Desktop) or when the node taint uses another key.",
+      "message": "Pide GPU sin toleration explícita: en EKS y GKE la agrega un admission plugin; en otros clusters revisa el taint de tus nodos.",
+      "why": "En EKS y GKE, ExtendedResourceToleration (un paso del API server que completa los pods) le agrega sola a cada pod que pide GPU la toleration (el permiso) para el taint nvidia.com/gpu (el veto de los nodos GPU). Sin ese paso (kubeadm, kind) o con un taint de otra key, el pod queda Pending con untolerated taint (desde 1.35 y 1.34.2, sin decir cuál).",
+      "fix": "Para no depender del cluster, declara la toleration como triton.yaml del C01: key nvidia.com/gpu, operator Equal, value present, effect NoSchedule.",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: triton\nspec:\n  containers:\n    - name: triton\n      image: classifier-triton:2026-09-01-resnet50-fp16\n      resources:\n        limits:\n          nvidia.com/gpu: 1",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: triton\nspec:\n  tolerations:\n    - key: nvidia.com/gpu\n      operator: Equal\n      value: present\n      effect: NoSchedule\n  containers:\n    - name: triton\n      image: classifier-triton:2026-09-01-resnet50-fp16\n      resources:\n        limits:\n          nvidia.com/gpu: 1"
+    },
+    {
+      "id": "privilegiado",
+      "severity": "error",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. Flag if any container in podSpec.containers or podSpec.initContainers has securityContext.privileged === true, or securityContext.capabilities.add containing 'ALL' or 'SYS_ADMIN'; or if podSpec.hostNetwork, podSpec.hostPID or podSpec.hostIPC === true.",
+      "message": "Contenedor privilegiado o con acceso al host.",
+      "why": "privileged apaga casi todo el aislamiento: quien tome el proceso controla el nodo, con su GPU y los demás pods. Las reglas mínimas de seguridad de Kubernetes (perfil Baseline de Pod Security) lo prohíben, igual que hostNetwork, hostPID y hostIPC.",
+      "fix": "Quítalo: para usar una GPU alcanza con pedir nvidia.com/gpu, y el device plugin la monta sin privilegios.",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: triton\nspec:\n  containers:\n    - name: triton\n      image: classifier-triton:2026-09-01-resnet50-fp16\n      securityContext:\n        privileged: true",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: triton\nspec:\n  containers:\n    - name: triton\n      image: classifier-triton:2026-09-01-resnet50-fp16\n      securityContext:\n        allowPrivilegeEscalation: false\n        capabilities:\n          drop: [\"ALL\"]"
+    },
+    {
+      "id": "sin-runasnonroot",
+      "severity": "warn",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. For every container in podSpec.containers and podSpec.initContainers: effective runAsNonRoot = container.securityContext.runAsNonRoot ?? podSpec.securityContext.runAsNonRoot; effective runAsUser likewise. Flag the container if effective runAsNonRoot is not true, or if effective runAsUser === 0.",
+      "message": "No exige correr sin root (runAsNonRoot).",
+      "why": "Sin runAsNonRoot, una imagen que arranca como root (las de NVIDIA NGC y vLLM lo hacen por defecto) corre como root sin que nadie lo note. Con el campo, el kubelet se niega a arrancarla (CreateContainerConfigError) en vez de correrla.",
+      "fix": "Pon securityContext.runAsNonRoot: true y un runAsUser numérico en el pod, como el C01 (10001 en el gateway, 1000 en Triton).",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  containers:\n    - name: gateway\n      image: classifier-gateway:3f9c2ab",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  securityContext:\n    runAsNonRoot: true\n    runAsUser: 10001\n  containers:\n    - name: gateway\n      image: classifier-gateway:3f9c2ab"
+    },
+    {
+      "id": "secreto-literal",
+      "severity": "error",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod",
+        "ConfigMap"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. For every container in podSpec.containers and podSpec.initContainers, for each env[] entry with a non-empty string value (entries with valueFrom are fine). Name test: tokens = name upper-cased and split on any non-alphanumeric character; it matches if some token is PASSWORD, PASSWD, SECRET, APIKEY, CREDENTIAL or CREDENTIALS; or the last token is TOKEN or PASS, or PWD with at least one token before it; or two adjacent tokens are API, ACCESS, SECRET, PRIVATE, ENCRYPTION or SIGNING followed by KEY. It does not match if the last token is FILE, PATH, DIR, URL, URI, ENDPOINT, NAME or ARN, or if the value starts with '/' (a file path). Value test: the value matches /^AKIA[0-9A-Z]{16}$/, /^gh[pousr]_[A-Za-z0-9]{36,}$/, /^hf_[A-Za-z0-9]{30,}$/, /^sk-[A-Za-z0-9_-]{20,}$/ or /^xox[abposr]-/, or contains both '-----BEGIN' and 'PRIVATE KEY-----'. Flag the entry if either test matches. For kind ConfigMap, apply both tests to every key/value of data. (TOKEN only counts as the last word so that LLM settings like MAX_TOKEN_LENGTH or TOKEN_LIMIT do not fire.)",
+      "message": "Posible secreto escrito en claro en el YAML (env o ConfigMap).",
+      "why": "El manifest vive en git y se copia a muchos lados: el valor queda en el historial para siempre y lo lee cualquiera que pueda leer el Deployment.",
+      "fix": "Usa valueFrom.secretKeyRef con un Secret creado aparte o, para hablar con AWS, la identidad del pod (IRSA o EKS Pod Identity), que no necesita llaves.",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: descarga\nspec:\n  containers:\n    - name: descarga\n      image: classifier-gateway:3f9c2ab\n      env:\n        - name: HF_TOKEN\n          value: hf_EJEMPLOnoUsarEstoEnProduccion1234",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: descarga\nspec:\n  containers:\n    - name: descarga\n      image: classifier-gateway:3f9c2ab\n      env:\n        - name: HF_TOKEN\n          valueFrom:\n            secretKeyRef:\n              name: hf-token\n              key: token"
+    },
+    {
+      "id": "hostpath",
+      "severity": "warn",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. Flag every entry of podSpec.volumes that has a hostPath field (any path, any type).",
+      "message": "Volumen hostPath: el pod monta una carpeta del nodo.",
+      "why": "El pod lee o escribe el disco del nodo: rompe el aislamiento y lo prohíben las reglas mínimas de seguridad (perfil Baseline de Pod Security). Y si el pod cae en otro nodo, sus datos no lo siguen.",
+      "fix": "Usa emptyDir para temporales (como el /tmp del gateway), un PersistentVolumeClaim para datos que deben durar, o un ConfigMap o Secret para configuración.",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: worker\nspec:\n  containers:\n    - name: worker\n      image: classifier-gateway:3f9c2ab\n      volumeMounts:\n        - { name: datos, mountPath: /data }\n  volumes:\n    - name: datos\n      hostPath:\n        path: /var/data",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: worker\nspec:\n  containers:\n    - name: worker\n      image: classifier-gateway:3f9c2ab\n      volumeMounts:\n        - { name: datos, mountPath: /data }\n  volumes:\n    - name: datos\n      emptyDir:\n        sizeLimit: 1Gi"
+    },
+    {
+      "id": "replicas-con-autoscaler",
+      "severity": "warn",
+      "kinds": [
+        "Deployment",
+        "StatefulSet"
+      ],
+      "check": "Flag a Deployment or StatefulSet that sets spec.replicas (any value) when the input also contains, in the same metadata.namespace (missing = ''), a HorizontalPodAutoscaler whose spec.scaleTargetRef.kind and spec.scaleTargetRef.name equal the workload's kind and metadata.name, or a KEDA ScaledObject (apiVersion keda.sh/v1alpha1) whose spec.scaleTargetRef.name equals the workload's name and whose spec.scaleTargetRef.kind (default 'Deployment') equals its kind.",
+      "message": "replicas fijo en un Deployment que maneja un autoscaler (HPA o KEDA).",
+      "why": "Cada kubectl apply vuelve a poner las réplicas del YAML y pisa lo que decidió el HPA o KEDA. En pleno pico, un deploy te puede bajar de 8 pods a 2.",
+      "fix": "Quita spec.replicas del manifest, como el C01, siguiendo la guía de migración del HPA (kubectl apply edit-last-applied) para no bajar a 1 réplica en el cambio.",
+      "example_bad": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\nspec:\n  replicas: 2\n  selector:\n    matchLabels: { app: gateway }\n  template:\n    metadata:\n      labels: { app: gateway }\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab\n---\napiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: gateway\nspec:\n  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: gateway }\n  minReplicas: 3\n  maxReplicas: 12\n  metrics:\n    - type: Resource\n      resource:\n        name: cpu\n        target: { type: Utilization, averageUtilization: 60 }",
+      "example_good": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\nspec:\n  selector:\n    matchLabels: { app: gateway }\n  template:\n    metadata:\n      labels: { app: gateway }\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab\n---\napiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: gateway\nspec:\n  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: gateway }\n  minReplicas: 3\n  maxReplicas: 12\n  metrics:\n    - type: Resource\n      resource:\n        name: cpu\n        target: { type: Utilization, averageUtilization: 60 }"
+    },
+    {
+      "id": "pdb-bloquea",
+      "severity": "error",
+      "kinds": [
+        "PodDisruptionBudget"
+      ],
+      "check": "Flag if spec.maxUnavailable is 0 or '0%', or spec.minAvailable is '100%'. Then, if spec.minAvailable is set, find the workloads (Deployment, StatefulSet, ReplicaSet) in the same metadata.namespace (missing = '') whose spec.template.metadata.labels satisfy spec.selector (matchLabels and matchExpressions; an empty selector {} matches all). Minimum replicas of each: spec.minReplicas (default 1) of an HPA targeting it; else spec.minReplicaCount (default 0) of a KEDA ScaledObject targeting it; else spec.replicas; if none of these is in the input the count is unknown and that workload is skipped. R = sum over the workloads with a known count; skip if there are none. required = minAvailable if it is an integer, or ceil(p / 100 × R) if it is a percentage 'p%'. Flag if required >= R.",
+      "message": "PodDisruptionBudget que no deja desalojar ningún pod.",
+      "why": "Con cero desalojos (evictions) permitidos, kubectl drain (vaciar un nodo) nunca termina: los upgrades del cluster y la consolidación de nodos se traban o fallan. Y no te protege de nada que no sea voluntario, como la caída de un nodo.",
+      "fix": "Deja al menos un pod desalojable: minAvailable menor que las réplicas mínimas (el C01 usa minAvailable 1 con un mínimo de 2) o maxUnavailable de 1 o más.",
+      "example_bad": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: triton\nspec:\n  replicas: 1\n  selector:\n    matchLabels: { app: triton }\n  template:\n    metadata:\n      labels: { app: triton }\n    spec:\n      containers:\n        - name: triton\n          image: classifier-triton:2026-09-01-resnet50-fp16\n---\napiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: triton\nspec:\n  minAvailable: 1\n  selector:\n    matchLabels: { app: triton }",
+      "example_good": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: triton\nspec:\n  replicas: 2\n  selector:\n    matchLabels: { app: triton }\n  template:\n    metadata:\n      labels: { app: triton }\n    spec:\n      containers:\n        - name: triton\n          image: classifier-triton:2026-09-01-resnet50-fp16\n---\napiVersion: policy/v1\nkind: PodDisruptionBudget\nmetadata:\n  name: triton\nspec:\n  minAvailable: 1\n  selector:\n    matchLabels: { app: triton }"
+    },
+    {
+      "id": "liveness-igual-readiness",
+      "severity": "warn",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. For every container in podSpec.containers with a livenessProbe L: flag if L.httpGet.path contains 'ready' (case-insensitive, e.g. /readyz or /v2/health/ready). Also flag if the container has a readinessProbe R and L equals R after filling defaults (initialDelaySeconds 0, periodSeconds 10, timeoutSeconds 1, failureThreshold 3, httpGet.path '/', httpGet.scheme 'HTTP'), comparing the handler (httpGet path, port, host, scheme; tcpSocket port; grpc port and service; exec command) and those four timing fields. successThreshold and terminationGracePeriodSeconds are ignored.",
+      "message": "La liveness es igual a la readiness, o pregunta por ready.",
+      "why": "La readiness suele mirar dependencias y la carga del modelo. Si la liveness pregunta lo mismo, un Triton lento o caído hace que el kubelet reinicie pods sanos, en cascada y justo en el pico.",
+      "fix": "Liveness barata y local (¿el proceso responde?: /healthz, /v2/health/live); el modelo y las dependencias, solo en la readiness.",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  containers:\n    - name: gateway\n      image: classifier-gateway:3f9c2ab\n      readinessProbe:\n        httpGet: { path: /readyz, port: 8080 }\n      livenessProbe:\n        httpGet: { path: /readyz, port: 8080 }",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  containers:\n    - name: gateway\n      image: classifier-gateway:3f9c2ab\n      readinessProbe:\n        httpGet: { path: /readyz, port: 8080 }\n      livenessProbe:\n        httpGet: { path: /healthz, port: 8080 }"
+    },
+    {
+      "id": "gracia-menor-prestop",
+      "severity": "error",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. G = podSpec.terminationGracePeriodSeconds ?? 30. For every container in podSpec.containers with lifecycle.preStop P, read its duration D: P.sleep.seconds; or N when P.exec.command is ['sleep', N] or ['/bin/sleep', N]; or, when it is [sh | /bin/sh | bash | /bin/bash, '-c', s] and s matches /^\\s*sleep\\s+(\\d+)\\s*$/, that number. Skip containers whose preStop duration cannot be read this way (httpGet, scripts). Flag if D >= G.",
+      "message": "El preStop dura tanto como el plazo de gracia, o más.",
+      "why": "El plazo empieza a correr antes del preStop. Si el preStop se lo come, la app recibe el SIGTERM sin tiempo para terminar lo que tiene en vuelo, o directamente el SIGKILL (137).",
+      "fix": "terminationGracePeriodSeconds ≥ preStop + apagado de la app + margen: 45 = 15 + 20 + 10 en el gateway del C01.",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  containers:\n    - name: gateway\n      image: classifier-gateway:3f9c2ab\n      lifecycle:\n        preStop:\n          exec:\n            command: [\"sleep\", \"30\"]",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: gateway\nspec:\n  terminationGracePeriodSeconds: 45\n  containers:\n    - name: gateway\n      image: classifier-gateway:3f9c2ab\n      lifecycle:\n        preStop:\n          exec:\n            command: [\"sleep\", \"15\"]"
+    },
+    {
+      "id": "namespace-faltante",
+      "severity": "warn",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod",
+        "Service",
+        "Ingress",
+        "ConfigMap",
+        "Secret",
+        "ServiceAccount",
+        "PersistentVolumeClaim",
+        "PodDisruptionBudget",
+        "NetworkPolicy",
+        "HorizontalPodAutoscaler",
+        "Role",
+        "RoleBinding",
+        "ScaledObject",
+        "TriggerAuthentication",
+        "ServiceMonitor",
+        "PodMonitor"
+      ],
+      "check": "Applies to every object in the input whose kind is namespaced (the kinds list is indicative). Cluster-scoped kinds, never flagged nor counted: Namespace, Node, PersistentVolume, StorageClass, CustomResourceDefinition, PriorityClass, IngressClass, RuntimeClass, CSIDriver, CSINode, VolumeAttachment, APIService, MutatingWebhookConfiguration, ValidatingWebhookConfiguration, ValidatingAdmissionPolicy, ValidatingAdmissionPolicyBinding, MutatingAdmissionPolicy, MutatingAdmissionPolicyBinding, VolumeAttributesClass, DeviceClass and ResourceSlice (DRA, used for GPUs), GatewayClass (Gateway API), NodePool and EC2NodeClass (Karpenter), and any kind whose name starts with 'Cluster' (ClusterRole, ClusterRoleBinding, ClusterTriggerAuthentication…). Among the remaining objects, if at least one sets metadata.namespace and at least one does not, flag each object without it.",
+      "message": "Objeto sin namespace cuando los demás del archivo sí lo tienen.",
+      "why": "Sin namespace, kubectl apply lo crea en el namespace de tu contexto (casi siempre default). Ahí el Service no encuentra a sus pods, el PodDisruptionBudget no los protege y nadie lo ve en el namespace correcto.",
+      "fix": "Agrega metadata.namespace igual al de los demás objetos (classifier en el C01), o quítalo de todos y usa kubectl apply -n.",
+      "example_bad": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\n  namespace: classifier\nspec:\n  selector:\n    matchLabels: { app: gateway }\n  template:\n    metadata:\n      labels: { app: gateway }\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: gateway\nspec:\n  selector: { app: gateway }\n  ports:\n    - { name: http, port: 8080 }",
+      "example_good": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\n  namespace: classifier\nspec:\n  selector:\n    matchLabels: { app: gateway }\n  template:\n    metadata:\n      labels: { app: gateway }\n    spec:\n      containers:\n        - name: gateway\n          image: classifier-gateway:3f9c2ab\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: gateway\n  namespace: classifier\nspec:\n  selector: { app: gateway }\n  ports:\n    - { name: http, port: 8080 }"
+    },
+    {
+      "id": "gpu-sin-startup",
+      "severity": "warn",
+      "kinds": [
+        "Deployment",
+        "StatefulSet",
+        "DaemonSet",
+        "ReplicaSet",
+        "Job",
+        "CronJob",
+        "Pod"
+      ],
+      "check": "podSpec = spec for Pod, spec.jobTemplate.spec.template.spec for CronJob, spec.template.spec for the other kinds. For every container in podSpec.containers with resources.limits['nvidia.com/gpu'] or resources.requests['nvidia.com/gpu'] > 0, a livenessProbe L and no startupProbe: compute L.initialDelaySeconds + L.periodSeconds × L.failureThreshold with defaults 0, 10 and 3 (the time liveness tolerates before the first restart). Flag if it is below 300 seconds.",
+      "message": "Contenedor de GPU con liveness pero sin startupProbe.",
+      "why": "Cargar pesos, armar el engine y calentar la GPU tarda minutos, y sin startupProbe la liveness cuenta desde el arranque. Con los defaults, el kubelet lo mata a los ≈ 30 s y el pod entra en CrashLoopBackOff sin haber terminado de cargar.",
+      "fix": "Agrega una startupProbe con failureThreshold × periodSeconds ≥ el peor tiempo de carga (Triton del C01: 60 × 5 s = 5 min).",
+      "example_bad": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: triton\nspec:\n  containers:\n    - name: triton\n      image: classifier-triton:2026-09-01-resnet50-fp16\n      resources:\n        limits:\n          nvidia.com/gpu: 1\n      livenessProbe:\n        httpGet: { path: /v2/health/live, port: 8000 }",
+      "example_good": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: triton\nspec:\n  containers:\n    - name: triton\n      image: classifier-triton:2026-09-01-resnet50-fp16\n      resources:\n        limits:\n          nvidia.com/gpu: 1\n      startupProbe:\n        httpGet: { path: /v2/health/ready, port: 8000 }\n        periodSeconds: 5\n        failureThreshold: 60\n      livenessProbe:\n        httpGet: { path: /v2/health/live, port: 8000 }"
+    }
+  ]
+}

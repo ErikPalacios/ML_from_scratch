@@ -1,7 +1,7 @@
 {
   "name": "cheat-sheets",
   "private": true,
-  "description": "Cheat sheets ML: hojas de estudio (formulario de estimaciones, Docker) con versión web y PDF.",
+  "description": "Cheat sheets ML: hojas de estudio para ML engineering, con versión web y PDF.",
   "scripts": {
     "build": "node tools/build.mjs",
     "check": "node tools/build.mjs && node tools/check.mjs"
