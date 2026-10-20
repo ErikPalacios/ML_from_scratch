@@ -1,7 +1,7 @@
 {
   "name": "Cheat sheets ML",
   "short_name": "Cheat sheets",
-  "description": "Hojas de estudio para ML engineering: formulario de estimaciones y cheat sheet de Docker, con PDF para imprimir.",
+  "description": "Hojas de estudio para ML engineering, con versión web y PDF para imprimir.",
   "lang": "es",
   "start_url": "/",
   "scope": "/",

@@ -1,0 +1,1334 @@
+{
+  "stations": [
+    {
+      "id": "empaquetado",
+      "num": 7,
+      "title": "Empaquetado (Docker)",
+      "question": "¿Cómo se convierten el código y el engine en algo que corre igual en tu máquina, en CI y en el cluster?",
+      "summary": "El C01 empaqueta cada tier en su propia imagen: el gateway (FastAPI, multi-stage sobre <code>python:3.13-slim</code>, ≈ 0.1 GB comprimida) y Triton con <code>config.pbtxt</code> y <code>model.plan</code> <b>horneados</b> (≈ 9.2 GB comprimida). Lo probado es, byte a byte, lo que corre, y desplegar o volver atrás es cambiar un tag. El CI construye la del gateway (estación 8), el pipeline del modelo la de Triton en la T4 (estación 5) y <code>docker compose</code> las prueba juntas en una máquina con GPU.",
+      "in": [
+        "código del gateway y requirements.txt fijado",
+        "model.plan (estación 5) + config.pbtxt (estación 6)"
+      ],
+      "out": [
+        "Dockerfiles probados (gateway y Triton)",
+        "docker-compose.yml que levanta todo en una máquina con GPU"
+      ],
+      "steps": [
+        {
+          "label": "Fijar dependencias",
+          "detail": "requirements.txt con == en las 37 dependencias, transitivas incluidas, y la misma versión de Pillow que el entrenamiento.",
+          "icon": "file",
+          "who": "MLE",
+          "where": "repo, en tu máquina"
+        },
+        {
+          "label": "Dockerfile del gateway",
+          "detail": "Multi-stage: el venv se arma en builder y solo él pasa a runtime; usuario 10001 y un solo proceso uvicorn.",
+          "icon": "code",
+          "who": "MLE",
+          "where": "repo, en tu máquina"
+        },
+        {
+          "label": "Dockerfile de Triton",
+          "detail": "FROM tritonserver:24.08-py3 (mismo YY.MM que el engine) y COPY del model repository; el build falla si falta model.plan.",
+          "icon": "engine",
+          "who": "MLE",
+          "where": "repo; la imagen la construye el pipeline del modelo en la T4 (estación 5)"
+        },
+        {
+          "label": "docker build",
+          "detail": "Para linux/amd64, con tag = commit (gateway) o versión del modelo (Triton); el .dockerignore del gateway deja fuera tests, secretos y modelos.",
+          "icon": "build",
+          "who": "MLE",
+          "where": "tu máquina o una g4dn de desarrollo; las imágenes oficiales salen del CI (gateway) y del pipeline del modelo (Triton)"
+        },
+        {
+          "label": "Probar todo con compose",
+          "detail": "docker compose up --build: Triton con GPU y healthcheck, el gateway espera service_healthy y Prometheus carga las 6 alertas.",
+          "icon": "container",
+          "who": "MLE",
+          "where": "máquina Linux con GPU NVIDIA y NVIDIA Container Toolkit"
+        },
+        {
+          "label": "Revisar peso y capas",
+          "detail": "≈ 0.1 GB el gateway contra ≈ 9.2 GB Triton, comprimidas (lo que baja cada nodo): el pull de Triton es el que alarga el cold start.",
+          "icon": "image",
+          "who": "MLE",
+          "where": "tu máquina"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/gateway/Dockerfile",
+          "real": true,
+          "what": "Etapa runtime del gateway: copia solo el venv de la etapa builder, corre como el UID 10001 y trae un HEALTHCHECK que solo usan docker run y compose.",
+          "excerpt": "# Solo el venv ya resuelto: pip, compiladores y caches de la etapa builder se quedan atrás\nCOPY --from=builder /opt/venv /opt/venv\n# El código queda con dueño root y solo lectura para \"app\": el proceso no puede modificarse\nCOPY app/ ./app/\nUSER 10001\n# Documenta el puerto (no lo publica): el Service de k8s y compose apuntan aquí\nEXPOSE 8080\n# HEALTHCHECK lo usan `docker run`/compose. Kubernetes lo IGNORA: allá mandan liveness/readiness\n# probes. Sin curl en la imagen slim, se usa Python (stdlib) para pegarle a /healthz.\nHEALTHCHECK --interval=10s --timeout=2s --start-period=10s --retries=3 \\\n    CMD [\"python\", \"-c\", \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=1)\"]",
+          "lang": "dockerfile"
+        },
+        {
+          "path": "reference/c01/triton/Dockerfile",
+          "real": true,
+          "what": "Arranque de Triton: carga todo al iniciar y no cambia nada en caliente, muere si el modelo no carga y solo da ready con el modelo listo.",
+          "excerpt": "CMD [\"tritonserver\", \\\n     \"--model-repository=/models\", \\\n     \"--model-control-mode=none\", \\\n     \"--disable-auto-complete-config\", \\\n     \"--exit-on-error=true\", \\\n     \"--strict-readiness=true\", \\\n     \"--http-port=8000\", \\\n     \"--grpc-port=8001\", \\\n     \"--metrics-port=8002\", \\\n     \"--exit-timeout-secs=30\", \\\n     \"--log-format=ISO8601\"]",
+          "lang": "dockerfile"
+        },
+        {
+          "path": "reference/c01/docker-compose.yml",
+          "real": true,
+          "what": "El gateway en compose: la misma configuración por variables de entorno que en Kubernetes, y no arranca hasta que Triton está sano.",
+          "excerpt": "  gateway:\n    build: ./gateway  # imagen multi-stage de gateway/Dockerfile\n    ports:\n      - \"8080:8080\"  # la API pública: POST /v1/classify\n    environment:  # misma configuración que en k8s, solo cambian los valores\n      TRITON_URL: \"triton:8000\"  # nombre del servicio en la red de compose, sin http://\n      MODEL_NAME: \"classifier\"\n      MODEL_VERSION: \"2026-09-01-resnet50-fp16\"  # lo devuelve la API y queda en cada línea de log\n      INFER_TIMEOUT_S: \"0.15\"\n    depends_on:\n      triton:\n        condition: service_healthy  # no arranca hasta que el modelo esté listo (evita 503 al inicio)",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/gateway/.dockerignore",
+          "real": true,
+          "what": "Lo que nunca entra al contexto de build: secretos locales, imágenes de prueba y modelos (el modelo vive en Triton).",
+          "excerpt": "# Secretos locales: jamás dentro de una imagen (se inyectan como env/Secret en runtime)\n.env\n*.pem\n# Imágenes de prueba y modelos en cualquier carpeta (**/): el gateway no los necesita (el modelo vive en Triton)\n**/*.jpg\n**/*.jpeg\n**/*.png\n**/*.onnx\n**/*.plan",
+          "lang": "text"
+        }
+      ],
+      "commands": [
+        {
+          "code": "docker build --platform linux/amd64 -t classifier-gateway:{tag} gateway/",
+          "note": "En un Mac con Apple Silicon <code>--platform</code> es obligatorio: los nodos c6i y g4dn son x86. El tag es el commit."
+        },
+        {
+          "code": "docker build -t classifier-triton:{version_modelo} triton/",
+          "note": "Falla a propósito si falta <code>model.plan</code>: primero <code>build_engine.sh</code> en la T4."
+        },
+        {
+          "code": "docker compose up --build",
+          "note": "Desde <code>reference/c01</code>: gateway, Triton con GPU y Prometheus en una máquina."
+        },
+        {
+          "code": "curl -s -H \"Content-Type: image/jpeg\" --data-binary @{foto} \"localhost:8080/v1/classify?top_k=5\"",
+          "note": "La prueba de punta a punta: top-5 con <code>model_version</code>."
+        },
+        {
+          "code": "docker history classifier-gateway:{tag}",
+          "note": "Una fila por capa: encuentra la que infló la imagen."
+        },
+        {
+          "code": "docker buildx imagetools inspect --format '{{json .Image}}' {registry}/classifier-gateway:{tag}",
+          "note": "Antes de desplegar: el config tiene que decir <code>\"architecture\": \"amd64\"</code>. Sin <code>--format</code>, una imagen de una sola plataforma no muestra la suya."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "En EKS el pod muere con exec format error (CrashLoopBackOff) o el pull falla con no match for platform in manifest.",
+          "cause": "La imagen se construyó en un Mac con Apple Silicon: salió arm64 y los nodos son x86.",
+          "check": "docker buildx imagetools inspect --format '{{json .Image}}' {registry}/classifier-gateway:{tag}: ¿dice \"architecture\": \"amd64\"?"
+        },
+        {
+          "symptom": "docker build triton/ se detiene en RUN test -f /models/classifier/1/model.plan.",
+          "cause": "Falta el engine: model.plan no se versiona en git y lo genera build_engine.sh en la T4.",
+          "check": "ls triton/model_repository/classifier/1/ y, si está vacío, bash model/build_engine.sh en la g4dn."
+        },
+        {
+          "symptom": "Editas solo main.py y el build reinstala todas las dependencias.",
+          "cause": "COPY . . antes de pip install: la caché de capas se rompe hacia abajo.",
+          "check": "docker history: requirements.txt tiene que copiarse e instalarse antes de COPY app/."
+        },
+        {
+          "symptom": "Pod en CreateContainerConfigError: container has runAsNonRoot and image will run as root.",
+          "cause": "El pod exige runAsNonRoot y la imagen corre como root (la de NGC lo hace por defecto) o no declara un UID numérico.",
+          "check": "kubectl describe pod {pod}: USER 10001 en el Dockerfile del gateway y runAsUser: 1000 para Triton."
+        },
+        {
+          "symptom": "En compose el gateway da 503 al arrancar, o Triton avisa WARNING: The NVIDIA Driver was not detected.",
+          "cause": "depends_on sin condition: service_healthy, o el servicio de Triton sin la reserva de GPU (deploy.resources.reservations.devices).",
+          "check": "docker compose ps (Triton en health: starting) y docker compose logs -f triton."
+        }
+      ],
+      "done": [
+        "Las dos imágenes se construyen para linux/amd64, y la del gateway no lleva tests, secretos ni modelos.",
+        "El gateway corre como UID 10001 con un solo proceso uvicorn y /healthz responde 200.",
+        "La imagen de Triton trae config.pbtxt y model.plan, y su tag es la versión del modelo.",
+        "docker compose up --build devuelve un top-5 en /v1/classify y localhost:9090/alerts muestra las 6 alertas.",
+        "Sabes cuánto pesa cada imagen comprimida: ≈ 0.1 GB el gateway y ≈ 9.2 GB Triton."
+      ],
+      "memo": "Cómo recordarla: <b>receta → imagen → contenedor</b>. El <code>Dockerfile</code> es la receta, la imagen es el resultado inmutable (su digest es su identidad) y el contenedor es el proceso que corre a partir de ella; lo que cambia poco va arriba en la receta y lo que cambia en cada commit, abajo.",
+      "trap": "Trampa: creer que el <code>HEALTHCHECK</code> del Dockerfile cuida al pod. Lo usan <code>docker run</code> y compose; Kubernetes lo ignora y manda con las probes del manifest (estación 9).",
+      "platforms": [
+        "docker"
+      ],
+      "links": [
+        "#m05.dockerfile-ml",
+        "#m05.compose-local",
+        "#m05.tamano",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "cicd",
+      "num": 8,
+      "title": "CI/CD y registro de imágenes",
+      "question": "¿Cómo llega un commit a una imagen probada, inmutable y lista para desplegar?",
+      "summary": "Cada commit pasa por CI: los 24 tests del gateway corren sin GPU y su imagen se construye <b>una sola vez</b> para <code>linux/amd64</code> y sube a ECR, donde los tags no se mueven. La de Triton la arma el pipeline del modelo en la T4 antes de registrar la versión (estación 5), con la versión del modelo como tag; M10 describe la variante en que CD la construye después del registry. Desde el push todo habla del <b>digest</b>: se escanea, se firma y staging y producción despliegan el mismo.",
+      "in": [
+        "commit con código, Dockerfiles y manifests",
+        "imagen de Triton del pipeline del modelo (estación 5)"
+      ],
+      "out": [
+        "imagen en ECR (tag inmutable + digest)",
+        "digest firmado listo para desplegar"
+      ],
+      "steps": [
+        {
+          "label": "Commit y pull request",
+          "detail": "El hash corto del commit (3f9c2ab) será el tag del gateway: desde un pod en producción llegas al código exacto.",
+          "icon": "version",
+          "who": "MLE",
+          "where": "tu máquina → GitHub"
+        },
+        {
+          "label": "Tests sin GPU",
+          "detail": "pytest corre los 24 tests del gateway contra un Triton falso; el curso suma un test de tensores de referencia del preprocesamiento.",
+          "icon": "test",
+          "who": "automático (CI)",
+          "where": "runner de CI en CPU"
+        },
+        {
+          "label": "Build del gateway y push",
+          "detail": "docker buildx build --platform linux/amd64 --push: la imagen sube una sola vez a un repo de ECR con tags inmutables.",
+          "icon": "push",
+          "who": "automático (CI)",
+          "where": "runner de CI → Amazon ECR"
+        },
+        {
+          "label": "Llega la imagen de Triton",
+          "detail": "Solo con un modelo nuevo: el pipeline la arma en la T4 (build_engine.sh → docker build triton/ → paridad --backend triton) y la sube con la versión como tag.",
+          "icon": "gpu",
+          "who": "automático (pipeline)",
+          "where": "runner con T4 (g4dn.xlarge) → Amazon ECR"
+        },
+        {
+          "label": "Digest, escaneo y firma",
+          "detail": "Cada push devuelve un digest sha256: el escáner busca CVEs y cosign firma ese digest.",
+          "icon": "lock",
+          "who": "automático (CI)",
+          "where": "Amazon ECR y runner de CI"
+        },
+        {
+          "label": "Apuntar los manifests",
+          "detail": "El manifest del gateway pasa al tag nuevo (mejor aún, al digest) con un PR al repo de manifests (GitOps) o kubectl set image; un modelo nuevo sigue la escalera de la estación 10.",
+          "icon": "image-registry",
+          "who": "automático (CD)",
+          "where": "repo de manifests → EKS"
+        }
+      ],
+      "files": [
+        {
+          "path": ".github/workflows/ (workflow de CI)",
+          "real": false,
+          "what": "El curso propone GitHub Actions (o el CI que ya use la empresa) con credenciales OIDC de corta vida hacia AWS: tests en cada commit, build único y push. El repo de referencia no trae el workflow."
+        },
+        {
+          "path": "reference/c01/gateway/tests/test_api.py",
+          "real": true,
+          "what": "Los tests que corre el CI: un Triton falso con el contrato real del cliente, así detectan si cambia el nombre, el shape o el dtype del tensor.",
+          "excerpt": "\"\"\"Tests del gateway SIN GPU ni Triton: un cliente falso reemplaza a tritonclient (caso c01).\n\nPor qué un fake y no un mock genérico: el fake respeta el contrato real del cliente aio (mismos\nmétodos async, mismas excepciones) y el gateway sigue construyendo InferInput/InferRequestedOutput\nREALES, así que el test detecta si alguien cambia el nombre, shape o dtype del tensor.\nCorrer: cd gateway && pytest\n\"\"\"",
+          "lang": "python"
+        },
+        {
+          "path": "reference/c01/README.md",
+          "real": true,
+          "what": "El orden real del C01: en la máquina con T4 se construyen el engine y la imagen de Triton, se levanta Triton con esa imagen y solo con la paridad aprobada la versión pasa al registry y al canary.",
+          "excerpt": "checkpoint .pt ──export_onnx.py──▶ classifier.onnx ──parity_check.py (ORT, CPU)──▶ ¿pasa?\n      └─ en la máquina con T4: build_engine.sh ──▶ model.plan ──docker build triton/──▶ imagen\n         └─ Triton arriba ──parity_check.py --backend triton (FP16 vs FP32)──▶ ¿pasa? ──▶ registry / canary",
+          "lang": "text"
+        },
+        {
+          "path": "release.sh (M5 · registries)",
+          "real": false,
+          "what": "Script de ejemplo del curso: buildx con tag = commit y --push a ECR, digest con crane, firma keyless con cosign y kubectl set image por digest. No está en reference/c01."
+        },
+        {
+          "path": "reference/c01/k8s/gateway.yaml",
+          "real": true,
+          "what": "Lo que consume el cluster: la imagen de ECR con el commit como tag inmutable, nunca :latest.",
+          "excerpt": "        - name: gateway\n          # Tag = commit de git (inmutable); nunca :latest (no sabrías qué versión corre ni cómo volver)\n          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:3f9c2ab",
+          "lang": "yaml"
+        }
+      ],
+      "commands": [
+        {
+          "code": "cd reference/c01/gateway && pip install -r requirements-dev.txt && pytest",
+          "note": "24 tests sin GPU ni Triton: lo primero que corre el CI."
+        },
+        {
+          "code": "aws ecr get-login-password --region {region} | docker login --username AWS --password-stdin {registry}",
+          "note": "Login a ECR; el token dura 12 h. En CI, con un rol asumido por OIDC, sin llaves guardadas."
+        },
+        {
+          "code": "docker buildx build --platform linux/amd64 -t {registry}/classifier-gateway:{sha} --push gateway/",
+          "note": "Build único, para la arquitectura de los nodos; <code>{sha}</code> sale de <code>git rev-parse --short HEAD</code>."
+        },
+        {
+          "code": "crane digest {registry}/classifier-gateway:{sha}",
+          "note": "El digest es la identidad: es lo que se firma y se despliega."
+        },
+        {
+          "code": "cosign sign --yes {registry}/classifier-gateway@{digest}",
+          "note": "Firma keyless con la identidad OIDC del CI."
+        },
+        {
+          "code": "kubectl -n classifier set image deployment/gateway gateway={registry}/classifier-gateway@{digest}",
+          "note": "Despliegue por digest; con GitOps ese valor va en un PR al repo de manifests."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "El push a ECR falla con ImageTagAlreadyExistsException.",
+          "cause": "El repo tiene tags inmutables y el CI intentó subir otra imagen con un tag que ya existe (un :latest o un commit reconstruido).",
+          "check": "El tag sale de git rev-parse --short HEAD de un commit nuevo: nunca se reusa ni se mueve."
+        },
+        {
+          "symptom": "Staging pasó todo, pero producción se comporta distinto.",
+          "cause": "Se reconstruyó la imagen para producción: otra base, otras transitivas, otro digest.",
+          "check": "Compara el digest que corre en cada entorno (el imageID de sus pods) con el de crane digest; promover es apuntar al mismo."
+        },
+        {
+          "symptom": "Después del deploy, Triton queda en CrashLoopBackOff con Exit Code 1.",
+          "cause": "La imagen se armó fuera del pipeline del modelo (engine de otra GPU o de otro YY.MM de NGC) y nadie levantó Triton con ella antes de registrarla.",
+          "check": "kubectl logs {pod} -n classifier --previous; el arreglo va al pipeline que construye el engine y la imagen."
+        },
+        {
+          "symptom": "Los pods nuevos quedan en ImagePullBackOff: Failed to pull image …/classifier-gateway… not found.",
+          "cause": "El tag que pide el manifest no está en ECR: el build o el push de CI falló (o no corrió) y el manifest se actualizó igual. Menos seguido: nodos sin permiso de lectura o una imagen sin linux/amd64.",
+          "check": "aws ecr describe-images --repository-name classifier-gateway --image-ids imageTag={tag}; si no existe, revisa el job de CI de ese commit."
+        },
+        {
+          "symptom": "Quieres hacer rollback y la imagen anterior ya no está en ECR.",
+          "cause": "Una lifecycle policy por antigüedad (más de 30 días) borró la release estable.",
+          "check": "La lifecycle policy cuenta releases (conserva las últimas N) y nunca toca lo desplegado."
+        }
+      ],
+      "done": [
+        "pytest pasa los 24 tests del gateway en cada commit, sin GPU.",
+        "Cada imagen se construyó una sola vez (el gateway en CI, Triton en el pipeline del modelo), con tag = commit o versión del modelo, en repos de ECR con tags inmutables.",
+        "La imagen de Triton llegó del pipeline del modelo, construida en la T4 y con la paridad FP16 contra PyTorch aprobada sobre esa misma imagen.",
+        "El digest está escaneado y firmado, y staging y producción apuntan a ese mismo digest.",
+        "La lifecycle policy conserva las últimas releases: el rollback siempre tiene a dónde volver."
+      ],
+      "memo": "Cómo recordarla: <b>build once, promote the digest</b>. Cada imagen se construye una sola vez (el gateway en CI, Triton en el pipeline del modelo); el tag dice de dónde salió (commit o versión del modelo) y el digest dice qué bytes corren en cada entorno.",
+      "trap": "Trampa: <code>:latest</code> o reconstruir para producción. Con un tag que se mueve no sabes qué versión corre ni a cuál volver, y reconstruir el mismo commit produce otra imagen con otro digest.",
+      "platforms": [
+        "git",
+        "github-actions",
+        "pytest",
+        "ecr"
+      ],
+      "links": [
+        "#m10.ci-cd",
+        "#m05.registries",
+        "#ref-herramientas.infra-ci-seguridad",
+        "#m15.supply-chain"
+      ]
+    },
+    {
+      "id": "kubernetes",
+      "num": 9,
+      "title": "Kubernetes",
+      "question": "¿Quién decide dónde corre cada pod, cuántos hay y cómo les llega el tráfico?",
+      "summary": "En EKS el C01 corre dos Deployments: el gateway en nodos de CPU (3–12 pods, HPA por CPU) y Triton en nodos <code>g4dn.xlarge</code>, una T4 por pod (2–4 pods, KEDA por tiempo en cola), repartidos entre las dos zonas. Tú escribes en YAML el estado deseado; Kubernetes <b>reconcilia</b> sin parar (compara lo pedido con lo que corre y corrige la diferencia): agenda cada pod donde cabe, lo reinicia si muere y lo saca del balanceo si no está listo. A partir del Ingress, el AWS Load Balancer Controller crea el ALB.",
+      "in": [
+        "imagen en ECR (tag + digest)",
+        "manifests k8s/*.yaml"
+      ],
+      "out": [
+        "pods listos detrás del ALB interno",
+        "HPA y ScaledObject escalando solos"
+      ],
+      "steps": [
+        {
+          "label": "Preparar el cluster",
+          "detail": "EKS con node group g4dn.xlarge (label workload=gpu-t4 y taint nvidia.com/gpu), device plugin, Load Balancer Controller, KEDA y Prometheus.",
+          "icon": "cluster",
+          "who": "plataforma/SRE",
+          "where": "Amazon EKS (IaC y Helm)"
+        },
+        {
+          "label": "Escribir los manifests",
+          "detail": "YAML con el estado deseado: Deployments, Services, HPA, ScaledObject, Ingress, PodDisruptionBudget, NetworkPolicy y ServiceMonitors.",
+          "icon": "file",
+          "who": "MLE",
+          "where": "repo (k8s/*.yaml)"
+        },
+        {
+          "label": "kubectl apply",
+          "detail": "Namespace classifier con el readiness gate del ALB y apply de los 4 archivos: el API server guarda lo que pediste.",
+          "icon": "code",
+          "who": "MLE",
+          "where": "tu terminal → API server de EKS"
+        },
+        {
+          "label": "Agendar y arrancar pods",
+          "detail": "El scheduler pone cada Triton en una T4 libre, repartidos entre zonas; el kubelet baja la imagen y corre startup, readiness y liveness.",
+          "icon": "pod",
+          "who": "automático (Kubernetes)",
+          "where": "nodos g4dn.xlarge (T4) y nodos de CPU"
+        },
+        {
+          "label": "Exponer con Service e Ingress",
+          "detail": "Services ClusterIP para el gateway y para Triton (este con ruteo por zona); el Load Balancer Controller crea el ALB interno con target-type ip.",
+          "icon": "balancer",
+          "who": "automático (Kubernetes)",
+          "where": "EKS y ALB de AWS"
+        },
+        {
+          "label": "Escalar solo",
+          "detail": "HPA del gateway por CPU al 60 % (3–12 pods) y KEDA para Triton por tiempo en cola con objetivo de 10 ms (2–4 pods).",
+          "icon": "autoscale",
+          "who": "automático (Kubernetes)",
+          "where": "control plane de EKS, KEDA y Karpenter para los nodos"
+        },
+        {
+          "label": "Reconciliar siempre",
+          "detail": "Si un pod muere o cae un nodo, los controladores lo recrean; la readiness saca del balanceo al pod que no está listo.",
+          "icon": "server",
+          "who": "automático (Kubernetes)",
+          "where": "control plane de EKS y kubelet de cada nodo"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/README.md",
+          "real": true,
+          "what": "Lo que plataforma deja listo antes del primer apply: device plugin, nodos T4 con label y taint, Load Balancer Controller, KEDA, Prometheus y un CNI que aplique NetworkPolicy.",
+          "excerpt": "Prerequisitos del cluster: NVIDIA device plugin, node group de `g4dn.xlarge` con label\n`workload=gpu-t4` y taint `nvidia.com/gpu=present:NoSchedule`, AWS Load Balancer Controller, KEDA,\nPrometheus (kube-prometheus-stack, con kube-state-metrics), un CNI que aplique NetworkPolicy (VPC CNI\ncon `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.34 por\n`trafficDistribution: PreferSameZone` (en 1.31–1.33 cámbialo por `PreferClose`).",
+          "lang": "text"
+        },
+        {
+          "path": "reference/c01/k8s/triton.yaml",
+          "real": true,
+          "what": "Adónde va Triton: solo a nodos T4 (label workload=gpu-t4) y con permiso para el taint que aleja a los pods de CPU; 60 s para apagarse.",
+          "excerpt": "    spec:\n      # Tiempo total para apagar: preStop (10 s) + --exit-timeout-secs de Triton (30 s) + margen\n      terminationGracePeriodSeconds: 60\n      nodeSelector:\n        workload: gpu-t4  # solo el node group de g4dn.xlarge (T4, sm_75): el engine se compiló para esa GPU\n      tolerations:\n        # Los nodos GPU tienen el taint nvidia.com/gpu=present:NoSchedule para que ningún pod CPU\n        # (gateway, sistema) ocupe una máquina cara; Triton lo tolera explícitamente.\n        - key: nvidia.com/gpu\n          operator: Equal\n          value: present\n          effect: NoSchedule",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/k8s/gateway.yaml",
+          "real": true,
+          "what": "Readiness del gateway: recibe tráfico solo si el modelo está listo en Triton. La liveness (/healthz) no mira a Triton.",
+          "excerpt": "          # readiness: ¿mandarle tráfico? /readyz = modelo listo en Triton (ver main.py)\n          readinessProbe:\n            httpGet:\n              path: /readyz\n              port: http\n            periodSeconds: 5\n            timeoutSeconds: 2\n            failureThreshold: 2",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/k8s/keda-triton.yaml",
+          "real": true,
+          "what": "El trigger de KEDA: espera media en la cola de Triton en ms contra un objetivo de 10; una query vacía es un error visible, no un 0.",
+          "excerpt": "        ignoreNullValues: \"false\"\n        # Espera media en cola en ms (misma fórmula que la alerta TritonQueueTimeHigh).\n        # clamp_min evita 0/0 = NaN sin tráfico; si todo falla (0 éxitos) el valor se dispara y escala.\n        query: |\n          sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[2m]))\n            /\n          clamp_min(sum(rate(nv_inference_request_success{model=\"classifier\"}[2m])), 1e-9)\n            / 1000\n        # Objetivo: 10 ms en cola. Normal con max_queue_delay de 2 ms es ≈ 1–3 ms; > 10 ms es saturación.\n        # Ojo: la cola es no lineal (casi 0 hasta que la GPU se satura). Alternativa más estable:\n        # AverageValue sobre sum(rate(nv_inference_count[1m])) con umbral ≈ 400 img/s por réplica.\n        threshold: \"10\"",
+          "lang": "yaml"
+        }
+      ],
+      "commands": [
+        {
+          "code": "kubectl create namespace classifier",
+          "note": "Una vez por cluster."
+        },
+        {
+          "code": "kubectl label namespace classifier elbv2.k8s.aws/pod-readiness-gate-inject=enabled",
+          "note": "Readiness gate del ALB: el rolling update no mata un pod viejo hasta que el ALB ve sano al nuevo."
+        },
+        {
+          "code": "kubectl apply -f k8s/triton.yaml -f k8s/keda-triton.yaml -f k8s/gateway.yaml -f k8s/monitoring.yaml",
+          "note": "Declarativo: guardas el estado deseado y los controladores hacen el resto."
+        },
+        {
+          "code": "kubectl get pods -n classifier -o wide",
+          "note": "Fase, READY, reinicios y nodo: ¿un Triton por zona?"
+        },
+        {
+          "code": "kubectl describe pod {pod} -n classifier",
+          "note": "Primera parada si algo no arranca: los Events del final dicen por qué."
+        },
+        {
+          "code": "kubectl get nodes -L node.kubernetes.io/instance-type,topology.kubernetes.io/zone,workload",
+          "note": "Tipo, zona y label <code>workload=gpu-t4</code> de cada nodo."
+        },
+        {
+          "code": "kubectl get hpa -n classifier",
+          "note": "El HPA del gateway y <code>keda-hpa-triton</code>, con su métrica actual contra el objetivo."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "Pod de Triton en Pending: 0/6 nodes are available: 2 Insufficient nvidia.com/gpu, …",
+          "cause": "Todas las T4 están ocupadas y el nodo nuevo no llega: tope del node group, cuota de vCPU de instancias G o sin capacidad en la zona.",
+          "check": "kubectl describe pod {pod} -n classifier y los eventos del autoscaler de nodos (Karpenter o Cluster Autoscaler)."
+        },
+        {
+          "symptom": "Pending con node(s) had untolerated taint(s) o didn't match Pod's node affinity/selector.",
+          "cause": "Falta la toleration de nvidia.com/gpu o ningún nodo tiene la label workload=gpu-t4.",
+          "check": "kubectl describe node {nodo} (bloque Taints) y kubectl get nodes -L workload."
+        },
+        {
+          "symptom": "El nodo GPU existe, pero su capacidad no muestra nvidia.com/gpu.",
+          "cause": "El NVIDIA device plugin no corre en ese nodo (o falló el driver): para Kubernetes no hay GPU.",
+          "check": "kubectl get ds -A | grep -i nvidia y los logs de ese DaemonSet."
+        },
+        {
+          "symptom": "La cola de Triton sube y KEDA no escala; el ScaledObject marca READY en False.",
+          "cause": "Prometheus no scrapea Triton (falta el ServiceMonitor): la query vuelve vacía y, con ignoreNullValues en false, es un error.",
+          "check": "kubectl describe scaledobject triton -n classifier (eventos KEDAScalerFailed)."
+        },
+        {
+          "symptom": "Los gateways reinician bajo carga: Liveness probe failed … context deadline exceeded.",
+          "cause": "Liveness con un timeout corto contra un proceso saturado, o una liveness que revisa dependencias.",
+          "check": "kubectl describe pod {pod} -n classifier; la liveness solo mira el proceso y las dependencias van en la readiness."
+        }
+      ],
+      "done": [
+        "kubectl get pods -o wide muestra 2 Triton READY en nodos de zonas distintas y al menos 3 gateways.",
+        "Los nodos GPU anuncian nvidia.com/gpu: 1, tienen el taint y ningún gateway corre en ellos.",
+        "kubectl get hpa muestra el HPA del gateway y keda-hpa-triton con métricas reales, sin unknown.",
+        "El Ingress tiene la dirección del ALB interno y sus targets pasan el health check en /readyz.",
+        "Los ServiceMonitors existen y las alertas cargaron como PrometheusRule."
+      ],
+      "memo": "Cómo recordarla: en Kubernetes <b>declaras, no ejecutas</b>. Escribes en YAML el estado deseado (imagen, réplicas, recursos, probes) y los controladores trabajan sin parar para que el cluster se parezca a eso, como un termostato.",
+      "trap": "Trampa: poner una dependencia en la liveness. Si <code>/healthz</code> preguntara por Triton, una caída de Triton reiniciaría en cascada gateways sanos; la dependencia va en la readiness (<code>/readyz</code>), que solo saca al pod del balanceo.",
+      "platforms": [
+        "kubernetes",
+        "gpu-k8s",
+        "autoscaling",
+        "alb",
+        "triton"
+      ],
+      "links": [
+        "#m06.objetos-basicos",
+        "#m06.gpus-k8s",
+        "#m06.hpa",
+        "#m06.keda",
+        "#m06.alta-disponibilidad",
+        "#ref-comandos.depurar"
+      ]
+    },
+    {
+      "id": "rollout",
+      "num": 10,
+      "title": "Rollout seguro",
+      "question": "¿Cómo cambias de modelo sin que nadie pague el error, y cómo vuelves atrás?",
+      "summary": "En el C01, desplegar una versión registrada es cambiar el tag de la imagen en los manifests, pero un modelo nuevo no entra con un simple rolling update: la release es un par <b>gateway vN + Triton vN</b> con su propio Service, que pasa por shadow (1–2 días), canary 5 % → 25 % → 100 % con rollback automático y, si el cambio es grande, un A/B por vendedor. Al promover, el alias champion se mueve en MLflow y la release anterior queda viva 24–48 h: volver es un cambio de ruteo de segundos, no un redeploy.",
+      "in": [
+        "challenger en MLflow (alias challenger)",
+        "imagen de Triton vN en ECR"
+      ],
+      "out": [
+        "versión nueva al 100 % (alias champion)",
+        "release anterior viva 24–48 h para el rollback"
+      ],
+      "steps": [
+        {
+          "label": "Release vN sin tráfico",
+          "detail": "Los manifests pasan al tag de la versión registrada (ya en ECR): Triton vN con su Service triton-vN y un gateway vN que solo habla con él, todavía sin tráfico.",
+          "icon": "image-registry",
+          "who": "automático (CD)",
+          "where": "repo de manifests → EKS, con una T4 extra"
+        },
+        {
+          "label": "Shadow 1–2 días",
+          "detail": "El gateway copia de forma asíncrona una muestra al challenger y solo loguea: acuerdo con el champion, p99, errores y distribución.",
+          "icon": "monitor",
+          "who": "automático (gateway)",
+          "where": "gateway y Triton challenger en su propia T4"
+        },
+        {
+          "label": "Canary al 5 %",
+          "detail": "Pesos en el ALB (o Argo Rollouts): 5 % de los requests durante horas, incluido un pico diurno.",
+          "icon": "rollout",
+          "who": "automático (CD)",
+          "where": "ALB (target groups con peso)"
+        },
+        {
+          "label": "Análisis contra el estable",
+          "detail": "5xx > 0.5 %, p99 > 200 ms o 1.2× el estable, baja confianza > 1.5×, PSI > 0.1: el peso vuelve solo al estable.",
+          "icon": "alert",
+          "who": "automático (CD)",
+          "where": "Argo Rollouts o el pipeline de CD, con queries a Prometheus en la misma ventana"
+        },
+        {
+          "label": "25 % y, si aplica, A/B",
+          "detail": "Horas al 25 %; si el cambio es grande, A/B por vendedor de 1–2 semanas con el header X-Model-Arm y una regla del ALB.",
+          "icon": "chart",
+          "who": "MLE",
+          "where": "ALB y backend de publicación"
+        },
+        {
+          "label": "Promover y dejar el bake",
+          "detail": "Una persona aprueba el 100 %, el alias champion se mueve en MLflow y la release anterior queda viva 24–48 h.",
+          "icon": "registry",
+          "who": "MLE",
+          "where": "MLflow y EKS"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/k8s/triton.yaml",
+          "real": true,
+          "what": "El tag de la imagen es la versión del modelo; un canary o un A/B es otra release con su propio Service (triton-vN), nunca dos modelos detrás del mismo Service.",
+          "excerpt": "          # Tag = versión del modelo (imagen horneada). Rollback de emergencia = volver al tag anterior. Un canary\n          # o un A/B es otra release (Deployment + Service triton-<versión>): este Service nunca debe mezclar dos modelos\n          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-triton:2026-09-01-resnet50-fp16",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/k8s/gateway.yaml",
+          "real": true,
+          "what": "El rolling update del gateway cuando cambia el código: pods nuevos antes de bajar los viejos y nunca menos capacidad.",
+          "excerpt": "  # Sin \"replicas\": las decide el HPA de abajo (3–12)\n  revisionHistoryLimit: 5\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 25%  # pods nuevos antes de bajar viejos\n      maxUnavailable: 0  # capacidad completa durante todo el deploy",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/triton/model_repository/classifier/config.pbtxt",
+          "real": true,
+          "what": "Una sola versión por imagen: el rollback es volver a desplegar la imagen anterior, no cargar dos modelos en la misma GPU.",
+          "excerpt": "# Solo la versión más nueva del directorio. Con la imagen \"horneada\" hay una sola versión; el\n# rollback es volver a desplegar la imagen anterior, no cargar dos versiones en la misma GPU.\nversion_policy: { latest: { num_versions: 1 } }",
+          "lang": "protobuf"
+        },
+        {
+          "path": "rollout.yaml + analysis.yaml (M11 · canary)",
+          "real": false,
+          "what": "Ejemplo del curso para el gateway de C01 con Argo Rollouts: setWeight 5 → pausa de 4 h → 25 → pausa manual → 100, y un AnalysisTemplate que aborta si el canary pasa de 0.5 % de 5xx o si su baja confianza supera 1.5× la del estable. No está en reference/c01."
+        },
+        {
+          "path": "Regla del listener del ALB para el A/B (C01 · evaluación)",
+          "real": false,
+          "what": "El backend asigna el brazo con un hash del seller_id y lo manda en X-Model-Arm; una regla con condición http-header lleva cada brazo al target group de su release. Descrita en el caso, sin archivo en el repo."
+        }
+      ],
+      "commands": [
+        {
+          "code": "kubectl diff -f k8s/triton.yaml",
+          "note": "Qué cambiaría antes de aplicar (exit 1 = hay diferencias)."
+        },
+        {
+          "code": "kubectl rollout status deploy/triton -n classifier --timeout=25m",
+          "note": "Espera el rollout: cada pod de Triton puede tardar minutos (nodo, imagen, engine)."
+        },
+        {
+          "code": "kubectl argo rollouts promote gateway -n classifier",
+          "note": "Con Argo Rollouts: sale de la pausa manual del canary."
+        },
+        {
+          "code": "kubectl argo rollouts abort gateway -n classifier",
+          "note": "Devuelve el tráfico al estable; el Rollout queda <code>Degraded</code> hasta que el template vuelva a la versión anterior (con GitOps, un revert)."
+        },
+        {
+          "code": "kubectl rollout undo deploy/triton -n classifier",
+          "note": "Vuelve al ReplicaSet anterior: el tag anterior es el modelo anterior. Con GitOps, un revert en git."
+        },
+        {
+          "code": "kubectl rollout history deploy/triton -n classifier",
+          "note": "Revisiones guardadas para volver: el C01 conserva 5."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "El deploy de Triton lleva más de 15 min con un pod Pending y rollout status falla con ProgressDeadlineExceeded.",
+          "cause": "Con maxSurge 1 y maxUnavailable 0, el pod nuevo necesita una T4 libre y el nodo no llegó (capacidad, cuota o límite del NodePool). Kubernetes no revierte solo.",
+          "check": "kubectl describe pod {pod} -n classifier (Insufficient nvidia.com/gpu) y los eventos de Karpenter; los pods viejos siguen sirviendo."
+        },
+        {
+          "symptom": "Con 2 pods estables y 1 canary, el canary recibe cerca de un tercio del tráfico en vez del 5 %.",
+          "cause": "Sin trafficRouting, Argo Rollouts aproxima el peso con el número de réplicas.",
+          "check": "Configura trafficRouting con el ALB para que el peso lo ponga el balanceador; kubectl argo rollouts get rollout gateway -n classifier."
+        },
+        {
+          "symptom": "En cada deploy del gateway aparecen 502 o 503 sueltos durante unos segundos.",
+          "cause": "El pod recibe SIGTERM mientras el ALB todavía le manda requests: falta el preStop, o el grace period no alcanza para preStop + drenado.",
+          "check": "preStop sleep 15 (gateway.yaml) + --timeout-graceful-shutdown 20 (Dockerfile) + margen ≤ terminationGracePeriodSeconds 45, y drenado del target group de 30 s."
+        },
+        {
+          "symptom": "El canary pasó en verde y al día siguiente cae la tasa de aceptación.",
+          "cause": "El canary mide salud por request, no cómo reacciona quien publica; los cambios grandes necesitan un A/B.",
+          "check": "¿Coincide con el deploy? Rollback por ruteo a la release anterior (sigue viva) y después un A/B por vendedor."
+        },
+        {
+          "symptom": "El log dice un model_version, pero las predicciones son de otro modelo.",
+          "cause": "Dos modelos detrás del mismo Service, o pods que leen @champion al arrancar y cargan versiones distintas.",
+          "check": "kubectl get deploy -n classifier -o wide (columna IMAGES): cada release con su imagen y su Service triton-vN."
+        }
+      ],
+      "done": [
+        "La release nueva (gateway vN + Triton vN con su Service) está lista antes de recibir tráfico.",
+        "Los criterios para revertir (5xx, p99, baja confianza, PSI) y para avanzar están escritos antes de empezar.",
+        "Cada etapa del canary juntó al menos 10,000 requests y cubrió un pico diurno.",
+        "Una persona aprobó el 100 %, el alias champion apunta a la versión nueva y la anterior sigue viva 24–48 h.",
+        "El rollback está ensayado: peso al estable en segundos; redeploy del tag anterior en ≈ 5–20 min."
+      ],
+      "memo": "Cómo recordarla: <b>gate → shadow → canary → (A/B) → promoción</b>. Cada peldaño expone más y responde otra pregunta: ¿es mejor?, ¿funciona?, ¿es seguro?, ¿ayuda al producto? Revertir es automático; promover lo aprueba una persona.",
+      "trap": "Trampa: creer que un rolling update es un despliegue seguro de un modelo. La readiness solo pregunta si el modelo cargó: un modelo que se equivoca con confianza alta pasa todas las probes.",
+      "platforms": [
+        "argo-rollouts",
+        "alb",
+        "prometheus",
+        "mlflow"
+      ],
+      "links": [
+        "#m11.shadow",
+        "#m11.canary",
+        "#m11.blue-green",
+        "#m11.rollback",
+        "#c01.evaluacion"
+      ]
+    },
+    {
+      "id": "request",
+      "num": 11,
+      "title": "La request en vivo",
+      "question": "¿Qué le pasa a una foto desde que llega al ALB hasta que vuelve el top-5, y cuánto cuesta cada salto?",
+      "summary": "La foto entra por el ALB interno; el gateway la valida, la decodifica y la convierte en un tensor de 602 KB en CPU; Triton la junta con otras (≤ 2 ms) y la T4 la pasa por el engine TensorRT FP16. El SLO es <b>p99 ≤ 200 ms server-side</b>: el presupuesto típico da ≈ 20–45 ms en p50 y ≈ 150 ms en un p99 pesimista. Los timeouts bajan en cascada (<code>300 → 250 → 150 → 100 ms</code>) y, si algo falla, el caller muestra el selector manual.",
+      "in": [
+        "foto (≈ 200 KB) desde el backend de publicación"
+      ],
+      "out": [
+        "una línea de log JSON y métricas por request",
+        "top-5 con model_version y X-Request-ID para el caller"
+      ],
+      "steps": [
+        {
+          "label": "Backend → ALB",
+          "detail": "p50 1–3 ms · p99 5–10 ms: el backend manda los bytes con su JWT (timeout de 300 ms); el ALB termina TLS, aplica el peso estable/canary y elige un pod listo.",
+          "icon": "balancer",
+          "who": "automático (ALB)",
+          "where": "ALB interno de AWS, en dos zonas"
+        },
+        {
+          "label": "Admisión y body",
+          "detail": "p50 1–3 ms · p99 10–30 ms: 16 requests ya en vuelo (503 + Retry-After), Content-Type (415), más de 10 MB (413) y lectura del body.",
+          "icon": "request",
+          "who": "automático (gateway)",
+          "where": "pod del gateway (nodo de CPU)"
+        },
+        {
+          "label": "Decode y preproceso",
+          "detail": "p50 6–13 ms · p99 27–52 ms: threadpool con 2 slots; EXIF → RGB → 256 → crop 224 → normalizar → tensor FP32 de 602 KB.",
+          "icon": "image",
+          "who": "automático (gateway)",
+          "where": "pod del gateway (CPU)"
+        },
+        {
+          "label": "Salto a Triton",
+          "detail": "p50 2–4 ms · p99 5–10 ms: KServe v2 por HTTP con tensores binarios al Triton de la misma zona, con timeout de min(150 ms, lo que queda).",
+          "icon": "server",
+          "who": "automático (gateway)",
+          "where": "red de la VPC (Service triton)"
+        },
+        {
+          "label": "Cola de batching",
+          "detail": "p50 0–2 ms · p99 2 ms: Triton espera hasta 2 ms para juntar requests; si uno lleva 100 ms en cola, lo rechaza.",
+          "icon": "queue",
+          "who": "automático (Triton)",
+          "where": "pod de Triton"
+        },
+        {
+          "label": "Cómputo en la T4",
+          "detail": "p50 3–6 ms · p99 8–15 ms: engine TensorRT FP16 con batch de 1–8 y dos instancias por GPU; devuelve 500 logits FP32.",
+          "icon": "gpu",
+          "who": "automático (Triton)",
+          "where": "GPU T4 (g4dn.xlarge)"
+        },
+        {
+          "label": "Respuesta y log",
+          "detail": "p50 6–11 ms · p99 12–33 ms con el overhead de Python: softmax, top-5, JSON con model_version y una línea de log a stdout.",
+          "icon": "log",
+          "who": "automático (gateway)",
+          "where": "pod del gateway → backend de publicación"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/k8s/gateway.yaml",
+          "real": true,
+          "what": "Qué deja pasar el ALB: solo /v1/classify hacia el Service gateway; /metrics, /healthz y /readyz no salen del cluster.",
+          "excerpt": "spec:\n  ingressClassName: alb  # lo atiende el AWS Load Balancer Controller\n  rules:\n    - http:\n        paths:\n          # Solo la API: /metrics, /healthz y /readyz NO quedan expuestos fuera del cluster\n          - path: /v1/classify\n            pathType: Exact\n            backend:\n              service:\n                name: gateway",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/gateway/app/main.py",
+          "real": true,
+          "what": "Deadline propagation: la llamada a Triton usa lo que queda del presupuesto de 250 ms, tope 150 ms, y se mide aparte del preproceso.",
+          "excerpt": "    left = _budget_left(deadline)  # no mandes a la GPU un request que el caller ya abandonó\n    t = time.perf_counter()\n    logits = await _infer(  # I/O: aquí el await sí cede el loop\n        request.app.state.triton, batch, record[\"request_id\"], timeout=min(INFER_TIMEOUT_S, left)\n    )\n    inf_s = time.perf_counter() - t\n    INFERENCE.observe(inf_s)\n    record[\"inference_ms\"] = round(inf_s * 1000, 1)",
+          "lang": "python"
+        },
+        {
+          "path": "reference/c01/k8s/triton.yaml",
+          "real": true,
+          "what": "El salto pasa por el Service de Triton: prefiere el pod de la misma zona y balancea por conexión (L4), por eso HTTP con un pool y no gRPC.",
+          "excerpt": "  trafficDistribution: PreferSameZone\n  # kube-proxy balancea por CONEXIÓN (L4). Con HTTP/1.1 y un pool de conexiones por gateway el\n  # reparto es razonable. Con gRPC (HTTP/2, una conexión multiplexada) todo el tráfico de un\n  # gateway iría a UN solo pod: necesitarías balanceo L7 (service mesh) o client-side.",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/triton/model_repository/classifier/config.pbtxt",
+          "real": true,
+          "what": "El último tramo: dos copias del engine en la misma T4, para que una calcule mientras la otra mueve datos. La cola de batching está en la estación 6.",
+          "excerpt": "# 2 instancias del engine en la MISMA GPU: mientras una copia datos o espera, la otra computa.\n# Cada instancia reserva su propia memoria de activaciones; con ResNet-50 FP16 sobra en 16 GB.\ninstance_group [\n  {\n    count: 2\n    kind: KIND_GPU\n  }\n]",
+          "lang": "protobuf"
+        }
+      ],
+      "commands": [
+        {
+          "code": "curl -s -H \"Content-Type: image/jpeg\" --data-binary @{foto} \"localhost:8080/v1/classify?top_k=5\"",
+          "note": "En local (compose): la respuesta trae <code>model_version</code> y <code>latency_ms</code>, y el header <code>X-Request-ID</code>."
+        },
+        {
+          "code": "curl -i localhost:8080/readyz",
+          "note": "200 solo si el modelo está listo en Triton; en EKS, con 503 el pod sale del ALB."
+        },
+        {
+          "code": "kubectl logs deploy/gateway -n classifier --tail=5",
+          "note": "Una línea JSON por request: <code>request_id</code>, <code>preprocess_ms</code>, <code>inference_ms</code>, <code>status</code>."
+        },
+        {
+          "code": "kubectl port-forward -n classifier svc/triton 8000:8000 8002:8002",
+          "note": "Túnel a un pod de Triton sin exponerlo: sirve para mirar, no para load tests."
+        },
+        {
+          "code": "curl -s localhost:8002/metrics | grep nv_inference_queue_duration_us",
+          "note": "El tiempo acumulado en la cola de Triton: la señal con la que escala KEDA."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "504 timeout de inferencia a los ≈ 150 ms y la alerta TritonQueueTimeHigh.",
+          "cause": "La GPU está saturada: la cola de Triton crece más rápido de lo que KEDA agrega réplicas, y cada una tarda minutos.",
+          "check": "Espera media en cola (nv_inference_queue_duration_us ÷ nv_inference_request_success) y réplicas de KEDA contra su máximo de 4."
+        },
+        {
+          "symptom": "Ráfagas de 503 gateway saturado con Retry-After: 1.",
+          "cause": "Load shedding: el pod ya tiene 16 requests en vuelo o no consiguió un slot de CPU en 50 ms.",
+          "check": "CPU de los pods y kubectl get hpa -n classifier: ¿el HPA está escalando o topó en 12?"
+        },
+        {
+          "symptom": "El p99 crece con la concurrencia aunque la CPU no está llena.",
+          "cause": "Trabajo de CPU dentro de un async def que bloquea el event loop, o CPU throttling por un limits.cpu.",
+          "check": "classifier_preprocess_seconds contra classifier_inference_seconds, y la fracción de periodos throttled del contenedor."
+        },
+        {
+          "symptom": "502 esporádicos en el ALB.",
+          "cause": "El backend cierra la conexión antes que el ALB: keep-alive de uvicorn menor que el idle timeout.",
+          "check": "--timeout-keep-alive 75 (Dockerfile) tiene que ser mayor que idle_timeout 60 (anotación del Ingress)."
+        },
+        {
+          "symptom": "Los callers reciben 503 del ALB y ClassifierHigh5xxRate no dispara.",
+          "cause": "Triton cayó: todos los gateways quedan NotReady y el ALB responde sin llegar al gateway.",
+          "check": "La alerta TritonNotReady y HTTPCode_ELB_5XX_Count del ALB en CloudWatch."
+        }
+      ],
+      "done": [
+        "Cada respuesta trae model_version y X-Request-ID, y cada línea de log trae preprocess_ms e inference_ms.",
+        "El p99 del histograma del gateway, sumado entre pods, queda bajo 200 ms en el pico de diseño (500 req/s).",
+        "Los timeouts están encadenados: 300 ms el caller, 250 ms el deadline, 150 ms a Triton y 100 ms en la cola.",
+        "Bajo sobrecarga ves 503 y 504 rápidos (y el selector manual), no requests colgados.",
+        "Cada gateway llama al Triton de su propia zona."
+      ],
+      "memo": "Cómo recordarla: <b>lo barato primero, la GPU al final</b>. Rechazar cuesta microsegundos, el decode va en CPU y a la T4 solo llega lo que sigue vivo; cada salto hereda lo que queda del presupuesto (<code>300 → 250 → 150 → 100 ms</code>).",
+      "trap": "Trampa: creer que el modelo domina la latencia. El cómputo en la T4 son 8–15 ms de un p99 pesimista de ≈ 150 ms; casi todo se va en mover y preparar bytes en CPU, así que comprar GPU no arregla un p99 de preproceso.",
+      "platforms": [
+        "alb",
+        "fastapi",
+        "triton",
+        "opentelemetry"
+      ],
+      "links": [
+        "#c01.arquitectura",
+        "#c01.estimaciones",
+        "#m03.presupuesto",
+        "#c01.serving",
+        "#m07.protocolos"
+      ]
+    },
+    {
+      "id": "monitoreo",
+      "num": 12,
+      "title": "Monitoreo y reentrenamiento",
+      "question": "¿Cómo te enteras de que algo falló, en minutos o en días, y cómo vuelve el sistema a la estación 1?",
+      "summary": "Un modelo falla de dos maneras: <b>ruidosamente</b> (errores, latencia, pods caídos: Prometheus lo ve en minutos) y <b>en silencio</b> (responde 200 OK y rápido, pero mal: solo lo ven la confianza, el PSI y la aceptación, a veces días después). Las alertas de síntomas hacen page; las de calidad abren ticket. Los logs de predicción alimentan el etiquetado y un disparador adelanta el reentrenamiento: así se cierra el ciclo hacia la estación 1.",
+      "in": [
+        "métricas en /metrics (gateway :8080, Triton :8002)",
+        "logs de predicción y eventos del caller"
+      ],
+      "out": [
+        "disparador de reentrenamiento y muestras para etiquetar",
+        "alertas (page, warning, ticket) y dashboards"
+      ],
+      "steps": [
+        {
+          "label": "Golden signals por tier",
+          "detail": "Latencia, tráfico, errores y saturación: el ALB en CloudWatch; el gateway (:8080) y Triton (:8002) en Prometheus vía ServiceMonitor, cada 15 s.",
+          "icon": "monitor",
+          "who": "automático (Prometheus)",
+          "where": "kube-prometheus-stack en EKS y CloudWatch"
+        },
+        {
+          "label": "Métricas de modelo y datos",
+          "detail": "Sin labels y en minutos: histograma del score top-1, tasa de baja confianza por model_version y bytes de cada imagen.",
+          "icon": "chart",
+          "who": "automático (gateway)",
+          "where": "/metrics del gateway"
+        },
+        {
+          "label": "Reglas y alertas",
+          "detail": "1 regla de grabación y 6 alertas como PrometheusRule; Alertmanager manda page (p99, 5xx, Triton), warning (cola, GPU) o ticket (confianza).",
+          "icon": "alert",
+          "who": "automático (Prometheus)",
+          "where": "Prometheus y Alertmanager"
+        },
+        {
+          "label": "Dashboards",
+          "detail": "Servicio por tier y caller, Triton y GPU, modelo partido por model_version, y negocio diario.",
+          "icon": "chart",
+          "who": "MLE",
+          "where": "Grafana"
+        },
+        {
+          "label": "Logs y trazas",
+          "detail": "Una línea JSON por request (≈ 300 B, sin PII) → Fluent Bit → S3 en Parquet; trazas OpenTelemetry al ≈ 1 % con el mismo request_id.",
+          "icon": "log",
+          "who": "automático",
+          "where": "stdout del pod → DaemonSet de Fluent Bit → S3"
+        },
+        {
+          "label": "Job diario de drift",
+          "detail": "PSI de categorías predichas contra las 4 semanas previas, tasa de aceptación (eventos del caller) y re-categorización; publica métricas y abre tickets.",
+          "icon": "drift",
+          "who": "automático (job batch)",
+          "where": "job batch sobre los logs en S3"
+        },
+        {
+          "label": "Reentrenar y cerrar el ciclo",
+          "detail": "Mensual, o antes por PSI > 0.2 tres días, −3 pp de aceptación o categorías nuevas: ticket → pipeline → gate → shadow → canary → champion; las muestras vuelven a etiquetado.",
+          "icon": "retrain",
+          "who": "automático (pipeline)",
+          "where": "orquestador del pipeline y cola de etiquetado (estación 1)"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/monitoring/alerts.yml",
+          "real": true,
+          "what": "La alerta de calidad sin labels: si se duplica la fracción de predicciones con score top-1 menor a 0.3 contra su promedio de 7 días durante 30 min, abre un ticket.",
+          "excerpt": "      - alert: ClassifierLowConfidenceSpike\n        expr: |\n          classifier:low_confidence_share:rate30m\n            > 2 * avg_over_time(classifier:low_confidence_share:rate30m[7d])\n          and sum(rate(classifier_top1_score_count[30m])) > 1\n        # Necesita 7 días de historia de la regla de grabación (retención de Prometheus ≥ 7 d)\n        for: 30m\n        labels:\n          severity: ticket",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/k8s/monitoring.yaml",
+          "real": true,
+          "what": "Cómo encuentra Prometheus al gateway: por las labels del Service y la label release que selecciona tu Prometheus. Sin esto, KEDA no ve la cola de Triton y las alertas se quedan sin datos.",
+          "excerpt": "kind: ServiceMonitor\nmetadata:\n  name: gateway\n  namespace: classifier\n  labels:\n    release: kube-prometheus-stack  # = serviceMonitorSelector de tu Prometheus (nombre del release de Helm)\nspec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: gateway  # labels del Service de k8s/gateway.yaml\n  endpoints:\n    - port: http  # nombre del puerto del Service: 8080/metrics del gateway (no expuesto en el Ingress)",
+          "lang": "yaml"
+        },
+        {
+          "path": "reference/c01/gateway/app/main.py",
+          "real": true,
+          "what": "La métrica de modelo más barata: el histograma del score top-1 por model_version, que separa el canary del estable.",
+          "excerpt": "TOP1 = Histogram(  # distribución de confianza: la señal de drift más barata que existe (sin labels)\n    \"classifier_top1_score\", \"Score top-1 tras softmax\", [\"model_version\"],  # separa canary de estable\n    buckets=tuple(round(0.1 * i, 1) for i in range(1, 11)),  # 0.1 … 1.0 → el bucket le=\"0.3\" alimenta una alerta\n)",
+          "lang": "python"
+        },
+        {
+          "path": "Fluent Bit → S3 (logs de predicción)",
+          "real": false,
+          "what": "main.py escribe una línea JSON por request a stdout; un DaemonSet de Fluent Bit la manda a S3 en lotes y se convierte a Parquet. El repo no trae esa configuración."
+        },
+        {
+          "path": "Job diario de drift y aceptación",
+          "real": false,
+          "what": "Sobre los logs en S3: PSI contra las 4 semanas previas (ticket si pasa de 0.2 tres días), aceptación (ticket si cae más de 3 pp semana contra semana) y re-categorización. alerts.yml lo menciona; el repo no lo trae."
+        }
+      ],
+      "commands": [
+        {
+          "code": "kubectl apply -f k8s/monitoring.yaml",
+          "note": "ServiceMonitors del gateway y de Triton; las reglas de <code>alerts.yml</code> se cargan aparte como PrometheusRule (comando en el README)."
+        },
+        {
+          "code": "histogram_quantile(0.99, sum by (le) (rate(classifier_request_latency_seconds_bucket[5m])))",
+          "note": "PromQL del p99: primero sumar buckets entre pods, después el cuantil."
+        },
+        {
+          "code": "sum(rate(classifier_requests_total{status=~\"5..\"}[5m])) / sum(rate(classifier_requests_total{status!~\"4..\"}[5m]))",
+          "note": "Fracción de 5xx sobre requests válidos: los 4xx no cuentan."
+        },
+        {
+          "code": "sum(rate(nv_inference_count{model=\"classifier\"}[5m])) / sum(rate(nv_inference_exec_count{model=\"classifier\"}[5m]))",
+          "note": "Batch promedio real de Triton: mídelo, no lo supongas."
+        },
+        {
+          "code": "kubectl describe scaledobject triton -n classifier",
+          "note": "Si Prometheus no ve a Triton, aquí aparece el error del scaler, no un 0 silencioso."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "El dashboard de servicio está en verde y la tasa de aceptación cae.",
+          "cause": "Falla silenciosa: cambió el input (una versión nueva de la app comprime distinto) o labels.json quedó desalineado; todo responde 200 y rápido.",
+          "check": "Tasa de baja confianza por model_version y classifier_image_bytes contra la semana anterior; cruzar con los deploys."
+        },
+        {
+          "symptom": "Triton no pasa de 2 réplicas y las alertas que leen métricas del gateway o de Triton nunca disparan.",
+          "cause": "No se aplicó k8s/monitoring.yaml, o la label release de los ServiceMonitors no coincide con el serviceMonitorSelector de tu Prometheus.",
+          "check": "kubectl describe scaledobject triton -n classifier y la lista de targets en la UI de Prometheus."
+        },
+        {
+          "symptom": "ClassifierLowConfidenceSpike no dispara durante días, aunque la confianza cambió.",
+          "cause": "La regla de grabación guardó NaN (0/0 en un rato sin tráfico, si alguien quitó el > 0 del denominador) y el promedio de 7 días lo arrastra una semana.",
+          "check": "Busca NaN en classifier:low_confidence_share:rate30m y confirma el > 0 del denominador en alerts.yml; la retención debe cubrir 7 días."
+        },
+        {
+          "symptom": "El PSI del dashboard lleva días sin moverse.",
+          "cause": "El job diario de drift dejó de correr y se sigue viendo su último valor publicado.",
+          "check": "Una alerta de frescura sobre el último push del job (más de 26 h para un job diario)."
+        },
+        {
+          "symptom": "Prometheus se queda sin memoria.",
+          "cause": "Alguien agregó un label con valores ilimitados (request_id, user_id): cada valor es una serie nueva.",
+          "check": "Labels acotados (status, source, model_version); los ids van a los logs y a los exemplars."
+        }
+      ],
+      "done": [
+        "Las 6 alertas evalúan con su severidad (page, warning o ticket) y cada una tiene runbook.",
+        "Hay dashboards de servicio, de Triton y GPU, de modelo (partido por model_version) y de negocio.",
+        "El 100 % de las predicciones llega a S3 sin PII y el job diario publica el PSI y la aceptación.",
+        "Un disparador (mensual, PSI mayor a 0.2 por 3 días, −3 pp de aceptación o categoría nueva) abre ticket y adelanta el pipeline; nada se promueve sin gate y canary.",
+        "La baja confianza, los desacuerdos y una muestra aleatoria llegan a la cola de etiquetado (estación 1)."
+      ],
+      "memo": "Cómo recordarla: <b>ruidoso en minutos, silencioso en días</b>. Las métricas de sistema atrapan errores y latencia; las de modelo (confianza, PSI, aceptación) atrapan al modelo que responde 200 OK y se equivoca. Page solo por síntomas que alguien ya está sufriendo.",
+      "trap": "Trampa: dejar que el monitoreo despliegue. Un disparador abre un ticket y adelanta el pipeline; el candidato pasa por el mismo gate, shadow y canary que cualquier otro, y nadie se despierta a las 3 a. m. porque subió el PSI.",
+      "platforms": [
+        "prometheus",
+        "grafana",
+        "opentelemetry",
+        "s3"
+      ],
+      "links": [
+        "#c01.monitoreo",
+        "#m12.sistema",
+        "#m12.modelo",
+        "#m12.prometheus-grafana",
+        "#m12.reentrenar",
+        "#m10.reentrenamiento"
+      ]
+    }
+  ],
+  "platforms": [
+    {
+      "id": "docker",
+      "name": "Docker (+ docker compose)",
+      "category": "empaquetado de contenedores",
+      "what": "Una herramienta que empaqueta tu código con todo lo que necesita (Python, librerías, CUDA) en una imagen inmutable y la corre como un contenedor aislado.",
+      "analogy": "La imagen es como un checkpoint del entorno completo, congelado en un archivo que nadie modifica; el contenedor es el proceso que corre a partir de ella, y de una imagen salen muchas réplicas idénticas.",
+      "in_c01": "Dos imágenes: classifier-gateway (FastAPI, ≈ 0.1 GB comprimida) y classifier-triton con el engine horneado (≈ 9.2 GB comprimida). docker compose levanta gateway, Triton y Prometheus en una máquina con GPU para desarrollo y pruebas de integración.",
+      "work": {
+        "main": "configura",
+        "also": [
+          "opera"
+        ]
+      },
+      "how": "Escribes un <code>Dockerfile</code>, una receta de instrucciones de build (no un programa): de qué base partir, qué copiar, qué instalar, con qué usuario y con qué comando arrancar; para varios servicios, un <code>docker-compose.yml</code>. Docker arma las capas, las cachea y corre el proceso aislado. Lo operas con comandos: <code>docker build</code>, <code>run</code>, <code>logs</code>, <code>push</code> y <code>compose up</code>.",
+      "example": {
+        "lang": "dockerfile",
+        "code": "FROM nvcr.io/nvidia/tritonserver:24.08-py3\n\n# El model repository completo: classifier/config.pbtxt + classifier/1/model.plan\nCOPY model_repository /models\n\n# Falla el BUILD si falta el engine (no se versiona en git): mejor aquí que un pod en CrashLoop\nRUN test -f /models/classifier/1/model.plan\n\n# 8000 HTTP/REST (KServe v2, lo usa el gateway) · 8001 gRPC · 8002 métricas Prometheus (nv_*)\nEXPOSE 8000 8001 8002",
+        "source": "reference/c01/triton/Dockerfile (extracto)"
+      },
+      "runs": "En tu máquina, en la máquina de desarrollo con GPU y en el runner de CI. En el cluster, las imágenes las corre el runtime de cada nodo (containerd), no Docker; la GPU necesita un host Linux con driver NVIDIA y NVIDIA Container Toolkit.",
+      "alternatives": "Podman, que construye y corre las mismas imágenes OCI; para producción con varias réplicas y zonas, Kubernetes en lugar de compose.",
+      "links": [
+        "#m05.dockerfile-ml",
+        "#m05.compose-local",
+        "#ref-comandos.docker"
+      ]
+    },
+    {
+      "id": "git",
+      "name": "Git / GitHub",
+      "category": "control de versiones",
+      "what": "Git guarda la historia de cada cambio del repo (código, Dockerfiles, manifests); GitHub aloja el repo y los pull requests donde se revisan esos cambios.",
+      "analogy": "Un historial de checkpoints de todo el repo: cada commit es una foto exacta a la que puedes volver.",
+      "in_c01": "Cada commit identifica una versión exacta: su hash corto (3f9c2ab) es el tag de la imagen del gateway. Con GitOps, los manifests de producción viven en git y desplegar o volver atrás es un PR o un revert.",
+      "work": {
+        "main": "opera",
+        "also": [
+          "administrado"
+        ]
+      },
+      "how": "No se programa ni se configura: lo <b>operas</b> con comandos (<code>git commit</code>, <code>git push</code>, abrir un PR), y GitHub es un servicio <b>administrado</b> donde vive el repo. Lo que pones en git (código, <code>Dockerfile</code>, <code>k8s/*.yaml</code>) es lo que dispara el CI y, con GitOps, lo que el cluster copia.",
+      "example": {
+        "lang": "bash",
+        "code": "REG=123456789012.dkr.ecr.us-east-1.amazonaws.com\nSHA=$(git rev-parse --short HEAD)\n\n# 1) CI construye UNA vez, para la arquitectura de los nodos, con el commit como tag\ndocker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/",
+        "source": "release.sh del curso (M5 · registries), extracto"
+      },
+      "runs": "Git en tu máquina y en el runner de CI; GitHub como servicio en la nube.",
+      "alternatives": "GitLab o Bitbucket para alojar el repo.",
+      "links": [
+        "#m10.ci-cd",
+        "#m05.registries"
+      ]
+    },
+    {
+      "id": "github-actions",
+      "name": "GitHub Actions",
+      "category": "CI/CD",
+      "what": "El servicio de GitHub que corre solo tus pasos (tests, builds, pushes) en una máquina limpia cada vez que hay un push o un pull request.",
+      "analogy": "Un robot que, en cada commit, repite en una máquina limpia exactamente los pasos que harías a mano.",
+      "in_c01": "El curso lo nombra como CI por defecto (o el que ya use la empresa): pytest del gateway en cada commit, build único de su imagen y push a ECR con credenciales OIDC de corta vida. El engine y la imagen de Triton los arma el pipeline del modelo en un runner con T4. El repo de referencia no trae un workflow.",
+      "work": {
+        "main": "configura",
+        "also": [
+          "administrado"
+        ]
+      },
+      "how": "Escribes un workflow en YAML dentro de <code>.github/workflows/</code>: cuándo corre (<code>on</code>), qué jobs y en qué máquina (<code>runs-on</code>) y sus pasos (<code>run</code> para comandos, <code>uses</code> para acciones ya hechas). GitHub pone los runners y ejecuta todo solo; los jobs corren en paralelo salvo que declares <code>needs</code>. Para entrar a AWS, el job declara <code>id-token: write</code> en <code>permissions</code>, pide un token OIDC y AWS lo cambia por credenciales temporales de un rol: no hay llaves guardadas.",
+      "example": {
+        "lang": "yaml",
+        "code": "on: [push, pull_request]\njobs:\n  gateway-tests:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v7\n      - uses: actions/setup-python@v7\n        with: {python-version: \"3.13\"}\n      - run: pip install -r requirements-dev.txt && pytest\n        working-directory: reference/c01/gateway",
+        "source": "ilustrativo, con la sintaxis de docs.github.com: el C01 no trae un workflow"
+      },
+      "runs": "Runners hospedados por GitHub (CPU) para tests y builds; para el engine y la imagen de Triton, un runner con T4: self-hosted en una g4dn que se prende solo para el job, o un runner GPU de GitHub.",
+      "alternatives": "GitLab CI, o el CI que ya use la empresa (Jenkins, Buildkite, CodeBuild, Cloud Build).",
+      "links": [
+        "#m10.ci-cd",
+        "#ref-herramientas.infra-ci-seguridad"
+      ]
+    },
+    {
+      "id": "ecr",
+      "name": "Amazon ECR",
+      "category": "registro de imágenes",
+      "what": "El registro privado de imágenes de AWS: el almacén desde donde los nodos del cluster descargan cada imagen.",
+      "analogy": "Un almacén con cajas etiquetadas: con tags inmutables, una etiqueta nunca cambia de caja.",
+      "in_c01": "Guarda classifier-gateway (tag = commit) y classifier-triton (tag = versión del modelo) con tags inmutables, en 123456789012.dkr.ecr.us-east-1.amazonaws.com; los manifests apuntan ahí. Una lifecycle policy debe conservar las últimas releases para el rollback.",
+      "work": {
+        "main": "administrado",
+        "also": [
+          "configura",
+          "opera"
+        ]
+      },
+      "how": "Es un servicio <b>administrado</b>: no instalas nada. <b>Configuras</b> cada repositorio (tags inmutables, lifecycle policy) y el escaneo del registry, y lo <b>operas</b> con <code>docker push</code> desde CI, después de autenticarte con <code>aws ecr get-login-password</code>. ECR guarda las capas, escanea y aplica la lifecycle policy solo; con tags inmutables, subir otra imagen con un tag que ya existe falla con <code>ImageTagAlreadyExistsException</code>.",
+      "example": {
+        "lang": "bash",
+        "code": "aws ecr create-repository --repository-name classifier-gateway --image-tag-mutability IMMUTABLE\naws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 123456789012.dkr.ecr.us-east-1.amazonaws.com\ndocker push 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:3f9c2ab",
+        "source": "ilustrativo: comandos de la documentación de ECR con los nombres del C01"
+      },
+      "runs": "Servicio regional de AWS (us-east-1 en el C01). Los nodos bajan los manifiestos por los endpoints de ECR y las capas desde S3, así que conviene el gateway endpoint de S3 en la VPC.",
+      "alternatives": "Artifact Registry (Google Cloud), Azure Container Registry, GitHub Container Registry replicado a un registry de tu nube para producción.",
+      "links": [
+        "#m05.registries",
+        "#m13.costos-ocultos"
+      ]
+    },
+    {
+      "id": "kubernetes",
+      "name": "Kubernetes (Amazon EKS) + kubectl",
+      "category": "orquestación de contenedores",
+      "what": "Un sistema que mantiene corriendo tus contenedores en un grupo de máquinas: decide dónde va cada uno, los reinicia si mueren, los escala y les da un nombre estable en la red.",
+      "analogy": "Un termostato: tú fijas la temperatura (el estado deseado, en YAML) y él prende y apaga equipos hasta que el cuarto se parece a eso.",
+      "in_c01": "EKS corre el gateway (3–12 pods en nodos de CPU) y Triton (2–4 pods, una T4 cada uno, repartidos entre las dos zonas), con probes, PodDisruptionBudget, NetworkPolicy, HPA, KEDA y un Ingress que se vuelve un ALB interno.",
+      "work": {
+        "main": "configura",
+        "also": [
+          "opera",
+          "administrado"
+        ]
+      },
+      "how": "No se programa: escribes manifests YAML con el <b>estado deseado</b> (qué imagen, cuántas réplicas, qué recursos, qué probes) y los aplicas con <code>kubectl apply</code>. Los controladores comparan sin parar lo deseado con lo real y corrigen la diferencia (eso es <b>reconciliar</b>): agendan, reinician, escalan. Lo <b>operas</b> con <code>kubectl</code> (get, describe, logs, rollout) y en EKS el control plane lo <b>administra</b> AWS (≈ US$73/mes).",
+      "example": {
+        "lang": "yaml",
+        "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: gateway\n  namespace: classifier\n  labels:\n    app.kubernetes.io/name: gateway\n    app.kubernetes.io/part-of: classifier\nspec:\n  # Sin \"replicas\": las decide el HPA de abajo (3–12)",
+        "source": "reference/c01/k8s/gateway.yaml (extracto)"
+      },
+      "runs": "El control plane lo opera AWS (EKS); los pods corren en nodos EC2 de tu cuenta: c6i.xlarge para el gateway y g4dn.xlarge (T4) para Triton.",
+      "alternatives": "GKE o AKS; un endpoint administrado (SageMaker) si no hay equipo de plataforma; docker compose solo para desarrollo.",
+      "links": [
+        "#m06.por-que-k8s",
+        "#m06.objetos-basicos",
+        "#ref-comandos.kubectl-basicos"
+      ]
+    },
+    {
+      "id": "alb",
+      "name": "AWS Application Load Balancer (vía Ingress)",
+      "category": "balanceo de carga (L7)",
+      "what": "El balanceador HTTP(S) administrado de AWS: recibe los requests de los callers y los reparte entre los pods sanos.",
+      "analogy": "La recepción de un edificio: recibe a cada visitante, revisa su credencial y lo manda a una ventanilla abierta.",
+      "in_c01": "ALB interno (scheme internal) en HTTPS:443 que manda directo a la IP de cada pod del gateway (target-type ip), con health check en /readyz, drenado de 30 s e idle timeout de 60 s. También reparte por pesos entre la release estable y la canary.",
+      "work": {
+        "main": "administrado",
+        "also": [
+          "configura"
+        ]
+      },
+      "how": "No creas el ALB a mano: <b>configuras</b> un Ingress con <code>ingressClassName: alb</code> y anotaciones <code>alb.ingress.kubernetes.io/*</code>. El AWS Load Balancer Controller, que corre dentro del cluster, ve el Ingress y crea solo el ALB, sus target groups, listeners y reglas; AWS lo opera y lo escala como servicio <b>administrado</b>.",
+      "example": {
+        "lang": "yaml",
+        "code": "    alb.ingress.kubernetes.io/scheme: internal\n    # ip: el ALB manda directo a la IP del pod (sin NodePort ni salto extra de kube-proxy)\n    alb.ingress.kubernetes.io/target-type: ip\n    alb.ingress.kubernetes.io/listen-ports: '[{\"HTTPS\": 443}]'\n    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000\n    # El health check del ALB usa la misma señal que la readiness de k8s\n    alb.ingress.kubernetes.io/healthcheck-path: /readyz\n    alb.ingress.kubernetes.io/success-codes: \"200\"\n    # Drenado al sacar un pod: 30 s (el default de 300 s hace eternos los deploys)\n    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30",
+        "source": "reference/c01/k8s/gateway.yaml (anotaciones del Ingress, extracto)"
+      },
+      "runs": "Servicio de AWS dentro de la VPC, en subredes de las dos zonas; el Load Balancer Controller corre como pod en el cluster.",
+      "alternatives": "Amazon API Gateway (tope de 10 MB por payload y costo por request); Gateway API de Kubernetes.",
+      "links": [
+        "#c01.arquitectura",
+        "#m06.objetos-basicos",
+        "#m13.costos-ocultos"
+      ]
+    },
+    {
+      "id": "autoscaling",
+      "name": "HPA / KEDA",
+      "category": "autoscaling de pods",
+      "what": "Controladores que cambian el número de réplicas de un Deployment según una métrica: el HPA viene con Kubernetes; KEDA lo extiende con métricas externas (Prometheus, colas) y escalado a cero.",
+      "analogy": "Un lazo de control proporcional sobre el número de réplicas, con banda muerta (10 % de tolerancia) y una ventana para no oscilar.",
+      "in_c01": "Gateway: HPA por CPU al 60 % del request (3–12 pods). Triton: KEDA consulta a Prometheus cada 15 s el tiempo medio en cola, con objetivo de 10 ms (2–4 pods); KEDA crea y administra el HPA keda-hpa-triton.",
+      "work": {
+        "main": "configura",
+        "also": [
+          "opera"
+        ]
+      },
+      "how": "<b>Configuras</b> en YAML un <code>HorizontalPodAutoscaler</code> (métrica, objetivo, mínimo y máximo) o un <code>ScaledObject</code> de KEDA (trigger, query y umbral); con el ScaledObject, KEDA crea por su cuenta el HPA <code>keda-hpa-triton</code> y le sirve la métrica. El controlador del HPA calcula cada 15 s <code>ceil(réplicas × métrica / objetivo)</code> y ajusta el Deployment: sube rápido y baja despacio. KEDA es un operador que plataforma instala una vez; tú lo <b>operas</b> con <code>kubectl get hpa</code> y <code>kubectl get scaledobject</code>.",
+      "example": {
+        "lang": "yaml",
+        "code": "spec:\n  scaleTargetRef:\n    apiVersion: apps/v1\n    kind: Deployment\n    name: triton  # el Deployment de k8s/triton.yaml\n  minReplicaCount: 2  # nunca menos de 2: una GPU por AZ (N+1), aunque 1 sola cubra el pico\n  maxReplicaCount: 4  # techo de costo: 4 × g4dn.xlarge; si no alcanza, TritonQueueTimeHigh avisa\n  pollingInterval: 15  # cada 15 s KEDA consulta Prometheus",
+        "source": "reference/c01/k8s/keda-triton.yaml (extracto)"
+      },
+      "runs": "Dentro del cluster: el HPA en el control plane; KEDA como operador en su propio namespace. Los nodos los agrega otro lazo (Karpenter o Cluster Autoscaler).",
+      "alternatives": "HPA con una métrica custom vía Prometheus Adapter (requests en espera); trigger cron de KEDA para escalar antes de un pico conocido.",
+      "links": [
+        "#m06.hpa",
+        "#m06.keda",
+        "#ref-comandos.autoscaling-cmds"
+      ]
+    },
+    {
+      "id": "gpu-k8s",
+      "name": "NVIDIA device plugin / GPU Operator",
+      "category": "GPUs en Kubernetes",
+      "what": "El componente que le enseña a Kubernetes que un nodo tiene GPUs: las detecta y las anuncia como un recurso que los pods pueden pedir (nvidia.com/gpu).",
+      "analogy": "El inventario del almacén: si la GPU no está registrada, para Kubernetes no existe, aunque esté físicamente en la máquina.",
+      "in_c01": "Prerrequisito del cluster. Cada nodo g4dn.xlarge anuncia nvidia.com/gpu: 1 y cada pod de Triton pide una T4 entera; la label workload=gpu-t4 y el taint nvidia.com/gpu=present:NoSchedule reservan esos nodos para Triton.",
+      "work": {
+        "main": "configura",
+        "also": [
+          "opera"
+        ]
+      },
+      "how": "Plataforma lo <b>opera</b>: lo instala una vez como DaemonSet (con Helm) o mediante el GPU Operator, que también instala driver, toolkit y el exportador de métricas. Desde ahí funciona solo en cada nodo GPU. Tú solo <b>configuras</b> tu pod: <code>nvidia.com/gpu: 1</code> en <code>limits</code> (enteros y, por defecto, sin compartir), más <code>nodeSelector</code> y <code>tolerations</code> para caer en los nodos correctos.",
+      "example": {
+        "lang": "yaml",
+        "code": "          resources:\n            requests:\n              cpu: \"2\"  # Triton usa CPU para red, deserializar y el scheduler de batching\n              memory: 6Gi  # librerías CUDA + buffers pinned; el modelo en sí vive en la GPU\n              nvidia.com/gpu: 1  # recurso extendido del NVIDIA device plugin: una T4 entera por pod\n            limits:\n              memory: 6Gi  # memoria: límite = request (sin sorpresas de OOM por vecinos)\n              nvidia.com/gpu: 1  # las GPUs no se comparten ni se sobre-asignan: request = limit\n              # Sin límite de CPU: el nodo es solo para Triton y el throttling de CFS mete latencia",
+        "source": "reference/c01/k8s/triton.yaml (extracto)"
+      },
+      "runs": "Un pod por nodo GPU (DaemonSet). El driver lo trae la AMI acelerada de EKS o lo instala el GPU Operator.",
+      "alternatives": "GPU Operator (driver, toolkit, device plugin, GPU Feature Discovery y DCGM exporter); AMIs que ya traen el plugin (Bottlerocket NVIDIA) o EKS Auto Mode.",
+      "links": [
+        "#m06.gpus-k8s",
+        "#m05.gpu-en-contenedor"
+      ]
+    },
+    {
+      "id": "argo-rollouts",
+      "name": "Argo Rollouts (o pesos del ALB)",
+      "category": "despliegue progresivo (canary)",
+      "what": "Un controlador de Kubernetes que reemplaza al Deployment por un Rollout: mueve el tráfico a la versión nueva por pasos, consulta métricas mientras avanza y vuelve solo al estable si algo se rompe.",
+      "analogy": "Abrir una válvula de a poco mirando el manómetro: si la presión sale de rango, se cierra sola.",
+      "in_c01": "El curso da dos caminos para el canary 5 % → 25 % → 100 %: target groups con peso en el ALB o Argo Rollouts con trafficRouting por el ALB. Solo el gateway es un Rollout: su canary habla con triton-vN, desplegado antes y sin tráfico, y un AnalysisTemplate aborta si el canary pasa de 0.5 % de 5xx o si su baja confianza supera 1.5× la del estable.",
+      "work": {
+        "main": "configura",
+        "also": [
+          "opera"
+        ]
+      },
+      "how": "<b>Configuras</b> en YAML un <code>Rollout</code> con sus pasos (<code>setWeight</code>, <code>pause</code>) y un <code>AnalysisTemplate</code> con queries de Prometheus y su condición de éxito. El controlador avanza solo, cambia los pesos del ALB a través de las anotaciones del Ingress y aborta si una medición falla. Lo <b>operas</b> con el plugin de kubectl: <code>kubectl argo rollouts promote</code> después de una pausa manual o <code>abort</code> para volver.",
+      "example": {
+        "lang": "yaml",
+        "code": "  strategy:\n    canary:\n      trafficRouting:\n        alb: {ingress: classifier, servicePort: 8080}   # el Ingress apunta a gateway-stable; pesos exactos en el ALB\n      steps:\n        - setWeight: 5\n        - pause: {duration: 4h}          # horas, no minutos: tiene que cubrir tráfico real\n        - setWeight: 25\n        - pause: {}                      # sin duración: promoción manual después de un pico diurno\n        - setWeight: 100",
+        "source": "rollout.yaml de M11 · canary (extracto, sin los Services ni el bloque analysis); no está en reference/c01"
+      },
+      "runs": "El controlador corre dentro del cluster; el plugin, en tu terminal.",
+      "alternatives": "Flagger (con una malla o un ingress soportado); pesos del ALB cambiados por tu pipeline de CD; guardrails de despliegue de SageMaker.",
+      "links": [
+        "#m11.canary",
+        "#m11.rollback",
+        "#c01.evaluacion"
+      ]
+    },
+    {
+      "id": "prometheus",
+      "name": "Prometheus + Alertmanager",
+      "category": "métricas y alertas",
+      "what": "Prometheus lee cada pocos segundos las métricas que exponen tus servicios, las guarda como series de tiempo y evalúa reglas de alerta; Alertmanager decide a quién avisar.",
+      "analogy": "Un SCADA: lee los sensores (/metrics) cada 15 s, guarda las series y dispara alarmas con reglas.",
+      "in_c01": "kube-prometheus-stack scrapea el gateway (:8080/metrics) y Triton (:8002) cada 15 s vía ServiceMonitors y evalúa 1 regla de grabación y 6 alertas: p99 > 200 ms, 5xx > 1 %, menos de 2 Triton listos, baja confianza, cola > 20 ms y GPU > 85 %. KEDA le consulta la cola para escalar.",
+      "work": {
+        "main": "configura",
+        "also": [
+          "programa"
+        ]
+      },
+      "how": "Las métricas del gateway las <b>programas</b> (<code>Counter</code> e <code>Histogram</code> de <code>prometheus_client</code> en <code>main.py</code>); Triton expone las suyas solo. Después <b>configuras</b> qué scrapear (ServiceMonitor), las reglas en YAML con PromQL (<code>expr</code>, <code>for</code>, <code>labels.severity</code>) y las rutas de Alertmanager. Prometheus hace solo el scrape y la evaluación; Alertmanager agrupa, deduplica, silencia y enruta: page al on-call, ticket al equipo de ML.",
+      "example": {
+        "lang": "yaml",
+        "code": "      - alert: ClassifierHighP99Latency\n        expr: |\n          histogram_quantile(0.99,\n            sum by (le) (rate(classifier_request_latency_seconds_bucket[5m]))\n          ) > 0.2\n        for: 10m  # 10 min sostenido: ignora picos de un GC o de un deploy\n        labels:\n          severity: page",
+        "source": "reference/c01/monitoring/alerts.yml (extracto)"
+      },
+      "runs": "En el cluster (kube-prometheus-stack, namespace monitoring); en local, el contenedor prom/prometheus:v3.13.3 de compose.",
+      "alternatives": "Amazon Managed Service for Prometheus; Datadog o New Relic si la empresa ya paga uno.",
+      "links": [
+        "#m12.prometheus-grafana",
+        "#m12.sistema",
+        "#c01.monitoreo"
+      ]
+    },
+    {
+      "id": "grafana",
+      "name": "Grafana",
+      "category": "dashboards",
+      "what": "La herramienta para ver las métricas: dashboards con paneles que consultan a Prometheus con PromQL. No guarda las métricas: solo las lee y las dibuja.",
+      "analogy": "El tablero de instrumentos: muestra lo que miden los sensores, no mide nada por sí mismo.",
+      "in_c01": "El curso describe cuatro dashboards: servicio (tasa, errores y latencia por tier y caller, con marcadores de deploy), Triton y GPU, modelo (score top-1, baja confianza y top-20 categorías, partido por model_version) y negocio diario. El repo de referencia no trae dashboards.",
+      "work": {
+        "main": "opera",
+        "also": [
+          "configura",
+          "administrado"
+        ]
+      },
+      "how": "Lo <b>operas</b> en una UI: armas cada panel escribiendo su query PromQL, y Grafana consulta a Prometheus y redibuja los paneles solo. Para que no se pierdan, los dashboards se exportan como JSON y se <b>configuran</b> por provisioning desde git. También existe como servicio <b>administrado</b> (Amazon Managed Grafana, Grafana Cloud).",
+      "example": {
+        "lang": "text",
+        "code": "# p99 del servicio en ventanas de 5 min: primero sumar buckets entre pods, después el cuantil\nhistogram_quantile(0.99,\n  sum by (le) (rate(classifier_request_latency_seconds_bucket[5m])))\n# Batch promedio en Triton: inferencias por ejecución (cerca de max_batch_size = sin margen)\nsum(rate(nv_inference_count{model=\"classifier\"}[5m]))\n  / sum(rate(nv_inference_exec_count{model=\"classifier\"}[5m]))",
+        "source": "consultas PromQL del curso (M12) sobre métricas reales del C01: dos paneles"
+      },
+      "runs": "En el cluster junto a Prometheus, o como servicio administrado.",
+      "alternatives": "Amazon Managed Grafana, Grafana Cloud o el producto de observabilidad que ya use la empresa.",
+      "links": [
+        "#m12.prometheus-grafana",
+        "#m12.runbooks"
+      ]
+    },
+    {
+      "id": "opentelemetry",
+      "name": "OpenTelemetry",
+      "category": "trazas distribuidas",
+      "what": "Un estándar abierto con SDKs para generar trazas, métricas y logs, y un Collector que los recibe y los manda al backend que elijas; no guarda ni muestra datos por sí mismo.",
+      "analogy": "Un número de guía pegado al paquete que se registra en cada estación: después reconstruyes dónde se demoró.",
+      "in_c01": "El curso lo describe para seguir un request del gateway a Triton (Triton exporta trazas OpenTelemetry), muestreado ≈ 1 %, con el mismo request_id en logs y trazas y exemplars en el histograma de latencia para saltar del p99 a un request concreto. El código de referencia todavía no lo implementa.",
+      "work": {
+        "main": "programa",
+        "also": [
+          "configura"
+        ]
+      },
+      "how": "Lo <b>programas</b>: agregas el SDK al gateway (o la instrumentación automática de FastAPI, que crea un span por request sola) y propagas el contexto en los headers de la llamada a Triton. Luego <b>configuras</b> el muestreo con variables estándar (<code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code>), el Collector que recibe y reenvía los spans y, en Triton, <code>--trace-config mode=opentelemetry</code>. El backend (CloudWatch/X-Ray u otro) guarda y muestra las trazas.",
+      "example": {
+        "lang": "bash",
+        "code": "# Gateway: 1 % de las trazas nuevas (variables estándar del SDK)\nexport OTEL_SERVICE_NAME=classifier-gateway\nexport OTEL_TRACES_SAMPLER=parentbased_traceidratio\nexport OTEL_TRACES_SAMPLER_ARG=0.01\n# Triton ≥ 24.01: con rate=0 traza solo los requests que traen el contexto del gateway\ntritonserver --model-repository=/models --trace-config mode=opentelemetry \\\n  --trace-config level=TIMESTAMPS --trace-config rate=0 \\\n  --trace-config opentelemetry,url=http://otel-collector:4318/v1/traces",
+        "source": "ilustrativo: variables de la especificación de OpenTelemetry y flags de la guía de trazas de Triton; el C01 no lo trae"
+      },
+      "runs": "El SDK dentro del proceso del gateway; el Collector como pod en el cluster; Triton exporta por OTLP/HTTP; el backend de trazas, aparte.",
+      "alternatives": "CloudWatch/X-Ray, Cloud Trace o Application Insights reciben datos de OpenTelemetry; Datadog o New Relic si la empresa ya paga uno.",
+      "links": [
+        "#c01.monitoreo",
+        "#ref-herramientas.monitoreo"
+      ]
+    }
+  ]
+}

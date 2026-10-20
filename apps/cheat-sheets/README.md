@@ -6,7 +6,8 @@ Hojas de estudio para el trabajo de ML engineering, con versión web y PDF para 
 - **Sin conexión:** después de la primera visita, la portada y las hojas abren sin internet (service worker). Un PDF queda guardado cuando lo abres.
 - **Hojas actuales:**
   - `estimaciones`: formulario de las estimaciones del C01;
-  - `docker`: cheat sheet de Docker, con diagnosticador, revisor de Dockerfile y quiz de errores.
+  - `docker`: cheat sheet de Docker, con diagnosticador, revisor de Dockerfile y quiz de errores;
+  - `recorrido`: «Del dato a producción», el C01 de punta a punta como un mapa de metro, con fichas de herramientas, patrones, casos y un quiz de síntomas.
 
 ## Estructura
 
@@ -49,3 +50,5 @@ Vercel corre `node tools/build.mjs` (sin dependencias) y publica `dist/`. `.verc
 
   El contenido está en `content-w1/2/3.json` y se revisó contra la documentación de Docker 29.x. El contrato del contenido está en `BRIEF.md`.
 - **Estimaciones:** `node sheets/estimaciones/fuentes/gen.mjs <dir>` escribe `head.html`, `body.html` y `src.html` (con KaTeX). El paso que pasa el TeX a MathML es el mismo que el modo `build` de `gen-docker.mjs`.
+- **Recorrido (Del dato a producción):** `node sheets/recorrido/fuentes/gen-recorrido.mjs` escribe `sheets/recorrido/recorrido.html` y `fuentes/out/artifact.html`; con `pdf` también imprime `recorrido.pdf` con Chrome (el mapa va en una página apaisada). No necesita KaTeX: escribe el HTML directo.
+  - El contenido está en `content-w1..w4.json`, con el contrato en `BRIEF.md`. El generador no lo cambia: al final lista los avisos del contenido y las figuras donde un texto no cabe.

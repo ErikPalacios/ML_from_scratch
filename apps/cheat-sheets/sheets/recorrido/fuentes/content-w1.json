@@ -1,0 +1,1129 @@
+{
+  "stations": [
+    {
+      "id": "datos",
+      "num": 1,
+      "title": "Datos y etiquetas",
+      "question": "¿De dónde salen los labels con los que el modelo aprende y se evalúa, y cuánto vale cada uno?",
+      "summary": "En C01 el modelo ya existe, pero el catálogo cambia y un modelo congelado se degrada: esta estación convierte lo que pasa en producción en labels nuevos cada mes. Hay cuatro fuentes de calidad muy distinta: la categoría elegida al publicar (≈ 2.5 M/día, pero contaminada por tu propia sugerencia), las correcciones de moderación, una cola humana de <b>≈ 5k imágenes/mes elegidas a propósito</b> y un <b>golden set</b> de ≈ 50k, congelado, que solo sirve para evaluar.",
+      "in": [
+        "logs de predicción en S3 (Parquet, una fila por request)",
+        "categoría final de cada publicación y correcciones de moderación",
+        "señales de monitoreo: baja confianza, drift, categorías nuevas"
+      ],
+      "out": [
+        "labels del mes (≈ 5k humanos + débiles filtrados)",
+        "fotos etiquetadas, sin EXIF, en un bucket restringido",
+        "golden set congelado (≈ 50k, solo evaluación)"
+      ],
+      "steps": [
+        {
+          "label": "Juntar señales",
+          "detail": "Une los logs de predicción con la categoría final de cada publicación y las correcciones de moderación, por request_id.",
+          "icon": "log",
+          "who": "data engineer",
+          "where": "job de datos sobre los logs en S3 (Parquet)"
+        },
+        {
+          "label": "Filtrar el label débil",
+          "detail": "La categoría elegida al publicar entra filtrada por señales de confianza: moderación no la corrigió en 30 días, o se buscó en vez de aceptar la sugerencia.",
+          "icon": "label",
+          "who": "MLE",
+          "where": "mismo job de datos"
+        },
+        {
+          "label": "Elegir qué etiquetar",
+          "detail": "De la muestra del 1 %: baja confianza (top-1 < 0.3 o margen chico), desacuerdos y 20–30 % al azar, más categorías nuevas; ≈ 5k/mes.",
+          "icon": "search",
+          "who": "MLE",
+          "where": "consulta sobre los logs en S3"
+        },
+        {
+          "label": "Copiar solo esas fotos",
+          "detail": "Del storage del producto a un bucket cifrado y restringido, sin EXIF; las copias de la cola vencen a los 90 días.",
+          "icon": "image",
+          "who": "data engineer",
+          "where": "Amazon S3 (bucket restringido)"
+        },
+        {
+          "label": "Etiquetar",
+          "detail": "Con una guía de ejemplos límite; el 10 % lo etiquetan dos personas para medir el acuerdo.",
+          "icon": "user",
+          "who": "etiquetadores",
+          "where": "Label Studio o un proveedor gestionado"
+        },
+        {
+          "label": "Medir acuerdo y adjudicar",
+          "detail": "Kappa por clase sobre la doble anotación; los desacuerdos van a una persona experta y a la guía.",
+          "icon": "chart",
+          "who": "MLE",
+          "where": "export de anotaciones + scikit-learn"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/gateway/app/main.py",
+          "real": true,
+          "what": "La materia prima: el gateway escribe una línea JSON por request con request_id, model_version, el top-k con sus scores y un prefijo del sha256 de la imagen. De ahí salen la muestra por baja confianza y el join con la categoría final.",
+          "excerpt": "    probs = _softmax(logits)\n    top = np.argsort(probs)[::-1][:top_k]  # 500 clases: ordenar todo cuesta microsegundos\n    labels = request.app.state.labels\n    TOP1.labels(model_version=MODEL_VERSION).observe(float(probs[top[0]]))  # → alerta ClassifierLowConfidenceSpike\n    record[\"top_k\"] = [[int(i), round(float(probs[i]), 4)] for i in top]  # ids + scores para monitoreo/labeling",
+          "lang": "python"
+        },
+        {
+          "path": "guía de etiquetado (versionada)",
+          "real": false,
+          "what": "Definición de cada categoría con los casos límite decididos por escrito (¿un celular con funda va en celulares o en fundas?); cada label guarda la versión de la guía con que se hizo. El curso la describe; no está en reference/c01."
+        },
+        {
+          "path": "golden set (≈ 50k imágenes)",
+          "real": false,
+          "what": "Etiquetado por humanos y revisado, estratificado por categoría (piso de ≈ 50 por categoría) y por origen (móvil o web), y congelado. Solo evaluación, jamás entrenamiento; si se refresca, es una versión nueva."
+        },
+        {
+          "path": "holdout sin sugerencias (≈ 1 % de quienes venden)",
+          "real": false,
+          "what": "Una porción de cuentas que solo ve el selector manual: da labels que tu modelo no influyó y mide el valor incremental del sistema."
+        }
+      ],
+      "commands": [
+        {
+          "code": "pip install label-studio && label-studio start",
+          "note": "Label Studio Community en tu máquina: la UI queda en <code>localhost:8080</code>. C01 acepta también un proveedor gestionado."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "La métrica offline sube cada mes, pero la tasa de aceptación no se mueve.",
+          "cause": "Entrenas y evalúas con la categoría elegida al publicar, que casi siempre es tu primera sugerencia: el modelo aprende a imitarse.",
+          "check": "Compara la métrica sobre esos labels contra el golden set y el holdout sin sugerencias: si solo sube la primera, es el feedback loop."
+        },
+        {
+          "symptom": "El acuerdo bruto entre anotadores se ve alto, pero en algunas categorías el modelo no aprende la frontera.",
+          "cause": "Guía ambigua en los casos límite; el porcentaje de acuerdo engaña cuando una clase domina.",
+          "check": "Calcula Cohen's kappa por clase sobre el 10 % con doble anotación y lleva cada desacuerdo a la guía."
+        },
+        {
+          "symptom": "La accuracy medida en el set nuevo sale bastante más baja que la que ve el tráfico real.",
+          "cause": "Se recortó la muestra aleatoria: el set solo trae lo que eligió el active learning, que es más difícil a propósito.",
+          "check": "Revisa la mezcla de la cola del mes: el 20–30 % tiene que venir de la muestra aleatoria."
+        },
+        {
+          "symptom": "Una categoría que negocio agregó al árbol nunca aparece en las sugerencias.",
+          "cause": "No hay ejemplos: el modelo no puede predecir una clase que no vio.",
+          "check": "Cuenta los ejemplos etiquetados de esa categoría; siémbrala con búsquedas por texto del título hasta tener ≈ 200–500."
+        }
+      ],
+      "done": [
+        "La cola del mes tiene sus ≈ 5k imágenes con la mezcla acordada: incertidumbre, desacuerdos y 20–30 % al azar.",
+        "La doble anotación tiene su kappa por clase y los desacuerdos están adjudicados.",
+        "Solo se copiaron las fotos que se etiquetan, sin EXIF; el resto se referencia por request_id y sha256.",
+        "Los labels débiles entran filtrados y nunca como única fuente de evaluación."
+      ],
+      "memo": "Cómo recordarla: <b>el label es el dato más caro</b>. Etiquetar ≈ 5k imágenes cuesta ≈ US$250–500 al mes y entrenar ≈ US$10–50: el dinero (y la calidad) está en qué imágenes eliges, no en la GPU.",
+      "trap": "Trampa: tratar la categoría elegida al publicar como la verdad. Está sesgada por tu propia sugerencia: sirve para entrenar (filtrada) y como métrica online, nunca como única evaluación; para eso están el golden set y el holdout sin sugerencias.",
+      "platforms": [
+        "s3",
+        "label-studio"
+      ],
+      "links": [
+        "#c01.datos",
+        "#m09.etiquetado",
+        "#m01.ciclo-de-vida"
+      ]
+    },
+    {
+      "id": "versionado",
+      "num": 2,
+      "title": "Versionado y linaje",
+      "question": "¿Cómo sabes, meses después, con qué datos exactos se entrenó un modelo?",
+      "summary": "Cada dataset es un <b>snapshot inmutable</b> con id (<code>ds-2026-09-01</code>) y un manifest en Parquet: por imagen, hash, ruta, label, fuente del label y fecha. No copia fotos, las referencia, así que un snapshot nuevo pesa ≈ 0.1 % de las imágenes. Cada modelo registrado guarda tres punteros (snapshot, commit y digest del contenedor de entrenamiento): con eso respondes «¿con qué datos?», «¿lo puedo reproducir?» y «¿en qué datasets está esta foto que pidieron borrar?».",
+      "in": [
+        "labels del mes + referencias a imágenes (key + sha256)",
+        "snapshot anterior (parent)"
+      ],
+      "out": [
+        "snapshot ds-2026-09-01 (manifest inmutable)",
+        "reporte de validación del snapshot"
+      ],
+      "steps": [
+        {
+          "label": "Armar el manifest",
+          "detail": "Una fila por imagen: sha256, key, label, fuente del label, seller_id y fecha (≈ 400 MB sin comprimir para ≈ 2 M imágenes).",
+          "icon": "file",
+          "who": "automático (pipeline)",
+          "where": "paso «snapshot» del pipeline mensual (job de datos)"
+        },
+        {
+          "label": "Deduplicar y separar",
+          "detail": "Dedupe por hash (la misma foto subida en 3 publicaciones no cae en train y en test) y split por seller_id.",
+          "icon": "data",
+          "who": "automático (pipeline)",
+          "where": "mismo paso, sobre el manifest"
+        },
+        {
+          "label": "Publicar inmutable",
+          "detail": "Escribe en s3://…/datasets/ds-2026-09-01/ con object lock o una política que prohíba sobrescribir.",
+          "icon": "lock",
+          "who": "automático (pipeline)",
+          "where": "Amazon S3 (un prefijo por snapshot)"
+        },
+        {
+          "label": "Validar antes de gastar GPU",
+          "detail": "Labels dentro de las 500 categorías, cero duplicados con el golden set y conteos por fuente en rango.",
+          "icon": "test",
+          "who": "automático (pipeline)",
+          "where": "paso «validar datos» del pipeline"
+        },
+        {
+          "label": "Apuntar desde el modelo",
+          "detail": "La corrida guarda el id del snapshot, el commit y el digest de la imagen de entrenamiento; la versión registrada los hereda.",
+          "icon": "version",
+          "who": "automático (pipeline)",
+          "where": "MLflow (parámetros y tags de la corrida)"
+        }
+      ],
+      "files": [
+        {
+          "path": "s3://…/datasets/ds-2026-09-01/ (manifest en Parquet)",
+          "real": false,
+          "what": "Una fila por imagen con hash, ruta, label, fuente del label y fecha. Las fotos no se copian: se referencian por key + sha256. Lo describen C01 y M9; no está en reference/c01."
+        },
+        {
+          "path": "tarjeta del snapshot (JSON junto al manifest)",
+          "real": false,
+          "what": "Snapshot padre, conteos por split, mezcla de fuentes de labels, regla del split, commit del código y resultado de la validación. M9 muestra un ejemplo."
+        },
+        {
+          "path": "punteros de la corrida en MLflow",
+          "real": false,
+          "what": "dataset = id del snapshot, commit de git y digest de la imagen de entrenamiento: el linaje versión → corrida → snapshot → hash de cada imagen."
+        }
+      ],
+      "commands": [
+        {
+          "code": "aws s3 ls s3://{bucket}/datasets/{snapshot_id}/",
+          "note": "Mira qué hay en el prefijo de un snapshot (solo lectura)."
+        },
+        {
+          "code": "dvc add {carpeta_datos} && dvc push",
+          "note": "Si el equipo ya usa DVC: hashea la carpeta, deja <code>{carpeta_datos}.dvc</code> para git y sube los datos al remote en S3."
+        },
+        {
+          "code": "lakectl branch create lakefs://{repo}/{rama} -s lakefs://{repo}/main",
+          "note": "Si usan lakeFS: una rama aislada sobre el bucket, sin copiar datos; después <code>lakectl commit</code> y <code>lakectl merge</code>."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "Nadie puede decir con qué datos se entrenó el modelo que está en producción.",
+          "cause": "El entrenamiento leyó una carpeta «latest» o un prefijo que alguien sobrescribió.",
+          "check": "En MLflow, el parámetro dataset de la corrida tiene que ser un id de snapshot (ds-…), no una ruta."
+        },
+        {
+          "symptom": "La corrida de este mes dio exactamente las mismas métricas que la del mes pasado.",
+          "cause": "El paso de snapshot no recibió el id como parámetro y la caché del orquestador (activa por defecto en Kubeflow) reutilizó el snapshot anterior.",
+          "check": "Revisa los parámetros de la corrida en el orquestador: dataset_id tiene que cambiar cada mes."
+        },
+        {
+          "symptom": "La accuracy offline sale sospechosamente alta.",
+          "cause": "La misma foto quedó en train y en el golden set (subida en varias publicaciones), o el split no fue por seller_id.",
+          "check": "Cruza los sha256 del manifest de train con los del golden set: tiene que dar cero."
+        },
+        {
+          "symptom": "Alguien pidió borrar sus fotos y no sabes en qué datasets ni modelos están.",
+          "cause": "Falta el manifest con hash por imagen o el puntero de cada modelo a su snapshot.",
+          "check": "Busca el sha256 en los manifests y sigue versión → corrida → snapshot en MLflow."
+        }
+      ],
+      "done": [
+        "El snapshot tiene id, manifest y tarjeta, y su prefijo no se puede sobrescribir.",
+        "La validación pasó: 500 categorías, cero duplicados con el golden set, conteos por fuente en rango.",
+        "El pipeline recibe el id del snapshot como parámetro, nunca una carpeta «latest».",
+        "Desde un sha256 llegas a los snapshots y a los modelos que lo usan."
+      ],
+      "memo": "Cómo recordarla: <b>snapshot = manifest, no copia</b>. Un id inmutable más tres punteros desde el modelo (datos, commit, digest) responden «¿con qué se entrenó?» en un minuto.",
+      "trap": "Trampa: inmutable «por convención». Sin object lock o una política que prohíba sobrescribir, alguien reescribe el prefijo y el modelo de marzo deja de ser reproducible. Y object lock protege versiones, no keys: un PUT con la misma key crea otra versión; por eso el manifest guarda el sha256.",
+      "platforms": [
+        "s3",
+        "dvc-lakefs"
+      ],
+      "links": [
+        "#c01.datos",
+        "#m09.versionado",
+        "#m10.reproducibilidad"
+      ]
+    },
+    {
+      "id": "entrenamiento",
+      "num": 3,
+      "title": "Entrenamiento",
+      "question": "¿Cómo se vuelve tu notebook de fine-tuning un job que corre solo cada mes y se puede reproducir?",
+      "summary": "Un pipeline orquestado lanza el fine-tune de ResNet-50 en <b>una GPU on-demand por unas horas</b>: warm start desde el champion, AMP y el mismo <code>preprocess.py</code> que usa el gateway. Corre cada mes, o antes si un disparador de monitoreo lo adelanta. Todo queda en MLflow: parámetros, métricas por época, artefactos, id del snapshot, commit y digest de la imagen.",
+      "in": [
+        "id del snapshot (como parámetro)",
+        "checkpoint del champion (warm start)",
+        "imagen de entrenamiento por digest"
+      ],
+      "out": [
+        "checkpoint candidato (corrida en MLflow)",
+        "curva de val_top1 y métricas finales",
+        "checkpoints intermedios en S3"
+      ],
+      "steps": [
+        {
+          "label": "Probar el código en CI",
+          "detail": "Cada commit al código de training sobreajusta un batch de 32 imágenes: la loss tiene que caer casi a cero.",
+          "icon": "test",
+          "who": "automático (CI)",
+          "where": "job de CI (CPU o una GPU chica)"
+        },
+        {
+          "label": "Disparar el pipeline",
+          "detail": "Calendario mensual, o un disparador de monitoreo que abre un ticket y adelanta la corrida; @champion se resuelve una vez.",
+          "icon": "clock",
+          "who": "automático (pipeline)",
+          "where": "orquestador (Argo Workflows, Airflow o Kubeflow)"
+        },
+        {
+          "label": "Pedir una GPU",
+          "detail": "Un pod de Kubernetes con toleration de GPU o un training job gestionado; nadie deja GPUs de entrenamiento prendidas.",
+          "icon": "gpu",
+          "who": "automático (pipeline)",
+          "where": "nodo GPU on-demand (EKS) o servicio gestionado"
+        },
+        {
+          "label": "Fine-tune",
+          "detail": "Warm start desde el champion, AMP, seeds fijadas y el mismo preprocess.py del gateway; ≈ 3–4 h.",
+          "icon": "train",
+          "who": "automático (pipeline)",
+          "where": "contenedor de entrenamiento (por digest), 1 GPU"
+        },
+        {
+          "label": "Checkpoint cada 15 min",
+          "detail": "Pesos + optimizador (≈ 300 MB con Adam) a S3; si se pierde el nodo, el orquestador reintenta el paso y reanuda.",
+          "icon": "file",
+          "who": "automático (pipeline)",
+          "where": "Amazon S3 (prefijo de checkpoints)"
+        },
+        {
+          "label": "Registrar la corrida",
+          "detail": "Parámetros, val_top1 por época, artefactos, id del snapshot, commit y digest de la imagen.",
+          "icon": "chart",
+          "who": "automático (pipeline)",
+          "where": "MLflow (tracking)"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/gateway/app/preprocess.py",
+          "real": true,
+          "what": "El preprocesamiento único: el DataLoader de entrenamiento y evaluación lo importa igual que el gateway (EXIF → RGB → resize 256 → crop 224 → normalización de ImageNet). Así no hay training-serving skew de lógica por construcción.",
+          "excerpt": "def preprocess(data: bytes, max_pixels: int | None = None) -> np.ndarray:\n    \"\"\"Punto de entrada único: bytes → float32 [3,224,224]. Lo usan gateway, eval y training.\"\"\"\n    return to_chw_normalized(resize_center_crop(decode(data, max_pixels=max_pixels)))",
+          "lang": "python"
+        },
+        {
+          "path": "código de entrenamiento (script versionado)",
+          "real": false,
+          "what": "Dataset sobre el manifest, loop con AMP, seeds, checkpoints y logging a MLflow. El curso lo describe y M10 muestra fragmentos; no está en reference/c01."
+        },
+        {
+          "path": "definición del pipeline (DAG)",
+          "real": false,
+          "what": "Snapshot → validar → fine-tune → evaluar → gate → engine e imagen de Triton → paridad y latencia → registrar, cada paso en un contenedor con su imagen por digest. M10 la muestra en Kubeflow Pipelines."
+        },
+        {
+          "path": "imagen de entrenamiento (por digest)",
+          "real": false,
+          "what": "Python, torch, CUDA, cuDNN y la misma versión de Pillow que el gateway, referenciada por @sha256 y no por tag."
+        }
+      ],
+      "commands": [
+        {
+          "code": "mlflow server --backend-store-uri postgresql://{usuario}:{clave}@{host_db}/{db} --artifacts-destination s3://{bucket} --host 0.0.0.0",
+          "note": "Lo levanta plataforma una vez, no en cada corrida: UI y API en el puerto 5000, metadatos en Postgres y artefactos en S3. Sin <code>--host 0.0.0.0</code> solo responde en esa máquina; si los jobs lo llaman por nombre, suma <code>--allowed-hosts {nombre}</code> (MLflow ≥ 3.5)."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "La accuracy online es varios puntos menor que la offline y no hay ningún error en los logs.",
+          "cause": "Training-serving skew: el entrenamiento preprocesa distinto que el gateway (PIL vs OpenCV, bilinear vs bicubic, draft mode u otra versión de Pillow).",
+          "check": "Verifica que training importe gateway/app/preprocess.py con el mismo Pillow y corre la paridad end-to-end por el gateway real."
+        },
+        {
+          "symptom": "Dos corridas con la misma config dan 85.3 % y 85.1 % de top-1.",
+          "cause": "Ruido de seed y no determinismo de cuDNN: no es una regresión de la receta.",
+          "check": "Compárala con la dispersión medida entre seeds (≈ 0.1 pp en el ejemplo del curso) antes de concluir."
+        },
+        {
+          "symptom": "El mejor modelo salió de un notebook y nadie lo puede reproducir.",
+          "cause": "Corrió fuera del pipeline: celdas fuera de orden, datos locales o cambios sin commit (el tag de commit de MLflow no avisa de cambios sin commit).",
+          "check": "Los candidatos salen solo del pipeline, desde un commit limpio; revisa en MLflow de dónde vino la corrida."
+        },
+        {
+          "symptom": "El fine-tune murió a la hora 2 y alguien relanzó todo a la mañana siguiente.",
+          "cause": "Se perdió el nodo GPU (spot o falla) y no había checkpoints ni reintento por paso.",
+          "check": "Checkpoint cada 15 min en S3 y reintentos en el paso de fine-tune del orquestador."
+        },
+        {
+          "symptom": "La loss no baja ni siquiera con unas pocas imágenes.",
+          "cause": "Bug en el código de entrenamiento (labels desalineados, learning rate roto).",
+          "check": "Corre el smoke test: sobreajustar un batch de 32 imágenes tiene que llevar la loss casi a cero."
+        }
+      ],
+      "done": [
+        "La corrida salió del pipeline desde un commit limpio, no de una laptop.",
+        "MLflow tiene parámetros, curva de val_top1, artefactos, id del snapshot, commit y digest.",
+        "El entrenamiento usó el mismo preprocess.py y la misma versión de Pillow que el gateway.",
+        "La GPU se apagó al terminar y los checkpoints quedaron en S3."
+      ],
+      "memo": "Cómo recordarla: <b>el notebook explora, el pipeline produce</b>. Lo que va a producción sale de un script versionado que corre el orquestador en una GPU efímera, con todo anotado en MLflow.",
+      "trap": "Trampa: «fijé la seed, así que es reproducible». cuDNN y las sumas atómicas en GPU cambian los resultados; en C01 reproducible significa «mismo resultado dentro del ruido», con los cinco ingredientes fijados: código, datos, config, entorno y seeds.",
+      "platforms": [
+        "orquestador",
+        "pytorch",
+        "mlflow"
+      ],
+      "links": [
+        "#c01.datos",
+        "#m10.pipelines-entrenamiento",
+        "#m10.reproducibilidad",
+        "#m09.skew"
+      ]
+    },
+    {
+      "id": "gate",
+      "num": 4,
+      "title": "Gate de evaluación y registry",
+      "question": "¿Quién decide, y con qué números, que el modelo nuevo puede reemplazar al de producción?",
+      "summary": "Un gate <b>automático y escrito antes de entrenar</b> compara challenger contra champion sobre el mismo golden set: no inferioridad pareada (≥ −0.3 pp en top-1 y top-5), recall de las 100 categorías con más tráfico, ECE ≤ 0.05 y slices. Si pasa, el checkpoint sigue a la estación 5 (engine e imagen de Triton en una T4) y <b>recién después de paridad y latencia</b> se registra en MLflow con alias <code>challenger</code>; <code>champion</code> se mueve cuando termina el canary.",
+      "in": [
+        "checkpoint candidato (corrida en MLflow)",
+        "champion actual (versión fija, como parámetro)",
+        "golden set congelado (≈ 50k)"
+      ],
+      "out": [
+        "checkpoint aprobado por el gate",
+        "reporte del gate (veredicto, slices, recall por categoría)",
+        "versión challenger en MLflow (después de la estación 5)"
+      ],
+      "steps": [
+        {
+          "label": "Evaluar a los dos",
+          "detail": "Challenger y champion sobre las mismas ≈ 50k imágenes; se guardan las predicciones por imagen para el test pareado.",
+          "icon": "chart",
+          "who": "automático (pipeline)",
+          "where": "paso «evaluar» del pipeline, en GPU"
+        },
+        {
+          "label": "Aplicar los umbrales",
+          "detail": "Diferencia pareada ≥ −0.3 pp (también contra el champion de hace 3 meses), recall top-100 con McNemar + Holm, ECE ≤ 0.05 y slices.",
+          "icon": "gate",
+          "who": "automático (pipeline)",
+          "where": "paso «gate» del pipeline"
+        },
+        {
+          "label": "Si falla, frena",
+          "detail": "La corrida termina en rojo con el motivo en el tracking y avisa; un override pide dos personas y deja un tag.",
+          "icon": "alert",
+          "who": "automático (pipeline)",
+          "where": "orquestador + MLflow"
+        },
+        {
+          "label": "Pasar a export",
+          "detail": "El checkpoint aprobado se exporta, se compila y se hornea en la imagen de Triton; contra ese Triton corren la paridad y la latencia (estación 5).",
+          "icon": "export",
+          "who": "automático (CI)",
+          "where": "runner de CI con T4"
+        },
+        {
+          "label": "Registrar la versión",
+          "detail": "Solo con paridad y latencia en verde: ONNX, engine, labels.json con su hash, versión del preprocess, métricas y punteros; tag gate=passed y alias challenger.",
+          "icon": "registry",
+          "who": "automático (pipeline)",
+          "where": "MLflow Model Registry"
+        },
+        {
+          "label": "Promover al final",
+          "detail": "Después del shadow y del canary, CD mueve champion a esta versión; la anterior queda lista para rollback.",
+          "icon": "rollout",
+          "who": "automático (CD)",
+          "where": "pipeline de CD (estación 10)"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/gateway/app/labels.json",
+          "real": true,
+          "what": "Los 500 labels en el orden de las clases del entrenamiento. El orden es parte del modelo: se registra con la versión y con su hash. En la referencia viaja en la imagen del gateway (lo más simple); endurecido, se publica junto al engine.",
+          "excerpt": "[\n  \"Celulares y telefonía > Smartphones\",\n  \"Celulares y telefonía > Teléfonos básicos\",\n  \"Celulares y telefonía > Fundas para celular\",",
+          "lang": "text"
+        },
+        {
+          "path": "umbrales del gate (archivo versionado)",
+          "real": false,
+          "what": "Los criterios escritos antes de la corrida: margen de −0.3 pp, recall por categoría con test, ECE ≤ 0.05, slices, paridad ≥ 99.5 % y p99 ≤ champion + 10 %. Cambian solo en un PR propio."
+        },
+        {
+          "path": "reporte del gate",
+          "real": false,
+          "what": "Predicciones por imagen de los dos modelos, métricas por slice y por categoría, y el veredicto con su motivo; queda en la corrida y, si pasa, como tags de la versión."
+        },
+        {
+          "path": "versión del registry (classifier vN)",
+          "real": false,
+          "what": "Alias challenger y, tras el canary, champion. Incluye ONNX, engine (con la GPU y la release de NGC como tags), labels.json + hash, versión del preprocess, métricas del gate y punteros a snapshot, commit y digest."
+        }
+      ],
+      "commands": [
+        {
+          "code": "python -c \"from mlflow import MlflowClient; print(MlflowClient().get_model_version_by_alias('classifier', 'champion').version)\"",
+          "note": "¿Qué versión es <code>champion</code> ahora? Con <code>MLFLOW_TRACKING_URI</code> apuntando al servidor."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "El gate bloquea casi todos los reentrenamientos mensuales.",
+          "cause": "Exige «≥ champion» exacto (con ≈ 50k imágenes el ruido es ≈ ±0.3 pp: decide al azar) o una mejora significativa, que un refresco mensual casi nunca muestra.",
+          "check": "Revisa el criterio: no inferioridad con margen (diferencia pareada ≥ −0.3 pp, con McNemar o bootstrap)."
+        },
+        {
+          "symptom": "El top-1 global sube, pero una categoría grande se rompió y nadie lo notó.",
+          "cause": "El gate solo miraba el promedio.",
+          "check": "Recall por categoría de las 100 con más tráfico (test pareado + Holm) y slices: móvil, web, poca luz, imágenes chicas."
+        },
+        {
+          "symptom": "Cada mes el gate pasa, pero el modelo de hoy es claramente peor que el de hace un año.",
+          "cause": "Erosión del margen: −0.2 pp por mes, doce meses seguidos.",
+          "check": "Compara también contra el champion de hace 3 meses."
+        },
+        {
+          "symptom": "La corrida terminó en verde, pero no apareció ningún challenger.",
+          "cause": "El paso del gate devolvió false en vez de fallar: los pasos siguientes se saltaron y nadie se enteró.",
+          "check": "Haz que el gate lance una excepción: corrida en rojo y alerta de pipeline fallido."
+        },
+        {
+          "symptom": "Todo responde 200 con scores normales, pero los nombres de categoría no corresponden; solo cae la aceptación.",
+          "cause": "labels.json desalineado con el modelo (otro orden de clases).",
+          "check": "Compara el hash de labels.json registrado con la versión contra el que sirve el gateway; 500 labels = dimensión de logits."
+        }
+      ],
+      "done": [
+        "El candidato es no inferior al champion (≥ −0.3 pp pareado) y al de hace 3 meses.",
+        "Ninguna de las 100 categorías grandes cae > 5 pp con caída significativa (McNemar + Holm), ningún slice cae más que su intervalo y ECE ≤ 0.05.",
+        "Paridad y latencia (estación 5) pasaron y la versión quedó como challenger con todos sus artefactos.",
+        "Sabes qué versión es champion y a cuál vuelves si algo falla."
+      ],
+      "memo": "Cómo recordarla: <b>el gate decide si vale la pena probar; el canary, si se queda</b>. Promover y volver atrás es mover el alias <code>champion</code>, no reentrenar.",
+      "trap": "Trampa: mover los umbrales después de ver el resultado («el slice cayó 2 pp, subo el límite a 2.5»). El gate deja de medir y empieza a justificar: los umbrales cambian en un PR propio, antes de la corrida.",
+      "platforms": [
+        "mlflow"
+      ],
+      "links": [
+        "#c01.datos",
+        "#c01.evaluacion",
+        "#m10.gate",
+        "#m10.model-registry"
+      ]
+    },
+    {
+      "id": "export",
+      "num": 5,
+      "title": "Export, engine y paridad",
+      "question": "¿Cómo pasa el checkpoint de PyTorch a un engine que Triton sirve rápido, sin cambiar sus predicciones?",
+      "summary": "El checkpoint aprobado se exporta a <b>ONNX opset 17</b> (batch dinámico, nombres <code>input</code>/<code>logits</code>) y pasa una primera paridad en CPU con ONNX Runtime. Después, <b>en una T4 y con la misma release de NGC (24.08) que Triton</b>, porque un engine no es portable, <code>trtexec --fp16</code> compila el engine, <code>docker build triton/</code> lo hornea en la imagen de Triton y, con ese Triton arriba, corren los dos gates: paridad contra PyTorch FP32 (top-1 agreement ≥ 99.5 %) y latencia con perf_analyzer (p99 ≤ champion + 10 %). Todo es parte del pipeline del modelo, en un runner de CI con T4, y solo si pasa la versión se registra como challenger (estación 4).",
+      "in": [
+        "checkpoint aprobado por el gate (.pt)",
+        "muestra de imágenes del set de evaluación"
+      ],
+      "out": [
+        "engine model.plan (versión challenger)",
+        "imagen de Triton con el engine horneado (tag = versión del modelo)",
+        "ONNX, reportes de paridad y latencia, y huellas (sha256, GPU, NGC) para el registry"
+      ],
+      "steps": [
+        {
+          "label": "Exportar a ONNX",
+          "detail": "export_onnx.py: modelo en eval(), exportador TorchScript, opset 17 y batch dinámico; verifica el opset real y corre ORT con batch 1 y 32.",
+          "icon": "export",
+          "who": "automático (CI)",
+          "where": "job de CI (CPU)"
+        },
+        {
+          "label": "Paridad en CPU",
+          "detail": "parity_check.py con ONNX Runtime contra PyTorch FP32: valida el export sin tocar una GPU.",
+          "icon": "test",
+          "who": "automático (CI)",
+          "where": "job de CI (CPU)"
+        },
+        {
+          "label": "Compilar el engine",
+          "detail": "build_engine.sh: aborta si la GPU no es T4; trtexec --fp16 con perfil 1/16/32 dentro de tensorrt:24.08.",
+          "icon": "engine",
+          "who": "automático (CI)",
+          "where": "runner de CI con T4 (g4dn.xlarge)"
+        },
+        {
+          "label": "Levantar Triton con el engine",
+          "detail": "docker build triton/ hornea el engine en la imagen (tag = versión del modelo) y ese Triton arranca en la misma T4: lo que se prueba es lo que se despliega.",
+          "icon": "server",
+          "who": "automático (CI)",
+          "where": "runner de CI con T4"
+        },
+        {
+          "label": "Paridad FP16",
+          "detail": "parity_check.py --backend triton: top-1 ≥ 99.5 %, top-5 ≥ 99 % y |Δlogit| ≤ 0.5; exit 1 frena todo.",
+          "icon": "gate",
+          "who": "automático (CI)",
+          "where": "runner de CI con T4"
+        },
+        {
+          "label": "Gate de latencia",
+          "detail": "perf_analyzer a 250 y 500 req/s contra ese Triton: p99 ≤ champion + 10 %.",
+          "icon": "chart",
+          "who": "automático (CI)",
+          "where": "runner de CI con T4"
+        },
+        {
+          "label": "Registrar huellas",
+          "detail": "sha256 del ONNX y del plan, GPU y NGC_RELEASE van a la versión challenger del registry.",
+          "icon": "registry",
+          "who": "automático (CI)",
+          "where": "MLflow (estación 4)"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/model/export_onnx.py",
+          "real": true,
+          "what": "Checkpoint → ONNX (exportador TorchScript, opset 17, batch dinámico, nombres input/logits). Su verify() falla si el opset del archivo no es el pedido o si ONNX Runtime no coincide con PyTorch en batch 1 y 32; CI lee el exit code.",
+          "excerpt": "    proto = onnx.load(path)  # carga el grafo con sus pesos\n    onnx.checker.check_model(proto, full_check=True)  # estructura válida + shape inference completa\n    real_opset = next(o.version for o in proto.opset_import if o.domain in (\"\", \"ai.onnx\"))\n    dims = [d.dim_param or d.dim_value for d in proto.graph.input[0].type.tensor_type.shape.dim]\n    print(f\"[export] opset={real_opset} input={proto.graph.input[0].name}{dims} output={proto.graph.output[0].name}\")\n    ok = real_opset == opset  # el opset pedido debe ser el real (ver la trampa del exportador dynamo)",
+          "lang": "python"
+        },
+        {
+          "path": "reference/c01/model/parity_check.py",
+          "real": true,
+          "what": "Gate de paridad con métricas de producto: acuerdo top-1, solapamiento del top-5 y |Δlogit| máximo, contra ONNX Runtime (CPU) o contra el engine servido por Triton. Exit 1 = no se promueve.",
+          "excerpt": "    p.add_argument(\"--min-top1\", type=float, default=0.995, help=\"umbral del gate: acuerdo top-1 ≥ 99.5 %%\")\n    p.add_argument(\"--min-top5\", type=float, default=0.99, help=\"solapamiento medio del top-5\")\n    # FP32 vs FP32 da ~1e-4; TensorRT FP16 da ~1e-2: el umbral depende del backend (ajústalo con datos)\n    p.add_argument(\"--max-abs-diff\", type=float, default=0.5, help=\"tope de |Δlogit| (atrapa exports rotos)\")",
+          "lang": "python"
+        },
+        {
+          "path": "reference/c01/model/build_engine.sh",
+          "real": true,
+          "what": "Compila classifier.onnx a model.plan con trtexec --fp16 dentro de nvcr.io/nvidia/tensorrt:24.08-py3. Aborta si la GPU no es una T4 y al final imprime GPU, release y sha256 para el registry.",
+          "excerpt": "# Guardia: compilar en la GPU equivocada produce un engine que falla (o rinde mal) al servir\ngpu=\"$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1)\"\nif [[ \"$gpu\" != *\"$EXPECTED_GPU\"* ]]; then\n  echo \"GPU detectada: '$gpu'. Este engine debe construirse en una $EXPECTED_GPU (la de producción).\" >&2\n  exit 1\nfi",
+          "lang": "bash"
+        },
+        {
+          "path": "reference/c01/model/requirements.txt",
+          "real": true,
+          "what": "Entorno del job de export y paridad, todo fijado: la versión de torch cambia el comportamiento del exportador y Pillow tiene que ser la misma que en el gateway.",
+          "excerpt": "torch==2.14.0  # la versión FIJA importa: el exportador TorchScript está deprecado y cambia entre releases\ntorchvision==0.29.0  # arquitectura resnet50 (y la referencia de preprocesamiento en los tests de skew)\nonnx==1.23.0  # onnx.checker y lectura del opset/shapes\nonnxscript==0.7.2  # lo necesita el exportador dynamo (--dynamo)\nonnxruntime==1.30.0  # ejecuta el .onnx en CPU para el gate de paridad\nnumpy==2.5.3\npillow==12.3.0  # MISMA versión que el gateway: el preprocesamiento compartido depende de ella",
+          "lang": "text"
+        }
+      ],
+      "commands": [
+        {
+          "code": "python model/export_onnx.py --checkpoint {checkpoint.pt} --out model/classifier.onnx",
+          "note": "Exporta y verifica. Sin <code>--checkpoint</code> usa pesos aleatorios: solo prueba el pipeline."
+        },
+        {
+          "code": "python model/parity_check.py --checkpoint {checkpoint.pt} --onnx model/classifier.onnx --images {carpeta_muestra_eval} --n 2000",
+          "note": "Paridad en CPU con ONNX Runtime; exit 1 = no pasa. Sin <code>--checkpoint</code>, la referencia de PyTorch tendría pesos aleatorios."
+        },
+        {
+          "code": "bash model/build_engine.sh",
+          "note": "En la T4, con Docker y NVIDIA Container Toolkit: deja <code>triton/model_repository/classifier/1/model.plan</code>."
+        },
+        {
+          "code": "python model/parity_check.py --backend triton --triton-url {host}:8000 --checkpoint {checkpoint.pt} --images {carpeta_muestra_eval} --n 2000",
+          "note": "El engine FP16 servido por Triton contra PyTorch FP32 del mismo checkpoint; exit 1 = no se registra."
+        },
+        {
+          "code": "perf_analyzer -m classifier -u {host}:8000 --request-rate-range=250:500:250 --percentile=99",
+          "note": "Carga a tasa fija (250 y 500 req/s) para el gate de latencia: compara el p99 con el del champion."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "Los pods de Triton quedan en CrashLoopBackOff con el engine nuevo.",
+          "cause": "El engine se compiló en otra GPU u otra versión de TensorRT: por defecto no es portable.",
+          "check": "Compara las huellas que imprimió build_engine.sh (GPU, NGC_RELEASE) con la T4 y con el tag tritonserver:24.08 de triton/Dockerfile."
+        },
+        {
+          "symptom": "export_onnx.py imprime opset=18 y «FALLÓ la verificación».",
+          "cause": "Usaste --dynamo pidiendo opset 17: la conversión hacia abajo falla en ReduceMean y el archivo queda en 18.",
+          "check": "Exporta con el exportador TorchScript (el default del script) o con --dynamo --opset 18."
+        },
+        {
+          "symptom": "parity_check.py --backend triton da 97 % de acuerdo top-1.",
+          "cause": "No es el redondeo de FP16 (mueve los logits ≈ 1e-2): es un bug del export o de una capa del engine. El preprocesamiento queda descartado: los dos modelos reciben el mismo tensor.",
+          "check": "Corre primero --backend ort: si FP32 ya da 97 %, el problema está en el export; si pasa, busca la capa que diverge en el engine."
+        },
+        {
+          "symptom": "Con batch 1 funciona y con batch 7 falla o devuelve basura.",
+          "cause": "El eje de batch quedó constante: no se declaró dinámico en el export.",
+          "check": "Batch dinámico en el export (verify() prueba 1 y 32) y perfil 1/16/32 en trtexec."
+        },
+        {
+          "symptom": "El engine nuevo es más preciso, pero perf_analyzer muestra un p99 2× más alto que el del champion.",
+          "cause": "Modelo más pesado, o un perfil mal elegido: opt 16 cuando online llegan batches de ≈ 1–3.",
+          "check": "perf_analyzer a 250 y 500 req/s; compara con un engine construido con --optShapes=input:4x3x224x224."
+        }
+      ],
+      "done": [
+        "export_onnx.py imprime opset=17 y «[export] OK».",
+        "El engine se construyó en una T4 con tensorrt:24.08, la misma release que tritonserver:24.08.",
+        "parity_check.py --backend triton da top-1 agreement ≥ 99.5 % y exit 0.",
+        "perf_analyzer a 250 y 500 req/s: p99 ≤ champion + 10 %.",
+        "Los sha256 del ONNX y del plan, la GPU y la release están en la versión del registry."
+      ],
+      "memo": "Cómo recordarla: <b>ONNX es el formato de entrega; el engine sirve para un tipo de GPU y una versión de TensorRT</b>. Se compila donde va a correr (T4, NGC 24.08) y se compara contra PyTorch antes de que llegue a producción.",
+      "trap": "Trampa: «construí el engine en mi laptop y lo subí». Por defecto un engine solo sirve en el tipo de GPU y la versión de TensorRT con que se construyó. Hay modos de compatibilidad opcionales (y algo más lentos), pero el de hardware de TensorRT 10.3, <code>ampere+</code>, exige compute capability ≥ 8.0 y la T4 es 7.5: se compila en CI, en una T4.",
+      "platforms": [
+        "onnx",
+        "tensorrt",
+        "triton"
+      ],
+      "links": [
+        "#c01.archivos",
+        "#c01.evaluacion",
+        "#m08.onnx",
+        "#m08.tensorrt"
+      ]
+    },
+    {
+      "id": "serving",
+      "num": 6,
+      "title": "Código de serving",
+      "question": "¿Qué código y qué configuración ponen al modelo detrás de una API que cumple p99 ≤ 200 ms?",
+      "summary": "Dos piezas con trabajos distintos: un <b>gateway FastAPI en CPU</b> que valida, decodifica en un threadpool, preprocesa con el mismo <code>preprocess.py</code>, llama a Triton y arma el top-k, y <b>Triton en la T4</b>, configurado en <code>config.pbtxt</code> (dynamic batching de 2 ms, 2 instancias, rechazo en cola a los 100 ms). Los 24 tests de pytest prueban el contrato y cada error sin GPU. Es código que cambia en días; el modelo llega ya hecho de la estación 5.",
+      "in": [
+        "model.plan (engine) de la versión challenger",
+        "labels.json (500 categorías)",
+        "preprocess.py compartido con el entrenamiento"
+      ],
+      "out": [
+        "código del gateway + model repository de Triton",
+        "24 tests en verde",
+        "contrato POST /v1/classify"
+      ],
+      "steps": [
+        {
+          "label": "Fijar el contrato",
+          "detail": "POST /v1/classify?top_k=5 con los bytes de la imagen; respuesta con model_version; errores 400, 413, 415, 422, 503 y 504.",
+          "icon": "code",
+          "who": "MLE",
+          "where": "gateway/app/main.py"
+        },
+        {
+          "label": "Validar barato primero",
+          "detail": "Content-Type, 10 MB (por Content-Length y contando el stream), 40 MP y relación 1:8 leídos del header antes de decodificar.",
+          "icon": "lock",
+          "who": "MLE",
+          "where": "main.py + preprocess.py"
+        },
+        {
+          "label": "Decode fuera del event loop",
+          "detail": "run_in_threadpool con un semáforo de 2 decodes por proceso; si no hay lugar en 50 ms, 503 con Retry-After.",
+          "icon": "code",
+          "who": "MLE",
+          "where": "main.py (CPU del pod del gateway)"
+        },
+        {
+          "label": "Llamar a Triton con presupuesto",
+          "detail": "Cliente async de Triton con tensores binarios; 150 ms de timeout → 504, Triton caído → 503; deadline total de 250 ms.",
+          "icon": "request",
+          "who": "MLE",
+          "where": "main.py → Triton :8000"
+        },
+        {
+          "label": "Configurar Triton",
+          "detail": "config.pbtxt: tensorrt_plan, max_batch_size 32, ventana de 2 ms, REJECT a los 100 ms, 2 instancias y warmup.",
+          "icon": "server",
+          "who": "MLE",
+          "where": "triton/model_repository/classifier/"
+        },
+        {
+          "label": "Probar sin GPU",
+          "detail": "pytest con un Triton falso: 24 tests de 200, 4xx, 503, 504, health checks y métricas.",
+          "icon": "test",
+          "who": "automático (CI)",
+          "where": "tu máquina y el job de CI (sin GPU)"
+        }
+      ],
+      "files": [
+        {
+          "path": "reference/c01/gateway/app/main.py",
+          "real": true,
+          "what": "El gateway: validación en capas, decode en un threadpool acotado, llamada a Triton con deadline y traducción de cada falla a un código útil (504 si está lento; 503 con Retry-After si está caído o rechaza), métricas y una línea de log por request.",
+          "excerpt": "        result = await asyncio.wait_for(\n            client.infer(MODEL_NAME, [inp], outputs=[out], request_id=request_id),\n            timeout=timeout,  # ≤ INFER_TIMEOUT_S: lo que quede del presupuesto del request\n        )\n    except TimeoutError:  # asyncio.TimeoutError es alias de TimeoutError desde Python 3.11\n        # 504: Triton está vivo pero lento (cola llena, GPU saturada); el cliente cae a su fallback\n        raise HTTPException(504, \"timeout de inferencia\") from None\n    except aiohttp.ClientError:  # conexión rechazada/reseteada, DNS: Triton caído o reiniciando\n        raise HTTPException(503, \"Triton no disponible\", headers={\"Retry-After\": \"1\"}) from None\n    except InferenceServerException as exc:  # Triton respondió error: modelo no cargado, request rechazado\n        detail = f\"Triton rechazó la inferencia: {exc.message()}\"\n        raise HTTPException(503, detail, headers={\"Retry-After\": \"1\"}) from None",
+          "lang": "python"
+        },
+        {
+          "path": "reference/c01/triton/model_repository/classifier/config.pbtxt",
+          "real": true,
+          "what": "Contrato del modelo en Triton (input FP32 [3,224,224] → logits [500]) y su comportamiento: dynamic batching de 2 ms, rechazo a los 100 ms en cola, 2 instancias en la T4 y warmup antes de READY. Extracto: el bloque sigue con su llave de cierre.",
+          "excerpt": "dynamic_batching {\n  max_queue_delay_microseconds: 2000\n  # Sin preferred_batch_size a propósito: con un solo perfil de optimización (1–32) Triton arma el\n  # batch más grande posible dentro de la espera; fijar tamaños solo tiene sentido con varios\n  # perfiles/engines por tamaño, y mal elegidos agregan espera.\n  default_queue_policy {\n    # Protección ante sobrecarga: un request que lleva 100 ms en cola ya no llega a tiempo al\n    # timeout del gateway (150 ms). Mejor rechazarlo y liberar GPU para requests que siguen vivos\n    # que calcular una respuesta que nadie espera.\n    timeout_action: REJECT\n    default_timeout_microseconds: 100000\n  }",
+          "lang": "protobuf"
+        },
+        {
+          "path": "reference/c01/gateway/tests/test_api.py",
+          "real": true,
+          "what": "Los 24 tests corren sin GPU: la fixture cambia el cliente de Triton por un fake que respeta su contrato y puede simular a Triton caído, lento o rechazando.",
+          "excerpt": "@pytest.fixture\ndef api(monkeypatch):\n    \"\"\"App con el fake inyectado. `with TestClient` ejecuta el lifespan (crea y cierra el cliente).\"\"\"\n    FakeTriton.mode = \"ok\"\n    monkeypatch.setattr(main.triton_http, \"InferenceServerClient\", FakeTriton)\n    with TestClient(main.app) as client:\n        yield client",
+          "lang": "python"
+        }
+      ],
+      "commands": [
+        {
+          "code": "cd reference/c01/gateway && pip install -r requirements-dev.txt && pytest",
+          "note": "Los 24 tests con un Triton falso, en un venv con Python 3.13 (la versión con que se probó); no necesitas GPU."
+        },
+        {
+          "code": "uvicorn app.main:app --port 8080",
+          "note": "Gateway suelto desde <code>gateway/</code>, sin Triton: <code>/healthz</code> da 200, <code>/readyz</code> 503 y <code>/v1/classify</code> 503 con Retry-After."
+        },
+        {
+          "code": "curl -fsS http://localhost:8000/v2/health/ready",
+          "note": "¿Triton está listo con su modelo cargado? (arranca con <code>--strict-readiness</code>)."
+        },
+        {
+          "code": "curl -H \"Content-Type: image/jpeg\" --data-binary @{foto.jpg} \"localhost:8080/v1/classify?top_k=5\"",
+          "note": "Un request de punta a punta contra el gateway, con Triton arriba."
+        }
+      ],
+      "fails": [
+        {
+          "symptom": "El p99 crece con la concurrencia sin que la CPU esté llena; hasta /healthz tarda.",
+          "cause": "Decode de JPEG (o model(x)) dentro de un async def: bloquea el event loop.",
+          "check": "Busca trabajo de CPU fuera de run_in_threadpool; compara classifier_preprocess_seconds con la latencia total."
+        },
+        {
+          "symptom": "Triton se cae y los pods del gateway empiezan a reiniciarse en cascada.",
+          "cause": "La dependencia de Triton quedó en liveness en vez de readiness.",
+          "check": "Revisa que /healthz no consulte a Triton y /readyz sí (test_healthz_does_not_depend_on_triton)."
+        },
+        {
+          "symptom": "pytest falla en test_classify_ok_respects_top_k_and_contract después de un cambio en el gateway.",
+          "cause": "El nombre, la shape o el dtype del tensor ya no coinciden con config.pbtxt (input FP32 [3,224,224], logits [500]).",
+          "check": "Lee el assert que falló: el test revisa lo que el gateway le pasó al fake (input, shape [1, 3, 224, 224], FP32 y salida logits), lo mismo que pide config.pbtxt."
+        },
+        {
+          "symptom": "Pods del gateway en OOMKilled durante ráfagas de fotos web grandes.",
+          "cause": "Demasiados decodes a la vez: el threadpool trae 40 hilos y un PNG de 40 MP ocupa ≈ 320 MB al decodificarse.",
+          "check": "Revisa PREPROCESS_CONCURRENCY (2 por proceso) frente al límite de memoria del pod (1 GiB)."
+        },
+        {
+          "symptom": "Los primeros requests después de levantar Triton tardan mucho más que el resto.",
+          "cause": "Falta model_warmup: la primera ejecución paga la inicialización y la readiness pasa con el modelo frío.",
+          "check": "Revisa model_warmup en config.pbtxt (batch 32, 3 veces, zero_data)."
+        }
+      ],
+      "done": [
+        "pytest pasa los 24 tests sin GPU: 200, 400, 413, 415, 422, 503, 504, health checks y métricas.",
+        "/healthz no depende de Triton; /readyz da 200 solo con el modelo listo.",
+        "Los nombres, shapes y dtypes del gateway coinciden con config.pbtxt.",
+        "Ningún trabajo de CPU corre en el event loop; 150 ms de timeout a Triton y 250 ms en total.",
+        "config.pbtxt tiene ventana de 2 ms, REJECT a los 100 ms, 2 instancias y warmup."
+      ],
+      "memo": "Cómo recordarla: <b>el gateway sabe del producto; Triton, solo de tensores</b>. Gateway: cuotas, bytes, decode, top-k, errores y logs. Triton: cola, batching y GPU.",
+      "trap": "Trampa: un <code>async def</code> que decodifica el JPEG. Bloquea el event loop: ningún otro request avanza, ni los health checks, y el p99 sube con la concurrencia sin que la CPU esté llena. El I/O va con <code>await</code>; la CPU, a <code>run_in_threadpool</code>.",
+      "platforms": [
+        "fastapi",
+        "triton",
+        "pytest"
+      ],
+      "links": [
+        "#c01.serving",
+        "#c01.archivos",
+        "#m07.que-hace",
+        "#m07.triton"
+      ]
+    }
+  ],
+  "platforms": [
+    {
+      "id": "s3",
+      "name": "Amazon S3",
+      "category": "almacenamiento de objetos",
+      "what": "Un almacén de archivos en la nube, sin límite práctico de tamaño: guardas archivos («objetos») bajo un nombre con forma de ruta («key») dentro de un bucket, y pagas por lo que guardas y por cada lectura o escritura.",
+      "analogy": "Como un Drive para máquinas: las «carpetas» son solo prefijos del nombre de cada archivo.",
+      "in_c01": "Guarda los logs de predicción (Parquet), las fotos etiquetadas sin EXIF en un bucket restringido, los manifests de cada snapshot (s3://…/datasets/ds-2026-09-01/), los checkpoints del fine-tune y los artefactos de MLflow.",
+      "work": {
+        "main": "administrado",
+        "also": [
+          "configura",
+          "opera"
+        ]
+      },
+      "how": "No instalas nada: AWS lo opera. Tú <b>configuras</b> buckets y reglas (quién lee; una regla de lifecycle que borra las copias de la cola de etiquetado a los 90 días; object lock, que impide borrar o reescribir cada versión por un tiempo, o una política que prohíba sobrescribir) y tus jobs leen y escriben con el SDK o la CLI (<code>aws s3 ls</code>). S3 guarda los objetos de forma durable y cobra por GB y por request; no entiende de datasets: el manifest y la inmutabilidad los pones tú.",
+      "example": {
+        "lang": "text",
+        "code": "{\n  \"snapshot_id\": \"ds-2026-09-01\",\n  \"parent\": \"ds-2026-08-01\",\n  \"created_at\": \"2026-09-01T03:12:44Z\",\n  \"rows_path\": \"s3://ml-datos/datasets/ds-2026-09-01/rows.parquet\",\n  \"rows_sha256\": \"9f2c…\",\n  \"images\": {\"humano\": \"s3://ml-datos/labeled/ (restringido, sin EXIF)\",\n             \"resto\": \"storage del producto (por key + sha256, no se copian)\"},",
+        "source": "M9 · versionado: tarjeta de un snapshot de C01 (ejemplo del curso, no está en reference/c01)"
+      },
+      "runs": "Servicio de AWS en la región del cluster; lo usan los jobs de datos, el entrenamiento, MLflow y Fluent Bit.",
+      "alternatives": "Google Cloud Storage o Azure Blob Storage en otras nubes.",
+      "links": [
+        "#m09.versionado",
+        "#c01.datos",
+        "#c01.estimaciones"
+      ]
+    },
+    {
+      "id": "label-studio",
+      "name": "Label Studio",
+      "category": "etiquetado de datos",
+      "what": "Una aplicación web donde personas ven cada imagen y eligen su label; guarda las anotaciones y las exporta.",
+      "analogy": "Un formulario de encuesta donde cada pregunta es una imagen y la respuesta, su categoría.",
+      "in_c01": "Es una de las dos opciones del curso para la cola mensual (≈ 5k imágenes, 10 % con doble anotación); la otra es un proveedor gestionado. En la edición Community el overlap, el ground truth y las métricas de acuerdo no vienen: exportas las anotaciones y calculas kappa tú.",
+      "work": {
+        "main": "opera",
+        "also": [
+          "configura"
+        ]
+      },
+      "how": "Lo levantas (<code>label-studio start</code> o un contenedor) y <b>configuras</b> cada proyecto con una plantilla XML corta: qué se muestra (<code>Image</code>) y qué se responde (<code>Choices</code>). No copia las imágenes: las lee de S3 con URLs firmadas (links temporales) y escribe cada anotación como JSON en un bucket de destino. El día a día es <b>operar</b> la UI: el equipo de etiquetado anota, tú revisas y exportas.",
+      "example": {
+        "lang": "text",
+        "code": "<View>\n  <Image name=\"image\" value=\"$image\"/>\n  <Choices name=\"category\" toName=\"image\">\n    <Choice value=\"Celulares y telefonía > Smartphones\"/>\n    <Choice value=\"Celulares y telefonía > Fundas para celular\"/>\n  </Choices>\n</View>",
+        "source": "ilustrativo: el formato de plantilla de la documentación de Label Studio con dos categorías de gateway/app/labels.json"
+      },
+      "runs": "Servidor web propio (pip o contenedor) al que se entra con el navegador; también hay ediciones de pago en la nube.",
+      "alternatives": "Un proveedor gestionado (SageMaker Ground Truth en AWS), CVAT para visión o una herramienta interna mínima con la cola en una tabla.",
+      "links": [
+        "#m09.etiquetado",
+        "#c01.datos",
+        "#ref-herramientas.datos-features"
+      ]
+    },
+    {
+      "id": "dvc-lakefs",
+      "name": "DVC / lakeFS",
+      "category": "versionado de datos",
+      "what": "Herramientas que le dan a tus datos lo que git le da a tu código: versiones con id, historial y volver atrás, sin meter los archivos en git.",
+      "analogy": "DVC: git guarda la etiqueta del equipaje (el hash) y el equipaje viaja en S3. lakeFS: ramas de git sobre el bucket entero.",
+      "in_c01": "El curso los usa solo si ya existen en la empresa. Si no, C01 versiona con prefijos inmutables en S3 y un manifest en Parquet: lo importante es la inmutabilidad y el puntero desde el modelo, no la marca.",
+      "work": {
+        "main": "opera",
+        "also": [
+          "configura"
+        ]
+      },
+      "how": "Con DVC <b>operas</b> comandos junto a git: <code>dvc add</code> calcula el hash y deja un archivo <code>.dvc</code> chico que sí va a git, y <code>dvc push</code> sube los datos al remote, el almacenamiento de DVC (aquí, un bucket de S3). lakeFS es un servidor delante del bucket: <b>configuras</b> el repositorio y creas ramas y commits con <code>lakectl</code>, su UI o su API compatible con S3; una rama nueva no copia datos.",
+      "example": {
+        "lang": "bash",
+        "code": "dvc add {carpeta_datos}            # crea {carpeta_datos}.dvc con el hash y agrega la carpeta a .gitignore\ngit add {carpeta_datos}.dvc .gitignore && git commit -m \"{mensaje}\"\ndvc remote add -d {remote} s3://{bucket}/{prefijo}\ndvc push                           # sube los datos al remote en S3\nlakectl branch create lakefs://{repo}/{rama} -s lakefs://{repo}/main\nlakectl commit lakefs://{repo}/{rama} -m \"{mensaje}\"\nlakectl merge lakefs://{repo}/{rama} lakefs://{repo}/main",
+        "source": "comandos de la documentación de DVC y lakeFS (C01 no los usa por defecto)"
+      },
+      "runs": "DVC: una CLI en tu máquina o en el job, con los datos en S3. lakeFS: un servidor delante del bucket, propio o administrado (licencia BSL 1.1 desde la v1.87.0: el uso interno sin modificar está permitido).",
+      "alternatives": "Prefijos inmutables en S3 + manifest en Parquet (la elección por defecto de C01); Delta Lake o Iceberg con time travel para tablas, cuidando su retención.",
+      "links": [
+        "#m09.versionado",
+        "#ref-herramientas.datos-features"
+      ]
+    },
+    {
+      "id": "orquestador",
+      "name": "Orquestador de pipelines (Argo Workflows / Airflow / Kubeflow Pipelines)",
+      "category": "orquestación de pipelines (DAGs)",
+      "what": "Un sistema que corre una receta de pasos en orden (un DAG), cada uno en su contenedor, y se encarga de reintentos, dependencias, historial y disparos por calendario o evento.",
+      "analogy": "Un supervisor de línea de producción: si una estación falla, repite solo esa y lo anota todo en la bitácora.",
+      "in_c01": "Corre el pipeline mensual: snapshot → validar → fine-tune (GPU) → evaluar → gate → engine e imagen de Triton en una T4 → paridad y latencia → registrar. C01 no fija marca: nombra Argo Workflows, Airflow o Kubeflow Pipelines, y como alternativa más simple un CronJob de Kubernetes con un script por etapas.",
+      "work": {
+        "main": "programa",
+        "also": [
+          "configura",
+          "opera"
+        ]
+      },
+      "how": "Tú <b>escribes</b> la definición del DAG: en Python con Airflow o con el SDK de Kubeflow (que compila a YAML), o directo en YAML con Argo Workflows. El orquestador la ejecuta solo: agenda, lanza cada paso en su contenedor, reintenta y guarda logs y artefactos. Lo <b>operas</b> desde su UI o su CLI: ver corridas, relanzar un paso, entender por qué falló.",
+      "example": {
+        "lang": "python",
+        "code": "@dsl.pipeline(name=\"c01-monthly\")\ndef c01_monthly(dataset_id: str, champion_version: str,   # el scheduler resuelve @champion una vez\n                seed: int = 17, golden_set: str = \"golden-v3\"):\n    snap = snapshot(dataset_id=dataset_id)   # el id es una entrada: la caché no puede confundir meses\n    ft = finetune(manifest=snap.outputs[\"manifest\"], seed=seed,\n                  ckpt_uri=f\"s3://ml-ckpt/c01/{dataset_id}/\")\n    ft.set_accelerator_type(\"nvidia.com/gpu\").set_accelerator_limit(1)\n    ft.set_retry(num_retries=3, backoff_duration=\"120s\")   # un nodo perdido no tira la corrida",
+        "source": "M10 · pipelines de entrenamiento: el pipeline de C01 en Kubeflow Pipelines (ejemplo del curso)"
+      },
+      "runs": "Argo Workflows y Kubeflow, dentro del cluster de Kubernetes; Airflow, donde lo despliegues o administrado (MWAA).",
+      "alternatives": "Un CronJob de Kubernetes con un script por etapas (lo más simple para un modelo al mes), SageMaker Pipelines o Dagster.",
+      "links": [
+        "#m10.pipelines-entrenamiento",
+        "#ref-herramientas.orquestacion",
+        "#c01.datos"
+      ]
+    },
+    {
+      "id": "pytorch",
+      "name": "PyTorch",
+      "category": "framework de deep learning",
+      "what": "La librería de Python con la que defines, entrenas y corres redes neuronales: tu terreno conocido.",
+      "in_c01": "Fine-tunea cada mes el ResNet-50 de 500 clases (warm start, AMP) y queda como referencia FP32: export_onnx.py y parity_check.py cargan el checkpoint con PyTorch para comparar todo lo demás contra él. En producción no corre: se sirve el engine de TensorRT.",
+      "work": {
+        "main": "programa"
+      },
+      "how": "Lo <b>programas</b>: el script de entrenamiento (dataset sobre el manifest, loop con AMP, seeds, checkpoints, logging a MLflow) es código tuyo y versionado. Lo que cambia en producción es quién lo corre: el orquestador lo lanza en un contenedor fijado por digest (el hash de la imagen) sobre una GPU efímera, nunca desde un notebook.",
+      "example": {
+        "lang": "python",
+        "code": "    # weights=None: nada de descargar pesos de ImageNet; num_classes=500 crea la fc correcta\n    model = torchvision.models.resnet50(weights=None, num_classes=NUM_CLASSES)\n    if checkpoint:\n        # weights_only=True: carga solo tensores, no ejecuta pickle arbitrario (un .pt es código)\n        state = torch.load(checkpoint, map_location=\"cpu\", weights_only=True)\n        # strict (por defecto): si una llave no coincide, falla AQUÍ y no en producción con pesos al azar\n        model.load_state_dict(state)",
+        "source": "reference/c01/model/export_onnx.py (extracto de build_model)"
+      },
+      "runs": "En el contenedor de entrenamiento, sobre un nodo GPU on-demand; en CI (CPU), como referencia del export y de la paridad.",
+      "links": [
+        "#m10.reproducibilidad",
+        "#c01.datos",
+        "#m09.skew"
+      ]
+    },
+    {
+      "id": "mlflow",
+      "name": "MLflow (tracking + model registry)",
+      "category": "tracking de experimentos y registry de modelos",
+      "what": "Un servidor con UI donde cada entrenamiento deja sus parámetros, métricas y archivos, más un catálogo de versiones de modelo con nombres que se mueven (aliases).",
+      "analogy": "Un cuaderno de laboratorio compartido más un estante con etiquetas móviles: «champion» y «challenger».",
+      "in_c01": "Registra cada corrida (snapshot, commit, digest, val_top1 por época) y guarda el modelo classifier por versiones con los aliases champion (lo que sirve producción) y challenger (el candidato). Cada versión incluye ONNX, engine, labels.json con su hash y las métricas del gate.",
+      "work": {
+        "main": "programa",
+        "also": [
+          "opera"
+        ]
+      },
+      "how": "Lo <b>programas</b> desde tu código: <code>mlflow.log_params</code> y <code>mlflow.log_metric</code> en el entrenamiento, y <code>MlflowClient</code> para crear versiones y mover aliases. El servidor guarda metadatos en Postgres y archivos en S3, y sirve una UI para comparar corridas; lo <b>operas</b> como cualquier servicio. Promover es mover el alias (los stages Staging/Production de muchos tutoriales están deprecados desde MLflow 2.9), y lo hace el pipeline de CD, no una persona desde la consola.",
+      "example": {
+        "lang": "python",
+        "code": "# Último paso del pipeline del modelo: engine e imagen de Triton ya pasaron paridad y latencia\nmv = client.create_model_version(\"classifier\", source=f\"{run.info.artifact_uri}/model\",\n                                 run_id=run.info.run_id)     # la versión apunta a su corrida: linaje\nclient.set_model_version_tag(\"classifier\", mv.version, \"gate\", \"passed\")\nclient.set_registered_model_alias(\"classifier\", \"challenger\", mv.version)\n\n# Al terminar el canary (lo hace CD, no una persona con la consola):\nclient.set_registered_model_alias(\"classifier\", \"champion\", mv.version)",
+        "source": "M10 · model registry, adaptado al orden de C01: al registrar, la imagen de Triton ya existe (en la variante genérica de M10, CD la construye después)"
+      },
+      "runs": "Un servidor (UI + API REST) con Postgres para metadatos y un bucket S3 para artefactos; lo opera el equipo.",
+      "alternatives": "MLflow administrado (SageMaker AI, Databricks, Azure ML), Weights & Biases, o una carpeta por versión en S3 + una tabla.",
+      "links": [
+        "#m10.model-registry",
+        "#m10.experiment-tracking",
+        "#ref-herramientas.experimentos-registro"
+      ]
+    },
+    {
+      "id": "onnx",
+      "name": "ONNX",
+      "category": "formato de modelo",
+      "what": "Un formato de archivo estándar que describe la red (operadores, pesos y firma de entradas y salidas) sin depender de PyTorch.",
+      "analogy": "El PDF de los modelos: lo genera una herramienta y lo leen muchas otras.",
+      "in_c01": "classifier.onnx (≈ 98 MB, opset 17, eje de batch dinámico que el engine acota a 1–32, tensores input y logits) es el punto de entrega entre entrenamiento y serving: de él compila TensorRT y con él corre la paridad en CPU (ONNX Runtime), sin GPU.",
+      "work": {
+        "main": "programa"
+      },
+      "how": "No es un servicio, es un archivo. Lo produces con una llamada en tu script (<code>torch.onnx.export</code>) fijando el opset (la versión de los operadores), los nombres y los ejes dinámicos, y lo verificas con <code>onnx.checker</code> y ONNX Runtime. Desde torch 2.9 el exportador por defecto es dynamo; C01 pide el de TorchScript (<code>dynamo=False</code>) porque así sale opset 17 limpio.",
+      "example": {
+        "lang": "python",
+        "code": "        torch.onnx.export(\n            model, (example,), out, dynamo=False, opset_version=opset,\n            input_names=[INPUT_NAME], output_names=[OUTPUT_NAME],\n            dynamic_axes={INPUT_NAME: {0: \"batch\"}, OUTPUT_NAME: {0: \"batch\"}},  # eje 0 = batch variable\n            do_constant_folding=True,  # precalcula lo constante: grafo más simple para TensorRT\n        )",
+        "source": "reference/c01/model/export_onnx.py (extracto)"
+      },
+      "runs": "Es un archivo: lo genera el job de export (CPU) y lo leen trtexec en la T4 y ONNX Runtime en el gate de paridad.",
+      "alternatives": "Torch-TensorRT, que compila desde PyTorch sin pasar por ONNX. Si el benchmark INT8 en CPU de C01 sale bien, ONNX se queda como formato y cambia el runtime: ONNX Runtime u OpenVINO en vez de TensorRT.",
+      "links": [
+        "#m08.onnx",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "tensorrt",
+      "name": "NVIDIA TensorRT",
+      "category": "compilador de inferencia (GPU NVIDIA)",
+      "what": "Un compilador que convierte el ONNX en un «engine» optimizado para un tipo de GPU concreto: fusiona capas, usa FP16 y elige los kernels más rápidos midiendo en esa GPU.",
+      "analogy": "Como compilar C optimizado para un procesador concreto: ahí vuela; en otro, puede no correr.",
+      "in_c01": "trtexec --fp16 compila classifier.onnx a model.plan con perfil de batch 1/16/32, en una T4 (sm_75) y dentro del contenedor tensorrt:24.08 (TensorRT 10.3), la misma release que Triton. Triton carga el plan con el backend tensorrt_plan.",
+      "work": {
+        "main": "opera"
+      },
+      "how": "En C01 no se programa: se <b>opera</b> corriendo <code>trtexec</code> con flags (ONNX de entrada, <code>--fp16</code>, shapes mínima, óptima y máxima) dentro del contenedor oficial, desde <code>build_engine.sh</code>. TensorRT hace solo el resto: fusiona capas, elige la precisión por capa y cronometra kernels en esa GPU. Ojo: en TensorRT 11 ya no existe <code>--fp16</code>; la precisión se fija antes, en el ONNX (ModelOpt AutoCast).",
+      "example": {
+        "lang": "bash",
+        "code": "  \"nvcr.io/nvidia/tensorrt:${NGC_RELEASE}-py3\" \\\n  trtexec \\\n    --onnx=\"$ONNX\" \\\n    --saveEngine=\"$PLAN_DIR/model.plan\" \\\n    --fp16 \\\n    --minShapes=input:1x3x224x224 \\\n    --optShapes=input:16x3x224x224 \\\n    --maxShapes=input:32x3x224x224 \\\n    --shapes=input:16x3x224x224",
+        "source": "reference/c01/model/build_engine.sh (extracto del docker run)"
+      },
+      "runs": "Build: contenedor nvcr.io/nvidia/tensorrt:24.08-py3 en un runner de CI con T4. Runtime: dentro de Triton, en la misma T4.",
+      "alternatives": "ONNX Runtime (CPU o CUDA), OpenVINO en CPU Intel, o Torch-TensorRT desde PyTorch.",
+      "links": [
+        "#m08.tensorrt",
+        "#c01.archivos",
+        "#m08.validar"
+      ]
+    },
+    {
+      "id": "triton",
+      "name": "NVIDIA Triton Inference Server",
+      "category": "model server",
+      "what": "Un servidor de NVIDIA (hoy lo llama Dynamo-Triton) que carga modelos desde una carpeta, junta requests en batches y los corre en la GPU, con API HTTP/gRPC estándar, health checks y métricas.",
+      "analogy": "La cocina de un restaurante: junta pedidos de muchas mesas y cocina por tandas; no sabe quién pidió qué.",
+      "in_c01": "Sirve el engine classifier (TensorRT FP16) en cada T4: dynamic batching de 2 ms hasta 32, 2 instancias por GPU, una cola que rechaza a los 100 ms y warmup antes de READY. El modelo va horneado en la imagen tritonserver:24.08, así que el tag de la imagen es la versión del modelo.",
+      "work": {
+        "main": "configura",
+        "also": [
+          "opera"
+        ]
+      },
+      "how": "Casi no escribes código: <b>configuras</b>. Armas el model repository (una carpeta por modelo con su <code>config.pbtxt</code> y una subcarpeta numerada con <code>model.plan</code>) y eliges los flags de arranque (<code>--model-control-mode=none</code>, <code>--strict-readiness=true</code>). Triton hace solo la cola, el batching, las instancias y las métricas del puerto 8002; lo <b>operas</b> con <code>curl</code> a <code>/v2/health/ready</code>, perf_analyzer y sus logs.",
+      "example": {
+        "lang": "text",
+        "code": "triton/model_repository/\n└── classifier/\n    ├── config.pbtxt     # lo escribes tú: contrato + batching + cola\n    └── 1/\n        └── model.plan   # lo genera model/build_engine.sh (no va en git)",
+        "source": "estructura de reference/c01/triton/ (model.plan lo genera model/build_engine.sh)"
+      },
+      "runs": "Contenedor tritonserver:24.08 con el modelo horneado, en nodos GPU T4 de EKS (2 a 4 pods); en local, con docker compose.",
+      "alternatives": "FastAPI + PyTorch (el MVP de C01), BentoML o Ray Serve; KServe puede ponerse encima; TorchServe está archivado.",
+      "links": [
+        "#m07.triton",
+        "#c01.serving",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "fastapi",
+      "name": "FastAPI + Uvicorn",
+      "category": "framework web (API en Python)",
+      "what": "FastAPI es la librería con la que escribes endpoints HTTP en Python; Uvicorn es el servidor que la ejecuta y atiende las conexiones.",
+      "analogy": "FastAPI escribe el menú y las reglas del mostrador; Uvicorn abre la puerta y atiende la fila.",
+      "in_c01": "Es el gateway en CPU: POST /v1/classify valida los bytes, decodifica en un threadpool, preprocesa, llama a Triton con 150 ms de timeout, arma el top-k con labels.json y responde con model_version; además expone /healthz, /readyz y /metrics. Un proceso uvicorn por contenedor.",
+      "work": {
+        "main": "programa",
+        "also": [
+          "configura"
+        ]
+      },
+      "how": "Lo <b>programas</b>: <code>main.py</code> declara rutas con decoradores y FastAPI valida los parámetros solo (top_k fuera de 1–20 → 422). Lo <b>configuras</b> con variables de entorno (<code>TRITON_URL</code>, <code>MODEL_VERSION</code>, <code>INFER_TIMEOUT_S</code>) y flags de uvicorn (<code>--workers 1</code>, <code>--timeout-keep-alive 75</code>). La regla que más importa: el I/O con <code>await</code>; el trabajo de CPU, en un hilo aparte con <code>run_in_threadpool</code>.",
+      "example": {
+        "lang": "python",
+        "code": "@app.post(\"/v1/classify\")\nasync def classify(request: Request, response: Response, top_k: int = Query(5, ge=1, le=MAX_TOP_K)):\n    \"\"\"Body = bytes crudos de la imagen (no multipart: menos parsing, sin archivos temporales).\"\"\"\n    t0 = time.perf_counter()  # el reloj arranca con el request ya recibido (el SLO es server-side)\n    # Si el cliente (o un proxy) ya trae un id lo respetamos: así se traza el request de punta a punta\n    request_id = request.headers.get(\"x-request-id\") or uuid.uuid4().hex",
+        "source": "reference/c01/gateway/app/main.py (extracto)"
+      },
+      "runs": "Imagen python:3.13-slim con un proceso uvicorn, en nodos CPU de EKS (3 a 12 pods con HPA por CPU).",
+      "alternatives": "Un ensemble de Triton con Python backend; C01 lo descarta porque el decode competiría por la CPU del nodo GPU.",
+      "links": [
+        "#m07.fastapi",
+        "#c01.serving",
+        "#c01.archivos"
+      ]
+    },
+    {
+      "id": "pytest",
+      "name": "pytest",
+      "category": "tests en Python",
+      "what": "La herramienta que encuentra y corre tus funciones test_* y te dice cuáles fallan y por qué.",
+      "analogy": "Un checklist que CI revisa en cada cambio.",
+      "in_c01": "Corre los 24 tests del gateway sin GPU ni Triton: un cliente falso reemplaza a tritonclient y se prueban todos los códigos (200, 400, 413, 415, 422, 503, 504), los health checks y las métricas, en tu máquina y en CI antes del build.",
+      "work": {
+        "main": "programa",
+        "also": [
+          "opera"
+        ]
+      },
+      "how": "Lo <b>programas</b>: escribes funciones <code>test_*</code> con <code>assert</code> y fixtures, funciones que preparan lo que el test necesita (la de C01, <code>api</code>, usa <code>monkeypatch</code> para cambiar el cliente de Triton por uno falso solo durante el test); <code>pytest.ini</code> dice dónde buscar. Lo <b>operas</b> con un solo comando, <code>pytest</code>, en tu máquina y en el job de CI, que frena la release si un test falla.",
+      "example": {
+        "lang": "python",
+        "code": "def test_slow_triton_is_504(api):\n    FakeTriton.mode = \"slow\"\n    r = post(api, image_bytes())\n    assert r.status_code == 504  # cortamos a los 0.15 s: el cliente cae a su fallback manual\n    assert \"X-Request-ID\" in r.headers  # los errores también son trazables",
+        "source": "reference/c01/gateway/tests/test_api.py (extracto)"
+      },
+      "runs": "Tu máquina y el job de CI, en CPU; no entra a la imagen de producción.",
+      "links": [
+        "#m10.ci-cd",
+        "#c01.archivos"
+      ]
+    }
+  ]
+}

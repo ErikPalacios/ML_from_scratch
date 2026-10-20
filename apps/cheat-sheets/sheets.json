@@ -31,5 +31,23 @@
     "page": "cheatsheet-docker.html",
     "pdf": "cheatsheet-docker.pdf",
     "updated": "2026-10-18"
+  },
+  {
+    "id": "recorrido",
+    "title": "Del dato a producción",
+    "topic": "MLOps de punta a punta",
+    "summary": "El C01 de punta a punta como un mapa de metro: del dato etiquetado al monitoreo que pide el siguiente modelo, con el artefacto que viaja entre estaciones, las 4 velocidades y, para cada herramienta, qué es y si se programa, se configura o se opera.",
+    "sample": "snapshot → checkpoint → engine → imagen → request → logs",
+    "sample_kind": "code",
+    "facts": [
+      "12 estaciones",
+      "4 velocidades",
+      "23 fichas de herramientas",
+      "14 mini-mapas",
+      "Quiz de 24 síntomas"
+    ],
+    "page": "recorrido.html",
+    "pdf": "recorrido.pdf",
+    "updated": "2026-10-20"
   }
 ]

@@ -1,0 +1,1147 @@
+{
+  "patterns": [
+    {
+      "id": "batch",
+      "name": "Batch",
+      "case": "c14",
+      "title": "Pronóstico de demanda (C14)",
+      "summary": "Las ventas, el calendario y las promociones existen antes y nadie espera en línea: un job programado pronostica cada noche las 4.8 M series y a las 04:00 el ERP lee una tabla ya publicada. Frente al C01 desaparecen el export, la request y el autoscaling, y aparece lo que protege una ventana fija: sensores con hora de corte, un <b>gate de salida</b>, la <b>publicación atómica</b> y un fallback que nunca deja al ERP sin pronóstico.",
+      "changes": [
+        {
+          "station": "datos",
+          "status": "cambia",
+          "note": "Las ventas del POS (<code>sales_daily</code>) llegan cada noche a las 00:30 y son el label: no hace falta etiquetado humano. Los días agotados (<code>oos_flag</code>) salen de los targets porque su venta no es la demanda."
+        },
+        {
+          "station": "versionado",
+          "status": "cambia",
+          "note": "Cada entrenamiento fija un snapshot (time travel de Iceberg o Delta, o una copia con fecha), y cada noche publicada queda como partición inmutable con nombre de hash: el archivo de lo que el ERP usó."
+        },
+        {
+          "station": "entrenamiento",
+          "status": "cambia",
+          "note": "Cada domingo, dos GBDT por cuantiles (P50 y P90) sobre ≈ 490 M filas point-in-time, en un nodo de 96 vCPU en spot (≈ 2–3 h). Sin GPU."
+        },
+        {
+          "station": "gate",
+          "status": "cambia",
+          "note": "Backtest de origen móvil con 8 orígenes semanales: mejor WAPE que el champion y ningún segmento principal peor por más de 2 puntos."
+        },
+        {
+          "station": "export",
+          "status": "desaparece",
+          "note": "El GBDT predice en CPU con la misma imagen que lo entrena: no hay ONNX ni TensorRT."
+        },
+        {
+          "station": "serving",
+          "status": "cambia",
+          "note": "No hay endpoint: el serving es el job <code>run_forecast.py</code>, que imputa, arma features, predice 67 M filas y escribe una partición nueva."
+        },
+        {
+          "station": "empaquetado",
+          "status": "cambia",
+          "note": "Una sola imagen (<code>forecast-job</code>, fijada por digest) entrena y predice, porque un modelo guardado con pickle de scikit-learn no es portable entre versiones."
+        },
+        {
+          "station": "cicd",
+          "status": "igual",
+          "note": "Pruebas e imagen como en el C01; además se despliega el DAG <code>forecast_nightly</code> a Airflow."
+        },
+        {
+          "station": "kubernetes",
+          "status": "cambia",
+          "note": "Sin Deployment, HPA ni ALB: Airflow lanza el job como pod (KubernetesPodOperator), el primer intento en un nodo spot de Karpenter y el reintento en on-demand."
+        },
+        {
+          "station": "rollout",
+          "status": "cambia",
+          "note": "Sin canary de tráfico: el challenger corre una noche en sombra por el mismo gate y se promueve moviendo el alias <code>champion</code>. El valor de negocio se mide con 40 tiendas piloto contra 40 de control."
+        },
+        {
+          "station": "request",
+          "status": "desaparece",
+          "note": "Nadie llama en línea: el ERP lee la vista <code>forecast_current</code> a las 04:00, por fecha objetivo."
+        },
+        {
+          "station": "monitoreo",
+          "status": "cambia",
+          "note": "Dos relojes: la noche (<code>ForecastRunLate</code>, <code>ForecastRunFailed</code>: page), con métricas que el job empuja al Pushgateway, y la precisión (<code>WAPEDegraded</code>: ticket), que llega días después con las ventas."
+        }
+      ],
+      "new": [
+        {
+          "title": "Sensores con hora de corte",
+          "after": "datos",
+          "note": "Esperan las ventas y el inventario de cada tienda hasta que reportan todas o hasta la 01:30. Las que faltan se imputan con su mismo día de la semana pasada y se marcan <code>imputed_input</code>.",
+          "icon": "clock"
+        },
+        {
+          "title": "Job programado (DAG forecast_nightly)",
+          "after": "kubernetes",
+          "note": "Airflow lo dispara a las 00:30 con <code>catchup=False</code> y <code>max_active_runs=1</code>: un pronóstico de una noche pasada no sirve para pedir hoy, y dos noches a la vez se pelearían el puntero.",
+          "icon": "pipeline"
+        },
+        {
+          "title": "Gate de salida y swap atómico",
+          "after": "serving",
+          "note": "Write–audit–publish: el gate relee lo escrito (filas = series × 14, p90 ≥ p50, bandas por categoría) y publicar es un compare-and-swap del puntero <code>forecast_current</code>. El ERP nunca ve una tabla a medias.",
+          "icon": "gate"
+        },
+        {
+          "title": "Fallback y guardián de las 03:45",
+          "after": "serving",
+          "note": "Si el job falla o el gate bloquea, se publica el pronóstico de ayer desplazado un día; un DAG aparte lo publica a las 03:45 si nada salió.",
+          "icon": "version"
+        }
+      ],
+      "line": [
+        {
+          "label": "Ventas POS 00:30",
+          "icon": "data"
+        },
+        {
+          "label": "Sensores, corte 01:30",
+          "icon": "clock"
+        },
+        {
+          "label": "Features por serie",
+          "icon": "pipeline"
+        },
+        {
+          "label": "P50 y P90, 67 M filas",
+          "icon": "chart"
+        },
+        {
+          "label": "Gate de salida",
+          "icon": "gate"
+        },
+        {
+          "label": "Swap de forecast_current",
+          "icon": "lock"
+        },
+        {
+          "label": "ERP lee a las 04:00",
+          "icon": "database"
+        },
+        {
+          "label": "WAPE y sesgo",
+          "icon": "monitor"
+        },
+        {
+          "label": "Reentrena el domingo",
+          "icon": "retrain"
+        }
+      ],
+      "speeds": "No hay línea de milisegundos: nadie llama en línea. Aparece una línea diaria con hora límite: la corrida nocturna, de 00:30 a 03:30, antes de que el ERP lea a las 04:00. El modelo se reentrena cada domingo (≈ 2–3 h en spot) y el código sale en días. La operación mira dos relojes: la noche (minutos, page) y la precisión (días, cuando llegan las ventas; ticket).",
+      "links": [
+        "#c14.arquitectura",
+        "#c14.serving",
+        "#c14.monitoreo",
+        "#m02.batch"
+      ]
+    },
+    {
+      "id": "llm",
+      "name": "LLM / RAG",
+      "case": "c11",
+      "title": "RAG empresarial (C11)",
+      "summary": "En RAG casi nada se entrena: el LLM ya existe y lo sirve la plataforma del C10 (<code>llm-gateway</code> → vLLM), y el C11 es un tenant más. El trabajo se mueve a la ingestión (conectores, chunking, embeddings y permisos) y a la evaluación con un golden set, porque ahí están los errores que el LLM no puede arreglar. La request pasa de milisegundos a segundos, con streaming de tokens y citas.",
+      "changes": [
+        {
+          "station": "datos",
+          "status": "cambia",
+          "note": "No hay dataset de entrenamiento: los datos son ≈ 1.5 M documentos de Confluence, Drive, Jira y políticas, cada uno con su ACL, más un golden set de ≈ 600 preguntas escritas con especialistas de cada área."
+        },
+        {
+          "station": "versionado",
+          "status": "cambia",
+          "note": "Se versionan el texto parseado (en S3, por hash), cada chunk con su hash y la <code>model_version</code> del embedding, el índice detrás de un alias y el golden set como dataset."
+        },
+        {
+          "station": "entrenamiento",
+          "status": "desaparece",
+          "note": "El LLM (<code>chat-default</code> del C10) y el modelo de embeddings vienen hechos; en su lugar se embeben ≈ 12 M chunks (≈ 44 L4-horas)."
+        },
+        {
+          "station": "gate",
+          "status": "cambia",
+          "note": "El golden set corre contra el sistema completo: recall@8, faithfulness y precisión de citas con un juez calibrado, y permisos al 100 %. Lo pasa cualquier cambio de chunker, embeddings, reranker, prompt o LLM."
+        },
+        {
+          "station": "export",
+          "status": "desaparece",
+          "note": "No hay ONNX ni TensorRT propios: en la plataforma del C10, vLLM carga pesos FP8 de una revisión fijada, copiados de S3 al NVMe y verificados con sha256."
+        },
+        {
+          "station": "serving",
+          "status": "cambia",
+          "note": "<code>rag-api</code> (FastAPI, <code>POST /v1/ask</code> con SSE): principals → BM25 ∥ k-NN con RRF (k = 60) → reranker 50 → 8 → prompt de 8k → <code>llm-gateway</code> → citas validadas."
+        },
+        {
+          "station": "empaquetado",
+          "status": "igual",
+          "note": "Contenedores como en el C01 para <code>rag-api</code>, encoder y reranker; vLLM corre con su imagen oficial en la plataforma del C10."
+        },
+        {
+          "station": "cicd",
+          "status": "igual",
+          "note": "Pruebas e imágenes como en el C01; lo que decide si un cambio sale es el gate del golden set."
+        },
+        {
+          "station": "kubernetes",
+          "status": "cambia",
+          "note": "El LLM corre en el EKS del C10 (pods de vLLM con 2 × H100); el C11 suma L4 para encoder y reranker y su propio clúster de OpenSearch de 3 nodos."
+        },
+        {
+          "station": "rollout",
+          "status": "cambia",
+          "note": "Un modelo de embeddings nuevo es un índice nuevo (blue/green): se compara en shadow con preguntas reales y se cambia el alias junto con el encoder; el índice viejo queda unos días para rollback."
+        },
+        {
+          "station": "request",
+          "status": "cambia",
+          "note": "De milisegundos a segundos: retrieval + rerank p95 ≤ 700 ms, primer token p95 ≤ 2.5 s y respuesta en streaming ≤ 10 s. Si la foto de grupos del IdP tiene más de 5 min, responde 503."
+        },
+        {
+          "station": "monitoreo",
+          "status": "cambia",
+          "note": "Se suman el atraso de la ingestión y de los permisos (<code>ACLSyncStale</code>), la tasa de retrieval sin resultados y un canary de groundedness cada 4 h. No hay reentrenamiento: el lazo se cierra con cambios de chunking, prompt o índice que pasan el mismo gate."
+        }
+      ],
+      "new": [
+        {
+          "title": "Ingestión con conectores",
+          "after": "datos",
+          "note": "Un conector por fuente detecta cambios por webhook o polling; después vienen parsing y OCR, y chunks de ≈ 400 tokens con su ruta de títulos y su ACL.",
+          "icon": "pipeline"
+        },
+        {
+          "title": "Carril rápido de permisos",
+          "after": "datos",
+          "note": "ACL sync reescribe solo los campos <code>acl_0…acl_2</code> de los chunks afectados: una revocación aplica en ≤ 5 min sin re-embeber ni esperar detrás de un PDF.",
+          "icon": "lock"
+        },
+        {
+          "title": "Índice híbrido en OpenSearch",
+          "after": "entrenamiento",
+          "note": "El embed-worker (L4, d = 1024) hace upsert solo de los chunks cuyo hash cambió; BM25 y HNSW viven en el mismo índice, detrás de un alias.",
+          "icon": "search"
+        },
+        {
+          "title": "Plataforma LLM del C10",
+          "after": "serving",
+          "note": "<code>llm-gateway</code> con la llave del tenant <code>employee-assistant</code>, cuota en tokens/min y alias <code>chat-default</code> → réplicas de vLLM (≈ 70B, 8k de contexto).",
+          "icon": "llm"
+        },
+        {
+          "title": "Probe de permisos",
+          "after": "monitoreo",
+          "note": "Cuentas sintéticas, con y sin acceso, preguntan cada pocos minutos por documentos canario: si alguien sin acceso los recupera, es un incidente de seguridad, no un ticket.",
+          "icon": "test"
+        }
+      ],
+      "line": [
+        {
+          "label": "Conectores",
+          "icon": "data"
+        },
+        {
+          "label": "Parsing y chunking",
+          "icon": "file"
+        },
+        {
+          "label": "Embeddings al índice",
+          "icon": "database"
+        },
+        {
+          "label": "Pregunta + permisos",
+          "icon": "user"
+        },
+        {
+          "label": "Híbrido + rerank 50→8",
+          "icon": "search"
+        },
+        {
+          "label": "Prompt de 8k",
+          "icon": "code"
+        },
+        {
+          "label": "llm-gateway y vLLM",
+          "icon": "llm"
+        },
+        {
+          "label": "Respuesta con citas",
+          "icon": "request"
+        },
+        {
+          "label": "Golden set y probe",
+          "icon": "test"
+        }
+      ],
+      "speeds": "La línea de semanas no entrena: la reemplaza la ingestión continua (frescura p95 ≤ 15 min, revocaciones en ≤ 5 min) y, cada trimestre, la evaluación de embeddings candidatos. La de días mueve código, prompt, índice o la revisión del LLM, todos por el mismo gate. La de milisegundos se vuelve de segundos (retrieval + rerank p95 ≤ 700 ms, primer token p95 ≤ 2.5 s). La continua corre el probe de permisos cada pocos minutos y el canary de groundedness cada 4 h.",
+      "links": [
+        "#c11.arquitectura",
+        "#c11.datos",
+        "#c11.serving",
+        "#c10.arquitectura",
+        "#m14.rag"
+      ]
+    },
+    {
+      "id": "streaming",
+      "name": "Streaming",
+      "case": "c13",
+      "title": "Speech-to-text en vivo (C13)",
+      "summary": "Es <b>streaming inference sobre una conexión larga</b>, no stream processing sobre Kafka: cada participante abre una sesión y manda audio en fragmentos de 160 ms mientras el modelo avanza con estado en una GPU. Por eso cambian el balanceo (por streams activos, con afinidad), el autoscaling (sube por sesiones y baja drenando) y el monitoreo (latencia de parciales y un canary que habla en producción, porque el audio de clientes no se guarda).",
+      "changes": [
+        {
+          "station": "datos",
+          "status": "cambia",
+          "note": "El audio de clientes no se guarda: el audio etiquetado sale de corpus con licencia, grabaciones por acento con consentimiento y clientes con opt-in, transcrito por personas con una guía."
+        },
+        {
+          "station": "versionado",
+          "status": "igual",
+          "note": "Golden sets congelados por idioma y slice (acento, ruido, dispositivo), separados por hablante de los datos de entrenamiento."
+        },
+        {
+          "station": "entrenamiento",
+          "status": "cambia",
+          "note": "Se parte de un ASR streaming preentrenado (transducer/CTC) y, si hace falta, se ajusta por idioma: nada se entrena desde cero."
+        },
+        {
+          "station": "gate",
+          "status": "cambia",
+          "note": "WER por idioma y slice con normalización fija, más latencia y streams por GPU medidos en una L4, contra el modelo en producción."
+        },
+        {
+          "station": "export",
+          "status": "igual",
+          "note": "Como en el C01, el engine se compila para la GPU que sirve (L4); el registry guarda además la config de streaming (fragmento, lookahead, endpointing)."
+        },
+        {
+          "station": "serving",
+          "status": "cambia",
+          "note": "<code>asr-gateway</code> en CPU (Opus → 16 kHz, VAD, fragmentos de 160 ms) y <code>asr-worker</code> en L4 con el sequence batcher de Triton: estado por stream, parciales y finales."
+        },
+        {
+          "station": "empaquetado",
+          "status": "igual",
+          "note": "Gateway y worker en contenedores, como en el C01; el worker corre como Deployment de GPU."
+        },
+        {
+          "station": "cicd",
+          "status": "igual",
+          "note": "Pruebas e imágenes como en el C01."
+        },
+        {
+          "station": "kubernetes",
+          "status": "cambia",
+          "note": "KEDA escala <code>asr-worker</code> por streams activos por GPU (objetivo 350) y un cron sube el mínimo antes de la mañana. Un nodo L4 tarda 5–13 min, y bajar réplicas es drenar (<code>preStop</code>)."
+        },
+        {
+          "station": "rollout",
+          "status": "cambia",
+          "note": "Canary por porcentaje de sesiones nuevas, no de requests, porque cada sesión queda asignada a su worker (sticky)."
+        },
+        {
+          "station": "request",
+          "status": "cambia",
+          "note": "En vez de una request, una sesión gRPC larga por pista: parciales p95 ≤ 500 ms y finales p95 ≤ 1.5 s después del fin de la frase."
+        },
+        {
+          "station": "monitoreo",
+          "status": "cambia",
+          "note": "Latencia por tramo, streams activos (también la señal del autoscaling), reconexiones y fracción de voz; el canary golden mide WER en producción. Se reentrena por disparadores, con revisión trimestral."
+        }
+      ],
+      "new": [
+        {
+          "title": "Sesión por pista (gRPC bidireccional)",
+          "after": "serving",
+          "note": "El SFU abre un stream por participante hacia el <code>asr-gateway</code> (≈ 200k conectadas en el pico); con VAD, solo las pistas con voz gastan GPU.",
+          "icon": "stream"
+        },
+        {
+          "title": "Router de sesiones con afinidad",
+          "after": "kubernetes",
+          "note": "Asigna cada sesión a un <code>asr-worker</code> de su zona contando streams activos, no requests ni CPU, y la mantiene ahí (sticky).",
+          "icon": "balancer"
+        },
+        {
+          "title": "caption-bus por reunión",
+          "after": "request",
+          "note": "Pub/sub en memoria (NATS o Redis Pub/Sub): los workers publican parciales y finales, y la señalización WebSocket existente los empuja a cada cliente.",
+          "icon": "queue"
+        },
+        {
+          "title": "Canary golden en producción",
+          "after": "monitoreo",
+          "note": "Un bot entra a una reunión interna y reproduce audio del golden set: mide WER y latencia de punta a punta sin tocar audio de clientes.",
+          "icon": "test"
+        }
+      ],
+      "line": [
+        {
+          "label": "Audio con licencia",
+          "icon": "label"
+        },
+        {
+          "label": "Fine-tune y WER",
+          "icon": "train"
+        },
+        {
+          "label": "Engine para L4",
+          "icon": "engine"
+        },
+        {
+          "label": "Sesión por pista",
+          "icon": "stream"
+        },
+        {
+          "label": "Router con afinidad",
+          "icon": "balancer"
+        },
+        {
+          "label": "asr-worker con estado",
+          "icon": "gpu"
+        },
+        {
+          "label": "caption-bus a pantalla",
+          "icon": "queue"
+        },
+        {
+          "label": "Escala por streams",
+          "icon": "autoscale"
+        },
+        {
+          "label": "Canary golden",
+          "icon": "monitor"
+        }
+      ],
+      "speeds": "La línea de milisegundos dura lo que la reunión: un fragmento cada 160 ms, parciales p95 ≤ 500 ms y sesiones de horas. La continua sigue la curva del día (≈ 60 L4 de noche, ≈ 172 en el pico) con un cron antes de la rampa de la mañana. La del modelo hace fine-tune por idioma cuando un disparador lo pide, revisa cada trimestre y entra por canary de sesiones nuevas.",
+      "links": [
+        "#c13.arquitectura",
+        "#c13.serving",
+        "#c13.monitoreo",
+        "#m02.streaming"
+      ]
+    },
+    {
+      "id": "edge",
+      "name": "Edge",
+      "case": "c03",
+      "title": "Inspección en planta (C03)",
+      "summary": "El modelo corre junto a la línea, en un Jetson, porque la línea no espera a la red ni puede parar si se cae internet; la nube entrena y monitorea. Nada de la nube está en el camino de una pieza: Kubernetes y el autoscaling desaparecen (4 dispositivos fijos con Docker), el release se vuelve <b>OTA</b> a una flota a través de la DMZ y el monitoreo funciona sin internet.",
+      "changes": [
+        {
+          "station": "datos",
+          "status": "cambia",
+          "note": "Las imágenes salen de la cámara de la línea, y el veredicto que registra quien inspecciona, en la tablet, es el label más barato. Al inicio hay ≈ 2,000 piezas buenas y ≈ 300 defectos."
+        },
+        {
+          "station": "versionado",
+          "status": "igual",
+          "note": "Snapshots inmutables en S3, golden sets congelados por tipo de defecto y linaje pieza ↔ imagen ↔ modelo ↔ decisión."
+        },
+        {
+          "station": "entrenamiento",
+          "status": "cambia",
+          "note": "Job de GPU en la nube, bajo demanda: anomalías entrenadas con piezas buenas y, cuando hay defectos suficientes, un clasificador por tipo. Mensual o por disparador."
+        },
+        {
+          "station": "gate",
+          "status": "cambia",
+          "note": "Recall por tipo de defecto a FP fijo en los golden sets, y umbral elegido por costo esperado con recall ≥ 99.5 % (<code>choose_threshold.py</code>)."
+        },
+        {
+          "station": "export",
+          "status": "cambia",
+          "note": "El engine se construye en un Jetson de CI idéntico a los de la línea (mismo módulo, JetPack y modo de energía), con paridad contra el ONNX y latencia a batch fijo."
+        },
+        {
+          "station": "serving",
+          "status": "cambia",
+          "note": "Un proceso en el Jetson Orin NX: adquiere la imagen, arma 20 tiles, corre TensorRT FP16 y escribe al PLC por Modbus TCP; si no alcanza, un deadline guard escribe <code>DIVERT</code>."
+        },
+        {
+          "station": "empaquetado",
+          "status": "cambia",
+          "note": "Imagen arm64 sobre <code>l4t-tensorrt</code>, con <code>docker compose</code> (<code>runtime: nvidia</code>, red del host); los engines se montan aparte para volver al anterior sin red."
+        },
+        {
+          "station": "cicd",
+          "status": "cambia",
+          "note": "Cada versión se registra firmada (ONNX, engine por módulo y JetPack, umbrales y contenedor) junto con su plan de rollout por líneas."
+        },
+        {
+          "station": "kubernetes",
+          "status": "desaparece",
+          "note": "4 dispositivos fijos no justifican Kubernetes: Docker con restart policy y un watchdog. Tampoco hay autoscaling: se dimensiona por dispositivo."
+        },
+        {
+          "station": "rollout",
+          "status": "cambia",
+          "note": "Por línea: de noche el engine baja al slot B con un smoke test, la línea 1 corre un turno en shadow, después canary y las 4 líneas. El rollback es local, sin red."
+        },
+        {
+          "station": "request",
+          "status": "cambia",
+          "note": "No hay HTTP: la fotocelda dispara la cámara por hardware en cada pieza (2 por segundo por línea) y la decisión tiene un deadline de 350 ms."
+        },
+        {
+          "station": "monitoreo",
+          "status": "cambia",
+          "note": "Prometheus y andon en la planta, porque puede no haber internet; a la nube suben heartbeats y agregados. Si la tasa de rechazo supera 2× su base durante 30 min, lo probable es luz, lente o foco, no defectos."
+        }
+      ],
+      "new": [
+        {
+          "title": "OTA por la DMZ",
+          "after": "cicd",
+          "note": "La DMZ baja los artefactos firmados con conexiones salientes, verifica la firma y los copia a un registry local de la red OT: los dispositivos nunca salen a internet.",
+          "icon": "push"
+        },
+        {
+          "title": "PLC con default seguro",
+          "after": "request",
+          "note": "El PLC deja pasar una pieza solo si llegó un PASS con su número antes del deadline. Jetson caído, red caída o decisión tarde terminan igual: desviada.",
+          "icon": "lock"
+        },
+        {
+          "title": "Store-and-forward a la nube",
+          "after": "monitoreo",
+          "note": "Decisiones, imágenes de rechazos y veredictos esperan en el almacén de planta y suben cuando hay enlace: la línea opera ≥ 72 h sin internet.",
+          "icon": "cloud"
+        },
+        {
+          "title": "Piezas patrón en cada turno",
+          "after": "monitoreo",
+          "note": "Cada turno empieza con piezas buenas y defectuosas conocidas; sin ese chequeo, ninguna pieza recibe PASS. Así se detectan un lente sucio, un foco movido o una luz degradada antes de producir.",
+          "icon": "test"
+        }
+      ],
+      "line": [
+        {
+          "label": "Imágenes de la línea",
+          "icon": "image"
+        },
+        {
+          "label": "Veredictos y labels",
+          "icon": "label"
+        },
+        {
+          "label": "Entrena en la nube",
+          "icon": "train"
+        },
+        {
+          "label": "Umbral por costo",
+          "icon": "gate"
+        },
+        {
+          "label": "Engine en Jetson CI",
+          "icon": "engine"
+        },
+        {
+          "label": "OTA por la DMZ",
+          "icon": "push"
+        },
+        {
+          "label": "Shadow un turno",
+          "icon": "rollout"
+        },
+        {
+          "label": "Decide en ≤ 350 ms",
+          "icon": "device"
+        },
+        {
+          "label": "Store-and-forward",
+          "icon": "cloud"
+        }
+      ],
+      "speeds": "La línea de milisegundos vive en el dispositivo y es dura: 2 piezas/s por línea y decisión en ≤ 350 ms, sin red. La del modelo es mensual (o antes, por una variante o un defecto nuevo, drift o un escape que reporta la armadora) y llega en días: descarga de noche, un turno en shadow, canary y las 4 líneas. La continua es local (Prometheus y andon en la planta) y lo demás sube a la nube cuando hay enlace.",
+      "links": [
+        "#c03.arquitectura",
+        "#c03.serving",
+        "#c03.monitoreo",
+        "#m02.edge"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "c02",
+      "title": "Detección en video",
+      "pattern": "edge",
+      "one_liner": "1,000 cámaras en 25 centros de distribución: una caja con una L4 por sitio detecta personas y vehículos en zonas prohibidas, y la nube verifica antes de alertar al SOC.",
+      "map": {
+        "datos": [
+          "veredictos del SOC como labels",
+          "hard negatives: sombras, animales, faros",
+          "dataset con split por cámara y fecha"
+        ],
+        "modelo": [
+          "detector ligero YOLO-class a 640 px",
+          "verificador a 1280 px sobre 3 frames",
+          "engine TensorRT en CI sobre L4"
+        ],
+        "release": [
+          "bundle en /opt/c02/models + symlink current",
+          "OTA: shadow en 2 sitios → canary → olas",
+          "docker compose up -d en cada caja"
+        ],
+        "operacion": [
+          "DeepStream: 1 × L4 por sitio, batch 40",
+          "forwarder → API → SQS → verificador",
+          "heartbeat cada 30 s (EdgeBoxOffline)"
+        ]
+      },
+      "vs_c01": [
+        "El modelo corre en una caja por sitio, no en un cluster: a la nube suben eventos con clip (≈ 5 MB) en vez de ≈ 60 Mb/s de video por sitio.",
+        "No hay request de una persona: entran 200 frames/s por sitio y sale una alerta al SOC en p95 ≤ 5 s.",
+        "El modelo llega por OTA en olas de sitios, con la versión anterior en disco para rollback, no repartiendo tráfico por pesos en el ALB."
+      ],
+      "key_numbers": [
+        "1,000 cámaras, 200 frames/s por sitio",
+        "alerta p95 ≤ 5 s (incluye 1.5 s de dwell)"
+      ],
+      "links": [
+        "#c02.arquitectura",
+        "#m02.edge"
+      ]
+    },
+    {
+      "id": "c03",
+      "title": "Inspección visual en planta",
+      "pattern": "edge",
+      "one_liner": "Un Jetson por línea decide en ≤ 350 ms si una pieza metálica pasa o se desvía, sin depender de la red; aparte, una caja con DeepStream vigila el EPP en 12 cámaras.",
+      "map": {
+        "datos": [
+          "imágenes de rechazos + muestra de aprobadas",
+          "veredicto de inspección en la tablet",
+          "≈ 2,000 piezas buenas y ≈ 300 defectos"
+        ],
+        "modelo": [
+          "anomalías + clasificador por tipo",
+          "umbral por costo con recall ≥ 99.5 %",
+          "engine en un Jetson de CI idéntico"
+        ],
+        "release": [
+          "imagen sobre l4t-tensorrt + docker compose",
+          "DMZ → registry local en la red OT",
+          "shadow 1 turno → canary → 4 líneas"
+        ],
+        "operacion": [
+          "Jetson Orin NX, TensorRT FP16, 20 tiles",
+          "PLC por Modbus TCP: sin PASS, desvía",
+          "Prometheus local + piezas patrón por turno"
+        ]
+      },
+      "vs_c01": [
+        "No hay Kubernetes ni autoscaling: 4 dispositivos fijos con Docker, restart policy y watchdog.",
+        "El deadline es duro y la falla es segura: sin decisión a los 350 ms, el PLC desvía la pieza.",
+        "La línea opera ≥ 72 h sin internet: alertas locales y datos que suben por store-and-forward."
+      ],
+      "key_numbers": [
+        "2 piezas/s por línea, decisión ≤ 350 ms",
+        "recall ≥ 99.5 % con FP ≤ 1.5 %"
+      ],
+      "links": [
+        "#c03.arquitectura",
+        "#m02.edge"
+      ]
+    },
+    {
+      "id": "c04",
+      "title": "Segmentación de imágenes",
+      "pattern": "asincrono",
+      "one_liner": "Segmenta tumor en ≈ 1,200 láminas completas (WSI) al día y deja en el visor el área y el % de tumor, que se aceptan o corrigen antes de firmar; nadie espera en milisegundos.",
+      "map": {
+        "datos": [
+          "WSI de ≈ 1 GB (SVS y DICOM) en S3",
+          "correcciones de patología (labels sesgados)",
+          "active learning: 20 h de patología al mes"
+        ],
+        "modelo": [
+          "U-Net-class de ≈ 30 M a 20×",
+          "golden set de 100 láminas, gate por slice",
+          "engine TensorRT FP16 en L4"
+        ],
+        "release": [
+          "imagen con el engine horneado",
+          "silent mode en la cola slide-jobs-backfill",
+          "rollback: kubectl rollout undo"
+        ],
+        "operacion": [
+          "cola SQS slide-jobs + DLQ tras 3 intentos",
+          "seg-worker en g6.2xlarge, KEDA 0–4",
+          "results-api + visor; audit log con Object Lock"
+        ]
+      },
+      "vs_c01": [
+        "Asíncrono: el SLO es turnaround p95 ≤ 60 min, no un p99 en ms, y una cola SQS absorbe las ráfagas de los escáneres.",
+        "KEDA escala los workers de 0 a 4 por la cola: de noche no hay GPU prendida, en vez de N+1 todo el día.",
+        "El costo dominante es el tiempo experto: ≈ US$4k/mes de patología contra ≈ US$1.2k de infra."
+      ],
+      "key_numbers": [
+        "≈ 1,200 WSI/día, ≈ 3,000 tiles por lámina",
+        "turnaround p95 ≤ 60 min"
+      ],
+      "links": [
+        "#c04.arquitectura",
+        "#m02.asincrona-colas"
+      ]
+    },
+    {
+      "id": "c05",
+      "title": "Documentos y OCR",
+      "pattern": "asincrono",
+      "one_liner": "Una financiera PyME automatiza la captura de ≈ 5,000 documentos al día (CFDI, INE, comprobantes, estados de cuenta) y manda a revisión humana solo los campos dudosos.",
+      "map": {
+        "datos": [
+          "2 años de capturas sin cajas (labels débiles)",
+          "alineación fuzzy a las palabras del OCR",
+          "gold set de 2,000 docs con doble captura"
+        ],
+        "modelo": [
+          "extractor layout-aware por familia → ONNX",
+          "calibración y umbral por campo",
+          "gate: ningún campo bajo su objetivo"
+        ],
+        "release": [
+          "modelo + archivo de umbrales juntos",
+          "alias de producción por tipo de documento",
+          "statemachine.asl.json (Step Functions)"
+        ],
+        "operacion": [
+          "docs-api: quality gate p95 ≤ 3 s",
+          "doc-worker en CPU (ONNX Runtime) + Textract",
+          "revisión ≈ 45 s/doc; QA audita 2 % de STP"
+        ]
+      },
+      "vs_c01": [
+        "Una cadena (clasificar → texto → extraer → validar → rutear) orquestada con Step Functions, una ejecución por documento, no una sola llamada al modelo.",
+        "Todo en CPU con ONNX Runtime: menos de una página por segundo en el pico no justifica GPU ni Triton.",
+        "La salida es una decisión por campo (STP o revisión humana), con exactitud ≥ 99.5 % en lo aceptado."
+      ],
+      "key_numbers": [
+        "≈ 5,000 docs/día, ≈ 12,000 páginas",
+        "STP ≥ 60 % al lanzar → 80 % en 12 meses"
+      ],
+      "links": [
+        "#c05.arquitectura",
+        "#m02.asincrona-colas"
+      ]
+    },
+    {
+      "id": "c06",
+      "title": "Moderación de contenido",
+      "pattern": "hibrido",
+      "one_liner": "Una red social revisa 30 M posts y 150 M comentarios al día contra 7 políticas: chequeo rápido antes de publicar, análisis profundo después y ≈ 600 puestos de moderación humana para lo dudoso.",
+      "map": {
+        "datos": [
+          "decisiones con la versión de la política",
+          "muestra aleatoria de vistas (prevalencia)",
+          "listas de hashes PDQ (industria + removidos)"
+        ],
+        "modelo": [
+          "clasificadores destilados de texto e imagen",
+          "deep-scorer multimodal con OCR",
+          "LLM con la política como prompt (provisional)"
+        ],
+        "release": [
+          "policies.yaml: política × severidad × superficie",
+          "gate por política → shadow → canary",
+          "reentrenamiento semanal"
+        ],
+        "operacion": [
+          "mod-gateway p99 ≤ 150 ms, fail-open S1–S3",
+          "Triton etapa 1: 4 L4 texto + 2 L4 imagen",
+          "Kafka mod-events → deep-scorer → review-router"
+        ]
+      },
+      "vs_c01": [
+        "Una cascada (hashes → modelo barato → modelo caro → persona) en lugar de un modelo: solo ≈ 3 % de los ítems llega a la etapa cara.",
+        "Umbrales y acciones viven en una config de política versionada, revisada por los equipos de política y legal, aparte del código del modelo.",
+        "Las personas son parte del sistema y del costo: ≈ US$900k/mes de moderación contra ≈ US$5.9k de GPUs."
+      ],
+      "key_numbers": [
+        "pico ≈ 6,250 textos/s + ≈ 625 imágenes/s",
+        "≈ 216k revisiones/día de capacidad"
+      ],
+      "links": [
+        "#c06.arquitectura",
+        "#m02.hibridos"
+      ]
+    },
+    {
+      "id": "c07",
+      "title": "Búsqueda con embeddings",
+      "pattern": "hibrido",
+      "one_liner": "Buscar entre ≈ 100 M publicaciones del marketplace del C01 describiendo lo que quieres o subiendo una foto: embeddings tipo CLIP y BM25 en paralelo.",
+      "map": {
+        "datos": [
+          "listing-events en Kafka (key = id)",
+          "juicios humanos 0–3 (consulta, listing)",
+          "clics y contactos en search-logs"
+        ],
+        "modelo": [
+          "dual encoder CLIP-class, d = 512",
+          "gate NDCG@10 en head, torso y tail",
+          "reranker cross-encoder sobre el top-30"
+        ],
+        "release": [
+          "re-embed de 100 M: ≈ 3 h en 8 L4",
+          "índice green + shadow → swap del alias",
+          "el mismo artefacto en encoder y embed-worker"
+        ],
+        "operacion": [
+          "OpenSearch k-NN: 4 shards × 2, HNSW int8",
+          "BM25 ∥ ANN → RRF (k = 60)",
+          "tombstones en Redis: vendido fuera en ≤ 1 min"
+        ]
+      },
+      "vs_c01": [
+        "Cambiar de modelo obliga a re-embeber el catálogo y construir un índice nuevo (blue/green); no basta con cambiar un engine.",
+        "Hay un índice con estado que mantener fresco: lo nuevo es buscable en p95 ≤ 5 min vía Kafka.",
+        "La calidad se mide como ranking (NDCG@10, recall del ANN ≥ 0.95 contra búsqueda exacta), no como accuracy."
+      ],
+      "key_numbers": [
+        "≈ 1,750 QPS en el pico, texto p99 ≤ 300 ms",
+        "100 M × 512 en FP32 ≈ 205 GB → 51.2 GB en int8"
+      ],
+      "links": [
+        "#c07.arquitectura",
+        "#m02.hibridos"
+      ]
+    },
+    {
+      "id": "c08",
+      "title": "Sistema de recomendación",
+      "pattern": "hibrido",
+      "one_liner": "El home del marketplace muestra a cada persona 50 publicaciones personalizadas: candidatos de 4 fuentes, ranking y re-ranking en ≤ 200 ms.",
+      "map": {
+        "datos": [
+          "home-impressions con snapshot de features",
+          "contacto en 24 h (label demorado)",
+          "Flink: contadores de 1 h y 24 h"
+        ],
+        "modelo": [
+          "two-tower semanal (user + item tower)",
+          "ranker multi-task de ≈ 10 M, diario",
+          "co-visitación diaria en Spark"
+        ],
+        "release": [
+          "ranker en Triton con canary",
+          "índice del item tower en blue/green",
+          "A/B por cuenta: contactos por DAU"
+        ],
+        "operacion": [
+          "home-api: 4 fuentes con timeout propio",
+          "ranker en Triton: 4 × L4",
+          "online store en Valkey (4 × 2)"
+        ]
+      },
+      "vs_c01": [
+        "Un embudo por request (≈ 1,000 candidatos de 4 fuentes → 50), no un solo modelo.",
+        "Las features se leen online (feature store + Flink) y se loguean con cada impresión para entrenar sin skew.",
+        "El ranker se entrena cada día con labels que tardan 24 h; el C01 reentrena cada mes."
+      ],
+      "key_numbers": [
+        "≈ 3,100 RPS en el pico, p99 ≤ 200 ms",
+        "≈ 3.1 M item-scores/s en el pico"
+      ],
+      "links": [
+        "#c08.arquitectura",
+        "#m02.hibridos"
+      ]
+    },
+    {
+      "id": "c09",
+      "title": "Fraude en tiempo real",
+      "pattern": "sincrono",
+      "one_liner": "Cada pago con tarjeta no presente se puntúa dentro de la autorización (aprobar, rechazar, step-up con 3DS o revisión) en p99 ≤ 100 ms.",
+      "map": {
+        "datos": [
+          "contracargos de hasta 120 días",
+          "Kafka txn-events → lake",
+          "training set point-in-time, misma definición"
+        ],
+        "modelo": [
+          "GBDT (LightGBM-class), ≈ 300 features",
+          "umbrales por costo y segmento",
+          "reentrenamiento mensual, split temporal"
+        ],
+        "release": [
+          "challenger en shadow → fracción → champion",
+          "policy.yaml con la versión del modelo",
+          "cada regla nueva pasa por shadow"
+        ],
+        "operacion": [
+          "fraud-scoring en CPU: 3 × c7i.2xlarge por zona",
+          "contadores síncronos en Redis + Flink",
+          "fallback: solo reglas, nunca bloquear todo"
+        ]
+      },
+      "vs_c01": [
+        "Árboles en CPU (≈ 1–2 ms por predicción): no hay GPU, Triton ni export a TensorRT.",
+        "Las features viven fuera del modelo: contadores síncronos y un online store que llena Flink, con la misma definición online y offline.",
+        "Los labels tardan hasta 120 días: se evalúan cohortes maduras y se monitorea con proxies."
+      ],
+      "key_numbers": [
+        "pico de diseño ≈ 2,000 TPS, p99 ≤ 100 ms",
+        "disponibilidad 99.99 %"
+      ],
+      "links": [
+        "#c09.arquitectura",
+        "#m02.streaming"
+      ]
+    },
+    {
+      "id": "c10",
+      "title": "Servir un LLM propio",
+      "pattern": "llm",
+      "one_liner": "El marketplace deja de mandar todo a una API externa y sirve un modelo open-weights de ≈ 70B en su propia flota de H100, con la API como respaldo gobernado.",
+      "map": {
+        "datos": [
+          "golden sets por producto (soporte: ≈ 1,000 chats)",
+          "evaluadores con rúbrica que calibran al juez",
+          "uso por tenant: tokens y US$"
+        ],
+        "modelo": [
+          "pesos FP8 en safetensors, revisión fijada",
+          "vllm bench serve → capacidad por réplica",
+          "gate con juez LLM por pares"
+        ],
+        "release": [
+          "registry: revisión + reporte de eval",
+          "alias chat-default en la config del gateway",
+          "canary eval cada hora"
+        ],
+        "operacion": [
+          "llm-gateway: llaves y cuotas en tokens/min",
+          "vllm-70b: 2 × H100, TP=2, 16 réplicas",
+          "batch-runner: ≈ 2 M ítems en 8 h"
+        ]
+      },
+      "vs_c01": [
+        "No se entrena: se baja una revisión de pesos abiertos (con la licencia revisada) y se evalúa contra golden sets por producto.",
+        "Se mide por token (TTFT p95 ≤ 1.0 s, TPOT p95 ≤ 50 ms) y la concurrencia la limita el KV cache.",
+        "Una réplica nueva tarda 5–10 min en arrancar: la flota del pico queda caliente en horario laboral y los picos se absorben con cuotas y colas en el gateway."
+      ],
+      "key_numbers": [
+        "16 réplicas = 32 H100 = 4 × p5.48xlarge",
+        "≈ US$160.6k/mes propio vs ≈ US$442k/mes de API"
+      ],
+      "links": [
+        "#c10.arquitectura",
+        "#m14.api-vs-propio"
+      ]
+    },
+    {
+      "id": "c11",
+      "title": "RAG empresarial",
+      "pattern": "llm",
+      "one_liner": "Un asistente interno responde con los documentos de la empresa (Confluence, Drive, Jira) y cita sus fuentes, respetando los permisos de cada persona.",
+      "map": {
+        "datos": [
+          "Confluence, Drive, Jira y políticas",
+          "≈ 1.5 M docs → ≈ 12 M chunks de ≈ 400 tokens",
+          "golden set de ≈ 600 preguntas con SMEs"
+        ],
+        "modelo": [
+          "embeddings multilingües, d = 1024",
+          "reranker cross-encoder ≈ 0.6 B: 50 → 8",
+          "chat-default del C10 (≈ 70B, 8k)"
+        ],
+        "release": [
+          "índice nuevo blue/green detrás de un alias",
+          "gate: recall@8, faithfulness, permisos",
+          "shadow del índice nuevo con preguntas reales"
+        ],
+        "operacion": [
+          "rag-api: POST /v1/ask con SSE",
+          "OpenSearch BM25 ∥ k-NN con la ACL adentro",
+          "ACL sync ≤ 5 min + probe de permisos"
+        ]
+      },
+      "vs_c01": [
+        "Nada se entrena: el trabajo es la ingestión (parsing, chunking, embeddings) y mantener índice y permisos al día.",
+        "El permiso es un filtro dentro del retrieval: un chunk que la persona no puede abrir nunca llega al prompt.",
+        "La generación corre en la plataforma del C10 (llm-gateway → vLLM): el C11 es un tenant más."
+      ],
+      "key_numbers": [
+        "≈ 25k preguntas/día, pico ≈ 2 qps",
+        "primer token p95 ≤ 2.5 s, revocación ≤ 5 min"
+      ],
+      "links": [
+        "#c11.arquitectura",
+        "#m14.rag"
+      ]
+    },
+    {
+      "id": "c12",
+      "title": "Agente con herramientas",
+      "pattern": "llm",
+      "one_liner": "El asistente de soporte pasa de responder a resolver: consulta pedidos, cambia direcciones y hace reembolsos con herramientas reales, dentro de límites y de una política en código.",
+      "map": {
+        "datos": [
+          "step log en Postgres, paso por paso",
+          "≈ 400 escenarios con backends simulados",
+          "reaperturas en 7 días, CSAT, reembolsos"
+        ],
+        "modelo": [
+          "chat-default del C10 con tool calling",
+          "revisión = modelo + prompt + schemas + política",
+          "gate: 0 violaciones de política"
+        ],
+        "release": [
+          "eval runner: ≈ 4 corridas por escenario",
+          "canary por tipo de conversación",
+          "chat-default fijado por tenant"
+        ],
+        "operacion": [
+          "loop: ≤ 8 tools/turno, ≤ 12 llamadas, 40k tokens",
+          "reembolso automático ≤ US$50; si no, aprobación",
+          "traza OTel con un span por paso"
+        ]
+      },
+      "vs_c01": [
+        "Cada conversación es un loop de ≈ 6 llamadas al LLM con efectos reales: idempotency keys y política en código, no en el prompt.",
+        "Lo que sale a producción es una revisión del agente que pasa ≈ 400 escenarios con cero violaciones, no solo un modelo.",
+        "El estado es durable: un turno se reanuda tras una caída desde el step log, y una aprobación puede esperar horas."
+      ],
+      "key_numbers": [
+        "≈ 150k conversaciones/día, ≈ 31 rps al LLM en el pico",
+        "primera respuesta p95 ≤ 4 s, turno p95 ≤ 12 s"
+      ],
+      "links": [
+        "#c12.arquitectura",
+        "#m14.agentes"
+      ]
+    },
+    {
+      "id": "c13",
+      "title": "Speech-to-text en vivo",
+      "pattern": "streaming",
+      "one_liner": "Subtítulos en vivo para videollamadas en español, inglés y portugués: el audio de cada participante se transcribe mientras habla, con parciales en ≤ 500 ms.",
+      "map": {
+        "datos": [
+          "corpus con licencia + grabaciones por acento",
+          "transcripción humana con guía, doble pasada",
+          "golden sets por idioma, acento y ruido"
+        ],
+        "modelo": [
+          "ASR streaming nativo (transducer/CTC)",
+          "fine-tune por idioma, WER por slice",
+          "engine para L4 + config de streaming"
+        ],
+        "release": [
+          "canary por % de sesiones nuevas",
+          "preStop que drena el worker",
+          "bot que reproduce audio golden en prod"
+        ],
+        "operacion": [
+          "asr-gateway: VAD + fragmentos de 160 ms",
+          "asr-worker en L4 con sequence batching",
+          "KEDA por streams activos (350 por GPU)"
+        ]
+      },
+      "vs_c01": [
+        "No hay request/response: una sesión gRPC larga por participante, con estado en una GPU mientras habla.",
+        "Se balancea y escala por streams activos, no por requests ni CPU; para bajar réplicas se drena.",
+        "El audio de clientes no se guarda: la calidad se mide con golden sets y un bot que habla en producción."
+      ],
+      "key_numbers": [
+        "≈ 60k streams activos en el pico → ≈ 172 L4",
+        "parciales p95 ≤ 500 ms, finales p95 ≤ 1.5 s"
+      ],
+      "links": [
+        "#c13.arquitectura",
+        "#m02.streaming"
+      ]
+    },
+    {
+      "id": "c14",
+      "title": "Pronóstico de demanda",
+      "pattern": "batch",
+      "one_liner": "Cada noche pronostica P50 y P90 a 14 días de 4.8 M series tienda × producto; a las 04:00, el ERP calcula con eso los pedidos de ≈ 400 tiendas.",
+      "map": {
+        "datos": [
+          "sales_daily (00:30) y stock_daily con oos_flag",
+          "price_promo + calendar_mx (quincenas, Buen Fin)",
+          "días agotados fuera de los targets"
+        ],
+        "modelo": [
+          "GBDT global por cuantiles (α 0.5 y 0.9)",
+          "backtest de 8 orígenes semanales (WAPE)",
+          "domingo: ≈ 490 M filas en spot"
+        ],
+        "release": [
+          "imagen forecast-job fijada por digest",
+          "DAG forecast_nightly en Airflow 3",
+          "una noche en sombra → alias champion"
+        ],
+        "operacion": [
+          "pod en spot, reintento en on-demand",
+          "gate + swap atómico de forecast_current",
+          "fallback: ayer desplazado; guardián 03:45"
+        ]
+      },
+      "vs_c01": [
+        "No hay endpoint: un job programado escribe ≈ 67 M filas por noche y el ERP las lee de una vista.",
+        "Publicar es mover un puntero tras un gate; si algo falla, sale el pronóstico de ayer desplazado un día.",
+        "GBDT en CPU (≈ 67 core-min por noche): sin GPU, sin ONNX ni TensorRT."
+      ],
+      "key_numbers": [
+        "≈ 67 M filas por noche, publicadas antes de las 03:30",
+        "WAPE ≈ 45 % hoy → meta ≤ 35 %"
+      ],
+      "links": [
+        "#c14.arquitectura",
+        "#m02.batch"
+      ]
+    },
+    {
+      "id": "c15",
+      "title": "CTR de anuncios",
+      "pattern": "sincrono",
+      "one_liner": "El ad server de un medio de noticias elige 3 anuncios por página en ≤ 50 ms: ordena por bid × pCTR y cobra con segundo precio, así que el pCTR tiene que estar calibrado.",
+      "map": {
+        "datos": [
+          "Kafka ad-events: decisiones, impresiones, clics",
+          "label: clic ≤ 30 min tras una impresión viewable",
+          "negativos submuestreados al 5 % (w)"
+        ],
+        "modelo": [
+          "regresión logística con hashing → DNN chico",
+          "corrección por w + isotónica",
+          "gate: NE y calibración 0.9–1.1"
+        ],
+        "release": [
+          "un artefacto: pesos + calibrador + w",
+          "carga en caliente en ad-api",
+          "canary por hash del request"
+        ],
+        "operacion": [
+          "ad-api en CPU: 7 × c7i.4xlarge en el pico",
+          "Redis: topes de frecuencia y features",
+          "pacing cada minuto por campaña"
+        ]
+      },
+      "vs_c01": [
+        "El pCTR fija el precio por clic, no solo el orden: la calibración por slot y sección es gate y alerta.",
+        "Se reentrena cada día (warm start sobre 14 días) con negativos submuestreados; el C01 reentrena cada mes.",
+        "Modelo en CPU con 50 ms de presupuesto: si no responde, se ordena por bid × CTR histórico, y si ad-api falla entra el programático."
+      ],
+      "key_numbers": [
+        "≈ 100 M pageviews/día, pico de diseño ≈ 6,000 RPS",
+        "1 % más de RPM ≈ US$75k/mes"
+      ],
+      "links": [
+        "#c15.arquitectura",
+        "#m02.online-sincrona"
+      ]
+    }
+  ]
+}
