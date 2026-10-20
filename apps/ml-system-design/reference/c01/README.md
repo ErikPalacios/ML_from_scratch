@@ -95,8 +95,11 @@ curl -s -H "Content-Type: image/jpeg" --data-binary @foto.jpg "localhost:8080/v1
 Prerequisitos del cluster: NVIDIA device plugin, node group de `g4dn.xlarge` con label
 `workload=gpu-t4` y taint `nvidia.com/gpu=present:NoSchedule`, AWS Load Balancer Controller, KEDA,
 Prometheus (kube-prometheus-stack, con kube-state-metrics), un CNI que aplique NetworkPolicy (VPC CNI
-con `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.34 por
-`trafficDistribution: PreferSameZone` (en 1.31–1.33 cámbialo por `PreferClose`).
+con `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.35: 1.34 sale del
+soporte upstream el 27 de octubre de 2026 y del soporte estándar de EKS el 2 de diciembre de 2026. Nada
+en los manifests depende de 1.34: pasan la validación estricta contra 1.35–1.37 y
+`trafficDistribution: PreferSameZone` es GA desde 1.35 (en 1.31–1.33 cámbialo por `PreferClose`).
+KEDA 2.21 está probado con Kubernetes 1.34–1.36: en 1.37, usa una release de KEDA que lo incluya.
 
 ```bash
 kubectl create namespace classifier
@@ -122,7 +125,7 @@ Probado en macOS (Apple Silicon), Python 3.13, sin GPU ni daemon de Docker:
 | Gate con `--backend triton` | contra el servidor falso (logits sin relación) | 0 % → exit 1 (el gate bloquea) |
 | `config.pbtxt` | parseado a `ModelConfig` (protobuf de tritonclient 2.72) | OK + asserts de nombres, shapes, batching |
 | `docker-compose.yml` | `docker compose config` (Compose v5.0.2) | OK |
-| Manifests K8s | `kubernetes-validate --strict` contra 1.34 y 1.36 + chequeo de referencias cruzadas (Service ↔ Deployment, ServiceMonitor ↔ Service, NetworkPolicy ↔ labels y puertos) | 8 recursos OK (el esquema no revisa el valor de `trafficDistribution`: eso lo hace el API server) |
+| Manifests K8s | `kubernetes-validate --strict` contra 1.35, 1.36 y 1.37 + chequeo de referencias cruzadas (Service ↔ Deployment, ServiceMonitor ↔ Service, NetworkPolicy ↔ labels y puertos) | 8 recursos OK (el esquema no revisa el valor de `trafficDistribution`: eso lo hace el API server) |
 | CRDs | ServiceMonitor, ScaledObject y el PrometheusRule que genera el comando de arriba contra el `openAPIV3Schema` de prometheus-operator v0.94.1 y KEDA v2.21.0 (jsonschema, campos desconocidos = error) | OK |
 | Alertas | YAML + sintaxis PromQL con `promql-parser` 0.10 + nombres/severidades | OK |
 | Wheels para la imagen | `pip download --only-binary` para cp313 manylinux x86_64 | los 37 paquetes tienen wheel |

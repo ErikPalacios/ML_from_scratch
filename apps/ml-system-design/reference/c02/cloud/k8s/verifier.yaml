@@ -162,7 +162,10 @@ spec:
   # Escríbelo aunque parezca obvio: el default de KEDA es 0.
   minReplicaCount: 1
   maxReplicaCount: 2  # techo de costo: 2 × g6.xlarge ≈ US$1,175/mes on-demand (est., verifica)
-  pollingInterval: 10  # cada 10 s KEDA pregunta a SQS (GetQueueAttributes: casi en tiempo real)
+  # Con minReplicaCount 1 no marca el ritmo del escalado: el HPA le pide la métrica a KEDA cada 15 s y
+  # KEDA llama a GetQueueAttributes (casi en tiempo real) en cada pedido. pollingInterval solo refresca el
+  # estado y los eventos del ScaledObject.
+  pollingInterval: 10
   advanced:
     horizontalPodAutoscalerConfig:
       behavior:

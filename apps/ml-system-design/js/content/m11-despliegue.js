@@ -166,7 +166,9 @@ spec:
       canaryService: gateway-canary      # Service que ve solo los pods nuevos
       stableService: gateway-stable      # Service que ve solo los pods estables
       trafficRouting:
-        alb: {ingress: classifier, servicePort: 8080}   # el Ingress apunta a gateway-stable; pesos exactos en el ALB
+        # El Ingress gateway de c01 (k8s/gateway.yaml), con el backend cambiado a gateway-stable y el
+        # puerto use-annotation: Argo escribe los pesos en una anotación y el ALB los aplica exactos
+        alb: {ingress: gateway, servicePort: 8080}
       analysis:                          # análisis de fondo durante todo el canary
         templates: [{templateName: canary-vs-estable}]
         startingStep: 1

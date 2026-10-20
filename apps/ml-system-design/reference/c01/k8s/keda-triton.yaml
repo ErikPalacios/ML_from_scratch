@@ -14,7 +14,10 @@ spec:
     name: triton  # el Deployment de k8s/triton.yaml
   minReplicaCount: 2  # nunca menos de 2: una GPU por AZ (N+1), aunque 1 sola cubra el pico
   maxReplicaCount: 4  # techo de costo: 4 × g4dn.xlarge; si no alcanza, TritonQueueTimeHigh avisa
-  pollingInterval: 15  # cada 15 s KEDA consulta Prometheus
+  # Con minReplicaCount ≥ 1 no marca el ritmo del escalado: el HPA le pide la métrica a KEDA cada
+  # 15 s y KEDA corre la query en Prometheus en cada pedido. pollingInterval solo refresca el estado
+  # y los eventos del ScaledObject.
+  pollingInterval: 15
   # cooldownPeriod solo aplica al bajar de 1 a 0 réplicas (subir desde 0 es inmediato al activarse el
   # trigger); con minReplicaCount 2 no se usa. El ritmo de bajada lo define el behavior del HPA de abajo.
   cooldownPeriod: 300
