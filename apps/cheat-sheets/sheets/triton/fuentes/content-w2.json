@@ -1,0 +1,1628 @@
+{
+ "sections": [
+  {
+   "id": "tensorrt",
+   "num": 5,
+   "title": "TensorRT: qué es, trtexec, precisión, perfiles de optimización, portabilidad del engine",
+   "question": "¿Cómo convierte TensorRT tu ONNX en un engine rápido para la T4, y por qué ese engine no sirve en otro tipo de GPU ni con otra versión de TensorRT?",
+   "templates": [
+    {
+     "code": "trtexec --onnx={modelo.onnx} --saveEngine={engine.plan} --fp16 \\\n  --minShapes={entrada}:{min}x3x224x224 \\\n  --optShapes={entrada}:{opt}x3x224x224 \\\n  --maxShapes={entrada}:{max}x3x224x224",
+     "note": "<b>TensorRT 10</b> (NGC 24.08: la release de agosto de 2024 de los contenedores de NVIDIA, la de C01). Corre en la GPU de destino, dentro de la imagen <code>nvcr.io/nvidia/tensorrt</code>, y deja un <b>engine</b>: el modelo compilado para ese tipo de GPU y esa versión de TensorRT. <code>--fp16</code> <b>permite</b> FP16: TensorRT elige capa por capa y deja en FP32 lo que no conviene. Min, opt y max forman el <b>perfil de optimización</b> (el rango de shapes que acepta el engine)."
+    },
+    {
+     "code": "python -m modelopt.onnx.autocast --onnx_path {modelo.onnx} \\\n  --output_path {modelo_fp16.onnx} --keep_io_types\ntrtexec --onnx={modelo_fp16.onnx} --saveEngine={engine.plan} \\\n  --minShapes={entrada}:{min}x3x224x224 \\\n  --optShapes={entrada}:{opt}x3x224x224 \\\n  --maxShapes={entrada}:{max}x3x224x224",
+     "note": "<b>TensorRT 11</b> (NGC 26.06 en adelante; la 26.09 trae la 11.3). Las redes son <b>strongly typed</b> (de tipos fijos): el tipo de cada tensor sale del ONNX y TensorRT no lo cambia. Si le pasas <code>--fp16</code>, <code>--int8</code> o <code>--best</code>, trtexec sale con error. FP16 se pide antes, con ModelOpt AutoCast (una herramienta de NVIDIA que reescribe el ONNX en FP16). <code>--keep_io_types</code> deja la entrada y la salida en FP32; sin él también pasan a FP16 y ya no calzan con el <code>TYPE_FP32</code> del <code>config.pbtxt</code>. INT8 y FP8 van con nodos Q/DQ (marcas de cuantización en el ONNX) que agrega ModelOpt."
+    },
+    {
+     "code": "trtexec --loadEngine={engine.plan} --shapes={entrada}:{batch}x3x224x224",
+     "note": "Mide el engine solo: sin cola, sin red y sin Triton. Usa el batch que llega online (1–3 en C01), no solo el de opt. En TensorRT 10 agrega <code>--dumpProfile --separateProfileRun</code> para ver el tiempo de cada capa en una corrida aparte, sin frenar la medición principal; en 11 basta <code>--dumpProfile</code>, porque esa corrida aparte ya va siempre."
+    },
+    {
+     "code": "--timingCacheFile={cache}              # guarda y reusa las mediciones de tácticas\n--builderOptimizationLevel={nivel}     # 0 a 5, default 3: más alto = build más largo\n--hardwareCompatibilityLevel=ampere+   # un engine para Ampere y posteriores\n--versionCompatible                    # corre también con TensorRT más nuevos",
+     "note": "Flags de build opcionales (trtexec de TensorRT 10.3). Los dos modos de compatibilidad pueden ser más lentos que un engine normal. <code>ampere+</code> exige compute capability (el número de generación de la GPU) ≥ 8.0 y la T4 es 7.5: en C01 no sirve."
+    }
+   ],
+   "formulas": [
+    "\\text{imágenes/s} = \\text{qps} \\times b \\qquad (\\text{trtexec cuenta inferencias: cada una es un batch de } b)",
+    "\\text{Latency} = \\text{H2D} + \\text{GPU Compute} + \\text{D2H}",
+    "\\text{min} \\le \\text{opt} \\le \\text{max} \\qquad \\texttt{max\\_batch\\_size} \\le \\text{max}_{\\text{perfil}} \\qquad (1 \\le 16 \\le 32,\\ 32 \\le 32)"
+   ],
+   "vars": [
+    [
+     "{modelo.onnx}",
+     "el ONNX exportado: la entrada del build",
+     "model/classifier.onnx (≈ 98 MB, opset 17)"
+    ],
+    [
+     "{engine.plan}",
+     "dónde queda el engine serializado (el archivo .plan)",
+     "triton/model_repository/classifier/1/model.plan"
+    ],
+    [
+     "{entrada}",
+     "nombre del tensor de entrada en el ONNX",
+     "input"
+    ],
+    [
+     "{min}, {opt}, {max}",
+     "batch mínimo, el batch para el que TensorRT elige los kernels más rápidos (los programas que corren en la GPU) y el máximo",
+     "1, 16, 32"
+    ],
+    [
+     "{modelo_fp16.onnx}",
+     "el ONNX que deja AutoCast, ya en precisión mixta (TensorRT 11)",
+     "no existe en C01: C01 usa TensorRT 10.3"
+    ],
+    [
+     "{batch}",
+     "batch con que mides el engine",
+     "1–3 (lo que llega online); 16 en el chequeo final de build_engine.sh"
+    ],
+    [
+     "{cache}",
+     "archivo donde se guardan las mediciones del build (timing cache)",
+     "t4.cache (C01 no lo usa)"
+    ],
+    [
+     "{nivel}",
+     "cuánto tiempo se da el builder (el compilador de TensorRT) para probar opciones",
+     "3, el default (C01 no lo cambia)"
+    ],
+    [
+     "qps",
+     "inferencias por segundo que reporta trtexec en Throughput",
+     "se mide en la T4"
+    ],
+    [
+     "b",
+     "batch de la medición",
+     "16 → imágenes/s = qps × 16"
+    ],
+    [
+     "H2D, D2H",
+     "copia de la entrada a la GPU y de la salida de vuelta (el trtexec de TensorRT 11 no las mide por defecto; --includeDataTransfers las suma)",
+     "602,112 B de entrada por imagen"
+    ],
+    [
+     "GPU Compute",
+     "tiempo de los kernels en la GPU",
+     "≈ 3–6 ms p50 con batch 1–8 (presupuesto de C01)"
+    ],
+    [
+     "max_batch_size",
+     "el techo de batch de config.pbtxt",
+     "32"
+    ],
+    [
+     "max_perfil",
+     "el batch máximo del perfil del engine",
+     "32 (--maxShapes)"
+    ]
+   ],
+   "pieces": [
+    [
+     "builder",
+     "La parte de TensorRT que compila: lee el ONNX, optimiza el grafo y mide kernels en tu GPU.",
+     "lo corre trtexec dentro de tensorrt:24.08"
+    ],
+    [
+     "engine (.plan)",
+     "El modelo ya compilado y guardado en un archivo: corre rápido, pero solo en ese tipo de GPU y con esa versión de TensorRT.",
+     "model.plan, ≈ 50–150 MB para ResNet-50"
+    ],
+    [
+     "parser de ONNX",
+     "Traduce cada nodo del ONNX a una capa de TensorRT. Si un operador no tiene traducción, el build falla.",
+     "el opset 17 de export_onnx.py"
+    ],
+    [
+     "fusión de capas (layer fusion)",
+     "Junta capas seguidas en un solo kernel: el resultado intermedio no vuelve a la memoria de la GPU.",
+     "Conv + ReLU; Conv + suma del atajo + ReLU"
+    ],
+    [
+     "BatchNorm plegado",
+     "En inferencia, BatchNorm es una escala y un corrimiento fijos: se mete en los pesos de la conv anterior.",
+     "el export de C01 ya lo hizo: el ONNX no trae nodos BatchNormalization"
+    ],
+    [
+     "precisión",
+     "Cuántos bits usa cada número: FP32, FP16, INT8, FP8. Menos bits = más rápido y algo de error numérico.",
+     "FP16 en C01: los logits se mueven ≈ 1e-2"
+    ],
+    [
+     "tácticas (tactics)",
+     "Las implementaciones posibles de cada capa. El builder las cronometra en tu GPU y se queda con la más rápida.",
+     "por eso el build tarda minutos y el resultado es de esa GPU"
+    ],
+    [
+     "perfil de optimización (optimization profile)",
+     "El rango de shapes que acepta una entrada dinámica: min, opt y max. Fuera del rango, la inferencia falla.",
+     "1 / 16 / 32"
+    ],
+    [
+     "timing cache",
+     "Archivo con las mediciones de tácticas: el siguiente build en la misma GPU tarda menos.",
+     "--timingCacheFile"
+    ],
+    [
+     "strongly typed",
+     "Red donde los tipos salen del modelo y TensorRT no elige la precisión. Obligatorio desde TensorRT 11.",
+     "en 11, --fp16 hace fallar a trtexec"
+    ],
+    [
+     "ModelOpt AutoCast",
+     "Herramienta de NVIDIA que convierte el ONNX a precisión mixta FP16 antes del build. Con --keep_io_types, la entrada y la salida siguen en FP32.",
+     "python -m modelopt.onnx.autocast --onnx_path … --keep_io_types"
+    ],
+    [
+     "nodos Q/DQ",
+     "Pares QuantizeLinear/DequantizeLinear en el ONNX: dicen dónde cuantizar a INT8 o FP8 y con qué escala.",
+     "los genera ModelOpt; C01 no usa INT8"
+    ],
+    [
+     "compute capability (sm_XX)",
+     "El número de arquitectura de la GPU. Los kernels del engine se eligen para ese número.",
+     "T4 = 7.5 (sm_75); L4 = 8.9"
+    ],
+    [
+     "hardware compatibility",
+     "Un engine para varias arquitecturas: ampere+ (compute capability ≥ 8.0) o, desde TensorRT 10.9, cualquier GPU con la misma compute capability. Puede ser más lento.",
+     "ampere+ no cubre la T4"
+    ],
+    [
+     "version compatibility",
+     "El engine lleva adentro un runtime chico (el lean runtime) y corre con TensorRT más nuevos. Puede ser más lento; Triton lo carga solo con --backend-config=tensorrt,version-compatible=true.",
+     "un engine 10 compatible corre con TensorRT 11"
+    ],
+    [
+     "trtexec",
+     "La herramienta de línea de comandos de TensorRT: construye engines y los mide solos.",
+     "build_engine.sh la corre en la T4"
+    ]
+   ],
+   "example": {
+    "title": "build_engine.sh: el engine FP16 se compila en la T4, con la misma release que Triton",
+    "lang": "bash",
+    "code": "# trtexec viene dentro de la imagen oficial de TensorRT: no instalas nada en el host.\n#   --gpus all            expone la GPU al contenedor (requiere NVIDIA Container Toolkit)\n#   --user                el .plan queda con tu usuario, no como root\n#   --fp16                habilita kernels FP16 (Tensor Cores de la T4); TensorRT deja en FP32 lo que no convenga.\n#                         Es TensorRT 10 (NGC 24.08). En TensorRT 11 (NGC 26.06+) ya no existe: conviertes el\n#                         ONNX a FP16 con ModelOpt AutoCast y construyes el engine sin flags de precisión.\n#   --minShapes/opt/max   perfil de optimización del batch dinámico: 1 ≤ batch ≤ 32, afinado para 16\n#                         (max = max_batch_size de config.pbtxt). Ojo: online los batches son de ≈ 1–4\n#                         (ver config.pbtxt y c01 · Serving); opt 16 es un punto de partida pensado para\n#                         picos y batches grandes, no \"el batch típico\". Compara con perf_analyzer contra\n#                         un engine con --optShapes=input:4x3x224x224 y quédate con el de mejor p99 a\n#                         250–500 req/s por GPU.\n#   --shapes              batch con el que trtexec hace su benchmark rápido al terminar (sanity check;\n#                         la medición seria es perf_analyzer contra Triton)\ndocker run --rm --gpus all \\\n  --user \"$(id -u):$(id -g)\" \\\n  -v \"$ROOT:/work\" -w /work \\\n  \"nvcr.io/nvidia/tensorrt:${NGC_RELEASE}-py3\" \\\n  trtexec \\\n    --onnx=\"$ONNX\" \\\n    --saveEngine=\"$PLAN_DIR/model.plan\" \\\n    --fp16 \\\n    --minShapes=input:1x3x224x224 \\\n    --optShapes=input:16x3x224x224 \\\n    --maxShapes=input:32x3x224x224 \\\n    --shapes=input:16x3x224x224",
+    "source": "reference/c01/model/build_engine.sh (líneas 27–52)",
+    "notes": [
+     "<code>--fp16</code> (TensorRT 10) deja que el builder use FP16 donde rinde. La entrada y la salida del engine siguen en FP32: por eso <code>config.pbtxt</code> declara <code>TYPE_FP32</code> y el gateway manda FP32. Los logits cambian ≈ 1e-2 frente a PyTorch FP32; el gate de paridad (sección 4) lo controla.",
+     "El perfil 1 / 16 / 32: el engine acepta batches de 1 a 32 y afina los kernels para 16. El máximo coincide con <code>max_batch_size: 32</code> de Triton. Online llegan batches de ≈ 1–3, así que el script propone comparar con un engine de <code>--optShapes=input:4x3x224x224</code> usando perf_analyzer.",
+     "<code>--shapes=input:16x3x224x224</code> solo fija el batch del benchmark corto que trtexec corre al terminar. Su Throughput viene en qps: con batch 16, imágenes/s = qps × 16. La medición que decide es perf_analyzer contra Triton (sección 9).",
+     "La imagen <code>nvcr.io/nvidia/tensorrt:${NGC_RELEASE}-py3</code> con <code>NGC_RELEASE=24.08</code> trae TensorRT 10.3, la misma versión que <code>tritonserver:24.08</code> (Triton 2.49.0 con TensorRT 10.3.0.26). <code>--gpus all</code> le da la GPU al contenedor y <code>--user</code> deja el .plan a tu nombre.",
+     "El comentario de TensorRT 11 es la migración pendiente: con NGC 26.06 o más nueva, este comando falla en <code>--fp16</code>. El ONNX pasa antes por AutoCast con <code>--keep_io_types</code> (así la entrada y la salida siguen en FP32, como pide <code>config.pbtxt</code>), el engine se construye sin flags de precisión y la paridad FP16 se repite."
+    ]
+   },
+   "figure": {
+    "kind": "graph",
+    "caption": "Un bloque bottleneck de ResNet-50 (hay 16) en PyTorch, en el ONNX de C01 y en el engine. Ilustrativo: qué fusiona exactamente depende de la versión de TensorRT y de la GPU; lo confirmas con trtexec --dumpLayerInfo.",
+    "data": {
+     "stages": [
+      {
+       "label": "PyTorch en eval()",
+       "precision": "FP32",
+       "nodes": [
+        "Conv 1×1",
+        "BatchNorm",
+        "ReLU",
+        "Conv 3×3",
+        "BatchNorm",
+        "ReLU",
+        "Conv 1×1",
+        "BatchNorm",
+        "Add (atajo)",
+        "ReLU"
+       ],
+       "note": "10 operaciones"
+      },
+      {
+       "label": "ONNX de export_onnx.py (opset 17)",
+       "precision": "FP32",
+       "nodes": [
+        "Conv 1×1",
+        "Relu",
+        "Conv 3×3",
+        "Relu",
+        "Conv 1×1",
+        "Add (atajo)",
+        "Relu"
+       ],
+       "note": "7 nodos: el export plegó cada BatchNorm en los pesos de su Conv"
+      },
+      {
+       "label": "engine TensorRT en la T4",
+       "precision": "FP16 donde conviene",
+       "nodes": [
+        "Conv 1×1 + Relu",
+        "Conv 3×3 + Relu",
+        "Conv 1×1 + Add + Relu"
+       ],
+       "note": "3 capas: cada conv lleva su activación y la última también la suma del atajo, en un solo kernel"
+      }
+     ],
+     "shortcut": "la entrada del bloque salta las tres convs y entra a la suma (Add); en 4 de los 16 bloques, los que cambian de tamaño, el atajo pasa antes por su propia Conv 1×1",
+     "io": "la entrada y la salida del engine siguen en FP32: TensorRT agrega conversiones en los bordes",
+     "inspect": "trtexec --loadEngine=model.plan --dumpLayerInfo: los nombres de las capas fusionadas se unen con \" + \""
+    }
+   },
+   "memo": "Cómo recordarla: <b>TensorRT es un compilador: el ONNX es el código fuente y el engine, el binario para una GPU (T4, sm_75) y una versión de TensorRT (10.3)</b>. Se compila donde va a correr, con el rango de batch que va a ver, y se mide con el batch real.",
+   "trap": "Trampa: subir solo la imagen de Triton (por ejemplo, de 24.08 a 26.09 por parches de seguridad) sin reconstruir el engine. La 26.09 trae TensorRT 11.3 y, por defecto, un engine solo carga con la versión de TensorRT que lo construyó: el modelo no carga y, con <code>--exit-on-error=true</code>, Triton se cierra y el pod entra en CrashLoopBackOff (se reinicia una y otra vez). Y en TensorRT 11 el mismo <code>build_engine.sh</code> falla, porque <code>--fp16</code> ya no existe. Las imágenes <code>tensorrt</code> y <code>tritonserver</code> suben juntas, con el mismo YY.MM.",
+   "lab": null,
+   "lab_omitted": "Necesita una GPU NVIDIA: trtexec construye el engine para la GPU donde corre, dentro de la imagen nvcr.io/nvidia/tensorrt con el NVIDIA Container Toolkit. El Mac no tiene GPU NVIDIA y Docker Desktop no les da GPU a los contenedores.",
+   "links": [
+    "#m08.tensorrt",
+    "#m08.validar",
+    "#m04.gpus-nvidia",
+    "#c01.archivos",
+    "#ref-numeros.optimizacion-serving"
+   ]
+  },
+  {
+   "id": "repositorio",
+   "num": 6,
+   "title": "El model repository y config.pbtxt",
+   "question": "¿Qué carpetas y qué configuración necesita Triton para cargar tu modelo, y qué pasa cuando algo no coincide?",
+   "templates": [
+    {
+     "code": "{repositorio}/\n└── {modelo}/\n    ├── config.pbtxt\n    └── {versión}/\n        └── {archivo}",
+     "note": "El <b>model repository</b> es una carpeta (local o en la nube: <code>s3://</code>, <code>gs://</code> o <code>as://</code>). Cada modelo tiene su carpeta y cada versión, una subcarpeta con número. Triton ignora las subcarpetas que no son números o que empiezan con 0. Nombres por defecto: <code>model.plan</code> (TensorRT), <code>model.onnx</code> (ONNX Runtime), <code>model.pt</code> (PyTorch), <code>model.py</code> (Python)."
+    },
+    {
+     "code": "name: \"{modelo}\"\nplatform: \"{plataforma}\"\nmax_batch_size: {max_batch}\ninput [ { name: \"{entrada}\", data_type: {tipo}, dims: [ {dims} ] } ]\noutput [ { name: \"{salida}\", data_type: {tipo}, dims: [ {dims} ] } ]",
+     "note": "Lo mínimo: quién lo ejecuta (<code>platform</code> o <code>backend</code>) y el contrato de tensores (nombre, tipo y shape de cada entrada y salida), con los nombres del ONNX o del engine. Con <code>max_batch_size</code> mayor que 0, <code>dims</code> va sin el eje de batch: Triton antepone -1. Con 0 no hay batching y <code>dims</code> es la shape completa."
+    },
+    {
+     "code": "tritonserver --model-repository={ruta} \\\n  --model-control-mode={modo} \\\n  --disable-auto-complete-config \\\n  --strict-readiness=true --exit-on-error=true",
+     "note": "Modos: <code>none</code> (default) carga todo al arrancar y no vuelve a mirar la carpeta; <code>poll</code> recarga lo que cambia (la doc no lo recomienda en producción); <code>explicit</code> carga solo lo que pidas: con <code>--load-model</code> al arrancar o por la API de control de modelos. <code>--disable-auto-complete-config</code>: Triton usa tu config tal cual, sin completarlo leyendo el modelo."
+    },
+    {
+     "code": "curl -s {host}:8000/v2/models/{modelo}/config\ncurl -s -X POST {host}:8000/v2/repository/index",
+     "note": "<code>/config</code> devuelve, en JSON, el config que Triton cargó de verdad, con los defaults que agregó (por ejemplo, <code>instance_group</code>). El índice lista cada modelo con su versión, su estado (READY o UNAVAILABLE) y el motivo."
+    }
+   ],
+   "formulas": [
+    "\\text{shape completa} = \\begin{cases} [-1] \\,\\Vert\\, \\texttt{dims} & \\texttt{max\\_batch\\_size} > 0 \\\\ \\texttt{dims} & \\texttt{max\\_batch\\_size} = 0 \\end{cases} \\qquad [-1] \\,\\Vert\\, [3, 224, 224] = [-1, 3, 224, 224]",
+    "\\text{bytes por imagen} = 3 \\times 224 \\times 224 \\times 4\\ \\text{B} = 602{,}112\\ \\text{B} \\approx 602\\ \\text{KB}",
+    "\\text{entrada a batch máximo} = 32 \\times 602\\ \\text{KB} \\approx 19\\ \\text{MB}"
+   ],
+   "vars": [
+    [
+     "{repositorio}",
+     "carpeta raíz que recibe --model-repository",
+     "/models dentro de la imagen"
+    ],
+    [
+     "{modelo}",
+     "nombre del modelo = nombre de su carpeta",
+     "classifier"
+    ],
+    [
+     "{versión}",
+     "subcarpeta numérica de la versión",
+     "1"
+    ],
+    [
+     "{archivo}",
+     "el modelo, con su nombre por defecto",
+     "model.plan (lo genera build_engine.sh; no va en git)"
+    ],
+    [
+     "{plataforma}",
+     "quién lo ejecuta: platform (o backend)",
+     "tensorrt_plan"
+    ],
+    [
+     "{max_batch}",
+     "techo del batch; 0 = sin batching",
+     "32 (= max del perfil del engine)"
+    ],
+    [
+     "{entrada}, {salida}",
+     "nombres de los tensores del modelo",
+     "input, logits"
+    ],
+    [
+     "{tipo}",
+     "tipo de dato del config",
+     "TYPE_FP32 (en el cliente se escribe FP32)"
+    ],
+    [
+     "{dims}",
+     "shape de una muestra, sin el batch",
+     "3, 224, 224 y 500"
+    ],
+    [
+     "{ruta}",
+     "ruta o URL del repository",
+     "/models (o s3://bucket/models)"
+    ],
+    [
+     "{modo}",
+     "modo de control de modelos",
+     "none"
+    ],
+    [
+     "{host}",
+     "dónde escucha Triton",
+     "localhost con kubectl port-forward"
+    ]
+   ],
+   "pieces": [
+    [
+     "model repository",
+     "La carpeta de modelos que lee Triton, con un modelo por subcarpeta.",
+     "triton/model_repository/, copiada a /models"
+    ],
+    [
+     "carpeta de versión",
+     "Subcarpeta con número. Las que no son números o empiezan con 0 se ignoran.",
+     "classifier/1/"
+    ],
+    [
+     "config.pbtxt",
+     "La configuración del modelo, en el formato de texto de protobuf (campos con dos puntos, llaves y listas) que define el esquema ModelConfig: contrato, batching, instancias y warmup.",
+     "el de C01, 77 líneas comentadas"
+    ],
+    [
+     "name",
+     "Opcional. Si falta, Triton usa el nombre de la carpeta; si está, tiene que ser igual a la carpeta.",
+     "classifier"
+    ],
+    [
+     "platform / backend",
+     "Quién ejecuta el modelo. TensorRT: platform tensorrt_plan o backend tensorrt. ONNX: onnxruntime_onnx u onnxruntime. Python: backend python.",
+     "platform: \"tensorrt_plan\""
+    ],
+    [
+     "default_model_filename",
+     "Cambia el nombre del archivo que busca el backend.",
+     "C01 usa el default, model.plan"
+    ],
+    [
+     "max_batch_size",
+     "El batch más grande que acepta el modelo. Mayor que 0: Triton antepone el eje de batch. 0: sin batching.",
+     "32"
+    ],
+    [
+     "input / output",
+     "El contrato de cada tensor: name, data_type y dims. Tiene que coincidir con el modelo y con el cliente.",
+     "input FP32 [3, 224, 224] → logits FP32 [500]"
+    ],
+    [
+     "data_type",
+     "El tipo en el config: TYPE_FP32, TYPE_INT64, TYPE_STRING… El cliente usa el nombre del protocolo: FP32, INT64, BYTES.",
+     "TYPE_FP32"
+    ],
+    [
+     "reshape",
+     "Para cuando la shape que manda el cliente y la que espera el modelo difieren.",
+     "C01 no lo necesita"
+    ],
+    [
+     "version_policy",
+     "Qué versiones de la carpeta se cargan: latest (default, la más alta), all o specific.",
+     "latest { num_versions: 1 }"
+    ],
+    [
+     "model_warmup",
+     "Requests de prueba que Triton corre al cargar. El modelo no queda listo hasta que terminan bien.",
+     "batch 32, 3 veces, con ceros"
+    ],
+    [
+     "--disable-auto-complete-config",
+     "Usa el config tal cual, sin leer el modelo para completarlo. Igual agrega instance_group si falta.",
+     "en el CMD de triton/Dockerfile"
+    ],
+    [
+     "--model-control-mode",
+     "Cuándo lee Triton el repository: none (al arrancar), poll (cada --repository-poll-secs) o explicit (con --load-model o por la API).",
+     "none: un modelo nuevo llega en una imagen nueva"
+    ],
+    [
+     "--strict-readiness / --exit-on-error",
+     "/v2/health/ready da 200 solo con todos los modelos cargados / el proceso termina si algo falla al arrancar. Los dos son true por defecto.",
+     "C01 los escribe igual, para que se lean"
+    ],
+    [
+     "UNAVAILABLE",
+     "Estado de un modelo que no cargó. El motivo sale en el log y en el índice del repository.",
+     "un engine de otra versión de TensorRT"
+    ]
+   ],
+   "example": {
+    "title": "config.pbtxt de C01: el contrato del modelo",
+    "lang": "protobuf",
+    "code": "# Configuración del modelo \"classifier\" en Triton Inference Server (caso c01).\n# Formato: protobuf en texto (mensaje ModelConfig). Triton arranca con\n# --disable-auto-complete-config: no \"adivina\" nada del engine; todo lo que el gateway asume\n# (nombres, dtypes, shapes) está escrito y revisado aquí.\n# El engine (1/model.plan) lo genera model/build_engine.sh y NO se versiona en git.\n\nname: \"classifier\"  # = nombre del directorio; el gateway lo manda en MODEL_NAME\nplatform: \"tensorrt_plan\"  # backend TensorRT: carga 1/model.plan (nombre por defecto del archivo)\nmax_batch_size: 32  # hasta 32 requests en un batch; debe ser ≤ --maxShapes del engine (32)\n\n# Solo la versión más nueva del directorio. Con la imagen \"horneada\" hay una sola versión; el\n# rollback es volver a desplegar la imagen anterior, no cargar dos versiones en la misma GPU.\nversion_policy: { latest: { num_versions: 1 } }\n\ninput [\n  {\n    name: \"input\"  # = input_names del export ONNX y InferInput(\"input\") del gateway\n    data_type: TYPE_FP32  # el gateway manda FP32; TensorRT convierte a FP16 dentro del engine\n    dims: [ 3, 224, 224 ]  # SIN el eje de batch: con max_batch_size > 0 Triton antepone [-1]\n  }\n]\n\noutput [\n  {\n    name: \"logits\"  # logits crudos: softmax y top-k los hace el gateway (así se puede calibrar)\n    data_type: TYPE_FP32\n    dims: [ 500 ]  # una salida por categoría hoja\n  }\n]",
+    "source": "reference/c01/triton/model_repository/classifier/config.pbtxt (líneas 1–29)",
+    "notes": [
+     "Triton arranca con <code>--disable-auto-complete-config</code> (CMD de <code>triton/Dockerfile</code>): no completa nada leyendo el engine. Cada nombre, tipo y shape que asume el gateway está escrito aquí, a la vista.",
+     "<code>platform: \"tensorrt_plan\"</code> sin <code>default_model_filename</code>: el backend busca <code>1/model.plan</code>. El Dockerfile hace <code>RUN test -f /models/classifier/1/model.plan</code> para que el build de la imagen falle si el engine no está.",
+     "<code>max_batch_size: 32</code> con <code>dims: [ 3, 224, 224 ]</code>: Triton ve la entrada como [-1, 3, 224, 224], igual que el engine. Si escribieras el -1 en <code>dims</code>, serían 5 dimensiones y la carga falla con the model expects 4 dimensions … but the model configuration specifies 5 dimensions.",
+     "<code>version_policy</code> con <code>latest</code> 1: una sola versión en la GPU. El rollback es volver a la imagen anterior, no tener dos engines cargados, cada uno con su VRAM.",
+     "Los nombres <code>input</code> y <code>logits</code> salen de <code>export_onnx.py</code> y los usa el gateway: si cambias uno, tienes que cambiarlo en los tres archivos. Las líneas 60–77 agregan el warmup (batch 32, 3 veces): de paso prueban al cargar que el engine acepta el batch máximo."
+    ]
+   },
+   "figure": {
+    "kind": "repo",
+    "caption": "El repository de C01 (arriba, horneado en la imagen) y un segundo modelo de ejemplo (abajo) para ver las reglas de nombres y de versiones.",
+    "data": {
+     "root": "/models  (triton/model_repository/ en el repo; COPY model_repository /models en triton/Dockerfile)",
+     "tree": [
+      {
+       "path": "classifier/",
+       "kind": "modelo",
+       "note": "el nombre de la carpeta es el name del config"
+      },
+      {
+       "path": "classifier/config.pbtxt",
+       "kind": "config",
+       "note": "lo escribes tú: contrato, batching, instancias y warmup"
+      },
+      {
+       "path": "classifier/1/",
+       "kind": "versión",
+       "note": "la única versión; latest { num_versions: 1 }"
+      },
+      {
+       "path": "classifier/1/model.plan",
+       "kind": "archivo",
+       "note": "engine FP16 para la T4: lo genera build_engine.sh y no va en git"
+      },
+      {
+       "path": "detector/",
+       "kind": "modelo",
+       "example": true,
+       "note": "ejemplo: otro modelo en el mismo Triton, con otro backend"
+      },
+      {
+       "path": "detector/config.pbtxt",
+       "kind": "config",
+       "example": true,
+       "note": "backend: \"onnxruntime\""
+      },
+      {
+       "path": "detector/1/model.onnx",
+       "kind": "archivo",
+       "example": true,
+       "note": "nombre por defecto de ONNX Runtime"
+      },
+      {
+       "path": "detector/viejo/",
+       "kind": "ignorada",
+       "example": true,
+       "note": "Triton la ignora: no es un número"
+      },
+      {
+       "path": "detector/02/",
+       "kind": "ignorada",
+       "example": true,
+       "note": "Triton la ignora: empieza con 0"
+      }
+     ],
+     "load": [
+      "Triton arranca (modo none)",
+      "lee cada carpeta y su config.pbtxt",
+      "el backend carga el archivo de la versión",
+      "corre model_warmup",
+      "READY, o UNAVAILABLE con el motivo"
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>carpeta = nombre, subcarpeta = versión, config.pbtxt = contrato</b>. Nombres, tipos, shapes y batch están tres veces: en el engine, en el config y en el cliente. Las tres copias tienen que coincidir.",
+   "trap": "Trampa: copiar la shape del ONNX tal cual, <code>dims: [ -1, 3, 224, 224 ]</code>, con <code>max_batch_size: 32</code>. Triton antepone otro -1 y le pide al engine 5 dimensiones: el modelo queda UNAVAILABLE y el error habla de an initial batch dimension because max_batch_size > 0. Con batching, <code>dims</code> describe una sola muestra.",
+   "lab": {
+    "goal": "Armar el repository de C01 en tu Mac y validar su config.pbtxt contra el mensaje ModelConfig real de Triton (sin GPU), para ver qué errores atrapa el parser y cuáles no.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-repositorio && cd ~/lab-repositorio\npython3.13 -m venv .venv && . .venv/bin/activate\npip install \"tritonclient[grpc]==2.73.0\"\nmkdir -p model_repository/classifier/1",
+      "expect": "pip termina con Successfully installed y, en la lista, tritonclient-2.73.0, grpcio y protobuf (una 6.x: tritonclient 2.73 pide protobuf menor que 7). tritonclient es Python puro y grpcio trae wheels para macOS: se instala igual en un Mac con Apple Silicon."
+     },
+     {
+      "cmd": "cat > model_repository/classifier/config.pbtxt <<'EOF'\nname: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\nversion_policy: { latest: { num_versions: 1 } }\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching {\n  max_queue_delay_microseconds: 2000\n  default_queue_policy { timeout_action: REJECT, default_timeout_microseconds: 100000 }\n}\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]\nEOF\nfind model_repository",
+      "expect": "find lista model_repository, model_repository/classifier, la carpeta 1 y el config.pbtxt. La carpeta 1 queda vacía: el engine solo se construye en una T4."
+     },
+     {
+      "cmd": "cat > valida.py <<'EOF'\nimport sys\nfrom google.protobuf import text_format\nfrom tritonclient.grpc import model_config_pb2 as mc\n\ncfg = text_format.Parse(open(sys.argv[1]).read(), mc.ModelConfig())\nprint(cfg.name, cfg.platform, cfg.max_batch_size, list(cfg.input[0].dims), cfg.instance_group[0].count)\nEOF\npython valida.py model_repository/classifier/config.pbtxt",
+      "expect": "classifier tensorrt_plan 32 [3, 224, 224] 2. El archivo es protobuf válido para ModelConfig: los mismos nombres de campo y de enum que lee Triton."
+     },
+     {
+      "cmd": "sed -i.bak 's/name: \"input\", data_type: TYPE_FP32/name: \"input\", data_type: FP32/' model_repository/classifier/config.pbtxt\npython valida.py model_repository/classifier/config.pbtxt",
+      "expect": "Falla con google.protobuf.text_format.ParseError: la línea 5 y el texto Enum type \"inference.DataType\" has no value named FP32. FP32 es el nombre del protocolo (el de tritonclient), no el del config."
+     },
+     {
+      "cmd": "mv model_repository/classifier/config.pbtxt.bak model_repository/classifier/config.pbtxt\nsed -i.bak 's/max_batch_size/max_batch_sise/' model_repository/classifier/config.pbtxt\npython valida.py model_repository/classifier/config.pbtxt",
+      "expect": "Otro ParseError: Message type \"inference.ModelConfig\" has no field named \"max_batch_sise\". Un campo mal escrito también impide la carga."
+     },
+     {
+      "cmd": "mv model_repository/classifier/config.pbtxt.bak model_repository/classifier/config.pbtxt\nsed -i.bak 's/kind: KIND_GPU/kind: KIND_CPU/' model_repository/classifier/config.pbtxt\npython valida.py model_repository/classifier/config.pbtxt\ncat model_repository/classifier/config.pbtxt",
+      "expect": "valida.py imprime lo mismo que en el paso 3: el protobuf es válido. Pero pega el config en el revisor de esta página: marca tensorrt-en-cpu. Triton tampoco lo cargaría (TensorRT backend supports only GPU device). El parser revisa nombres; el sentido lo revisan el revisor y Triton."
+     },
+     {
+      "cmd": "deactivate && cd ~ && rm -r ~/lab-repositorio",
+      "expect": "Sin salida: borraste el venv y el repository de prueba."
+     }
+    ],
+    "fix": "Si pip dice que no encuentra una versión de grpcio, el venv quedó con Python 3.9 (el python3 que trae macOS): bórralo con rm -r .venv y créalo con python3.13. Si el import falla con The installation does not include grpc support, instalaste tritonclient sin el extra [grpc]: repite el pip install con las comillas. Si pip no encuentra 2.73.0, usa la última 2.7x. En una máquina con GPU, el paso siguiente es poner el model.plan en la carpeta 1 y arrancar tritonserver con este repository.",
+    "needs": "Python 3.13, como en los demás labs (como mínimo 3.10: tritonclient[grpc] 2.73 pide grpcio 1.81.1 o más nuevo, que ya no tiene versión para Python 3.9). Internet para pip (tritonclient, grpcio y protobuf). No necesitas GPU ni Docker.",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí (no se instala nada). Verificado: tritonclient 2.73.0 es un wheel py3-none-any y su extra [grpc] pide grpcio ≥ 1.81.1 (wheels solo para Python ≥ 3.10) y protobuf ≥ 6.30 y < 7; tritonclient.grpc importa model_config_pb2 y, sin grpc, lanza The installation does not include grpc support; el paquete del proto es inference; los textos de los ParseError salen de text_format.py de protobuf (iguales en la 6.33 y en la 7.36, donde se probaron sobre un mensaje incluido en protobuf); las tres ediciones con sed (BSD) se probaron sobre el archivo; el config es el de M07, que el curso parseó contra el ModelConfig de tritonclient 2.72."
+   },
+   "links": [
+    "#m07.triton",
+    "#c01.archivos",
+    "#c01.serving",
+    "#ref-comandos.docker-gpu"
+   ]
+  },
+  {
+   "id": "batching",
+   "num": 7,
+   "title": "Dynamic batching, instancias y concurrencia",
+   "question": "¿Cómo junta Triton requests sueltos en un batch, cuántas copias del modelo conviene correr y cuánto cuesta eso en latencia?",
+   "templates": [
+    {
+     "code": "max_batch_size: {max_batch}\ndynamic_batching {\n  max_queue_delay_microseconds: {espera_us}\n  preferred_batch_size: [ {tamaños} ]\n}",
+     "note": "El <b>dynamic batcher</b> junta requests de clientes distintos del lado del servidor. Un batch sale cuando llega a <code>max_batch_size</code> (o a un tamaño preferido) o cuando el primero lleva <code>max_queue_delay_microseconds</code> esperando; default de la espera: 0. <code>preferred_batch_size</code> casi nunca: la doc lo reserva para tamaños que rinden mucho mejor (varios perfiles de TensorRT)."
+    },
+    {
+     "code": "dynamic_batching {\n  default_queue_policy {\n    timeout_action: REJECT\n    default_timeout_microseconds: {timeout_us}\n    max_queue_size: {cola_max}\n  }\n  priority_levels: {niveles}\n  default_priority_level: {nivel_default}\n}",
+     "note": "La política de la cola. <code>default_timeout_microseconds</code> 0 = sin timeout; <code>max_queue_size</code> 0 = cola sin tope. Al vencer, REJECT (default) devuelve error y DELAY lo atiende después de los que siguen a tiempo. Con prioridades, 1 es la más alta y el default tiene que estar entre 1 y <code>priority_levels</code>."
+    },
+    {
+     "code": "instance_group [\n  { count: {n}, kind: KIND_GPU, gpus: [ {ids} ] }\n]",
+     "note": "<code>count</code> copias en cada GPU de <code>gpus</code> (o en todas, si no lo pones). Sin <code>instance_group</code>: 1 instancia por GPU. <code>KIND_CPU</code> corre en CPU (en ONNX Runtime, 2 instancias si no pones <code>count</code>); TensorRT solo acepta GPU."
+    },
+    {
+     "code": "sum(rate(nv_inference_count{model=\"{modelo}\"}[5m]))\n  /\nsum(rate(nv_inference_exec_count{model=\"{modelo}\"}[5m]))",
+     "note": "El batch promedio que de verdad se forma: inferencias ÷ ejecuciones del modelo. Es la consulta del serving de C01; la corres en Prometheus (el sistema que junta las métricas), que las lee del puerto 8002."
+    }
+   ],
+   "formulas": [
+    "L = \\lambda \\cdot W \\qquad 250\\ \\text{req/s} \\times 0.008\\ \\text{s} \\approx 2 \\text{ requests dentro de Triton}",
+    "\\text{llegadas en la ventana} = \\lambda \\cdot t_{\\text{ventana}} = 250 \\times 0.002 = 0.5",
+    "t_{\\text{llenar}} = \\frac{\\texttt{max\\_batch\\_size}}{\\lambda} = \\frac{32}{250\\ \\text{req/s}} = 128\\ \\text{ms}",
+    "\\bar{b} = \\frac{\\Delta\\, \\texttt{nv\\_inference\\_count}}{\\Delta\\, \\texttt{nv\\_inference\\_exec\\_count}}"
+   ],
+   "vars": [
+    [
+     "{max_batch}",
+     "techo del batch; no puede pasar el máximo del perfil del engine",
+     "32"
+    ],
+    [
+     "{espera_us}",
+     "espera máxima para juntar requests, en µs",
+     "2000 (2 ms)"
+    ],
+    [
+     "{tamaños}",
+     "tamaños de batch preferidos",
+     "no se usan: el engine tiene un solo perfil, 1–32"
+    ],
+    [
+     "{timeout_us}",
+     "cuánto puede esperar un request en la cola, en µs",
+     "100000 (100 ms, menos que los 150 ms del gateway)"
+    ],
+    [
+     "{cola_max}",
+     "requests máximos en la cola; 0 = sin tope",
+     "no se fija"
+    ],
+    [
+     "{niveles}",
+     "cuántas prioridades hay; 1 es la más alta",
+     "2, en la propuesta del serving de C01 (el config.pbtxt no las trae)"
+    ],
+    [
+     "{nivel_default}",
+     "prioridad de los requests que no mandan una",
+     "2: la app manda priority=1 y los scripts quedan detrás"
+    ],
+    [
+     "{n}",
+     "instancias por GPU",
+     "2"
+    ],
+    [
+     "{ids}",
+     "GPUs donde van las copias; si falta, todas",
+     "no se pone: el pod ve una sola T4"
+    ],
+    [
+     "{modelo}",
+     "label model de las métricas",
+     "classifier"
+    ],
+    [
+     "λ",
+     "requests que llegan por segundo a cada GPU",
+     "250 en el pico de diseño; 500 si cae una GPU"
+    ],
+    [
+     "W",
+     "tiempo promedio dentro de Triton: cola + copia + cómputo",
+     "≈ 8 ms (supuesto de M03)"
+    ],
+    [
+     "L",
+     "requests dentro de Triton en promedio",
+     "≈ 2: dos instancias alcanzan"
+    ],
+    [
+     "t_ventana",
+     "max_queue_delay_microseconds, en segundos",
+     "0.002"
+    ],
+    [
+     "t_llenar",
+     "tiempo para juntar un batch lleno",
+     "128 ms, más de la mitad del p99 de 200 ms: por eso el batch no espera a llenarse y sale a los 2 ms"
+    ],
+    [
+     "b̄",
+     "batch promedio real",
+     "≈ 1–3 a 250 req/s; ≈ 2–4 en failover"
+    ]
+   ],
+   "pieces": [
+    [
+     "dynamic batcher",
+     "El scheduler (la parte de Triton que decide qué request corre y cuándo) que junta requests sueltos de varios clientes en un batch, del lado del servidor.",
+     "dynamic_batching { … } en config.pbtxt"
+    ],
+    [
+     "scheduler por defecto",
+     "Si no hay dynamic_batching ni otro scheduler, cada request se ejecuta sola, aunque max_batch_size sea 32.",
+     "con --disable-auto-complete-config nadie lo agrega por ti"
+    ],
+    [
+     "max_queue_delay_microseconds",
+     "La espera máxima para juntar compañía. Con 0 no espera: igual arma el batch con lo que se acumuló mientras las instancias estaban ocupadas.",
+     "2000 en C01"
+    ],
+    [
+     "batch real vs max_batch_size",
+     "max_batch_size es un techo. El batch que se forma depende de cuántos requests llegan.",
+     "techo 32, real ≈ 1–3"
+    ],
+    [
+     "preferred_batch_size",
+     "Tamaños con los que el batch sale de inmediato. La doc lo desaconseja para la mayoría de los modelos.",
+     "C01 no los pone"
+    ],
+    [
+     "default_queue_policy",
+     "Qué hace la cola: timeout, acción al vencer y tope de tamaño.",
+     "REJECT a los 100 ms"
+    ],
+    [
+     "timeout_action",
+     "REJECT (default): devuelve error. DELAY: lo atiende después de los que siguen a tiempo.",
+     "REJECT en C01"
+    ],
+    [
+     "allow_timeout_override",
+     "Deja que cada request pida un timeout más corto (el parámetro timeout de tritonclient, en µs).",
+     "no se usa en C01"
+    ],
+    [
+     "priority_levels",
+     "Varias colas por prioridad: la 1 se atiende primero.",
+     "propuesta del serving de C01: app en 1, scripts en 2"
+    ],
+    [
+     "preserve_ordering",
+     "Devuelve las respuestas en el orden de llegada. No se permite con más de un nivel de prioridad.",
+     "no se usa"
+    ],
+    [
+     "instance_group",
+     "Cuántas copias del modelo corren y dónde. Cada copia es un contexto de ejecución con su propia memoria.",
+     "count: 2, kind: KIND_GPU"
+    ],
+    [
+     "kind",
+     "KIND_GPU, KIND_CPU, KIND_MODEL o KIND_AUTO (el default: GPU si hay).",
+     "KIND_GPU"
+    ],
+    [
+     "rate limiter",
+     "Opcional (--rate-limit=execution_count): reparte la ejecución entre instancias según recursos y prioridad.",
+     "C01 no lo usa"
+    ],
+    [
+     "sequence batcher",
+     "Para modelos con estado: manda los requests de una misma secuencia a la misma instancia.",
+     "no aplica a un clasificador"
+    ],
+    [
+     "client-side batching",
+     "El cliente junta imágenes antes de mandarlas. Online casi nunca conviene: suma latencia y Triton ya junta.",
+     "C01: una imagen por request"
+    ]
+   ],
+   "example": {
+    "title": "config.pbtxt de C01: batching, cola e instancias",
+    "lang": "protobuf",
+    "code": "# Dynamic batching: junta requests individuales en un batch para usar bien la GPU (1 imagen por\n# llamada deja la T4 casi ociosa). Espera como máximo 2 ms a que lleguen más requests. Con 2 GPUs,\n# cada Triton recibe ≈ 175–250 req/s en el pico (350–500 req/s en total): en 2 ms llegan ≈ 0.35–0.5\n# requests más y el batch promedio queda en ≈ 1–3 (≈ 2–4 si una GPU absorbe los 500 req/s del\n# failover). Cuesta como mucho 2 ms del p99 de 200 ms; el batch crece solo en picos y failover.\n# Mídelo, no lo supongas: rate(nv_inference_count) / rate(nv_inference_exec_count) = batch promedio.\ndynamic_batching {\n  max_queue_delay_microseconds: 2000\n  # Sin preferred_batch_size a propósito: con un solo perfil de optimización (1–32) Triton arma el\n  # batch más grande posible dentro de la espera; fijar tamaños solo tiene sentido con varios\n  # perfiles/engines por tamaño, y mal elegidos agregan espera.\n  default_queue_policy {\n    # Protección ante sobrecarga: un request que lleva 100 ms en cola ya no llega a tiempo al\n    # timeout del gateway (150 ms). Mejor rechazarlo y liberar GPU para requests que siguen vivos\n    # que calcular una respuesta que nadie espera.\n    timeout_action: REJECT\n    default_timeout_microseconds: 100000\n  }\n}\n\n# 2 instancias del engine en la MISMA GPU: mientras una copia datos o espera, la otra computa.\n# Cada instancia reserva su propia memoria de activaciones; con ResNet-50 FP16 sobra en 16 GB.\ninstance_group [\n  {\n    count: 2\n    kind: KIND_GPU\n  }\n]",
+    "source": "reference/c01/triton/model_repository/classifier/config.pbtxt (líneas 31–58)",
+    "notes": [
+     "La cuenta de las líneas 32–35: con ≈ 250 req/s por GPU, en 2 ms llegan 250 × 0.002 = 0.5 requests más. El batch promedio queda en ≈ 1–3 (≈ 2–4 en failover) y la ventana cuesta como mucho 2 ms del p99 de 200 ms.",
+     "Sin <code>preferred_batch_size</code>: con un solo perfil (1–32), lo mejor es el batch más grande que se forme dentro de la espera. Fijar tamaños tiene sentido con varios perfiles o engines por tamaño.",
+     "<code>default_queue_policy</code> con REJECT a los 100 ms: un request que ya esperó eso no llega al timeout de 150 ms del gateway. Triton lo rechaza (se cuenta en <code>nv_inference_request_failure</code> con <code>reason=\"REJECTED\"</code>) y el gateway responde 503 con Retry-After.",
+     "<code>count: 2</code> en la misma T4: mientras una instancia copia datos o espera, la otra calcula. Cada una reserva su propia memoria de activaciones; con ResNet-50 FP16 son unos pocos GB en total, de 16.",
+     "Little lo confirma: a 250 req/s y ≈ 8 ms dentro de Triton hay ≈ 2 requests adentro. Más instancias que requests no ayudan; el número final se elige midiendo con model_analyzer."
+    ]
+   },
+   "figure": {
+    "kind": "batching",
+    "caption": "El bus que espera 2 ms: llegadas, ventana y batch despachado a la instancia libre, a escala. Ilustrativo, con los números de C01: un request cada ≈ 4 ms y un cómputo de ≈ 3.3 + 0.74 × b ms (≈ la tabla de M03).",
+    "data": {
+     "unit": "ms",
+     "axis": [
+      0,
+      26
+     ],
+     "window_ms": 2,
+     "max_batch": 32,
+     "lanes": [
+      "llegadas",
+      "cola (dynamic batcher)",
+      "instancia 1",
+      "instancia 2"
+     ],
+     "scenarios": [
+      {
+       "label": "Carga normal de C01: ≈ 250 req/s por GPU",
+       "arrivals": [
+        0,
+        1.4,
+        6.3,
+        11.2,
+        11.9,
+        19.5
+       ],
+       "batches": [
+        {
+         "open": 0,
+         "send": 2,
+         "size": 2,
+         "instance": 1,
+         "end": 6.7
+        },
+        {
+         "open": 6.3,
+         "send": 8.3,
+         "size": 1,
+         "instance": 2,
+         "end": 12.3
+        },
+        {
+         "open": 11.2,
+         "send": 13.2,
+         "size": 2,
+         "instance": 1,
+         "end": 17.9
+        },
+        {
+         "open": 19.5,
+         "send": 21.5,
+         "size": 1,
+         "instance": 2,
+         "end": 25.5
+        }
+       ],
+       "result": "6 requests en 4 ejecuciones: batch promedio 1.5; cada request espera 2 ms o menos en la cola"
+      },
+      {
+       "label": "Ráfaga: 6 requests en 1.5 ms (un pico o un failover)",
+       "arrivals": [
+        0,
+        0.3,
+        0.6,
+        0.9,
+        1.2,
+        1.5
+       ],
+       "batches": [
+        {
+         "open": 0,
+         "send": 2,
+         "size": 6,
+         "instance": 1,
+         "end": 9.7
+        }
+       ],
+       "result": "una ejecución de ≈ 7.7 ms atiende a los 6: el batch crece solo cuando hay tráfico"
+      }
+     ],
+     "rules": [
+      "el batch sale cuando junta max_batch_size (32) o cuando el primero lleva 2 ms esperando",
+      "lo toma una instancia libre; si las dos están ocupadas, sigue juntando",
+      "con poco tráfico el costo es la espera: hasta 2 ms por request"
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>el dynamic batcher es un bus que espera como mucho 2 ms a que suban más pasajeros</b>. Si se llena (32 asientos), sale antes; si no, sale cuando vence la espera. Las instancias son buses en paralelo. Con poco tráfico el bus sale casi vacío y la espera es el costo; en un pico se llena solo.",
+   "trap": "Trampa: poner <code>max_batch_size: 32</code> y creer que ya hay batching. Sin el bloque <code>dynamic_batching</code>, Triton usa el scheduler por defecto y cada request va sola a la GPU. Con el autocompletado activo, el backend de TensorRT agrega el bloque si el batch máximo es mayor que 1; el de ONNX Runtime, solo si además tiene que completar <code>input</code> y <code>output</code>. Con <code>--disable-auto-complete-config</code>, como C01, nadie lo agrega. Escríbelo siempre y mídelo con inferencias ÷ ejecuciones.",
+   "lab": {
+    "goal": "Ver cómo cambian el batch y la espera con la tasa de llegada y con la ventana, en una simulación en Python de la regla del dynamic batcher con los números de C01. No corre Triton: imita su regla.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-batching && cd ~/lab-batching\ncat > batcher.py <<'EOF'\n# batcher.py: la regla del dynamic batcher de Triton en pocas líneas (simulación, no es Triton)\nimport math, random, sys\n\ndef simular(tasa, ventana_ms, max_batch=32, n=50000):\n    random.seed(1)  # misma semilla = mismos números en cualquier Python 3\n    t, llegadas = 0.0, []\n    for _ in range(n):  # llegadas al azar (Poisson): `tasa` requests por segundo\n        t += -math.log(1.0 - random.random()) / tasa * 1000.0\n        llegadas.append(t)\n    gpu_libre, i, lotes, esperas, totales = 0.0, 0, [], [], []\n    while i < n:\n        corte = max(llegadas[i] + ventana_ms, gpu_libre)  # el primero espera compañía hasta aquí\n        j = i\n        while j < n and j - i < max_batch and llegadas[j] <= corte:\n            j += 1  # suben al bus los que llegaron antes del corte\n        sale = max(llegadas[j - 1], gpu_libre) if j - i == max_batch else corte  # lleno: sale ya\n        computo = 3.25 + 0.74 * (j - i)  # ms en la GPU, ilustrativo (≈ tabla de M03)\n        gpu_libre = sale + computo\n        lotes.append(j - i)\n        esperas += [sale - x for x in llegadas[i:j]]\n        totales += [sale + computo - x for x in llegadas[i:j]]\n        i = j\n    totales.sort()\n    return sum(lotes) / len(lotes), sum(esperas) / len(esperas), totales[int(0.99 * n)]\n\ntasa = float(sys.argv[1]) if len(sys.argv) > 1 else 250\nfor ventana in (0, 2, 10):\n    b, espera, p99 = simular(tasa, ventana)\n    print(f\"{tasa:.0f} req/s  ventana {ventana} ms  batch medio {b:.1f}  espera media {espera:.1f} ms  p99 {p99:.1f} ms\")\nEOF\npython3 batcher.py 250",
+      "expect": "Tres líneas, una por ventana: 250 req/s  ventana 0 ms  batch medio 1.4  espera media 1.7 ms  p99 10.8 ms; con 2 ms: batch 1.7, espera 2.2 ms, p99 10.8 ms; con 10 ms: batch 3.5, espera 6.4 ms, p99 18.4 ms. La ventana de 2 ms casi no cambia el p99. La de 10 ms duplica el batch, pero sube el p99 de 10.8 a 18.4 ms: a esta carga, la GPU no necesita batches más grandes."
+     },
+     {
+      "cmd": "python3 batcher.py 500",
+      "expect": "El failover de C01 (toda la carga en una GPU): batch medio 2.7 con ventana 0 y 2.9 con 2 ms; p99 15.3 ms. El batch sube solo con el tráfico, dentro del ≈ 2–4 que estima C01."
+     },
+     {
+      "cmd": "python3 batcher.py 1000",
+      "expect": "Batch medio 12.2 aunque la ventana sea 0 ms: con carga, los requests se acumulan mientras la GPU trabaja y el batcher se los lleva juntos. p99 ≈ 40 ms."
+     },
+     {
+      "cmd": "python3 batcher.py 1200",
+      "expect": "Espera media ≈ 164 ms y p99 ≈ 285 ms con cualquier ventana: pasaste el codo (con estos tiempos, la GPU da ≈ 1,190 img/s con batch 32). La cola crece mientras dure la carga; en C01, la política de la cola rechazaría a los 100 ms."
+     },
+     {
+      "cmd": "cd ~ && rm -r ~/lab-batching",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si tus números no coinciden, revisa que copiaste el script entero: con la semilla fija, cualquier Python 3 da exactamente esos valores. Para jugar, cambia la tasa (el argumento) o la fórmula de la línea computo. Es una simulación de la regla, no Triton: deja afuera la segunda instancia de C01 (y su solape de copias), la red y los timeouts de la cola. Los números de verdad salen de perf_analyzer contra Triton y del cociente inferencias ÷ ejecuciones en sus métricas.",
+    "needs": "Python 3.9 o más nuevo, sin paquetes extra. Ni GPU ni Docker.",
+    "verified": "executed",
+    "verified_note": "Ejecutado con Python 3.9.6 y 3.14.3 en macOS (Apple Silicon): salida idéntica, con las cifras de arriba. Simula la regla documentada del dynamic batcher (sale lleno o al vencer la espera, cuando la GPU queda libre) con tiempos de cómputo ilustrativos de M03."
+   },
+   "links": [
+    "#m03.batching",
+    "#m03.little",
+    "#c01.serving",
+    "#m07.triton",
+    "#m04.vram"
+   ]
+  },
+  {
+   "id": "clientes",
+   "num": 8,
+   "title": "Clientes: HTTP, gRPC, protocolo v2, health y metadata, tritonclient",
+   "question": "¿Cómo le habla tu servicio a Triton: qué endpoints usa, qué viaja por la red y qué cliente de Python eliges?",
+   "templates": [
+    {
+     "code": "GET  /v2/health/live\nGET  /v2/health/ready\nGET  /v2/models/{modelo}/ready\nGET  /v2/models/{modelo}\nGET  /v2/models/{modelo}/config\nPOST /v2/models/{modelo}[/versions/{v}]/infer",
+     "note": "El protocolo <b>KServe v2</b> (también llamado Open Inference Protocol: las rutas y el JSON estándar para hablarle a un servidor de modelos) por HTTP, en el puerto 8000. Health: 200 = sí, 400 = no, sin body. Dos casos más: mientras los modelos cargan al arrancar (con <code>--model-control-mode=none</code>) el servidor HTTP todavía no acepta conexiones, y al apagarse responde 503. <code>/v2/models/{modelo}</code> es la metadata (nombres, tipos y shapes); <code>/config</code> es una extensión de Triton."
+    },
+    {
+     "code": "import tritonclient.http as httpclient\n\nclient = httpclient.InferenceServerClient(url=\"{host}:8000\")\ninp = httpclient.InferInput(\"{entrada}\", [{shape}], \"{tipo}\")\ninp.set_data_from_numpy({arreglo}, binary_data=True)\nout = httpclient.InferRequestedOutput(\"{salida}\", binary_data=True)\nres = client.infer(\"{modelo}\", [inp], outputs=[out])\ny = res.as_numpy(\"{salida}\")",
+     "note": "La URL va sin <code>http://</code>: si lo pones, el cliente falla con url should not include the scheme. El tipo es el nombre del protocolo (<code>FP32</code>, no <code>TYPE_FP32</code>) y la shape incluye el batch. La versión async es <code>tritonclient.http.aio</code>, la de C01."
+    },
+    {
+     "code": "import tritonclient.grpc as grpcclient\n\nclient = grpcclient.InferenceServerClient(url=\"{host}:8001\")\ninp = grpcclient.InferInput(\"{entrada}\", [{shape}], \"{tipo}\")\ninp.set_data_from_numpy({arreglo})\nres = client.infer(\"{modelo}\", [inp], client_timeout={segundos})",
+     "note": "gRPC (llamadas a funciones remotas sobre HTTP/2), en el puerto 8001: el tensor viaja como bytes crudos dentro de un mensaje protobuf (el formato binario de Google). <code>client_timeout</code> sí es un timeout del cliente, en segundos: si vence, lanza InferenceServerException con Deadline Exceeded. En los dos clientes, <code>timeout</code> es otra cosa: µs que Triton aplica en su cola."
+    },
+    {
+     "code": "curl -i {host}:8000/v2/health/ready\ncurl -s {host}:8000/v2/models/{modelo}",
+     "note": "Para mirar a mano. La primera muestra HTTP/1.1 200 OK o 400 Bad Request. La metadata es un JSON con <code>name</code>, <code>versions</code>, <code>platform</code>, <code>inputs</code> y <code>outputs</code> (nombre, datatype y shape, con -1 en el eje de batch)."
+    }
+   ],
+   "formulas": [
+    "B = \\prod_i \\text{shape}_i \\times \\text{bytes del tipo} = 1 \\times 3 \\times 224 \\times 224 \\times 4 = 602{,}112\\ \\text{B}",
+    "B_{\\text{JSON}} \\approx n \\times 20\\ \\text{B} = 150{,}528 \\times 20\\ \\text{B} \\approx 3\\ \\text{MB} \\;(\\approx 5\\times)",
+    "\\text{red} = B \\times \\lambda \\times 8 = 602\\ \\text{KB} \\times 500\\ \\text{req/s} \\times 8 \\approx 2.4\\ \\text{Gb/s}",
+    "t_{\\text{Triton}} = \\min(150\\ \\text{ms},\\ \\text{deadline} - \\text{ahora})"
+   ],
+   "vars": [
+    [
+     "{modelo}",
+     "nombre del modelo en el repository",
+     "classifier"
+    ],
+    [
+     "{v}",
+     "versión explícita (opcional)",
+     "no se usa: hay una sola"
+    ],
+    [
+     "{host}",
+     "dónde escucha Triton, sin http://",
+     "triton.classifier.svc.cluster.local en EKS; triton en compose"
+    ],
+    [
+     "{entrada}, {salida}",
+     "nombres de los tensores, los del config",
+     "input, logits"
+    ],
+    [
+     "{shape}",
+     "shape del request, con el batch",
+     "1, 3, 224, 224"
+    ],
+    [
+     "{tipo}",
+     "datatype del protocolo",
+     "FP32"
+    ],
+    [
+     "{arreglo}",
+     "arreglo de NumPy con ese dtype y esa shape",
+     "float32 [1, 3, 224, 224] de preprocess.py"
+    ],
+    [
+     "{segundos}",
+     "timeout del cliente gRPC",
+     "C01 usa HTTP: su tope es asyncio.wait_for, 150 ms"
+    ],
+    [
+     "B",
+     "bytes del tensor en binario",
+     "602,112"
+    ],
+    [
+     "n",
+     "cantidad de valores del tensor",
+     "150,528"
+    ],
+    [
+     "B_JSON",
+     "el mismo tensor con los números escritos como texto (≈ 20 B por número; M07 midió 20.6 con json.dumps)",
+     "≈ 3 MB (3.1 MB en M07)"
+    ],
+    [
+     "λ",
+     "requests por segundo",
+     "500 en el pico de diseño"
+    ],
+    [
+     "deadline",
+     "el presupuesto total del request en el gateway",
+     "250 ms desde que llegó"
+    ]
+   ],
+   "pieces": [
+    [
+     "KServe v2 (Open Inference Protocol)",
+     "Un contrato estándar de endpoints y JSON para servidores de modelos: Triton, KServe, MLServer, OpenVINO Model Server.",
+     "el gateway habla v2 por HTTP"
+    ],
+    [
+     "extensión binaria",
+     "Header JSON corto + los bytes crudos del tensor. El header Inference-Header-Content-Length dice dónde termina el JSON.",
+     "binary_data=True en tritonclient"
+    ],
+    [
+     "datatype del protocolo",
+     "BOOL, UINT8…, FP16, FP32, FP64, BYTES, BF16. En el config se escriben TYPE_*, y el texto es TYPE_STRING allá y BYTES aquí.",
+     "FP32"
+    ],
+    [
+     "/v2/health/live",
+     "¿El proceso responde? Para la livenessProbe (el chequeo con que Kubernetes decide si reiniciar el contenedor).",
+     "livenessProbe de k8s/triton.yaml"
+    ],
+    [
+     "/v2/health/ready",
+     "¿Puede atender? Con --strict-readiness, solo si todos los modelos están cargados.",
+     "startupProbe y readinessProbe"
+    ],
+    [
+     "/v2/models/{modelo}/ready",
+     "¿Ese modelo está cargado? Si no, 400 con un error en JSON.",
+     "is_model_ready() en el /readyz del gateway"
+    ],
+    [
+     "metadata y config",
+     "Metadata: nombres, tipos y shapes. Config: el config.pbtxt cargado, en JSON (extensión de Triton).",
+     "get_model_metadata() y get_model_config()"
+    ],
+    [
+     "gRPC",
+     "El mismo modelo de datos sobre HTTP/2: el servicio inference.GRPCInferenceService, en el puerto 8001.",
+     "perf_analyzer -i grpc"
+    ],
+    [
+     "tritonclient",
+     "La librería oficial de Python: tritonclient.http, .http.aio, .grpc y .grpc.aio. Se instala con pip install \"tritonclient[http]\" o \"[grpc]\".",
+     "tritonclient[http]==2.72.0 en C01"
+    ],
+    [
+     "InferInput / InferRequestedOutput",
+     "El tensor que mandas (nombre, shape, datatype) y la salida que pides. El cliente revisa el dtype y la shape del arreglo antes de mandar.",
+     "InferInput(\"input\", [1, 3, 224, 224], \"FP32\")"
+    ],
+    [
+     "InferenceServerException",
+     "El error que devuelve Triton (modelo no cargado, request rechazado); .message() trae el texto.",
+     "el gateway lo traduce a 503"
+    ],
+    [
+     "timeout de infer()",
+     "No es del cliente: son µs que Triton aplica en su cola, y solo si el modelo tiene dynamic batching.",
+     "por eso C01 usa asyncio.wait_for"
+    ],
+    [
+     "memoria compartida",
+     "Si cliente y Triton están en la misma máquina, el tensor pasa por memoria (del sistema o CUDA), sin red.",
+     "perf_analyzer --shared-memory system"
+    ],
+    [
+     "gRPC y el balanceo de Kubernetes",
+     "Una conexión HTTP/2 lleva todos los requests, y el Service de Kubernetes reparte conexiones, no requests (balanceo L4): todo termina en un solo pod.",
+     "por eso C01 usa HTTP con un pool de conexiones"
+    ]
+   ],
+   "example": {
+    "title": "main.py: la llamada a Triton, con su presupuesto y sus errores",
+    "lang": "python",
+    "code": "async def _infer(client, batch: np.ndarray, request_id: str, timeout: float = INFER_TIMEOUT_S) -> np.ndarray:\n    \"\"\"Llama a Triton y traduce sus fallas a códigos HTTP útiles para el cliente.\"\"\"\n    inp = triton_http.InferInput(\"input\", list(batch.shape), \"FP32\")  # nombre, shape y dtype = config.pbtxt\n    # binary tensor extension: 602 KB crudos detrás del header JSON, en vez de 150k floats como texto\n    inp.set_data_from_numpy(batch, binary_data=True)\n    out = triton_http.InferRequestedOutput(\"logits\", binary_data=True)  # la respuesta también en binario\n    try:\n        # Verificado en tritonclient 2.72: el parámetro `timeout` de infer() NO es un timeout del\n        # cliente, es un parámetro en microsegundos que Triton aplica en SU cola (solo con dynamic\n        # batching). El único timeout del cliente aio es conn_timeout, global para toda la sesión.\n        # Por eso el presupuesto por request se impone con asyncio.wait_for, que además cancela la\n        # petición HTTP en vuelo.\n        result = await asyncio.wait_for(\n            client.infer(MODEL_NAME, [inp], outputs=[out], request_id=request_id),\n            timeout=timeout,  # ≤ INFER_TIMEOUT_S: lo que quede del presupuesto del request\n        )\n    except TimeoutError:  # asyncio.TimeoutError es alias de TimeoutError desde Python 3.11\n        # 504: Triton está vivo pero lento (cola llena, GPU saturada); el cliente cae a su fallback\n        raise HTTPException(504, \"timeout de inferencia\") from None\n    except aiohttp.ClientError:  # conexión rechazada/reseteada, DNS: Triton caído o reiniciando\n        raise HTTPException(503, \"Triton no disponible\", headers={\"Retry-After\": \"1\"}) from None\n    except InferenceServerException as exc:  # Triton respondió error: modelo no cargado, request rechazado\n        detail = f\"Triton rechazó la inferencia: {exc.message()}\"\n        raise HTTPException(503, detail, headers={\"Retry-After\": \"1\"}) from None\n    return result.as_numpy(\"logits\")[0]  # [500] logits del único elemento del batch",
+    "source": "reference/c01/gateway/app/main.py (líneas 147–171)",
+    "notes": [
+     "<code>InferInput(\"input\", list(batch.shape), \"FP32\")</code>: nombre, shape y tipo calcan el config (<code>TYPE_FP32</code> allá, <code>FP32</code> aquí). La shape es la completa, [1, 3, 224, 224]: el batch de 1 lo agrega <code>_decode_and_hash</code>.",
+     "<code>binary_data=True</code> en la entrada y en la salida: viajan 602,112 bytes crudos detrás del header, no 150,528 números como texto (≈ 3 MB).",
+     "El <code>timeout</code> de <code>infer()</code> no corta nada en el cliente (comentario de las líneas 154–158). El presupuesto se impone con <code>asyncio.wait_for</code>, que además cancela la petición en vuelo; el <code>conn_timeout=1.0</code> del cliente (línea 108) queda de respaldo.",
+     "Cada falla tiene su código: TimeoutError → 504 (Triton lento), aiohttp.ClientError → 503 (Triton caído o reiniciando), InferenceServerException → 503 con el mensaje de Triton, por ejemplo un rechazo de la cola.",
+     "Un solo cliente por proceso, creado en el lifespan con <code>conn_limit=64</code>: reusa las conexiones keep-alive. El <code>/readyz</code> del gateway llama <code>is_model_ready(MODEL_NAME)</code> con un tope de 0.5 s."
+    ]
+   },
+   "figure": {
+    "kind": "protocol",
+    "caption": "Quién llama a qué en C01: el kubelet (el agente de Kubernetes en cada nodo) pregunta por la salud, el gateway por el modelo y la inferencia, y Prometheus lee las métricas. gRPC (8001) ofrece las mismas operaciones como llamadas RPC.",
+    "data": {
+     "client": "gateway: tritonclient.http.aio, un cliente por proceso",
+     "server": "Triton, en el pod con la T4",
+     "ports": [
+      {
+       "port": 8000,
+       "proto": "HTTP/REST, KServe v2",
+       "used_by": "gateway y probes del kubelet"
+      },
+      {
+       "port": 8001,
+       "proto": "gRPC",
+       "used_by": "perf_analyzer o clientes que lo prefieran; la NetworkPolicy de C01 no lo abre al gateway"
+      },
+      {
+       "port": 8002,
+       "proto": "HTTP /metrics, formato Prometheus",
+       "used_by": "Prometheus (cada 15 s) y, a través de él, KEDA"
+      }
+     ],
+     "calls": [
+      {
+       "who": "kubelet",
+       "method": "GET",
+       "path": "/v2/health/live",
+       "answer": "200 vivo · 400 no",
+       "c01": "livenessProbe cada 10 s"
+      },
+      {
+       "who": "kubelet",
+       "method": "GET",
+       "path": "/v2/health/ready",
+       "answer": "200 si todos los modelos están listos · 400 si no",
+       "c01": "startupProbe hasta 5 min; readinessProbe cada 5 s"
+      },
+      {
+       "who": "gateway (/readyz)",
+       "method": "GET",
+       "path": "/v2/models/classifier/ready",
+       "answer": "200 · 400 {\"error\": \"Model version not ready\"}",
+       "c01": "is_model_ready(), tope de 0.5 s"
+      },
+      {
+       "who": "tú, al depurar",
+       "method": "GET",
+       "path": "/v2/models/classifier",
+       "answer": "input FP32 [-1, 3, 224, 224] · logits FP32 [-1, 500]",
+       "c01": "get_model_metadata()"
+      },
+      {
+       "who": "gateway",
+       "method": "POST",
+       "path": "/v2/models/classifier/infer",
+       "answer": "header JSON + 2,000 bytes de logits (500 × 4 B)",
+       "c01": "header JSON + 602,112 bytes del tensor"
+      },
+      {
+       "who": "Prometheus",
+       "method": "GET",
+       "path": ":8002/metrics",
+       "answer": "texto con nv_inference_* y nv_gpu_*",
+       "c01": "scrape cada 15 s"
+      }
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>dos preguntas de salud y una de trabajo</b>: ¿vive? (live), ¿puede atender? (ready) e infer. El tensor viaja en binario: un header JSON corto y 602,112 bytes. Y el tipo cambia de nombre: <code>TYPE_FP32</code> en el config, <code>FP32</code> en el cable.",
+   "trap": "Trampa: pasarle <code>timeout=</code> a <code>infer()</code> creyendo que el cliente dejará de esperar. Ese parámetro son microsegundos que Triton aplica en su cola, y solo si el modelo tiene dynamic batching; el cliente sigue esperando. Con HTTP, C01 usa <code>asyncio.wait_for</code>; con gRPC existe <code>client_timeout</code>, en segundos.",
+   "lab": {
+    "goal": "Ver sin servidor qué viaja en un request KServe v2: el tensor de C01 en binario y en JSON, y el header que arma tritonclient.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-cliente && cd ~/lab-cliente\npython3.13 -m venv .venv && . .venv/bin/activate\npip install \"tritonclient[http]==2.73.0\" numpy",
+      "expect": "Successfully installed y, en la lista, tritonclient-2.73.0 y numpy. No hace falta Triton: el body del request se arma en tu máquina."
+     },
+     {
+      "cmd": "cat > cuerpo.py <<'EOF'\nimport numpy as np\nimport tritonclient.http as httpclient\n\nx = np.random.default_rng(0).standard_normal((1, 3, 224, 224), dtype=np.float32)  # como el tensor del gateway\nfor binario in (True, False):\n    inp = httpclient.InferInput(\"input\", list(x.shape), \"FP32\")\n    inp.set_data_from_numpy(x, binary_data=binario)\n    out = httpclient.InferRequestedOutput(\"logits\", binary_data=binario)\n    body, header = httpclient.InferenceServerClient.generate_request_body([inp], outputs=[out])\n    print(\"binario\" if binario else \"JSON\", len(body), \"bytes; header JSON:\", header)\nEOF\npython cuerpo.py",
+      "expect": "Dos líneas. Binario: el body mide el header (≈ 175 bytes) más los 602,112 bytes del tensor. JSON: ≈ 3,000,000 bytes y header None, porque todo el body es JSON: unas 5 veces más."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport numpy as np\nimport tritonclient.http as httpclient\n\ninp = httpclient.InferInput(\"input\", [1, 3, 224, 224], \"FP32\")\ninp.set_data_from_numpy(np.zeros((1, 3, 224, 224), dtype=np.float32))\nbody, header = httpclient.InferenceServerClient.generate_request_body([inp])\nprint(body[:header].decode())\nEOF",
+      "expect": "El header JSON: inputs con name input, shape [1,3,224,224], datatype FP32 y parameters con binary_data_size 602112. Como no pediste salidas, el cliente agrega binary_data_output: true para recibirlas todas en binario."
+     },
+     {
+      "cmd": "python - <<'EOF'\nimport numpy as np\nimport tritonclient.http as httpclient\n\ninp = httpclient.InferInput(\"input\", [1, 3, 224, 224], \"FP32\")\ninp.set_data_from_numpy(np.zeros((1, 224, 224, 3), dtype=np.float32))\nEOF",
+      "expect": "InferenceServerException: got unexpected numpy array shape [1, 224, 224, 3], expected [1, 3, 224, 224]. El cliente revisa la shape (y el dtype) antes de mandar nada: una imagen en HWC no llega a Triton."
+     },
+     {
+      "cmd": "deactivate && cd ~ && rm -r ~/lab-cliente",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si el import de numpy o de tritonclient falla, revisa que activaste el venv (. .venv/bin/activate) antes de correr python. Con un Triton arriba (en una máquina con GPU), el mismo InferInput va en client.infer(\"classifier\", [inp]) y la respuesta se lee con as_numpy(\"logits\").",
+    "needs": "Python 3.13, como en los demás labs, e internet para pip (tritonclient y numpy). No necesitas GPU, Docker ni Triton.",
+    "verified": "docs",
+    "verified_note": "No ejecutado aquí (no se instala nada). Verificado en el código de tritonclient: generate_request_body es estático y devuelve el body y el tamaño del header (None si todo es JSON); el JSON se arma con rapidjson, sin espacios; sin outputs agrega binary_data_output; el error de shape usa got unexpected numpy array shape. Los tamaños se calcularon aparte con la misma estructura y los mismos floats: header de 174 bytes y body JSON de ≈ 2.95 MB (≈ 19.6 B por número; M07 midió 20.6 con json.dumps, que agrega un espacio tras cada coma)."
+   },
+   "links": [
+    "#m07.protocolos",
+    "#c01.serving",
+    "#m03.timeouts-reintentos",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "medir",
+   "num": 9,
+   "title": "Medir: perf_analyzer, métricas de Triton, uso de GPU",
+   "question": "¿Cuánto aguanta una GPU, dónde se va la latencia y cómo sabes si el batching de verdad está pasando?",
+   "templates": [
+    {
+     "code": "perf_analyzer -m {modelo} -u {host}:8000 -i http \\\n  --concurrency-range {inicio}:{fin}:{paso} \\\n  --input-data {datos.json} --percentile=99 \\\n  --measurement-interval {ms}",
+     "note": "<b>Carga cerrada</b>: cada cliente virtual espera su respuesta antes de mandar otra. Sirve para encontrar el throughput máximo. Sin <code>--input-data</code> manda datos al azar; <code>-b</code> es el batch de cada request (1, como el gateway). Viene en la imagen <code>nvcr.io/nvidia/tritonserver:{release}-py3-sdk</code> (o con <code>pip install perf-analyzer</code>, que solo trae versiones para Linux)."
+    },
+    {
+     "code": "perf_analyzer -m {modelo} -u {host}:8000 \\\n  --request-rate-range {tasa} --request-distribution poisson \\\n  --input-data {datos.json} --percentile=99",
+     "note": "<b>Carga abierta</b>: manda una tasa fija de requests aunque el servidor se frene, como el tráfico de verdad (siempre que no se le acaben los hilos: usa <code>--async</code> o sube <code>--max-threads</code>). Es la que dice el p99 a esa tasa. La distribución por defecto es <code>constant</code>; <code>poisson</code> se parece más al tráfico real."
+    },
+    {
+     "code": "curl -s {host}:8002/metrics | grep 'model=\"{modelo}\"' \\\n  | grep -E 'nv_inference_(count|exec_count|request_success|queue_duration_us|compute_infer_duration_us)'",
+     "note": "Estas cinco son contadores (counters) acumulados desde que arrancó Triton: lo que importa es cuánto suben en un intervalo (<code>rate</code> en Prometheus), no el valor suelto. Las de GPU (<code>nv_gpu_utilization</code>, <code>nv_gpu_memory_used_bytes</code>) y <code>nv_inference_pending_request_count</code> son gauges: valen lo que marcan en ese momento y se leen directo, sin <code>rate</code>."
+    },
+    {
+     "code": "sum(rate(nv_inference_queue_duration_us{model=\"{modelo}\"}[5m]))\n  / sum(rate(nv_inference_request_success{model=\"{modelo}\"}[5m]))\n  / 1000",
+     "note": "Espera media en la cola, en ms: la alerta TritonQueueTimeHigh de C01 salta a 20 ms y KEDA (el autoscaler que agrega pods de Triton) escala con un objetivo de 10 ms. Incluye la ventana de batching: el request ya está en la cola mientras espera compañía."
+    }
+   ],
+   "formulas": [
+    "X = \\frac{N}{W} \\qquad 8 \\text{ clientes} \\,/\\, 10\\ \\text{ms} = 800\\ \\text{req/s} \\quad (\\text{carga cerrada, Little})",
+    "\\bar{t}_{\\text{cola}} = \\frac{\\Delta\\, \\texttt{nv\\_inference\\_queue\\_duration\\_us}}{\\Delta\\, \\texttt{nv\\_inference\\_request\\_success}}",
+    "\\text{GPUs} = \\left\\lceil \\frac{\\text{pico}}{0.5 \\times \\text{máx. medido}} \\right\\rceil + 1 = \\left\\lceil \\frac{500}{600} \\right\\rceil + 1 = 2"
+   ],
+   "vars": [
+    [
+     "{modelo}",
+     "modelo a medir (-m)",
+     "classifier"
+    ],
+    [
+     "{host}",
+     "Triton, sin http://",
+     "localhost con kubectl port-forward, o triton en compose"
+    ],
+    [
+     "{inicio}:{fin}:{paso}",
+     "clientes concurrentes: desde, hasta, de a cuánto",
+     "1:32:2 (M03)"
+    ],
+    [
+     "{datos.json}",
+     "entradas reales, en el formato JSON de perf_analyzer",
+     "tensores_reales.json: fotos ya preprocesadas"
+    ],
+    [
+     "{ms}",
+     "largo de cada ventana de medición, en ms (default 5000)",
+     "10000"
+    ],
+    [
+     "{tasa}",
+     "requests por segundo, en carga abierta",
+     "250 (pico de diseño por GPU) y 500 (failover)"
+    ],
+    [
+     "{release}",
+     "release de NGC de la imagen SDK",
+     "24.08, la misma que el servidor"
+    ],
+    [
+     "X",
+     "throughput: requests atendidos por segundo",
+     "el máximo de una T4 en C01 es un supuesto: ≈ 1,200 img/s"
+    ],
+    [
+     "N",
+     "clientes concurrentes de perf_analyzer",
+     "8"
+    ],
+    [
+     "W",
+     "latencia media de cada request",
+     "10 ms"
+    ],
+    [
+     "t̄_cola",
+     "espera media en la cola de Triton",
+     "≈ 1–3 ms normal; más de 20 ms sostenidos dispara la alerta"
+    ],
+    [
+     "pico",
+     "carga de diseño",
+     "500 req/s"
+    ],
+    [
+     "máx. medido",
+     "el codo de la rampa, medido con perf_analyzer",
+     "≈ 1,200 img/s → 600 planeadas (50 %)"
+    ]
+   ],
+   "pieces": [
+    [
+     "perf_analyzer",
+     "Genera carga contra Triton (HTTP o gRPC) y reporta throughput y latencias por percentil, del cliente y del servidor.",
+     "la rampa contra una T4"
+    ],
+    [
+     "carga cerrada (--concurrency-range)",
+     "N clientes que esperan su respuesta antes de mandar otra. Encuentra el máximo, pero esconde la cola.",
+     "1:32:2"
+    ],
+    [
+     "carga abierta (--request-rate-range)",
+     "Tasa fija aunque el servidor se frene (con --async o hilos de sobra): mide la latencia a esa tasa sin el sesgo de la carga cerrada.",
+     "250 y 500 req/s, el gate de latencia de C01"
+    ],
+    [
+     "--input-data",
+     "Qué datos manda: random (default), zero o un JSON con tensores reales.",
+     "fotos reales ya preprocesadas"
+    ],
+    [
+     "--percentile",
+     "Usa ese percentil, en vez del promedio, para decidir que la medición ya es estable.",
+     "--percentile=99"
+    ],
+    [
+     "desglose del servidor",
+     "perf_analyzer muestra cuánto se fue en overhead, queue, compute input, compute infer y compute output.",
+     "queue alto con compute normal = falta capacidad"
+    ],
+    [
+     "model_analyzer",
+     "Barre configuraciones (instancias, max batch, dynamic batching) usando perf_analyzer y elige la mejor bajo una restricción de latencia.",
+     "model-analyzer profile --model-repository … --profile-models classifier"
+    ],
+    [
+     "trtexec, perf_analyzer, Locust o k6",
+     "El motor solo; el servidor; el servicio completo con el gateway.",
+     "cada uno responde una pregunta distinta"
+    ],
+    [
+     "nv_inference_count / nv_inference_exec_count",
+     "Inferencias y ejecuciones del modelo: su cociente es el batch promedio.",
+     "≈ 1–3 en C01"
+    ],
+    [
+     "nv_inference_queue_duration_us",
+     "µs acumulados en la cola, incluida la ventana de batching.",
+     "la señal de escalado de KEDA"
+    ],
+    [
+     "nv_inference_compute_infer_duration_us",
+     "µs acumulados de cómputo, contados por request. Dividido por los requests exitosos da el cómputo medio: si ese promedio sube sin que suba la cola, cambió el modelo, el batch o la GPU.",
+     "tablero de Triton"
+    ],
+    [
+     "nv_inference_pending_request_count",
+     "Requests que esperan a un backend en este momento: es un gauge, sube y baja.",
+     "alternativa para escalar"
+    ],
+    [
+     "nv_inference_request_failure",
+     "Fallas por motivo, en el label reason. REJECTED = venció el timeout de la cola.",
+     "los rechazos a los 100 ms"
+    ],
+    [
+     "nv_gpu_utilization",
+     "Fracción del tiempo con al menos un kernel corriendo (de 0.0 a 1.0), no la capacidad usada. Es un gauge.",
+     "alerta GPUSaturated: más de 0.85 durante 15 min"
+    ],
+    [
+     "nv_gpu_memory_used_bytes",
+     "VRAM usada en cada GPU, en bytes (un gauge).",
+     "unos pocos GB de 16 en C01"
+    ],
+    [
+     "/v2/models/{modelo}/stats",
+     "Las mismas estadísticas en JSON: cola y cómputo acumulados, y ejecuciones por tamaño de batch (batch_stats).",
+     "curl localhost:8000/v2/models/classifier/stats"
+    ]
+   ],
+   "example": {
+    "title": "alerts.yml: la cola de Triton como señal de saturación",
+    "lang": "yaml",
+    "code": "      # Tiempo medio en la cola de Triton (µs acumulados / requests exitosos → ms).\n      # Con max_queue_delay de 2 ms, > 20 ms significa GPU saturada: KEDA debería estar escalando.\n      - alert: TritonQueueTimeHigh\n        expr: |\n          (\n            sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[5m]))\n              /\n            sum(rate(nv_inference_request_success{model=\"classifier\"}[5m]))\n          ) / 1000 > 20\n        for: 10m\n        labels:\n          severity: warning\n        annotations:\n          summary: \"Cola de Triton sobre 20 ms en promedio\"\n          description: \"Espera media en cola = {{ $value | printf \\\"%.1f\\\" }} ms. Si KEDA ya está en maxReplicaCount (4), falta capacidad de GPU.\"\n          runbook_url: \"https://runbooks.example.com/classifier/triton-queue-time-high\"",
+    "source": "reference/c01/monitoring/alerts.yml (líneas 78–93)",
+    "notes": [
+     "Espera media = µs acumulados en la cola ÷ requests exitosos (los dos como <code>rate</code>), y ÷ 1000 para pasar a ms. Es la misma cuenta que usa KEDA en <code>k8s/keda-triton.yaml</code>, con un objetivo de 10 ms.",
+     "Con <code>max_queue_delay</code> de 2 ms, lo normal es ≈ 1–3 ms en la cola, porque la ventana cuenta como espera. Más de 20 ms durante 10 minutos (<code>for: 10m</code>) es una GPU saturada.",
+     "La descripción dice qué mirar: si KEDA ya está en <code>maxReplicaCount</code> (4), falta capacidad de GPU y hay que subir el techo o mejorar el engine.",
+     "La regla vecina, GPUSaturated (<code>nv_gpu_utilization > 0.85</code> por 15 min), mide tiempo con kernels corriendo, no capacidad: con batches de 1 la utilización sube aunque el throughput esté lejos del máximo. Por eso C01 escala por la cola, no por la utilización.",
+     "Lo que no está aquí: el p99 del servicio se mide en el gateway (<code>classifier_request_latency_seconds</code>). Y antes de producción, perf_analyzer mide el p99 de una GPU a 250 y 500 req/s (el gate de latencia de C01) y su capacidad máxima con la rampa."
+    ]
+   },
+   "figure": {
+    "kind": "perf",
+    "caption": "Rampa contra una T4 con perf_analyzer (números ILUSTRATIVOS de M03): hasta el codo el throughput sigue a la carga y la latencia casi no cambia; después, el throughput se aplana y la cola de C01 corta a los 100 ms. La forma es la que vas a ver; tus números se miden.",
+    "data": {
+     "x_label": "carga ofrecida (img/s), perf_analyzer --request-rate-range",
+     "y_left": "throughput logrado (img/s)",
+     "y_right": "latencia (ms)",
+     "points": [
+      {
+       "offered": 300,
+       "throughput": 300,
+       "p50_ms": 6,
+       "p99_ms": 11
+      },
+      {
+       "offered": 600,
+       "throughput": 600,
+       "p50_ms": 7,
+       "p99_ms": 13
+      },
+      {
+       "offered": 900,
+       "throughput": 900,
+       "p50_ms": 9,
+       "p99_ms": 17
+      },
+      {
+       "offered": 1200,
+       "throughput": 1190,
+       "p50_ms": 14,
+       "p99_ms": 28
+      },
+      {
+       "offered": 1300,
+       "throughput": 1210,
+       "p50_ms": 110,
+       "p99_ms": 130
+      },
+      {
+       "offered": 1400,
+       "throughput": 1210,
+       "p50_ms": 110,
+       "p99_ms": 130
+      }
+     ],
+     "marks": [
+      {
+       "x": 250,
+       "label": "pico de diseño por GPU"
+      },
+      {
+       "x": 500,
+       "label": "failover: una GPU con todo"
+      },
+      {
+       "x": 600,
+       "label": "capacidad planeada (50 %)"
+      },
+      {
+       "x": 1200,
+       "label": "codo ≈ 1,200: el máximo medido"
+      }
+     ],
+     "note": "pasado el codo, la latencia se estanca en ≈ 130 ms porque la cola rechaza a los 100 ms; lo que sobra se rechaza (≈ 7 % a 1,300 y ≈ 14 % a 1,400)",
+     "source": "M03, load testing: rampa ilustrativa"
+    }
+   },
+   "memo": "Cómo recordarla: <b>trtexec mide el motor, perf_analyzer el servidor, Locust o k6 el servicio</b>. En producción, dos cocientes: inferencias ÷ ejecuciones = batch promedio; µs en cola ÷ requests = espera media.",
+   "trap": "Trampa: medir con carga cerrada y quedarte con su p99. Cuando el servidor se frena, los clientes virtuales también: los peores momentos casi no se miden y el p99 sale mejor que el real (coordinated omission). El máximo se busca con <code>--concurrency-range</code>; la latencia a una tasa, con <code>--request-rate-range</code>.",
+   "lab": null,
+   "lab_omitted": "perf_analyzer y las métricas nv_* necesitan un Triton corriendo con el modelo. La imagen de C01 necesita una GPU NVIDIA, que el Mac no tiene, y no está verificado que la variante arm64 de Triton corra solo con CPU en Docker Desktop.",
+   "links": [
+    "#m03.load-testing",
+    "#m03.colas-utilizacion",
+    "#c01.monitoreo",
+    "#m12.prometheus-grafana",
+    "#ref-numeros.throughput"
+   ]
+  }
+ ],
+ "revisor": [
+  {
+   "id": "dims-incluye-batch",
+   "severity": "error",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. mbs = max_batch_size (missing or not a number = 0); if mbs <= 0 there is no finding. For a tensor, d = list(tensor.dims). d 'looks like it includes the batch' when d.length === 4, d[0] is -1 or equals mbs, and (d[1] is 1 or 3, or d[3] is 1 or 3): an image shape (NCHW or NHWC) with a leading batch axis. Flag every entry of list(input) and of list(output) whose d looks like that. If at least one input was flagged, also flag every output whose d.length >= 2 and d[0] is -1 or equals mbs (the same mistake carried to the output, as in [ -1, 500 ]). One finding per tensor.",
+   "message": "dims parece incluir el eje de batch.",
+   "why": "Con max_batch_size mayor que 0, Triton antepone el batch (-1) a dims. Si dims ya lo trae, la shape queda con una dimensión de más ([-1, -1, 3, 224, 224]) y la carga falla: the model expects 4 dimensions … but the model configuration specifies 5 dimensions.",
+   "fix": "Quita el primer eje: dims describe una sola muestra ([ 3, 224, 224 ] y [ 500 ] en C01).",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ -1, 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ -1, 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 1, 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "batching-sin-max-batch",
+   "severity": "warn",
+   "check": "Flag if the config has a dynamic_batching field (even an empty block) and max_batch_size is missing, not a number, or <= 0.",
+   "message": "dynamic_batching con max_batch_size 0: no junta nada.",
+   "why": "Con max_batch_size 0 el modelo no acepta batches. Triton carga igual, pero el batcher arma lotes de 1: cada request va sola a la GPU. Del bloque solo quedan la cola y sus políticas (timeouts, prioridades).",
+   "fix": "Si el modelo acepta batch, pon max_batch_size (no más que el máximo del perfil del engine) y quita el batch de dims; si no, borra dynamic_batching.",
+   "example_bad": "name: \"detector\"\nbackend: \"onnxruntime\"\nmax_batch_size: 0\ninput [ { name: \"images\", data_type: TYPE_FP32, dims: [ 1, 3, 640, 640 ] } ]\noutput [ { name: \"detections\", data_type: TYPE_FP32, dims: [ 1, 300, 6 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 1000 }\ninstance_group [ { count: 1, kind: KIND_GPU } ]",
+   "example_good": "name: \"detector\"\nbackend: \"onnxruntime\"\nmax_batch_size: 8\ninput [ { name: \"images\", data_type: TYPE_FP32, dims: [ 3, 640, 640 ] } ]\noutput [ { name: \"detections\", data_type: TYPE_FP32, dims: [ 300, 6 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 1000 }\ninstance_group [ { count: 1, kind: KIND_GPU } ]"
+  },
+  {
+   "id": "preferido-fuera-de-rango",
+   "severity": "error",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. mbs = max_batch_size (missing = 0). For every value p in list(dynamic_batching.preferred_batch_size): flag if p <= 0 or p > mbs. One finding per value.",
+   "message": "preferred_batch_size fuera de 1…max_batch_size.",
+   "why": "Triton revisa esos tamaños al cargar y falla con dynamic batching preferred size must be <= max batch size (o must be positive): el modelo queda UNAVAILABLE.",
+   "fix": "Usa tamaños entre 1 y max_batch_size, o mejor quítalos: la doc los desaconseja para la mayoría de los modelos y C01 no los usa.",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching {\n  preferred_batch_size: [ 16, 64 ]\n  max_queue_delay_microseconds: 2000\n}\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "ventana-larga",
+   "severity": "warn",
+   "check": "Flag if dynamic_batching is present and dynamic_batching.max_queue_delay_microseconds (missing = 0) is greater than 10000 (10 ms).",
+   "message": "max_queue_delay_microseconds de más de 10 ms para un servicio online.",
+   "why": "Con poco tráfico el batch casi nunca se llena, así que casi cada request espera la ventana entera. El umbral sale de C01: 10 ms es el 5 % del SLO (p99 ≤ 200 ms); el tramo de la cola tiene 2 ms en el presupuesto y todo el margen del p99 pesimista es ≈ 50 ms. Además, KEDA escala cuando la espera media en cola pasa de 10 ms: una ventana así lo dispararía con poco tráfico.",
+   "fix": "Empieza en 0–2 ms y súbela de a poco con perf_analyzer mientras suba el throughput y el p99 quepa en su tramo. Si es un job offline, ignora el aviso.",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 50000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "plataforma-vs-archivo",
+   "severity": "error",
+   "check": "Platform → backend map: tensorrt_plan → tensorrt, onnxruntime_onnx → onnxruntime, pytorch_libtorch → pytorch, libtorch → pytorch, torch_aoti → pytorch, tensorflow_graphdef → tensorflow, tensorflow_savedmodel → tensorflow. (a) Flag if platform and backend are both non-empty strings, platform is in the map, backend is one of tensorrt, onnxruntime, pytorch, tensorflow, and map[platform] !== backend. (b) If default_model_filename is a non-empty string containing '.', take its extension (from the last '.', lowercased) and map it: .plan → tensorrt, .onnx → onnxruntime, .pt → pytorch, .pt2 → pytorch, .py → python, .graphdef → tensorflow, .savedmodel → tensorflow, .xml → openvino. The config's backend is backend if non-empty, else map[platform]; skip if it is unknown or platform is 'ensemble'. Flag if the extension is in the table and its backend differs from the config's backend. Unknown extensions (such as .engine) are not flagged.",
+   "message": "platform o backend no coincide con el archivo del modelo.",
+   "why": "Cada backend lee su propio formato: TensorRT un .plan, ONNX Runtime un .onnx. Un par platform/backend contradictorio falla al validar el config (unexpected 'platform' and 'backend' pair), y un archivo de otro formato el backend no lo puede cargar.",
+   "fix": "Para un .onnx usa backend: \"onnxruntime\"; para el engine, platform: \"tensorrt_plan\" con un .plan (sin default_model_filename busca model.plan).",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\ndefault_model_filename: \"classifier.onnx\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\ndefault_model_filename: \"classifier.plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "tensorrt-en-cpu",
+   "severity": "error",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. The config is TensorRT when backend === 'tensorrt', or backend is missing/empty and platform === 'tensorrt_plan'. Flag if the config is TensorRT and some entry of list(instance_group) has kind === 'KIND_CPU'.",
+   "message": "Modelo TensorRT con instancias KIND_CPU.",
+   "why": "Un engine de TensorRT solo corre en una GPU NVIDIA. Triton lo rechaza al cargar: TensorRT backend supports only GPU device.",
+   "fix": "Usa kind: KIND_GPU. Para servir en CPU, usa el ONNX con backend: \"onnxruntime\" (sección 11).",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_CPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "muchas-instancias-gpu",
+   "severity": "info",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. Consider the entries g of list(instance_group) whose kind is missing, 'KIND_GPU' or 'KIND_AUTO'. count(g) = g.count if it is a number >= 1, else 1. allGpus = sum of count(g) over the g whose list(g.gpus) is empty (they go on every GPU). For every GPU id i that appears in some list(g.gpus): perGpu(i) = allGpus + sum of count(g) over the g whose list(g.gpus) includes i. Flag if the maximum of allGpus and every perGpu(i) is greater than 2.",
+   "message": "Más de 2 instancias del modelo en una GPU.",
+   "why": "Cada instancia es una copia con su propio contexto de ejecución y su memoria de activaciones: N copias ocupan ≈ N × (activaciones a max_batch_size + workspace), más el contexto CUDA. Si el engine acepta shapes variables, como el de C01 (batch de 1 a 32), el backend de TensorRT tampoco comparte el engine: cada copia carga sus propios pesos. En C01, 2 copias de ResNet-50 FP16 ocupan unos pocos GB de 16; con un modelo o imágenes más grandes, cada copia extra pesa mucho más. Y más copias que requests en vuelo no ayudan (Little: ≈ 2 en C01).",
+   "fix": "Confirma con nv_gpu_memory_used_bytes que caben y con model_analyzer que ayudan; si no, vuelve a 1 o 2.",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 8, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "sin-instance-group",
+   "severity": "info",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. Flag if list(instance_group) is empty and platform is not 'ensemble'.",
+   "message": "Sin instance_group: Triton usa su default.",
+   "why": "Sin el bloque, Triton crea 1 instancia en cada GPU visible (lo completa aunque arranque con --disable-auto-complete-config). Funciona, pero quien lee el config no ve cuántas copias corren ni dónde.",
+   "fix": "Escríbelo explícito, como C01: instance_group [ { count: 2, kind: KIND_GPU } ].",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "tipo-invalido",
+   "severity": "error",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. Valid names (case-sensitive): TYPE_BOOL, TYPE_UINT8, TYPE_UINT16, TYPE_UINT32, TYPE_UINT64, TYPE_INT8, TYPE_INT16, TYPE_INT32, TYPE_INT64, TYPE_FP16, TYPE_FP32, TYPE_FP64, TYPE_STRING, TYPE_BF16; a number is valid only if it is an integer from 1 to 14 (the enum value). For every entry of list(input) and list(output) that has a data_type: skip it if it is one of the string aliases of texto-sin-type-string (BYTES, TYPE_BYTES, STRING, STR, TYPE_STR, TEXT, TYPE_TEXT, compared in uppercase; TYPE_STRING itself is not an alias); otherwise flag it if it is not valid. One finding per tensor.",
+   "message": "data_type no es un TYPE_* válido.",
+   "why": "El config es protobuf: un nombre de enum que no existe hace fallar el parseo y el modelo no carga. El error típico es copiar el nombre del protocolo (FP32, el que usa tritonclient) o el de NumPy (float32) en vez de TYPE_FP32.",
+   "fix": "Usa el nombre del config: TYPE_FP32, TYPE_FP16, TYPE_INT64, TYPE_UINT8, TYPE_BOOL…",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "texto-sin-type-string",
+   "severity": "error",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. Aliases: BYTES, TYPE_BYTES, STRING, STR, TYPE_STR, TEXT, TYPE_TEXT (compare data_type in uppercase; the exact name TYPE_STRING is not an alias). Flag every entry of list(input) and list(output) whose data_type is one of them, and every warmup input whose data_type is one of them (for every sample s in list(model_warmup), for every entry e in list(s.inputs), read e.value.data_type).",
+   "message": "Tensor de texto sin TYPE_STRING.",
+   "why": "En el config, texto y bytes se escriben TYPE_STRING; BYTES es el nombre del mismo tipo en el protocolo y en tritonclient. Con otro nombre, el parseo del config falla y el modelo no carga.",
+   "fix": "Escribe data_type: TYPE_STRING en el config y \"BYTES\" en el InferInput del cliente.",
+   "example_bad": "name: \"postprocess\"\nbackend: \"python\"\nmax_batch_size: 32\ninput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\noutput [ { name: \"labels\", data_type: BYTES, dims: [ 5 ] } ]\ndynamic_batching { }\ninstance_group [ { count: 1, kind: KIND_CPU } ]",
+   "example_good": "name: \"postprocess\"\nbackend: \"python\"\nmax_batch_size: 32\ninput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\noutput [ { name: \"labels\", data_type: TYPE_STRING, dims: [ 5 ] } ]\ndynamic_batching { }\ninstance_group [ { count: 1, kind: KIND_CPU } ]"
+  },
+  {
+   "id": "sin-name",
+   "severity": "info",
+   "check": "Flag if name is missing or is not a non-empty string.",
+   "message": "Falta name: Triton usa el nombre de la carpeta.",
+   "why": "name es opcional: si falta, Triton usa el nombre de la carpeta del modelo. Si lo escribes, tiene que ser igual a la carpeta, o la carga falla (directory name must equal model name). Escribirlo deja el contrato con el cliente a la vista.",
+   "fix": "Agrega name con el nombre exacto de la carpeta: name: \"classifier\" en C01.",
+   "example_bad": "platform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "varias-versiones",
+   "severity": "warn",
+   "check": "vp = version_policy (an object, or nothing). Flag if vp has an all field (any value, even an empty block), or if vp.latest.num_versions is a number >= 2.",
+   "message": "version_policy carga varias versiones a la vez.",
+   "why": "Cada versión cargada es otro engine en la GPU, con sus propias instancias y su memoria. Con all, cada versión nueva que aparezca en la carpeta suma más. C01 carga una sola: el rollback es volver a la imagen anterior.",
+   "fix": "Usa latest { num_versions: 1 }, el default. Si de verdad necesitas dos (un A/B en el mismo Triton), usa specific { versions: [ … ] } y cuenta su VRAM.",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\nversion_policy: { latest: { num_versions: 3 } }\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\nversion_policy: { latest: { num_versions: 1 } }\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "tensorrt-sin-warmup",
+   "severity": "info",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. The config is TensorRT when backend === 'tensorrt', or backend is missing/empty and platform === 'tensorrt_plan'. Flag if the config is TensorRT and list(model_warmup) is empty.",
+   "message": "Modelo TensorRT sin model_warmup.",
+   "why": "Sin warmup, el primer request real paga la inicialización (reservas de memoria, la primera ejecución) y la readiness pasa con el modelo frío. Con model_warmup, Triton no marca el modelo como listo hasta terminar los requests de prueba.",
+   "fix": "Copia el de C01: una muestra con batch_size: 32, count: 3 y zero_data: true para cada entrada.",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "warmup-no-coincide",
+   "severity": "error",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. mbs = max_batch_size (missing = 0); inputs = list(input). For every sample s in list(model_warmup): b = s.batch_size (missing = 0). Flag if b is 0 (Triton skips the sample), else if mbs > 0 and b > mbs, else if mbs is 0 and b > 1. If inputs is empty, skip the rest (nothing to compare). For every entry e in list(s.inputs) (map entries with key and value): flag if e.key is not the name of an input. Otherwise compare v = e.value with that input: flag if both data_types are valid TYPE_* names and differ; flag if list(v.dims) contains a negative number; else flag if the input's dims are non-empty and list(v.dims) has a different length or differs at a position where the input's dim is not -1; flag if v has none of the fields zero_data, random_data or input_data_file (presence, not value). Finally, flag every input with no entry in s.inputs unless the input has optional: true. One finding per problem.",
+   "message": "model_warmup no coincide con las entradas del modelo.",
+   "why": "El warmup es una inferencia de verdad: si su batch, su nombre, su tipo o su shape no calzan, falla (failed to run warmup sample) y el modelo no carga. Con batch_size 0, Triton se salta la muestra en silencio (solo lo anota con --log-verbose=1), y un -1 en dims falla porque el warmup necesita shapes concretas.",
+   "fix": "Copia name, data_type y dims de cada input (sin el batch) y usa un batch_size entre 1 y max_batch_size.",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 224, 224, 3 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "cuda-graphs",
+   "severity": "info",
+   "check": "cu = optimization.cuda (an object, or nothing). Flag if cu.graphs is true, a nonzero number, or the string 'true'. Same message for every backend.",
+   "message": "CUDA graphs: solo en TensorRT y con costo al cargar.",
+   "why": "Un CUDA graph graba una vez los lanzamientos de kernels y después los repite: ahorra CPU con batches chicos. Hoy este campo solo lo lee el backend de TensorRT; los demás lo ignoran. Sin graph_spec, graba un graph por cada tamaño de batch de una lista, en cada instancia y al cargar el modelo: más memoria y más tiempo de carga. Con dynamic_batching, la lista es 1, los preferred_batch_size y max_batch_size; sin preferidos, solo 1 y 32 en una config como la de C01, y un batch de 2 o 3 corre sin graph. Sin batcher, es 1, 2, 3, 4, 6, 8, 12, 16 y max_batch_size.",
+   "fix": "Actívalo solo en TensorRT y si perf_analyzer muestra ganancia con tus batches reales (1–3 en C01); con graph_spec, graba justo esos tamaños.",
+   "example_bad": "name: \"detector\"\nbackend: \"onnxruntime\"\nmax_batch_size: 8\ninput [ { name: \"images\", data_type: TYPE_FP32, dims: [ 3, 640, 640 ] } ]\noutput [ { name: \"detections\", data_type: TYPE_FP32, dims: [ 300, 6 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 1000 }\ninstance_group [ { count: 1, kind: KIND_GPU } ]\noptimization { cuda { graphs: true } }",
+   "example_good": "name: \"detector\"\nbackend: \"onnxruntime\"\nmax_batch_size: 8\ninput [ { name: \"images\", data_type: TYPE_FP32, dims: [ 3, 640, 640 ] } ]\noutput [ { name: \"detections\", data_type: TYPE_FP32, dims: [ 300, 6 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 1000 }\ninstance_group [ { count: 1, kind: KIND_GPU } ]"
+  },
+  {
+   "id": "rechazo-sin-timeout",
+   "severity": "warn",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. db = dynamic_batching. Policies to check: db.default_queue_policy if present, and the value of every entry of list(db.priority_queue_policy). Flag a policy when its default_timeout_microseconds is missing or 0, its max_queue_size is missing or 0, and its allow_timeout_override is not true.",
+   "message": "La política de la cola no rechaza nada: falta el timeout.",
+   "why": "timeout_action (REJECT o DELAY) solo actúa cuando un request vence, y default_timeout_microseconds 0 significa sin timeout; max_queue_size 0, cola sin tope. Así, en una sobrecarga la GPU calcula respuestas que el cliente ya abandonó.",
+   "fix": "Pon un timeout menor que el del cliente, como C01: REJECT a 100000 µs, con el gateway cortando a los 150 ms.",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching {\n  max_queue_delay_microseconds: 2000\n  default_queue_policy { timeout_action: REJECT }\n}\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching {\n  max_queue_delay_microseconds: 2000\n  default_queue_policy { timeout_action: REJECT, default_timeout_microseconds: 100000 }\n}\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "prioridades-invalidas",
+   "severity": "error",
+   "check": "list(x) = [] if x is missing, x if x is an array, [x] otherwise; a field written once is a single value, repeated or written as [ … ] it is an array. db = dynamic_batching; P = db.priority_levels (missing = 0). If P <= 0 there is no finding. Flag if db.default_priority_level is missing, < 1 or > P; flag if db.preserve_ordering is true and P > 1; flag every entry of list(db.priority_queue_policy) whose key is < 1 or > P.",
+   "message": "Niveles de prioridad mal configurados.",
+   "why": "Con priority_levels, Triton valida al cargar: el nivel por defecto debe estar entre 1 y priority_levels (default priority level must be in range), las políticas por nivel también, y preserve_ordering admite un solo nivel. Si no, el modelo no carga.",
+   "fix": "Pon default_priority_level dentro del rango, como en el serving de C01: priority_levels: 2 y default_priority_level: 2 (la app manda priority=1).",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching {\n  max_queue_delay_microseconds: 2000\n  priority_levels: 2\n}\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching {\n  max_queue_delay_microseconds: 2000\n  priority_levels: 2\n  default_priority_level: 2\n}\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  },
+  {
+   "id": "batch-sin-batcher",
+   "severity": "info",
+   "check": "Flag if max_batch_size is a number > 0, the config has none of the fields dynamic_batching, sequence_batching or ensemble_scheduling, and platform is not 'ensemble'.",
+   "message": "max_batch_size sin dynamic_batching.",
+   "why": "max_batch_size solo dice que el modelo acepta batches. Sin un scheduler de batching, Triton usa el de por defecto y cada request se ejecuta sola. Con el autocompletado activo, el backend de TensorRT agrega dynamic_batching si el batch máximo es mayor que 1; el de ONNX Runtime, solo si además tiene que completar input y output. Con --disable-auto-complete-config, como C01, nadie lo agrega.",
+   "fix": "Agrega dynamic_batching { max_queue_delay_microseconds: … } y mide el batch real con nv_inference_count ÷ nv_inference_exec_count.",
+   "example_bad": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]",
+   "example_good": "name: \"classifier\"\nplatform: \"tensorrt_plan\"\nmax_batch_size: 32\ninput [ { name: \"input\", data_type: TYPE_FP32, dims: [ 3, 224, 224 ] } ]\noutput [ { name: \"logits\", data_type: TYPE_FP32, dims: [ 500 ] } ]\ndynamic_batching { max_queue_delay_microseconds: 2000 }\ninstance_group [ { count: 2, kind: KIND_GPU } ]\nmodel_warmup [ { name: \"warmup_max_batch\", batch_size: 32, count: 3,\n  inputs { key: \"input\", value: { data_type: TYPE_FP32, dims: [ 3, 224, 224 ], zero_data: true } } } ]"
+  }
+ ]
+}

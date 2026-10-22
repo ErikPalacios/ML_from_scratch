@@ -9,7 +9,8 @@ Hojas de estudio para el trabajo de ML engineering, con versión web y PDF para 
   - `docker`: cheat sheet de Docker, con diagnosticador, revisor de Dockerfile y quiz de errores;
   - `kubernetes`: cheat sheet de Kubernetes, con diagnosticador de pods, revisor de YAML (sus reglas, en el navegador) y quiz de errores;
   - `recorrido`: «Del dato a producción», el C01 de punta a punta como un mapa de metro, con fichas de herramientas, patrones, casos y un quiz de síntomas;
-  - `git`: cheat sheet de Git y GitHub Actions, con grafos de commits antes y después, diagnosticador, revisor de workflows (sus reglas, en el navegador) y quiz de errores.
+  - `git`: cheat sheet de Git y GitHub Actions, con grafos de commits antes y después, diagnosticador, revisor de workflows (sus reglas, en el navegador) y quiz de errores;
+  - `triton`: «De PyTorch a Triton», del checkpoint a un servicio medido (ONNX, paridad, TensorRT, model repository, batching, clientes y perf_analyzer), con figuras a escala, diagnosticador, revisor de config.pbtxt (su parser de protobuf en texto y sus reglas, en el navegador) y quiz de errores.
 
 ## Estructura
 
@@ -53,6 +54,7 @@ Vercel corre `node tools/build.mjs` (sin dependencias) y publica `dist/`. `.verc
   El contenido está en `content-w1/2/3.json` y se revisó contra la documentación de Docker 29.x. El contrato del contenido está en `BRIEF.md`.
 - **Kubernetes:** `node sheets/kubernetes/fuentes/gen-k8s.mjs build` escribe `sheets/kubernetes/cheatsheet-kubernetes.html` y `fuentes/out/artifact.html` con el mismo paso de MathML que Docker; el contenido está en `content-w1/2/3.json`, revisado contra Kubernetes 1.37, con el contrato en `BRIEF.md`, y el revisor de YAML lee los manifests con js-yaml de cdnjs (el service worker lo guarda para usarlo sin conexión).
 - **Git y GitHub Actions:** `node sheets/git/fuentes/gen-git.mjs build` escribe `sheets/git/cheatsheet-git.html` y `fuentes/out/artifact.html` con el mismo paso de MathML (con `pdf` en vez de `build` también imprime `cheatsheet-git.pdf`); el contenido está en `content-w1/2/3.json`, con el contrato en `BRIEF.md`, y el revisor de workflows lee el YAML con el mismo js-yaml de cdnjs que el de Kubernetes.
+- **De PyTorch a Triton:** `node sheets/triton/fuentes/gen-triton.mjs build` escribe `sheets/triton/cheatsheet-triton.html` y `fuentes/out/artifact.html` con el mismo paso de MathML (con `pdf` en vez de `build` también imprime `cheatsheet-triton.pdf`); el contenido está en `content-w1/2/3.json`, con el contrato en `BRIEF.md`, y el revisor de config.pbtxt lee el archivo con un parser de protobuf en texto propio (sin librerías: funciona sin conexión).
 - **Estimaciones:** `node sheets/estimaciones/fuentes/gen.mjs <dir>` escribe `head.html`, `body.html` y `src.html` (con KaTeX). El paso que pasa el TeX a MathML es el mismo que el modo `build` de `gen-docker.mjs`.
 - **Recorrido (Del dato a producción):** `node sheets/recorrido/fuentes/gen-recorrido.mjs` escribe `sheets/recorrido/recorrido.html` y `fuentes/out/artifact.html`; con `pdf` también imprime `recorrido.pdf` con Chrome (el mapa va en una página apaisada). No necesita KaTeX: escribe el HTML directo.
   - El contenido está en `content-w1..w4.json`, con el contrato en `BRIEF.md`. El generador no lo cambia: al final lista los avisos del contenido y las figuras donde un texto no cabe.

@@ -84,5 +84,23 @@
     "page": "cheatsheet-git.html",
     "pdf": "cheatsheet-git.pdf",
     "updated": "2026-10-22"
+  },
+  {
+    "id": "triton",
+    "title": "De PyTorch a Triton",
+    "topic": "Serving de modelos",
+    "summary": "Para llevar un modelo de PyTorch a un servicio rápido y medido con la documentación abierta, y diagnosticar por qué va lento, predice distinto o no carga: export a ONNX, paridad, engine de TensorRT, model repository y config.pbtxt, dynamic batching, clientes y perf_analyzer, con ejemplos reales del C01, figuras a escala, trampas típicas y laboratorios opcionales sin GPU.",
+    "sample": "trtexec --onnx=<var>modelo</var>.onnx --saveEngine=<var>modelo</var>.plan",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "13 laboratorios sin GPU",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de config.pbtxt con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-triton.html",
+    "pdf": "cheatsheet-triton.pdf",
+    "updated": "2026-10-22"
   }
 ]

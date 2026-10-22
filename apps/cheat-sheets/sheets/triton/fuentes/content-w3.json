@@ -1,0 +1,1590 @@
+{
+  "sections": [
+    {
+      "id": "prepost",
+      "num": 10,
+      "title": "Pre y postprocesamiento: dónde va (gateway, ensemble, backend de Python) y el riesgo de skew",
+      "question": "¿Dónde conviertes los bytes de la foto en el tensor que espera el modelo, y los logits (los puntajes crudos del modelo) en la respuesta, sin que el servicio vea algo distinto de lo que vio el entrenamiento?",
+      "templates": [
+        {
+          "code": "from app.preprocess import preprocess                       # el MISMO archivo en entrenamiento, eval y servicio\nbatch = preprocess({bytes}, max_pixels={tope})[np.newaxis]   # float32 [1, 3, 224, 224]\ninp = InferInput(\"{entrada}\", list(batch.shape), \"FP32\")\ninp.set_data_from_numpy(batch, binary_data=True)             # bytes crudos, no floats en JSON",
+          "note": "<b>Preprocesamiento</b> (preprocessing: convertir los bytes de la foto en el tensor que espera el modelo). En C01 vive en un solo archivo, <code>preprocess.py</code>, que importan el entrenamiento, la evaluación y el gateway. Nombre, shape y dtype (el tipo de número) tienen que coincidir con <code>config.pbtxt</code>."
+        },
+        {
+          "code": "logits = result.as_numpy(\"{salida}\")[0]      # [500]: logits crudos, sin softmax\nprobs = _softmax(logits)                      # en float64 y restando el máximo: no desborda\ntop = np.argsort(probs)[::-1][:{k}]           # los k índices más probables\npreds = [{\"label\": labels[i], \"score\": round(float(probs[i]), 4)} for i in top]",
+          "note": "<b>Postprocesamiento</b> (postprocessing: convertir la salida del modelo en la respuesta del producto). C01 devuelve logits y hace en el gateway el softmax (logits → probabilidades), el top-k (las k más altas) y los nombres: así puede calibrar scores o cambiar el top-k sin tocar el engine."
+        },
+        {
+          "code": "name: \"{pipeline}\"\nplatform: \"ensemble\"\nmax_batch_size: {n}\ninput [ { name: \"IMAGE\", data_type: TYPE_UINT8, dims: [ -1 ] } ]     # los bytes del JPEG\noutput [ { name: \"LOGITS\", data_type: TYPE_FP32, dims: [ {clases} ] } ]\nensemble_scheduling {\n  step [\n    { model_name: \"{preproceso}\"\n      model_version: -1\n      input_map { key: \"RAW\" value: \"IMAGE\" }\n      output_map { key: \"TENSOR\" value: \"preprocessed\" } },\n    { model_name: \"{modelo}\"\n      model_version: -1\n      input_map { key: \"input\" value: \"preprocessed\" }\n      output_map { key: \"logits\" value: \"LOGITS\" } }\n  ]\n}",
+          "note": "Un <b>ensemble</b> (un modelo de Triton que no ejecuta nada: encadena otros modelos) recibe el JPEG y devuelve logits en una sola llamada. En cada <code>input_map</code>/<code>output_map</code>, la key es el tensor del paso y el value, el tensor dentro del ensemble. No lleva <code>instance_group</code>: cada paso escala con el suyo y conserva su propia cola."
+        },
+        {
+          "code": "import numpy as np\nimport triton_python_backend_utils as pb_utils\nfrom app.preprocess import preprocess          # el mismo archivo que usa el entrenamiento\n\nclass TritonPythonModel:\n    def execute(self, requests):\n        responses = []\n        for request in requests:\n            raw = pb_utils.get_input_tensor_by_name(request, \"RAW\").as_numpy()   # [1, n] UINT8\n            x = preprocess(raw[0].tobytes())[np.newaxis]                       # [1, 3, 224, 224] FP32\n            responses.append(pb_utils.InferenceResponse(output_tensors=[pb_utils.Tensor(\"TENSOR\", x)]))\n        return responses",
+          "note": "El <b>backend de Python</b> (Triton corre tu <code>model.py</code>; cada instancia corre en un proceso aparte y le pasa los tensores a Triton por memoria compartida, <code>/dev/shm</code>) sería el paso <code>{preproceso}</code> del ensemble, con <code>backend: \"python\"</code> en su config. Corre en la CPU del nodo con GPU, y lo que importe (Pillow, tu paquete) tiene que existir en su entorno."
+        }
+      ],
+      "formulas": [
+        "x' = \\dfrac{x/255 - \\mu_c}{\\sigma_c} \\qquad \\mu = (0.485,\\ 0.456,\\ 0.406) \\qquad \\sigma = (0.229,\\ 0.224,\\ 0.225)",
+        "B = 3 \\times 224 \\times 224 \\times 4\\ \\text{B} = 602{,}112\\ \\text{B} \\approx 602\\ \\text{KB} \\qquad \\text{en UINT8: } 150{,}528\\ \\text{B} \\approx 151\\ \\text{KB}",
+        "\\text{cores} = \\lambda \\cdot t_{\\text{CPU}} = 500\\ \\tfrac{\\text{req}}{\\text{s}} \\times 6\\ \\text{ms} = 3 \\qquad \\text{red} = \\lambda \\cdot B \\approx 2.4\\ \\text{Gb/s}",
+        "p_i = \\dfrac{e^{\\,z_i - \\max_j z_j}}{\\sum_k e^{\\,z_k - \\max_j z_j}}"
+      ],
+      "vars": [
+        [
+          "{bytes}",
+          "los bytes crudos de la foto, tal como llegan en el body",
+          "≈ 150–250 KB desde el app móvil"
+        ],
+        [
+          "{tope}",
+          "máximo de píxeles que aceptas, leído del header antes de decodificar",
+          "40_000_000 (40 MP)"
+        ],
+        [
+          "{entrada} · {salida}",
+          "nombres de los tensores: los fija el export y los repite config.pbtxt",
+          "input · logits"
+        ],
+        [
+          "{k}",
+          "cuántas sugerencias devuelves",
+          "5 (máximo 20 en C01)"
+        ],
+        [
+          "{pipeline} · {preproceso} · {modelo}",
+          "nombres de modelos (carpetas) del model repository",
+          "pipeline · preprocess · classifier"
+        ],
+        [
+          "{n}",
+          "max_batch_size del ensemble",
+          "32"
+        ],
+        [
+          "{clases}",
+          "largo del vector de salida",
+          "500"
+        ],
+        [
+          "x",
+          "valor de un píxel, de 0 a 255",
+          "200"
+        ],
+        [
+          "μ_c · σ_c",
+          "media y desvío de ImageNet del canal c, en orden RGB",
+          "R: 0.485 y 0.229"
+        ],
+        [
+          "λ",
+          "requests por segundo",
+          "500 en el pico de diseño"
+        ],
+        [
+          "t_CPU",
+          "CPU por imagen: decode, resize y normalizar",
+          "≈ 6 ms con la mezcla de fotos de C01"
+        ],
+        [
+          "B",
+          "bytes del tensor que viaja del gateway a Triton",
+          "602 KB en FP32"
+        ],
+        [
+          "z_i · p_i",
+          "logit y probabilidad de la clase i",
+          "restar el máximo evita que exp() desborde"
+        ]
+      ],
+      "pieces": [
+        [
+          "Gateway en CPU (C01)",
+          "Un servicio aparte (el gateway: la API en FastAPI que va delante de Triton), en nodos baratos, valida y decodifica la foto y arma el tensor; Triton solo ve tensores. Escala por CPU con su HPA (el autoscaler de pods de Kubernetes).",
+          "FastAPI + preprocess.py, HPA al 60 % de CPU"
+        ],
+        [
+          "Ensemble + backend de Python",
+          "Triton recibe el JPEG y lo convierte con tu model.py: una sola llamada, pero el decode usa la CPU del nodo con GPU.",
+          "g4dn.xlarge: 4 vCPU, y Triton ya pide 2"
+        ],
+        [
+          "Ensemble + DALI",
+          "DALI (la librería de NVIDIA para cargar imágenes en la GPU) decodifica y hace el resize en la GPU (backend: \"dali\", archivo model.dali). Libera CPU, pero es otro decoder.",
+          "decoder con device=\"mixed\""
+        ],
+        [
+          "Todo en un proceso",
+          "El MVP (la primera versión, la más simple): decode y modelo en el mismo proceso de FastAPI + PyTorch. CPU y GPU escalan juntas.",
+          "el MVP de C01, una VM g4dn"
+        ],
+        [
+          "Normalización dentro del grafo",
+          "El modelo recibe UINT8 de 0 a 255 y normaliza adentro: 4× menos bytes por la red. Obliga a reexportar y repetir la paridad.",
+          "602 KB → 151 KB por foto"
+        ],
+        [
+          "Training-serving skew",
+          "El servicio prepara la entrada distinto que el entrenamiento: el modelo ve otra distribución y pierde accuracy, sin ningún error.",
+          "accuracy online menor que la offline"
+        ],
+        [
+          "RGB vs BGR",
+          "OpenCV lee en BGR; Pillow y torchvision, en RGB. Los canales al revés no dan error.",
+          "cv2.imread entrega BGR"
+        ],
+        [
+          "Resize + center crop",
+          "Resize(256) lleva el lado corto a 256 y CenterCrop(224) recorta el centro; un resize directo a 224 × 224 deforma la foto.",
+          "Resize((224, 224)) ≠ Resize(256) + CenterCrop(224)"
+        ],
+        [
+          "Antialias",
+          "Al achicar, Pillow suaviza siempre; F.interpolate no, salvo antialias=True. En torchvision 0.29, Resize trae antialias=True por defecto.",
+          "F.interpolate(..., mode=\"bilinear\")"
+        ],
+        [
+          "EXIF",
+          "Las fotos de celular guardan la rotación aparte, en sus metadatos EXIF: sin exif_transpose, el modelo las ve de lado.",
+          "ImageOps.exif_transpose"
+        ],
+        [
+          "HWC vs CHW",
+          "Una imagen de Pillow u OpenCV pasada a NumPy queda en alto × ancho × canales (HWC); el modelo espera los canales primero (CHW). Este sí falla con un error.",
+          "x.transpose(2, 0, 1)"
+        ],
+        [
+          "Draft mode de JPEG",
+          "El decoder reduce la resolución mientras decodifica: mucho menos CPU y píxeles casi iguales.",
+          "solo si el lado corto > 1024 px, sin bajar de 512"
+        ],
+        [
+          "Softmax y top-k",
+          "El postproceso: logits → probabilidades → las k más altas, con su nombre.",
+          "labels.json: 500 nombres, índice = id de clase"
+        ],
+        [
+          "labels.json desalineado",
+          "Si el orden de los nombres no es el del entrenamiento, todo responde 200 con la categoría equivocada.",
+          "una falla silenciosa de C01"
+        ]
+      ],
+      "example": {
+        "title": "C01: el preprocesamiento compartido y la llamada que lo usa",
+        "lang": "python",
+        "code": "# gateway/app/preprocess.py (extracto)\nRESIZE_SHORT = 256  # lado corto tras el resize: el mismo número que Resize(256) en training\nCROP = 224  # tamaño del center crop: el input del ResNet-50 (y del engine TensorRT)\n# mean/std de ImageNet con forma (3,1,1) para hacer broadcasting sobre CHW sin copiar\nMEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)\nSTD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)\n# …\ndef to_chw_normalized(img: Image.Image) -> np.ndarray:\n    \"\"\"Imagen RGB 224×224 → float32 [3,224,224] normalizado (ToTensor + Normalize).\"\"\"\n    x = np.asarray(img, dtype=np.float32) / 255.0  # HWC en [0, 1], igual que ToTensor\n    x = x.transpose(2, 0, 1)  # HWC → CHW: el layout que espera el modelo de PyTorch/TensorRT\n    x = (x - MEAN) / STD  # normalización por canal con las estadísticas de ImageNet\n    # contiguous: el cliente de Triton serializa el buffer tal cual; un view transpuesto se copiaría\n    return np.ascontiguousarray(x, dtype=np.float32)\n\n# gateway/app/main.py (extracto)\ndef _decode_and_hash(data: bytes) -> tuple[np.ndarray, str]:\n    \"\"\"CPU pura (bloqueante): corre en el threadpool. Pillow y numpy sueltan el GIL en decode y resize.\"\"\"\n    digest = hashlib.sha256(data).hexdigest()  # huella de la imagen: deduplicar y cruzar con labels\n    tensor = preprocess(data, max_pixels=MAX_PIXELS)  # float32 [3,224,224], idéntico a training/eval\n    return tensor[np.newaxis], digest  # batch de 1: Triton junta requests con dynamic batching",
+        "source": "reference/c01/gateway/app/preprocess.py y main.py (extractos; # … marca líneas omitidas)",
+        "notes": [
+          "Un solo <code>preprocess.py</code> para entrenamiento, evaluación y gateway: el skew no se evita con cuidado, se evita con un solo archivo. Contra torchvision 0.29 con Pillow 12.3 da una diferencia de 0.0 cuando no se activa el draft mode (lo miden el docstring del archivo y el lab de abajo).",
+          "La salida es exactamente el contrato de <code>config.pbtxt</code>: <code>input</code>, FP32, [3, 224, 224]. El gateway agrega el eje de batch (<code>[np.newaxis]</code>) y manda una foto por request: el batching lo hace Triton.",
+          "<code>np.ascontiguousarray</code>: el <code>transpose</code> no mueve datos; deja una vista (view), los mismos números leídos en otro orden. tritonclient la copiaría igual al serializar (<code>tobytes()</code>); hacer la copia aquí, contigua y en FP32 explícito, deja el tensor listo y con el tipo del contrato.",
+          "El decode corre en un threadpool (hilos aparte), y un semáforo (un contador de turnos) deja pasar 2 decodes a la vez por proceso (<code>PREPROCESS_CONCURRENCY</code>). Es CPU pura: dentro del event loop (el hilo que atiende todos los requests del proceso) bloquearía a los demás.",
+          "¿Por qué en el gateway y no en Triton? A 500 req/s son ≈ 3 cores de decode; la g4dn.xlarge tiene 4 vCPU y el pod de Triton ya pide 2. En un ensemble con backend de Python, para tener más CPU tendrías que comprar más GPU.",
+          "El precio: viaja el tensor (602 KB) y no el JPEG del celular (≈ 200 KB), 3× más red. Por eso C01 manda cada request al Triton de su misma zona (cruzar de zona se cobra por GB) y, al crecer, pasaría a entrada UINT8 con la normalización dentro del grafo."
+        ]
+      },
+      "figure": {
+        "kind": "prepost",
+        "caption": "Las mismas cinco etapas en cinco lugares posibles. Cada celda dice dónde corre esa etapa; abajo, qué viaja por la red hasta Triton. C01 eligió la primera fila: la CPU barata hace el trabajo de CPU y la T4 solo recibe tensores.",
+        "data": {
+          "steps": [
+            "Decode + EXIF + RGB",
+            "Resize 256 + crop 224",
+            "Normalizar → tensor",
+            "Modelo (engine TensorRT)",
+            "Softmax + top-k + labels"
+          ],
+          "lanes": [
+            {
+              "id": "gw",
+              "label": "Gateway (nodo de CPU, c6i.xlarge)"
+            },
+            {
+              "id": "cpu_gpu",
+              "label": "CPU del nodo con GPU (g4dn.xlarge, 4 vCPU)"
+            },
+            {
+              "id": "gpu",
+              "label": "GPU T4"
+            }
+          ],
+          "options": [
+            {
+              "id": "gateway",
+              "label": "Gateway en CPU",
+              "c01": true,
+              "verdict": "elegido en C01",
+              "where": [
+                "gw",
+                "gw",
+                "gw",
+                "gpu",
+                "gw"
+              ],
+              "wire": "tensor FP32: 602 KB por foto",
+              "pros": "Escala por CPU con nodos baratos (HPA al 60 %); aísla los bytes no confiables lejos de la GPU; usa el mismo preprocess.py que el entrenamiento.",
+              "cons": "Viaja el tensor, 3× el JPEG del celular: obliga a mandar cada request al Triton de su zona."
+            },
+            {
+              "id": "python",
+              "label": "Ensemble + backend de Python",
+              "c01": false,
+              "verdict": "depende",
+              "where": [
+                "cpu_gpu",
+                "cpu_gpu",
+                "cpu_gpu",
+                "gpu",
+                "gw"
+              ],
+              "wire": "el JPEG: ≈ 150–250 KB desde el celular",
+              "pros": "Una sola llamada a Triton; viaja el JPEG; preproceso y modelo se versionan juntos.",
+              "cons": "Usa la CPU del nodo con GPU: ≈ 3 cores de decode en el pico contra 4 vCPU, con Triton ya pidiendo 2."
+            },
+            {
+              "id": "dali",
+              "label": "Ensemble + DALI",
+              "c01": false,
+              "verdict": "a 10× el tráfico, o al reclasificar el catálogo (backfill)",
+              "where": [
+                "gpu",
+                "gpu",
+                "gpu",
+                "gpu",
+                "gw"
+              ],
+              "wire": "el JPEG",
+              "pros": "Libera CPU: el JPEG se decodifica en la GPU; rinde a throughput muy alto.",
+              "cons": "Otro decoder, distinto del de entrenamiento (riesgo de skew), y tiempo de GPU."
+            },
+            {
+              "id": "mvp",
+              "label": "Todo en un proceso (MVP)",
+              "c01": false,
+              "verdict": "el MVP de C01",
+              "where": [
+                "cpu_gpu",
+                "cpu_gpu",
+                "cpu_gpu",
+                "gpu",
+                "cpu_gpu"
+              ],
+              "wire": "nada: no hay salto de red",
+              "pros": "Lo más simple: sin red ni serialización entre servicios.",
+              "cons": "CPU y GPU escalan juntas; el decode compite con el proceso que alimenta la GPU."
+            },
+            {
+              "id": "uint8",
+              "label": "Gateway + normalización en el grafo",
+              "c01": false,
+              "verdict": "cuando la red lo pida",
+              "where": [
+                "gw",
+                "gw",
+                "gpu",
+                "gpu",
+                "gw"
+              ],
+              "wire": "tensor UINT8: 151 KB por foto",
+              "pros": "4× menos bytes por la red que en FP32.",
+              "cons": "Reexportar el modelo con la normalización adentro y repetir la paridad."
+            }
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>un solo preprocess.py, y lo de CPU en CPU barata</b>. El preproceso se escribe una vez y lo importan entrenamiento, evaluación y servicio; vive donde sobra CPU (el gateway), y Triton solo ve tensores.",
+      "trap": "Trampa: reescribir el preproceso en el servicio «igual que en el notebook». BGR en vez de RGB, un resize directo a 224 × 224, <code>F.interpolate</code> sin antialias o la normalización aplicada dos veces no lanzan ningún error: todo responde 200 y la accuracy online cae. La paridad del modelo (PyTorch contra el engine, con el mismo tensor) tampoco lo ve: para eso está la paridad <b>end-to-end</b>, con fotos de referencia por el gateway real.",
+      "lab": {
+        "goal": "Comparar el preproceso de C01 contra el de torchvision y contra cuatro versiones «casi iguales», y ver que el skew cambia la entrada y la salida del modelo sin lanzar un solo error.",
+        "steps": [
+          {
+            "cmd": "cd apps/ml-system-design/reference/c01 && python3.13 -m venv .venv && . .venv/bin/activate && pip install -r model/requirements.txt",
+            "expect": "Termina con Successfully installed … (torch 2.14.0, torchvision 0.29.0, pillow 12.3.0, numpy 2.5.3, onnx, onnxruntime, entre otras). Es el entorno del job de export y paridad de C01; sirve también para los labs de optimizar y de errores."
+          },
+          {
+            "cmd": "mkdir -p ~/lab-triton && cat > ~/lab-triton/skew_lab.py <<'EOF'\nimport io, sys\nimport numpy as np, torch, torch.nn.functional as F, torchvision\nfrom PIL import Image\nfrom torchvision import transforms as T\nsys.path.insert(0, sys.argv[1])                      # la carpeta gateway/ de C01\nfrom app.preprocess import preprocess, MEAN, STD    # el preproceso real de C01\n\ntv = T.Compose([T.Resize(256), T.CenterCrop(224), T.ToTensor(),\n                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])   # el del notebook\nrgb = lambda b: Image.open(io.BytesIO(b)).convert(\"RGB\")\ndef chw(a): return ((np.asarray(a, np.float32) / 255).transpose(2, 0, 1) - MEAN) / STD\ndef interp(b):                                       # resize a mano con F.interpolate (antialias=False)\n    x = torch.from_numpy(np.asarray(rgb(b), np.float32) / 255).permute(2, 0, 1)\n    h, w = x.shape[1:]; nh, nw = (int(256 * h / w), 256) if w <= h else (256, int(256 * w / h))\n    x = F.interpolate(x[None], size=(nh, nw), mode=\"bilinear\")[0]\n    t, l = int(round((nh - 224) / 2)), int(round((nw - 224) / 2))\n    return (x[:, t:t + 224, l:l + 224].numpy() - MEAN) / STD\nvariantes = {\"preprocess.py de C01\": preprocess,\n             \"BGR en vez de RGB\": lambda b: preprocess(b)[::-1].copy(),\n             \"Resize((224, 224)) directo\": lambda b: chw(rgb(b).resize((224, 224), Image.Resampling.BILINEAR)),\n             \"F.interpolate sin antialias\": interp,\n             \"sin Normalize\": lambda b: preprocess(b) * STD + MEAN}\n\ndef foto(h, w, rng):                                 # JPEG sintético, como parity_check.py\n    y, x = np.mgrid[0:h, 0:w]\n    img = np.stack([x / w, y / h, (x + y) / (w + h)], -1) * 255 * rng.random(3) + rng.normal(0, 25, (h, w, 3))\n    buf = io.BytesIO(); Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).save(buf, \"JPEG\", quality=90)\n    return buf.getvalue()\n\nrng = np.random.default_rng(0)\nfotos = [foto(*rng.integers(300, 1025, size=2), rng) for _ in range(32)]   # lado corto ≤ 1024: sin draft\ntorch.manual_seed(0)\nmodel = torchvision.models.resnet50(weights=None, num_classes=500).eval()   # pesos al azar: sin descargas\nref = np.stack([tv(rgb(b)).numpy() for b in fotos])\nwith torch.inference_mode():\n    ref_logits = model(torch.from_numpy(ref)).numpy()\nprint(f\"{'32 fotos de hasta 1024 px':<28}{'max|Δx|':>9}{'media|Δx|':>11}{'max|Δlogit|':>13}\")\nfor nombre, f in variantes.items():\n    x = np.stack([f(b) for b in fotos]).astype(np.float32)\n    with torch.inference_mode():\n        d = np.abs(model(torch.from_numpy(x)).numpy() - ref_logits).max()\n    print(f\"{nombre:<28}{np.abs(x - ref).max():>9.3f}{np.abs(x - ref).mean():>11.4f}{d:>13.3f}\")\ng = foto(3000, 4000, rng)                            # 12 MP: preprocess.py activa el draft mode\ndx = np.abs(preprocess(g) - tv(rgb(g)).numpy())\nprint(f\"foto de 12 MP con draft mode: max|Δx| {dx.max():.3f} · media|Δx| {dx.mean():.4f}\")\nEOF",
+            "expect": "Sin salida: el script queda en ~/lab-triton/skew_lab.py. Genera 32 JPEG sintéticos de hasta 1024 px y uno de 12 MP; no descarga nada."
+          },
+          {
+            "cmd": "python ~/lab-triton/skew_lab.py gateway",
+            "expect": "Una tabla. preprocess.py de C01: 0.000 · 0.0000 · 0.000 (idéntico a torchvision). BGR en vez de RGB: ≈ 3.553 · 0.5914 · 12.956. Resize((224, 224)) directo: ≈ 1.882 · 0.1803 · 8.630. F.interpolate sin antialias: ≈ 1.060 · 0.0871 · 6.675. sin Normalize: ≈ 2.118 · 1.1401 · 49.126. Y la foto de 12 MP con draft mode: max|Δx| ≈ 0.035 · media ≈ 0.0055. Ninguna variante lanza un error. Tarda ≈ 15 s en una Mac M4."
+          },
+          {
+            "cmd": "python -c \"import torch, torchvision; torchvision.models.resnet50(num_classes=500).eval()(torch.zeros(1, 224, 224, 3))\"",
+            "expect": "RuntimeError: Given groups=1, weight of size [64, 3, 7, 7], expected input[1, 224, 224, 3] to have 3 channels, but got 224 channels instead. El layout HWC sí falla con un error; los cuatro skews de la tabla, no."
+          }
+        ],
+        "fix": "Si tu preproceso no da 0.000 en la primera fila contra el transform del entrenamiento, compáralo paso a paso (orden de canales, resize, crop, normalización, dtype) hasta que dé 0. Con pesos al azar, casi todas las fotos caen en la misma clase y el top-1 no significa nada: mira |Δlogit|. Con tu checkpoint, mide el acuerdo top-1 con parity_check.py.",
+        "needs": "Tu Mac (CPU) y el venv de model/requirements.txt de C01 (Python 3.13); los pasos se corren desde la raíz del repo. El ResNet-50 usa pesos al azar: no descarga pesos.",
+        "verified": "executed"
+      },
+      "links": [
+        "#c01.serving",
+        "#c01.estimaciones",
+        "#m07.protocolos",
+        "#m07.triton",
+        "#m09.skew",
+        "#c01.fallas"
+      ]
+    },
+    {
+      "id": "optimizar",
+      "num": 11,
+      "title": "Optimizaciones en orden de impacto, y la alternativa sin GPU (ONNX Runtime en CPU)",
+      "question": "Tu engine ya sirve: ¿qué optimizas primero, cuánto compra cada paso y cuándo conviene no usar una GPU?",
+      "templates": [
+        {
+          "code": "histogram_quantile(0.99, sum by (le) (rate(classifier_preprocess_seconds_bucket[5m])))\nhistogram_quantile(0.99, sum by (le) (rate(classifier_inference_seconds_bucket[5m])))\nsum(rate(nv_inference_queue_duration_us{model=\"{modelo}\"}[5m])) / sum(rate(nv_inference_request_success{model=\"{modelo}\"}[5m]))\nsum(rate(nv_inference_compute_infer_duration_us{model=\"{modelo}\"}[5m])) / sum(rate(nv_inference_request_success{model=\"{modelo}\"}[5m]))",
+          "note": "<b>Mide antes de optimizar.</b> Las dos primeras son el p99 (la latencia que solo supera el 1 % de los requests) del preproceso y de la llamada a Triton, medidos en el gateway; las dos últimas, la espera en cola y el cómputo promedio por request dentro de Triton, en µs. Optimizar el modelo solo mueve el último número."
+        },
+        {
+          "code": "# TensorRT 10 (NGC 24.08, la de C01)\ntrtexec --onnx={onnx} --saveEngine=model.plan --fp16 \\\n  --minShapes=input:1x3x224x224 --optShapes=input:{opt}x3x224x224 --maxShapes=input:32x3x224x224\n# TensorRT 11 (NGC 26.06 en adelante): la precisión va en el ONNX\npython -m modelopt.onnx.autocast --onnx_path {onnx} --output_path {onnx_fp16} --keep_io_types",
+          "note": "<b>El paso de más impacto en C01:</b> TensorRT (un compilador que convierte el ONNX en un engine para una GPU concreta) en FP16 da varias veces el throughput de PyTorch eager (el modo normal, operación por operación) en FP32 en la T4, casi sin tocar la calidad. Cada release de NGC (las imágenes de NVIDIA, YY.MM) trae su TensorRT. En TensorRT 11 ya no existe <code>--fp16</code>: AutoCast, de NVIDIA ModelOpt, convierte el ONNX a precisión mixta (FP16 donde se puede) y <code>--keep_io_types</code> deja la entrada y la salida en FP32, como pide <code>config.pbtxt</code>."
+        },
+        {
+          "code": "quant_pre_process(\"{onnx}\", \"{onnx_pre}\")\nquantize_static(\"{onnx_pre}\", \"{onnx_int8}\", {lector},\n                quant_format=QuantFormat.QDQ, activation_type=QuantType.QInt8,\n                weight_type=QuantType.QInt8, per_channel=True,\n                calibrate_method=CalibrationMethod.Percentile)",
+          "note": "<b>INT8</b> (enteros de 8 bits con una escala por tensor o por canal) con ONNX Runtime: ≈ 4× menos bytes que FP32; el ONNX de C01 baja de 98 MB a ≈ 25 MB. El lector de calibración (calibration reader) entrega fotos reales pasadas por el mismo <code>preprocess.py</code>. TensorRT solo acepta INT8 simétrico (el 0 real se guarda como 0): con ONNX Runtime agrega <code>extra_options={\"ActivationSymmetric\": True}</code>, o cuantiza con ModelOpt."
+        },
+        {
+          "code": "opciones = ort.SessionOptions()\nopciones.intra_op_num_threads = {vcpus}     # los vCPU del pod, no los cores del nodo\nopciones.inter_op_num_threads = 1\nsesion = ort.InferenceSession(\"{onnx_int8}\", opciones, providers=[\"CPUExecutionProvider\"])\nlogits = sesion.run([\"logits\"], {\"input\": batch})[0]",
+          "note": "<b>La alternativa sin GPU:</b> el mismo ONNX en ONNX Runtime (ORT), en CPU. Fija los hilos con el límite de CPU del pod: si no, ORT usa tantos hilos como cores físicos ve en el nodo (no lee el límite del contenedor) y pelea por tu cuota."
+        }
+      ],
+      "formulas": [
+        "S_{\\text{total}} = \\dfrac{1}{(1 - p) + p/s} \\qquad p = \\tfrac{10}{150} \\approx 0.067,\\ \\ s = 2 \\ \\Rightarrow\\ S \\approx 1.03",
+        "\\text{vCPU} = \\dfrac{\\lambda \\cdot t_{\\text{img}}}{U_{\\text{obj}}} = \\dfrac{500 \\times 0.015\\ \\text{s}}{0.6} = 12.5",
+        "N_{\\text{GPU}} = \\left\\lceil \\dfrac{\\lambda}{0.5\\, X_{\\max}} \\right\\rceil + 1 = \\left\\lceil \\dfrac{500}{600} \\right\\rceil + 1 = 2"
+      ],
+      "vars": [
+        [
+          "{modelo}",
+          "nombre del modelo en Triton (el label model de las métricas)",
+          "classifier"
+        ],
+        [
+          "{onnx} · {onnx_fp16} · {onnx_pre} · {onnx_int8}",
+          "el ONNX FP32 y sus variantes",
+          "model/classifier.onnx · model/classifier_int8.onnx"
+        ],
+        [
+          "{opt}",
+          "batch para el que TensorRT afina el engine",
+          "16 en C01; compáralo con 4"
+        ],
+        [
+          "{lector}",
+          "tu CalibrationDataReader: entrega una foto preprocesada por llamada",
+          "≈ 500–1,000 fotos reales"
+        ],
+        [
+          "{vcpus}",
+          "vCPU del pod (su límite), no los cores del nodo",
+          "4"
+        ],
+        [
+          "p",
+          "fracción del tiempo total que es cómputo del modelo",
+          "≈ 0.05–0.10 en el p99 de C01"
+        ],
+        [
+          "s",
+          "cuántas veces más rápido queda el modelo",
+          "2"
+        ],
+        [
+          "S_total",
+          "cuántas veces más rápido queda el request completo",
+          "≈ 1.03–1.05: el p99 baja ≈ 3–5 %"
+        ],
+        [
+          "λ",
+          "requests por segundo a atender",
+          "500 en el pico de diseño"
+        ],
+        [
+          "t_img",
+          "CPU por imagen, medida en la instancia real",
+          "INT8 ≈ 8–25 ms; FP32 ≈ 40–80 ms (estimaciones de C01)"
+        ],
+        [
+          "U_obj",
+          "utilización objetivo del HPA (el autoscaler de pods)",
+          "0.6"
+        ],
+        [
+          "X_max",
+          "máximo medido por GPU con perf_analyzer (la prueba de carga contra Triton)",
+          "≈ 1,200 img/s por T4 (supuesto de C01, a medir)"
+        ]
+      ],
+      "pieces": [
+        [
+          "TensorRT FP16",
+          "Compila el ONNX para la T4 en FP16, que usa sus tensor cores (las unidades que multiplican matrices en baja precisión): varias veces el throughput de PyTorch eager FP32. Riesgo: algún top-1 cambia en casos límite.",
+          "sí en C01, con paridad (top-1 ≥ 99.5 %)"
+        ],
+        [
+          "INT8",
+          "≈ 1.5–2× más sobre FP16 en GPU. Necesita calibración con datos representativos y pierde más en el long tail (las clases con pocas fotos).",
+          "no en C01: la GPU trabaja al ≈ 5–20 %; revisar a 10×"
+        ],
+        [
+          "Engine construido en CI sobre T4",
+          "Construirlo en el pipeline de CI (el que corre en cada cambio), en una T4, no acelera nada: evita que Triton no pueda cargar el modelo en producción.",
+          "misma GPU (sm_75: la arquitectura de la T4) y misma release de NGC (24.08)"
+        ],
+        [
+          "Downscale en el cliente (≤ 1024 px)",
+          "El celular achica la foto antes de subirla: menos bytes y menos CPU de decode; sin riesgo si el lado corto sigue ≥ 256.",
+          "el app móvil manda ≈ 150–250 KB"
+        ],
+        [
+          "JPEG draft mode conservador",
+          "El decoder reduce la foto mientras decodifica: un JPEG de 12 MP baja de ≈ 40 a ≈ 18 ms de CPU (medido en una laptop).",
+          "solo si el lado corto > 1024 px, sin bajar de 512"
+        ],
+        [
+          "Threadpool para el trabajo de CPU",
+          "El event loop (el hilo que atiende todos los requests) sigue con la red mientras otro hilo decodifica. Es corrección, no optimización.",
+          "run_in_threadpool + 2 decodes por proceso"
+        ],
+        [
+          "Entrada FP16 o UINT8 con normalización en el grafo",
+          "2× o 4× menos bytes entre el gateway y Triton. Obliga a reexportar y a repetir la paridad.",
+          "después, si la red o el costo entre zonas lo pide"
+        ],
+        [
+          "ONNX Runtime en CPU (FP32)",
+          "El mismo ONNX sin GPU: un servicio menos, sin engine atado a la T4 ni la espera de levantar un nodo GPU (cold start).",
+          "≈ 40–80 ms por imagen por vCPU: ≈ 20–40 vCPU ocupados en el pico"
+        ],
+        [
+          "INT8 en CPU",
+          "Pesos y activaciones en INT8 con ONNX Runtime u OpenVINO: el candidato serio de C01 para quitar la GPU.",
+          "≈ 8–25 ms por imagen por vCPU, a medir en la semana 1"
+        ],
+        [
+          "VNNI · AMX",
+          "Instrucciones de CPU que aceleran INT8: VNNI desde Cascade Lake (la c6i, Ice Lake, lo trae) y AMX desde Sapphire Rapids (c7i). Sin ellas, INT8 puede ser más lento que FP32.",
+          "en Arm, las de producto punto (Graviton2 en adelante)"
+        ],
+        [
+          "intra_op_num_threads",
+          "Hilos de ORT dentro de cada operador. Con 0, ORT usa uno por core físico que ve: los del nodo, no los de tu límite.",
+          "fíjalo al límite de CPU del pod"
+        ],
+        [
+          "Procesos × hilos",
+          "Más procesos dan más throughput total; más hilos por proceso, menos latencia por request.",
+          "FP32 en la Mac M4 del curso: 4 × 1 hilo ≈ 86 img/s; 1 × 4 hilos ≈ 61 img/s"
+        ]
+      ],
+      "example": {
+        "title": "C01: ¿qué compra cada optimización? (las cuentas del curso)",
+        "lang": "text",
+        "code": "Cómputo GPU en el p99                8–15 ms de ≈ 150 ms (5–10 %)\nModelo 2× más rápido                 p99 ≈ 142–146 ms: ≈ 3–5 % menos\nGPUs hoy (FP16, 600 img/s plan)      ⌈500 / 600⌉ + 1 = 2 T4\nGPUs con INT8 (900–1,200 plan)       ⌈500 / 900⌉ + 1 = 2 T4 → ahorro US$0\nA 10× (5,000 req/s), FP16            ⌈5,000 / 600⌉ + 1 = 10 T4\nA 10×, INT8                          6–7 T4 → ≈ US$1,150–1,540/mes menos\nSin GPU: INT8 en CPU (HPA al 60 %)   ≈ 7–21 vCPU en el pico; ≈ US$125–250/mes contra ≈ US$768 de 2 T4",
+        "source": "Cuentas del curso: M08 (por qué optimizar) y C01 (estimaciones). Son estimaciones con supuestos, no benchmarks: el máximo por T4 y los ms por vCPU se miden.",
+        "notes": [
+          "Ley de Amdahl (lo que no aceleras pone el techo) con los números de C01: si el cómputo es el 5–10 % del p99, ningún truco del modelo mueve el p99 más que eso. Primero el presupuesto por tramo; después, la técnica que mueve el número que importa.",
+          "Las 2 T4 están por disponibilidad (N+1: una de sobra, una por zona), no por throughput: hoy INT8 no ahorra ni una GPU y agrega riesgo en el long tail.",
+          "TensorRT FP16 igual se usa: es casi gratis en calidad (la paridad lo confirma) y da margen para picos y failover sin escalar.",
+          "A 10× el tráfico, INT8 sí paga 3–4 T4, si pasa el gate por slices (grupos como móvil, web o poca luz); y queda por debajo de pasar a 5 L4 en FP16 (≈ US$2,938/mes).",
+          "Sin GPU decide el benchmark de la semana 1. En x86 con VNNI o AMX se espera INT8 ≈ 3–5× sobre FP32, pero no está medido para este stack; en la Mac M4 del curso dio ≈ 1–2×. Si en la instancia real da ≈ 1.5–2×, el ahorro contra las dos T4 deja de ser claro."
+        ]
+      },
+      "figure": {
+        "kind": "chain",
+        "caption": "La escalera, de lo más barato y seguro a lo más caro (M08). Cada peldaño se mide antes de subir al siguiente. C01 usa los cinco primeros (con FP16, sin INT8), deja el sexto al equipo de modelado y mide el último en la semana 1.",
+        "data": {
+          "steps": [
+            {
+              "label": "Medir dónde se va el tiempo",
+              "cmd": "histogram_quantile(0.99, sum by (le) (rate(classifier_preprocess_seconds_bucket[5m])))",
+              "note": "Si el cómputo es el 5–10 % del p99, un modelo 2× más rápido baja el p99 ≈ 3–5 %."
+            },
+            {
+              "label": "Menos trabajo por request",
+              "cmd": "img.draft(\"RGB\", (DRAFT_MIN_SHORT, DRAFT_MIN_SHORT))",
+              "note": "Caché, cascadas (un modelo barato primero y el caro solo si hace falta), menos píxeles. En C01, el draft mode ahorra en una foto web tanto como todo el cómputo de la GPU."
+            },
+            {
+              "label": "Batching e instancias",
+              "cmd": "dynamic_batching { max_queue_delay_microseconds: 2000 }",
+              "note": "Sin tocar el modelo ni la calidad. Rinde cuando hay tráfico para llenar los batches; en C01 llegan ≈ 1–3 por batch."
+            },
+            {
+              "label": "Runtime compilado, misma precisión",
+              "cmd": "trtexec --onnx=model/classifier.onnx --saveEngine=model.plan",
+              "note": "Fusiona capas y elige kernels (las rutinas que corren en la GPU) para esa GPU. El riesgo es un bug de export: lo atrapa la paridad."
+            },
+            {
+              "label": "Menos precisión",
+              "cmd": "trtexec … --fp16 (TensorRT 10) · python -m modelopt.onnx.autocast --onnx_path model/classifier.onnx --keep_io_types (TensorRT 11)",
+              "note": "FP16 casi nunca cambia una CNN. INT8 necesita calibración y un gate por slices."
+            },
+            {
+              "label": "Un modelo más chico",
+              "cmd": "torchvision.models.mobilenet_v3_large(num_classes=500)",
+              "note": "Destilación (un modelo chico que aprende a imitar al grande) o pruning (quitar pesos): la ganancia más grande y el costo más alto (entrenar de nuevo y mantenerlo)."
+            },
+            {
+              "label": "Aparte: sin GPU (un servicio menos)",
+              "cmd": "ort.InferenceSession(\"classifier_int8.onnx\", opciones, providers=[\"CPUExecutionProvider\"])",
+              "note": "Si INT8 en CPU da ≈ 15 ms por imagen por vCPU sin perder más de 0.5 puntos de accuracy, son ≈ 13 vCPU en el pico y desaparece el servicio con GPU."
+            }
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>mide, después lo barato, al final lo arriesgado</b>. Presupuesto por tramo → menos trabajo → batching → runtime compilado → menos precisión → modelo más chico. Optimizas el modelo cuando cambia el número de máquinas, elimina un servicio o hace que algo quepa.",
+      "trap": "Trampa: «le pongo INT8 para bajar la latencia» en un sistema donde el modelo es el 10 % del p99 y las GPUs están al 5 %. No baja el p99, no ahorra una GPU y agrega riesgo en el long tail. Y no midas la ganancia con <code>trtexec</code> a batch 32 si online llegan batches de 1–3: el número que decide sale de <code>perf_analyzer</code> contra Triton, con la carga real.",
+      "lab": {
+        "goal": "Exportar el ResNet-50 de C01, cuantizarlo a INT8 con ONNX Runtime y medir ms por imagen en CPU, FP32 contra INT8, para convertirlo en vCPU con la fórmula.",
+        "steps": [
+          {
+            "cmd": "cd apps/ml-system-design/reference/c01 && . .venv/bin/activate",
+            "expect": "Queda activo el venv de C01, el del lab de pre y postprocesamiento. Si no lo hiciste: python3.13 -m venv .venv && . .venv/bin/activate && pip install -r model/requirements.txt."
+          },
+          {
+            "cmd": "python model/export_onnx.py --out model/classifier.onnx",
+            "expect": "[model] AVISO: sin --checkpoint → pesos aleatorios…, [export] opset=17 input=input['batch', 3, 224, 224] output=logits, dos líneas de verificación (batch= 1 y batch=32, max|Δlogit| del orden de 1e-4, top1_igual=100%) y [export] OK. El archivo pesa ≈ 98 MB."
+          },
+          {
+            "cmd": "mkdir -p ~/lab-triton && cat > ~/lab-triton/cuantizar.py <<'EOF'\nimport sys\nsys.path.insert(0, \"model\")\nfrom onnxruntime.quantization import (CalibrationDataReader, CalibrationMethod, QuantFormat,\n                                      QuantType, quantize_static)\nfrom onnxruntime.quantization.shape_inference import quant_pre_process\nfrom parity_check import load_images  # JPEG sintéticos pasados por el preprocess.py de C01\n\nclass Lector(CalibrationDataReader):\n    def __init__(self):\n        self.fotos = iter(load_images(None, 64))  # para practicar; en serio: ≈ 500–1,000 fotos reales\n    def get_next(self):\n        x = next(self.fotos, None)\n        return None if x is None else {\"input\": x[None]}  # [1, 3, 224, 224] float32\n\nquant_pre_process(\"model/classifier.onnx\", \"model/classifier_pre.onnx\")\nquantize_static(\"model/classifier_pre.onnx\", \"model/classifier_int8.onnx\", Lector(),\n                quant_format=QuantFormat.QDQ, activation_type=QuantType.QInt8,\n                weight_type=QuantType.QInt8, per_channel=True,\n                calibrate_method=CalibrationMethod.Percentile)\nEOF\npython ~/lab-triton/cuantizar.py && ls -lh model/classifier.onnx model/classifier_int8.onnx",
+            "expect": "Puede imprimir advertencias de ONNX Runtime durante la calibración. ls -lh cuenta en MiB: ≈ 94M para classifier.onnx (≈ 98 MB) y ≈ 24M para classifier_int8.onnx (≈ 25 MB; 25.1 MB en la medición del curso): 4× menos bytes."
+          },
+          {
+            "cmd": "cat > ~/lab-triton/bench.py <<'EOF'\nimport time\nimport numpy as np\nimport onnxruntime as ort\n\nx = np.random.default_rng(0).standard_normal((1, 3, 224, 224), dtype=np.float32)\nfor f in (\"model/classifier.onnx\", \"model/classifier_int8.onnx\"):\n    for hilos in (1, 4):\n        o = ort.SessionOptions()\n        o.intra_op_num_threads, o.inter_op_num_threads = hilos, 1\n        s = ort.InferenceSession(f, o, providers=[\"CPUExecutionProvider\"])\n        for _ in range(10):\n            s.run([\"logits\"], {\"input\": x})  # warmup\n        t0 = time.perf_counter()\n        for _ in range(100):\n            s.run([\"logits\"], {\"input\": x})\n        ms = (time.perf_counter() - t0) * 10  # 100 corridas → ms por imagen\n        vcpu = 500 * ms * hilos / 1000 / 0.6  # CPU por imagen = hilos × ms; HPA al 60 %\n        print(f\"{f:<28} {hilos} hilo(s): {ms:5.1f} ms/img · vCPU a 500 req/s: {vcpu:5.1f}\")\nEOF\npython ~/lab-triton/bench.py",
+            "expect": "Cuatro líneas. En la Mac M4 del curso (ORT 1.30): FP32 ≈ 20 ms con 1 hilo y ≈ 15–18 ms con 4; INT8 ≈ 21 ms con 1 hilo y ≈ 8 ms con 4. Con 1 hilo, INT8 no gana: ahí el FP32 usa la unidad de matrices de la M4 (SME) y el INT8 no. La columna vCPU es la fórmula de arriba con la CPU por imagen (hilos × ms)."
+          }
+        ],
+        "fix": "Si INT8 no gana, no es un error del lab: la razón INT8/FP32 depende de la CPU. Para decidir C01 se mide en una c6i o c7i con el límite de CPU del pod, y la calidad, con el checkpoint real por slices del golden set (el set de evaluación fijo de C01; con pesos al azar no hay calidad que medir).",
+        "needs": "Tu Mac (CPU), Python 3.13 y el venv de model/requirements.txt de C01 (torch 2.14, onnx 1.23, onnxscript 0.7.2, onnxruntime 1.30): unos 2 GB de disco; los pasos se corren desde la raíz del repo. Pesos al azar: mide velocidad y tamaño, no calidad.",
+        "verified": "docs"
+      },
+      "links": [
+        "#c01.serving",
+        "#c01.estimaciones",
+        "#m08.por-que-optimizar",
+        "#m08.mapa-tecnicas",
+        "#m08.cuantizacion",
+        "#m08.cpu-inferencia",
+        "#m08.validar",
+        "#m04.cpu-gpu-tpu"
+      ]
+    },
+    {
+      "id": "diagnostico",
+      "num": 12,
+      "title": "Diagnóstico: el método y la tabla de síntomas",
+      "question": "Triton no carga, responde con error, va lento o predice distinto: ¿qué miras primero, qué después, y cómo partes el problema en dos?",
+      "templates": [
+        {
+          "code": "curl -fsS {host}:8000/v2/health/live && echo vivo\ncurl -fsS {host}:8000/v2/health/ready && echo listo\ncurl -fsS {host}:8000/v2/models/{modelo}/ready && echo modelo listo",
+          "note": "<b>¿Vive? ¿Está listo?</b> Triton responde 200 si sí y 400 si no (503 mientras se apaga); con <code>-f</code>, curl falla con el error 22 en vez de imprimir el echo. Si ni siquiera conecta (error 7), Triton todavía no escucha: con <code>--model-control-mode=none</code> (C01) abre los puertos recién después de cargar los modelos. Con <code>--strict-readiness=true</code> (C01), el ready del servidor exige que todos los modelos estén listos; el del modelo dice si esa versión cargó y terminó su warmup (las inferencias de prueba)."
+        },
+        {
+          "code": "kubectl logs {pod} -n {ns} --previous | grep -E \"failed to load|UNAVAILABLE|error: creating server\"\ncurl -s -X POST {host}:8000/v2/repository/index\ncurl -s -d '{\"log_verbose_level\":1}' -X POST {host}:8000/v2/logging",
+          "note": "<b>¿Qué no cargó y por qué?</b> Con <code>--exit-on-error=true</code> (C01), Triton sale si un modelo no carga (queda UNAVAILABLE): el motivo queda en el log del intento anterior. Si Triton sigue arriba, el índice del repository (<code>POST /v2/repository/index</code>) da <code>state</code> y <code>reason</code> por modelo, y la extensión de logging sube el detalle en caliente (o arranca con <code>--log-verbose=1</code>)."
+        },
+        {
+          "code": "curl -s {host}:8000/v2/models/{modelo}            # nombres, datatype y shape de entradas y salidas\ncurl -s {host}:8000/v2/models/{modelo}/config     # el config.pbtxt que cargó, en JSON",
+          "note": "<b>¿El contrato coincide?</b> Compara lo que manda el cliente (nombre, shape con el eje de batch, dtype: el tipo de número) con la metadata (la descripción de entradas y salidas que publica Triton). Casi todos los 400 de inferencia salen de aquí."
+        },
+        {
+          "code": "curl -s {host}:8000/v2/models/{modelo}/stats      # cola, cómputo y ejecuciones por tamaño de batch\ncurl -s {host}:8002/metrics | grep -E \"^nv_inference_(queue|compute_infer)_duration_us\"\nnvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv -l 1",
+          "note": "<b>¿Dónde se va el tiempo?</b> Cola contra cómputo en Triton, preproceso contra inferencia en el gateway, y la GPU. Si el problema son las predicciones y no la velocidad, el paso es la paridad: ONNX Runtime contra Triton con <code>parity_check.py</code>."
+        }
+      ],
+      "formulas": [
+        "t_{\\text{total}} \\approx t_{\\text{pre}} + t_{\\text{red}} + t_{\\text{cola}} + t_{\\text{cómputo}} + t_{\\text{post}}",
+        "\\bar{t}_{\\text{cola}} = \\dfrac{\\Delta Q}{\\Delta N_{\\text{ok}}} \\qquad \\bar{b} = \\dfrac{\\Delta N_{\\text{inf}}}{\\Delta N_{\\text{exec}}}",
+        "U_{\\text{GPU}} = \\dfrac{t_{\\text{con al menos un kernel}}}{t_{\\text{muestra}}}"
+      ],
+      "vars": [
+        [
+          "{host}",
+          "dónde escucha Triton; en el cluster, a través de un port-forward (un túnel de kubectl a tu máquina)",
+          "localhost"
+        ],
+        [
+          "{modelo}",
+          "nombre del modelo (la carpeta del repository)",
+          "classifier"
+        ],
+        [
+          "{pod} · {ns}",
+          "pod de Triton y su namespace de Kubernetes",
+          "triton-5f6b…-7tq2m · classifier"
+        ],
+        [
+          "t_pre · t_post",
+          "preproceso y postproceso en el gateway",
+          "preprocess_ms en el log JSON de C01"
+        ],
+        [
+          "t_red",
+          "ida y vuelta de la red y la serialización",
+          "≈ 2–4 ms en p50 (la mediana) para 602 KB binarios"
+        ],
+        [
+          "t_cola · t_cómputo",
+          "espera en la cola de Triton y ejecución del modelo",
+          "≤ 2 ms de ventana · 3–6 ms en p50"
+        ],
+        [
+          "ΔQ",
+          "aumento de nv_inference_queue_duration_us (µs acumulados en cola)",
+          "rate(…[5m])"
+        ],
+        [
+          "ΔN_ok",
+          "aumento de nv_inference_request_success",
+          "rate(…[5m])"
+        ],
+        [
+          "ΔN_inf · ΔN_exec",
+          "aumento de nv_inference_count (inferencias) y nv_inference_exec_count (ejecuciones)",
+          "su cociente es el batch promedio"
+        ],
+        [
+          "U_GPU",
+          "lo que nvidia-smi llama utilización: tiempo con kernels (programas de la GPU) corriendo, no capacidad usada",
+          "con batches de 1 marca mucho más que la carga: C01 espera 10–35 % con ≈ 5 % de carga"
+        ]
+      ],
+      "pieces": [
+        [
+          "CrashLoopBackOff al arrancar Triton",
+          "Un modelo no cargó (engine de otra versión o de otra GPU, config que no coincide, ninguna GPU visible) y --exit-on-error=true cerró el servidor con exit 1. Kubernetes lo reinicia una y otra vez, cada vez esperando más.",
+          "error: creating server: Internal - failed to load all models"
+        ],
+        [
+          "Running pero READY 0/1",
+          "Todavía carga el engine (el modelo compilado) o hace el warmup, y Triton aún no abre el puerto; o, con --exit-on-error=false, un modelo quedó UNAVAILABLE y el ready da 400.",
+          "Startup probe failed: … connection refused"
+        ],
+        [
+          "400 en /infer",
+          "El request no coincide con el contrato: nombre, shape, dtype o batch.",
+          "unexpected shape for input 'input'"
+        ],
+        [
+          "503 de Triton",
+          "La cola rechazó por tiempo o por tamaño, el modelo no está listo, o el servidor se está apagando.",
+          "Request timeout expired"
+        ],
+        [
+          "504 del gateway",
+          "Triton tardó más que el timeout del cliente (150 ms en C01): cola llena o GPU saturada.",
+          "timeout de inferencia"
+        ],
+        [
+          "p99 alto con cómputo estable",
+          "El p99 (la latencia del 1 % más lento) sube, pero el tiempo está fuera del modelo: preproceso, red u overhead de Python.",
+          "classifier_preprocess_seconds sube"
+        ],
+        [
+          "La cola de Triton crece",
+          "La GPU está cerca de saturarse: faltan réplicas o un modelo más barato.",
+          "alerta TritonQueueTimeHigh"
+        ],
+        [
+          "GPU al 100 % con poco throughput",
+          "nvidia-smi cuenta tiempo con kernels, no capacidad: batches de 1, o la T4 bajando su frecuencia (clocks).",
+          "batch promedio ≈ 1"
+        ],
+        [
+          "Predicciones distintas a PyTorch",
+          "Bug de export, del engine o del preproceso: falla sin errores.",
+          "[parity] NO PASA"
+        ],
+        [
+          "Primer request lento",
+          "Inicialización pendiente: sin warmup, la paga el primer request real.",
+          "model_warmup ausente"
+        ],
+        [
+          "CUDA out of memory",
+          "VRAM llena: instancias, batch máximo, versiones cargadas o procesos de más.",
+          "nvidia-smi --query-compute-apps"
+        ],
+        [
+          "«Ayer funcionaba»",
+          "Cambió algo debajo: la release de NGC (la imagen de NVIDIA, con otro TensorRT), el tipo de GPU o el driver.",
+          "The engine plan file is not compatible…"
+        ],
+        [
+          "Batch promedio ≈ 1",
+          "No hay dynamic_batching, o con la carga actual no llega nadie más dentro de la ventana.",
+          "rate(nv_inference_count) / rate(nv_inference_exec_count)"
+        ]
+      ],
+      "example": {
+        "title": "C01: actualizan la imagen de Triton y el pod nuevo no levanta",
+        "lang": "text",
+        "code": "$ kubectl logs -n classifier triton-7c4d…-p2x8k --previous | grep -E \"TensorRT|failed to load|UNAVAILABLE|error:\"\n… The engine plan file is not compatible with this version of TensorRT, expecting library version … got …\n… failed to load 'classifier' version 1: Internal: unable to create TensorRT engine: …\n| classifier | 1       | UNAVAILABLE: Internal: unable to create TensorRT engine: … |\nerror: creating server: Internal - failed to load all models\n\n# En el contenedor de TensorRT con el que se construyó el engine:\n$ trtexec --getPlanVersionOnly --loadEngine=model.plan",
+        "source": "Forma típica del log de Triton (prefijos de cada línea omitidos). Textos del core y del backend de TensorRT de Triton (24.08 y la rama actual), y del manual de errores de TensorRT; --getPlanVersionOnly existe en trtexec desde 8.6 (también en 10.x y 11.x)",
+        "notes": [
+          "Léelo de abajo hacia arriba: <code>error: creating server</code> solo dice que algo falló; la tabla dice qué modelo; <code>failed to load</code>, en qué paso (crear el engine); la línea de TensorRT, por qué.",
+          "La causa: la imagen nueva trae otra release de NGC (otro TensorRT) y el <code>model.plan</code> se construyó con la anterior. En C01, <code>build_engine.sh</code> y <code>triton/Dockerfile</code> fijan el mismo YY.MM (24.08, TensorRT 10.3).",
+          "<code>trtexec --getPlanVersionOnly</code> imprime con qué versión de TensorRT se creó el plan, sin cargarlo (deserializarlo). Según la versión de TensorRT, el mismo problema también sale como <code>Serialization assertion … Version tag does not match</code>; si el plan es de otra GPU, dice <code>generated on an incompatible device</code>.",
+          "No es un problema del pod: con <code>maxUnavailable: 0</code>, los Triton viejos siguen sirviendo. Arreglo: reconstruir el engine con la misma release que la imagen (o volver al tag anterior) y repetir paridad y perf_analyzer (la prueba de carga contra Triton).",
+          "Si la imagen saltó de TensorRT 10 a 11 (NGC 26.06 en adelante; 26.09 trae TensorRT 11.3), también cambia el build: <code>--fp16</code> ya no existe y la precisión va en el ONNX, con AutoCast (de NVIDIA ModelOpt)."
+        ]
+      },
+      "figure": {
+        "kind": "chain",
+        "caption": "De afuera hacia adentro y de lo barato a lo caro: cada paso descarta una capa. Si un paso falla, ahí está el problema; si pasa, sigues con el siguiente.",
+        "data": {
+          "steps": [
+            {
+              "label": "¿Vive?",
+              "cmd": "curl -fsS localhost:8000/v2/health/live && echo vivo",
+              "note": "Si curl no conecta: el proceso no corre, o todavía carga los modelos (con --model-control-mode=none abre el puerto al final). Mira el pod y el log del intento anterior."
+            },
+            {
+              "label": "¿Está listo?",
+              "cmd": "curl -fsS localhost:8000/v2/models/classifier/ready && echo listo",
+              "note": "400: Triton escucha, pero el modelo no está listo (no cargó con --exit-on-error=false, o se está recargando). 503: Triton se está apagando."
+            },
+            {
+              "label": "¿Qué no cargó y por qué?",
+              "cmd": "kubectl logs POD -n classifier --previous | grep -E \"failed to load|UNAVAILABLE\"",
+              "note": "La tabla de modelos y la línea failed to load traen el motivo; la línea de TensorRT, el porqué."
+            },
+            {
+              "label": "¿El contrato coincide?",
+              "cmd": "curl -s localhost:8000/v2/models/classifier",
+              "note": "Nombre, datatype y shape (con el -1 del batch) contra lo que manda el cliente."
+            },
+            {
+              "label": "¿Una inferencia sola funciona?",
+              "cmd": "perf_analyzer -m classifier -u localhost:8000 --concurrency-range 1 --input-data zero",
+              "note": "Si el request falla, ves el error que devolvió Triton; si pasa, ya tienes una latencia base."
+            },
+            {
+              "label": "¿Predice lo mismo?",
+              "cmd": "python model/parity_check.py --backend triton --triton-url localhost:8000 --checkpoint resnet50_500.pt --images /ruta/muestra_eval",
+              "note": "Si ONNX Runtime pasa y Triton no, es el engine; si ONNX Runtime también falla, es el export."
+            },
+            {
+              "label": "¿Dónde se va el tiempo?",
+              "cmd": "curl -s localhost:8000/v2/models/classifier/stats",
+              "note": "Cola contra cómputo y ejecuciones por tamaño de batch; en el gateway, preproceso contra inferencia."
+            },
+            {
+              "label": "¿Y la GPU?",
+              "cmd": "nvidia-smi -q -d PERFORMANCE,CLOCK",
+              "note": "Clocks y motivos de baja (potencia, temperatura): la T4 es una tarjeta pasiva de 70 W y baja clocks bajo carga sostenida."
+            }
+          ]
+        }
+      },
+      "memo": "Cómo recordarla: <b>vive → listo → qué cargó → contrato → una inferencia → paridad → tiempo → GPU</b>. Cada paso es un comando barato que parte el problema en dos; no saltes al último porque es el más interesante.",
+      "trap": "Trampa: reiniciar el pod o subir réplicas para «arreglar» un modelo que no carga. El pod nuevo trae el mismo engine y falla igual, y el reinicio se lleva el log del intento que murió: primero <code>kubectl logs --previous</code>. La otra: leer <code>nvidia-smi</code> al 100 % como «GPU saturada»; es tiempo con kernels corriendo, no capacidad usada.",
+      "lab": {
+        "goal": "Practicar el método desde afuera con el gateway de C01 y sin Triton: ver la diferencia entre vivo y listo, un 503 de dependencia caída, un 415 y un 400, y leerlos en el log y en las métricas.",
+        "steps": [
+          {
+            "cmd": "cd apps/ml-system-design/reference/c01/gateway && python3.13 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt",
+            "expect": "Termina con Successfully installed … (fastapi 0.141.1, uvicorn 0.54.0, tritonclient 2.72.0, pillow 12.3.0, entre otras): las versiones fijadas del gateway."
+          },
+          {
+            "cmd": "uvicorn app.main:app --port 8080",
+            "expect": "Uvicorn running on http://127.0.0.1:8080. Déjalo corriendo y abre otra terminal en gateway/ con el venv activado. No hay Triton en localhost:8000: es a propósito."
+          },
+          {
+            "cmd": "curl -i localhost:8080/healthz; echo; curl -i localhost:8080/readyz",
+            "expect": "HTTP/1.1 200 OK con {\"status\":\"ok\"} y HTTP/1.1 503 Service Unavailable con {\"detail\":\"el modelo no está listo en Triton\"}. Vive pero no está listo: en Kubernetes saldría del Service sin que lo reinicien."
+          },
+          {
+            "cmd": "python -c \"from PIL import Image; Image.effect_noise((640, 480), 64).convert('RGB').save('foto.jpg')\" && curl -i -H \"Content-Type: image/jpeg\" --data-binary @foto.jpg \"localhost:8080/v1/classify?top_k=5\"",
+            "expect": "HTTP/1.1 503 con los headers retry-after: 1 y x-request-id, y {\"detail\":\"Triton no disponible\"}: la conexión a Triton se rechazó al instante. En la terminal de uvicorn, una línea JSON con \"preprocess_ms\" (el decode sí corrió), \"error\": \"Triton no disponible\" y \"status\": 503."
+          },
+          {
+            "cmd": "curl -i -H \"Content-Type: image/gif\" --data-binary @foto.jpg localhost:8080/v1/classify; echo; head -c 20000 foto.jpg > rota.jpg && curl -i -H \"Content-Type: image/jpeg\" --data-binary @rota.jpg localhost:8080/v1/classify",
+            "expect": "415 con {\"detail\":\"Content-Type debe ser image/jpeg, image/png o image/webp\"} y 400 con {\"detail\":\"no se pudo decodificar la imagen\"} (adentro, Pillow dijo image file is truncated). Los 4xx son del request: reintentar no sirve."
+          },
+          {
+            "cmd": "curl -s localhost:8080/metrics | grep -E '^classifier_requests_total'",
+            "expect": "Una serie por código: status=\"503\", \"415\" y \"400\", con source=\"other\" (no mandaste x-client-source) y model_version=\"dev\"."
+          },
+          {
+            "cmd": "rm foto.jpg rota.jpg",
+            "expect": "Sin salida. Después, Ctrl+C en la terminal de uvicorn lo apaga."
+          }
+        ],
+        "fix": "Lo que viste es lo mismo que con Triton caído: /healthz en 200 (no reinicies el gateway), /readyz en 503 (sale del balanceador) y 503 rápidos con retry-after. Un 504, en cambio, diría que Triton está vivo pero lento: ahí miras la cola.",
+        "needs": "Tu Mac, Python 3.13 y un venv con gateway/requirements.txt de C01, desde la raíz del repo; no hacen falta Triton ni GPU. Dos terminales.",
+        "verified": "docs"
+      },
+      "links": [
+        "#c01.fallas",
+        "#ref-comandos.depurar",
+        "#m07.triton",
+        "#m08.validar",
+        "#m03.presupuesto",
+        "#m12.runbooks"
+      ]
+    },
+    {
+      "id": "errores",
+      "num": 13,
+      "title": "Errores que debes reconocer rápido (export, TensorRT, Triton, CUDA)",
+      "question": "Lees el mensaje: ¿quién lo dijo (PyTorch, el exportador, ONNX Runtime, TensorRT, Triton, el cliente, CUDA), qué significa y qué corres primero?",
+      "templates": [
+        {
+          "code": "failed to load '{modelo}' version {v}: {estado}: {motivo}\nerror: creating server: Internal - failed to load all models",
+          "note": "Lo dijo el <b>core de Triton</b> (el núcleo del servidor) al cargar: el modelo queda UNAVAILABLE (no disponible) con ese motivo y, con <code>--exit-on-error=true</code>, el proceso sale con exit 1. El estado (<code>Internal</code>, <code>Invalid argument</code>, <code>Not found</code>…) y el motivo dicen qué paso falló."
+        },
+        {
+          "code": "[{http}] [request id: {id}] {mensaje}\n[StatusCode.{grpc}] {mensaje}",
+          "note": "Un request que Triton rechazó, visto desde <b>tritonclient</b>: por HTTP, el código entre corchetes (400 contrato, 404 o 503 estado del modelo, 503 cola); por gRPC, el código de gRPC. Muchos mensajes traen el <code>request id</code> que mandaste (<code>&lt;id_unknown&gt;</code> si no mandaste uno); otros, como <code>Request timeout expired</code>, no."
+        },
+        {
+          "code": "unable to create TensorRT engine: {motivo_trt}",
+          "note": "Lo dijo el <b>backend de TensorRT</b> de Triton al cargar (deserializar) el plan; el motivo es el último error de TensorRT: casi siempre versión, tipo de GPU o memoria."
+        },
+        {
+          "code": "{excepcion}: {mensaje}\n[ONNXRuntimeError] : {n} : {codigo} : {mensaje}",
+          "note": "Lo dijo <b>Python</b>: el nombre de la excepción delata la librería (<code>torch</code>, <code>onnxruntime</code>, <code>PIL</code>, <code>tritonclient</code>) y la última línea del traceback dice el porqué. ONNX Runtime antepone su código: <code>2 : INVALID_ARGUMENT</code> es tu entrada."
+        }
+      ],
+      "vars": [
+        [
+          "{modelo} · {v}",
+          "modelo y versión que Triton intentó cargar",
+          "classifier · 1"
+        ],
+        [
+          "{estado}",
+          "el código de estado de Triton, en palabras",
+          "Internal, Invalid argument, Not found, Unavailable"
+        ],
+        [
+          "{motivo}",
+          "el porqué que agregó el backend o el core",
+          "unable to create TensorRT engine: …"
+        ],
+        [
+          "{http}",
+          "el código HTTP que respondió Triton",
+          "400, 404, 503"
+        ],
+        [
+          "{id}",
+          "el request_id que mandó el cliente",
+          "el X-Request-ID del gateway de C01"
+        ],
+        [
+          "{grpc}",
+          "el código de gRPC",
+          "UNAVAILABLE, INVALID_ARGUMENT"
+        ],
+        [
+          "{motivo_trt}",
+          "la última línea de error de TensorRT",
+          "The engine plan file is not compatible…"
+        ],
+        [
+          "{mensaje}",
+          "el texto que explica el código",
+          "unexpected shape for input 'input'…"
+        ],
+        [
+          "{excepcion}",
+          "el tipo de error de Python",
+          "RuntimeError, TorchExportError, InferenceServerException"
+        ],
+        [
+          "{n} · {codigo}",
+          "el número y el nombre del código de ONNX Runtime",
+          "2 · INVALID_ARGUMENT"
+        ]
+      ],
+      "pieces": [
+        [
+          "failed to load '…' version …",
+          "El core de Triton no pudo cargar esa versión: queda UNAVAILABLE con el motivo.",
+          "Internal: unable to create TensorRT engine: …"
+        ],
+        [
+          "error: creating server: …",
+          "Triton no arrancó; con --exit-on-error=true basta un modelo que falle. Exit 1.",
+          "Internal - failed to load all models"
+        ],
+        [
+          "[request id: …]",
+          "Triton rechazó un request; el id es el que mandó el cliente (<id_unknown> si no hay).",
+          "unexpected shape for input 'input'"
+        ],
+        [
+          "[400] … · [503] …",
+          "tritonclient por HTTP: el código que respondió Triton, entre corchetes.",
+          "[400] … data-type is 'FP64'"
+        ],
+        [
+          "[StatusCode.…]",
+          "tritonclient por gRPC: el código de gRPC.",
+          "[StatusCode.UNAVAILABLE] failed to connect to all addresses"
+        ],
+        [
+          "The engine plan file …",
+          "TensorRT, al cargar un plan: versión o tipo de GPU equivocados.",
+          "… not compatible with this version of TensorRT"
+        ],
+        [
+          "[ONNXRuntimeError] : 2 : INVALID_ARGUMENT : …",
+          "ONNX Runtime rechazó la entrada: nombre, shape o dtype (tipo de número).",
+          "Got invalid dimensions for input: input"
+        ],
+        [
+          "Failed to export the model with torch.export",
+          "El exportador dynamo (el default desde torch 2.9) no pudo capturar el modelo: paso 1 de 3.",
+          "Could not guard on data-dependent expression"
+        ],
+        [
+          "Exporting the operator '…' to ONNX opset version …",
+          "El exportador TorchScript (dynamo=False, el viejo, el de C01) no sabe convertir esa operación en ese opset (la versión del conjunto de operadores de ONNX).",
+          "aten::…"
+        ],
+        [
+          "TracerWarning",
+          "Una advertencia del exportador TorchScript: congeló un valor que depende de los datos. No falla.",
+          "Converting a tensor to a Python boolean might cause the trace to be incorrect"
+        ],
+        [
+          "CUDA out of memory",
+          "PyTorch no consiguió VRAM: torch.OutOfMemoryError (torch.cuda.OutOfMemoryError es el mismo tipo).",
+          "Tried to allocate 2.00 GiB"
+        ],
+        [
+          "DecompressionBombError · UnidentifiedImageError",
+          "Pillow, en el preproceso: una imagen demasiado grande, o bytes que no son una imagen.",
+          "413 y 400 en el gateway de C01"
+        ],
+        [
+          "[parity] NO PASA",
+          "El gate de C01: el artefacto no predice como PyTorch FP32. Exit 1: no se promueve.",
+          "top1_agreement < 99.5 %"
+        ],
+        [
+          "Failed to obtain stable measurement",
+          "perf_analyzer (la herramienta de carga de Triton): la medición no se estabilizó en 10 ventanas; esos números no valen.",
+          "--measurement-interval"
+        ]
+      ],
+      "example": {
+        "title": "Cómo leer un error de inferencia: el cliente se olvidó del eje de batch",
+        "lang": "text",
+        "code": "$ python cliente.py        # InferInput(\"input\", [3, 224, 224], \"FP32\") con x de shape [3, 224, 224]\ntritonclient.utils.InferenceServerException: [400] [request id: demo-1] unexpected shape for input 'input' for model 'classifier'. Expected [-1,3,224,224], got [3,224,224]. NOTE: Setting a non-zero max_batch_size in the model config requires a batch dimension to be prepended to each input shape. If you want to specify the full shape including the batch dim in your input dims config, try setting max_batch_size to zero. See the model configuration docs for more info on max_batch_size.\n\n$ curl -s localhost:8000/v2/models/classifier\n{\"name\":\"classifier\",\"versions\":[\"1\"],\"platform\":\"tensorrt_plan\",\"inputs\":[{\"name\":\"input\",\"datatype\":\"FP32\",\"shape\":[-1,3,224,224]}],\"outputs\":[{\"name\":\"logits\",\"datatype\":\"FP32\",\"shape\":[-1,500]}]}",
+        "source": "Forma típica con Triton 24.08 y tritonclient 2.72: los textos salen del código del core de Triton (infer_request.cc, igual en 24.08 y en la rama actual) y del cliente; la metadata sigue el protocolo KServe v2",
+        "notes": [
+          "Léelo por partes: <code>[400]</code> es el código HTTP (lo agrega tritonclient); <code>[request id: demo-1]</code>, el id que mandaste; después, el motivo. Un 400 es tu request, no el servidor: reintentar no sirve.",
+          "<code>Expected [-1,3,224,224]</code>: con <code>max_batch_size</code> &gt; 0, Triton antepone -1 (el batch) a los dims del config. <code>got [3,224,224]</code>: faltó el eje de batch. Arreglo: <code>x[np.newaxis]</code>, como el gateway de C01.",
+          "El NOTE sugiere <code>max_batch_size: 0</code>. No en C01: apagaría el dynamic batching. Se arregla el cliente.",
+          "Si el error sale antes de llegar a Triton (<code>got unexpected numpy array shape …</code> o <code>got unexpected datatype FP64 from numpy array, expected FP32</code>), lo dijo tritonclient al armar el request: el array no coincide con lo que declaraste en <code>InferInput</code>.",
+          "Los 503 también vienen de Triton (<code>Request timeout expired</code>, <code>Exceeds maximum queue size</code>, <code>… is not at ready state</code>): son de capacidad o de estado, no de contrato. El gateway de C01 convierte cualquier error de Triton en 503 con <code>Retry-After</code> (el header que dice en cuántos segundos reintentar)."
+        ]
+      },
+      "figure": {
+        "kind": "table",
+        "caption": "Quiz: el mensaje tal como lo ves; responde quién lo dijo, qué significa, qué corres primero y en qué sección está.",
+        "data": {}
+      },
+      "memo": "Cómo recordarla: <b>el prefijo dice quién habla</b>. <code>failed to load</code> y <code>error: creating server</code> son Triton cargando; <code>[request id: …]</code> es Triton rechazando un request; <code>The engine plan file</code> y <code>unable to create TensorRT engine</code>, TensorRT; <code>[ONNXRuntimeError]</code>, ONNX Runtime; el resto, una excepción de Python con su librería en el nombre.",
+      "trap": "Trampa: leer solo la última línea. <code>error: creating server: Internal - failed to load all models</code> no dice nada: el porqué está arriba, en <code>failed to load</code> y en la línea de TensorRT. Y los textos cambian entre versiones: TensorRT cambia la puntuación de sus mensajes y el backend de Python de Triton quitó <code>for key</code> de su mensaje de memoria compartida en la 25.07. Busca el núcleo estable del mensaje, no la línea exacta.",
+      "lab": {
+        "goal": "Reconocer los 26 mensajes en 5 minutos y provocar cinco en tu Mac, sin GPU: un checkpoint de otra arquitectura, una foto en HWC, un tensor sin eje de batch, bytes que no son imagen y una imagen enorme.",
+        "steps": [
+          {
+            "cmd": "ronda() { printf '%s\\n' 'Error(s) in loading state_dict for ResNet: size mismatch for fc.weight' 'Weights only load failed' \"Exporting the operator 'aten::…' to ONNX opset version 17 is not supported\" 'Failed to export the model with torch.export. This is step 1/3' 'Failed to convert the model to the target version 17 using the ONNX C API' '[ONNXRuntimeError] : 2 : INVALID_ARGUMENT : Got invalid dimensions for input: input' '[parity] NO PASA: no promuevas este artefacto' \"FAILED | Output: 'logits' | Difference exceeds tolerance (rel=1e-05, abs=1e-05)\" 'The engine plan file is not compatible with this version of TensorRT' 'The engine plan file is generated on an incompatible device' 'Plugin not found, are the plugin name, version, and namespace correct?' \"tensor 'input': the model expects 4 dimensions … but the model configuration specifies 5 dimensions\" \"unable to find backend library for backend '…'\" 'instance group classifier_0 of model classifier has kind KIND_GPU but no GPUs are available' 'error: creating server: Internal - failed to load all models' 'Exceeds maximum queue size' 'Request timeout expired' \"unexpected shape for input 'input' for model 'classifier'. Expected [-1,3,224,224], got [3,224,224]\" \"inference input 'input' data-type is 'FP64', but model 'classifier' expects 'FP32'\" \"Request for unknown model: 'classifier' version 1 is not at ready state\" 'Failed to obtain stable measurement within 10 measurement windows for concurrency 1' 'Perf Analyzer was not able to keep up with the desired request rate' 'Image size (… pixels) exceeds limit of … pixels, could be decompression bomb DOS attack.' \"Failed to increase the shared memory pool size … use '--shm-size'\" 'CUDA out of memory. Tried to allocate …' 'pinned memory pool will not be available: CUDA driver version is insufficient for CUDA runtime version' | sort -R | head -5; }; ronda",
+            "expect": "Cinco mensajes al azar. Para cada uno, en menos de 30 s y en voz alta: quién lo dijo (PyTorch, el exportador, ONNX Runtime, el gate de paridad de C01, Polygraphy, TensorRT, Triton, el cliente, perf_analyzer, Pillow o CUDA), la causa probable y el primer comando. Después compáralo con la lista."
+          },
+          {
+            "cmd": "ronda",
+            "expect": "Otra ronda de cinco. Repite hasta completar 5 minutos; la meta es 5 de 5 sin mirar."
+          },
+          {
+            "cmd": "cd apps/ml-system-design/reference/c01 && . .venv/bin/activate && python - <<'EOF'\nimport io, torch, torchvision\nfrom PIL import Image\nm = torchvision.models.resnet50(weights=None, num_classes=500).eval()\nbuf = io.BytesIO(); Image.new(\"RGB\", (640, 480)).save(buf, \"PNG\")\ndef bomba():\n    Image.MAX_IMAGE_PIXELS = 100_000\n    Image.open(io.BytesIO(buf.getvalue()))\nfor nombre, f in [\n    (\"checkpoint de 1000 clases\", lambda: m.load_state_dict(torchvision.models.resnet50(weights=None).state_dict())),\n    (\"foto en HWC\", lambda: m(torch.zeros(1, 224, 224, 3))),\n    (\"sin eje de batch\", lambda: m(torch.zeros(3, 224, 224))),\n    (\"bytes que no son imagen\", lambda: Image.open(io.BytesIO(b\"hola\"))),\n    (\"imagen enorme\", bomba),\n]:\n    try:\n        with torch.inference_mode():\n            f()\n    except Exception as e:\n        print(f\"{nombre} -> {type(e).__name__}: {' '.join(str(e).split())[:230]}\")\nEOF",
+            "expect": "Cinco líneas: RuntimeError: Error(s) in loading state_dict for ResNet: size mismatch for fc.weight: copying a param with shape torch.Size([1000, 2048]) from checkpoint, the shape in current model is torch.Size([500, 2048]) …; RuntimeError: Given groups=1, weight of size [64, 3, 7, 7], expected input[1, 224, 224, 3] to have 3 channels, but got 224 channels instead; ValueError: expected 4D input (got 3D input); UnidentifiedImageError: cannot identify image file <_io.BytesIO object at 0x…>; DecompressionBombError: Image size (307200 pixels) exceeds limit of 200000 pixels, could be decompression bomb DOS attack."
+          }
+        ],
+        "fix": "Los que fallaste: abre la sección de su tema (el enlace de la lista) y haz su laboratorio. Repite la ronda otro día: la meta es 5 de 5 en menos de 2 minutos.",
+        "needs": "Una terminal de macOS para la ronda; para el paso 3, desde la raíz del repo, el venv de C01 del lab de pre y postprocesamiento (torch, torchvision, Pillow).",
+        "verified": "executed"
+      },
+      "links": [
+        "#c01.fallas",
+        "#ref-comandos.depurar",
+        "#m08.onnx",
+        "#m08.tensorrt",
+        "#m07.triton",
+        "#m07.protocolos"
+      ]
+    }
+  ],
+  "diagnosticador": [
+    {
+      "id": "no-carga",
+      "symptom": "Triton no carga el modelo: el pod reinicia en CrashLoopBackOff, o el modelo queda UNAVAILABLE.",
+      "first": "kubectl logs POD -n classifier --previous | grep -E \"failed to load|UNAVAILABLE|error: creating server\"",
+      "causes": [
+        {
+          "cause": "El engine no es de esta GPU o de esta versión de TensorRT (otra release de NGC, otro tipo de GPU): unable to create TensorRT engine, con la línea de TensorRT not compatible with this version of TensorRT o generated on an incompatible device.",
+          "check": "trtexec --getPlanVersionOnly --loadEngine=model.plan · nvidia-smi --query-gpu=name,driver_version --format=csv,noheader · el tag de tritonserver en triton/Dockerfile contra NGC_RELEASE en model/build_engine.sh",
+          "fix": "Reconstruye el engine en el mismo tipo de GPU y con la misma release de NGC que la imagen de Triton (C01: T4 y 24.08), y repite paridad y perf_analyzer."
+        },
+        {
+          "cause": "config.pbtxt no coincide con el engine, y C01 no deja que Triton lo complete solo (--disable-auto-complete-config): el batch metido en dims (the model expects 4 dimensions … but the model configuration specifies 5) u otro data_type (unexpected datatype TYPE_FP16 for inference input 'input', expecting TYPE_FP32).",
+          "check": "grep -n -E \"dims|data_type|max_batch_size\" triton/model_repository/classifier/config.pbtxt",
+          "fix": "dims sin el eje de batch ([ 3, 224, 224 ]), los mismos nombres y tipos que el engine, y max_batch_size no mayor que el batch de --maxShapes (32 y 32 en C01)."
+        },
+        {
+          "cause": "Triton no ve la GPU: instance group classifier_0 of model classifier has kind KIND_GPU but no GPUs are available (contenedor sin --gpus, pod sin nvidia.com/gpu, nodo sin driver).",
+          "check": "kubectl get pod POD -n classifier -o jsonpath='{.spec.containers[0].resources.limits}'",
+          "fix": "nvidia.com/gpu: 1 en limits, nodeSelector workload=gpu-t4 y la toleration del taint (el permiso para entrar a los nodos GPU, marcados para alejar a otros pods), como en k8s/triton.yaml; en local, docker run --gpus all o la reserva de GPU de Compose."
+        },
+        {
+          "cause": "Falta un archivo o el backend: no hay 1/model.plan en la imagen (unable to find '…' for model instance), platform con un typo (unexpected platform type) o un backend que la imagen no trae (unable to find backend library for backend …).",
+          "check": "docker run --rm --entrypoint ls IMAGEN -R /models · docker run --rm --entrypoint ls IMAGEN /opt/tritonserver/backends",
+          "fix": "La estructura es /models/classifier/config.pbtxt y /models/classifier/1/model.plan; C01 hace fallar el build si falta el plan (RUN test -f …). platform: \"tensorrt_plan\", sin typos."
+        }
+      ]
+    },
+    {
+      "id": "no-listo",
+      "symptom": "El modelo no está listo: /v2/health/ready o el ready del modelo no dan 200 (no conecta, 400 o 503), y el gateway responde 503 (Triton no disponible, o el modelo no está listo en Triton).",
+      "first": "curl -sS -i localhost:8000/v2/health/ready",
+      "causes": [
+        {
+          "cause": "Todavía está cargando. Con --model-control-mode=none (C01), Triton carga el engine y hace el warmup (3 ejecuciones a batch 32) antes de abrir el puerto 8000: curl no conecta y la startupProbe dice connection refused. En un nodo GPU nuevo, el pod tarda minutos (nodo, imagen de varios GB, engine).",
+          "check": "kubectl logs POD -n classifier | grep -E \"loading:|successfully loaded|Started HTTPService\" · kubectl describe pod POD -n classifier (eventos de la startupProbe)",
+          "fix": "Esperar es lo correcto: la startupProbe de C01 da hasta 5 min (60 × 5 s). Para picos, mínimo caliente de 2 réplicas e imágenes pre-descargadas."
+        },
+        {
+          "cause": "No cargó. Con --exit-on-error=true (C01), Triton sale y el pod entra en CrashLoopBackOff (ver «Triton no carga el modelo»); con --exit-on-error=false sigue arriba, el modelo queda UNAVAILABLE y, por --strict-readiness=true, /v2/health/ready da 400.",
+          "check": "curl -s -X POST localhost:8000/v2/repository/index (state y reason de cada modelo)",
+          "fix": "Arregla el modelo que falla; no apagues strict readiness para que pase la probe."
+        },
+        {
+          "cause": "El cliente pide otro nombre o una versión que no está lista: Request for unknown model: '…' is not found o … has no available versions. Triton 24.08 responde 404 a los dos (hasta la 23.12, 400).",
+          "check": "kubectl get deploy gateway -n classifier -o jsonpath='{.spec.template.spec.containers[0].env}' (MODEL_NAME) contra POST /v2/repository/index",
+          "fix": "MODEL_NAME = nombre de la carpeta = name en config.pbtxt (classifier). Sin versión fija en el cliente, Triton usa la más reciente cargada."
+        },
+        {
+          "cause": "El servidor se está apagando (rollout o scale-down): /v2/health/ready da 503 (Server exiting) y los requests nuevos reciben Server is stopping, scheduler for model has stopped accepting new inference requests.",
+          "check": "kubectl get pods -n classifier -l app.kubernetes.io/name=triton -w (pods en Terminating)",
+          "fix": "El preStop de C01 (espera 10 s antes de la señal de apagado, SIGTERM) deja que el Service saque el pod primero, y --exit-timeout-secs=30 termina lo que estaba en vuelo; revisa esos valores contra terminationGracePeriodSeconds (60 s)."
+        }
+      ]
+    },
+    {
+      "id": "shape-dtype",
+      "symptom": "Las inferencias fallan con 400: unexpected shape, data-type o unexpected inference input.",
+      "first": "curl -s localhost:8000/v2/models/classifier",
+      "causes": [
+        {
+          "cause": "Falta el eje de batch: con max_batch_size > 0, la shape es [-1] + dims, y el cliente mandó [3, 224, 224].",
+          "check": "print(batch.shape) en el cliente, contra \"shape\":[-1,3,224,224] de la metadata",
+          "fix": "batch = x[np.newaxis] → [1, 3, 224, 224], como _decode_and_hash en el gateway de C01."
+        },
+        {
+          "cause": "Layout HWC en vez de CHW ([1, 224, 224, 3]): una imagen de Pillow u OpenCV sin transpose.",
+          "check": "print(batch.shape, batch.flags['C_CONTIGUOUS'])",
+          "fix": "x.transpose(2, 0, 1) y np.ascontiguousarray, como to_chw_normalized en preprocess.py."
+        },
+        {
+          "cause": "FP64 en vez de FP32: NumPy crea float64 por defecto. Si declaraste FP32, tritonclient lo frena antes (got unexpected datatype FP64 from numpy array, expected FP32); si declaraste FP64, lo rechaza Triton.",
+          "check": "print(batch.dtype)",
+          "fix": "batch.astype(np.float32) y \"FP32\" en InferInput, igual que config.pbtxt."
+        },
+        {
+          "cause": "Un nombre de tensor equivocado (unexpected inference input 'INPUT__0' for model 'classifier'): nombres de otro ejemplo, o los que el export pone por defecto.",
+          "check": "curl -s localhost:8000/v2/models/classifier (inputs[].name y outputs[].name)",
+          "fix": "Los nombres los fija el export (input_names, output_names) y los repiten config.pbtxt y el cliente: input y logits en C01."
+        }
+      ]
+    },
+    {
+      "id": "paridad",
+      "symptom": "Las predicciones del servicio no coinciden con PyTorch, o la accuracy online cae sin ningún error.",
+      "first": "python model/parity_check.py --checkpoint resnet50_500.pt --onnx model/classifier.onnx --images /ruta/muestra_eval --n 2000",
+      "causes": [
+        {
+          "cause": "Un bug de export: un if que el tracer congeló, el eje de batch fijo, un opset mal convertido o el modelo exportado en modo train.",
+          "check": "parity_check.py con --backend ort (CPU): si ya falla aquí, el problema es el ONNX",
+          "fix": "model.eval() antes de exportar, batch dinámico verificado con 1 y 32, opset leído del archivo; o el exportador dynamo, que falla en vez de congelar."
+        },
+        {
+          "cause": "El engine diverge (ORT pasa, Triton no): una capa en FP16 que desborda o pierde precisión, o un plugin con un bug.",
+          "check": "polygraphy run model/classifier.onnx --trt --fp16 --onnxrt --trt-outputs mark all --onnx-outputs mark all (con TensorRT 10; Polygraphy 0.50 o más nueva también acepta '*')",
+          "fix": "Esa capa en FP32 (TensorRT 10: --precisionConstraints=obey --layerPrecisions=CAPA:fp32; TensorRT 11: AutoCast con --nodes_to_exclude) y repite la paridad."
+        },
+        {
+          "cause": "Skew de preproceso: el servicio no prepara la foto como el entrenamiento (BGR, otro resize, normalizar dos veces, sin EXIF). La paridad del modelo no lo ve, porque PyTorch y el engine reciben el mismo tensor.",
+          "check": "Paridad end-to-end: fotos de referencia por POST /v1/classify contra las predicciones del pipeline de evaluación; y preprocess.py contra el transform de torchvision (el lab de pre y postprocesamiento)",
+          "fix": "Un solo preprocess.py que importan entrenamiento, evaluación y gateway, con tensores de referencia en CI."
+        },
+        {
+          "cause": "labels.json en otro orden que las clases del entrenamiento: todo responde 200, el score se ve normal y la categoría es la de otra clase.",
+          "check": "Cantidad y orden de labels.json contra el class_to_idx del dataset de entrenamiento (500 labels = 500 logits)",
+          "fix": "Publica los labels junto con el modelo y verifica versión y cantidad en la readiness, como propone C01 para producción."
+        }
+      ]
+    },
+    {
+      "id": "p99-gpu-baja",
+      "symptom": "El p99 está alto, pero la GPU trabaja poco y el cómputo de Triton está estable.",
+      "first": "histogram_quantile(0.99, sum by (le) (rate(classifier_preprocess_seconds_bucket[5m])))",
+      "causes": [
+        {
+          "cause": "Preproceso en CPU: fotos web grandes sin draft mode, o el decode dentro de un async def que bloquea el event loop (el p99 crece con la concurrencia sin que la CPU esté llena).",
+          "check": "preprocess_ms contra inference_ms en el log JSON del gateway; classifier_preprocess_seconds contra classifier_inference_seconds",
+          "fix": "run_in_threadpool con un semáforo (2 decodes por proceso en C01), draft mode conservador y downscale en el cliente."
+        },
+        {
+          "cause": "Espera en la cola de Triton aunque la GPU esté libre: una ventana de batching (max_queue_delay_microseconds) más grande que el presupuesto.",
+          "check": "sum(rate(nv_inference_queue_duration_us{model=\"classifier\"}[5m])) / sum(rate(nv_inference_request_success{model=\"classifier\"}[5m]))",
+          "fix": "max_queue_delay_microseconds dentro del presupuesto (2 ms en C01), subida de a poco con perf_analyzer."
+        },
+        {
+          "cause": "Red y serialización: tensores en JSON (≈ 5× más bytes y ≈ 50 ms de CPU por request en Python) o clientes que no reusan conexiones.",
+          "check": "perf_analyzer -m classifier -u localhost:8000 --input-tensor-format=json, y lo mismo con --input-tensor-format=binary",
+          "fix": "binary_data=True en InferInput y en InferRequestedOutput; un cliente por proceso con keep-alive (C01: conn_limit=64)."
+        },
+        {
+          "cause": "CPU throttling (Kubernetes frena el contenedor que gastó su cuota): un limits.cpu apretado corta el pod en ventanas de 100 ms y mete picos de p99 aunque el promedio sea bajo.",
+          "check": "rate(container_cpu_cfs_throttled_periods_total{namespace=\"classifier\"}[5m]) / rate(container_cpu_cfs_periods_total{namespace=\"classifier\"}[5m])",
+          "fix": "Sin límite de CPU en el gateway y en Triton (como C01), o uno holgado; y los hilos de ORT o PyTorch fijados a los vCPU del pod."
+        }
+      ]
+    },
+    {
+      "id": "gpu-100",
+      "symptom": "nvidia-smi muestra la GPU cerca del 100 %, pero el throughput es bajo.",
+      "first": "nvidia-smi -q -d PERFORMANCE,CLOCK",
+      "causes": [
+        {
+          "cause": "La utilización de nvidia-smi es el porcentaje de tiempo con al menos un kernel corriendo, no la capacidad usada: con batches de 1 la GPU está «ocupada» con poco trabajo por kernel.",
+          "check": "sum(rate(nv_inference_count{model=\"classifier\"}[5m])) / sum(rate(nv_inference_exec_count{model=\"classifier\"}[5m])) (batch promedio)",
+          "fix": "Dynamic batching activo y ajustado con perf_analyzer; escala por tiempo en cola, no por utilización de GPU (C01)."
+        },
+        {
+          "cause": "La T4 baja clocks: es una tarjeta pasiva de 70 W y, bajo carga sostenida, llega a su tope de potencia o de temperatura.",
+          "check": "nvidia-smi -q -d PERFORMANCE,CLOCK (Clocks Event Reasons: SW Power Cap, HW Slowdown, SW Thermal Slowdown; antes del driver 530 se llamaba Clocks Throttle Reasons)",
+          "fix": "Planea al 50 % del máximo medido (C01), mide con carga sostenida y revisa la refrigeración del nodo."
+        },
+        {
+          "cause": "El engine no es el que crees: construido sin FP16 (TensorRT 10 sin --fp16) o con un perfil afinado para batch 16 cuando llegan batches de 1–3.",
+          "check": "trtexec --loadEngine=model.plan --shapes=input:2x3x224x224 --noDataTransfers, contra el engine anterior; y las huellas del build en el registry",
+          "fix": "Reconstruye con la precisión y el perfil correctos; compara opt 16 contra opt 4 con perf_analyzer a 250–500 req/s (lo que pide build_engine.sh)."
+        },
+        {
+          "cause": "Otro proceso o modelo usa la misma GPU: un backfill (el job que reclasifica el catálogo), o un segundo modelo en el mismo Triton.",
+          "check": "nvidia-smi --query-compute-apps=pid,used_memory --format=csv · nv_inference_compute_infer_duration_us por modelo",
+          "fix": "El batch por su propio Triton o su propio nodo; varios modelos en una GPU solo con colas y métricas separadas por modelo."
+        }
+      ]
+    },
+    {
+      "id": "cuda-oom",
+      "symptom": "CUDA out of memory en PyTorch, o un error de memoria de GPU al cargar el engine en Triton.",
+      "first": "nvidia-smi --query-compute-apps=pid,used_memory --format=csv",
+      "causes": [
+        {
+          "cause": "Varias copias del modelo: uvicorn --workers N (un contexto CUDA y una copia de pesos por proceso), o un proceso viejo que dejó la GPU tomada.",
+          "check": "nvidia-smi --query-compute-apps=pid,used_memory --format=csv",
+          "fix": "Un proceso por contenedor y una sola copia del modelo; con Triton, instancias en vez de procesos."
+        },
+        {
+          "cause": "Inferencia sin torch.inference_mode (autograd guarda activaciones), o un batch o una resolución demasiado grandes.",
+          "check": "torch.cuda.max_memory_allocated() y torch.cuda.memory_reserved() alrededor de una inferencia",
+          "fix": "with torch.inference_mode(): dentro de la función que corre el modelo, y un batch máximo medido, no supuesto."
+        },
+        {
+          "cause": "Fragmentación del allocator de PyTorch (el que reparte la VRAM): mucha memoria reservada pero sin asignar (el propio mensaje lo dice).",
+          "check": "print(torch.cuda.memory_summary())",
+          "fix": "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True, la sugerencia del mensaje."
+        },
+        {
+          "cause": "En Triton, demasiadas instancias, versiones o modelos en la GPU: cada instancia reserva sus activaciones, y una version_policy con varias versiones las carga todas. TensorRT lo dice como Requested amount of GPU memory (… bytes) could not be allocated o Error Code 2: OutOfMemory, y Triton, como unable to create TensorRT engine (o context): …",
+          "check": "curl -s localhost:8002/metrics | grep nv_gpu_memory_used_bytes",
+          "fix": "Menos instancias o un batch máximo más chico (decídelo con model_analyzer), latest { num_versions: 1 } y VRAM medida antes de sumar modelos."
+        }
+      ]
+    },
+    {
+      "id": "ayer-funcionaba",
+      "symptom": "Un engine que funcionaba ayer hoy no carga, sin cambios en el modelo.",
+      "first": "kubectl logs POD -n classifier --previous | grep -E \"TensorRT|failed to load\"",
+      "causes": [
+        {
+          "cause": "Se actualizó la imagen de Triton a otra release de NGC (otro TensorRT): The engine plan file is not compatible with this version of TensorRT.",
+          "check": "trtexec --getPlanVersionOnly --loadEngine=model.plan, contra el TensorRT de la release de Triton (24.08 = TensorRT 10.3.0.26; 26.09 = TensorRT 11.3)",
+          "fix": "Fija el tag (o el digest) de la imagen y reconstruye el engine con la misma release. La excepción opcional: un engine --versionCompatible, algo más lento, que Triton carga con --backend-config=tensorrt,version-compatible=true."
+        },
+        {
+          "cause": "El pod cayó en otro tipo de GPU (un node group nuevo con L4, o sin nodeSelector): The engine plan file is generated on an incompatible device.",
+          "check": "kubectl get pod POD -n classifier -o wide y kubectl get node NODO -L node.kubernetes.io/instance-type",
+          "fix": "Un engine y una imagen por tipo de GPU, y un nodeSelector por node pool (workload=gpu-t4 en C01)."
+        },
+        {
+          "cause": "Cambió el driver del nodo (otra AMI) y es más viejo que el CUDA de la imagen: al arrancar, Triton avisa pinned memory pool will not be available: CUDA driver version is insufficient for CUDA runtime version.",
+          "check": "kubectl debug node/NODO -it --image=ubuntu --profile=sysadmin y, adentro, chroot /host nvidia-smi (Driver Version)",
+          "fix": "24.08 (CUDA 12.6) pide driver 560 o, en GPUs de data center como la T4, 470.57+, 525.85+, 535.86+ o 545.23+ de esas ramas; actualiza la AMI o vuelve a la anterior."
+        },
+        {
+          "cause": "La GPU falló: errores Xid del driver (por ejemplo, Xid 79: GPU has fallen off the bus).",
+          "check": "kubectl debug node/NODO -it --image=ubuntu --profile=sysadmin y, adentro, chroot /host dmesg | grep -i xid",
+          "fix": "Drena el nodo y deja que el autoscaler lo reemplace; con 2 réplicas en 2 zonas, la otra T4 sigue sirviendo."
+        }
+      ]
+    },
+    {
+      "id": "export-falla",
+      "symptom": "El export a ONNX falla, o termina pero verify() lo rechaza ([export] FALLÓ la verificación).",
+      "first": "python model/export_onnx.py --out model/classifier.onnx",
+      "causes": [
+        {
+          "cause": "Una operación sin equivalente en ese opset: Exporting the operator '…' to ONNX opset version 17 is not supported.",
+          "check": "El nombre del operador en el mensaje (aten::…) y si agrega Support for this operator was added in version N",
+          "fix": "Sube el opset si alcanza; si no, reescribe con operaciones estándar, deja esa parte fuera del grafo o prueba el exportador dynamo (--dynamo --opset 18)."
+        },
+        {
+          "cause": "Control de flujo que depende de los datos: dynamo falla en el paso 1/3 (Could not guard on data-dependent expression); TorchScript lo congela con un TracerWarning y sigue.",
+          "check": "torch.export.export(model, (x,)) directo, para ver el error completo sin el envoltorio del export",
+          "fix": "torch.cond, o sacar esa lógica del modelo (al gateway o a un paso aparte)."
+        },
+        {
+          "cause": "El opset del archivo no es el pedido (dynamo con opset 17 deja 18: Failed to convert the model to the target version 17), o el eje de batch quedó fijo.",
+          "check": "python -c \"import onnx; m = onnx.load('model/classifier.onnx'); print(m.opset_import, [d.dim_param or d.dim_value for d in m.graph.input[0].type.tensor_type.shape.dim])\"",
+          "fix": "TorchScript con opset 17 (lo que usa C01) o dynamo con --opset 18; dynamic_axes o dynamic_shapes en el eje 0."
+        },
+        {
+          "cause": "Falta una dependencia: el exportador dynamo (el default desde torch 2.9) necesita onnxscript, además de onnx.",
+          "check": "pip show onnx onnxscript onnxruntime",
+          "fix": "Las versiones fijadas de model/requirements.txt (onnx 1.23.0, onnxscript 0.7.2, onnxruntime 1.30.0)."
+        }
+      ]
+    },
+    {
+      "id": "primer-request",
+      "symptom": "El primer request (o los primeros) después de levantar un pod tarda mucho más que el resto.",
+      "first": "grep -n -A12 model_warmup triton/model_repository/classifier/config.pbtxt",
+      "causes": [
+        {
+          "cause": "Sin model_warmup: la primera ejecución paga reservas de memoria e inicialización, y la readiness pasa con el modelo frío.",
+          "check": "curl -s localhost:8000/v2/models/classifier/config | grep -o model_warmup",
+          "fix": "model_warmup con el batch máximo (C01: batch 32, 3 veces, zero_data): Triton no marca el modelo listo hasta terminarlo."
+        },
+        {
+          "cause": "Un engine que se compila al arrancar: ONNX Runtime con el provider de TensorRT sin caché, o torch.compile en el proceso (≈ 17 s la primera llamada en la medición del curso, en CPU).",
+          "check": "El tiempo entre el arranque y READY en los logs; con ORT, si trt_engine_cache_enable está en las opciones del provider",
+          "fix": "Construye el engine en CI y llévalo en la imagen; con torch.compile, warmup de todas las shapes y la caché de compilación en la imagen."
+        },
+        {
+          "cause": "El cold start del pod: nodo GPU nuevo (≈ 2–5 min), imagen de varios GB (≈ 2–5 min) y carga del engine. Un spike corto lo absorbe el margen, no el autoscaler.",
+          "check": "kubectl describe pod POD -n classifier (Events: Pulling, Pulled, Started) y kubectl get nodes",
+          "fix": "Mínimo caliente de 2, imágenes pre-descargadas, overprovisioning (pods de relleno que mantienen un nodo GPU de reserva) o escalado programado antes del pico."
+        },
+        {
+          "cause": "Sin Triton (el MVP con PyTorch en FastAPI): el primer forward carga los kernels de CUDA y reserva memoria, y con torch.backends.cudnn.benchmark=True prueba algoritmos para cada shape nueva. Si la readiness pasa antes, lo paga un usuario.",
+          "check": "El tiempo del primer y del segundo model(x) al arrancar (time.perf_counter con torch.cuda.synchronize())",
+          "fix": "Warmup en el lifespan de FastAPI: unas inferencias con las shapes reales antes de responder ready."
+        }
+      ]
+    },
+    {
+      "id": "sin-batching",
+      "symptom": "El batching no aparece: casi todas las ejecuciones en Triton son de batch 1.",
+      "first": "curl -s localhost:8000/v2/models/classifier/stats",
+      "causes": [
+        {
+          "cause": "No hay bloque dynamic_batching. Con --disable-auto-complete-config (C01), Triton no lo agrega solo: ejecuta cada request tal como llega.",
+          "check": "curl -s localhost:8000/v2/models/classifier/config | grep -o dynamic_batching",
+          "fix": "dynamic_batching { max_queue_delay_microseconds: … } con max_batch_size > 0."
+        },
+        {
+          "cause": "La carga no da para juntar: a 250 req/s llegan ≈ 0.5 requests en una ventana de 2 ms. Un batch de ≈ 1–3 es lo esperado en C01, no un error.",
+          "check": "batch_stats de /v2/models/classifier/stats (ejecuciones por tamaño de batch), o rate(nv_inference_count) / rate(nv_inference_exec_count)",
+          "fix": "Nada que arreglar: el batching rinde en picos, en failover y en el backfill. Subir la ventana solo agrega latencia."
+        },
+        {
+          "cause": "max_queue_delay_microseconds en 0 (el default): el batcher solo junta lo que ya está esperando en la cola.",
+          "check": "curl -s localhost:8000/v2/models/classifier/config",
+          "fix": "Sube la ventana de a poco con perf_analyzer, hasta el borde del presupuesto de latencia (la receta de la guía de Triton)."
+        },
+        {
+          "cause": "max_batch_size: 0 (sin batching), o instancias de más que se reparten los pocos requests.",
+          "check": "curl -s localhost:8000/v2/models/classifier/config (max_batch_size e instance_group)",
+          "fix": "max_batch_size > 0, y el count de instancias decidido con model_analyzer (la herramienta de Triton que prueba configuraciones)."
+        }
+      ]
+    },
+    {
+      "id": "grpc-http",
+      "symptom": "gRPC (o HTTP) rinde peor de lo esperado entre el gateway y Triton.",
+      "first": "perf_analyzer -m classifier -i grpc -u localhost:8001 --concurrency-range 8",
+      "causes": [
+        {
+          "cause": "HTTP en JSON: sin binary_data=True, el tensor de 602 KB viaja como ≈ 3.1 MB de texto, y serializarlo cuesta ≈ 50 ms de CPU en Python.",
+          "check": "perf_analyzer -m classifier -i http -u localhost:8000 --concurrency-range 8 --input-tensor-format=json, contra --input-tensor-format=binary (y contra el resultado de gRPC)",
+          "fix": "binary_data=True en InferInput y en InferRequestedOutput (C01), o gRPC."
+        },
+        {
+          "cause": "gRPC detrás de un Service de Kubernetes: una sola conexión HTTP/2 por cliente, y el Service reparte conexiones, no requests (balanceo L4). Todo el tráfico de un gateway va a un pod de Triton, y el pod que agrega KEDA (el autoscaler de Triton en C01) no recibe nada.",
+          "check": "sum by (pod) (rate(nv_inference_request_success{model=\"classifier\"}[5m]))",
+          "fix": "HTTP con un pool de conexiones (C01), o gRPC con balanceo del lado del cliente (un headless service le da la IP de cada pod) o por request (un service mesh, con un proxy junto a cada pod)."
+        },
+        {
+          "cause": "Un cliente nuevo por request: handshake TCP (y TLS) en cada llamada, sin keep-alive.",
+          "check": "Dónde se crea el InferenceServerClient",
+          "fix": "Un cliente por proceso, reutilizado: C01 lo crea en el lifespan."
+        },
+        {
+          "cause": "Compresión activada en una red rápida: gzip o deflate cuestan CPU en los dos lados.",
+          "check": "perf_analyzer -m classifier -i grpc -u localhost:8001 --grpc-compression-algorithm=gzip, contra =none",
+          "fix": "Sin compresión dentro de la VPC; para mandar menos bytes, entrada UINT8 (÷ 4)."
+        }
+      ]
+    },
+    {
+      "id": "cpu-preproceso",
+      "symptom": "El gateway se satura de CPU antes que la GPU: 503 gateway saturado (CPU), o el HPA del gateway en su máximo.",
+      "first": "kubectl top pod -n classifier -l app.kubernetes.io/name=gateway",
+      "causes": [
+        {
+          "cause": "Fotos web grandes (12 MP) sin draft mode: ≈ 40–80 ms de CPU cada una, contra ≈ 6 ms del promedio.",
+          "check": "classifier_image_bytes y classifier_preprocess_seconds en Prometheus",
+          "fix": "Draft mode conservador (ya está en preprocess.py) y downscale a ≤ 1024 px en el cliente."
+        },
+        {
+          "cause": "Pocos slots de decode o pocas réplicas: PREPROCESS_CONCURRENCY=2 por proceso, y si no hay slot en 50 ms, 503.",
+          "check": "kubectl get hpa -n classifier (¿llegó a 12 réplicas?)",
+          "fix": "Más réplicas (el HPA por CPU al 60 %), no más hilos por pod: el semáforo también acota la RAM (≈ 320 MB por decode de 40 MP)."
+        },
+        {
+          "cause": "Trabajo de CPU en el event loop: un async def que decodifica bloquea a todos los requests del proceso.",
+          "check": "py-spy dump --pid PID (en local; en el cluster necesita la capability SYS_PTRACE)",
+          "fix": "run_in_threadpool para la CPU; await solo para I/O."
+        },
+        {
+          "cause": "A 10× el tráfico, el decode pasa a ser el cuello del sistema.",
+          "check": "CPU por imagen × req/s: 500 × 6 ms = 3 cores hoy",
+          "fix": "Medir DALI (decode en GPU) contra más gateway, sabiendo que DALI es otro decoder: repite la paridad end-to-end."
+        }
+      ]
+    },
+    {
+      "id": "fp16-int8",
+      "symptom": "La accuracy cae solo con el engine FP16 o INT8; el ONNX en FP32 pasa la paridad.",
+      "first": "python model/parity_check.py --backend triton --triton-url localhost:8000 --checkpoint resnet50_500.pt --images /ruta/muestra_eval --n 2000",
+      "causes": [
+        {
+          "cause": "Una capa desborda o pierde precisión en FP16 (el máximo de FP16 es 65,504). Pasa más en transformers que en una CNN como ResNet-50, donde la diferencia media de logits ronda 1e-2 (1.3e-2 en el lab de paridad).",
+          "check": "polygraphy run model/classifier.onnx --trt --fp16 --onnxrt --trt-outputs mark all --onnx-outputs mark all (TensorRT 10)",
+          "fix": "Esa capa en FP32: --precisionConstraints=obey --layerPrecisions=CAPA:fp32 (TensorRT 10) o AutoCast con --nodes_to_exclude (TensorRT 11)."
+        },
+        {
+          "cause": "INT8 sin calibración real: trtexec --int8 sin datos usa escalas de relleno (sirve para medir velocidad, no calidad), o calibraste con ruido o con las augmentations del entrenamiento (sus transformaciones al azar).",
+          "check": "De dónde salieron las escalas: el cache de calibración, o los nodos Q/DQ del ONNX y los datos que los generaron",
+          "fix": "Calibrar con ≈ 500–1,000 fotos de tráfico real, pasadas por el mismo preprocess.py y estratificadas por slice."
+        },
+        {
+          "cause": "INT8 pierde más en el long tail (las clases con pocas fotos): el promedio global cae 0.3 puntos y una categoría chica, 5 puntos.",
+          "check": "Recall por clase, head contra long tail, y los slices del golden set; no solo el top-1 global",
+          "fix": "Escalas por canal, calibración por percentil, capas sensibles en FP16 o QAT (reentrenar simulando INT8); y si no compra nada (C01 hoy), no lances INT8."
+        },
+        {
+          "cause": "Tolerancias de FP32 aplicadas a FP16: Polygraphy falla con su default (1e-5) aunque el engine esté bien.",
+          "check": "La línea FAILED | Output: 'logits' | Difference exceeds tolerance (rel=1e-05, abs=1e-05)",
+          "fix": "Decide con métricas de producto (top-1 ≥ 99.5 %, top-5 ≥ 99 %, |Δlogit| ≤ 0.5 en C01) y tolerancias que FP16 justifique, no con 1e-5."
+        }
+      ]
+    }
+  ],
+  "errores": [
+    {
+      "msg": "Error(s) in loading state_dict for ResNet: size mismatch for fc.weight: copying a param with shape torch.Size([1000, 2048]) from checkpoint, the shape in current model is torch.Size([500, 2048]).",
+      "meaning": "El checkpoint no es de esta arquitectura: aquí, una capa final de 1000 clases (ImageNet) contra el modelo de C01, de 500. load_state_dict es estricto por defecto y falla al cargar, no en producción con pesos al azar. Si dice Missing key(s) o Unexpected key(s), los nombres no coinciden (por ejemplo, el prefijo module. de DataParallel).",
+      "first": "python -c \"import torch; sd = torch.load('resnet50_500.pt', map_location='cpu', weights_only=True); print(sd['fc.weight'].shape)\"",
+      "topic": "pytorch",
+      "section": "pytorch"
+    },
+    {
+      "msg": "Weights only load failed. … In PyTorch 2.6, we changed the default value of the `weights_only` argument in `torch.load` from `False` to `True`.",
+      "meaning": "Desde torch 2.6, torch.load solo acepta tensores y tipos permitidos, y el archivo trae otro objeto de Python (un modelo entero, un optimizador, una clase propia). Cargarlo con weights_only=False ejecuta pickle, es decir, código: solo si confías en el origen. Lo sano es guardar y cargar el state_dict, como C01.",
+      "first": "python -c \"import torch; print(torch.serialization.get_unsafe_globals_in_checkpoint('resnet50_500.pt'))\"",
+      "topic": "pytorch",
+      "section": "pytorch"
+    },
+    {
+      "msg": "Exporting the operator 'aten::…' to ONNX opset version 17 is not supported",
+      "meaning": "El exportador TorchScript (dynamo=False, el que usa C01) no sabe convertir esa operación de PyTorch a ONNX en ese opset (la versión del conjunto de operadores). Si el mensaje agrega Support for this operator was added in version N, alcanza con subir el opset; si no, reescribe esa parte con operaciones estándar, déjala fuera del grafo (como el NMS de un detector) o registra un custom op.",
+      "first": "python model/export_onnx.py --out model/classifier.onnx --dynamo --opset 18",
+      "topic": "export",
+      "section": "onnx"
+    },
+    {
+      "msg": "Failed to export the model with torch.export. This is step 1/3 of exporting the model to ONNX.",
+      "meaning": "El exportador dynamo (el default desde torch 2.9) no pudo capturar el modelo con torch.export. El motivo real está abajo, en el resumen del traceback; el típico es Could not guard on data-dependent expression: un if que depende de los valores del tensor. TorchScript lo habría congelado sin avisar; dynamo falla explícito. Exprésalo con torch.cond o sácalo del modelo.",
+      "first": "cd model && python -c \"import torch; from export_onnx import build_model; torch.export.export(build_model(None), (torch.randn(2, 3, 224, 224),))\"",
+      "topic": "export",
+      "section": "onnx"
+    },
+    {
+      "msg": "Failed to convert the model to the target version 17 using the ONNX C API. The model was not modified",
+      "meaning": "La trampa del exportador dynamo que documenta C01 (onnxscript 0.7.2): pediste opset 17, intentó convertir hacia abajo, la conversión falló (en ResNet-50, por ReduceMean) y solo lo avisó: el archivo quedó en opset 18. Lo atrapa el verify() de export_onnx.py, que lee el opset real del archivo.",
+      "first": "python -c \"import onnx; print(onnx.load('model/classifier.onnx').opset_import)\"",
+      "topic": "export",
+      "section": "onnx"
+    },
+    {
+      "msg": "[ONNXRuntimeError] : 2 : INVALID_ARGUMENT : Got invalid dimensions for input: input for the following indices index: 0 Got: 7 Expected: 2 Please fix either the inputs/outputs or the model.",
+      "meaning": "ONNX Runtime esperaba un tamaño fijo en ese eje: el eje de batch quedó constante (2, el del ejemplo del export) porque no se declaró dinámico. Funciona con batch 2 y falla con cualquier otro. Se arregla en el export: dynamic_axes (TorchScript) o dynamic_shapes (dynamo).",
+      "first": "python -c \"import onnx; m = onnx.load('model/classifier.onnx'); print([d.dim_param or d.dim_value for d in m.graph.input[0].type.tensor_type.shape.dim])\"",
+      "topic": "export",
+      "section": "onnx"
+    },
+    {
+      "msg": "[parity] NO PASA: no promuevas este artefacto",
+      "meaning": "El gate de C01 (parity_check.py) encontró que el artefacto no predice como PyTorch FP32: acuerdo top-1 bajo 99.5 %, solapamiento top-5 bajo 99 % o algún |Δlogit| sobre 0.5. Exit 1: el pipeline se detiene. Un FP16 bien hecho pasa con holgura (diferencia media ≈ 1e-2; 1.3e-2 en el lab de paridad); 97 % de acuerdo es un bug, no redondeo.",
+      "first": "python model/parity_check.py --checkpoint resnet50_500.pt --onnx model/classifier.onnx --images /ruta/muestra_eval --n 2000",
+      "topic": "paridad",
+      "section": "paridad"
+    },
+    {
+      "msg": "FAILED | Output: 'logits' | Difference exceeds tolerance (rel=1e-05, abs=1e-05)",
+      "meaning": "Polygraphy (la herramienta de NVIDIA para comparar runtimes) comparó TensorRT contra ONNX Runtime con sus tolerancias por defecto, 1e-5, pensadas para FP32. Con --fp16 los logits se mueven ≈ 1e-2: falla aunque el engine esté bien. Sube --atol y --rtol a lo que FP16 justifica y decide con métricas de producto, como el acuerdo top-1 de parity_check.py.",
+      "first": "polygraphy run model/classifier.onnx --trt --fp16 --onnxrt --trt-outputs mark all --onnx-outputs mark all",
+      "topic": "paridad",
+      "section": "paridad"
+    },
+    {
+      "msg": "The engine plan file is not compatible with this version of TensorRT, expecting library version … got …",
+      "meaning": "El model.plan se construyó con otra versión de TensorRT que la que corre: típicamente, Triton se actualizó de release de NGC y el engine no. Un engine solo sirve en la versión con que se construyó, salvo que lo compiles en modo version-compatible (opcional, algo más lento, y Triton solo lo carga con --backend-config=tensorrt,version-compatible=true). En el log de Triton aparece junto a failed to load 'classifier' version 1: Internal: unable to create TensorRT engine. La puntuación cambia entre versiones, y algunas lo dicen como Serialization assertion … Version tag does not match.",
+      "first": "trtexec --getPlanVersionOnly --loadEngine=model.plan",
+      "topic": "engine",
+      "section": "tensorrt"
+    },
+    {
+      "msg": "The engine plan file is generated on an incompatible device, expecting compute … got compute …",
+      "meaning": "El engine se compiló para otra arquitectura de GPU (compute capability): por ejemplo, en una L4 (8.9) y se carga en la T4 de C01 (7.5), o al revés. TensorRT eligió sus kernels midiendo en esa GPU. Se reconstruye en el tipo de GPU de destino; el modo de compatibilidad ampere+ no cubre la T4, que es Turing.",
+      "first": "nvidia-smi --query-gpu=name,driver_version --format=csv,noheader",
+      "topic": "engine",
+      "section": "tensorrt"
+    },
+    {
+      "msg": "Plugin not found, are the plugin name, version, and namespace correct?",
+      "meaning": "El parser de ONNX de TensorRT no sabe importar ese operador, lo busca como plugin (una capa propia registrada en TensorRT) y no hay ninguno con ese nombre. Más arriba, el log nombra el operador: No importer registered for op: X (No checker registered for op: X en TensorRT 10.3) y Cannot find plugin: X, version: 1. Típico de operaciones propias o de detección (NMS, deformable conv). Opciones: reescribir con operadores estándar, registrar un plugin, o dejar esa parte fuera del engine (en el gateway o en otro paso del ensemble).",
+      "first": "trtexec --onnx=model/classifier.onnx --verbose",
+      "topic": "tensorrt",
+      "section": "tensorrt"
+    },
+    {
+      "msg": "model 'classifier', tensor 'input': the model expects 4 dimensions (shape [-1,3,224,224]) but the model configuration specifies 5 dimensions (an initial batch dimension because max_batch_size > 0 followed by the explicit tensor shape, making complete shape [-1,-1,3,224,224])",
+      "meaning": "Pusiste el batch en dims: con max_batch_size > 0, Triton antepone el -1 del batch, así que dims: [ -1, 3, 224, 224 ] se vuelve un tensor de 5 dimensiones que el engine no tiene. Va dims: [ 3, 224, 224 ], como en C01. El modelo no carga y, con --exit-on-error=true, Triton sale. Es el backend de TensorRT; el de ONNX Runtime avisa parecido.",
+      "first": "grep -n \"dims\" triton/model_repository/classifier/config.pbtxt",
+      "topic": "config",
+      "section": "repositorio"
+    },
+    {
+      "msg": "unable to find backend library for backend '…', try specifying runtime on the model configuration.",
+      "meaning": "El backend que pide config.pbtxt no existe en la imagen: un typo (onnxruntime mal escrito) o un backend que esa imagen no trae (el de TensorFlow dejó de venir en los contenedores de NGC desde la 25.03). Para TensorRT y ONNX alcanza con platform (tensorrt_plan, como C01, u onnxruntime_onnx); si escribes backend, tiene que ser el nombre de una carpeta de /opt/tritonserver/backends.",
+      "first": "docker run --rm --entrypoint ls nvcr.io/nvidia/tritonserver:24.08-py3 /opt/tritonserver/backends",
+      "topic": "config",
+      "section": "repositorio"
+    },
+    {
+      "msg": "instance group classifier_0 of model classifier has kind KIND_GPU but no GPUs are available",
+      "meaning": "El config pide KIND_GPU (como C01) y el proceso de Triton no ve ninguna GPU: el contenedor arrancó sin --gpus, el pod no pidió nvidia.com/gpu, o cayó en un nodo sin GPU o sin driver. Con KIND_GPU no hay plan B: el modelo no carga, y el backend de TensorRT solo corre en GPU. Es un problema del entorno, no del config: al arrancar, Triton suele avisar antes con pinned memory pool will not be available.",
+      "first": "kubectl get pod POD -n classifier -o jsonpath='{.spec.containers[0].resources.limits}'",
+      "topic": "cuda",
+      "section": "diagnostico"
+    },
+    {
+      "msg": "error: creating server: Internal - failed to load all models",
+      "meaning": "Triton no arrancó: con --exit-on-error=true (C01) alcanza con que un modelo no cargue para que el proceso salga con exit 1, y el pod queda en CrashLoopBackOff. Este mensaje no trae la causa: búscala arriba, en la tabla de modelos y en la línea failed to load '…' version ….",
+      "first": "kubectl logs POD -n classifier --previous | grep -E \"failed to load|UNAVAILABLE\"",
+      "topic": "otro",
+      "section": "diagnostico"
+    },
+    {
+      "msg": "Exceeds maximum queue size",
+      "meaning": "La cola del dynamic batcher está llena: default_queue_policy tiene un max_queue_size y ya hay esa cantidad de requests esperando. Triton rechaza el nuevo al instante, sin encolarlo, y llega como 503. C01 no pone tope de tamaño (0 = cola sin tope) y corta por tiempo, a los 100 ms. Si aparece seguido, la GPU no da abasto en tus picos: faltan réplicas, o el tope es más chico que un pico normal.",
+      "first": "curl -s localhost:8000/v2/models/classifier/config",
+      "topic": "batching",
+      "section": "batching"
+    },
+    {
+      "msg": "Request timeout expired",
+      "meaning": "La cola del dynamic batcher rechazó un request que esperó más de default_timeout_microseconds (100 ms en C01, con timeout_action: REJECT). Llega al cliente como 503 y cuenta en nv_inference_request_failure con reason=\"REJECTED\" (esa etiqueta existe desde Triton 24.07). Es a propósito: no gastar GPU en una respuesta que el gateway (150 ms) ya no va a esperar. Si sale seguido, la GPU está saturada: faltan réplicas.",
+      "first": "curl -s localhost:8002/metrics | grep nv_inference_request_failure",
+      "topic": "batching",
+      "section": "batching"
+    },
+    {
+      "msg": "unexpected shape for input 'input' for model 'classifier'. Expected [-1,3,224,224], got [3,224,224]. NOTE: Setting a non-zero max_batch_size in the model config requires a batch dimension to be prepended to each input shape.",
+      "meaning": "El cliente declaró una shape que no es la del modelo: aquí, sin el eje de batch. Con max_batch_size > 0, la shape completa es [-1] + dims, así que una foto va como [1, 3, 224, 224] (x[np.newaxis] en C01). Otro clásico: [1, 224, 224, 3], HWC en vez de CHW. Triton responde 400; el NOTE propone max_batch_size: 0, pero eso apaga el batching.",
+      "first": "curl -s localhost:8000/v2/models/classifier",
+      "topic": "cliente",
+      "section": "clientes"
+    },
+    {
+      "msg": "inference input 'input' data-type is 'FP64', but model 'classifier' expects 'FP32'",
+      "meaning": "El request declara FP64: NumPy crea float64 por defecto (np.random.rand, np.zeros) y np_to_triton_dtype lo traduce a FP64. Convierte con astype(np.float32). Si en cambio declaraste \"FP32\" y pasaste un float64, el error sale antes, en tritonclient: got unexpected datatype FP64 from numpy array, expected FP32.",
+      "first": "python -c \"import numpy as np; print(np.zeros((1, 3, 224, 224)).dtype)\"",
+      "topic": "cliente",
+      "section": "clientes"
+    },
+    {
+      "msg": "Request for unknown model: 'classifier' version 1 is not at ready state",
+      "meaning": "El modelo existe, pero esa versión no está lista: falló al cargar (con --exit-on-error=false) o se está cargando o descargando (con --model-control-mode=explicit o poll). Llega como 503. Sale cuando pides una versión concreta; sin versión, el mismo caso dice … has no available versions (404). Y … 'classifier' is not found (404) es que ese nombre no existe: revisa MODEL_NAME.",
+      "first": "curl -s -X POST localhost:8000/v2/repository/index",
+      "topic": "cliente",
+      "section": "clientes"
+    },
+    {
+      "msg": "Failed to obtain stable measurement within 10 measurement windows for concurrency 1. Please try to increase the --measurement-interval.",
+      "meaning": "perf_analyzer considera estable una medición cuando las 3 últimas ventanas varían menos de --stability-percentage (10 %) en throughput y en latencia; no lo logró en --max-trials (10) ventanas de --measurement-interval (5000 ms). Pocos requests por ventana, una GPU que baja clocks u otro tráfico en el mismo Triton. Esos números no valen: alarga la ventana o aísla el servidor.",
+      "first": "perf_analyzer -m classifier -u localhost:8000 --concurrency-range 1 --measurement-interval 10000",
+      "topic": "rendimiento",
+      "section": "medir"
+    },
+    {
+      "msg": "[WARNING] Perf Analyzer was not able to keep up with the desired request rate. … % of the requests were delayed.",
+      "meaning": "En modo de tasa fija (--request-rate-range, como el gate de latencia de C01 a 250 y 500 req/s), perf_analyzer mandó tarde más del 1 % de los requests: la carga real fue menor que la pedida y ese p99 no sirve para el gate. Por defecto manda en modo síncrono con 4 hilos (--max-threads), y cada hilo espera su respuesta: si la latencia sube, no alcanzan. Sube --max-threads o usa --async, y mira con top que a la máquina que mide le sobre CPU.",
+      "first": "perf_analyzer -m classifier -u localhost:8000 --request-rate-range 500 --max-threads 16",
+      "topic": "rendimiento",
+      "section": "medir"
+    },
+    {
+      "msg": "Image size (… pixels) exceeds limit of … pixels, could be decompression bomb DOS attack.",
+      "meaning": "Pillow se niega a abrir una imagen con más del doble de Image.MAX_IMAGE_PIXELS (DecompressionBombError; entre una y dos veces el límite, solo avisa con un warning). Un PNG de 50 KB puede declarar 30,000 × 30,000 px. C01 fija MAX_IMAGE_PIXELS en 40 MP como segunda red y, antes, lee solo el header y rechaza más de 40 MP (413) o una relación de aspecto mayor que 1:8 (400).",
+      "first": "python -c \"from PIL import Image; Image.MAX_IMAGE_PIXELS = None; im = Image.open('foto.png'); print(im.format, im.size)\"",
+      "topic": "prepost",
+      "section": "prepost"
+    },
+    {
+      "msg": "Failed to increase the shared memory pool size … If you are running Triton inside docker, use '--shm-size' flag to control the shared memory region size.",
+      "meaning": "El backend de Python (por ejemplo, el paso de preproceso de un ensemble) pasa los tensores por memoria compartida (/dev/shm) y no pudo agrandar su región: Docker da 64 MB por defecto, y Kubernetes también, salvo que montes un emptyDir en memoria como C01 (1 GiB). En 24.08 el texto dice … pool size for key '…' to … bytes; desde la 25.07, sin for key. Si falla ya al arrancar, el mensaje es otro: Unable to initialize shared memory key … Each Python backend model instance requires at least 1 MB of shared memory.",
+      "first": "kubectl exec -n classifier deploy/triton -- df -h /dev/shm",
+      "topic": "prepost",
+      "section": "prepost"
+    },
+    {
+      "msg": "CUDA out of memory. Tried to allocate … GPU 0 has a total capacity of … of which … is free.",
+      "meaning": "PyTorch no consiguió VRAM (torch.OutOfMemoryError; torch.cuda.OutOfMemoryError es el mismo tipo). En serving: batch o resolución demasiado grandes, varios procesos con su copia del modelo (uvicorn --workers) o inferencia sin torch.inference_mode, que guarda activaciones. Si hay mucha memoria reservada sin usar, el mensaje sugiere PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True (torch 2.14). No es un OOMKilled: subir limits.memory no ayuda.",
+      "first": "nvidia-smi --query-compute-apps=pid,used_memory --format=csv",
+      "topic": "cuda",
+      "section": "diagnostico"
+    },
+    {
+      "msg": "Unable to allocate pinned system memory, pinned memory pool will not be available: CUDA driver version is insufficient for CUDA runtime version",
+      "meaning": "Una advertencia de Triton al arrancar: CUDA no funciona en ese contenedor. O no hay GPU ni driver (corriste la imagen sin --gpus, o en tu Mac), o el driver del host es más viejo que el CUDA de la imagen (24.08 trae CUDA 12.6: driver 560 o, en GPUs de data center como la T4, ramas compatibles desde 470.57). Triton sigue arrancando, y después falla el modelo con KIND_GPU.",
+      "first": "nvidia-smi",
+      "topic": "cuda",
+      "section": "diagnostico"
+    }
+  ]
+}
