@@ -8,7 +8,7 @@
    "templates": [
     {
      "code": "curl -si -H \"Content-Type: {tipo}\" --data-binary @{foto} \"{host}/v1/classify?top_k={k}\"",
-     "note": "Manda una foto como lo hace el backend de publicación (el servidor del marketplace que llama al C01). Con <code>-i</code> ves la línea de estado (el código y su frase) y los headers: <code>X-Request-ID</code> viene en el 200 y en los errores que decide la función (el 422 de FastAPI y un 500 por bug no lo traen), y <code>Retry-After</code> en los 503 de carga y de Triton. Si le hablas directo a uvicorn (el servidor que corre la app), la frase la pone él según tu Python: desde 3.13 dice <code>413 Content Too Large</code> y <code>422 Unprocessable Content</code>, los nombres del RFC 9110 (el documento que define qué significa cada código)."
+     "note": "Manda una foto como lo hace el backend de publicación (el servidor del marketplace que llama al C01). Con <code>-i</code> ves la línea de estado (el código y su frase) y los headers: <code>X-Request-ID</code> viene en el 200, en los errores que decide la función y en el 422 de FastAPI, que pasa por su exception handler (un 500 por bug no lo trae), y <code>Retry-After</code> en los 503 de carga y de Triton. Si le hablas directo a uvicorn (el servidor que corre la app), la frase la pone él según tu Python: desde 3.13 dice <code>413 Content Too Large</code> y <code>422 Unprocessable Content</code>, los nombres del RFC 9110 (el documento que define qué significa cada código)."
     },
     {
      "code": "raise HTTPException({codigo}, \"{mensaje}\", headers={\"Retry-After\": \"{segundos}\"})",
@@ -124,13 +124,18 @@
      "top_k=0 o top_k=500"
     ],
     [
+     "499 (el cliente se fue)",
+     "No está en el RFC: es la convención de nginx para «el cliente cerró la conexión antes de la respuesta». El C01 lo anota cuando el cliente corta a mitad del upload; nadie recibe esa respuesta, y no cuenta como error del servidor.",
+     "el cliente cerró la conexión antes de terminar el upload"
+    ],
+    [
      "429 Too Many Requests",
      "Límite por cliente (rate limit, del RFC 6585): «mandaste demasiados en este rato». Puede traer Retry-After.",
      "el main.py del C01 no lo emite: la cuota por caller va en el borde (una regla del WAF, el firewall de aplicaciones de AWS) o en un contador por identidad. Ojo: el WAF bloquea con 403 salvo que le configures una respuesta 429"
     ],
     [
      "500 Internal Server Error",
-     "Algo que nadie atrapó: un bug. Lo responde la capa de Starlette (la base de FastAPI) que atrapa cualquier excepción suelta.",
+     "Algo que nadie atrapó: un bug. Lo responde la capa de Starlette (la base de FastAPI) que atrapa cualquier excepción suelta. El C01 también lo usa a propósito: si Triton devuelve logits con NaN, responde un 500 propio.",
      "el C01 arranca su contador con status = 500, por si algo explota"
     ],
     [
@@ -173,7 +178,7 @@
     "title": "La configuración del C01: todos los números de bolsillo en un solo lugar",
     "lang": "python",
     "code": "INFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.15\"))  # 150 ms para Triton dentro del p99 ≤ 200 ms\n# …\n# Decodes simultáneos por proceso: acota CPU y RAM. Pico medido de UN PNG de 40 MP: ≈ 320 MB\n# (Pillow guarda RGB en 4 bytes/px = 160 MB, más las copias de exif_transpose y convert).\nPREPROCESS_CONCURRENCY = int(os.getenv(\"PREPROCESS_CONCURRENCY\", \"2\"))\n# Load shedding: requests aceptados a la vez por proceso; el resto → 503 inmediato con Retry-After.\n# ≈ lo que un pod completa en ≈ 200 ms (≈ 100 req/s × 0.2 s ≈ 20) y acotado por RAM: 16 bodies de\n# hasta 10 MB = 160 MB, que caben en 1Gi junto a los decodes. Al pico hay ≈ 3–5 en vuelo por pod.\nMAX_INFLIGHT = int(os.getenv(\"MAX_INFLIGHT\", \"16\"))\nSLOT_WAIT_S = 0.05  # espera máxima por un slot de CPU: si hay que esperar más, ya no cumple el SLO → 503\n# Presupuesto total server-side (< 300 ms del caller). Cada etapa usa lo que queda: deadline propagation\nREQUEST_DEADLINE_S = float(os.getenv(\"REQUEST_DEADLINE_S\", \"0.25\"))\nMAX_BYTES = 10 * 1024 * 1024  # 10 MB: tope de subida web (el app móvil manda ~150–250 KB)\nMAX_PIXELS = 40_000_000  # 40 MP: por encima es casi seguro un error o un ataque\nALLOWED_TYPES = {\"image/jpeg\", \"image/png\", \"image/webp\"}  # los únicos formatos que decodificamos\n# …\nMAX_TOP_K = 20  # top_k acotado: nadie necesita 500 sugerencias y el log crecería sin control\n# Segunda red de Pillow: avisa > 40 MP y falla > 80 MP aunque alguien se salte la guardia de decode()\nImage.MAX_IMAGE_PIXELS = MAX_PIXELS",
-    "source": "reference/c01/gateway/app/main.py (líneas 38–57, extracto; # … marca líneas omitidas)",
+    "source": "reference/c01/gateway/app/main.py (líneas 41–60, extracto; # … marca líneas omitidas)",
     "notes": [
      "<code>INFER_TIMEOUT_S</code> (150 ms) y <code>REQUEST_DEADLINE_S</code> (250 ms) son la mitad de la cadena de timeouts. Las otras dos puntas: los 300 ms del caller y los 100 ms que Triton deja esperar en su cola (en su <code>config.pbtxt</code>).",
      "<code>MAX_INFLIGHT = 16</code> sale de Little: un pod atiende ≈ 100 req/s; si cada request tardara 200 ms, habría ≈ 20 adentro. Se recorta a 16 por RAM: 16 bodies de hasta 10 MB son 160 MB.",
@@ -336,7 +341,7 @@
     },
     {
      "code": "try:\n    ...                                  # admisión, validación, CPU, Triton\nfinally:\n    REQUESTS.labels(status=str(status), source=source, model_version=MODEL_VERSION).inc()\n    log.info(json.dumps(record, ensure_ascii=False))",
-     "note": "El último eslabón: en el <code>finally</code> se cuenta la métrica y se escribe una línea JSON pase lo que pase, también en errores. Ojo: solo ve los requests que llegaron a tu función."
+     "note": "El último eslabón: en el <code>finally</code> se cuenta la métrica y se escribe una línea JSON pase lo que pase, también en errores. Ojo: solo ve los requests que llegaron a tu función. El 422 no llega: el C01 lo anota aparte, con un exception handler."
     }
    ],
    "formulas": [
@@ -477,9 +482,9 @@
     "title": "classify: admisión, la cadena con su deadline, y el finally que siempre anota",
     "lang": "python",
     "code": "@app.post(\"/v1/classify\")\nasync def classify(request: Request, response: Response, top_k: int = Query(5, ge=1, le=MAX_TOP_K)):\n    \"\"\"Body = bytes crudos de la imagen (no multipart: menos parsing, sin archivos temporales).\"\"\"\n    t0 = time.perf_counter()  # el reloj arranca con el request ya recibido (el SLO es server-side)\n    # Si el cliente (o un proxy) ya trae un id lo respetamos: así se traza el request de punta a punta\n    request_id = request.headers.get(\"x-request-id\") or uuid.uuid4().hex\n    # …\n    status = 500  # si algo inesperado explota, se cuenta como 500\n    try:\n        state = request.app.state\n        if state.inflight >= MAX_INFLIGHT:  # fallar rápido (µs) > encolar lo que va a vencer de todos modos\n            raise HTTPException(503, \"gateway saturado: reintenta más tarde\", headers={\"Retry-After\": \"1\"})\n        state.inflight += 1\n        try:\n            result = await _classify(request, top_k, record, deadline=t0 + REQUEST_DEADLINE_S)\n        finally:\n            state.inflight -= 1  # siempre, también si _classify lanza\n        status = 200\n        response.headers[\"X-Request-ID\"] = request_id  # el cliente puede reportar un caso con este id\n        result[\"latency_ms\"] = round((time.perf_counter() - t0) * 1000, 1)\n        return result\n    except HTTPException as exc:\n        status = exc.status_code\n        record[\"error\"] = exc.detail\n        # Re-lanzamos con el X-Request-ID para que también los errores sean trazables\n        headers = {**(exc.headers or {}), \"X-Request-ID\": request_id}\n        raise HTTPException(exc.status_code, exc.detail, headers=headers) from None\n    finally:\n        elapsed = time.perf_counter() - t0\n        # …\n        REQUESTS.labels(status=str(status), source=source, model_version=MODEL_VERSION).inc()\n        if not 400 <= status < 500:  # los 4xx son rechazos rápidos: incluirlos \"mejoraría\" el p99 falsamente\n            LATENCY.labels(source=source).observe(elapsed)\n        # …\n        log.info(json.dumps(record, ensure_ascii=False))",
-    "source": "reference/c01/gateway/app/main.py (líneas 189–232, extracto; # … marca líneas omitidas)",
+    "source": "reference/c01/gateway/app/main.py (líneas 206–249, extracto; # … marca líneas omitidas)",
     "notes": [
-     "Antes de la primera línea de <code>classify</code> ya pasaron uvicorn, los middlewares y la validación de <code>top_k</code> (<code>Query(5, ge=1, le=MAX_TOP_K)</code>). Un 422 se responde ahí y no llega a este código.",
+     "Antes de la primera línea de <code>classify</code> ya pasaron uvicorn, los middlewares y la validación de <code>top_k</code> (<code>Query(5, ge=1, le=MAX_TOP_K)</code>). Un 422 se responde ahí y no llega a este código: su línea y su conteo los escribe un exception handler aparte (<code>validation_error</code>).",
      "La admisión es la primera decisión de la función: con 16 en vuelo responde 503 en microsegundos, sin leer el body ni gastar CPU. El contador no necesita lock (un candado entre hilos): lo toca un solo hilo, el event loop.",
      "<code>t0 + REQUEST_DEADLINE_S</code> es el deadline (la hora límite) que viaja a <code>_classify</code>. Ahí se revisan los headers (415 y 413), se lee el body, se espera el slot de CPU, se decodifica en el threadpool y se llama a Triton. Antes del decode y antes de Triton se mira cuánto queda: si nada, 504; Triton recibe min(150 ms, lo que queda).",
      "Los errores se vuelven a lanzar con <code>X-Request-ID</code>: el cliente puede reclamar un 503 o un 504 con su id, y tú lo encuentras en el log.",
@@ -527,7 +532,7 @@
        "micro": true,
        "in_budget": true,
        "fail": "422",
-       "note": "antes de tu función: no llega al log ni a las métricas"
+       "note": "antes de tu función: lo anota un exception handler aparte"
       },
       {
        "id": "admision",
@@ -578,7 +583,7 @@
        "micro": false,
        "in_budget": true,
        "fail": "413 · 400",
-       "note": "200 KB del celular contra hasta 10 MB de la web"
+       "note": "200 KB del celular contra hasta 10 MB de la web; si el cliente corta a la mitad, se anota como 499"
       },
       {
        "id": "slot",
@@ -696,7 +701,7 @@
        ],
        "micro": false,
        "in_budget": true,
-       "fail": "",
+       "fail": "500 (logits con NaN)",
        "note": "sobre 500 valores"
       },
       {
@@ -727,8 +732,8 @@
      }
     }
    },
-   "memo": "<b>Lo barato primero, la CPU después, la GPU al final, y el log siempre.</b> Cada eslabón puede cortar con su código (422, 503, 415, 413, 400, 504), y el <code>finally</code> anota todo lo que llegó a <code>classify</code> (el 422 no llega). Si el p99 sube, la cadena te dice dónde mirar: el body, el decode o Triton.",
-   "trap": "Creer que tu métrica y tu log ven todos los requests. El 422 de <code>top_k</code> (y cualquier 404 o 405) lo responde FastAPI antes de llamar a <code>classify</code>: no pasa por su <code>finally</code>, así que no aparece en <code>classifier_requests_total</code> ni en la línea JSON, y el C01 apagó el access log de uvicorn (la línea que uvicorn escribe por cada request: <code>--no-access-log</code>). Una ola de 422 solo se ve en los 4xx del ALB, salvo que agregues un exception handler (una función que FastAPI llama ante ese error) que los cuente.",
+   "memo": "<b>Lo barato primero, la CPU después, la GPU al final, y el log siempre.</b> Cada eslabón puede cortar con su código (422, 503, 415, 413, 400 o 499, 504 y 500), y el <code>finally</code> anota todo lo que llegó a <code>classify</code>; el 422 no llega, y lo anota su exception handler. Si el p99 sube, la cadena te dice dónde mirar: el body, el decode o Triton.",
+   "trap": "Creer que tu métrica y tu log ven todos los requests. El 422 de <code>top_k</code> lo responde FastAPI antes de llamar a <code>classify</code>: no pasa por su <code>finally</code>. Por eso el C01 registra un exception handler (una función que FastAPI llama ante ese error) que escribe su línea y lo cuenta. Un 405 (un GET a <code>/v1/classify</code>) no pasa ni por ahí, y el C01 apagó el access log de uvicorn (la línea que uvicorn escribe por cada request: <code>--no-access-log</code>): ese solo lo ve el ALB, en sus 4xx.",
    "lab": {
     "goal": "Armar una cadena en miniatura (admisión, validación, CPU en el threadpool, un Triton falso y el log en el finally) y comprobar qué requests llegan a tu log y cuáles no.",
     "steps": [
@@ -754,7 +759,7 @@
      },
      {
       "cmd": "grep -o '\"status\": [0-9]*' server.log | sort | uniq -c",
-      "expect": "Los status que vio el finally: los 200 (el primero y los de la ráfaga), un 415 y los 503. Ningún 422: el request con top_k=0 nunca entró a classify, así que su finally no corrió y no dejó línea."
+      "expect": "Los status que vio el finally: los 200 (el primero y los de la ráfaga), un 415 y los 503. Ningún 422: el request con top_k=0 nunca entró a classify, así que su finally no corrió y no dejó línea. El C01 lo resuelve con un exception handler para el 422."
      },
      {
       "cmd": "kill $(cat uvicorn.pid); sleep 1; tail -4 server.log",
@@ -929,7 +934,7 @@
     "title": "main.py se presenta solo: por qué existe y qué endpoints tiene",
     "lang": "python",
     "code": "\"\"\"Gateway HTTP del clasificador de categorías (caso c01).\n\nPor qué existe un gateway en CPU delante de Triton: validar, decodificar y redimensionar imágenes es\ntrabajo de CPU; si lo hiciera Triton (python backend o DALI) competiría con la GPU cara. Así cada\ncapa escala por separado: gateway por CPU (HPA) y Triton por cola de GPU (KEDA).\n\nEndpoints: POST /v1/classify?top_k=5 · GET /healthz (liveness) · GET /readyz (readiness) · GET /metrics\n\"\"\"\n# …\nTRITON_URL = os.getenv(\"TRITON_URL\", \"localhost:8000\")  # host:puerto HTTP de Triton, SIN \"http://\" (lo exige el cliente)\nMODEL_NAME = os.getenv(\"MODEL_NAME\", \"classifier\")  # nombre del modelo en el model repository de Triton\nMODEL_VERSION = os.getenv(\"MODEL_VERSION\", \"dev\")  # se devuelve y se loguea: cada predicción queda atada a su modelo\nINFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.15\"))  # 150 ms para Triton dentro del p99 ≤ 200 ms",
-    "source": "reference/c01/gateway/app/main.py (líneas 1–8 y 35–38; # … marca líneas omitidas)",
+    "source": "reference/c01/gateway/app/main.py (líneas 1–8 y 38–41; # … marca líneas omitidas)",
     "notes": [
      "La razón en una frase: decodificar y redimensionar es CPU, y la CPU del nodo con GPU es poca y cara. Separadas, cada capa escala con su propia señal: el gateway por CPU con el HPA, Triton por tiempo en cola con KEDA (el que escala según una métrica de Prometheus).",
      "Esos cuatro endpoints son todos los que escribe el C01 (FastAPI suma /docs, /redoc y /openapi.json). Solo <code>/v1/classify</code> sale del cluster; <code>/healthz</code> y <code>/readyz</code> son para los probes (los chequeos de salud) del kubelet, el agente de Kubernetes en cada nodo, y el ALB también mira <code>/readyz</code>; <code>/metrics</code> es para Prometheus (el que junta las métricas).",
@@ -1032,7 +1037,7 @@
     "steps": [
      {
       "cmd": "cd apps/ml-system-design/reference/c01\ngrep -oE 'HTTPException\\([0-9]{3}' gateway/app/main.py | sort | uniq -c",
-      "expect": "2 HTTPException(400 · 3 HTTPException(413 · 1 HTTPException(415 · 5 HTTPException(503 · 2 HTTPException(504: los errores que el gateway decide. No hay 422 (lo genera FastAPI) ni 500 (es lo que queda si algo explota sin que nadie lo atrape)."
+      "expect": "2 HTTPException(400 · 3 HTTPException(413 · 1 HTTPException(415 · 1 HTTPException(499 · 1 HTTPException(500 · 5 HTTPException(503 · 2 HTTPException(504: los errores que el gateway decide. El 499 es el cliente que corta a mitad del upload, y el 500, Triton devolviendo logits con NaN. No hay 422: lo genera FastAPI (el handler del C01 solo lo anota). Un bug sin atrapar también sale como 500, pero lo responde Starlette, no esta lista."
      },
      {
       "cmd": "grep -c '\"Retry-After\": \"1\"' gateway/app/main.py",
@@ -1044,7 +1049,7 @@
      },
      {
       "cmd": "grep -nE '^@app\\.' gateway/app/main.py\ngrep -nE 'path: /v1|pathType' k8s/gateway.yaml",
-      "expect": "116 @app.get(\"/metrics\", include_in_schema=False), 189 @app.post(\"/v1/classify\"), 297 @app.get(\"/healthz\") y 303 @app.get(\"/readyz\"); y en el Ingress, 186 path: /v1/classify con 187 pathType: Exact. Cuatro rutas en el pod, una sola publicada."
+      "expect": "119 @app.get(\"/metrics\", include_in_schema=False), 206 @app.post(\"/v1/classify\"), 319 @app.exception_handler(RequestValidationError), 342 @app.get(\"/healthz\") y 348 @app.get(\"/readyz\"); y en el Ingress, 186 path: /v1/classify con 187 pathType: Exact. Cuatro rutas en el pod (la 319 no es una ruta: es el handler del 422), una sola publicada."
      },
      {
       "cmd": "python3.13 -c '\nlam, t_cpu = 500, 0.006                 # req/s en el pico de diseño; CPU por foto (≈ 6 ms)\ncores = lam * t_cpu\nprint(f\"CPU de decode: {lam} × {t_cpu} s = {cores:.0f} cores\")\nprint(f\"Pods del gateway al 60 % de 1 core: {cores / 0.6:.0f}\")\nprint(f\"Red gateway → Triton: {lam} × 602,112 B × 8 = {lam * 602112 * 8 / 1e9:.1f} Gb/s\")\n'",
@@ -1084,7 +1089,7 @@
     },
     {
      "code": "raise HTTPException(status_code={codigo}, detail=\"{mensaje}\", headers={\"Retry-After\": \"1\"})\n\n@app.exception_handler({Excepcion})\nasync def {manejador}(request: Request, exc: {Excepcion}) -> JSONResponse: ...",
-     "note": "Un error que decides se lanza como <code>HTTPException</code>: FastAPI responde <code>{\"detail\": …}</code> con ese código y esos headers. Para traducir una excepción tuya en todas las rutas a la vez, registras un exception handler (una función que FastAPI llama ante ese tipo de error)."
+     "note": "Un error que decides se lanza como <code>HTTPException</code>: FastAPI responde <code>{\"detail\": …}</code> con ese código y esos headers. Para traducir una excepción tuya en todas las rutas a la vez, registras un exception handler (una función que FastAPI llama ante ese tipo de error). El C01 registra uno para el 422 de FastAPI: así también deja su línea de log y su conteo."
     }
    ],
    "formulas": [
@@ -1214,7 +1219,7 @@
     "title": "El lifespan del C01: lo que se crea una vez por proceso",
     "lang": "python",
     "code": "@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    \"\"\"Recursos compartidos: se crean con el event loop ya corriendo y se cierran al apagar.\"\"\"\n    # Etiquetas en memoria: 500 strings, índice = id de clase del training (mismo orden que el dataset)\n    app.state.labels = json.loads(Path(LABELS_PATH).read_text(encoding=\"utf-8\"))\n    # Sin este límite el threadpool (40 hilos por defecto) decodificaría 40 imágenes a la vez en un\n    # pod de 1 CPU: más latencia para todas y riesgo de OOMKilled. Los demás esperan como mucho\n    # SLOT_WAIT_S; si no, 503.\n    app.state.cpu_slots = asyncio.Semaphore(PREPROCESS_CONCURRENCY)\n    app.state.inflight = 0  # requests aceptados en este proceso; sin lock: el event loop es un solo hilo\n    # UN cliente por proceso: reutiliza conexiones keep-alive (sin handshake TCP por request).\n    # conn_limit = máximo de requests en vuelo hacia Triton (backpressure); conn_timeout es un\n    # timeout total de aiohttp para CUALQUIER llamada: queda de respaldo (el fino va en _infer).\n    # Se crea aquí y no al importar: aiohttp necesita un event loop corriendo.\n    app.state.triton = triton_http.InferenceServerClient(url=TRITON_URL, conn_limit=64, conn_timeout=1.0)\n    yield  # aquí la app atiende tráfico\n    await app.state.triton.close()  # cierra el pool de conexiones limpiamente en el SIGTERM\n\n\napp = FastAPI(title=\"classifier-gateway\", lifespan=lifespan)  # lifespan reemplaza a on_event",
-    "source": "reference/c01/gateway/app/main.py (líneas 94–113)",
+    "source": "reference/c01/gateway/app/main.py (líneas 97–116)",
     "notes": [
      "<code>@asynccontextmanager</code> convierte la función con <code>yield</code> en el context manager (un objeto con un «al entrar» y un «al salir») que pide <code>FastAPI(lifespan=…)</code>. Antes del <code>yield</code>: carga los 500 labels, crea el semáforo de CPU, el contador de requests en vuelo y el cliente de Triton.",
      "El cliente se crea aquí y no al importar el módulo: el cliente aio de Triton usa aiohttp, que exige un event loop corriendo (el hilo que atiende por turnos todo lo async). uvicorn importa la app con el loop ya andando, pero el test del C01 hace <code>from app import main</code> sin loop, y ahí fallaría con <code>RuntimeError: no running event loop</code>.",
@@ -1463,7 +1468,7 @@
     "title": "El decode del C01: CPU en un hilo, con un tope de 2 y sin timeout",
     "lang": "python",
     "code": "def _decode_and_hash(data: bytes) -> tuple[np.ndarray, str]:\n    \"\"\"CPU pura (bloqueante): corre en el threadpool. Pillow y numpy sueltan el GIL en decode y resize.\"\"\"\n    digest = hashlib.sha256(data).hexdigest()  # huella de la imagen: deduplicar y cruzar con labels\n    tensor = preprocess(data, max_pixels=MAX_PIXELS)  # float32 [3,224,224], idéntico a training/eval\n    return tensor[np.newaxis], digest  # batch de 1: Triton junta requests con dynamic batching\n# …\n    # Decode + resize son CPU pura. Una ruta `async def` que los corre directo BLOQUEA el event loop:\n    # mientras decodifica una foto de 12 MP ninguna otra request avanza. En el threadpool el loop sigue\n    # atendiendo I/O (otras llamadas a Triton, health checks). Máximo PREPROCESS_CONCURRENCY a la vez;\n    # esperar un slot más de SLOT_WAIT_S → 503 (el pod está saturado de CPU).\n    slots = request.app.state.cpu_slots\n    try:\n        await asyncio.wait_for(slots.acquire(), timeout=SLOT_WAIT_S)\n    except TimeoutError:\n        raise HTTPException(503, \"gateway saturado (CPU)\", headers={\"Retry-After\": \"1\"}) from None\n    t = time.perf_counter()  # el reloj arranca con el slot tomado: mide CPU, no cola\n    try:\n        # Aquí no hay timeout a propósito: un hilo no se puede cancelar. Si cortáramos el await, el\n        # slot se liberaría con el hilo todavía decodificando y el tope de RAM dejaría de valer.\n        batch, digest = await run_in_threadpool(_decode_and_hash, data)\n    except (ImageTooLarge, Image.DecompressionBombError) as exc:  # ImageTooLarge antes que ValueError\n        raise HTTPException(413, str(exc)) from None\n    except (OSError, ValueError, SyntaxError):  # lo que lanza Pillow con archivos corruptos o truncados\n        raise HTTPException(400, \"no se pudo decodificar la imagen\") from None\n    finally:\n        slots.release()  # siempre: también en 400/413",
-    "source": "reference/c01/gateway/app/main.py (líneas 140–144 y 252–271; # … marca líneas omitidas)",
+    "source": "reference/c01/gateway/app/main.py (líneas 150–154 y 269–288; # … marca líneas omitidas)",
     "notes": [
      "<code>_decode_and_hash</code> es <code>def</code>, sin <code>await</code>: CPU pura. Nunca se llama directo desde una corrutina, solo a través de <code>run_in_threadpool</code>.",
      "El semáforo <code>cpu_slots</code> deja 2 decodes a la vez por proceso, aunque el threadpool tenga 40 hilos: un PNG de 40 MP ocupa ≈ 320 MB al decodificarse, y el pod tiene 1 GiB.",
@@ -1812,12 +1817,13 @@
    "example": {
     "title": "Validación en capas del C01: header, bytes y píxeles, antes de decodificar",
     "lang": "python",
-    "code": "# gateway/app/main.py: _classify (extracto)\n    ctype = request.headers.get(\"content-type\", \"\").split(\";\")[0].strip().lower()  # sin \"; charset=…\"\n    if ctype not in ALLOWED_TYPES:\n        raise HTTPException(415, \"Content-Type debe ser image/jpeg, image/png o image/webp\")\n    declared = request.headers.get(\"content-length\", \"\")\n    if declared.isdigit() and int(declared) > MAX_BYTES:  # rechazo sin leer ni un byte del body\n        raise HTTPException(413, \"la imagen supera 10 MB\")\n    data = await _read_body_limited(request)  # segunda verificación: los bytes reales\n\n# gateway/app/main.py: _read_body_limited\nasync def _read_body_limited(request: Request) -> bytes:\n    \"\"\"Lee el body en streaming y corta en cuanto pasa de MAX_BYTES (no confía en Content-Length).\"\"\"\n    chunks, size = [], 0  # acumulamos trozos para no copiar el buffer en cada iteración\n    async for chunk in request.stream():  # llega por partes: podemos abortar sin leer 1 GB\n        size += len(chunk)\n        if size > MAX_BYTES:  # un cliente con chunked encoding o que miente en Content-Length\n            raise HTTPException(413, \"la imagen supera 10 MB\")\n        chunks.append(chunk)\n    if size == 0:  # body vacío: error del cliente, no vale la pena llegar al decoder\n        raise HTTPException(400, \"body vacío: envía los bytes de la imagen\")\n    return b\"\".join(chunks)\n\n# gateway/app/preprocess.py: decode (extracto)\n    img = Image.open(io.BytesIO(data), formats=ALLOWED_FORMATS)\n    width, height = img.size  # dimensiones declaradas en el header\n    # …\n    if max_pixels is not None and width * height > max_pixels:\n        raise ImageTooLarge(f\"{width}x{height} px excede el límite de {max_pixels} px\")\n    if max_pixels is not None and max(width, height) > MAX_ASPECT * min(width, height):\n        # …\n        raise ValueError(f\"relación de aspecto {width}x{height} fuera de rango (máx 1:{MAX_ASPECT})\")",
-    "source": "reference/c01/gateway/app/main.py (líneas 241–247 y 127–137) y app/preprocess.py (líneas 51–62, extracto; # … marca líneas omitidas)",
+    "code": "# gateway/app/main.py: _classify (extracto)\n    ctype = request.headers.get(\"content-type\", \"\").split(\";\")[0].strip().lower()  # sin \"; charset=…\"\n    if ctype not in ALLOWED_TYPES:\n        raise HTTPException(415, \"Content-Type debe ser image/jpeg, image/png o image/webp\")\n    declared = request.headers.get(\"content-length\", \"\")\n    if declared.isdigit() and int(declared) > MAX_BYTES:  # rechazo sin leer ni un byte del body\n        raise HTTPException(413, \"la imagen supera 10 MB\")\n    data = await _read_body_limited(request)  # segunda verificación: los bytes reales\n\n# gateway/app/main.py: _read_body_limited\nasync def _read_body_limited(request: Request) -> bytes:\n    \"\"\"Lee el body en streaming y corta en cuanto pasa de MAX_BYTES (no confía en Content-Length).\"\"\"\n    chunks, size = [], 0  # acumulamos trozos para no copiar el buffer en cada iteración\n    try:\n        async for chunk in request.stream():  # llega por partes: podemos abortar sin leer 1 GB\n            size += len(chunk)\n            if size > MAX_BYTES:  # un cliente con chunked encoding o que miente en Content-Length\n                raise HTTPException(413, \"la imagen supera 10 MB\")\n            chunks.append(chunk)\n    except ClientDisconnect:\n        # El cliente cortó a mitad del upload (red móvil, app cerrada): no es una falla del servidor.\n        # Sin esto contaría como 500 (con traceback) e inflaría ClassifierHigh5xxRate. 499 es la\n        # convención de nginx (\"client closed request\"): queda con los 4xx, fuera de la tasa de 5xx.\n        # Nadie recibe esta respuesta: uvicorn descarta lo que se manda a un cliente que ya se fue.\n        raise HTTPException(499, \"el cliente cerró la conexión antes de terminar el upload\") from None\n    if size == 0:  # body vacío: error del cliente, no vale la pena llegar al decoder\n        raise HTTPException(400, \"body vacío: envía los bytes de la imagen\")\n    return b\"\".join(chunks)\n\n# gateway/app/preprocess.py: decode (extracto)\n    img = Image.open(io.BytesIO(data), formats=ALLOWED_FORMATS)\n    width, height = img.size  # dimensiones declaradas en el header\n    # …\n    if max_pixels is not None and width * height > max_pixels:\n        raise ImageTooLarge(f\"{width}x{height} px excede el límite de {max_pixels} px\")\n    if max_pixels is not None and max(width, height) > MAX_ASPECT * min(width, height):\n        # …\n        raise ValueError(f\"relación de aspecto {width}x{height} fuera de rango (máx 1:{MAX_ASPECT})\")",
+    "source": "reference/c01/gateway/app/main.py (líneas 258–264 y 130–147) y app/preprocess.py (líneas 51–62, extracto; # … marca líneas omitidas)",
     "notes": [
      "El orden es el del costo: primero lo que está en los headers (415, y 413 por <code>Content-Length</code>), después los bytes reales a medida que llegan, y recién al final el decode. Cada rechazo cuesta menos que el paso siguiente.",
      "<code>split(\";\")[0].strip().lower()</code> acepta <code>image/jpeg; charset=…</code> o <code>IMAGE/JPEG</code>: compara solo el tipo.",
      "<code>_read_body_limited</code> no confía en <code>Content-Length</code>: un cliente con <code>Transfer-Encoding: chunked</code> no lo manda, y uno malicioso puede mentir. Cuenta los bytes y corta en cuanto pasa de 10 MB, sin leer 1 GB.",
+     "Si el cliente corta a mitad del upload (red móvil, app cerrada), <code>request.stream()</code> lanza <code>ClientDisconnect</code>. El C01 lo atrapa y lo anota como <b>499</b> (la convención de nginx para «el cliente cerró la conexión»): queda con los 4xx, fuera de la tasa de 5xx, y nadie recibe la respuesta. Sin ese <code>except</code> contaría como un 500, con traceback.",
      "<code>Image.open</code> solo lee el header: ancho y alto salen gratis. Con eso se rechaza un PNG que declara 48 MP (413) o una tira de 1 × 4,000 px (400) antes de gastar RAM en los píxeles; <code>formats=</code> limita los decoders a JPEG, PNG y WebP.",
      "Ningún modelo de Pydantic valida la foto: el body son bytes crudos (no multipart: menos parsing y sin archivos temporales), así que el C01 la valida a mano. Pydantic solo valida <code>top_k</code>, y por eso <code>/openapi.json</code> no documenta el body: habría que declararlo con <code>openapi_extra</code>."
     ]
@@ -1835,7 +1841,7 @@
        "no": {
         "code": "404 · 405",
         "who": "FastAPI",
-        "note": "405 si la ruta existe con otro método"
+        "note": "405 si la ruta existe con otro método; no deja línea en el gateway"
        }
       },
       {
@@ -1845,7 +1851,7 @@
        "no": {
         "code": "422",
         "who": "FastAPI",
-        "note": "antes de tu función: no llega al log"
+        "note": "antes de tu función: lo anota el exception handler del C01"
        }
       },
       {
