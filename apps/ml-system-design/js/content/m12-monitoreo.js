@@ -12,7 +12,8 @@
    (tabla de burn rates 14.4/6/1 con ventanas 1 h/5 min, 6 h/30 min, 3 d/6 h),
    Prometheus (reglas de alerta y de grabación, Pushgateway solo para batch a nivel
    de servicio; native histograms estables desde v3.8, con scrape_native_histograms
-   explícito desde v3.9), prometheus_client de Python (Summary sin cuantiles),
+   explícito desde v3.9), prometheus_client de Python 0.26 (Summary sin cuantiles;
+   una serie _created por cada combinación de labels),
    Amazon SQS (ApproximateAgeOfOldestMessage excluye mensajes recibidos 3+ veces en
    colas estándar; en la DLQ estándar se conserva el timestamp de encolado original),
    KEDA aws-sqs-queue (escala por visibles + en vuelo, queueLength 5 por defecto),
@@ -181,8 +182,9 @@ classifier_request_latency_seconds_bucket{le="0.2"} 233.0
 classifier_request_latency_seconds_bucket{le="+Inf"} 233.0
 classifier_request_latency_seconds_count 233.0
 classifier_request_latency_seconds_sum 0.0075
-# Cada bucket es una serie: 8 bordes + "+Inf" + _sum + _count = 11 series (más _created,
-# que el cliente agrega por defecto y se apaga con PROMETHEUS_DISABLE_CREATED_SERIES=True)`;
+# Cada bucket es una serie: 8 bordes + "+Inf" + _sum + _count + _created = 12 series
+# (_created es la hora en que nació la serie: el cliente la agrega por defecto y se apaga
+# con PROMETHEUS_DISABLE_CREATED_SERIES=True)`;
 
   // YAML parseado con PyYAML; cada expr validada con un parser de PromQL.
   const SLO_YML = `# Parte de errores del SLO de c01: 99.9 % a 30 días (su SLI también exige ≤ 300 ms) → presupuesto 0.1 %
@@ -284,12 +286,13 @@ groups:
           { t: 'p', html: `En la práctica: RED (o golden signals) por servicio, USE por recurso. Lo interesante en ML son los detalles de cada una.` },
           { t: 'h3', text: 'Latencia: percentiles desde histogramas, nunca promedios' },
           { t: 'p', html: `Ya viste en <a href="#m03.percentiles">M3</a> por qué el promedio miente y por qué los p99 de dos pods no se promedian. Para el monitoreo eso tiene una consecuencia concreta: el servicio no calcula percentiles, <b>cuenta observaciones en buckets</b> (un histograma), y Prometheus calcula el cuantil sumando los buckets de todos los pods. Por eso los buckets se eligen alrededor del SLO: el gateway de c01 tiene bordes en 0.15, 0.2 y 0.3 s, justo donde el p99 importa. Un bucket de 0.1 a 1.0 s te daría un p99 "entre 100 ms y 1 s", que no sirve para decidir si rompiste 200 ms.` },
-          { t: 'p', html: `Y desglosa por tramo. En c01, <code>classifier_preprocess_seconds</code> (CPU) y <code>classifier_inference_seconds</code> (ida y vuelta a Triton), más la cola y el cómputo dentro de Triton: cuando el p99 sube, un vistazo te dice si es CPU, cola de GPU o cómputo. En c04, lo mismo por slide: descarga, máscara de tejido, inferencia de tiles y stitching.` },
+          { t: 'p', html: `Y desglosa por tramo. En c01, <code>classifier_preprocess_seconds</code> (CPU) y <code>classifier_inference_seconds</code> (ida y vuelta a Triton), más la cola y el cómputo dentro de Triton: cuando el p99 sube, un vistazo te dice si es CPU, cola de GPU o cómputo. El histograma de un tramo cuenta también las llamadas que fallan o vencen: si los timeouts no entraran, el p99 de inferencia se vería sano justo cuando Triton está lento (c01 lo observa en un <code>finally</code>, también en 503 y 504). En c04, lo mismo por slide: descarga, máscara de tejido, inferencia de tiles y stitching.` },
           { t: 'h3', text: 'Errores: qué cuenta como error' },
           { t: 'list', items: [
             '<b>5xx sobre requests válidos</b>: los 4xx (imagen corrupta, tipo no soportado) son culpa del cliente y no entran ni en el numerador ni en el denominador. Si los mezclas, una ráfaga de 4xx "mejora" tu tasa de error.',
+            '<b>Que cada request cuente, también los que tu código no ve</b>: FastAPI responde el 422 de validación antes de llamar a tu función, y un cliente que corta el upload a la mitad lanza una excepción que, si nadie la atrapa, cuenta como 500. c01 anota el 422 con un exception handler y el corte como 499 (la convención de nginx: el cliente cerró la conexión), que queda con los 4xx, fuera de la tasa de 5xx.',
             '<b>Timeouts y fallbacks</b>: en c01, un 504 hace que la UI muestre el selector manual. No es un crash, pero sí una predicción que el usuario no recibió: cuéntalo aparte.',
-            '<b>Errores "lógicos" que devuelven 200</b>: un tensor con NaN, un top-5 vacío, una máscara de tejido vacía en c04. El servicio no falla; el resultado sí. Cuéntalos con un contador propio (en c03, <code>invalid_scores</code> es uno de los motivos de DIVERT).',
+            '<b>Errores "lógicos" que devuelven 200</b>: un tensor con NaN, un top-5 vacío, una máscara de tejido vacía en c04. El servicio no falla; el resultado sí. Cuéntalos con un contador propio (en c03, <code>invalid_scores</code> es uno de los motivos de DIVERT). El NaN tiene una trampa más: en una ruta de FastAPI sin <code>response_model</code>, como la de c01, no se puede escribir en el JSON y el cliente recibe un 500 que tu métrica ya anotó como 200. c01 revisa que los logits sean finitos y lo cuenta como 500.',
           ] },
           { t: 'h3', text: 'Saturación: la GPU al 100 % no está necesariamente llena' },
           { t: 'table', caption: 'Métricas de GPU que se confunden', head: ['Métrica', 'Qué mide de verdad', 'Trampa'], rows: [
@@ -315,10 +318,10 @@ groups:
           { t: 'h3', text: 'Labels de las métricas: por modelo, por versión y con cardinalidad acotada' },
           { t: 'p', html: `Cada métrica de predicción lleva <code>model_version</code>: durante un canary (<a href="#m11.canary">M11</a>) comparas la versión nueva contra la estable en la misma ventana, y sin ese label no puedes. En c04, además, <code>lab</code> y <code>scanner</code>: el drift de color es por escáner, no global.` },
           { t: 'calc', title: 'Cuántas series crea un histograma (cardinalidad)', rows: [
-            { label: 'Histograma de latencia de c01', expr: '11 buckets + "+Inf" + _sum + _count', value: '14 series' },
-            { label: 'Con el label source (4 valores)', expr: '14 × 4', value: '56 series por pod' },
-            { label: 'Si alguien agrega request_id como label', expr: '14 × 10 M requests/día', value: '140 M series nuevas al día' },
-            { label: 'Si en c04 alguien agrega slide_id', expr: '14 × 1,200 slides/día × 30', value: '504,000 series al mes' },
+            { label: 'Histograma de latencia de c01', expr: '11 buckets + "+Inf" + _sum + _count + _created', value: '15 series', note: '_created es la hora en que nació la serie; prometheus_client la expone por defecto. En general: (buckets + 4) × combinaciones de labels' },
+            { label: 'Con el label source (4 valores)', expr: '15 × 4', value: '60 series por pod' },
+            { label: 'Si alguien agrega request_id como label', expr: '15 × 10 M requests/día', value: '150 M series nuevas al día' },
+            { label: 'Si en c04 alguien agrega slide_id', expr: '15 × 1,200 slides/día × 30', value: '540,000 series al mes' },
           ], result: 'Cada combinación distinta de labels es una serie de tiempo que Prometheus guarda en memoria e indexa. Los labels van con valores acotados (status, source, model_version, lab, scanner); los ids van a los logs, donde cuestan bytes y no series.' },
           { t: 'callout', kind: 'trap', title: 'Trampa: labels sin límite', html: `<p>Un label con valores ilimitados (user_id, request_id, slide_id, la ruta con ids adentro, el mensaje de error completo) hace crecer las series sin techo hasta que Prometheus se queda sin memoria, normalmente un viernes. Si necesitas saltar del p99 a un request concreto, usa <b>exemplars</b> (un trace id adjunto a algunas observaciones del histograma, como en c01) o los logs.</p>` },
           { t: 'callout', kind: 'skip', html: `<p>No memorices nombres de métricas de DCGM ni de Triton. En la entrevista basta con decir "GPU utilization alone is misleading, I look at queue time and batch size to decide if we need more GPUs" y, en un sistema batch, "I alert on the age of the oldest message, not on queue depth".</p>` },
@@ -724,9 +727,9 @@ groups:
               answer: 2,
               explain: 'SQS excluye de ApproximateAgeOfOldestMessage los mensajes recibidos 3 o más veces sin borrarse; la redrive policy los manda a la DLQ.' },
             { q: 'Alguien propone agregar slide_id como label del histograma de duración por slide para "poder buscar un slide lento". ¿Qué respondes?',
-              options: ['Bien: más labels, más detalle', 'No: crea series sin límite (≈ 500k al mes); el slide_id va en logs o exemplars', 'Solo si el histograma tiene pocos buckets', 'Bien, si se borra cada mes'],
+              options: ['Bien: más labels, más detalle', 'No: crea series sin límite (≈ 540k al mes); el slide_id va en logs o exemplars', 'Solo si el histograma tiene pocos buckets', 'Bien, si se borra cada mes'],
               answer: 1,
-              explain: '14 series por histograma × 36,000 slides al mes ≈ 504,000 series. Los ids van a los logs, que cuestan bytes, no series en memoria.' },
+              explain: '15 series por histograma (11 buckets + "+Inf" + _sum + _count + _created) × 36,000 slides al mes = 540,000 series. Los ids van a los logs, que cuestan bytes, no series en memoria.' },
             { q: 'El job diario de drift de c04 publica sus resultados en Pushgateway. El martes deja de correr por un permiso vencido. ¿Qué ves en Prometheus?',
               options: ['La serie desaparece y la alerta de drift dispara', 'Un error de scrape', 'Un PSI de 0', 'El último PSI publicado, para siempre: parece estable. Hace falta alertar sobre la hora de la última corrida exitosa'],
               answer: 3,
@@ -769,7 +772,7 @@ groups:
       { id: 'm12-06', kind: 'trampa', q: 'Un mensaje venenoso en una cola estándar de SQS, ¿hace sonar la alerta de edad?',
         a: 'No: tras 3 recepciones sin borrarse, SQS lo manda al final y deja de contarlo en ApproximateAgeOfOldestMessage. Por eso la DLQ tiene su propia alerta (c04: DLQ &gt; 0) y más retención que la cola original.' },
       { id: 'm12-07', kind: 'numero', q: 'Cardinalidad: histograma de 11 buckets con slide_id como label en c04.',
-        a: '14 series (11 + "+Inf" + _sum + _count) × 36,000 slides/mes ≈ 504,000 series al mes. Los ids van a logs o exemplars, nunca a labels.' },
+        a: '15 series (11 + "+Inf" + _sum + _count + _created) × 36,000 slides/mes = 540,000 series al mes. Los ids van a logs o exemplars, nunca a labels.' },
       { id: 'm12-08', kind: 'concepto', q: 'Proxy vs label en c04.',
         a: 'Proxies en horas: color de tinción por escáner, % de tumor predicho, confianza. Label: tasa de correcciones mayores (&gt; 20 % del área) al firmar, horas a días, sesgada por automation bias; auditoría mensual independiente para medir ese sesgo.' },
       { id: 'm12-09', kind: 'trampa', q: '"Monitoreo la accuracy con los labels que confirman los usuarios."',

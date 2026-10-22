@@ -73,7 +73,7 @@ docker build -t classifier-triton:2026-09-01-resnet50-fp16 triton/
 cd reference/c01/gateway
 python3.13 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
-pytest            # 24 tests: 200 con top_k, 415, 413 (bytes y píxeles), 400 (incluida la relación de aspecto extrema), 422, 503 (Triton caído y por sobrecarga), 504 (Triton lento y por deadline), health, métricas
+pytest            # 26 tests: 200 con top_k, 415, 413 (bytes y píxeles), 400 (incluida la relación de aspecto extrema), 422 (con línea y conteo), 499 (upload cortado), 500 (logits NaN), 503 (Triton caído y por sobrecarga), 504 (Triton lento y por deadline), health, métricas
 ```
 
 ## Correr todo en local con docker compose (necesita GPU NVIDIA)
@@ -115,8 +115,9 @@ Probado en macOS (Apple Silicon), Python 3.13, sin GPU ni daemon de Docker:
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests del gateway | `pytest` en un venv limpio con `requirements-dev.txt` | 24 passed |
+| Tests del gateway | `pytest` en un venv limpio con `requirements-dev.txt` | 26 passed |
 | Cliente real de Triton | uvicorn + `tritonclient.http.aio` 2.72 contra un servidor KServe v2 falso (binary tensors) | 200 (también 16 requests concurrentes), 415, 413, 400, 503 con `Retry-After`, 504 a los ≈ 150 ms, logs JSON y `/metrics` correctos |
+| Upload cortado y 422 | uvicorn real; un socket que declara 100,000 bytes, manda 1,000 y cierra; `top_k=0` con `curl` | línea y métrica con 499, sin traceback; el 422 con su línea, su conteo y `X-Request-ID` |
 | Load shedding | mismo montaje, ráfagas concurrentes contra un pod con la config por defecto | 16 fotos de 1024×768 a la vez: 16 × 200 (p50 ≈ 40 ms); 40 a la vez: 14 × 200 y 26 × 503 rápidos (p50 ≈ 7 ms), ninguna pasa de 300 ms |
 | Preprocesamiento vs torchvision 0.29 | 24 imágenes JPEG/PNG/WebP de 300×200 a 6000×4000 | sin draft: diferencia 0.0; con el draft conservador: media 0.004–0.011, máx ≤ 0.23 (normalizado) |
 | Export ONNX (torch 2.14) | `export_onnx.py` con pesos aleatorios | opset 17, batch dinámico, ORT batch 1 y 32: máx \|Δlogit\| ≈ 1e-4 |

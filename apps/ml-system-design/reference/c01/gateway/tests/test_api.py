@@ -8,6 +8,8 @@ Correr: cd gateway && pytest
 
 import asyncio  # el fake "lento" duerme para provocar el timeout del gateway
 import io  # imágenes de prueba generadas en memoria, sin archivos en el repo
+import json  # cada línea de log del gateway es un objeto JSON
+import logging  # un handler propio lee esas líneas (ver LogLines)
 import re  # /metrics: buscar un par label="valor" sin depender del orden de los labels
 
 import aiohttp  # la excepción de red que lanzaría el cliente real si Triton está caído
@@ -15,6 +17,7 @@ import numpy as np  # logits falsos con un top-1 conocido
 import pytest
 from fastapi.testclient import TestClient  # corre la app ASGI en proceso, incluido el lifespan
 from PIL import Image  # genera JPEG/PNG/WebP válidos
+from prometheus_client import REGISTRY  # leer el valor de una serie sin parsear /metrics
 from tritonclient.utils import InferenceServerException  # el error "Triton respondió mal"
 
 from app import main  # la app real, tal como la carga uvicorn
@@ -33,9 +36,9 @@ class FakeResult:
 
 
 class FakeTriton:
-    """Doble de tritonclient.http.aio.InferenceServerClient con cuatro modos de comportamiento."""
+    """Doble de tritonclient.http.aio.InferenceServerClient con cinco modos de comportamiento."""
 
-    mode = "ok"  # ok | down (sin red) | slow (no responde a tiempo) | reject (Triton devuelve error)
+    mode = "ok"  # ok | down (sin red) | slow (no responde a tiempo) | reject (Triton devuelve error) | nan
 
     def __init__(self, url, conn_limit=100, conn_timeout=60.0, **kwargs):  # misma firma que el real
         self.url = url
@@ -50,7 +53,7 @@ class FakeTriton:
         if self.mode == "reject":
             raise InferenceServerException("Request for unknown model", status="400")
         logits = np.linspace(-2, 2, 500, dtype=np.float32)[np.newaxis]  # [1,500], el shape real
-        logits[0, TOP_CLASS] = 12.0  # top-1 claro
+        logits[0, TOP_CLASS] = np.nan if self.mode == "nan" else 12.0  # top-1 claro, o un engine roto
         return FakeResult(logits)
 
     async def is_model_ready(self, model_name, model_version=""):
@@ -62,6 +65,17 @@ class FakeTriton:
         pass  # el real cierra el pool de aiohttp
 
 
+class LogLines(logging.Handler):
+    """Junta las líneas JSON del gateway. Su logger no propaga al root, así que caplog no las ve."""
+
+    def __init__(self):
+        super().__init__()
+        self.lines = []
+
+    def emit(self, record):
+        self.lines.append(json.loads(record.getMessage()))
+
+
 @pytest.fixture
 def api(monkeypatch):
     """App con el fake inyectado. `with TestClient` ejecuta el lifespan (crea y cierra el cliente)."""
@@ -69,6 +83,15 @@ def api(monkeypatch):
     monkeypatch.setattr(main.triton_http, "InferenceServerClient", FakeTriton)
     with TestClient(main.app) as client:
         yield client
+
+
+@pytest.fixture
+def log_lines():
+    """Las líneas que escribe el gateway durante el test, ya parseadas (la última es log_lines[-1])."""
+    handler = LogLines()
+    main.log.addHandler(handler)
+    yield handler.lines
+    main.log.removeHandler(handler)
 
 
 def image_bytes(fmt="JPEG", size=(640, 480), mode="RGB"):
@@ -83,6 +106,37 @@ def image_bytes(fmt="JPEG", size=(640, 480), mode="RGB"):
 
 def post(client, data, ctype="image/jpeg", **params):
     return client.post("/v1/classify", content=data, headers={"Content-Type": ctype}, params=params)
+
+
+def count(status):
+    """classifier_requests_total para un status. El registro es global: los tests comparan antes y después."""
+    labels = {"status": status, "source": "other", "model_version": main.MODEL_VERSION}  # sin x-client-source
+    return REGISTRY.get_sample_value("classifier_requests_total", labels) or 0.0  # None si la serie no existe
+
+
+def post_and_disconnect(client, data):
+    """Manda un trozo del body y corta, como un celular que pierde la red a mitad del upload.
+
+    TestClient siempre entrega el body completo, así que aquí se habla ASGI directo: llega un trozo y
+    después el mismo mensaje http.disconnect que manda uvicorn cuando el cliente cierra la conexión.
+    """
+    chunks = [{"type": "http.request", "body": data, "more_body": True}]  # more_body: falta el resto
+    sent = []
+
+    async def receive():
+        return chunks.pop(0) if chunks else {"type": "http.disconnect"}
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {
+        "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST", "scheme": "http",
+        "path": "/v1/classify", "raw_path": b"/v1/classify", "query_string": b"", "root_path": "",
+        "headers": [(b"host", b"testserver"), (b"content-type", b"image/jpeg")],
+        "client": ("testclient", 50000), "server": ("testserver", 80),
+    }
+    client.portal.call(client.app, scope, receive, send)  # en el event loop del TestClient, el del lifespan
+    return sent
 
 
 # ------------------------------------------------------------------------------ camino feliz
@@ -110,8 +164,9 @@ def test_other_formats_and_default_top_k(api, fmt, ctype):
 
 
 def test_request_id_is_propagated(api):
+    # El id lo trae el caller (el backend de publicación); el ALB no manda uno, solo agrega X-Amzn-Trace-Id
     r = api.post("/v1/classify", content=image_bytes(), headers={"Content-Type": "image/jpeg", "X-Request-ID": "abc123"})
-    assert r.headers["X-Request-ID"] == "abc123"  # respeta el id que manda el ALB o el cliente
+    assert r.headers["X-Request-ID"] == "abc123"  # respeta el id que llega en el request
 
 
 # ------------------------------------------------------------------------------ errores del cliente (4xx)
@@ -156,9 +211,23 @@ def test_empty_body_is_400(api):
     assert post(api, b"").status_code == 400
 
 
-def test_top_k_out_of_range_is_422(api):
-    assert post(api, image_bytes(), top_k=0).status_code == 422  # validación de FastAPI (Query ge/le)
+def test_top_k_out_of_range_is_422(api, log_lines):
+    before = count("422")
+    r = post(api, image_bytes(), top_k=0)
+    assert r.status_code == 422  # validación de FastAPI (Query ge/le): classify ni siquiera corre
     assert post(api, image_bytes(), top_k=500).status_code == 422
+    # …pero el exception handler deja su conteo, su línea y el id para trazarlo
+    assert count("422") == before + 2 and r.headers["X-Request-ID"]
+    assert log_lines[-1]["status"] == 422 and "top_k" in log_lines[-1]["error"]
+
+
+def test_client_disconnect_mid_upload_is_499_not_500(api, log_lines):
+    # Un upload cortado no es una falla del servidor: contado como 500 inflaría ClassifierHigh5xxRate
+    before_499, before_500 = count("499"), count("500")
+    sent = post_and_disconnect(api, image_bytes()[:2000])
+    assert sent[0]["status"] == 499  # nadie la recibe: uvicorn la descarta porque el cliente ya se fue
+    assert count("499") == before_499 + 1 and count("500") == before_500
+    assert log_lines[-1]["status"] == 499 and "cerró la conexión" in log_lines[-1]["error"]
 
 
 # ------------------------------------------------------------------------------ fallas de Triton (5xx)
@@ -173,11 +242,25 @@ def test_triton_error_is_503(api):
     assert post(api, image_bytes()).status_code == 503
 
 
-def test_slow_triton_is_504(api):
+def test_slow_triton_is_504(api, log_lines):
     FakeTriton.mode = "slow"
+    observed = REGISTRY.get_sample_value("classifier_inference_seconds_count")
     r = post(api, image_bytes())
     assert r.status_code == 504  # cortamos a los 0.15 s: el cliente cae a su fallback manual
     assert "X-Request-ID" in r.headers  # los errores también son trazables
+    # El timeout entra al histograma de inferencia y a la línea: es la llamada más lenta, no una que falta
+    assert REGISTRY.get_sample_value("classifier_inference_seconds_count") == observed + 1
+    assert log_lines[-1]["inference_ms"] >= 100  # ≈ 150 ms: lo que se esperó antes de cortar
+
+
+def test_non_finite_logits_are_500_in_the_log_and_the_metric_too(api, log_lines):
+    # Sin la guardia, el NaN rompería el JSON DESPUÉS del finally: el cliente vería un 500 y la línea y la
+    # métrica dirían 200, así que la alerta de 5xx no se enteraría
+    FakeTriton.mode = "nan"
+    before = count("500")
+    r = post(api, image_bytes())
+    assert r.status_code == 500 and "no finitos" in r.json()["detail"]
+    assert count("500") == before + 1 and log_lines[-1]["status"] == 500
 
 
 # ------------------------------------------------------------------------------ sobrecarga (load shedding)

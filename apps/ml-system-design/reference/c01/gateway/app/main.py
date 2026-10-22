@@ -16,7 +16,7 @@ import logging  # a stdout: en un contenedor los logs son un stream, nunca archi
 import os  # configuración por variables de entorno: la misma imagen corre en dev, staging y prod
 import sys  # sys.stdout como destino explícito de los logs
 import time  # perf_counter: reloj monotónico para medir latencias
-import uuid  # request_id propio cuando el load balancer no manda uno
+import uuid  # request_id propio cuando el caller no manda uno (el ALB no lo agrega: solo X-Amzn-Trace-Id)
 from contextlib import asynccontextmanager  # lifespan: crear y cerrar recursos compartidos
 from pathlib import Path  # ruta por defecto de labels.json, junto a este archivo
 
@@ -24,9 +24,12 @@ import aiohttp  # el cliente aio de Triton usa aiohttp: sus fallas de red llegan
 import numpy as np  # softmax y top-k sobre los 500 logits
 import tritonclient.http.aio as triton_http  # cliente async de Triton: protocolo KServe v2 por HTTP
 from fastapi import FastAPI, HTTPException, Query, Request, Response  # framework ASGI + validación
+from fastapi.exception_handlers import request_validation_exception_handler  # el 422 por defecto de FastAPI
+from fastapi.exceptions import RequestValidationError  # lo que lanza FastAPI si la query no valida (→ 422)
 from PIL import Image  # límite global de píxeles de Pillow y su DecompressionBombError
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest  # métricas Prometheus
 from starlette.concurrency import run_in_threadpool  # corre código bloqueante fuera del event loop
+from starlette.requests import ClientDisconnect  # el cliente cerró la conexión mientras leíamos el body
 from tritonclient.utils import InferenceServerException  # error que devuelve Triton (4xx/5xx)
 
 from .preprocess import ImageTooLarge, preprocess  # EL MISMO preprocesamiento que training/eval
@@ -127,11 +130,18 @@ def metrics() -> Response:
 async def _read_body_limited(request: Request) -> bytes:
     """Lee el body en streaming y corta en cuanto pasa de MAX_BYTES (no confía en Content-Length)."""
     chunks, size = [], 0  # acumulamos trozos para no copiar el buffer en cada iteración
-    async for chunk in request.stream():  # llega por partes: podemos abortar sin leer 1 GB
-        size += len(chunk)
-        if size > MAX_BYTES:  # un cliente con chunked encoding o que miente en Content-Length
-            raise HTTPException(413, "la imagen supera 10 MB")
-        chunks.append(chunk)
+    try:
+        async for chunk in request.stream():  # llega por partes: podemos abortar sin leer 1 GB
+            size += len(chunk)
+            if size > MAX_BYTES:  # un cliente con chunked encoding o que miente en Content-Length
+                raise HTTPException(413, "la imagen supera 10 MB")
+            chunks.append(chunk)
+    except ClientDisconnect:
+        # El cliente cortó a mitad del upload (red móvil, app cerrada): no es una falla del servidor.
+        # Sin esto contaría como 500 (con traceback) e inflaría ClassifierHigh5xxRate. 499 es la
+        # convención de nginx ("client closed request"): queda con los 4xx, fuera de la tasa de 5xx.
+        # Nadie recibe esta respuesta: uvicorn descarta lo que se manda a un cliente que ya se fue.
+        raise HTTPException(499, "el cliente cerró la conexión antes de terminar el upload") from None
     if size == 0:  # body vacío: error del cliente, no vale la pena llegar al decoder
         raise HTTPException(400, "body vacío: envía los bytes de la imagen")
     return b"".join(chunks)
@@ -168,7 +178,14 @@ async def _infer(client, batch: np.ndarray, request_id: str, timeout: float = IN
     except InferenceServerException as exc:  # Triton respondió error: modelo no cargado, request rechazado
         detail = f"Triton rechazó la inferencia: {exc.message()}"
         raise HTTPException(503, detail, headers={"Retry-After": "1"}) from None
-    return result.as_numpy("logits")[0]  # [500] logits del único elemento del batch
+    logits = result.as_numpy("logits")[0]  # [500] logits del único elemento del batch
+    # Un engine roto (FP16 desbordado, pesos corruptos) puede devolver NaN o inf. Sin esta guardia, FastAPI
+    # fallaría al serializar la respuesta (JSONResponse usa allow_nan=False) DESPUÉS del finally de classify:
+    # el cliente recibiría un 500 mientras la línea de log y la métrica dicen 200, y la suma de TOP1 quedaría
+    # en NaN hasta que el pod reinicie. Así es un 500 que la alerta de 5xx sí ve.
+    if not np.isfinite(logits).all():
+        raise HTTPException(500, "Triton devolvió logits no finitos (NaN o inf)")
+    return logits
 
 
 def _budget_left(deadline: float) -> float:
@@ -276,12 +293,17 @@ async def _classify(request: Request, top_k: int, record: dict, deadline: float)
 
     left = _budget_left(deadline)  # no mandes a la GPU un request que el caller ya abandonó
     t = time.perf_counter()
-    logits = await _infer(  # I/O: aquí el await sí cede el loop
-        request.app.state.triton, batch, record["request_id"], timeout=min(INFER_TIMEOUT_S, left)
-    )
-    inf_s = time.perf_counter() - t
-    INFERENCE.observe(inf_s)
-    record["inference_ms"] = round(inf_s * 1000, 1)
+    try:
+        logits = await _infer(  # I/O: aquí el await sí cede el loop
+            request.app.state.triton, batch, record["request_id"], timeout=min(INFER_TIMEOUT_S, left)
+        )
+    finally:
+        # También si Triton falla (503) o no contesta a tiempo (504): un timeout es la llamada MÁS lenta,
+        # no una que falta. Si no entrara, el p99 de inferencia se vería sano justo cuando Triton está
+        # lento, y el desglose no cuadraría con la latencia total, que sí cuenta los 5xx.
+        inf_s = time.perf_counter() - t
+        INFERENCE.observe(inf_s)
+        record["inference_ms"] = round(inf_s * 1000, 1)
 
     probs = _softmax(logits)
     top = np.argsort(probs)[::-1][:top_k]  # 500 clases: ordenar todo cuesta microsegundos
@@ -292,6 +314,29 @@ async def _classify(request: Request, top_k: int, record: dict, deadline: float)
         "model_version": MODEL_VERSION,  # el cliente (y los logs) saben qué modelo respondió
         "predictions": [{"label": labels[i], "score": round(float(probs[i]), 4)} for i in top],
     }
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError) -> Response:
+    """422 (p. ej. top_k=0): FastAPI valida la query ANTES de llamar a classify, así que su finally no corre.
+
+    Sin este handler el 422 no dejaría línea de log ni métrica (uvicorn corre con --no-access-log): una ola
+    de 422 tras un release del caller solo se vería en el ALB. Se anota como los demás 4xx y responde el
+    handler por defecto de FastAPI (mismo body). /v1/classify es la única ruta con parámetros.
+    """
+    request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+    source = request.headers.get("x-client-source", "unknown")
+    REQUESTS.labels(status="422", source=source if source in SOURCES else "other", model_version=MODEL_VERSION).inc()
+    # Dónde y qué falló, sin el `input` de cada error: puede traer cualquier cosa que mandó el cliente
+    error = "; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors())
+    record = {  # los campos de la línea de classify que se conocen sin leer el body; sin latencia (es un 4xx)
+        "event": "classify", "request_id": request_id, "model_version": MODEL_VERSION, "source": source,
+        "error": error, "status": 422,
+    }
+    log.info(json.dumps(record, ensure_ascii=False))
+    response = await request_validation_exception_handler(request, exc)
+    response.headers["X-Request-ID"] = request_id  # trazable, como los errores que decide classify
+    return response
 
 
 @app.get("/healthz")

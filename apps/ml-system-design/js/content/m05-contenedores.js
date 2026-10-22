@@ -102,7 +102,7 @@
     ],
     flows: [
       { id: 'release', label: 'Una release del gateway', steps: [
-        { nodes: ['git', 'build'], edges: ['git>build'], text: 'Merge a main. CI corre los 24 tests unitarios del gateway (pytest con <code>requirements-dev.txt</code>, fuera de la imagen: la imagen no trae tests ni pytest), construye <code>classifier-gateway:3f9c2ab</code> para <code>linux/amd64</code> y hace un smoke test contra un contenedor de ESA imagen (<code>/healthz</code> y un <code>POST /v1/classify</code> contra un Triton falso).' },
+        { nodes: ['git', 'build'], edges: ['git>build'], text: 'Merge a main. CI corre los 26 tests unitarios del gateway (pytest con <code>requirements-dev.txt</code>, fuera de la imagen: la imagen no trae tests ni pytest), construye <code>classifier-gateway:3f9c2ab</code> para <code>linux/amd64</code> y hace un smoke test contra un contenedor de ESA imagen (<code>/healthz</code> y un <code>POST /v1/classify</code> contra un Triton falso).' },
         { nodes: ['build', 'repo', 'scan'], edges: ['build>repo', 'build>scan'], text: 'Push al registry: el registry devuelve el digest (<code>sha256:…</code>). Desde aquí, todo se refiere a ese digest, no al tag.' },
         { nodes: ['scan', 'repo'], edges: ['scan>repo'], text: 'Escaneo de vulnerabilidades y firma del digest. Si hay una CVE crítica sin excepción aprobada, la release se detiene aquí.' },
         { nodes: ['repo', 'stg'], edges: ['repo>stg'], text: 'Staging despliega por digest. Smoke test, load test y paridad: si algo falla, no hay nada que "arreglar en producción" porque producción nunca vio esta imagen.' },
