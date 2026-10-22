@@ -1,0 +1,2287 @@
+{
+ "sections": [
+  {
+   "id": "bolsillo",
+   "num": 0,
+   "title": "Números de bolsillo: códigos HTTP, timeouts, límites del gateway del C01 y Little's law",
+   "question": "¿Qué códigos, tiempos y límites conviene saberse de memoria para leer una respuesta del gateway, o un incidente, en segundos?",
+   "templates": [
+    {
+     "code": "curl -si -H \"Content-Type: {tipo}\" --data-binary @{foto} \"{host}/v1/classify?top_k={k}\"",
+     "note": "Manda una foto como lo hace el backend de publicación (el servidor del marketplace que llama al C01). Con <code>-i</code> ves la línea de estado (el código y su frase) y los headers: <code>X-Request-ID</code> viene en el 200 y en los errores que decide la función (el 422 de FastAPI y un 500 por bug no lo traen), y <code>Retry-After</code> en los 503 de carga y de Triton. Si le hablas directo a uvicorn (el servidor que corre la app), la frase la pone él según tu Python: desde 3.13 dice <code>413 Content Too Large</code> y <code>422 Unprocessable Content</code>, los nombres del RFC 9110 (el documento que define qué significa cada código)."
+    },
+    {
+     "code": "raise HTTPException({codigo}, \"{mensaje}\", headers={\"Retry-After\": \"{segundos}\"})",
+     "note": "Así responde el C01 cada error que decide: FastAPI lo convierte en <code>{\"detail\": \"…\"}</code> con ese código y esos headers. Un 4xx dice «el request está mal: no lo repitas igual» (el 429 es la excepción: «espera y reintenta»). Un 503 con <code>Retry-After</code> dice «estoy lleno o mi dependencia no está: vuelve en {segundos} s»."
+    },
+    {
+     "code": "left = deadline - time.perf_counter()\nresultado = await asyncio.wait_for({llamada}, timeout=min({tope}, left))",
+     "note": "Deadline propagation (propagar la hora límite): el request tiene un presupuesto total (250 ms en el C01) y cada etapa usa lo que queda, nunca más que su propio tope (150 ms para Triton). Si ya no queda nada, el C01 responde 504 sin llamar a Triton."
+    },
+    {
+     "code": "python3.13 -c 'from http import HTTPStatus; print(HTTPStatus({codigo}).phrase)'",
+     "note": "La frase oficial de cada código en tu versión de Python; uvicorn la toma de ahí. Con 3.12 o anterior verás los nombres viejos: <code>Request Entity Too Large</code> y <code>Unprocessable Entity</code>."
+    }
+   ],
+   "formulas": [
+    "L = \\lambda\\,W \\qquad 100\\ \\tfrac{\\text{req}}{\\text{s}} \\times 0.05\\ \\text{s} = 5 \\qquad 100\\ \\tfrac{\\text{req}}{\\text{s}} \\times 0.2\\ \\text{s} = 20 \\;\\to\\; \\texttt{MAX\\_INFLIGHT} = 16",
+    "t_{\\text{caller}} > t_{\\text{deadline}} > t_{\\text{Triton}} > t_{\\text{cola}} \\qquad 300 > 250 > 150 > 100\\ \\text{ms}",
+    "t_{\\text{Triton}} = \\min\\big(150\\ \\text{ms},\\; t_0 + 250\\ \\text{ms} - \\text{ahora}\\big) \\qquad \\le 0 \\;\\Rightarrow\\; 504\\ \\text{sin llamar}",
+    "\\text{RAM} \\approx \\underbrace{80}_{\\text{Python}} + \\underbrace{2 \\times 320}_{\\text{decodes de 40 MP}} + \\underbrace{16 \\times 10}_{\\text{bodies en vuelo}} = 880\\ \\text{MB} < 1\\ \\text{GiB} \\approx 1{,}074\\ \\text{MB}",
+    "\\text{intentos} = (1 + r)^{n} \\qquad r = 3,\\ n = 3 \\;\\Rightarrow\\; 4^{3} = 64"
+   ],
+   "vars": [
+    [
+     "{tipo}",
+     "formato de la foto, en el header Content-Type",
+     "image/jpeg (también image/png e image/webp)"
+    ],
+    [
+     "{foto}",
+     "archivo que mandas como body, en bytes crudos",
+     "foto.jpg"
+    ],
+    [
+     "{host}",
+     "dónde escucha el gateway",
+     "localhost:8080 con compose; en EKS (el Kubernetes de AWS), el balanceador interno (ALB)"
+    ],
+    [
+     "{k}",
+     "cuántas categorías pides",
+     "5 por defecto, de 1 a 20"
+    ],
+    [
+     "{codigo} · {mensaje}",
+     "código HTTP y texto para el cliente",
+     "503 · gateway saturado: reintenta más tarde"
+    ],
+    [
+     "{segundos}",
+     "cuánto esperar antes de reintentar",
+     "1 en el C01"
+    ],
+    [
+     "{llamada} · {tope}",
+     "la espera lenta que acotas y el máximo propio de esa etapa",
+     "client.infer(...) · INFER_TIMEOUT_S = 0.15"
+    ],
+    [
+     "L",
+     "requests en vuelo: aceptados y todavía sin respuesta, en cualquier etapa",
+     "≈ 3–5 por pod en el pico"
+    ],
+    [
+     "λ",
+     "requests por segundo que llegan a un pod",
+     "500 req/s ÷ 5 pods = 100"
+    ],
+    [
+     "W",
+     "tiempo promedio que pasa cada request adentro (el promedio, no el p99 de los más lentos)",
+     "≈ 50 ms normal; 200 ms si todo va lento"
+    ],
+    [
+     "t_caller … t_cola",
+     "timeout de cada nivel: quien llama, el gateway, la llamada a Triton y la cola de Triton",
+     "300 · 250 · 150 · 100 ms"
+    ],
+    [
+     "t_0",
+     "el momento en que el request llegó a la función",
+     "time.perf_counter() al entrar a classify"
+    ],
+    [
+     "r · n",
+     "reintentos por capa y cuántas capas reintentan por su cuenta",
+     "3 y 3 → hasta 64 intentos por request"
+    ]
+   ],
+   "pieces": [
+    [
+     "200 OK",
+     "Respuesta con las k categorías, su score, model_version y latency_ms.",
+     "header X-Request-ID para reclamar un caso"
+    ],
+    [
+     "400 Bad Request",
+     "El request está roto: body vacío, bytes que no son una imagen, o una relación de aspecto mayor que 1:8.",
+     "no se pudo decodificar la imagen"
+    ],
+    [
+     "413 Content Too Large",
+     "Demasiado grande: más de 10 MB (por Content-Length o contando los bytes) o más de 40 MP (40 millones de píxeles, leídos del header de la imagen).",
+     "la imagen supera 10 MB"
+    ],
+    [
+     "415 Unsupported Media Type",
+     "Formato no aceptado: el Content-Type no es image/jpeg, image/png ni image/webp.",
+     "un GIF, o application/octet-stream"
+    ],
+    [
+     "422 Unprocessable Content",
+     "Lo genera FastAPI cuando un parámetro no pasa la validación, antes de llamar a tu función. El body trae la lista de errores.",
+     "top_k=0 o top_k=500"
+    ],
+    [
+     "429 Too Many Requests",
+     "Límite por cliente (rate limit, del RFC 6585): «mandaste demasiados en este rato». Puede traer Retry-After.",
+     "el main.py del C01 no lo emite: la cuota por caller va en el borde (una regla del WAF, el firewall de aplicaciones de AWS) o en un contador por identidad. Ojo: el WAF bloquea con 403 salvo que le configures una respuesta 429"
+    ],
+    [
+     "500 Internal Server Error",
+     "Algo que nadie atrapó: un bug. Lo responde la capa de Starlette (la base de FastAPI) que atrapa cualquier excepción suelta.",
+     "el C01 arranca su contador con status = 500, por si algo explota"
+    ],
+    [
+     "502 Bad Gateway",
+     "Quien está delante recibió una respuesta inválida, o una conexión cerrada, del que está detrás.",
+     "el ALB, si uvicorn cierra una conexión ociosa (keep-alive) que el ALB iba a reusar: por eso --timeout-keep-alive 75 > 60"
+    ],
+    [
+     "503 + Retry-After: 1 (carga)",
+     "Load shedding (rechazar al entrar en vez de encolar): ya hay 16 requests en vuelo, o en 50 ms no se liberó ningún turno de CPU (slot) para decodificar.",
+     "gateway saturado: reintenta más tarde"
+    ],
+    [
+     "503 + Retry-After: 1 (Triton)",
+     "Falló la dependencia: Triton no responde (error de conexión) o rechazó la inferencia.",
+     "Triton no disponible"
+    ],
+    [
+     "503 de otros",
+     "/readyz sin modelo (lo lee el kubelet, el agente de Kubernetes que corre los probes, los chequeos de salud; va sin Retry-After); el ALB cuando no le queda ningún pod listo; uvicorn con --limit-concurrency (texto plano: Service Unavailable). Ninguno pasa por tu manejo de errores.",
+     "el modelo no está listo en Triton"
+    ],
+    [
+     "504 Gateway Timeout",
+     "Se acabó el tiempo: Triton no respondió en min(150 ms, lo que queda), o los 250 ms se gastaron antes de llamarlo.",
+     "timeout de inferencia"
+    ],
+    [
+     "Retry-After",
+     "Header que dice en cuántos segundos reintentar (o desde qué fecha).",
+     "Retry-After: 1"
+    ],
+    [
+     "X-Request-ID",
+     "Id del request: el C01 usa el que trae el cliente o un proxy (un intermediario), y si no viene, inventa uno. Une la respuesta con su línea de log.",
+     "abc123, o uuid4().hex"
+    ]
+   ],
+   "example": {
+    "title": "La configuración del C01: todos los números de bolsillo en un solo lugar",
+    "lang": "python",
+    "code": "INFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.15\"))  # 150 ms para Triton dentro del p99 ≤ 200 ms\n# …\n# Decodes simultáneos por proceso: acota CPU y RAM. Pico medido de UN PNG de 40 MP: ≈ 320 MB\n# (Pillow guarda RGB en 4 bytes/px = 160 MB, más las copias de exif_transpose y convert).\nPREPROCESS_CONCURRENCY = int(os.getenv(\"PREPROCESS_CONCURRENCY\", \"2\"))\n# Load shedding: requests aceptados a la vez por proceso; el resto → 503 inmediato con Retry-After.\n# ≈ lo que un pod completa en ≈ 200 ms (≈ 100 req/s × 0.2 s ≈ 20) y acotado por RAM: 16 bodies de\n# hasta 10 MB = 160 MB, que caben en 1Gi junto a los decodes. Al pico hay ≈ 3–5 en vuelo por pod.\nMAX_INFLIGHT = int(os.getenv(\"MAX_INFLIGHT\", \"16\"))\nSLOT_WAIT_S = 0.05  # espera máxima por un slot de CPU: si hay que esperar más, ya no cumple el SLO → 503\n# Presupuesto total server-side (< 300 ms del caller). Cada etapa usa lo que queda: deadline propagation\nREQUEST_DEADLINE_S = float(os.getenv(\"REQUEST_DEADLINE_S\", \"0.25\"))\nMAX_BYTES = 10 * 1024 * 1024  # 10 MB: tope de subida web (el app móvil manda ~150–250 KB)\nMAX_PIXELS = 40_000_000  # 40 MP: por encima es casi seguro un error o un ataque\nALLOWED_TYPES = {\"image/jpeg\", \"image/png\", \"image/webp\"}  # los únicos formatos que decodificamos\n# …\nMAX_TOP_K = 20  # top_k acotado: nadie necesita 500 sugerencias y el log crecería sin control\n# Segunda red de Pillow: avisa > 40 MP y falla > 80 MP aunque alguien se salte la guardia de decode()\nImage.MAX_IMAGE_PIXELS = MAX_PIXELS",
+    "source": "reference/c01/gateway/app/main.py (líneas 38–57, extracto; # … marca líneas omitidas)",
+    "notes": [
+     "<code>INFER_TIMEOUT_S</code> (150 ms) y <code>REQUEST_DEADLINE_S</code> (250 ms) son la mitad de la cadena de timeouts. Las otras dos puntas: los 300 ms del caller y los 100 ms que Triton deja esperar en su cola (en su <code>config.pbtxt</code>).",
+     "<code>MAX_INFLIGHT = 16</code> sale de Little: un pod atiende ≈ 100 req/s; si cada request tardara 200 ms, habría ≈ 20 adentro. Se recorta a 16 por RAM: 16 bodies de hasta 10 MB son 160 MB.",
+     "<code>PREPROCESS_CONCURRENCY = 2</code>: solo 2 decodes a la vez por proceso, aunque el threadpool (el grupo de hilos de reserva) tenga 40. Un PNG de 40 MP ocupa ≈ 320 MB al decodificarse, y el pod tiene 1 GiB.",
+     "<code>SLOT_WAIT_S = 0.05</code> no se configura por variable de entorno: si un request espera más de 50 ms por un slot de CPU, ya no llega al SLO (la meta: p99 ≤ 200 ms, el tiempo bajo el que quedan 99 de cada 100 requests) y recibe 503.",
+     "Lo que viene de <code>os.getenv</code> se cambia sin reconstruir la imagen: <code>k8s/gateway.yaml</code> fija <code>INFER_TIMEOUT_S</code>, <code>PREPROCESS_CONCURRENCY</code> y <code>MAX_INFLIGHT</code>. <code>Image.MAX_IMAGE_PIXELS</code> deja a Pillow como segunda red: avisa sobre 40 MP y falla sobre 80 MP."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Los límites del gateway: lo que trae cada librería por defecto contra lo que fija el C01. Verificado contra el código y la documentación de las versiones del C01 (FastAPI 0.141.1, Starlette 1.7.0, uvicorn 0.54.0, AnyIO 4.15.1, Pillow 12.3.0, tritonclient 2.72.0, Python 3.13), en octubre de 2026.",
+    "data": {
+     "head": [
+      "Límite",
+      "Default",
+      "En el C01",
+      "Por qué"
+     ],
+     "rows": [
+      [
+       "Requests en vuelo por proceso",
+       "sin límite (--limit-concurrency de uvicorn no tiene default)",
+       "MAX_INFLIGHT = 16 → 503 + Retry-After: 1",
+       "Little: ≈ 100 req/s × 0.2 s ≈ 20, recortado por RAM"
+      ],
+      [
+       "Hilos del threadpool",
+       "40 (el de AnyIO: rutas y dependencias def, y run_in_threadpool)",
+       "40, pero solo 2 decodes a la vez (un semáforo: un contador de turnos)",
+       "un decode de 40 MP ocupa ≈ 320 MB"
+      ],
+      [
+       "Espera por un slot de CPU",
+       "—",
+       "SLOT_WAIT_S = 50 ms → 503 + Retry-After: 1",
+       "esperar más ya rompe el SLO"
+      ],
+      [
+       "Tamaño del body",
+       "sin límite (FastAPI y uvicorn; en Starlette, max_body_size=None)",
+       "10 MB → 413, por Content-Length y contando bytes",
+       "la app móvil manda ≈ 150–250 KB"
+      ],
+      [
+       "Píxeles",
+       "Pillow avisa sobre 89,478,485 px y falla sobre el doble",
+       "40 MP → 413 (guardia propia); Pillow a 40 MP y 80 MP",
+       "un PNG de 50 KB puede declarar 30,000 × 30,000 px"
+      ],
+      [
+       "Relación de aspecto",
+       "—",
+       "hasta 1:8 → si no, 400",
+       "1 × 4,000 px pasa el límite de píxeles y ocuparía ≈ 1 GB al reescalar"
+      ],
+      [
+       "top_k",
+       "—",
+       "5; de 1 a 20 → si no, 422",
+       "nadie necesita 500 sugerencias"
+      ],
+      [
+       "Timeout hacia Triton",
+       "tritonclient aio: conn_timeout = 60 s, un mismo valor para todas las llamadas",
+       "asyncio.wait_for con min(150 ms, lo que queda); conn_timeout = 1 s de respaldo",
+       "el timeout de infer() son µs de la cola de Triton, no del cliente"
+      ],
+      [
+       "Presupuesto del request",
+       "ninguno",
+       "REQUEST_DEADLINE_S = 250 ms → 504",
+       "50 ms antes que los 300 ms del caller"
+      ],
+      [
+       "Conexiones a Triton",
+       "conn_limit = 100",
+       "64",
+       "acota lo que va en vuelo hacia Triton"
+      ],
+      [
+       "Readiness hacia Triton",
+       "—",
+       "is_model_ready con tope de 0.5 s",
+       "el probe del kubelet corta a los 2 s"
+      ],
+      [
+       "Keep-alive de uvicorn",
+       "5 s",
+       "75 s (más que los 60 s de idle del ALB)",
+       "si uvicorn cierra primero, el ALB ve un 502"
+      ],
+      [
+       "Apagado de uvicorn",
+       "--timeout-graceful-shutdown: sin límite",
+       "20 s; preStop de 15 s; plazo del pod de 45 s",
+       "45 − 15 = 30 s para la app: 20 de drenado + 10 de margen"
+      ],
+      [
+       "Procesos por contenedor",
+       "--workers 1 (o $WEB_CONCURRENCY)",
+       "--workers 1, escrito explícito",
+       "se escala con pods, no con procesos"
+      ]
+     ],
+     "note": "Versiones de hoy contra las del C01: FastAPI 0.160.0 (0.141.1), Starlette 1.9.0 (1.7.0), Pydantic 2.14.1 (2.13.5), Pillow 13.0.0 (12.3.0), aiohttp 3.14.5 (3.14.3), tritonclient 2.73.0 (2.72.0), uvloop 0.23.0 (0.22.1), httptools 0.9.0 (0.8.0); uvicorn 0.54.0, AnyIO 4.15.1 y prometheus-client 0.26.0 siguen iguales. En el medio, FastAPI sumó soporte nativo de OpenTelemetry, el estándar de trazas y métricas (0.142; desde 0.143 el exportador ya no se configura solo) y dejó de validar los defaults que el cliente omite (0.148). Ningún cambio mueve un número de esta tabla."
+    }
+   },
+   "memo": "<b>4xx: el cliente se equivocó, no lo repitas igual (salvo 429: espera el Retry-After). 503: vuelve en un rato (Retry-After). 504: se acabó el tiempo. 500: bug tuyo.</b> Los números del C01: <b>16</b> en vuelo, <b>2</b> decodes, <b>10 MB</b>, <b>40 MP</b>, y timeouts <b>300 → 250 → 150 → 100 ms</b>.",
+   "trap": "Leer todo 503 como «el gateway se cayó». En el C01 hay al menos cinco: saturado (16 en vuelo o sin slot de CPU), Triton caído, Triton rechazando, <code>/readyz</code> sin modelo y el del ALB cuando ya no queda ningún pod listo, que ni pasa por el gateway. El <code>detail</code> y el <code>Retry-After</code> dicen cuál es, y el ALB cuenta aparte los 503 que genera él mismo (<code>HTTPCode_ELB_5XX_Count</code>). La otra mitad de la trampa: responder 500 a un timeout del upstream (el servicio de atrás, aquí Triton); para eso existe el 504.",
+   "lab": {
+    "goal": "Calcular tú mismo los números de bolsillo: las frases que manda uvicorn, Little, la RAM del peor caso, la cadena de timeouts y la amplificación de reintentos.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway",
+      "expect": "Sin salida: es la carpeta de los labs de esta hoja."
+     },
+     {
+      "cmd": "python3.13 -c '\nfrom http import HTTPStatus\nfor c in (200, 400, 413, 415, 422, 429, 500, 502, 503, 504):\n    print(c, HTTPStatus(c).phrase)\n'",
+      "expect": "Diez líneas, de 200 OK a 504 Gateway Timeout. Fíjate en 413 Content Too Large y 422 Unprocessable Content: son los nombres del RFC 9110, que Python usa desde 3.13. Con 3.12 o anterior verías Request Entity Too Large y Unprocessable Entity, y uvicorn mandaría esas frases."
+     },
+     {
+      "cmd": "cat > numeros.py <<'EOF'\n# Números de bolsillo del gateway del C01 (todo en ms, MB y req/s)\nlam = 500 / 5                                  # pico de diseño repartido en 5 pods\nfor w in (0.05, 0.2):                          # latencia media: normal y degradada\n    print(f\"Little: {lam:.0f} req/s × {w} s = {lam * w:.0f} en vuelo por pod\")\nprint(f\"Llamadas abiertas a Triton si se frena: {lam:.0f} × 0.15 s = {lam * 0.15:.0f} por pod\")\nram = 80 + 2 * 320 + 16 * 10                   # Python + 2 decodes de 40 MP + 16 bodies de 10 MB\nprint(f\"RAM del peor caso: 80 + 2 × 320 + 16 × 10 = {ram} MB de {2**30 / 1e6:.0f} MB (1 GiB)\")\ncadena = [300, 250, 150, 100]                  # caller > deadline > Triton > cola de Triton\nprint(\"Timeouts:\", \" > \".join(f\"{t}\" for t in cadena), \"ms:\", all(a > b for a, b in zip(cadena, cadena[1:])))\nfor gastado in (40, 130, 260):                 # ms ya usados antes de llamar a Triton\n    queda = 250 - gastado\n    print(f\"gastado {gastado} → queda {queda} → a Triton:\", f\"{min(150, queda)} ms\" if queda > 0 else \"504 sin llamar\")\nfor capas in (1, 2, 3):\n    print(f\"3 reintentos en {capas} capa(s): hasta {4 ** capas} intentos por request\")\nEOF\npython3.13 numeros.py",
+      "expect": "Little: 100 req/s × 0.05 s = 5 en vuelo por pod · Little: 100 req/s × 0.2 s = 20 en vuelo por pod · Llamadas abiertas a Triton si se frena: 100 × 0.15 s = 15 por pod · RAM del peor caso: 80 + 2 × 320 + 16 × 10 = 880 MB de 1074 MB (1 GiB) · Timeouts: 300 > 250 > 150 > 100 ms: True · gastado 40 → queda 210 → a Triton: 150 ms · gastado 130 → queda 120 → a Triton: 120 ms · gastado 260 → queda -10 → a Triton: 504 sin llamar · y 4, 16 y 64 intentos con 1, 2 y 3 capas que reintentan. Cada línea es una fila de esta sección: Little explica el 16, la RAM explica los 2 decodes, y el 64 explica por qué reintenta una sola capa."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si python3.13 no existe en tu Mac, usa python3: cualquier 3.13 o más nuevo da la misma salida; con 3.12 o anterior cambian las frases de 413 y 422. Si un número no te da, revisa las unidades: λ en req/s, W en segundos y la RAM en MB.",
+    "needs": "solo Python 3.13 (la versión del C01); no instala nada",
+    "verified": "executed",
+    "verified_note": "Ejecutado con Python 3.13.16 y 3.14.3 en macOS (Apple M4): la misma salida. Las frases de HTTPStatus se compararon también con Python 3.9.6, que da Request Entity Too Large y Unprocessable Entity."
+   },
+   "links": [
+    "#m03.little",
+    "#m03.presupuesto",
+    "#m03.timeouts-reintentos",
+    "#c01.serving",
+    "#c01.estimaciones"
+   ]
+  },
+  {
+   "id": "cadena",
+   "num": null,
+   "title": "La cadena: el viaje de un request dentro del gateway",
+   "question": "¿Qué le pasa a un request, en orden, desde que uvicorn recibe los bytes hasta que sale la respuesta y queda su línea de log?",
+   "templates": [
+    {
+     "code": "uvicorn {modulo}:{app} --host 0.0.0.0 --port {puerto} --workers 1 --no-access-log",
+     "note": "uvicorn es el servidor ASGI (ASGI: la interfaz estándar entre un servidor y una app async de Python). Abre el puerto, lee el HTTP con httptools (una librería en C que lo interpreta rápido) y le pasa cada request a tu app dentro del event loop (el único hilo que atiende a todos los requests <code>async</code> por turnos). Con uvloop instalado, como en el C01, usa ese event loop, más rápido."
+    },
+    {
+     "code": "@app.post(\"{ruta}\")\nasync def {funcion}(request: Request, {param}: int = Query({default}, ge={min}, le={max})):",
+     "note": "FastAPI elige la función por método y ruta, y valida los parámetros <b>antes</b> de llamarla: un <code>top_k</code> fuera de rango recibe 422 sin que corra una sola línea tuya. Con <code>request: Request</code> lees headers y body a mano, como el C01."
+    },
+    {
+     "code": "{resultado} = await run_in_threadpool({funcion_cpu}, {datos})",
+     "note": "El paso de CPU (decode, resize, normalizar) va a un hilo del threadpool, el grupo de hilos de reserva. Mientras ese hilo trabaja, el event loop sigue atendiendo a los demás requests."
+    },
+    {
+     "code": "try:\n    ...                                  # admisión, validación, CPU, Triton\nfinally:\n    REQUESTS.labels(status=str(status), source=source, model_version=MODEL_VERSION).inc()\n    log.info(json.dumps(record, ensure_ascii=False))",
+     "note": "El último eslabón: en el <code>finally</code> se cuenta la métrica y se escribe una línea JSON pase lo que pase, también en errores. Ojo: solo ve los requests que llegaron a tu función."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{total}} \\approx t_{\\text{ALB}} + t_{\\text{body}} + t_{\\text{slot}} + t_{\\text{decode}} + t_{\\text{Triton}} + t_{\\text{post}} + t_{\\text{Python}}",
+    "t_{\\text{Triton}} = t_{\\text{red}} + t_{\\text{cola}} + t_{\\text{GPU}} \\approx (2\\text{–}4) + (0\\text{–}2) + (3\\text{–}6)\\ \\text{ms en el p50}",
+    "\\text{p50} \\approx 20\\text{–}45\\ \\text{ms} \\qquad \\text{p99 pesimista} \\approx 150\\ \\text{ms} \\;<\\; \\text{SLO} = 200\\ \\text{ms}"
+   ],
+   "vars": [
+    [
+     "{modulo}:{app}",
+     "archivo (como módulo de Python) y variable que tiene la app",
+     "app.main:app"
+    ],
+    [
+     "{puerto}",
+     "puerto donde escucha",
+     "8080"
+    ],
+    [
+     "{ruta} · {funcion}",
+     "path del endpoint y la función que lo atiende",
+     "/v1/classify · classify"
+    ],
+    [
+     "{param} · {default} · {min} · {max}",
+     "parámetro de query, su valor por defecto y su rango",
+     "top_k · 5 · 1 · 20"
+    ],
+    [
+     "{funcion_cpu} · {datos}",
+     "la función que bloquea y sus argumentos",
+     "_decode_and_hash · los bytes de la foto"
+    ],
+    [
+     "{resultado}",
+     "lo que devuelve el hilo",
+     "batch, digest"
+    ],
+    [
+     "t_ALB … t_Python",
+     "lo que tarda cada tramo, según el presupuesto del C01",
+     "ver la figura"
+    ],
+    [
+     "t_slot",
+     "lo que espera un request por uno de los 2 turnos de CPU (slots) para decodificar",
+     "≈ 0 normal; tope de 50 ms, después 503"
+    ],
+    [
+     "t_red · t_cola · t_GPU",
+     "las tres partes de la llamada a Triton: ida y vuelta, cola de batching y cómputo",
+     "≈ 2–4 · 0–2 · 3–6 ms"
+    ],
+    [
+     "p50 · p99",
+     "el tiempo bajo el que quedan la mitad, y 99 de cada 100 requests",
+     "≈ 20–45 ms · ≈ 150 ms (estimación pesimista)"
+    ],
+    [
+     "SLO",
+     "la meta del servicio: p99 ≤ 200 ms, medido en el servidor",
+     "alerta si se pasa 10 minutos seguidos"
+    ]
+   ],
+   "pieces": [
+    [
+     "ALB",
+     "El balanceador de AWS: descifra la conexión (TLS), verifica el JWT (un token firmado que prueba quién llama) y elige un pod listo.",
+     "solo deja pasar /v1/classify"
+    ],
+    [
+     "uvicorn",
+     "Servidor ASGI: acepta la conexión, lee el HTTP y llama a la app. Un proceso por contenedor.",
+     "--workers 1 --no-access-log"
+    ],
+    [
+     "event loop (uvloop)",
+     "El único hilo que atiende a todos los requests async, por turnos; uvloop es una versión más rápida.",
+     "uvicorn lo usa solo si uvloop está instalado"
+    ],
+    [
+     "ServerErrorMiddleware",
+     "La capa de más afuera (un middleware: una capa que envuelve a toda la app). Atrapa cualquier excepción suelta y responde 500.",
+     "el C01 no agrega middlewares propios"
+    ],
+    [
+     "ExceptionMiddleware",
+     "Convierte un HTTPException en una respuesta JSON con su código y sus headers.",
+     "{\"detail\": \"gateway saturado: reintenta más tarde\"}"
+    ],
+    [
+     "Router y validación",
+     "Elige la función por método y path, y valida los parámetros con Pydantic (la librería que valida datos según tus tipos). Si fallan: 422, y tu función no corre.",
+     "top_k=0 → 422"
+    ],
+    [
+     "Admisión",
+     "Control de admisión: si ya hay 16 requests en vuelo, 503 inmediato, sin leer el body.",
+     "state.inflight >= MAX_INFLIGHT"
+    ],
+    [
+     "Validación barata",
+     "Content-Type (415) y Content-Length (413) se miran en los headers, sin leer un byte del body.",
+     "image/jpeg, image/png, image/webp"
+    ],
+    [
+     "Lectura del body",
+     "request.stream(): el body llega por partes, y se corta apenas pasa de 10 MB.",
+     "_read_body_limited"
+    ],
+    [
+     "Presupuesto",
+     "Antes de cada etapa cara se mira cuánto queda de los 250 ms; si no queda nada, 504.",
+     "_budget_left(deadline)"
+    ],
+    [
+     "Slot de CPU + threadpool",
+     "Un semáforo (un contador de turnos) deja 2 decodes a la vez; el decode corre en un hilo aparte.",
+     "await run_in_threadpool(_decode_and_hash, data)"
+    ],
+    [
+     "Llamada a Triton",
+     "Un cliente async por proceso, tensores en binario y timeout de min(150 ms, lo que queda).",
+     "_infer → 504 o 503"
+    ],
+    [
+     "Postproceso y respuesta",
+     "Softmax, top-k, nombres de categoría, model_version y latency_ms, con el header X-Request-ID.",
+     "{\"model_version\": …, \"predictions\": […]}"
+    ],
+    [
+     "Métricas y log",
+     "En el finally: contador por status, histograma de latencia y una línea JSON por request.",
+     "classifier_requests_total{status=\"503\"}"
+    ]
+   ],
+   "example": {
+    "title": "classify: admisión, la cadena con su deadline, y el finally que siempre anota",
+    "lang": "python",
+    "code": "@app.post(\"/v1/classify\")\nasync def classify(request: Request, response: Response, top_k: int = Query(5, ge=1, le=MAX_TOP_K)):\n    \"\"\"Body = bytes crudos de la imagen (no multipart: menos parsing, sin archivos temporales).\"\"\"\n    t0 = time.perf_counter()  # el reloj arranca con el request ya recibido (el SLO es server-side)\n    # Si el cliente (o un proxy) ya trae un id lo respetamos: así se traza el request de punta a punta\n    request_id = request.headers.get(\"x-request-id\") or uuid.uuid4().hex\n    # …\n    status = 500  # si algo inesperado explota, se cuenta como 500\n    try:\n        state = request.app.state\n        if state.inflight >= MAX_INFLIGHT:  # fallar rápido (µs) > encolar lo que va a vencer de todos modos\n            raise HTTPException(503, \"gateway saturado: reintenta más tarde\", headers={\"Retry-After\": \"1\"})\n        state.inflight += 1\n        try:\n            result = await _classify(request, top_k, record, deadline=t0 + REQUEST_DEADLINE_S)\n        finally:\n            state.inflight -= 1  # siempre, también si _classify lanza\n        status = 200\n        response.headers[\"X-Request-ID\"] = request_id  # el cliente puede reportar un caso con este id\n        result[\"latency_ms\"] = round((time.perf_counter() - t0) * 1000, 1)\n        return result\n    except HTTPException as exc:\n        status = exc.status_code\n        record[\"error\"] = exc.detail\n        # Re-lanzamos con el X-Request-ID para que también los errores sean trazables\n        headers = {**(exc.headers or {}), \"X-Request-ID\": request_id}\n        raise HTTPException(exc.status_code, exc.detail, headers=headers) from None\n    finally:\n        elapsed = time.perf_counter() - t0\n        # …\n        REQUESTS.labels(status=str(status), source=source, model_version=MODEL_VERSION).inc()\n        if not 400 <= status < 500:  # los 4xx son rechazos rápidos: incluirlos \"mejoraría\" el p99 falsamente\n            LATENCY.labels(source=source).observe(elapsed)\n        # …\n        log.info(json.dumps(record, ensure_ascii=False))",
+    "source": "reference/c01/gateway/app/main.py (líneas 189–232, extracto; # … marca líneas omitidas)",
+    "notes": [
+     "Antes de la primera línea de <code>classify</code> ya pasaron uvicorn, los middlewares y la validación de <code>top_k</code> (<code>Query(5, ge=1, le=MAX_TOP_K)</code>). Un 422 se responde ahí y no llega a este código.",
+     "La admisión es la primera decisión de la función: con 16 en vuelo responde 503 en microsegundos, sin leer el body ni gastar CPU. El contador no necesita lock (un candado entre hilos): lo toca un solo hilo, el event loop.",
+     "<code>t0 + REQUEST_DEADLINE_S</code> es el deadline (la hora límite) que viaja a <code>_classify</code>. Ahí se revisan los headers (415 y 413), se lee el body, se espera el slot de CPU, se decodifica en el threadpool y se llama a Triton. Antes del decode y antes de Triton se mira cuánto queda: si nada, 504; Triton recibe min(150 ms, lo que queda).",
+     "Los errores se vuelven a lanzar con <code>X-Request-ID</code>: el cliente puede reclamar un 503 o un 504 con su id, y tú lo encuentras en el log.",
+     "El <code>finally</code> corre siempre: cuenta el request por status, por quién llama (caller) y por modelo, mide la latencia (sin los 4xx, que «mejorarían» el p99 falsamente) y escribe una línea JSON sin la imagen ni datos personales."
+    ]
+   },
+   "figure": {
+    "kind": "request-path",
+    "caption": "Un request de /v1/classify por dentro, con el presupuesto del C01 (valores típicos a medir, no benchmarks). Las barras van a escala con el p99; las revisiones baratas cuestan microsegundos. Los p99 no se suman de verdad: su suma (≈ 150 ms) es una estimación pesimista que deja ≈ 50 ms de margen al SLO de 200 ms.",
+    "data": {
+     "unit": "ms",
+     "slo_ms": 200,
+     "deadline_ms": 250,
+     "caller_timeout_ms": 300,
+     "steps": [
+      {
+       "id": "alb",
+       "label": "ALB + routing",
+       "where": "borde (AWS)",
+       "p50_ms": [
+        1,
+        3
+       ],
+       "p99_ms": [
+        5,
+        10
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "",
+       "note": "TLS ya terminado; conexiones abiertas que se reusan (keep-alive)"
+      },
+      {
+       "id": "validar",
+       "label": "uvicorn + validación de top_k",
+       "where": "gateway: FastAPI",
+       "p50_ms": [
+        0,
+        0
+       ],
+       "p99_ms": [
+        0,
+        0
+       ],
+       "micro": true,
+       "in_budget": true,
+       "fail": "422",
+       "note": "antes de tu función: no llega al log ni a las métricas"
+      },
+      {
+       "id": "admision",
+       "label": "Admisión",
+       "where": "gateway: classify",
+       "p50_ms": [
+        0,
+        0
+       ],
+       "p99_ms": [
+        0,
+        0
+       ],
+       "micro": true,
+       "in_budget": true,
+       "fail": "503 + Retry-After: 1",
+       "note": "16 en vuelo por proceso"
+      },
+      {
+       "id": "headers",
+       "label": "Content-Type y Content-Length",
+       "where": "gateway: _classify",
+       "p50_ms": [
+        0,
+        0
+       ],
+       "p99_ms": [
+        0,
+        0
+       ],
+       "micro": true,
+       "in_budget": true,
+       "fail": "415 · 413",
+       "note": "sin leer el body"
+      },
+      {
+       "id": "body",
+       "label": "Lectura del body",
+       "where": "gateway: _read_body_limited",
+       "p50_ms": [
+        1,
+        3
+       ],
+       "p99_ms": [
+        10,
+        30
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "413 · 400",
+       "note": "200 KB del celular contra hasta 10 MB de la web"
+      },
+      {
+       "id": "slot",
+       "label": "Espera de un slot de CPU",
+       "where": "gateway: semáforo de 2",
+       "p50_ms": [
+        0,
+        0
+       ],
+       "p99_ms": [
+        0,
+        50
+       ],
+       "micro": false,
+       "in_budget": false,
+       "fail": "503 + Retry-After: 1",
+       "note": "≈ 0 normalmente; 50 ms es el tope (SLOT_WAIT_S), no una medida, y no entra en la suma"
+      },
+      {
+       "id": "decode",
+       "label": "Decode + resize 256 + crop 224",
+       "where": "gateway: threadpool",
+       "p50_ms": [
+        5,
+        12
+       ],
+       "p99_ms": [
+        25,
+        50
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "413 (> 40 MP) · 400",
+       "note": "en JPEG grandes, el decoder achica mientras decodifica (draft mode)"
+      },
+      {
+       "id": "tensor",
+       "label": "Normalizar → tensor FP32",
+       "where": "gateway: threadpool",
+       "p50_ms": [
+        1,
+        1
+       ],
+       "p99_ms": [
+        2,
+        2
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "",
+       "note": "602 KB por foto"
+      },
+      {
+       "id": "red",
+       "label": "Salto a Triton",
+       "where": "red interna de AWS (la VPC)",
+       "p50_ms": [
+        2,
+        4
+       ],
+       "p99_ms": [
+        5,
+        10
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "504 · 503",
+       "note": "timeout de min(150 ms, lo que queda)"
+      },
+      {
+       "id": "cola",
+       "label": "Cola de dynamic batching",
+       "where": "Triton",
+       "p50_ms": [
+        0,
+        2
+       ],
+       "p99_ms": [
+        2,
+        2
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "503 (rechazo a los 100 ms)",
+       "note": "espera hasta 2 ms para juntar requests"
+      },
+      {
+       "id": "gpu",
+       "label": "Cómputo en la T4",
+       "where": "Triton (GPU)",
+       "p50_ms": [
+        3,
+        6
+       ],
+       "p99_ms": [
+        8,
+        15
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "",
+       "note": "TensorRT FP16, batch de 1 a 8"
+      },
+      {
+       "id": "post",
+       "label": "Softmax + top-k + JSON + log",
+       "where": "gateway",
+       "p50_ms": [
+        1,
+        1
+       ],
+       "p99_ms": [
+        2,
+        3
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "",
+       "note": "sobre 500 valores"
+      },
+      {
+       "id": "python",
+       "label": "Overhead de Python",
+       "where": "gateway: event loop, threadpool y recolector de basura (GC)",
+       "p50_ms": [
+        5,
+        10
+       ],
+       "p99_ms": [
+        10,
+        30
+       ],
+       "micro": false,
+       "in_budget": true,
+       "fail": "",
+       "note": "repartido entre todos los pasos"
+      }
+     ],
+     "total": {
+      "p50_ms": [
+       20,
+       45
+      ],
+      "p99_pesimista_ms": 150,
+      "note": "suma de los pasos con in_budget; la espera del slot queda fuera"
+     }
+    }
+   },
+   "memo": "<b>Lo barato primero, la CPU después, la GPU al final, y el log siempre.</b> Cada eslabón puede cortar con su código (422, 503, 415, 413, 400, 504), y el <code>finally</code> anota todo lo que llegó a <code>classify</code> (el 422 no llega). Si el p99 sube, la cadena te dice dónde mirar: el body, el decode o Triton.",
+   "trap": "Creer que tu métrica y tu log ven todos los requests. El 422 de <code>top_k</code> (y cualquier 404 o 405) lo responde FastAPI antes de llamar a <code>classify</code>: no pasa por su <code>finally</code>, así que no aparece en <code>classifier_requests_total</code> ni en la línea JSON, y el C01 apagó el access log de uvicorn (la línea que uvicorn escribe por cada request: <code>--no-access-log</code>). Una ola de 422 solo se ve en los 4xx del ALB, salvo que agregues un exception handler (una función que FastAPI llama ante ese error) que los cuente.",
+   "lab": {
+    "goal": "Armar una cadena en miniatura (admisión, validación, CPU en el threadpool, un Triton falso y el log en el finally) y comprobar qué requests llegan a tu log y cuáles no.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway\npython3.13 -m venv .venv && . .venv/bin/activate\npip install fastapi==0.141.1 starlette==1.7.0 pydantic==2.13.5 uvicorn==0.54.0",
+      "expect": "La última línea empieza con Successfully installed y trae fastapi-0.141.1, starlette-1.7.0, pydantic-2.13.5 y uvicorn-0.54.0, más sus dependencias (pydantic-core, anyio, h11, click…). Son las versiones del C01. Si ya tenías el venv de otro lab, dice Requirement already satisfied."
+     },
+     {
+      "cmd": "cat > cadena.py <<'EOF'\nimport asyncio, json, logging, sys, time, uuid\nfrom contextlib import asynccontextmanager\n\nfrom fastapi import FastAPI, HTTPException, Query, Request, Response\nfrom starlette.concurrency import run_in_threadpool\n\nMAX_INFLIGHT = 2                               # 16 en el C01; 2 para verlo con 6 requests\nlog = logging.getLogger(\"lab\")                 # como el C01: un logger propio a stdout\nlog.addHandler(logging.StreamHandler(sys.stdout))\nlog.setLevel(logging.INFO)\nlog.propagate = False\n\n@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    app.state.inflight = 0\n    yield\n\napp = FastAPI(lifespan=lifespan)\n\ndef decode(data: bytes) -> int:                # CPU simulada: corre en el threadpool\n    time.sleep(0.05)\n    return len(data)\n\nasync def triton() -> list[float]:             # I/O simulado: el await cede el turno\n    await asyncio.sleep(0.02)\n    return [0.7, 0.2, 0.1]\n\n@app.post(\"/v1/classify\")\nasync def classify(request: Request, response: Response, top_k: int = Query(5, ge=1, le=20)):\n    t0 = time.perf_counter()\n    rid = request.headers.get(\"x-request-id\") or uuid.uuid4().hex\n    status = 500\n    try:\n        if request.app.state.inflight >= MAX_INFLIGHT:\n            raise HTTPException(503, \"gateway saturado\", headers={\"Retry-After\": \"1\"})\n        request.app.state.inflight += 1\n        try:\n            if request.headers.get(\"content-type\") != \"image/jpeg\":\n                raise HTTPException(415, \"Content-Type debe ser image/jpeg\")\n            data = await request.body()        # el lab no pone tope; el C01 cuenta los bytes\n            n = await run_in_threadpool(decode, data)\n            scores = await triton()\n        finally:\n            request.app.state.inflight -= 1\n        status = 200\n        response.headers[\"X-Request-ID\"] = rid\n        return {\"bytes\": n, \"scores\": scores[:top_k]}\n    except HTTPException as exc:\n        status = exc.status_code\n        raise\n    finally:\n        ms = round((time.perf_counter() - t0) * 1000, 1)\n        log.info(json.dumps({\"request_id\": rid, \"status\": status, \"ms\": ms}))\nEOF",
+      "expect": "Sin salida: el archivo queda en ~/lab-gateway/cadena.py. Admite 2 requests en vuelo, simula 50 ms de decode en un hilo y 20 ms de Triton, y escribe una línea JSON por request en el finally."
+     },
+     {
+      "cmd": "uvicorn cadena:app --port 8080 --no-access-log > server.log 2>&1 &\necho $! > uvicorn.pid\nsleep 2; cat server.log",
+      "expect": "Cuatro líneas de uvicorn: Started server process [PID], Waiting for application startup., Application startup complete. y Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit). La terminal muestra además el número del job en segundo plano."
+     },
+     {
+      "cmd": "curl -si -H \"Content-Type: image/jpeg\" --data-binary \"hola\" \"localhost:8080/v1/classify?top_k=2\"\necho\ncurl -s -w ' %{http_code}\\n' -H \"Content-Type: image/png\" --data-binary \"hola\" localhost:8080/v1/classify\ncurl -s -w ' %{http_code}\\n' -H \"Content-Type: image/jpeg\" --data-binary \"hola\" \"localhost:8080/v1/classify?top_k=0\"",
+      "expect": "Primero HTTP/1.1 200 OK, los headers (entre ellos x-request-id con 32 caracteres hexadecimales: Starlette, la base de FastAPI, guarda los nombres en minúsculas) y el body {\"bytes\":4,\"scores\":[0.7,0.2]}. Después {\"detail\":\"Content-Type debe ser image/jpeg\"} 415. Y por último {\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"top_k\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]} 422."
+     },
+     {
+      "cmd": "seq 6 | xargs -P 6 -I{} curl -s -o /dev/null -w '%{http_code}\\n' -H \"Content-Type: image/jpeg\" --data-binary x localhost:8080/v1/classify | sort | uniq -c",
+      "expect": "Seis requests a la vez. Por lo general salen 2 × 200 y 4 × 503: solo caben 2 en vuelo y cada uno tarda ≈ 70 ms. Si tu Mac lanza los curl más despacio, puede colarse un 200 más."
+     },
+     {
+      "cmd": "grep -o '\"status\": [0-9]*' server.log | sort | uniq -c",
+      "expect": "Los status que vio el finally: los 200 (el primero y los de la ráfaga), un 415 y los 503. Ningún 422: el request con top_k=0 nunca entró a classify, así que su finally no corrió y no dejó línea."
+     },
+     {
+      "cmd": "kill $(cat uvicorn.pid); sleep 1; tail -4 server.log",
+      "expect": "INFO:     Shutting down, Waiting for application shutdown., Application shutdown complete. y Finished server process [PID]: uvicorn atrapó el SIGTERM de kill y se apagó en orden."
+     },
+     {
+      "cmd": "deactivate; cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida: borra el venv, el código y server.log."
+     }
+    ],
+    "fix": "Si curl dice Connection refused, el servidor no arrancó: lee server.log (un error de import, o el puerto 8080 ocupado; en ese caso usa --port 8081 en todos los pasos). Si la ráfaga te da seis 200, sube el time.sleep de decode a 0.2 y repite.",
+    "needs": "Python 3.13 (la versión del C01) e internet para pip: FastAPI, Starlette, Pydantic y uvicorn, en las versiones del C01. curl ya viene en macOS. Sin Docker ni GPU.",
+    "verified": "docs",
+    "verified_note": "Sin instalar nada: cadena.py se corrió en macOS con FastAPI 0.143.0, Starlette 1.7.0, Pydantic 2.14.1 y uvicorn 0.54.0 (con h11 y asyncio, como en el venv del lab) y dio exactamente estas salidas. Para FastAPI 0.141.1 y Pydantic 2.13.5, las versiones del C01, se verificó en el código: el 422 sale antes de llamar a la función, con {\"detail\": errores} y sin la clave url."
+   },
+   "links": [
+    "#c01.arquitectura",
+    "#c01.estimaciones",
+    "#m03.presupuesto",
+    "#c01.serving",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "gateway",
+   "num": 1,
+   "title": "Qué hace un gateway y por qué existe",
+   "question": "¿Por qué hay un servicio tuyo entre los clientes y Triton, y qué trabajo le toca a cada capa?",
+   "templates": [
+    {
+     "code": "POST /v1/classify?top_k={k}\nContent-Type: {tipo}\n\n<bytes de la imagen>\n\n→ 200 {\"model_version\": \"{version}\", \"predictions\": [{\"label\": \"{categoria}\", \"score\": {score}}], \"latency_ms\": {ms}}",
+     "note": "El contrato (lo que tu API promete a quien la llama): los bytes crudos de la foto en el body, el top-k en la query y una respuesta con <code>model_version</code>. Un 200 nunca trae tensores ni logits (los puntajes crudos del modelo), ni los nombres del modelo o de los tensores en Triton."
+    },
+    {
+     "code": "{VARIABLE} = os.getenv(\"{VARIABLE}\", \"{default}\")",
+     "note": "Configuración por variables de entorno: la misma imagen corre en tu máquina, en staging (el ambiente de pruebas) y en producción, y Kubernetes le pone los valores. En el C01: <code>TRITON_URL</code>, <code>MODEL_VERSION</code>, <code>INFER_TIMEOUT_S</code>, <code>MAX_INFLIGHT</code>, entre otras."
+    },
+    {
+     "code": "app.state.triton = triton_http.InferenceServerClient(url=\"{host}:8000\", conn_limit={n}, conn_timeout={s})",
+     "note": "Hacia atrás, el gateway habla KServe v2 (un protocolo estándar de servidores de modelos, el que habla Triton) con un solo cliente por proceso, creado en el lifespan (el código que corre al arrancar y al apagar el proceso). La URL va sin <code>http://</code>."
+    },
+    {
+     "code": "- path: /v1/classify\n  pathType: Exact\n  backend:\n    service:\n      name: {servicio}",
+     "note": "Hacia adelante, el Ingress (la regla que le dice al ALB, el balanceador de AWS, qué rutas publicar) solo expone la API. <code>/metrics</code>, <code>/healthz</code>, <code>/readyz</code> y <code>/docs</code> existen en el pod, pero no salen del cluster."
+    }
+   ],
+   "formulas": [
+    "\\text{cores de decode} = \\lambda \\cdot t_{\\text{CPU}} = 500\\ \\tfrac{\\text{req}}{\\text{s}} \\times 6\\ \\text{ms} = 3",
+    "\\text{pods del gateway} \\approx \\frac{\\text{cores}}{0.6 \\times 1\\ \\text{core por pod}} = \\frac{3}{0.6} = 5 \\qquad (\\text{el HPA va de 3 a 12})",
+    "\\text{red gateway} \\to \\text{Triton} = \\lambda \\times B \\times 8 = 500 \\times 602{,}112\\ \\text{B} \\times 8 \\approx 2.4\\ \\text{Gb/s}"
+   ],
+   "vars": [
+    [
+     "{k} · {tipo}",
+     "cuántas categorías pide el cliente y el formato de la foto",
+     "5 · image/jpeg"
+    ],
+    [
+     "{version} · {categoria} · {score} · {ms}",
+     "lo que vuelve: versión del modelo, nombre de la categoría, su probabilidad y la latencia en el servidor",
+     "2026-09-01-resnet50-fp16 · Celulares y telefonía > Smartphones · 0.83 · 41.2"
+    ],
+    [
+     "{VARIABLE} · {default}",
+     "nombre de la variable de entorno y el valor si no está",
+     "INFER_TIMEOUT_S · 0.15"
+    ],
+    [
+     "{host} · {n} · {s}",
+     "dónde está Triton, conexiones máximas y timeout de respaldo",
+     "triton.classifier.svc.cluster.local · 64 · 1.0"
+    ],
+    [
+     "{servicio}",
+     "el Service de Kubernetes del gateway",
+     "gateway"
+    ],
+    [
+     "λ",
+     "requests por segundo en el pico de diseño",
+     "500"
+    ],
+    [
+     "t_CPU",
+     "CPU por foto: decode, resize y normalizar",
+     "≈ 6 ms con la mezcla de fotos del C01"
+    ],
+    [
+     "0.6 × 1 core",
+     "la meta del HPA (el autoscaler de pods de Kubernetes): agrega pods cuando el uso promedio pasa del 60 % de la CPU pedida",
+     "0.6 cores por pod"
+    ],
+    [
+     "B",
+     "bytes del tensor que viaja a Triton",
+     "602,112 (FP32: 3 × 224 × 224 × 4)"
+    ]
+   ],
+   "pieces": [
+    [
+     "TLS y autenticación",
+     "Cifrar la conexión y verificar quién llama, con un JWT de servicio (un token firmado) o mTLS (TLS con certificado en los dos lados).",
+     "en el ALB, antes del gateway"
+    ],
+    [
+     "Identidad, no un header",
+     "x-client-source lo escribe el propio cliente: sirve para partir las métricas, nunca para cuotas ni permisos.",
+     "source: mobile, web, internal u other"
+    ],
+    [
+     "Cuota por caller",
+     "Limitar cuántos requests manda cada cliente, con 429 cuando se pasa.",
+     "en el borde (una regla del WAF, el firewall de aplicaciones de AWS) o un contador por identidad; el main.py no la trae (el WAF responde 403 salvo que le configures 429)"
+    ],
+    [
+     "Validar barato",
+     "Rechazar lo inválido antes de gastar CPU: tipo, bytes, píxeles, top_k.",
+     "415, 413, 400, 422"
+    ],
+    [
+     "Decode y preproceso",
+     "Convertir los bytes en el tensor que espera el modelo, con el mismo código del entrenamiento.",
+     "preprocess.py → float32 [3, 224, 224]"
+    ],
+    [
+     "Separar CPU de GPU",
+     "El decode corre en nodos de CPU baratos que escalan solos; Triton solo recibe tensores.",
+     "HPA por CPU al 60 % (gateway); KEDA, que escala según una métrica, por tiempo en cola (Triton)"
+    ],
+    [
+     "Admisión y backpressure",
+     "No aceptar más de lo que se puede terminar a tiempo, y avisar hacia atrás con 503 y Retry-After.",
+     "MAX_INFLIGHT = 16 y 2 slots de CPU"
+    ],
+    [
+     "Timeouts y deadline",
+     "Cada etapa usa lo que queda del presupuesto: no se trabaja para un caller que ya se fue.",
+     "250 ms en total, 150 ms hacia Triton"
+    ],
+    [
+     "Traducir errores y degradar",
+     "Convertir cada falla de atrás en un código útil y rápido, para que el cliente degrade con gracia: en el C01, la app muestra el selector manual de categorías y el vendedor publica igual.",
+     "Triton lento → 504; caído o rechazando → 503 + Retry-After"
+    ],
+    [
+     "Postproceso",
+     "Logits → probabilidades → top-k → nombres. Cambia con el producto, no con el modelo.",
+     "softmax y labels.json en el gateway"
+    ],
+    [
+     "Contrato y versión",
+     "Una API estable (/v1) aunque cambie el modelo; cada respuesta dice qué modelo contestó.",
+     "model_version en el body"
+    ],
+    [
+     "Observabilidad",
+     "Una línea de log y métricas por request, con el tiempo de cada etapa.",
+     "preprocess_ms e inference_ms por separado"
+    ],
+    [
+     "Salud",
+     "Liveness: ¿el proceso responde? Readiness: ¿puede atender? (aquí: ¿el modelo está listo en Triton?).",
+     "/healthz y /readyz"
+    ],
+    [
+     "Lo que NO hace",
+     "Batching, colas por modelo y GPU: eso es de Triton. Y Triton nunca queda expuesto a los clientes.",
+     "una NetworkPolicy (una regla de red de Kubernetes) solo deja entrar a Triton a los pods del gateway"
+    ]
+   ],
+   "example": {
+    "title": "main.py se presenta solo: por qué existe y qué endpoints tiene",
+    "lang": "python",
+    "code": "\"\"\"Gateway HTTP del clasificador de categorías (caso c01).\n\nPor qué existe un gateway en CPU delante de Triton: validar, decodificar y redimensionar imágenes es\ntrabajo de CPU; si lo hiciera Triton (python backend o DALI) competiría con la GPU cara. Así cada\ncapa escala por separado: gateway por CPU (HPA) y Triton por cola de GPU (KEDA).\n\nEndpoints: POST /v1/classify?top_k=5 · GET /healthz (liveness) · GET /readyz (readiness) · GET /metrics\n\"\"\"\n# …\nTRITON_URL = os.getenv(\"TRITON_URL\", \"localhost:8000\")  # host:puerto HTTP de Triton, SIN \"http://\" (lo exige el cliente)\nMODEL_NAME = os.getenv(\"MODEL_NAME\", \"classifier\")  # nombre del modelo en el model repository de Triton\nMODEL_VERSION = os.getenv(\"MODEL_VERSION\", \"dev\")  # se devuelve y se loguea: cada predicción queda atada a su modelo\nINFER_TIMEOUT_S = float(os.getenv(\"INFER_TIMEOUT_S\", \"0.15\"))  # 150 ms para Triton dentro del p99 ≤ 200 ms",
+    "source": "reference/c01/gateway/app/main.py (líneas 1–8 y 35–38; # … marca líneas omitidas)",
+    "notes": [
+     "La razón en una frase: decodificar y redimensionar es CPU, y la CPU del nodo con GPU es poca y cara. Separadas, cada capa escala con su propia señal: el gateway por CPU con el HPA, Triton por tiempo en cola con KEDA (el que escala según una métrica de Prometheus).",
+     "Esos cuatro endpoints son todos los que escribe el C01 (FastAPI suma /docs, /redoc y /openapi.json). Solo <code>/v1/classify</code> sale del cluster; <code>/healthz</code> y <code>/readyz</code> son para los probes (los chequeos de salud) del kubelet, el agente de Kubernetes en cada nodo, y el ALB también mira <code>/readyz</code>; <code>/metrics</code> es para Prometheus (el que junta las métricas).",
+     "<code>TRITON_URL</code> va sin <code>http://</code> porque así lo exige tritonclient; en EKS (el Kubernetes de AWS) apunta al Service de Triton (su dirección estable dentro del cluster) y en compose a <code>triton:8000</code>.",
+     "<code>MODEL_VERSION</code> no la decide el gateway: viene de la release, vuelve en cada respuesta y queda en cada línea de log, para unir una predicción con su modelo.",
+     "El precio de separar: un salto de red con 602 KB por foto (≈ 2.4 Gb/s en el pico, 3× el JPEG del celular), un componente más que operar y la obligación de rutear por zona (cada gateway le habla al Triton de su misma zona de AWS, porque el tráfico entre zonas se paga). Con poco tráfico, un solo proceso con el modelo adentro es la respuesta correcta: el MVP del C01, su primera versión."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Quién hace qué en el camino de un request del C01. Una fila por responsabilidad; un guion quiere decir que esa capa no la toca.",
+    "data": {
+     "head": [
+      "Responsabilidad",
+      "ALB (borde)",
+      "Gateway (FastAPI, CPU)",
+      "Triton (GPU)"
+     ],
+     "rows": [
+      [
+       "TLS y autenticación",
+       "termina TLS y verifica el JWT",
+       "—",
+       "—"
+      ],
+      [
+       "Cuota por caller",
+       "una regla del WAF (opcional)",
+       "contador por identidad (no está en la referencia)",
+       "—"
+      ],
+      [
+       "Validar tipo, bytes y píxeles",
+       "—",
+       "415 · 413 · 400, antes de decodificar",
+       "revisa nombre, tipo y shape del tensor"
+      ],
+      [
+       "Decode y preproceso",
+       "—",
+       "preprocess.py en el threadpool (hilos aparte)",
+       "—"
+      ],
+      [
+       "Batching",
+       "—",
+       "una foto por request",
+       "dynamic batching: junta requests hasta 2 ms"
+      ],
+      [
+       "Inferencia",
+       "—",
+       "—",
+       "engine TensorRT FP16"
+      ],
+      [
+       "Postproceso",
+       "—",
+       "softmax, top-k y labels",
+       "devuelve logits"
+      ],
+      [
+       "Admisión y backpressure",
+       "—",
+       "16 en vuelo y 2 slots de CPU → 503",
+       "rechaza lo que espera 100 ms en cola"
+      ],
+      [
+       "Timeouts",
+       "idle timeout de 60 s",
+       "deadline de 250 ms; 150 ms a Triton → 504",
+       "100 ms de cola"
+      ],
+      [
+       "Salud",
+       "health check a /readyz",
+       "/healthz y /readyz",
+       "/v2/health/live y /v2/health/ready"
+      ],
+      [
+       "Métricas",
+       "5xx y latencia en CloudWatch (el monitoreo de AWS)",
+       "classifier_* en /metrics",
+       "nv_* en el puerto 8002"
+      ],
+      [
+       "Escala con",
+       "—",
+       "CPU: HPA al 60 %, de 3 a 12 pods",
+       "tiempo en cola: KEDA, de 2 a 4 pods"
+      ]
+     ],
+     "note": "La línea del corte: el gateway sabe del producto (callers, formatos, top-k, errores); Triton, solo de tensores."
+    }
+   },
+   "memo": "<b>El gateway sabe del producto; Triton, solo de tensores.</b> Lo de CPU va en CPU barata, lo de GPU en la GPU cara, y el cliente solo ve un contrato estable con <code>model_version</code>.",
+   "trap": "Pensar el gateway como «un proxy que reenvía». Si solo reenvía, no protege nada: una ráfaga de fotos de 10 MB, un PNG de 50 KB que declara 30,000 × 30,000 px o un Triton lento tumban el servicio entero. Y la trampa inversa: exponer Triton a los clientes «para ahorrar un salto». Triton deja abiertas por defecto APIs de administración (el repositorio de modelos, los logs, las trazas) y no sabe de cuotas ni de identidades; vive detrás del gateway.",
+   "lab": {
+    "goal": "Encontrar en el código real del C01 cada responsabilidad del gateway (errores, configuración, rutas publicadas) y calcular cuánta CPU y red cuesta separarlo de Triton.",
+    "steps": [
+     {
+      "cmd": "cd apps/ml-system-design/reference/c01\ngrep -oE 'HTTPException\\([0-9]{3}' gateway/app/main.py | sort | uniq -c",
+      "expect": "2 HTTPException(400 · 3 HTTPException(413 · 1 HTTPException(415 · 5 HTTPException(503 · 2 HTTPException(504: los errores que el gateway decide. No hay 422 (lo genera FastAPI) ni 500 (es lo que queda si algo explota sin que nadie lo atrape)."
+     },
+     {
+      "cmd": "grep -c '\"Retry-After\": \"1\"' gateway/app/main.py",
+      "expect": "4: cuatro de los cinco 503 traen Retry-After. El quinto es el de /readyz, que lo lee el kubelet, no un cliente."
+     },
+     {
+      "cmd": "grep -oE 'getenv\\(\"[A-Z_]+\"' gateway/app/main.py",
+      "expect": "Ocho líneas: TRITON_URL, MODEL_NAME, MODEL_VERSION, INFER_TIMEOUT_S, LABELS_PATH, PREPROCESS_CONCURRENCY, MAX_INFLIGHT y REQUEST_DEADLINE_S, las perillas que se cambian sin reconstruir la imagen."
+     },
+     {
+      "cmd": "grep -nE '^@app\\.' gateway/app/main.py\ngrep -nE 'path: /v1|pathType' k8s/gateway.yaml",
+      "expect": "116 @app.get(\"/metrics\", include_in_schema=False), 189 @app.post(\"/v1/classify\"), 297 @app.get(\"/healthz\") y 303 @app.get(\"/readyz\"); y en el Ingress, 186 path: /v1/classify con 187 pathType: Exact. Cuatro rutas en el pod, una sola publicada."
+     },
+     {
+      "cmd": "python3.13 -c '\nlam, t_cpu = 500, 0.006                 # req/s en el pico de diseño; CPU por foto (≈ 6 ms)\ncores = lam * t_cpu\nprint(f\"CPU de decode: {lam} × {t_cpu} s = {cores:.0f} cores\")\nprint(f\"Pods del gateway al 60 % de 1 core: {cores / 0.6:.0f}\")\nprint(f\"Red gateway → Triton: {lam} × 602,112 B × 8 = {lam * 602112 * 8 / 1e9:.1f} Gb/s\")\n'",
+      "expect": "CPU de decode: 500 × 0.006 s = 3 cores · Pods del gateway al 60 % de 1 core: 5 · Red gateway → Triton: 500 × 602,112 B × 8 = 2.4 Gb/s. Los 3 cores, en el nodo con GPU, competirían con Triton por 4 vCPU; separados, los pone el HPA en nodos de CPU."
+     }
+    ],
+    "fix": "Si grep no encuentra nada, revisa que estés en apps/ml-system-design/reference/c01 (los pasos se corren desde la raíz del repo). En Linux, grep -E funciona igual.",
+    "needs": "el repo del curso y Python 3.13; no instala nada ni crea archivos",
+    "verified": "executed",
+    "verified_note": "Ejecutado en macOS con el grep de BSD y Python 3.13.16 sobre los archivos del repo, en octubre de 2026."
+   },
+   "links": [
+    "#m07.que-hace",
+    "#c01.arquitectura",
+    "#c01.serving",
+    "#m15.authn-authz",
+    "#m15.rate-limiting"
+   ]
+  },
+  {
+   "id": "fastapi",
+   "num": 2,
+   "title": "FastAPI básico: app, rutas, modelos, response_model, códigos, dependencias y lifespan",
+   "question": "¿Qué piezas de FastAPI vas a escribir en cualquier gateway, y qué hace cada una por ti?",
+   "templates": [
+    {
+     "code": "@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    app.state.{recurso} = {crear}(...)      # una vez por proceso, antes del tráfico\n    yield                                    # aquí la app atiende requests\n    await app.state.{recurso}.{cerrar}()    # al apagar\n\napp = FastAPI(title=\"{nombre}\", lifespan=lifespan)",
+     "note": "El lifespan (el código de arranque y apagado del proceso) reemplaza a <code>@app.on_event</code>, que está deprecado (marcado para desaparecer). Lo de antes del <code>yield</code> corre antes de aceptar requests; lo de después, cuando el servidor ya dejó de atenderlas. <code>app.state</code> guarda lo compartido: clientes, labels, un modelo."
+    },
+    {
+     "code": "class {Salida}(BaseModel):\n    model_version: str\n    predictions: list[{Prediccion}]\n\n@app.post(\"/v1/{ruta}\")\nasync def {funcion}(request: Request, top_k: Annotated[int, Query(ge=1, le={max})] = {default}) -> {Salida}:\n    ...",
+     "note": "Una ruta (path operation, en la doc de FastAPI) es una función con un decorador que dice el método y el path. Los tipos hacen el trabajo: <code>Query(ge=1, le=20)</code> valida la query y responde 422 si no cumple; el tipo de retorno (o <code>response_model=</code>) valida lo que devuelves, filtra lo que sobra y lo documenta en OpenAPI (la descripción de tu API, que FastAPI genera sola)."
+    },
+    {
+     "code": "def get_{recurso}(request: Request) -> {Tipo}:\n    return request.app.state.{recurso}\n\n{Alias} = Annotated[{Tipo}, Depends(get_{recurso})]\n\n@app.post(\"/v1/{ruta}\")\nasync def {funcion}({nombre_param}: {Alias}): ...",
+     "note": "Una dependencia (dependency) es una función que FastAPI llama por ti antes de la ruta, y cuyo resultado te pasa como parámetro: el cliente de Triton, la identidad ya verificada de quien llama, una sesión. Se llama una vez por request aunque varias partes la pidan; si la escribes con <code>def</code>, corre en el threadpool (el grupo de hilos de reserva)."
+    },
+    {
+     "code": "raise HTTPException(status_code={codigo}, detail=\"{mensaje}\", headers={\"Retry-After\": \"1\"})\n\n@app.exception_handler({Excepcion})\nasync def {manejador}(request: Request, exc: {Excepcion}) -> JSONResponse: ...",
+     "note": "Un error que decides se lanza como <code>HTTPException</code>: FastAPI responde <code>{\"detail\": …}</code> con ese código y esos headers. Para traducir una excepción tuya en todas las rutas a la vez, registras un exception handler (una función que FastAPI llama ante ese tipo de error)."
+    }
+   ],
+   "formulas": [
+    "\\text{respuesta} = \\text{JSON}\\Big(\\text{filtrar}_{\\text{modelo de salida}}\\big(\\text{tu\\_función}(\\text{validar}(\\text{request}))\\big)\\Big)",
+    "\\text{entrada inválida} \\Rightarrow 422 \\qquad \\texttt{HTTPException}(c) \\Rightarrow c \\qquad \\text{salida inválida o excepción suelta} \\Rightarrow 500"
+   ],
+   "vars": [
+    [
+     "{recurso} · {crear} · {cerrar}",
+     "lo que creas una vez por proceso y cómo se cierra",
+     "triton · InferenceServerClient · close"
+    ],
+    [
+     "{nombre}",
+     "título de la app en OpenAPI",
+     "classifier-gateway"
+    ],
+    [
+     "{Salida} · {Prediccion}",
+     "modelos de Pydantic (clases que declaran campos con tipos) de la respuesta",
+     "Salida con model_version y predictions"
+    ],
+    [
+     "{funcion} · {ruta}",
+     "la función que atiende y su path",
+     "classify · classify"
+    ],
+    [
+     "{max} · {default}",
+     "rango y valor por defecto del parámetro",
+     "20 · 5"
+    ],
+    [
+     "{Tipo} · {Alias} · {nombre_param}",
+     "lo que entrega la dependencia, un nombre corto para reusarla y el parámetro que la recibe",
+     "InferenceServerClient · Triton · triton"
+    ],
+    [
+     "{codigo} · {mensaje}",
+     "código HTTP y texto para el cliente",
+     "503 · Triton no disponible"
+    ],
+    [
+     "{Excepcion} · {manejador}",
+     "el tipo de error que traduces y la función que responde",
+     "ImageTooLarge · too_large"
+    ],
+    [
+     "c",
+     "el código que pusiste en la HTTPException",
+     "413"
+    ]
+   ],
+   "pieces": [
+    [
+     "FastAPI()",
+     "La app: junta rutas, validación, OpenAPI y el lifespan. Por debajo es una app de Starlette, el framework ASGI (la interfaz estándar entre un servidor y una app async) sobre el que está hecha.",
+     "FastAPI(title=\"classifier-gateway\", lifespan=lifespan)"
+    ],
+    [
+     "@app.get / @app.post",
+     "Decorador que registra una ruta: método HTTP + path → tu función.",
+     "@app.post(\"/v1/classify\")"
+    ],
+    [
+     "Parámetros de path y query",
+     "Lo que viene en la URL. FastAPI lo convierte al tipo que declaras y lo valida.",
+     "top_k: int = Query(5, ge=1, le=MAX_TOP_K)"
+    ],
+    [
+     "Annotated[…, Query(…)]",
+     "La forma recomendada desde FastAPI 0.95 para poner validaciones; la de Query como default, la del C01, sigue funcionando.",
+     "Annotated[int, Query(ge=1, le=20)] = 5"
+    ],
+    [
+     "Body con un modelo",
+     "Un parámetro con tipo BaseModel hace que FastAPI lea el JSON, lo valide y te pase el objeto.",
+     "opciones: Opciones"
+    ],
+    [
+     "Request",
+     "El request crudo: headers, body en streaming y app.state. Lo usas cuando el body no es JSON, como los bytes de la foto en el C01.",
+     "request.headers.get(\"content-type\")"
+    ],
+    [
+     "Response como parámetro",
+     "Una respuesta temporal para poner headers o cookies; FastAPI los copia a la respuesta final.",
+     "response.headers[\"X-Request-ID\"] = request_id"
+    ],
+    [
+     "Tipo de retorno / response_model",
+     "Valida lo que devuelves, quita los campos de más y lo documenta. Si tu salida no cumple, es un 500: el bug es tuyo.",
+     "-> Salida"
+    ],
+    [
+     "status_code",
+     "El código del caso exitoso, en el decorador. Por defecto es 200.",
+     "@app.post(\"/v1/jobs\", status_code=202)"
+    ],
+    [
+     "HTTPException",
+     "Un error que decides: código, detail y headers. Hereda del HTTPException de Starlette.",
+     "HTTPException(503, \"Triton no disponible\", headers={\"Retry-After\": \"1\"})"
+    ],
+    [
+     "Depends",
+     "Inyección de dependencias: FastAPI llama la función y te pasa el resultado, una vez por request.",
+     "Annotated[Cliente, Depends(get_triton)]"
+    ],
+    [
+     "Dependencia con yield",
+     "Abre algo antes y lo cierra después: por defecto, después de enviar la respuesta; con scope=\"function\", antes.",
+     "una sesión de base de datos"
+    ],
+    [
+     "lifespan + app.state",
+     "Recursos de todo el proceso: se crean antes del tráfico y se cierran al apagar.",
+     "app.state.triton, app.state.labels"
+    ],
+    [
+     "OpenAPI y /docs",
+     "FastAPI genera /openapi.json (la descripción de tu API) y las páginas /docs y /redoc. include_in_schema=False saca una ruta de ahí.",
+     "/metrics no aparece en el schema"
+    ]
+   ],
+   "example": {
+    "title": "El lifespan del C01: lo que se crea una vez por proceso",
+    "lang": "python",
+    "code": "@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    \"\"\"Recursos compartidos: se crean con el event loop ya corriendo y se cierran al apagar.\"\"\"\n    # Etiquetas en memoria: 500 strings, índice = id de clase del training (mismo orden que el dataset)\n    app.state.labels = json.loads(Path(LABELS_PATH).read_text(encoding=\"utf-8\"))\n    # Sin este límite el threadpool (40 hilos por defecto) decodificaría 40 imágenes a la vez en un\n    # pod de 1 CPU: más latencia para todas y riesgo de OOMKilled. Los demás esperan como mucho\n    # SLOT_WAIT_S; si no, 503.\n    app.state.cpu_slots = asyncio.Semaphore(PREPROCESS_CONCURRENCY)\n    app.state.inflight = 0  # requests aceptados en este proceso; sin lock: el event loop es un solo hilo\n    # UN cliente por proceso: reutiliza conexiones keep-alive (sin handshake TCP por request).\n    # conn_limit = máximo de requests en vuelo hacia Triton (backpressure); conn_timeout es un\n    # timeout total de aiohttp para CUALQUIER llamada: queda de respaldo (el fino va en _infer).\n    # Se crea aquí y no al importar: aiohttp necesita un event loop corriendo.\n    app.state.triton = triton_http.InferenceServerClient(url=TRITON_URL, conn_limit=64, conn_timeout=1.0)\n    yield  # aquí la app atiende tráfico\n    await app.state.triton.close()  # cierra el pool de conexiones limpiamente en el SIGTERM\n\n\napp = FastAPI(title=\"classifier-gateway\", lifespan=lifespan)  # lifespan reemplaza a on_event",
+    "source": "reference/c01/gateway/app/main.py (líneas 94–113)",
+    "notes": [
+     "<code>@asynccontextmanager</code> convierte la función con <code>yield</code> en el context manager (un objeto con un «al entrar» y un «al salir») que pide <code>FastAPI(lifespan=…)</code>. Antes del <code>yield</code>: carga los 500 labels, crea el semáforo de CPU, el contador de requests en vuelo y el cliente de Triton.",
+     "El cliente se crea aquí y no al importar el módulo: el cliente aio de Triton usa aiohttp, que exige un event loop corriendo (el hilo que atiende por turnos todo lo async). uvicorn importa la app con el loop ya andando, pero el test del C01 hace <code>from app import main</code> sin loop, y ahí fallaría con <code>RuntimeError: no running event loop</code>.",
+     "<code>app.state</code> es un objeto donde guardas lo compartido; las rutas lo leen con <code>request.app.state</code>. Un cliente por proceso reusa las conexiones abiertas (keep-alive): no paga en cada request el saludo inicial de TCP (handshake) para abrir una nueva.",
+     "<code>Path(LABELS_PATH).read_text()</code> es I/O que bloquea, y está bien aquí: corre una vez, antes de aceptar tráfico. Dentro de una ruta <code>async</code> sería un problema.",
+     "Después del <code>yield</code> se cierra el pool de conexiones: corre en el apagado ordenado, cuando uvicorn ya dejó de aceptar requests. En los tests, <code>with TestClient(app)</code> también corre el lifespan."
+    ]
+   },
+   "figure": {
+    "kind": "chain",
+    "caption": "Lo que hace FastAPI con cada request, en orden. Tú escribes el paso 4; los demás los pone FastAPI (con Starlette debajo) a partir de tus tipos.",
+    "data": {
+     "steps": [
+      {
+       "label": "Routing",
+       "cmd": "@app.post(\"/v1/classify\")",
+       "note": "Método + path → tu función. Sin ruta: 404; con otro método: 405."
+      },
+      {
+       "label": "Body",
+       "cmd": "opciones: Opciones",
+       "note": "Si la ruta declara un modelo, FastAPI lee el body entero, sin tope, y lo interpreta como JSON solo si el Content-Type es de JSON (desde 0.132, si falta, tampoco). Un JSON roto ya es 422. Con request: Request, el body lo lees tú."
+      },
+      {
+       "label": "Parámetros y dependencias",
+       "cmd": "top_k: int = Query(5, ge=1, le=20)",
+       "note": "Convierte y valida query, path, headers, dependencias y el body. Si algo falla: un solo 422 con la lista de todos los errores, y tu función no corre."
+      },
+      {
+       "label": "Tu función",
+       "cmd": "async def classify(...)",
+       "note": "async def corre en el event loop; def, en el threadpool. Aquí lanzas HTTPException con tus códigos."
+      },
+      {
+       "label": "Errores",
+       "cmd": "raise HTTPException(503, ...)",
+       "note": "ExceptionMiddleware lo convierte en {\"detail\": ...}. Una excepción que nadie atrapa termina en 500 (ServerErrorMiddleware)."
+      },
+      {
+       "label": "Modelo de salida",
+       "cmd": "-> Salida",
+       "note": "Valida y filtra lo que devolviste. Si no cumple el modelo: 500, porque el bug es tuyo."
+      },
+      {
+       "label": "Serializar y enviar",
+       "cmd": "JSONResponse(...)",
+       "note": "JSON, status_code y headers, más los del Response que recibiste como parámetro. Las dependencias con yield cierran después, salvo scope=\"function\"."
+      }
+     ]
+    }
+   },
+   "memo": "<b>Tú escribes funciones con tipos; FastAPI lee, valida, llama y serializa.</b> Entrada mala: 422. Tu <code>HTTPException</code>: su código. Salida mala o excepción suelta: 500. Lo caro, una sola vez en el lifespan y en <code>app.state</code>.",
+   "trap": "Mezclar <code>lifespan</code> con <code>@app.on_event(\"startup\")</code>: si la app tiene lifespan, los handlers de on_event no se llaman, y no hay error (solo un DeprecationWarning que casi nunca ves). Y la variante: crear el cliente de aiohttp, o el aio de Triton, al importar el módulo. Con uvicorn parece andar, porque importa la app con el event loop corriendo, pero tus tests lo importan sin loop y fallan con <code>RuntimeError: no running event loop</code>.",
+   "lab": {
+    "goal": "Escribir un servicio con lifespan, un modelo de salida, una dependencia y una ruta fuera del schema, y ver qué valida, qué filtra y qué publica FastAPI en OpenAPI.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway\npython3.13 -m venv .venv && . .venv/bin/activate\npip install fastapi==0.141.1 starlette==1.7.0 pydantic==2.13.5 uvicorn==0.54.0",
+      "expect": "La última línea empieza con Successfully installed y trae fastapi-0.141.1, starlette-1.7.0, pydantic-2.13.5 y uvicorn-0.54.0, más sus dependencias (pydantic-core, anyio, h11, click…). Son las versiones del C01. Si ya tenías el venv de otro lab, dice Requirement already satisfied."
+     },
+     {
+      "cmd": "cat > basico.py <<'EOF'\nimport logging\nfrom contextlib import asynccontextmanager\nfrom typing import Annotated\n\nfrom fastapi import Depends, FastAPI, HTTPException, Query, Request\nfrom pydantic import BaseModel\n\nlog = logging.getLogger(\"uvicorn.error\")       # sale con el mismo formato que los logs de uvicorn\n\nclass Prediccion(BaseModel):\n    label: str\n    score: float\n\nclass Salida(BaseModel):\n    model_version: str\n    predictions: list[Prediccion]\n\n@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    log.info(\"lifespan: cargo los labels\")\n    app.state.labels = [\"Smartphones\", \"Fundas para celular\", \"Cargadores de celular\"]\n    yield\n    log.info(\"lifespan: cierro todo\")\n\napp = FastAPI(title=\"lab-gateway\", lifespan=lifespan)\n\ndef get_labels(request: Request) -> list[str]:\n    return request.app.state.labels\n\nLabels = Annotated[list[str], Depends(get_labels)]\n\n@app.post(\"/v1/classify\")\nasync def classify(labels: Labels, top_k: Annotated[int, Query(ge=1, le=3)] = 2) -> Salida:\n    if not labels:\n        raise HTTPException(503, \"sin labels\", headers={\"Retry-After\": \"1\"})\n    preds = [{\"label\": l, \"score\": s, \"debug\": \"interno\"} for l, s in zip(labels, (0.83, 0.07, 0.04))]\n    return {\"model_version\": \"lab-1\", \"predictions\": preds[:top_k], \"costo_ms\": 3}\n\n@app.get(\"/healthz\", include_in_schema=False)\nasync def healthz():\n    return {\"status\": \"ok\"}\nEOF",
+      "expect": "Sin salida: el archivo queda en ~/lab-gateway/basico.py. La ruta devuelve dos campos que el modelo Salida no declara (costo_ms, y debug en cada predicción)."
+     },
+     {
+      "cmd": "uvicorn basico:app --port 8080 > server.log 2>&1 &\necho $! > uvicorn.pid\nsleep 2; cat server.log",
+      "expect": "Las líneas de arranque de uvicorn y, entre Waiting for application startup. y Application startup complete., la tuya: INFO:     lifespan: cargo los labels. El lifespan corre antes de aceptar requests."
+     },
+     {
+      "cmd": "curl -s -X POST \"localhost:8080/v1/classify?top_k=2\"\necho\ncurl -s -w ' %{http_code}\\n' -X POST \"localhost:8080/v1/classify?top_k=9\"",
+      "expect": "{\"model_version\":\"lab-1\",\"predictions\":[{\"label\":\"Smartphones\",\"score\":0.83},{\"label\":\"Fundas para celular\",\"score\":0.07}]}: sin costo_ms ni debug, porque el modelo de salida los filtró. Después {\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"top_k\"],\"msg\":\"Input should be less than or equal to 3\",\"input\":\"9\",\"ctx\":{\"le\":3}}]} 422."
+     },
+     {
+      "cmd": "curl -s localhost:8080/openapi.json | python3 -c '\nimport json, sys\nd = json.load(sys.stdin)\nprint(sorted(d[\"paths\"]))\np = d[\"paths\"][\"/v1/classify\"][\"post\"][\"parameters\"][0]\nprint(p[\"name\"], p[\"in\"], p[\"schema\"][\"minimum\"], p[\"schema\"][\"maximum\"], p[\"schema\"][\"default\"])\nprint(sorted(d[\"components\"][\"schemas\"]))\n'",
+      "expect": "['/v1/classify'] (sin /healthz, por include_in_schema=False), después top_k query 1 3 2, y ['HTTPValidationError', 'Prediccion', 'Salida', 'ValidationError']: el rango de top_k, los modelos de la respuesta y el formato del 422 quedan documentados sin escribir nada. La request (Request) y la dependencia no aparecen como parámetros. Abre http://localhost:8080/docs en el navegador para verlo como página."
+     },
+     {
+      "cmd": "kill $(cat uvicorn.pid); sleep 1; tail -5 server.log",
+      "expect": "INFO:     Shutting down, Waiting for application shutdown., INFO:     lifespan: cierro todo, Application shutdown complete. y Finished server process [PID]: lo de después del yield corre al apagar."
+     },
+     {
+      "cmd": "deactivate; cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si el primer curl devuelve Internal Server Error, revisa server.log: un 500 con ResponseValidationError quiere decir que lo que devolviste no cumple Salida (por ejemplo, un score que no es número). Si el puerto 8080 está ocupado, usa --port 8081 en todos los pasos.",
+    "needs": "Python 3.13 (la versión del C01) e internet para pip: FastAPI, Starlette, Pydantic y uvicorn, en las versiones del C01. curl ya viene en macOS. Sin Docker ni GPU.",
+    "verified": "docs",
+    "verified_note": "Sin instalar nada: basico.py se corrió en macOS con FastAPI 0.143.0, Starlette 1.7.0, Pydantic 2.14.1 y uvicorn 0.54.0 y dio exactamente estas salidas. Para la versión del C01 se verificó en la documentación y el código de FastAPI 0.141.1 (el modelo de salida filtra campos; ge y le salen como minimum y maximum en OpenAPI; include_in_schema=False saca la ruta; el 422 sale antes de la función) y en uvicorn 0.54.0 (orden de los mensajes de arranque y apagado)."
+   },
+   "links": [
+    "#m07.fastapi",
+    "#c01.serving",
+    "#c01.archivos",
+    "#m07.que-hace"
+   ]
+  },
+  {
+   "id": "async",
+   "num": 3,
+   "title": "async contra hilos: event loop, async def contra def, trabajo bloqueante, threadpool, workers y GIL",
+   "question": "¿Por qué un solo time.sleep, un requests.get o un decode dentro de async def frena a todos los requests del proceso, y dónde va cada tipo de trabajo?",
+   "templates": [
+    {
+     "code": "async def {funcion}(...):\n    {datos} = await {cliente_async}.{metodo}(...)   # I/O: suelta el turno mientras espera",
+     "note": "Una corrutina (coroutine: lo que define <code>async def</code>) corre en el event loop, el único hilo que atiende a todos los requests <code>async</code> por turnos. Cada <code>await</code> de I/O (red, timers) le devuelve el turno al loop, que atiende a otro request mientras tanto. Entre dos <code>await</code>, tu código tiene el hilo para él solo."
+    },
+    {
+     "code": "{resultado} = await run_in_threadpool({funcion_cpu}, {args})   # Starlette/FastAPI: pool de AnyIO, 40 hilos\n{resultado} = await asyncio.to_thread({funcion_cpu}, {args})   # pool de asyncio: min(32, CPUs + 4) hilos",
+     "note": "Lo que bloquea (CPU, librerías sin <code>await</code>) se manda a un hilo y se espera con <code>await</code>. Son dos pools distintos: <code>run_in_threadpool</code> usa el de AnyIO (la librería async debajo de Starlette), con 40 hilos que comparten las rutas y dependencias <code>def</code>; <code>asyncio.to_thread</code> usa el grupo de hilos propio de asyncio (su executor por defecto), que no cuenta en esos 40."
+    },
+    {
+     "code": "@app.post(\"{ruta}\")\ndef {funcion}(...):          # sin async: FastAPI la corre en el threadpool\n    return {llamada_sincrona}",
+     "note": "Si tu ruta usa una librería sin <code>await</code> (requests, psycopg2, boto3), declárala con <code>def</code>: FastAPI la corre en el threadpool y el event loop sigue libre. Lo mismo hace con las dependencias <code>def</code>. Un <code>async def</code> «por si acaso» con código bloqueante adentro es lo peor de los dos mundos."
+    },
+    {
+     "code": "PYTHONASYNCIODEBUG=1 {comando}\nasyncio.get_running_loop().slow_callback_duration = {segundos}   # default: 0.1",
+     "note": "El modo debug de asyncio avisa cada paso que tuvo el loop ocupado más de <code>slow_callback_duration</code> (100 ms por defecto), con el nombre de la corrutina culpable. Con el umbral en 20 ms, como en el lab: <code>Executing &lt;Task … coro=&lt;{funcion}() running at …&gt; …&gt; took 0.055 seconds</code>. Úsalo en desarrollo o en una prueba de carga (load test), no en producción."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{espera del último}} \\approx N \\times t_{\\text{bloqueo}} \\qquad 3 \\times 50\\ \\text{ms} = 150\\ \\text{ms} \\quad (\\texttt{/healthz}\\ \\text{espera lo mismo})",
+    "\\text{hilos ocupados} = \\lambda \\times t_{\\text{CPU}} = 100\\ \\tfrac{\\text{req}}{\\text{s}} \\times 0.006\\ \\text{s} = 0.6\\ \\text{por pod} \\quad (\\text{tope del C01: } 2)",
+    "\\text{AnyIO (rutas def, run\\_in\\_threadpool)} = 40 \\qquad \\texttt{asyncio.to\\_thread} = \\min\\big(32,\\ \\text{CPUs} + 4\\big)"
+   ],
+   "vars": [
+    [
+     "{ruta} · {funcion}",
+     "el path de la ruta y la función que la atiende",
+     "/v1/classify · classify"
+    ],
+    [
+     "{cliente_async}.{metodo}",
+     "un cliente con métodos async, creado una vez al arrancar (en el lifespan)",
+     "app.state.triton.infer"
+    ],
+    [
+     "{datos} · {resultado}",
+     "lo que devuelve la espera",
+     "result · batch, digest"
+    ],
+    [
+     "{funcion_cpu} · {args}",
+     "la función que bloquea y sus argumentos",
+     "_decode_and_hash · data, los bytes de la foto"
+    ],
+    [
+     "{llamada_sincrona}",
+     "una llamada sin await",
+     "requests.get(url, timeout=0.2).json()"
+    ],
+    [
+     "{comando} · {segundos}",
+     "cómo corres el proceso y desde cuánto un paso cuenta como lento",
+     "python3.13 bloqueo.py · 0.02"
+    ],
+    [
+     "N · t_bloqueo",
+     "requests que bloquean el loop uno detrás de otro, y cuánto dura cada bloqueo",
+     "3 fotos · 50 ms de decode"
+    ],
+    [
+     "λ · t_CPU",
+     "requests por segundo por pod y CPU por foto",
+     "100 · 6 ms"
+    ],
+    [
+     "CPUs",
+     "núcleos que puede usar el proceso (os.process_cpu_count())",
+     "10 en una Mac M4 → 14 hilos"
+    ]
+   ],
+   "pieces": [
+    [
+     "event loop",
+     "El único hilo que atiende a todos los requests async del proceso, por turnos. Si un turno no termina, nadie más avanza.",
+     "uvloop (un event loop más rápido), en el C01"
+    ],
+    [
+     "async def (corrutina)",
+     "Una función que puede pausarse en cada await y dejar pasar a las demás.",
+     "classify, _classify, _infer"
+    ],
+    [
+     "await",
+     "«Espero esto, y mientras tanto atiende a otro». Solo cede el turno si lo que esperas es async de verdad.",
+     "await asyncio.wait_for(client.infer(...), ...)"
+    ],
+    [
+     "Llamada bloqueante",
+     "Una función que no vuelve hasta terminar y no tiene await: time.sleep, requests, open(), un decode, model(x).",
+     "Image.open(...).convert(\"RGB\")"
+    ],
+    [
+     "I/O-bound y CPU-bound",
+     "I/O: el tiempo se va esperando a otro (red, disco). CPU: el tiempo se va calculando. async ayuda con lo primero; para lo segundo, hilos o procesos.",
+     "Triton es I/O para el gateway; el decode es CPU"
+    ],
+    [
+     "def en FastAPI",
+     "Las rutas y dependencias def corren en el threadpool: bloquear ahí no frena el loop.",
+     "def metrics() en el C01"
+    ],
+    [
+     "Threadpool de AnyIO",
+     "Los 40 hilos que comparten las rutas def, las dependencias def y run_in_threadpool.",
+     "anyio.to_thread.current_default_thread_limiter().total_tokens"
+    ],
+    [
+     "run_in_threadpool",
+     "Manda una función que bloquea al threadpool y la espera con await.",
+     "await run_in_threadpool(_decode_and_hash, data)"
+    ],
+    [
+     "asyncio.to_thread",
+     "Lo mismo, con el pool de asyncio: min(32, CPUs + 4) hilos, aparte de los 40 de AnyIO.",
+     "await asyncio.to_thread(decode, data)"
+    ],
+    [
+     "Semáforo",
+     "asyncio.Semaphore: un contador de turnos que deja pasar a N a la vez; el resto espera con await. Acota CPU y RAM aunque haya 40 hilos.",
+     "cpu_slots = asyncio.Semaphore(2)"
+    ],
+    [
+     "Un hilo no se cancela",
+     "Python no puede detener código que ya corre en un hilo: si cortas la espera, el hilo sigue trabajando hasta terminar.",
+     "por eso el C01 no le pone timeout al decode"
+    ],
+    [
+     "GIL",
+     "El candado de CPython (el intérprete normal de Python): en un proceso, un solo hilo ejecuta código Python a la vez. El código en C que lo suelta (Pillow, NumPy, hashlib) sí corre en paralelo. Desde 3.13 existe una build aparte sin GIL; la imagen del C01 usa la normal.",
+     "el sha256 y el decode del C01, en el threadpool"
+    ],
+    [
+     "Workers (procesos)",
+     "uvicorn --workers N lanza N procesos, cada uno con su loop y su GIL. En Kubernetes se prefiere 1 por pod, y más pods.",
+     "--workers 1 en el Dockerfile"
+    ],
+    [
+     "Modo debug de asyncio",
+     "Avisa los pasos que tuvieron el loop ocupado más de 100 ms (configurable) y dice qué corrutina fue.",
+     "PYTHONASYNCIODEBUG=1"
+    ]
+   ],
+   "example": {
+    "title": "El decode del C01: CPU en un hilo, con un tope de 2 y sin timeout",
+    "lang": "python",
+    "code": "def _decode_and_hash(data: bytes) -> tuple[np.ndarray, str]:\n    \"\"\"CPU pura (bloqueante): corre en el threadpool. Pillow y numpy sueltan el GIL en decode y resize.\"\"\"\n    digest = hashlib.sha256(data).hexdigest()  # huella de la imagen: deduplicar y cruzar con labels\n    tensor = preprocess(data, max_pixels=MAX_PIXELS)  # float32 [3,224,224], idéntico a training/eval\n    return tensor[np.newaxis], digest  # batch de 1: Triton junta requests con dynamic batching\n# …\n    # Decode + resize son CPU pura. Una ruta `async def` que los corre directo BLOQUEA el event loop:\n    # mientras decodifica una foto de 12 MP ninguna otra request avanza. En el threadpool el loop sigue\n    # atendiendo I/O (otras llamadas a Triton, health checks). Máximo PREPROCESS_CONCURRENCY a la vez;\n    # esperar un slot más de SLOT_WAIT_S → 503 (el pod está saturado de CPU).\n    slots = request.app.state.cpu_slots\n    try:\n        await asyncio.wait_for(slots.acquire(), timeout=SLOT_WAIT_S)\n    except TimeoutError:\n        raise HTTPException(503, \"gateway saturado (CPU)\", headers={\"Retry-After\": \"1\"}) from None\n    t = time.perf_counter()  # el reloj arranca con el slot tomado: mide CPU, no cola\n    try:\n        # Aquí no hay timeout a propósito: un hilo no se puede cancelar. Si cortáramos el await, el\n        # slot se liberaría con el hilo todavía decodificando y el tope de RAM dejaría de valer.\n        batch, digest = await run_in_threadpool(_decode_and_hash, data)\n    except (ImageTooLarge, Image.DecompressionBombError) as exc:  # ImageTooLarge antes que ValueError\n        raise HTTPException(413, str(exc)) from None\n    except (OSError, ValueError, SyntaxError):  # lo que lanza Pillow con archivos corruptos o truncados\n        raise HTTPException(400, \"no se pudo decodificar la imagen\") from None\n    finally:\n        slots.release()  # siempre: también en 400/413",
+    "source": "reference/c01/gateway/app/main.py (líneas 140–144 y 252–271; # … marca líneas omitidas)",
+    "notes": [
+     "<code>_decode_and_hash</code> es <code>def</code>, sin <code>await</code>: CPU pura. Nunca se llama directo desde una corrutina, solo a través de <code>run_in_threadpool</code>.",
+     "El semáforo <code>cpu_slots</code> deja 2 decodes a la vez por proceso, aunque el threadpool tenga 40 hilos: un PNG de 40 MP ocupa ≈ 320 MB al decodificarse, y el pod tiene 1 GiB.",
+     "La espera por el slot sí tiene tope (<code>SLOT_WAIT_S</code>, 50 ms): esperar es un <code>await</code>, se puede cortar, y cortarlo no deja trabajo corriendo. Pasado el tope: 503 con <code>Retry-After</code>.",
+     "El decode no tiene timeout a propósito: un hilo no se puede cancelar. Si cortaras el <code>await</code>, el <code>finally</code> liberaría el slot con el hilo todavía decodificando, y el tope de RAM dejaría de valer.",
+     "El reloj de <code>preprocess_ms</code> arranca con el slot ya tomado: mide CPU, no la fila. Así el log separa «había que esperar» de «la foto era pesada»."
+    ]
+   },
+   "figure": {
+    "kind": "event-loop",
+    "caption": "Tres fotos y un /healthz en el mismo proceso: 50 ms de decode y 10 ms de espera a Triton por foto (valores ideales; en el lab, en una Mac, salen ≈ 10–20 % más). Arriba, el decode corre dentro del event loop: cada foto bloquea a las demás y /healthz espera ≈ 145 ms. Abajo, el decode va al threadpool con 2 slots, como en el C01: /healthz responde enseguida y la tercera foto espera su turno con await, sin bloquear a nadie.",
+    "data": {
+     "unit": "ms",
+     "decode_ms": 50,
+     "triton_ms": 10,
+     "healthz_arrives_ms": 5,
+     "scenarios": [
+      {
+       "id": "mal",
+       "label": "Mal: el decode dentro del async def",
+       "lanes": [
+        "event loop"
+       ],
+       "spans": [
+        {
+         "lane": "event loop",
+         "who": "foto1",
+         "what": "decode (bloquea)",
+         "start": 0,
+         "end": 50
+        },
+        {
+         "lane": "event loop",
+         "who": "foto2",
+         "what": "decode (bloquea)",
+         "start": 50,
+         "end": 100
+        },
+        {
+         "lane": "event loop",
+         "who": "foto3",
+         "what": "decode (bloquea)",
+         "start": 100,
+         "end": 150
+        }
+       ],
+       "waits": [
+        {
+         "who": "healthz",
+         "what": "llegó; espera turno",
+         "start": 5,
+         "end": 150
+        },
+        {
+         "who": "foto1",
+         "what": "Triton respondió a los 60; espera turno",
+         "start": 50,
+         "end": 150
+        },
+        {
+         "who": "foto2",
+         "what": "Triton respondió a los 110; espera turno",
+         "start": 100,
+         "end": 150
+        },
+        {
+         "who": "foto3",
+         "what": "espera a Triton",
+         "start": 150,
+         "end": 160
+        }
+       ],
+       "done": {
+        "healthz": 150,
+        "foto1": 150,
+        "foto2": 150,
+        "foto3": 160
+       },
+       "healthz_latency_ms": 145
+      },
+      {
+       "id": "bien",
+       "label": "Bien: el decode en el threadpool, con 2 slots",
+       "lanes": [
+        "event loop",
+        "hilo 1",
+        "hilo 2"
+       ],
+       "spans": [
+        {
+         "lane": "hilo 1",
+         "who": "foto1",
+         "what": "decode",
+         "start": 0,
+         "end": 50
+        },
+        {
+         "lane": "hilo 2",
+         "who": "foto2",
+         "what": "decode",
+         "start": 0,
+         "end": 50
+        },
+        {
+         "lane": "hilo 1",
+         "who": "foto3",
+         "what": "decode",
+         "start": 50,
+         "end": 100
+        },
+        {
+         "lane": "event loop",
+         "who": "healthz",
+         "what": "responde",
+         "start": 5,
+         "end": 5
+        }
+       ],
+       "waits": [
+        {
+         "who": "foto3",
+         "what": "espera un slot (await)",
+         "start": 0,
+         "end": 50
+        },
+        {
+         "who": "foto1",
+         "what": "espera a Triton",
+         "start": 50,
+         "end": 60
+        },
+        {
+         "who": "foto2",
+         "what": "espera a Triton",
+         "start": 50,
+         "end": 60
+        },
+        {
+         "who": "foto3",
+         "what": "espera a Triton",
+         "start": 100,
+         "end": 110
+        }
+       ],
+       "done": {
+        "healthz": 5,
+        "foto1": 60,
+        "foto2": 60,
+        "foto3": 110
+       },
+       "healthz_latency_ms": 0
+      }
+     ],
+     "measured": {
+      "mal": {
+       "healthz": 160,
+       "foto1": 165,
+       "foto2": 165,
+       "foto3": 176
+      },
+      "bien": {
+       "healthz": 0,
+       "foto1": 70,
+       "foto2": 70,
+       "foto3": 123
+      },
+      "note": "bloqueo.py con Python 3.13 en una Mac M4: time.sleep se pasa ≈ 5 ms en cada llamada"
+     }
+    }
+   },
+   "memo": "<b>await para esperar, hilos para calcular, pods para escalar.</b> Entre dos <code>await</code>, tu corrutina tiene el event loop para ella sola: si ese tramo tarda 50 ms, todo el proceso espera 50 ms.",
+   "trap": "Escribir <code>async def</code> «porque es más rápido» y adentro llamar algo sin <code>await</code>: <code>requests.get</code>, <code>time.sleep</code>, un decode de Pillow o <code>model(x)</code>. Bloquea el event loop: el p99 (el tiempo de los requests más lentos) sube con la concurrencia sin que la CPU esté llena, y hasta <code>/healthz</code> y <code>/readyz</code> esperan su turno (si la espera pasa el límite de los probes, los chequeos de salud de Kubernetes, el pod sale del balanceo y hasta lo reinician). Subir <code>--workers</code> o los 40 hilos no lo arregla; sacar el bloqueo del loop, sí.",
+   "lab": {
+    "goal": "Ver el event loop bloqueado: tres fotos y un /healthz con el decode dentro del loop y en un hilo, el aviso del modo debug y el efecto del GIL en hilos.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway",
+      "expect": "Sin salida."
+     },
+     {
+      "cmd": "cat > bloqueo.py <<'EOF'\nimport asyncio, time\n\nDECODE_S, TRITON_S = 0.05, 0.01        # 50 ms de CPU por foto; 10 ms esperando a Triton\n\ndef decode():                           # simula el decode: no tiene await (Pillow, igual, suelta el GIL)\n    time.sleep(DECODE_S)\n\nasync def foto_mal(t0, nombre, fin, slots):\n    decode()                            # MAL: corre en el event loop y no suelta el turno\n    await asyncio.sleep(TRITON_S)       # I/O: aquí sí cede el turno\n    fin[nombre] = round((time.perf_counter() - t0) * 1000)\n\nasync def foto_bien(t0, nombre, fin, slots):\n    async with slots:                   # como el C01: 2 decodes a la vez\n        await asyncio.to_thread(decode) # BIEN: un hilo decodifica; el loop sigue libre\n    await asyncio.sleep(TRITON_S)\n    fin[nombre] = round((time.perf_counter() - t0) * 1000)\n\nasync def escenario(foto):\n    asyncio.get_running_loop().slow_callback_duration = 0.02  # modo debug: avisa desde 20 ms (default: 100 ms)\n    t0, fin, slots = time.perf_counter(), {}, asyncio.Semaphore(2)\n    llega = t0 + 0.005                  # un /healthz llega a los 5 ms\n    def responder_healthz():\n        fin[\"healthz\"] = round((time.perf_counter() - llega) * 1000)\n    asyncio.get_running_loop().call_later(0.005, responder_healthz)\n    await asyncio.gather(*(foto(t0, f\"foto{i}\", fin, slots) for i in (1, 2, 3)))\n    return fin\n\nfor titulo, foto in ((\"mal \", foto_mal), (\"bien\", foto_bien)):\n    fin = asyncio.run(escenario(foto))\n    print(titulo, \"ms hasta responder:\", dict(sorted(fin.items(), key=lambda kv: kv[1])))\nEOF\npython3.13 bloqueo.py",
+      "expect": "Dos líneas. mal: healthz ≈ 155–180 ms, foto1 y foto2 ≈ 160–185, foto3 ≈ 170–195: cada decode de 50 ms bloquea a todos, y el /healthz que llegó a los 5 ms espera los tres. bien: healthz 0 o 1, foto1 y foto2 ≈ 60–75 (decodifican juntas, en dos hilos) y foto3 ≈ 115–135 (esperó un slot). No da 145 · 150 · 160 exactos porque time.sleep en macOS se pasa 5–10 ms en cada llamada, más si la Mac está ocupada."
+     },
+     {
+      "cmd": "PYTHONASYNCIODEBUG=1 python3.13 bloqueo.py 2>&1 | grep -oE 'coro=<foto_[a-z]+\\(\\)|took [0-9.]+ seconds' | paste - -",
+      "expect": "Tres líneas, coro=<foto_mal() con took ≈ 0.055–0.060 seconds: el modo debug dice qué corrutina tuvo el loop ocupado. En el escenario bien no hay ninguna. El script baja el umbral a 20 ms; con el default de 100 ms, estos bloqueos de 50 ms no aparecerían."
+     },
+     {
+      "cmd": "cat > gil.py <<'EOF'\nimport hashlib, os, threading, time\n\ndatos = os.urandom(32 * 1024 * 1024)        # 32 MB al azar\n\ndef hashear():                               # C que suelta el GIL (como el sha256 del C01)\n    for _ in range(8):\n        hashlib.sha256(datos).hexdigest()\n\ndef sumar():                                 # Python puro: necesita el GIL en cada paso\n    n = 0\n    for i in range(3_000_000):\n        n += i\n\ndef medir(f, hilos):\n    t = time.perf_counter()\n    ts = [threading.Thread(target=f) for _ in range(hilos)]\n    for x in ts: x.start()\n    for x in ts: x.join()\n    return time.perf_counter() - t\n\nfor f in (hashear, sumar):\n    uno, cuatro = medir(f, 1), medir(f, 4)\n    print(f\"{f.__name__}: 1 hilo {uno:.2f} s · 4 hilos {cuatro:.2f} s → {4 * uno / cuatro:.1f}× trabajo por segundo\")\nprint(\"CPUs:\", os.process_cpu_count(), \"· pool de asyncio.to_thread:\", min(32, (os.process_cpu_count() or 1) + 4), \"hilos\")\nEOF\npython3.13 gil.py",
+      "expect": "hashear: 4 hilos tardan lo mismo que 1 (≈ 0.17 s en una M4) → ≈ 4× trabajo por segundo (hashlib suelta el GIL, como Pillow en el decode). sumar: 1 hilo ≈ 0.09 s · 4 hilos ≈ 0.36 s → 1.0× (Python puro: un hilo a la vez). La última línea dice tus núcleos y el tamaño del pool de asyncio.to_thread: en una Mac M4, 10 y 14 hilos."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si en bien foto3 sale igual que foto1, falta el semáforo: revisa el async with slots. Si el paso del modo debug no muestra nada, revisa que PYTHONASYNCIODEBUG=1 vaya pegado antes de python3.13, en la misma línea. Con menos de 4 núcleos, hashear da menos de 4×.",
+    "needs": "solo Python 3.13 (la versión del C01); no instala nada. Con 3.11 o 3.12 también corre, salvo os.process_cpu_count, que es de 3.13.",
+    "verified": "executed",
+    "verified_note": "Ejecutado varias veces con Python 3.13.16 y 3.14.3 en macOS (Apple M4, 10 núcleos): los tiempos varían entre 5 y 15 ms de una corrida a otra, según la carga de la Mac (con la Mac ocupada, time.sleep(0.05) llegó a durar ≈ 59 ms). El texto del aviso del modo debug es el de asyncio en 3.13 y 3.14."
+   },
+   "links": [
+    "#c01.serving",
+    "#m07.fastapi",
+    "#m03.little",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "contrato",
+   "num": 4,
+   "title": "Validación y contrato: Pydantic v2, uploads con límite, 400/413/415/422, versionado y OpenAPI",
+   "question": "¿Qué acepta y qué devuelve tu API, quién lo valida, y con qué código respondes cuando el cliente manda algo que no sirve?",
+   "templates": [
+    {
+     "code": "class {Modelo}(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")             # un campo de más → 422\n    {campo}: Annotated[int, Field(ge={min}, le={max})] = {default}",
+     "note": "Un modelo de Pydantic (la librería que convierte y valida datos según tus tipos) declara el JSON que aceptas. Por defecto Pydantic convierte lo razonable (<code>\"3\"</code> → 3: el modo lax) e ignora los campos de más; <code>extra=\"forbid\"</code> los rechaza, y así atrapas los errores de tipeo del cliente (un campo mal escrito)."
+    },
+    {
+     "code": "declared = request.headers.get(\"content-length\", \"\")\nif declared.isdigit() and int(declared) > {MAX}:\n    raise HTTPException(413, \"{mensaje}\")             # sin leer un byte\nsize = 0\nasync for chunk in request.stream():                 # y contando los bytes reales\n    size += len(chunk)\n    if size > {MAX}:\n        raise HTTPException(413, \"{mensaje}\")",
+     "note": "Así limita el C01 un body de bytes crudos: primero por el header <code>Content-Length</code> (rechazo gratis), y después contando lo que llega, porque ese header puede mentir o faltar: con <code>Transfer-Encoding: chunked</code> (el body llega en trozos, sin decir el total) no viene."
+    },
+    {
+     "code": "@app.post(\"/v1/{recurso}\")\nasync def {funcion}(file: UploadFile):\n    data = await file.read({MAX} + 1)                # nunca más de MAX + 1 bytes en memoria\n    if len(data) > {MAX}:\n        raise HTTPException(413, \"{mensaje}\")",
+     "note": "Con multipart (el formato de los formularios con archivos; necesita <code>python-multipart</code>), FastAPI recibe el archivo <b>entero</b> antes de llamar a tu función: hasta 1 MB en memoria y el resto en un archivo temporal, sin tope. Leer con tamaño máximo protege tu memoria; para cortar el upload mismo, limita el body antes, con el <code>RequestBodyLimitMiddleware</code> de Starlette (la base de FastAPI; desde 1.6) o en el proxy que está delante (por ejemplo, <code>client_max_body_size</code> en nginx)."
+    },
+    {
+     "code": "v1 = APIRouter(prefix=\"/v1\")\nv2 = APIRouter(prefix=\"/v2\")\napp.include_router(v1)\napp.include_router(v2)      # /v2 convive con /v1 mientras los clientes migran",
+     "note": "Se versiona el contrato, no el modelo: cambiar de modelo no rompe a nadie; renombrar o quitar un campo sí, y eso es <code>/v2</code> conviviendo con <code>/v1</code>. Agregar un campo a la respuesta no rompe a nadie, siempre que los clientes ignoren los campos que no conocen."
+    }
+   ],
+   "formulas": [
+    "\\text{RAM al decodificar} \\approx W \\times H \\times 4\\ \\text{B} \\qquad 40\\ \\text{MP} \\times 4\\ \\text{B} = 160\\ \\text{MB} \\quad (\\approx 320\\ \\text{MB de pico medido, con las copias})",
+    "1 \\times 4{,}000\\ \\text{px} \\;\\xrightarrow{\\ \\text{lado corto} \\to 256\\ }\\; 256 \\times 1{,}024{,}000\\ \\text{px} \\times 4\\ \\text{B} \\approx 1\\ \\text{GB}",
+    "\\text{RAM de bodies} = \\texttt{MAX\\_INFLIGHT} \\times \\texttt{MAX\\_BYTES} = 16 \\times 10\\ \\text{MB} = 160\\ \\text{MB}"
+   ],
+   "vars": [
+    [
+     "{Modelo} · {campo}",
+     "la clase del JSON que aceptas y uno de sus campos",
+     "Opciones · top_k"
+    ],
+    [
+     "{min} · {max} · {default}",
+     "rango permitido y valor si no viene",
+     "1 · 20 · 5"
+    ],
+    [
+     "{MAX} · {mensaje}",
+     "tope en bytes y texto del 413",
+     "10 * 1024 * 1024 · la imagen supera 10 MB"
+    ],
+    [
+     "{recurso} · {funcion}",
+     "path y función del endpoint",
+     "classify"
+    ],
+    [
+     "W · H",
+     "ancho y alto que declara el header de la imagen",
+     "8,000 × 6,000 = 48 MP → 413"
+    ],
+    [
+     "4 B",
+     "bytes por píxel con que Pillow guarda RGB",
+     "160 MB para 40 MP, antes de las copias"
+    ],
+    [
+     "MAX_INFLIGHT · MAX_BYTES",
+     "requests en vuelo y tope de bytes por request",
+     "16 · 10 MB"
+    ]
+   ],
+   "pieces": [
+    [
+     "400 Bad Request",
+     "El request está mal formado y el servidor no puede arreglarlo.",
+     "body vacío; bytes que no son imagen; aspecto mayor que 1:8"
+    ],
+    [
+     "413 Content Too Large",
+     "Más grande de lo que aceptas, en bytes o en píxeles.",
+     "más de 10 MB; más de 40 MP"
+    ],
+    [
+     "415 Unsupported Media Type",
+     "El formato (Content-Type) no es uno que proceses.",
+     "image/gif → 415"
+    ],
+    [
+     "422 Unprocessable Content",
+     "El error de validación de FastAPI: tipos, rangos, campos que faltan o sobran. Body: {\"detail\": [errores]}.",
+     "top_k=0"
+    ],
+    [
+     "Un error de Pydantic",
+     "Cada error trae type, loc (dónde), msg, input y, si aplica, ctx. FastAPI los devuelve así, sin la clave url.",
+     "greater_than_equal en [\"query\", \"top_k\"]"
+    ],
+    [
+     "JSON roto → 422",
+     "FastAPI responde 422 con type json_invalid, no 400. Es su convención: el RFC 9110 (el estándar que define cada código HTTP) reserva el 422 para contenido bien formado.",
+     "\"msg\": \"JSON decode error\""
+    ],
+    [
+     "Content-Type de JSON",
+     "Desde FastAPI 0.132, un body que llega sin Content-Type de JSON (application/json o …+json) no se lee como JSON, y la validación falla con 422. Antes, si el header faltaba, FastAPI lo leía igual.",
+     "strict_content_type=False lo desactiva"
+    ],
+    [
+     "Modo lax y modo strict",
+     "Lax, el default: convierte \"3\" en 3. Strict: el tipo tiene que llegar exacto.",
+     "Field(strict=True)"
+    ],
+    [
+     "extra=\"forbid\"",
+     "Rechaza los campos que el modelo no declara; por defecto se ignoran.",
+     "{\"top_k\": 3, \"debug\": true} → 422 extra_forbidden"
+    ],
+    [
+     "Content-Length",
+     "El tamaño que el cliente dice que manda. Sirve para rechazar gratis, pero puede mentir o faltar.",
+     "con chunked no viene"
+    ],
+    [
+     "request.stream()",
+     "El body por partes, a medida que llega: cortas al pasar el tope sin leerlo todo.",
+     "_read_body_limited"
+    ],
+    [
+     "UploadFile",
+     "Un archivo de formulario multipart. FastAPI lo recibe entero antes de tu función: hasta 1 MB en memoria y el resto en disco.",
+     "file.read(MAX + 1)"
+    ],
+    [
+     "Versión en la ruta",
+     "/v1 versiona el contrato; model_version en el body dice qué modelo respondió.",
+     "/v1/classify"
+    ],
+    [
+     "OpenAPI",
+     "El documento JSON que describe tu API, generado de tus tipos. Lo que lees a mano (bytes) no aparece, salvo que lo declares con openapi_extra.",
+     "/openapi.json y /docs"
+    ]
+   ],
+   "example": {
+    "title": "Validación en capas del C01: header, bytes y píxeles, antes de decodificar",
+    "lang": "python",
+    "code": "# gateway/app/main.py: _classify (extracto)\n    ctype = request.headers.get(\"content-type\", \"\").split(\";\")[0].strip().lower()  # sin \"; charset=…\"\n    if ctype not in ALLOWED_TYPES:\n        raise HTTPException(415, \"Content-Type debe ser image/jpeg, image/png o image/webp\")\n    declared = request.headers.get(\"content-length\", \"\")\n    if declared.isdigit() and int(declared) > MAX_BYTES:  # rechazo sin leer ni un byte del body\n        raise HTTPException(413, \"la imagen supera 10 MB\")\n    data = await _read_body_limited(request)  # segunda verificación: los bytes reales\n\n# gateway/app/main.py: _read_body_limited\nasync def _read_body_limited(request: Request) -> bytes:\n    \"\"\"Lee el body en streaming y corta en cuanto pasa de MAX_BYTES (no confía en Content-Length).\"\"\"\n    chunks, size = [], 0  # acumulamos trozos para no copiar el buffer en cada iteración\n    async for chunk in request.stream():  # llega por partes: podemos abortar sin leer 1 GB\n        size += len(chunk)\n        if size > MAX_BYTES:  # un cliente con chunked encoding o que miente en Content-Length\n            raise HTTPException(413, \"la imagen supera 10 MB\")\n        chunks.append(chunk)\n    if size == 0:  # body vacío: error del cliente, no vale la pena llegar al decoder\n        raise HTTPException(400, \"body vacío: envía los bytes de la imagen\")\n    return b\"\".join(chunks)\n\n# gateway/app/preprocess.py: decode (extracto)\n    img = Image.open(io.BytesIO(data), formats=ALLOWED_FORMATS)\n    width, height = img.size  # dimensiones declaradas en el header\n    # …\n    if max_pixels is not None and width * height > max_pixels:\n        raise ImageTooLarge(f\"{width}x{height} px excede el límite de {max_pixels} px\")\n    if max_pixels is not None and max(width, height) > MAX_ASPECT * min(width, height):\n        # …\n        raise ValueError(f\"relación de aspecto {width}x{height} fuera de rango (máx 1:{MAX_ASPECT})\")",
+    "source": "reference/c01/gateway/app/main.py (líneas 241–247 y 127–137) y app/preprocess.py (líneas 51–62, extracto; # … marca líneas omitidas)",
+    "notes": [
+     "El orden es el del costo: primero lo que está en los headers (415, y 413 por <code>Content-Length</code>), después los bytes reales a medida que llegan, y recién al final el decode. Cada rechazo cuesta menos que el paso siguiente.",
+     "<code>split(\";\")[0].strip().lower()</code> acepta <code>image/jpeg; charset=…</code> o <code>IMAGE/JPEG</code>: compara solo el tipo.",
+     "<code>_read_body_limited</code> no confía en <code>Content-Length</code>: un cliente con <code>Transfer-Encoding: chunked</code> no lo manda, y uno malicioso puede mentir. Cuenta los bytes y corta en cuanto pasa de 10 MB, sin leer 1 GB.",
+     "<code>Image.open</code> solo lee el header: ancho y alto salen gratis. Con eso se rechaza un PNG que declara 48 MP (413) o una tira de 1 × 4,000 px (400) antes de gastar RAM en los píxeles; <code>formats=</code> limita los decoders a JPEG, PNG y WebP.",
+     "Ningún modelo de Pydantic valida la foto: el body son bytes crudos (no multipart: menos parsing y sin archivos temporales), así que el C01 la valida a mano. Pydantic solo valida <code>top_k</code>, y por eso <code>/openapi.json</code> no documenta el body: habría que declararlo con <code>openapi_extra</code>."
+    ]
+   },
+   "figure": {
+    "kind": "status",
+    "caption": "Qué código devuelve el C01, en el orden en que lo decide. Cada pregunta se hace solo si las anteriores pasaron; al lado, lo que cuesta llegar hasta ahí.",
+    "data": {
+     "start": "llega POST /v1/classify",
+     "nodes": [
+      {
+       "id": "ruta",
+       "ask": "¿Existe la ruta con ese método?",
+       "cost": "µs",
+       "no": {
+        "code": "404 · 405",
+        "who": "FastAPI",
+        "note": "405 si la ruta existe con otro método"
+       }
+      },
+      {
+       "id": "query",
+       "ask": "¿top_k es un entero entre 1 y 20?",
+       "cost": "µs",
+       "no": {
+        "code": "422",
+        "who": "FastAPI",
+        "note": "antes de tu función: no llega al log"
+       }
+      },
+      {
+       "id": "admision",
+       "ask": "¿Hay menos de 16 en vuelo?",
+       "cost": "µs",
+       "no": {
+        "code": "503",
+        "retry_after": "1",
+        "who": "classify",
+        "note": "gateway saturado"
+       }
+      },
+      {
+       "id": "tipo",
+       "ask": "¿El Content-Type es jpeg, png o webp?",
+       "cost": "µs",
+       "no": {
+        "code": "415",
+        "who": "_classify",
+        "note": ""
+       }
+      },
+      {
+       "id": "largo",
+       "ask": "¿El Content-Length dice 10 MB o menos?",
+       "cost": "µs",
+       "no": {
+        "code": "413",
+        "who": "_classify",
+        "note": "sin leer el body"
+       }
+      },
+      {
+       "id": "bytes",
+       "ask": "¿Los bytes reales son 10 MB o menos, y hay alguno?",
+       "cost": "1–30 ms",
+       "no": {
+        "code": "413 · 400",
+        "who": "_read_body_limited",
+        "note": "400 si el body vino vacío"
+       }
+      },
+      {
+       "id": "plazo1",
+       "ask": "¿Queda algo de los 250 ms?",
+       "cost": "µs",
+       "no": {
+        "code": "504",
+        "who": "_budget_left",
+        "note": "ni siquiera decodifica"
+       }
+      },
+      {
+       "id": "slot",
+       "ask": "¿Se libera un turno de CPU (slot) en 50 ms o menos?",
+       "cost": "0–50 ms",
+       "no": {
+        "code": "503",
+        "retry_after": "1",
+        "who": "_classify",
+        "note": "gateway saturado (CPU)"
+       }
+      },
+      {
+       "id": "abrir",
+       "ask": "¿Pillow reconoce la imagen y el header dice 40 MP o menos?",
+       "cost": "header de la imagen",
+       "no": {
+        "code": "400 · 413",
+        "who": "preprocess.decode",
+        "note": "400 si no es una imagen; 413 si pasa de 40 MP"
+       }
+      },
+      {
+       "id": "decode",
+       "ask": "¿El aspecto es 1:8 o menos, y se decodifica entera?",
+       "cost": "5–50 ms",
+       "no": {
+        "code": "400",
+        "who": "preprocess.decode",
+        "note": "no se pudo decodificar la imagen"
+       }
+      },
+      {
+       "id": "plazo2",
+       "ask": "¿Todavía queda presupuesto?",
+       "cost": "µs",
+       "no": {
+        "code": "504",
+        "who": "_budget_left",
+        "note": "no manda a la GPU un request abandonado"
+       }
+      },
+      {
+       "id": "triton_tiempo",
+       "ask": "¿Triton respondió en min(150 ms, lo que queda)?",
+       "cost": "5–30 ms",
+       "no": {
+        "code": "504",
+        "who": "_infer",
+        "note": "timeout de inferencia"
+       }
+      },
+      {
+       "id": "triton_ok",
+       "ask": "¿Sin error de red y sin rechazo de Triton?",
+       "cost": "—",
+       "no": {
+        "code": "503",
+        "retry_after": "1",
+        "who": "_infer",
+        "note": "Triton no disponible, o rechazó la inferencia"
+       }
+      }
+     ],
+     "end": {
+      "code": "200",
+      "note": "top-k, model_version y latency_ms, con X-Request-ID"
+     },
+     "elsewhere": [
+      {
+       "code": "429",
+       "note": "cuota por cliente: en el borde (una regla del WAF, el firewall de AWS), no en este main.py"
+      },
+      {
+       "code": "500",
+       "note": "una excepción que nadie atrapó: un bug"
+      },
+      {
+       "code": "502",
+       "note": "lo genera el ALB si el gateway cierra una conexión que el ALB iba a reusar"
+      }
+     ]
+    }
+   },
+   "memo": "<b>Rechaza en el orden del costo</b>: los headers (415, 413) antes que el body, los bytes antes que el decode (40 MP y 1:8 se leen del header de la imagen), la CPU antes que la GPU. <b>4xx = el cliente se equivocó</b>: no se reintenta igual (salvo el 429, que pide esperar el Retry-After) y no cuenta contra el SLO (la meta del servicio).",
+   "trap": "Creer que un límite «ya está puesto» porque usas <code>UploadFile</code> o porque miras <code>Content-Length</code>. FastAPI recibe el upload entero antes de llamar a tu función (lo que pasa de 1 MB va a disco, sin tope), y <code>Content-Length</code> puede mentir o no venir. Con los píxeles pasa lo mismo: un PNG de 50 KB puede declarar 30,000 × 30,000 px, y el límite de bytes no lo ve.",
+   "lab": {
+    "goal": "Provocar cada código del contrato con curl: 200, 415, 413 por Content-Length y contando bytes, 400, y los 422 de Pydantic (rango, campo de más, JSON roto y Content-Type olvidado).",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-gateway && cd ~/lab-gateway\npython3.13 -m venv .venv && . .venv/bin/activate\npip install fastapi==0.141.1 starlette==1.7.0 pydantic==2.13.5 uvicorn==0.54.0",
+      "expect": "La última línea empieza con Successfully installed y trae fastapi-0.141.1, starlette-1.7.0, pydantic-2.13.5 y uvicorn-0.54.0, más sus dependencias (pydantic-core, anyio, h11, click…). Son las versiones del C01. Si ya tenías el venv de otro lab, dice Requirement already satisfied."
+     },
+     {
+      "cmd": "cat > contrato.py <<'EOF'\nfrom typing import Annotated\n\nfrom fastapi import FastAPI, HTTPException, Request\nfrom pydantic import BaseModel, ConfigDict, Field\n\nMAX_BYTES = 1000                               # 1 KB en el lab; 10 MB en el C01\nTIPOS = {\"image/jpeg\", \"image/png\"}\napp = FastAPI()\n\nclass Opciones(BaseModel):\n    model_config = ConfigDict(extra=\"forbid\")\n    top_k: Annotated[int, Field(ge=1, le=20)] = 5\n\n@app.post(\"/v1/opciones\")\nasync def opciones(o: Opciones) -> Opciones:\n    return o\n\n@app.post(\"/v1/subir\")\nasync def subir(request: Request):\n    ctype = request.headers.get(\"content-type\", \"\").split(\";\")[0].strip().lower()\n    if ctype not in TIPOS:\n        raise HTTPException(415, \"Content-Type debe ser image/jpeg o image/png\")\n    declarado = request.headers.get(\"content-length\", \"\")\n    if declarado.isdigit() and int(declarado) > MAX_BYTES:\n        raise HTTPException(413, \"supera 1 KB (por Content-Length)\")\n    total = 0\n    async for chunk in request.stream():\n        total += len(chunk)\n        if total > MAX_BYTES:\n            raise HTTPException(413, \"supera 1 KB (contando bytes)\")\n    if total == 0:\n        raise HTTPException(400, \"body vacío\")\n    return {\"bytes\": total}\nEOF",
+      "expect": "Sin salida: el archivo queda en ~/lab-gateway/contrato.py, con un endpoint de bytes crudos al estilo del C01 (tope de 1 KB) y uno JSON con un modelo de Pydantic."
+     },
+     {
+      "cmd": "uvicorn contrato:app --port 8080 --no-access-log > server.log 2>&1 &\necho $! > uvicorn.pid\nsleep 2; cat server.log\nhead -c 500 /dev/zero > chica.bin && head -c 2000 /dev/zero > grande.bin",
+      "expect": "Las cuatro líneas de arranque de uvicorn. Los dos archivos quedan creados: 500 y 2,000 bytes en cero."
+     },
+     {
+      "cmd": "U=localhost:8080/v1/subir\ncurl -s -w ' %{http_code}\\n' -H \"Content-Type: image/jpeg\" --data-binary @chica.bin $U\ncurl -s -w ' %{http_code}\\n' -H \"Content-Type: image/gif\" --data-binary @chica.bin $U\ncurl -s -w ' %{http_code}\\n' -H \"Content-Type: image/jpeg\" --data-binary @grande.bin $U\ncurl -s -w ' %{http_code}\\n' -H \"Content-Type: image/jpeg\" -H \"Transfer-Encoding: chunked\" --data-binary @grande.bin $U\ncurl -s -w ' %{http_code}\\n' -H \"Content-Type: image/jpeg\" --data-binary \"\" $U",
+      "expect": "{\"bytes\":500} 200 · {\"detail\":\"Content-Type debe ser image/jpeg o image/png\"} 415 · {\"detail\":\"supera 1 KB (por Content-Length)\"} 413 · {\"detail\":\"supera 1 KB (contando bytes)\"} 413 · {\"detail\":\"body vacío\"} 400. El cuarto llega con chunked, sin Content-Length: el primer control lo deja pasar y lo frena el segundo, el que cuenta los bytes."
+     },
+     {
+      "cmd": "U=localhost:8080/v1/opciones; J='Content-Type: application/json'\ncurl -s -w ' %{http_code}\\n' -H \"$J\" -d '{\"top_k\": 50}' $U\ncurl -s -w ' %{http_code}\\n' -H \"$J\" -d '{\"top_k\": 3, \"debug\": true}' $U\ncurl -s -w ' %{http_code}\\n' -H \"$J\" -d '{\"top_k\": \"3\"}' $U\ncurl -s -w ' %{http_code}\\n' -H \"$J\" -d '{\"top_k\": 3' $U\ncurl -s -o /dev/null -w '%{http_code}\\n' -d '{\"top_k\": 3}' $U",
+      "expect": "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"body\",\"top_k\"],\"msg\":\"Input should be less than or equal to 20\",\"input\":50,\"ctx\":{\"le\":20}}]} 422 · {\"detail\":[{\"type\":\"extra_forbidden\",\"loc\":[\"body\",\"debug\"],\"msg\":\"Extra inputs are not permitted\",\"input\":true}]} 422 · {\"top_k\":3} 200 (modo lax: el texto \"3\" se convirtió en 3) · {\"detail\":[{\"type\":\"json_invalid\",\"loc\":[\"body\",11],\"msg\":\"JSON decode error\",\"input\":{},\"ctx\":{\"error\":\"Expecting ',' delimiter\"}}]} 422, un JSON roto también es 422 · y 422 a secas: sin -H, curl -d manda Content-Type: application/x-www-form-urlencoded, y FastAPI no lee como JSON un body con ese Content-Type (si el header falta del todo, desde 0.132 también es 422)."
+     },
+     {
+      "cmd": "kill $(cat uvicorn.pid); sleep 1; tail -4 server.log",
+      "expect": "Las cuatro líneas del apagado de uvicorn, de Shutting down a Finished server process [PID]."
+     },
+     {
+      "cmd": "deactivate; cd ~ && rm -rf ~/lab-gateway",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si el 413 por chunked sale como 200, tu curl no mandó chunked: revisa que el header diga exactamente Transfer-Encoding: chunked. Si un 422 trae otro orden de claves o una clave url, estás con otra versión de FastAPI: el venv tiene que decir fastapi 0.141.1 (pip show fastapi).",
+    "needs": "Python 3.13 (la versión del C01) e internet para pip: FastAPI, Starlette, Pydantic y uvicorn, en las versiones del C01. curl ya viene en macOS. Sin Docker ni GPU.",
+    "verified": "docs",
+    "verified_note": "Sin instalar nada: contrato.py se corrió en macOS con FastAPI 0.143.0, Starlette 1.7.0, Pydantic 2.14.1 y uvicorn 0.54.0 y dio exactamente estas salidas, incluidos el 413 por chunked y el json_invalid en la posición 11. Para la versión del C01 se verificó en el código de FastAPI 0.141.1 (JSON roto → json_invalid con loc [\"body\", posición] y msg JSON decode error; sin Content-Type de JSON, el body no se lee como JSON; 422 con {\"detail\": errores} sin url), en los mensajes de pydantic-core (less than or equal to, Extra inputs are not permitted) y en Python 3.13, que da Expecting ',' delimiter en la posición 11 para ese JSON."
+   },
+   "links": [
+    "#c01.serving",
+    "#m11.compatibilidad",
+    "#c01.fallas",
+    "#m15.rate-limiting",
+    "#c01.archivos"
+   ]
+  }
+ ],
+ "revisor": [
+  {
+   "id": "sleep-en-async",
+   "severity": "error",
+   "scope": "async_def",
+   "pattern": "(?<![\\w.])(?:time\\.)?sleep\\s*\\(",
+   "flags": "",
+   "not_pattern": "\\bawait\\s+(?:asyncio\\.|anyio\\.|trio\\.)?sleep\\s*\\(",
+   "check": "Inside an async def (innermost function is async and no enclosing function is the lifespan), a call to time.sleep( or to a bare sleep( (e.g. after `from time import sleep`). Calls preceded by await (await sleep(...), await asyncio.sleep(...)) are not flagged; asyncio.sleep( without await is not matched by the pattern because of the dot before sleep.",
+   "message": "time.sleep dentro de un async def: frena a todos los requests del proceso.",
+   "why": "Un async def corre en el event loop, el único hilo que atiende por turnos a todos los requests del proceso. time.sleep no suelta el turno: mientras duerme, ningún otro request avanza, ni siquiera /healthz.",
+   "fix": "Usa await asyncio.sleep(...), que suelta el turno mientras espera.",
+   "example_bad": "@app.get(\"/v1/lento\")\nasync def lento():\n    time.sleep(0.2)\n    return {\"ok\": True}",
+   "example_good": "@app.get(\"/v1/lento\")\nasync def lento():\n    await asyncio.sleep(0.2)\n    return {\"ok\": True}"
+  },
+  {
+   "id": "http-sincrono-en-async",
+   "severity": "error",
+   "scope": "async_def",
+   "pattern": "\\brequests\\.(?:get|post|put|patch|delete|head|options|request)\\s*\\(|\\brequests\\.Session\\s*\\(|\\burlopen\\s*\\(|\\bhttpx\\.(?:get|post|put|patch|delete|head|options|request|stream)\\s*\\(|\\bhttpx\\.Client\\s*\\(",
+   "flags": "",
+   "not_pattern": "\\b(?:run_in_threadpool|to_thread|run_in_executor|run_sync)\\b",
+   "check": "Inside an async def (not the lifespan), a synchronous HTTP call: requests.get/post/put/patch/delete/head/options/request(, requests.Session(, urlopen( (urllib), the module-level httpx.get/post/...( helpers or httpx.Client(. Not flagged when the same line hands the call to a thread (run_in_threadpool, to_thread, run_in_executor, run_sync).",
+   "message": "Cliente HTTP síncrono dentro de un async def.",
+   "why": "requests, urllib y httpx.Client esperan la respuesta bloqueando el hilo. En un async def ese hilo es el event loop: mientras el servicio de atrás (el upstream) tarda, el proceso entero queda parado.",
+   "fix": "Usa un cliente async creado una vez en el lifespan (httpx.AsyncClient o aiohttp) con await, o declara la ruta con def.",
+   "example_bad": "@app.get(\"/v1/precio\")\nasync def precio(sku: str):\n    r = requests.get(f\"{PRECIOS_URL}/{sku}\", timeout=0.2)\n    return r.json()",
+   "example_good": "@app.get(\"/v1/precio\")\nasync def precio(sku: str, request: Request):\n    r = await request.app.state.http.get(f\"{PRECIOS_URL}/{sku}\", timeout=0.2)\n    return r.json()"
+  },
+  {
+   "id": "io-bloqueante-en-async",
+   "severity": "warn",
+   "scope": "async_def",
+   "pattern": "(?<![\\w.])open\\s*\\(|\\.(?:read_text|read_bytes|write_text|write_bytes)\\s*\\(|\\bsubprocess\\.(?:run|call|check_call|check_output)\\s*\\(|\\bos\\.system\\s*\\(|\\bsocket\\.(?:socket|create_connection)\\s*\\(|\\.(?:get_object|put_object|download_file|upload_file|download_fileobj|upload_fileobj)\\s*\\(",
+   "flags": "",
+   "not_pattern": "\\b(?:run_in_threadpool|to_thread|run_in_executor|run_sync)\\b|\\bawait\\b",
+   "check": "Inside an async def that is not the lifespan, blocking I/O: the builtin open( (not obj.open(, so Image.open and aiofiles.open are excluded), Path-style .read_text/.read_bytes/.write_text/.write_bytes(, subprocess.run/call/check_call/check_output(, os.system(, socket.socket( / socket.create_connection(, or boto3-style S3 calls (.get_object, .put_object, .download_file, .upload_file, .download_fileobj, .upload_fileobj). Not flagged when the line hands the work to a thread or awaits it (async file APIs such as anyio.Path are awaited). The lifespan is excluded on purpose: loading files there runs once, before traffic.",
+   "message": "I/O síncrono (archivo, socket, subprocess, S3) dentro de un async def.",
+   "why": "Leer un archivo, abrir un socket o llamar a S3 con boto3 bloquea el hilo hasta que termina. En un async def, ese hilo es el event loop: todos los requests del proceso esperan.",
+   "fix": "Hazlo una vez en el lifespan, o pásalo a un hilo con await run_in_threadpool(funcion, args).",
+   "example_bad": "@app.get(\"/v1/labels\")\nasync def labels():\n    with open(\"labels.json\") as f:\n        return json.load(f)",
+   "example_good": "@app.get(\"/v1/labels\")\nasync def labels(request: Request):\n    return request.app.state.labels"
+  },
+  {
+   "id": "cpu-pesado-en-async",
+   "severity": "warn",
+   "scope": "async_def",
+   "pattern": "\\bImageOps\\.\\w+\\s*\\(|\\.convert\\s*\\(\\s*[\"']|\\.(?:resize|thumbnail)\\s*\\(|\\.load\\s*\\(\\s*\\)|\\bcv2\\.(?:imdecode|imread|resize|cvtColor|warpAffine)\\s*\\(|\\btorchvision\\.io\\.decode_\\w+\\s*\\(|(?<![\\w.])preprocess\\s*\\(|\\bmodel\\s*\\(|\\.predict\\s*\\(|\\b(?:sess|session|ort_session)\\.run\\s*\\(",
+   "flags": "",
+   "not_pattern": "\\b(?:run_in_threadpool|to_thread|run_in_executor|run_sync)\\b",
+   "check": "Inside an async def that is not the lifespan, CPU-heavy work called directly: calls that make Pillow decode or transform pixels (.convert(\"…\"), .resize(, .thumbnail(, .load() with no arguments, ImageOps.*(), cv2.imdecode/imread/resize/cvtColor/warpAffine(, torchvision.io.decode_*(, a bare preprocess(, a call to model( (also obj.model(), .predict(, or an ONNX Runtime session.run( (sess/session/ort_session). Image.open( alone is not flagged: it is lazy and only reads the header. Not flagged when the same line hands the work to a thread (run_in_threadpool, to_thread, run_in_executor, run_sync).",
+   "message": "Decode, resize o inferencia en CPU dentro de un async def, sin threadpool.",
+   "why": "Decodificar una foto (≈ 6 ms en promedio; 25–50 ms una foto web grande) o correr un modelo es CPU pura y no suelta el turno. Dentro de un async def bloquea el event loop todo ese tiempo: el p99 sube con la concurrencia sin que la CPU esté llena.",
+   "fix": "Pásalo a un hilo con await run_in_threadpool(funcion, datos), con un semáforo que acote cuántos corren a la vez, como el C01.",
+   "example_bad": "@app.post(\"/v1/classify\")\nasync def classify(file: UploadFile):\n    img = Image.open(file.file).convert(\"RGB\")\n    return await infer(img)",
+   "example_good": "@app.post(\"/v1/classify\")\nasync def classify(file: UploadFile):\n    data = await file.read(MAX_BYTES + 1)\n    x = await run_in_threadpool(preprocess, data)\n    return await infer(x)"
+  },
+  {
+   "id": "timeout-sobre-hilo",
+   "severity": "info",
+   "scope": "any_def",
+   "pattern": "\\bwait_for\\s*\\(\\s*[\\w.]*(?:run_in_threadpool|to_thread|run_in_executor|run_sync)\\s*\\(",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Inside any function, asyncio.wait_for( whose first argument is a call that runs code in a thread: run_in_threadpool(, asyncio.to_thread(, loop.run_in_executor(, anyio.to_thread.run_sync(.",
+   "message": "Timeout alrededor de un hilo: el hilo no se detiene.",
+   "why": "Python no puede cancelar código que corre en un hilo. Aunque cortes la espera, el decode o el modelo siguen ocupando CPU y RAM hasta terminar; y si al cortar liberas el semáforo, quedan más hilos trabajando que el tope que pusiste.",
+   "fix": "Pon los límites antes de entrar al hilo (tope de bytes y de píxeles, espera máxima por el slot) y deja que el hilo termine, como el C01.",
+   "example_bad": "async def preparar(data: bytes):\n    return await asyncio.wait_for(run_in_threadpool(preprocess, data), timeout=0.1)",
+   "example_good": "async def preparar(data: bytes, slots: asyncio.Semaphore):\n    await asyncio.wait_for(slots.acquire(), timeout=0.05)\n    try:\n        return await run_in_threadpool(preprocess, data)\n    finally:\n        slots.release()"
+  },
+  {
+   "id": "cliente-sin-timeout",
+   "severity": "warn",
+   "scope": "file",
+   "pattern": "\\brequests\\.(?:get|post|put|patch|delete|head|options|request)\\s*\\(|\\burlopen\\s*\\(|\\baiohttp\\.ClientSession\\s*\\(|(?:\\b|_)timeout\\s*=\\s*None\\b|\\bhttpx\\.Timeout\\s*\\(\\s*None\\b",
+   "flags": "",
+   "not_pattern": "(?:\\b|_)timeout\\s*=\\s*(?!None\\b)[\\w.(]",
+   "check": "Anywhere in the file, an outgoing HTTP call or client without a timeout on the same logical line: requests.get/post/...( or urlopen( without timeout=, aiohttp.ClientSession( without timeout=; or any explicit timeout=None (also conn_timeout=None, read_timeout=None…) or httpx.Timeout(None). The finding is suppressed when the same logical line sets some *timeout= to a value other than None.",
+   "message": "Llamada HTTP sin timeout (o con timeout=None).",
+   "why": "requests y urllib esperan para siempre si no les das un timeout; aiohttp espera hasta 5 minutos; timeout=None apaga el que traiga la librería. Un servicio de atrás (upstream) colgado deja requests colgados, que ocupan conexiones y memoria hasta que el pod deja de responder.",
+   "fix": "Pon un timeout explícito, menor que lo que le queda al request (en el C01, min(150 ms, lo que queda de 250 ms)).",
+   "example_bad": "def precio(sku: str) -> dict:\n    return requests.get(f\"{PRECIOS_URL}/{sku}\").json()",
+   "example_good": "def precio(sku: str) -> dict:\n    return requests.get(f\"{PRECIOS_URL}/{sku}\", timeout=0.2).json()"
+  },
+  {
+   "id": "cliente-por-request",
+   "severity": "warn",
+   "scope": "route",
+   "pattern": "\\bhttpx\\.(?:Async)?Client\\s*\\(|\\baiohttp\\.(?:ClientSession|TCPConnector)\\s*\\(|\\brequests\\.Session\\s*\\(|\\bInferenceServerClient\\s*\\(|\\bboto3\\.(?:client|resource)\\s*\\(",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Inside a route handler (a function decorated with @<obj>.get/post/put/patch/delete/head/options/trace/api_route/websocket), the creation of a network client: httpx.Client( / httpx.AsyncClient(, aiohttp.ClientSession( / aiohttp.TCPConnector(, requests.Session(, a tritonclient InferenceServerClient(, or boto3.client( / boto3.resource(.",
+   "message": "Cliente de red creado dentro de la ruta: uno nuevo por request.",
+   "why": "Cada cliente trae su propio pool de conexiones. Crear uno por request paga cada vez el saludo inicial de la conexión (el handshake TCP, y TLS si es https), no reusa conexiones abiertas (keep-alive) y bajo carga puede agotar los sockets; si no lo cierras, además pierde memoria.",
+   "fix": "Crea un cliente por proceso en el lifespan, guárdalo en app.state y ciérralo al apagar, como el C01.",
+   "example_bad": "@app.post(\"/v1/classify\")\nasync def classify(request: Request):\n    async with httpx.AsyncClient(timeout=0.15) as client:\n        r = await client.post(TRITON_URL, content=await leer_con_limite(request))\n    return r.json()",
+   "example_good": "@app.post(\"/v1/classify\")\nasync def classify(request: Request):\n    client = request.app.state.http\n    r = await client.post(TRITON_URL, content=await leer_con_limite(request))\n    return r.json()"
+  },
+  {
+   "id": "cliente-al-importar",
+   "severity": "warn",
+   "scope": "module",
+   "pattern": "\\baiohttp\\.(?:ClientSession|TCPConnector)\\s*\\(|\\bInferenceServerClient\\s*\\(",
+   "flags": "",
+   "not_pattern": "",
+   "check": "At module scope (outside every function), aiohttp.ClientSession( / aiohttp.TCPConnector( or a tritonclient InferenceServerClient(. Module code runs at import time: under the uvicorn CLI the import happens inside the running loop, but a test (from app import main) or a script imports it with no loop.",
+   "message": "Cliente de red creado al importar el módulo.",
+   "why": "aiohttp (y el cliente aio de Triton, que lo usa por debajo) exige un event loop corriendo al crearse. uvicorn importa tu app con el loop ya andando, así que parece funcionar; pero un test que hace from app import main, o un script, lo importan sin loop y fallan con RuntimeError: no running event loop. Y nada lo cierra al apagar.",
+   "fix": "Créalo en el lifespan, guárdalo en app.state y ciérralo después del yield, como el C01.",
+   "example_bad": "import aiohttp\nfrom fastapi import FastAPI\n\napp = FastAPI()\nsession = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=1))",
+   "example_good": "@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    app.state.http = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=1))\n    yield\n    await app.state.http.close()\n\napp = FastAPI(lifespan=lifespan)"
+  },
+  {
+   "id": "modelo-por-request",
+   "severity": "error",
+   "scope": "route",
+   "pattern": "\\btorch\\.(?:load|jit\\.load)\\s*\\(|\\b(?:ort|onnxruntime)\\.InferenceSession\\s*\\(|\\.from_pretrained\\s*\\(|\\bjoblib\\.load\\s*\\(|\\bpickle\\.load\\s*\\(|\\bload_model\\s*\\(",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Inside a route handler, loading a model or its weights: torch.load( / torch.jit.load(, onnxruntime.InferenceSession( (or ort.), *.from_pretrained(, joblib.load(, pickle.load(, load_model(.",
+   "message": "Modelo cargado dentro de la ruta: se carga en cada request.",
+   "why": "Cargar pesos lee cientos de MB del disco y prepara el modelo: segundos por request, y la RAM (o la VRAM, la memoria de la GPU) se multiplica si llegan varios a la vez.",
+   "fix": "Cárgalo una vez en el lifespan, con un warmup, y guárdalo en app.state; o deja el modelo en el servidor de modelos (Triton), como el C01.",
+   "example_bad": "@app.post(\"/v1/classify\")\ndef classify(x: Entrada):\n    model = torch.jit.load(\"model.pt\")\n    return model(x.tensor())",
+   "example_good": "@app.post(\"/v1/classify\")\ndef classify(x: Entrada, request: Request):\n    model = request.app.state.model\n    return model(x.tensor())"
+  },
+  {
+   "id": "body-sin-limite",
+   "severity": "warn",
+   "scope": "file",
+   "pattern": "\\bawait\\s+[\\w.]+\\.(?:read|body)\\s*\\(\\s*\\)|:\\s*bytes\\s*=\\s*(?:File|Body)\\s*\\(|Annotated\\s*\\[\\s*bytes\\s*,\\s*(?:File|Body)\\s*\\(",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Anywhere in the file, reading a whole request body or upload with no size argument: await <x>.read() (UploadFile.read with no size), await <x>.body() (Request.body), or a parameter declared as bytes = File(...)/Body(...) or Annotated[bytes, File(...)/Body(...)] (on the def line), which FastAPI loads entirely into memory.",
+   "message": "Lees todo el body (o el archivo) sin tope de tamaño.",
+   "why": "await request.body() y await file.read() traen todo a memoria, sea de 200 KB o de 2 GB: con unos pocos requests grandes a la vez, el pod muere por memoria (OOMKilled). Ni FastAPI ni uvicorn ponen un límite por defecto.",
+   "fix": "Corta por Content-Length y cuenta los bytes mientras lees (request.stream()), como _read_body_limited del C01; con UploadFile, lee con tope (file.read(MAX + 1)) y limita el body antes con RequestBodyLimitMiddleware.",
+   "example_bad": "@app.post(\"/v1/classify\")\nasync def classify(file: UploadFile):\n    data = await file.read()\n    return await clasificar(data)",
+   "example_good": "@app.post(\"/v1/classify\")\nasync def classify(file: UploadFile):\n    data = await file.read(MAX_BYTES + 1)\n    if len(data) > MAX_BYTES:\n        raise HTTPException(413, \"la imagen supera 10 MB\")\n    return await clasificar(data)"
+  },
+  {
+   "id": "pillow-sin-limite",
+   "severity": "error",
+   "scope": "file",
+   "pattern": "\\bMAX_IMAGE_PIXELS\\s*=\\s*None\\b",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Anywhere in the file, an assignment of None to (Image.)MAX_IMAGE_PIXELS, which turns off Pillow's decompression-bomb check.",
+   "message": "MAX_IMAGE_PIXELS = None apaga la protección contra decompression bombs.",
+   "why": "Una decompression bomb es un archivo chico que explota al decodificarse: un PNG de 50 KB puede declarar 30,000 × 30,000 px y ocupar GBs. Con el límite en None, Pillow decodifica lo que sea y el pod muere por memoria.",
+   "fix": "Deja un tope realista (el C01 usa 40 MP) y además revisa ancho × alto en el header antes de decodificar.",
+   "example_bad": "from PIL import Image\n\nImage.MAX_IMAGE_PIXELS = None",
+   "example_good": "from PIL import Image\n\nMAX_PIXELS = 40_000_000\nImage.MAX_IMAGE_PIXELS = MAX_PIXELS"
+  },
+  {
+   "id": "on-event-deprecado",
+   "severity": "warn",
+   "scope": "file",
+   "pattern": "@\\s*[\\w.]+\\.on_event\\s*\\(|\\.add_event_handler\\s*\\(|\\bon_(?:startup|shutdown)\\s*=",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Anywhere in the file, the old startup/shutdown events: an @<obj>.on_event( decorator, .add_event_handler(, or on_startup= / on_shutdown= arguments.",
+   "message": "@app.on_event está deprecado: usa lifespan.",
+   "why": "Starlette 1.0 quitó los eventos y FastAPI los mantiene solo por compatibilidad, marcados como deprecados. Y si la app ya tiene lifespan, los handlers de on_event no se llaman: es todo lifespan o todo eventos.",
+   "fix": "Mueve el código de arranque antes del yield de un lifespan, y el de apagado, después.",
+   "example_bad": "app = FastAPI()\n\n@app.on_event(\"startup\")\nasync def arrancar():\n    app.state.http = httpx.AsyncClient(timeout=1.0)",
+   "example_good": "@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    app.state.http = httpx.AsyncClient(timeout=1.0)\n    yield\n    await app.state.http.aclose()\n\napp = FastAPI(lifespan=lifespan)"
+  },
+  {
+   "id": "detalle-interno",
+   "severity": "error",
+   "scope": "file",
+   "pattern": "\\bdetail\\s*=\\s*(?:str|repr)\\s*\\(|\\bdetail\\s*=\\s*f[\"'][^\"']*\\{\\s*(?:e|ex|exc|err|error|exception)\\s*(?:!r|!s)?\\s*\\}|\\bHTTPException\\s*\\(\\s*(?:status_code\\s*=\\s*)?(?:5\\d\\d|status\\.HTTP_5\\d\\d\\w*)\\s*,\\s*(?:detail\\s*=\\s*)?(?:str|repr)\\s*\\(|\\btraceback\\.format_exc\\s*\\(|[\"'](?:error|detail|message|msg)[\"']\\s*:\\s*(?:str|repr)\\s*\\(",
+   "flags": "",
+   "not_pattern": "\\b(?:log|logger|logging)\\.(?:debug|info|warning|error|exception|critical)\\s*\\(",
+   "check": "Anywhere in the file, an exception's text sent back to the client: detail=str(…)/repr(…); detail=f\"…{e}…\" with the whole exception interpolated (e, ex, exc, err, error, exception, optionally !r/!s); HTTPException(5xx, str(…)) or HTTPException(status.HTTP_5xx…, str(…)); traceback.format_exc(; or a response dict entry \"error\"/\"detail\"/\"message\"/\"msg\": str(…). Lines that are logging calls (log/logger/logging.debug…critical) are not flagged. A positional str(exc) in a 4xx HTTPException is not flagged: C01 uses it for its own 413 messages (ImageTooLarge, Pillow's DecompressionBombError).",
+   "message": "El texto de la excepción va en la respuesta (detail=str(e)).",
+   "why": "str(e) puede traer hosts, rutas de archivos, SQL o nombres internos, y le enseña a cualquiera cómo está armado tu sistema. En un 5xx, el cliente solo necesita saber que falló y con qué request_id reclamar.",
+   "fix": "Devuelve un mensaje fijo y el X-Request-ID; manda el error y el traceback al log con log.exception(...).",
+   "example_bad": "@app.post(\"/v1/classify\")\nasync def classify(request: Request):\n    try:\n        return await clasificar(request)\n    except Exception as e:\n        raise HTTPException(status_code=500, detail=str(e))",
+   "example_good": "@app.post(\"/v1/classify\")\nasync def classify(request: Request):\n    try:\n        return await clasificar(request)\n    except Exception:\n        log.exception(\"falló classify\")\n        raise HTTPException(status_code=500, detail=\"error interno\")"
+  },
+  {
+   "id": "500-por-timeout",
+   "severity": "warn",
+   "scope": "file",
+   "pattern": "\\b(?:HTTPException|JSONResponse|PlainTextResponse|Response)\\s*\\((?=.*\\b(?:500|HTTP_500_INTERNAL_SERVER_ERROR)\\b)(?=.*(?:[Tt]ime\\s?-?out|timed out|[Dd]eadline))|\\bexcept\\b[^:]*Timeout[^:]*:\\s*(?:raise|return)\\b.*\\b500\\b",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Anywhere in the file, a response built with status 500 whose statement mentions a timeout or a deadline (timeout, time out, time-out, timed out, deadline, in the message or anywhere on the logical line); or a one-line `except …Timeout…: raise/return …500…`. A 500 raised from an except block whose message does not mention the timeout is not detected.",
+   "message": "500 para un timeout del upstream: corresponde 504.",
+   "why": "500 quiere decir 'bug en mi código'. Un servicio de atrás (upstream) que no respondió a tiempo es 504 (Gateway Timeout); uno caído o saturado, 503 con Retry-After. Con el código correcto el cliente sabe si vale la pena reintentar, y en tus métricas por status ves qué capa falló.",
+   "fix": "Atrapa el timeout y responde 504; si el upstream está caído, 503 con Retry-After, como _infer del C01.",
+   "example_bad": "async def inferir(client, tensor):\n    try:\n        r = await client.post(TRITON_URL, content=tensor, timeout=0.15)\n    except httpx.TimeoutException:\n        raise HTTPException(status_code=500, detail=\"timeout de Triton\")\n    return r.json()",
+   "example_good": "async def inferir(client, tensor):\n    try:\n        r = await client.post(TRITON_URL, content=tensor, timeout=0.15)\n    except httpx.TimeoutException:\n        raise HTTPException(status_code=504, detail=\"timeout de Triton\")\n    return r.json()"
+  },
+  {
+   "id": "except-desnudo",
+   "severity": "warn",
+   "scope": "file",
+   "pattern": "^\\s*except\\s*:|\\bexcept\\s+\\(?\\s*BaseException\\b|\\bexcept\\b[^:]*:\\s*(?:pass|\\.\\.\\.)\\s*$",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Anywhere in the file: a bare `except:`, an `except BaseException` (alone or first in a tuple), or a one-line `except …: pass` / `except …: ...`. The two-line form (except on one line, pass on the next) is not detected by a line scanner.",
+   "message": "except sin tipo, o que se traga el error con pass.",
+   "why": "Un except: a secas atrapa también CancelledError, KeyboardInterrupt y SystemExit: rompe los timeouts de asyncio (wait_for cancela la tarea con CancelledError) y el apagado ordenado. Y un except que solo hace pass esconde la falla: nadie se entera.",
+   "fix": "Atrapa la excepción concreta que esperas (como el C01: TimeoutError, aiohttp.ClientError, InferenceServerException) y tradúcela a un código HTTP o déjala en el log.",
+   "example_bad": "async def clasificar(batch):\n    try:\n        logits = await infer(batch)\n    except:\n        logits = None\n    return logits",
+   "example_good": "async def clasificar(batch):\n    try:\n        return await infer(batch)\n    except TimeoutError:\n        raise HTTPException(504, \"timeout de inferencia\") from None"
+  },
+  {
+   "id": "print-en-vez-de-log",
+   "severity": "info",
+   "scope": "file",
+   "pattern": "(?<![\\w.])print\\s*\\(",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Anywhere in the file, a call to the builtin print( (not obj.print().",
+   "message": "print en vez de logging.",
+   "why": "print no tiene nivel ni logger: no puedes filtrar errores ni agregar campos como request_id, y sale mezclado con los logs de uvicorn. Además, en un contenedor la salida de print queda en un búfer si no pones PYTHONUNBUFFERED=1, y se pierde si el proceso muere; el StreamHandler de logging la escribe al instante.",
+   "fix": "Usa un logger (logging.getLogger) y una línea JSON por evento, como el C01: log.info(json.dumps(record)).",
+   "example_bad": "@app.post(\"/v1/classify\")\nasync def classify(request: Request):\n    print(\"llegó un request\", request.headers.get(\"x-request-id\"))\n    return await clasificar(request)",
+   "example_good": "log = logging.getLogger(\"classifier\")\n\n@app.post(\"/v1/classify\")\nasync def classify(request: Request):\n    log.info(json.dumps({\"event\": \"classify\", \"request_id\": request.headers.get(\"x-request-id\")}))\n    return await clasificar(request)"
+  },
+  {
+   "id": "modo-desarrollo",
+   "severity": "warn",
+   "scope": "file",
+   "pattern": "\\breload\\s*=\\s*True\\b|[\"']--reload[\"']|\\b(?:FastAPI|Starlette)\\s*\\(.*\\bdebug\\s*=\\s*True\\b",
+   "flags": "",
+   "not_pattern": "",
+   "check": "Anywhere in the file: reload=True (uvicorn.run), the string \"--reload\" (a command built in Python), or FastAPI(...)/Starlette(...) with debug=True on the same logical line.",
+   "message": "reload=True o debug=True: modo de desarrollo en el código.",
+   "why": "reload vigila tus archivos y reinicia el servidor desde un proceso aparte: es para tu máquina, y no se puede combinar con --workers. debug=True hace que un error 500 devuelva el traceback completo al cliente.",
+   "fix": "Quítalos del código: en desarrollo, uvicorn --reload desde la terminal; en la imagen, un CMD como el del C01, sin --reload.",
+   "example_bad": "app = FastAPI(debug=True)\n\nif __name__ == \"__main__\":\n    uvicorn.run(\"app.main:app\", host=\"0.0.0.0\", port=8080, reload=True)",
+   "example_good": "app = FastAPI(title=\"classifier-gateway\")\n\nif __name__ == \"__main__\":\n    uvicorn.run(\"app.main:app\", host=\"0.0.0.0\", port=8080)"
+  },
+  {
+   "id": "cors-comodin-con-credenciales",
+   "severity": "error",
+   "scope": "file",
+   "pattern": "(?=.*\\ballow_credentials\\s*=\\s*True\\b)(?=.*\\ballow_origins\\s*=\\s*[\\[({]\\s*[\"']\\*[\"'])|(?=.*\\ballow_credentials\\s*=\\s*True\\b)(?=.*\\ballow_origin_regex\\s*=\\s*r?[\"']\\.[*+][\"'])",
+   "flags": "",
+   "not_pattern": "",
+   "check": "On one logical line (a multi-line add_middleware(...) call counts as one line once brackets are joined): allow_credentials=True together with allow_origins=[\"*\"] (list, tuple or set) or allow_origin_regex=\".*\" / \".+\".",
+   "message": "CORS con allow_origins=[\"*\"] y allow_credentials=True.",
+   "why": "CORS son las reglas con que el navegador deja que una página de otro dominio llame a tu API. Con esa combinación Starlette no falla: responde a cada origen con su propio nombre y Access-Control-Allow-Credentials: true, así que cualquier página web puede llamar a tu API con las cookies del usuario y leer la respuesta.",
+   "fix": "Lista los orígenes exactos que lo necesitan. Un gateway interno como el del C01, que llaman otros servidores, no necesita CORS.",
+   "example_bad": "app.add_middleware(CORSMiddleware, allow_origins=[\"*\"], allow_credentials=True)",
+   "example_good": "app.add_middleware(CORSMiddleware, allow_origins=[\"https://vendedores.example.com\"], allow_credentials=True)"
+  }
+ ]
+}

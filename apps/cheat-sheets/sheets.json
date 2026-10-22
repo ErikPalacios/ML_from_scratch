@@ -102,5 +102,23 @@
     "page": "cheatsheet-triton.html",
     "pdf": "cheatsheet-triton.pdf",
     "updated": "2026-10-22"
+  },
+  {
+    "id": "gateway",
+    "title": "El gateway: FastAPI en producción",
+    "topic": "APIs de serving",
+    "summary": "Para escribir con la documentación abierta la API en FastAPI que está entre los clientes y Triton, y diagnosticar por qué va lenta, devuelve 503 o se traba: async contra hilos, validación y contrato, timeouts y reintentos, control de admisión, degradación, salud y apagado ordenado, observabilidad, tests y rendimiento, con el código real del C01, figuras de cada proceso, trampas típicas y laboratorios opcionales.",
+    "sample": "uvicorn app.main:app --host 0.0.0.0 --port 8080",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "15 laboratorios (10 probados)",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de código con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-gateway.html",
+    "pdf": "cheatsheet-gateway.pdf",
+    "updated": "2026-10-22"
   }
 ]
