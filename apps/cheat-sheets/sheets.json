@@ -66,5 +66,23 @@
     "page": "recorrido.html",
     "pdf": "recorrido.pdf",
     "updated": "2026-10-20"
+  },
+  {
+    "id": "git",
+    "title": "Cheat sheet de Git y GitHub Actions",
+    "topic": "CI/CD",
+    "summary": "Para trabajar en el repo del equipo sin miedo, escribir un workflow de GitHub Actions con la documentación abierta y diagnosticar un CI en rojo rápido: sintaxis con variables, ejemplos reales del C01, grafos de commits antes y después (merge, rebase, squash, reset, revert y el rescate con el reflog), trampas típicas y laboratorios opcionales.",
+    "sample": "git switch -c <var>rama</var> &amp;&amp; git push -u origin <var>rama</var>",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "12 grafos antes y después",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de workflows con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-git.html",
+    "pdf": "cheatsheet-git.pdf",
+    "updated": "2026-10-22"
   }
 ]

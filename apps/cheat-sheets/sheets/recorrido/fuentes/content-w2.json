@@ -262,7 +262,7 @@
         },
         {
           "code": "docker buildx build --platform linux/amd64 -t {registry}/classifier-gateway:{sha} --push gateway/",
-          "note": "Build único, para la arquitectura de los nodos; <code>{sha}</code> sale de <code>git rev-parse --short HEAD</code>."
+          "note": "Build único, para la arquitectura de los nodos; <code>{sha}</code> son los primeros 7 caracteres del commit: <code>git rev-parse --short=7 HEAD</code> (en CI, <code>${GITHUB_SHA::7}</code>)."
         },
         {
           "code": "crane digest {registry}/classifier-gateway:{sha}",
@@ -281,7 +281,7 @@
         {
           "symptom": "El push a ECR falla con ImageTagAlreadyExistsException.",
           "cause": "El repo tiene tags inmutables y el CI intentó subir otra imagen con un tag que ya existe (un :latest o un commit reconstruido).",
-          "check": "El tag sale de git rev-parse --short HEAD de un commit nuevo: nunca se reusa ni se mueve."
+          "check": "El tag sale de git rev-parse --short=7 HEAD de un commit nuevo: nunca se reusa ni se mueve."
         },
         {
           "symptom": "Staging pasó todo, pero producción se comporta distinto.",
@@ -1052,7 +1052,7 @@
       "how": "No se programa ni se configura: lo <b>operas</b> con comandos (<code>git commit</code>, <code>git push</code>, abrir un PR), y GitHub es un servicio <b>administrado</b> donde vive el repo. Lo que pones en git (código, <code>Dockerfile</code>, <code>k8s/*.yaml</code>) es lo que dispara el CI y, con GitOps, lo que el cluster copia.",
       "example": {
         "lang": "bash",
-        "code": "REG=123456789012.dkr.ecr.us-east-1.amazonaws.com\nSHA=$(git rev-parse --short HEAD)\n\n# 1) CI construye UNA vez, para la arquitectura de los nodos, con el commit como tag\ndocker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/",
+        "code": "REG=123456789012.dkr.ecr.us-east-1.amazonaws.com\nSHA=$(git rev-parse --short=7 HEAD)\n\n# 1) CI construye UNA vez, para la arquitectura de los nodos, con el commit como tag\ndocker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/",
         "source": "release.sh del curso (M5 · registries), extracto"
       },
       "runs": "Git en tu máquina y en el runner de CI; GitHub como servicio en la nube.",

@@ -1,0 +1,1703 @@
+{
+ "sections": [
+  {
+   "id": "cd",
+   "num": 10,
+   "title": "CD: GitOps o kubectl, aprobación, concurrency y rollback con revert",
+   "question": "La imagen ya está en ECR: ¿quién la lleva al cluster, quién aprueba, qué evita dos deploys a la vez y cómo vuelves atrás?",
+   "templates": [
+    {
+     "code": "- id: app\n  uses: actions/create-github-app-token@v3\n  with: { client-id: \"${{ vars.{var_app} }}\", private-key: \"${{ secrets.{secreto_app} }}\" }\n- env: { IMG: \"{repo}:{tag}@${{ needs.{job_imagen}.outputs.digest }}\" }\n  run: sed -i \"s|{repo}[:@].*$|$IMG|\" {manifest}\n- uses: peter-evans/create-pull-request@{sha_action}\n  with: { token: \"${{ steps.app.outputs.token }}\", branch: deploy/{servicio}, title: \"deploy: {servicio} {tag}\" }",
+     "note": "<b>CD</b> (continuous delivery, entrega continua) es llevar a producción, por etapas, lo que CI (las pruebas automáticas de cada cambio) ya probó. Hay dos caminos; este es el primero. <b>GitOps, lado de CI</b>: GitOps quiere decir que el estado de producción vive en git: los manifests (los YAML de Kubernetes) dicen qué imagen corre. Después del push a ECR, el job cambia la línea <code>image:</code> del manifest: el tag dice de qué commit salió y el digest (la huella sha256 del contenido) fija los bytes exactos. Luego abre o actualiza un pull request con el token de una <b>GitHub App</b> (una identidad de máquina con permisos propios). Con ese token, los checks del PR corren solos. Desplegar es hacer merge de ese PR."
+    },
+    {
+     "code": "apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: { name: {app}, namespace: argocd }\nspec:\n  project: default\n  source: { repoURL: {repo_git}, targetRevision: main, path: {carpeta} }\n  destination: { server: https://kubernetes.default.svc, namespace: {ns} }\n  syncPolicy: { automated: { prune: true, selfHeal: true } }",
+     "note": "<b>GitOps, lado del cluster</b>. <b>Argo CD</b> corre dentro del cluster, compara lo que dice <code>main</code> con lo que corre y aplica la diferencia (un <b>sync</b>). <code>selfHeal</code> deshace los cambios hechos a mano en el cluster; <code>prune</code> borra lo que sacaste de git. Los dos vienen apagados si no los pones."
+    },
+    {
+     "code": "deploy:\n  needs: {job_imagen}\n  environment: {entorno}\n  concurrency: { group: deploy-{servicio}-{entorno}, cancel-in-progress: false }\n  steps:  # antes: el rol de deploy por OIDC (sección 8), aws eks update-kubeconfig y un kubectl de la versión del cluster\n    - run: kubectl -n {ns} set image deployment/{servicio} {contenedor}={registry}/{repo}@{digest} && kubectl -n {ns} rollout status deployment/{servicio} --timeout={plazo}",
+     "note": "<b>Estilo kubectl</b>, el segundo camino y el de <code>gateway.yml</code>: el job empuja el cambio al cluster. Un <b>environment</b> (un entorno con nombre, con reglas y secretos propios) lo deja en <b>Waiting</b> hasta que apruebe alguien de la lista de <b>required reviewers</b>. <code>concurrency</code> deja un solo deploy a la vez en ese grupo. <code>set image</code> cambia solo la imagen, por digest; con <code>kubectl apply -f</code>, el manifest tiene que traer ya la imagen nueva. Si los pods nuevos no quedan listos, <code>rollout status</code> falla con <code>exceeded its progress deadline</code> (600 s sin avance, por defecto) y el job queda rojo; Kubernetes no vuelve atrás solo: los pods viejos siguen sirviendo."
+    },
+    {
+     "code": "git switch -c revert-deploy origin/main\ngit revert -m 1 {sha_merge}     # PR con merge commit; con squash: git revert {sha}\ngit push -u origin revert-deploy  # PR → merge → Argo CD aplica la versión anterior",
+     "note": "<b>Rollback = revert</b>: un commit nuevo que deshace el del deploy. La historia queda completa: qué se desplegó, cuándo y cómo se volvió. Un merge commit tiene dos padres, así que <code>-m 1</code> dice que el lado bueno es <code>main</code>. El botón <b>Revert</b> de un PR mergeado hace lo mismo: abre un PR nuevo."
+    }
+   ],
+   "vars": [
+    [
+     "{var_app}",
+     "variable del repo con el client ID de la GitHub App",
+     "DEPLOY_APP_CLIENT_ID"
+    ],
+    [
+     "{secreto_app}",
+     "secret con la llave privada de la App (nunca en git)",
+     "DEPLOY_APP_PRIVATE_KEY"
+    ],
+    [
+     "{repo}",
+     "el repositorio de ECR, sin el registry",
+     "classifier-gateway"
+    ],
+    [
+     "{tag}",
+     "los 7 primeros caracteres del SHA del commit (el job los saca con ${GITHUB_SHA::7})",
+     "9d41e7c"
+    ],
+    [
+     "{registry}",
+     "el registry de ECR de la cuenta",
+     "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+    ],
+    [
+     "{digest}",
+     "el digest que devolvió el push (output del job imagen)",
+     "sha256:… (64 caracteres hex)"
+    ],
+    [
+     "{contenedor}",
+     "el contenedor del Deployment que cambia de imagen",
+     "gateway"
+    ],
+    [
+     "{job_imagen}",
+     "el job que subió la imagen y publica su digest como output",
+     "imagen"
+    ],
+    [
+     "{manifest}",
+     "el archivo con la línea image:",
+     "reference/c01/k8s/gateway.yaml"
+    ],
+    [
+     "{sha_action}",
+     "el SHA completo de la versión de la action (fijada, sección 8)",
+     "5f6978faf089d4d20b00c7766989d076bb2fc7f1 (v8.1.1)"
+    ],
+    [
+     "{servicio}",
+     "el Deployment que cambia",
+     "gateway"
+    ],
+    [
+     "{app}",
+     "nombre de la Application de Argo CD",
+     "classifier"
+    ],
+    [
+     "{repo_git}",
+     "URL del repo que lee Argo CD (si es privado, con una credencial de solo lectura)",
+     "https://github.com/acme/classifier.git (ilustrativo)"
+    ],
+    [
+     "{carpeta}",
+     "carpeta de los manifests dentro del repo",
+     "reference/c01/k8s"
+    ],
+    [
+     "{ns}",
+     "namespace de destino",
+     "classifier"
+    ],
+    [
+     "{entorno}",
+     "environment de GitHub",
+     "produccion"
+    ],
+    [
+     "{plazo}",
+     "cuánto espera rollout status antes de fallar",
+     "10m (gateway) · 25m (Triton)"
+    ],
+    [
+     "{sha_merge}",
+     "el merge commit del PR del deploy",
+     "el que muestra git log --merges -1"
+    ],
+    [
+     "{sha}",
+     "el commit único de un PR mergeado con squash",
+     "el que muestra git log -1"
+    ]
+   ],
+   "pieces": [
+    [
+     "GitOps",
+     "Los manifests de producción viven en git y un agente dentro del cluster aplica lo que dice main. Desplegar es un merge; volver, un revert.",
+     "Argo CD o Flux (M10)"
+    ],
+    [
+     "Argo CD",
+     "Revisa el repo cada ≤ 3 min (120 s más hasta 60 s al azar), o al instante con un webhook (un aviso que GitHub le manda en cada push). Con automated, aplica las diferencias solo.",
+     "Application → reference/c01/k8s"
+    ],
+    [
+     "automated · prune · selfHeal",
+     "automated: sincroniza cuando cambia git. prune: borra lo que sacaste de git. selfHeal: deshace los cambios a mano en el cluster. prune y selfHeal vienen apagados.",
+     "un kubectl edit se revierte en segundos"
+    ],
+    [
+     "peter-evans/create-pull-request",
+     "Commitea lo que cambió el job en una rama y abre el PR. Si el PR ya existe, lo actualiza; si no hay cambios, no hace nada.",
+     "branch: deploy/gateway"
+    ],
+    [
+     "PR abierto con GITHUB_TOKEN",
+     "El repo tiene que permitirlo (Allow GitHub Actions to create and approve pull requests, apagado por defecto en repos personales y en organizaciones nuevas). Desde junio de 2026, los workflows de ese PR esperan a que alguien con permiso de escritura (write) apriete Approve workflows to run.",
+     "sin aprobación, el check obligatorio no corre"
+    ],
+    [
+     "token de GitHub App · PAT",
+     "Con un token de GitHub App (o un personal access token, mejor de grano fino), el PR lo abre esa identidad y sus workflows corren solos. El token de la App dura 1 h y se revoca al terminar el job.",
+     "actions/create-github-app-token@v3"
+    ],
+    [
+     "environment",
+     "Entorno con nombre, reglas y secretos propios. El job que lo nombra espera a que se cumplan las reglas; sus secretos llegan recién después de aprobar.",
+     "environment: produccion"
+    ],
+    [
+     "required reviewers",
+     "Hasta 6 personas o equipos; con que una apruebe, el job sigue. Prevent self-review impide aprobar tu propio deploy. Sin respuesta en 30 días, el job falla.",
+     "Review deployments → Approve and deploy"
+    ],
+    [
+     "environments según el plan",
+     "Required reviewers y wait timer (una espera fija antes de desplegar): en Free, Pro y Team solo funcionan en repos públicos; en privados hace falta Enterprise. Deployment branches (qué ramas pueden desplegar): también en privados con Pro o Team. En Free, los environments solo existen en repos públicos.",
+     "tu repo de práctica: público"
+    ],
+    [
+     "concurrency",
+     "Grupo donde corre un solo job o workflow a la vez; el que llega después espera como pending. Es independiente del environment.",
+     "group: deploy-gateway-produccion"
+    ],
+    [
+     "queue: single · queue: max",
+     "single (el default): espera uno solo; si llega otro, el que esperaba se cancela. max: hasta 100 en fila, en orden. max no se combina con cancel-in-progress: true.",
+     "Canceling since a higher priority waiting request for '…' exists"
+    ],
+    [
+     "cancel-in-progress: true",
+     "Cancela también el que está corriendo. Bien para los tests de un PR; en un deploy puede dejarlo a medias: el job se corta entre pasos o antes de confirmar el rollout.",
+     "group: pr-${{ github.head_ref || github.run_id }}"
+    ],
+    [
+     "kubectl desde el job",
+     "El runner necesita red hasta el API server de EKS (la puerta de entrada del cluster) y un rol de AWS con access entry (el permiso de EKS que deja entrar a ese rol). set image cambia solo la imagen (lo que hace gateway.yml); git ya no dice qué corre.",
+     "kubectl -n classifier set image deployment/gateway gateway=…@sha256:…"
+    ],
+    [
+     "versión de kubectl",
+     "kubectl solo garantiza hablar con clusters de su versión menor ± 1 (la menor es el segundo número de la versión: el 37 de 1.37.1). El de ubuntu-24.04 es 1.37 (sirve para 1.36–1.38); con un cluster 1.35, el mínimo del C01, baja en el job el kubectl de esa versión.",
+     "curl -LO https://dl.k8s.io/release/v1.35.9/bin/linux/amd64/kubectl"
+    ],
+    [
+     "git revert",
+     "Commit nuevo que deshace otro. Un merge commit necesita -m 1; un commit de squash, no. Con GitOps, ese revert es el rollback.",
+     "Revert \"Merge pull request #7 …\""
+    ]
+   ],
+   "example": {
+    "title": "C01: CI abre el PR que despliega el gateway (estilo GitOps)",
+    "lang": "yaml",
+    "code": "# .github/workflows/gateway.yml (extracto). Ilustrativo, armado con los pasos del curso: el C01 no trae workflows.\n# … el job imagen (sección 9) sube classifier-gateway a ECR y publica outputs.digest\n# Este job va en lugar del job deploy de gateway.yml (kubectl): mismo digest, camino GitOps.\n  manifest-pr:                       # estilo GitOps: Argo CD aplica lo que llega a main\n    needs: imagen\n    if: github.event_name == 'push'  # solo después del merge a main, nunca en un PR\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    permissions:\n      contents: read                 # el GITHUB_TOKEN solo lee: la rama y el PR los hace la GitHub App\n    concurrency: { group: deploy-gateway-pr, cancel-in-progress: false }\n    steps:\n      - uses: actions/checkout@v7\n      - id: app                      # token de 1 h de la GitHub App de deploy, solo para este repo\n        uses: actions/create-github-app-token@v3\n        with:\n          client-id: ${{ vars.DEPLOY_APP_CLIENT_ID }}\n          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}\n          permission-contents: write\n          permission-pull-requests: write\n      - id: tag\n        run: echo \"tag=${GITHUB_SHA::7}\" >> \"$GITHUB_OUTPUT\"\n      - name: Apuntar el manifest a la imagen nueva (tag para leer, digest para fijar)\n        env:\n          IMG: \"classifier-gateway:${{ steps.tag.outputs.tag }}@${{ needs.imagen.outputs.digest }}\"\n        run: sed -i \"s|classifier-gateway[:@].*$|${IMG}|\" reference/c01/k8s/gateway.yaml\n      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1\n        with:\n          token: ${{ steps.app.outputs.token }}  # con el token de la App, los checks del PR corren solos\n          branch: deploy/gateway       # siempre la misma rama: si el PR ya existe, lo actualiza\n          title: \"deploy: gateway ${{ steps.tag.outputs.tag }}\"\n          commit-message: \"deploy: gateway ${{ steps.tag.outputs.tag }}\"\n          body: \"La imagen ya está en ECR. Al hacer merge, Argo CD la despliega; para volver atrás, revierte este PR.\"",
+    "source": "Ilustrativo, armado con los pasos del curso (M10 · GitOps para el despliegue; M05 · release.sh) sobre reference/c01/k8s/gateway.yaml. Validado con js-yaml contra la sintaxis de docs.github.com y los inputs del action.yml de cada action (octubre de 2026); el sed se probó sobre el manifest real.",
+    "notes": [
+     "Cambia una línea: <code>…/classifier-gateway:3f9c2ab</code> pasa a <code>…/classifier-gateway:9d41e7c@sha256:…</code>. El tag dice de qué commit salió; el digest fija los bytes (con los dos, la imagen se baja por el digest).",
+     "La aprobación del deploy es el review y el merge de este PR. Con un ruleset (las reglas de la rama main) que pide la aprobación de los code owners de <code>k8s/</code> (las personas o equipos que CODEOWNERS nombra como responsables), lo aprueba quien opera el servicio. Después, Argo CD aplica <code>main</code> en ≤ 3 min, o en segundos con un webhook.",
+     "Por qué una GitHub App y no <code>GITHUB_TOKEN</code>: con <code>GITHUB_TOKEN</code>, el repo tiene que activar <b>Allow GitHub Actions to create and approve pull requests</b> (apagado por defecto en repos personales y en organizaciones nuevas) y, desde junio de 2026, los workflows de ese PR quedan esperando a que alguien con permiso de escritura (write) apriete <b>Approve workflows to run</b>. Si nadie lo hace, el check obligatorio nunca corre y el merge queda bloqueado. Con el token de la App, el PR lo abre la App y sus checks corren solos.",
+     "<code>concurrency</code> con la cola por defecto (<code>queue: single</code>): si se juntan varios merges, solo espera el más nuevo. Los que esperaban antes se cancelan y el PR queda con la imagen más nueva. Aquí es justo lo que quieres.",
+     "Cuidado con el bucle: si el workflow que construye la imagen corre con cualquier push a <code>main</code>, el merge de este PR dispara otro build y otro PR. Filtra el <code>push</code> con <code>paths</code> (solo el código del gateway) o pon los manifests en otro repo; la App necesita acceso a ese repo (<code>GITHUB_TOKEN</code> solo sirve en el repo del workflow).",
+     "La action de terceros va fijada al SHA completo de v8.1.1, como recomienda la guía de seguridad de GitHub (sección 8); las de <code>actions/</code>, que son de GitHub, van a su major."
+    ]
+   },
+   "figure": {
+    "kind": "pipeline",
+    "caption": "Un cambio del gateway del C01, de tu PR al pod nuevo, con duraciones estimadas. Arriba, el estilo GitOps del curso: la aprobación es el merge del PR del manifest y Argo CD despliega. Abajo, el estilo kubectl: el job espera en un environment hasta que alguien aprueba. Volver atrás recorre el mismo camino con un revert.",
+    "data": {
+     "steps": [
+      {
+       "id": "pr",
+       "label": "PR con el cambio",
+       "who": "tú",
+       "where": "GitHub",
+       "dur": "—",
+       "detail": "Rama, push y pull request a main."
+      },
+      {
+       "id": "tests",
+       "label": "Tests",
+       "who": "CI",
+       "where": "ubuntu-24.04",
+       "dur": "≈ 1–2 min (est.)",
+       "detail": "pytest: los 24 tests del gateway, sin GPU. Es un check obligatorio."
+      },
+      {
+       "id": "merge",
+       "label": "Review y merge",
+       "who": "el equipo",
+       "where": "GitHub",
+       "dur": "minutos a horas",
+       "detail": "Checks en verde y una aprobación; merge a main."
+      },
+      {
+       "id": "imagen",
+       "label": "Build y push",
+       "who": "CI",
+       "where": "ubuntu-24.04 → ECR",
+       "dur": "≈ 2–5 min (est.)",
+       "detail": "Rol por OIDC, buildx linux/amd64, push a ECR con tag = los 7 primeros caracteres del SHA, en un repo configurado con tags inmutables."
+      },
+      {
+       "id": "manifest",
+       "label": "PR del manifest",
+       "who": "CI (GitHub App)",
+       "where": "GitHub",
+       "dur": "≈ 10–30 s (est.)",
+       "detail": "Cambia la línea image: de reference/c01/k8s/gateway.yaml (tag y digest); sus checks corren solos."
+      },
+      {
+       "id": "aprobacion",
+       "label": "Merge del manifest",
+       "who": "quien aprueba el deploy",
+       "where": "GitHub",
+       "dur": "lo que tarde la persona",
+       "detail": "Aquí está la aprobación del estilo GitOps."
+      },
+      {
+       "id": "sync",
+       "label": "Sync de Argo CD",
+       "who": "Argo CD",
+       "where": "dentro del cluster",
+       "dur": "≤ 3 min (polling) · segundos con webhook",
+       "detail": "Ve el commit nuevo en main y aplica la diferencia."
+      },
+      {
+       "id": "rollout",
+       "label": "Rollout",
+       "who": "Kubernetes",
+       "where": "EKS",
+       "dur": "gateway ≈ 1–3 min (est.) · Triton ≈ 8–22 min",
+       "detail": "Pods nuevos antes de bajar los viejos (maxUnavailable: 0). Triton: 2 pods de a uno, cada uno con nodo GPU, imagen y engine (estimación del curso)."
+      }
+     ],
+     "alt": {
+      "label": "Estilo kubectl con environment",
+      "after": "imagen",
+      "steps": [
+       {
+        "label": "Job deploy en Waiting",
+        "who": "GitHub",
+        "dur": "hasta que alguien apruebe (falla a los 30 días)",
+        "detail": "environment: produccion con required reviewers; concurrency deja un deploy a la vez."
+       },
+       {
+        "label": "kubectl set image y rollout status",
+        "who": "CI",
+        "dur": "gateway ≈ 1–3 min (est.)",
+        "detail": "Por digest, como gateway.yml. El runner necesita red al API server de EKS, un rol con access entry y un kubectl de la versión del cluster (± 1 versión menor)."
+       }
+      ]
+     },
+     "rollback": {
+      "label": "Rollback = revert",
+      "steps": [
+       "git revert del merge del manifest (o el botón Revert del PR)",
+       "PR y merge",
+       "Argo CD sincroniza (≤ 3 min)",
+       "rollout a la imagen anterior"
+      ],
+      "dur": "gateway: minutos · Triton: ≈ 5–20 min si la release anterior ya no está viva (estimación del curso)",
+      "detail": "Con GitOps, un kubectl rollout undo dura hasta el próximo sync (o segundos, con selfHeal): el rollback de verdad es el revert."
+     }
+    }
+   },
+   "memo": "Cómo recordarla: <b>CI construye, git decide, el cluster copia</b>. Desplegar es un merge que cambia una línea; volver es un revert de ese merge. El environment pone a una persona en el medio y <code>concurrency</code> pone a los deploys en fila.",
+   "trap": "Trampa: arreglar producción con <code>kubectl set image</code> o <code>kubectl rollout undo</code> cuando hay GitOps. Dura poco: con <code>selfHeal</code>, Argo CD vuelve a lo que dice git en segundos, y sin él, en el próximo sync. El rollback de verdad es un <code>git revert</code> del commit del deploy. Y nunca <code>cancel-in-progress: true</code> en un job de deploy: el job se corta a mitad de camino y nadie confirma qué quedó corriendo.",
+   "lab": {
+    "goal": "Simular GitOps en tu máquina (un repo bare hace de repo de manifests y main es lo que Argo CD aplicaría): desplegar con un merge, volver con un revert (de un merge commit y de un squash) y, si quieres, ver en GitHub un environment con aprobación y concurrency.",
+    "steps": [
+     {
+      "cmd": "git init --bare -b main ~/lab-git-remote.git && mkdir ~/lab-git && cd ~/lab-git && git init -b main && git remote add origin ~/lab-git-remote.git && mkdir k8s && echo \"image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:3f9c2ab\" > k8s/gateway.yaml && git add k8s && git commit -m \"gateway 3f9c2ab\" && git push -u origin main",
+      "expect": "Initialized empty Git repository dos veces, [main (root-commit) …] gateway 3f9c2ab, * [new branch] main -> main y branch 'main' set up to track 'origin/main'. Un manifest mínimo: solo la línea que cambia en cada deploy."
+     },
+     {
+      "cmd": "git switch -c deploy/gateway && sed -i '' 's/:3f9c2ab/:9d41e7c/' k8s/gateway.yaml && git commit -am \"deploy: gateway 9d41e7c\" && git push -u origin deploy/gateway",
+      "expect": "Switched to a new branch 'deploy/gateway', el commit deploy: gateway 9d41e7c y * [new branch] deploy/gateway -> deploy/gateway. Es lo que hace el job de CI: cambia el tag y empuja una rama para el PR."
+     },
+     {
+      "cmd": "git switch main && git merge --no-ff -m \"Merge pull request #7 from acme/deploy/gateway\" deploy/gateway && git push && git show origin/main:k8s/gateway.yaml",
+      "expect": "Merge made by the 'ort' strategy., el push de main y image: …/classifier-gateway:9d41e7c. Así queda un PR mergeado con Create a merge commit; esa línea es la que Argo CD aplicaría."
+     },
+     {
+      "cmd": "git revert HEAD",
+      "expect": "error: commit … is a merge but no -m option was given. y fatal: revert failed. Un merge tiene dos padres: hay que decir contra cuál deshacer."
+     },
+     {
+      "cmd": "git revert -m 1 --no-edit HEAD && git push && git show origin/main:k8s/gateway.yaml && git log --oneline --graph -4",
+      "expect": "[main …] Revert \"Merge pull request #7 from acme/deploy/gateway\", el push y otra vez …:3f9c2ab. El grafo muestra el commit inicial, el merge del deploy y el revert arriba: la historia guarda qué se desplegó y cómo se volvió. En un repo real, el revert entra con un PR."
+     },
+     {
+      "cmd": "git switch -c deploy/gateway-2 && sed -i '' 's/:3f9c2ab/:5b2e8aa/' k8s/gateway.yaml && git commit -qam \"deploy: gateway 5b2e8aa\" && git switch main && git merge --squash deploy/gateway-2 && git commit -m \"deploy: gateway 5b2e8aa (#8)\" && git revert --no-edit HEAD && cat k8s/gateway.yaml",
+      "expect": "Squash commit -- not updating HEAD, el commit deploy: gateway 5b2e8aa (#8), Revert \"deploy: gateway 5b2e8aa (#8)\" sin pedir -m y otra vez …:3f9c2ab. Con Squash and merge, el PR es un commit normal."
+     },
+     {
+      "cmd": "mkdir -p .github/workflows && printf '%s\\n' 'name: deploy-lab' 'on: workflow_dispatch' 'permissions:' '  contents: read' 'concurrency:' '  group: deploy-produccion' '  cancel-in-progress: false' 'jobs:' '  deploy:' '    runs-on: ubuntu-24.04' '    timeout-minutes: 5' '    environment: produccion' '    steps:' '      - run: echo \"desplegando ${GITHUB_SHA::7} (run $GITHUB_RUN_NUMBER)\" && sleep 60' > .github/workflows/deploy-lab.yml && git add .github && git commit -m \"workflow de deploy de prueba\" && git remote add github https://github.com/TU_CUENTA/lab-cd.git && git push github main",
+      "expect": "Opcional, en GitHub (cambia TU_CUENTA). El push crea main en tu repo de prueba con el workflow deploy-lab. El environment produccion ya tiene que existir con tus reglas: si no existe, GitHub lo crea solo al correr el job, sin aprobación."
+     },
+     {
+      "cmd": "for i in 1 2 3; do gh workflow run deploy-lab.yml --repo TU_CUENTA/lab-cd; sleep 5; done",
+      "expect": "En la pestaña Actions: el 1.er run queda Waiting, con Review deployments; el 2.º, pending, porque el 1.º tiene el grupo deploy-produccion; al llegar el 3.º, el 2.º se cancela con Canceling since a higher priority waiting request for 'deploy-produccion' exists. Sin gh: Run workflow tres veces en la web."
+     },
+     {
+      "cmd": "gh run list --workflow deploy-lab.yml --repo TU_CUENTA/lab-cd --limit 3",
+      "expect": "Antes, en la web: en el 1.er run, Review deployments → produccion → Approve and deploy (corre ≈ 1 min); cuando el 3.º quede Waiting, Reject. La lista muestra uno completado, uno cancelado (el 2.º) y uno fallido (el rechazado)."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-git ~/lab-git-remote.git",
+      "expect": "Sin salida. Si hiciste los pasos de GitHub, borra el repo de prueba en Settings → General → Delete this repository."
+     }
+    ],
+    "fix": "Revert que pide -m: era un merge commit; usa git revert -m 1 SHA. El job no queda Waiting: el environment se creó sin required reviewers (o se creó solo al correr el job); configúralo antes. Ningún run se cancela: los lanzaste muy espaciados (con queue: max, tampoco se cancelaría ninguno).",
+    "needs": "Una terminal de macOS (sed -i '' es la forma de macOS) y git con user.name y user.email configurados. Para los pasos opcionales: tu cuenta de GitHub, un repo nuevo, vacío y público (en Free, los required reviewers solo existen en repos públicos) con un environment produccion que te tenga como required reviewer (Settings → Environments → New environment → Required reviewers → Save protection rules), push con tu autenticación de siempre y gh con sesión iniciada (o la web).",
+    "verified": "docs",
+    "verified_note": "Los pasos 1–6 y 10 (git) se corrieron con git 2.50.1 en macOS y zsh, con un repo bare local como remoto. Los pasos 7–9 usan GitHub y se verificaron contra docs.github.com (environments, concurrency, gh workflow run), sin correrlos aquí."
+   },
+   "links": [
+    "#m10.ci-cd",
+    "#m11.canary",
+    "#m11.rollback",
+    "#m05.registries",
+    "#ref-comandos.rollouts",
+    "#c01.fallas"
+   ]
+  },
+  {
+   "id": "runners",
+   "num": 11,
+   "title": "Runners: GitHub-hosted o self-hosted (la T4 del C01), labels, timeouts y costos",
+   "question": "¿En qué máquina corre cada job, cuánto puede durar, cuánto cuesta y cuándo conviene una máquina propia, como la T4 del C01?",
+   "templates": [
+    {
+     "code": "jobs:\n  {job}:\n    runs-on: {imagen}\n    timeout-minutes: {min}",
+     "note": "Un <b>runner</b> es la máquina que ejecuta un job. Con una imagen de GitHub (<b>GitHub-hosted</b>), cada job recibe una VM (máquina virtual) nueva. <code>timeout-minutes</code> corta el job si se pasa: el default es 360 min (6 h), que también es el máximo en GitHub-hosted."
+    },
+    {
+     "code": "runs-on: [self-hosted, {so}, {arq}, {label}]",
+     "note": "Un runner <b>self-hosted</b> es una máquina tuya con el programa del runner instalado. Las <b>labels</b> son etiquetas: el job va a un runner que tenga <b>todas</b> las que pide. <code>self-hosted</code>, el sistema y la arquitectura las pone el runner solo; las demás son tuyas."
+    },
+    {
+     "code": "./config.sh --url https://github.com/{org}/{repo} --token {token_registro} --labels {label} --ephemeral --unattended\n./run.sh",
+     "note": "Registrar el runner, en la máquina. El token de registro sale de Settings → Actions → Runners → New self-hosted runner (o de la API) y vence en 1 h. Con <code>--ephemeral</code>, el runner toma <b>un</b> job y se desregistra: la base para crear una máquina por job y apagarla al final."
+    },
+    {
+     "code": "runs-on:\n  group: {grupo}\n  labels: [{label}]",
+     "note": "En una organización, los runners se juntan en <b>runner groups</b> (grupos con su lista de repos permitidos). Con <code>group</code> y <code>labels</code>, el runner tiene que cumplir las dos cosas. Un <b>larger runner</b> de GitHub (más grande, o con GPU) se elige por su grupo o por su nombre, que es su label."
+    }
+   ],
+   "formulas": [
+    "\\text{minutos} = \\sum_{\\text{jobs}} \\left\\lceil t_{\\text{job}} \\right\\rceil",
+    "\\text{costo}_{\\text{GitHub}} = \\max\\left(0,\\ \\text{minutos} - \\text{incluidos}\\right) \\cdot p \\qquad \\text{costo}_{\\text{self-hosted}} = t_{\\text{máquina}} \\cdot p_{\\text{EC2}}"
+   ],
+   "vars": [
+    [
+     "{job}",
+     "nombre del job",
+     "tests"
+    ],
+    [
+     "{imagen}",
+     "imagen de GitHub; fíjala en vez de -latest",
+     "ubuntu-24.04"
+    ],
+    [
+     "{min}",
+     "minutos antes de que GitHub cancele el job",
+     "10 (tests) · 120 (engine de Triton)"
+    ],
+    [
+     "{so}",
+     "sistema operativo: label que pone el runner",
+     "linux"
+    ],
+    [
+     "{arq}",
+     "arquitectura: label que pone el runner",
+     "x64"
+    ],
+    [
+     "{label}",
+     "label propia del runner",
+     "gpu-t4"
+    ],
+    [
+     "{org}/{repo}",
+     "dónde se registra el runner",
+     "acme/classifier (ilustrativo)"
+    ],
+    [
+     "{token_registro}",
+     "token de registro: lo genera GitHub, vence en 1 h; nunca va a git",
+     "Settings → Actions → Runners"
+    ],
+    [
+     "{grupo}",
+     "runner group de la organización",
+     "gpu"
+    ],
+    [
+     "t_job",
+     "minutos de cada job; se redondean hacia arriba",
+     "2 min 10 s → 3"
+    ],
+    [
+     "incluidos",
+     "minutos del plan para repos privados, según el plan; en un repo público, los runners estándar no cobran",
+     "2,000 Free · 3,000 Pro y Team · 50,000 Enterprise Cloud"
+    ],
+    [
+     "p",
+     "precio por minuto del runner (los larger runners no usan los incluidos)",
+     "US$0.006 Linux 2-core · US$0.052 GPU T4"
+    ],
+    [
+     "t_máquina",
+     "tiempo que la máquina propia está prendida (job más arranque)",
+     "≈ 45 min por corrida (est.)"
+    ],
+    [
+     "p_EC2",
+     "precio on-demand de la máquina",
+     "g4dn.xlarge ≈ US$0.526/h (estimación del curso)"
+    ]
+   ],
+   "pieces": [
+    [
+     "ubuntu-24.04 · ubuntu-latest",
+     "Imágenes de GitHub, con Docker, kubectl, AWS CLI, gh y varias versiones de Python ya instalados (la lista está en actions/runner-images y cambia con cada imagen). ubuntu-latest hoy es 24.04 y se mueve con aviso, en una migración de 1–2 meses: fija la versión.",
+     "runs-on: ubuntu-24.04"
+    ],
+    [
+     "ubuntu-24.04-arm",
+     "Runner estándar arm64 (procesador ARM, como el de tu Mac). Gratis en repos públicos, como los x64; en privados también existe y gasta minutos.",
+     "uname -m → aarch64"
+    ],
+    [
+     "runner estándar",
+     "Repo privado: 2 vCPU, 8 GB de RAM y 14 GB de disco. Repo público: 4 vCPU y 16 GB.",
+     "nproc · free -h · df -h /"
+    ],
+    [
+     "larger runner",
+     "Más CPU, RAM y disco, o GPU: 1 T4 de 16 GB con 4 vCPU, 28 GB y 176 GB. Solo en Team o Enterprise Cloud; se cobra siempre, aunque el repo sea público.",
+     "GPU Linux: US$0.052/min"
+    ],
+    [
+     "self-hosted",
+     "Tu máquina con el programa del runner. Sale por HTTPS 443 a GitHub y pregunta si hay trabajo: no abre puertos de entrada.",
+     "la g4dn con T4 del C01"
+    ],
+    [
+     "labels por defecto",
+     "self-hosted, el sistema (linux, windows, macOS) y la arquitectura (x64, ARM, ARM64). No distinguen mayúsculas.",
+     "[self-hosted, linux, x64, gpu-t4]"
+    ],
+    [
+     "runner group",
+     "Grupo de runners de una organización, con la lista de repos que pueden usarlo.",
+     "runs-on: { group: gpu }"
+    ],
+    [
+     "--ephemeral · JIT",
+     "El runner corre un job y se desregistra. JIT (just-in-time) hace lo mismo con una configuración que pides a la API.",
+     "./config.sh … --ephemeral"
+    ],
+    [
+     "ARC",
+     "Actions Runner Controller: un programa que corre dentro de Kubernetes y crea runners como pods según los jobs en cola.",
+     "runners efímeros en EKS"
+    ],
+    [
+     "timeout-minutes",
+     "Corta el job (o el paso) a los N minutos. Default 360. Tope por job: 6 h en GitHub-hosted, 5 días en self-hosted.",
+     "10 en tests, 120 en el engine"
+    ],
+    [
+     "en cola (queued)",
+     "Si ningún runner libre tiene esas labels: Waiting for a runner to pick up this job…; con self-hosted, a las 24 h en cola, el job falla.",
+     "runner apagado o labels mal escritas"
+    ],
+    [
+     "minutos facturados",
+     "Cada job se redondea al minuto de arriba. Repos públicos con runners estándar: gratis. Privados: los incluidos del plan y después por minuto. Self-hosted: GitHub no cobra minutos.",
+     "Linux 2-core: US$0.006/min"
+    ],
+    [
+     "jobs en paralelo",
+     "Según el plan: 20 en Free, 40 en Pro, 60 en Team, 500 en Enterprise (macOS: 5, o 50 en Enterprise). El resto espera en cola.",
+     "una matrix grande hace fila"
+    ],
+    [
+     "self-hosted en un repo público",
+     "Casi nunca: cualquiera abre un PR y puede correr código en tu máquina, que no se limpia sola entre jobs.",
+     "solo en repos privados"
+    ]
+   ],
+   "example": {
+    "title": "C01: qué job corre en qué máquina",
+    "lang": "yaml",
+    "code": "# Extractos de gateway.yml y triton-modelo.yml. Ilustrativos, armados con los pasos del curso: el C01 no trae workflows.\n# gateway.yml: máquinas de GitHub, una VM nueva por job\njobs:\n  tests:\n    runs-on: ubuntu-24.04          # x64: linux/amd64 sin emulación; fija la versión, no ubuntu-latest\n    timeout-minutes: 10            # 24 tests tardan segundos: 10 min ya es una falla\n    # …\n  imagen:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 20\n    # …\n---\n# triton-modelo.yml: la T4 propia, a mano o desde el pipeline del modelo\non:\n  workflow_dispatch:               # nunca pull_request: un PR no corre código en la T4\njobs:\n  engine-e-imagen:\n    runs-on: [self-hosted, linux, x64, gpu-t4]   # todas las labels: solo la g4dn las tiene\n    timeout-minutes: 120           # sin esto, un trtexec colgado retiene la T4 los 360 min del default\n    # … build_engine.sh, docker build triton/, paridad, push y registro",
+    "source": "Ilustrativo, armado con los pasos del curso: reference/c01/README.md (engine e imagen en una g4dn.xlarge con T4), M10 · CI/CD (runner con T4 que se prende solo para el job) y C01 · costo. Specs, límites y precios de docs.github.com (octubre de 2026).",
+    "notes": [
+     "<code>tests</code> e <code>imagen</code>: una VM nueva por job. En un repo privado tiene 2 vCPU, 8 GB de RAM y 14 GB de disco (4 vCPU y 16 GB si el repo es público). Es x64, así que <code>linux/amd64</code> se construye sin emulación.",
+     "Lo decisivo: el engine de TensorRT solo se construye en una T4, y un runner estándar no tiene GPU. Además, la imagen de Triton pesa ≈ 9.2 GB comprimida (cifra del módulo 5) y bastante más en disco: muy justa para los 14 GB que garantiza un runner estándar.",
+     "La g4dn se registra como runner <b>efímero</b> (<code>--ephemeral</code>): toma un job, se desregistra y la apagas. Para prenderla cuando hay un job en cola: ARC (en Kubernetes) o tu propia automatización con el webhook <code>workflow_job</code>.",
+     "Costo de una corrida de 40 min (est.): la g4dn on-demand ≈ US$0.526/h → ≈ US$0.35, más el arranque. El runner GPU de GitHub (también una T4) → 40 × US$0.052 = US$2.08, sin máquina que mantener, pero solo en Team o Enterprise Cloud. El curso estima menos de US$10 al mes para este runner.",
+     "Solo <code>workflow_dispatch</code>: la T4 nunca corre código de un PR. En un repo público, ni pensarlo: cualquiera puede abrir un PR y una máquina persistente guarda lo que el job anterior dejó.",
+     "<code>timeout-minutes</code> en cada job. En self-hosted podrías subirlo hasta 5 días, pero el <code>GITHUB_TOKEN</code> se renueva solo hasta 24 h (en GitHub-hosted dura lo que el job, como mucho 6 h)."
+    ]
+   },
+   "figure": {
+    "kind": "runners",
+    "caption": "Los dos tipos de runner, lado a lado, con lo que usa el C01 en cada uno. Precios y límites de docs.github.com, octubre de 2026; el precio de la g4dn es la estimación del curso.",
+    "data": {
+     "left": {
+      "title": "GitHub-hosted",
+      "runs_on": "runs-on: ubuntu-24.04",
+      "c01": "tests e imagen del gateway (gateway.yml)"
+     },
+     "right": {
+      "title": "Self-hosted",
+      "runs_on": "runs-on: [self-hosted, linux, x64, gpu-t4]",
+      "c01": "engine e imagen de Triton en la g4dn con T4 (triton-modelo.yml)"
+     },
+     "rows": [
+      [
+       "Quién pone y mantiene la máquina",
+       "GitHub",
+       "Tú: sistema, driver de NVIDIA, Docker, parches y el runner"
+      ],
+      [
+       "Máquina limpia en cada job",
+       "Sí: una VM nueva por job",
+       "Solo si es efímera (--ephemeral o JIT) y la recreas"
+      ],
+      [
+       "Hardware",
+       "x64 o arm64; privado: 2 vCPU, 8 GB, 14 GB de disco · GPU T4 solo como larger runner (Team o Enterprise Cloud)",
+       "Lo que elijas: una g4dn.xlarge con 1 T4"
+      ],
+      [
+       "Costo",
+       "Gratis en repos públicos (estándar); en privados, los minutos incluidos según el plan y después por minuto",
+       "GitHub no cobra minutos; pagas la máquina (≈ US$0.526/h on-demand)"
+      ],
+      [
+       "Tope por job",
+       "6 h",
+       "5 días (y 24 h en cola)"
+      ],
+      [
+       "Red",
+       "Internet, con IPs que cambian",
+       "La de tu VPC: llega a recursos privados"
+      ],
+      [
+       "Riesgo con PRs de afuera",
+       "Bajo: la VM se descarta",
+       "Alto: un PR puede correr código en tu máquina; nunca en repos públicos"
+      ]
+     ]
+    }
+   },
+   "memo": "Cómo recordarla: <b>labels eligen, timeout corta, minutos cuestan</b>. GitHub-hosted: una VM limpia por job, gratis en repos públicos. Self-hosted: tu hardware (la T4), tu mantenimiento y tu riesgo; efímero, por <code>workflow_dispatch</code> y nunca en un repo público.",
+   "trap": "Trampa: un runner self-hosted persistente que corre jobs de <code>pull_request</code>, o cualquiera en un repo público. El código de un PR corre en tu máquina, que no se limpia entre jobs: puede leer credenciales del disco o dejar algo instalado para el próximo job. Y <code>ubuntu-latest</code> se mueve: cuando pase a otra versión de Ubuntu, cambian Python, compiladores y librerías sin que toques el YAML.",
+   "lab": {
+    "goal": "Ver con tus ojos en qué máquina cae cada job (x64 y arm64), qué pasa cuando un job se pasa de su timeout y qué pasa cuando ningún runner tiene las labels que pide un job.",
+    "steps": [
+     {
+      "cmd": "git clone https://github.com/TU_CUENTA/lab-runners.git ~/lab-git && cd ~/lab-git",
+      "expect": "Cloning into '/Users/…/lab-git'... y warning: You appear to have cloned an empty repository. (Cambia TU_CUENTA; el repo lo creas vacío y público en la web.)"
+     },
+     {
+      "cmd": "mkdir -p .github/workflows && printf '%s\\n' 'name: lab-runners' 'on: workflow_dispatch' 'permissions:' '  contents: read' 'jobs:' '  maquina:' '    strategy:' '      matrix:' '        os: [ubuntu-24.04, ubuntu-24.04-arm]' '    runs-on: ${{ matrix.os }}' '    timeout-minutes: 5' '    steps:' '      - run: echo \"$RUNNER_ENVIRONMENT $RUNNER_OS $RUNNER_ARCH\" && uname -m && nproc && free -h && df -h /' '  se-pasa:' '    runs-on: ubuntu-24.04' '    timeout-minutes: 1' '    steps:' '      - run: sleep 120' '  sin-runner:' '    runs-on: [self-hosted, linux, x64, gpu-t4]' '    timeout-minutes: 5' '    steps:' '      - run: echo nunca corre' > .github/workflows/runners.yml && git add .github && git commit -m \"lab runners\" && git push -u origin main",
+      "expect": "El commit y * [new branch] main -> main. Tres jobs: maquina (en x64 y en arm64), se-pasa (timeout de 1 min) y sin-runner (pide labels que ningún runner tiene)."
+     },
+     {
+      "cmd": "gh workflow run runners.yml && sleep 15 && RUN=$(gh run list --workflow runners.yml --limit 1 --json databaseId --jq '.[0].databaseId') && gh run view \"$RUN\"",
+      "expect": "El run con cuatro jobs: maquina (ubuntu-24.04), maquina (ubuntu-24.04-arm), se-pasa y sin-runner, este último en cola. En la web, sin-runner dice Waiting for a runner to pick up this job... Sin gh: Actions → lab-runners → Run workflow."
+     },
+     {
+      "cmd": "sleep 90 && gh run view \"$RUN\"",
+      "expect": "Los dos maquina en verde; se-pasa en rojo, con las anotaciones The job running on runner … has exceeded the maximum execution time … y The operation was canceled.; sin-runner sigue esperando: lo haría hasta 24 h."
+     },
+     {
+      "cmd": "gh run cancel \"$RUN\" && sleep 10 && gh run view \"$RUN\" --log | grep -E \"hosted|x86_64|aarch64|Mem:\"",
+      "expect": "Cancelas el run (si no, sigue en cola hasta 24 h). En el log: github-hosted Linux X64 y x86_64 en un job; github-hosted Linux ARM64 y aarch64 en el otro; Mem: ≈ 15–16Gi de total (repo público: 4 vCPU y 16 GB)."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-git",
+      "expect": "Sin salida. Borra el repo de prueba en la web: Settings → General → Delete this repository."
+     }
+    ],
+    "fix": "sin-runner nunca arranca: es lo esperado, ningún runner tiene esas labels; cancela el run. Si maquina tampoco arranca, revisa que el repo sea público: en uno privado, los dos jobs gastan minutos de tu plan. gh run view --log no muestra nada mientras el run sigue en curso: cancélalo primero.",
+    "needs": "Tu cuenta de GitHub y un repo nuevo, vacío y público (lab-runners), creado en la web; push con tu autenticación de siempre; gh con sesión iniciada (o la web). En un repo público, los runners estándar no cobran minutos. No registres un runner self-hosted en un repo público.",
+    "verified": "docs",
+    "verified_note": "No se corrió aquí (necesita tu cuenta de GitHub). Labels, specs, timeouts, límites y comandos de gh verificados contra docs.github.com y cli.github.com en octubre de 2026."
+   },
+   "links": [
+    "#m10.ci-cd",
+    "#c01.costo",
+    "#m08.tensorrt",
+    "#m13.gpus-precios",
+    "#ref-herramientas.infra-ci-seguridad",
+    "#m15.supply-chain"
+   ]
+  },
+  {
+   "id": "diagnostico",
+   "num": 12,
+   "title": "Diagnóstico: leer el log, re-run con debug, reproducir en local, tipos de falla",
+   "question": "El check se puso rojo: ¿dónde está el error de verdad, qué tipo de falla es, cómo la reproduces en tu máquina y cuándo sirve un re-run?",
+   "templates": [
+    {
+     "code": "gh run list --workflow {workflow} --branch {rama} --limit 5\ngh run view {run_id} --log-failed",
+     "note": "<b>Leer el log</b>: run rojo → job rojo → paso rojo. El error de verdad está <b>arriba</b> de <code>Process completed with exit code N</code> (N es el código con que terminó el comando; 0 es éxito) y casi siempre es el primero, no el último. <code>--log-failed</code> muestra solo los pasos que fallaron; sin <code>gh</code>, lo mismo en la pestaña Actions."
+    },
+    {
+     "code": "gh run rerun {run_id} --failed --debug",
+     "note": "<b>Re-run</b>: vuelve a correr lo que falló con el mismo commit (mismo <code>GITHUB_SHA</code> y <code>GITHUB_REF</code>). <code>--debug</code> (en la web, <b>Enable debug logging</b>) suma el log detallado de cada paso y del runner. Si falla igual, no fue mala suerte."
+    },
+    {
+     "code": "git clone --branch {rama} {url_repo} /tmp/ci && cd /tmp/ci/{dir}\npython{version} -m venv .venv && . .venv/bin/activate\npip install -r requirements-dev.txt && pytest",
+     "note": "<b>Reproducir en local</b>: un clon limpio ve lo mismo que el checkout de CI (solo lo commiteado) y un venv (un entorno de Python aislado) nuevo tiene solo lo que dicen los requirements. Si ahí falla igual, ya no adivinas: lo arreglas en tu máquina."
+    },
+    {
+     "code": "git bisect start {malo} {bueno}\ngit bisect run {prueba}\ngit bisect reset",
+     "note": "<b>¿Qué commit lo rompió?</b> <code>bisect</code> parte la historia a la mitad y corre tu prueba en cada paso: exit 0 = bueno; de 1 a 127 (menos 125) = malo; 125 = no se puede probar, sáltalo. <code>reset</code> te devuelve a tu rama."
+    }
+   ],
+   "formulas": [
+    "\\text{pruebas de bisect} \\approx \\left\\lceil \\log_2 n \\right\\rceil",
+    "\\text{exit code} = 128 + n_{\\text{señal}} \\qquad 137 = 128 + 9\\ (\\text{SIGKILL})"
+   ],
+   "vars": [
+    [
+     "{workflow}",
+     "el archivo del workflow",
+     "gateway.yml"
+    ],
+    [
+     "{rama}",
+     "la rama del PR",
+     "feat/json-rapido (ilustrativo)"
+    ],
+    [
+     "{run_id}",
+     "número del run: sale de gh run list o de la URL del run",
+     "1234567890"
+    ],
+    [
+     "{url_repo}",
+     "URL del repo, la misma que usas para clonar",
+     "git@github.com:acme/classifier.git (ilustrativo)"
+    ],
+    [
+     "{dir}",
+     "la carpeta donde el workflow corre los tests",
+     "reference/c01/gateway"
+    ],
+    [
+     "{version}",
+     "la misma versión de Python que pide el workflow",
+     "3.13"
+    ],
+    [
+     "{malo}",
+     "un commit donde falla",
+     "HEAD"
+    ],
+    [
+     "{bueno}",
+     "un commit donde pasaba (el del último run verde)",
+     "un SHA o un tag"
+    ],
+    [
+     "{prueba}",
+     "comando que sale con 0 si todo está bien",
+     "pytest -q tests/test_api.py"
+    ],
+    [
+     "n",
+     "commits entre el bueno y el malo",
+     "100 → 7 pruebas; 1,000 → 10"
+    ],
+    [
+     "n_señal",
+     "número de la señal que mató al proceso",
+     "9 = SIGKILL (casi siempre falta de memoria) · 15 = SIGTERM"
+    ]
+   ],
+   "pieces": [
+    [
+     "Annotations",
+     "El resumen de errores y warnings arriba del run, con enlace al paso. Sirve para ubicarte; el detalle está en el log.",
+     "Error: Process completed with exit code 1."
+    ],
+    [
+     "Process completed with exit code N",
+     "El paso terminó con un código distinto de 0. Es la consecuencia: la causa está en las líneas de arriba.",
+     "N = 1, 2, 127, 137…"
+    ],
+    [
+     "pytest: exit 1 · 2 · 4 · 5",
+     "1: fallaron tests (busca FAILED). 2: interrumpido, también por un error al importar los tests. 4: flags mal usados. 5: no encontró tests.",
+     "1 failed, 23 passed"
+    ],
+    [
+     "exit 127 · 137",
+     "127: el shell no encontró el comando (no está instalado o no está en el PATH). 137 = 128 + 9: el proceso murió por SIGKILL, casi siempre por memoria.",
+     "command not found"
+    ],
+    [
+     "bash -e (el default de run)",
+     "El paso corta en el primer comando que falla, pero no mira dentro de un pipe (comando1 | comando2): solo cuenta cómo terminó el último. Con shell: bash suma -o pipefail.",
+     "pytest | tee log.txt pasa aunque fallen tests"
+    ],
+    [
+     "Re-run failed jobs",
+     "Mismo commit y mismo GITHUB_REF; hasta 30 días después y hasta 50 veces; con los permisos de quien disparó el run original.",
+     "gh run rerun ID --failed"
+    ],
+    [
+     "ACTIONS_STEP_DEBUG · ACTIONS_RUNNER_DEBUG",
+     "Secret o variable en true: log detallado en todos los runs, no solo en un re-run. El del runner viene en la carpeta runner-diagnostic-logs al bajar los logs.",
+     "aparecen las líneas ##[debug]…"
+    ],
+    [
+     "::group:: · ::error file=…,line=…::",
+     "Agrupa líneas del log y crea anotaciones que apuntan a un archivo y una línea.",
+     "echo \"::error file=app/main.py,line=12::falta MODEL_NAME\""
+    ],
+    [
+     "$GITHUB_STEP_SUMMARY",
+     "Markdown que aparece en la página del run (hasta 1 MiB por paso). Ideal para el resumen de los tests.",
+     "echo \"### 24 tests ok\" >> \"$GITHUB_STEP_SUMMARY\""
+    ],
+    [
+     "fetch-depth: 1 (el default)",
+     "actions/checkout baja solo el último commit: git log, git describe o un diff contra main no encuentran historia. fetch-depth: 0 baja todo. En un PR, además, queda en detached HEAD (HEAD apunta a un commit, no a una rama).",
+     "with: { fetch-depth: 0 }"
+    ],
+    [
+     "clon limpio",
+     "Reproduce el checkout de CI: solo lo commiteado, sin archivos ignorados ni archivos a los que nunca les hiciste add.",
+     "git clone --branch RAMA URL /tmp/ci"
+    ],
+    [
+     "retención",
+     "Logs y artifacts se borran a los 90 días por defecto (1–90 en repos públicos, 1–400 en privados). Desde el 1 de octubre de 2026, la misma regla borra también runs, checks y statuses. Guarda lo que necesites antes.",
+     "Settings → Actions → General"
+    ],
+    [
+     "test flaky",
+     "Pasa y falla con el mismo código: orden, tiempo, red, seeds. Un re-run lo tapa, no lo arregla.",
+     "falla 1 de cada 10 runs"
+    ],
+    [
+     "githubstatus.com",
+     "Si falla algo que no tocaste (bajar actions, caché, artifacts), y le pasa a otros repos, mira el estado de GitHub antes de depurar.",
+     "incidente en Actions"
+    ]
+   ],
+   "example": {
+    "title": "C01: pytest pasa en tu Mac y falla en CI",
+    "lang": "bash",
+    "code": "# El check \"tests\" del PR se puso rojo; en tu Mac, pytest pasa. 1) Leer el log del paso que falló\ngh run list --workflow gateway.yml --branch feat/json-rapido --limit 3\ngh run view 1234567890 --log-failed | tail -n 6\n# tests  Run pytest  E   ModuleNotFoundError: No module named 'orjson'\n# tests  Run pytest  =========================== short test summary info ===========================\n# tests  Run pytest  ERROR tests/test_api.py\n# tests  Run pytest  !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!\n# tests  Run pytest  1 error in 0.52s\n# tests  Run pytest  ##[error]Process completed with exit code 2.\n\n# 2) Reproducir como CI: clon limpio y venv nuevo, solo con lo que dicen los requirements\ngit clone -q --branch feat/json-rapido git@github.com:acme/classifier.git /tmp/ci\ncd /tmp/ci/reference/c01/gateway\npython3.13 -m venv .venv && . .venv/bin/activate\npip install -q -r requirements-dev.txt && pytest\n# … el mismo ModuleNotFoundError: en tu venv de siempre, orjson estaba instalado a mano\n\n# 3) Confirmarlo: la dependencia no está fijada en requirements.txt\ngrep -n orjson requirements.txt || echo \"falta orjson en requirements.txt\"\n# falta orjson en requirements.txt → agrégala con == (la imagen también la necesita), commit y push",
+    "source": "Ilustrativo, con los nombres del C01 (reference/c01/gateway, pytest.ini con -q, pytest==9.1.1): la dependencia orjson, la rama y el número de run son inventados para el ejemplo. Salidas abreviadas, con la forma de gh 2.x y pytest 9.",
+    "notes": [
+     "Primero el run y el paso; después, el texto. <code>--log-failed</code> muestra solo los pasos rojos. La causa es la línea con <code>E</code> (el error de Python), no el exit code del final.",
+     "<code>exit code 2</code> con <code>Interrupted: 1 error during collection</code>: pytest ni empezó a correr tests; falló al importar <code>tests/test_api.py</code>, que importa <code>app.main</code>. Un 1 habría sido un test que falló.",
+     "El clon limpio y el venv nuevo son el checkout y el <code>pip install</code> del workflow. En tu carpeta de siempre pasaba porque orjson ya estaba instalado. <b>Pasa en mi máquina</b> casi siempre es esto, o un archivo que nunca se commiteó (el laboratorio).",
+     "Un re-run no habría servido: mismo commit, mismo resultado. Re-run es para lo intermitente (la red, un registry caído) y conviene con <code>--debug</code>.",
+     "Para Linux como en CI (el disco de tu Mac no distingue mayúsculas por defecto, y Linux sí), corre lo mismo en un contenedor: <code>docker run --rm -v \"$PWD\":/src -w /src python:3.13-slim sh -c \"pip install -r requirements-dev.txt && pytest\"</code>."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Ocho tipos de falla, más o menos en el orden en que aparecen en un run. Cada fila: cómo se ve, dónde mirar primero y el arreglo típico.",
+    "data": {
+     "head": [
+      "Tipo de falla",
+      "Cómo se ve",
+      "Dónde mirar primero",
+      "Arreglo típico"
+     ],
+     "rows": [
+      [
+       "El workflow no arranca",
+       "No aparece el run, o aparece con Invalid workflow file y ningún job",
+       "on: del YAML; que el archivo esté en .github/workflows en ese commit; la línea y columna del error",
+       "Corregir el YAML o el trigger (sección 6)"
+      ],
+      [
+       "Configuración de una action",
+       "Unable to resolve action · Input required and not supplied · Unexpected input(s)",
+       "El primer paso rojo, al principio del job",
+       "Versión que exista e inputs con el nombre exacto (sección 6)"
+      ],
+      [
+       "Tu código o tus tests",
+       "FAILED tests/… y Process completed with exit code 1",
+       "El resumen de pytest, arriba del exit code",
+       "Reproducir con un clon limpio y arreglar"
+      ],
+      [
+       "Entorno distinto",
+       "ModuleNotFoundError, FileNotFoundError, otra versión de Python",
+       "Clon limpio y venv nuevo; python --version en el log",
+       "Versiones fijas; commitear o generar el archivo"
+      ],
+      [
+       "Permisos o credenciales",
+       "Resource not accessible by integration · Could not assume role with OIDC · no basic auth credentials",
+       "permissions: del job; la trust policy del rol; la región",
+       "El permiso mínimo que falta (sección 8) o el login a ECR (sección 9)"
+      ],
+      [
+       "Recursos del runner",
+       "exit code 137 · No space left on device · lost communication with the server · exceeded the maximum execution time",
+       "free -h y df -h en un paso; la duración del job",
+       "Menos memoria o disco, otro runner o un timeout realista (sección 11)"
+      ],
+      [
+       "Red o servicio externo",
+       "Timeouts y errores 5xx de un registry o de PyPI",
+       "¿Falla igual al re-correr? githubstatus.com",
+       "Re-run failed jobs; si se repite, no es mala suerte"
+      ],
+      [
+       "Test flaky",
+       "Pasa y falla con el mismo commit",
+       "El historial del check en varios runs",
+       "Arreglar la causa (orden, tiempo, red, seed), no re-run infinito"
+      ]
+     ],
+     "note": "Las primeras dos se ven en segundos y están en el YAML, no en tu código; permisos, recursos y red dependen de la configuración, del runner o de afuera; código, entorno y tests flaky se reproducen y se arreglan en tu máquina."
+    }
+   },
+   "memo": "Cómo recordarla: <b>leer → clasificar → reproducir → arreglar</b>. El log dice dónde; el tipo de falla dice quién la arregla; el clon limpio dice si es tu código; el re-run solo sirve para lo intermitente.",
+   "trap": "Trampa: re-run hasta que pase. Con el mismo commit, una falla de tu código vuelve igual, y si a veces pasa es un test flaky que el re-run esconde. Y no te quedes con la última línea: <code>Process completed with exit code 1</code> es la consecuencia; la causa está arriba. Ojo también con un pipe: <code>pytest | tee log.txt</code> en un <code>run</code> sin <code>shell: bash</code> deja el paso en verde aunque fallen tests.",
+   "lab": {
+    "goal": "Reproducir en tu máquina un \"pasa en local, falla en CI\" con un clon limpio, encontrar por qué con check-ignore y usar git bisect para hallar el commit que rompió una configuración.",
+    "steps": [
+     {
+      "cmd": "mkdir ~/lab-git && cd ~/lab-git && git init -b main && mkdir app tests && echo '*.json' > .gitignore && echo '[\"bicicletas\", \"celulares\", \"zapatos\"]' > app/labels.json && printf 'import json\\nlabels = json.load(open(\"app/labels.json\"))\\nassert len(labels) == 3, labels\\nprint(\"ok:\", len(labels), \"labels\")\\n' > tests/test_labels.py && git add . && git commit -m \"labels y su test\"",
+      "expect": "[main (root-commit) …] labels y su test, 2 files changed: create mode 100644 .gitignore y tests/test_labels.py. app/labels.json no entró y git no avisó: *.json lo ignora."
+     },
+     {
+      "cmd": "python3 tests/test_labels.py",
+      "expect": "ok: 3 labels. En tu carpeta pasa: el archivo está en el disco."
+     },
+     {
+      "cmd": "git clone -q ~/lab-git ~/lab-git-ci && (cd ~/lab-git-ci && python3 tests/test_labels.py); echo \"exit=$?\"",
+      "expect": "Traceback …, FileNotFoundError: [Errno 2] No such file or directory: 'app/labels.json' y exit=1. El clon limpio es lo que ve el checkout de CI: solo lo commiteado."
+     },
+     {
+      "cmd": "git status --short --ignored && git check-ignore -v app/labels.json",
+      "expect": "!! app/ (la carpeta entera queda ignorada: su único archivo lo está) y .gitignore:1:*.json seguido de app/labels.json: el archivo de reglas, la línea y el patrón que lo ignoran."
+     },
+     {
+      "cmd": "printf '*.json\\n!app/labels.json\\n' > .gitignore && git add .gitignore app/labels.json && git commit -m \"versionar labels.json\" && rm -rf ~/lab-git-ci && git clone -q ~/lab-git ~/lab-git-ci && (cd ~/lab-git-ci && python3 tests/test_labels.py)",
+      "expect": "El commit con create mode 100644 app/labels.json y, en el clon nuevo, ok: 3 labels. La regla !app/labels.json es una excepción al *.json."
+     },
+     {
+      "cmd": "for i in 1 2 3 4 5 6; do t=150; [ \"$i\" -ge 4 ] && t=1500; printf 'timeout_ms: %s\\nrevision: %s\\n' \"$t\" \"$i\" > gateway.conf; git add gateway.conf; git commit -qm \"cambio $i\"; done; git log --oneline -6",
+      "expect": "Seis commits, de cambio 1 a cambio 6. El 4 cambia timeout_ms de 150 a 1500 sin decirlo en el mensaje: es el bug a encontrar."
+     },
+     {
+      "cmd": "git bisect start HEAD HEAD~5 && git bisect run grep -q '^timeout_ms: 150$' gateway.conf",
+      "expect": "Bisecting: 2 revisions left to test after this (roughly 1 step), tres pruebas con running 'grep' … y … is the first bad commit con el mensaje cambio 4, cerrando con bisect found first bad commit. grep sale con 0 si encuentra la línea (bueno) y con 1 si no (malo)."
+     },
+     {
+      "cmd": "git bisect reset",
+      "expect": "Previous HEAD position was … cambio 4 y Switched to branch 'main'. Durante el bisect estuviste en detached HEAD; reset te devuelve a tu rama."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-git ~/lab-git-ci",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Si el clon limpio pasa, la diferencia no es un archivo: compara versiones (python --version, pip freeze) o el sistema (corre en un contenedor Linux). Si bisect marca mal un commit, tu prueba no es confiable: debe salir con 0 solo cuando todo está bien, y con 125 cuando ese commit no se puede probar.",
+    "needs": "Una terminal de macOS, git con user.name y user.email configurados y python3 (cualquier 3.x). Todo es local: no necesita cuenta de GitHub.",
+    "verified": "executed",
+    "verified_note": "Corrido con git 2.50.1 (Apple Git-155) y Python 3.14 en macOS y zsh, con HOME en una carpeta temporal."
+   },
+   "links": [
+    "#m10.ci-cd",
+    "#m10.reproducibilidad",
+    "#c01.archivos",
+    "#c01.fallas"
+   ]
+  },
+  {
+   "id": "errores",
+   "num": 13,
+   "title": "Errores que debes reconocer rápido (git y Actions)",
+   "question": "Lees el mensaje: ¿quién lo dijo (git, GitHub, el runner, una action o AWS), qué significa, qué corres primero y dónde está la explicación?",
+   "templates": [
+    {
+     "code": "fatal: {mensaje}\nerror: {mensaje}\nhint: {consejo}",
+     "note": "<b>Git, en tu máquina</b>. <code>fatal</code>: abortó el comando. <code>error</code>: algo falló. <code>hint</code>: un consejo, casi siempre con el comando que lo arregla. Lee las tres líneas completas."
+    },
+    {
+     "code": "remote: {mensaje}\n ! [remote rejected] {rama} -> {rama} ({motivo})",
+     "note": "<b>GitHub, durante un push o un pull</b>: reglas del repo, permisos, autenticación o un secreto detectado. Las líneas <code>remote:</code> dicen cuál regla; <code>[remote rejected]</code> es el resultado."
+    },
+    {
+     "code": "Error: {mensaje}\n##[error]{mensaje}",
+     "note": "<b>El runner o una action</b>, en el log de Actions. Aparece también en <b>Annotations</b>. <code>Process completed with exit code N</code> es la consecuencia; la causa está en las líneas de arriba."
+    },
+    {
+     "code": "Could not assume role with OIDC: {motivo}\nAn error occurred ({codigo}) when calling the {operacion} operation: {mensaje}",
+     "note": "<b>AWS</b>. La primera forma la imprime <code>configure-aws-credentials</code> con lo que respondió AWS STS (el servicio que entrega credenciales temporales); la segunda, la AWS CLI dentro de un <code>run</code>."
+    }
+   ],
+   "vars": [
+    [
+     "{mensaje}",
+     "el texto que explica qué pasó",
+     "Need to specify how to reconcile divergent branches."
+    ],
+    [
+     "{consejo}",
+     "la sugerencia de git, con el comando",
+     "use 'git pull' before pushing again."
+    ],
+    [
+     "{rama}",
+     "la rama que empujabas",
+     "main"
+    ],
+    [
+     "{motivo}",
+     "la razón corta del rechazo o del fallo",
+     "pre-receive hook declined · Not authorized to perform sts:AssumeRoleWithWebIdentity"
+    ],
+    [
+     "{codigo}",
+     "el código de error de AWS",
+     "AccessDenied, ExpiredToken"
+    ],
+    [
+     "{operacion}",
+     "la operación de AWS que falló",
+     "AssumeRoleWithWebIdentity, GetAuthorizationToken"
+    ]
+   ],
+   "pieces": [
+    [
+     "fatal:",
+     "Git abortó el comando: no hizo el cambio. La misma línea dice por qué.",
+     "fatal: Need to specify how to reconcile divergent branches."
+    ],
+    [
+     "error: · hint:",
+     "error: algo falló. hint: un consejo con el comando que lo arregla.",
+     "hint: use 'git pull' before pushing again."
+    ],
+    [
+     "! [rejected]",
+     "Tu push no avanza el remoto: (fetch first) o (non-fast-forward). Integra primero.",
+     "git pull --rebase"
+    ],
+    [
+     "! [remote rejected] · remote:",
+     "Lo rechazó GitHub, no Git: una regla del repo, permisos o un secreto.",
+     "remote: error: GH013 …"
+    ],
+    [
+     "CONFLICT (…)",
+     "Git no pudo juntar dos cambios. content: mismas líneas. modify/delete: uno borró y el otro editó.",
+     "CONFLICT (modify/delete): … deleted in otra and modified in HEAD."
+    ],
+    [
+     "Warning: · Note:",
+     "Avisos: no fallaron, pero te dicen algo que puedes perder (commits sueltos, detached HEAD).",
+     "Warning: you are leaving 1 commit behind"
+    ],
+    [
+     "Invalid workflow file · The workflow is not valid",
+     "El YAML no valida: el run no arranca. El mensaje trae línea y columna.",
+     "(Line: 12, Col: 5): Unexpected value 'runs_on'"
+    ],
+    [
+     "Error: (anotación)",
+     "Un paso falló o una action llamó a setFailed: aparece en Annotations y en el log.",
+     "Error: Input required and not supplied: aws-region"
+    ],
+    [
+     "Warning: Unexpected input(s)",
+     "Pasaste en with: un input que la action no declara (un typo). Se ignora sin fallar.",
+     "Unexpected input(s) 'python_version', valid inputs are […]"
+    ],
+    [
+     "Process completed with exit code N",
+     "El paso terminó con N distinto de 0: mira arriba.",
+     "exit code 2 en pytest: error al importar los tests"
+    ],
+    [
+     "Could not assume role with OIDC:",
+     "configure-aws-credentials no consiguió el rol; lo que sigue lo dijo AWS STS.",
+     "Not authorized to perform sts:AssumeRoleWithWebIdentity"
+    ],
+    [
+     "An error occurred (…) when calling the … operation:",
+     "La AWS CLI dentro de un run. El código entre paréntesis dice el tipo de error.",
+     "(AccessDenied) when calling the AssumeRoleWithWebIdentity operation"
+    ],
+    [
+     "no basic auth credentials · tag invalid:",
+     "Salen en un docker push a ECR. El primero lo dice docker: no tiene un login válido para ese registry. El segundo lo responde ECR: ese tag ya existe en un repo configurado con tags inmutables.",
+     "no basic auth credentials"
+    ],
+    [
+     "Waiting for … · Canceling since …",
+     "No es un error de tu código: GitHub espera un runner, una aprobación o su turno en un grupo de concurrency.",
+     "Waiting for a runner to pick up this job..."
+    ]
+   ],
+   "example": {
+    "title": "Cómo leer un paso de OIDC que falla en el job de deploy",
+    "lang": "text",
+    "code": "Run aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd\n  with:\n    role-to-assume: arn:aws:iam::123456789012:role/gha-classifier-deploy\n    aws-region: us-east-1\n    …\nAssuming role with OIDC\n…\nError: Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity",
+    "source": "Forma del log de GitHub Actions con configure-aws-credentials v6.3.0 (los mensajes salen de su código fuente; el de STS, de su README). Nombres del C01; salida abreviada.",
+    "notes": [
+     "Tres voces: <code>Run …</code> y <code>with:</code> los imprime el runner; <code>Assuming role with OIDC</code>, la action; lo que sigue a <code>Could not assume role with OIDC:</code> lo dijo AWS STS.",
+     "<code>Not authorized</code>, y no <code>Credentials could not be loaded</code>: el token OIDC sí existe (el <code>id-token: write</code> está bien) y AWS lo rechazó. Casi siempre, la trust policy del rol (la regla que dice qué tokens pueden asumirlo) no acepta ese <code>sub</code> (quién pide el token) o ese <code>aud</code> (para quién es).",
+     "El job tiene <code>environment: produccion</code>, así que su <code>sub</code> es <code>repo:acme/classifier:environment:produccion</code>, no <code>…:ref:refs/heads/main</code>. Con un environment, el <code>sub</code> por defecto no trae la rama.",
+     "En un repo creado después del 15 de julio de 2026 (o renombrado o transferido desde entonces, o que eligió el formato nuevo), el <code>sub</code> trae además los IDs: <code>repo:acme@123456/classifier@456789:…</code>. Una trust policy copiada de un tutorial viejo falla igual.",
+     "Primero, mira la condición: <code>aws iam get-role --role-name gha-classifier-deploy --query Role.AssumeRolePolicyDocument</code>. El arreglo va en AWS (la trust policy), no en el workflow."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Quiz: el mensaje tal como lo ves; responde quién lo dijo, qué significa, qué corres primero y en qué sección está.",
+    "data": {}
+   },
+   "memo": "Cómo recordarla: <b>quién habla dice dónde mirar</b>. <code>fatal</code>, <code>error</code> y <code>hint</code>: git en tu máquina. <code>remote:</code> y <code>[remote rejected]</code>: GitHub. <code>Error:</code> en el log: el runner o una action. <code>Could not assume role</code> o <code>An error occurred (…)</code>: AWS. <code>Waiting</code> o <code>Canceling</code>: GitHub esperando algo, no un bug.",
+   "trap": "Trampa: leer solo la última línea. <code>Process completed with exit code 1</code> y <code>error: failed to push some refs</code> son consecuencias: la causa está arriba (el FAILED de pytest, el hint de git, las líneas <code>remote:</code>). Y los textos cambian con la versión: git reescribe sus hints y las actions sus mensajes entre releases; busca la parte central, no la línea entera.",
+   "lab": {
+    "goal": "Reconocer los 26 mensajes en 5 minutos y provocar cuatro de git en tu máquina: un push rechazado, un pull que no sabe cómo juntar, un conflicto y una rama que git branch -d no quiere borrar.",
+    "steps": [
+     {
+      "cmd": "ronda() { printf '%s\\n' 'fatal: not a git repository (or any of the parent directories): .git' \"fatal: pathspec 'gateway/app/mian.py' did not match any files\" '! [rejected] main -> main (fetch first)' 'fatal: The current branch fix/timeout has no upstream branch.' 'remote: error: GH013: Repository rule violations found for refs/heads/main.' 'fatal: Need to specify how to reconcile divergent branches.' 'CONFLICT (content): Merge conflict in k8s/gateway.yaml' 'error: Your local changes to the following files would be overwritten by checkout' \"error: the branch 'fix/cpu' is not fully merged\" 'Warning: you are leaving 1 commit behind, not connected to any of your branches' 'remote: Support for password authentication was removed on August 13, 2021.' 'git@github.com: Permission denied (publickey).' 'error: deployment \"gateway\" exceeded its progress deadline' \"The workflow is not valid. (Line: 12, Col: 5): Unexpected value 'runs_on'\" 'Unable to resolve action `actions/checkout@v9`, unable to find version `v9`' \"The version '3.1' with architecture 'x64' was not found for Ubuntu 24.04.\" 'Resource not accessible by integration' 'Credentials could not be loaded, please check your action inputs: Could not load credentials from any providers' 'Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity' 'no basic auth credentials' \"tag invalid: The image tag '3f9c2ab' already exists in the 'classifier-gateway' repository and cannot be overwritten because the repository is immutable.\" \"Canceling since a higher priority waiting request for 'deploy-gateway-produccion' exists\" 'GitHub Actions is not permitted to create or approve pull requests.' 'Waiting for a runner to pick up this job...' 'The job running on runner GitHub Actions 7 has exceeded the maximum execution time of 360 minutes.' 'Error: Process completed with exit code 1.' | sort -R | head -5; }; ronda",
+      "expect": "Cinco mensajes al azar. Para cada uno, en menos de 30 s y en voz alta: quién lo dijo (git, GitHub, el runner, una action o AWS), la causa probable y el primer comando. Después compáralo con la lista."
+     },
+     {
+      "cmd": "ronda",
+      "expect": "Otra ronda de cinco. Repite hasta completar 5 minutos; la meta es 5 de 5 sin mirar."
+     },
+     {
+      "cmd": "git init --bare -b main ~/lab-git-remote.git && git clone -q ~/lab-git-remote.git ~/lab-git && cd ~/lab-git && echo \"replicas: 3\" > gateway.yaml && git add . && git commit -qm \"replicas 3\" && git push -q -u origin main && git clone -q ~/lab-git-remote.git ~/lab-git-b",
+      "expect": "Initialized empty Git repository … y warning: You appear to have cloned an empty repository. (el primer clon, antes del primer commit). Quedan dos clones del mismo remoto: tú en ~/lab-git y alguien más en ~/lab-git-b."
+     },
+     {
+      "cmd": "(cd ~/lab-git-b && sed -i '' 's/3/4/' gateway.yaml && git commit -qam \"replicas 4\" && git push -q) && sed -i '' 's/3/6/' gateway.yaml && git commit -qam \"replicas 6\" && git push",
+      "expect": "! [rejected] main -> main (fetch first), error: failed to push some refs to … y el hint Updates were rejected because the remote contains work that you do not have locally."
+     },
+     {
+      "cmd": "git pull",
+      "expect": "hint: You have divergent branches and need to specify how to reconcile them. … y fatal: Need to specify how to reconcile divergent branches."
+     },
+     {
+      "cmd": "git pull --no-rebase; git status --short; git merge --abort",
+      "expect": "CONFLICT (content): Merge conflict in gateway.yaml, Automatic merge failed; fix conflicts and then commit the result. y UU gateway.yaml. merge --abort deja todo como antes del pull."
+     },
+     {
+      "cmd": "git switch -qc fix/cpu && echo \"cpu: 1\" >> gateway.yaml && git commit -qam \"cpu 1\" && git switch -q main && git merge -q --squash fix/cpu && git commit -qm \"cpu 1 (#9)\" && git branch -d fix/cpu; git branch -D fix/cpu",
+      "expect": "Squash commit -- not updating HEAD; después error: the branch 'fix/cpu' is not fully merged, con el hint de git branch -D, y al final Deleted branch fix/cpu (was …). main ya tiene el cambio (en el commit squash), pero no tus commits: por eso -d se niega."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-git ~/lab-git-b ~/lab-git-remote.git",
+      "expect": "Sin salida."
+     }
+    ],
+    "fix": "Los que fallaste en la ronda: abre la sección de su tema (el enlace de la lista) y haz su laboratorio. Repite otro día: la meta es 5 de 5 en menos de 2 minutos.",
+    "needs": "Una terminal de macOS (zsh o bash; sort -R y sed -i '' son las formas de macOS) y git con user.name y user.email configurados. Todo es local.",
+    "verified": "executed",
+    "verified_note": "Corrido en zsh con git 2.50.1 (Apple Git-155) en macOS, con HOME en una carpeta temporal y un repo bare local como remoto. Los mensajes de git de la ronda salen de corridas locales; los de Actions, AWS y kubectl, de docs.github.com, el código de las actions, la documentación de AWS y el código de kubectl."
+   },
+   "links": [
+    "#m10.ci-cd",
+    "#m05.registries",
+    "#m15.secretos",
+    "#c01.fallas"
+   ]
+  }
+ ],
+ "diagnosticador": [
+  {
+   "id": "push-rechazado",
+   "symptom": "git push falla con ! [rejected] o ! [remote rejected].",
+   "first": "git fetch origin && git status",
+   "causes": [
+    {
+     "cause": "Alguien empujó antes que tú: el remoto tiene commits que no tienes (fetch first) o que bajaste pero no integraste (non-fast-forward).",
+     "check": "git fetch origin && git status (dice behind o have diverged)",
+     "fix": "git pull --rebase (o --no-rebase), resuelve si hay conflictos, corre los tests y vuelve a hacer push. Nunca --force en una rama compartida."
+    },
+    {
+     "cause": "Reescribiste commits que ya estaban en el remoto (amend, rebase, reset) en tu rama del PR.",
+     "check": "git log --oneline origin/RAMA..HEAD (lo que solo tienes tú) · git log --oneline HEAD..origin/RAMA (lo que solo tiene el remoto)",
+     "fix": "Si la rama es solo tuya: git push --force-with-lease, que se niega si el remoto cambió desde tu último fetch. En main o en una rama compartida, nunca."
+    },
+    {
+     "cause": "Una regla del repo lo bloquea: main pide PR y checks (remote: error: GH013 … o GH006 …, y [remote rejected]).",
+     "check": "las líneas remote: (dicen qué regla) · Settings → Rules → Rulesets",
+     "fix": "Empuja a una rama y abre un PR. Si es CI quien empuja a main, que abra un PR (sección 10)."
+    },
+    {
+     "cause": "Push protection encontró un secreto en tus commits: las líneas remote: dicen el tipo, el commit y el archivo.",
+     "check": "las líneas remote: con commit y path · git log -p -1 (si es el último commit)",
+     "fix": "Sácalo de los commits antes de empujar: git commit --amend si es el último; git rebase -i SHA~1 si es anterior. Si la credencial es real, rótala."
+    }
+   ]
+  },
+  {
+   "id": "conflicto",
+   "symptom": "Un merge, rebase, pull o stash pop se detuvo con CONFLICT.",
+   "first": "git status",
+   "causes": [
+    {
+     "cause": "Las dos ramas cambiaron las mismas líneas (o líneas pegadas) y Git no adivina cuál dejar.",
+     "check": "git status (both modified) · git diff (las marcas <<<<<<<, ======= y >>>>>>>)",
+     "fix": "Edita el archivo: deja la versión correcta y borra las marcas. git add ARCHIVO y después git commit (merge) o git rebase --continue."
+    },
+    {
+     "cause": "Estás en medio de un rebase: tus commits se aplican de a uno y puede haber un conflicto en cada uno.",
+     "check": "git status (interactive rebase in progress; onto …)",
+     "fix": "Resuelve, git add y git rebase --continue. Para volver al estado de antes: git rebase --abort."
+    },
+    {
+     "cause": "Uno borró el archivo y el otro lo editó (CONFLICT (modify/delete)).",
+     "check": "git status (deleted by them o deleted by us)",
+     "fix": "Decide: git rm ARCHIVO si debe irse, o git add ARCHIVO si se queda."
+    },
+    {
+     "cause": "No querías juntar todavía y prefieres volver atrás.",
+     "check": "git status (dice qué operación está en curso)",
+     "fix": "git merge --abort o git rebase --abort. Después de un stash pop con conflicto, el stash no se borra (The stash entry is kept in case you need it again.): sigue en git stash list."
+    }
+   ]
+  },
+  {
+   "id": "perdi-commits",
+   "symptom": "Perdí commits: después de un reset --hard, un rebase o de borrar una rama, ya no aparecen.",
+   "first": "git reflog -20",
+   "causes": [
+    {
+     "cause": "Un git reset --hard movió la rama hacia atrás.",
+     "check": "git reflog (la línea anterior a reset: moving to …)",
+     "fix": "git branch rescate HEAD@{1} (o el SHA que viste) y revisa; si quieres volver, git reset --hard ESE_SHA."
+    },
+    {
+     "cause": "Hiciste commits en detached HEAD y te fuiste a una rama (Warning: you are leaving 1 commit behind…).",
+     "check": "el aviso trae el SHA · git reflog",
+     "fix": "git branch rescate SHA"
+    },
+    {
+     "cause": "Borraste una rama con git branch -D.",
+     "check": "la línea Deleted branch x (was abc1234). · git reflog",
+     "fix": "git branch x abc1234"
+    },
+    {
+     "cause": "Un rebase o un amend reescribió commits: la rama apunta a copias nuevas y las viejas quedaron sueltas.",
+     "check": "git reflog (rebase (start) … o commit (amend) …)",
+     "fix": "Tras un rebase, git reset --hard ORIG_HEAD apenas termina; tras un amend, git reset --hard HEAD@{1} (amend no deja ORIG_HEAD); más tarde, el SHA del reflog. Las entradas duran 90 días (30 las de commits que ninguna rama alcanza)."
+    }
+   ]
+  },
+  {
+   "id": "rama-equivocada",
+   "symptom": "Hice commit en la rama equivocada (por ejemplo, directo en main), o estoy por hacerlo.",
+   "first": "git status -sb && git log --oneline -3",
+   "causes": [
+    {
+     "cause": "Todavía no hiciste push: los commits solo están en tu main local.",
+     "check": "git status -sb (## main...origin/main [ahead 1])",
+     "fix": "Con el árbol limpio: git branch fix/x (guarda los commits en una rama nueva), git reset --hard origin/main (main vuelve a ser como el remoto) y git switch fix/x."
+    },
+    {
+     "cause": "Los commits iban en otra rama que ya existe.",
+     "check": "git log --oneline -3 (anota los SHA)",
+     "fix": "git switch otra-rama && git cherry-pick SHA… y después sácalos de la equivocada: reset si no hiciste push; revert si ya lo hiciste."
+    },
+    {
+     "cause": "Ya hiciste push a una rama compartida.",
+     "check": "git log --oneline origin/main -3",
+     "fix": "No reescribas lo publicado: git revert SHA en esa rama y rehaz el cambio en una rama con PR. Con main protegida, GitHub ni siquiera acepta el push directo."
+    },
+    {
+     "cause": "Los cambios están sin commit y estás en la rama equivocada.",
+     "check": "git status",
+     "fix": "git switch -c rama-correcta (los cambios sin commit viajan contigo) o git stash push y git stash pop en la otra rama."
+    }
+   ]
+  },
+  {
+   "id": "subi-secreto",
+   "symptom": "Subí un secreto (una llave de AWS, un token) a git.",
+   "first": "git log --all --oneline -S 'PARTE_DEL_SECRETO'",
+   "causes": [
+    {
+     "cause": "Ya está en GitHub: hiciste push. Aunque lo borres en el commit siguiente, sigue en la historia, en los clones y en los forks.",
+     "check": "git log --all --oneline -S 'PARTE_DEL_SECRETO' (en qué commits aparece)",
+     "fix": "Primero revoca o rota la credencial en su servicio (IAM, GitHub): eso la deja inútil. Después, si hace falta, reescribe la historia con git filter-repo (una herramienta aparte, 2.47 o más nueva) y --sensitive-data-removal, y pide a GitHub Support que limpie lo que queda en caché."
+    },
+    {
+     "cause": "Push protection lo frenó: no llegó a GitHub.",
+     "check": "las líneas remote: dicen el tipo de secreto, el commit y el archivo",
+     "fix": "Si está en el último commit: sácalo y git commit --amend --all. Si está en uno anterior: git rebase -i SHA~1, marca edit, sácalo, git add, git commit --amend y git rebase --continue. Después, push."
+    },
+    {
+     "cause": "Todavía no hiciste push.",
+     "check": "git status -sb ([ahead N])",
+     "fix": "Corrige el commit (amend o rebase -i) antes de empujar y agrega el archivo a .gitignore (.env, *.pem)."
+    },
+    {
+     "cause": "Lo pusiste en un workflow: en el YAML o en un echo que lo imprime.",
+     "check": "grep -rn 'AKIA' .github/workflows · los logs de ese run",
+     "fix": "Rótalo, muévelo a un secret o, mejor, usa OIDC (sección 8); nunca hagas echo de un secret. Borra los logs de ese run (Delete all logs)."
+    }
+   ]
+  },
+  {
+   "id": "workflow-no-arranca",
+   "symptom": "Hice push o abrí el PR y el workflow no arrancó.",
+   "first": "git ls-tree -r --name-only HEAD .github/workflows",
+   "causes": [
+    {
+     "cause": "El archivo no está donde GitHub lo busca: tiene que estar en .github/workflows/, terminar en .yml o .yaml y estar en ese commit (para workflow_dispatch y schedule, en la rama por defecto).",
+     "check": "git ls-tree -r --name-only HEAD .github/workflows",
+     "fix": "Muévelo a .github/workflows/, commit y push."
+    },
+    {
+     "cause": "El trigger no coincide: on.push.branches no incluye tu rama, un filtro paths deja afuera lo que cambiaste, o el commit trae [skip ci].",
+     "check": "el bloque on: del YAML · git log -1 --format=%B (el mensaje del commit)",
+     "fix": "Ajusta branches o paths, o haz otro commit sin [skip ci]."
+    },
+    {
+     "cause": "El YAML no valida: el run aparece con Invalid workflow file y no corre ningún job.",
+     "check": "gh run list --workflow ARCHIVO --limit 3 · la pestaña Actions (el error trae línea y columna)",
+     "fix": "Corrige esa línea (indentación, una clave mal escrita). El revisor de esta página lo atrapa antes del push."
+    },
+    {
+     "cause": "Lo disparó un workflow con GITHUB_TOKEN: un push así no crea runs, y un PR abierto así deja sus runs esperando aprobación. Lo mismo pasa con el PR de un fork de alguien que contribuye por primera vez.",
+     "check": "¿lo abrió github-actions[bot]? · el botón Awaiting approval en el PR",
+     "fix": "Alguien con permiso de escritura (write) aprieta Approve workflows to run. Para los PRs de CI, un token de GitHub App: con él, los runs arrancan solos."
+    }
+   ]
+  },
+  {
+   "id": "local-ok-ci-falla",
+   "symptom": "Los tests pasan en mi máquina pero fallan en CI.",
+   "first": "gh run view RUN_ID --log-failed",
+   "causes": [
+    {
+     "cause": "Una dependencia que instalaste a mano y no está en los requirements (ModuleNotFoundError en CI).",
+     "check": "python3.13 -m venv /tmp/v && /tmp/v/bin/pip install -r requirements-dev.txt && /tmp/v/bin/python -m pytest (un venv nuevo)",
+     "fix": "Agrégala con versión fija (==) a requirements.txt; la imagen también la necesita."
+    },
+    {
+     "cause": "Un archivo que no está en git: nunca le hiciste add, o .gitignore lo ignora (FileNotFoundError en CI).",
+     "check": "git status --short --ignored · git check-ignore -v RUTA · los tests en un clon limpio",
+     "fix": "Commitéalo (con una excepción !ruta en .gitignore) o genéralo dentro del job. Los artefactos (.onnx, .plan) se generan; no se commitean."
+    },
+    {
+     "cause": "Otra versión de Python o de un paquete: tu Mac tiene 3.14 y el workflow pide 3.13; sin versiones fijas, pip baja otras.",
+     "check": "python3 --version en los dos lados · un paso pip freeze en el job contra tu pip freeze",
+     "fix": "Fija python-version en el workflow, entre comillas ('3.13'), y todas las dependencias con ==."
+    },
+    {
+     "cause": "Diferencias del sistema: Linux distingue mayúsculas en los nombres de archivo (el disco de macOS, por defecto, no), y cambian la zona horaria, el idioma y las rutas.",
+     "check": "git ls-files | grep -i NOMBRE (el nombre exacto, con mayúsculas)",
+     "fix": "Usa el nombre exacto en imports y rutas; si un test depende de la hora o del idioma, fíjalos en el test. Para Linux como en CI, corre los tests en un contenedor."
+    }
+   ]
+  },
+  {
+   "id": "ecr-oidc",
+   "symptom": "Falla el paso de OIDC (configure-aws-credentials) o el login a ECR.",
+   "first": "gh run view RUN_ID --log-failed",
+   "causes": [
+    {
+     "cause": "El job no tiene permissions: id-token: write, así que no hay token OIDC: Credentials could not be loaded, please check your action inputs: Could not load credentials from any providers (unas líneas antes, el mismo paso pregunta: Did you mean to set the id-token permission?).",
+     "check": "grep -n 'id-token' .github/workflows/*.yml",
+     "fix": "permissions: { id-token: write, contents: read } en el job que asume el rol."
+    },
+    {
+     "cause": "La trust policy (la regla del rol que dice qué tokens pueden asumirlo) no acepta este token: el sub no coincide (Not authorized to perform sts:AssumeRoleWithWebIdentity). Típico: el job usa environment (el sub termina en :environment:produccion), corre en un PR (:pull_request) o el repo se creó, renombró o transfirió después del 15 de julio de 2026 y su sub trae IDs (repo:acme@123456/classifier@456789:…).",
+     "check": "aws iam get-role --role-name ROL --query Role.AssumeRolePolicyDocument (desde tu máquina, con permisos de IAM; el rol del job: gha-classifier-gateway en imagen, gha-classifier-deploy en deploy)",
+     "fix": "Ajusta la condición token.actions.githubusercontent.com:sub al formato real; aud tiene que ser sts.amazonaws.com."
+    },
+    {
+     "cause": "La cuenta no tiene el proveedor OIDC de GitHub (No OpenIDConnect provider found in your account for https://token.actions.githubusercontent.com).",
+     "check": "aws iam list-open-id-connect-providers",
+     "fix": "Crea el proveedor con la URL https://token.actions.githubusercontent.com y la audiencia sts.amazonaws.com: una vez por cuenta."
+    },
+    {
+     "cause": "El rol se asumió, pero ECR no deja subir: falta ecr:GetAuthorizationToken o los permisos de subida al repo, o la región no es la del repo (no basic auth credentials o un 403).",
+     "check": "aws ecr describe-repositories --repository-names classifier-gateway --region us-east-1",
+     "fix": "Policy del rol con ecr:GetAuthorizationToken (sobre *) y los permisos de subida limitados al repo (BatchCheckLayerAvailability, InitiateLayerUpload, UploadLayerPart, CompleteLayerUpload, PutImage y BatchGetImage); la misma región en aws-region y en el registry."
+    }
+   ]
+  },
+  {
+   "id": "imagen-no-sube",
+   "symptom": "La imagen no llega a ECR, o llega con la arquitectura equivocada.",
+   "first": "aws ecr describe-images --repository-name classifier-gateway --image-ids imageTag=TAG",
+   "causes": [
+    {
+     "cause": "docker/build-push-action con push en su default (false): construye y no sube nada.",
+     "check": "grep -n 'push:' .github/workflows/gateway.yml",
+     "fix": "push: true, con tags que lleven el registry completo (123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:TAG)."
+    },
+    {
+     "cause": "Ese tag ya existe y el repo está configurado con tags inmutables (en ECR es opcional; el default es mutable): tag invalid: … cannot be overwritten because the repository is immutable. Pasa con :latest o al re-correr todo el workflow del mismo commit.",
+     "check": "aws ecr describe-images --repository-name classifier-gateway --image-ids imageTag=TAG (si aparece, ya se subió antes)",
+     "fix": "Tag = SHA de un commit nuevo. Para re-correr, Re-run failed jobs (no all jobs), o salta el push si el tag ya existe."
+    },
+    {
+     "cause": "La construiste en tu Mac (arm64) y la subiste a mano: los nodos amd64 no la pueden correr (no match for platform in manifest o exec format error).",
+     "check": "docker buildx imagetools inspect 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway:TAG (lista las plataformas)",
+     "fix": "Que la construya CI con platforms: linux/amd64. Nunca push desde la laptop."
+    },
+    {
+     "cause": "Se construyó en un runner arm64 (ubuntu-24.04-arm o un self-hosted Graviton) sin platforms.",
+     "check": "el runs-on del job · uname -m en un paso (aarch64)",
+     "fix": "platforms: linux/amd64 explícito (en un runner arm64 necesita emulación con QEMU: docker/setup-qemu-action) o un runner x64."
+    }
+   ]
+  },
+  {
+   "id": "lento-cache",
+   "symptom": "El workflow tarda mucho y la caché nunca acierta.",
+   "first": "gh run view RUN_ID --log | grep -iE 'cache restored|cache not found|cache is not found'",
+   "causes": [
+    {
+     "cause": "No hay caché: setup-python sin cache: pip, o buildx sin cache-from y cache-to.",
+     "check": "grep -nE 'cache' .github/workflows/*.yml",
+     "fix": "cache: pip con cache-dependency-path: reference/c01/gateway/requirements*.txt, y cache-from: type=gha con cache-to: type=gha,mode=max."
+    },
+    {
+     "cause": "La key cambia en cada run: incluye github.sha, la fecha o un archivo que cambia siempre (Cache not found for input keys: …).",
+     "check": "el log del paso de caché: Cache not found for input keys: …",
+     "fix": "Que la key sea el hash de los requirements (hashFiles('**/requirements*.txt')), con restore-keys para aciertos parciales."
+    },
+    {
+     "cause": "La caché no se ve desde tu rama: un run restaura la de su rama, la de la rama por defecto o, en un PR, la de la base; nunca la de ramas hermanas. Y se borra si nadie la usa en 7 días, o cuando el repo pasa de su límite, 10 GB por defecto (primero las que llevan más tiempo sin usarse).",
+     "check": "gh cache list (key, tamaño y último uso)",
+     "fix": "Que main corra el workflow y cree la caché que heredan los PRs; keys más chicas."
+    },
+    {
+     "cause": "El Dockerfile invalida la capa de dependencias: COPY . antes de pip install.",
+     "check": "el log de buildx: qué pasos dicen CACHED",
+     "fix": "Primero COPY requirements.txt y pip install; después el código, como el Dockerfile del gateway del C01."
+    }
+   ]
+  },
+  {
+   "id": "deploy-version-equivocada",
+   "symptom": "El deploy dejó una versión equivocada, o el cluster sigue con la vieja.",
+   "first": "kubectl get deploy gateway -n classifier -o jsonpath='{.spec.template.spec.containers[0].image}'",
+   "causes": [
+    {
+     "cause": "El deploy nunca llegó. Con GitOps: el PR del manifest no se mergeó, o se mergeó uno más viejo. Con el job de kubectl: quedó en Waiting (nadie aprobó), concurrency lo canceló por uno más nuevo, o falló el rollout.",
+     "check": "gh run list --workflow gateway.yml --limit 5 · git show origin/main:reference/c01/k8s/gateway.yaml | grep image:",
+     "fix": "Aprueba o re-corre el deploy, o mergea el PR correcto. Con la cola por defecto de concurrency, solo sobrevive el pendiente más nuevo."
+    },
+    {
+     "cause": "Argo CD no sincronizó: auto-sync apagado, la app OutOfSync o un sync que falló (sin retry configurado, no reintenta el mismo commit).",
+     "check": "argocd app get classifier (Sync Status y el último sync) · la UI de Argo CD",
+     "fix": "Sync manual, o arregla el error; con auto-sync, el próximo commit vuelve a disparar el sync."
+    },
+    {
+     "cause": "Alguien cambió el cluster a mano (kubectl set image o edit) y git no lo sabe; sin selfHeal, queda así hasta el próximo sync.",
+     "check": "argocd app diff classifier (exit 1 si hay diferencias) · kubectl rollout history deploy/gateway -n classifier",
+     "fix": "El cambio va a git con un PR. Con selfHeal, Argo CD vuelve solo a lo que dice git."
+    },
+    {
+     "cause": "Un tag que se mueve (:latest) o reconstruido: el manifest no cambia, así que no hay rollout, y cada nodo puede seguir con la imagen que ya tenía con ese nombre.",
+     "check": "kubectl get pods -n classifier -l app.kubernetes.io/name=gateway -o jsonpath='{..imageID}' (el digest que corre de verdad)",
+     "fix": "Tag = los 7 primeros caracteres del SHA, repos configurados con tags inmutables y, mejor todavía, el digest en el manifest (@sha256:…)."
+    }
+   ]
+  },
+  {
+   "id": "runner-offline",
+   "symptom": "Los jobs para mi runner self-hosted se quedan en Waiting for a runner to pick up this job... (el runner aparece Offline, o Idle sin tomarlos).",
+   "first": "systemctl --type=service | grep actions.runner",
+   "causes": [
+    {
+     "cause": "La máquina está apagada o el servicio del runner no corre (una g4dn que se apagó, un reinicio sin el servicio instalado).",
+     "check": "en la máquina: sudo ./svc.sh status · sudo journalctl -u actions.runner.ORG-REPO.NOMBRE.service -f",
+     "fix": "Instálalo como servicio (sudo ./svc.sh install y sudo ./svc.sh start) o, mejor, usa runners efímeros que se crean por job."
+    },
+    {
+     "cause": "No llega a GitHub: sin salida HTTPS por el puerto 443, un proxy o un firewall.",
+     "check": "los logs _diag/Runner_*.log de la carpeta del runner · ./config.sh --check (con --url y --pat) prueba cada servicio: PASS o FAIL",
+     "fix": "Abre la salida por el 443 a github.com, api.github.com y *.actions.githubusercontent.com, más los otros dominios de la lista de GitHub (para bajar actions y subir logs, artifacts y caché)."
+    },
+    {
+     "cause": "El runner quedó viejo: con el auto-update apagado (--disableupdate), GitHub deja de mandarle jobs 30 días después de una versión nueva.",
+     "check": "_diag/Runner_*.log (la versión y An update is available)",
+     "fix": "Actualiza el runner o reactiva el auto-update; con efímeros, usa una imagen con el runner al día."
+    },
+    {
+     "cause": "Está online, pero no coincide: el job pide labels que el runner no tiene, o el runner está en un grupo sin acceso a tu repo.",
+     "check": "Settings → Actions → Runners (las labels de cada runner) contra el runs-on del job",
+     "fix": "runs-on con exactamente las labels del runner ([self-hosted, linux, x64, gpu-t4]) y el repo agregado al runner group."
+    }
+   ]
+  },
+  {
+   "id": "checks-esperando",
+   "symptom": "El PR no se puede mergear (por ejemplo, el PR del manifest que abrió CI): un check obligatorio dice Expected — Waiting for status to be reported.",
+   "first": "gh pr checks NUMERO --required",
+   "causes": [
+    {
+     "cause": "El PR lo abrió un workflow con GITHUB_TOKEN (github-actions[bot]): desde junio de 2026, sus workflows esperan aprobación y, si nadie aprueba, el check nunca corre. Igual con el PR de un fork de alguien que contribuye por primera vez.",
+     "check": "quién abrió el PR · el botón Awaiting approval en el PR",
+     "fix": "Alguien con permiso de escritura (write) aprieta Approve workflows to run. Para los PRs de CI, un token de GitHub App: con él, los checks corren solos."
+    },
+    {
+     "cause": "El workflow se saltó: un filtro paths o branches lo dejó afuera, o el commit traía [skip ci]. Un check saltado así queda pendiente para siempre.",
+     "check": "gh pr diff NUMERO --name-only (los archivos del PR) contra on.pull_request.paths del workflow",
+     "fix": "No pidas como obligatorio un workflow con paths: que corra siempre y salte el job con un if (un job saltado por if cuenta como Success). O empuja un commit nuevo sin [skip ci]."
+    },
+    {
+     "cause": "El nombre del check obligatorio no coincide con el job: lo renombraste, o es un job de matrix (tests (3.13)).",
+     "check": "gh pr checks NUMERO (los nombres reales) · Settings → Rules: el nombre exacto que se pide",
+     "fix": "El mismo nombre en la regla y en el job; cuidado al renombrar jobs."
+    },
+    {
+     "cause": "Usas merge queue y el workflow no escucha merge_group.",
+     "check": "el bloque on: del workflow",
+     "fix": "Agrega merge_group: a los triggers."
+    }
+   ]
+  },
+  {
+   "id": "detached-head",
+   "symptom": "Git dice HEAD detached at … o You are in 'detached HEAD' state.",
+   "first": "git status",
+   "causes": [
+    {
+     "cause": "Hiciste checkout de un commit, un tag o una rama remota (git checkout 3cd7b74, git checkout v1.2, git checkout origin/main).",
+     "check": "git status (HEAD detached at …)",
+     "fix": "Si solo mirabas: git switch - o git switch main. Para trabajar ahí: git switch -c nueva-rama."
+    },
+    {
+     "cause": "Un rebase o un bisect en curso te deja en detached HEAD a propósito.",
+     "check": "git status (interactive rebase in progress, o You are currently bisecting)",
+     "fix": "Termínalo (git rebase --continue, git bisect reset) o abórtalo (git rebase --abort)."
+    },
+    {
+     "cause": "Hiciste commits en detached HEAD y saliste (Warning: you are leaving 1 commit behind…).",
+     "check": "el aviso trae el SHA · git reflog",
+     "fix": "git branch rescate SHA"
+    },
+    {
+     "cause": "En CI es normal: en un pull_request, actions/checkout deja HEAD en el merge commit de prueba, no en una rama; git rev-parse --abbrev-ref HEAD responde HEAD.",
+     "check": "git status en un paso del job",
+     "fix": "En un PR, la rama está en github.head_ref (GITHUB_HEAD_REF); ahí GITHUB_REF_NAME vale N/merge, y solo en un push es la rama. Si un paso tiene que empujar a la rama del PR, haz el checkout con ref: ${{ github.head_ref }}."
+    }
+   ]
+  }
+ ],
+ "errores": [
+  {
+   "msg": "fatal: not a git repository (or any of the parent directories): .git",
+   "meaning": "Corriste git en una carpeta que no es parte de un repo: ni ella ni las de arriba tienen .git. Pasa en una terminal nueva o fuera del proyecto.",
+   "first": "cd ~/code/classifier && git status (entra a la carpeta del repo)",
+   "topic": "basico",
+   "section": "dia-a-dia"
+  },
+  {
+   "msg": "fatal: pathspec 'gateway/app/mian.py' did not match any files",
+   "meaning": "git add no encontró ese archivo: la ruta tiene un error de tipeo o estás en otra carpeta (las rutas son relativas a donde estás).",
+   "first": "git status --short (los archivos con cambios, con su ruta real)",
+   "topic": "basico",
+   "section": "dia-a-dia"
+  },
+  {
+   "msg": "! [rejected] main -> main (fetch first) · ! [rejected] main -> main (non-fast-forward)",
+   "meaning": "El remoto tiene commits que tú no tienes: alguien empujó antes, y Git no deja que tu push los borre. fetch first: todavía no los bajaste; non-fast-forward: ya los bajaste, pero tu rama no los incluye.",
+   "first": "git pull --rebase (o --no-rebase), corre los tests y git push",
+   "topic": "basico",
+   "section": "dia-a-dia"
+  },
+  {
+   "msg": "fatal: Need to specify how to reconcile divergent branches.",
+   "meaning": "Tu rama y la remota tienen commits distintos (divergieron) y no configuraste cómo juntarlas al hacer pull. Git no elige por ti: merge o rebase.",
+   "first": "git pull --rebase (o git config pull.rebase true para que sea tu default)",
+   "topic": "basico",
+   "section": "dia-a-dia"
+  },
+  {
+   "msg": "CONFLICT (content): Merge conflict in k8s/gateway.yaml · Automatic merge failed; fix conflicts and then commit the result.",
+   "meaning": "Las dos ramas cambiaron las mismas líneas y Git no sabe cuál dejar. Marcó el archivo con <<<<<<<, ======= y >>>>>>>: eliges tú, guardas y haces add.",
+   "first": "git status (los archivos en both modified)",
+   "topic": "ramas",
+   "section": "ramas"
+  },
+  {
+   "msg": "error: the branch 'fix/cpu' is not fully merged",
+   "meaning": "git branch -d no borra una rama cuyos commits no llegaron a tu rama actual (o a su rama remota, si la sigue): los perderías. Pasa, por ejemplo, después de un Squash and merge en GitHub: main recibió un commit nuevo con tus cambios, no tus commits.",
+   "first": "git log --oneline main..fix/cpu (qué commits tiene la rama que main no); si ya entraron con el squash, git branch -D fix/cpu",
+   "topic": "ramas",
+   "section": "ramas"
+  },
+  {
+   "msg": "error: Your local changes to the following files would be overwritten by checkout: · Please commit your changes or stash them before you switch branches.",
+   "meaning": "Tienes cambios sin commit en un archivo que la otra rama tiene distinto: cambiar de rama los pisaría, así que Git no cambia. git switch también dice checkout.",
+   "first": "git stash push -m \"wip\" (y, ya en la otra rama, git stash pop)",
+   "topic": "deshacer",
+   "section": "deshacer"
+  },
+  {
+   "msg": "Warning: you are leaving 1 commit behind, not connected to any of your branches:",
+   "meaning": "Hiciste commits en detached HEAD y te fuiste a una rama: esos commits quedan sueltos. No se borraron: el aviso trae el SHA y el reflog los guarda unos 30 días (lo que ninguna rama alcanza vence antes que el resto).",
+   "first": "git branch rescate SHA_DEL_AVISO",
+   "topic": "deshacer",
+   "section": "deshacer"
+  },
+  {
+   "msg": "fatal: The current branch fix/timeout has no upstream branch.",
+   "meaning": "Tu rama nueva todavía no existe en el remoto y no sabe a qué rama empujar. El primer push la crea allá y la enlaza (su upstream).",
+   "first": "git push -u origin fix/timeout",
+   "topic": "remoto",
+   "section": "github"
+  },
+  {
+   "msg": "remote: error: GH013: Repository rule violations found for refs/heads/main.",
+   "meaning": "GitHub rechazó el push por una regla del repo (un ruleset): por ejemplo, main solo acepta cambios por PR con checks en verde, o push protection (el detector de secretos de GitHub) encontró un secreto. Las líneas remote: que siguen dicen qué regla. GH006 es el mismo rechazo con la protección de ramas clásica.",
+   "first": "git switch -c fix/mi-cambio && git push -u origin fix/mi-cambio (y abre un PR)",
+   "topic": "remoto",
+   "section": "github"
+  },
+  {
+   "msg": "remote: Support for password authentication was removed on August 13, 2021. · fatal: Authentication failed for 'https://github.com/…'",
+   "meaning": "Usaste tu contraseña de GitHub cuando git la pidió por HTTPS. GitHub ya no la acepta para git: usa SSH, un personal access token con un credential helper, o gh auth login.",
+   "first": "git remote -v (si dice https://, entra con gh auth login o un token; si prefieres SSH, cambia la URL)",
+   "topic": "auth",
+   "section": "github"
+  },
+  {
+   "msg": "git@github.com: Permission denied (publickey). · fatal: Could not read from remote repository.",
+   "meaning": "GitHub no aceptó ninguna llave SSH tuya: no tienes una cargada, no la subiste a tu cuenta o se ofrece otra. Could not read from remote repository también sale si el repo no existe o no tienes acceso.",
+   "first": "ssh -T git@github.com (si todo está bien, responde Hi TU_CUENTA! …)",
+   "topic": "auth",
+   "section": "github"
+  },
+  {
+   "msg": "The workflow is not valid. .github/workflows/gateway.yml (Line: 12, Col: 5): Unexpected value 'runs_on'",
+   "meaning": "GitHub no pudo validar el YAML: una clave mal escrita o en el nivel equivocado (runs_on en vez de runs-on), o mala indentación. El run falla al arrancar y no corre ningún job.",
+   "first": "git diff HEAD~1 -- .github/workflows/gateway.yml (qué cambió en el YAML)",
+   "topic": "sintaxis",
+   "section": "workflow"
+  },
+  {
+   "msg": "Unable to resolve action `actions/checkout@v9`, unable to find version `v9`",
+   "meaning": "La action existe, pero esa versión (tag o rama) no. Pasa con un error en el número, o al copiar un ejemplo que pide una versión que no existe.",
+   "first": "git ls-remote --tags https://github.com/actions/checkout (los tags que existen)",
+   "topic": "sintaxis",
+   "section": "workflow"
+  },
+  {
+   "msg": "The version '3.1' with architecture 'x64' was not found for Ubuntu 24.04.",
+   "meaning": "setup-python no encontró esa versión. El clásico: python-version: 3.10 sin comillas; YAML lo lee como el número 3.1. Escribe las versiones entre comillas: '3.10', '3.13'.",
+   "first": "grep -n 'python-version' .github/workflows/*.yml",
+   "topic": "tests",
+   "section": "tests-ci"
+  },
+  {
+   "msg": "Resource not accessible by integration",
+   "meaning": "El GITHUB_TOKEN del job no tiene permiso para esa llamada a la API de GitHub (HTTP 403): comentar el PR, crear un release, escribir checks. En repos personales y organizaciones nuevas, por defecto solo puede leer contents y packages; en un PR desde un fork, siempre es de solo lectura.",
+   "first": "grep -n -A4 'permissions' .github/workflows/*.yml",
+   "topic": "permisos",
+   "section": "secretos"
+  },
+  {
+   "msg": "Credentials could not be loaded, please check your action inputs: Could not load credentials from any providers",
+   "meaning": "configure-aws-credentials no consiguió ninguna credencial. Con role-to-assume y OIDC, casi siempre falta permissions: id-token: write en el job; unas líneas antes, el mismo paso pregunta: Did you mean to set the id-token permission?",
+   "first": "grep -n 'id-token' .github/workflows/*.yml",
+   "topic": "oidc",
+   "section": "secretos"
+  },
+  {
+   "msg": "Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity",
+   "meaning": "AWS recibió el token de GitHub, pero la trust policy del rol (la regla que dice qué tokens pueden asumirlo) no lo acepta: el sub (quién pide) o el aud (para quién es) no coinciden. Típico: el job usa environment (el sub termina en :environment:produccion), corre en un PR (:pull_request) o el repo se creó, renombró o transfirió después del 15 de julio de 2026 y su sub trae IDs (repo:acme@123456/classifier@456789:…).",
+   "first": "aws iam get-role --role-name gha-classifier-deploy --query Role.AssumeRolePolicyDocument",
+   "topic": "oidc",
+   "section": "secretos"
+  },
+  {
+   "msg": "no basic auth credentials",
+   "meaning": "docker push o pull contra ECR sin un login válido: no corriste el login, lo hiciste en otra región (el token es por región), pasaron las 12 h que dura o tu identidad no tiene permiso sobre ese repo.",
+   "first": "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 123456789012.dkr.ecr.us-east-1.amazonaws.com",
+   "topic": "imagen",
+   "section": "imagenes"
+  },
+  {
+   "msg": "tag invalid: The image tag '3f9c2ab' already exists in the 'classifier-gateway' repository and cannot be overwritten because the repository is immutable.",
+   "meaning": "El repo de ECR está configurado con tags inmutables (el default de ECR es mutable) y ese tag ya existe (en la API, ImageTagAlreadyExistsException). Es bueno: nadie pisa una versión. Pasa con :latest o al re-correr todo el workflow del mismo commit.",
+   "first": "aws ecr describe-images --repository-name classifier-gateway --image-ids imageTag=3f9c2ab",
+   "topic": "imagen",
+   "section": "imagenes"
+  },
+  {
+   "msg": "error: deployment \"gateway\" exceeded its progress deadline",
+   "meaning": "kubectl rollout status, el último paso del job deploy, falló: los pods nuevos no quedaron listos en progressDeadlineSeconds (600 s sin avance, por defecto). El job queda rojo, pero Kubernetes no vuelve atrás solo: con maxUnavailable: 0, los pods viejos siguen sirviendo. Si vence antes el --timeout del paso, el mensaje es otro, pero la causa es la misma.",
+   "first": "kubectl -n classifier get pods -l app.kubernetes.io/name=gateway (cuáles no están Ready y por qué)",
+   "topic": "deploy",
+   "section": "cd"
+  },
+  {
+   "msg": "Canceling since a higher priority waiting request for 'deploy-gateway-produccion' exists",
+   "meaning": "concurrency canceló un run que esperaba: en ese grupo solo espera uno, y llegó uno más nuevo. No es un error del código. Si cada deploy tiene que correr, usa queue: max; nunca cancel-in-progress: true en un deploy.",
+   "first": "gh run list --workflow gateway.yml --limit 5 (cuál quedó y cuál se canceló)",
+   "topic": "deploy",
+   "section": "cd"
+  },
+  {
+   "msg": "GitHub Actions is not permitted to create or approve pull requests.",
+   "meaning": "El workflow quiso abrir un PR (el del manifest) con GITHUB_TOKEN y el repo no lo permite: Allow GitHub Actions to create and approve pull requests está apagado, que es el default en repos personales y en organizaciones nuevas. Con un token de GitHub App no hace falta esa opción.",
+   "first": "gh api repos/OWNER/REPO/actions/permissions/workflow (mira can_approve_pull_request_reviews)",
+   "topic": "deploy",
+   "section": "cd"
+  },
+  {
+   "msg": "Waiting for a runner to pick up this job...",
+   "meaning": "Ningún runner libre tiene todas las labels que pide runs-on: el self-hosted está apagado u offline, las labels no coinciden, o llegaste al límite de jobs en paralelo. Con self-hosted, a las 24 h en cola, el job falla.",
+   "first": "gh api repos/OWNER/REPO/actions/runners --jq '.runners[] | .name + \" \" + .status'",
+   "topic": "runner",
+   "section": "runners"
+  },
+  {
+   "msg": "The job running on runner GitHub Actions 7 has exceeded the maximum execution time of 360 minutes.",
+   "meaning": "El job llegó a su timeout-minutes (360 si no pusiste nada, que también es el máximo en GitHub-hosted) y GitHub lo canceló. Algo se colgó (un test esperando la red, un prompt interactivo) o el job es demasiado grande para ese runner.",
+   "first": "gh run view RUN_ID --log | tail -n 50 (qué hacía al final)",
+   "topic": "runner",
+   "section": "runners"
+  },
+  {
+   "msg": "Error: Process completed with exit code 1.",
+   "meaning": "Un comando del paso terminó con un código distinto de 0 y el paso falló. No es la causa: la causa está en las líneas de arriba (en pytest, el resumen FAILED; exit 2 = error al importar los tests; 5 = no encontró tests; 127 = comando no encontrado; 137 = lo mató la memoria).",
+   "first": "gh run view RUN_ID --log-failed",
+   "topic": "otro",
+   "section": "diagnostico"
+  }
+ ]
+}

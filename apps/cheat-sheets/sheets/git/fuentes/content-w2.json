@@ -1,0 +1,1682 @@
+{
+ "sections": [
+  {
+   "id": "github",
+   "num": 5,
+   "title": "GitHub: remotos, acceso, pull requests y reglas de la rama",
+   "question": "¿Cómo llega tu cambio a main en un repo de equipo, y qué lo frena si algo está mal?",
+   "templates": [
+    {
+     "code": "git remote add origin git@github.com:{org}/{repo}.git\ngit push -u origin {rama}",
+     "note": "Un <b>remoto</b> (remote) es otra copia del repo; aquí, la de GitHub. <code>origin</code> es solo su nombre por defecto. <code>-u</code> deja tu rama siguiendo a <code>origin/{rama}</code>: después alcanza con <code>git push</code> y <code>git pull</code> a secas."
+    },
+    {
+     "code": "ssh-keygen -t ed25519 -C \"{email}\"\nssh -T git@github.com",
+     "note": "Crea una <b>llave SSH</b>: un par de archivos. El privado se queda en tu Mac; el <code>.pub</code> (público) lo agregas en GitHub → Settings → SSH and GPG keys. Si funciona, GitHub contesta <code>Hi {usuario}! You've successfully authenticated, but GitHub does not provide shell access.</code>"
+    },
+    {
+     "code": "gh pr create --base main --title \"{título}\" --body \"{descripción}\"\ngh pr checks --watch\ngh pr merge --squash --delete-branch",
+     "note": "<code>gh</code> es la CLI oficial de GitHub (su programa de terminal). Un <b>pull request</b> (PR) pide unir tu rama a <code>main</code>. <code>checks --watch</code> espera a que terminen los checks (los jobs de CI, las pruebas automáticas de cada cambio); <code>merge</code> (hacer la unión) falla si faltan aprobaciones o hay un check obligatorio en rojo."
+    },
+    {
+     "code": "git tag -a {versión} -m \"{mensaje}\"\ngit push origin {versión}",
+     "note": "Un <b>tag</b> anotado es una etiqueta fija sobre un commit, con autor, fecha y mensaje. <code>git push</code> no sube tags si no los nombras: usa <code>git push origin {versión}</code> o <code>--follow-tags</code> (solo anotados)."
+    }
+   ],
+   "vars": [
+    [
+     "{org}",
+     "dueño del repo en GitHub: una persona o una organización",
+     "acme"
+    ],
+    [
+     "{repo}",
+     "nombre del repo",
+     "classifier"
+    ],
+    [
+     "{rama}",
+     "tu rama de trabajo",
+     "feat/slot-wait-env"
+    ],
+    [
+     "{email}",
+     "comentario de la llave, para reconocerla en la lista",
+     "ana@example.com"
+    ],
+    [
+     "{usuario}",
+     "tu usuario de GitHub (lo escribe GitHub en la respuesta)",
+     "ana-ml"
+    ],
+    [
+     "{título}",
+     "qué cambia, en una línea",
+     "gateway: SLOT_WAIT_S configurable por variable de entorno"
+    ],
+    [
+     "{descripción}",
+     "el cambio, el motivo y cómo lo probaste",
+     "Permite ajustar la espera sin rebuild. 2 tests nuevos."
+    ],
+    [
+     "{versión}",
+     "nombre del tag; casi siempre mayor.menor.parche",
+     "v1.4.0"
+    ],
+    [
+     "{mensaje}",
+     "mensaje del tag anotado",
+     "gateway con SLOT_WAIT_S configurable"
+    ]
+   ],
+   "pieces": [
+    [
+     "origin",
+     "Nombre por defecto del remoto: el repo de GitHub al que haces push y pull.",
+     "git remote -v"
+    ],
+    [
+     "origin/main",
+     "Rama de seguimiento: tu copia de cómo estaba main en GitHub la última vez que hablaste con él (fetch, pull o push). No se mueve sola.",
+     "git status -sb → ## main...origin/main"
+    ],
+    [
+     "URL por SSH o por HTTPS",
+     "git@github.com:… entra con tu llave SSH; https://github.com/… entra con un token personal (PAT) o con el que guarda gh.",
+     "git remote set-url origin git@github.com:acme/classifier.git"
+    ],
+    [
+     "contraseña de tu cuenta",
+     "No sirve para que Git entre por HTTPS (push, o clone y pull de un repo privado): GitHub dejó de aceptarla el 13 de agosto de 2021.",
+     "remote: Support for password authentication was removed on August 13, 2021."
+    ],
+    [
+     "token personal (PAT)",
+     "Clave larga que creas en GitHub y que va donde Git pide contraseña por HTTPS. Mejor el fine-grained: solo ciertos repos y ciertos permisos.",
+     "github_pat_… (fine-grained) · ghp_… (classic)"
+    ],
+    [
+     "gh auth login",
+     "Inicia sesión por el navegador y guarda el token en el llavero de macOS. Si eliges HTTPS y aceptas, también configura Git.",
+     "gh auth status"
+    ],
+    [
+     "pull request (PR)",
+     "Pedido para unir tu rama (head) a otra (base), con el diff, los checks y la review en una página.",
+     "base: main ← head: feat/slot-wait-env"
+    ],
+    [
+     "draft PR",
+     "Borrador: no se puede hacer merge y no pide review a los dueños del código hasta que lo marcas listo.",
+     "gh pr create --draft"
+    ],
+    [
+     "review",
+     "Comment (opinas), Approve (apruebas) o Request changes (pides cambios). Tu propio PR no lo puedes aprobar.",
+     "1 aprobación para mergear a main"
+    ],
+    [
+     "CODEOWNERS",
+     "Archivo que dice quién es dueño de cada ruta; GitHub le pide review automáticamente. Va en .github/, en la raíz o en docs/.",
+     "reference/c01/model/ @acme/ml-platform"
+    ],
+    [
+     "checks obligatorios",
+     "Jobs de CI que deben terminar en verde antes del merge (required status checks). Se eligen por el nombre del job.",
+     "tests"
+    ],
+    [
+     "rama al día (strict)",
+     "Exige que tu rama tenga lo último de main antes del merge, para que los checks prueben la combinación real.",
+     "botón Update branch del PR"
+    ],
+    [
+     "regla de protección o ruleset",
+     "Las dos protegen ramas. A una rama le aplica una sola regla de protección; rulesets, varios a la vez, y gana lo más estricto.",
+     "hasta 75 rulesets por repo"
+    ],
+    [
+     "release",
+     "Página de GitHub colgada de un tag, con notas y archivos. gh la crea y, si el tag no existe, lo crea sobre lo último de la rama por defecto (main).",
+     "gh release create v1.4.0 --generate-notes"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Los tres botones de merge",
+     "head": [
+      "Método",
+      "Qué queda en main",
+      "Bueno para",
+      "Ojo"
+     ],
+     "rows": [
+      [
+       "Create a merge commit",
+       "Tus commits más un commit de merge que une las dos historias",
+       "Ver cuándo entró cada rama",
+       "Historia con bifurcaciones; git log --first-parent muestra solo la línea de main"
+      ],
+      [
+       "Squash and merge",
+       "Un solo commit nuevo con todo el PR",
+       "Un commit por cambio: los primeros 7 caracteres de su SHA son el tag de la imagen del gateway",
+       "Se pierden los commits intermedios de la rama"
+      ],
+      [
+       "Rebase and merge",
+       "Tus commits copiados uno por uno sobre main, sin commit de merge",
+       "Historia en línea recta y con detalle",
+       "GitHub crea commits nuevos, con otros SHA, aunque no haya conflictos"
+      ]
+     ],
+     "note": "Con la regla Require linear history, main no acepta commits de merge. El tag de la imagen (3f9c2ab) son los primeros 7 caracteres del SHA del commit que quedó en main, no del de tu rama."
+    }
+   ],
+   "example": {
+    "title": "Un cambio al gateway, de tu rama a main",
+    "lang": "bash",
+    "code": "git switch -c feat/slot-wait-env                # rama nueva desde main\n# … editas reference/c01/gateway/app/main.py y agregas 2 tests …\ngit add reference/c01/gateway\ngit commit -m \"gateway: SLOT_WAIT_S configurable por variable de entorno\"\ngit push -u origin feat/slot-wait-env           # crea la rama en GitHub\n\ngh pr create --base main --title \"gateway: SLOT_WAIT_S configurable\" \\\n  --body \"Permite ajustar la espera sin rebuild. 2 tests nuevos en test_api.py.\"\ngh pr checks --watch                            # espera el check tests (pytest)\n\n# Con 1 aprobación y tests en verde:\ngh pr merge --squash --delete-branch\ngit switch main && git pull                     # tu main local, con el commit squash\ngit log --oneline -1                            # sus primeros 7 caracteres serán el tag de la imagen",
+    "source": "ilustrativo, armado con los pasos del curso (el gateway de reference/c01)",
+    "notes": [
+     "<code>git push -u</code> crea la rama en GitHub y la deja como upstream (la rama remota que sigue): los próximos <code>git push</code> no necesitan argumentos.",
+     "Los checks de un PR no prueban tu rama sola: corren sobre un <b>merge de prueba</b> de tu rama con main (<code>refs/pull/N/merge</code>). Por eso un PR puede fallar en CI aunque tu rama sola pase: combinada con el main de ese momento, es otro código.",
+     "<code>gh pr merge</code> respeta las reglas de la rama: sin aprobación o con <code>tests</code> en rojo, falla. Con <code>--auto</code> queda programado para cuando se cumplan, si el repo tiene activado auto-merge (Allow auto-merge).",
+     "Con squash, main recibe <b>un</b> commit nuevo. Los primeros 7 caracteres de su SHA (el identificador del commit, por ejemplo <code>3f9c2ab</code>) son el tag de la imagen que construye el workflow del gateway. En tu Mac salen con <code>git rev-parse --short=7 HEAD</code>; sin <code>=7</code>, git da más caracteres cuando el repo crece.",
+     "<code>--delete-branch</code> borra la rama local y la remota después del merge: lo que importa ya está en main."
+    ]
+   },
+   "figure": {
+    "kind": "pr",
+    "caption": "La vida de un PR del gateway, de tu rama a main. Tres cosas pueden frenarlo: falta la aprobación, el check tests está en rojo o la rama quedó atrás de main.",
+    "data": {
+     "base": "main",
+     "head": "feat/slot-wait-env",
+     "stages": [
+      {
+       "label": "Rama y commits",
+       "who": "tú",
+       "cmd": "git switch -c feat/slot-wait-env",
+       "note": "Todo pasa en tu Mac; main no se toca."
+      },
+      {
+       "label": "Push",
+       "who": "tú",
+       "cmd": "git push -u origin feat/slot-wait-env",
+       "note": "La rama existe en GitHub."
+      },
+      {
+       "label": "PR abierto",
+       "who": "tú",
+       "cmd": "gh pr create --base main",
+       "note": "GitHub arma el diff y pide review a los CODEOWNERS de las rutas tocadas."
+      },
+      {
+       "label": "Checks",
+       "who": "GitHub Actions",
+       "cmd": "gh pr checks --watch",
+       "note": "El job tests corre sobre el merge de prueba con main."
+      },
+      {
+       "label": "Review",
+       "who": "otra persona del equipo",
+       "cmd": "",
+       "note": "Approve o Request changes. Un push nuevo puede descartar la aprobación, si la regla lo pide."
+      },
+      {
+       "label": "Merge",
+       "who": "tú",
+       "cmd": "gh pr merge --squash --delete-branch",
+       "note": "Solo se habilita con las reglas cumplidas."
+      },
+      {
+       "label": "Push a main",
+       "who": "GitHub Actions",
+       "cmd": "",
+       "note": "Dispara tests → imagen → deploy, que espera la aprobación del environment."
+      }
+     ],
+     "gates": [
+      {
+       "rule": "Require a pull request before merging",
+       "setting": "1 aprobación",
+       "blocks": "push directo a main y merge sin review"
+      },
+      {
+       "rule": "Require status checks before merging",
+       "setting": "tests",
+       "blocks": "merge con el check en rojo o sin reportar"
+      },
+      {
+       "rule": "Require branches to be up to date before merging",
+       "setting": "activado",
+       "blocks": "merge de una rama atrasada respecto de main"
+      },
+      {
+       "rule": "Block force pushes",
+       "setting": "activado (default en ramas protegidas)",
+       "blocks": "reescribir la historia de main"
+      }
+     ]
+    }
+   },
+   "memo": "<b>Rama → push → PR → checks y review → merge</b>. Quien dice que no es la regla de la rama: sin aprobación o con <code>tests</code> en rojo, el merge no se habilita.",
+   "trap": "Hacer push directo a main \"porque es un cambio chico\": si main no está protegida, GitHub lo acepta y el CD (el despliegue automático) construye y despliega algo que nadie revisó. Protege main desde el día 1 (PR obligatorio y check <code>tests</code>); en un repo privado del plan Free no hay reglas de rama: hace falta Pro, Team o Enterprise.",
+   "lab": {
+    "goal": "Practicar con un remoto local lo que harás con GitHub: push con upstream, el error de una rama sin upstream y qué tags viajan con git push.",
+    "steps": [
+     {
+      "cmd": "git init --bare -b main ~/lab-git-remote.git\nmkdir ~/lab-git && cd ~/lab-git && git init -b main\ngit remote add origin ~/lab-git-remote.git\ngit remote -v",
+      "expect": "Dos líneas: origin con la ruta de lab-git-remote.git, una (fetch) y otra (push). Ese repo bare (sin carpeta de trabajo) hace de GitHub. Si quedaron carpetas de otro lab, bórralas primero con el último paso."
+     },
+     {
+      "cmd": "echo \"# gateway\" > README.md && git add README.md && git commit -m \"primer commit\"\ngit push -u origin main\ngit status -sb",
+      "expect": "* [new branch]      main -> main y branch 'main' set up to track 'origin/main'. status muestra ## main...origin/main: tu main sigue a la del remoto."
+     },
+     {
+      "cmd": "git switch -c feat/slot-wait-env\necho \"SLOT_WAIT_S=0.05\" > config.env && git add config.env && git commit -m \"gateway: SLOT_WAIT_S por env\"\ngit push",
+      "expect": "fatal: The current branch feat/slot-wait-env has no upstream branch., con la sugerencia git push --set-upstream origin feat/slot-wait-env. Si tienes push.autoSetupRemote activado, el push funciona directo."
+     },
+     {
+      "cmd": "git push -u origin feat/slot-wait-env\ngit branch -vv",
+      "expect": "[new branch] y, en branch -vv, cada rama con su upstream entre corchetes: [origin/feat/slot-wait-env] y [origin/main]."
+     },
+     {
+      "cmd": "git switch main\ngit tag -a v1.0.0 -m \"primera release del gateway\"\ngit tag borrador\ngit push\ngit ls-remote --tags origin",
+      "expect": "Everything up-to-date, y ls-remote no imprime nada: git push no sube tags por su cuenta."
+     },
+     {
+      "cmd": "git push --follow-tags\ngit ls-remote --tags origin",
+      "expect": "[new tag]         v1.0.0 -> v1.0.0: solo viaja el anotado. ls-remote lo lista dos veces: refs/tags/v1.0.0 (el objeto tag) y refs/tags/v1.0.0^{} (el commit al que apunta). borrador, que es liviano, se quedó en tu Mac."
+     },
+     {
+      "cmd": "git push origin borrador\ngit cat-file -t v1.0.0\ngit cat-file -t borrador",
+      "expect": "[new tag]         borrador -> borrador, y después tag y commit: el anotado es un objeto propio; el liviano es solo un nombre para el commit."
+     },
+     {
+      "cmd": "cd ~ && rm -rf ~/lab-git ~/lab-git-remote.git",
+      "expect": "Nada: borra el repo y el remoto del lab."
+     }
+    ],
+    "fix": "Si git push dice no upstream branch, usa git push -u origin RAMA una vez. Si un tag no aparece en GitHub, súbelo con git push origin TAG, o con git push --follow-tags si es anotado.",
+    "needs": "Git en tu Mac (viene con las Command Line Tools de Xcode). No necesitas cuenta de GitHub.",
+    "verified": "executed",
+    "verified_note": "Corrido con Git 2.50.1 (Apple Git-155) en una carpeta temporal."
+   },
+   "links": [
+    "#m10.ci-cd",
+    "#m11.rollback",
+    "#ref-herramientas.infra-ci-seguridad",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "workflow",
+   "num": 6,
+   "title": "Anatomía de un workflow de Actions",
+   "question": "¿Qué partes tiene un workflow, en qué orden corre cada cosa y cómo se pasan datos entre sí?",
+   "templates": [
+    {
+     "code": "name: {nombre}\non:\n  {evento}:\n    branches: [{rama}]\npermissions:\n  contents: read\njobs:\n  {job}:\n    runs-on: {runner}\n    timeout-minutes: {minutos}\n    steps:\n      - uses: {dueño}/{acción}@{versión}\n        with:\n          {input}: {valor}\n      - run: {comando}",
+     "note": "Un <b>workflow</b> es un archivo YAML en <code>.github/workflows/</code>. <code>on</code> dice cuándo corre. Cada <b>job</b> corre en su propio <b>runner</b> (la máquina que lo ejecuta; los de GitHub son una máquina nueva y limpia en cada job) y sus <b>steps</b> (pasos) corren en orden dentro de esa máquina."
+    },
+    {
+     "code": "  {job_b}:\n    needs: [{job_a}]\n    if: github.event_name == '{evento}'",
+     "note": "Sin <code>needs</code>, los jobs corren en paralelo. Si <code>{job_a}</code> falla o se salta, <code>{job_b}</code> también se salta, salvo que su <code>if</code> use <code>always()</code>."
+    },
+    {
+     "code": "    outputs:\n      {salida}: ${{ steps.{paso}.outputs.{salida} }}\n    steps:\n      - id: {paso}\n        run: echo \"{salida}={valor}\" >> \"$GITHUB_OUTPUT\"\n# en un job con needs: [{job}] se lee ${{ needs.{job}.outputs.{salida} }}",
+     "note": "Un paso deja un dato escribiendo en el archivo <code>$GITHUB_OUTPUT</code> (reemplaza al viejo <code>::set-output</code>). Otro job lo lee solo si nombra al primero en <code>needs</code>."
+    },
+    {
+     "code": "on:\n  workflow_dispatch:\n    inputs:\n      {input}:\n        type: {tipo}\n        required: true",
+     "note": "Agrega el botón <b>Run workflow</b>, que solo aparece si el archivo está en la rama por defecto. Hasta 25 inputs; se leen con <code>inputs.{input}</code>."
+    }
+   ],
+   "formulas": [
+    "t_{\\text{workflow}} \\approx \\max_{\\text{caminos de needs}} \\sum_{\\text{jobs del camino}} \\left(t_{\\text{esperar runner}} + t_{\\text{job}}\\right)"
+   ],
+   "vars": [
+    [
+     "{nombre}",
+     "nombre que ves en la pestaña Actions",
+     "gateway"
+    ],
+    [
+     "{evento}",
+     "qué lo dispara",
+     "push, pull_request, workflow_dispatch, schedule"
+    ],
+    [
+     "{rama}",
+     "filtro de ramas; en pull_request, la rama base del PR",
+     "main"
+    ],
+    [
+     "{job}",
+     "id del job: empieza con una letra o _ y sigue con letras, números, - o _",
+     "tests"
+    ],
+    [
+     "{runner}",
+     "etiqueta de la máquina",
+     "ubuntu-24.04 · [self-hosted, linux, x64, gpu-t4]"
+    ],
+    [
+     "{minutos}",
+     "tope del job; si falta, 360",
+     "10"
+    ],
+    [
+     "{dueño}",
+     "usuario u organización dueña de la acción",
+     "actions"
+    ],
+    [
+     "{acción}",
+     "repo de la acción",
+     "checkout"
+    ],
+    [
+     "{versión}",
+     "versión mayor o SHA de 40 caracteres",
+     "v7"
+    ],
+    [
+     "{input}",
+     "parámetro de la acción o del workflow",
+     "python-version"
+    ],
+    [
+     "{valor}",
+     "su valor; los números de versión, entre comillas",
+     "\"3.13\""
+    ],
+    [
+     "{comando}",
+     "comando de shell",
+     "pytest"
+    ],
+    [
+     "{job_a}",
+     "job del que depende",
+     "tests"
+    ],
+    [
+     "{job_b}",
+     "job que espera",
+     "imagen"
+    ],
+    [
+     "{salida}",
+     "nombre del dato que pasa",
+     "digest"
+    ],
+    [
+     "{paso}",
+     "id del paso que lo escribe",
+     "build"
+    ],
+    [
+     "{tipo}",
+     "tipo del input",
+     "string, boolean, choice, number, environment"
+    ]
+   ],
+   "pieces": [
+    [
+     "on",
+     "Los eventos que lo disparan: un push, un PR, el botón (workflow_dispatch) o un horario (schedule).",
+     "on: [push, pull_request]"
+    ],
+    [
+     "branches / paths",
+     "Filtros: solo ciertas ramas, o solo si el commit toca ciertos archivos.",
+     "paths: ['reference/c01/gateway/**']"
+    ],
+    [
+     "jobs",
+     "Cada clave bajo jobs es un job: un grupo de pasos que corre en su propio runner. No cuentes con los archivos de otro job: pásalos con outputs o artifacts.",
+     "tests · imagen · deploy"
+    ],
+    [
+     "runs-on",
+     "En qué runner corre: una etiqueta de GitHub o las etiquetas de tu propia máquina.",
+     "ubuntu-24.04"
+    ],
+    [
+     "steps",
+     "Los pasos del job, en orden; comparten carpeta y archivos.",
+     "checkout → pip install → pytest"
+    ],
+    [
+     "uses + with",
+     "uses corre una acción (código ya hecho, de otro repo) en una versión fija; with le pasa sus inputs.",
+     "actions/setup-python@v7 con python-version: \"3.13\""
+    ],
+    [
+     "run",
+     "Comandos de terminal (shell). En Linux, si no pones la clave shell, corre con bash -e: para en el primer error, pero no ve un fallo en medio de un pipe (|). Con shell: bash suma pipefail, que sí lo ve.",
+     "run: pytest"
+    ],
+    [
+     "env",
+     "Variables de entorno del workflow, del job o del paso; si un nombre se repite, gana la más cercana al paso.",
+     "env: { IMAGEN: … }"
+    ],
+    [
+     "needs",
+     "Este job espera a otros. Si uno falla o se salta, este también se salta, salvo que su if use always().",
+     "needs: tests"
+    ],
+    [
+     "if",
+     "Corre el job o el paso solo si se cumple. Sin if vale success(): que nada antes haya fallado.",
+     "if: failure() · if: always()"
+    ],
+    [
+     "${{ }}",
+     "Expresión: GitHub calcula su valor y lo pega en el YAML antes de correr el paso.",
+     "${{ github.sha }}"
+    ],
+    [
+     "contextos",
+     "Objetos con datos del run (esta ejecución del workflow): github, env, vars, secrets, inputs, steps, needs, matrix, runner.",
+     "github.ref_name → main"
+    ],
+    [
+     "$GITHUB_OUTPUT · $GITHUB_ENV",
+     "Archivos donde un paso deja una salida o una variable para los pasos que siguen (no para sí mismo).",
+     "echo \"tag=3f9c2ab\" >> \"$GITHUB_OUTPUT\""
+    ],
+    [
+     "timeout-minutes",
+     "Corta el job a los N minutos. Si falta: 360 (6 h).",
+     "timeout-minutes: 10"
+    ]
+   ],
+   "example": {
+    "title": "El esqueleto del workflow del gateway: tres jobs y quién espera a quién",
+    "lang": "yaml",
+    "code": "name: gateway\non:\n  pull_request:\n  push: { branches: [main] }\npermissions:\n  contents: read\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    defaults:\n      run: { working-directory: reference/c01/gateway }\n    steps:\n      # … checkout, setup-python, pip install, pytest …\n\n  imagen:\n    needs: tests\n    if: github.event_name == 'push'\n    runs-on: ubuntu-24.04\n    outputs:\n      digest: ${{ steps.build.outputs.digest }}\n    steps:\n      - id: tag\n        run: echo \"tag=${GITHUB_SHA::7}\" >> \"$GITHUB_OUTPUT\"\n      # … credenciales de AWS, login a ECR y build con id: build …\n\n  deploy:\n    needs: imagen\n    environment: produccion\n    # … usa ${{ needs.imagen.outputs.digest }} …",
+    "source": ".github/workflows/gateway.yml (ilustrativo, armado con los pasos del curso; extracto)",
+    "notes": [
+     "Un PR dispara solo <code>tests</code>: <code>imagen</code> tiene <code>if: github.event_name == 'push'</code>, así que se salta, y <code>deploy</code>, que necesita a <code>imagen</code>, también.",
+     "Un push a main corre los tres en cadena porque <code>needs</code> los ordena. Sin <code>needs</code> correrían a la vez, cada uno en su runner.",
+     "<code>defaults.run.working-directory</code> vale para los <code>run</code> del job. Los <code>with</code> de las acciones siguen siendo rutas desde la raíz del repo.",
+     "El digest viaja en dos saltos: el paso <code>build</code> lo devuelve, el job lo publica en <code>outputs</code> y <code>deploy</code> lo lee con <code>needs.imagen.outputs.digest</code>.",
+     "Arriba, <code>permissions</code> deja el <code>GITHUB_TOKEN</code> (la llave que GitHub le da a cada job) con solo <code>contents: read</code> en todos los jobs; los que hablan con AWS piden más en su propio bloque (sección 8)."
+    ]
+   },
+   "figure": {
+    "kind": "workflow",
+    "caption": "El workflow del gateway como grafo: cada evento enciende un camino distinto de jobs, y cada job es una máquina nueva con sus pasos en orden.",
+    "data": {
+     "file": ".github/workflows/gateway.yml",
+     "triggers": [
+      {
+       "event": "pull_request",
+       "runs": [
+        "tests"
+       ],
+       "note": "imagen y deploy quedan en gris (skipped)"
+      },
+      {
+       "event": "push a main",
+       "runs": [
+        "tests",
+        "imagen",
+        "deploy"
+       ],
+       "note": "deploy espera la aprobación del environment produccion"
+      }
+     ],
+     "jobs": [
+      {
+       "id": "tests",
+       "runs_on": "ubuntu-24.04",
+       "needs": [],
+       "if": "",
+       "environment": "",
+       "outputs": [],
+       "steps": [
+        "checkout",
+        "setup-python 3.13 con caché de pip",
+        "pip install -r requirements-dev.txt",
+        "pytest --junit-xml",
+        "si falla: subir el reporte"
+       ]
+      },
+      {
+       "id": "imagen",
+       "runs_on": "ubuntu-24.04",
+       "needs": [
+        "tests"
+       ],
+       "if": "github.event_name == 'push'",
+       "environment": "",
+       "outputs": [
+        "digest"
+       ],
+       "steps": [
+        "checkout",
+        "tag = 7 caracteres del commit",
+        "credenciales de AWS por OIDC",
+        "login a ECR",
+        "preparar buildx",
+        "build y push linux/amd64"
+       ]
+      },
+      {
+       "id": "deploy",
+       "runs_on": "ubuntu-24.04",
+       "needs": [
+        "imagen"
+       ],
+       "if": "",
+       "environment": "produccion",
+       "outputs": [],
+       "steps": [
+        "credenciales de AWS por OIDC (otro rol)",
+        "kubeconfig del cluster",
+        "kubectl set image por digest",
+        "rollout status"
+       ]
+      }
+     ]
+    }
+   },
+   "memo": "<b>on</b> (cuándo) → <b>jobs</b> (qué, cada uno en su propio runner) → <b>steps</b> (en orden, en la misma máquina). Entre pasos, los datos viajan por archivos y <code>$GITHUB_OUTPUT</code>; entre jobs, solo por <code>outputs</code> o por artifacts (archivos que guarda el run).",
+   "trap": "Pegar <code>${{ github.event.pull_request.title }}</code>, o cualquier texto que escribe otra persona, dentro de <code>run</code>: GitHub lo copia tal cual al script antes de correrlo, y un título como <code>a\"; curl … | sh; \"</code> se ejecuta en tu runner. Pásalo por <code>env</code> y úsalo como <code>\"$TITULO\"</code>. Y un <code>if: ${{ x }} == 'y'</code> siempre es verdadero: es un texto, no una comparación.",
+   "lab": {
+    "goal": "Ver en un repo de prueba cómo on, needs, if y outputs se vuelven un run: qué jobs corren, cuáles se saltan y qué pasa cuando uno falla.",
+    "steps": [
+     {
+      "cmd": "mkdir -p ~/lab-actions/.github/workflows && cd ~/lab-actions\ngit init -b main\ngit remote add origin git@github.com:TU_USUARIO/lab-actions.git\ncat > .github/workflows/anatomia.yml <<'EOF'\nname: anatomia\non:\n  push:\n    branches: [main]\n  workflow_dispatch:\n    inputs:\n      saludo:\n        type: string\n        default: hola\npermissions:\n  contents: read\njobs:\n  primero:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    outputs:\n      corto: ${{ steps.sha.outputs.corto }}\n    steps:\n      - id: sha\n        run: echo \"corto=${GITHUB_SHA::7}\" >> \"$GITHUB_OUTPUT\"\n      - run: echo \"evento=$GITHUB_EVENT_NAME rama=$GITHUB_REF_NAME\"\n  segundo:\n    needs: primero\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    steps:\n      - env:\n          CORTO: ${{ needs.primero.outputs.corto }}\n          SALUDO: ${{ inputs.saludo }}\n        run: echo \"commit $CORTO, saludo '${SALUDO:-sin input}'\"\n  solo-manual:\n    if: github.event_name == 'workflow_dispatch'\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    steps:\n      - run: echo \"este job solo corre con el boton Run workflow\"\nEOF\ngit add . && git commit -m \"workflow de prueba\" && git push -u origin main",
+      "expect": "Antes, crea en github.com un repo vacío llamado lab-actions (New repository, sin README) y cambia TU_USUARIO por tu usuario. En la pestaña Actions aparece el run anatomia: primero, después segundo (imprime el commit corto y saludo 'sin input') y solo-manual en gris, porque su if es falso en un push."
+     },
+     {
+      "cmd": "github.com → lab-actions → Actions → anatomia → Run workflow → saludo: buenas → Run workflow",
+      "expect": "Un run nuevo con evento workflow_dispatch: corren los tres jobs, solo-manual incluido, y segundo imprime saludo 'buenas'."
+     },
+     {
+      "cmd": "perl -pi -e 's/^      - id: sha$/      - run: exit 1\\n      - id: sha/' .github/workflows/anatomia.yml\ngit commit -am \"primero falla a propósito\" && git push",
+      "expect": "primero en rojo y segundo en gris (skipped): un job que necesita a otro que falló no corre. El run termina en rojo."
+     },
+     {
+      "cmd": "perl -pi -e 's/^    needs: primero$/    needs: primero\\n    if: always()/' .github/workflows/anatomia.yml\ngit commit -am \"segundo corre siempre\" && git push",
+      "expect": "Ahora segundo corre aunque primero falló, pero imprime commit vacío: el paso que escribía la salida nunca llegó a correr."
+     }
+    ],
+    "fix": "Si el run no aparece, revisa que el archivo esté en .github/workflows/ y en la rama main. Si aparece en rojo sin jobs, el YAML no es válido: la página del run dice en qué línea.",
+    "needs": "una cuenta de GitHub, un repo vacío lab-actions y git configurado para hacer push (SSH, o gh auth login con la URL https://github.com/TU_USUARIO/lab-actions.git). Deja el repo: lo usan los labs de las secciones 7, 8 y 9. Gasta unos 2 minutos de Actions.",
+    "verified": "docs"
+   },
+   "links": [
+    "#m10.ci-cd",
+    "#ref-herramientas.infra-ci-seguridad",
+    "#m15.supply-chain",
+    "#c01.archivos"
+   ]
+  },
+  {
+   "id": "tests-ci",
+   "num": 7,
+   "title": "Tests en CI: Python, caché, matrix y checks obligatorios",
+   "question": "¿Cómo corres pytest en cada PR, rápido y sin que un test rojo llegue a main?",
+   "templates": [
+    {
+     "code": "- uses: actions/setup-python@v7\n  with:\n    python-version: \"{versión}\"\n    cache: pip\n    cache-dependency-path: {carpeta}/requirements*.txt\n- run: pip install -r {carpeta}/requirements-dev.txt\n- run: pytest --junit-xml={reporte}.xml",
+     "note": "En CI (integración continua: las pruebas automáticas que corren con cada push y cada PR), la caché de pip guarda los paquetes que pip <b>bajó</b>, no el entorno instalado: el <code>pip install</code> corre igual, pero saca los paquetes de la caché en vez de bajarlos. La versión va entre comillas: en YAML, <code>3.10</code> sin comillas es el número 3.1."
+    },
+    {
+     "code": "- uses: actions/cache@v6\n  with:\n    path: {carpeta_cache}\n    key: {so}-{herramienta}-${{ hashFiles('{archivo_lock}') }}\n    restore-keys: |\n      {so}-{herramienta}-",
+     "note": "Una <b>caché</b> (archivos que se guardan entre runs para no repetir trabajo) se busca por su <code>key</code>. Si coincide exacta es un <b>hit</b>; si no, <code>restore-keys</code> trae la más reciente que empiece igual. Una caché no se reescribe: si cambia el archivo, cambia la key y se guarda otra."
+    },
+    {
+     "code": "strategy:\n  fail-fast: false\n  matrix:\n    python-version: [\"{v1}\", \"{v2}\"]\nsteps:\n  - uses: actions/setup-python@v7\n    with:\n      python-version: ${{ matrix.python-version }}",
+     "note": "Una <b>matrix</b> repite el job por cada combinación de valores, y cada copia es un check aparte (su propio resultado en el PR), como <code>tests (3.13)</code>. Con <code>fail-fast: true</code>, el default, el primer rojo cancela a los demás."
+    },
+    {
+     "code": "- if: failure()\n  uses: actions/upload-artifact@v7\n  with:\n    name: {nombre}\n    path: {ruta}\n    retention-days: {días}",
+     "note": "Un <b>artifact</b> es un archivo del run que bajas desde su página (en un zip). Sin <code>retention-days</code>, dura lo que diga el repo: 90 días por defecto. <code>if: failure()</code> lo sube solo cuando algo falló."
+    }
+   ],
+   "formulas": [
+    "N_{\\text{jobs}} = \\prod_{k} |\\text{valores}_k| \\;-\\; N_{\\text{exclude}} \\;+\\; N_{\\text{include nuevos}} \\;\\le\\; 256"
+   ],
+   "vars": [
+    [
+     "{versión}",
+     "versión de Python, entre comillas",
+     "\"3.13\""
+    ],
+    [
+     "{carpeta}",
+     "carpeta del proyecto dentro del repo",
+     "reference/c01/gateway"
+    ],
+    [
+     "{reporte}",
+     "nombre del reporte JUnit XML (un formato estándar de resultados de tests)",
+     "reporte-tests"
+    ],
+    [
+     "{carpeta_cache}",
+     "carpeta que quieres guardar entre runs",
+     "~/.cache/torch/hub/checkpoints"
+    ],
+    [
+     "{so}",
+     "sistema operativo del runner (runner.os)",
+     "Linux"
+    ],
+    [
+     "{herramienta}",
+     "prefijo que nombra la caché",
+     "pesos-torchvision"
+    ],
+    [
+     "{archivo_lock}",
+     "archivo cuyo contenido cambia cuando cambia lo que guardas",
+     "model/requirements.txt"
+    ],
+    [
+     "{v1}",
+     "primera versión a probar",
+     "3.13"
+    ],
+    [
+     "{v2}",
+     "segunda versión",
+     "3.14"
+    ],
+    [
+     "{nombre}",
+     "nombre del artifact, único en el run",
+     "reporte-tests"
+    ],
+    [
+     "{ruta}",
+     "archivo o carpeta, desde la raíz del repo",
+     "reference/c01/gateway/reporte-tests.xml"
+    ],
+    [
+     "{días}",
+     "días que se guarda: de 1 al máximo del repo (90 por defecto; un repo privado puede subirlo hasta 400)",
+     "14"
+    ]
+   ],
+   "pieces": [
+    [
+     "actions/setup-python",
+     "Instala la versión de Python pedida (o la toma de las que ya trae el runner) y la pone primera en el PATH: los pasos siguientes usan ese python.",
+     "python-version: \"3.13\""
+    ],
+    [
+     "cache: pip",
+     "Guarda la carpeta de descargas de pip; la key incluye el hash de tus requirements.",
+     "cache-dependency-path: reference/c01/gateway/requirements*.txt"
+    ],
+    [
+     "actions/cache",
+     "Caché a medida: tú eliges la carpeta y la key.",
+     "~/.cache/torch/hub/checkpoints"
+    ],
+    [
+     "hit / miss",
+     "Hit: la key coincide y se restaura al empezar. Miss: el job hace todo y, si termina bien, guarda la caché al final.",
+     "salida cache-hit: true"
+    ],
+    [
+     "límite y limpieza",
+     "10 GB por repo por defecto. Se borra lo que no se usa en 7 días y, si te pasas del límite, lo que hace más tiempo que nadie usa.",
+     "un admin puede subir el límite, con pago"
+    ],
+    [
+     "alcance",
+     "Un run usa cachés de su rama y de la rama por defecto (un PR, también las de su rama base); la que crea un PR solo la ve ese PR.",
+     "un push a main calienta la caché de todos los PRs"
+    ],
+    [
+     "cache-mode",
+     "Cuánto puede usar el job la caché: read (solo restaurar), write (restaurar y guardar), write-only (solo guardar) o none. En eventos que puede disparar cualquiera, como pull_request_target, el default es read.",
+     "cache-mode: read"
+    ],
+    [
+     "pytest",
+     "Sale con 0 si todo pasó, 1 si algún test falló y 5 si no encontró tests. --junit-xml deja el resultado en un XML.",
+     "pytest --junit-xml=reporte-tests.xml"
+    ],
+    [
+     "strategy.matrix",
+     "Repite el job por cada combinación de valores. Máximo 256 jobs por run.",
+     "python-version: [\"3.13\", \"3.14\"]"
+    ],
+    [
+     "fail-fast",
+     "true (default): el primer job rojo de la matrix cancela a los otros. false: ves todos los resultados.",
+     "fail-fast: false"
+    ],
+    [
+     "actions/upload-artifact",
+     "Sube archivos del run en un zip. Ignora archivos ocultos y no acepta dos artifacts con el mismo nombre en un run, salvo con overwrite: true (reemplaza al anterior).",
+     "name: reporte-tests"
+    ],
+    [
+     "retención",
+     "Artifacts y logs duran 90 días por defecto; el repo puede elegir de 1 a 90 si es público y de 1 a 400 si es privado. Desde el 1 de octubre de 2026 el mismo plazo vale para checks y runs.",
+     "retention-days: 14"
+    ],
+    [
+     "check obligatorio",
+     "Un job que debe quedar en verde para el merge. Para elegirlo en la regla, tiene que haber terminado en verde en este repo en los últimos 7 días.",
+     "tests"
+    ],
+    [
+     "continue-on-error",
+     "Deja seguir al job aunque el paso falle. En un paso de tests, esconde los rojos.",
+     "no lo uses con pytest"
+    ]
+   ],
+   "example": {
+    "title": "El job tests del gateway: 24 tests sin GPU en cada PR",
+    "lang": "yaml",
+    "code": "  tests:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    defaults:\n      run: { working-directory: reference/c01/gateway }\n    steps:\n      - uses: actions/checkout@v7\n        with: { persist-credentials: false }\n      - uses: actions/setup-python@v7\n        with:\n          python-version: \"3.13\"\n          cache: pip\n          cache-dependency-path: reference/c01/gateway/requirements*.txt\n      - run: pip install -r requirements-dev.txt\n      - run: pytest --junit-xml=reporte-tests.xml\n      - if: failure()\n        uses: actions/upload-artifact@v7\n        with: { name: reporte-tests, path: reference/c01/gateway/reporte-tests.xml }",
+    "source": ".github/workflows/gateway.yml (ilustrativo, armado con los pasos del curso; extracto)",
+    "notes": [
+     "Python 3.13, igual que <code>python:3.13-slim</code> del Dockerfile: los tests prueban las mismas versiones que corren en producción, porque <code>requirements-dev.txt</code> incluye a <code>requirements.txt</code>.",
+     "<code>requirements*.txt</code> toma los dos archivos: si cambia cualquiera, cambia la key y pip vuelve a descargar lo que necesite.",
+     "<code>pytest</code> lee <code>pytest.ini</code> del gateway (<code>testpaths = tests</code>, <code>-q</code>). Los 24 tests usan un Triton falso: no hace falta GPU.",
+     "El reporte sube solo si algo falló. Su ruta va desde la raíz del repo: <code>working-directory</code> solo afecta a los <code>run</code>.",
+     "El job se llama <code>tests</code>, y ese es el nombre que eliges como check obligatorio en la regla de main."
+    ]
+   },
+   "figure": {
+    "kind": "table",
+    "caption": "Tres lugares donde CI guarda cosas. Confundirlos es la causa más común de \"en el run anterior estaba\".",
+    "data": {
+     "head": [
+      "",
+      "Para qué",
+      "Quién lo lee",
+      "Cuánto vive",
+      "Límite",
+      "En el gateway"
+     ],
+     "rows": [
+      [
+       "Caché (actions/cache, cache: pip)",
+       "Ir más rápido: no volver a bajar ni a calcular",
+       "Los runs siguientes de la misma rama o de la rama por defecto",
+       "Hasta 7 días sin uso (configurable)",
+       "10 GB por repo por defecto",
+       "Descargas de pip; capas de Docker (type=gha)"
+      ],
+      [
+       "Artifact (upload-artifact)",
+       "Guardar un resultado para mirarlo o pasarlo a otro job",
+       "Personas, desde la página del run, u otro job",
+       "90 días por defecto",
+       "Cuota de almacenamiento de la cuenta; 500 por job",
+       "reporte-tests.xml cuando algo falla"
+      ],
+      [
+       "Output de job (outputs)",
+       "Pasar un dato chico al job siguiente",
+       "Jobs que lo nombran en needs",
+       "Lo que dura el run",
+       "1 MB por job, 50 MB por run",
+       "El digest de la imagen"
+      ]
+     ],
+     "note": "Si borrar algo rompe el pipeline, no era caché. Y una salida que contiene un secret no viaja al otro job: GitHub la descarta."
+    }
+   },
+   "memo": "<b>Caché</b> para ir rápido (si se pierde, solo tarda más), <b>artifact</b> para mirar después y <b>check obligatorio</b> para que nada rojo llegue a main.",
+   "trap": "Filtrar con <code>paths</code> un workflow cuyo check es obligatorio: un PR que no toca esas rutas no lo corre, el check queda en <code>Waiting for status to be reported</code> y el PR no se puede mergear. Pon la condición en el <code>if</code> de un job: un job saltado por <code>if</code> cuenta como verde.",
+   "lab": {
+    "goal": "Ver una caché pasar de miss a hit, una matrix de dos versiones de Python y un test rojo que deja su reporte como artifact.",
+    "steps": [
+     {
+      "cmd": "cd ~/lab-actions && mkdir -p tests\nprintf 'def suma(a, b):\\n    return a + b\\n' > calc.py\nprintf 'from calc import suma\\n\\n\\ndef test_suma():\\n    assert suma(2, 2) == 4\\n' > tests/test_calc.py\nprintf '[pytest]\\npythonpath = .\\ntestpaths = tests\\n' > pytest.ini\nprintf 'pytest==9.1.1\\n' > requirements.txt\ncat > .github/workflows/tests.yml <<'EOF'\nname: tests\non:\n  push:\n    branches: [main]\n  pull_request:\npermissions:\n  contents: read\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    strategy:\n      fail-fast: false\n      matrix:\n        python-version: [\"3.13\", \"3.14\"]\n    steps:\n      - uses: actions/checkout@v7\n        with: { persist-credentials: false }\n      - uses: actions/setup-python@v7\n        with:\n          python-version: ${{ matrix.python-version }}\n          cache: pip\n      - run: pip install -r requirements.txt\n      - run: pytest --junit-xml=reporte-${{ matrix.python-version }}.xml\n      - if: failure()\n        uses: actions/upload-artifact@v7\n        with:\n          name: reporte-${{ matrix.python-version }}\n          path: reporte-${{ matrix.python-version }}.xml\n          retention-days: 3\nEOF\ngit add . && git commit -m \"tests con matrix\" && git push",
+      "expect": "Dos checks: tests (3.13) y tests (3.14). En el log de setup-python, la primera vez no hay caché; el paso Post de setup-python la guarda al final."
+     },
+     {
+      "cmd": "git commit --allow-empty -m \"otra vuelta\" && git push",
+      "expect": "Ahora setup-python restaura la caché (cache-hit: true) y pip instala sin descargar."
+     },
+     {
+      "cmd": "git switch -c test-roto\nsed -i '' 's/== 4/== 5/' tests/test_calc.py\ngit commit -am \"test roto a propósito\" && git push -u origin test-roto",
+      "expect": "En github.com, Compare & pull request → Create pull request. Los dos checks quedan en rojo (fail-fast: false deja terminar a ambos) y, al pie de la página del run, aparecen reporte-3.13 y reporte-3.14 para descargar."
+     },
+     {
+      "cmd": "github.com → Settings → Rulesets → New ruleset → New branch ruleset\nEnforcement status: Active · Target branches: Add a target → la rama por defecto\nRequire status checks before merging → agrega tests (3.13) y tests (3.14) con + → Create",
+      "expect": "Vuelve al PR: el merge queda bloqueado mientras los checks estén en rojo. Solo en un repo público, o privado con Pro, Team o Enterprise."
+     },
+     {
+      "cmd": "git switch main && git branch -D test-roto && git push origin --delete test-roto",
+      "expect": "Deleted branch test-roto y [deleted] test-roto: GitHub cierra el PR solo, porque su rama ya no existe. Borra el ruleset si no lo quieres."
+     }
+    ],
+    "fix": "Si setup-python falla con cache: pip, revisa que exista requirements.txt (o pyproject.toml) o fija cache-dependency-path. Si el check no aparece al armar la regla, haz que corra una vez: GitHub solo ofrece checks que terminaron en verde en los últimos 7 días.",
+    "needs": "el repo lab-actions de la sección 6 y push con tu acceso normal de git. Gasta unos 5 minutos de Actions.",
+    "verified": "docs"
+   },
+   "links": [
+    "#m10.ci-cd",
+    "#c01.archivos",
+    "#m10.reproducibilidad"
+   ]
+  },
+  {
+   "id": "secretos",
+   "num": 8,
+   "title": "Secretos, permisos y OIDC: entrar a AWS sin llaves",
+   "question": "¿Con qué permisos corre tu workflow, dónde guardas lo secreto y cómo entra a AWS sin guardar ninguna llave?",
+   "templates": [
+    {
+     "code": "permissions:\n  contents: read\njobs:\n  {job}:\n    permissions:\n      contents: read\n      {permiso}: write",
+     "note": "El <b>GITHUB_TOKEN</b> es la llave temporal que GitHub le da a cada job para hablar con tu repo. <code>permissions</code> fija qué puede hacer: lo que no nombras queda en <code>none</code>, y un bloque en el job reemplaza al de arriba, así que ahí repites <code>contents: read</code>."
+    },
+    {
+     "code": "- name: {paso}\n  env:\n    {VARIABLE}: ${{ secrets.{SECRETO} }}\n    {OTRA}: ${{ vars.{VARIABLE_CONFIG} }}\n  run: {comando}",
+     "note": "Un <b>secret</b> es un valor cifrado que guardas en Settings; en el log aparece como <code>***</code>. Una <b>variable</b> (<code>vars</code>) es configuración no secreta y se ve tal cual. Las dos entran por <code>env</code>, nunca pegadas en el comando."
+    },
+    {
+     "code": "permissions:\n  id-token: write\n  contents: read\nsteps:\n  - uses: aws-actions/configure-aws-credentials@{sha_acción} # v6.3.0\n    with:\n      role-to-assume: arn:aws:iam::{cuenta}:role/{rol}\n      aws-region: {región}",
+     "note": "<b>OIDC</b> (OpenID Connect): el job pide un token firmado por GitHub que dice quién es (repo, rama o environment, un entorno con reglas como <code>produccion</code>), y AWS lo cambia por credenciales de un <b>rol</b> (una identidad con permisos que el job toma prestada) que vencen solas, en 1 hora por defecto. <code>id-token: write</code> solo permite pedir ese token."
+    },
+    {
+     "code": "\"Condition\": {\n  \"StringEquals\": {\n    \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\",\n    \"token.actions.githubusercontent.com:sub\": \"repo:{org}/{repo}:ref:refs/heads/{rama}\"\n  }\n}",
+     "note": "La <b>trust policy</b> del rol dice qué tokens pueden asumirlo. El <code>sub</code> es el campo del token que dice quién lo pide; IAM (el servicio de permisos de AWS) rechaza la política si no lo revisa o si acepta cualquiera (<code>*</code>). Con environment, el sub pasa a ser <code>repo:{org}/{repo}:environment:{entorno}</code>. Hay dos formatos: un repo creado, renombrado o transferido después del 15 de julio de 2026 (o que eligió el formato nuevo) agrega los IDs numéricos del dueño y del repo, como <code>repo:acme@123/classifier@456:ref:refs/heads/main</code>. Copia el que usa tu repo: con el otro, AWS responde <code>Not authorized</code>."
+    }
+   ],
+   "vars": [
+    [
+     "{job}",
+     "id del job",
+     "imagen"
+    ],
+    [
+     "{permiso}",
+     "el permiso extra que necesita ese job",
+     "id-token (AWS), packages (GHCR), pull-requests (comentar el PR)"
+    ],
+    [
+     "{paso}",
+     "nombre del paso",
+     "Bajar pesos del hub"
+    ],
+    [
+     "{VARIABLE}",
+     "variable de entorno que lee tu código",
+     "HF_TOKEN"
+    ],
+    [
+     "{SECRETO}",
+     "nombre del secret: letras, números y _; no empieza con GITHUB_ ni con un número",
+     "HF_TOKEN"
+    ],
+    [
+     "{OTRA}",
+     "otra variable de entorno",
+     "MLFLOW_TRACKING_URI"
+    ],
+    [
+     "{VARIABLE_CONFIG}",
+     "nombre de la variable de configuración",
+     "MLFLOW_TRACKING_URI"
+    ],
+    [
+     "{comando}",
+     "lo que lee esas variables",
+     "python descargar_pesos.py"
+    ],
+    [
+     "{sha_acción}",
+     "commit de 40 caracteres de la acción; la versión va en el comentario",
+     "e1253824e5c10ff9df46874f81ed3ec929e19cfd"
+    ],
+    [
+     "{cuenta}",
+     "id de la cuenta de AWS, 12 dígitos",
+     "123456789012"
+    ],
+    [
+     "{rol}",
+     "rol de IAM que asume el job",
+     "gha-classifier-gateway"
+    ],
+    [
+     "{región}",
+     "región de AWS",
+     "us-east-1"
+    ],
+    [
+     "{org}",
+     "dueño del repo en GitHub",
+     "acme"
+    ],
+    [
+     "{repo}",
+     "nombre del repo",
+     "classifier"
+    ],
+    [
+     "{rama}",
+     "rama que puede asumir el rol",
+     "main"
+    ],
+    [
+     "{entorno}",
+     "environment del job",
+     "produccion"
+    ]
+   ],
+   "pieces": [
+    [
+     "GITHUB_TOKEN",
+     "Token que GitHub crea al empezar cada job y que solo sirve para este repo. Vence al terminar el job: como mucho, 6 h en runners de GitHub y 24 h en runners propios.",
+     "secrets.GITHUB_TOKEN · github.token"
+    ],
+    [
+     "permisos por defecto",
+     "Los fija el repo o la org. En repos personales y orgs creados desde febrero de 2023: solo lectura de contents y packages. En los nuevos, el workflow tampoco puede crear ni aprobar PRs. No dependas de eso: decláralo.",
+     "Settings → Actions → Workflow permissions"
+    ],
+    [
+     "permissions:",
+     "Ajusta el GITHUB_TOKEN del workflow o del job. Lo no nombrado queda en none; write-all abre todo.",
+     "contents: read"
+    ],
+    [
+     "id-token: write",
+     "Deja pedir un token OIDC. No da permiso de escribir en el repo.",
+     "jobs imagen y deploy del gateway"
+    ],
+    [
+     "secrets",
+     "Valores cifrados de org, de repo o de environment; si un nombre se repite, gana el más específico. 100 por repo, 48 KB cada uno.",
+     "secrets.HF_TOKEN"
+    ],
+    [
+     "vars",
+     "Configuración no secreta, visible en el log: URLs, nombres, regiones.",
+     "vars.MLFLOW_TRACKING_URI"
+    ],
+    [
+     "*** en el log",
+     "GitHub tapa el valor exacto de un secret. Un valor derivado (en base64, recortado, un token armado con él) no se tapa solo.",
+     "::add-mask::VALOR tapa uno nuevo"
+    ],
+    [
+     "PRs desde forks",
+     "Con el evento pull_request, un PR desde un fork (la copia del repo en la cuenta de otra persona) no recibe secrets, y su GITHUB_TOKEN es de solo lectura.",
+     "el job tests no necesita ninguno"
+    ],
+    [
+     "environment",
+     "Un entorno (como produccion) con reglas: quién aprueba, desde qué ramas se despliega y sus propios secrets.",
+     "environment: produccion"
+    ],
+    [
+     "environment inexistente",
+     "Si el nombre no existe, el run lo crea vacío, sin reglas ni aprobación.",
+     "produccion ≠ producción"
+    ],
+    [
+     "token OIDC (JWT)",
+     "Un texto firmado por GitHub para ese job (JWT es el formato estándar de ese texto), con datos (claims) como sub, aud, ref y environment.",
+     "iss: https://token.actions.githubusercontent.com"
+    ],
+    [
+     "sub",
+     "Quién lo pide: repo y rama, PR o environment. La trust policy lo compara. Los repos creados o renombrados después del 15 de julio de 2026 (o que lo activan) lo llevan con IDs.",
+     "repo:acme/classifier:ref:refs/heads/main · con IDs: repo:acme@123/classifier@456:ref:refs/heads/main"
+    ],
+    [
+     "aud",
+     "Para quién es el token. Para AWS es sts.amazonaws.com, el default de configure-aws-credentials.",
+     "token.actions.githubusercontent.com:aud"
+    ],
+    [
+     "credenciales temporales",
+     "STS (el servicio de AWS que entrega credenciales) devuelve llave, secreto y token de sesión que vencen solos: 1 h por defecto.",
+     "role-duration-seconds: 3600"
+    ]
+   ],
+   "tables": [
+    {
+     "caption": "Un rol por trabajo en el C01: cada uno con el sub del job que lo usa y solo los permisos que necesita",
+     "head": [
+      "Rol de IAM",
+      "Lo usa",
+      "sub en la trust policy",
+      "Puede"
+     ],
+     "rows": [
+      [
+       "gha-classifier-gateway",
+       "job imagen (push a main)",
+       "repo:acme/classifier:ref:refs/heads/main",
+       "push a ECR, solo al repo classifier-gateway"
+      ],
+      [
+       "gha-classifier-deploy",
+       "job deploy (environment produccion)",
+       "repo:acme/classifier:environment:produccion",
+       "eks:DescribeCluster (para armar el kubeconfig) y desplegar en el namespace classifier, con una access entry de EKS (el permiso del rol dentro del cluster)"
+      ],
+      [
+       "gha-classifier-modelo",
+       "workflow triton-modelo (botón, desde main)",
+       "repo:acme/classifier:ref:refs/heads/main",
+       "leer el checkpoint y la muestra de eval en S3; push a classifier-triton"
+      ]
+     ],
+     "note": "Los nombres son ilustrativos, y los sub tienen el formato de un repo de antes del 15 de julio de 2026; en uno más nuevo llevan IDs (<code>repo:acme@123/classifier@456:…</code>). Ojo: gateway y modelo aceptan el mismo sub, el de cualquier job en main; para separarlos, dale a triton-modelo su propio environment. Un solo rol para todo también funciona, pero entonces cualquier job que consiga un token puede desplegar."
+    }
+   ],
+   "example": {
+    "title": "El job deploy del gateway: environment, un rol propio y ningún secret",
+    "lang": "yaml",
+    "code": "  deploy:\n    needs: imagen\n    runs-on: ubuntu-24.04\n    timeout-minutes: 20\n    environment: produccion\n    concurrency: { group: deploy-gateway-produccion, cancel-in-progress: false }\n    permissions:\n      contents: read\n      id-token: write\n    steps:\n      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0\n        with:\n          role-to-assume: arn:aws:iam::123456789012:role/gha-classifier-deploy\n          aws-region: us-east-1\n      - env:\n          IMAGEN: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway@${{ needs.imagen.outputs.digest }}\n        run: |\n          aws eks update-kubeconfig --name classifier --region us-east-1\n          kubectl -n classifier set image deployment/gateway gateway=\"$IMAGEN\"\n          kubectl -n classifier rollout status deployment/gateway --timeout=5m",
+    "source": ".github/workflows/gateway.yml (ilustrativo, armado con los pasos del curso; extracto)",
+    "notes": [
+     "No hay ningún secret: las credenciales salen de OIDC y el nombre de la imagen no es secreto.",
+     "Por <code>environment: produccion</code>, el sub del token es <code>repo:acme/classifier:environment:produccion</code> (en un repo con IDs, <code>repo:acme@123/classifier@456:environment:produccion</code>). La trust policy de <code>gha-classifier-deploy</code> pide ese valor: el job <code>imagen</code> no puede asumir este rol, y otro job (o un PR) solo podría si usa ese environment. Por eso <code>produccion</code> lleva reviewers y solo deja desplegar desde <code>main</code>.",
+     "El job espera la aprobación del environment antes de recibir un runner; si tuviera secrets de environment, recién los recibiría después de aprobar.",
+     "La aprobación manual (required reviewers) en un repo privado exige GitHub Enterprise; con Free, Pro o Team solo existe en repos públicos. Las ramas permitidas del environment sí funcionan en privados con Pro o Team.",
+     "<code>permissions</code> repite <code>contents: read</code>: al declarar el bloque en el job, lo que no nombras queda en <code>none</code>."
+    ]
+   },
+   "figure": {
+    "kind": "oidc",
+    "caption": "Entrar a AWS sin llaves: GitHub firma quién es el job, AWS compara ese quién (el sub) con la trust policy del rol y STS entrega credenciales de una hora. El token y la trust policy usan el formato de siempre; la última fila muestra el sub con IDs de un repo creado o renombrado después del 15 de julio de 2026.",
+    "data": {
+     "hops": [
+      {
+       "who": "Job imagen (GitHub Actions)",
+       "does": "Pide un token OIDC",
+       "detail": "Tiene permissions: id-token: write; configure-aws-credentials lo pide con aud = sts.amazonaws.com."
+      },
+      {
+       "who": "GitHub (token.actions.githubusercontent.com)",
+       "does": "Firma un JWT con los datos del job",
+       "detail": "sub = repo:acme/classifier:ref:refs/heads/main"
+      },
+      {
+       "who": "AWS STS",
+       "does": "Cambia el token por el rol gha-classifier-gateway (AssumeRoleWithWebIdentity)",
+       "detail": "Verifica la firma con el proveedor OIDC registrado en IAM y compara aud y sub con la trust policy."
+      },
+      {
+       "who": "AWS STS",
+       "does": "Devuelve credenciales temporales",
+       "detail": "Llave, secreto y token de sesión: 1 h por defecto."
+      },
+      {
+       "who": "Job imagen",
+       "does": "Login a ECR y push",
+       "detail": "amazon-ecr-login canjea esas credenciales por un token de ECR que dura 12 h."
+      }
+     ],
+     "token": {
+      "iss": "https://token.actions.githubusercontent.com",
+      "aud": "sts.amazonaws.com",
+      "sub": "repo:acme/classifier:ref:refs/heads/main",
+      "ref": "refs/heads/main",
+      "event_name": "push"
+     },
+     "trust_policy": "{\n  \"Effect\": \"Allow\",\n  \"Principal\": { \"Federated\": \"arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com\" },\n  \"Action\": \"sts:AssumeRoleWithWebIdentity\",\n  \"Condition\": {\n    \"StringEquals\": {\n      \"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\",\n      \"token.actions.githubusercontent.com:sub\": \"repo:acme/classifier:ref:refs/heads/main\"\n    }\n  }\n}",
+     "subs": [
+      {
+       "when": "push a main, job sin environment",
+       "sub": "repo:acme/classifier:ref:refs/heads/main"
+      },
+      {
+       "when": "pull_request, job sin environment",
+       "sub": "repo:acme/classifier:pull_request"
+      },
+      {
+       "when": "job con environment: produccion",
+       "sub": "repo:acme/classifier:environment:produccion"
+      },
+      {
+       "when": "push a main en un repo creado o renombrado después del 15 de julio de 2026 (formato con IDs)",
+       "sub": "repo:acme@123/classifier@456:ref:refs/heads/main"
+      }
+     ]
+    }
+   },
+   "memo": "<b>Sin llaves guardadas</b>: <code>id-token: write</code> → token firmado por GitHub → la trust policy compara <b>sub</b> → credenciales que vencen solas. Lo secreto va en <code>secrets</code>, lo demás en <code>vars</code>, y nada de eso en el YAML.",
+   "trap": "Agregar <code>environment: produccion</code> a un job que ya entraba a AWS: su sub cambia de <code>…:ref:refs/heads/main</code> a <code>…:environment:produccion</code> y STS lo rechaza con <code>Not authorized to perform sts:AssumeRoleWithWebIdentity</code>. Renombrar o transferir el repo hace lo mismo: desde el 15 de julio de 2026, eso lo pasa al sub con IDs. Y escribir mal el nombre del environment no da error: crea uno nuevo, sin aprobación.",
+   "lab": {
+    "goal": "Ver por dentro el token OIDC de un job (sus claims, nunca el token) y cómo cambia el sub cuando el job usa un environment.",
+    "steps": [
+     {
+      "cmd": "cd ~/lab-actions\ncat > .github/workflows/oidc.yml <<'EOF'\nname: oidc\non: workflow_dispatch\npermissions:\n  contents: read\njobs:\n  sin-environment:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    permissions:\n      id-token: write\n    steps:\n      - run: |\n          test -n \"$ACTIONS_ID_TOKEN_REQUEST_URL\" || { echo \"sin id-token: write no hay token OIDC\"; exit 1; }\n          curl -sS -H \"Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN\" \\\n            \"$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com\" | jq -r .value | cut -d. -f2 > payload.txt\n          python3 -c 'import base64,json; p=open(\"payload.txt\").read().strip(); c=json.loads(base64.urlsafe_b64decode(p + \"=\" * (-len(p) % 4))); print({k: c.get(k) for k in (\"sub\", \"aud\", \"ref\", \"environment\", \"repository_owner_id\", \"repository_id\")})'\n  con-environment:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    environment: lab\n    permissions:\n      id-token: write\n    steps:\n      - run: |\n          test -n \"$ACTIONS_ID_TOKEN_REQUEST_URL\" || { echo \"sin id-token: write no hay token OIDC\"; exit 1; }\n          curl -sS -H \"Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN\" \\\n            \"$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com\" | jq -r .value | cut -d. -f2 > payload.txt\n          python3 -c 'import base64,json; p=open(\"payload.txt\").read().strip(); c=json.loads(base64.urlsafe_b64decode(p + \"=\" * (-len(p) % 4))); print({k: c.get(k) for k in (\"sub\", \"aud\", \"ref\", \"environment\", \"repository_owner_id\", \"repository_id\")})'\nEOF\ngit add . && git commit -m \"lab oidc\" && git push",
+      "expect": "El workflow oidc queda en el repo. Solo imprime claims: el token completo nunca sale al log."
+     },
+     {
+      "cmd": "github.com → lab-actions → Actions → oidc → Run workflow",
+      "expect": "sin-environment imprime aud 'sts.amazonaws.com' y un sub con IDs, como 'repo:TU_USUARIO@12345678/lab-actions@987654321:ref:refs/heads/main': tu repo es de después del 15 de julio de 2026, y esos números son el repository_owner_id y el repository_id que se imprimen al lado. con-environment imprime un sub que termina en ':environment:lab' y environment 'lab'. En Settings → Environments aparece lab: el run lo creó, sin reglas."
+     },
+     {
+      "cmd": "perl -0pi -e 's/    permissions:\\n      id-token: write\\n//' .github/workflows/oidc.yml\ngit commit -am \"sin id-token\" && git push\n# y otra vez: Actions → oidc → Run workflow",
+      "expect": "sin-environment falla con sin id-token: write no hay token OIDC: sin ese permiso, el job no recibe con qué pedir el token. con-environment sigue funcionando."
+     },
+     {
+      "cmd": "git rm -q .github/workflows/oidc.yml && git commit -m \"fin del lab oidc\" && git push",
+      "expect": "El workflow desaparece de Actions. Borra el environment lab en Settings → Environments."
+     }
+    ],
+    "fix": "Si el sub no es el que esperabas, mira tres cosas: si el job tiene environment, si corrió por un PR y si el repo lleva IDs (creado o renombrado después del 15 de julio de 2026). Ese mismo texto es el que va en la trust policy de AWS.",
+    "needs": "el repo lab-actions de la sección 6, público (con el plan Free, un repo privado no tiene environments), y push con tu acceso normal de git. No necesitas cuenta de AWS: el token se pide pero no se usa.",
+    "verified": "docs"
+   },
+   "links": [
+    "#m15.secretos",
+    "#m15.supply-chain",
+    "#m15.authn-authz",
+    "#ref-herramientas.infra-ci-seguridad"
+   ]
+  },
+  {
+   "id": "imagenes",
+   "num": 9,
+   "title": "Build y push de imágenes en CI",
+   "question": "¿Cómo construye CI (el sistema que prueba y arma cada cambio solo) una imagen una sola vez, para la CPU de los nodos, con un tag que nunca se reusa?",
+   "templates": [
+    {
+     "code": "- uses: docker/setup-buildx-action@{sha_acción} # v4.4.1\n- id: build\n  uses: docker/build-push-action@{sha_acción} # v7.4.0\n  with:\n    context: {carpeta}\n    platforms: linux/amd64\n    push: true\n    tags: {registry}/{repo}:{tag}\n    cache-from: type=gha\n    cache-to: type=gha,mode=max",
+     "note": "<b>buildx</b> es el build de Docker con BuildKit (el motor que arma las capas). <code>context</code> es la carpeta con el Dockerfile: si es una ruta, necesitas <code>actions/checkout</code> antes. <code>type=gha</code> guarda las capas en la caché de Actions."
+    },
+    {
+     "code": "- id: tag\n  run: echo \"tag=${GITHUB_SHA::7}\" >> \"$GITHUB_OUTPUT\"\n# después: ${{ steps.tag.outputs.tag }} → {tag}",
+     "note": "Los primeros 7 caracteres del commit, como <code>3f9c2ab</code> en <code>k8s/gateway.yaml</code>. En un PR, <code>GITHUB_SHA</code> es un merge de prueba que nunca llega a main: por eso la imagen se publica solo en push a main."
+    },
+    {
+     "code": "- uses: aws-actions/configure-aws-credentials@{sha_acción} # v6.3.0\n  with:\n    role-to-assume: arn:aws:iam::{cuenta}:role/{rol}\n    aws-region: {región}\n- id: ecr\n  uses: aws-actions/amazon-ecr-login@{sha_acción} # v2.1.7\n# ${{ steps.ecr.outputs.registry }} → {cuenta}.dkr.ecr.{región}.amazonaws.com",
+     "note": "<code>amazon-ecr-login</code> hace el <code>docker login</code> a ECR (el registry de AWS: el servicio que guarda tus imágenes) con las credenciales del job. El token de ECR dura 12 h, y la action cierra la sesión (logout) al terminar el job."
+    },
+    {
+     "code": "docker buildx imagetools inspect {registry}/{repo}:{tag}",
+     "note": "Desde tu Mac, con el login a ECR hecho y sin bajar la imagen: lista las plataformas del índice (la lista de variantes por CPU que guarda el registry). Debe decir <code>linux/amd64</code>; la entrada <code>unknown/unknown</code> es la attestation (el certificado de cómo se construyó) que agrega el build."
+    }
+   ],
+   "vars": [
+    [
+     "{sha_acción}",
+     "commit de 40 caracteres de la acción; la versión va en el comentario",
+     "c3c9e263c25d99ce0380d002d59b67737d91b0dc"
+    ],
+    [
+     "{carpeta}",
+     "contexto del build: la carpeta con el Dockerfile",
+     "reference/c01/gateway"
+    ],
+    [
+     "{registry}",
+     "host del registry",
+     "123456789012.dkr.ecr.us-east-1.amazonaws.com"
+    ],
+    [
+     "{repo}",
+     "repositorio de la imagen en el registry",
+     "classifier-gateway"
+    ],
+    [
+     "{tag}",
+     "los primeros 7 caracteres del commit: nunca se reusa",
+     "3f9c2ab"
+    ],
+    [
+     "{cuenta}",
+     "id de la cuenta de AWS",
+     "123456789012"
+    ],
+    [
+     "{rol}",
+     "rol de IAM con permiso de push a ese repositorio",
+     "gha-classifier-gateway"
+    ],
+    [
+     "{región}",
+     "región del registry",
+     "us-east-1"
+    ]
+   ],
+   "pieces": [
+    [
+     "docker/setup-buildx-action",
+     "Arranca BuildKit en un contenedor aparte (driver docker-container, el default): así sí puede guardar la caché en Actions.",
+     "driver: docker-container (default)"
+    ],
+    [
+     "docker/build-push-action",
+     "Corre docker buildx build con lo que pongas en with; push: true sube al terminar.",
+     "salidas: digest, imageid, metadata"
+    ],
+    [
+     "context",
+     "Sin context usa el contexto Git: BuildKit baja el commit solo e ignora cambios hechos en pasos anteriores. Con una ruta, usa tu checkout.",
+     "context: reference/c01/gateway"
+    ],
+    [
+     "platforms",
+     "Para qué CPU es la imagen. El runner ubuntu-24.04 es amd64: construye nativo, sin emular.",
+     "linux/amd64"
+    ],
+    [
+     "tags",
+     "Los nombres con que sube la imagen, uno por línea o separados por comas.",
+     "…/classifier-gateway:3f9c2ab"
+    ],
+    [
+     "cache-from / cache-to: type=gha",
+     "Guarda y reusa capas en la caché de Actions; mode=max incluye las etapas intermedias. Cuenta para los 10 GB del repo.",
+     "cache-to: type=gha,mode=max"
+    ],
+    [
+     "provenance",
+     "El build agrega por defecto una attestation de procedencia (de dónde y cómo se construyó): mode=min en repos privados, max en públicos.",
+     "aparece como unknown/unknown en el índice"
+    ],
+    [
+     "digest",
+     "El sha256 de lo que subió: identifica el contenido. Es lo que firmas y despliegas.",
+     "steps.build.outputs.digest"
+    ],
+    [
+     "aws-actions/amazon-ecr-login",
+     "docker login a ECR con las credenciales de AWS del job. Su salida registry es el host de ECR.",
+     "steps.ecr.outputs.registry"
+    ],
+    [
+     "permisos de IAM para el push",
+     "ecr:GetAuthorizationToken (sobre \"*\": no se limita por repo), más BatchCheckLayerAvailability, InitiateLayerUpload, UploadLayerPart, CompleteLayerUpload, PutImage y BatchGetImage sobre ese repo.",
+     "rol gha-classifier-gateway"
+    ],
+    [
+     "tags inmutables en ECR",
+     "Es una opción de cada repo de ECR (por defecto, los tags se pueden pisar); el del C01 la tiene activada. Con ella, subir otra imagen con un tag que ya existe falla: tag invalid: … cannot be overwritten because the repository is immutable (en la API, ImageTagAlreadyExistsException).",
+     "un re-run que reconstruye un commit ya publicado"
+    ],
+    [
+     "${GITHUB_SHA::7}",
+     "Recorte de bash: los primeros 7 caracteres de la variable, siempre 7. En tu Mac, lo mismo es git rev-parse --short=7 HEAD (sin =7, git da más cuando el repo crece).",
+     "3f9c2ab"
+    ],
+    [
+     "salida con un secret",
+     "Si una salida de job contiene un valor enmascarado, GitHub no la pasa al otro job: Skip output … since it may contain secret.",
+     "el digest viaja sin problema: no es secreto"
+    ],
+    [
+     "docker/login-action",
+     "Login genérico a un registry. En GHCR (el registry de GitHub) alcanza el GITHUB_TOKEN con packages: write.",
+     "registry: ghcr.io"
+    ]
+   ],
+   "example": {
+    "title": "El job imagen del gateway: tests en verde, una imagen por commit",
+    "lang": "yaml",
+    "code": "  imagen:\n    needs: tests\n    if: github.event_name == 'push'\n    runs-on: ubuntu-24.04\n    timeout-minutes: 20\n    # permissions: contents: read e id-token: write (sección 8)\n    outputs:\n      digest: ${{ steps.build.outputs.digest }}\n    steps:\n      - uses: actions/checkout@v7\n        with: { persist-credentials: false }\n      - id: tag\n        run: echo \"tag=${GITHUB_SHA::7}\" >> \"$GITHUB_OUTPUT\"\n      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0\n        with:\n          role-to-assume: arn:aws:iam::123456789012:role/gha-classifier-gateway\n          aws-region: us-east-1\n      - id: ecr\n        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7\n      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1\n      - id: build\n        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0\n        with:\n          context: reference/c01/gateway\n          platforms: linux/amd64\n          push: true\n          tags: ${{ steps.ecr.outputs.registry }}/classifier-gateway:${{ steps.tag.outputs.tag }}\n          cache-from: type=gha\n          cache-to: type=gha,mode=max",
+    "source": ".github/workflows/gateway.yml (ilustrativo, armado con los pasos del curso; extracto)",
+    "notes": [
+     "Solo corre en push a main y después de <code>tests</code>: cada commit de main produce una imagen, construida una sola vez.",
+     "<code>${GITHUB_SHA::7}</code> da el mismo tag de 7 caracteres que usa el curso (<code>3f9c2ab</code>), aunque el repo crezca. El repo de ECR del C01 está configurado con tags inmutables (no es el default de ECR): nadie puede volver a subir ese tag con otro contenido.",
+     "<code>platforms: linux/amd64</code>: el runner ya es amd64, así que no emula. En tu Mac (arm64) el mismo build sería emulado y lento: que lo haga CI.",
+     "<code>type=gha</code> reusa capas entre runs: si solo cambió <code>app/</code>, la capa del <code>pip install</code> sale de la caché, porque el Dockerfile copia <code>requirements.txt</code> antes que el código.",
+     "El job publica <code>digest</code> como salida: <code>deploy</code> despliega ese contenido exacto, no un tag."
+    ]
+   },
+   "figure": {
+    "kind": "pipeline",
+    "caption": "El C01 en CI/CD: el gateway en cada commit a main y Triton solo con un modelo nuevo. Duraciones aproximadas: estimaciones, no medidas.",
+    "data": {
+     "lanes": [
+      {
+       "id": "gateway",
+       "label": "gateway · gateway.yml (cada PR y cada push a main)"
+      },
+      {
+       "id": "triton",
+       "label": "Triton · triton-modelo.yml (botón, solo con un modelo nuevo)"
+      }
+     ],
+     "steps": [
+      {
+       "lane": "gateway",
+       "label": "PR abierto",
+       "dur": "",
+       "where": "GitHub",
+       "note": "El job tests corre sobre el merge de prueba con main."
+      },
+      {
+       "lane": "gateway",
+       "label": "tests: pytest, 24 tests",
+       "dur": "≈ 1–2 min",
+       "where": "runner ubuntu-24.04",
+       "note": "Con la caché de pip, el pip install no descarga."
+      },
+      {
+       "lane": "gateway",
+       "label": "review y merge",
+       "dur": "lo que tarde la review",
+       "where": "GitHub",
+       "note": "1 aprobación y el check tests en verde."
+      },
+      {
+       "lane": "gateway",
+       "label": "tests otra vez y build linux/amd64",
+       "dur": "≈ 2–5 min",
+       "where": "runner ubuntu-24.04",
+       "note": "Con type=gha solo se rehacen las capas que cambiaron."
+      },
+      {
+       "lane": "gateway",
+       "label": "push a ECR, tag = 7 caracteres del SHA",
+       "dur": "≈ 1 min",
+       "where": "Amazon ECR",
+       "note": "Sube solo las capas nuevas."
+      },
+      {
+       "lane": "gateway",
+       "label": "aprobación del environment produccion",
+       "dur": "lo que tarde la persona",
+       "where": "GitHub",
+       "note": "El job deploy espera sin ocupar un runner."
+      },
+      {
+       "lane": "gateway",
+       "label": "kubectl set image y rollout status",
+       "dur": "≈ 1–3 min",
+       "where": "EKS",
+       "note": "Pods nuevos listos antes de bajar los viejos (maxUnavailable: 0). Con GitOps, este paso es un PR que cambia el digest en el manifest."
+      },
+      {
+       "lane": "triton",
+       "label": "export a ONNX y paridad en CPU",
+       "dur": "minutos",
+       "where": "runner T4 propio",
+       "note": "parity_check.py con ONNX Runtime."
+      },
+      {
+       "lane": "triton",
+       "label": "engine TensorRT e imagen de Triton",
+       "dur": "minutos",
+       "where": "runner T4 propio",
+       "note": "build_engine.sh aborta si la GPU no es una T4."
+      },
+      {
+       "lane": "triton",
+       "label": "paridad FP16 contra ese Triton",
+       "dur": "minutos",
+       "where": "runner T4 propio",
+       "note": "Un exit 1 corta todo antes del push."
+      },
+      {
+       "lane": "triton",
+       "label": "push a ECR y registro como challenger",
+       "dur": "minutos (imagen de varios GB)",
+       "where": "Amazon ECR y MLflow",
+       "note": "El canary y el paso a champion siguen en CD."
+      }
+     ]
+    }
+   },
+   "memo": "<b>Una imagen por commit, construida una vez en CI</b>: tests → build <code>linux/amd64</code> → push con tag = 7 caracteres del SHA (<code>${GITHUB_SHA::7}</code>) → el deploy usa su digest. Nunca <code>latest</code>, nunca desde tu Mac.",
+   "trap": "Construir en tu Mac y subir desde ahí \"porque es más rápido\": sale <code>linux/arm64</code> (o amd64 emulado y lento) y con un tag que ningún run de CI puede explicar. Y un re-run que reconstruye un commit ya publicado, con otro digest, falla en el push con <code>tag invalid: … cannot be overwritten because the repository is immutable</code>: es la inmutabilidad haciendo su trabajo, no un bug.",
+   "lab": {
+    "goal": "Que CI construya y publique una imagen linux/amd64 con tag = SHA en GitHub Container Registry (GHCR), sin AWS y sin secrets tuyos, y comprobar desde tu Mac para qué CPU es.",
+    "steps": [
+     {
+      "cmd": "cd ~/lab-actions\nprintf 'FROM busybox:1.38\\nCMD [\"echo\", \"hola desde CI\"]\\n' > Dockerfile\ncat > .github/workflows/imagen.yml <<'EOF'\nname: imagen\non:\n  push:\n    branches: [main]\npermissions:\n  contents: read\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 15\n    permissions:\n      contents: read\n      packages: write\n    steps:\n      - uses: actions/checkout@v7\n        with: { persist-credentials: false }\n      - run: echo \"IMAGEN=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA::7}\" >> \"$GITHUB_ENV\"\n      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0\n        with:\n          registry: ghcr.io\n          username: ${{ github.actor }}\n          password: ${{ secrets.GITHUB_TOKEN }}\n      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1\n      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0\n        with:\n          context: .\n          platforms: linux/amd64\n          push: true\n          tags: ${{ env.IMAGEN }}\n          cache-from: type=gha\n          cache-to: type=gha,mode=max\nEOF\ngit add . && git commit -m \"imagen en GHCR\" && git push",
+      "expect": "En Actions, el run imagen en verde. En la página del repo, Packages muestra lab-actions con un tag de 7 caracteres: el commit corto."
+     },
+     {
+      "cmd": "docker buildx imagetools inspect ghcr.io/TU_USUARIO/lab-actions:SHA_CORTO",
+      "expect": "Platform: linux/amd64, más una entrada unknown/unknown (la attestation). Usa tu usuario en minúsculas. Funciona sin login porque un paquete publicado desde un workflow hereda la visibilidad del repo, y el tuyo es público. Si igual te lo niega, hazlo público en Packages → lab-actions → Package settings → Change visibility."
+     },
+     {
+      "cmd": "docker run --rm --platform linux/amd64 ghcr.io/TU_USUARIO/lab-actions:SHA_CORTO",
+      "expect": "hola desde CI: corre emulada, porque tu Mac es linux/arm64 y pediste amd64. Sin --platform, docker busca en el índice una variante para tu Mac, no la encuentra y puede fallar con no matching manifest for linux/arm64/v8 in the manifest list entries."
+     },
+     {
+      "cmd": "git commit --allow-empty -m \"otro commit\" && git push",
+      "expect": "Un tag nuevo (otro commit corto) en Packages; en el log del build, los pasos que no cambiaron salen como CACHED."
+     },
+     {
+      "cmd": "docker rmi ghcr.io/TU_USUARIO/lab-actions:SHA_CORTO\n# en github.com: Packages → lab-actions → Package settings → Delete this package",
+      "expect": "Untagged y Deleted en tu Mac; en GitHub, el paquete desaparece. Si terminaste los labs, borra también el repo lab-actions."
+     }
+    ],
+    "fix": "Si el push falla con denied, revisa permissions: packages: write en el job. Si el build falla con repository name must be lowercase, tu usuario tiene mayúsculas: el paso con ${GITHUB_REPOSITORY,,} las pasa a minúsculas.",
+    "needs": "el repo lab-actions de la sección 6, público; Docker Desktop corriendo en tu Mac e internet. No necesitas AWS ni crear tokens.",
+    "verified": "docs"
+   },
+   "links": [
+    "#m05.registries",
+    "#m05.dockerfile-ml",
+    "#m15.supply-chain",
+    "#m10.ci-cd"
+   ]
+  }
+ ],
+ "workflows_ref": [
+  {
+   "id": "gateway-ci-cd",
+   "path": ".github/workflows/gateway.yml",
+   "title": "Gateway: tests en cada PR; imagen y deploy al hacer merge a main",
+   "yaml": "# Ilustrativo, armado con los pasos del curso: el C01 no trae este archivo.\nname: gateway\non:\n  pull_request:\n  push: { branches: [main] }\npermissions:\n  contents: read\n\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    defaults:\n      run: { working-directory: reference/c01/gateway }\n    steps:\n      - uses: actions/checkout@v7\n        with: { persist-credentials: false }\n      - uses: actions/setup-python@v7\n        with:\n          python-version: \"3.13\"\n          cache: pip\n          cache-dependency-path: reference/c01/gateway/requirements*.txt\n      - run: pip install -r requirements-dev.txt\n      - run: pytest --junit-xml=reporte-tests.xml\n      - if: failure()\n        uses: actions/upload-artifact@v7\n        with: { name: reporte-tests, path: reference/c01/gateway/reporte-tests.xml }\n\n  imagen:\n    needs: tests\n    if: github.event_name == 'push'\n    runs-on: ubuntu-24.04\n    timeout-minutes: 20\n    permissions:\n      contents: read\n      id-token: write\n    outputs:\n      digest: ${{ steps.build.outputs.digest }}\n    steps:\n      - uses: actions/checkout@v7\n        with: { persist-credentials: false }\n      - id: tag\n        run: echo \"tag=${GITHUB_SHA::7}\" >> \"$GITHUB_OUTPUT\"\n      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0\n        with:\n          role-to-assume: arn:aws:iam::123456789012:role/gha-classifier-gateway\n          aws-region: us-east-1\n      - id: ecr\n        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7\n      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1\n      - id: build\n        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0\n        with:\n          context: reference/c01/gateway\n          platforms: linux/amd64\n          push: true\n          tags: ${{ steps.ecr.outputs.registry }}/classifier-gateway:${{ steps.tag.outputs.tag }}\n          cache-from: type=gha\n          cache-to: type=gha,mode=max\n\n  deploy:\n    needs: imagen\n    runs-on: ubuntu-24.04\n    timeout-minutes: 20\n    environment: produccion\n    concurrency: { group: deploy-gateway-produccion, cancel-in-progress: false }\n    permissions:\n      contents: read\n      id-token: write\n    steps:\n      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0\n        with:\n          role-to-assume: arn:aws:iam::123456789012:role/gha-classifier-deploy\n          aws-region: us-east-1\n      - env:\n          IMAGEN: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-gateway@${{ needs.imagen.outputs.digest }}\n        run: |\n          aws eks update-kubeconfig --name classifier --region us-east-1\n          kubectl -n classifier set image deployment/gateway gateway=\"$IMAGEN\"\n          kubectl -n classifier rollout status deployment/gateway --timeout=5m\n",
+   "notes": [
+    "Ilustrativo, armado con los pasos del curso: el C01 no trae un workflow. Usa los tests reales de <code>reference/c01/gateway</code> (24, sin GPU), su Dockerfile y los nombres de <code>k8s/gateway.yaml</code>; la cuenta 123456789012, los roles y el cluster <code>classifier</code> son de ejemplo.",
+    "Un PR corre solo <code>tests</code>. Un push a main corre <code>tests → imagen → deploy</code>; <code>deploy</code> espera la aprobación del environment <code>produccion</code> y nunca corre dos veces a la vez (<code>concurrency</code>). Con la cola por defecto (<code>queue: single</code>), si llega un deploy nuevo mientras otro espera turno, el que esperaba se cancela y queda el más nuevo.",
+    "Sin llaves: <code>imagen</code> y <code>deploy</code> piden un token OIDC (<code>id-token: write</code>) y asumen roles distintos. El sub de <code>imagen</code> es <code>repo:acme/classifier:ref:refs/heads/main</code>; el de <code>deploy</code>, <code>repo:acme/classifier:environment:produccion</code>. Si el repo se creó o se renombró después del 15 de julio de 2026, los dos llevan IDs (<code>repo:acme@123/classifier@456:…</code>): la trust policy tiene que usar el formato que emite tu repo.",
+    "Las acciones de GitHub (<code>actions/*</code>) van por versión mayor; las de terceros (aws-actions, docker) van fijadas al SHA del commit de su release, con la versión en el comentario.",
+    "Tag = 7 caracteres del commit (como <code>3f9c2ab</code>) en un repo de ECR configurado con tags inmutables; el deploy usa el digest que devolvió el push, como el <code>release.sh</code> de M5. Con GitOps, ese digest iría en un PR al repo de manifests en vez de <code>kubectl set image</code>, abierto con el token de una GitHub App: el <code>GITHUB_TOKEN</code> solo sirve en su propio repo, en los repos nuevos no puede crear PRs y, desde junio de 2026, los runs de un PR que abre él esperan aprobación.",
+    "Necesita: el proveedor OIDC de GitHub en IAM, los dos roles, una access entry de EKS para el rol de deploy (permisos en el namespace <code>classifier</code>) y el environment <code>produccion</code> con reviewers y <code>main</code> como única rama que puede desplegar; en un repo privado, los reviewers exigen GitHub Enterprise."
+   ]
+  },
+  {
+   "id": "triton-modelo",
+   "path": ".github/workflows/triton-modelo.yml",
+   "title": "Modelo nuevo: engine, imagen de Triton, paridad y registro en la T4",
+   "yaml": "# Ilustrativo, armado con los pasos del curso (reference/c01/README.md): el C01 no trae este archivo.\nname: triton-modelo\non:\n  workflow_dispatch:\n    inputs:\n      version:\n        description: \"Versión del modelo = tag de la imagen (2026-09-01-resnet50-fp16)\"\n        required: true\n        type: string\n      checkpoint:\n        description: \"Checkpoint aprobado por el gate (s3://…/model.pt)\"\n        required: true\n        type: string\npermissions:\n  contents: read\nconcurrency: { group: triton-modelo, cancel-in-progress: false }\n\njobs:\n  engine-e-imagen:\n    runs-on: [self-hosted, linux, x64, gpu-t4]\n    timeout-minutes: 120\n    permissions:\n      contents: read\n      id-token: write\n    env:\n      VERSION: ${{ inputs.version }}\n      CHECKPOINT: ${{ inputs.checkpoint }}\n      IMAGEN: 123456789012.dkr.ecr.us-east-1.amazonaws.com/classifier-triton:${{ inputs.version }}\n    defaults:\n      run: { working-directory: reference/c01 }\n    steps:\n      - uses: actions/checkout@v7\n        with: { persist-credentials: false }\n      - uses: actions/setup-python@v7\n        with:\n          python-version: \"3.13\"\n          cache: pip\n          cache-dependency-path: reference/c01/model/requirements.txt\n      - run: pip install -r model/requirements.txt\n      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0\n        with:\n          role-to-assume: arn:aws:iam::123456789012:role/gha-classifier-modelo\n          aws-region: us-east-1\n      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7\n      - env:\n          MUESTRA: ${{ vars.MUESTRA_EVAL_URI }}\n        run: |\n          aws s3 cp \"$CHECKPOINT\" ckpt.pt\n          aws s3 sync \"$MUESTRA\" muestra_eval/ --only-show-errors\n          python model/export_onnx.py --checkpoint ckpt.pt --out model/classifier.onnx\n          python model/parity_check.py --checkpoint ckpt.pt --onnx model/classifier.onnx --images muestra_eval --n 2000\n      - run: bash model/build_engine.sh\n      - run: docker build -t \"$IMAGEN\" triton/\n      - run: |\n          docker run -d --rm --name triton-paridad --gpus all -p 8000:8000 \"$IMAGEN\"\n          curl -sf --retry 30 --retry-delay 5 --retry-all-errors localhost:8000/v2/health/ready\n          python model/parity_check.py --backend triton --checkpoint ckpt.pt --images muestra_eval --n 2000\n      - if: always()\n        run: docker rm -f triton-paridad || true\n      - run: docker push \"$IMAGEN\"\n      - env:\n          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}\n        run: |\n          pip install mlflow-skinny==3.17.2\n          python - <<'EOF'\n          import os, mlflow\n          from mlflow import MlflowClient\n          with mlflow.start_run(run_name=os.environ[\"VERSION\"]) as run:\n              mlflow.log_artifact(\"model/classifier.onnx\", \"model\")\n              mlflow.log_artifact(\"triton/model_repository/classifier/1/model.plan\", \"model\")\n              mlflow.set_tags({\"imagen\": os.environ[\"IMAGEN\"], \"commit\": os.environ[\"GITHUB_SHA\"]})\n          c = MlflowClient()\n          mv = c.create_model_version(\"classifier\", source=f\"{run.info.artifact_uri}/model\", run_id=run.info.run_id)\n          c.set_model_version_tag(\"classifier\", mv.version, \"gate\", \"passed\")\n          c.set_registered_model_alias(\"classifier\", \"challenger\", mv.version)\n          EOF\n",
+   "notes": [
+    "Ilustrativo, armado con los pasos del curso: sigue <code>reference/c01/README.md</code> (líneas 55–67) y los scripts reales de <code>model/</code>; el C01 no trae un workflow.",
+    "Corre en un runner propio con T4 (g4dn.xlarge con Ubuntu) con las etiquetas <code>self-hosted, linux, x64, gpu-t4</code>, que necesita Docker, NVIDIA Container Toolkit y AWS CLI. Se dispara solo a mano (<code>workflow_dispatch</code>), nunca desde un PR.",
+    "El orden del curso: export a ONNX → paridad en CPU (ONNX Runtime) → <code>build_engine.sh</code> (aborta si la GPU no es T4) → <code>docker build triton/</code> → Triton arriba → paridad FP16 (<code>--backend triton</code>, contra <code>localhost:8000</code> por defecto) → push → registro. Un exit 1 en cualquier paso corta todo antes del push.",
+    "El login a ECR va al principio, mientras las credenciales de STS (1 h por defecto) siguen vigentes. AWS documenta que el token de ECR dura 12 h, así que el push del final no depende de esa hora. Si otro paso del final usa AWS directo (por ejemplo, MLflow guardando en S3) y el job puede pasar de 1 h, sube <code>role-duration-seconds</code> hasta el máximo del rol.",
+    "Tag = versión del modelo (<code>2026-09-01-resnet50-fp16</code>) en un repo de ECR configurado con tags inmutables: correrlo dos veces con la misma versión falla en el push en vez de pisar la imagen.",
+    "El registro crea la versión en MLflow con alias <code>challenger</code> y el tag <code>gate=passed</code>; el canary y el paso a <code>champion</code> son de CD. Los inputs llegan a los comandos por <code>env</code>, nunca pegados en <code>run</code>."
+   ]
+  }
+ ],
+ "revisor": [
+  {
+   "id": "sin-permissions",
+   "severity": "warn",
+   "check": "W = the parsed workflow. Flag once when W.permissions is undefined and at least one job in W.jobs has no 'permissions' key; the finding lists those job ids. Any explicit value counts as defined, including permissions: {} and read-all (write-all is reported by permisos-write-all).",
+   "message": "Sin permissions: el GITHUB_TOKEN usa el default del repo.",
+   "why": "El GITHUB_TOKEN es la llave que GitHub le da a cada job. Sin permissions, su poder depende de cómo esté configurado el repo o la org, que en repos viejos puede ser lectura y escritura en casi todo: una acción o una dependencia comprometida hereda ese poder.",
+   "fix": "Pon permissions: contents: read arriba y sube permisos solo en el job que los necesita.",
+   "example_bad": "on: push\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pytest",
+   "example_good": "on: push\npermissions:\n  contents: read\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pytest"
+  },
+  {
+   "id": "permisos-write-all",
+   "severity": "error",
+   "check": "Flag W.permissions when it is the string 'write-all' (after trimming), and flag each job J in W.jobs whose J.permissions is the string 'write-all'. One finding per place.",
+   "message": "permissions: write-all le da al token todos los permisos.",
+   "why": "write-all deja escribir en todo: código, paquetes, releases, y además pedir tokens OIDC. Si un paso se compromete, puede hacer push a main o publicar una imagen a tu nombre.",
+   "fix": "Reemplázalo por la lista mínima: contents: read y, solo en el job que lo necesite, el permiso exacto (id-token: write, packages: write).",
+   "example_bad": "on: push\npermissions: write-all\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pytest",
+   "example_good": "on: push\npermissions:\n  contents: read\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pytest"
+  },
+  {
+   "id": "accion-sin-sha",
+   "severity": "warn",
+   "check": "For every job J in W.jobs, test J.uses (a reusable workflow call) and the 'uses' of every step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened. Skip values that start with './' or 'docker://'. owner = the text before the first '/', lower-cased; ref = the text after the last '@'. Skip owners 'actions' and 'github' (first-party, maintained by GitHub: a major tag such as @v7 is accepted). Flag when ref does not match /^[0-9a-f]{40}$/i. One finding per uses value.",
+   "message": "Acción de terceros sin fijar a un commit (SHA).",
+   "why": "Un tag como @v4 es un nombre que el dueño de la acción, o quien le robe el acceso, puede mover a otro código, y tu próximo run lo ejecuta con tus permisos y secretos. Un SHA de 40 caracteres apunta a un contenido fijo. Las acciones de GitHub (actions/*, github/*) se aceptan por versión mayor: las mantiene GitHub y así recibes sus arreglos sin tocar el YAML.",
+   "fix": "Usa el SHA del commit de la release y deja la versión en un comentario, como docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0.",
+   "example_bad": "on: push\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n      - uses: docker/setup-buildx-action@v4",
+   "example_good": "on: push\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1"
+  },
+  {
+   "id": "pr-target-con-codigo-del-pr",
+   "severity": "error",
+   "check": "Applies only when triggers = the keys of W.on when it is a map, its items when it is a list, or [W.on] when it is a string (if a YAML 1.1 parser turned the key 'on' into true, read W[true]) include 'pull_request_target' or 'workflow_run'. For every job and every step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened, flag the step when (a) its uses starts with 'actions/checkout@' and with.ref or with.repository, read as text, contains 'github.event.pull_request.head', 'github.head_ref', 'refs/pull/' or 'github.event.workflow_run.head', or with['allow-unsafe-pr-checkout'] is true or 'true'; or (b) its run text contains /gh\\s+pr\\s+checkout/ or matches /git\\s+(fetch|checkout|pull)\\b[^\\n]*(refs\\/pull\\/|pull\\/|github\\.event\\.pull_request\\.head|github\\.head_ref)/.",
+   "message": "pull_request_target (o workflow_run) baja y corre código del PR.",
+   "why": "Estos eventos corren con el token con escritura y los secrets del repo base, aunque el PR venga de un fork (la copia del repo de otra persona). Si el workflow baja el código del PR y lo ejecuta (pip install, pytest, un script), quien abrió el PR corre lo que quiera con tus permisos. Desde 2026, actions/checkout se niega a bajar el código de un PR de un fork en estos eventos (v7 desde junio; v2 a v6 desde el 20 de julio, si usas el tag mayor), pero no te cubre si fijaste un SHA más viejo, si lo bajas con git fetch o gh pr checkout, ni con allow-unsafe-pr-checkout: true.",
+   "fix": "Usa pull_request para probar código de PRs y deja pull_request_target para tareas que no ejecutan ese código (etiquetar, comentar).",
+   "example_bad": "on: pull_request_target\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}\n      - run: pip install -r requirements.txt && pytest",
+   "example_good": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          persist-credentials: false\n      - run: pip install -r requirements.txt && pytest"
+  },
+  {
+   "id": "inyeccion-en-run",
+   "severity": "error",
+   "check": "For every step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened, take its run text, plus with.script when uses starts with 'actions/github-script@'. Extract every ${{ … }} expression (non-greedy up to the first '}}'). Flag the step when an expression matches, case-insensitively, /github\\.event(?:\\.[\\w*-]+|\\[[^\\]]*\\])*\\.(body|default_branch|email|head_ref|head_branch|label|message|name|page_name|ref|title)\\b/ or /github\\.head_ref\\b/ (the field endings that GitHub's script-injection docs list as attacker-controlled, plus head_branch). Expressions inside env, with (other than script) or if are fine.",
+   "message": "Texto que controla otra persona, pegado dentro de run (script injection).",
+   "why": "GitHub reemplaza ${{ }} por su valor antes de correr el script. Un título de PR como a\"; curl … | sh; \" se vuelve parte del comando y se ejecuta en tu runner, con tu token. Los campos peligrosos son los que terminan en title, body, message, ref, head_ref, label, name, email, page_name o default_branch (y head_branch), más github.head_ref.",
+   "fix": "Pasa el valor por env (TITULO: ${{ github.event.pull_request.title }}) y úsalo entre comillas como \"$TITULO\".",
+   "example_bad": "on: pull_request\njobs:\n  saludo:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo \"Título del PR ${{ github.event.pull_request.title }}\"",
+   "example_good": "on: pull_request\njobs:\n  saludo:\n    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          TITULO: ${{ github.event.pull_request.title }}\n        run: echo \"Título del PR $TITULO\""
+  },
+  {
+   "id": "llaves-aws-fijas",
+   "severity": "warn",
+   "check": "Collect every string value (deep) of W.env, and for each job J of J.env, J.with, J.secrets and J.steps (run, env and with values included). A string matches when it contains /secrets\\.AWS_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|SESSION_TOKEN)\\b/i or a literal access key id /\\bAKIA[0-9A-Z]{16}\\b/. Also match any step whose with has the key 'aws-access-key-id' or 'aws-secret-access-key'. One finding for W.env and one per matching job.",
+   "message": "Llaves de AWS de larga duración en el workflow.",
+   "why": "Una access key guardada en secrets no vence: si se filtra (un log, un paso comprometido), sirve hasta que alguien la rote a mano. Con OIDC, cada job recibe credenciales que vencen solas (en una hora, por defecto), y solo si su sub coincide con la trust policy del rol.",
+   "fix": "Usa OIDC (sección 8): registra el proveedor de GitHub en IAM, crea un rol cuya trust policy acepte solo el sub de tu repo y usa role-to-assume en el paso, con permissions: id-token: write en el job.",
+   "example_bad": "on: push\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0\n        with:\n          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}\n          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}\n          aws-region: us-east-1",
+   "example_good": "on: push\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: read\n      id-token: write\n    steps:\n      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0\n        with:\n          role-to-assume: arn:aws:iam::123456789012:role/gha-classifier-gateway\n          aws-region: us-east-1"
+  },
+  {
+   "id": "sin-timeout",
+   "severity": "warn",
+   "check": "For every job J in W.jobs that has no 'uses' key (a reusable workflow call cannot set it), flag J when J['timeout-minutes'] is undefined.",
+   "message": "Job sin timeout-minutes: si se cuelga, sigue hasta 6 horas.",
+   "why": "Sin tope, GitHub espera 360 minutos antes de cancelar un job. Un test colgado gasta minutos de Actions o, en un runner propio con GPU como la T4 del C01, la deja ocupada todo ese tiempo.",
+   "fix": "Pon timeout-minutes un poco por encima de lo que tarda normalmente: 10 para los tests del gateway, 20 para su imagen.",
+   "example_bad": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pytest",
+   "example_good": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n    steps:\n      - run: pytest"
+  },
+  {
+   "id": "deploy-sin-freno",
+   "severity": "warn",
+   "check": "A job J (id jid) is a deploy job when jid or J.name matches /(^|[-_ ])(deploy|despliegue|desplegar|rollout|promote|promover)([-_ ]|$)/i, or when the run text of any step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened matches /\\b(kubectl\\s+(apply|set\\s+image|rollout\\s+restart|patch)|helm\\s+(upgrade|install)|argocd\\s+app\\s+sync|aws\\s+ecs\\s+update-service|aws\\s+eks\\s+update-kubeconfig|terraform\\s+apply)\\b/. Flag a deploy job when J.environment is missing or empty (string, or the name of an object), or when neither J.concurrency nor W.concurrency is defined. The finding says which one is missing.",
+   "message": "Job de deploy sin environment o sin concurrency.",
+   "why": "Sin environment no hay aprobación, ni reglas de qué ramas despliegan, ni secrets separados por entorno. Sin concurrency, dos merges seguidos lanzan dos deploys a la vez y el más lento puede dejar puesta la versión vieja.",
+   "fix": "Agrega environment: produccion y un concurrency con group fijo y cancel-in-progress: false, para no cortar un deploy a la mitad.",
+   "example_bad": "on:\n  push:\n    branches: [main]\njobs:\n  deploy:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: kubectl -n classifier set image deployment/gateway gateway=\"$IMAGEN\"",
+   "example_good": "on:\n  push:\n    branches: [main]\njobs:\n  deploy:\n    runs-on: ubuntu-24.04\n    environment: produccion\n    concurrency:\n      group: deploy-gateway-produccion\n      cancel-in-progress: false\n    steps:\n      - run: kubectl -n classifier set image deployment/gateway gateway=\"$IMAGEN\""
+  },
+  {
+   "id": "tag-latest",
+   "severity": "warn",
+   "check": "For every step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened: (a) when uses starts with 'docker/build-push-action@' and with.push is true or 'true', split with.tags on newlines and commas, trim and drop empty items; flag an item that ends with ':latest', or whose text after the last '/' has no ':' (no tag means latest) and that contains no '${{'. (b) For each line of the run text, flag it when it contains the word 'docker', the word 'push' or '--push', and matches /:latest\\b/.",
+   "message": "Se publica una imagen con :latest (o sin tag, que es lo mismo).",
+   "why": "latest no es una versión: se mueve con cada push, así que no sabes qué corre ni a cuál volver. Y en un repo de ECR con tags inmutables (una opción que hay que activar), el segundo push de latest falla.",
+   "fix": "Etiqueta con el commit (tag=${GITHUB_SHA::7}) o con la versión del modelo, y despliega por digest.",
+   "example_bad": "on: push\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: |\n          docker build -t \"$REG/classifier-gateway:latest\" reference/c01/gateway\n          docker push \"$REG/classifier-gateway:latest\"",
+   "example_good": "on: push\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: |\n          TAG=\"${GITHUB_SHA::7}\"\n          docker build -t \"$REG/classifier-gateway:$TAG\" reference/c01/gateway\n          docker push \"$REG/classifier-gateway:$TAG\""
+  },
+  {
+   "id": "set-output-deprecado",
+   "severity": "warn",
+   "check": "For every step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened, flag it when its run text matches /::(set-output|save-state)\\b/.",
+   "message": "Usa el comando deprecado ::set-output o ::save-state.",
+   "why": "GitHub los deprecó en 2022 porque cualquier texto que el paso imprima (el log de una dependencia, por ejemplo) podía fijar salidas sin que lo quisieras. Siguen funcionando con un aviso, pero GitHub puede apagarlos.",
+   "fix": "Escribe la salida en el archivo de GitHub: echo \"tag=3f9c2ab\" >> \"$GITHUB_OUTPUT\".",
+   "example_bad": "on: push\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    steps:\n      - id: tag\n        run: echo \"::set-output name=tag::${GITHUB_SHA::7}\"",
+   "example_good": "on: push\njobs:\n  imagen:\n    runs-on: ubuntu-24.04\n    steps:\n      - id: tag\n        run: echo \"tag=${GITHUB_SHA::7}\" >> \"$GITHUB_OUTPUT\""
+  },
+  {
+   "id": "secreto-en-log",
+   "severity": "error",
+   "check": "Secret env names = the keys of W.env, J.env and the step's env whose value contains 'secrets.'. For each line of each step's run text in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened: find the first /\\b(echo|printf)\\b/; skip the line if there is none or if the line contains '::add-mask::', '--password-stdin', '--with-token' or '>' (output goes to a file or a login, not to the log). Flag the step when the text from echo/printf to the end of the line contains /\\$\\{\\{\\s*secrets\\./ or references a secret env name as $NAME or ${NAME}.",
+   "message": "Un secret se imprime en el log (con echo o printf).",
+   "why": "GitHub tapa con *** el valor exacto, pero no una versión transformada (en base64, un pedazo, con otro formato), y el log lo lee cualquiera que pueda ver el repo (en uno público, cualquiera). Imprimirlo para ver si llegó es la forma más común de filtrarlo.",
+   "fix": "Comprueba que existe sin mostrarlo, por ejemplo test -n \"$HF_TOKEN\" && echo \"HF_TOKEN definido\".",
+   "example_bad": "on: push\njobs:\n  descarga:\n    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          HF_TOKEN: ${{ secrets.HF_TOKEN }}\n        run: echo \"token=$HF_TOKEN\"",
+   "example_good": "on: push\njobs:\n  descarga:\n    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          HF_TOKEN: ${{ secrets.HF_TOKEN }}\n        run: |\n          test -n \"$HF_TOKEN\" && echo \"HF_TOKEN definido\"\n          python descargar_pesos.py"
+  },
+  {
+   "id": "self-hosted-en-pr",
+   "severity": "warn",
+   "check": "Applies when triggers = the keys of W.on when it is a map, its items when it is a list, or [W.on] when it is a string (if a YAML 1.1 parser turned the key 'on' into true, read W[true]) include 'pull_request' or 'pull_request_target'. Runner labels of a job J = J['runs-on'] when it is a string, its items when it is a list, or its 'labels' (string or list) when it is a map. Flag J when a label, trimmed and lower-cased, is 'self-hosted', unless J.if is a string that matches /github\\.event_name\\s*==\\s*['\"](push|workflow_dispatch|schedule|release|merge_group|repository_dispatch)['\"]/ and does not contain 'pull_request'.",
+   "message": "Runner propio (self-hosted) en un workflow que corre con PRs.",
+   "why": "En un repo público, cualquiera puede abrir un PR, y su código correría en tu máquina, que no se borra entre jobs: puede dejar algo instalado, leer credenciales del host o usar tu GPU. GitHub recomienda casi nunca usar runners propios en repos públicos.",
+   "fix": "Corre los PRs en runners de GitHub y deja el runner con GPU para workflow_dispatch o push a main, como triton-modelo.",
+   "example_bad": "on: pull_request\njobs:\n  engine:\n    runs-on: [self-hosted, linux, x64, gpu-t4]\n    steps:\n      - run: bash model/build_engine.sh",
+   "example_good": "on: workflow_dispatch\njobs:\n  engine:\n    runs-on: [self-hosted, linux, x64, gpu-t4]\n    steps:\n      - run: bash model/build_engine.sh"
+  },
+  {
+   "id": "checkout-con-credenciales",
+   "severity": "warn",
+   "check": "Applies when triggers = the keys of W.on when it is a map, its items when it is a list, or [W.on] when it is a string (if a YAML 1.1 parser turned the key 'on' into true, read W[true]) include 'pull_request', 'pull_request_target' or 'workflow_run' (jobs that run code from a PR). In each job that has at least one step with 'run' (counting steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened), flag every step whose uses starts with 'actions/checkout@' and whose with['persist-credentials'] is not false or 'false' (missing counts as true, the default).",
+   "message": "checkout deja el token guardado para los pasos siguientes.",
+   "why": "Con persist-credentials en true, el default, el token queda configurado para git y cualquier paso posterior del job puede usarlo: una dependencia que se instala con pip, un test, un script del PR. En un workflow que corre código de PRs, ese código no lo escribiste tú.",
+   "fix": "Pon with: persist-credentials: false en actions/checkout si el job no necesita hacer push.",
+   "example_bad": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n      - run: pip install -r requirements-dev.txt && pytest",
+   "example_good": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          persist-credentials: false\n      - run: pip install -r requirements-dev.txt && pytest"
+  },
+  {
+   "id": "pip-sin-cache",
+   "severity": "info",
+   "check": "For each job J: it installs with pip when a line of a step's run text in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened matches /\\b(pip3?|python3?\\s+-m\\s+pip)\\s+install\\b/ and does not contain /\\buv\\s+pip\\b/. Flag J when it installs with pip and no step of J (a) uses 'actions/setup-python@' with with.cache equal to 'pip', (b) uses 'actions/cache@' with a with.path that contains 'pip', or (c) uses 'astral-sh/setup-uv@'.",
+   "message": "pip install sin caché: cada run descarga todo de nuevo.",
+   "why": "Sin caché, cada run vuelve a bajar los mismos paquetes: minutos perdidos en cada PR, más con torch, y más fallas si PyPI responde lento.",
+   "fix": "En actions/setup-python agrega cache: pip y cache-dependency-path con tus requirements.",
+   "example_bad": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/setup-python@v7\n        with:\n          python-version: \"3.13\"\n      - run: pip install -r requirements-dev.txt",
+   "example_good": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/setup-python@v7\n        with:\n          python-version: \"3.13\"\n          cache: pip\n      - run: pip install -r requirements-dev.txt"
+  },
+  {
+   "id": "runner-latest",
+   "severity": "info",
+   "check": "Runner labels of a job J = J['runs-on'] when it is a string, its items when it is a list, or its 'labels' when it is a map. Flag J when a trimmed label matches /-latest$/i (ubuntu-latest, windows-latest, macos-latest).",
+   "message": "runs-on con -latest: la imagen del runner cambia sola.",
+   "why": "ubuntu-latest apunta a la versión estable más nueva, y GitHub la mueve cuando sale un Ubuntu nuevo: hoy es 24.04 y ya existe ubuntu-26.04. Ese día cambian Python, Docker y las librerías del sistema sin que nadie toque el workflow.",
+   "fix": "Fija la versión (ubuntu-24.04) y súbela tú, en un PR, cuando quieras.",
+   "example_bad": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest",
+   "example_good": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pytest"
+  },
+  {
+   "id": "curl-a-shell",
+   "severity": "warn",
+   "check": "For every step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened, flag it when its run text matches /\\b(curl|wget)\\b[^\\n|]*\\|\\s*(sudo\\s+)?(-\\S+\\s+)*((ba|z|da)?sh|python3?)\\b/ (download piped into a shell or python), /\\b(ba)?sh\\s+(-c\\s+)?[\"']?\\$\\(\\s*(curl|wget)\\b/ or /\\b(ba)?sh\\s+<\\(\\s*(curl|wget)\\b/.",
+   "message": "Baja un script de internet y lo ejecuta sin verificarlo (curl | sh).",
+   "why": "El script corre con tu token y tus credenciales tal como llegue ese día: si el sitio se compromete o cambia el archivo, tu CI ejecuta otra cosa sin aviso.",
+   "fix": "Baja el archivo, verifica su sha256 contra un valor fijado en el repo y recién después ejecútalo; o usa una acción fijada a un SHA.",
+   "example_bad": "on: push\njobs:\n  herramientas:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: curl -fsSL https://example.com/install.sh | bash",
+   "example_good": "on: push\njobs:\n  herramientas:\n    runs-on: ubuntu-24.04\n    steps:\n      - env:\n          INSTALL_SHA256: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae\n        run: |\n          curl -fsSLo install.sh https://example.com/install.sh\n          echo \"$INSTALL_SHA256  install.sh\" | sha256sum -c -\n          bash install.sh"
+  },
+  {
+   "id": "if-siempre-verdadero",
+   "severity": "error",
+   "check": "For every job J (J.if) and every step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened (step.if): when the value is a string that contains '${{', flag it unless the whole string starts with '${{', ends with '}}' and contains '${{' only once. A block scalar written with '|' or '>' keeps a trailing newline, which also counts as extra text and is flagged.",
+   "message": "if que mezcla ${{ }} con otro texto: siempre es verdadero.",
+   "why": "Si el if tiene texto fuera de ${{ }}, GitHub arma un texto (por ejemplo main == 'main') en vez de comparar, y cualquier texto no vacío cuenta como verdadero: el job corre siempre. Pasa también con un bloque | que deja un salto de línea al final.",
+   "fix": "Escribe la condición sin ${{ }}: if: github.ref_name == 'main'.",
+   "example_bad": "on: push\njobs:\n  avisar:\n    if: ${{ github.ref_name }} == 'main'\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo \"solo desde main\"",
+   "example_good": "on: push\njobs:\n  avisar:\n    if: github.ref_name == 'main'\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo \"solo desde main\""
+  },
+  {
+   "id": "tests-que-no-frenan",
+   "severity": "warn",
+   "check": "For every job J and every step in steps(J) = the items of J.steps, plus the items of any step's 'parallel' list (2026 parallel steps), flattened whose run text matches /\\b(pytest|python3?\\s+-m\\s+pytest|tox|nox)\\b/: flag the step when step['continue-on-error'] is true or 'true', when J['continue-on-error'] is true or 'true', or when a line that runs the tests also matches /\\|\\|\\s*(true\\b|:|exit\\s+0\\b)/.",
+   "message": "Los tests pueden fallar sin poner el job en rojo.",
+   "why": "continue-on-error: true o un || true después de pytest dejan el check en verde aunque haya tests rotos: la regla de main deja pasar el merge y nadie se entera.",
+   "fix": "Quita continue-on-error y el || true; si quieres el reporte igual, súbelo en otro paso con if: failure().",
+   "example_bad": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pytest\n        continue-on-error: true",
+   "example_good": "on: pull_request\njobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: pytest --junit-xml=reporte-tests.xml\n      - if: failure()\n        uses: actions/upload-artifact@v7\n        with:\n          name: reporte-tests\n          path: reporte-tests.xml"
+  }
+ ]
+}

@@ -281,7 +281,7 @@
         [
           "{tag}",
           "versión legible; en el C01, el commit",
-          "3f9c2ab (git rev-parse --short HEAD)"
+          "3f9c2ab (git rev-parse --short=7 HEAD)"
         ],
         [
           "{contexto}",
@@ -389,10 +389,10 @@
       "example": {
         "title": "La cadena completa del gateway del C01",
         "lang": "bash",
-        "code": "# Desde reference/c01. El tag es el commit corto: sabes exactamente qué código corre\nTAG=$(git rev-parse --short HEAD)\nREG=123456789012.dkr.ecr.us-east-1.amazonaws.com\n\n# 1) Dockerfile + contexto → imagen, para los nodos x86 (no para tu Mac)\ndocker build --platform linux/amd64 -t classifier-gateway:$TAG gateway/\n\n# 2) Segundo nombre con el registry delante: mismo IMAGE ID, nada se copia\ndocker tag classifier-gateway:$TAG $REG/classifier-gateway:$TAG\n\n# 3) Login y push: la última línea trae el digest (3f9c2ab: digest: sha256:… size: …)\naws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REG\ndocker push $REG/classifier-gateway:$TAG\n\n# 4) En otra máquina: pull por digest y run (run también hace el pull si falta)\ndocker pull $REG/classifier-gateway@sha256:9b1c…\ndocker run -d --name gw -p 8080:8080 -e MODEL_NAME=classifier $REG/classifier-gateway@sha256:9b1c…\n\n# 5) El contenedor: ¿corre y está sano?\ndocker ps --filter name=gw\ncurl -i localhost:8080/healthz",
+        "code": "# Desde reference/c01. El tag es el commit corto: sabes exactamente qué código corre\nTAG=$(git rev-parse --short=7 HEAD)\nREG=123456789012.dkr.ecr.us-east-1.amazonaws.com\n\n# 1) Dockerfile + contexto → imagen, para los nodos x86 (no para tu Mac)\ndocker build --platform linux/amd64 -t classifier-gateway:$TAG gateway/\n\n# 2) Segundo nombre con el registry delante: mismo IMAGE ID, nada se copia\ndocker tag classifier-gateway:$TAG $REG/classifier-gateway:$TAG\n\n# 3) Login y push: la última línea trae el digest (3f9c2ab: digest: sha256:… size: …)\naws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REG\ndocker push $REG/classifier-gateway:$TAG\n\n# 4) En otra máquina: pull por digest y run (run también hace el pull si falta)\ndocker pull $REG/classifier-gateway@sha256:9b1c…\ndocker run -d --name gw -p 8080:8080 -e MODEL_NAME=classifier $REG/classifier-gateway@sha256:9b1c…\n\n# 5) El contenedor: ¿corre y está sano?\ndocker ps --filter name=gw\ncurl -i localhost:8080/healthz",
         "source": "reference/c01 (gateway/ y k8s/gateway.yaml) y el ciclo diario de la hoja de comandos",
         "notes": [
-          "El tag es el commit (<code>git rev-parse --short HEAD</code>): de un contenedor llegas al código exacto. Es el mismo <code>classifier-gateway:3f9c2ab</code> de <code>k8s/gateway.yaml</code>.",
+          "El tag es el commit (<code>git rev-parse --short=7 HEAD</code>): de un contenedor llegas al código exacto. Es el mismo <code>classifier-gateway:3f9c2ab</code> de <code>k8s/gateway.yaml</code>.",
           "<code>--platform linux/amd64</code>: sin él, tu Mac construye arm64 y el nodo x86 no la puede ejecutar.",
           "<code>docker tag</code> no duplica nada: <code>docker images</code> muestra el mismo ID con dos nombres.",
           "El push imprime el digest; desde ahí, pull y run van por <code>@sha256:</code> (sección 11). <code>9b1c…</code> está recortado: el real tiene 64 caracteres.",
@@ -1336,7 +1336,7 @@
         [
           "{git_sha}",
           "commit corto",
-          "3f9c2ab = $(git rev-parse --short HEAD)"
+          "3f9c2ab = $(git rev-parse --short=7 HEAD)"
         ]
       ],
       "pieces": [
@@ -1414,7 +1414,7 @@
       "example": {
         "title": "Release del gateway: build una vez, desplegar por digest",
         "lang": "bash",
-        "code": "REG=123456789012.dkr.ecr.us-east-1.amazonaws.com\nSHA=$(git rev-parse --short HEAD)\n\n# Login: el token de ECR vale 12 h (GHCR: echo $CR_PAT | docker login ghcr.io -u USUARIO --password-stdin)\naws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REG\n\n# Build una vez, para la arquitectura de los nodos, con el commit como tag; --push sube al terminar\ndocker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/\n\n# El digest es la identidad: es lo que se firma, se escanea y se despliega\ndocker buildx imagetools inspect $REG/classifier-gateway:$SHA     # línea Digest: sha256:…\n\n# Desplegar por digest (k8s/gateway.yaml del C01 usa el tag :3f9c2ab)\nkubectl -n classifier set image deployment/gateway gateway=$REG/classifier-gateway@sha256:9b1c…",
+        "code": "REG=123456789012.dkr.ecr.us-east-1.amazonaws.com\nSHA=$(git rev-parse --short=7 HEAD)\n\n# Login: el token de ECR vale 12 h (GHCR: echo $CR_PAT | docker login ghcr.io -u USUARIO --password-stdin)\naws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REG\n\n# Build una vez, para la arquitectura de los nodos, con el commit como tag; --push sube al terminar\ndocker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/\n\n# El digest es la identidad: es lo que se firma, se escanea y se despliega\ndocker buildx imagetools inspect $REG/classifier-gateway:$SHA     # línea Digest: sha256:…\n\n# Desplegar por digest (k8s/gateway.yaml del C01 usa el tag :3f9c2ab)\nkubectl -n classifier set image deployment/gateway gateway=$REG/classifier-gateway@sha256:9b1c…",
         "source": "adaptado de release.sh (js/content/m05-contenedores.js, sección 8) y reference/c01/k8s/gateway.yaml",
         "notes": [
           "El tag es el commit (<code>3f9c2ab</code>): de un pod llegas al código exacto, y en un repo con tags inmutables nadie lo puede reusar.",
