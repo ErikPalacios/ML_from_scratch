@@ -120,5 +120,23 @@
     "page": "cheatsheet-gateway.html",
     "pdf": "cheatsheet-gateway.pdf",
     "updated": "2026-10-22"
+  },
+  {
+    "id": "prometheus",
+    "title": "Prometheus y Grafana",
+    "topic": "Monitoreo",
+    "summary": "Para instrumentar un servicio, escribir con la documentación abierta las consultas de un dashboard y de una alerta, y diagnosticar «no data», «target down» o «la alerta nunca sonó»: tipos de métrica, scrape, PromQL, histogramas y percentiles, reglas de grabación y de alerta, Alertmanager, Grafana, SLOs con burn rate y Prometheus en Kubernetes, con los archivos reales del C01, figuras a escala de cada proceso, trampas típicas y laboratorios opcionales.",
+    "sample": "histogram_quantile(0.99, sum by (le) (rate(<var>metrica</var>_bucket[5m])))",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "15 laboratorios (6 probados)",
+      "Diagnosticador de 14 síntomas",
+      "Revisor de reglas con 18 reglas",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-prometheus.html",
+    "pdf": "cheatsheet-prometheus.pdf",
+    "updated": "2026-10-23"
   }
 ]
