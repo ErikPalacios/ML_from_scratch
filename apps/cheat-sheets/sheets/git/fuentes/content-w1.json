@@ -496,7 +496,7 @@
             {
               "label": "CD: imagen",
               "cmd": "docker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/",
-              "note": "Otro workflow, en el push a main: entra a AWS por OIDC (GitHub le da al job un token de corta vida y AWS lo cambia por credenciales temporales: sin llaves guardadas), construye para los nodos amd64 y sube a ECR. El tag son los primeros 7 caracteres del commit de main y, con los tags inmutables del C01, no se puede pisar. $REG es el registry de ECR del C01 (123456789012.dkr.ecr.us-east-1.amazonaws.com). $SHA: en CI, ${GITHUB_SHA::7}; el release.sh del curso usa git rev-parse --short HEAD, que da esos mismos 7 en un repo chico."
+              "note": "Otro workflow, en el push a main: entra a AWS por OIDC (GitHub le da al job un token de corta vida y AWS lo cambia por credenciales temporales: sin llaves guardadas), construye para los nodos amd64 y sube a ECR. El tag son los primeros 7 caracteres del commit de main y, con los tags inmutables del C01, no se puede pisar. $REG es el registry de ECR del C01 (123456789012.dkr.ecr.us-east-1.amazonaws.com). $SHA: en CI, ${GITHUB_SHA::7}; el release.sh del curso usa git rev-parse --short=7 HEAD, que da esos mismos 7 (o más, si otro objeto empieza igual)."
             },
             {
               "label": "Manifest",

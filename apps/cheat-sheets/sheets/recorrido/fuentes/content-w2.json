@@ -165,7 +165,7 @@
       "num": 8,
       "title": "CI/CD y registro de imágenes",
       "question": "¿Cómo llega un commit a una imagen probada, inmutable y lista para desplegar?",
-      "summary": "Cada commit pasa por CI: los 24 tests del gateway corren sin GPU y su imagen se construye <b>una sola vez</b> para <code>linux/amd64</code> y sube a ECR, donde los tags no se mueven. La de Triton la arma el pipeline del modelo en la T4 antes de registrar la versión (estación 5), con la versión del modelo como tag; M10 describe la variante en que CD la construye después del registry. Desde el push todo habla del <b>digest</b>: se escanea, se firma y staging y producción despliegan el mismo.",
+      "summary": "Cada commit pasa por CI: los 24 tests del gateway corren sin GPU y su imagen se construye <b>una sola vez</b> para <code>linux/amd64</code> y sube a ECR, donde los tags no se mueven. La de Triton la arma el pipeline del modelo en la T4 antes de registrar la versión (estación 5), con la versión del modelo como tag. Desde el push todo habla del <b>digest</b>: se escanea, se firma y staging y producción despliegan el mismo.",
       "in": [
         "commit con código, Dockerfiles y manifests",
         "imagen de Triton del pipeline del modelo (estación 5)"
@@ -396,7 +396,7 @@
           "path": "reference/c01/README.md",
           "real": true,
           "what": "Lo que plataforma deja listo antes del primer apply: device plugin, nodos T4 con label y taint, Load Balancer Controller, KEDA, Prometheus y un CNI que aplique NetworkPolicy.",
-          "excerpt": "Prerequisitos del cluster: NVIDIA device plugin, node group de `g4dn.xlarge` con label\n`workload=gpu-t4` y taint `nvidia.com/gpu=present:NoSchedule`, AWS Load Balancer Controller, KEDA,\nPrometheus (kube-prometheus-stack, con kube-state-metrics), un CNI que aplique NetworkPolicy (VPC CNI\ncon `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.34 por\n`trafficDistribution: PreferSameZone` (en 1.31–1.33 cámbialo por `PreferClose`).",
+          "excerpt": "Prerequisitos del cluster: NVIDIA device plugin, node group de `g4dn.xlarge` con label\n`workload=gpu-t4` y taint `nvidia.com/gpu=present:NoSchedule`, AWS Load Balancer Controller, KEDA,\nPrometheus (kube-prometheus-stack, con kube-state-metrics), un CNI que aplique NetworkPolicy (VPC CNI\ncon `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.35: 1.34 sale del\nsoporte upstream el 27 de octubre de 2026 y del soporte estándar de EKS el 2 de diciembre de 2026. Nada\nen los manifests depende de 1.34: pasan la validación estricta contra 1.35–1.37 y\n`trafficDistribution: PreferSameZone` es GA desde 1.35 (en 1.31–1.33 cámbialo por `PreferClose`).",
           "lang": "text"
         },
         {

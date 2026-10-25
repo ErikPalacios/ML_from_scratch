@@ -13,7 +13,7 @@
     ],
     "page": "formulario-estimaciones.html",
     "pdf": "formulario-estimaciones.pdf",
-    "updated": "2026-10-16"
+    "updated": "2026-10-25"
   },
   {
     "id": "docker",
@@ -47,7 +47,7 @@
     ],
     "page": "cheatsheet-kubernetes.html",
     "pdf": "cheatsheet-kubernetes.pdf",
-    "updated": "2026-10-20"
+    "updated": "2026-10-25"
   },
   {
     "id": "recorrido",
@@ -65,7 +65,7 @@
     ],
     "page": "recorrido.html",
     "pdf": "recorrido.pdf",
-    "updated": "2026-10-20"
+    "updated": "2026-10-25"
   },
   {
     "id": "git",
@@ -83,7 +83,7 @@
     ],
     "page": "cheatsheet-git.html",
     "pdf": "cheatsheet-git.pdf",
-    "updated": "2026-10-22"
+    "updated": "2026-10-25"
   },
   {
     "id": "triton",

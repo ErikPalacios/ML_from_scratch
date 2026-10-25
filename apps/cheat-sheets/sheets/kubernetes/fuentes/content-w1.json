@@ -707,7 +707,7 @@
       "example": {
         "title": "Lo que el C01 necesita en el cluster antes del primer apply",
         "lang": "text",
-        "code": "Prerequisitos del cluster: NVIDIA device plugin, node group de `g4dn.xlarge` con label\n`workload=gpu-t4` y taint `nvidia.com/gpu=present:NoSchedule`, AWS Load Balancer Controller, KEDA,\nPrometheus (kube-prometheus-stack, con kube-state-metrics), un CNI que aplique NetworkPolicy (VPC CNI\ncon `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.34 por\n`trafficDistribution: PreferSameZone` (en 1.31–1.33 cámbialo por `PreferClose`).",
+        "code": "Prerequisitos del cluster: NVIDIA device plugin, node group de `g4dn.xlarge` con label\n`workload=gpu-t4` y taint `nvidia.com/gpu=present:NoSchedule`, AWS Load Balancer Controller, KEDA,\nPrometheus (kube-prometheus-stack, con kube-state-metrics), un CNI que aplique NetworkPolicy (VPC CNI\ncon `enableNetworkPolicy=true`, o Calico) y las imágenes en ECR. Kubernetes ≥ 1.35: 1.34 sale del\nsoporte upstream el 27 de octubre de 2026 y del soporte estándar de EKS el 2 de diciembre de 2026. Nada\nen los manifests depende de 1.34: pasan la validación estricta contra 1.35–1.37 y\n`trafficDistribution: PreferSameZone` es GA desde 1.35 (en 1.31–1.33 cámbialo por `PreferClose`).",
         "source": "reference/c01/README.md (Desplegar en EKS, prerequisitos)",
         "notes": [
           "Nada de esta lista es parte del control plane que opera AWS: son nodos y add-ons que tu equipo instala o configura (con Helm, Terraform o como add-ons de EKS).",
@@ -715,7 +715,7 @@
           "La label y el taint (un veto que aleja a los demás pods) del grupo de nodos GPU son la mitad del acuerdo para ubicar a Triton. La otra mitad está en <code>triton.yaml</code>: el nodeSelector (en qué nodos puede caer) y la toleration (el permiso para ignorar ese veto). En EKS, un paso del API server, el admission plugin ExtendedResourceToleration, agregaría solo una toleration equivalente, porque Triton pide <code>nvidia.com/gpu</code>. Escribirla la deja explícita y sirve en cualquier cluster.",
           "AWS Load Balancer Controller, KEDA y el Prometheus Operator son controllers: vigilan sus objetos (Ingress, ScaledObject, ServiceMonitor) y actúan. Los kinds nuevos que usa el C01 (ScaledObject, ServiceMonitor) llegan con CRDs: definiciones de tipos que se suman a la API.",
           "Una NetworkPolicy necesita un plugin de red que la aplique. Sin él, el objeto se acepta y no hace nada.",
-          "≥ 1.34 se cumple de sobra: en octubre de 2026 la versión más nueva es la 1.37. La 1.34 deja de recibir parches el 27 de octubre de 2026; en EKS, su soporte estándar termina el 2 de diciembre de 2026."
+          "≥ 1.35 se cumple de sobra: en octubre de 2026 la versión más nueva es la 1.37. La 1.34 deja de recibir parches el 27 de octubre de 2026; en EKS, su soporte estándar termina el 2 de diciembre de 2026."
         ]
       },
       "figure": {

@@ -161,7 +161,7 @@
         },
         {
           "label": "Publicar inmutable",
-          "detail": "Escribe en s3://…/datasets/ds-2026-09-01/ con object lock o una política que prohíba sobrescribir.",
+          "detail": "Escribe en s3://…/datasets/ds-2026-09-01/ con una bucket policy que exige If-None-Match: * (escritura condicional de S3) para que nadie pise una key; el sha256 del manifest en la tarjeta (rows_sha256) delata si alguien lo reescribió.",
           "icon": "lock",
           "who": "automático (pipeline)",
           "where": "Amazon S3 (un prefijo por snapshot)"
@@ -241,7 +241,7 @@
         "Desde un sha256 llegas a los snapshots y a los modelos que lo usan."
       ],
       "memo": "Cómo recordarla: <b>snapshot = manifest, no copia</b>. Un id inmutable más tres punteros desde el modelo (datos, commit, digest) responden «¿con qué se entrenó?» en un minuto.",
-      "trap": "Trampa: inmutable «por convención». Sin object lock o una política que prohíba sobrescribir, alguien reescribe el prefijo y el modelo de marzo deja de ser reproducible. Y object lock protege versiones, no keys: un PUT con la misma key crea otra versión; por eso el manifest guarda el sha256.",
+      "trap": "Trampa: inmutable «por convención». Sin una política que prohíba sobrescribir, alguien reescribe el prefijo y el modelo de marzo deja de ser reproducible. Y object lock protege versiones, no keys: un PUT con la misma key crea otra versión; por eso el manifest guarda el sha256.",
       "platforms": [
         "s3",
         "dvc-lakefs"
@@ -855,7 +855,7 @@
           "opera"
         ]
       },
-      "how": "No instalas nada: AWS lo opera. Tú <b>configuras</b> buckets y reglas (quién lee; una regla de lifecycle que borra las copias de la cola de etiquetado a los 90 días; object lock, que impide borrar o reescribir cada versión por un tiempo, o una política que prohíba sobrescribir) y tus jobs leen y escriben con el SDK o la CLI (<code>aws s3 ls</code>). S3 guarda los objetos de forma durable y cobra por GB y por request; no entiende de datasets: el manifest y la inmutabilidad los pones tú.",
+      "how": "No instalas nada: AWS lo opera. Tú <b>configuras</b> buckets y reglas (quién lee; una regla de lifecycle que borra las copias de la cola de etiquetado a los 90 días; una bucket policy que exige <code>If-None-Match: *</code> para no pisar keys) y tus jobs leen y escriben con el SDK o la CLI (<code>aws s3 ls</code>). S3 guarda los objetos de forma durable y cobra por GB y por request; no entiende de datasets: el manifest, la inmutabilidad y el sha256 de la tarjeta, que delata cambios, los pones tú.",
       "example": {
         "lang": "text",
         "code": "{\n  \"snapshot_id\": \"ds-2026-09-01\",\n  \"parent\": \"ds-2026-08-01\",\n  \"created_at\": \"2026-09-01T03:12:44Z\",\n  \"rows_path\": \"s3://ml-datos/datasets/ds-2026-09-01/rows.parquet\",\n  \"rows_sha256\": \"9f2c…\",\n  \"images\": {\"humano\": \"s3://ml-datos/labeled/ (restringido, sin EXIF)\",\n             \"resto\": \"storage del producto (por key + sha256, no se copian)\"},",
@@ -989,7 +989,7 @@
       "example": {
         "lang": "python",
         "code": "# Último paso del pipeline del modelo: engine e imagen de Triton ya pasaron paridad y latencia\nmv = client.create_model_version(\"classifier\", source=f\"{run.info.artifact_uri}/model\",\n                                 run_id=run.info.run_id)     # la versión apunta a su corrida: linaje\nclient.set_model_version_tag(\"classifier\", mv.version, \"gate\", \"passed\")\nclient.set_registered_model_alias(\"classifier\", \"challenger\", mv.version)\n\n# Al terminar el canary (lo hace CD, no una persona con la consola):\nclient.set_registered_model_alias(\"classifier\", \"champion\", mv.version)",
-        "source": "M10 · model registry, adaptado al orden de C01: al registrar, la imagen de Triton ya existe (en la variante genérica de M10, CD la construye después)"
+        "source": "M10 · model registry: al registrar, la imagen de Triton ya existe (se construyó y pasó la paridad en la T4)"
       },
       "runs": "Un servidor (UI + API REST) con Postgres para metadatos y un bucket S3 para artefactos; lo opera el equipo.",
       "alternatives": "MLflow administrado (SageMaker AI, Databricks, Azure ML), Weights & Biases, o una carpeta por versión en S3 + una tabla.",

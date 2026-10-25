@@ -41,7 +41,7 @@
           "kubernetes",
           "rollout"
         ],
-        "trigger": "Un merge a main del gateway, o una versión challenger nueva en el registry con su imagen de Triton ya construida y probada en la T4: el release cambia los tags de imagen en los manifests (en la variante de M10, CD construye esa imagen después del registry).",
+        "trigger": "Un merge a main del gateway, o una versión challenger nueva en el registry con su imagen de Triton ya construida y probada en la T4: el release cambia los tags de imagen en los manifests.",
         "who": "CI/CD de forma automática (el curso propone GitHub Actions o GitLab CI); el análisis del canary revierte solo y una persona aprueba el paso final a 100 %.",
         "note": "Una release es el par <b>gateway vN + Triton vN</b> con su propio Service: nunca dos modelos detrás del mismo nombre. Al terminar el canary, el alias champion pasa a la versión nueva."
       },
@@ -81,7 +81,7 @@
           "semanas",
           "dias"
         ],
-        "what_passes": "Una versión challenger que ya pasó gate, paridad y latencia: ONNX y engine, labels.json con su hash, versión del preprocesamiento, métricas y punteros a snapshot, commit y digest; su imagen de Triton ya está en ECR con la versión como tag. El release solo cambia tags en los manifests; al terminar el canary, champion apunta a ella (en M10, CD construye la imagen después del registry).",
+        "what_passes": "Una versión challenger que ya pasó gate, paridad y latencia: ONNX y engine, labels.json con su hash, versión del preprocesamiento, métricas y punteros a snapshot, commit y digest; su imagen de Triton ya está en ECR con la versión como tag. El release solo cambia tags en los manifests; al terminar el canary, champion apunta a ella.",
         "where": "MLflow Model Registry, con aliases champion y challenger."
       },
       {

@@ -247,9 +247,9 @@ S.push(section('sin-gpu', 4, '¿Y sin GPU?', '¿Cuántos vCPU harían el mismo t
 
 S.push(section('vram', 5, 'Memoria de GPU (VRAM)', '¿Cabe el modelo en la GPU, y cuánto sobra?',
   mb(T`M_{\text{pesos}} \;=\; P\cdot b`) + mb(T`M_{\text{entrada}} \;=\; B\cdot C\cdot H\cdot W\cdot b_{\text{in}}`) + mb(T`M_{\text{total}} \;\approx\; M_{\text{CUDA}} \;+\; k\,\big(M_{\text{engine}} + M_{\text{act}}(B) + M_{\text{entrada}}(B)\big)`) + `<p class="small">Para LLMs, lo que domina es el KV cache: ${mi(T`M_{\text{KV/token}} = 2\cdot L_{\text{capas}}\cdot H_{\text{kv}}\cdot d_{\text{head}}\cdot b`)} (Llama 3 8B en BF16: ${mi(T`2\cdot 32\cdot 8\cdot 128\cdot 2 = 128\ \text{KiB}`)} por token).</p>` +
-  vars([[T`P`, 'parámetros del modelo', '—', '25.6 M (ResNet-50)'], [T`b`, 'bytes por parámetro: FP32 4 · FP16 2 · INT8 1', 'B', '2 (FP16)'], [T`B`, 'tamaño del batch', '—', '32'], [T`C\cdot H\cdot W`, 'canales × alto × ancho de la entrada', '—', '3 × 224 × 224'], [T`k`, 'instancias del modelo en la GPU', '—', '2'], [T`M_{\text{CUDA}}`, 'contexto CUDA + librerías', 'GB', '≈ 0.3–0.8']]),
+  vars([[T`P`, 'parámetros del modelo', '—', '24.5 M (ResNet-50 de 500 clases)'], [T`b`, 'bytes por parámetro: FP32 4 · FP16 2 · INT8 1', 'B', '2 (FP16)'], [T`B`, 'tamaño del batch', '—', '32'], [T`C\cdot H\cdot W`, 'canales × alto × ancho de la entrada', '—', '3 × 224 × 224'], [T`k`, 'instancias del modelo en la GPU', '—', '2'], [T`M_{\text{CUDA}}`, 'contexto CUDA + librerías', 'GB', '≈ 0.3–0.8']]),
   vramChart() + '<figcaption>Arriba, la T4 completa; abajo, el zoom de lo que sí se usa. La VRAM no es la restricción en C01.</figcaption>',
-  steps([T`M_{\text{pesos}} = 25.6\ \text{M} \times 2\ \text{B} \approx 51\ \text{MB}`, T`M_{\text{entrada}} = 32 \times 3 \times 224 \times 224 \times 4\ \text{B} \approx 19\ \text{MB}`, T`M_{\text{act}}(32) \approx 0.2\text{–}0.5\ \text{GB} \qquad M_{\text{CUDA}} \approx 0.3\text{–}0.8\ \text{GB}`, T`M_{\text{total}} \approx 1\text{–}3\ \text{GB} \;\ll\; 16\ \text{GB}\ \Rightarrow\ \text{la VRAM no limita}`]),
+  steps([T`M_{\text{pesos}} = 24.5\ \text{M} \times 2\ \text{B} \approx 49\ \text{MB}`, T`M_{\text{entrada}} = 32 \times 3 \times 224 \times 224 \times 4\ \text{B} \approx 19\ \text{MB}`, T`M_{\text{act}}(32) \approx 0.2\text{–}0.5\ \text{GB} \qquad M_{\text{CUDA}} \approx 0.3\text{–}0.8\ \text{GB}`, T`M_{\text{total}} \approx 1\text{–}3\ \text{GB} \;\ll\; 16\ \text{GB}\ \Rightarrow\ \text{la VRAM no limita}`]),
   notes(`<p><b>Parámetros × bytes es el piso, no el total.</b> Súmale el contexto CUDA, las activaciones del batch y una copia por instancia.</p>`, `<p>Creer que solo pesan los pesos. En visión casi siempre sobra memoria; en LLMs el KV cache crece con los tokens en vuelo y es lo que decide cuántas conversaciones caben.</p>`)));
 
 S.push(section('cpu-prep', 6, 'CPU para preprocesamiento', '¿Cuántos vCPU necesita el gateway que decodifica y prepara la imagen?',
@@ -438,6 +438,18 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
   .notes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   figure, .pad, .notes, ol.steps li { break-inside: avoid; }
   .hero { padding-top: 0; }
+  /* En papel no hay scroll: lo que en pantalla se desplaza tiene que caber en su columna. Las tablas de variables
+     vuelven a ser tablas, con letra un poco menor y los valores partidos solo entre palabras (antes se cortaba la
+     columna «En C01»); las fórmulas del pad bajan a 1em y la figura de la cadena se achica al ancho de la hoja (antes
+     se cortaba el lado derecho de las dos). */
+  .pad { padding: 10px; }
+  .pad .vars { display: table; overflow: visible; }
+  .vars { font-size: 12px; }
+  .vars th { font-size: 9.5px; letter-spacing: .04em; padding: 4px; }
+  .vars td { padding: 4px; }
+  .vars td.u, .vars td.c { font-size: 10.5px; white-space: normal; overflow-wrap: break-word; }
+  .pad .mb math { font-size: 1em; }
+  figure.wide svg { min-width: 0; }
 }
 `;
 
