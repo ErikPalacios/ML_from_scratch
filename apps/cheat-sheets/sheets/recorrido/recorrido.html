@@ -414,7 +414,7 @@ footer p { margin: 0 0 6px; max-width: 90ch; }
 }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 /* sin ligaduras en el código: != , == y -< se ven tal como se escriben (el atajo font: de cada bloque las reiniciaría) */
-code, pre, .cmd, var.ph { font-variant-ligatures: none !important; font-feature-settings: "liga" 0, "calt" 0 !important; }
+code, pre, .cmd, var.ph, figure.fig, .tool { font-variant-ligatures: none !important; font-feature-settings: "liga" 0, "calt" 0 !important; }
 @media print {
   @page { size: A4; margin: 12mm; }
   @page mapa { size: A4 landscape; margin: 9mm; }
@@ -485,6 +485,8 @@ code, pre, .cmd, var.ph { font-variant-ligatures: none !important; font-feature-
   .pat { break-inside: auto; }
   h3.sub, .tag { break-after: avoid; }
 }
+
+code, code.cmd, .stop__t, .file__p, .code pre, .cmdline code.cmd, pre.term, .qprint td.mono, code *, pre * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 </style></head><body><div class="wrap">
   <header class="hero">
     <p class="kicker">Ronda de Diseño ML · MLOps de punta a punta · el C01</p>

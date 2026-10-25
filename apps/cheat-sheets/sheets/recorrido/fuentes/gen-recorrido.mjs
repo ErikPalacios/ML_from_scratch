@@ -1315,7 +1315,7 @@ footer p { margin: 0 0 6px; max-width: 90ch; }
 }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 /* sin ligaduras en el código: != , == y -< se ven tal como se escriben (el atajo font: de cada bloque las reiniciaría) */
-code, pre, .cmd, var.ph { font-variant-ligatures: none !important; font-feature-settings: "liga" 0, "calt" 0 !important; }
+code, pre, .cmd, var.ph, figure.fig, .tool { font-variant-ligatures: none !important; font-feature-settings: "liga" 0, "calt" 0 !important; }
 @media print {
   @page { size: A4; margin: 12mm; }
   @page mapa { size: A4 landscape; margin: 9mm; }
@@ -1387,6 +1387,25 @@ code, pre, .cmd, var.ph { font-variant-ligatures: none !important; font-feature-
   h3.sub, .tag { break-after: avoid; }
 }
 `;
+
+// Sin ligaduras en la letra monoespaciada (como en la hoja de vLLM): el shorthand font: de reglas como .stop__t o
+// .file__p vuelve a poner font-variant-ligatures y font-feature-settings en normal, y JetBrains Mono dibuja -> como
+// una flecha, != como ≠ y >= como ≥. La regla de arriba (code, pre, .cmd, var.ph) no alcanza a esas clases; esta va al
+// final, con los mismos selectores que usan la letra monoespaciada, así gana en la cascada. Los comentarios del CSS se
+// quitan antes y los selectores se cortan solo en las comas de primer nivel (no en las de :not(a, b) ni en [x="a,b"]).
+const splitSel = (s) => {
+  const out = []; let depth = 0, q = '', cur = '';
+  for (const ch of s) {
+    if (q) { if (ch === q) q = ''; } else if (ch === '"' || ch === "'") q = ch;
+    else if (ch === '(' || ch === '[') depth++; else if (ch === ')' || ch === ']') depth--;
+    else if (ch === ',' && !depth) { out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  return [...out, cur.trim()].filter(Boolean);
+};
+const MONO_RULES = [...CSS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => /var\(--f-mono\)/.test(m[2]));
+const MONO_SEL = [...new Set(MONO_RULES.map((m) => m[1].trim().replace(/\s+/g, ' ')).filter((x) => x && !x.startsWith('@')).flatMap(splitSel))];
+const CSS_ALL = CSS + `\n${[...MONO_SEL, 'code *', 'pre *'].join(', ')} { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }\n`;
 
 // ---------------------------------------------------------------- JS de la página (sin librerías)
 const QDATA = {
@@ -1497,7 +1516,7 @@ const HEAD = `<title>Del dato a producción</title>
 <meta name="description" content="El C01 de punta a punta como un mapa de metro: 12 estaciones del dato a producción, el artefacto que viaja entre ellas, las 4 velocidades, cómo se trabaja cada herramienta, patrones, casos y un quiz de síntomas.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..700&display=swap">
-<style>${CSS}</style>`;
+<style>${CSS_ALL}</style>`;
 const WRAP = `<div class="wrap">
   ${heroHtml()}
   ${printSummary()}

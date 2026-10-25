@@ -1287,7 +1287,7 @@ svg.chart { width: 100%; height: auto; display: block; margin: 0 auto; }
 .fig__notes { margin: 10px 0 0; padding-left: 20px; color: var(--muted); font-size: 14.5px; }
 .cmdw { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; }
 code, code.cmd { font: 13.5px var(--f-mono); background: var(--free); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
-code, pre, .cmd, var.ph { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+code, pre, .cmd, var.ph, figure.fig, .tool { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 .cmdn { color: var(--muted); }
 .sep { color: var(--muted); }
 p.cc { margin: 6px 0 0; }
@@ -1809,6 +1809,25 @@ p.ch__tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin
 }
 `;
 
+// Sin ligaduras en la letra monoespaciada (como en la hoja de vLLM): el shorthand font: de reglas como .code pre o
+// .vars td.c vuelve a poner font-variant-ligatures y font-feature-settings en normal, y JetBrains Mono dibuja -> como
+// una flecha, != como ≠ y >= como ≥. Esta regla va al final, con los mismos selectores que usan la letra monoespaciada
+// (también los <text> de los SVG), así gana en la cascada. Los comentarios del CSS se quitan antes (el de .hc tiene
+// comas) y los selectores se cortan solo en las comas de primer nivel (no en las de :not(a, b) ni en [x="a,b"]).
+const splitSel = (s) => {
+  const out = []; let depth = 0, q = '', cur = '';
+  for (const ch of s) {
+    if (q) { if (ch === q) q = ''; } else if (ch === '"' || ch === "'") q = ch;
+    else if (ch === '(' || ch === '[') depth++; else if (ch === ')' || ch === ']') depth--;
+    else if (ch === ',' && !depth) { out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  return [...out, cur.trim()].filter(Boolean);
+};
+const MONO_RULES = [...CSS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => /var\(--f-mono\)/.test(m[2]));
+const MONO_SEL = [...new Set(MONO_RULES.map((m) => m[1].trim().replace(/\s+/g, ' ')).filter((x) => x && !x.startsWith('@')).flatMap(splitSel))];
+const CSS_ALL = CSS + `\n${[...MONO_SEL, 'code *', 'pre *'].join(', ')} { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }\n`;
+
 // ================================================================ JS de la página (sin librerías)
 const DATA = {
   rules: RULES.map((r) => ({ id: r.id, severity: r.severity, scope: r.scope, pattern: r.pattern, flags: r.flags || '', not_pattern: r.not_pattern || '', message: r.message, why: r.why, fix: r.fix })),
@@ -1975,7 +1994,7 @@ const HEAD = `<title>${TITLE}</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..700&display=swap">
-<style>${CSS}</style>`;
+<style>${CSS_ALL}</style>`;
 // Versiones del pie: las fijadas en requirements.txt del C01 y el Python de su Dockerfile. Si el C01 cambia, el pie también.
 const VER = (() => {
   const req = readFileSync(join(C01_GW, 'requirements.txt'), 'utf8');

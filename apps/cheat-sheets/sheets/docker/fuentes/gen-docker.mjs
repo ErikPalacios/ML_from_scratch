@@ -980,6 +980,7 @@ ol.chain li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10
 .chain__out { color: var(--muted); font-size: 13.5px; }
 .cmdw { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; }
 code, code.cmd { font: 13.5px var(--f-mono); background: var(--free); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+code, pre, .cmd, var.ph, figure.fig, .tool { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 .cmdn { color: var(--muted); }
 .sep { color: var(--muted); }
 button.cp { flex: none; font: 600 11.5px/1 var(--f-display); letter-spacing: .02em; color: var(--accent); background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
@@ -1133,6 +1134,25 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
 }
 `;
 
+// Sin ligaduras en la letra monoespaciada (como en la hoja de vLLM): el shorthand font: de reglas como .code pre o
+// .vars td.c vuelve a poner font-variant-ligatures y font-feature-settings en normal, y JetBrains Mono dibuja -> como
+// una flecha, != como ≠ y >= como ≥. Esta regla va al final, con los mismos selectores que usan la letra monoespaciada
+// (también los <text> de los SVG), así gana en la cascada. Los comentarios del CSS se quitan antes y los selectores se
+// cortan solo en las comas de primer nivel (no en las de :not(a, b) ni en las de [x="a,b"]).
+const splitSel = (s) => {
+  const out = []; let depth = 0, q = '', cur = '';
+  for (const ch of s) {
+    if (q) { if (ch === q) q = ''; } else if (ch === '"' || ch === "'") q = ch;
+    else if (ch === '(' || ch === '[') depth++; else if (ch === ')' || ch === ']') depth--;
+    else if (ch === ',' && !depth) { out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  return [...out, cur.trim()].filter(Boolean);
+};
+const MONO_RULES = [...CSS.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => /var\(--f-mono\)/.test(m[2]));
+const MONO_SEL = [...new Set(MONO_RULES.map((m) => m[1].trim().replace(/\s+/g, ' ')).filter((x) => x && !x.startsWith('@')).flatMap(splitSel))];
+const CSS_ALL = CSS + `\n${[...MONO_SEL, 'code *', 'pre *'].join(', ')} { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }\n`;
+
 // ---------------------------------------------------------------- JS (sin librerías)
 const DATA = {
   rules: W1.revisor,
@@ -1282,7 +1302,7 @@ const HEAD = `<title>Cheat sheet de Docker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..700&display=swap">
-<style>${CSS}</style>`;
+<style>${CSS_ALL}</style>`;
 const WRAP = `<div class="wrap">
   <header class="hero">
     <p class="kicker">Ronda de Diseño ML · Contenedores · ejemplos de C01</p>

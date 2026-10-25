@@ -106,6 +106,7 @@ ol.chain li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10
 .chain__out { color: var(--muted); font-size: 13.5px; }
 .cmdw { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; }
 code, code.cmd { font: 13.5px var(--f-mono); background: var(--free); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+code, pre, .cmd, var.ph, figure.fig, .tool { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 .cmdn { color: var(--muted); }
 .sep { color: var(--muted); }
 button.cp { flex: none; font: 600 11.5px/1 var(--f-display); letter-spacing: .02em; color: var(--accent); background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
@@ -257,6 +258,8 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
   tr { break-inside: avoid; }
   .card > h3, .example > h3, .tag { break-after: avoid; }
 }
+
+.tpl__code, .vars th.rh.p, .vars td.c, svg .tm, svg .tmu, svg .tref, .dt .mono, .dt th.rh.mono, .chain__v, code, code.cmd, .code pre, pre.term, #rv-text, code *, pre * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 </style></head><body><div class="wrap">
   <header class="hero">
     <p class="kicker">Ronda de Diseño ML · Contenedores · ejemplos de C01</p>

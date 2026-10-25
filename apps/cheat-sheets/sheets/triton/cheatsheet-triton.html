@@ -97,7 +97,7 @@ svg .t { fill: var(--muted); font: 12.5px var(--f-display); }
 .fig__notes { margin: 10px 0 0; padding-left: 20px; color: var(--muted); font-size: 14.5px; }
 .cmdw { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; }
 code, code.cmd { font: 13.5px var(--f-mono); background: var(--free); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
-code, pre, .cmd, var.ph { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+code, pre, .cmd, var.ph, figure.fig, .tool { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 .cmdn { color: var(--muted); }
 .sep { color: var(--muted); }
 p.cc { margin: 6px 0 0; }
@@ -645,6 +645,8 @@ p.ch__tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin
   tr { break-inside: avoid; }
   .card > h3, .example > h3, .tag, .bt__h, .vr__ph, .rp__lh, .pr__ph, li.pr__gh { break-after: avoid; }
 }
+
+.tpl__code, .vars th.rh.p, .vars td.c, .dt .mono, .dt th.rh.mono, code, code.cmd, .code pre, pre.term, #rv-text, pre.rv-err__snip, .pt, .pc__bn, .pc__v, .vr__ax, .vr__pv, .pi__art, .lk__g, .lk__t, .gb__on code, .gb__n, .gs__c, .gs__n, .rp__root code, .rp__nm code, .bt__ex, .bt__ax, .pr__pn, .pr__rq code, .pr__m, .pr__pv, svg .pf-tk, .pp__cn, .pp__hd .pp__hs b, .lg__p span, .lg__tk, code *, pre * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 </style></head><body><div class="wrap">
   <header class="hero">
     <p class="kicker">Ronda de Diseño ML · Serving de modelos · ejemplos de C01</p>

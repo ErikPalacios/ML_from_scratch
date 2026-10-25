@@ -90,7 +90,7 @@ svg .f-accent { fill: var(--accent); } svg .f-muted { fill: var(--muted); }
 .fig__notes { margin: 10px 0 0; padding-left: 20px; color: var(--muted); font-size: 14.5px; }
 .cmdw { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; }
 code, code.cmd { font: 13.5px var(--f-mono); background: var(--free); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
-code, pre, .cmd, var.ph { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+code, pre, .cmd, var.ph, figure.fig, .tool { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 .cmdn { color: var(--muted); }
 .sep { color: var(--muted); }
 button.cp { flex: none; font: 600 11.5px/1 var(--f-display); letter-spacing: .02em; color: var(--accent); background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 7px; cursor: pointer; }
@@ -525,6 +525,8 @@ ol.pc__rs { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 4px; font-s
   tr { break-inside: avoid; }
   .card > h3, .example > h3, .tag, .kz__h, .ud__gh, .pl__lh { break-after: avoid; }
 }
+
+.tpl__code, .vars th.rh.p, .vars td.c, .dt .mono, .dt th.rh.mono, code, code.cmd, .code pre, pre.term, #rv-text, pre.rv-err__snip, .sw--head, .mv__cmd code, .mvn__c code, .gx__cmd, svg .gx-tagt, svg .gx-rtagt, svg .gx-headt, svg .gx-ghostt, .ud__cmd, .tagb, .evp, .wj, .wjob__id, dl.oi__cl dt, dl.oi__cl dd, .dur, code *, pre * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 </style></head><body><div class="wrap">
   <header class="hero">
     <p class="kicker">Ronda de Diseño ML · CI/CD · ejemplos de C01</p>
