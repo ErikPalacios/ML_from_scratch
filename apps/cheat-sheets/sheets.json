@@ -138,5 +138,23 @@
     "page": "cheatsheet-prometheus.html",
     "pdf": "cheatsheet-prometheus.pdf",
     "updated": "2026-10-23"
+  },
+  {
+    "id": "vllm",
+    "title": "Serving de LLMs con vLLM",
+    "topic": "Serving de LLMs",
+    "summary": "Para levantar un LLM con vLLM con la documentación abierta, saber cuántas conversaciones caben en tu GPU y diagnosticar por qué el primer token tarda, las respuestas se cortan o el servidor no arranca por memoria: tokens, prefill y decode, KV cache y VRAM, vllm serve y sus flags, la API compatible con OpenAI con streaming, continuous batching, TTFT y TPOT, paralelismo, cuantización, optimizaciones y el gateway de LLMs, con los archivos reales del C10, figuras a escala, trampas típicas y laboratorios opcionales sin GPU.",
+    "sample": "vllm serve <var>modelo</var> --tensor-parallel-size <var>2</var> --max-model-len <var>8192</var>",
+    "sample_kind": "code",
+    "facts": [
+      "15 secciones",
+      "15 laboratorios (15 probados)",
+      "Diagnosticador de 14 síntomas",
+      "Calculadora de VRAM y KV cache",
+      "Quiz de 26 errores"
+    ],
+    "page": "cheatsheet-vllm.html",
+    "pdf": "cheatsheet-vllm.pdf",
+    "updated": "2026-10-25"
   }
 ]
