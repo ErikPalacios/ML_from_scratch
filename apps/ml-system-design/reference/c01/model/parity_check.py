@@ -10,9 +10,9 @@ Backends a comparar contra PyTorch:
   --backend triton  el engine TensorRT FP16 real servido por Triton (en la máquina con la T4)
 Alternativa sin Triton en la máquina con GPU: `polygraphy run classifier.onnx --trt --fp16 --onnxrt`.
 
-Uso:
-  python parity_check.py --onnx classifier.onnx --images /data/eval_sample --n 2000
-  python parity_check.py --backend triton --triton-url localhost:8000 --images /data/eval_sample
+Uso (--checkpoint = el mismo state_dict que exportaste; sin él, la referencia son pesos aleatorios):
+  python parity_check.py --checkpoint resnet50_500.pt --onnx classifier.onnx --images /data/eval_sample --n 2000
+  python parity_check.py --backend triton --triton-url localhost:8000 --checkpoint resnet50_500.pt --images /data/eval_sample
 Sin --images genera imágenes sintéticas (sirve para probar el script, no como gate real).
 Exit code 0 = pasa; 1 = no pasa (el pipeline se detiene).
 """

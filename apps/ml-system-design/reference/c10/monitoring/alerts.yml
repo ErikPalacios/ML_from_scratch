@@ -47,10 +47,12 @@ groups:
         expr: |
           histogram_quantile(0.95, sum by (le, pod) (rate(vllm:time_to_first_token_seconds_bucket[5m])))
       # Errores que ve el usuario: 5xx (incluye 503 por plataforma llena o por el vendor que nos limita con 429
-      # durante un fallback, y 502/504 del upstream, también un request que vLLM aborta antes de dar texto, como
-      # en un drain) y streams cortados o abortados a la mitad. NO cuentan: 429 (la cuota del tenant es un límite
-      # pactado, no una falla; el gateway solo contesta 429 por eso) ni 499 (el cliente se fue). El denominador
-      # excluye 499 por lo mismo.
+      # durante un fallback, y 502/504 del upstream, también un request que vLLM termina sin dar texto, como el
+      # abort de un drain: con streaming llega como rol + usage + [DONE], sin chunk de abort, y el gateway igual lo
+      # cuenta como 502) y streams cortados o abortados a la mitad. NO cuentan: 429 (la cuota del tenant es un
+      # límite pactado, no una falla; el gateway solo contesta 429 por eso) ni 499 (el cliente se fue). El
+      # denominador excluye 499 por lo mismo; los demás 4xx (también el 401, con tenant "unknown") son requests
+      # atendidos y cuentan.
       - record: llm:gateway_error_ratio:rate5m
         expr: |
           (sum(rate(llm_gateway_requests_total{status=~"5..|stream_error"}[5m])) or vector(0))

@@ -7,7 +7,9 @@
    Contrato: docs/SPEC.md §5. Números del caso 1 idénticos a c01-clasificacion.js
    y reference/c01 (export_onnx.py, parity_check.py, build_engine.sh, config.pbtxt).
    Verificado (sept. 2026) contra la documentación de TensorRT 10.x/11.x (release
-   notes 11.0, engine compatibility, trtexec), ONNX Runtime 1.30 (execution
+   notes 11.0, engine compatibility, trtexec; en oct. 2026, las release notes 8.6 y
+   10.9: ampere+ y version compatibility son de la 8.6, kSAME_COMPUTE_CAPABILITY de
+   la 10.9, y el Triton 24.08 del c01 trae TensorRT 10.3), ONNX Runtime 1.30 (execution
    providers, quantization, graph optimizations, TensorRT EP), PyTorch 2.14
    (torch.onnx, torch.compile, AOTInductor), NVIDIA Model Optimizer y OpenVINO.
    Mediciones propias: Mac con Apple M4 (10 núcleos), torch 2.14, ONNX Runtime 1.30,
@@ -412,10 +414,10 @@ sesion = ort.InferenceSession("classifier_int8.onnx", opciones, providers=["CPUE
           { t: 'callout', kind: 'note', title: 'TensorRT 10 vs 11 (2026)', html: `<p>El c01 fija NGC 24.08 (TensorRT 10.3), donde <code>trtexec --fp16</code> es el camino estándar. TensorRT 11.0 (en los contenedores de NGC desde 26.06) hizo obligatorias las redes <b>strongly typed</b>: eliminó las flags de precisión del builder (<code>--fp16</code>, <code>--int8</code> y sus equivalentes en la API) y la calibración implícita de INT8. La precisión ahora vive en el ONNX: FP16 con ModelOpt AutoCast; INT8 y FP8 con nodos Q/DQ. La regla de portabilidad no cambió. En una entrevista basta con saber que existió el cambio y por qué: el engine hace lo que dice el grafo, sin adivinar.</p>` },
           { t: 'h3', text: 'Por qué un engine no es portable' },
           { t: 'p', html: `Las tácticas se eligieron cronometrando en una GPU concreta, los kernels se compilaron para su arquitectura (la T4 es sm_75; la L4, sm_89) y el archivo se serializó en el formato de una versión de TensorRT. La documentación lo dice sin rodeos: por defecto, un engine solo es compatible con el tipo de dispositivo y la versión de TensorRT con que se construyó (y tampoco entre sistemas operativos). Si Triton intenta cargar un engine de otra GPU u otra versión, falla al cargar; en el c01, con <code>--exit-on-error=true</code>, el pod queda en CrashLoopBackOff.` },
-          { t: 'table', caption: 'Las salidas que existen (documentación actual de TensorRT; los dos modos de compatibilidad llegaron en la 8.6)', head: ['Opción', 'Qué permite', 'Precio', 'Para el c01'], rows: [
+          { t: 'table', caption: 'Las salidas que existen (documentación actual de TensorRT). <code>ampere+</code> y version compatibility llegaron en la 8.6; misma compute capability, recién en la 10.9', head: ['Opción', 'Qué permite', 'Precio', 'Para el c01'], rows: [
             ['Construir en la GPU de destino (default)', 'Mejor rendimiento', 'Un runner de CI por tipo de GPU; un engine por tipo', '<b>Elegido</b>: T4 en CI, NGC 24.08'],
             ['Hardware compatibility <code>ampere+</code>', 'Un engine para Ampere y todo lo posterior', 'Excluye tácticas específicas: algo más lento. <b>No cubre Turing</b>', 'No sirve: la T4 es Turing'],
-            ['Misma compute capability', 'Otras GPUs con la misma arquitectura exacta', 'Pequeña pérdida; puede fallar si la otra GPU tiene menos memoria', 'Solo si hubiera otra GPU sm_75'],
+            ['Misma compute capability', 'Otras GPUs con la misma arquitectura exacta', 'Pequeña pérdida; puede fallar si la otra GPU tiene menos memoria', 'Solo si hubiera otra GPU sm_75, y pide TensorRT ≥ 10.9: NGC 24.08 trae la 10.3'],
             ['Version compatibility', 'Correr con runtimes más nuevos de TensorRT (<code>--versionCompatible</code>)', 'Puede ser más lento; el runtime lean va dentro del plan', 'Útil si Triton se actualiza más seguido que el modelo'],
           ] },
           { t: 'p', html: `La práctica del c01, en <code>model/build_engine.sh</code>: una guardia que aborta si la GPU del runner no es una T4, el contenedor <code>tensorrt:24.08</code> (mismo YY.MM que la imagen de Triton) y las huellas al final (GPU, release, sha256 del ONNX y del plan) para el registry. Si la flota tiene T4 y L4, son <b>dos engines</b>, dos tags de imagen y un <code>nodeSelector</code> por node pool (<a href="#m06.nodos">M6</a>) para que un pod con el engine de T4 nunca caiga en una L4.` },

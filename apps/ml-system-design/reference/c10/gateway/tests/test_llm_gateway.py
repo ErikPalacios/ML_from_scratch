@@ -1,12 +1,14 @@
 """Tests del llm-gateway con upstreams FALSOS (httpx2.MockTransport): el código HTTP real del gateway corre entero.
 
 Cada test es una situación de operación: auth, alias, cuota, admisión, fallback al vendor con redacción,
-streaming con y sin usage, fallas antes y después del primer byte, y un cliente que se va a mitad del stream.
+streaming con y sin usage, fallas antes y después del primer byte, un cliente que se va a mitad del stream, y
+que cada respuesta (también cada error) deje su conteo y su línea de log.
 """
 
 import asyncio  # concurrencia y eventos
 import hashlib  # hashes de las keys de prueba
 import json  # cuerpos
+import logging  # el nivel del logger del gateway en los tests que leen sus líneas
 import re  # leer /metrics
 from pathlib import Path  # tenants.yaml y alerts.yml
 
@@ -97,6 +99,11 @@ def sse_events(text):
     return [line[6:] for line in text.split("\n") if line.startswith("data: ")]
 
 
+def log_lines(caplog):
+    """Las líneas JSON que escribió el gateway (su logger propaga al root, donde las junta caplog)."""
+    return [json.loads(r.getMessage()) for r in caplog.records if r.name == "llm_gateway"]
+
+
 # ------------------------------------------------------------------ configuración
 def test_tenants_yaml_loads_and_hashes_match_demo_keys():
     cfg = load_config(HERE / "tenants.yaml")
@@ -146,6 +153,34 @@ async def test_auth_alias_and_validation_errors():
     assert await metric(c, "llm_gateway_requests_total", tenant="support-assistant", status="404") == 1
     models = (await c.get("/v1/models", headers=h(CATALOG))).json()
     assert [m["id"] for m in models["data"]] == ["extract-default"]  # solo sus alias
+
+
+@pytest.mark.anyio
+async def test_every_response_is_counted_and_logged_without_content(caplog):
+    # Un error que solo ve el producto no existe para la guardia: cada respuesta deja su conteo y su línea,
+    # con el mismo request_id que el header x-request-id que recibe el cliente
+    caplog.set_level(logging.INFO, logger="llm_gateway")
+    _, c, _, _ = build(Recorder(mode="400"))  # "vLLM" contesta 400 (el prompt + max_tokens no entra)
+    body = {"model": "chat-default", "messages": MSG}
+    responses = [
+        await c.post("/v1/chat/completions", json=body, headers=h("sk-otra")),  # 401: ningún tenant
+        await c.post("/v1/chat/completions", json=dict(body, model="gpt-x"), headers=h(SUPPORT)),  # 404
+        await c.post("/v1/chat/completions", json=dict(body, max_tokens=5000), headers=h(SUPPORT)),  # 400 nuestro
+        await c.post("/v1/chat/completions", json=body, headers=h(LISTINGS)),  # 400 de vLLM, reenviado
+    ]
+    lines = log_lines(caplog)
+    assert [r.status_code for r in responses] == [401, 404, 400, 400]
+    assert [ln["status"] for ln in lines] == ["401", "404", "400", "400"]
+    assert [ln["request_id"] for ln in lines] == [r.headers["x-request-id"] for r in responses]
+    assert [ln["error"] for ln in lines] == ["invalid_api_key", "model_not_found", "max_tokens_exceeded",
+                                             "upstream_rejected"]
+    assert [ln["backend"] for ln in lines] == [None, None, None, "self"]  # solo el último llegó a un upstream
+    assert lines[0]["tenant"] == "unknown"
+    # El 401 también cuenta, con tenant "unknown": una key rotada en un producto se ve como una ola de 401
+    assert await metric(c, "llm_gateway_requests_total", tenant="unknown", alias="unknown", status="401") == 1
+    assert await metric(c, "llm_gateway_requests_total", tenant="listing-assistant", status="400") == 1
+    # Ni el prompt ni lo que mandó el cliente (el nombre de modelo del 404) llegan al log
+    assert "pedido" not in caplog.text and "gpt-x" not in caplog.text
 
 
 # ------------------------------------------------------------------ camino feliz
@@ -339,50 +374,104 @@ async def test_stream_fallback_before_first_byte():
     assert sse_events(r.text)[-1] == "[DONE]" and vendor.calls[0]["stream"] is True
 
 
-def aborted_stream(content_first=False):
-    """Lo que manda vLLM v0.30 cuando aborta un request (p. ej. un pod en drain rechaza lo nuevo): un 200 con el
-    chunk del rol, finish_reason "abort" (con o sin texto antes), usage y [DONE]."""
+def sse_upstream(chunks, done=True):
+    """Un upstream que contesta 200 con estos chunks SSE (dicts) y, si `done`, con [DONE] al final."""
     async def handler(request):
-        body = json.loads(request.content)
-        base = {"id": "x", "object": "chat.completion.chunk", "model": body["model"]}
-        if not body.get("stream"):
-            return httpx2.Response(200, json=dict(base, object="chat.completion", choices=[
-                {"index": 0, "message": {"role": "assistant", "content": ""}, "finish_reason": "abort"}]))
-        chunks = [dict(base, choices=[{"index": 0, "delta": {"role": "assistant", "content": ""}}])]
-        if content_first:
-            chunks.append(dict(base, choices=[{"index": 0, "delta": {"content": " hola"}}]))
-        chunks.append(dict(base, choices=[{"index": 0, "delta": {}, "finish_reason": "abort"}]))
-        chunks.append(dict(base, choices=[], usage={"prompt_tokens": 10, "completion_tokens": 1, "total_tokens": 11}))
-        text = "".join(f"data: {json.dumps(ch)}\n\n" for ch in chunks) + "data: [DONE]\n\n"
+        text = "".join(f"data: {json.dumps(ch)}\n\n" for ch in chunks) + ("data: [DONE]\n\n" if done else "")
         return httpx2.Response(200, headers={"content-type": "text/event-stream"}, content=text.encode())
     return handler
 
 
+ROLE = {"object": "chat.completion.chunk", "choices": [
+    {"index": 0, "delta": {"role": "assistant", "content": ""}, "logprobs": None, "finish_reason": None}]}
+
+
+def usage_chunk(prompt, completion):
+    return {"object": "chat.completion.chunk", "choices": [],
+            "usage": {"prompt_tokens": prompt, "completion_tokens": completion, "total_tokens": prompt + completion}}
+
+
+def aborted_stream(content_first=False):
+    """Lo que manda vLLM v0.30 cuando aborta un request (p. ej. un pod en drain aborta lo nuevo), según
+    chat_completion/serving.py. Sin streaming: un 200 con finish_reason "abort" y el texto vacío. Con streaming, un
+    200 con el chunk del rol y, si ya había texto, el chunk con finish_reason "abort"; si NO había ningún token,
+    ese chunk no se manda (vLLM salta los chunks vacíos): solo el rol, el usage y [DONE]."""
+    async def handler(request):
+        body = json.loads(request.content)
+        if not body.get("stream"):
+            return httpx2.Response(200, json={"object": "chat.completion", "model": body["model"], "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": ""}, "logprobs": None,
+                 "finish_reason": "abort", "stop_reason": None}], "usage": usage_chunk(10, 0)["usage"]})
+        chunks = [ROLE]
+        if content_first:
+            chunks.append({"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": " hola"},
+                                                                           "logprobs": None, "finish_reason": None}]})
+            chunks.append({"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": ""},
+                                                                           "logprobs": None, "finish_reason": "abort",
+                                                                           "stop_reason": None}]})
+        chunks.append(usage_chunk(10, 1 if content_first else 0))
+        return await sse_upstream(chunks)(request)
+    return handler
+
+
 @pytest.mark.anyio
-async def test_abort_before_content_is_an_upstream_failure_not_an_empty_200():
+async def test_abort_before_content_is_an_upstream_failure_not_an_empty_200(caplog):
+    caplog.set_level(logging.INFO, logger="llm_gateway")
     app, c, _, vendor = build()
     app.state.gateway.upstreams["vllm-70b"].client._transport = httpx2.MockTransport(aborted_stream())
     stream_body = {"model": "chat-default", "messages": MSG, "stream": True}
     r = await c.post("/v1/chat/completions", json=stream_body, headers=h(SUPPORT))
-    assert r.status_code == 502  # soporte: error honesto (y cuenta en LLMGatewayErrorRate)
+    assert r.status_code == 502  # soporte: error honesto (y cuenta en LLMGatewayErrorRate), no un 200 vacío
+    line = log_lines(caplog)[-1]
+    assert (line["status"], line["backend"], line["error"]) == ("502", "self", "upstream_error")
+    assert line["request_id"] == r.headers["x-request-id"]  # el error también se puede rastrear
     r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG}, headers=h(SUPPORT))
-    assert r.status_code == 502  # sin streaming, igual
+    assert r.status_code == 502  # sin streaming, igual (ahí sí llega finish_reason "abort")
     r = await c.post("/v1/chat/completions", json=stream_body, headers=h(LISTINGS))
     assert r.status_code == 200 and r.headers["x-llm-backend"] == "vendor" and len(vendor.calls) == 1
     assert await metric(c, "llm_gateway_requests_total", tenant="support-assistant", status="502") == 2
+    assert await metric(c, "llm_gateway_requests_total", status="200", tenant="support-assistant") == 0
     assert await metric(c, "llm_gateway_vendor_requests_total", reason="upstream_error") == 1
     assert app.state.gateway.admission.inflight("interactive") == 0
 
 
 @pytest.mark.anyio
-async def test_abort_after_content_counts_as_stream_error():
+async def test_stream_that_ends_without_text_is_an_upstream_failure():
+    # Sin texto y sin un fin normal, [DONE] o el fin de la conexión no son una respuesta: 502 (o el vendor)
+    cut = sse_upstream([ROLE], done=False)  # la conexión se cerró después del rol (un pod que murió)
+    error_first = sse_upstream([ROLE, {"error": {"message": "EngineDeadError", "type": "InternalServerError"}}])
+    for upstream in (cut, error_first):
+        app, c, _, _ = build()
+        app.state.gateway.upstreams["vllm-70b"].client._transport = httpx2.MockTransport(upstream)
+        r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG, "stream": True},
+                         headers=h(SUPPORT))
+        assert r.status_code == 502 and r.json()["error"]["code"] == "upstream_error"
+        assert app.state.gateway.admission.inflight("interactive") == 0
+    # Una respuesta vacía de verdad (el primer token fue el fin de secuencia) sí trae su chunk de fin: es un 200
+    stop = {"object": "chat.completion.chunk", "choices": [
+        {"index": 0, "delta": {"content": ""}, "logprobs": None, "finish_reason": "stop", "stop_reason": None}]}
+    app, c, _, _ = build()
+    app.state.gateway.upstreams["vllm-70b"].client._transport = httpx2.MockTransport(
+        sse_upstream([ROLE, stop, usage_chunk(10, 1)]))
+    r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG, "stream": True},
+                     headers=h(SUPPORT))
+    assert r.status_code == 200 and sse_events(r.text)[-1] == "[DONE]"
+    assert json.loads(sse_events(r.text)[1])["choices"][0]["finish_reason"] == "stop"
+    assert await metric(c, "llm_gateway_requests_total", status="200") == 1
+
+
+@pytest.mark.anyio
+async def test_abort_after_content_counts_as_stream_error(caplog):
+    caplog.set_level(logging.INFO, logger="llm_gateway")
     app, c, _, _ = build()
     app.state.gateway.upstreams["vllm-70b"].client._transport = httpx2.MockTransport(aborted_stream(content_first=True))
     r = await c.post("/v1/chat/completions", json={"model": "chat-default", "messages": MSG, "stream": True},
                      headers=h(SUPPORT))
     assert r.status_code == 200 and sse_events(r.text)[-1] == "[DONE]"  # el cliente ya lo estaba recibiendo
+    assert json.loads(sse_events(r.text)[-2])["choices"][0]["finish_reason"] == "abort"  # se reenvía tal cual
     assert await metric(c, "llm_gateway_requests_total", status="stream_error") == 1
     assert await metric(c, "llm_gateway_requests_total", status="200") == 0
+    assert log_lines(caplog)[-1]["status"] == "stream_error" and log_lines(caplog)[-1]["error"] == "upstream_aborted"
 
 
 @pytest.mark.anyio
@@ -422,12 +511,15 @@ async def test_midstream_failure_sends_error_event_no_fallback():
 
 
 # ------------------------------------------------------------------ el cliente se va
-async def call_raw(app, body, disconnect_after_first_chunk=False, disconnect_after_s=None):
+async def call_raw(app, body, disconnect_after_first_chunk=False, disconnect_after_s=None, cut_body_at=None):
     """Llama al ASGI app a mano para poder simular la desconexión del cliente (httpx no lo permite)."""
     raw = json.dumps(body).encode()
     gone = asyncio.Event()
     sent = []
     messages = [{"type": "http.request", "body": raw, "more_body": False}]
+    if cut_body_at is not None:  # llega un trozo del cuerpo (faltaba el resto) y después la desconexión
+        messages = [{"type": "http.request", "body": raw[:cut_body_at], "more_body": True}]
+        gone.set()
 
     async def receive():
         if messages:
@@ -478,6 +570,19 @@ async def test_client_disconnect_non_stream_cancels_upstream():
     assert sent[0]["status"] == 499
     assert app.state.gateway.admission.inflight("interactive") == 0
     assert await metric(c, "llm_gateway_requests_total", status="499") == 1
+
+
+@pytest.mark.anyio
+async def test_client_disconnect_mid_body_is_499_not_500(caplog):
+    # Como en el c01: un cliente que corta mientras manda el cuerpo no es una falla nuestra. Sin el except,
+    # Starlette contestaría 500 con traceback y el request no contaría en ninguna parte.
+    caplog.set_level(logging.INFO, logger="llm_gateway")
+    app, c, rec, _ = build()
+    sent = await call_raw(app, {"model": "chat-default", "messages": MSG}, cut_body_at=20)
+    assert sent[0]["status"] == 499 and rec.calls == []
+    assert await metric(c, "llm_gateway_requests_total", tenant="support-assistant", status="499") == 1
+    assert await metric(c, "llm_gateway_requests_total", status="500") == 0
+    assert log_lines(caplog)[-1]["status"] == "499" and log_lines(caplog)[-1]["error"] == "client_gone"
 
 
 # ------------------------------------------------------------------ contrato con alerts.yml

@@ -22,7 +22,7 @@ c10/
 ├── bench/
 │   ├── run_sweep.sh         # el barrido de `vllm bench serve` con la mezcla del caso (NO ejecutado: no hay GPU)
 │   ├── pick_concurrency.py  # lee los JSON del barrido y elige la concurrencia máxima dentro de los SLOs
-│   └── tests/               # test_pick_concurrency.py (12) + fixtures/ SINTÉTICOS con las claves reales de vLLM v0.30.0
+│   └── tests/               # test_pick_concurrency.py (12) + fixtures/ SINTÉTICOS con un subconjunto de las claves de vLLM v0.30.0
 ├── gateway/
 │   ├── llm_gateway.py       # FastAPI: /v1/chat/completions (stream y no stream), /v1/models, /metrics, /healthz
 │   ├── quota.py             # token bucket en tokens/min con cobro estimado y conciliación con usage
@@ -30,7 +30,7 @@ c10/
 │   ├── pii.py               # redacción por regex antes del vendor (y sus límites, escritos)
 │   ├── tenants.yaml         # tenants, alias, upstreams y límites (validado al arrancar)
 │   ├── requirements.txt     # lock completo (21 paquetes)
-│   └── tests/               # test_llm_gateway.py (32), test_admission.py (8), test_pii.py (9), test_quota.py (6),
+│   └── tests/               # test_llm_gateway.py (35), test_admission.py (8), test_pii.py (9), test_quota.py (6),
 │                            #   test_upstream_pool.py (1: el pool HTTP real contra un uvicorn local)
 ├── k8s/
 │   └── vllm-70b.yaml        # Service (solo track=stable), Deployment (16 × 2 GPUs, init container que baja y
@@ -68,8 +68,9 @@ t = 0       soporte manda POST /v1/chat/completions {model: "chat-default", stre
             → upstream vllm-70b (Service de los pods estables) con model = chat-70b-fp8-2026-09-28,
               priority = 0, stream_options.include_usage = true; conexión TCP nueva (sin keep-alive hacia vLLM)
 + ≈ 0.3–1 s vLLM: prefix cache del system prompt, prefill troceado del resto, primer token
-            el gateway espera el primer evento con CONTENIDO (≤ 10 s): hasta acá una falla (incluido un request
-            que vLLM aborta sin texto, como en un drain) todavía es un 502/504 limpio
+            el gateway espera el primer evento con CONTENIDO (≤ 10 s): hasta acá una falla todavía es un 502/504
+            limpio, incluido un stream que termina sin texto (así llega un abort antes del primer token, como en
+            un drain: el rol, el usage y [DONE], sin chunk de abort)
             TTFT = desde que el request llegó al gateway hasta el primer evento con contenido
 cada ≈ 40 ms un evento SSE por token, reenviado apenas llega (TPOT p95 ≤ 50 ms)
 fin         [DONE]; el chunk de usage que pidió el gateway no se reenvía (el cliente no lo pidió)
@@ -108,20 +109,20 @@ el request y los tokens, y un `curl --max-time 0.5` que corta un stream de 200 p
 | Código | Cuándo | Qué hace el cliente |
 |---|---|---|
 | 400 | JSON inválido, `messages` vacío, `n` ≠ 1, `max_tokens` sobre el tope, prompt estimado sobre el tope | corregir el request |
-| 401 | API key inválida | — |
+| 401 | API key inválida (se cuenta con tenant `unknown`) | — |
 | 403 | el alias existe pero el tenant no puede usarlo | — |
 | 404 | el alias no existe | — |
 | 429 + Retry-After | cuota de tokens/min del tenant agotada (su límite) | esperar lo que dice Retry-After |
 | 503 + Retry-After | plataforma llena: cola llena o se esperó más de 0.5 s (interactive) / 30 s (batch); o, durante un fallback, el vendor nos limita con 429 (su Retry-After) | reintentar con backoff; degradar |
-| 502 / 504 | vLLM no responde, no da el primer token a tiempo o aborta el request sin texto (un pod en drain), y el tenant no tiene vendor; o el vendor rechaza nuestra credencial (401/403) | degradar |
-| otros 4xx del upstream | p. ej. prompt más largo que el contexto (vLLM) | corregir el request |
+| 502 / 504 | vLLM no responde, no da el primer token a tiempo o termina el request sin texto (un pod en drain aborta lo nuevo: sin streaming, `finish_reason: "abort"`; con streaming, el rol, el usage y `[DONE]`), y el tenant no tiene vendor; o el vendor rechaza nuestra credencial (401/403) | degradar |
+| otros 4xx del upstream | p. ej. el 400 de vLLM v0.30 cuando prompt + `max_tokens` pasa del contexto (desde v0.32, vLLM recorta la salida en vez de rechazar) | corregir el request |
 | 200 + evento `error` o `finish_reason: "abort"` | el upstream falló o abortó con el stream ya empezado (`stream_error` en métricas) | mostrar lo recibido + error |
 
 ### Métricas del gateway (`/metrics`)
 
 | Métrica | Labels | La usa |
 |---|---|---|
-| `llm_gateway_requests_total` | tenant, alias, status (código, `499`, `stream_error`) | LLMGatewayErrorRate |
+| `llm_gateway_requests_total` | tenant (`unknown` en un 401), alias, status (código, `499`, `stream_error`) | LLMGatewayErrorRate |
 | `llm_gateway_tokens_total` | tenant, direction (`input`/`output`), backend (`self`/`vendor`) | showback por tenant, factura del vendor |
 | `llm_gateway_ttft_seconds` (histograma, borde en 1.0) | alias, priority, backend | LLMTTFTHigh |
 | `llm_gateway_tpot_seconds` (histograma, borde en 0.05) | alias, priority, backend | LLMTPOTHigh |
@@ -130,6 +131,20 @@ el request y los tokens, y un `curl --max-time 0.5` que corta un stream de 200 p
 | `llm_gateway_max_inflight` (gauge) | — | LLMCapacityHeadroomLow |
 | `llm_gateway_vendor_requests_total` | tenant, reason (`overloaded`, `upstream_error`, `upstream_timeout`) | costo del fallback |
 | `llm_gateway_pii_redactions_total` | kind (`EMAIL`, `PHONE`, `CARD`, `CLABE`, `CURP`, `RFC`) | auditoría de lo que sale |
+
+Cada respuesta de `/v1/chat/completions` (200, rechazo, falla del upstream, 4xx reenviado o cliente que se fue)
+suma en `llm_gateway_requests_total` y deja una línea JSON en el log, sin prompt ni respuesta: `request_id` (el del
+header `x-request-id`, que también llevan los errores), `tenant`, `alias`, `backend` (`null` si no llegó a ningún
+upstream), `status`, `error` (el código: `invalid_api_key`, `upstream_error`, `client_gone`…), los tokens de
+`usage`, `ttft_s` y `duration_s`. Quedan afuera las respuestas que el gateway no decide: un 404 o 405 de ruta de
+FastAPI y el 500 de una excepción no prevista (Starlette lo contesta y loguea el traceback).
+
+Keep-alives: el gateway no reenvía comentarios SSE (`: keep-alive`) ni manda los suyos. vLLM solo los manda con
+`--sse-keep-alive-interval` (default 0, apagado en el manifest), y el silencio del gateway hacia el cliente ya
+queda debajo de los 60 s de idle timeout de un ALB: ≤ 30 s entre eventos (`read_timeout_s`; después, un evento de
+error) y, antes del primer byte, la cola (≤ 0.5 s interactivo, ≤ 30 s batch) + conectar + 10 s de primer token.
+Prenderlos en vLLM empeoraría las cosas: un comentario son bytes, reinicia el read timeout, y un vLLM trabado que
+solo manda keep-alives nunca cortaría.
 
 Métricas de vLLM que usan las alertas (v0.30.0): `vllm:time_to_first_token_seconds`, `vllm:num_requests_waiting`,
 `vllm:num_requests_running`, `vllm:kv_cache_usage_perc` (desde v0.9.2; antes `vllm:gpu_cache_usage_perc`, oculto
@@ -159,7 +174,7 @@ usada, no un problema.
 cd reference/c10
 python3 -m venv .venv && . .venv/bin/activate      # Python 3.13 (o 3.12)
 pip install -r requirements-dev.txt
-pytest                                              # 111 tests, ≈ 4 s
+pytest                                              # 114 tests, ≈ 4 s
 python capacity/vram_calc.py                        # la cuenta de VRAM del caso y la de la L4 de #m04
 python capacity/fleet_calc.py                       # flota, costo, Little, batch nocturno y break-even
 python bench/pick_concurrency.py bench/tests/fixtures/sweep-c*.json   # elige 72 → ≈ 6.1 rps (datos sintéticos)
@@ -204,15 +219,16 @@ Probado en macOS (Apple Silicon), sin GPU, sin vLLM, sin vendor, sin cluster y s
 
 | Qué | Cómo | Resultado |
 |---|---|---|
-| Tests de las 4 carpetas | pytest 9.1.1 en venvs limpios desde `requirements-dev.txt`, Python 3.13.15 y 3.12.14; varias corridas seguidas; warnings como errores | 111 passed, todas las veces |
+| Tests de las 4 carpetas | pytest 9.1.1, warnings como errores, varias corridas seguidas. Los 111 tests anteriores, en venvs limpios desde `requirements-dev.txt` (Python 3.13.15 y 3.12.14); los 114 de ahora, en Python 3.13.16 con fastapi 0.143.0, starlette 1.7.0 y httpx 0.28.1 importado como `httpx2` (misma API) | 114 passed, todas las veces |
 | Cuentas de capacidad | tests contra los números de #m04 (128 KiB y 320 KiB por token, ≈ 16 GB y ≈ 141 GB en BF16, la L4 con 3 secuencias de 8k) y del caso (≈ 68.4 GB, 92 secuencias, 16 réplicas, US$160.6k, US$442.5k, 630 secuencias vivas) | coinciden |
-| Gateway | `httpx2.ASGITransport` contra la app y upstreams falsos con `httpx2.MockTransport` (el cliente HTTP del gateway corre entero, pero `MockTransport` NO tiene pool de conexiones); la desconexión del cliente, llamando al ASGI a mano | auth, alias, topes, cuotas, prioridad, 503, fallback con redacción y lista permitida de campos (también dentro de cada mensaje y en los argumentos de tool calls), pins al Service canario (tenant entero y % de usuarios), reintento solo ante ConnectError, 502/504, abort sin texto como falla y abort a mitad como `stream_error`, 429 del vendor como 503, 4xx reenviados, error a mitad del stream, desconexión con stream y sin stream (upstream cerrado, lugar liberado, 499) |
+| Gateway | `httpx2.ASGITransport` contra la app y upstreams falsos con `httpx2.MockTransport` (el cliente HTTP del gateway corre entero, pero `MockTransport` NO tiene pool de conexiones); la desconexión del cliente, llamando al ASGI a mano | auth, alias, topes, cuotas, prioridad, 503, fallback con redacción y lista permitida de campos (también dentro de cada mensaje y en los argumentos de tool calls), pins al Service canario (tenant entero y % de usuarios), reintento solo ante ConnectError, 502/504, un stream que termina sin texto como falla (el abort antes del primer token, con lo que de verdad manda vLLM v0.30: rol, usage y `[DONE]`) y abort a mitad como `stream_error`, 429 del vendor como 503, 4xx reenviados, error a mitad del stream, desconexión con stream y sin stream (upstream cerrado, lugar liberado, 499), cuerpo cortado a la mitad como 499, y cada respuesta con su conteo, su línea de log sin contenido y `x-request-id` (401 incluido) |
+| Gateway por HTTP real | `uvicorn --factory llm_gateway:app_from_env` contra un vLLM falso (Starlette + uvicorn) que aborta antes del primer token como v0.30; un socket que declara 100,000 bytes, manda 1,000 y cierra | soporte: 502 con `x-request-id`, con y sin streaming; vendedores: el vendor; el 401 contado con tenant `unknown`; el upload cortado, 499 sin traceback; una línea de log por respuesta |
 | Pool HTTP real | `test_upstream_pool.py`: `HttpUpstream` con su transport real contra un uvicorn local que retiene cada stream | 288 streams abiertos a la vez sin `PoolTimeout`, y ninguna conexión queda para reusar al terminar (con el pool default de httpx2, 100 conexiones, entran 100 y 188 de 288 caen con `PoolTimeout`) |
 | Demo con uvicorn real | `uvicorn --factory llm_gateway:demo_app` + curl | streaming, no streaming, 403, `/metrics`; un `curl --max-time 0.5` que corta el stream queda como 499 con el lugar liberado |
 | Alertas | `promtool check rules` y `promtool test rules` de Prometheus **3.15.0** (binario oficial, sha256 verificado contra `sha256sums.txt` del release) | 20 reglas OK; los tests pasan. 17 mutaciones de umbrales, filtros, ventanas horarias y ramas hacen fallar algún test (ninguna sobrevive) |
 | Manifest | `kubernetes-validate --strict` (Kubernetes 1.36) sobre Service, Deployment, PodDisruptionBudget y NetworkPolicy; `jsonschema` en modo estricto contra el CRD de PodMonitor (Prometheus Operator v0.94.1) | OK; un campo mal escrito en cada uno se rechaza |
 | Flags y métricas de vLLM | leídos del código fuente de vLLM v0.30.0 (`vllm/engine/arg_utils.py`, `vllm/v1/metrics/loggers.py`, `vllm/benchmarks/serve.py`) | los nombres de los archivos coinciden con esa versión |
-| Lint | `ruff check` (E, F, W, B, UP) y `shellcheck` 0.11.0 sobre `run_sweep.sh` | sin hallazgos |
+| Lint | `ruff check` (E, F, W, B, UP) y `shellcheck` 0.11.0 sobre `run_sweep.sh` | sin hallazgos (la última versión del gateway y de sus tests todavía no pasó por ruff) |
 | Lock de dependencias | `uv pip compile` para Linux x86_64 y Python 3.13 | 21 paquetes |
 
 **No verificado** (requiere GPU, vLLM corriendo, el vendor o un cluster):
@@ -222,10 +238,14 @@ Probado en macOS (Apple Silicon), sin GPU, sin vLLM, sin vendor, sin cluster y s
   estimaciones del caso: se confirman con el log de arranque de vLLM ("GPU KV cache size: N tokens") y con el
   barrido. Los fixtures de `bench/` son sintéticos.
 - **El apagado con `--shutdown-timeout`** se leyó en el código de v0.30.0 (`vllm/entrypoints/launchers/launcher.py`,
-  `vllm/v1/engine/core.py`): durante el drain el servidor HTTP sigue aceptando conexiones y el engine aborta los
-  requests nuevos (un 200 con `finish_reason: "abort"`); el gateway trata eso como falla del upstream. No se probó
-  que los streams en curso lleguen completos al cliente durante el drain, ni cuánto tarda kube-proxy en sacar el
-  pod de los endpoints. Pruébalo en staging antes de confiar en él.
+  `vllm/v1/engine/core.py`, `vllm/v1/utils.py`, `vllm/entrypoints/openai/chat_completion/serving.py`): durante el
+  drain el servidor HTTP sigue aceptando conexiones y el engine aborta los requests nuevos sin generar nada. Sin
+  streaming llega un 200 con `finish_reason: "abort"`; con streaming, un 200 con el chunk del rol, el de usage y
+  `[DONE]`, sin chunk de abort (vLLM no manda chunks vacíos). El gateway trata los dos como falla del upstream. Al
+  vencer los 60 s, vLLM mata el proceso del engine: lo que quedaba termina con un evento de error o con la conexión
+  cortada (`stream_error`), no con un abort. No se probó que los streams en curso lleguen completos al cliente
+  durante el drain, ni cuánto tarda kube-proxy en sacar el pod de los endpoints. Pruébalo en staging antes de
+  confiar en él.
 - **El init container** (`aws s3 sync` + `sha256sum -c` + que no haya archivos fuera del manifiesto) no corrió;
   la imagen de aws-cli trae `sha256sum`, `find` y `comm` (Amazon Linux 2023 + findutils) según su Dockerfile e
   historial de capas, no porque se haya ejecutado. El sha256 del manifiesto es un

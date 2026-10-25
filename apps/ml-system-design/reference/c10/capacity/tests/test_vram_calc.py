@@ -85,8 +85,9 @@ def test_littles_law_concurrency_fits_the_kv_room():
 def test_max_context_8k_sequences():
     # Lo que vLLM reporta como "Maximum concurrency for 8,192 tokens per request": secuencias de 8k
     room = kv_room_per_replica(FP8_WEIGHTS, H100_80GB, 2, 0.90, 5 * GB)
-    assert max_kv_tokens(room, FP8_WEIGHTS) == 208_740  # tokens totales de KV
-    assert max_concurrent_sequences(room, FP8_WEIGHTS, 8_192) == 25  # 208,740 ÷ 8,192 = 25.5
+    assert max_kv_tokens(room, FP8_WEIGHTS) == 208_740  # tokens totales de KV (vLLM: 208,736, en bloques de 16)
+    # 208,740 ÷ 8,192 = 25.48: vLLM imprime "25.48x" (con decimales); aquí se cuentan secuencias ENTERAS
+    assert max_concurrent_sequences(room, FP8_WEIGHTS, 8_192) == 25
 
 
 def test_reported_h100_memory_gives_more_room():

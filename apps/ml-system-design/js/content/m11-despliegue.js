@@ -13,7 +13,8 @@
    graduado de la CNCF dentro de Flux), SageMaker deployment guardrails (all at once,
    canary y linear con baking period y rollback por alarmas de CloudWatch; rolling) y
    shadow tests, pesos 0–999 de los target groups del ALB (sin failover automático entre
-   ellos) y la cookie AWSALBTG, Istio mirroring (fire and forget, mirrorPercentage,
+   ellos; en oct. 2026: 503 solo sin targets registrados o todos unused, y fail open
+   cuando todos los registrados están unhealthy) y la cookie AWSALBTG, Istio mirroring (fire and forget, mirrorPercentage,
    sufijo -shadow), KServe canaryTrafficPercent (solo modo serverless), trafficSplit de
    Vertex AI y OpenFeature (incubating en la CNCF). El dato de interleaving es del blog
    de Netflix (2017). Tamaños de muestra, SRM, canary y la simulación de peeking se
@@ -393,7 +394,7 @@ print(f"{srm_p(50_150, 49_850):.2f}")  # 0.34 → normal`;
             ['SageMaker deployment guardrails', 'Blue/green con traffic shifting all at once, canary (dos pasos) o linear (n pasos), con <i>baking period</i> y rollback automático por alarmas de CloudWatch; también rolling', 'Solo endpoints en tiempo real y asíncronos, con exclusiones; las alarmas las defines tú'],
             ['KServe', '<code>canaryTrafficPercent</code> en el InferenceService; al promover, la revisión nueva recibe 100 %', 'Solo en el modo serverless (Knative); el análisis automático lo pones tú'],
             ['Vertex AI (hoy Gemini Enterprise Agent Platform)', 'Varios modelos en un endpoint con <code>trafficSplit</code> (porcentajes que suman 100)', 'El avance por etapas y el rollback los orquestas tú'],
-            ['ALB con target groups ponderados', 'Pesos 0–999 por target group en una regla de forward', 'Si un target group queda vacío o sin targets sanos, el ALB <b>no</b> manda su parte al otro: esos requests fallan'],
+            ['ALB con target groups ponderados', 'Pesos 0–999 por target group en una regla de forward', 'Si un target group queda vacío o solo con targets no sanos, el ALB <b>no</b> manda su parte al otro. Vacío: esa parte recibe 503 del ALB. Todos no sanos: fail open, el ALB se la manda igual a esos targets, y falla si de verdad están caídos'],
           ], note: 'Estado verificado en la documentación de cada proyecto (sept. 2026). Revisa la versión que corre tu cluster: los campos cambian entre releases.' },
           { t: 'code', title: 'El canary de c01 con Argo Rollouts', caption: 'Solo el gateway es un Rollout: el Triton de la versión nueva (<code>triton-v2</code>) se despliega antes, sin tráfico, y los pods canary del gateway apuntan a él. Así se mantiene el par "gateway vN + Triton vN" de c01. El YAML se validó con PyYAML; las consultas usan las métricas del gateway de referencia de c01. El PSI no se calcula bien en PromQL: lo corre un job que publica el resultado (Argo también acepta un Job de Kubernetes como métrica).', files: [
             { name: 'rollout.yaml', lang: 'yaml', code: ROLLOUT },

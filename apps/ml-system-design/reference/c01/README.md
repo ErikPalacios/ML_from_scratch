@@ -61,7 +61,7 @@ checkpoint .pt ──export_onnx.py──▶ classifier.onnx ──parity_check.
 cd reference/c01
 python -m venv .venv && . .venv/bin/activate && pip install -r model/requirements.txt
 python model/export_onnx.py --checkpoint resnet50_500.pt --out model/classifier.onnx
-python model/parity_check.py --onnx model/classifier.onnx --images /ruta/muestra_eval --n 2000
+python model/parity_check.py --checkpoint resnet50_500.pt --onnx model/classifier.onnx --images /ruta/muestra_eval --n 2000
 # En una g4dn.xlarge (T4) con Docker + NVIDIA Container Toolkit:
 bash model/build_engine.sh
 docker build -t classifier-triton:2026-09-01-resnet50-fp16 triton/

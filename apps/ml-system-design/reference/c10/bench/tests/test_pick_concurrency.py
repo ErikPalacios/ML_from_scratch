@@ -1,8 +1,12 @@
 """Tests de pick_concurrency con fixtures SINTÉTICOS (tests/fixtures/sweep-c*.json).
 
-Los fixtures tienen las claves exactas que escribe `vllm bench serve --save-result` en v0.30.0 con
-`--percentile-metrics ttft,tpot,itl,e2el --metric-percentiles 50,95,99 --goodput ttft:1000 tpot:50`, pero
-los números los inventamos para que el codo caiga en ≈ 6 rps (el supuesto del caso). No son mediciones.
+Los fixtures tienen un SUBCONJUNTO de las claves que escribe `vllm bench serve --save-result` en v0.30.0 con
+`--percentile-metrics ttft,tpot,itl,e2el --metric-percentiles 50,95,99 --goodput ttft:1000 tpot:50`: las de la
+configuración, las de throughput y las de TTFT, TPOT e ITL, que son las que lee pick_concurrency. Faltan las de
+e2el (mean/median/std/p50/p95/p99_e2el_ms), max_output_tokens_per_s, max_concurrent_requests, rtfx y las listas
+latencies y queue_times (un valor por request); las de client_queue_time solo aparecen si se piden en
+--percentile-metrics. Los números los inventamos para que el codo caiga en ≈ 6 rps (el supuesto del caso): no
+son mediciones.
 """
 
 import json  # para fabricar puntos raros

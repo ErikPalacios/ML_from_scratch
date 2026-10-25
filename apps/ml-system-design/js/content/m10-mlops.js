@@ -54,11 +54,11 @@
       { id: 'gate', label: 'Gate de validación', sub: 'challenger vs champion', x: 60, y: 5, w: 18, h: 8, kind: 'job',
         note: 'Criterios escritos y automáticos: métricas en el golden set contra el champion con un margen, slices, calibración, latencia. Si no pasa, el pipeline se detiene. Es la <a href="#m10.gate">sección 6</a>.' },
       { id: 'ci', label: 'CI del artefacto', sub: 'engine en T4 · parity · perf', x: 88, y: 5, w: 18, h: 8, kind: 'job',
-        note: 'Lo que se sirve no es lo que se evaluó: export a ONNX, engine de TensorRT construido en el hardware de producción, parity test contra PyTorch y regresión de latencia. Ver <a href="#m10.ci-cd">sección 5</a>.' },
+        note: 'Lo que se sirve no es lo que se evaluó: export a ONNX, engine de TensorRT construido en el hardware de producción y horneado en la imagen de serving, parity test contra PyTorch con esa imagen corriendo y regresión de latencia. Ver <a href="#m10.ci-cd">sección 5</a>.' },
       { id: 'reg', label: 'Model registry', sub: 'vN · alias challenger', x: 88, y: 37, w: 18, h: 8, kind: 'store',
-        note: 'La versión nueva queda registrada con sus artefactos y su linaje, y recibe el alias <code>challenger</code>. El alias <code>champion</code> sigue apuntando a lo que sirve producción hasta que termine el rollout.' },
+        note: 'La versión nueva queda registrada con sus artefactos (la imagen de serving ya probada incluida, por digest) y su linaje, y recibe el alias <code>challenger</code>. El alias <code>champion</code> sigue apuntando a lo que sirve producción hasta que termine el rollout.' },
       { id: 'deploy', label: 'Deploy seguro', sub: 'shadow → canary', x: 60, y: 37, w: 18, h: 8, kind: 'job',
-        note: 'CD construye la imagen de serving con el modelo horneado y la lleva a producción por etapas: shadow, canary 5 → 25 → 100 % con rollback automático. Es <a href="#m11">M11</a>.' },
+        note: 'CD toma la imagen de serving que se registró (el modelo va horneado y ya pasó la paridad; no se reconstruye) y la lleva a producción por etapas: shadow, canary 5 → 25 → 100 % con rollback automático. Es <a href="#m11">M11</a>.' },
       { id: 'prod', label: 'Producción', sub: 'model_version en cada log', x: 60, y: 53, w: 18, h: 8, kind: 'service',
         note: 'El servicio responde con su <code>model_version</code> y loguea cada predicción. Al terminar el rollout, el alias <code>champion</code> se mueve a la versión nueva; la anterior queda lista para el rollback.' },
       { id: 'mon', label: 'Monitoreo', sub: 'drift · aceptación · SLO', x: 28, y: 53, w: 18, h: 8, kind: 'monitor',
@@ -84,9 +84,9 @@
         { nodes: ['snap', 'dval', 'train'], edges: ['snap>dval', 'dval>train'], text: 'Fin de mes: el snapshot <code>ds-2026-10-01</code> junta los ≈ 5k labels humanos del mes y los labels débiles filtrados. Pasa la validación de datos (si fallara, no se entrena y el champion sigue sirviendo) y el pipeline lanza el fine-tune con ese id como parámetro, no con "los datos más recientes".' },
         { nodes: ['train', 'track'], edges: ['train>track'], text: 'La corrida registra lr, épocas, seed, snapshot, commit y digest de la imagen, y la curva de <code>val_top1</code> por época. Si el resultado sorprende, cualquiera puede ver con qué se entrenó.' },
         { nodes: ['train', 'gate'], edges: ['train>gate'], text: 'El gate compara contra el champion en el golden set de 50k imágenes: top-1 no inferior (margen −0.3 pp, test pareado), recall de las 100 categorías grandes, ECE ≤ 0.05, slices móvil/web.' },
-        { nodes: ['gate', 'ci'], edges: ['gate>ci'], text: 'Pasó. CI exporta a ONNX, construye el engine FP16 en un runner con T4 y la misma release de NGC que Triton, corre el parity test (top-1 agreement ≥ 99.5 %) y perf_analyzer (p99 ≤ champion + 10 %).' },
-        { nodes: ['ci', 'reg'], edges: ['ci>reg'], text: 'La versión nueva entra al registry con engine, <code>labels.json</code> con su hash, métricas y linaje, y recibe el alias <code>challenger</code>.' },
-        { nodes: ['reg', 'deploy', 'prod'], edges: ['reg>deploy', 'deploy>prod'], text: 'CD hornea el engine en una imagen nueva de Triton: shadow 1–2 días, canary 5 → 25 → 100 %. Al terminar, <code>champion</code> apunta a la versión nueva; la imagen anterior sigue en el registry de contenedores para el rollback.' },
+        { nodes: ['gate', 'ci'], edges: ['gate>ci'], text: 'Pasó. CI exporta a ONNX, construye el engine FP16 en un runner con T4 y la misma release de NGC que Triton, lo hornea en una imagen nueva de Triton y, con esa imagen arriba, corre el parity test (top-1 agreement ≥ 99.5 %) y perf_analyzer (p99 ≤ champion + 10 %).' },
+        { nodes: ['ci', 'reg'], edges: ['ci>reg'], text: 'La versión nueva entra al registry con engine, la imagen de Triton ya probada (por digest), <code>labels.json</code> con su hash, métricas y linaje, y recibe el alias <code>challenger</code>.' },
+        { nodes: ['reg', 'deploy', 'prod'], edges: ['reg>deploy', 'deploy>prod'], text: 'CD despliega esa imagen tal cual, sin reconstruirla: shadow 1–2 días, canary 5 → 25 → 100 %. Al terminar, <code>champion</code> apunta a la versión nueva; la imagen anterior sigue en el registry de contenedores para el rollback.' },
       ] },
       { id: 'ciclo', label: 'El ciclo se cierra sin que nadie despliegue', steps: [
         { nodes: ['prod', 'mon'], edges: ['prod>mon'], text: 'Nadie tocó el código. Llega la temporada de regreso a clases y los vendedores suben mochilas y útiles: el mismo modelo ve otra distribución.' },
@@ -109,17 +109,17 @@
       { id: 'snap', label: 'Snapshot', sub: 'manifest por id', x: 2, y: 6, w: 18, h: 8, kind: 'store',
         note: 'Arma el manifest del id que recibió como parámetro (<a href="#m09.versionado">M9</a>). Como el id es una entrada, la caché del orquestador solo reutiliza el paso si el id es el mismo.' },
       { id: 'train', label: 'Fine-tune', sub: '1 GPU · checkpoint 15 min', x: 54, y: 6, w: 18, h: 8, kind: 'gpu',
-        note: 'El único paso caro. Guarda un checkpoint cada 15 minutos (pesos + optimizador ≈ 307 MB para ResNet-50 con Adam) y, si se reintenta, reanuda desde el último en vez de empezar de cero.' },
+        note: 'El único paso caro. Guarda un checkpoint cada 15 minutos (pesos + estado de Adam ≈ 294 MB para el ResNet-50 de 500 clases) y, si se reintenta, reanuda desde el último en vez de empezar de cero.' },
       { id: 'eval', label: 'Evaluar', sub: 'golden set · slices', x: 80, y: 6, w: 18, h: 8, kind: 'gpu',
         note: 'Corre el candidato y el champion <b>v14, recibido como parámetro</b>, sobre el mismo golden set y guarda predicciones por imagen: el gate necesita los pares para el test pareado, no solo dos promedios. Si leyera <code>@champion</code> por su cuenta, la caché no vería que el champion cambió.' },
       { id: 'gate', label: 'Gate', sub: 'vs champion', x: 80, y: 26, w: 18, h: 8, kind: 'job',
         note: 'Aplica los criterios escritos a los pares. Si no pasa, deja el motivo en el tracking y lanza una excepción: la corrida termina en rojo y la alerta de "pipeline fallido" avisa. Un gate que solo devuelve <code>false</code> deja la corrida en verde con el resto saltado, y nadie se entera.' },
-      { id: 'engine', label: 'Build engine', sub: 'trtexec en una T4', x: 54, y: 26, w: 18, h: 8, kind: 'gpu',
-        note: 'ONNX opset 17 con batch dinámico 1–32 y <code>trtexec --fp16</code> en un runner con T4 y la misma release de NGC que Triton. El engine no es portable entre GPUs ni entre versiones de TensorRT (<a href="#m08.tensorrt">M8</a>).' },
+      { id: 'engine', label: 'Build engine', sub: 'trtexec + imagen · T4', x: 54, y: 26, w: 18, h: 8, kind: 'gpu',
+        note: 'ONNX opset 17 con batch dinámico 1–32 y <code>trtexec --fp16</code> en un runner con T4 y la misma release de NGC que Triton. El engine no es portable entre GPUs ni entre versiones de TensorRT (<a href="#m08.tensorrt">M8</a>). Con él se construye la imagen de Triton (<code>docker build triton/</code>), la que el paso siguiente levanta para la paridad.' },
       { id: 'par', label: 'Parity + perf', sub: '≥ 99.5 % · p99', x: 28, y: 26, w: 18, h: 8, kind: 'job',
-        note: '<code>parity_check.py</code> contra PyTorch FP32 (top-1 agreement ≥ 99.5 %) y perf_analyzer a tasa fija (p99 ≤ champion + 10 %). Ver <a href="#c01.evaluacion">evaluación de c01</a>.' },
+        note: '<code>parity_check.py --backend triton</code>, con la imagen nueva arriba, contra PyTorch FP32 (top-1 agreement ≥ 99.5 %) y perf_analyzer a tasa fija (p99 ≤ champion + 10 %). Ver <a href="#c01.evaluacion">evaluación de c01</a>.' },
       { id: 'reg', label: 'Registrar', sub: 'alias challenger', x: 2, y: 26, w: 18, h: 8, kind: 'store',
-        note: 'Crea la versión en el registry con todos sus artefactos y punteros y le pone el alias <code>challenger</code>. Desde aquí sigue CD (<a href="#m11">M11</a>).' },
+        note: 'Crea la versión en el registry con todos sus artefactos y punteros (la imagen de Triton, por digest) y le pone el alias <code>challenger</code>. Desde aquí sigue CD, que despliega esa imagen sin reconstruirla (<a href="#m11">M11</a>).' },
     ],
     edges: [
       { from: 'snap', to: 'val', kind: 'offline' },
@@ -134,7 +134,7 @@
       { id: 'normal', label: 'La corrida del mes', steps: [
         { nodes: ['snap', 'val'], edges: ['snap>val'], text: 'El scheduler resuelve <code>@champion</code> una vez y dispara el pipeline con <code>dataset_id=ds-2026-10-01</code> y <code>champion_version=14</code>. Se arma el snapshot y la validación de datos pasa.' },
         { nodes: ['train', 'eval'], edges: ['val>train', 'train>eval'], text: 'Fine-tune de ' + E('≈ 3–4 h') + ' en una GPU; después, evaluación del candidato y del champion sobre el golden set.' },
-        { nodes: ['gate', 'engine', 'par', 'reg'], edges: ['eval>gate', 'gate>engine', 'engine>par', 'par>reg'], text: 'Gate verde, engine construido en la T4, parity y perf verdes: la versión queda como <code>challenger</code>. Todo el recorrido quedó en el historial del orquestador, con los artefactos de cada paso.' },
+        { nodes: ['gate', 'engine', 'par', 'reg'], edges: ['eval>gate', 'gate>engine', 'engine>par', 'par>reg'], text: 'Gate verde, engine e imagen de Triton construidos en la T4, parity y perf verdes contra esa imagen: la versión queda como <code>challenger</code>. Todo el recorrido quedó en el historial del orquestador, con los artefactos de cada paso.' },
       ] },
       { id: 'reintento', label: 'Se pierde el nodo GPU a la hora 2', steps: [
         { nodes: ['train'], edges: [], text: 'El nodo desaparece (una instancia spot recuperada o una falla de hardware). El paso falla; los anteriores ya terminaron y sus salidas están guardadas.' },
@@ -144,7 +144,7 @@
       { id: 'cache', label: 'Arreglas un bug del parity test', steps: [
         { nodes: ['par'], edges: [], text: 'El parity test falló por un bug del script (no del modelo). Lo arreglas y vuelves a correr el pipeline con los mismos parámetros.' },
         { nodes: ['snap', 'val', 'train', 'eval'], edges: [], text: 'Caché: snapshot, validación, fine-tune y evaluación tienen las mismas entradas (incluida la versión del champion) y la misma definición, así que el orquestador reutiliza sus salidas. No pagas otras 4 horas de GPU. Si el champion hubiera cambiado desde la corrida anterior, la evaluación y el gate se recalcularían solos.' },
-        { nodes: ['gate', 'engine', 'par', 'reg'], edges: ['gate>engine', 'engine>par', 'par>reg'], text: 'El gate y el build del engine también salen de caché: mismas entradas. Corren el parity corregido (cambió su definición) y el registro que depende de él.' },
+        { nodes: ['gate', 'engine', 'par', 'reg'], edges: ['gate>engine', 'engine>par', 'par>reg'], text: 'El gate y el build del engine (con su imagen) también salen de caché: mismas entradas. Corren el parity corregido (cambió su definición) y el registro que depende de él.' },
       ] },
     ],
   };
@@ -169,13 +169,15 @@ with mlflow.start_run(run_name="ft-2026-10") as run:
 
 client = MlflowClient()
 # client.create_registered_model("classifier")              # una sola vez, al crear el problema
+# Se registra DESPUÉS de construir la imagen de Triton y pasar la paridad contra ella en la T4
 mv = client.create_model_version("classifier", source=f"{run.info.artifact_uri}/model",
                                  run_id=run.info.run_id)     # la versión apunta a su corrida: linaje
 client.set_model_version_tag("classifier", mv.version, "gate", "passed")
 client.set_registered_model_alias("classifier", "challenger", mv.version)
 
-# CD resuelve el alias UNA vez, al construir la imagen del canary; los pods no leen el alias al arrancar
-v = client.get_model_version_by_alias("classifier", "challenger").version   # → "15": tag de la imagen
+# CD resuelve el alias UNA vez, al armar el canary, y despliega la imagen que ya se construyó para
+# esa versión (no la reconstruye); los pods no leen el alias al arrancar
+v = client.get_model_version_by_alias("classifier", "challenger").version   # → "15": qué imagen desplegar
 
 # Al terminar el canary (lo hace CD, no una persona con la consola):
 client.set_registered_model_alias("classifier", "champion", mv.version)`;
@@ -248,7 +250,7 @@ def gate(model: dsl.Input[dsl.Model], golden_set: str,
          champion_version: str): ...      # lanza una excepción si no pasa: la corrida queda en rojo
 
 @dsl.component(base_image=IMG)
-def build_and_register(model: dsl.Input[dsl.Model]): ...   # engine en T4, parity, registry
+def build_and_register(model: dsl.Input[dsl.Model]): ...   # engine e imagen en T4, parity, registry
 
 @dsl.pipeline(name="c01-monthly")
 def c01_monthly(dataset_id: str, champion_version: str,   # el scheduler resuelve @champion una vez
@@ -372,10 +374,10 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
           { t: 'code', title: 'Registro, gate y promoción con aliases', caption: 'Continúa el fragmento de la sección anterior. Corrió con MLflow 3.16.1: el alias devuelve la versión registrada.', files: [
             { name: 'register.py', lang: 'python', code: REGISTRY },
           ] },
-          { t: 'callout', kind: 'trap', title: 'Los pods de serving leen @champion al arrancar', html: `<p>Parece elegante: el servicio carga <code>models:/classifier@champion</code> en cada arranque y promover es solo mover el alias. El problema: durante un scale-up, un reinicio o un rollout, los pods nuevos cargan otra versión que los viejos. Tienes dos modelos detrás del mismo servicio sin haber desplegado nada, sin canary y con un <code>model_version</code> en los logs que depende de cuándo arrancó cada pod. En c01 el modelo va <b>horneado en la imagen</b> (<a href="#m05.pesos-modelo">M5</a>): CD resuelve el alias <code>challenger</code> (o la versión explícita) una vez, al construir la imagen del canary, y el tag de la imagen es la versión; <code>champion</code> se mueve al terminar el rollout. El alias describe producción; no la controla a escondidas.</p>` },
+          { t: 'callout', kind: 'trap', title: 'Los pods de serving leen @champion al arrancar', html: `<p>Parece elegante: el servicio carga <code>models:/classifier@champion</code> en cada arranque y promover es solo mover el alias. El problema: durante un scale-up, un reinicio o un rollout, los pods nuevos cargan otra versión que los viejos. Tienes dos modelos detrás del mismo servicio sin haber desplegado nada, sin canary y con un <code>model_version</code> en los logs que depende de cuándo arrancó cada pod. En c01 el modelo va <b>horneado en la imagen</b> (<a href="#m05.pesos-modelo">M5</a>), y esa imagen se construye <b>antes</b> de registrar: en la T4, el pipeline hornea el engine, levanta Triton con la imagen y corre la paridad contra ella; solo si pasa, la versión se registra como <code>challenger</code> junto con la imagen (su tag es la versión del modelo). CD resuelve el alias (o la versión explícita) una vez, al armar el canary, y despliega esa imagen sin reconstruirla; <code>champion</code> se mueve al terminar el rollout. El alias describe producción; no la controla a escondidas.</p>` },
           { t: 'h3', text: 'Qué hay dentro de una versión de c01' },
           { t: 'list', items: [
-            '<b>ONNX</b> y el <b>engine</b> de TensorRT, con la GPU (T4, sm_75) y la release de NGC para la que se construyó escritas como tags: el engine solo corre ahí.',
+            '<b>ONNX</b> y el <b>engine</b> de TensorRT, con la GPU (T4, sm_75) y la release de NGC para la que se construyó escritas como tags: el engine solo corre ahí. Y la <b>imagen de Triton</b> con ese engine horneado, por digest: se construyó y pasó la paridad en la T4 antes de registrar.',
             '<code>labels.json</code> <b>con su hash</b>: el orden de los 500 labels es parte del modelo. Si cambia sin que cambie el modelo, las predicciones salen con nombres equivocados y ningún test de servicio lo nota.',
             '<b>Versión del preprocesamiento</b> (el paquete que comparten entrenamiento y gateway) y la <b>firma</b> de entrada y salida (<code>input</code> FP32 [3, 224, 224], <code>logits</code> FP32 [500]).',
             '<b>Métricas del gate</b> y del parity test, y la <b>corrida</b> que la produjo: snapshot, commit, digest de la imagen de entrenamiento.',
@@ -566,10 +568,10 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
           { t: 'callout', kind: 'senior', html: `<p>La pregunta que decide no es cuál es mejor, sino quién lo opera. Kubeflow en un cluster propio es un sistema más con upgrades, permisos y almacenamiento de artefactos; si no hay un equipo de plataforma, el administrado de tu nube o el Airflow que la empresa ya tiene ganan. Con un solo modelo mensual, un CronJob con un script por etapas, un gate escrito y MLflow cubre casi todo lo de la tabla de arriba, menos la caché y la UI.</p>` },
           { t: 'h3', text: 'Costo: GPU de entrenamiento, spot y checkpoints' },
           { t: 'calc', title: '¿Cuánto cuesta un checkpoint de c01?', rows: [
-            { label: 'Pesos de ResNet-50 en FP32', expr: '25.6 M × 4 B', value: '≈ 102 MB' },
-            { label: 'Estado del optimizador (Adam: 2 momentos)', expr: '2 × 102 MB', value: '≈ 205 MB' },
-            { label: 'Checkpoint completo', expr: '102 + 205', value: '≈ 307 MB' },
-            { label: 'Escribirlo en S3', expr: E('≈ 100–200 MB/s'), value: E('≈ 2–3 s') },
+            { label: 'Pesos del ResNet-50 de c01 en FP32 (capa final de 500 clases)', expr: '24.5 M × 4 B', value: '≈ 98 MB' },
+            { label: 'Estado del optimizador (Adam: 2 momentos)', expr: '2 × 98 MB', value: '≈ 196 MB' },
+            { label: 'Checkpoint completo', expr: '98 + 196', value: '≈ 294 MB', note: 'con la capa de 1,000 clases de ImageNet (25.6 M) serían ≈ 307 MB' },
+            { label: 'Escribirlo en S3', expr: E('≈ 100–200 MB/s'), value: E('≈ 1.5–3 s') },
             { label: 'Cada 15 min durante un fine-tune de 4 h', expr: '16 checkpoints × 3 s', value: E('≈ 1 min en total') },
           ], result: 'Un checkpoint cada 15 minutos cuesta menos de 1 % del tiempo de entrenamiento y limita lo que pierdes en una interrupción a 15 minutos. Guarda también la época, el paso, el estado del scheduler de learning rate, el del GradScaler de AMP y el de los generadores aleatorios: sin ellos, reanudar no es seguir.' },
           { t: 'p', html: `Con checkpoints, el entrenamiento tolera interrupciones y puede correr en <b>spot</b> (<a href="#m06.nodos">M6</a>): el descuento varía por tipo, zona y momento, así que verifícalo. Pero haz la cuenta antes de venderlo como gran ahorro: c01 parte on-demand (${E('≈ US$10–50')} al mes, <a href="#c01.costo">costo de c01</a>) y lista spot como palanca desde el día 1. Con checkpoints cada 15 minutos el riesgo es chico, pero el ahorro son decenas de dólares al mes, así que la razón para hacerlo es el hábito (lo mismo sirve para el backfill de 200 M imágenes), no esta factura. c02 sí entrena en spot con checkpoints (<a href="#c02.datos">datos de c02</a>), y con entrenamientos de días en varias GPUs la cuenta cambia por completo (<a href="#m13">M13</a>).` },
@@ -687,7 +689,7 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
             { q: 'En MLflow 3.x, ¿cómo marcas qué versión sirve producción?', options: ['Con un alias como <code>champion</code>, y tags para el estado del gate', 'Con el stage Production', 'Con el nombre del archivo de pesos', 'Con una variable de entorno en el servicio'], answer: 0,
               explain: 'Los stages están deprecados desde MLflow 2.9 (siguen documentados, con eliminación anunciada). Los aliases son punteros con nombre que se mueven; los tags guardan estados como gate=passed.' },
             { q: 'El servicio carga <code>models:/classifier@champion</code> en cada arranque. ¿Qué problema tiene?', options: ['Ninguno: promover es solo mover el alias', 'Durante un scale-up o un reinicio, pods nuevos cargan otra versión que los viejos, sin canary ni deploy', 'MLflow no permite cargar por alias', 'Es más lento que cargar por versión'], answer: 1,
-              explain: 'El alias se mueve fuera del proceso de despliegue. En c01, CD resuelve el alias <code>challenger</code> una vez, al construir la imagen del canary, y el tag de la imagen es la versión; <code>champion</code> se mueve al terminar el rollout.' },
+              explain: 'El alias se mueve fuera del proceso de despliegue. En c01, la imagen de Triton se construye y pasa la paridad en la T4 antes de registrar (su tag es la versión del modelo); CD resuelve el alias <code>challenger</code> una vez, al armar el canary, y despliega esa imagen; <code>champion</code> se mueve al terminar el rollout.' },
             { q: 'MLflow registró el commit <code>c3f2fc2</code> en una corrida. ¿Qué garantiza?', options: ['Que el código de la corrida es exactamente ese commit', 'Que la corrida es reproducible', 'Nada sobre cambios sin commit: se registra el mismo commit aunque el árbol tenga modificaciones', 'Que la imagen es la misma'], answer: 2,
               explain: 'Lo probamos con MLflow 3.16. Por eso los candidatos salen del pipeline, desde un commit limpio.' },
             { q: 'Fijaste todas las seeds y entrenas dos veces en la misma GPU. El top-1 difiere en 0.1 pp. ¿Qué es lo más probable?', options: ['Un bug en tu código', 'El golden set cambió', 'Las seeds no funcionan en GPU', 'No determinismo de la GPU (algoritmos de cuDNN, sumas atómicas): normal si no activaste el modo determinista'], answer: 3,
@@ -707,7 +709,7 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
             { id: 'camino', html: 'Describo el camino completo de un modelo: snapshot, validación de datos, entrenamiento con tracking, gate, CI del artefacto, registry, deploy seguro, monitoreo y disparadores.' },
             { id: 'snapshot', html: 'El entrenamiento recibe el id de un snapshot inmutable como parámetro, nunca "la carpeta latest".' },
             { id: 'tracking', html: 'Cada corrida registra params, métricas por época, artefactos, snapshot, commit y digest de la imagen; los candidatos salen de un commit limpio.' },
-            { id: 'registry', html: 'El registry marca producción con aliases (champion/challenger) y tags; el alias challenger se resuelve al construir la imagen, no al arrancar los pods, y champion se mueve al promover.' },
+            { id: 'registry', html: 'El registry marca producción con aliases (champion/challenger) y tags; la imagen se construye y se prueba antes de registrar, el alias challenger se resuelve una vez al armar el canary (no al arrancar los pods) y champion se mueve al promover.' },
             { id: 'linaje', html: 'Puedo ir de una versión en producción a su corrida, su snapshot, su commit y su imagen, y responder qué datos usó.' },
             { id: 'reproducible', html: 'Fijo los cinco ingredientes y defino "reproducible" como dentro de la tolerancia medida entre seeds.' },
             { id: 'tests', html: 'Tengo tests en cada nivel: preprocesamiento, smoke test de entrenamiento, datos, comportamiento, parity, contrato y rendimiento.' },
@@ -740,9 +742,9 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
       { id: 'm10-08', kind: 'concepto', q: 'Stages vs aliases en MLflow.',
         a: 'Stages (None/Staging/Production/Archived) deprecados desde 2.9; en 3.x siguen documentados, con eliminación anunciada. Aliases: nombres libres (<code>models:/classifier@champion</code>); tags para estados; un registered model por entorno y <code>copy_model_version</code> para promover entre entornos.' },
       { id: 'm10-09', kind: 'trampa', q: 'El servicio carga <code>@champion</code> del registry al arrancar. ¿Qué pasa?',
-        a: 'Pods nuevos (scale-up, reinicio) cargan otra versión que los viejos cuando el alias se mueve: dos modelos detrás del mismo servicio sin deploy ni canary. En c01, CD resuelve el alias challenger una vez, al construir la imagen del canary, y el modelo va horneado; champion se mueve al terminar el rollout.' },
+        a: 'Pods nuevos (scale-up, reinicio) cargan otra versión que los viejos cuando el alias se mueve: dos modelos detrás del mismo servicio sin deploy ni canary. En c01 el modelo va horneado en una imagen que se construye y pasa la paridad antes de registrar; CD resuelve el alias challenger una vez, al armar el canary, y despliega esa imagen; champion se mueve al terminar el rollout.' },
       { id: 'm10-10', kind: 'concepto', q: '¿Qué hay dentro de una versión registrada de c01?',
-        a: 'ONNX y engine TensorRT (con GPU y release de NGC como tags), labels.json con su hash, versión del preprocesamiento y firma de entrada/salida, métricas del gate y del parity, y la corrida: snapshot, commit, digest.' },
+        a: 'ONNX y engine TensorRT (con GPU y release de NGC como tags), la imagen de Triton que pasó la paridad (por digest), labels.json con su hash, versión del preprocesamiento y firma de entrada/salida, métricas del gate y del parity, y la corrida: snapshot, commit, digest de la imagen de entrenamiento.' },
       { id: 'm10-11', kind: 'concepto', q: 'Los cinco ingredientes de la reproducibilidad.',
         a: 'Código (commit limpio), datos (snapshot inmutable), config (archivo versionado), entorno (imagen por digest, tipo de GPU) y aleatoriedad (seeds de Python, NumPy, torch y de cada worker del DataLoader).' },
       { id: 'm10-12', kind: 'trampa', q: '"Fijé la seed, así que el entrenamiento es reproducible."',
@@ -767,8 +769,8 @@ compiler.Compiler().compile(c01_monthly, "c01_monthly.yaml")`;
         a: 'La caché está activa por defecto (también en Vertex AI Pipelines): si el paso lee "latest" sin recibir el id, sus entradas no cambian y reutiliza el snapshot del mes pasado. Toda entrada que cambia el resultado va como parámetro, incluida la versión del champion contra la que compara la evaluación.' },
       { id: 'm10-22', kind: 'tradeoff', q: 'Kubeflow vs SageMaker Pipelines vs Vertex AI Pipelines vs Airflow.',
         a: 'Kubeflow: en tu Kubernetes, portable, lo operas tú. SageMaker Pipelines: AWS administrado, caché opcional, integra aprobación del registry. Vertex: GCP serverless con KFP o TFX. Airflow: si la empresa ya lo usa; sin caché de salidas, tareas idempotentes. Decide quién lo opera.' },
-      { id: 'm10-23', kind: 'numero', q: '¿Cuánto pesa un checkpoint de ResNet-50 con Adam y cuánto cuesta guardarlo cada 15 min?',
-        a: '102 MB de pesos + 205 MB de momentos ≈ 307 MB; ≈ 2–3 s a S3; ≈ 1 min en un fine-tune de 4 h. Menos de 1 % del tiempo, y limita la pérdida por interrupción a 15 min.' },
+      { id: 'm10-23', kind: 'numero', q: '¿Cuánto pesa un checkpoint del ResNet-50 de c01 (500 clases) con Adam y cuánto cuesta guardarlo cada 15 min?',
+        a: '98 MB de pesos (24.5 M × 4 B) + 196 MB de momentos ≈ 294 MB (con 1,000 clases serían ≈ 307 MB); ≈ 1.5–3 s a S3; ≈ 1 min en un fine-tune de 4 h. Menos de 1 % del tiempo, y limita la pérdida por interrupción a 15 min.' },
       { id: 'm10-24', kind: 'concepto', q: 'Programado vs disparado vs continuo.',
         a: 'Programado: cambio gradual, labels a ritmo conocido (c01, c02, c03 mensual). Disparado: drift, caída de métrica, clase nueva. Continuo: labels en minutos (ranking, anuncios); no en fraude, donde el label (contracargo) tarda semanas; raro en visión. El disparador abre ticket y arranca el pipeline; no promueve.' },
       { id: 'm10-25', kind: 'numero', q: 'Pérdida promedio por envejecimiento con d = 0.4 pp/mes: semanal, mensual, trimestral (L = 1 semana).',

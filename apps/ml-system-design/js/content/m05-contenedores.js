@@ -573,7 +573,9 @@ spec:
           ] },
           { t: 'code', title: 'Build una vez, firmar y desplegar por digest', files: [
             { name: 'release.sh', lang: 'bash', code: `REG=123456789012.dkr.ecr.us-east-1.amazonaws.com
-SHA=$(git rev-parse --short HEAD)
+# --short=7: los 7 caracteres del tag de CI, como 3f9c2ab (o más, si otro objeto empieza igual);
+# --short a secas da más a medida que el repo crece
+SHA=$(git rev-parse --short=7 HEAD)
 
 # 1) CI construye UNA vez, para la arquitectura de los nodos, con el commit como tag
 docker buildx build --platform linux/amd64 -t $REG/classifier-gateway:$SHA --push gateway/

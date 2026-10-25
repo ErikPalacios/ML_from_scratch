@@ -108,7 +108,7 @@ def test_error_event_mid_stream(h):
 
 
 def test_abort_without_text_is_a_failure(h):
-    async def handler(request):  # lo que hace un pod de vLLM en drain (#c10.archivos)
+    async def handler(request):  # defensivo: un abort sin texto (el gateway del C10 ya lo da como 502)
         return httpx2.Response(200, content=sse(chunk({"role": "assistant"}), chunk(finish="abort")))
 
     with pytest.raises(LLMUnavailable):

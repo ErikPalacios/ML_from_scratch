@@ -346,7 +346,7 @@
         { topic: 'Latencia y disponibilidad',
           a: '<b>p99 ≤ 200 ms del lado del servidor</b>: desde que el load balancer recibe el request completo hasta que se envía la respuesta. p50 esperado ≈ 30–50 ms. El caller usa un timeout de 300 ms; si vence, la UI muestra el selector manual. <b>99.9 %</b> mensual. Si el servicio falla, el vendedor usa el selector manual de categorías: es un camino <b>no crítico</b> con fallback.' },
         { topic: 'Modelo actual',
-          a: 'Sí: <b>ResNet-50</b> (25.6 M parámetros, ≈ 4.1 GMACs a 224×224), ≈ 85 % top-1 y ≈ 96 % top-5 en un split held-out. No es nuestro trabajo rediseñarlo.' },
+          a: 'Sí: <b>ResNet-50</b> con una capa final de 500 clases: 24.5 M parámetros (25.6 M con la de 1,000 clases de ImageNet) y ≈ 4.1 GMACs a 224×224; ≈ 85 % top-1 y ≈ 96 % top-5 en un split held-out. No es nuestro trabajo rediseñarlo.' },
         { topic: 'Datos y labels',
           a: 'Tres fuentes: la <b>categoría final</b> que elige el vendedor (abundante pero débil y sesgada), las <b>correcciones de moderadores</b> (más confiables, llegan en días) y un <b>golden set</b> etiquetado por humanos y congelado.' },
         { topic: 'Restricciones',

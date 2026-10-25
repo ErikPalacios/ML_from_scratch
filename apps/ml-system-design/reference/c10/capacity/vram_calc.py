@@ -146,7 +146,9 @@ def max_concurrent_sequences(room_bytes: float, m: ModelConfig, tokens_per_seque
 
 
 def max_kv_tokens(room_bytes: float, m: ModelConfig) -> int:
-    """Tokens totales de KV que caben: lo que vLLM reporta al arrancar como "GPU KV cache size"."""
+    """Tokens totales de KV que caben. Al arrancar vLLM imprime un poco menos como "GPU KV cache size": cuenta
+    bloques ENTEROS de 16 tokens por GPU (con TP=2 cada GPU guarda la mitad de los KV heads de cada token). En el
+    caso: 208,740 aquí; 13,046 bloques × 16 = 208,736 en el log de vLLM."""
     return math.floor(room_bytes / kv_bytes_per_token(m))
 
 

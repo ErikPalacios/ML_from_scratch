@@ -54,4 +54,4 @@ docker run --rm --gpus all \
 # Huellas para el model registry: qué ONNX produjo qué engine, en qué GPU y con qué release
 echo "GPU=$gpu NGC_RELEASE=$NGC_RELEASE"
 sha256sum "$ROOT/$ONNX" "$ROOT/$PLAN_DIR/model.plan"
-# Siguiente paso: python model/parity_check.py --backend triton (gate FP16 vs PyTorch FP32)
+# Siguiente paso: docker build triton/ y, con Triton arriba, parity_check.py --backend triton --checkpoint <el .pt> (FP16 vs FP32)

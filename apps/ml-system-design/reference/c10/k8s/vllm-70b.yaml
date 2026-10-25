@@ -85,10 +85,13 @@ spec:
       #            llevando requests a este pod; por eso el gateway NO reusa conexiones hacia vLLM
       #            (gateway/llm_gateway.py, HttpUpstream): cada request abre la suya y cae en un pod listo.
       #   SIGTERM: vLLM v0.30 con --shutdown-timeout 60 entra en drain: deja terminar lo que está en vuelo hasta
-      #            60 s y aborta el resto (un request interactivo dura ≈ 10.5 s; uno de 1,024 tokens a 50 ms/token,
-      #            ≈ 51 s). Durante el drain el servidor HTTP SIGUE aceptando conexiones: un request nuevo que llegue
-      #            no se rechaza al conectar, se ABORTA (un 200 con finish_reason "abort" y sin texto). El gateway lo
-      #            trata como falla del upstream (502 o vendor), no como respuesta.
+      #            60 s (un request interactivo dura ≈ 10.5 s; uno de 1,024 tokens a 50 ms/token, ≈ 51 s). Al vencer
+      #            el plazo MATA el proceso del engine y sus hijos: lo que seguía en vuelo no recibe un finish_reason
+      #            "abort", termina con un evento de error o con la conexión cortada (stream_error en el gateway).
+      #            Durante el drain el servidor HTTP SIGUE aceptando conexiones: un request nuevo no se rechaza al
+      #            conectar, se ABORTA sin generar nada. Sin streaming llega un 200 con finish_reason "abort"; con
+      #            streaming, un 200 con el chunk del rol, el de usage y [DONE], SIN chunk de abort (vLLM no manda
+      #            chunks vacíos). El gateway trata los dos como falla del upstream (502 o vendor), no como respuesta.
       #   margen: 15 s → 90 s. Lo que se corte lo reintenta el cliente (batch-runner) o lo ve como error.
       terminationGracePeriodSeconds: 90
       nodeSelector:
@@ -177,7 +180,8 @@ spec:
             - --served-model-name
             - chat-70b-fp8-2026-09-28  # el nombre que ve el gateway: el alias chat-default apunta aquí
             - --load-format
-            - safetensors  # nunca pickle (.bin): cargar un pickle ejecuta código
+            - safetensors  # solo safetensors: un .bin es un pickle. vLLM v0.30 lo abre con weights_only=True (no
+                           # ejecuta código arbitrario), pero safetensors es solo tensores: no depende de esa guardia
             - --tensor-parallel-size
             - "2"  # 70.6 GB de pesos FP8 + KV no entran cómodos en 80 GB; en 2 GPUs quedan ≈ 68 GB para KV
             - --gpu-memory-utilization
@@ -193,7 +197,8 @@ spec:
             - --max-num-batched-tokens
             - "8192"  # tokens por paso (prefill troceado + decode): más = mejor TTFT y peor TPOT; se ajusta con el bench
             - --scheduling-policy
-            - priority  # el gateway manda priority 0 (interactive) o 10 (batch); sin esto vLLM rechaza priority ≠ 0
+            - priority  # el gateway manda priority 0 (interactive) o 10 (batch). Sin este flag vLLM v0.30 NO falla
+                        # (su documentación dice que sí): la cola FCFS ignora priority y el batch compite con el chat
             - --generation-config
             - vllm  # defaults de muestreo de vLLM, no del generation_config.json del modelo: una revisión nueva no
                     # cambia la temperatura por defecto en silencio (los productos mandan la suya)
@@ -201,8 +206,12 @@ spec:
             - "60"  # con SIGTERM, deja terminar lo que está en vuelo hasta 60 s (default 0 = abortar todo)
             - --port
             - "8000"
-            # NO se agrega --enable-log-requests: loguearía prompts con PII. El log por request vive en el gateway,
-            # sin contenido.
+            # NO se agrega --enable-log-requests. En INFO (el nivel por defecto) no loguea prompts: solo el id y los
+            # parámetros de muestreo de cada request (el prompt sale en DEBUG; la respuesta, con --enable-log-outputs).
+            # Es una línea por request que no hace falta, y con un VLLM_LOGGING_LEVEL=DEBUG puesto para depurar
+            # volcaría prompts con PII. El log por request vive en el gateway, sin contenido.
+            # Tampoco --sse-keep-alive-interval (default 0): el gateway corta un stream tras 30 s sin bytes
+            # (read_timeout_s); un ": keep-alive" reiniciaría ese reloj y un vLLM trabado nunca cortaría.
           env:
             - name: HOME
               value: /home/vllm  # caches de vLLM, torch.compile y Triton en un lugar escribible para UID 2000

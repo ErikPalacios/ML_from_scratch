@@ -1088,7 +1088,7 @@
                 steps: [
                   'Planteamiento: secuencias = ⌊KV libre ÷ KV por secuencia⌋: media secuencia no sirve.',
                   `Con los resultados anteriores: ⌊${f(free)} ÷ ${f(per, 3)}⌋ = ⌊${f(free / per, 2)}⌋ = <b>${seqs} secuencias</b>`,
-                  'Al arrancar, vLLM reporta cuántos bloques de KV obtuvo: ese número, no la cuenta de servilleta, es tu capacidad real.',
+                  'Al arrancar, vLLM imprime cuántos tokens caben en el KV cache (<code>GPU KV cache size: N tokens</code>) y la concurrencia máxima con el contexto configurado: ese número, no la cuenta de servilleta, es tu capacidad real.',
                 ],
               },
               {

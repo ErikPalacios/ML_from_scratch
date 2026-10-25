@@ -155,7 +155,7 @@ class GatewayChatModel:
             raise LLMUnavailable("timeout") from e
         except httpx2.TransportError as e:
             raise LLMUnavailable("connect") from e
-        if finish == "abort":  # un pod de vLLM en drain aborta sin texto (ver #c10.archivos)
+        if finish == "abort":  # vLLM en drain cortó una respuesta ya empezada (sin texto, el gateway da 502)
             raise LLMUnavailable("abort")
         yield LLMResponse("".join(content), [ToolCall(c["id"], c["name"], c["arguments"])
                                              for _, c in sorted(calls.items())], usage, finish)

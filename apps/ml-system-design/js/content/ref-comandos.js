@@ -73,7 +73,9 @@
 
   // ------------------------------------------------------------ código
   const DOCKER_LOOP = `# Desde reference/c01. Tag = commit corto: sabes exactamente qué código corre
-TAG=$(git rev-parse --short HEAD)
+# --short=7: los 7 caracteres del tag de CI (o más, si otro objeto empieza igual);
+# --short a secas da más a medida que el repo crece
+TAG=$(git rev-parse --short=7 HEAD)
 
 # 1. Construir. En un Mac con Apple Silicon, --platform es obligatorio:
 #    sin él la imagen sale arm64 y los nodos x86 (g4dn, c6i) no la pueden ejecutar

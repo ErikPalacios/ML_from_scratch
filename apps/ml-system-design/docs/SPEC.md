@@ -600,8 +600,9 @@ due today. Works with zero due cards ("Todo al día" + option "Repasar todo igua
 Scenario: second-hand **marketplace**. Sellers upload photos when creating a listing; the service
 suggests the **product category** (top-5 of **500 leaf categories**) while the seller fills the rest
 of the form. Other internal teams will also call the API. The model already exists: **ResNet-50**
-trained in PyTorch (25.6 M params, ≈ 4.1 GMACs at 224×224), ~85 % top-1 / ~96 % top-5 offline
-(assumed). Not our job to redesign the model.
+trained in PyTorch with a 500-class head (**24.5 M params** = 24,532,532; 25.6 M is the 1,000-class
+ImageNet head; ≈ 4.1 GMACs at 224×224) → FP32 ≈ 98 MB (the ONNX file), FP16 ≈ 49 MB, a training
+checkpoint with Adam ≈ 294 MB; ~85 % top-1 / ~96 % top-5 offline (assumed). Not our job to redesign the model.
 - Traffic: **10 M images/day** → avg **≈ 116 req/s**; diurnal peak ≈ 3× → **≈ 350 req/s**; design
   peak with spike margin **500 req/s**. One image per request.
 - Latency SLO: **p99 ≤ 200 ms server-side** (from full request received at the LB to response sent),
@@ -618,6 +619,9 @@ trained in PyTorch (25.6 M params, ≈ 4.1 GMACs at 224×224), ~85 % top-1 / ~96
   **dynamic batching** `max_queue_delay_microseconds: 2000`, `instance_group` 2 × KIND_GPU.
   Engine built with `trtexec --fp16` from ONNX (opset 17, dynamic batch 1–32, opt 16) **on the same
   GPU type (T4, sm_75) and the same NGC release (e.g. 24.08) as serving** (engines are not portable).
+  Release order (reference/c01/README.md): export → ORT parity on CPU → on the T4, `build_engine.sh` and
+  `docker build triton/` → parity against that running Triton image → **only then** registered as
+  challenger (with the image tag/digest) → CD deploys that same image (shadow → canary); it never rebuilds it.
 - Hardware: **NVIDIA T4** (AWS `g4dn.xlarge`: 4 vCPU, 16 GiB RAM, 16 GB GPU, ≈ US$0.526/h
   on-demand us-east-1 — mark as approximate/verify). Planned per-GPU capacity **600 img/s** (≈ 50 %
   of a *measured* max; the max itself is an estimate to be measured with `perf_analyzer`).
@@ -871,7 +875,8 @@ authenticity) are done by an existing KYC vendor — **out of scope**; we extrac
   human-review step uses `waitForTaskToken`) → stages: **classify** (doc type + page roles; small model on
   CPU) → **text acquisition** (CFDI XML parse | PDF text layer | OCR: managed text-detection API, words +
   boxes + confidence) → **extract** (per doc type: a layout-aware token-classification model fine-tuned on
-  our documents, ONNX Runtime **on CPU** — throughput is tiny, ≈ 0.6 pages/s at peak; + rules/regex for
+  our documents, ONNX Runtime **on CPU** — throughput is tiny: ≈ 0.5 pages/s (0.52) reach the extractor in
+  the busiest peak hour, the ≈ 0.6 pages/s that arrive minus the CFDI pages with XML; + rules/regex for
   structured fields; INE back has an MRZ-like zone) → **validate** (format + check digits: CURP, RFC
   homoclave, CLABE; cross-field: subtotal + IVA − retenciones = total; cross-document: name on INE ≈ name
   on the application; external: SAT CFDI status) → **route** (per-field calibrated confidence vs per-field
@@ -1023,8 +1028,10 @@ zero-result and vocabulary-mismatch queries. Not our job to design the embedding
   fast store (tombstones) at query time, because HNSW deletes are expensive (mark deleted + periodic
   shard rebuild).
 - Re-embedding the catalog when the model changes (est.): image tower ≈ 2,000 img/s per L4 at 224×224
-  (measure) → 100 M main photos ≈ 50,000 GPU-s ≈ **14 GPU-h** (≈ 1.7 h on 8 L4 spot) + text tower +
-  index build → **blue/green index** (build the new index aside, shadow-compare, swap an alias); vectors
+  (measure) → 100 M main photos ≈ 50,000 GPU-s ≈ 14 GPU-h; text tower (title + attributes, ≈ 3,000/s
+  per L4, est.) ≈ 9 GPU-h → **≈ 23 GPU-h for both towers ≈ 3 h (2.9) on 8 L4**, on-demand ≈ US$19 (the
+  image tower alone ≈ 1.7 h; spot saves ≈ US$5, not worth the interruptions for a 3-hour job) + CPU
+  for JPEG decode (≈ 24 cores) + index build → **blue/green index** (build the new index aside, shadow-compare, swap an alias); vectors
   of different model versions are NEVER mixed in one index.
 - Capacity (est., measure): query text encoding ≈ 5,000 queries/s per L4 (short text) → the peak
   ≈ 1,660 text QPS + ≈ 90 photo QPS fit in 1 L4 + N+1 (shared pool). The **reranker is the GPU cost
