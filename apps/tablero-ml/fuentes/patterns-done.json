@@ -1,0 +1,1275 @@
+{
+  "patterns": {
+    "batch": {
+      "steps": [
+        {
+          "id": "datos",
+          "base": "datos",
+          "status": "cambia",
+          "title": "Ventas POS y agotados",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Las ventas del POS (`sales_daily`) llegan cada noche a las 00:30 y son el label: no hace falta etiquetado humano. Los días agotados (`oos_flag`) salen de los targets porque su venta no es la demanda.",
+          "done": [
+            "`sales_daily` y `stock_daily` (con `oos_flag`) llegan cada noche: las ventas a las 00:30 (las tiendas con mala conexión, hasta la 01:30) y el inventario al cierre a la 01:00.",
+            "Los días con `oos_flag` quedan fuera de los targets y entran como NaN en lags y medias; `oos_days_7` y `oos_days_28` cuentan cuántos hubo.",
+            "Cada serie se densifica con el surtido: cero real, agotado y sin dato quedan separados, y una tienda que no subió nada nunca cuenta como venta 0.",
+            "`price_promo` entra con el plan como se conocía en el origen, y `retail_events.yaml` tiene las fechas del Buen Fin y del Hot Sale del año que miran las features.",
+            "Los tests de `features/` pasan, incluido el de leakage: con todo lo posterior a `run_date` envenenado, las features salen idénticas."
+          ],
+          "links": [
+            "#c14.datos",
+            "#c14.archivos",
+            "#m09.leakage"
+          ]
+        },
+        {
+          "id": "sensores-con-hora-de-corte",
+          "base": null,
+          "status": "nuevo",
+          "title": "Sensores con hora de corte",
+          "tramo": "datos",
+          "speed": "dias",
+          "note": "Esperan las ventas y el inventario de cada tienda hasta que reportan todas o hasta la 01:30. Las que faltan se imputan con su mismo día de la semana pasada y se marcan `imputed_input`.",
+          "done": [
+            "`wait_sales` y `wait_stock` corren en modo reschedule, con poke cada 5 min, y terminan cuando reportaron todas las tiendas o a la 01:30, lo que pase antes.",
+            "Ningún sensor falla por datos incompletos; su timeout de respaldo es de 2 h y, si vence, el job no corre y sale el fallback.",
+            "Las tiendas que faltan al corte se imputan con su mismo día de la semana pasada (venta y marca de agotado), y sus filas salen con `imputed_input`.",
+            "`InputDataIncomplete` abre un ticket con más de 2 % de tiendas imputadas, y con más de 5 % el gate bloquea la noche."
+          ],
+          "links": [
+            "#c14.serving",
+            "#c14.archivos",
+            "#m09.pipelines"
+          ]
+        },
+        {
+          "id": "versionado",
+          "base": "versionado",
+          "status": "cambia",
+          "title": "Snapshots y particiones inmutables",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Cada entrenamiento fija un snapshot (time travel de Iceberg o Delta, o una copia con fecha), y cada noche publicada queda como partición inmutable con nombre de hash: el archivo de lo que el ERP usó.",
+          "done": [
+            "Cada entrenamiento usa un snapshot fijo de las tablas (time travel de Iceberg o Delta, o una copia con fecha) que queda registrado con el modelo.",
+            "Cada modelo guarda su snapshot, el commit del código de features, la configuración del muestreo y las versiones de las librerías.",
+            "Cada noche escribe una versión inmutable de la partición `run_date` de `forecast_daily`, nombrada por el hash de su contenido: re-correrla con los mismos datos da `already_published`.",
+            "Cada fila de `forecast_daily` trae `run_date` y `model_version`, y las versiones viejas no se borran: son el archivo de pronósticos."
+          ],
+          "links": [
+            "#c14.datos",
+            "#c14.serving",
+            "#m09.versionado"
+          ]
+        },
+        {
+          "id": "entrenamiento",
+          "base": "entrenamiento",
+          "status": "cambia",
+          "title": "Entrenamiento semanal por cuantiles",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Cada domingo, dos GBDT por cuantiles (P50 y P90) sobre ≈ 490 M filas point-in-time, en un nodo de 96 vCPU en spot (≈ 2–3 h). Sin GPU.",
+          "done": [
+            "Cada domingo se arma un training set point-in-time de ≈ 490 M filas: las series principales de 52 semanas completas, 10 % del resto con peso 10 y un horizonte sorteado por fila, con semilla registrada.",
+            "Salen dos modelos de cuantiles (α = 0.5 y 0.9) en un nodo de 96 vCPU en spot, en ≈ 2–3 h; si spot lo interrumpe, se reintenta.",
+            "El P50 de las series rápidas no sale en 0 (en la referencia, con jittering de conteos) y el early stopping aleatorio está apagado.",
+            "El modelo guarda su versión de scikit-learn, y `train_quantile.load` se niega a cargarlo con otra."
+          ],
+          "links": [
+            "#c14.datos",
+            "#c14.archivos",
+            "#m10.pipelines-entrenamiento",
+            "#m13.spot"
+          ]
+        },
+        {
+          "id": "gate",
+          "base": "gate",
+          "status": "cambia",
+          "title": "Backtest de 8 orígenes",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Backtest de origen móvil con 8 orígenes semanales: mejor WAPE que el champion y ningún segmento principal peor por más de 2 puntos.",
+          "done": [
+            "Un cambio de receta corre el backtest de origen móvil con 8 orígenes semanales; en cada origen se entrena solo con filas cuyo `target_date` ya pasó.",
+            "El candidato tiene mejor WAPE que el champion, y ningún segmento grande (frescos, abarrotes, rápidas, lentas, con y sin promoción) empeora más de 2 puntos.",
+            "WAPE, sesgo, pinball y cobertura del P90 se calculan sin días agotados, por segmento y horizonte, y contra el seasonal naive.",
+            "El reentrenamiento semanal de la misma receta pasa el gate del artefacto: filas y features esperadas, pérdida en su rango, pocos cruces de cuantiles y una noche en sombra.",
+            "La versión entra al registry como `challenger` con su linaje: snapshot, commit, configuración y resultados del backtest."
+          ],
+          "links": [
+            "#c14.evaluacion",
+            "#m10.gate",
+            "#m10.model-registry"
+          ]
+        },
+        {
+          "id": "serving",
+          "base": "serving",
+          "status": "cambia",
+          "title": "Job nocturno `run_forecast.py`",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "No hay endpoint: el serving es el job `run_forecast.py`, que imputa, arma features, predice 67 M filas y escribe una partición nueva.",
+          "done": [
+            "`run_forecast.py nightly` hace la noche en 7 pasos: completitud e imputación, revisión del calendario, features, predicción, escritura, gate y compare-and-swap.",
+            "Las features salen de la misma función que arma el training set, y antes el job verifica que `retail_events.yaml` cubra el horizonte y los 30 días que mira `days_to_<evento>`; si no, falla en voz alta.",
+            "Predice P50 y P90 de ≈ 67 M filas en CPU con la versión fijada al arrancar: piezas enteras, ordenadas por fila, recortadas en 0 y con los cruces contados.",
+            "Cada intento cabe en ≤ 60 min (de la 01:30 a las 03:30 queda lugar para un reintento) y empuja con `pushadd` solo las métricas de ese intento.",
+            "`pytest` en `reference/c14` pasa los 73 tests (el del DAG se salta sin Airflow)."
+          ],
+          "links": [
+            "#c14.serving",
+            "#c14.archivos",
+            "#m02.batch"
+          ]
+        },
+        {
+          "id": "gate-de-salida-y-swap-atomico",
+          "base": null,
+          "status": "nuevo",
+          "title": "Gate de salida, swap atómico",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Write–audit–publish: el gate relee lo escrito (filas = series × 14, p90 ≥ p50, bandas por categoría) y publicar es un compare-and-swap del puntero `forecast_current`. El ERP nunca ve una tabla a medias.",
+          "done": [
+            "El gate lee de vuelta la partición ya escrita: filas = series × 14 (± 0.5 %), sin llaves repetidas, nulos ni negativos, p90 ≥ p50 y tiendas imputadas ≤ 5 %.",
+            "La banda por categoría compara Σ P50 de 7 días contra Σ de las medianas de los últimos 4 mismos días, solo con series rápidas, dentro de ±30 %; con promoción o feriado se ensancha a [1/3×, 3×].",
+            "Publicar es un compare-and-swap del puntero `forecast_current` (`UPDATE … WHERE partition = :esperado`): si afecta 0 filas, falla en vez de pisar.",
+            "El puntero cumple sus reglas: nunca hacia atrás, un fallback no reemplaza al modelo de la misma noche y después de las 03:55 no se mueve.",
+            "Si el gate bloquea, sale el fallback y `ForecastValidationBlocked` hace page."
+          ],
+          "links": [
+            "#c14.serving",
+            "#c14.archivos",
+            "#m09.validacion-datos",
+            "#m02.batch"
+          ]
+        },
+        {
+          "id": "fallback-y-guardian-de-las-03-45",
+          "base": null,
+          "status": "nuevo",
+          "title": "Fallback y guardián de 03:45",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Si el job falla o el gate bloquea, se publica el pronóstico de ayer desplazado un día; un DAG aparte lo publica a las 03:45 si nada salió.",
+          "done": [
+            "El fallback corre el último pronóstico publicado: los horizontes 2..14 de ayer pasan a 1..13 y el día 14 sale de seasonal naive, con `fallback` = true y su `reason`.",
+            "Lo publican tres caminos: el job si el modelo o el gate fallan, `publish_fallback` (trigger rule `all_failed`, siempre en on-demand) si el job falla dos veces, y `forecast_fallback_guard` a las 03:45 si nada de la noche está publicado.",
+            "El fallback no arma features (su naive lee 28 días de ventas e inventario) y pasa las reglas de estructura del gate.",
+            "`FallbackForecastServed` abre un ticket en cada noche de fallback, y dos noches seguidas se escalan."
+          ],
+          "links": [
+            "#c14.serving",
+            "#c14.fallas",
+            "#m15.degradacion"
+          ]
+        },
+        {
+          "id": "empaquetado",
+          "base": "empaquetado",
+          "status": "cambia",
+          "title": "Una imagen para todo",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Una sola imagen (`forecast-job`, fijada por digest) entrena y predice, porque un modelo guardado con pickle de scikit-learn no es portable entre versiones.",
+          "done": [
+            "Una sola imagen (`forecast-job`) entrena y predice, y el DAG la usa por digest, no por tag.",
+            "La imagen instala el lock de `train/requirements.txt` (14 paquetes) y el código de `features/`, `train/` y `batch/`.",
+            "El entrypoint es `python run_forecast.py`, y `OMP_NUM_THREADS` es igual a los cores que pide el pod.",
+            "Un modelo guardado con otra versión de scikit-learn no carga: el job lo rechaza en vez de predecir con él."
+          ],
+          "links": [
+            "#c14.serving",
+            "#c14.archivos",
+            "#m05.registries"
+          ]
+        },
+        {
+          "id": "cicd",
+          "base": "cicd",
+          "status": "igual",
+          "title": "CI/CD, imagen y DAG",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Pruebas e imagen como en el C01; además se despliega el DAG `forecast_nightly` a Airflow.",
+          "done": [
+            "`pytest` pasa los 73 tests de las cuatro carpetas en cada commit, sin warehouse, Spark ni Airflow.",
+            "`promtool check rules` y `promtool test rules` pasan sobre `monitoring/alerts.yml`.",
+            "En un venv con Airflow 3.3.2 y el provider de Kubernetes, pasan los 10 tests del DAG (import, timetable, plantillas y serialización).",
+            "`forecast_nightly_dag.py` y `nightly_rules.py` se despliegan al bundle de DAGs y donde los importe el triggerer, con la conexión `warehouse` creada.",
+            "La imagen del job se publica una vez, y el DAG apunta a ese mismo digest."
+          ],
+          "links": [
+            "#c14.archivos",
+            "#m10.ci-cd"
+          ]
+        },
+        {
+          "id": "kubernetes",
+          "base": "kubernetes",
+          "status": "cambia",
+          "title": "Pod del job, sin Deployment",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Sin Deployment, HPA ni ALB: Airflow lanza el job como pod (KubernetesPodOperator), el primer intento en un nodo spot de Karpenter y el reintento en on-demand.",
+          "done": [
+            "No hay Deployment, HPA ni ALB: `run_forecast` corre con `KubernetesPodOperator` en el namespace `forecasting`.",
+            "El primer intento va a un nodo spot y el reintento a on-demand, con el `node_selector` `karpenter.sh/capacity-type`; `publish_fallback` y el guardián van siempre en on-demand.",
+            "El pod del job tiene `execution_timeout` de 90 min, límite de memoria y ningún límite de CPU.",
+            "Karpenter tiene los dos tipos de capacidad, y el pod que falla se queda para leer sus logs."
+          ],
+          "links": [
+            "#c14.archivos",
+            "#m06.nodos",
+            "#m13.spot"
+          ]
+        },
+        {
+          "id": "job-programado-dag-forecast-nightly",
+          "base": null,
+          "status": "nuevo",
+          "title": "Job programado (DAG forecast_nightly)",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Airflow lo dispara a las 00:30 con `catchup=False` y `max_active_runs=1`: un pronóstico de una noche pasada no sirve para pedir hoy, y dos noches a la vez se pelearían el puntero.",
+          "done": [
+            "`forecast_nightly` corre con el cron `30 0 * * *` en America/Mexico_City, `catchup=False` y `max_active_runs=1`.",
+            "`run_date_for` pasa la fecha lógica a la hora de las tiendas (no usa `ds`, que va en UTC), y un test lo prueba con una corrida manual a las 19:00.",
+            "El DAG tiene un Deadline Alert a las 03:30 (fecha lógica + 3 h) cuyo callback avisa a Alertmanager.",
+            "Las tareas van `[wait_sales, wait_stock] >> run_forecast >> publish_fallback`, y `forecast_fallback_guard` es otro DAG, con cron `45 3 * * *`."
+          ],
+          "links": [
+            "#c14.serving",
+            "#c14.archivos",
+            "#m10.pipelines-entrenamiento"
+          ]
+        },
+        {
+          "id": "rollout",
+          "base": "rollout",
+          "status": "cambia",
+          "title": "Sombra, alias y piloto",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Sin canary de tráfico: el challenger corre una noche en sombra por el mismo gate y se promueve moviendo el alias `champion`. El valor de negocio se mide con 40 tiendas piloto contra 40 de control.",
+          "done": [
+            "El challenger corre una noche en sombra junto al champion, y su salida pasa por el mismo gate.",
+            "Promover es mover el alias `champion`; cada corrida lo resuelve a una versión al arrancar, y la anterior queda lista para un rollback de un minuto.",
+            "El piloto empareja 40 pares de tiendas (formato, CD, ventas) y sortea dentro de cada par: 8 semanas, con diferencia en diferencias sobre agotados y merma.",
+            "Las 2 primeras semanas del piloto son de arranque y no cuentan, y los ajustes de la gerencia se registran y se miden con FVA.",
+            "El rollback de una noche ya publicada es re-correrla con el champion anterior antes de las 03:55, nunca apuntar la vista a una noche vieja."
+          ],
+          "links": [
+            "#c14.evaluacion",
+            "#c14.serving",
+            "#m11.shadow",
+            "#m11.ab-testing",
+            "#m11.rollback"
+          ]
+        },
+        {
+          "id": "monitoreo",
+          "base": "monitoreo",
+          "status": "cambia",
+          "title": "Monitoreo de dos relojes",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Dos relojes: la noche (`ForecastRunLate`, `ForecastRunFailed`: page), con métricas que el job empuja al Pushgateway, y la precisión (`WAPEDegraded`: ticket), que llega días después con las ventas.",
+          "done": [
+            "Las 8 alertas de `alerts.yml` pasan sus tests de promtool: `ForecastRunLate`, `ForecastRunFailed` y `ForecastValidationBlocked` hacen page; las otras cinco abren ticket.",
+            "`ForecastRunLate` mira la edad del `run_date` publicado (más de 51.5 h, o la métrica ausente), así que no depende de Airflow.",
+            "Cada intento empuja al Pushgateway la hora de publicación, las filas, las tiendas imputadas, el resultado del gate y el fallback.",
+            "El job diario de precisión publica WAPE y sesgo de 7 días por segmento (horizontes 1–2, sin días agotados) contra los del backtest: `WAPEDegraded` salta a más de 5 puntos y `ForecastBiasDrift` a más de 10.",
+            "El modelo se reentrena cada domingo; dos semanas de `WAPEDegraded` llevan a un diagnóstico por segmento antes de reentrenar."
+          ],
+          "links": [
+            "#c14.monitoreo",
+            "#c14.archivos",
+            "#m12.prometheus-grafana",
+            "#m12.runbooks"
+          ]
+        }
+      ],
+      "removed": [
+        {
+          "id": "export",
+          "why": "El GBDT predice en CPU con la misma imagen que lo entrena: no hay ONNX ni TensorRT."
+        },
+        {
+          "id": "request",
+          "why": "Nadie llama en línea: el ERP lee la vista `forecast_current` a las 04:00, por fecha objetivo."
+        }
+      ]
+    },
+    "llm": {
+      "steps": [
+        {
+          "id": "datos",
+          "base": "datos",
+          "status": "cambia",
+          "title": "Documentos, ACLs y golden set",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "No hay dataset de entrenamiento: los datos son ≈ 1.5 M documentos de Confluence, Drive, Jira y políticas, cada uno con su ACL, más un golden set de ≈ 600 preguntas escritas con especialistas de cada área.",
+          "done": [
+            "Las fuentes están acotadas: Confluence, Drive, Jira (solo los últimos 2 años) y el repositorio de políticas, ≈ 1.5 M documentos tras filtrar, con RH y legal fuera por defecto.",
+            "Cada documento trae su ACL normalizada a principals (`user:`, `group:`, `role:`, `domain:`), y un enlace compartido cuenta como no compartido.",
+            "El golden set tiene ≈ 600 preguntas escritas con especialistas de cada área, con documentos esperados y respuesta de referencia, e incluye pares de permisos, preguntas sin respuesta, tablas, versiones y varios turnos.",
+            "Hay ≈ 200 respuestas calificadas por especialistas con la rúbrica, para calibrar al juez.",
+            "Antes de abrir Drive, Seguridad revisó el escaneo de sobre-compartido."
+          ],
+          "links": [
+            "#c11.datos",
+            "#m14.evaluacion",
+            "#m15.pii-privacidad"
+          ]
+        },
+        {
+          "id": "ingestion-con-conectores",
+          "base": null,
+          "status": "nuevo",
+          "title": "Ingestión con conectores",
+          "tramo": "datos",
+          "speed": "continuo",
+          "note": "Un conector por fuente detecta cambios por webhook o polling; después vienen parsing y OCR, y chunks de ≈ 400 tokens con su ruta de títulos y su ACL.",
+          "done": [
+            "Cada fuente tiene su conector: eventos (webhook o feed de cambios), polling por fecha de modificación como red y un barrido de reconciliación que compara ids y versiones contra el índice.",
+            "El parsing conserva la estructura: OCR en páginas sin capa de texto, tablas como filas con su encabezado, y el texto parseado se guarda en S3 por versión y hash.",
+            "Los chunks miden ≈ 400 tokens (techo duro de 512), siguen las secciones, llevan la ruta de títulos, los campos de ACL y el hash, y no cortan filas de tabla.",
+            "Procesar dos veces el mismo evento no cambia nada, los borrados quedan como tombstones y una pasada que quiere borrar más de 2 % de una fuente se detiene.",
+            "Una página editada es respondible en p95 ≤ 15 min, y `IngestionLagHigh` vigila el atraso por fuente."
+          ],
+          "links": [
+            "#c11.datos",
+            "#c11.archivos",
+            "#m02.entrega-reintentos"
+          ]
+        },
+        {
+          "id": "carril-rapido-de-permisos",
+          "base": null,
+          "status": "nuevo",
+          "title": "Carril rápido de permisos",
+          "tramo": "datos",
+          "speed": "continuo",
+          "note": "ACL sync reescribe solo los campos `acl_0…acl_2` de los chunks afectados: una revocación aplica en ≤ 5 min sin re-embeber ni esperar detrás de un PDF.",
+          "done": [
+            "Los cambios de permisos van a su propia cola: ACL sync reescribe solo `acl_0`…`acl_2` de los chunks afectados, sin re-embeber.",
+            "Una revocación aplica en ≤ 5 min, medida de punta a punta por el probe de permisos.",
+            "Lo que la cuenta de servicio ya no puede leer se borra del índice (fail-closed).",
+            "La foto del IdP se refresca cada ≈ 60 s; `ACLSyncStale` salta con la foto de más de 2 min, con una fuente sin sincronizar permisos en 5 min o con un atraso p95 de más de 5 min.",
+            "`test_acl_only_change_updates_metadata_without_embedding` pasa con la misma versión del documento."
+          ],
+          "links": [
+            "#c11.datos",
+            "#c11.arquitectura",
+            "#c11.archivos",
+            "#m15.authn-authz"
+          ]
+        },
+        {
+          "id": "versionado",
+          "base": "versionado",
+          "status": "cambia",
+          "title": "Texto, chunks e índice versionados",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Se versionan el texto parseado (en S3, por hash), cada chunk con su hash y la `model_version` del embedding, el índice detrás de un alias y el golden set como dataset.",
+          "done": [
+            "El texto parseado de cada versión de cada documento vive en S3, direccionado por hash, y permite re-chunkear sin volver a las APIs ni al OCR.",
+            "Cada chunk guarda su hash y la `model_version` del embedding, y solo se re-embeben los chunks cuyo hash cambió.",
+            "El índice vive detrás de un alias, y el encoder de consultas no responde si su versión no es la del índice del alias.",
+            "El golden set se versiona como un dataset y crece cada mes con casos del feedback."
+          ],
+          "links": [
+            "#c11.datos",
+            "#c11.arquitectura",
+            "#m09.versionado"
+          ]
+        },
+        {
+          "id": "indice-hibrido-en-opensearch",
+          "base": null,
+          "status": "nuevo",
+          "title": "Índice híbrido en OpenSearch",
+          "tramo": "modelo",
+          "speed": "continuo",
+          "note": "El embed-worker (L4, d = 1024) hace upsert solo de los chunks cuyo hash cambió; BM25 y HNSW viven en el mismo índice, detrás de un alias.",
+          "done": [
+            "El clúster propio de OpenSearch tiene 3 nodos r7i.2xlarge en 3 zonas con 1 réplica, separado del de búsqueda del marketplace.",
+            "Cada chunk lleva texto para BM25, un vector FP16 de d = 1024 (HNSW en faiss), metadatos y campos de ACL.",
+            "El embed-worker en L4 hace upsert solo de los chunks cuyo hash cambió, con su `model_version`.",
+            "Un backfill o re-embebido completo (≈ 44 L4-horas, ≈ US$36) va a un índice nuevo, con L4 spot temporales.",
+            "El recall del ANN contra la búsqueda exacta se mide en un set canario."
+          ],
+          "links": [
+            "#c11.arquitectura",
+            "#c11.serving",
+            "#c11.archivos"
+          ]
+        },
+        {
+          "id": "gate",
+          "base": "gate",
+          "status": "cambia",
+          "title": "Gate del golden set",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "El golden set corre contra el sistema completo: recall@8, faithfulness y precisión de citas con un juez calibrado, y permisos al 100 %. Lo pasa cualquier cambio de chunker, embeddings, reranker, prompt o LLM.",
+          "done": [
+            "El golden set corre contra el sistema completo, como usuarios de prueba: recall@8 y MRR por fuente, área e idioma, más faithfulness y precisión de citas con el juez.",
+            "La suite de permisos pasa al 100 %: ningún chunk de un documento restringido aparece en los 50 candidatos ni en el prompt, y una sola fuga bloquea.",
+            "Contra la revisión actual: recall@8 pareado sin pérdida significativa ni caída de más de 5 pp en un slice, faithfulness y precisión de citas a no más de 2 puntos, y la abstención correcta no baja.",
+            "El juez tiene kappa ≥ 0.6 y falso pase ≤ 10 % contra las respuestas de especialistas (puntos de partida), y se recalibra cuando cambian el juez o la rúbrica.",
+            "Cualquier cambio de parser, chunker, embeddings, reranker, umbral de abstención, prompt o revisión del LLM pasa este mismo gate."
+          ],
+          "links": [
+            "#c11.evaluacion",
+            "#m14.evaluacion",
+            "#m10.gate"
+          ]
+        },
+        {
+          "id": "serving",
+          "base": "serving",
+          "status": "cambia",
+          "title": "`rag-api` con retrieval híbrido",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "`rag-api` (FastAPI, `POST /v1/ask` con SSE): principals → BM25 ∥ k-NN con RRF (k = 60) → reranker 50 → 8 → prompt de 8k → `llm-gateway` → citas validadas.",
+          "done": [
+            "`POST /v1/ask` valida el token, resuelve los principals y lanza BM25 y k-NN en paralelo (300 ms de timeout cada uno), con el filtro de permisos dentro de las dos consultas y nunca como `post_filter`.",
+            "RRF (k = 60) fusiona, la regla de ACL se re-aplica a los 50 (debe sacar cero) y el reranker deja 8, con máximo 3 chunks por documento; si no responde en 400 ms, queda el orden de RRF.",
+            "El prompt entra en 8k: instrucciones fijas, historial recortado primero y 8 fuentes numeradas con fecha, ≤ 7,336 tokens y ≤ 7,500 según la estimación del gateway.",
+            "Sin candidatos o debajo del umbral de abstención no se llama al LLM, y al cerrar el stream cada cita se valida contra las fuentes del prompt y los permisos.",
+            "`pytest` en `reference/c11` pasa los 128 tests."
+          ],
+          "links": [
+            "#c11.serving",
+            "#c11.archivos",
+            "#m14.rag"
+          ]
+        },
+        {
+          "id": "plataforma-llm-del-c10",
+          "base": null,
+          "status": "nuevo",
+          "title": "Plataforma LLM del C10",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "`llm-gateway` con la llave del tenant `employee-assistant`, cuota en tokens/min y alias `chat-default` → réplicas de vLLM (≈ 70B, 8k de contexto).",
+          "done": [
+            "El tenant `employee-assistant` tiene su llave en el `llm-gateway`, una cuota de ≈ 1 M tokens/min, prioridad interactiva y el alias `chat-default`, sin respaldo al proveedor externo.",
+            "Cada llamada va con `stream: true` y `max_tokens` 600, y la cancelación se propaga si la persona cierra el chat.",
+            "Un 429 o un 503 del gateway no se reintenta en loop: la respuesta pasa a solo resultados de búsqueda, igual que si el primer token no llega en 8 s.",
+            "El tenant puede fijar su revisión del LLM hasta que su golden set apruebe la nueva."
+          ],
+          "links": [
+            "#c11.serving",
+            "#c10.arquitectura",
+            "#c10.serving"
+          ]
+        },
+        {
+          "id": "empaquetado",
+          "base": "empaquetado",
+          "status": "igual",
+          "title": "Contenedores del `rag-api`",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Contenedores como en el C01 para `rag-api`, encoder y reranker; vLLM corre con su imagen oficial en la plataforma del C10.",
+          "done": [
+            "La imagen del `rag-api` instala el lock de `service/requirements.txt` (con `uv pip compile`, para Linux x86_64 y Python 3.13), sin las dependencias de tests.",
+            "Cada contenedor corre un solo proceso de uvicorn: se escala con réplicas, no con workers.",
+            "El encoder de consultas corre en otro Deployment que el embed-worker, en las L4 del reranker.",
+            "vLLM usa la imagen oficial `vllm/vllm-openai`, fijada por versión y digest en el manifest del C10."
+          ],
+          "links": [
+            "#c11.archivos",
+            "#c11.arquitectura",
+            "#c10.archivos"
+          ]
+        },
+        {
+          "id": "cicd",
+          "base": "cicd",
+          "status": "igual",
+          "title": "CI/CD con el golden set",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Pruebas e imágenes como en el C01; lo que decide si un cambio sale es el gate del golden set.",
+          "done": [
+            "`pytest` pasa los 128 tests de las cinco carpetas en cada commit, sin OpenSearch, GPU ni gateway.",
+            "`promtool check rules` y los dos `promtool test rules` pasan sobre `monitoring/alerts.yml`.",
+            "Un cambio de chunker, embeddings, reranker, prompt o revisión del LLM no sale sin el gate del golden set aprobado.",
+            "Una fuga de permisos en el golden set bloquea el release aunque el recall sea perfecto."
+          ],
+          "links": [
+            "#c11.archivos",
+            "#c11.evaluacion",
+            "#m10.ci-cd"
+          ]
+        },
+        {
+          "id": "kubernetes",
+          "base": "kubernetes",
+          "status": "cambia",
+          "title": "EKS del C10 y L4",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "El LLM corre en el EKS del C10 (pods de vLLM con 2 × H100); el C11 suma L4 para encoder y reranker y su propio clúster de OpenSearch de 3 nodos.",
+          "done": [
+            "El LLM corre en los pods `vllm-70b` del C10: 2 × H100 por pod, con TP=2.",
+            "El C11 suma L4 para el encoder de consultas y el reranker (≈ 0.24 s para 50 pares).",
+            "OpenSearch corre en su propio clúster de 3 nodos, separado del de búsqueda del marketplace.",
+            "Los backfills usan L4 spot temporales y nunca hacen esperar a una pregunta."
+          ],
+          "links": [
+            "#c11.arquitectura",
+            "#c10.arquitectura",
+            "#m06.gpus-k8s"
+          ]
+        },
+        {
+          "id": "rollout",
+          "base": "rollout",
+          "status": "cambia",
+          "title": "Índice blue/green con alias",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Un modelo de embeddings nuevo es un índice nuevo (blue/green): se compara en shadow con preguntas reales y se cambia el alias junto con el encoder; el índice viejo queda unos días para rollback.",
+          "done": [
+            "Un modelo de embeddings nuevo se embebe en un índice nuevo: los vectores de dos modelos nunca se mezclan.",
+            "Pasa el gate y se compara en shadow con preguntas reales, revisando dónde cambian los top-8.",
+            "El alias del índice cambia junto con la versión del encoder de consultas, y el índice viejo queda unos días para rollback.",
+            "Mientras dura el cambio, el carril de permisos escribe en los dos índices.",
+            "Cuando el C10 mueve `chat-default`, `employee-assistant` sigue en la revisión anterior hasta que su golden set apruebe la nueva."
+          ],
+          "links": [
+            "#c11.evaluacion",
+            "#c11.monitoreo",
+            "#m11.blue-green",
+            "#m11.shadow"
+          ]
+        },
+        {
+          "id": "request",
+          "base": "request",
+          "status": "cambia",
+          "title": "Pregunta en segundos, con streaming",
+          "tramo": "operacion",
+          "speed": "ms",
+          "note": "De milisegundos a segundos: retrieval + rerank p95 ≤ 700 ms, primer token p95 ≤ 2.5 s y respuesta en streaming ≤ 10 s. Si la foto de grupos del IdP tiene más de 5 min, responde 503.",
+          "done": [
+            "Retrieval + rerank p95 ≤ 700 ms, primer token p95 ≤ 2.5 s y respuesta completa en streaming ≤ 10 s.",
+            "Con la foto del IdP de más de 5 min, el `rag-api` responde 503; una persona que no está en el IdP recibe 403.",
+            "El evento `meta` sale con las fuentes antes de llamar al gateway, y el evento final trae un `outcome` que separa `no_sources` de `no_answer`.",
+            "La traza guarda ids de chunks recuperados y citados, puntajes y latencias, sin el texto de la pregunta ni de la respuesta, durante 30 días."
+          ],
+          "links": [
+            "#c11.serving",
+            "#c11.requisitos",
+            "#c11.archivos"
+          ]
+        },
+        {
+          "id": "monitoreo",
+          "base": "monitoreo",
+          "status": "cambia",
+          "title": "Monitoreo de edades y conteos",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Se suman el atraso de la ingestión y de los permisos (`ACLSyncStale`), la tasa de retrieval sin resultados y un canary de groundedness cada 4 h. No hay reentrenamiento: el lazo se cierra con cambios de chunking, prompt o índice que pasan el mismo gate.",
+          "done": [
+            "Las 8 alertas de `alerts.yml` pasan sus tests de promtool, y las de latencia solo evalúan con ≥ 0.05 preguntas/s.",
+            "`IngestionLagHigh` mira el atraso p95 por fuente (más de 15 min) y una fuente sin eventos en 1 h de horario de oficina; `IndexDocCountDrop`, los documentos por fuente contra hace 24 h.",
+            "El canary de groundedness corre ≈ 100 preguntas fijas cada 4 h, y `GroundednessCanaryRegression` salta debajo de 85 %, a más de 5 puntos de su promedio de 7 días o si no corre en 8 h.",
+            "El juez califica ≈ 1 % de las respuestas reales y se guarda solo el puntaje, los ids de chunks y el área.",
+            "No hay reentrenamiento: cada cambio de chunking, prompt o índice pasa el mismo gate."
+          ],
+          "links": [
+            "#c11.monitoreo",
+            "#c11.archivos",
+            "#m12.prometheus-grafana"
+          ]
+        },
+        {
+          "id": "probe-de-permisos",
+          "base": null,
+          "status": "nuevo",
+          "title": "Probe de permisos",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Cuentas sintéticas, con y sin acceso, preguntan cada pocos minutos por documentos canario: si alguien sin acceso los recupera, es un incidente de seguridad, no un ticket.",
+          "done": [
+            "Hay documentos canario con frases únicas en cada fuente, y cuentas sintéticas con y sin acceso que preguntan cada pocos minutos.",
+            "La cuenta sin acceso nunca recupera un documento canario.",
+            "El probe revoca un acceso y cronometra cuánto tarda en desaparecer, contra el objetivo de ≤ 5 min.",
+            "Un fallo es un incidente de seguridad con su runbook (desactivar la fuente, auditar las trazas por id de documento, avisar a Seguridad), no un ticket."
+          ],
+          "links": [
+            "#c11.arquitectura",
+            "#c11.monitoreo",
+            "#m15.authn-authz"
+          ]
+        }
+      ],
+      "removed": [
+        {
+          "id": "entrenamiento",
+          "why": "El LLM (`chat-default` del C10) y el modelo de embeddings vienen hechos; en su lugar se embeben ≈ 12 M chunks (≈ 44 L4-horas)."
+        },
+        {
+          "id": "export",
+          "why": "No hay ONNX ni TensorRT propios: en la plataforma del C10, vLLM carga pesos FP8 de una revisión fijada, verificados con sha256."
+        }
+      ]
+    },
+    "streaming": {
+      "steps": [
+        {
+          "id": "datos",
+          "base": "datos",
+          "status": "cambia",
+          "title": "Audio con licencia y consentimiento",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "El audio de clientes no se guarda: el audio etiquetado sale de corpus con licencia, grabaciones por acento con consentimiento y clientes con opt-in, transcrito por personas con una guía.",
+          "done": [
+            "Cada archivo entra con su manifiesto (transcripción, hablante, slice, licencia y consentimiento); sin licencia o consentimiento rastreable, no entra.",
+            "El audio sale de corpus con licencia comercial verificada, grabaciones por acento con consentimiento y organizaciones con opt-in; nunca de clientes sin consentimiento.",
+            "Las transcripciones siguen una guía escrita y versionada (números, muletillas, code-switching, habla superpuesta), con doble pasada en el golden set.",
+            "El acuerdo entre quienes transcriben está medido como WER entre dos transcripciones independientes.",
+            "El audio opt-in vive en un bucket separado, cifrado, con acceso por rol y borrado a pedido."
+          ],
+          "links": [
+            "#c13.datos",
+            "#m09.etiquetado",
+            "#m15.pii-privacidad"
+          ]
+        },
+        {
+          "id": "versionado",
+          "base": "versionado",
+          "status": "igual",
+          "title": "Golden sets congelados por slice",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Golden sets congelados por idioma y slice (acento, ruido, dispositivo), separados por hablante de los datos de entrenamiento.",
+          "done": [
+            "Hay un golden set por idioma (español, inglés y portugués), con slices por acento o región, ruido, dispositivo, habla superpuesta, code-switching y teléfono.",
+            "El golden set se separa del entrenamiento por hablante y por sesión, se deduplica por huella de audio y texto, y nunca entra a entrenamiento.",
+            "La normalización del WER está escrita y versionada, y su versión se reporta junto a cada número.",
+            "Los intervalos de cada slice salen de un bootstrap por hablante, no por palabra."
+          ],
+          "links": [
+            "#c13.datos",
+            "#c13.evaluacion",
+            "#m09.leakage",
+            "#m09.versionado"
+          ]
+        },
+        {
+          "id": "entrenamiento",
+          "base": "entrenamiento",
+          "status": "cambia",
+          "title": "Fine-tune de ASR streaming",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Se parte de un ASR streaming preentrenado (transducer/CTC) y, si hace falta, se ajusta por idioma: nada se entrena desde cero.",
+          "done": [
+            "Se parte de un ASR streaming preentrenado (transducer o CTC); nada se entrena desde cero.",
+            "El fine-tuning por idioma sale del modelo base o del de producción, en GPUs rentadas (spot con checkpoints).",
+            "Lo dispara un slice que se queda atrás, y hay una revisión trimestral."
+          ],
+          "links": [
+            "#c13.datos",
+            "#m10.pipelines-entrenamiento"
+          ]
+        },
+        {
+          "id": "gate",
+          "base": "gate",
+          "status": "cambia",
+          "title": "Gate de WER y streams",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "WER por idioma y slice con normalización fija, más latencia y streams por GPU medidos en una L4, contra el modelo en producción.",
+          "done": [
+            "El WER de cada slice no es peor que el de producción más su intervalo, con la normalización fija, y el slice objetivo mejora.",
+            "Ningún slice queda peor que 1.5× el promedio de su idioma.",
+            "La latencia de parciales y los streams por L4 se miden en una L4 real con fragmentos de 160 ms, junto con la tasa de revisiones de parciales.",
+            "Si el modelo se cuantiza, el gate corre sobre el engine, no sobre el checkpoint."
+          ],
+          "links": [
+            "#c13.evaluacion",
+            "#c13.datos",
+            "#m10.gate"
+          ]
+        },
+        {
+          "id": "export",
+          "base": "export",
+          "status": "igual",
+          "title": "Engine para L4 y config",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Como en el C01, el engine se compila para la GPU que sirve (L4); el registry guarda además la config de streaming (fragmento, lookahead, endpointing).",
+          "done": [
+            "El engine se compila para L4, la GPU que sirve: TensorRT no es portable entre GPUs.",
+            "El registry guarda, por idioma, el modelo, su engine para L4, la configuración de streaming (fragmento, lookahead y endpointing), las métricas del gate y la versión del golden set.",
+            "FP16 o INT8 con TensorRT se valida con el WER por slice sobre el engine."
+          ],
+          "links": [
+            "#c13.datos",
+            "#c13.serving",
+            "#m08.tensorrt",
+            "#m08.validar"
+          ]
+        },
+        {
+          "id": "serving",
+          "base": "serving",
+          "status": "cambia",
+          "title": "Gateway CPU y worker GPU",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "`asr-gateway` en CPU (Opus → 16 kHz, VAD, fragmentos de 160 ms) y `asr-worker` en L4 con el sequence batcher de Triton: estado por stream, parciales y finales.",
+          "done": [
+            "El `asr-gateway` decodifica Opus, remuestrea a 16 kHz mono, aplica VAD y arma fragmentos de 160 ms con 100 ms de pre-roll; el final sale con 600 ms de silencio o con el tope de 20 s.",
+            "El `asr-worker` usa el sequence batcher de Triton con una secuencia por frase, cerrada en el endpoint, y `max_sequence_idle_microseconds` (1 s por defecto) está decidido contra las pausas del VAD.",
+            "Una palabra se congela cuando terminó hace más de 800 ms de audio, lo tentativo se muestra aparte y las correcciones del final se cuentan.",
+            "Las colas de cada sesión están acotadas: si el modelo va ≈ 2 s atrás, el worker cierra con 1013, y quien no lee pierde parciales pero nunca finales.",
+            "`pytest` en `reference/c13` pasa los 95 tests."
+          ],
+          "links": [
+            "#c13.serving",
+            "#c13.archivos",
+            "#m07.triton"
+          ]
+        },
+        {
+          "id": "sesion-por-pista-grpc-bidireccional",
+          "base": null,
+          "status": "nuevo",
+          "title": "Sesión por pista (gRPC bidireccional)",
+          "tramo": "release",
+          "speed": "ms",
+          "note": "El SFU abre un stream por participante hacia el `asr-gateway` (≈ 200k conectadas en el pico); con VAD, solo las pistas con voz gastan GPU.",
+          "done": [
+            "El SFU abre un stream gRPC por pista hacia un `asr-gateway` de su misma zona, identificado por `meeting_id` + `participant_id`, con idioma y organización.",
+            "El fork es fire-and-forget: si el gateway no recibe, el SFU descarta paquetes y la reunión sigue igual.",
+            "El keepalive tiene un intervalo menor que el idle timeout más corto del camino, y el ping del cliente y la política de pings del servidor se configuran juntos.",
+            "Solo las frases con voz abren una secuencia en el worker: una pista callada no gasta GPU.",
+            "El gateway guarda la frase en curso (hasta 20 s) para reenviarla si el worker se cae."
+          ],
+          "links": [
+            "#c13.serving",
+            "#c13.arquitectura",
+            "#m07.protocolos",
+            "#m02.streaming"
+          ]
+        },
+        {
+          "id": "empaquetado",
+          "base": "empaquetado",
+          "status": "igual",
+          "title": "Contenedores de gateway y worker",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Gateway y worker en contenedores, como en el C01; el worker corre como Deployment de GPU.",
+          "done": [
+            "La imagen del `asr-worker` lleva como tag la versión del modelo y el manifest la fija además por digest.",
+            "Sus dependencias salen del lock de `server/requirements.txt` (con `uv pip compile`), sin los tests.",
+            "uvicorn corre con `--ws-max-size 65536`, `--timeout-graceful-shutdown 10` y pings de WebSocket cada 20 s."
+          ],
+          "links": [
+            "#c13.archivos",
+            "#m05.registries"
+          ]
+        },
+        {
+          "id": "cicd",
+          "base": "cicd",
+          "status": "igual",
+          "title": "CI/CD y pruebas",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Pruebas e imágenes como en el C01.",
+          "done": [
+            "`pytest` pasa los 95 tests de las cuatro carpetas en cada commit, sin GPU, modelo ni SFU.",
+            "`promtool check rules` y `promtool test rules` pasan sobre las 8 alertas.",
+            "El manifest pasa `kubernetes-validate --strict` en sus recursos core, y el ScaledObject y el PodMonitor pasan el esquema de sus CRDs.",
+            "El CD despliega solo versiones aprobadas por el gate y registradas con su engine para L4."
+          ],
+          "links": [
+            "#c13.archivos",
+            "#m10.ci-cd"
+          ]
+        },
+        {
+          "id": "kubernetes",
+          "base": "kubernetes",
+          "status": "cambia",
+          "title": "KEDA por streams activos",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "KEDA escala `asr-worker` por streams activos por GPU (objetivo 350) y un cron sube el mínimo antes de la mañana. Un nodo L4 tarda 5–13 min, y bajar réplicas es drenar (`preStop`).",
+          "done": [
+            "KEDA escala `asr-worker` entre 20 y 220 réplicas con `sum(asr_active_streams)` (objetivo 350 por pod) y `asr_sessions` (objetivo 1,200), y cada pod pide una L4 entera.",
+            "Un trigger cron fija al menos 120 pods de lunes a viernes de 7:30 a 11:00 (hora del centro de México), y si Prometheus no contesta, el fallback de KEDA pide 120.",
+            "Sube rápido y baja de a 5 pods cada 5 min, con una ventana de 20 min.",
+            "El `preStop` drena hasta 60 s, `terminationGracePeriodSeconds` es 90 y el PDB permite como mucho 5 % de disrupciones voluntarias."
+          ],
+          "links": [
+            "#c13.serving",
+            "#c13.archivos",
+            "#m06.keda",
+            "#m06.cold-starts"
+          ]
+        },
+        {
+          "id": "router-de-sesiones-con-afinidad",
+          "base": null,
+          "status": "nuevo",
+          "title": "Router de sesiones con afinidad",
+          "tramo": "operacion",
+          "speed": "ms",
+          "note": "Asigna cada sesión a un `asr-worker` de su zona contando streams activos, no requests ni CPU, y la mantiene ahí (sticky).",
+          "done": [
+            "Asigna cada sesión al worker de su zona que tiene el idioma y más lugares libres en sesiones, salteando los que tienen sus streams activos en el tope (450).",
+            "La asignación es sticky, y tres heartbeats perdidos (uno por segundo) marcan al worker como muerto: sus sesiones se reparten en la zona.",
+            "No asigna a workers drenando y rebalancea solo en el fin de frase.",
+            "Cruzar de zona es solo una degradación, y se cuenta en una métrica."
+          ],
+          "links": [
+            "#c13.serving",
+            "#c13.archivos",
+            "#c13.fallas"
+          ]
+        },
+        {
+          "id": "rollout",
+          "base": "rollout",
+          "status": "cambia",
+          "title": "Canary por sesiones nuevas",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Canary por porcentaje de sesiones nuevas, no de requests, porque cada sesión queda asignada a su worker (sticky).",
+          "done": [
+            "El modelo aprobado se carga en un grupo de workers y el router le manda 5 % de las sesiones nuevas de su idioma; las sesiones existentes no se mueven.",
+            "Sube a 25 %, 50 % y 100 % en días, solo si `CanaryWERRegression` no salta y las señales de uso no empeoran.",
+            "Un A/B de modelos se aleatoriza por reunión u organización, no por participante.",
+            "El rollback vuelve a la versión anterior del registry, y los workers se reemplazan drenando."
+          ],
+          "links": [
+            "#c13.arquitectura",
+            "#c13.evaluacion",
+            "#m11.canary"
+          ]
+        },
+        {
+          "id": "request",
+          "base": "request",
+          "status": "cambia",
+          "title": "Parciales y finales en vivo",
+          "tramo": "operacion",
+          "speed": "ms",
+          "note": "En vez de una request, una sesión gRPC larga por pista: parciales p95 ≤ 500 ms y finales p95 ≤ 1.5 s después del fin de la frase.",
+          "done": [
+            "Parciales p95 ≤ 500 ms de la palabra a la pantalla, y finales p95 ≤ 1.5 s después del fin de la frase.",
+            "Los 500 ms están repartidos por tramos: red, espera del fragmento, cola, cómputo y entrega.",
+            "Si cae un worker, el gateway lo nota en 1 s, reabre la sesión en otro y reenvía la frase en curso: ≈ 1–2 s sin parciales y ningún final perdido.",
+            "Los parciales se agrupan a 5 por segundo por stream como máximo, y solo si el texto cambió; los finales siempre salen."
+          ],
+          "links": [
+            "#c13.serving",
+            "#c13.requisitos",
+            "#m03.presupuesto"
+          ]
+        },
+        {
+          "id": "caption-bus-por-reunion",
+          "base": null,
+          "status": "nuevo",
+          "title": "caption-bus por reunión",
+          "tramo": "operacion",
+          "speed": "ms",
+          "note": "Pub/sub en memoria (NATS o Redis Pub/Sub): los workers publican parciales y finales, y la señalización WebSocket existente los empuja a cada cliente.",
+          "done": [
+            "Hay un tema por reunión en un pub/sub en memoria (NATS o Redis Pub/Sub): los workers publican y los servidores de señalización consumen.",
+            "Cada mensaje lleva `meeting_id`, hablante, `utterance_id`, número de secuencia, tipo y texto congelado y tentativo; el cliente reemplaza por `utterance_id` y descarta secuencias viejas.",
+            "El bus guarda los finales de los últimos 60 s de cada reunión para quien se reconecta.",
+            "`CaptionDeliveryLag` salta con el p95 de entrega a la señalización arriba de 250 ms durante 10 min.",
+            "Solo los finales de reuniones con guardar activado se copian a Kafka; si no, el texto existe solo en memoria."
+          ],
+          "links": [
+            "#c13.arquitectura",
+            "#c13.serving",
+            "#c13.monitoreo"
+          ]
+        },
+        {
+          "id": "monitoreo",
+          "base": "monitoreo",
+          "status": "cambia",
+          "title": "Monitoreo por tramos y streams",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Latencia por tramo, streams activos (también la señal del autoscaling), reconexiones y fracción de voz; el canary golden mide WER en producción. Se reentrena por disparadores, con revisión trimestral.",
+          "done": [
+            "Las 8 alertas pasan sus tests de promtool, con presupuesto por tramo del servidor: `CaptionPartialLatencyHigh` a 200 ms, `CaptionFinalLatencyHigh` a 1.2 s y `GPUStreamSaturation` con el paso del modelo arriba de 128 ms.",
+            "`SessionReconnectRateHigh` cuenta solo reconexiones no planeadas (más de 2 % en 15 min), sin `migrate` ni la duración máxima.",
+            "`VADActiveRatioShift` compara la fracción de voz con la misma hora de la semana pasada (debajo de 0.7× o arriba de 1.3× durante 1 h).",
+            "En los logs no hay audio ni texto: solo ids, tiempos y contadores.",
+            "Se reentrena por disparadores (un slice atrás, un cambio del audio de entrada, un modelo mejor), con revisión trimestral."
+          ],
+          "links": [
+            "#c13.monitoreo",
+            "#c13.archivos",
+            "#m12.prometheus-grafana"
+          ]
+        },
+        {
+          "id": "canary-golden-en-produccion",
+          "base": null,
+          "status": "nuevo",
+          "title": "Canary golden en producción",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Un bot entra a una reunión interna y reproduce audio del golden set: mide WER y latencia de punta a punta sin tocar audio de clientes.",
+          "done": [
+            "Un bot entra cada pocos minutos, por región e idioma, a una reunión interna y reproduce audio del golden set como participante.",
+            "Recorre el camino real (SFU, gateway, router, worker y bus) y mide WER y latencia de punta a punta sin tocar audio de clientes.",
+            "`CanaryWERRegression` salta si el WER de la versión canary supera al de la estable + 1 punto, con ≥ 5,000 palabras de referencia durante 30 min, y el rollout se detiene."
+          ],
+          "links": [
+            "#c13.evaluacion",
+            "#c13.monitoreo",
+            "#m11.canary"
+          ]
+        }
+      ],
+      "removed": []
+    },
+    "edge": {
+      "steps": [
+        {
+          "id": "datos",
+          "base": "datos",
+          "status": "cambia",
+          "title": "Imágenes de línea y veredictos",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Las imágenes salen de la cámara de la línea, y el veredicto que registra quien inspecciona, en la tablet, es el label más barato. Al inicio hay ≈ 2,000 piezas buenas y ≈ 300 defectos.",
+          "done": [
+            "El shadow de la línea 1 junta imágenes con la cámara y el estrobo de producción; al inicio hay ≈ 2,000 piezas buenas y ≈ 300 defectos.",
+            "Quien inspecciona etiqueta cada pieza desviada en la tablet con un toque: buena, uno de los 4 tipos u otro.",
+            "Calidad revisa todos los desacuerdos y ≈ 5 % de los veredictos, y en ≈ 10 % la tablet oculta el motivo para medir el anclaje.",
+            "Las imágenes de la línea se filtran (fuera las de score alto, con una muestra auditada) antes de entrar al set de piezas buenas.",
+            "También se recolectan el 1 % de las aprobadas, los casi-rechazos y cada escape que reporta la armadora."
+          ],
+          "links": [
+            "#c03.datos",
+            "#m09.etiquetado"
+          ]
+        },
+        {
+          "id": "versionado",
+          "base": "versionado",
+          "status": "igual",
+          "title": "Snapshots, golden sets y linaje",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Snapshots inmutables en S3, golden sets congelados por tipo de defecto y linaje pieza ↔ imagen ↔ modelo ↔ decisión.",
+          "done": [
+            "Cada lote de labels produce un snapshot con manifest (hash de imagen, label, fuente del label y versión) e id inmutable en S3.",
+            "Los golden sets por tipo de defecto están congelados, nunca entran a entrenamiento y se arman con defectos que no pasaron por el filtro del modelo.",
+            "Cada decisión es un registro inmutable con `decision` y `model_decision`, versión de modelo y umbrales, scores, latencia y acuse del PLC.",
+            "Los labels son eventos con autor y hora: nunca se sobrescriben, se corrigen con uno nuevo."
+          ],
+          "links": [
+            "#c03.datos",
+            "#m09.versionado"
+          ]
+        },
+        {
+          "id": "entrenamiento",
+          "base": "entrenamiento",
+          "status": "cambia",
+          "title": "Entrenamiento en la nube",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Job de GPU en la nube, bajo demanda: anomalías entrenadas con piezas buenas y, cuando hay defectos suficientes, un clasificador por tipo. Mensual o por disparador.",
+          "done": [
+            "Un job de GPU en la nube, bajo demanda, entrena la anomalía con piezas buenas y, cuando hay cientos de defectos por tipo, el clasificador.",
+            "La corrida es reproducible: snapshot de datos, commit y contenedor por digest.",
+            "Usa el mismo preprocesamiento (recorte, normalización y tiles) que corre en el Jetson.",
+            "El split es por tiempo o por lote, nunca aleatorio."
+          ],
+          "links": [
+            "#c03.datos",
+            "#m10.reproducibilidad",
+            "#m09.skew"
+          ]
+        },
+        {
+          "id": "gate",
+          "base": "gate",
+          "status": "cambia",
+          "title": "Recall por tipo y umbral",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Recall por tipo de defecto a FP fijo en los golden sets, y umbral elegido por costo esperado con recall ≥ 99.5 % (`choose_threshold.py`).",
+          "done": [
+            "El recall por tipo de defecto se mide a FP fijo en los golden sets, con slices por variante de pieza, línea y cámara, turno y lote.",
+            "`choose_threshold.py` elige el umbral con recall ≥ 99.5 % por tipo, objetivo de 1.5 % de FP y tope duro de ≈ 2.85 %; si ningún umbral cumple, sale con error.",
+            "Con clasificador, cada cabeza recibe su parte del presupuesto de FP (`--target-fp-rate 0.003 --max-fp-rate 0.0057`), y la combinación se verifica ≤ 1.5 % antes de escribir `config.yaml`.",
+            "El recall se reporta con su cota de Clopper-Pearson: afirmar 99.5 % pide ≈ 600 defectos reales por tipo sin fallas.",
+            "Si algún tipo no llega a 99.5 %, no se construye nada."
+          ],
+          "links": [
+            "#c03.evaluacion",
+            "#c03.datos",
+            "#m10.gate"
+          ]
+        },
+        {
+          "id": "export",
+          "base": "export",
+          "status": "cambia",
+          "title": "Engine en un Jetson idéntico",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "El engine se construye en un Jetson de CI idéntico a los de la línea (mismo módulo, JetPack y modo de energía), con paridad contra el ONNX y latencia a batch fijo.",
+          "done": [
+            "El engine TensorRT FP16 se construye con `build_engine_jetson.sh` en un Orin NX con el mismo módulo, JetPack y modo de energía que la línea.",
+            "El script verifica el modo con `EXPECTED_POWER_MODE` y deja el `.plan`, el log de trtexec y un JSON con el sha256 del ONNX y del plan.",
+            "El shape es fijo: un batch de 20 tiles de 512 × 512 y un solo perfil.",
+            "La paridad contra el ONNX pasa, y la inferencia con el batch fijo cabe en ≤ 120 ms medida con trtexec.",
+            "Se empieza en FP16; INT8 solo si FP16 no cabe, calibrando con defectos incluidos."
+          ],
+          "links": [
+            "#c03.datos",
+            "#c03.archivos",
+            "#m08.tensorrt"
+          ]
+        },
+        {
+          "id": "serving",
+          "base": "serving",
+          "status": "cambia",
+          "title": "Loop de inspección en Jetson",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Un proceso en el Jetson Orin NX: adquiere la imagen, arma 20 tiles, corre TensorRT FP16 y escribe al PLC por Modbus TCP; si no alcanza, un deadline guard escribe `DIVERT`.",
+          "done": [
+            "`app.py` mide el deadline desde el trigger (trigger + 350 ms) y consume el frame de cada trigger aunque llegue tarde.",
+            "`decide()` da REJECT si cualquier score es ≥ su umbral; un NaN, un score fuera de [0, 1] o un tipo que falta es DIVERT, nunca PASS.",
+            "Si tras la foto quedan menos de ≈ 140 ms, DIVERT inmediato; si no caben los 50 ms de escritura, no escribe nada.",
+            "Una imagen oscura sale `bad_image` (DIVERT), y el watchdog termina el proceso tras 30 s sin avance.",
+            "Pasan los 62 tests del inspector y los 20 de la herramienta de umbrales."
+          ],
+          "links": [
+            "#c03.serving",
+            "#c03.archivos",
+            "#m03.presupuesto"
+          ]
+        },
+        {
+          "id": "empaquetado",
+          "base": "empaquetado",
+          "status": "cambia",
+          "title": "Imagen arm64 con compose",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Imagen arm64 sobre `l4t-tensorrt`, con `docker compose` (`runtime: nvidia`, red del host); los engines se montan aparte para volver al anterior sin red.",
+          "done": [
+            "La imagen parte de `nvcr.io/nvidia/l4t-tensorrt:r10.3.0-runtime`, con el mismo TensorRT que JetPack 6.2.x, y corre con un usuario no root.",
+            "`docker-compose.yml` usa `runtime: nvidia`, `network_mode: host`, `restart: unless-stopped`, `read_only: true` y `cap_drop: ALL`.",
+            "`config.yaml` y `/opt/inspector/models` se montan de solo lectura: el engine no va dentro de la imagen.",
+            "El healthcheck lee el heartbeat (informa, no reinicia) y los logs rotan a 50 MB × 5 archivos."
+          ],
+          "links": [
+            "#c03.archivos",
+            "#c03.serving",
+            "#m05.gpu-en-contenedor"
+          ]
+        },
+        {
+          "id": "cicd",
+          "base": "cicd",
+          "status": "cambia",
+          "title": "Versión firmada con plan",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Cada versión se registra firmada (ONNX, engine por módulo y JetPack, umbrales y contenedor) junto con su plan de rollout por líneas.",
+          "done": [
+            "Cada versión se registra firmada: ONNX, engine por módulo y JetPack, umbrales por tipo, contenedor por digest y métricas del gate.",
+            "Lleva su plan de rollout: línea 1 en shadow un turno, línea 1 canary, las 4 líneas y después las otras plantas.",
+            "`choose_threshold.py` funciona como gate en CI: sin un umbral que cumpla recall y tope, el pipeline falla.",
+            "Los tests del inspector y de la herramienta de umbrales pasan con Python 3.10, el de JetPack 6."
+          ],
+          "links": [
+            "#c03.arquitectura",
+            "#c03.evaluacion",
+            "#m15.supply-chain"
+          ]
+        },
+        {
+          "id": "ota-por-la-dmz",
+          "base": null,
+          "status": "nuevo",
+          "title": "OTA por la DMZ",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "La DMZ baja los artefactos firmados con conexiones salientes, verifica la firma y los copia a un registry local de la red OT: los dispositivos nunca salen a internet.",
+          "done": [
+            "El gateway de la DMZ descarga con conexiones salientes, verifica la firma y copia los artefactos al registry local de la red OT.",
+            "Los dispositivos solo descargan del registry local y nunca salen a internet.",
+            "Las actualizaciones entran en la ventana nocturna y, si no hay enlace, esperan."
+          ],
+          "links": [
+            "#c03.arquitectura",
+            "#c03.serving",
+            "#m02.edge"
+          ]
+        },
+        {
+          "id": "rollout",
+          "base": "rollout",
+          "status": "cambia",
+          "title": "Shadow y canary por línea",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Por línea: de noche el engine baja al slot B con un smoke test, la línea 1 corre un turno en shadow, después canary y las 4 líneas. El rollback es local, sin red.",
+          "done": [
+            "De noche el engine nuevo baja al slot B, junto al actual, y pasa un smoke test con imágenes patrón.",
+            "La línea 1 corre un turno completo en shadow: el challenger solo registra, después de que el champion escribió al PLC.",
+            "Avanza solo si no pierde ningún defecto que el champion detectó, no sube los FP y tiene cero deadline misses; calidad revisa todos los desacuerdos.",
+            "Después la línea 1 decide varios turnos (canary) y luego sigue una ola por línea.",
+            "El rollback es local y en minutos: `config.yaml` vuelve a apuntar al engine anterior y se reinicia el contenedor, sin red."
+          ],
+          "links": [
+            "#c03.serving",
+            "#c03.evaluacion",
+            "#m11.shadow",
+            "#m11.rollback"
+          ]
+        },
+        {
+          "id": "request",
+          "base": "request",
+          "status": "cambia",
+          "title": "Pieza decidida en 350 ms",
+          "tramo": "operacion",
+          "speed": "ms",
+          "note": "No hay HTTP: la fotocelda dispara la cámara por hardware en cada pieza (2 por segundo por línea) y la decisión tiene un deadline de 350 ms.",
+          "done": [
+            "La fotocelda dispara la cámara por hardware y el PLC asigna el número de secuencia; en ≈ 50 ms la imagen está en memoria del Jetson.",
+            "El p99.9 del loop queda ≤ 350 ms en turnos completos, con el gabinete cerrado.",
+            "La decisión sale como `[part_id, código]` en una sola escritura Modbus TCP, sin reintentos.",
+            "El shape es fijo, no hay dynamic batching, el modo de energía está fijo y `jetson_clocks` se aplica en cada arranque.",
+            "`inspection_latency_seconds` tiene un bucket en 0.35 s, y `inspection_deadline_miss_total` queda ≈ 0."
+          ],
+          "links": [
+            "#c03.serving",
+            "#c03.estimaciones",
+            "#m03.presupuesto"
+          ]
+        },
+        {
+          "id": "plc-con-default-seguro",
+          "base": null,
+          "status": "nuevo",
+          "title": "PLC con default seguro",
+          "tramo": "operacion",
+          "speed": "ms",
+          "note": "El PLC deja pasar una pieza solo si llegó un PASS con su número antes del deadline. Jetson caído, red caída o decisión tarde terminan igual: desviada.",
+          "done": [
+            "El PLC desvía toda pieza que no tenga un PASS válido para su `part_id` antes del deadline: el código 0, sin decisión, equivale a desviar.",
+            "El PLC vuelve el registro a 0 al usar una decisión, porque el `part_id` de 16 bits se repite cada 65,536 piezas.",
+            "Un sensor en la rampa confirma cada pieza desviada; sin confirmación, con presostato bajo o con el contenedor lleno, el PLC para la línea y enciende el andon.",
+            "Jetson caído, red caída o decisión tarde terminan igual: la pieza se desvía."
+          ],
+          "links": [
+            "#c03.serving",
+            "#c03.fallas",
+            "#m15.degradacion"
+          ]
+        },
+        {
+          "id": "monitoreo",
+          "base": "monitoreo",
+          "status": "cambia",
+          "title": "Prometheus y andon locales",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Prometheus y andon en la planta, porque puede no haber internet; a la nube suben heartbeats y agregados. Si la tasa de rechazo supera 2× su base durante 30 min, lo probable es luz, lente o foco, no defectos.",
+          "done": [
+            "`app.py` exporta sus 7 métricas con series en 0 desde el arranque, y los DIVERT se cuentan por sus 10 motivos.",
+            "Las alertas que hacen page se evalúan en el Prometheus y el Alertmanager de la planta, y llegan al andon y a la tablet de mantenimiento.",
+            "`RejectRateSpike` salta con los REJECT arriba de 2× su base de 7 días durante 30 min, sin mezclar los DIVERT.",
+            "`AnomalyScoreDrift` compara la mediana de la última hora contra la de 7 días + 0.1, durante 2 h.",
+            "`DeviceOffline` en la nube solo alerta en horario de turno y si el gateway de la planta sí reporta; si falta el gateway, es un solo ticket de enlace."
+          ],
+          "links": [
+            "#c03.monitoreo",
+            "#m12.prometheus-grafana"
+          ]
+        },
+        {
+          "id": "store-and-forward-a-la-nube",
+          "base": null,
+          "status": "nuevo",
+          "title": "Store-and-forward a la nube",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Decisiones, imágenes de rechazos y veredictos esperan en el almacén de planta y suben cuando hay enlace: la línea opera ≥ 72 h sin internet.",
+          "done": [
+            "El almacén de planta guarda registros de decisión, imágenes de rechazos, la muestra de aprobadas y los veredictos, y la línea opera ≥ 72 h sin internet.",
+            "La subida es idempotente (cada registro con id, cada imagen nombrada por su hash) y reanuda donde se quedó.",
+            "Suben primero registros y veredictos, después los rechazos y al final la muestra, con límite de ancho de banda durante los turnos.",
+            "El almacén aguanta semanas (≈ 69 GB/día) y el atraso de la sincronización se mide.",
+            "Con el disco lleno se descarta primero lo ya sincronizado; los registros de decisión nunca."
+          ],
+          "links": [
+            "#c03.datos",
+            "#c03.fallas",
+            "#m02.edge"
+          ]
+        },
+        {
+          "id": "piezas-patron-en-cada-turno",
+          "base": null,
+          "status": "nuevo",
+          "title": "Piezas patrón en cada turno",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Cada turno empieza con piezas buenas y defectuosas conocidas; sin ese chequeo, ninguna pieza recibe PASS. Así se detectan un lente sucio, un foco movido o una luz degradada antes de producir.",
+          "done": [
+            "Cada turno empieza con las piezas patrón de la estación (2 buenas y 1 de cada tipo de defecto), con la línea en modo golden.",
+            "Las defectuosas se rechazan y las buenas pasan al menos 0.15 por debajo del umbral de anomalía.",
+            "Hasta que el chequeo pasa en ese proceso, ninguna pieza recibe PASS, y la aprobación vence al iniciar el turno siguiente.",
+            "`GoldenPartCheckFailed` salta con `golden_part_check_ok == 0` durante 10 min en horario de turno.",
+            "Cada pieza patrón mala tiene que confirmarse en el contenedor: así se prueba también el sensor de la rampa."
+          ],
+          "links": [
+            "#c03.monitoreo",
+            "#c03.archivos"
+          ]
+        }
+      ],
+      "removed": [
+        {
+          "id": "kubernetes",
+          "why": "4 dispositivos fijos no justifican Kubernetes: Docker con restart policy y un watchdog, y sin autoscaling."
+        }
+      ]
+    }
+  }
+}

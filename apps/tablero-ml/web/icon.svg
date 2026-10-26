@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Ícono del tablero: un tramo de metro sobre la tinta azul de las cheat sheets; la estación ámbar es «aquí vas». -->
+  <rect width="512" height="512" rx="112" fill="#1F5FAE"/>
+  <path d="M120 150 H392 V362 H120" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <g stroke="#1F5FAE" stroke-width="14">
+    <circle cx="120" cy="150" r="40" fill="#FFFFFF"/>
+    <circle cx="392" cy="150" r="40" fill="#FFFFFF"/>
+    <circle cx="392" cy="362" r="46" fill="#F2C14E"/>
+    <circle cx="120" cy="362" r="40" fill="#C9D6E6"/>
+  </g>
+  <path d="M101 151 l14 14 26 -28" fill="none" stroke="#1F5FAE" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M373 151 l14 14 26 -28" fill="none" stroke="#1F5FAE" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

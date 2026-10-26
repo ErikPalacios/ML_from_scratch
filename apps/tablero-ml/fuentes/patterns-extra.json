@@ -1,0 +1,503 @@
+{
+  "patterns": {
+    "asincrono": {
+      "name": "Asíncrono con cola",
+      "case": "c04",
+      "cases": ["c04", "c05"],
+      "summary": "Nadie espera la segmentación en milisegundos: una lámina ocupa la GPU ≈ 20–30 s y el resultado espera al patólogo, así que el archivo publica un evento, una cola SQS absorbe las ráfagas de los escáneres y KEDA escala los workers GPU de 0 a 4. Frente al C01 desaparece la request en ms (el SLO es turnaround p95 ≤ 60 min) y cambian casi todas las estaciones; aparecen la cola con DLQ, los resultados versionados que lee el visor y la revisión del experto, que alimenta los labels. El C05 usa el mismo patrón con otra entrada (`docs-api` responde 202 tras un quality gate síncrono) y otra orquestación: una ejecución de Step Functions por documento, todo en CPU.",
+      "steps": [
+        {
+          "id": "datos",
+          "base": "datos",
+          "status": "cambia",
+          "title": "Datos y etiquetas",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Las horas de patólogo son el recurso escaso: 20 h al mes (≈ US$4k, el costo dominante del sistema) se reparten entre auditoría, set temporal y regiones elegidas por active learning. Las correcciones del sign-out son labels gratis pero sesgados: “aceptado sin cambios” no significa “correcto”.",
+          "done": [
+            "El reparto del mes está hecho: ≈ 2 h de auditoría aleatoria, ≈ 2.5 h de set temporal y ≈ 15.5 h de active learning (≈ 620 regiones a 1.5 min).",
+            "`select_for_labeling.py` eligió por incertidumbre y diversidad: como mucho 5 regiones por lámina, estratos por laboratorio y escáner, el laboratorio C primero y ninguna lámina del golden set.",
+            "El QC corrió antes de seleccionar: marcas de plumón, pliegues, burbujas y zonas fuera de foco no gastan horas de patólogo.",
+            "Las copias para etiquetar están desidentificadas: sin imagen de etiqueta ni macro, metadatos limpios con una lista de campos permitidos e ids seudonimizados.",
+            "El golden set y la auditoría se anotan de forma independiente, sin ver el overlay: residentes pre-anotan y un patólogo aprueba."
+          ],
+          "links": ["#c04.datos", "#m09.etiquetado"]
+        },
+        {
+          "id": "versionado",
+          "base": "versionado",
+          "status": "cambia",
+          "title": "Versionado y linaje",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Cada snapshot es un manifest inmutable que dice de dónde salió cada label, y el golden set de 100 láminas vive aparte, congelado. Sin linaje no puedes responder qué versión del modelo generó el resultado que alguien firmó hace 8 meses.",
+          "done": [
+            "El manifest tiene el sha256 de cada lámina, la versión de anotación, la versión de la guía, la fuente del label (anotación independiente, corrección o región de active learning) y el split.",
+            "El split es por paciente (como mínimo por lámina), nunca por tile; el set temporal mensual además separa por fecha.",
+            "El snapshot excluye por id seudonimizado de paciente todo lo que está en el golden set o en los sets temporales.",
+            "El golden set (100 láminas, 2 patólogos + consenso) se versiona como artefacto aparte y solo cambia con altas controladas."
+          ],
+          "links": ["#c04.datos", "#m09.versionado"]
+        },
+        {
+          "id": "entrenamiento",
+          "base": "entrenamiento",
+          "status": "cambia",
+          "title": "Entrenamiento por tiles",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Un job de GPU bajo demanda, mensual o por disparador (drift, laboratorio o escáner nuevo), entrena con tiles muestreados de las regiones anotadas. El riesgo propio de este caso es el skew: el entrenamiento y el worker tienen que leer y reducir igual.",
+          "done": [
+            "La corrida es reproducible: snapshot de datos, commit y contenedor por digest.",
+            "Los tiles salen con el mismo código de lectura y reducción que el worker (el 2× desde nivel 0).",
+            "Con anotaciones parciales, la pérdida solo se calcula donde hay label.",
+            "Si se normaliza el color en inferencia, la normalización entra al hash de configuración; la augmentation de color solo vive en entrenamiento."
+          ],
+          "links": ["#c04.datos", "#m10.reproducibilidad"]
+        },
+        {
+          "id": "gate",
+          "base": "gate",
+          "status": "cambia",
+          "title": "Gate por slice",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Los criterios se escriben antes de entrenar y se miden en el golden set por slice (laboratorio, escáner, tipo de espécimen), con intervalos y contra el techo de acuerdo entre patólogos (Dice ≈ 0.75–0.85). En el C05 el gate es por campo y el modelo se registra junto con su archivo de umbrales.",
+          "done": [
+            "Ningún slice queda peor que producción por más que su intervalo (p. ej. Dice −0.02, comparación pareada con bootstrap por lámina).",
+            "La sensibilidad por lesión (focos ≥ 1 mm) es ≥ 95 % con ≤ 1 región falsa por lámina, y el error del % de tumor es ≤ 5 puntos.",
+            "La calibración por slice está medida y el umbral de decisión quedó registrado como parte del artefacto.",
+            "El registry guarda el linaje (dataset, commit, digest, config de preprocesamiento, engine y umbral); si el candidato no pasa, no se registra."
+          ],
+          "links": ["#c04.evaluacion", "#m10.gate"]
+        },
+        {
+          "id": "export",
+          "base": "export",
+          "status": "cambia",
+          "title": "Engine TensorRT en L4",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Como en el C01 se exporta a ONNX y se construye un engine TensorRT FP16, pero en una L4 y para que lo cargue el propio worker, horneado en su imagen. En el C05 no hay GPU: el extractor corre en CPU con ONNX Runtime, sin Triton ni batching dinámico.",
+          "done": [
+            "El engine se construyó con `trtexec --fp16` en una L4, dentro de `tensorrt:26.08-py3`, la misma imagen base del worker.",
+            "El parity test del engine contra PyTorch pasó sobre tiles reales.",
+            "`trtexec` midió el máximo por L4 (supuesto del caso: ≈ 300 tiles/s) y el plan queda al ≈ 70 %: 200 tiles/s por worker.",
+            "Sabes que el engine queda atado a la GPU (L4 = Ada, sm_89) y a la versión exacta de TensorRT: cambiar la base o la GPU obliga a reconstruirlo y a pasar otra vez por el gate."
+          ],
+          "links": ["#c04.archivos", "#m08.tensorrt"]
+        },
+        {
+          "id": "serving",
+          "base": "serving",
+          "status": "cambia",
+          "title": "El worker por lámina",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "No hay endpoint: el código de serving es `seg-worker`, que toma un mensaje, descarga la lámina a NVMe, valida, tilea solo el tejido con solape, infiere en batches y cose el mapa. Una lámina son ≈ 20–30 s de GPU, que romperían cualquier timeout de HTTP razonable.",
+          "done": [
+            "La idempotency key es sha256 + model_version + hash de la config: una reentrega con un resultado ok ya escrito no toca la GPU.",
+            "Un mpp faltante, raro o distinto (± 10 %) del calibrado del escáner, o menos de 1 mm² de tejido, escribe `qc_blocked` con el motivo y sin números.",
+            "Los tiles son de 512 con 64 px de solape (stride 448) y se cosen con rampas que suman 1 en un mapa de 4 µm/px: sin costuras y dentro de la RAM del pod.",
+            "Ante SIGTERM deja de pedir mensajes, aborta en el siguiente batch y devuelve la lámina con visibilidad 0.",
+            "`pytest` pasa los 65 tests del worker sin AWS ni GPU."
+          ],
+          "links": ["#c04.serving", "#c04.archivos"]
+        },
+        {
+          "id": "empaquetado",
+          "base": "empaquetado",
+          "status": "cambia",
+          "title": "Imagen con engine horneado",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Una sola imagen GPU para el worker, con el engine adentro: su digest identifica código + TensorRT + modelo y queda en cada `summary.json`. Su tamaño importa más que en el C01, porque se paga en cada arranque desde cero réplicas.",
+          "done": [
+            "La base es `nvcr.io/nvidia/tensorrt:26.08-py3` y `model.plan` está en `worker/model/` antes del `docker build`.",
+            "OpenSlide llega como wheel (`openslide-bin`), sin `apt-get`; el lock tiene 14 paquetes y la imagen corre con un usuario no root.",
+            "pytest, moto y tifffile (`requirements-dev.txt`) no entran a la imagen.",
+            "Sabes cuánto pesa: ≈ 6.8 GB comprimida, parte del arranque en frío de ≈ 3–5 min."
+          ],
+          "links": ["#c04.archivos", "#m05.tamano"]
+        },
+        {
+          "id": "cicd",
+          "base": "cicd",
+          "status": "cambia",
+          "title": "CI/CD con runner L4",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Las pruebas corren sin GPU, pero el engine se construye en el pipeline, en un runner con L4 y dentro de la misma imagen base. Promover es que el CD resuelva el alias de producción, construya o tome la imagen de esa versión y haga el rollout de `seg-worker`.",
+          "done": [
+            "Pasan los 65 tests del worker, los 13 de la selección y los 6 del job de PSI.",
+            "`promtool test rules` pasa: las 10 alertas disparan (o no) con series sintéticas.",
+            "Cada Deployment fija su `MODEL_VERSION` (= tag de la imagen) y el digest queda registrado; el worker no consulta el registry.",
+            "Un cambio de imagen base o de GPU vuelve a pasar por el gate."
+          ],
+          "links": ["#c04.arquitectura", "#m10.ci-cd"]
+        },
+        {
+          "id": "kubernetes",
+          "base": "kubernetes",
+          "status": "cambia",
+          "title": "Workers GPU con KEDA",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Un Deployment en nodos g6.2xlarge (1 × L4, 8 vCPU) que KEDA escala de 0 a 4 por la cola: de noche no hay GPU encendida. El arranque en frío de ≈ 3–5 min es aceptable contra un SLO de 60 min.",
+          "done": [
+            "El ScaledObject sobre SQS tiene 0–4 réplicas, `queueLength: \"20\"`, `scaleOnInFlight` y un `cooldownPeriod` de 15 min antes de bajar a 0.",
+            "El pod pide 1 GPU, no tiene límite de CPU, usa `emptyDir` sobre el NVMe local y su liveness mira un archivo que toca el loop.",
+            "IRSA de mínimo privilegio: el archivo es de solo lectura y en resultados solo hay GetObject, PutObject y ListBucket, sin DeleteObject.",
+            "Un aviso de spot drena el nodo (Karpenter con su cola de interrupción o el Node Termination Handler) y la gracia de 90 s alcanza; sin PodDisruptionBudget, a propósito.",
+            "`seg-worker.yaml` pasa `kubernetes-validate --strict` y los esquemas de los CRDs de KEDA."
+          ],
+          "links": ["#c04.serving", "#c04.archivos", "#m06.keda"]
+        },
+        {
+          "id": "rollout",
+          "base": "rollout",
+          "status": "cambia",
+          "title": "Silent mode y promoción",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "No hay canary de tráfico ni A/B sobre pacientes: un modelo o un laboratorio nuevo corre primero en silent mode, con resultados ocultos al visor. Promover pide la aprobación del gobierno clínico.",
+          "done": [
+            "El candidato corrió en un Deployment aparte fijado a su versión, alimentado por la cola `slide-jobs-backfill`, de noche y fuera del SLI de turnaround.",
+            "Sus resultados, bajo su propio prefijo de versión, se compararon contra producción y contra las correcciones de los patólogos.",
+            "Un laboratorio nuevo pasó 2–4 semanas en silent con ≥ 30 láminas anotadas sin ver el overlay antes del modo asistido.",
+            "Con la aprobación, el alias de producción cambia, CD despliega la imagen, results-api aprueba esa versión y el flag del laboratorio pasa a asistido.",
+            "El rollback está claro: `kubectl rollout undo` (minutos) y sacar la versión mala de las aprobadas en results-api."
+          ],
+          "links": ["#c04.evaluacion", "#c04.fallas", "#m11.shadow"]
+        },
+        {
+          "id": "evento-cola",
+          "base": null,
+          "status": "nuevo",
+          "title": "Evento y cola con DLQ",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "El trabajo empieza solo: al terminar una carga, el archivo emite un evento (key + sha256), una regla filtra con el LIS lo que está en alcance y publica el job en la cola SQS `slide-jobs`, que absorbe las ráfagas y aísla en `slide-jobs-dlq` lo que falla siempre. En el C05 la entrada es `docs-api` (quality gate síncrono p95 ≤ 3 s, luego 202) y cada documento es una ejecución de Step Functions con Retry y Catch por paso.",
+          "done": [
+            "El mensaje trae slide_id, key, sha256, laboratorio y escáner; nunca el archivo.",
+            "El visibility timeout es de 300 s, holgado sobre el p99 por lámina, y el worker lo extiende con `ChangeMessageVisibility` cada 60 s.",
+            "`maxReceiveCount` 3 vive en la redrive policy: al 4.º receive el mensaje pasa a `slide-jobs-dlq`; tras un error, la visibilidad se fija en 60 s × intento.",
+            "Los problemas de datos conocidos (`qc_blocked`) no se reintentan: la DLQ contiene solo lo que de verdad no entiendes.",
+            "En DICOM (laboratorio C) se publica un job por Series Instance UID cuando llegaron todas sus instancias, con el manifiesto de keys."
+          ],
+          "links": ["#c04.arquitectura", "#c04.serving", "#m02.asincrona-colas", "#m02.entrega-reintentos"]
+        },
+        {
+          "id": "resultados",
+          "base": null,
+          "status": "nuevo",
+          "title": "Resultados versionados y visor",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "El resultado vive fuera del worker: S3 + una fila índice en Postgres, servidos por `results-api`, un servicio de CPU siempre encendido. El visor nunca depende de que haya una GPU prendida.",
+          "done": [
+            "El orden de escritura se respeta: GeoJSON y heatmap en la carpeta de la corrida, luego `summary.json` (el commit), luego la fila índice y el log `slide_done`; recién entonces se borra el mensaje.",
+            "`summary.json` trae mm² de tumor, % de tejido, banderas de QC, model_version, digest del contenedor, hash de la config y sha256 de entrada.",
+            "results-api devuelve, entre las versiones aprobadas para ese laboratorio, el resultado más nuevo para ese sha256; en silent mode no devuelve nada.",
+            "El visor solo dibuja si el sha256 del resultado coincide con el del archivo que muestra; si no, dice “sin resultado de IA”.",
+            "Cada resultado, acceso y corrección queda en un audit log append-only, en un bucket con Object Lock."
+          ],
+          "links": ["#c04.serving", "#c04.arquitectura"]
+        },
+        {
+          "id": "revision",
+          "base": null,
+          "status": "nuevo",
+          "title": "Revisión del patólogo",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "El patólogo acepta o corrige antes de firmar, la firma siempre es humana, y cada corrección es un label y una métrica que vuelven a la estación 1. En el C05 la persona revisa solo los campos dudosos (≈ 45 s por documento) y QA audita el 2 % de los documentos STP.",
+          "done": [
+            "Cada aceptación o corrección es una versión de anotación nueva, con autor, hora, tiempo de revisión y la versión del modelo que la originó; nunca pisa la salida del modelo.",
+            "El major-edit rate se calcula: diferencia simétrica entre propuesta y máscara final ÷ área propuesta > 20 %.",
+            "Las correcciones grandes entran como candidatas de alta prioridad; lo aceptado sin cambios no entra a entrenamiento como verdad.",
+            "La auditoría aleatoria mensual (8 láminas anotadas de forma independiente) mide el automation bias y se lee por trimestre, no por mes."
+          ],
+          "links": ["#c04.evaluacion", "#c04.datos"]
+        },
+        {
+          "id": "monitoreo",
+          "base": "monitoreo",
+          "status": "cambia",
+          "title": "Monitoreo y reentrenamiento",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "El SLO se escribe sobre la edad del job: turnaround p95 ≤ 60 min y 99 % de lo escaneado antes de las 22:00 procesado antes de las 07:00. Las alertas miran la edad del mensaje más viejo, no la profundidad, y la calidad llega con semanas de atraso y sesgada.",
+          "done": [
+            "Las 10 alertas de `alerts.yml` evalúan con sus tests; solo pagina lo que rompe el turnaround en horario (07:00–22:00), más `NightlyCoverageAtRisk` desde las 05:30.",
+            "`SlideQueueBacklog` mira la edad (> 30 min sostenida 10 min) y `SlideDLQNotEmpty` existe aparte, porque un mensaje venenoso deja de contar en la edad.",
+            "El job diario `stain_psi.py` empuja el PSI de color por laboratorio × escáner al Pushgateway, y `StainPsiJobStale` avisa si pasan más de 26 h sin dato.",
+            "Ninguna métrica lleva slide_id como label.",
+            "El reentrenamiento es mensual o por disparador (laboratorio o escáner nuevo, drift confirmado, `MajorEditRateHigh` confirmado con una revisión ciega de 20–30 láminas) y siempre pasa por gate y silent/backfill."
+          ],
+          "links": ["#c04.monitoreo", "#m02.asincrona-colas", "#m12.drift"]
+        }
+      ],
+      "removed": [
+        {
+          "id": "request",
+          "why": "Nadie espera una respuesta en ms: la lámina se procesa en ≈ 20–30 s y el patólogo abre el caso después, así que la request síncrona se reemplaza por evento → cola → worker → resultados que el visor lee."
+        }
+      ]
+    },
+    "hibrido": {
+      "name": "Híbrido: precomputar + servir online",
+      "case": "c07",
+      "cases": ["c07", "c06", "c08"],
+      "summary": "La búsqueda con embeddings combina dos patrones: lo caro se precalcula (los vectores de 100 M publicaciones, en batch cuando cambia el modelo y en streaming por Kafka para lo nuevo) y la consulta se codifica y se busca online, con p99 ≤ 300 ms en texto. Elegimos el C07 porque es el mismo marketplace del C01, es el ejemplo de M02 de “los embeddings del catálogo, en batch; el de la consulta, online” y el curso dice que es la base del retrieval del C08. Frente al C01 aparece un índice con estado (re-embeber, construir green, indexar en streaming) y el rollout pasa a ser blue/green del índice; el C06 combina en cambio un chequeo síncrono con una cascada asíncrona y personas, y el C08 agrega un embudo por request con features en streaming.",
+      "steps": [
+        {
+          "id": "datos",
+          "base": "datos",
+          "status": "cambia",
+          "title": "Pares, clics y juicios",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Las fuentes son baratas pero sesgadas: pares (título, foto) de 100 M listings, pares (consulta, listing contactado) y clics, que solo existen para lo que el sistema mostró. La vara de medir son juicios humanos graduados 0–3 sobre consultas head, torso y tail.",
+          "done": [
+            "Hay una guía escrita con ejemplos por categoría, y una fracción de pares la juzgan dos personas para medir el kappa con pesos.",
+            "Una ronda de juicios (3,000 consultas × 20 resultados ≈ 60k, ≈ US$3k) se hace por trimestre y antes de cada modelo nuevo.",
+            "Los negativos son skip-above y aleatorios de la misma categoría, nunca “mostrado sin clic”, y sin near-duplicates del positivo.",
+            "Los logs de consultas no tienen PII, el id de usuario está seudonimizado y las fotos de consulta no se guardan: solo el vector y un hash.",
+            "La búsqueda por foto se evalúa con otra foto del mismo listing como consulta, sin guardar fotos de usuarios."
+          ],
+          "links": ["#c07.datos", "#m09.etiquetado"]
+        },
+        {
+          "id": "versionado",
+          "base": "versionado",
+          "status": "cambia",
+          "title": "Versiones hasta el vector",
+          "tramo": "datos",
+          "speed": "semanas",
+          "note": "Todo lleva versión, y además cada vector: un índice entero es de un solo model_version (el nombre la lleva: `listings-vec-v7`). Una copia de cada vector queda en S3 en Parquet por versión, para reconstruir sin GPU y medir drift.",
+          "done": [
+            "El snapshot de pares de entrenamiento está versionado y la regla de retención se aplicó antes de copiar.",
+            "Los sets de evaluación están congelados con su fecha y los juicios llevan la versión de la guía.",
+            "Cada documento del índice guarda model_version y la versión del listing; una versión vieja nunca pisa una nueva.",
+            "Los vectores de cada versión están en S3 (≈ 205 GB en FP32, ≈ US$5 al mes)."
+          ],
+          "links": ["#c07.datos", "#c07.arquitectura", "#m09.versionado"]
+        },
+        {
+          "id": "entrenamiento",
+          "base": "entrenamiento",
+          "status": "cambia",
+          "title": "Fine-tuning del encoder",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Lo corre el equipo de modelos: ajusta un dual encoder tipo CLIP (d = 512) con pares (título, foto) y (consulta, listing contactado). Es trimestral, no semanal, porque cada versión nueva obliga a re-embeber el catálogo y a un A/B con dos índices.",
+          "done": [
+            "Los pares se filtraron: fuera los títulos que no describen la foto (“vendo urgente”, “ver fotos”).",
+            "El mismo artículo publicado dos veces no queda a la vez en train y en test.",
+            "La versión queda en el registry con su linaje y las métricas del gate.",
+            "Hay un disparador escrito para adelantarlo: drift de consultas junto con NDCG o CTR que cae en un slice."
+          ],
+          "links": ["#c07.datos", "#c07.monitoreo", "#m10.reentrenamiento"]
+        },
+        {
+          "id": "gate",
+          "base": "gate",
+          "status": "cambia",
+          "title": "Gate de ranking",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "La calidad se mide como ranking (NDCG@10 y recall@k contra juicios humanos), no como accuracy. Como cada versión cuesta re-embeber y dos índices encendidos, el gate pide una mejora que lo valga, no solo “no peor”.",
+          "done": [
+            "NDCG@10 en head, torso y tail no es peor que producción con su intervalo (bootstrap pareado por consultas), y ningún país o categoría cae más que su margen.",
+            "El recall@k de “mismo artículo” en búsquedas por foto está medido.",
+            "judged@10 se reporta junto a NDCG, y los huecos se juzgan antes de concluir.",
+            "La evaluación final corre sobre el índice real (green), no solo con búsqueda exacta."
+          ],
+          "links": ["#c07.evaluacion", "#m10.gate"]
+        },
+        {
+          "id": "export",
+          "base": "export",
+          "status": "cambia",
+          "title": "Un artefacto, tres usos",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Del registry sale un solo artefacto del encoder que usan tres piezas: el encoder de consultas en Triton, el embed-worker y el job de re-embedding. Tienen que producir los mismos vectores, salvo ruido numérico.",
+          "done": [
+            "Los tres usan el mismo artefacto, el mismo runtime y la misma precisión.",
+            "El test de paridad sobre una muestra da coseno ≥ 0.999 entre el vector del embed-worker y el del job masivo.",
+            "Triton sirve las dos torres (texto e imagen) como modelos separados, cada uno con dynamic batching.",
+            "Sabes por qué no hay una ruta en CPU con otra precisión: sería training-serving skew aplicado a vectores."
+          ],
+          "links": ["#c07.estimaciones", "#c07.arquitectura", "#m09.skew"]
+        },
+        {
+          "id": "re-embedding",
+          "base": null,
+          "status": "nuevo",
+          "title": "Re-embeber el catálogo",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "Cambiar de modelo obliga a re-embeber 100 M listings: no basta con cambiar un engine. Es un job batch por shards con checkpoint, que lee un snapshot del catálogo y escribe los vectores en S3.",
+          "done": [
+            "El snapshot del catálogo anotó el offset de Kafka de ese momento.",
+            "Corrieron ≈ 23 GPU-h con las dos torres (imagen ≈ 14, texto ≈ 9): ≈ 3 h en 8 L4, ≈ US$19 on-demand.",
+            "Hubo CPU para decodificar las miniaturas (≈ 24 núcleos) o decodificación en GPU.",
+            "Los vectores de la versión nueva están en S3 y nunca se mezclan con los de otra versión en un índice."
+          ],
+          "links": ["#c07.arquitectura", "#c07.estimaciones"]
+        },
+        {
+          "id": "indice-green",
+          "base": null,
+          "status": "nuevo",
+          "title": "Construir el índice green",
+          "tramo": "modelo",
+          "speed": "semanas",
+          "note": "El índice es una pieza con estado que el C01 no tiene: HNSW sobre int8, 4 shards × 25 M con 2 copias, en un índice k-NN de OpenSearch aparte del de BM25. El index-builder lo arma al lado (`listings-vec-v8`) mientras un segundo embed-worker lo pone al día.",
+          "done": [
+            "Cada shard tiene ≈ 19–21 GB de grafo + int8 en RAM, y los FP32 del rescoring (51.2 GB) en EBS gp3, servidos desde el page cache.",
+            "Se construyó sin réplicas ni refresh y después se agregó la segunda copia; una copia nueva se precalienta antes de recibir tráfico.",
+            "Los parámetros del grafo (M = 32) están fijados en el mapping, no se dejaron los defaults.",
+            "Un embed-worker v8, con su propio consumer group, procesó los eventos desde el offset del snapshot y green alcanzó el presente.",
+            "El recall canary de green da ANN recall@100 ≥ 0.95 contra búsqueda exacta, con y sin filtros."
+          ],
+          "links": ["#c07.serving", "#c07.estimaciones", "#m11.blue-green"]
+        },
+        {
+          "id": "serving",
+          "base": "serving",
+          "status": "cambia",
+          "title": "search-api híbrido",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "El código de serving orquesta en vez de inferir: lanza BM25 de inmediato y, en paralelo, el encoder y el ANN; fusiona con RRF (k = 60), quita tombstones, rerankea el top-30 de texto y degrada por escalones hasta BM25 solo.",
+          "done": [
+            "Pasan los 46 tests de `search/` (≈ 2 s): cada uno es un modo de falla, del encoder lento al shard con otro modelo.",
+            "La versión no se configura: search-api lee a qué índice apunta el alias `listings-vec-live` y pide esa versión al encoder; la respuesta de un shard con otro model_version se descarta.",
+            "Los filtros van dentro de la búsqueda y se re-chequean después de RRF.",
+            "`/readyz` no mira versiones, y el log escribe [tel] y [email] en lugar del teléfono y el correo.",
+            "Los empates de RRF se ordenan de forma determinista (score, mejor posición, cantidad de listas, id)."
+          ],
+          "links": ["#c07.serving", "#c07.archivos"]
+        },
+        {
+          "id": "empaquetado",
+          "base": "empaquetado",
+          "status": "igual",
+          "title": "Imagen de search-api",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Como en el C01: la imagen de la API es chica y no lleva modelo. Lo pesado está detrás de la red (Triton, OpenSearch, Redis), así que no necesita numpy, Pillow ni torch.",
+          "done": [
+            "La base es `python:3.13.15-slim-trixie` (≈ 43 MB comprimida).",
+            "El lock completo (17 paquetes) se generó con `uv pip compile` para Linux x86_64 y Python 3.13, sin numpy ni Pillow.",
+            "`fakes.py` y los tests no entran a la imagen.",
+            "Corre un proceso uvicorn por contenedor."
+          ],
+          "links": ["#c07.archivos", "#m05.dockerfile-ml"]
+        },
+        {
+          "id": "cicd",
+          "base": "cicd",
+          "status": "igual",
+          "title": "CI/CD y registro de imágenes",
+          "tramo": "release",
+          "speed": "dias",
+          "note": "Como en el C01: pruebas sin GPU e imágenes construidas una vez. Lo propio de este caso es que los tests cubren la escalera de fallbacks y que las métricas que usan las alertas existan.",
+          "done": [
+            "Pasan los 88 tests de search, indexing y eval sin GPU, Kafka, OpenSearch ni Redis.",
+            "`promtool test rules` pasa los 14 escenarios, y cambiar cualquiera de los 12 umbrales hace fallar su test.",
+            "Un test lee `alerts.yml` y exige que cada métrica `search_*` exista en `/metrics`.",
+            "Como en el C01: cada imagen se construye una vez, con tag inmutable, y staging y producción usan el mismo digest."
+          ],
+          "links": ["#c07.archivos", "#m10.ci-cd"]
+        },
+        {
+          "id": "kubernetes",
+          "base": "kubernetes",
+          "status": "cambia",
+          "title": "Nodos, GPUs y escalado",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Además de servicios sin estado, hay un índice que vive en RAM: 8 nodos r7i.4xlarge dedicados en el clúster de OpenSearch. Las GPUs se reparten entre el encoder de consultas (2 L4), el reranker (8 L4) y el embed-worker (1 L4, escalado por lag).",
+          "done": [
+            "Los shards del índice vectorial viven en nodos de datos dedicados (atributos de nodo), separados de BM25: 4 shards × 2 copias en 2 zonas, con ≈ 64 % de la memoria usada.",
+            "El encoder tiene 2 L4 en dos zonas: una alcanza para el pico y la segunda es redundancia.",
+            "El reranker sobre el top-30 cabe en 8 L4 (≈ 62 %), y su throughput se midió con perf_analyzer antes de comprometer el diseño.",
+            "El embed-worker escala por lag con KEDA, y search-api corre sin estado en varias zonas."
+          ],
+          "links": ["#c07.estimaciones", "#c07.arquitectura", "#m06.keda"]
+        },
+        {
+          "id": "rollout",
+          "base": "rollout",
+          "status": "cambia",
+          "title": "Blue/green del índice",
+          "tramo": "operacion",
+          "speed": "dias",
+          "note": "Cambiar de modelo es reconstruir el índice al lado y mover un alias, nunca re-indexar en el lugar. Cada brazo del A/B es un par (encoder, índice) completo, nunca una mezcla.",
+          "done": [
+            "El shadow mandó una copia de las consultas a green: p99 dentro del presupuesto y diferencias con blue explicables.",
+            "El A/B por usuario duró 1–2 semanas: contactos por búsqueda no peor, alguna mejora significativa y guardrails sanos.",
+            "El swap es un solo cambio atómico del alias (`_aliases` con remove + add en la misma petición).",
+            "Blue queda 7 días para rollback y al día: el worker v7 le sigue escribiendo y el encoder mantiene la v7 cargada."
+          ],
+          "links": ["#c07.evaluacion", "#c07.serving", "#m11.blue-green"]
+        },
+        {
+          "id": "indexacion-streaming",
+          "base": null,
+          "status": "nuevo",
+          "title": "Indexación en streaming",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Lo nuevo y lo vendido llegan por Kafka (`listing-events`, key = listing_id) al embed-worker: primero las bajas, como tombstones en Redis sin GPU, y después los embeddings y el upsert. Es lo que cumple “nuevo buscable en p95 ≤ 5 min” y “vendido fuera en ≤ 1 min”; el C08 reusa ese vector para su item tower.",
+          "done": [
+            "El worker es idempotente por (listing_id, versión del evento): un updated atrasado nunca resucita un sold.",
+            "Se niega a escribir si su encoder y el índice no tienen el mismo model_version, y se cae sin commitear offsets.",
+            "Un cambio de precio o de ciudad actualiza solo los atributos de filtro, sin re-embeber.",
+            "Una foto que no baja o no se decodifica va a una dead-letter queue con su motivo, sin bloquear la partición.",
+            "Pasan los 18 tests de `test_embed_worker.py`."
+          ],
+          "links": ["#c07.arquitectura", "#c07.serving", "#m02.streaming"]
+        },
+        {
+          "id": "request",
+          "base": "request",
+          "status": "cambia",
+          "title": "La búsqueda en vivo",
+          "tramo": "operacion",
+          "speed": "ms",
+          "note": "Sigue habiendo una request en ms, pero es un scatter-gather: BM25 ∥ (encoder → 4 shards), RRF, tombstones, reranker e hidratación, ≈ 100 ms típicos contra p99 ≤ 300 ms en texto y ≤ 600 ms en foto. En el C06 el camino síncrono es un chequeo con p99 ≤ 150 ms y fail-open, y lo caro sigue después por Kafka.",
+          "done": [
+            "Cada llamada tiene su techo (encoder 50 ms, cada shard 80, BM25 120, tombstones 20, rerank 100) y los timeouts salen de un deadline que se propaga.",
+            "Los tombstones de los ≤ 400 candidatos se consultan en una sola ida y vuelta, también para lo que sale del caché.",
+            "Si el encoder o todos los shards fallan, el texto se sirve solo con BM25; una foto da 503 con Retry-After.",
+            "El caché de consultas lleva la versión del índice en la clave y TTL de 5 min; las búsquedas por foto no se cachean.",
+            "Un shard lento recibe una hedged request a su otra copia; si no llega, la respuesta sale parcial y no se cachea."
+          ],
+          "links": ["#c07.serving", "#c07.fallas", "#m03.presupuesto"]
+        },
+        {
+          "id": "monitoreo",
+          "base": "monitoreo",
+          "status": "cambia",
+          "title": "Monitoreo del índice",
+          "tramo": "operacion",
+          "speed": "continuo",
+          "note": "Hay un índice que se degrada sin que ningún servicio falle, y la frescura se mide de punta a punta en dos direcciones. El drift de las consultas es un disparador de reentrenamiento, no una alerta que pagina.",
+          "done": [
+            "Las 8 alertas están cargadas: SearchLatencyHigh, ZeroResultRateHigh, IndexFreshnessLag, SoldItemsServed, ANNRecallDrop, EmbedWorkerBacklog, SearchCTRDrop y ShardMemoryHigh.",
+            "El canary corre cada hora y `ANNRecallDrop` avisa si el recall@100 baja de 0.95 en algún shard o si el canary no corre hace más de 3 h.",
+            "Un listing sintético publicado cada minuto mide cuándo una búsqueda lo encuentra, además del histograma de frescura del worker y del lag de cada consumer group.",
+            "El reentrenamiento es trimestral (fine-tuning → gate → re-embedding → blue/green → A/B), y un índice degradado se reconstruye desde los vectores de S3, sin GPU."
+          ],
+          "links": ["#c07.monitoreo", "#m12.drift"]
+        }
+      ],
+      "removed": []
+    }
+  }
+}

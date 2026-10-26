@@ -1,0 +1,8 @@
+/fuentes
+/tests
+/.data
+/tools/check.mjs
+/tools/gen-templates.mjs
+/tools/tablero.mjs
+/.env
+/.env.*

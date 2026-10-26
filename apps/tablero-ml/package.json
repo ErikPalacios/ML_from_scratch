@@ -1,0 +1,14 @@
+{
+  "name": "tablero-ml",
+  "private": true,
+  "type": "module",
+  "description": "Tablero de proyectos de ML: el mapa de cada proyecto, del dato al monitoreo, para retomarlo rápido.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "templates": "node tools/gen-templates.mjs",
+    "build": "node tools/build.mjs",
+    "dev": "node tools/dev.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node tools/build.mjs && node tools/check.mjs"
+  }
+}
