@@ -9705,7 +9705,7 @@ export const T = {
     "label": "Requests per day",
     "unit": "req/day",
     "kind": "requirement",
-    "source": "C01 · Aclaración: 10 M imágenes/día, una imagen por request",
+    "source": "C01 · Clarification: 10 M images/day, one image per request",
     "ref": "10000000"
    },
    {
@@ -9713,7 +9713,7 @@ export const T = {
     "label": "Diurnal peak factor",
     "unit": "×",
     "kind": "assumption",
-    "source": "C01 · Aclaración: pico diurno ≈ 3× el promedio",
+    "source": "C01 · Clarification: daytime peak ≈ 3× the average",
     "ref": "3"
    },
    {
@@ -9721,7 +9721,7 @@ export const T = {
     "label": "Spike and growth margin",
     "unit": "×",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: 350 × ≈ 1.4 (spikes, crecimiento) → 500 req/s",
+    "source": "C01 · Estimates: 350 × ≈ 1.4 (spikes, growth) → 500 req/s",
     "ref": "1.4"
    },
    {
@@ -9729,7 +9729,7 @@ export const T = {
     "label": "Availability zones",
     "unit": "AZ",
     "kind": "requirement",
-    "source": "C01 · Aclaración: una región (us-east-1), dos zonas de disponibilidad",
+    "source": "C01 · Clarification: one region (us-east-1), two availability zones",
     "ref": "2"
    },
    {
@@ -9737,7 +9737,7 @@ export const T = {
     "label": "Measured max per T4 (TensorRT FP16, Triton)",
     "unit": "img/s",
     "kind": "benchmark",
-    "source": "C01 · Estimaciones: perf_analyzer con batch dinámico ≤ 32 → ≈ 1,200 img/s",
+    "source": "C01 · Estimates: perf_analyzer with dynamic batching ≤ 32 → ≈ 1,200 img/s",
     "ref": "1200"
    },
    {
@@ -9745,7 +9745,7 @@ export const T = {
     "label": "Planned GPU utilization",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: capacidad planeada ≈ 50 % del máximo medido (600 img/s)",
+    "source": "C01 · Estimates: planned capacity ≈ 50 % of the measured max (600 img/s)",
     "ref": "0.5"
    },
    {
@@ -9753,7 +9753,7 @@ export const T = {
     "label": "Gateway CPU per image",
     "unit": "ms",
     "kind": "benchmark",
-    "source": "C01 · Estimaciones: CPU por imagen ≈ 6 ms (mezcla móvil/web, draft mode)",
+    "source": "C01 · Estimates: CPU per image ≈ 6 ms (mobile/web mix, draft mode)",
     "ref": "6"
    },
    {
@@ -9761,7 +9761,7 @@ export const T = {
     "label": "Gateway HPA CPU target",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: objetivo de HPA al 60 %",
+    "source": "C01 · Estimates: HPA target at 60 %",
     "ref": "0.6"
    },
    {
@@ -9769,7 +9769,7 @@ export const T = {
     "label": "vCPU per gateway node (c6i.xlarge)",
     "unit": "vCPU",
     "kind": "benchmark",
-    "source": "C01 · Estimaciones: 2 × c6i.xlarge = 8 vCPU",
+    "source": "C01 · Estimates: 2 × c6i.xlarge = 8 vCPU",
     "ref": "4"
    },
    {
@@ -9777,7 +9777,7 @@ export const T = {
     "label": "Bytes per request to Triton (FP32 tensor)",
     "unit": "B",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: tensor FP32 por imagen 3 × 224 × 224 × 4 B ≈ 602 KB",
+    "source": "C01 · Estimates: FP32 tensor per image 3 × 224 × 224 × 4 B ≈ 602 KB",
     "ref": "602112"
    },
    {
@@ -9785,7 +9785,7 @@ export const T = {
     "label": "Gateway node sustained network baseline",
     "unit": "Gb/s",
     "kind": "benchmark",
-    "source": "C01 · Estimaciones: c6i.xlarge baseline ≈ 1.56 Gb/s",
+    "source": "C01 · Estimates: c6i.xlarge baseline ≈ 1.56 Gb/s",
     "ref": "1.56"
    },
    {
@@ -9793,7 +9793,7 @@ export const T = {
     "label": "g4dn.xlarge (T4) on-demand",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C01 · Costo: 2 × US$0.526/h × 730",
+    "source": "C01 · Cost: 2 × US$0.526/h × 730",
     "ref": "0.526"
    },
    {
@@ -9801,7 +9801,7 @@ export const T = {
     "label": "c6i.xlarge on-demand",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C01 · Costo: 2 × US$0.17/h × 730",
+    "source": "C01 · Cost: 2 × US$0.17/h × 730",
     "ref": "0.17"
    },
    {
@@ -9809,7 +9809,7 @@ export const T = {
     "label": "ALB hourly charge",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: ALB US$0.0225/h × 730",
+    "source": "C01 · Estimates: ALB US$0.0225/h × 730",
     "ref": "0.0225"
    },
    {
@@ -9817,7 +9817,7 @@ export const T = {
     "label": "ALB LCU price per GB processed",
     "unit": "US$/GB",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: 1 LCU = 1 GB/h hacia targets IP, US$0.008",
+    "source": "C01 · Estimates: 1 LCU = 1 GB/h to IP targets, US$0.008",
     "ref": "0.008"
    },
    {
@@ -9825,7 +9825,7 @@ export const T = {
     "label": "Image bytes through the ALB",
     "unit": "KB",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: supone ≈ 200 KB por imagen (≈ 2 TB/día)",
+    "source": "C01 · Estimates: assumes ≈ 200 KB per image (≈ 2 TB/day)",
     "ref": "200"
    },
    {
@@ -9833,7 +9833,7 @@ export const T = {
     "label": "Days per billing month",
     "unit": "days",
     "kind": "assumption",
-    "source": "C01 · Costo: predicciones al mes 10 M × 30.4",
+    "source": "C01 · Cost: predictions per month 10 M × 30.4",
     "ref": "30.4"
    },
    {
@@ -9841,7 +9841,7 @@ export const T = {
     "label": "EKS control plane",
     "unit": "US$/month",
     "kind": "assumption",
-    "source": "C01 · Costo: US$0.10/h × 730 ≈ US$73",
+    "source": "C01 · Cost: US$0.10/h × 730 ≈ US$73",
     "ref": "73"
    },
    {
@@ -9849,7 +9849,7 @@ export const T = {
     "label": "Logs, metrics, S3",
     "unit": "US$/month",
     "kind": "assumption",
-    "source": "C01 · Costo: logs, métricas, S3 ≈ US$100",
+    "source": "C01 · Cost: logs, metrics, S3 ≈ US$100",
     "ref": "100"
    },
    {
@@ -9857,7 +9857,7 @@ export const T = {
     "label": "Infra budget",
     "unit": "US$/month",
     "kind": "requirement",
-    "source": "C01 · Aclaración: ≈ US$3,000/mes de infraestructura",
+    "source": "C01 · Clarification: ≈ US$3,000/month of infrastructure",
     "ref": "3000"
    },
    {
@@ -9865,7 +9865,7 @@ export const T = {
     "label": "Availability SLO (30 days)",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C01 · Requisitos: 99.9 % mensual (≈ 43 min/mes)",
+    "source": "C01 · Requirements: 99.9 % monthly (≈ 43 min/month)",
     "ref": "0.999"
    },
    {
@@ -9873,7 +9873,7 @@ export const T = {
     "label": "Prediction log line",
     "unit": "B",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: log de predicción ≈ 300 B",
+    "source": "C01 · Estimates: prediction log ≈ 300 B",
     "ref": "300"
    },
    {
@@ -9881,7 +9881,7 @@ export const T = {
     "label": "Human labeling queue",
     "unit": "img/month",
     "kind": "requirement",
-    "source": "C01 · Datos: ≈ 5k imágenes/mes en la cola de etiquetado",
+    "source": "C01 · Data: ≈ 5k images/month in the labeling queue",
     "ref": "5000"
    },
    {
@@ -9889,7 +9889,7 @@ export const T = {
     "label": "Copied image for labeling",
     "unit": "KB",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: ≈ 5k/mes × ≈ 250 KB",
+    "source": "C01 · Estimates: ≈ 5k/month × ≈ 250 KB",
     "ref": "250"
    },
    {
@@ -9897,7 +9897,7 @@ export const T = {
     "label": "Human label price (upper)",
     "unit": "US$/img",
     "kind": "assumption",
-    "source": "C01 · Datos: ≈ 5k imágenes/mes a US$0.05–0.10 cada una",
+    "source": "C01 · Data: ≈ 5k images/month at US$0.05–0.10 each",
     "ref": "0.1"
    },
    {
@@ -9905,7 +9905,7 @@ export const T = {
     "label": "Images in the training snapshot",
     "unit": "img",
     "kind": "assumption",
-    "source": "M09 · Versionado: imágenes del training set ≈ 2 M (c01)",
+    "source": "M09 · Versioning: training-set images ≈ 2 M (c01)",
     "ref": "2000000"
    },
    {
@@ -9913,7 +9913,7 @@ export const T = {
     "label": "Referenced image size",
     "unit": "KB",
     "kind": "assumption",
-    "source": "M09 · Versionado: 2 M × ≈ 200 KB",
+    "source": "M09 · Versioning: 2 M × ≈ 200 KB",
     "ref": "200"
    },
    {
@@ -9921,7 +9921,7 @@ export const T = {
     "label": "Manifest row (hash, path, label, source, seller, date)",
     "unit": "B",
     "kind": "assumption",
-    "source": "M09 · Versionado: ≈ 200 B por fila, sin comprimir",
+    "source": "M09 · Versioning: ≈ 200 B per row, uncompressed",
     "ref": "200"
    },
    {
@@ -9929,7 +9929,7 @@ export const T = {
     "label": "ResNet-50 params (500-class head)",
     "unit": "params",
     "kind": "requirement",
-    "source": "C01 · Aclaración: 24.5 M parámetros con la capa final de 500 clases",
+    "source": "C01 · Clarification: 24.5 M parameters with the final 500-class layer",
     "ref": "24500000"
    },
    {
@@ -9937,7 +9937,7 @@ export const T = {
     "label": "Bytes per FP32 value",
     "unit": "B",
     "kind": "requirement",
-    "source": "C01 · Estimaciones: ONNX FP32 ≈ 98 MB (24.5 M × 4 B)",
+    "source": "C01 · Estimates: ONNX FP32 ≈ 98 MB (24.5 M × 4 B)",
     "ref": "4"
    },
    {
@@ -9945,7 +9945,7 @@ export const T = {
     "label": "Adam moments per weight",
     "unit": "count",
     "kind": "requirement",
-    "source": "M10 · Pipelines: estado del optimizador (Adam: 2 momentos) = 2 × 98 MB",
+    "source": "M10 · Pipelines: optimizer state (Adam: 2 moments) = 2 × 98 MB",
     "ref": "2"
    },
    {
@@ -9953,7 +9953,7 @@ export const T = {
     "label": "Checkpoint write rate to S3",
     "unit": "MB/s",
     "kind": "assumption",
-    "source": "M10 · Pipelines: escribirlo en S3 ≈ 100–200 MB/s (lower bound)",
+    "source": "M10 · Pipelines: writing it to S3 ≈ 100–200 MB/s (lower bound)",
     "ref": "100"
    },
    {
@@ -9961,7 +9961,7 @@ export const T = {
     "label": "Fine-tune wall time (1 GPU)",
     "unit": "h",
     "kind": "assumption",
-    "source": "M10 · Pipelines: cada 15 min durante un fine-tune de 4 h",
+    "source": "M10 · Pipelines: every 15 min during a 4 h fine-tune",
     "ref": "4"
    },
    {
@@ -9969,7 +9969,7 @@ export const T = {
     "label": "Checkpoint interval",
     "unit": "min",
     "kind": "assumption",
-    "source": "M10 · Pipelines: un checkpoint cada 15 minutos",
+    "source": "M10 · Pipelines: one checkpoint every 15 minutes",
     "ref": "15"
    },
    {
@@ -9977,7 +9977,7 @@ export const T = {
     "label": "Golden set size",
     "unit": "img",
     "kind": "requirement",
-    "source": "C01 · Datos: golden set ≈ 50k imágenes estratificadas",
+    "source": "C01 · Data: golden set ≈ 50k stratified images",
     "ref": "50000"
    },
    {
@@ -9985,7 +9985,7 @@ export const T = {
     "label": "Top-1 accuracy",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C01 · Datos: accuracy p = 0.85 y n = 50,000",
+    "source": "C01 · Data: accuracy p = 0.85 and n = 50,000",
     "ref": "0.85"
    },
    {
@@ -9993,7 +9993,7 @@ export const T = {
     "label": "Examples in a rank-50–100 category",
     "unit": "img",
     "kind": "assumption",
-    "source": "C01 · Datos: las del puesto 50–100 tienen ≈ 60–150 (lower bound)",
+    "source": "C01 · Data: classes ranked 50–100 have ≈ 60–150 (lower bound)",
     "ref": "60"
    },
    {
@@ -10001,7 +10001,7 @@ export const T = {
     "label": "z for 95 % (two-sided)",
     "unit": "z",
     "kind": "requirement",
-    "source": "C01 · Datos: intervalo al 95 % ≈ ±1.96 × SE",
+    "source": "C01 · Data: 95 % interval ≈ ±1.96 × SE",
     "ref": "1.96"
    },
    {
@@ -10009,7 +10009,7 @@ export const T = {
     "label": "Parity test images",
     "unit": "img",
     "kind": "assumption",
-    "source": "C01 · Evaluación: el parity test corre ≈ 10k imágenes por ambos",
+    "source": "C01 · Evaluation: the parity test runs ≈ 10k images through both",
     "ref": "10000"
    },
    {
@@ -10017,7 +10017,7 @@ export const T = {
     "label": "Min top-1 agreement TensorRT FP16 vs PyTorch",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C01 · Datos: parity top-1 agreement ≥ 99.5 %",
+    "source": "C01 · Data: parity top-1 agreement ≥ 99.5 %",
     "ref": "0.995"
    },
    {
@@ -10025,7 +10025,7 @@ export const T = {
     "label": "Bytes per FP16 value",
     "unit": "B",
     "kind": "requirement",
-    "source": "C01 · Estimaciones: pesos FP16 24.5 M × 2 B ≈ 49 MB",
+    "source": "C01 · Estimates: FP16 weights 24.5 M × 2 B ≈ 49 MB",
     "ref": "2"
    },
    {
@@ -10033,7 +10033,7 @@ export const T = {
     "label": "Triton max_batch_size",
     "unit": "req",
     "kind": "requirement",
-    "source": "C01 · Serving: max_batch_size: 32 (igual al perfil max del engine)",
+    "source": "C01 · Serving: max_batch_size: 32 (equal to the engine's max profile)",
     "ref": "32"
    },
    {
@@ -10041,7 +10041,7 @@ export const T = {
     "label": "T4 memory",
     "unit": "GB",
     "kind": "benchmark",
-    "source": "C01 · Estimaciones: qué ocupa una T4 de 16 GB",
+    "source": "C01 · Estimates: what a 16 GB T4 holds",
     "ref": "16"
    },
    {
@@ -10049,7 +10049,7 @@ export const T = {
     "label": "VRAM used, 2 instances (upper)",
     "unit": "GB",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: 2 instancias del modelo ≈ 1–3 GB en total",
+    "source": "C01 · Estimates: 2 model instances ≈ 1–3 GB total",
     "ref": "3"
    },
    {
@@ -10057,7 +10057,7 @@ export const T = {
     "label": "Input channels",
     "unit": "ch",
     "kind": "requirement",
-    "source": "C01 · Serving: input FP32 dims [3, 224, 224] (config.pbtxt)",
+    "source": "C01 · Serving: FP32 input dims [3, 224, 224] (config.pbtxt)",
     "ref": "3"
    },
    {
@@ -10065,7 +10065,7 @@ export const T = {
     "label": "Input height",
     "unit": "px",
     "kind": "requirement",
-    "source": "C01 · Serving: input FP32 dims [3, 224, 224] (config.pbtxt)",
+    "source": "C01 · Serving: FP32 input dims [3, 224, 224] (config.pbtxt)",
     "ref": "224"
    },
    {
@@ -10073,7 +10073,7 @@ export const T = {
     "label": "Input width",
     "unit": "px",
     "kind": "requirement",
-    "source": "C01 · Serving: input FP32 dims [3, 224, 224] (config.pbtxt)",
+    "source": "C01 · Serving: FP32 input dims [3, 224, 224] (config.pbtxt)",
     "ref": "224"
    },
    {
@@ -10081,7 +10081,7 @@ export const T = {
     "label": "Latency SLO p99 (server-side)",
     "unit": "ms",
     "kind": "requirement",
-    "source": "C01 · Aclaración: p99 ≤ 200 ms del lado del servidor",
+    "source": "C01 · Clarification: p99 ≤ 200 ms server-side",
     "ref": "200"
    },
    {
@@ -10089,7 +10089,7 @@ export const T = {
     "label": "p99 · ALB + routing",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: presupuesto por tramo, ALB + routing p99 5–10 ms",
+    "source": "C01 · Estimates: per-hop budget, ALB + routing p99 5–10 ms",
     "ref": "10"
    },
    {
@@ -10097,7 +10097,7 @@ export const T = {
     "label": "p99 · Body read in gateway",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: lectura del body p99 10–30 ms",
+    "source": "C01 · Estimates: body read p99 10–30 ms",
     "ref": "30"
    },
    {
@@ -10105,7 +10105,7 @@ export const T = {
     "label": "p99 · Decode + resize + crop",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: decode + resize 256 + crop 224 p99 25–50 ms",
+    "source": "C01 · Estimates: decode + resize 256 + crop 224 p99 25–50 ms",
     "ref": "50"
    },
    {
@@ -10113,7 +10113,7 @@ export const T = {
     "label": "p99 · Normalize + CHW tensor",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: normalización + tensor CHW FP32 p99 ≈ 2 ms",
+    "source": "C01 · Estimates: normalization + CHW FP32 tensor p99 ≈ 2 ms",
     "ref": "2"
    },
    {
@@ -10121,7 +10121,7 @@ export const T = {
     "label": "p99 · Gateway → Triton hop",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: hop gateway → Triton (602 KB) p99 5–10 ms",
+    "source": "C01 · Estimates: gateway → Triton hop (602 KB) p99 5–10 ms",
     "ref": "10"
    },
    {
@@ -10129,7 +10129,7 @@ export const T = {
     "label": "p99 · Dynamic batching queue",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: cola de dynamic batching p99 2 ms (max_queue_delay 2000 µs)",
+    "source": "C01 · Estimates: dynamic batching queue p99 2 ms (max_queue_delay 2000 µs)",
     "ref": "2"
    },
    {
@@ -10137,7 +10137,7 @@ export const T = {
     "label": "p99 · GPU compute (TRT FP16, batch 1–8)",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: cómputo GPU p99 8–15 ms",
+    "source": "C01 · Estimates: GPU compute p99 8–15 ms",
     "ref": "15"
    },
    {
@@ -10145,7 +10145,7 @@ export const T = {
     "label": "p99 · Postprocess + JSON + log",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: postproceso + JSON + log p99 2–3 ms",
+    "source": "C01 · Estimates: postprocessing + JSON + log p99 2–3 ms",
     "ref": "3"
    },
    {
@@ -10153,7 +10153,7 @@ export const T = {
     "label": "p99 · Python overhead (loop, threadpool, GC)",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C01 · Estimaciones: overhead de Python p99 10–30 ms",
+    "source": "C01 · Estimates: Python overhead p99 10–30 ms",
     "ref": "30"
    },
    {
@@ -10161,7 +10161,7 @@ export const T = {
     "label": "Mean gateway latency",
     "unit": "s",
     "kind": "assumption",
-    "source": "M03 · Little: cada request tarda en promedio 50 ms",
+    "source": "M03 · Little: each request takes 50 ms on average",
     "ref": "0.05"
    },
    {
@@ -10169,7 +10169,7 @@ export const T = {
     "label": "Mean time inside Triton",
     "unit": "s",
     "kind": "assumption",
-    "source": "M03 · Little: tiempo promedio dentro de Triton ≈ 8 ms",
+    "source": "M03 · Little: mean time inside Triton ≈ 8 ms",
     "ref": "0.008"
    },
    {
@@ -10177,7 +10177,7 @@ export const T = {
     "label": "Gateway image (compressed)",
     "unit": "GB",
     "kind": "benchmark",
-    "source": "M05 · Tamaño: gateway base slim + venv ≈ 0.09 GB",
+    "source": "M05 · Size: slim gateway base + venv ≈ 0.09 GB",
     "ref": "0.09"
    },
    {
@@ -10185,7 +10185,7 @@ export const T = {
     "label": "Triton 24.08 image with engine (compressed)",
     "unit": "GB",
     "kind": "benchmark",
-    "source": "M05 · Tamaño: Triton 24.08 con el engine ≈ 9.2 GB",
+    "source": "M05 · Size: Triton 24.08 with the engine ≈ 9.2 GB",
     "ref": "9.2"
    },
    {
@@ -10193,7 +10193,7 @@ export const T = {
     "label": "Effective pull rate (worst case, gp3 default)",
     "unit": "GB/s",
     "kind": "benchmark",
-    "source": "M05 · Tamaño: ritmo efectivo de pull ≈ 0.03–0.09 GB/s",
+    "source": "M05 · Size: effective pull rate ≈ 0.03–0.09 GB/s",
     "ref": "0.03"
    },
    {
@@ -10201,7 +10201,7 @@ export const T = {
     "label": "Staging T4 hours on per week",
     "unit": "h/week",
     "kind": "assumption",
-    "source": "C01 · Costo: staging con 1 T4 prendida 60 h/semana",
+    "source": "C01 · Cost: staging with 1 T4 on 60 h/week",
     "ref": "60"
    },
    {
@@ -10209,7 +10209,7 @@ export const T = {
     "label": "Gateway pod CPU request",
     "unit": "vCPU",
     "kind": "requirement",
-    "source": "C01 · Archivos: k8s/gateway.yaml requests cpu \"1\" (base del HPA)",
+    "source": "C01 · Reference files: k8s/gateway.yaml requests cpu \"1\" (HPA base)",
     "ref": "1"
    },
    {
@@ -10217,7 +10217,7 @@ export const T = {
     "label": "Gateway HPA min replicas",
     "unit": "pods",
     "kind": "requirement",
-    "source": "C01 · Serving: HPA por CPU al 60 %, min 3, max 12",
+    "source": "C01 · Serving: CPU-based HPA at 60 %, min 3, max 12",
     "ref": "3"
    },
    {
@@ -10225,7 +10225,7 @@ export const T = {
     "label": "Gateway HPA max replicas",
     "unit": "pods",
     "kind": "requirement",
-    "source": "C01 · Serving: HPA por CPU al 60 %, min 3, max 12",
+    "source": "C01 · Serving: CPU-based HPA at 60 %, min 3, max 12",
     "ref": "12"
    },
    {
@@ -10233,7 +10233,7 @@ export const T = {
     "label": "MAX_INFLIGHT per gateway pod",
     "unit": "req",
     "kind": "requirement",
-    "source": "M03 · Little: MAX_INFLIGHT ≈ 20, recortado a 16 por RAM",
+    "source": "M03 · Little: MAX_INFLIGHT ≈ 20, trimmed to 16 for RAM",
     "ref": "16"
    },
    {
@@ -10241,7 +10241,7 @@ export const T = {
     "label": "New GPU node ready (upper)",
     "unit": "s",
     "kind": "benchmark",
-    "source": "M05 · Tamaño: nodo ≈ 2–5 min",
+    "source": "M05 · Size: node ≈ 2–5 min",
     "ref": "300"
    },
    {
@@ -10249,7 +10249,7 @@ export const T = {
     "label": "Triton start + engine load + warmup (upper)",
     "unit": "s",
     "kind": "benchmark",
-    "source": "M05 · Tamaño: engine y warmup ≈ 10–60 s",
+    "source": "M05 · Size: engine and warmup ≈ 10–60 s",
     "ref": "60"
    },
    {
@@ -10257,7 +10257,7 @@ export const T = {
     "label": "Readiness + endpoints (upper)",
     "unit": "s",
     "kind": "benchmark",
-    "source": "M05 · Tamaño: readiness ≈ 5–15 s",
+    "source": "M05 · Size: readiness ≈ 5–15 s",
     "ref": "15"
    },
    {
@@ -10265,7 +10265,7 @@ export const T = {
     "label": "Canary traffic share",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C01 · Evaluación: canary 5 % → 25 % → 100 %",
+    "source": "C01 · Evaluation: canary 5 % → 25 % → 100 %",
     "ref": "0.05"
    },
    {
@@ -10273,7 +10273,7 @@ export const T = {
     "label": "Canary requests per decision window",
     "unit": "req",
     "kind": "requirement",
-    "source": "C01 · Evaluación: rollback 5xx con ≥ 10,000 requests del canary en la ventana",
+    "source": "C01 · Evaluation: 5xx rollback with ≥ 10,000 canary requests in the window",
     "ref": "10000"
    },
    {
@@ -10281,7 +10281,7 @@ export const T = {
     "label": "Canary 5xx rollback window",
     "unit": "min",
     "kind": "requirement",
-    "source": "C01 · Evaluación: criterio de rollback 5xx, ventana 10 min",
+    "source": "C01 · Evaluation: 5xx rollback criterion, 10 min window",
     "ref": "10"
    },
    {
@@ -10289,7 +10289,7 @@ export const T = {
     "label": "Acceptance-rate baseline",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C01 · Evaluación: línea base de ≈ 70 %",
+    "source": "C01 · Evaluation: baseline of ≈ 70 %",
     "ref": "0.7"
    },
    {
@@ -10297,7 +10297,7 @@ export const T = {
     "label": "Minimum detectable effect",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C01 · Evaluación: detectar una mejora de 1 punto porcentual",
+    "source": "C01 · Evaluation: detect an improvement of 1 percentage point",
     "ref": "0.01"
    },
    {
@@ -10305,7 +10305,7 @@ export const T = {
     "label": "z for 80 % power",
     "unit": "z",
     "kind": "requirement",
-    "source": "C01 · Evaluación: (1.96 + 0.84)²",
+    "source": "C01 · Evaluation: (1.96 + 0.84)²",
     "ref": "0.84"
    },
    {
@@ -10313,7 +10313,7 @@ export const T = {
     "label": "New listings per day",
     "unit": "listings/day",
     "kind": "requirement",
-    "source": "C01 · Evaluación: ≈ 2.5 M publicaciones/día",
+    "source": "C01 · Evaluation: ≈ 2.5 M listings/day",
     "ref": "2500000"
    },
    {
@@ -10321,7 +10321,7 @@ export const T = {
     "label": "A/B treatment share",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C01 · Evaluación: tiempo con 5 % en tratamiento",
+    "source": "C01 · Evaluation: time at 5 % in treatment",
     "ref": "0.05"
    },
    {
@@ -10329,7 +10329,7 @@ export const T = {
     "label": "Caller timeout",
     "unit": "ms",
     "kind": "requirement",
-    "source": "C01 · Serving: timeout del caller 300 ms → selector manual",
+    "source": "C01 · Serving: caller timeout 300 ms → manual selector",
     "ref": "300"
    },
    {
@@ -10337,7 +10337,7 @@ export const T = {
     "label": "Gateway request deadline",
     "unit": "ms",
     "kind": "requirement",
-    "source": "C01 · Serving: deadline total de 250 ms por request → 504",
+    "source": "C01 · Serving: total deadline of 250 ms per request → 504",
     "ref": "250"
    },
    {
@@ -10345,7 +10345,7 @@ export const T = {
     "label": "Gateway → Triton timeout",
     "unit": "ms",
     "kind": "requirement",
-    "source": "C01 · Serving: timeout gateway → Triton 150 ms (INFER_TIMEOUT_S=0.15)",
+    "source": "C01 · Serving: gateway → Triton timeout 150 ms (INFER_TIMEOUT_S=0.15)",
     "ref": "150"
    },
    {
@@ -10353,7 +10353,7 @@ export const T = {
     "label": "Triton queue timeout",
     "unit": "ms",
     "kind": "requirement",
-    "source": "C01 · Serving: timeout en la cola de Triton 100 ms (REJECT)",
+    "source": "C01 · Serving: Triton queue timeout 100 ms (REJECT)",
     "ref": "100"
    },
    {
@@ -10361,7 +10361,7 @@ export const T = {
     "label": "SLO window",
     "unit": "h",
     "kind": "requirement",
-    "source": "M12 · Prometheus: 99.9 % en 30 días (720 h)",
+    "source": "M12 · Prometheus: 99.9 % over 30 days (720 h)",
     "ref": "720"
    },
    {
@@ -10369,7 +10369,7 @@ export const T = {
     "label": "Fast-burn page factor",
     "unit": "×",
     "kind": "requirement",
-    "source": "C01 · Monitoreo: page si se consume 14.4× más rápido en 1 h y 5 min",
+    "source": "C01 · Monitoring: page if budget burns 14.4× faster over 1 h and 5 min",
     "ref": "14.4"
    },
    {
@@ -10377,7 +10377,7 @@ export const T = {
     "label": "Fast-burn long window",
     "unit": "h",
     "kind": "requirement",
-    "source": "C01 · Monitoreo: 14.4× en 1 h y en 5 min a la vez",
+    "source": "C01 · Monitoring: 14.4× over 1 h and 5 min at the same time",
     "ref": "1"
    },
    {
@@ -10385,7 +10385,7 @@ export const T = {
     "label": "Slow-burn ticket factor",
     "unit": "×",
     "kind": "requirement",
-    "source": "C01 · Monitoreo: ticket a 6× en 6 h y 30 min",
+    "source": "C01 · Monitoring: ticket at 6× over 6 h and 30 min",
     "ref": "6"
    },
    {
@@ -10393,7 +10393,7 @@ export const T = {
     "label": "Slow-burn long window",
     "unit": "h",
     "kind": "requirement",
-    "source": "C01 · Monitoreo: ticket a 6× en 6 h y 30 min",
+    "source": "C01 · Monitoring: ticket at 6× over 6 h and 30 min",
     "ref": "6"
    }
   ],
@@ -10403,7 +10403,7 @@ export const T = {
     "label": "Stores",
     "unit": "stores",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: 400 tiendas",
+    "source": "C14 · Estimates: 400 stores",
     "ref": "400"
    },
    {
@@ -10411,7 +10411,7 @@ export const T = {
     "label": "Active products per store",
     "unit": "products",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: ≈ 12,000 productos por tienda (de ≈ 25,000 en la cadena)",
+    "source": "C14 · Estimates: ≈ 12,000 products per store (of ≈ 25,000 in the chain)",
     "ref": "12000"
    },
    {
@@ -10419,7 +10419,7 @@ export const T = {
     "label": "Forecast horizons per series",
     "unit": "days",
     "kind": "requirement",
-    "source": "C14 · Requisitos FR1: 14 filas (horizonte 1–14) por serie",
+    "source": "C14 · Requirements FR1: 14 rows (horizon 1–14) per series",
     "ref": "14"
    },
    {
@@ -10427,7 +10427,7 @@ export const T = {
     "label": "Quantile models scored",
     "unit": "models",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: 67.2 M filas × 2 modelos (P50 y P90)",
+    "source": "C14 · Estimates: 67.2 M rows × 2 models (P50 and P90)",
     "ref": "2"
    },
    {
@@ -10435,7 +10435,7 @@ export const T = {
     "label": "GBDT scoring cost per row",
     "unit": "µs/row/core",
     "kind": "benchmark",
-    "source": "C14 · Estimaciones: 30 µs por fila y núcleo",
+    "source": "C14 · Estimates: 30 µs per row per core",
     "ref": "30"
    },
    {
@@ -10443,7 +10443,7 @@ export const T = {
     "label": "Scoring vCPU",
     "unit": "vCPU",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: En 32 vCPU ≈ 2.1 min",
+    "source": "C14 · Estimates: on 32 vCPU ≈ 2.1 min",
     "ref": "32"
    },
    {
@@ -10451,7 +10451,7 @@ export const T = {
     "label": "Data cutoff (minutes after 00:00)",
     "unit": "min",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: corte a la 01:30",
+    "source": "C14 · Estimates: cutoff at 01:30",
     "ref": "90"
    },
    {
@@ -10459,7 +10459,7 @@ export const T = {
     "label": "Publish deadline (minutes after 00:00)",
     "unit": "min",
     "kind": "requirement",
-    "source": "C14 · Requisitos: publicado a las 03:30",
+    "source": "C14 · Requirements: published by 03:30",
     "ref": "210"
    },
    {
@@ -10467,7 +10467,7 @@ export const T = {
     "label": "ERP read time (minutes after 00:00)",
     "unit": "min",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: ERP a las 04:00",
+    "source": "C14 · Estimates: ERP at 04:00",
     "ref": "240"
    },
    {
@@ -10475,7 +10475,7 @@ export const T = {
     "label": "Attempts that must fit the window",
     "unit": "attempts",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: presupuesto por intento 120 ÷ 2 (primer intento spot, reintento on-demand)",
+    "source": "C14 · Estimates: per-attempt budget 120 ÷ 2 (first attempt spot, retry on-demand)",
     "ref": "2"
    },
    {
@@ -10483,7 +10483,7 @@ export const T = {
     "label": "Run duration budget per attempt",
     "unit": "min",
     "kind": "requirement",
-    "source": "C14 · Requisitos: ≤ 60 min por intento (esperado ≈ 35–60 min)",
+    "source": "C14 · Requirements: ≤ 60 min per attempt (expected ≈ 35–60 min)",
     "ref": "60"
    },
    {
@@ -10491,7 +10491,7 @@ export const T = {
     "label": "Chain annual sales",
     "unit": "US$/year",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: US$5 B",
+    "source": "C14 · Estimates: US$5 B",
     "ref": "5000000000"
    },
    {
@@ -10499,7 +10499,7 @@ export const T = {
     "label": "Fresh share of sales",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: 30 % × US$5 B",
+    "source": "C14 · Estimates: 30 % × US$5 B",
     "ref": "0.3"
    },
    {
@@ -10507,7 +10507,7 @@ export const T = {
     "label": "Fresh waste rate today",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: merma 4 %",
+    "source": "C14 · Estimates: waste 4 %",
     "ref": "0.04"
    },
    {
@@ -10515,7 +10515,7 @@ export const T = {
     "label": "Waste reduction target",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: meta −20 % de merma (4 % → 3.2 %)",
+    "source": "C14 · Estimates: target −20 % waste (4 % → 3.2 %)",
     "ref": "0.2"
    },
    {
@@ -10523,7 +10523,7 @@ export const T = {
     "label": "Lost sales to stockouts",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: 3 % × US$5 B",
+    "source": "C14 · Estimates: 3 % × US$5 B",
     "ref": "0.03"
    },
    {
@@ -10531,7 +10531,7 @@ export const T = {
     "label": "Stockout reduction target",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C14 · Estimaciones: meta −25 % de agotados",
+    "source": "C14 · Estimates: target −25 % stockouts",
     "ref": "0.25"
    },
    {
@@ -10539,7 +10539,7 @@ export const T = {
     "label": "Gross margin",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: margen bruto de ≈ 25 %",
+    "source": "C14 · Estimates: gross margin ≈ 25 %",
     "ref": "0.25"
    },
    {
@@ -10547,7 +10547,7 @@ export const T = {
     "label": "Infra cost, upper bound",
     "unit": "US$/month",
     "kind": "requirement",
-    "source": "C14 · Requisitos: ≈ US$3–5k/mes de infraestructura (cota alta)",
+    "source": "C14 · Requirements: ≈ US$3–5k/month of infrastructure (upper bound)",
     "ref": "5000"
    },
    {
@@ -10555,7 +10555,7 @@ export const T = {
     "label": "History read by reference features",
     "unit": "days",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: 4.8 M series × 70 días",
+    "source": "C14 · Estimates: 4.8 M series × 70 days",
     "ref": "70"
    },
    {
@@ -10563,7 +10563,7 @@ export const T = {
     "label": "History read with annual features",
     "unit": "days",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: 4.8 M series × 730 días",
+    "source": "C14 · Estimates: 4.8 M series × 730 days",
     "ref": "730"
    },
    {
@@ -10571,7 +10571,7 @@ export const T = {
     "label": "Bytes per float32",
     "unit": "B",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: ≈ 1.3 GB en float32; memoria en float32 × 4 B",
+    "source": "C14 · Estimates: ≈ 1.3 GB in float32; memory in float32 × 4 B",
     "ref": "4"
    },
    {
@@ -10579,7 +10579,7 @@ export const T = {
     "label": "Bytes per history row",
     "unit": "B",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: ≈ 16 B por fila → ≈ 56 GB por tabla",
+    "source": "C14 · Estimates: ≈ 16 B per row → ≈ 56 GB per table",
     "ref": "16"
    },
    {
@@ -10587,7 +10587,7 @@ export const T = {
     "label": "Imputed stores that open a ticket",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C14 · Monitoreo: InputDataIncomplete con más del 2 % (≈ 8 de 400)",
+    "source": "C14 · Monitoring: InputDataIncomplete above 2 % (≈ 8 of 400)",
     "ref": "0.02"
    },
    {
@@ -10595,7 +10595,7 @@ export const T = {
     "label": "Imputed stores that block the gate",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C14 · Requisitos FR5: tiendas imputadas ≤ 5 %",
+    "source": "C14 · Requirements FR5: imputed stores ≤ 5 %",
     "ref": "0.05"
    },
    {
@@ -10603,7 +10603,7 @@ export const T = {
     "label": "Bytes per forecast row",
     "unit": "B",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: ≈ 30 B (ids, fechas, P50, P90, marcas)",
+    "source": "C14 · Estimates: ≈ 30 B (ids, dates, P50, P90, flags)",
     "ref": "30"
    },
    {
@@ -10611,7 +10611,7 @@ export const T = {
     "label": "S3 Standard price",
     "unit": "US$/GB-month",
     "kind": "assumption",
-    "source": "ref-numeros · S3 Standard ≈ US$0.023/GB-mes (C14 da ≈ US$17 sin comprimir)",
+    "source": "ref-numeros · S3 Standard ≈ US$0.023/GB-month (C14 gives ≈ US$17 uncompressed)",
     "ref": "0.023"
    },
    {
@@ -10619,7 +10619,7 @@ export const T = {
     "label": "Top series share (all rows kept)",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: series principales 20 % × 4.8 M",
+    "source": "C14 · Estimates: top series 20 % × 4.8 M",
     "ref": "0.2"
    },
    {
@@ -10627,7 +10627,7 @@ export const T = {
     "label": "Training history",
     "unit": "days",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: 52 semanas = 364 días",
+    "source": "C14 · Estimates: 52 weeks = 364 days",
     "ref": "364"
    },
    {
@@ -10635,7 +10635,7 @@ export const T = {
     "label": "Sample rate for the other series",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: el resto al 10 %, con peso 10",
+    "source": "C14 · Estimates: the rest sampled at 10 %, with weight 10",
     "ref": "0.1"
    },
    {
@@ -10643,7 +10643,7 @@ export const T = {
     "label": "Features per row",
     "unit": "features",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: ≈ 50 features (la referencia usa 45)",
+    "source": "C14 · Estimates: ≈ 50 features (the reference uses 45)",
     "ref": "50"
    },
    {
@@ -10651,7 +10651,7 @@ export const T = {
     "label": "Bytes per binned feature",
     "unit": "B",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: 1 B (≤ 255 bins por feature)",
+    "source": "C14 · Estimates: 1 B (≤ 255 bins per feature)",
     "ref": "1"
    },
    {
@@ -10659,7 +10659,7 @@ export const T = {
     "label": "Training node RAM (r7i.24xlarge)",
     "unit": "GiB",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: r7i.24xlarge (96 vCPU, 768 GiB)",
+    "source": "C14 · Estimates: r7i.24xlarge (96 vCPU, 768 GiB)",
     "ref": "768"
    },
    {
@@ -10667,7 +10667,7 @@ export const T = {
     "label": "Gate tolerance on row count",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C14 · Archivos: row_count (series × 14 ± 0.5 %)",
+    "source": "C14 · Reference files: row_count (series × 14 ± 0.5 %)",
     "ref": "0.005"
    },
    {
@@ -10675,7 +10675,7 @@ export const T = {
     "label": "Fallback guard DAG start (minutes after 00:00)",
     "unit": "min",
     "kind": "requirement",
-    "source": "C14 · Serving: guardián a las 03:45",
+    "source": "C14 · Serving: guard at 03:45",
     "ref": "225"
    },
    {
@@ -10683,7 +10683,7 @@ export const T = {
     "label": "Pointer freeze (minutes after 00:00)",
     "unit": "min",
     "kind": "requirement",
-    "source": "C14 · Serving: puntero congelado a las 03:55",
+    "source": "C14 · Serving: pointer frozen at 03:55",
     "ref": "235"
    },
    {
@@ -10691,7 +10691,7 @@ export const T = {
     "label": "Guard task limit",
     "unit": "min",
     "kind": "requirement",
-    "source": "C14 · Serving: forecast_fallback_guard, límite 9 min",
+    "source": "C14 · Serving: forecast_fallback_guard, 9 min limit",
     "ref": "9"
    },
    {
@@ -10699,7 +10699,7 @@ export const T = {
     "label": "run_forecast execution timeout",
     "unit": "min",
     "kind": "requirement",
-    "source": "C14 · Serving: 90 min por intento (tope para un intento colgado)",
+    "source": "C14 · Serving: 90 min per attempt (cap for a hung attempt)",
     "ref": "90"
    },
    {
@@ -10707,7 +10707,7 @@ export const T = {
     "label": "Spark nodes (r7i.4xlarge)",
     "unit": "nodes",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: ≈ 16 × r7i.4xlarge en spot",
+    "source": "C14 · Estimates: ≈ 16 × r7i.4xlarge on spot",
     "ref": "16"
    },
    {
@@ -10715,7 +10715,7 @@ export const T = {
     "label": "Cluster up but waiting for late stores",
     "unit": "h",
     "kind": "assumption",
-    "source": "C14 · Estimaciones (trampa): levantarlo a las 00:30 y esperar hasta la 01:30",
+    "source": "C14 · Estimates (trap): bring it up at 00:30 and wait until 01:30",
     "ref": "1"
    },
    {
@@ -10723,7 +10723,7 @@ export const T = {
     "label": "r7i.4xlarge spot price",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C14 · Estimaciones: r7i.4xlarge ≈ US$0.41 en spot (oct. 2026)",
+    "source": "C14 · Estimates: r7i.4xlarge ≈ US$0.41 on spot (Oct. 2026)",
     "ref": "0.41"
    },
    {
@@ -10739,7 +10739,7 @@ export const T = {
     "label": "Pilot store pairs",
     "unit": "pairs",
     "kind": "requirement",
-    "source": "C14 · Evaluación: 40 pares de tiendas",
+    "source": "C14 · Evaluation: 40 store pairs",
     "ref": "40"
    },
    {
@@ -10747,7 +10747,7 @@ export const T = {
     "label": "Pilot length",
     "unit": "weeks",
     "kind": "requirement",
-    "source": "C14 · Evaluación: semanas 3 a 8",
+    "source": "C14 · Evaluation: weeks 3 to 8",
     "ref": "8"
    },
    {
@@ -10755,7 +10755,7 @@ export const T = {
     "label": "Burn-in weeks not counted",
     "unit": "weeks",
     "kind": "requirement",
-    "source": "C14 · Evaluación: las 2 primeras semanas son de arranque",
+    "source": "C14 · Evaluation: the first 2 weeks are burn-in",
     "ref": "2"
    },
    {
@@ -10763,7 +10763,7 @@ export const T = {
     "label": "Std dev of per-store stockout change",
     "unit": "points",
     "kind": "assumption",
-    "source": "C14 · Evaluación: σ del cambio por tienda ≈ 1.5 puntos",
+    "source": "C14 · Evaluation: σ of the per-store change ≈ 1.5 points",
     "ref": "1.5"
    },
    {
@@ -10771,7 +10771,7 @@ export const T = {
     "label": "z for 95 %",
     "unit": "z",
     "kind": "assumption",
-    "source": "C14 · Evaluación: intervalo de 95 %",
+    "source": "C14 · Evaluation: 95 % interval",
     "ref": "1.96"
    }
   ],
@@ -10781,7 +10781,7 @@ export const T = {
     "label": "In-scope slides per day",
     "unit": "slides/day",
     "kind": "requirement",
-    "source": "C04 · Estimaciones: 1,200 láminas al día",
+    "source": "C04 · Estimates: 1,200 slides per day",
     "ref": "1200"
    },
    {
@@ -10789,7 +10789,7 @@ export const T = {
     "label": "Scanner hours per day",
     "unit": "h",
     "kind": "requirement",
-    "source": "C04 · Estimaciones: 1,200 ÷ 14 h (08:00–22:00)",
+    "source": "C04 · Estimates: 1,200 ÷ 14 h (08:00–22:00)",
     "ref": "14"
    },
    {
@@ -10797,7 +10797,7 @@ export const T = {
     "label": "Peak factor",
     "unit": "×",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: pico ≈ 2× del promedio",
+    "source": "C04 · Estimates: peak ≈ 2× the average",
     "ref": "2"
    },
    {
@@ -10805,7 +10805,7 @@ export const T = {
     "label": "Tissue per slide",
     "unit": "cm²",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: ≈ 1.5 cm² por lámina",
+    "source": "C04 · Estimates: ≈ 1.5 cm² per slide",
     "ref": "1.5"
    },
    {
@@ -10813,7 +10813,7 @@ export const T = {
     "label": "Model resolution (20×)",
     "unit": "µm/px",
     "kind": "requirement",
-    "source": "C04 · Estimaciones: 20× (0.5 µm/px), la resolución del modelo",
+    "source": "C04 · Estimates: 20× (0.5 µm/px), the model's resolution",
     "ref": "0.5"
    },
    {
@@ -10821,7 +10821,7 @@ export const T = {
     "label": "Scan resolution (40×, level 0)",
     "unit": "µm/px",
     "kind": "requirement",
-    "source": "C04 · Estimaciones: 40× (0.25 µm/px)",
+    "source": "C04 · Estimates: 40× (0.25 µm/px)",
     "ref": "0.25"
    },
    {
@@ -10829,7 +10829,7 @@ export const T = {
     "label": "Tile size",
     "unit": "px",
     "kind": "requirement",
-    "source": "C04 · Estimaciones: tiles de 512×512",
+    "source": "C04 · Estimates: 512×512 tiles",
     "ref": "512"
    },
    {
@@ -10837,7 +10837,7 @@ export const T = {
     "label": "Tile overlap",
     "unit": "px",
     "kind": "requirement",
-    "source": "C04 · Estimaciones: 64 px de solape (stride 448)",
+    "source": "C04 · Estimates: 64 px overlap (stride 448)",
     "ref": "64"
    },
    {
@@ -10845,7 +10845,7 @@ export const T = {
     "label": "Measured max per L4 (TensorRT FP16)",
     "unit": "tiles/s",
     "kind": "benchmark",
-    "source": "C04 · Estimaciones: trtexec ≈ 300 tiles/s (supuesto)",
+    "source": "C04 · Estimates: trtexec ≈ 300 tiles/s (assumption)",
     "ref": "300"
    },
    {
@@ -10853,7 +10853,7 @@ export const T = {
     "label": "Planned throughput per worker",
     "unit": "tiles/s",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: ≈ 70 % de 300 = 200 tiles/s",
+    "source": "C04 · Estimates: ≈ 70 % of 300 = 200 tiles/s",
     "ref": "200"
    },
    {
@@ -10861,7 +10861,7 @@ export const T = {
     "label": "Target utilization ceiling",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: ≈ 70 % (tráfico por cola)",
+    "source": "C04 · Estimates: ≈ 70 % (queue-driven traffic)",
     "ref": "0.7"
    },
    {
@@ -10869,7 +10869,7 @@ export const T = {
     "label": "Serial time per slide",
     "unit": "s",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: ≈ 20–30 s por lámina (≈ 25 s)",
+    "source": "C04 · Estimates: ≈ 20–30 s per slide (≈ 25 s)",
     "ref": "25"
    },
    {
@@ -10877,7 +10877,7 @@ export const T = {
     "label": "KEDA max workers",
     "unit": "workers",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: KEDA de 0 a 4 workers",
+    "source": "C04 · Estimates: KEDA from 0 to 4 workers",
     "ref": "4"
    },
    {
@@ -10885,7 +10885,7 @@ export const T = {
     "label": "Billed GPU node-hours per day",
     "unit": "node-h/day",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: ≈ 15 nodo-h/día facturadas",
+    "source": "C04 · Estimates: ≈ 15 billed node-h/day",
     "ref": "15"
    },
    {
@@ -10893,7 +10893,7 @@ export const T = {
     "label": "g6.2xlarge on-demand",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: g6.2xlarge ≈ US$0.98/h (us-east-1)",
+    "source": "C04 · Estimates: g6.2xlarge ≈ US$0.98/h (us-east-1)",
     "ref": "0.98"
    },
    {
@@ -10901,7 +10901,7 @@ export const T = {
     "label": "Days per month",
     "unit": "days",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: × 30",
+    "source": "C04 · Estimates: × 30",
     "ref": "30"
    },
    {
@@ -10909,7 +10909,7 @@ export const T = {
     "label": "Other infra (reprocess, training, EKS, CPU, Postgres, storage)",
     "unit": "US$/month",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: 70 + 200 + 73 + 150 + 200 + 100",
+    "source": "C04 · Estimates: 70 + 200 + 73 + 150 + 200 + 100",
     "ref": "793"
    },
    {
@@ -10917,7 +10917,7 @@ export const T = {
     "label": "Infra budget",
     "unit": "US$/month",
     "kind": "requirement",
-    "source": "C04 · Requisitos: infra ≤ US$2k/mes",
+    "source": "C04 · Requirements: infra ≤ US$2k/month",
     "ref": "2000"
    },
    {
@@ -10925,7 +10925,7 @@ export const T = {
     "label": "Pathologist labeling hours",
     "unit": "h/month",
     "kind": "requirement",
-    "source": "C04 · Requisitos: 20 h/mes de patólogo",
+    "source": "C04 · Requirements: 20 h/month of pathologist time",
     "ref": "20"
    },
    {
@@ -10933,7 +10933,7 @@ export const T = {
     "label": "Pathologist cost",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: US$200/h",
+    "source": "C04 · Estimates: US$200/h",
     "ref": "200"
    },
    {
@@ -10941,7 +10941,7 @@ export const T = {
     "label": "Turnaround error budget (p95 ≤ 60 min)",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "M12 · c04: el presupuesto es 5 % de slides tarde",
+    "source": "M12 · c04: the budget is 5 % of slides late",
     "ref": "0.05"
    },
    {
@@ -10949,7 +10949,7 @@ export const T = {
     "label": "CPU per tile (read, decode, 2× downsample)",
     "unit": "ms",
     "kind": "benchmark",
-    "source": "C04 · Estimaciones: ≈ 20 ms (mídelo con un profiler)",
+    "source": "C04 · Estimates: ≈ 20 ms (measure it with a profiler)",
     "ref": "20"
    },
    {
@@ -10957,7 +10957,7 @@ export const T = {
     "label": "vCPU per worker node (g6.2xlarge)",
     "unit": "vCPU",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: g6.2xlarge: 1 × L4, 8 vCPU",
+    "source": "C04 · Estimates: g6.2xlarge: 1 × L4, 8 vCPU",
     "ref": "8"
    },
    {
@@ -10965,7 +10965,7 @@ export const T = {
     "label": "Rack burst",
     "unit": "slides",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: un rack de 200 láminas de golpe",
+    "source": "C04 · Estimates: a rack of 200 slides at once",
     "ref": "200"
    },
    {
@@ -10973,7 +10973,7 @@ export const T = {
     "label": "Cold start (node + image)",
     "unit": "min",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: arranque en frío ≈ 3–5 min (cota alta)",
+    "source": "C04 · Estimates: cold start ≈ 3–5 min (upper bound)",
     "ref": "5"
    },
    {
@@ -10981,7 +10981,7 @@ export const T = {
     "label": "Turnaround SLO (p95)",
     "unit": "min",
     "kind": "requirement",
-    "source": "C04 · Requisitos: p95 ≤ 60 min",
+    "source": "C04 · Requirements: p95 ≤ 60 min",
     "ref": "60"
    },
    {
@@ -10997,7 +10997,7 @@ export const T = {
     "label": "Heartbeat interval",
     "unit": "s",
     "kind": "requirement",
-    "source": "C04 · Serving: ChangeMessageVisibility cada 60 s",
+    "source": "C04 · Serving: ChangeMessageVisibility every 60 s",
     "ref": "60"
    },
    {
@@ -11005,7 +11005,7 @@ export const T = {
     "label": "Results per slide (GeoJSON + heatmap + summary)",
     "unit": "MB",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: ≈ 5 MB por lámina",
+    "source": "C04 · Estimates: ≈ 5 MB per slide",
     "ref": "5"
    },
    {
@@ -11013,7 +11013,7 @@ export const T = {
     "label": "S3 Standard price",
     "unit": "US$/GB-month",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: US$0.023/GB-mes",
+    "source": "C04 · Estimates: US$0.023/GB-month",
     "ref": "0.023"
    },
    {
@@ -11021,7 +11021,7 @@ export const T = {
     "label": "Random audit slides per month",
     "unit": "slides",
     "kind": "requirement",
-    "source": "C04 · Datos: 8 láminas × ≈ 15 min",
+    "source": "C04 · Data: 8 slides × ≈ 15 min",
     "ref": "8"
    },
    {
@@ -11029,7 +11029,7 @@ export const T = {
     "label": "Pathologist approval time per slide",
     "unit": "min",
     "kind": "assumption",
-    "source": "C04 · Datos: ≈ 15 min de aprobación",
+    "source": "C04 · Data: ≈ 15 min approval",
     "ref": "15"
    },
    {
@@ -11037,7 +11037,7 @@ export const T = {
     "label": "Monthly temporal set",
     "unit": "slides",
     "kind": "requirement",
-    "source": "C04 · Datos: set temporal 10 láminas × ≈ 15 min",
+    "source": "C04 · Data: temporal set 10 slides × ≈ 15 min",
     "ref": "10"
    },
    {
@@ -11045,7 +11045,7 @@ export const T = {
     "label": "Time per active-learning region",
     "unit": "min",
     "kind": "assumption",
-    "source": "C04 · Datos: ≈ 620 regiones a 1.5 min",
+    "source": "C04 · Data: ≈ 620 regions at 1.5 min",
     "ref": "1.5"
    },
    {
@@ -11053,7 +11053,7 @@ export const T = {
     "label": "Golden set slides",
     "unit": "slides",
     "kind": "requirement",
-    "source": "C04 · Estimaciones: golden set de 100 láminas",
+    "source": "C04 · Estimates: golden set of 100 slides",
     "ref": "100"
    },
    {
@@ -11061,7 +11061,7 @@ export const T = {
     "label": "Pathologists per golden slide",
     "unit": "raters",
     "kind": "requirement",
-    "source": "C04 · Estimaciones: × 2 patólogos + consenso",
+    "source": "C04 · Estimates: × 2 pathologists + consensus",
     "ref": "2"
    },
    {
@@ -11069,7 +11069,7 @@ export const T = {
     "label": "Approval time on resident pre-annotation",
     "unit": "min",
     "kind": "assumption",
-    "source": "C04 · Estimaciones: ≈ 12 min de aprobación",
+    "source": "C04 · Estimates: ≈ 12 min approval",
     "ref": "12"
    },
    {
@@ -11077,7 +11077,7 @@ export const T = {
     "label": "z for 95 %",
     "unit": "z",
     "kind": "assumption",
-    "source": "C04 · Evaluación: ≈ 1.96 × sd ÷ √n",
+    "source": "C04 · Evaluation: ≈ 1.96 × sd ÷ √n",
     "ref": "1.96"
    },
    {
@@ -11085,7 +11085,7 @@ export const T = {
     "label": "Per-slide Dice std dev",
     "unit": "Dice",
     "kind": "assumption",
-    "source": "C04 · Evaluación: 1.96 × 0.10 ÷ √100",
+    "source": "C04 · Evaluation: 1.96 × 0.10 ÷ √100",
     "ref": "0.1"
    },
    {
@@ -11093,7 +11093,7 @@ export const T = {
     "label": "Std dev of the paired Dice difference",
     "unit": "Dice",
     "kind": "assumption",
-    "source": "C04 · Evaluación: sd de la diferencia ≈ 0.03",
+    "source": "C04 · Evaluation: sd of the difference ≈ 0.03",
     "ref": "0.03"
    },
    {
@@ -11101,7 +11101,7 @@ export const T = {
     "label": "Annotated lab-C slides",
     "unit": "slides",
     "kind": "requirement",
-    "source": "C04 · Evaluación: ≥ 30 láminas anotadas del laboratorio C",
+    "source": "C04 · Evaluation: ≥ 30 annotated slides from lab C",
     "ref": "30"
    },
    {
@@ -11109,7 +11109,7 @@ export const T = {
     "label": "Lesion-level sensitivity target",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C04 · Requisitos: sensibilidad por lesión ≥ 95 %",
+    "source": "C04 · Requirements: per-lesion sensitivity ≥ 95 %",
     "ref": "0.95"
    },
    {
@@ -11117,7 +11117,7 @@ export const T = {
     "label": "Fast-burn factor (1 h)",
     "unit": "×",
     "kind": "assumption",
-    "source": "M12 · SRE Workbook: 14.4× = 2 % del presupuesto en 1 h",
+    "source": "M12 · SRE Workbook: 14.4× = 2 % of the budget in 1 h",
     "ref": "14.4"
    },
    {
@@ -11125,7 +11125,7 @@ export const T = {
     "label": "Worst-case night backlog",
     "unit": "slides",
     "kind": "assumption",
-    "source": "C04 · Monitoreo: ≈ 500 láminas acumuladas",
+    "source": "C04 · Monitoring: ≈ 500 slides backlogged",
     "ref": "500"
    },
    {
@@ -11133,7 +11133,7 @@ export const T = {
     "label": "Page at 05:30 to SLO at 07:00",
     "unit": "min",
     "kind": "requirement",
-    "source": "C04 · Monitoreo: 90 min de margen desde las 05:30",
+    "source": "C04 · Monitoring: 90 min of margin from 05:30",
     "ref": "90"
    },
    {
@@ -11141,7 +11141,7 @@ export const T = {
     "label": "Review time saved per slide (low end)",
     "unit": "min",
     "kind": "assumption",
-    "source": "C04 · Costo: el overlay ahorra 1–2 min por lámina",
+    "source": "C04 · Cost: the overlay saves 1–2 min per slide",
     "ref": "1"
    },
    {
@@ -11149,7 +11149,7 @@ export const T = {
     "label": "C05 documents per month",
     "unit": "docs/month",
     "kind": "requirement",
-    "source": "C05 · Estimaciones: 5,000 × 30 = 150,000",
+    "source": "C05 · Estimates: 5,000 × 30 = 150,000",
     "ref": "150000"
    },
    {
@@ -11157,7 +11157,7 @@ export const T = {
     "label": "C05 straight-through share",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C05 · Estimaciones: 60 % STP",
+    "source": "C05 · Estimates: 60 % STP",
     "ref": "0.6"
    },
    {
@@ -11165,7 +11165,7 @@ export const T = {
     "label": "C05 review time per routed document",
     "unit": "s",
     "kind": "assumption",
-    "source": "C05 · Estimaciones: 45 s por documento revisado",
+    "source": "C05 · Estimates: 45 s per reviewed document",
     "ref": "45"
    },
    {
@@ -11173,7 +11173,7 @@ export const T = {
     "label": "C05 QA audit share of STP",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C05 · Estimaciones: auditoría del 2 % de los STP",
+    "source": "C05 · Estimates: audit of 2 % of STP",
     "ref": "0.02"
    },
    {
@@ -11181,7 +11181,7 @@ export const T = {
     "label": "C05 audit time per document",
     "unit": "min",
     "kind": "assumption",
-    "source": "C05 · Estimaciones: a 2 min",
+    "source": "C05 · Estimates: at 2 min",
     "ref": "2"
    },
    {
@@ -11189,7 +11189,7 @@ export const T = {
     "label": "C05 productive hours per reviewer",
     "unit": "h/month",
     "kind": "assumption",
-    "source": "C05 · Estimaciones: ≈ 130 h productivas (6 h × ≈ 22 días)",
+    "source": "C05 · Estimates: ≈ 130 productive h (6 h × ≈ 22 days)",
     "ref": "130"
    },
    {
@@ -11197,7 +11197,7 @@ export const T = {
     "label": "C05 peak-day documents",
     "unit": "docs/day",
     "kind": "requirement",
-    "source": "C05 · Estimaciones: día de pico 10,000 docs",
+    "source": "C05 · Estimates: peak day 10,000 docs",
     "ref": "10000"
    },
    {
@@ -11205,7 +11205,7 @@ export const T = {
     "label": "C05 productive hours per reviewer per day",
     "unit": "h/day",
     "kind": "assumption",
-    "source": "C05 · Estimaciones: 6 h productivas",
+    "source": "C05 · Estimates: 6 productive h",
     "ref": "6"
    }
   ],
@@ -11215,7 +11215,7 @@ export const T = {
     "label": "Indexed documents",
     "unit": "docs",
     "kind": "requirement",
-    "source": "C11 · Estimaciones: ≈ 1.5 M documentos",
+    "source": "C11 · Estimates: ≈ 1.5 M documents",
     "ref": "1500000"
    },
    {
@@ -11223,7 +11223,7 @@ export const T = {
     "label": "Chunks per document (avg)",
     "unit": "chunks",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: ≈ 8 chunks por documento de promedio",
+    "source": "C11 · Estimates: ≈ 8 chunks per document on average",
     "ref": "8"
    },
    {
@@ -11231,7 +11231,7 @@ export const T = {
     "label": "Tokens per chunk",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 12 M × 400",
+    "source": "C11 · Estimates: 12 M × 400",
     "ref": "400"
    },
    {
@@ -11239,7 +11239,7 @@ export const T = {
     "label": "Bytes per token of plain text",
     "unit": "B",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: ≈ 4 bytes por token",
+    "source": "C11 · Estimates: ≈ 4 bytes per token",
     "ref": "4"
    },
    {
@@ -11247,7 +11247,7 @@ export const T = {
     "label": "Questions per day",
     "unit": "questions/day",
     "kind": "requirement",
-    "source": "C11 · Estimaciones: 25,000 preguntas",
+    "source": "C11 · Estimates: 25,000 questions",
     "ref": "25000"
    },
    {
@@ -11255,7 +11255,7 @@ export const T = {
     "label": "Business hours per day",
     "unit": "h",
     "kind": "requirement",
-    "source": "C11 · Estimaciones: 25,000 ÷ (10 h × 3,600 s)",
+    "source": "C11 · Estimates: 25,000 ÷ (10 h × 3,600 s)",
     "ref": "10"
    },
    {
@@ -11263,7 +11263,7 @@ export const T = {
     "label": "Peak factor",
     "unit": "×",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: pico 3 × 0.7",
+    "source": "C11 · Estimates: peak 3 × 0.7",
     "ref": "3"
    },
    {
@@ -11271,7 +11271,7 @@ export const T = {
     "label": "System instructions",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: instrucciones ≈ 800 (prefijo fijo)",
+    "source": "C11 · Estimates: instructions ≈ 800 (fixed prefix)",
     "ref": "800"
    },
    {
@@ -11279,7 +11279,7 @@ export const T = {
     "label": "Trimmed history",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: historial ≤ 1,200",
+    "source": "C11 · Estimates: history ≤ 1,200",
     "ref": "1200"
    },
    {
@@ -11287,7 +11287,7 @@ export const T = {
     "label": "Chunks in the prompt",
     "unit": "chunks",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 8 chunks × 400",
+    "source": "C11 · Estimates: 8 chunks × 400",
     "ref": "8"
    },
    {
@@ -11295,7 +11295,7 @@ export const T = {
     "label": "Question",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: pregunta ≈ 100",
+    "source": "C11 · Estimates: question ≈ 100",
     "ref": "100"
    },
    {
@@ -11303,7 +11303,7 @@ export const T = {
     "label": "max_tokens",
     "unit": "tokens",
     "kind": "requirement",
-    "source": "C11 · Estimaciones: max_tokens = 600",
+    "source": "C11 · Estimates: max_tokens = 600",
     "ref": "600"
    },
    {
@@ -11311,7 +11311,7 @@ export const T = {
     "label": "Model context",
     "unit": "tokens",
     "kind": "requirement",
-    "source": "C11 · Estimaciones: 5,900 de 8,192",
+    "source": "C11 · Estimates: 5,900 of 8,192",
     "ref": "8192"
    },
    {
@@ -11319,7 +11319,7 @@ export const T = {
     "label": "Avg input tokens per question (rewrites, retries)",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: el promedio de entrada queda en ≈ 6,000 tokens",
+    "source": "C11 · Estimates: average input comes to ≈ 6,000 tokens",
     "ref": "6000"
    },
    {
@@ -11327,7 +11327,7 @@ export const T = {
     "label": "Avg output tokens per question (answer + rewrite)",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 25k × ≈ 400",
+    "source": "C11 · Estimates: 25k × ≈ 400",
     "ref": "400"
    },
    {
@@ -11335,7 +11335,7 @@ export const T = {
     "label": "Avg answer duration",
     "unit": "s",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 2 qps × ≈ 11 s",
+    "source": "C11 · Estimates: 2 qps × ≈ 11 s",
     "ref": "11"
    },
    {
@@ -11343,7 +11343,7 @@ export const T = {
     "label": "Gateway quota requested",
     "unit": "tokens/min",
     "kind": "requirement",
-    "source": "C11 · Estimaciones: se pide ≈ 1 M tokens/min",
+    "source": "C11 · Estimates: request ≈ 1 M tokens/min",
     "ref": "1000000"
    },
    {
@@ -11351,7 +11351,7 @@ export const T = {
     "label": "Business days per month",
     "unit": "days",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 25k × 22 días hábiles",
+    "source": "C11 · Estimates: 25k × 22 business days",
     "ref": "22"
    },
    {
@@ -11359,7 +11359,7 @@ export const T = {
     "label": "C10 showback rate",
     "unit": "US$/M tokens",
     "kind": "assumption",
-    "source": "C11 · Costo: ≈ US$1.0 por millón (mezcla del c10)",
+    "source": "C11 · Cost: ≈ US$1.0 per million (c10 mix)",
     "ref": "1"
    },
    {
@@ -11367,7 +11367,7 @@ export const T = {
     "label": "Other infra (OpenSearch, L4s, ingestion, logs)",
     "unit": "US$/month",
     "kind": "assumption",
-    "source": "C11 · Costo: 1.4k + 1.2k + 0.6k + 0.6k + 0.3k",
+    "source": "C11 · Cost: 1.4k + 1.2k + 0.6k + 0.6k + 0.3k",
     "ref": "4100"
    },
    {
@@ -11375,7 +11375,7 @@ export const T = {
     "label": "Availability SLO (generated answer)",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C11 · Requisitos: 99.5 % de la respuesta generada",
+    "source": "C11 · Requirements: 99.5 % of the generated response",
     "ref": "0.995"
    },
    {
@@ -11391,7 +11391,7 @@ export const T = {
     "label": "Golden set questions",
     "unit": "questions",
     "kind": "requirement",
-    "source": "C11 · Datos: golden set de ≈ 600 preguntas",
+    "source": "C11 · Data: golden set of ≈ 600 questions",
     "ref": "600"
    },
    {
@@ -11399,7 +11399,7 @@ export const T = {
     "label": "Expert time per golden question",
     "unit": "min",
     "kind": "assumption",
-    "source": "C11 · Datos: ≈ 20 min por pregunta de un experto",
+    "source": "C11 · Data: ≈ 20 min per question by an expert",
     "ref": "20"
    },
    {
@@ -11407,7 +11407,7 @@ export const T = {
     "label": "Parsed JSON vs plain text",
     "unit": "×",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: ≈ 19 GB × ≈ 2 por metadatos y estructura",
+    "source": "C11 · Estimates: ≈ 19 GB × ≈ 2 for metadata and structure",
     "ref": "2"
    },
    {
@@ -11415,7 +11415,7 @@ export const T = {
     "label": "Documents touched per day",
     "unit": "docs/day",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 15k docs × 8 chunks × 400 tokens",
+    "source": "C11 · Estimates: 15k docs × 8 chunks × 400 tokens",
     "ref": "15000"
    },
    {
@@ -11423,7 +11423,7 @@ export const T = {
     "label": "Edit peak factor",
     "unit": "×",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 15k ÷ 10 h × 3",
+    "source": "C11 · Estimates: 15k ÷ 10 h × 3",
     "ref": "3"
    },
    {
@@ -11431,7 +11431,7 @@ export const T = {
     "label": "Embedding throughput per L4 (≈ 0.6 B model)",
     "unit": "tokens/s",
     "kind": "benchmark",
-    "source": "C11 · Estimaciones: ≈ 30k tokens/s por L4 (mídelo)",
+    "source": "C11 · Estimates: ≈ 30k tokens/s per L4 (measure it)",
     "ref": "30000"
    },
    {
@@ -11439,7 +11439,7 @@ export const T = {
     "label": "Scanned share of PDFs",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: ≈ 15 % de 300k",
+    "source": "C11 · Estimates: ≈ 15 % of 300k",
     "ref": "0.15"
    },
    {
@@ -11447,7 +11447,7 @@ export const T = {
     "label": "PDFs in the corpus",
     "unit": "PDFs",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: incluye ≈ 300k PDFs",
+    "source": "C11 · Estimates: includes ≈ 300k PDFs",
     "ref": "300000"
    },
    {
@@ -11455,7 +11455,7 @@ export const T = {
     "label": "Pages per scanned PDF",
     "unit": "pages",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: × ≈ 10 páginas",
+    "source": "C11 · Estimates: × ≈ 10 pages",
     "ref": "10"
    },
    {
@@ -11463,7 +11463,7 @@ export const T = {
     "label": "CPU OCR time per page",
     "unit": "core-s",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: ≈ 2 s por página de un núcleo",
+    "source": "C11 · Estimates: ≈ 2 s per page on one core",
     "ref": "2"
    },
    {
@@ -11471,7 +11471,7 @@ export const T = {
     "label": "Embedding dimension",
     "unit": "dims",
     "kind": "requirement",
-    "source": "C11 · Estimaciones: d = 1024",
+    "source": "C11 · Estimates: d = 1024",
     "ref": "1024"
    },
    {
@@ -11479,7 +11479,7 @@ export const T = {
     "label": "Bytes per FP16 component",
     "unit": "B",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: en FP16 × 2 B",
+    "source": "C11 · Estimates: in FP16 × 2 B",
     "ref": "2"
    },
    {
@@ -11487,7 +11487,7 @@ export const T = {
     "label": "HNSW M",
     "unit": "links",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: grafo HNSW, M = 32",
+    "source": "C11 · Estimates: HNSW graph, M = 32",
     "ref": "32"
    },
    {
@@ -11495,7 +11495,7 @@ export const T = {
     "label": "Bytes per graph link",
     "unit": "B",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 12 M × 2 × 32 × 4 B",
+    "source": "C11 · Estimates: 12 M × 2 × 32 × 4 B",
     "ref": "4"
    },
    {
@@ -11503,7 +11503,7 @@ export const T = {
     "label": "OpenSearch data nodes",
     "unit": "nodes",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 3 nodos",
+    "source": "C11 · Estimates: 3 nodes",
     "ref": "3"
    },
    {
@@ -11511,7 +11511,7 @@ export const T = {
     "label": "Index copies (primary + replica)",
     "unit": "copies",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 2 copias",
+    "source": "C11 · Estimates: 2 copies",
     "ref": "2"
    },
    {
@@ -11519,7 +11519,7 @@ export const T = {
     "label": "r7i.2xlarge RAM",
     "unit": "GB",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: 64 GiB ≈ 68.7 GB",
+    "source": "C11 · Estimates: 64 GiB ≈ 68.7 GB",
     "ref": "68.7"
    },
    {
@@ -11527,7 +11527,7 @@ export const T = {
     "label": "OpenSearch heap",
     "unit": "GB",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: heap 16",
+    "source": "C11 · Estimates: heap 16",
     "ref": "16"
    },
    {
@@ -11535,7 +11535,7 @@ export const T = {
     "label": "Text and BM25 in page cache",
     "unit": "GB",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: texto y BM25 en page cache ≈ 19.5",
+    "source": "C11 · Estimates: text and BM25 in page cache ≈ 19.5",
     "ref": "19.5"
    },
    {
@@ -11543,7 +11543,7 @@ export const T = {
     "label": "recall@8 (first measurement)",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C11 · Evaluación: recall@8 de ≈ 0.85",
+    "source": "C11 · Evaluation: recall@8 of ≈ 0.85",
     "ref": "0.85"
    },
    {
@@ -11551,7 +11551,7 @@ export const T = {
     "label": "z for 95 %",
     "unit": "z",
     "kind": "assumption",
-    "source": "C11 · Evaluación: 1.96 × √(p(1−p) ÷ n)",
+    "source": "C11 · Evaluation: 1.96 × √(p(1−p) ÷ n)",
     "ref": "1.96"
    },
    {
@@ -11559,7 +11559,7 @@ export const T = {
     "label": "Questions in one slice",
     "unit": "questions",
     "kind": "assumption",
-    "source": "C11 · Evaluación: slice de 60",
+    "source": "C11 · Evaluation: slice of 60",
     "ref": "60"
    },
    {
@@ -11567,7 +11567,7 @@ export const T = {
     "label": "Groundedness canary set",
     "unit": "questions",
     "kind": "requirement",
-    "source": "C11 · Evaluación: canary de 100 preguntas cada 4 h",
+    "source": "C11 · Evaluation: canary of 100 questions every 4 h",
     "ref": "100"
    },
    {
@@ -11575,7 +11575,7 @@ export const T = {
     "label": "Reranker params that do math",
     "unit": "B params",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: bge-reranker-v2-m3 ≈ 0.30 B sin la tabla de embeddings",
+    "source": "C11 · Estimates: bge-reranker-v2-m3 ≈ 0.30 B without the embedding table",
     "ref": "0.3"
    },
    {
@@ -11583,7 +11583,7 @@ export const T = {
     "label": "Tokens per (question, chunk) pair",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: ≈ 450 tokens (pregunta + chunk)",
+    "source": "C11 · Estimates: ≈ 450 tokens (question + chunk)",
     "ref": "450"
    },
    {
@@ -11591,7 +11591,7 @@ export const T = {
     "label": "Attention FLOPs per pair",
     "unit": "TFLOP",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: la atención suma ≈ 0.02 a 450 tokens",
+    "source": "C11 · Estimates: attention adds ≈ 0.02 at 450 tokens",
     "ref": "0.02"
    },
    {
@@ -11599,7 +11599,7 @@ export const T = {
     "label": "Candidates reranked",
     "unit": "pairs",
     "kind": "requirement",
-    "source": "C11 · Estimaciones: 50 pares",
+    "source": "C11 · Estimates: 50 pairs",
     "ref": "50"
    },
    {
@@ -11607,7 +11607,7 @@ export const T = {
     "label": "L4 FP16 dense peak",
     "unit": "TFLOPS",
     "kind": "benchmark",
-    "source": "C11 · Estimaciones: L4 121 TFLOPS FP16 densos",
+    "source": "C11 · Estimates: L4 121 TFLOPS dense FP16",
     "ref": "121"
    },
    {
@@ -11615,7 +11615,7 @@ export const T = {
     "label": "Useful fraction of peak",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: ≈ 50 % útil",
+    "source": "C11 · Estimates: ≈ 50 % useful",
     "ref": "0.5"
    },
    {
@@ -11623,7 +11623,7 @@ export const T = {
     "label": "Auth, BM25 ∥ k-NN, RRF",
     "unit": "s",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: más ≈ 0.2 s del resto",
+    "source": "C11 · Estimates: plus ≈ 0.2 s for the rest",
     "ref": "0.2"
    },
    {
@@ -11631,7 +11631,7 @@ export const T = {
     "label": "Retrieval + rerank p95 target",
     "unit": "s",
     "kind": "requirement",
-    "source": "C11 · Requisitos: p95 ≤ 700 ms",
+    "source": "C11 · Requirements: p95 ≤ 700 ms",
     "ref": "0.7"
    },
    {
@@ -11639,7 +11639,7 @@ export const T = {
     "label": "Prompt + gateway + C10 TTFT with ≈ 5k tokens",
     "unit": "s",
     "kind": "assumption",
-    "source": "C11 · Requisitos: TTFT de c10 con ≈ 5k tokens (≤ ≈ 1.5 s)",
+    "source": "C11 · Requirements: c10 TTFT with ≈ 5k tokens (≤ ≈ 1.5 s)",
     "ref": "1.5"
    },
    {
@@ -11647,7 +11647,7 @@ export const T = {
     "label": "First-token SLO (p95)",
     "unit": "s",
     "kind": "requirement",
-    "source": "C11 · Requisitos: primer token p95 ≤ 2.5 s",
+    "source": "C11 · Requirements: first token p95 ≤ 2.5 s",
     "ref": "2.5"
    },
    {
@@ -11655,7 +11655,7 @@ export const T = {
     "label": "Typical answer length",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Requisitos: la típica, de ≈ 300 tokens",
+    "source": "C11 · Requirements: the typical one, ≈ 300 tokens",
     "ref": "300"
    },
    {
@@ -11663,7 +11663,7 @@ export const T = {
     "label": "TPOT on the C10 fleet (high end)",
     "unit": "s/token",
     "kind": "assumption",
-    "source": "C11 · Requisitos: ≈ 25–40 ms por token",
+    "source": "C11 · Requirements: ≈ 25–40 ms per token",
     "ref": "0.04"
    },
    {
@@ -11671,7 +11671,7 @@ export const T = {
     "label": "C10 TPOT SLO (p95)",
     "unit": "s/token",
     "kind": "requirement",
-    "source": "C10 · Requisitos: TPOT p95 ≤ 50 ms",
+    "source": "C10 · Requirements: TPOT p95 ≤ 50 ms",
     "ref": "0.05"
    },
    {
@@ -11679,7 +11679,7 @@ export const T = {
     "label": "g6.xlarge on-demand",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: US$0.805 (g6.xlarge on-demand)",
+    "source": "C11 · Estimates: US$0.805 (g6.xlarge on-demand)",
     "ref": "0.805"
    },
    {
@@ -11687,7 +11687,7 @@ export const T = {
     "label": "Thumbs-down rate today",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C11 · Evaluación: pulgar abajo de 20 %",
+    "source": "C11 · Evaluation: thumbs-down at 20 %",
     "ref": "0.2"
    },
    {
@@ -11695,7 +11695,7 @@ export const T = {
     "label": "Thumbs-down rate to detect",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C11 · Evaluación: 20 % → 17 %",
+    "source": "C11 · Evaluation: 20 % → 17 %",
     "ref": "0.17"
    },
    {
@@ -11703,7 +11703,7 @@ export const T = {
     "label": "z for 80 % power",
     "unit": "z",
     "kind": "assumption",
-    "source": "C11 · Evaluación: (1.96 + 0.84)²",
+    "source": "C11 · Evaluation: (1.96 + 0.84)²",
     "ref": "0.84"
    },
    {
@@ -11711,7 +11711,7 @@ export const T = {
     "label": "Share of answers that get a rating",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C11 · Evaluación: si califica ≈ 10 %",
+    "source": "C11 · Evaluation: if ≈ 10 % rate",
     "ref": "0.1"
    },
    {
@@ -11719,7 +11719,7 @@ export const T = {
     "label": "Live answers graded by the judge",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C11 · Monitoreo: groundedness en vivo sobre ≈ 1 %",
+    "source": "C11 · Monitoring: live groundedness on ≈ 1 %",
     "ref": "0.01"
    },
    {
@@ -11727,7 +11727,7 @@ export const T = {
     "label": "Output tokens held in KV (tenant)",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C11 · Estimaciones: (5,300 + 350) × 320 KiB",
+    "source": "C11 · Estimates: (5,300 + 350) × 320 KiB",
     "ref": "350"
    },
    {
@@ -11735,7 +11735,7 @@ export const T = {
     "label": "C10 design peak",
     "unit": "req/s",
     "kind": "requirement",
-    "source": "C10 · Estimaciones: diseño 60 rps",
+    "source": "C10 · Estimates: design 60 rps",
     "ref": "60"
    },
    {
@@ -11743,7 +11743,7 @@ export const T = {
     "label": "C10 typical prompt",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: 1.5 M req × 2,000",
+    "source": "C10 · Estimates: 1.5 M req × 2,000",
     "ref": "2000"
    },
    {
@@ -11751,7 +11751,7 @@ export const T = {
     "label": "C10 typical output",
     "unit": "tokens",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: 1.5 M req × 250",
+    "source": "C10 · Estimates: 1.5 M req × 250",
     "ref": "250"
    },
    {
@@ -11759,7 +11759,7 @@ export const T = {
     "label": "C10 TTFT (planning)",
     "unit": "s",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: TTFT ≈ 0.5 s",
+    "source": "C10 · Estimates: TTFT ≈ 0.5 s",
     "ref": "0.5"
    },
    {
@@ -11767,7 +11767,7 @@ export const T = {
     "label": "C10 TPOT (planning)",
     "unit": "s/token",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: 250 tokens × ≈ 40 ms",
+    "source": "C10 · Estimates: 250 tokens × ≈ 40 ms",
     "ref": "0.04"
    },
    {
@@ -11775,7 +11775,7 @@ export const T = {
     "label": "Layers (Llama 3.x 70B)",
     "unit": "layers",
     "kind": "requirement",
-    "source": "C10 · Estimaciones: 80 capas",
+    "source": "C10 · Estimates: 80 layers",
     "ref": "80"
    },
    {
@@ -11783,7 +11783,7 @@ export const T = {
     "label": "KV heads",
     "unit": "heads",
     "kind": "requirement",
-    "source": "C10 · Estimaciones: 8 heads de KV",
+    "source": "C10 · Estimates: 8 KV heads",
     "ref": "8"
    },
    {
@@ -11791,7 +11791,7 @@ export const T = {
     "label": "Head dim",
     "unit": "dims",
     "kind": "requirement",
-    "source": "C10 · Estimaciones: head_dim 128",
+    "source": "C10 · Estimates: head_dim 128",
     "ref": "128"
    },
    {
@@ -11799,7 +11799,7 @@ export const T = {
     "label": "Bytes per KV element (BF16)",
     "unit": "B",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: KV en BF16, 2 B",
+    "source": "C10 · Estimates: KV in BF16, 2 B",
     "ref": "2"
    },
    {
@@ -11807,7 +11807,7 @@ export const T = {
     "label": "Model params (FP8 = 1 B each)",
     "unit": "B params",
     "kind": "requirement",
-    "source": "C10 · Estimaciones: 70.6 B parámetros; pesos FP8 ≈ 70.6 GB",
+    "source": "C10 · Estimates: 70.6 B parameters; FP8 weights ≈ 70.6 GB",
     "ref": "70.6"
    },
    {
@@ -11815,7 +11815,7 @@ export const T = {
     "label": "GPUs per replica (TP=2)",
     "unit": "GPUs",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: réplica de 2 × H100 (TP=2)",
+    "source": "C10 · Estimates: replica of 2 × H100 (TP=2)",
     "ref": "2"
    },
    {
@@ -11823,7 +11823,7 @@ export const T = {
     "label": "H100 memory",
     "unit": "GB",
     "kind": "benchmark",
-    "source": "C10 · Estimaciones: H100 (80 GB)",
+    "source": "C10 · Estimates: H100 (80 GB)",
     "ref": "80"
    },
    {
@@ -11831,7 +11831,7 @@ export const T = {
     "label": "vLLM --gpu-memory-utilization",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: --gpu-memory-utilization 0.90",
+    "source": "C10 · Estimates: --gpu-memory-utilization 0.90",
     "ref": "0.9"
    },
    {
@@ -11839,7 +11839,7 @@ export const T = {
     "label": "Runtime, activations, CUDA graphs",
     "unit": "GB",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: ≈ 5 GB entre las dos GPUs",
+    "source": "C10 · Estimates: ≈ 5 GB across the two GPUs",
     "ref": "5"
    },
    {
@@ -11847,7 +11847,7 @@ export const T = {
     "label": "Measured replica capacity within SLOs",
     "unit": "req/s",
     "kind": "benchmark",
-    "source": "C10 · Estimaciones: ≈ 6 rps (vllm bench serve; supuesto fuerte)",
+    "source": "C10 · Estimates: ≈ 6 rps (vllm bench serve; strong assumption)",
     "ref": "6"
    },
    {
@@ -11855,7 +11855,7 @@ export const T = {
     "label": "Planned utilization",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: 70 % de 6 = 4.2 rps",
+    "source": "C10 · Estimates: 70 % of 6 = 4.2 rps",
     "ref": "0.7"
    },
    {
@@ -11863,7 +11863,7 @@ export const T = {
     "label": "H100 per p5.48xlarge",
     "unit": "GPUs",
     "kind": "benchmark",
-    "source": "C10 · Estimaciones: una p5.48xlarge tiene 8 H100 = 4 réplicas",
+    "source": "C10 · Estimates: one p5.48xlarge has 8 H100 = 4 replicas",
     "ref": "8"
    },
    {
@@ -11871,7 +11871,7 @@ export const T = {
     "label": "p5.48xlarge on-demand",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: ≈ US$55/h (oct. 2026)",
+    "source": "C10 · Estimates: ≈ US$55/h (Oct. 2026)",
     "ref": "55"
    },
    {
@@ -11879,7 +11879,7 @@ export const T = {
     "label": "Cost month",
     "unit": "h",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: × 730 h",
+    "source": "C10 · Estimates: × 730 h",
     "ref": "730"
    },
    {
@@ -11887,7 +11887,7 @@ export const T = {
     "label": "C10 tokens per month (all tenants)",
     "unit": "tokens/month",
     "kind": "assumption",
-    "source": "C10 · Estimaciones: ≈ 158 B tokens/mes",
+    "source": "C10 · Estimates: ≈ 158 B tokens/month",
     "ref": "158000000000"
    }
   ],
@@ -11897,7 +11897,7 @@ export const T = {
     "label": "Searches per day",
     "unit": "searches/day",
     "kind": "requirement",
-    "source": "C07 · Facts (Escala): ≈ 50 M búsquedas al día",
+    "source": "C07 · Facts (Scale): ≈ 50 M searches per day",
     "ref": "50000000"
    },
    {
@@ -11905,7 +11905,7 @@ export const T = {
     "label": "Peak / average",
     "unit": "×",
     "kind": "requirement",
-    "source": "C07 · Facts (Escala): pico de la tarde ≈ 3× el promedio",
+    "source": "C07 · Facts (Scale): afternoon peak ≈ 3× the average",
     "ref": "3"
    },
    {
@@ -11913,7 +11913,7 @@ export const T = {
     "label": "Photo-query share",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C07 · Facts (Escala): ≈ 5 % son por foto",
+    "source": "C07 · Facts (Scale): ≈ 5 % are photo searches",
     "ref": "0.05"
    },
    {
@@ -11921,7 +11921,7 @@ export const T = {
     "label": "Active listings",
     "unit": "items",
     "kind": "requirement",
-    "source": "C07 · Facts (Escala): ≈ 100 M listings activos",
+    "source": "C07 · Facts (Scale): ≈ 100 M active listings",
     "ref": "100000000"
    },
    {
@@ -11929,7 +11929,7 @@ export const T = {
     "label": "Embedding dimension",
     "unit": "dims",
     "kind": "requirement",
-    "source": "C07 · Facts (Modelo actual): dual encoder tipo CLIP, d = 512",
+    "source": "C07 · Facts (Current model): CLIP-style dual encoder, d = 512",
     "ref": "512"
    },
    {
@@ -11937,7 +11937,7 @@ export const T = {
     "label": "HNSW M",
     "unit": "neighbors",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: grafo HNSW (capa 0), M = 32 → M × 2 × 4 B = 256 B por vector",
+    "source": "C07 · Estimates: HNSW graph (layer 0), M = 32 → M × 2 × 4 B = 256 B per vector",
     "ref": "32"
    },
    {
@@ -11945,7 +11945,7 @@ export const T = {
     "label": "Shards",
     "unit": "shards",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: 4 shards de 25 M (por operación, no por memoria)",
+    "source": "C07 · Estimates: 4 shards of 25 M (by operation, not by memory)",
     "ref": "4"
    },
    {
@@ -11953,7 +11953,7 @@ export const T = {
     "label": "Copies per shard",
     "unit": "copies",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: 4 shards × 2 copias, una por máquina, en 2 zonas",
+    "source": "C07 · Estimates: 4 shards × 2 copies, one per machine, across 2 zones",
     "ref": "2"
    },
    {
@@ -11961,7 +11961,7 @@ export const T = {
     "label": "Planned GPU utilization",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: encoder y reranker planeados al 70 %",
+    "source": "C07 · Estimates: encoder and reranker planned at 70 %",
     "ref": "0.7"
    },
    {
@@ -11969,7 +11969,7 @@ export const T = {
     "label": "Text tower max per L4 (short query)",
     "unit": "queries/s",
     "kind": "benchmark",
-    "source": "C07 · Estimaciones: torre de texto ≈ 5,000 consultas/s por L4 (perf_analyzer)",
+    "source": "C07 · Estimates: text tower ≈ 5,000 queries/s per L4 (perf_analyzer)",
     "ref": "5000"
    },
    {
@@ -11977,7 +11977,7 @@ export const T = {
     "label": "Image tower max per L4 (224×224)",
     "unit": "img/s",
     "kind": "benchmark",
-    "source": "C07 · Estimaciones: torre de imagen ≈ 2,000 img/s por L4",
+    "source": "C07 · Estimates: image tower ≈ 2,000 img/s per L4",
     "ref": "2000"
    },
    {
@@ -11985,7 +11985,7 @@ export const T = {
     "label": "Cross-encoder max per L4 (≤ 64 tokens)",
     "unit": "pairs/s",
     "kind": "benchmark",
-    "source": "C07 · Estimaciones: reranker ≈ 10,000 pares/s por L4 (supuesto a medir)",
+    "source": "C07 · Estimates: reranker ≈ 10,000 pairs/s per L4 (assumption to measure)",
     "ref": "10000"
    },
    {
@@ -11993,7 +11993,7 @@ export const T = {
     "label": "Rerank depth (text only)",
     "unit": "candidates",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: reranker top-30 solo para texto",
+    "source": "C07 · Estimates: top-30 reranker for text only",
     "ref": "30"
    },
    {
@@ -12001,7 +12001,7 @@ export const T = {
     "label": "embed-worker L4s",
     "unit": "GPUs",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: embed-worker 1 × L4 + autoscaling por lag",
+    "source": "C07 · Estimates: embed-worker 1 × L4 + lag-based autoscaling",
     "ref": "1"
    },
    {
@@ -12009,7 +12009,7 @@ export const T = {
     "label": "r7i.4xlarge on-demand",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C07 · Costo: r7i.4xlarge × US$1.0584/h (us-east-1, verifica)",
+    "source": "C07 · Cost: r7i.4xlarge × US$1.0584/h (us-east-1, verify)",
     "ref": "1.0584"
    },
    {
@@ -12017,7 +12017,7 @@ export const T = {
     "label": "g6.xlarge (1 L4) on-demand",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C07 · Costo: g6.xlarge × US$0.805/h",
+    "source": "C07 · Cost: g6.xlarge × US$0.805/h",
     "ref": "0.805"
    },
    {
@@ -12025,7 +12025,7 @@ export const T = {
     "label": "New-infra budget",
     "unit": "US$/month",
     "kind": "requirement",
-    "source": "C07 · Facts (Restricciones): ≈ US$20k al mes de infraestructura nueva",
+    "source": "C07 · Facts (Constraints): ≈ US$20k/month of new infrastructure",
     "ref": "20000"
    },
    {
@@ -12033,7 +12033,7 @@ export const T = {
     "label": "Search availability SLO",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C07 · Requisitos: disponibilidad 99.9 % (BM25-only cuenta como disponible)",
+    "source": "C07 · Requirements: 99.9 % availability (BM25-only counts as available)",
     "ref": "0.999"
    },
    {
@@ -12041,7 +12041,7 @@ export const T = {
     "label": "Judged queries per round",
     "unit": "queries",
     "kind": "assumption",
-    "source": "C07 · Datos: 3,000 consultas × 20 resultados por ronda",
+    "source": "C07 · Data: 3,000 queries × 20 results per round",
     "ref": "3000"
    },
    {
@@ -12049,7 +12049,7 @@ export const T = {
     "label": "Judged results per query",
     "unit": "results",
     "kind": "assumption",
-    "source": "C07 · Datos: 3,000 consultas × 20 resultados por ronda",
+    "source": "C07 · Data: 3,000 queries × 20 results per round",
     "ref": "20"
    },
    {
@@ -12057,7 +12057,7 @@ export const T = {
     "label": "Price per human judgment",
     "unit": "US$",
     "kind": "assumption",
-    "source": "C07 · Datos: ≈ US$0.05 por juicio",
+    "source": "C07 · Data: ≈ US$0.05 per judgment",
     "ref": "0.05"
    },
    {
@@ -12065,7 +12065,7 @@ export const T = {
     "label": "Searches ending in contact",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C07 · Datos: ≈ 5 % de las búsquedas termina en contacto; Evaluación: p ≈ 5 %",
+    "source": "C07 · Data: ≈ 5 % of searches end in a contact; Evaluation: p ≈ 5 %",
     "ref": "0.05"
    },
    {
@@ -12073,7 +12073,7 @@ export const T = {
     "label": "S3 Standard",
     "unit": "US$/GB-month",
     "kind": "assumption",
-    "source": "Hoja de números (costos): S3 Standard ≈ US$0.023/GB-mes; C07 · Arquitectura: ≈ 205 GB FP32 ≈ US$5/mes",
+    "source": "Numbers sheet (costs): S3 Standard ≈ US$0.023/GB-month; C07 · Architecture: ≈ 205 GB FP32 ≈ US$5/month",
     "ref": "0.023"
    },
    {
@@ -12081,7 +12081,7 @@ export const T = {
     "label": "Text tower per L4 (title + attributes)",
     "unit": "items/s",
     "kind": "benchmark",
-    "source": "C07 · Estimaciones: re-embedding, torre de texto ≈ 3,000/s (más largo que una consulta)",
+    "source": "C07 · Estimates: re-embedding, text tower ≈ 3,000/s (longer than a query)",
     "ref": "3000"
    },
    {
@@ -12089,7 +12089,7 @@ export const T = {
     "label": "L4s for the re-embedding job",
     "unit": "GPUs",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: re-embedding en 8 L4",
+    "source": "C07 · Estimates: re-embedding on 8 L4",
     "ref": "8"
    },
    {
@@ -12097,7 +12097,7 @@ export const T = {
     "label": "JPEG decode CPU per thumbnail",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: 16,000 img/s × ≈ 1.5 ms de CPU",
+    "source": "C07 · Estimates: 16,000 img/s × ≈ 1.5 ms of CPU",
     "ref": "1.5"
    },
    {
@@ -12105,7 +12105,7 @@ export const T = {
     "label": "OpenSearch heap",
     "unit": "GB",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: heap de OpenSearch ≈ 16 GB (supuesto)",
+    "source": "C07 · Estimates: OpenSearch heap ≈ 16 GB (assumption)",
     "ref": "16"
    },
    {
@@ -12113,7 +12113,7 @@ export const T = {
     "label": "Engine overhead on graph + int8",
     "unit": "×",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: + ≈ 10 % de overhead (OpenSearch estima ≈ 1.1×)",
+    "source": "C07 · Estimates: + ≈ 10 % overhead (OpenSearch estimates ≈ 1.1×)",
     "ref": "1.1"
    },
    {
@@ -12121,7 +12121,7 @@ export const T = {
     "label": "r7i.4xlarge RAM",
     "unit": "GB",
     "kind": "benchmark",
-    "source": "C07 · Estimaciones: r7i.4xlarge 128 GiB ≈ 137 GB",
+    "source": "C07 · Estimates: r7i.4xlarge 128 GiB ≈ 137 GB",
     "ref": "137"
    },
    {
@@ -12129,7 +12129,7 @@ export const T = {
     "label": "r7i.4xlarge vCPU",
     "unit": "vCPU",
     "kind": "benchmark",
-    "source": "C07 · Estimaciones: 16 vCPU, 128 GiB",
+    "source": "C07 · Estimates: 16 vCPU, 128 GiB",
     "ref": "16"
    },
    {
@@ -12137,7 +12137,7 @@ export const T = {
     "label": "ANN CPU per query per shard",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: ≈ 2 ms por consulta en un shard de 25 M (HNSW int8 + rescoring)",
+    "source": "C07 · Estimates: ≈ 2 ms per query on a 25 M shard (HNSW int8 + rescoring)",
     "ref": "2"
    },
    {
@@ -12145,7 +12145,7 @@ export const T = {
     "label": "FP32 rescoring candidates per shard",
     "unit": "candidates",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: rescorear el top-200 con FP32",
+    "source": "C07 · Estimates: rescore the top-200 with FP32",
     "ref": "200"
    },
    {
@@ -12153,7 +12153,7 @@ export const T = {
     "label": "New listings per day",
     "unit": "items/day",
     "kind": "requirement",
-    "source": "C07 · Facts (Escala): ≈ 2.5 M listings nuevos al día",
+    "source": "C07 · Facts (Scale): ≈ 2.5 M new listings per day",
     "ref": "2500000"
    },
    {
@@ -12161,7 +12161,7 @@ export const T = {
     "label": "Title / main-photo edits per day",
     "unit": "items/day",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: ediciones de título o foto principal ≈ 0.5 M/día",
+    "source": "C07 · Estimates: title or main-photo edits ≈ 0.5 M/day",
     "ref": "500000"
    },
    {
@@ -12169,7 +12169,7 @@ export const T = {
     "label": "Sold / expired / removed per day",
     "unit": "items/day",
     "kind": "requirement",
-    "source": "C07 · Facts (Escala): salen otros tantos (≈ 2.5 M/día)",
+    "source": "C07 · Facts (Scale): as many leave (≈ 2.5 M/day)",
     "ref": "2500000"
    },
    {
@@ -12177,7 +12177,7 @@ export const T = {
     "label": "Minimum detectable lift (relative)",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C07 · Evaluación: +2 % relativo en contactos por búsqueda",
+    "source": "C07 · Evaluation: +2 % relative in contacts per search",
     "ref": "0.02"
    },
    {
@@ -12185,7 +12185,7 @@ export const T = {
     "label": "Traffic per A/B arm",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C07 · Evaluación: 10 % del tráfico por brazo",
+    "source": "C07 · Evaluation: 10 % of traffic per arm",
     "ref": "0.1"
    },
    {
@@ -12193,7 +12193,7 @@ export const T = {
     "label": "Blue kept for rollback",
     "unit": "days",
     "kind": "assumption",
-    "source": "C07 · Serving: blue queda 7 días para rollback",
+    "source": "C07 · Serving: blue stays 7 days for rollback",
     "ref": "7"
    },
    {
@@ -12201,7 +12201,7 @@ export const T = {
     "label": "Query latency percentile",
     "unit": "quantile",
     "kind": "requirement",
-    "source": "C07 · Requisitos: latencia texto p99 ≤ 300 ms",
+    "source": "C07 · Requirements: text latency p99 ≤ 300 ms",
     "ref": "0.99"
    },
    {
@@ -12209,7 +12209,7 @@ export const T = {
     "label": "Text p99 server-side",
     "unit": "ms",
     "kind": "requirement",
-    "source": "C07 · Requisitos: p99 ≤ 300 ms del lado del servidor",
+    "source": "C07 · Requirements: p99 ≤ 300 ms server-side",
     "ref": "300"
    },
    {
@@ -12217,7 +12217,7 @@ export const T = {
     "label": "Receive / validate / split filters",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Serving: presupuesto de una consulta de texto, ≈ 2 ms",
+    "source": "C07 · Serving: text query budget, ≈ 2 ms",
     "ref": "2"
    },
    {
@@ -12225,7 +12225,7 @@ export const T = {
     "label": "Query cache lookup",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Serving: caché ≈ 1–2 ms (camino crítico usa 2)",
+    "source": "C07 · Serving: cache ≈ 1–2 ms (critical path uses 2)",
     "ref": "2"
    },
    {
@@ -12233,7 +12233,7 @@ export const T = {
     "label": "BM25 with filters",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Serving: BM25 con filtros ≈ 40 ms",
+    "source": "C07 · Serving: BM25 with filters ≈ 40 ms",
     "ref": "40"
    },
    {
@@ -12241,7 +12241,7 @@ export const T = {
     "label": "Text encoder incl. network",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Serving: encoder 15 ms en el camino crítico",
+    "source": "C07 · Serving: encoder 15 ms on the critical path",
     "ref": "15"
    },
    {
@@ -12249,7 +12249,7 @@ export const T = {
     "label": "ANN scatter-gather",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Serving: ANN 25 ms en el camino crítico",
+    "source": "C07 · Serving: ANN 25 ms on the critical path",
     "ref": "25"
    },
    {
@@ -12265,7 +12265,7 @@ export const T = {
     "label": "RRF + rules",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Serving: RRF + reglas ≈ 10 ms",
+    "source": "C07 · Serving: RRF + rules ≈ 10 ms",
     "ref": "10"
    },
    {
@@ -12273,7 +12273,7 @@ export const T = {
     "label": "Reranker top-30",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Serving: reranker top-30 ≈ 25 ms",
+    "source": "C07 · Serving: top-30 reranker ≈ 25 ms",
     "ref": "25"
    },
    {
@@ -12281,7 +12281,7 @@ export const T = {
     "label": "Hydrate 48 results",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Serving: hidratar 48 resultados ≈ 10 ms",
+    "source": "C07 · Serving: hydrate 48 results ≈ 10 ms",
     "ref": "10"
    },
    {
@@ -12289,7 +12289,7 @@ export const T = {
     "label": "Photo decode + resize CPU",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C07 · Estimaciones: ≈ 90 fotos/s × ≈ 15 ms",
+    "source": "C07 · Estimates: ≈ 90 photos/s × ≈ 15 ms",
     "ref": "15"
    },
    {
@@ -12297,7 +12297,7 @@ export const T = {
     "label": "Fast-burn factor (1 h)",
     "unit": "×",
     "kind": "assumption",
-    "source": "M12 · SLOs, error budget y burn rate: 2 % del presupuesto en 1 h → 14.4×",
+    "source": "M12 · SLOs, error budget and burn rate: 2 % of the budget in 1 h → 14.4×",
     "ref": "14.4"
    },
    {
@@ -12305,7 +12305,7 @@ export const T = {
     "label": "EmbedWorkerBacklog threshold",
     "unit": "min",
     "kind": "assumption",
-    "source": "C07 · Monitoreo: atraso del consumer group > 3 min",
+    "source": "C07 · Monitoring: consumer group lag > 3 min",
     "ref": "3"
    },
    {
@@ -12313,7 +12313,7 @@ export const T = {
     "label": "EmbedWorkerBacklog for",
     "unit": "min",
     "kind": "assumption",
-    "source": "C07 · Monitoreo: … durante 10 min",
+    "source": "C07 · Monitoring: … for 10 min",
     "ref": "10"
    }
   ],
@@ -12323,7 +12323,7 @@ export const T = {
     "label": "Meetings per day",
     "unit": "meetings/day",
     "kind": "requirement",
-    "source": "C13 · Facts (Escala): ≈ 2 M de reuniones al día",
+    "source": "C13 · Facts (Scale): ≈ 2 M meetings per day",
     "ref": "2000000"
    },
    {
@@ -12331,7 +12331,7 @@ export const T = {
     "label": "Meetings with captions",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C13 · Facts (Escala): ≈ 30 % activa subtítulos",
+    "source": "C13 · Facts (Scale): ≈ 30 % enable captions",
     "ref": "0.3"
    },
    {
@@ -12339,7 +12339,7 @@ export const T = {
     "label": "Average meeting length",
     "unit": "min",
     "kind": "requirement",
-    "source": "C13 · Facts (Escala): 40 min en promedio",
+    "source": "C13 · Facts (Scale): 40 min on average",
     "ref": "40"
    },
    {
@@ -12347,7 +12347,7 @@ export const T = {
     "label": "Participants per meeting",
     "unit": "tracks",
     "kind": "requirement",
-    "source": "C13 · Facts (Escala): ≈ 4 participantes",
+    "source": "C13 · Facts (Scale): ≈ 4 participants",
     "ref": "4"
    },
    {
@@ -12355,7 +12355,7 @@ export const T = {
     "label": "Peak / average",
     "unit": "×",
     "kind": "requirement",
-    "source": "C13 · Facts (Escala): pico ≈ 3× el promedio",
+    "source": "C13 · Facts (Scale): peak ≈ 3× the average",
     "ref": "3"
    },
    {
@@ -12363,7 +12363,7 @@ export const T = {
     "label": "Concurrent speakers per meeting",
     "unit": "speakers",
     "kind": "requirement",
-    "source": "C13 · Facts (Escala): hablan en promedio ≈ 1.2 personas por reunión",
+    "source": "C13 · Facts (Scale): on average ≈ 1.2 people speak per meeting",
     "ref": "1.2"
    },
    {
@@ -12371,7 +12371,7 @@ export const T = {
     "label": "Max streams per L4 (160 ms chunks)",
     "unit": "streams",
     "kind": "benchmark",
-    "source": "C13 · Estimaciones: máximo por L4 ≈ 500 streams (supuesto fuerte: lo primero que mides)",
+    "source": "C13 · Estimates: max per L4 ≈ 500 streams (strong assumption: the first thing you measure)",
     "ref": "500"
    },
    {
@@ -12379,7 +12379,7 @@ export const T = {
     "label": "Planned GPU utilization",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: planeado al 70 % de lo medido",
+    "source": "C13 · Estimates: planned at 70 % of the measured value",
     "ref": "0.7"
    },
    {
@@ -12387,7 +12387,7 @@ export const T = {
     "label": "Chunk size",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C13 · Estimaciones / Serving: fragmentos de 160 ms",
+    "source": "C13 · Estimates / Serving: 160 ms chunks",
     "ref": "160"
    },
    {
@@ -12395,7 +12395,7 @@ export const T = {
     "label": "Billed L4 fleet, average",
     "unit": "GPUs",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: la flota facturada promedia ≈ 94–100 L4 (costea con ≈ 100)",
+    "source": "C13 · Estimates: billed fleet averages ≈ 94–100 L4 (cost it at ≈ 100)",
     "ref": "100"
    },
    {
@@ -12403,7 +12403,7 @@ export const T = {
     "label": "g6.xlarge (1 L4) on-demand",
     "unit": "US$/h",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: g6.xlarge ≈ US$0.805/h on-demand",
+    "source": "C13 · Estimates: g6.xlarge ≈ US$0.805/h on-demand",
     "ref": "0.805"
    },
    {
@@ -12411,7 +12411,7 @@ export const T = {
     "label": "Managed streaming API, list",
     "unit": "US$/min",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: Amazon Transcribe streaming US$0.01/min (lista, oct. 2026)",
+    "source": "C13 · Estimates: Amazon Transcribe streaming US$0.01/min (list price, Oct. 2026)",
     "ref": "0.01"
    },
    {
@@ -12419,7 +12419,7 @@ export const T = {
     "label": "SFU → gateway per track",
     "unit": "kb/s",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: Opus ≈ 32 kb/s + RTP/gRPC ≈ 16 kb/s",
+    "source": "C13 · Estimates: Opus ≈ 32 kb/s + RTP/gRPC ≈ 16 kb/s",
     "ref": "48"
    },
    {
@@ -12427,7 +12427,7 @@ export const T = {
     "label": "Captioned-minute availability",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C13 · Requisitos: ≥ 99.5 % de los minutos con subtítulos activados tienen subtítulos",
+    "source": "C13 · Requirements: ≥ 99.5 % of minutes with captions enabled have captions",
     "ref": "0.995"
    },
    {
@@ -12435,7 +12435,7 @@ export const T = {
     "label": "Captioned minutes with \"save\" on",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (Almacenamiento): 40 % con “guardar” activado",
+    "source": "C13 · Estimates (Storage): 40 % with \"save\" enabled",
     "ref": "0.4"
    },
    {
@@ -12443,7 +12443,7 @@ export const T = {
     "label": "Transcript + metadata per minute",
     "unit": "KB/min",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (Almacenamiento): ≈ 3 KB/min",
+    "source": "C13 · Estimates (Storage): ≈ 3 KB/min",
     "ref": "3"
    },
    {
@@ -12451,7 +12451,7 @@ export const T = {
     "label": "Transcript retention",
     "unit": "days",
     "kind": "requirement",
-    "source": "C13 · Facts (Restricciones): se retienen ≈ 30 días",
+    "source": "C13 · Facts (Constraints): retained ≈ 30 days",
     "ref": "30"
    },
    {
@@ -12459,7 +12459,7 @@ export const T = {
     "label": "Speech rate",
     "unit": "words/min",
     "kind": "assumption",
-    "source": "C13 · Datos: ≈ 140 palabras por minuto",
+    "source": "C13 · Data: ≈ 140 words per minute",
     "ref": "140"
    },
    {
@@ -12467,7 +12467,7 @@ export const T = {
     "label": "Reference WER for a slice",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C13 · Datos: con un WER de 15 %; Requisitos: ≤ 12–15 % (es, pt)",
+    "source": "C13 · Data: at a WER of 15 %; Requirements: ≤ 12–15 % (es, pt)",
     "ref": "0.15"
    },
    {
@@ -12475,7 +12475,7 @@ export const T = {
     "label": "Worst slice vs language average",
     "unit": "×",
     "kind": "requirement",
-    "source": "C13 · Requisitos: ningún slice peor que 1.5× el promedio de su idioma",
+    "source": "C13 · Requirements: no slice worse than 1.5× its language's average",
     "ref": "1.5"
    },
    {
@@ -12507,7 +12507,7 @@ export const T = {
     "label": "L4 VRAM",
     "unit": "GB",
     "kind": "benchmark",
-    "source": "C13 · Serving: poco frente a 24 GB de la L4",
+    "source": "C13 · Serving: small next to the L4's 24 GB",
     "ref": "24"
    },
    {
@@ -12515,7 +12515,7 @@ export const T = {
     "label": "PCM sample rate to workers",
     "unit": "Hz",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (Red): PCM 16 kHz, 16 bits",
+    "source": "C13 · Estimates (Network): PCM 16 kHz, 16 bits",
     "ref": "16000"
    },
    {
@@ -12523,7 +12523,7 @@ export const T = {
     "label": "PCM bits per sample",
     "unit": "bits",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (Red): PCM 16 kHz, 16 bits",
+    "source": "C13 · Estimates (Network): PCM 16 kHz, 16 bits",
     "ref": "16"
    },
    {
@@ -12531,7 +12531,7 @@ export const T = {
     "label": "Gateway CPU per second of voiced audio",
     "unit": "ms/s",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (CPU): ≈ 3 ms por segundo de audio",
+    "source": "C13 · Estimates (CPU): ≈ 3 ms per second of audio",
     "ref": "3"
    },
    {
@@ -12539,7 +12539,7 @@ export const T = {
     "label": "Gateway CPU per second, silent track",
     "unit": "ms/s",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (CPU): 130k × 0.3 ms (solo recibir paquetes)",
+    "source": "C13 · Estimates (CPU): 130k × 0.3 ms (packet receive only)",
     "ref": "0.3"
    },
    {
@@ -12547,7 +12547,7 @@ export const T = {
     "label": "Extra decoded tracks (VAD hangover)",
     "unit": "tracks",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (CPU): ≈ 70k (60k + hangover)",
+    "source": "C13 · Estimates (CPU): ≈ 70k (60k + hangover)",
     "ref": "10000"
    },
    {
@@ -12555,7 +12555,7 @@ export const T = {
     "label": "Gateway planned CPU utilization",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (CPU): planeadas al ≈ 60 %",
+    "source": "C13 · Estimates (CPU): planned at ≈ 60 %",
     "ref": "0.6"
    },
    {
@@ -12563,7 +12563,7 @@ export const T = {
     "label": "vCPU per c6i.xlarge",
     "unit": "vCPU",
     "kind": "benchmark",
-    "source": "C13 · Estimaciones (CPU): ≈ 105 × c6i.xlarge para 420 vCPU",
+    "source": "C13 · Estimates (CPU): ≈ 105 × c6i.xlarge for 420 vCPU",
     "ref": "4"
    },
    {
@@ -12571,7 +12571,7 @@ export const T = {
     "label": "Gateway memory per session",
     "unit": "KB",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (CPU): ≈ 100–300 KB por sesión (200k × 300 KB ≈ 60 GB)",
+    "source": "C13 · Estimates (CPU): ≈ 100–300 KB per session (200k × 300 KB ≈ 60 GB)",
     "ref": "300"
    },
    {
@@ -12579,7 +12579,7 @@ export const T = {
     "label": "Hard stream cap / estimated max",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C13 · Serving: MAX_STREAMS = 450, 90 % de los 500 estimados",
+    "source": "C13 · Serving: MAX_STREAMS = 450, 90 % of the 500 estimated",
     "ref": "0.9"
    },
    {
@@ -12587,7 +12587,7 @@ export const T = {
     "label": "Max phrase length",
     "unit": "s",
     "kind": "assumption",
-    "source": "C13 · Serving: tope de 20 s por frase",
+    "source": "C13 · Serving: 20 s cap per phrase",
     "ref": "20"
    },
    {
@@ -12595,7 +12595,7 @@ export const T = {
     "label": "Endpointing silence",
     "unit": "s",
     "kind": "assumption",
-    "source": "C13 · Serving: 600 ms de silencio",
+    "source": "C13 · Serving: 600 ms of silence",
     "ref": "0.6"
    },
    {
@@ -12603,7 +12603,7 @@ export const T = {
     "label": "preStop drain wait",
     "unit": "s",
     "kind": "assumption",
-    "source": "C13 · Serving: el preStop de la referencia espera hasta 60 s",
+    "source": "C13 · Serving: the reference's preStop waits up to 60 s",
     "ref": "60"
    },
    {
@@ -12611,7 +12611,7 @@ export const T = {
     "label": "Sessions cap per worker",
     "unit": "sessions",
     "kind": "assumption",
-    "source": "C13 · Serving: MAX_SESSIONS = 1,500 en la referencia",
+    "source": "C13 · Serving: MAX_SESSIONS = 1,500 in the reference",
     "ref": "1500"
    },
    {
@@ -12619,7 +12619,7 @@ export const T = {
     "label": "Sessions crossing zones without affinity",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (quiz): con 2/3 de las sesiones cruzando",
+    "source": "C13 · Estimates (quiz): with 2/3 of sessions crossing",
     "ref": "0.6667"
    },
    {
@@ -12627,7 +12627,7 @@ export const T = {
     "label": "Cross-AZ transfer (both directions)",
     "unit": "US$/GB",
     "kind": "assumption",
-    "source": "C13 · Estimaciones (Red): US$0.01/GB en cada sentido (M13)",
+    "source": "C13 · Estimates (Network): US$0.01/GB in each direction (M13)",
     "ref": "0.02"
    },
    {
@@ -12635,7 +12635,7 @@ export const T = {
     "label": "Canary share of new sessions",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C13 · Arquitectura: el router le manda un 5 % de las sesiones nuevas (de español) al grupo canary",
+    "source": "C13 · Architecture: the router sends 5 % of new sessions (Spanish) to the canary group",
     "ref": "0.05"
    },
    {
@@ -12643,7 +12643,7 @@ export const T = {
     "label": "Capture + Opus encode",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: presupuesto de un parcial, típico ≈ 25 ms",
+    "source": "C13 · Estimates: budget for a partial, typical ≈ 25 ms",
     "ref": "25"
    },
    {
@@ -12651,7 +12651,7 @@ export const T = {
     "label": "Network one way (client ↔ region)",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: red cliente → SFU ≈ 60 ms (y la vuelta igual)",
+    "source": "C13 · Estimates: client → SFU network ≈ 60 ms (and the same back)",
     "ref": "60"
    },
    {
@@ -12659,7 +12659,7 @@ export const T = {
     "label": "SFU → gateway, decode, VAD",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: ≈ 5 ms",
+    "source": "C13 · Estimates: ≈ 5 ms",
     "ref": "5"
    },
    {
@@ -12667,7 +12667,7 @@ export const T = {
     "label": "Queue + sequence batching",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: ≈ 15 ms",
+    "source": "C13 · Estimates: ≈ 15 ms",
     "ref": "15"
    },
    {
@@ -12675,7 +12675,7 @@ export const T = {
     "label": "Model step",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: cómputo del paso ≈ 25 ms",
+    "source": "C13 · Estimates: step compute ≈ 25 ms",
     "ref": "25"
    },
    {
@@ -12683,7 +12683,7 @@ export const T = {
     "label": "caption-bus + signaling",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: ≈ 15 ms",
+    "source": "C13 · Estimates: ≈ 15 ms",
     "ref": "15"
    },
    {
@@ -12691,7 +12691,7 @@ export const T = {
     "label": "Client render",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: un frame de la UI ≈ 16 ms",
+    "source": "C13 · Estimates: one UI frame ≈ 16 ms",
     "ref": "16"
    },
    {
@@ -12699,7 +12699,7 @@ export const T = {
     "label": "Partials p95 end to end",
     "unit": "ms",
     "kind": "requirement",
-    "source": "C13 · Requisitos: parciales p95 ≤ 500 ms",
+    "source": "C13 · Requirements: partials p95 ≤ 500 ms",
     "ref": "500"
    },
    {
@@ -12707,7 +12707,7 @@ export const T = {
     "label": "Max partials per stream",
     "unit": "msg/s",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: ≤ 5 por segundo (solo si el texto cambió)",
+    "source": "C13 · Estimates: ≤ 5 per second (only if the text changed)",
     "ref": "5"
    },
    {
@@ -12715,7 +12715,7 @@ export const T = {
     "label": "Bytes per caption message",
     "unit": "B",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: 1.2 M × ≈ 200 B",
+    "source": "C13 · Estimates: 1.2 M × ≈ 200 B",
     "ref": "200"
    },
    {
@@ -12723,7 +12723,7 @@ export const T = {
     "label": "Average phrase length",
     "unit": "s",
     "kind": "assumption",
-    "source": "C13 · Estimaciones: 60k ÷ ≈ 4 s por frase",
+    "source": "C13 · Estimates: 60k ÷ ≈ 4 s per phrase",
     "ref": "4"
    },
    {
@@ -12731,7 +12731,7 @@ export const T = {
     "label": "Fast-burn factor (1 h)",
     "unit": "×",
     "kind": "assumption",
-    "source": "M12 · SLOs, error budget y burn rate: 2 % del presupuesto en 1 h → 14.4×",
+    "source": "M12 · SLOs, error budget and burn rate: 2 % of the budget in 1 h → 14.4×",
     "ref": "14.4"
    },
    {
@@ -12739,7 +12739,7 @@ export const T = {
     "label": "Step-time alert / chunk",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C13 · Monitoreo: GPUStreamSaturation, paso > 128 ms (80 % del fragmento de 160 ms)",
+    "source": "C13 · Monitoring: GPUStreamSaturation, step > 128 ms (80 % of the 160 ms chunk)",
     "ref": "0.8"
    },
    {
@@ -12747,7 +12747,7 @@ export const T = {
     "label": "Reference words for CanaryWERRegression",
     "unit": "words",
     "kind": "assumption",
-    "source": "C13 · Monitoreo: con ≥ 5,000 palabras de referencia, durante 30 min",
+    "source": "C13 · Monitoring: with ≥ 5,000 reference words, over 30 min",
     "ref": "5000"
    }
   ],
@@ -12757,7 +12757,7 @@ export const T = {
     "label": "Pieces per second per line",
     "unit": "pieces/s",
     "kind": "requirement",
-    "source": "C03 · Facts (Escala): 2 piezas/s (120 por minuto)",
+    "source": "C03 · Facts (Scale): 2 pieces/s (120 per minute)",
     "ref": "2"
    },
    {
@@ -12765,7 +12765,7 @@ export const T = {
     "label": "Shift length",
     "unit": "h",
     "kind": "requirement",
-    "source": "C03 · Facts (Escala): 2 turnos de 8 h",
+    "source": "C03 · Facts (Scale): 2 shifts of 8 h",
     "ref": "8"
    },
    {
@@ -12773,7 +12773,7 @@ export const T = {
     "label": "Shifts per day",
     "unit": "shifts",
     "kind": "requirement",
-    "source": "C03 · Facts (Escala): 2 turnos de 8 h; de noche no se produce",
+    "source": "C03 · Facts (Scale): 2 shifts of 8 h; no production at night",
     "ref": "2"
    },
    {
@@ -12781,7 +12781,7 @@ export const T = {
     "label": "Lines",
     "unit": "lines",
     "kind": "requirement",
-    "source": "C03 · Facts (Escala): 4 líneas",
+    "source": "C03 · Facts (Scale): 4 lines",
     "ref": "4"
    },
    {
@@ -12789,7 +12789,7 @@ export const T = {
     "label": "Defect rate",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C03 · Facts (Escala): tasa de defectos ≈ 0.5 %",
+    "source": "C03 · Facts (Scale): defect rate ≈ 0.5 %",
     "ref": "0.005"
    },
    {
@@ -12797,7 +12797,7 @@ export const T = {
     "label": "Belt speed",
     "unit": "m/s",
     "kind": "requirement",
-    "source": "C03 · Facts (Latencia): banda a 0.6 m/s",
+    "source": "C03 · Facts (Latency): belt at 0.6 m/s",
     "ref": "0.6"
    },
    {
@@ -12805,7 +12805,7 @@ export const T = {
     "label": "Camera → diverter distance",
     "unit": "m",
     "kind": "requirement",
-    "source": "C03 · Facts (Latencia): la cámara puede ir 0.3 m antes del desviador",
+    "source": "C03 · Facts (Latency): the camera can sit 0.3 m before the diverter",
     "ref": "0.3"
    },
    {
@@ -12813,7 +12813,7 @@ export const T = {
     "label": "PLC + valve + diverter",
     "unit": "ms",
     "kind": "requirement",
-    "source": "C03 · Facts (Latencia): decisión 150 ms antes de la compuerta",
+    "source": "C03 · Facts (Latency): decision 150 ms before the gate",
     "ref": "150"
    },
    {
@@ -12821,7 +12821,7 @@ export const T = {
     "label": "Trigger → image in memory",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C03 · Estimaciones (deadline): ≈ 50 ms",
+    "source": "C03 · Estimates (deadline): ≈ 50 ms",
     "ref": "50"
    },
    {
@@ -12829,7 +12829,7 @@ export const T = {
     "label": "Preprocessing (crop, normalize, tiles)",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C03 · Estimaciones (deadline): ≈ 20 ms",
+    "source": "C03 · Estimates (deadline): ≈ 20 ms",
     "ref": "20"
    },
    {
@@ -12837,7 +12837,7 @@ export const T = {
     "label": "TensorRT inference, 20 tiles",
     "unit": "ms",
     "kind": "benchmark",
-    "source": "C03 · Estimaciones (deadline): ≤ 120 ms (presupuesto; mídelo con trtexec)",
+    "source": "C03 · Estimates (deadline): ≤ 120 ms (budget; measure it with trtexec)",
     "ref": "120"
    },
    {
@@ -12845,7 +12845,7 @@ export const T = {
     "label": "Decision + Modbus TCP write",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C03 · Estimaciones (deadline): ≈ 10 ms",
+    "source": "C03 · Estimates (deadline): ≈ 10 ms",
     "ref": "10"
    },
    {
@@ -12853,7 +12853,7 @@ export const T = {
     "label": "Write reserve before deadline",
     "unit": "ms",
     "kind": "assumption",
-    "source": "C03 · Serving: reserva de 50 ms (2 × 20 ms de timeout del PLC)",
+    "source": "C03 · Serving: 50 ms reserve (2 × 20 ms PLC timeout)",
     "ref": "50"
    },
    {
@@ -12861,7 +12861,7 @@ export const T = {
     "label": "Inspector time per piece",
     "unit": "s",
     "kind": "requirement",
-    "source": "C03 · Facts (Modelo actual): el inspector revisa ≈ 1 pieza cada 15 s",
+    "source": "C03 · Facts (Current model): the inspector checks ≈ 1 piece every 15 s",
     "ref": "15"
    },
    {
@@ -12869,7 +12869,7 @@ export const T = {
     "label": "False-positive target",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C03 · Requisitos: FP ≤ 1.5 % de las piezas buenas",
+    "source": "C03 · Requirements: FP ≤ 1.5 % of good pieces",
     "ref": "0.015"
    },
    {
@@ -12877,7 +12877,7 @@ export const T = {
     "label": "Recall per defect type",
     "unit": "fraction",
     "kind": "requirement",
-    "source": "C03 · Facts: recall ≥ 99.5 % por tipo de defecto",
+    "source": "C03 · Facts: recall ≥ 99.5 % per defect type",
     "ref": "0.995"
    },
    {
@@ -12885,7 +12885,7 @@ export const T = {
     "label": "Image width",
     "unit": "px",
     "kind": "assumption",
-    "source": "C03 · Estimaciones: cámara mono 5 MP, 2,448 × 2,048",
+    "source": "C03 · Estimates: mono 5 MP camera, 2,448 × 2,048",
     "ref": "2448"
    },
    {
@@ -12893,7 +12893,7 @@ export const T = {
     "label": "Image height",
     "unit": "px",
     "kind": "assumption",
-    "source": "C03 · Estimaciones: 2,448 × 2,048",
+    "source": "C03 · Estimates: 2,448 × 2,048",
     "ref": "2048"
    },
    {
@@ -12901,7 +12901,7 @@ export const T = {
     "label": "Field of view, long side",
     "unit": "mm",
     "kind": "assumption",
-    "source": "C03 · Estimaciones: campo de visión de 150 mm (supuesto)",
+    "source": "C03 · Estimates: 150 mm field of view (assumption)",
     "ref": "150"
    },
    {
@@ -12909,7 +12909,7 @@ export const T = {
     "label": "Finest crack that matters",
     "unit": "mm",
     "kind": "requirement",
-    "source": "C03 · Facts (Entrada): fisuras de ≈ 0.2 mm",
+    "source": "C03 · Facts (Input): cracks of ≈ 0.2 mm",
     "ref": "0.2"
    },
    {
@@ -12917,7 +12917,7 @@ export const T = {
     "label": "Downscaled width (rejected option)",
     "unit": "px",
     "kind": "assumption",
-    "source": "C03 · Estimaciones: si reduces la imagen a 1,024 px de ancho",
+    "source": "C03 · Estimates: if you downscale the image to 1,024 px width",
     "ref": "1024"
    },
    {
@@ -12925,7 +12925,7 @@ export const T = {
     "label": "Tile size",
     "unit": "px",
     "kind": "assumption",
-    "source": "C03 · Estimaciones: tiles de 512 × 512 sin reducir",
+    "source": "C03 · Estimates: 512 × 512 tiles without downscaling",
     "ref": "512"
    },
    {
@@ -12933,7 +12933,7 @@ export const T = {
     "label": "Effective 1 GigE throughput",
     "unit": "MB/s",
     "kind": "benchmark",
-    "source": "C03 · Estimaciones: ≈ 115–120 MB/s; transferencia 5.0 MB ÷ ≈ 117 MB/s",
+    "source": "C03 · Estimates: ≈ 115–120 MB/s; transfer 5.0 MB ÷ ≈ 117 MB/s",
     "ref": "117"
    },
    {
@@ -12941,7 +12941,7 @@ export const T = {
     "label": "Decision record size",
     "unit": "B",
     "kind": "assumption",
-    "source": "C03 · Estimaciones (Almacenamiento): 115,200 × ≈ 300 B",
+    "source": "C03 · Estimates (Storage): 115,200 × ≈ 300 B",
     "ref": "300"
    },
    {
@@ -12949,7 +12949,7 @@ export const T = {
     "label": "Approved-piece sample",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C03 · Estimaciones (Almacenamiento): muestra de aprobadas (1 %)",
+    "source": "C03 · Estimates (Storage): sample of approved pieces (1 %)",
     "ref": "0.01"
    },
    {
@@ -12957,7 +12957,7 @@ export const T = {
     "label": "Inspector label time",
     "unit": "s",
     "kind": "assumption",
-    "source": "C03 · Datos: el label cuesta ≈ 2 s",
+    "source": "C03 · Data: the label costs ≈ 2 s",
     "ref": "2"
    },
    {
@@ -12965,7 +12965,7 @@ export const T = {
     "label": "Required offline operation",
     "unit": "h",
     "kind": "requirement",
-    "source": "C03 · Facts (Latencia): ≥ 72 h sin nube",
+    "source": "C03 · Facts (Latency): ≥ 72 h without cloud",
     "ref": "72"
    },
    {
@@ -12973,7 +12973,7 @@ export const T = {
     "label": "Free uplink for catch-up",
     "unit": "Mb/s",
     "kind": "assumption",
-    "source": "C03 · Estimaciones (Almacenamiento): ≈ 50 Mb/s libres",
+    "source": "C03 · Estimates (Storage): ≈ 50 Mb/s free",
     "ref": "50"
    },
    {
@@ -12981,7 +12981,7 @@ export const T = {
     "label": "Hardware (4 stations + PPE box + CI Jetson), high end",
     "unit": "US$",
     "kind": "assumption",
-    "source": "C03 · Costo: ≈ US$15–30.5k (se usa el extremo alto)",
+    "source": "C03 · Cost: ≈ US$15–30.5k (upper end used)",
     "ref": "30500"
    },
    {
@@ -12989,7 +12989,7 @@ export const T = {
     "label": "Amortization period",
     "unit": "months",
     "kind": "assumption",
-    "source": "C03 · Costo: amortizado en 36 meses",
+    "source": "C03 · Cost: amortized over 36 months",
     "ref": "36"
    },
    {
@@ -12997,7 +12997,7 @@ export const T = {
     "label": "Cloud spend, high end",
     "unit": "US$/month",
     "kind": "assumption",
-    "source": "C03 · Costo: nube ≈ US$200–500/mes (extremo alto)",
+    "source": "C03 · Cost: cloud ≈ US$200–500/month (upper end)",
     "ref": "500"
    },
    {
@@ -13005,7 +13005,7 @@ export const T = {
     "label": "Escape incident, low end",
     "unit": "US$",
     "kind": "requirement",
-    "source": "C03 · Facts (Modelo actual): incidente de ≈ US$2,000–10,000",
+    "source": "C03 · Facts (Current model): incident of ≈ US$2,000–10,000",
     "ref": "2000"
    },
    {
@@ -13013,7 +13013,7 @@ export const T = {
     "label": "Defect images from the pilot",
     "unit": "images",
     "kind": "requirement",
-    "source": "C03 · Facts (Datos): ≈ 300 de defectos",
+    "source": "C03 · Facts (Data): ≈ 300 defects",
     "ref": "300"
    },
    {
@@ -13021,7 +13021,7 @@ export const T = {
     "label": "Defect types",
     "unit": "types",
     "kind": "requirement",
-    "source": "C03 · Facts (Entrada): fisura, rebaba, barreno faltante o deformación",
+    "source": "C03 · Facts (Input): crack, burr, missing hole or deformation",
     "ref": "4"
    },
    {
@@ -13029,7 +13029,7 @@ export const T = {
     "label": "part_id values (16 bits)",
     "unit": "ids",
     "kind": "assumption",
-    "source": "C03 · Archivos: el part_id es de 16 bits y se repite cada 65,536 piezas",
+    "source": "C03 · Reference files: part_id is 16-bit and repeats every 65,536 pieces",
     "ref": "65536"
    },
    {
@@ -13037,7 +13037,7 @@ export const T = {
     "label": "Percentile a naive SLO would use",
     "unit": "quantile",
     "kind": "assumption",
-    "source": "C03 · Estimaciones (trampa): un p99 deja 1,152 piezas/día por encima",
+    "source": "C03 · Estimates (trap): a p99 leaves 1,152 pieces/day above",
     "ref": "0.99"
    },
    {
@@ -13045,7 +13045,7 @@ export const T = {
     "label": "Error-DIVERT alert share of pieces",
     "unit": "fraction",
     "kind": "assumption",
-    "source": "C03 · Monitoreo: > 0.02 (≈ 1 % de las piezas a 2 por segundo)",
+    "source": "C03 · Monitoring: > 0.02 (≈ 1 % of pieces at 2 per second)",
     "ref": "0.01"
    },
    {
@@ -13053,7 +13053,7 @@ export const T = {
     "label": "Reject spike (dirty lens, light)",
     "unit": "×",
     "kind": "assumption",
-    "source": "C03 · Estimaciones / Monitoreo: pico de rechazo 2×; RejectRateSpike > 2× base",
+    "source": "C03 · Estimates / Monitoring: reject spike 2×; RejectRateSpike > 2× base",
     "ref": "2"
    }
   ]
