@@ -1,4 +1,4 @@
-/* Utilidades de la interfaz: escape de HTML, íconos, fechas, avisos y diálogos. */
+/* UI helpers: HTML escaping, icons, dates, toasts and dialogs. */
 import { daysSince, localDate } from './shared/model.mjs';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,21 +26,25 @@ const P = {
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', upload: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>', theme: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor"/>',
   play: '<path d="M7 5l11 7-11 7z"/>', terminal: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/>', out: '<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 8l-4 4 4 4M6 12h10"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  unlock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/>',
+  fx: '<path d="M14 4h-2a3 3 0 0 0-3 3v13M6 11h7M15 13l5 6M20 13l-5 6"/>', calc: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M12 12h2M16 12h0M8 16h2M12 16h2M16 16h0"/>',
 };
 export const icon = (name, label) => `<svg class="ic" viewBox="0 0 24 24" ${label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"'} focusable="false">${P[name] || ''}</svg>`;
 
 export const todayLocal = () => localDate(new Date());
 export const days = (iso) => daysSince(iso, Date.now());
 export function daysText(n) {
-  if (n === null || n === undefined) return 'sin fecha';
-  if (n === 0) return 'hoy';
-  if (n === 1) return 'ayer';
-  return `hace ${n} días`;
+  if (n === null || n === undefined) return 'no date';
+  if (n === 0) return 'today';
+  if (n === 1) return 'yesterday';
+  return `${n} days ago`;
 }
 export const daysLevel = (n) => (n === null ? 'old' : n <= 2 ? 'ok' : n <= 6 ? 'mid' : 'old');
 export function fmtDate(isoOrDate) {
   const d = isoOrDate.length === 10 ? new Date(isoOrDate + 'T12:00:00') : new Date(isoOrDate);
-  return d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 let toastTimer;
@@ -55,11 +59,11 @@ export function toast(msg, kind = 'info', ms = 3200) {
 }
 
 // Diálogo modal con <dialog>. `body` es HTML ya escapado; `actions` = [{label, value, primary, danger}].
-export function dialog({ title, body, actions = [{ label: 'Cerrar', value: null }], onOpen }) {
+export function dialog({ title, body, actions = [{ label: 'Close', value: null }], onOpen }) {
   return new Promise((resolve) => {
     const d = document.createElement('dialog');
     d.innerHTML = `<form method="dialog" class="dlg">
-      <header><h2>${esc(title)}</h2><button type="button" class="btn btn--ghost btn--icon" data-close aria-label="Cerrar">${icon('x')}</button></header>
+      <header><h2>${esc(title)}</h2><button type="button" class="btn btn--ghost btn--icon" data-close aria-label="Close">${icon('x')}</button></header>
       <div class="body">${body}</div>
       <footer>${actions.map((a, i) => `<button class="btn ${a.primary ? 'btn--primary' : ''} ${a.danger ? 'btn--danger' : ''}" value="${i}" type="${a.primary && a.type !== 'button' ? 'submit' : 'button'}" data-i="${i}" ${a.type === 'button' ? 'data-keep' : ''}>${a.label}</button>`).join('')}</footer>
     </form>`;
@@ -90,8 +94,8 @@ export function dialog({ title, body, actions = [{ label: 'Cerrar', value: null 
   });
 }
 
-export async function confirmDlg(title, text, okLabel = 'Sí', danger = false) {
-  const r = await dialog({ title, body: `<p>${esc(text)}</p>`, actions: [{ label: 'Cancelar', value: false }, { label: okLabel, value: true, primary: !danger, danger }] });
+export async function confirmDlg(title, text, okLabel = 'Yes', danger = false) {
+  const r = await dialog({ title, body: `<p>${esc(text)}</p>`, actions: [{ label: 'Cancel', value: false }, { label: okLabel, value: true, primary: !danger, danger }] });
   return !!(r && r.value);
 }
 

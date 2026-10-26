@@ -1,8 +1,8 @@
 {
-  "name": "Tablero de proyectos ML",
-  "short_name": "Tablero ML",
-  "description": "El mapa de cada proyecto de ML, del dato al monitoreo, para retomarlo rápido.",
-  "lang": "es",
+  "name": "ML Project Board",
+  "short_name": "ML Board",
+  "description": "ML project board: every project as a map from data to monitoring, with entry-gate sizing per step.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

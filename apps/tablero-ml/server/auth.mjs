@@ -18,8 +18,8 @@ const sign = (secret, payload) => b64u(createHmac('sha256', secret).update(paylo
 
 export function configProblems(env) {
   const p = [];
-  if (!env.APP_PASSWORD || env.APP_PASSWORD.length < 12) p.push('falta APP_PASSWORD (mínimo 12 caracteres; mejor 4 o más palabras al azar)');
-  if (!env.SESSION_SECRET || env.SESSION_SECRET.length < MIN_SECRET) p.push(`falta SESSION_SECRET (mínimo ${MIN_SECRET} caracteres)`);
+  if (!env.APP_PASSWORD || env.APP_PASSWORD.length < 12) p.push('APP_PASSWORD missing (12+ characters; 4 or more random words work well)');
+  if (!env.SESSION_SECRET || env.SESSION_SECRET.length < MIN_SECRET) p.push(`SESSION_SECRET missing (${MIN_SECRET}+ characters)`);
   return p;
 }
 

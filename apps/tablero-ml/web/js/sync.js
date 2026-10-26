@@ -5,6 +5,10 @@
      Si mientras tanto Claude Code cambió otra cosa, no se pisa: cada op toca solo su campo. */
 import { applyOps } from './shared/ops.mjs';
 import { newId, ITEM_KIND } from './shared/model.mjs';
+import { migrate } from './shared/migrate.mjs';
+
+// v1 copies (cached or imported) are upgraded to v2 before use.
+export const upgrade = (doc) => migrate(doc);
 
 const MAX_BATCH_CHARS = 400000; // el servidor acepta hasta 1 MB por envío
 
@@ -103,6 +107,7 @@ export function clearLocal() {
 function computeView(id) {
   const e = entry(id);
   if (!e || !e.base) { views.delete(id); return null; }
+  if (!(e.base.v >= 2)) { e.base = migrate(e.base); saveEntry(id, e); }
   const v = e.pending && e.pending.length ? applyOps(e.base, e.pending).project : e.base;
   views.set(id, v);
   return v;

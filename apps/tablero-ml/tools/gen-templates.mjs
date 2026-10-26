@@ -181,16 +181,95 @@ for (const [p, steps] of Object.entries(STEPS)) {
     if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(s.id)) throw new Error(`${p}: id inválido ${s.id}`);
     if (ids.has(s.id)) throw new Error(`${p}: id repetido ${s.id}`);
     ids.add(s.id);
-    if (!['datos', 'modelo', 'release', 'operacion'].includes(s.tramo)) throw new Error(`${p}/${s.id}: tramo ${s.tramo}`);
+    if (!['diseno', 'datos', 'modelo', 'release', 'operacion'].includes(s.tramo)) throw new Error(`${p}/${s.id}: tramo ${s.tramo}`);
     if (!['semanas', 'dias', 'ms', 'continuo', 'nuevo'].includes(s.speed)) throw new Error(`${p}/${s.id}: speed ${s.speed}`);
     if (!s.done.length) warnings.push(`${p}/${s.id}: sin criterios de hecho`);
   }
 }
 
 const ORDER = ['sincrono', 'batch', 'asincrono', 'llm', 'hibrido', 'streaming', 'edge'];
-const data = { COURSE_URL, SHEETS_URL, ORDER: ORDER.filter((p) => PATTERNS[p]), PATTERNS, STATIONS, STEPS };
+
+// ---------------------------------------------------------------- modo producción (v2): inglés, kickoff y cálculos
+// fuentes/text-en.json: títulos, scope, inputs/outputs y Definition of Done en inglés (misma cantidad y orden que el español).
+// fuentes/calcs-*.json: variables y cálculos del entry gate por patrón, sacados del curso; `expected` es el valor que da
+// el curso y aquí se vuelve a calcular con el motor de la app (web/js/shared/calc.mjs).
+const { parse, evaluate, varsOf } = await import(join(ROOT, 'web', 'js', 'shared', 'calc.mjs'));
+const EN = existsSync(join(ROOT, 'fuentes', 'text-en.json')) ? json(join(ROOT, 'fuentes', 'text-en.json')).patterns : {};
+const CALCS = {};
+for (const f of ['calcs-sincrono.json', 'calcs-batch-asincrono-llm.json', 'calcs-hibrido-streaming-edge.json']) {
+  if (existsSync(join(ROOT, 'fuentes', f))) Object.assign(CALCS, json(join(ROOT, 'fuentes', f)).patterns);
+  else warnings.push(`falta fuentes/${f}`);
+}
+const enLink = (l) => ({ ...l, label: l.label.replace(/^Curso · /, 'Course · ').replace(/^Hoja · /, 'Sheet · ') });
+const EXPECTED = {};
+const LEGACY = {};
+const STEPS_EN = {};
+const VARS = {};
+for (const p of ORDER) {
+  if (!STEPS[p]) continue;
+  const en = EN[p] || { steps: {} };
+  const cs = CALCS[p] || { vars: [], steps: {} };
+  if (!EN[p]) warnings.push(`${p}: sin textos en inglés`);
+  LEGACY[p] = Object.fromEntries(STEPS[p].map((s) => [s.id, { title: s.title, note: s.note, question: s.question, done: s.done, commandNotes: s.commands.map((c) => c.note) }]));
+  const SRC = existsSync(join(ROOT, 'fuentes', 'var-sources-en.json')) ? json(join(ROOT, 'fuentes', 'var-sources-en.json'))[p] || {} : {};
+  VARS[p] = (cs.vars || []).map((v) => ({ id: v.id, label: v.label, unit: v.unit || '', kind: v.kind, source: SRC[v.id] || v.source || '', ref: String(v.default ?? '') }));
+  const env = Object.fromEntries((cs.vars || []).map((v) => [v.id, Number(v.default)]));
+  const calcOf = (id) => (cs.steps && cs.steps[id] ? cs.steps[id] : []).map((c) => {
+    let val;
+    try {
+      const ast = parse(c.expr);
+      for (const n of varsOf(ast)) if (!(n in env)) warnings.push(`${p}/${id}/${c.id}: usa «${n}», que no está definida antes`);
+      val = evaluate(ast, env);
+      if (c.out) env[c.out] = val;
+      if (typeof c.expected === 'number') {
+        const t = c.tol > 0 ? c.tol : Math.abs(c.expected - Math.round(c.expected)) < 1e-9 ? 0 : 0.01;
+        const ok = t === 0 ? Math.abs(val - c.expected) < 1e-9 : Math.abs(val - c.expected) <= t * Math.max(Math.abs(c.expected), 1e-12);
+        if (!ok) warnings.push(`${p}/${id}/${c.id}: el motor da ${val}, el curso dice ${c.expected}`);
+      }
+      if (c.check && c.check.expr && !evaluate(parse(c.check.expr), env)) warnings.push(`${p}/${id}/${c.id}: el check «${c.check.label}» falla con los valores del curso`);
+    } catch (e) { warnings.push(`${p}/${id}/${c.id}: ${e.message}`); }
+    EXPECTED[`${p}/${id}/${c.id}`] = val;
+    return { id: c.id, label: c.label, out: c.out || '', expr: c.expr, unit: c.unit || '', tol: typeof c.tol === 'number' ? c.tol : 0.02, why: c.why || '', check: c.check && c.check.expr ? { expr: c.check.expr, label: c.check.label || '' } : null, ref: c.ref || '' };
+  });
+  const K = en.steps.kickoff || {};
+  const kickoff = {
+    id: 'kickoff', base: 'kickoff', status: 'nuevo', title: K.title || 'Requirements & Capacity Plan', tramo: 'diseno', speed: 'diseno',
+    question: '', note: K.scope || '', artifact: '', inputs: K.inputs || [], outputs: K.outputs || [], done: K.dod || [], commands: [],
+    links: linksFor([`#${PATTERNS[p].case}.requisitos`, `#${PATTERNS[p].case}.estimaciones`].filter((a) => { const pg = MSD.getPage(a.slice(1).split('.')[0]); return pg && (pg.sections || []).some((x) => x.id === a.split('.')[1]); }), [sheet('estimaciones', '', 'C01 sizing chain')]).map(enLink),
+    calcs: calcOf('kickoff'),
+  };
+  STEPS_EN[p] = [kickoff, ...STEPS[p].map((s) => {
+    const e = en.steps[s.id] || {};
+    if (!en.steps[s.id]) warnings.push(`${p}/${s.id}: sin texto en inglés`);
+    const done = e.dod && e.dod.length === s.done.length ? e.dod : (e.dod && warnings.push(`${p}/${s.id}: dod en inglés con otra cantidad`), s.done);
+    const notes = e.commandNotes && e.commandNotes.length === s.commands.length ? e.commandNotes : s.commands.map((c) => c.note);
+    return {
+      ...s, title: e.title || s.title, note: e.scope || s.note, question: '', inputs: e.inputs || [], outputs: e.outputs || [],
+      done, commands: s.commands.map((c, i) => ({ code: c.code, note: notes[i] })), links: s.links.map(enLink), calcs: calcOf(s.id),
+    };
+  })];
+  for (const id of Object.keys(cs.steps || {})) if (!STEPS_EN[p].some((s) => s.id === id)) warnings.push(`${p}: hay cálculos para «${id}», que no es un paso del patrón`);
+  if (EN[p]) {
+    PATTERNS[p].name = EN[p].name || PATTERNS[p].name;
+    PATTERNS[p].summary = EN[p].summary || PATTERNS[p].summary;
+    PATTERNS[p].removed = PATTERNS[p].removed.map((r) => ({ ...r, why: ((EN[p].removed || []).find((x) => x.id === r.id) || r).why }));
+  }
+  PATTERNS[p].links = PATTERNS[p].links.map(enLink);
+}
+for (const st of STATIONS) {
+  const e = (EN.sincrono && EN.sincrono.steps[st.id]) || {};
+  st.title = e.title || st.title; st.note = e.scope || st.note; st.question = ''; st.links = st.links.map(enLink);
+}
+
+const data = { COURSE_URL, SHEETS_URL, ORDER: ORDER.filter((p) => PATTERNS[p]), PATTERNS, STATIONS, STEPS: STEPS_EN, VARS };
 writeFileSync(OUT, `/* GENERADO por tools/gen-templates.mjs: no lo edites a mano. Fuentes: el curso (Ronda de Diseño ML) y la hoja «Del dato a producción». */
 export const T = ${JSON.stringify(data, null, 1)};
 `);
-console.log(`[templates] ${OUT.replace(ROOT + '/', '')}: ${Object.entries(STEPS).map(([p, s]) => `${p} ${s.length}`).join(' · ')}`);
+// Los textos en español de la versión 1, para que la migración reemplace solo lo que nadie editó.
+writeFileSync(join(ROOT, 'web', 'js', 'shared', 'legacy-es.mjs'), `/* GENERADO por tools/gen-templates.mjs: los textos de plantilla de la versión 1 (en español), por patrón y paso.
+   migrate.mjs los compara con el proyecto: si un texto sigue igual, lo cambia por el de producción en inglés. */
+export const LEGACY = ${JSON.stringify(LEGACY)};
+`);
+writeFileSync(join(ROOT, 'tests', 'calc-expected.json'), JSON.stringify(EXPECTED, null, 1));
+console.log(`[templates] ${OUT.replace(ROOT + '/', '')}: ${Object.entries(STEPS_EN).map(([p, s]) => `${p} ${s.length} pasos/${s.reduce((n, x) => n + x.calcs.length, 0)} cálculos/${VARS[p].length} variables`).join(' · ')}`);
 for (const w of warnings) console.log('  aviso: ' + w);

@@ -21,7 +21,7 @@ const server = localServer({ env: { APP_PASSWORD: PASSWORD, SESSION_SECRET: 'c'.
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const BASE = `http://localhost:${server.address().port}`;
 
-const ROUTES = ['#/', '#/nuevo', '#/p/c01', '#/p/c01/paso/serving', '#/p/c01/paso/empaquetado', '#/p/c01/bitacora', '#/p/c01/decisiones', '#/p/c01/proyecto'];
+const ROUTES = ['#/', '#/new', '#/p/c01', '#/p/c01/step/kickoff', '#/p/c01/step/serving', '#/p/c01/sizing', '#/p/c01/log', '#/p/c01/decisions', '#/p/c01/settings'];
 
 // Dentro de la página: entra, precarga el C01, recorre las vistas y mide si algo se sale del ancho.
 const WIDTHS = `(async () => {
@@ -80,7 +80,7 @@ const OFFLINE = `(async () => {
   const offlineTitle = doc && doc.querySelector('h1') ? doc.querySelector('h1').textContent : null;
   const pill = doc && doc.getElementById('sync') ? doc.getElementById('sync').textContent : null;
   // un cambio sin red: marcar la vuelta 1 del paso de empaquetado como hecha
-  f.contentWindow.location.hash = '#/p/c01/paso/empaquetado';
+  f.contentWindow.location.hash = '#/p/c01/step/empaquetado';
   await wait(800);
   const btn = [...doc.querySelectorAll('[data-act="set"]')].find((b) => b.dataset.path.includes('v1') && b.dataset.value === '"hecho"');
   if (btn) btn.click();
@@ -128,12 +128,12 @@ for (const r of runs) {
   if (!j) { console.log(`✖ ${label}: sin resultado (exit ${code})\n${out.slice(-1500)}`); failed++; continue; }
   const bad = Object.entries(j).filter(([k, v]) => k !== 'summary' && (v.a || v.b));
   const okSummary = j.summary && j.summary.open && j.summary.md && !j.summary.wide;
-  const okMap = j['#/p/c01'] && j['#/p/c01'].stations === 12 && j['#/p/c01'].layout === (r.w >= 640 ? 'grid' : 'list');
+  const okMap = j['#/p/c01'] && j['#/p/c01'].stations === 13 && j['#/p/c01'].layout === (r.w >= 640 ? 'grid' : 'list');
   const errs = realErrors(out, false);
   if (bad.length || !okSummary || !okMap || errs.length) {
     failed++;
     console.log(`✖ ${label}: ${bad.map(([k, v]) => `${k} se sale (${v.sample.join(', ')})`).join(' · ')}${okSummary ? '' : ' · resumen ' + JSON.stringify(j.summary)}${okMap ? '' : ' · mapa ' + JSON.stringify(j['#/p/c01'])}${errs.length ? ' · errores en consola:\n' + errs.slice(0, 5).join('\n') : ''}`);
-  } else console.log(`✔ ${label}: ${ROUTES.length} vistas y el resumen caben; mapa ${j['#/p/c01'].layout} con 12 estaciones`);
+  } else console.log(`✔ ${label}: ${ROUTES.length} vistas y el resumen caben; mapa ${j['#/p/c01'].layout} con 13 estaciones`);
 }
 
 // la prueba sin conexión usa un store nuevo con el C01 ya cargado
@@ -142,7 +142,7 @@ await store.put(seedC01(), (await store.get('c01')) ? (await store.get('c01')).r
 const { code, out } = await run(['--url', BASE + '/', '--width', '1024', '--height', '800', '--wait', '1500', '--eval', OFFLINE, '--timeout', '90000']);
 const o = lastJson(out);
 const oerrs = realErrors(out, true);
-if (oerrs.length || !o || !o.sw || !o.cached || !/C01/.test(o.offlineTitle || '') || !/Sin conexión/.test(o.pill || '') || !o.clicked || !/sin subir/.test(o.pillAfter || '') || o.serverV1 !== 'hecho') {
+if (oerrs.length || !o || !o.sw || !o.cached || !/C01/.test(o.offlineTitle || '') || !/Offline/.test(o.pill || '') || !o.clicked || !/unsynced/.test(o.pillAfter || '') || o.serverV1 !== 'hecho') {
   failed++;
   console.log(`✖ sin conexión: ${JSON.stringify(o)} (exit ${code})\n${oerrs.join('\n')}${o ? '' : out.slice(-1500)}`);
 } else console.log(`✔ sin conexión: el service worker guardó ${o.cached} archivos; sin red abre «${o.offlineTitle}» («${o.pill.trim()}»), el cambio queda en cola («${o.pillAfter.trim()}») y se sube al volver la red («${o.pillOnline.trim()}»)`);

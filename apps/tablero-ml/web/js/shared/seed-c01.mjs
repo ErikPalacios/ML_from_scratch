@@ -1,148 +1,181 @@
-/* Precarga del C01 con el estado real de ~/Documents/ProyectosPortafolio/Caso1 (leído el 2026-10-26, sin cambiar nada allá):
-   PLAN.md (hitos 0–10), LAB_LOG.md (estado, mediciones y lo que se rompió), DESIGN.md (cálculos y arquitectura) y el git log
-   (f3133a3 hito 0, 4bc61ef hito 1 paso 1.1). Los hitos quedan en la estación del mapa donde caen; su «hecho» es el del PLAN.
-   Los criterios de cada estación son los del C01 completo del curso (con GPU y Kubernetes): marca los que apliquen a tu alcance. */
+/* C01 preload (v2, production mode) with the real state of ~/Documents/ProyectosPortafolio/Caso1, read on 2026-10-26
+   without changing anything there: PLAN.md (milestones 0–10), LAB_LOG.md (status, measurements, what broke),
+   DESIGN.md (back-of-the-envelope sizing) and the git log (f3133a3 milestone 0, 4bc61ef milestone 1 step 1.1).
+   - Milestones sit on the step where they land; their «done when» is the PLAN's.
+   - Sizing inputs are C01's (course) plus DESIGN.md's own assumption for log lines (400 B). Calc answers are only the
+     ones DESIGN.md actually computed; the rest of the entry gates are still open.
+   - upgradeSeedC01() migrates a v1 preload already in production: it only replaces texts nobody edited. */
 import { projectFromTemplate } from './factory.mjs';
+import { seedC01V1 } from './seed-c01-v1.mjs';
 
 const H = (id, text, status, done) => ({ id, text, status, done });
 const R = (id, name, value, unit, date, note = '') => ({ id, name, value, unit, date, note });
 const C = (id, code, note) => ({ id, code, note });
 const F = (id, path, ref) => ({ id, path, ref });
 
+// DESIGN.md: what was actually computed, as written there.
+const ANSWERS = {
+  kickoff: { 'qps-avg': '116', 'qps-peak': '350', 'qps-design': '500', 'gpu-count': '2', 'error-budget-min': '43' },
+  serving: { 'tensor-bytes': '602112', 'inflight-total': '25' },
+  datos: { 'log-day': '4' },
+};
+const VAR_OVERRIDES = { log_bytes: { value: '400', source: 'DESIGN.md: ~400 B per log line × 10 M (estimated)' } };
+
 const STEP = {
+  kickoff: {
+    status: 'en_curso',
+    vuelta: { v1: 'en_curso', v2: 'pendiente' },
+    hitos: [H('design', 'DESIGN.md · interview-style sizing', 'en_curso', 'Requirements, back-of-the-envelope sizing, architecture and API written down; open items from the entry gate closed.')],
+    notes: 'DESIGN.md sized C01 for the interview: 116 → 350 → 500 req/s, 2 × T4 (N+1 across 2 AZs) at ≈ US$768/month for GPUs, 43 min/month error budget, ≈ 25 in flight at p50 and ≈ 100 at p99 (Little). Still open here: gateway vCPU and nodes, network to Triton, ALB and the full monthly cost against the US$3,000 budget.',
+  },
   datos: {
-    hitos: [H('imagenette', 'Imagenette 320px como golden set (scripts/download_data.py)', 'pendiente', 'Se descarga a data/ (≈ 325 MB, pide permiso antes) y sus 10 clases quedan mapeadas a índices de ImageNet: sirve para el golden set (hito 9), la prueba de carga (hito 6) y las perturbaciones (hito 10).')],
-    notes: 'Alcance mínimo (PLAN, «Base de datos sencilla»): dos piezas chicas. Imagenette para medir top-1 y top-5 reales, y SQLite con predicciones y feedback (hito 4, en Monitoreo). En producción las predicciones irían como log JSON → S3/Parquet.',
+    hitos: [H('imagenette', 'Imagenette 320px as the golden set (scripts/download_data.py)', 'pendiente', 'Downloaded to data/ (≈ 325 MB, ask before downloading); its 10 classes mapped to ImageNet indices. Used for the golden set (milestone 9), the load test (milestone 6) and the perturbations (milestone 10).')],
+    notes: 'Minimal scope (PLAN, «Simple database»): Imagenette to measure real top-1/top-5, and SQLite with predictions and feedback (milestone 4, under Monitoring). In production predictions would ship as JSON logs → S3/Parquet.',
   },
-  versionado: {
-    status: 'no_aplica',
-    reason: 'Alcance mínimo: pesos IMAGENET1K_V2 de torchvision e Imagenette, sin snapshots propios. MODEL_VERSION llega en el hito 9.',
-  },
-  entrenamiento: {
-    status: 'no_aplica',
-    reason: 'El modelo ya existe (ResNet-50 IMAGENET1K_V2 de torchvision); el caso no lo rediseña ni lo reentrena.',
-  },
+  versionado: { status: 'no_aplica', reason: 'Minimal scope: torchvision IMAGENET1K_V2 weights and Imagenette, no own snapshots. MODEL_VERSION comes in milestone 9.' },
+  entrenamiento: { status: 'no_aplica', reason: 'The model already exists (ResNet-50 IMAGENET1K_V2 from torchvision); the case neither redesigns nor retrains it.' },
   gate: {
-    hitos: [H('h9a', 'Hito 9 (parte 1) · eval_golden.py y gate de paridad', 'pendiente', 'eval_golden.py da top-1/top-5 sobre ≈ 500 fotos de Imagenette; parity_check.py exige top-1 de acuerdo ≥ 99.5 %: pasa con PyTorch vs ONNX y falla con ResNet-50 V2 vs V1 o vs ResNet-18.')],
-    notes: 'Aprendido en el hito 1: V2 y V1 dan el mismo top-1 con confianzas muy distintas (0.27 vs 0.61). Un umbral sobre scores se recalibra por versión de modelo.',
+    hitos: [H('h9a', 'Milestone 9 (part 1) · eval_golden.py and the parity gate', 'pendiente', 'eval_golden.py reports top-1/top-5 on ≈ 500 Imagenette photos; parity_check.py requires ≥ 99.5 % top-1 agreement: passes PyTorch vs ONNX and fails ResNet-50 V2 vs V1 or vs ResNet-18.')],
+    notes: 'From milestone 1: V2 and V1 give the same top-1 with very different confidence (0.27 vs 0.61). Any score threshold is recalibrated per model version.',
   },
   export: {
-    hitos: [H('h7b', 'Hito 7 (b) · ONNX Runtime en CPU', 'pendiente', 'Variante medida con el mismo loadtest.sh y comparada en la tabla antes/después.')],
-    notes: 'Sin GPU NVIDIA en la Mac: TensorRT y Triton no aplican aquí; el export es PyTorch → ONNX → ONNX Runtime CPU. La paridad PyTorch vs ONNX es el gate del hito 9.',
+    hitos: [H('h7b', 'Milestone 7 (b) · ONNX Runtime on CPU', 'pendiente', 'Variant measured with the same loadtest.sh and compared in the before/after table.')],
+    notes: 'No NVIDIA GPU on the Mac: TensorRT and Triton do not apply here; export is PyTorch → ONNX → ONNX Runtime CPU. PyTorch vs ONNX parity is the milestone 9 gate.',
   },
   serving: {
     status: 'en_curso',
     vuelta: { v1: 'en_curso', v2: 'pendiente' },
     hitos: [
-      H('h1', 'Hito 1 · Esqueleto que camina', 'en_curso', 'El curl con la foto de un perro devuelve el JSON del contrato con un top-1 sensato; /readyz da 503 durante la carga; anotas la latencia del 1.er request contra los 10 siguientes (warm-up).'),
-      H('h2', 'Hito 2 · Validación de entrada y errores', 'pendiente', 'pytest con un caso por error (400, 413 por bytes, 413 por MP, 415, top_k inválido) y un caso feliz con un modelo falso, todo en verde en menos de 5 s.'),
-      H('h3', 'Hito 3 · Timeouts y fallback', 'pendiente', 'pytest con un modelo de 2 s → 504 en ≈ 150 ms; modelo caído → 503 con Retry-After; /healthz sigue en 200 en ambos casos.'),
-      H('h8', 'Hito 8 · Gateway + servidor de modelo (opcional)', 'pendiente', 'Mismo contrato externo con dos servicios en docker-compose; mides cuánto agrega el salto de red al p50/p99.'),
+      H('h1', 'Milestone 1 · Walking skeleton', 'en_curso', 'curl with a dog photo returns the contract JSON with a sensible top-1; /readyz is 503 while loading; first-request vs next-10 latency recorded (warm-up).'),
+      H('h2', 'Milestone 2 · Input validation and errors', 'pendiente', 'pytest with one case per error (400, 413 by bytes, 413 by MP, 415, invalid top_k) plus a happy path with a fake model, all green in under 5 s.'),
+      H('h3', 'Milestone 3 · Timeouts and fallback', 'pendiente', 'pytest with a 2 s model → 504 in ≈ 150 ms; model down → 503 with Retry-After; /healthz stays 200 in both.'),
+      H('h8', 'Milestone 8 · Gateway + model server (optional)', 'pendiente', 'Same external contract with two services in docker-compose; network hop cost on p50/p99 measured.'),
     ],
     results: [
-      R('r1', 'Forward ResNet-50 V2 (batch 1, 4 threads, macOS nativo), forwards 2–5', '≈ 25', 'ms', '2026-10-21', 'Dos corridas: 27.8/24.8/23.3/25.1 y 25.1/26.7/24.1/23.3 ms.'),
+      R('r1', 'ResNet-50 V2 forward (batch 1, 4 threads, macOS native), forwards 2–5', '≈ 25', 'ms', '2026-10-21', 'Two runs: 27.8/24.8/23.3/25.1 and 25.1/26.7/24.1/23.3 ms.'),
       R('r2', 'Forward 1 (warm-up)', '39.9', 'ms', '2026-10-21'),
-      R('r3', 'Decode + preprocess en caliente', '≈ 3–7', 'ms', '2026-10-21', 'AVIF 414×311 ≈ 3 ms; PNG 1204×515 ≈ 7 ms.'),
-      R('r4', 'Decode + preprocess en frío', '2180 / 72.6', 'ms', '2026-10-21', 'Primera vez en la máquina (decoder AVIF) / primera llamada de un proceso nuevo.'),
-      R('r5', 'Carga real del modelo', '≈ 456–511', 'ms', '2026-10-21'),
-      R('r6', 'Warm-up (3 pasadas por el camino completo)', '89–110', 'ms', '2026-10-21'),
-      R('r7', 'Proceso importando torch, puerto cerrado', '≈ 3', 's', '2026-10-21', 'Con LOAD_DELAY_S=10: ≈ 10 s más con /readyz 503 y /healthz 200.'),
-      R('r8', 'Top-1 del mismo perro, V2 vs V1', '0.269 vs 0.613', 'score', '2026-10-21', 'toy poodle en los dos; masa en clases de perro 0.546 vs 0.998.'),
+      R('r3', 'Decode + preprocess, warm', '≈ 3–7', 'ms', '2026-10-21', 'AVIF 414×311 ≈ 3 ms; PNG 1204×515 ≈ 7 ms.'),
+      R('r4', 'Decode + preprocess, cold', '2180 / 72.6', 'ms', '2026-10-21', 'First time on the machine (AVIF decoder) / first call of a new process.'),
+      R('r5', 'Model load', '≈ 456–511', 'ms', '2026-10-21'),
+      R('r6', 'Warm-up (3 passes through the full path)', '89–110', 'ms', '2026-10-21'),
+      R('r7', 'Process importing torch, port closed', '≈ 3', 's', '2026-10-21', 'With LOAD_DELAY_S=10: ≈ 10 s more with /readyz 503 and /healthz 200.'),
+      R('r8', 'Top-1 on the same dog, V2 vs V1', '0.269 vs 0.613', 'score', '2026-10-21', 'toy poodle on both; mass on dog classes 0.546 vs 0.998.'),
     ],
     commands: [
-      C('m1', 'uv run python scripts/predict_once.py data/perrito.jpg', 'Caso1 · top-5 de una foto y tiempos del forward (paso 1.1).'),
-      C('m2', 'curl -i localhost:8080/readyz', 'Caso1 · 503 mientras carga, 200 con el modelo listo (paso 1.3).'),
+      C('m1', 'uv run python scripts/predict_once.py data/perrito.jpg', 'Caso1 · top-5 of one photo and forward timings (step 1.1).'),
+      C('m2', 'curl -i localhost:8080/readyz', 'Caso1 · 503 while loading, 200 once the model is ready (step 1.3).'),
     ],
     files: [
-      F('f1', 'scripts/predict_once.py', 'sin commit (el commit 4bc61ef solo trae DESIGN.md y LAB_LOG.md)'),
-      F('f2', 'app/main.py', 'sin commit · último cambio 2026-10-23'),
-      F('f3', 'app/model.py', 'sin commit'),
-      F('f4', 'app/preprocess.py', 'sin commit'),
+      F('f1', 'scripts/predict_once.py', 'uncommitted (commit 4bc61ef only has DESIGN.md and LAB_LOG.md)'),
+      F('f2', 'app/main.py', 'uncommitted · last change 2026-10-23'),
+      F('f3', 'app/model.py', 'uncommitted'),
+      F('f4', 'app/preprocess.py', 'uncommitted'),
     ],
     notes: [
-      'Hito 1, vuelta 1: 1.1 ✓ predict_once.py con el top-5 y el forward medido · 1.2–1.3 ✓ lifespan que carga el modelo una vez, /healthz y /readyz 503→200 con warm-up · 1.4 → POST /v1/classify + curl.',
+      'Milestone 1, pass 1: 1.1 ✓ predict_once.py with top-5 and the forward measured · 1.2–1.3 ✓ lifespan loading the model once, /healthz and /readyz 503→200 with warm-up · 1.4 → POST /v1/classify + curl.',
       '',
-      'Lo que se rompió en el hito 1 (LAB_LOG):',
-      '- Una foto fuera de distribución (un diagrama) igual devuelve top-5, con score bajo (0.24): hace falta un umbral de confianza y el selector manual.',
-      '- El .jpg era AVIF y Pillow lo abrió: el servicio valida el formato real por los bytes, no por la extensión ni el Content-Type (hito 2).',
-      '- Medir una vez en frío engaña (44 ms y 2180 ms): el warm-up antes de /readyz recorre todo el camino.',
-      '- El center crop deja solo ≈ 41 % del ancho de una imagen panorámica.',
-      '- El servidor viejo seguía corriendo y /readyz daba 404: Python lee el código una vez al arrancar.',
+      'What broke in milestone 1 (LAB_LOG):',
+      '- An out-of-distribution image (a circuit diagram) still returns a top-5, with a low score (0.24): needs a confidence threshold and the manual picker.',
+      '- The .jpg was AVIF and Pillow opened it: validate the real format from the bytes, not the extension or Content-Type (milestone 2).',
+      '- Measuring once, cold, misleads (44 ms and 2180 ms): the warm-up before /readyz must cover the full path.',
+      '- Center crop keeps only ≈ 41 % of a panoramic image\'s width.',
+      '- The old server was still running and /readyz returned 404: Python reads the code once at startup.',
     ].join('\n'),
   },
   empaquetado: {
     vuelta: { v1: 'en_curso', v2: 'pendiente' },
     hitos: [
-      H('h0', 'Hito 0 · Setup (uv, Python 3.13, dependencias fijadas)', 'hecho', '`rm -rf .venv && uv sync` reinstala exactamente las mismas versiones; git status limpio y sin .venv, data/ ni models/. Cerrado el 2026-10-12 (yo hice 0.1–0.5 y 0.12; lo terminó el mentor).'),
-      H('h5', 'Hito 5 · Docker', 'pendiente', '`docker run -p 8080:8080` + curl devuelve el JSON del contrato; anotas el tamaño de la imagen y el tiempo hasta /readyz en 200.'),
+      H('h0', 'Milestone 0 · Setup (uv, Python 3.13, pinned dependencies)', 'hecho', '`rm -rf .venv && uv sync` reinstalls exactly the same versions; git status clean and without .venv, data/ or models/. Closed 2026-10-12 (I did 0.1–0.5 and 0.12; the mentor finished it).'),
+      H('h5', 'Milestone 5 · Docker', 'pendiente', '`docker run -p 8080:8080` + curl returns the contract JSON; image size and time to /readyz 200 recorded.'),
     ],
     results: [
-      R('r1', 'Paquetes en .venv', '41', 'paquetes', '2026-10-12', '6 directos + 2 de dev.'),
-      R('r2', 'Tamaño de .venv (macOS)', '646', 'MB', '2026-10-12'),
-      R('r3', 'Paquetes nvidia-* en el lock, antes / después del índice CPU', '15 (+ triton) / 0', 'paquetes', '2026-10-12'),
+      R('r1', 'Packages in .venv', '41', 'packages', '2026-10-12', '6 direct + 2 dev.'),
+      R('r2', '.venv size (macOS)', '646', 'MB', '2026-10-12'),
+      R('r3', 'nvidia-* packages in the lock, before / after the CPU index', '15 (+ triton) / 0', 'packages', '2026-10-12'),
     ],
     commands: [
-      C('m1', 'rm -rf .venv && uv sync --frozen && uv pip freeze', 'Caso1 · reproduce exactamente las mismas versiones.'),
-      C('m2', 'uv lock --check', 'Caso1 · el lock está sincronizado con pyproject.toml (iría en CI).'),
-      C('m3', "grep -c '^name = \"nvidia' uv.lock", 'Caso1 · 0 con el índice CPU de PyTorch.'),
+      C('m1', 'rm -rf .venv && uv sync --frozen && uv pip freeze', 'Caso1 · reproduces exactly the same versions.'),
+      C('m2', 'uv lock --check', 'Caso1 · lock in sync with pyproject.toml (belongs in CI).'),
+      C('m3', "grep -c '^name = \"nvidia' uv.lock", 'Caso1 · 0 with the PyTorch CPU index.'),
     ],
-    files: [F('f1', 'pyproject.toml, uv.lock, .python-version, .gitignore', 'f3133a3 · Hito 0')],
-    notes: 'Aprendido: pegué una plantilla de pyproject.toml encima y el lock quedó desincronizado. El lock se deriva del pyproject, nunca al revés.',
+    files: [F('f1', 'pyproject.toml, uv.lock, .python-version, .gitignore', 'f3133a3 · Milestone 0')],
+    notes: 'Learned: pasting a pyproject.toml template on top left the lock out of sync. The lock derives from pyproject, never the other way around.',
   },
-  cicd: {
-    status: 'no_aplica',
-    reason: 'Fuera del alcance mínimo del PLAN (hitos 0–10). El LAB_LOG anota que `uv lock --check` iría en CI.',
-  },
-  kubernetes: {
-    status: 'no_aplica',
-    reason: 'En la laptop corre 1 contenedor; las réplicas se calculan en papel (DESIGN.md, «Lo que cambia en la laptop»).',
-  },
+  cicd: { status: 'no_aplica', reason: 'Out of the PLAN\'s minimal scope (milestones 0–10). LAB_LOG notes that `uv lock --check` belongs in CI.' },
+  kubernetes: { status: 'no_aplica', reason: 'One container on the laptop; replicas are sized on paper (DESIGN.md, «What changes on the laptop»).' },
   rollout: {
-    hitos: [H('h9b', 'Hito 9 (parte 2) · MODEL_VERSION visible y rollback', 'pendiente', 'MODEL_VERSION va en la respuesta y en los logs; el rollback vuelve al tag de imagen anterior en menos de 1 minuto.')],
+    hitos: [H('h9b', 'Milestone 9 (part 2) · MODEL_VERSION exposed and rollback', 'pendiente', 'MODEL_VERSION in the response and the logs; rollback to the previous image tag in under 1 minute.')],
   },
   request: {
     hitos: [
-      H('h6', 'Hito 6 · Prueba de carga', 'pendiente', 'Tabla en LAB_LOG.md con concurrencia, throughput, p50, p99, % de errores y CPU; el punto donde el p99 pasa de 200 ms; Little\'s law (L = λ·W) verificada en cada fila.'),
-      H('h7', 'Hito 7 · Mejorar con lo medido (a: threads vs workers, c: batching)', 'pendiente', 'Tabla antes/después con la mejor configuración y por qué ganó.'),
+      H('h6', 'Milestone 6 · Load test', 'pendiente', 'Table in LAB_LOG.md with concurrency, throughput, p50, p99, % errors and CPU; the point where p99 crosses 200 ms; Little\'s law (L = λ·W) checked on every row.'),
+      H('h7', 'Milestone 7 · Improve with what was measured (a: threads vs workers, c: batching)', 'pendiente', 'Before/after table with the best configuration and why it won.'),
     ],
     results: [
-      R('r1', 'Réplicas CPU para 500 req/s con el forward medido (25 ms)', '22 (88 cores)', 'réplicas', '2026-10-21', 'DESIGN.md: 40 img/s por réplica, 24 planificadas al 60 %, N+1. ≈ US$2,730/mes si fueran c6i.xlarge, contra ≈ US$768 con 2 GPUs.'),
-      R('r2', 'Requests en vuelo a 500 req/s (Little: L = λ·W)', '≈ 25 en el p50 · ≈ 100 en el p99', 'requests', '2026-10-21', 'Cálculo de servilleta de DESIGN.md.'),
+      R('r1', 'CPU replicas for 500 req/s with the measured forward (25 ms)', '22 (88 cores)', 'replicas', '2026-10-21', 'DESIGN.md: 40 img/s per replica, 24 planned at 60 %, N+1. ≈ US$2,730/month as c6i.xlarge vs ≈ US$768 with 2 GPUs.'),
+      R('r2', 'Requests in flight at 500 req/s (Little: L = λ·W)', '≈ 25 at p50 · ≈ 100 at p99', 'requests', '2026-10-21', 'Back-of-the-envelope in DESIGN.md.'),
     ],
   },
   monitoreo: {
     hitos: [
-      H('h4', 'Hito 4 · Observabilidad mínima + SQLite', 'pendiente', 'Después de 200 requests, quantiles.py imprime p50 y p99, y una consulta SQL devuelve la tasa de aceptación simulada.'),
-      H('h10', 'Hito 10 · Romper el modelo, no el servicio', 'pendiente', 'Tabla con la caída de accuracy por perturbación y qué señal sin labels (confianza, entropía, PSI) la habría detectado en producción.'),
+      H('h4', 'Milestone 4 · Minimal observability + SQLite', 'pendiente', 'After 200 requests, quantiles.py prints p50 and p99, and a SQL query returns the simulated acceptance rate.'),
+      H('h10', 'Milestone 10 · Break the model, not the service', 'pendiente', 'Table with the accuracy drop per perturbation and which label-free signal (confidence, entropy, PSI) would have caught it in production.'),
     ],
   },
 };
 
 const DECISIONS = [
-  ['2026-10-12', 'empaquetado', 'Python 3.13 fijado en .python-version y en el Dockerfile', 'Python 3.14', 'Wheels maduras para torch y onnxruntime en arm64, y la misma versión menor que python:3.13-slim del curso. Después se vio que 3.14 también tenía todas.'],
-  ['2026-10-12', 'empaquetado', 'uv + pyproject.toml + uv.lock', 'venv + requirements.txt con ==', 'El lock fija también las dependencias transitivas, para macOS y Linux en el mismo archivo, y uv sync es reproducible y rápido.'],
-  ['2026-10-12', 'empaquetado', 'torch CPU-only en Linux (índice download.pytorch.org/whl/cpu)', 'torch de PyPI', 'En Linux el de PyPI trae CUDA: 15 paquetes nvidia-* más triton que un servicio en CPU nunca usa.'],
-  ['2026-10-12', 'empaquetado', 'Pesos y datos fuera de git', 'Versionarlos en el repo', 'Son pesados y binarios; se versionan por tag o hash.'],
-  ['2026-10-12', 'serving', 'ResNet-50, pesos IMAGENET1K_V2 de torchvision', 'ResNet-18', 'Es el modelo del caso (4.1 GMACs) y en CPU pone el SLO en tensión, así los hitos 6 y 7 tienen algo que arreglar. ResNet-18 cumple sobrado y no enseña nada.'],
-  ['2026-10-12', 'serving', 'Un solo app/preprocess.py con weights.transforms() y decode con Pillow', 'Resize a mano en el handler', 'Fuente única de verdad, igual a la del entrenamiento: evita el training-serving skew.'],
-  ['2026-10-12', 'serving', 'Handler def síncrono en el hito 1; run_in_threadpool + asyncio.wait_for en el hito 3', 'async def con el forward adentro', 'Un async def con el forward adentro bloquea el event loop.'],
-  ['2026-10-12', 'serving', 'Un proceso uvicorn en el puerto 8080', 'uvicorn --workers N dentro del contenedor', 'Un proceso por contenedor; las réplicas las pone el orquestador. Se mide en el hito 7.'],
-  ['2026-10-12', 'serving', 'Config por variables de entorno (MODEL_VERSION, INFER_TIMEOUT_S=0.15, MAX_BYTES, MAX_PIXELS, TORCH_THREADS…)', 'Constantes en el código', 'El mismo artefacto en todos los ambientes; solo cambia la config.'],
-  ['2026-10-12', 'datos', 'Imagenette 320px + SQLite de predicciones y feedback', 'Un dataset propio; log JSON → S3/Parquet', 'Las 10 clases de Imagenette mapean a ImageNet: top-1 y top-5 reales en la Mac. SQLite es solo para tener las predicciones consultables en local.'],
-  ['2026-10-21', 'request', 'Gateway → model server por HTTP con tensor binario (protocolo KServe v2 de Triton)', 'gRPC', 'Igual de eficiente en bytes, sin la trampa de balanceo de gRPC detrás de un balanceador L4, y se depura con curl. La API pública sigue en HTTP + JSON.'],
+  ['2026-10-12', 'empaquetado', 'Python 3.13 pinned in .python-version and the Dockerfile', 'Python 3.14', 'Mature torch and onnxruntime wheels on arm64, and the same minor version as the course\'s python:3.13-slim. 3.14 later turned out to have every wheel too.'],
+  ['2026-10-12', 'empaquetado', 'uv + pyproject.toml + uv.lock', 'venv + requirements.txt with ==', 'The lock pins transitive dependencies too, for macOS and Linux in one file, and uv sync is reproducible and fast.'],
+  ['2026-10-12', 'empaquetado', 'CPU-only torch on Linux (download.pytorch.org/whl/cpu index)', 'torch from PyPI', 'On Linux the PyPI wheel bundles CUDA: 15 nvidia-* packages plus triton a CPU service never uses.'],
+  ['2026-10-12', 'empaquetado', 'Weights and data out of git', 'Versioning them in the repo', 'Large binaries; versioned by tag or hash.'],
+  ['2026-10-12', 'serving', 'ResNet-50, torchvision IMAGENET1K_V2 weights', 'ResNet-18', 'The case\'s model (4.1 GMACs); on CPU it stresses the SLO, so milestones 6 and 7 have something to fix. ResNet-18 meets it with room and teaches nothing.'],
+  ['2026-10-12', 'serving', 'A single app/preprocess.py with weights.transforms() and Pillow decode', 'Hand-written resize in the handler', 'One source of truth, identical to training: prevents training-serving skew.'],
+  ['2026-10-12', 'serving', 'Sync def handler in milestone 1; run_in_threadpool + asyncio.wait_for in milestone 3', 'async def with the forward inside', 'An async def with the forward inside blocks the event loop.'],
+  ['2026-10-12', 'serving', 'One uvicorn process on port 8080', 'uvicorn --workers N inside the container', 'One process per container; the orchestrator adds replicas. Measured in milestone 7.'],
+  ['2026-10-12', 'serving', 'Config from environment variables (MODEL_VERSION, INFER_TIMEOUT_S=0.15, MAX_BYTES, MAX_PIXELS, TORCH_THREADS…)', 'Constants in code', 'The same artifact in every environment; only config changes.'],
+  ['2026-10-12', 'datos', 'Imagenette 320px + SQLite for predictions and feedback', 'An own dataset; JSON logs → S3/Parquet', 'Imagenette\'s 10 classes map to ImageNet: real top-1/top-5 on the Mac. SQLite only keeps predictions queryable locally.'],
+  ['2026-10-21', 'request', 'Gateway → model server over HTTP with a binary tensor (Triton\'s KServe v2 protocol)', 'gRPC', 'As compact as gRPC, without its load-balancing trap behind an L4 balancer, and debuggable with curl. The public API stays HTTP + JSON.'],
+];
+
+const RESUME = {
+  where: 'Milestone 1 (walking skeleton), pass 1. Steps 1.1–1.3 done: predict_once.py with top-5 and the forward measured (≈ 25 ms), lifespan loading ResNet-50 once, /healthz and /readyz 503→200 with warm-up. Note: app/main.py, app/model.py, app/preprocess.py and scripts/predict_once.py are uncommitted (main.py last changed 2026-10-23), and LAB_LOG.md and DESIGN.md have uncommitted changes.',
+  next: 'Milestone 1, step 1.4: POST /v1/classify reading the raw body and returning the top-k per the contract; test it with curl and a dog photo. First: commit what already works from steps 1.1–1.3, and close the Requirements & Capacity Plan gate.',
+  nextStepId: 'serving',
+};
+
+const SESSIONS = [
+  {
+    id: 's-2026-10-12', date: '2026-10-12', source: 'import', stepIds: ['empaquetado'],
+    did: 'Milestone 0: setup with uv, Python 3.13 and pinned dependencies (I did 0.1–0.5 and 0.12; the mentor finished it). Wrote PLAN.md and LAB_LOG.md. Commit f3133a3.',
+    measured: '.venv with 41 packages and 646 MB; nvidia-* packages in the lock: 15 → 0 with the CPU index; `uv sync --frozen` reproduces exactly.',
+    next: 'Milestone 1, step 1.1: load ResNet-50 in a standalone script and get the top-5 of one photo.',
+  },
+  {
+    id: 's-2026-10-21', date: '2026-10-21', source: 'import', stepIds: ['serving', 'request', 'kickoff'],
+    did: 'Milestone 1, step 1.1: predict_once.py and the first CPU forward measurement; DESIGN.md with the back-of-the-envelope sizing (commit 4bc61ef). Steps 1.2–1.3: lifespan, /healthz and /readyz 503→200 with warm-up.',
+    measured: 'Forward ≈ 25 ms (batch 1, 4 threads); decode + preprocess warm ≈ 3–7 ms (cold 44 and 2180 ms); model load ≈ 456–511 ms; warm-up 89–110 ms; with the measured forward, 22 CPU replicas would be needed for 500 req/s.',
+    next: 'Milestone 1, step 1.4: POST /v1/classify + curl.',
+  },
 ];
 
 export function seedC01() {
   const p = projectFromTemplate({
     id: 'c01',
-    name: 'C01 · API de clasificación (Caso1)',
+    name: 'C01 · Image Classification API (Caso1)',
     pattern: 'sincrono',
     repo: '~/Documents/ProyectosPortafolio/Caso1',
-    goal: 'POST /v1/classify con ResNet-50 en CPU que funciona, se mide y se rompe a propósito: hitos 0–10 del PLAN, en dos vueltas.',
+    goal: 'POST /v1/classify with ResNet-50 on CPU that works, is measured and is broken on purpose: PLAN milestones 0–10, in two passes.',
   });
+  // C01's own requirements (the course's case), plus DESIGN.md's assumptions where it made its own.
+  for (const v of p.vars) {
+    if (!v.value) v.value = v.ref;
+    if (VAR_OVERRIDES[v.id]) Object.assign(v, VAR_OVERRIDES[v.id]);
+  }
   for (const s of p.steps) {
+    s.commands = s.commands.map((c) => ({ ...c, note: `Course (full C01)${c.note ? ': ' + c.note : ''}` }));
+    for (const c of s.calcs) if (ANSWERS[s.id] && ANSWERS[s.id][c.id]) c.answer = ANSWERS[s.id][c.id];
     const x = STEP[s.id];
-    s.commands = s.commands.map((c) => ({ ...c, note: `Curso (C01 completo)${c.note ? ': ' + c.note : ''}` }));
     if (!x) continue;
     if (x.status) s.status = x.status;
     if (x.reason) s.reason = x.reason;
@@ -154,30 +187,63 @@ export function seedC01() {
     if (x.notes) s.notes = x.notes;
   }
   p.vueltaActual = 1;
-  p.resume = {
-    where: 'Hito 1 (Esqueleto que camina), vuelta 1. Pasos 1.1–1.3 hechos: predict_once.py con el top-5 y el forward medido (≈ 25 ms), lifespan que carga ResNet-50 una vez, /healthz y /readyz 503→200 con warm-up. Ojo: app/main.py, app/model.py, app/preprocess.py y scripts/predict_once.py no tienen commit (main.py cambió por última vez el 2026-10-23), y LAB_LOG.md y DESIGN.md tienen cambios sin commit.',
-    next: 'Hito 1, paso 1.4: POST /v1/classify que lee el body crudo y devuelve el top-k con el contrato; probarlo con curl y la foto de un perro. Antes: un commit con lo que ya funciona de los pasos 1.1–1.3.',
-    nextStepId: 'serving',
-  };
-  p.sessions = [
-    {
-      id: 's-2026-10-12', date: '2026-10-12', source: 'import', stepIds: ['empaquetado'],
-      did: 'Hito 0: setup con uv, Python 3.13 y dependencias fijadas (yo hice 0.1–0.5 y 0.12; lo terminó el mentor). Escribí PLAN.md y LAB_LOG.md. Commit f3133a3.',
-      measured: '.venv con 41 paquetes y 646 MB; paquetes nvidia-* en el lock: 15 → 0 con el índice CPU; `uv sync --frozen` reproduce exactamente lo mismo.',
-      next: 'Hito 1, paso 1.1: cargar ResNet-50 en un script suelto y sacar el top-5 de una foto.',
-    },
-    {
-      id: 's-2026-10-21', date: '2026-10-21', source: 'import', stepIds: ['serving', 'request'],
-      did: 'Hito 1, paso 1.1: predict_once.py y primera medición del forward en CPU; DESIGN.md con los cálculos de servilleta (commit 4bc61ef). Pasos 1.2–1.3: lifespan, /healthz y /readyz 503→200 con warm-up.',
-      measured: 'Forward ≈ 25 ms (batch 1, 4 threads); decode + preprocess en caliente ≈ 3–7 ms (en frío 44 y 2180 ms); carga del modelo ≈ 456–511 ms; warm-up 89–110 ms; con el forward medido harían falta 22 réplicas CPU para 500 req/s.',
-      next: 'Hito 1, paso 1.4: POST /v1/classify + curl.',
-    },
-  ];
+  p.resume = { ...RESUME };
+  p.sessions = SESSIONS.map((s) => ({ ...s }));
   p.decisions = DECISIONS.map(([date, stepId, what, against, why], i) => ({ id: `d${i + 1}`, date, stepId, what, against, why, status: 'vigente' }));
-  // Última señal de trabajo en Caso1: app/main.py, modificado el 2026-10-23 19:36 (hora de la Mac, UTC−6).
+  // Last sign of work in Caso1: app/main.py, modified 2026-10-23 19:36 (Mac local time, UTC−6).
   p.createdAt = '2026-10-12T23:04:54Z';
   p.lastActivity = '2026-10-24T01:36:00Z';
   p.updatedAt = p.lastActivity;
   for (const s of p.steps) s.updatedAt = STEP[s.id] ? p.lastActivity : p.createdAt;
   return p;
+}
+
+// A v1 C01 preload already in production (migrated by migrate.mjs to v2's shape): swap the preloaded Spanish texts
+// for v2's, field by field, only where the value is still exactly what v1 wrote. Your own edits are never touched.
+export function upgradeSeedC01(d) {
+  if (d.id !== 'c01' || d.repo !== '~/Documents/ProyectosPortafolio/Caso1') return d;
+  const old = seedC01V1();
+  const neu = seedC01();
+  const same = (a, b) => a === b;
+  if (same(d.name, old.name)) d.name = neu.name;
+  if (same(d.goal, old.goal)) d.goal = neu.goal;
+  if (same(d.resume.where, old.resume.where)) d.resume.where = neu.resume.where;
+  if (same(d.resume.next, old.resume.next)) d.resume.next = neu.resume.next;
+  // inputs: fill what is still empty with C01's values
+  for (const v of d.vars) { const n = neu.vars.find((x) => x.id === v.id); if (n && !String(v.value).trim()) Object.assign(v, { value: n.value, source: n.source }); }
+  for (const s of d.steps) {
+    const n = neu.steps.find((x) => x.id === s.id);
+    if (!n) continue;
+    if (s.id === 'kickoff') { // new in v2: if untouched, take it as preloaded (DESIGN.md's sizing)
+      if (s.status === 'pendiente' && !s.notes && !s.hitos.length && s.calcs.every((c) => !c.answer)) Object.assign(s, { status: n.status, vuelta: n.vuelta, hitos: n.hitos, notes: n.notes, calcs: n.calcs });
+      continue;
+    }
+    const o = old.steps.find((x) => x.id === s.id);
+    if (!o) continue;
+    if (same(s.reason, o.reason)) s.reason = n.reason;
+    if (same(s.notes, o.notes)) s.notes = n.notes;
+    const byId = (arr, id) => arr.find((x) => x.id === id);
+    for (const h of s.hitos) { const a = byId(o.hitos, h.id), b = byId(n.hitos, h.id); if (a && b) { if (same(h.text, a.text)) h.text = b.text; if (same(h.done, a.done)) h.done = b.done; } }
+    for (const r of s.results) { const a = byId(o.results, r.id), b = byId(n.results, r.id); if (a && b) { if (same(r.name, a.name)) r.name = b.name; if (same(r.note, a.note)) r.note = b.note; if (same(r.unit, a.unit)) r.unit = b.unit; } }
+    for (const c of s.commands) {
+      const b = byId(n.commands, c.id);
+      if (!b) continue;
+      const a = byId(o.commands, c.id);
+      if ((a && same(c.note, a.note)) || /^Curso \(C01 completo\)/.test(c.note)) c.note = b.note;
+    }
+    for (const f of s.files) { const a = byId(o.files, f.id), b = byId(n.files, f.id); if (a && b && same(f.ref, a.ref)) f.ref = b.ref; }
+    for (const c of s.calcs) { const b = byId(n.calcs, c.id); if (b && b.answer && !c.answer) c.answer = b.answer; }
+  }
+  for (const s of d.sessions) {
+    const a = old.sessions.find((x) => x.id === s.id), b = neu.sessions.find((x) => x.id === s.id);
+    if (!a || !b) continue;
+    for (const k of ['did', 'measured', 'next']) if (same(s[k], a[k])) s[k] = b[k];
+    if (s.source === 'import' && JSON.stringify(s.stepIds) === JSON.stringify(a.stepIds)) s.stepIds = b.stepIds;
+  }
+  for (const x of d.decisions) {
+    const a = old.decisions.find((y) => y.id === x.id), b = neu.decisions.find((y) => y.id === x.id);
+    if (!a || !b) continue;
+    for (const k of ['what', 'against', 'why']) if (same(x[k], a[k])) x[k] = b[k];
+  }
+  return d;
 }

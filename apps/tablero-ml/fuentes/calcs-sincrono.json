@@ -1,0 +1,1420 @@
+{
+  "patterns": {
+    "sincrono": {
+      "case": "c01",
+      "vars": [
+        {
+          "id": "n_day",
+          "label": "Requests per day",
+          "unit": "req/day",
+          "default": 10000000,
+          "kind": "requirement",
+          "source": "C01 · Aclaración: 10 M imágenes/día, una imagen por request"
+        },
+        {
+          "id": "peak_factor",
+          "label": "Diurnal peak factor",
+          "unit": "×",
+          "default": 3,
+          "kind": "assumption",
+          "source": "C01 · Aclaración: pico diurno ≈ 3× el promedio"
+        },
+        {
+          "id": "margin",
+          "label": "Spike and growth margin",
+          "unit": "×",
+          "default": 1.4,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: 350 × ≈ 1.4 (spikes, crecimiento) → 500 req/s"
+        },
+        {
+          "id": "n_az",
+          "label": "Availability zones",
+          "unit": "AZ",
+          "default": 2,
+          "kind": "requirement",
+          "source": "C01 · Aclaración: una región (us-east-1), dos zonas de disponibilidad"
+        },
+        {
+          "id": "gpu_max_tput",
+          "label": "Measured max per T4 (TensorRT FP16, Triton)",
+          "unit": "img/s",
+          "default": 1200,
+          "kind": "benchmark",
+          "source": "C01 · Estimaciones: perf_analyzer con batch dinámico ≤ 32 → ≈ 1,200 img/s"
+        },
+        {
+          "id": "target_util",
+          "label": "Planned GPU utilization",
+          "unit": "fraction",
+          "default": 0.5,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: capacidad planeada ≈ 50 % del máximo medido (600 img/s)"
+        },
+        {
+          "id": "cpu_ms_per_req",
+          "label": "Gateway CPU per image",
+          "unit": "ms",
+          "default": 6,
+          "kind": "benchmark",
+          "source": "C01 · Estimaciones: CPU por imagen ≈ 6 ms (mezcla móvil/web, draft mode)"
+        },
+        {
+          "id": "hpa_target",
+          "label": "Gateway HPA CPU target",
+          "unit": "fraction",
+          "default": 0.6,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: objetivo de HPA al 60 %"
+        },
+        {
+          "id": "vcpu_per_node",
+          "label": "vCPU per gateway node (c6i.xlarge)",
+          "unit": "vCPU",
+          "default": 4,
+          "kind": "benchmark",
+          "source": "C01 · Estimaciones: 2 × c6i.xlarge = 8 vCPU"
+        },
+        {
+          "id": "req_bytes",
+          "label": "Bytes per request to Triton (FP32 tensor)",
+          "unit": "B",
+          "default": 602112,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: tensor FP32 por imagen 3 × 224 × 224 × 4 B ≈ 602 KB"
+        },
+        {
+          "id": "node_baseline_gbps",
+          "label": "Gateway node sustained network baseline",
+          "unit": "Gb/s",
+          "default": 1.56,
+          "kind": "benchmark",
+          "source": "C01 · Estimaciones: c6i.xlarge baseline ≈ 1.56 Gb/s"
+        },
+        {
+          "id": "price_gpu_h",
+          "label": "g4dn.xlarge (T4) on-demand",
+          "unit": "US$/h",
+          "default": 0.526,
+          "kind": "assumption",
+          "source": "C01 · Costo: 2 × US$0.526/h × 730"
+        },
+        {
+          "id": "price_node_h",
+          "label": "c6i.xlarge on-demand",
+          "unit": "US$/h",
+          "default": 0.17,
+          "kind": "assumption",
+          "source": "C01 · Costo: 2 × US$0.17/h × 730"
+        },
+        {
+          "id": "price_alb_h",
+          "label": "ALB hourly charge",
+          "unit": "US$/h",
+          "default": 0.0225,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: ALB US$0.0225/h × 730"
+        },
+        {
+          "id": "price_lcu_gb",
+          "label": "ALB LCU price per GB processed",
+          "unit": "US$/GB",
+          "default": 0.008,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: 1 LCU = 1 GB/h hacia targets IP, US$0.008"
+        },
+        {
+          "id": "upload_kb",
+          "label": "Image bytes through the ALB",
+          "unit": "KB",
+          "default": 200,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: supone ≈ 200 KB por imagen (≈ 2 TB/día)"
+        },
+        {
+          "id": "bill_days",
+          "label": "Days per billing month",
+          "unit": "days",
+          "default": 30.4,
+          "kind": "assumption",
+          "source": "C01 · Costo: predicciones al mes 10 M × 30.4"
+        },
+        {
+          "id": "cost_eks_month",
+          "label": "EKS control plane",
+          "unit": "US$/month",
+          "default": 73,
+          "kind": "assumption",
+          "source": "C01 · Costo: US$0.10/h × 730 ≈ US$73"
+        },
+        {
+          "id": "cost_obs_month",
+          "label": "Logs, metrics, S3",
+          "unit": "US$/month",
+          "default": 100,
+          "kind": "assumption",
+          "source": "C01 · Costo: logs, métricas, S3 ≈ US$100"
+        },
+        {
+          "id": "budget_month",
+          "label": "Infra budget",
+          "unit": "US$/month",
+          "default": 3000,
+          "kind": "requirement",
+          "source": "C01 · Aclaración: ≈ US$3,000/mes de infraestructura"
+        },
+        {
+          "id": "slo",
+          "label": "Availability SLO (30 days)",
+          "unit": "fraction",
+          "default": 0.999,
+          "kind": "requirement",
+          "source": "C01 · Requisitos: 99.9 % mensual (≈ 43 min/mes)"
+        },
+        {
+          "id": "log_bytes",
+          "label": "Prediction log line",
+          "unit": "B",
+          "default": 300,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: log de predicción ≈ 300 B"
+        },
+        {
+          "id": "label_per_month",
+          "label": "Human labeling queue",
+          "unit": "img/month",
+          "default": 5000,
+          "kind": "requirement",
+          "source": "C01 · Datos: ≈ 5k imágenes/mes en la cola de etiquetado"
+        },
+        {
+          "id": "label_img_kb",
+          "label": "Copied image for labeling",
+          "unit": "KB",
+          "default": 250,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: ≈ 5k/mes × ≈ 250 KB"
+        },
+        {
+          "id": "price_label",
+          "label": "Human label price (upper)",
+          "unit": "US$/img",
+          "default": 0.1,
+          "kind": "assumption",
+          "source": "C01 · Datos: ≈ 5k imágenes/mes a US$0.05–0.10 cada una"
+        },
+        {
+          "id": "train_images",
+          "label": "Images in the training snapshot",
+          "unit": "img",
+          "default": 2000000,
+          "kind": "assumption",
+          "source": "M09 · Versionado: imágenes del training set ≈ 2 M (c01)"
+        },
+        {
+          "id": "snap_img_kb",
+          "label": "Referenced image size",
+          "unit": "KB",
+          "default": 200,
+          "kind": "assumption",
+          "source": "M09 · Versionado: 2 M × ≈ 200 KB"
+        },
+        {
+          "id": "manifest_row_b",
+          "label": "Manifest row (hash, path, label, source, seller, date)",
+          "unit": "B",
+          "default": 200,
+          "kind": "assumption",
+          "source": "M09 · Versionado: ≈ 200 B por fila, sin comprimir"
+        },
+        {
+          "id": "n_params",
+          "label": "ResNet-50 params (500-class head)",
+          "unit": "params",
+          "default": 24500000,
+          "kind": "requirement",
+          "source": "C01 · Aclaración: 24.5 M parámetros con la capa final de 500 clases"
+        },
+        {
+          "id": "bytes_fp32",
+          "label": "Bytes per FP32 value",
+          "unit": "B",
+          "default": 4,
+          "kind": "requirement",
+          "source": "C01 · Estimaciones: ONNX FP32 ≈ 98 MB (24.5 M × 4 B)"
+        },
+        {
+          "id": "adam_moments",
+          "label": "Adam moments per weight",
+          "unit": "count",
+          "default": 2,
+          "kind": "requirement",
+          "source": "M10 · Pipelines: estado del optimizador (Adam: 2 momentos) = 2 × 98 MB"
+        },
+        {
+          "id": "s3_write_mbps",
+          "label": "Checkpoint write rate to S3",
+          "unit": "MB/s",
+          "default": 100,
+          "kind": "assumption",
+          "source": "M10 · Pipelines: escribirlo en S3 ≈ 100–200 MB/s (lower bound)"
+        },
+        {
+          "id": "train_h",
+          "label": "Fine-tune wall time (1 GPU)",
+          "unit": "h",
+          "default": 4,
+          "kind": "assumption",
+          "source": "M10 · Pipelines: cada 15 min durante un fine-tune de 4 h"
+        },
+        {
+          "id": "ckpt_every_min",
+          "label": "Checkpoint interval",
+          "unit": "min",
+          "default": 15,
+          "kind": "assumption",
+          "source": "M10 · Pipelines: un checkpoint cada 15 minutos"
+        },
+        {
+          "id": "golden_n",
+          "label": "Golden set size",
+          "unit": "img",
+          "default": 50000,
+          "kind": "requirement",
+          "source": "C01 · Datos: golden set ≈ 50k imágenes estratificadas"
+        },
+        {
+          "id": "golden_acc",
+          "label": "Top-1 accuracy",
+          "unit": "fraction",
+          "default": 0.85,
+          "kind": "assumption",
+          "source": "C01 · Datos: accuracy p = 0.85 y n = 50,000"
+        },
+        {
+          "id": "class_n_min",
+          "label": "Examples in a rank-50–100 category",
+          "unit": "img",
+          "default": 60,
+          "kind": "assumption",
+          "source": "C01 · Datos: las del puesto 50–100 tienen ≈ 60–150 (lower bound)"
+        },
+        {
+          "id": "z_95",
+          "label": "z for 95 % (two-sided)",
+          "unit": "z",
+          "default": 1.96,
+          "kind": "requirement",
+          "source": "C01 · Datos: intervalo al 95 % ≈ ±1.96 × SE"
+        },
+        {
+          "id": "parity_n",
+          "label": "Parity test images",
+          "unit": "img",
+          "default": 10000,
+          "kind": "assumption",
+          "source": "C01 · Evaluación: el parity test corre ≈ 10k imágenes por ambos"
+        },
+        {
+          "id": "parity_min_agree",
+          "label": "Min top-1 agreement TensorRT FP16 vs PyTorch",
+          "unit": "fraction",
+          "default": 0.995,
+          "kind": "requirement",
+          "source": "C01 · Datos: parity top-1 agreement ≥ 99.5 %"
+        },
+        {
+          "id": "bytes_fp16",
+          "label": "Bytes per FP16 value",
+          "unit": "B",
+          "default": 2,
+          "kind": "requirement",
+          "source": "C01 · Estimaciones: pesos FP16 24.5 M × 2 B ≈ 49 MB"
+        },
+        {
+          "id": "max_batch",
+          "label": "Triton max_batch_size",
+          "unit": "req",
+          "default": 32,
+          "kind": "requirement",
+          "source": "C01 · Serving: max_batch_size: 32 (igual al perfil max del engine)"
+        },
+        {
+          "id": "gpu_vram_gb",
+          "label": "T4 memory",
+          "unit": "GB",
+          "default": 16,
+          "kind": "benchmark",
+          "source": "C01 · Estimaciones: qué ocupa una T4 de 16 GB"
+        },
+        {
+          "id": "vram_used_gb",
+          "label": "VRAM used, 2 instances (upper)",
+          "unit": "GB",
+          "default": 3,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: 2 instancias del modelo ≈ 1–3 GB en total"
+        },
+        {
+          "id": "in_c",
+          "label": "Input channels",
+          "unit": "ch",
+          "default": 3,
+          "kind": "requirement",
+          "source": "C01 · Serving: input FP32 dims [3, 224, 224] (config.pbtxt)"
+        },
+        {
+          "id": "in_h",
+          "label": "Input height",
+          "unit": "px",
+          "default": 224,
+          "kind": "requirement",
+          "source": "C01 · Serving: input FP32 dims [3, 224, 224] (config.pbtxt)"
+        },
+        {
+          "id": "in_w",
+          "label": "Input width",
+          "unit": "px",
+          "default": 224,
+          "kind": "requirement",
+          "source": "C01 · Serving: input FP32 dims [3, 224, 224] (config.pbtxt)"
+        },
+        {
+          "id": "slo_p99_ms",
+          "label": "Latency SLO p99 (server-side)",
+          "unit": "ms",
+          "default": 200,
+          "kind": "requirement",
+          "source": "C01 · Aclaración: p99 ≤ 200 ms del lado del servidor"
+        },
+        {
+          "id": "p99_alb_ms",
+          "label": "p99 · ALB + routing",
+          "unit": "ms",
+          "default": 10,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: presupuesto por tramo, ALB + routing p99 5–10 ms"
+        },
+        {
+          "id": "p99_body_ms",
+          "label": "p99 · Body read in gateway",
+          "unit": "ms",
+          "default": 30,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: lectura del body p99 10–30 ms"
+        },
+        {
+          "id": "p99_decode_ms",
+          "label": "p99 · Decode + resize + crop",
+          "unit": "ms",
+          "default": 50,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: decode + resize 256 + crop 224 p99 25–50 ms"
+        },
+        {
+          "id": "p99_norm_ms",
+          "label": "p99 · Normalize + CHW tensor",
+          "unit": "ms",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: normalización + tensor CHW FP32 p99 ≈ 2 ms"
+        },
+        {
+          "id": "p99_hop_ms",
+          "label": "p99 · Gateway → Triton hop",
+          "unit": "ms",
+          "default": 10,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: hop gateway → Triton (602 KB) p99 5–10 ms"
+        },
+        {
+          "id": "p99_queue_ms",
+          "label": "p99 · Dynamic batching queue",
+          "unit": "ms",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: cola de dynamic batching p99 2 ms (max_queue_delay 2000 µs)"
+        },
+        {
+          "id": "p99_gpu_ms",
+          "label": "p99 · GPU compute (TRT FP16, batch 1–8)",
+          "unit": "ms",
+          "default": 15,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: cómputo GPU p99 8–15 ms"
+        },
+        {
+          "id": "p99_post_ms",
+          "label": "p99 · Postprocess + JSON + log",
+          "unit": "ms",
+          "default": 3,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: postproceso + JSON + log p99 2–3 ms"
+        },
+        {
+          "id": "p99_python_ms",
+          "label": "p99 · Python overhead (loop, threadpool, GC)",
+          "unit": "ms",
+          "default": 30,
+          "kind": "assumption",
+          "source": "C01 · Estimaciones: overhead de Python p99 10–30 ms"
+        },
+        {
+          "id": "lat_mean_s",
+          "label": "Mean gateway latency",
+          "unit": "s",
+          "default": 0.05,
+          "kind": "assumption",
+          "source": "M03 · Little: cada request tarda en promedio 50 ms"
+        },
+        {
+          "id": "triton_time_s",
+          "label": "Mean time inside Triton",
+          "unit": "s",
+          "default": 0.008,
+          "kind": "assumption",
+          "source": "M03 · Little: tiempo promedio dentro de Triton ≈ 8 ms"
+        },
+        {
+          "id": "gw_image_gb",
+          "label": "Gateway image (compressed)",
+          "unit": "GB",
+          "default": 0.09,
+          "kind": "benchmark",
+          "source": "M05 · Tamaño: gateway base slim + venv ≈ 0.09 GB"
+        },
+        {
+          "id": "triton_image_gb",
+          "label": "Triton 24.08 image with engine (compressed)",
+          "unit": "GB",
+          "default": 9.2,
+          "kind": "benchmark",
+          "source": "M05 · Tamaño: Triton 24.08 con el engine ≈ 9.2 GB"
+        },
+        {
+          "id": "pull_gbps",
+          "label": "Effective pull rate (worst case, gp3 default)",
+          "unit": "GB/s",
+          "default": 0.03,
+          "kind": "benchmark",
+          "source": "M05 · Tamaño: ritmo efectivo de pull ≈ 0.03–0.09 GB/s"
+        },
+        {
+          "id": "staging_h_week",
+          "label": "Staging T4 hours on per week",
+          "unit": "h/week",
+          "default": 60,
+          "kind": "assumption",
+          "source": "C01 · Costo: staging con 1 T4 prendida 60 h/semana"
+        },
+        {
+          "id": "gw_pod_cpu",
+          "label": "Gateway pod CPU request",
+          "unit": "vCPU",
+          "default": 1,
+          "kind": "requirement",
+          "source": "C01 · Archivos: k8s/gateway.yaml requests cpu \"1\" (base del HPA)"
+        },
+        {
+          "id": "hpa_min",
+          "label": "Gateway HPA min replicas",
+          "unit": "pods",
+          "default": 3,
+          "kind": "requirement",
+          "source": "C01 · Serving: HPA por CPU al 60 %, min 3, max 12"
+        },
+        {
+          "id": "hpa_max",
+          "label": "Gateway HPA max replicas",
+          "unit": "pods",
+          "default": 12,
+          "kind": "requirement",
+          "source": "C01 · Serving: HPA por CPU al 60 %, min 3, max 12"
+        },
+        {
+          "id": "max_inflight",
+          "label": "MAX_INFLIGHT per gateway pod",
+          "unit": "req",
+          "default": 16,
+          "kind": "requirement",
+          "source": "M03 · Little: MAX_INFLIGHT ≈ 20, recortado a 16 por RAM"
+        },
+        {
+          "id": "node_up_s",
+          "label": "New GPU node ready (upper)",
+          "unit": "s",
+          "default": 300,
+          "kind": "benchmark",
+          "source": "M05 · Tamaño: nodo ≈ 2–5 min"
+        },
+        {
+          "id": "engine_load_s",
+          "label": "Triton start + engine load + warmup (upper)",
+          "unit": "s",
+          "default": 60,
+          "kind": "benchmark",
+          "source": "M05 · Tamaño: engine y warmup ≈ 10–60 s"
+        },
+        {
+          "id": "readiness_s",
+          "label": "Readiness + endpoints (upper)",
+          "unit": "s",
+          "default": 15,
+          "kind": "benchmark",
+          "source": "M05 · Tamaño: readiness ≈ 5–15 s"
+        },
+        {
+          "id": "canary_share",
+          "label": "Canary traffic share",
+          "unit": "fraction",
+          "default": 0.05,
+          "kind": "requirement",
+          "source": "C01 · Evaluación: canary 5 % → 25 % → 100 %"
+        },
+        {
+          "id": "canary_n_min",
+          "label": "Canary requests per decision window",
+          "unit": "req",
+          "default": 10000,
+          "kind": "requirement",
+          "source": "C01 · Evaluación: rollback 5xx con ≥ 10,000 requests del canary en la ventana"
+        },
+        {
+          "id": "rollback_window_min",
+          "label": "Canary 5xx rollback window",
+          "unit": "min",
+          "default": 10,
+          "kind": "requirement",
+          "source": "C01 · Evaluación: criterio de rollback 5xx, ventana 10 min"
+        },
+        {
+          "id": "ab_base",
+          "label": "Acceptance-rate baseline",
+          "unit": "fraction",
+          "default": 0.7,
+          "kind": "assumption",
+          "source": "C01 · Evaluación: línea base de ≈ 70 %"
+        },
+        {
+          "id": "ab_mde",
+          "label": "Minimum detectable effect",
+          "unit": "fraction",
+          "default": 0.01,
+          "kind": "requirement",
+          "source": "C01 · Evaluación: detectar una mejora de 1 punto porcentual"
+        },
+        {
+          "id": "z_beta",
+          "label": "z for 80 % power",
+          "unit": "z",
+          "default": 0.84,
+          "kind": "requirement",
+          "source": "C01 · Evaluación: (1.96 + 0.84)²"
+        },
+        {
+          "id": "listings_day",
+          "label": "New listings per day",
+          "unit": "listings/day",
+          "default": 2500000,
+          "kind": "requirement",
+          "source": "C01 · Evaluación: ≈ 2.5 M publicaciones/día"
+        },
+        {
+          "id": "ab_share",
+          "label": "A/B treatment share",
+          "unit": "fraction",
+          "default": 0.05,
+          "kind": "assumption",
+          "source": "C01 · Evaluación: tiempo con 5 % en tratamiento"
+        },
+        {
+          "id": "caller_timeout_ms",
+          "label": "Caller timeout",
+          "unit": "ms",
+          "default": 300,
+          "kind": "requirement",
+          "source": "C01 · Serving: timeout del caller 300 ms → selector manual"
+        },
+        {
+          "id": "req_deadline_ms",
+          "label": "Gateway request deadline",
+          "unit": "ms",
+          "default": 250,
+          "kind": "requirement",
+          "source": "C01 · Serving: deadline total de 250 ms por request → 504"
+        },
+        {
+          "id": "infer_timeout_ms",
+          "label": "Gateway → Triton timeout",
+          "unit": "ms",
+          "default": 150,
+          "kind": "requirement",
+          "source": "C01 · Serving: timeout gateway → Triton 150 ms (INFER_TIMEOUT_S=0.15)"
+        },
+        {
+          "id": "queue_timeout_ms",
+          "label": "Triton queue timeout",
+          "unit": "ms",
+          "default": 100,
+          "kind": "requirement",
+          "source": "C01 · Serving: timeout en la cola de Triton 100 ms (REJECT)"
+        },
+        {
+          "id": "slo_window_h",
+          "label": "SLO window",
+          "unit": "h",
+          "default": 720,
+          "kind": "requirement",
+          "source": "M12 · Prometheus: 99.9 % en 30 días (720 h)"
+        },
+        {
+          "id": "burn_page",
+          "label": "Fast-burn page factor",
+          "unit": "×",
+          "default": 14.4,
+          "kind": "requirement",
+          "source": "C01 · Monitoreo: page si se consume 14.4× más rápido en 1 h y 5 min"
+        },
+        {
+          "id": "page_window_h",
+          "label": "Fast-burn long window",
+          "unit": "h",
+          "default": 1,
+          "kind": "requirement",
+          "source": "C01 · Monitoreo: 14.4× en 1 h y en 5 min a la vez"
+        },
+        {
+          "id": "burn_ticket",
+          "label": "Slow-burn ticket factor",
+          "unit": "×",
+          "default": 6,
+          "kind": "requirement",
+          "source": "C01 · Monitoreo: ticket a 6× en 6 h y 30 min"
+        },
+        {
+          "id": "ticket_window_h",
+          "label": "Slow-burn long window",
+          "unit": "h",
+          "default": 6,
+          "kind": "requirement",
+          "source": "C01 · Monitoreo: ticket a 6× en 6 h y 30 min"
+        }
+      ],
+      "steps": {
+        "kickoff": [
+          {
+            "id": "qps-avg",
+            "label": "Average QPS",
+            "out": "qps_avg",
+            "expr": "n_day / 86400",
+            "unit": "req/s",
+            "tol": 0.02,
+            "why": "Drives cost: the average pays the bill.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 115.74
+          },
+          {
+            "id": "qps-peak",
+            "label": "Peak QPS",
+            "out": "qps_peak",
+            "expr": "qps_avg * peak_factor",
+            "unit": "req/s",
+            "tol": 0.02,
+            "why": "Sizes capacity: the fleet is built for the peak.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 347.22
+          },
+          {
+            "id": "qps-design",
+            "label": "Design QPS (rounded up to 50)",
+            "out": "qps_design",
+            "expr": "ceilto(qps_peak * margin, 50)",
+            "unit": "req/s",
+            "tol": 0,
+            "why": "The single design point every tier is sized against.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 500
+          },
+          {
+            "id": "gpu-count",
+            "label": "T4 GPUs (throughput + 1, min one per AZ)",
+            "out": "gpu_count",
+            "expr": "max(ceil(qps_design / (target_util * gpu_max_tput) - 1e-9) + 1, n_az)",
+            "unit": "GPU",
+            "tol": 0,
+            "why": "Availability, not throughput, sets the GPU count.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 2
+          },
+          {
+            "id": "gpu-util-design",
+            "label": "Per-GPU load at design QPS",
+            "out": "gpu_util_design",
+            "expr": "qps_design / (gpu_count * gpu_max_tput)",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "Headroom left for spikes and failover.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 0.2083
+          },
+          {
+            "id": "gpu-util-n1",
+            "label": "Per-GPU load with one GPU down",
+            "out": "gpu_util_n1",
+            "expr": "qps_design / ((gpu_count - 1) * gpu_max_tput)",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "Confirms N+1: one zone carries the design peak alone.",
+            "check": {
+              "expr": "gpu_util_n1 <= 0.7",
+              "label": "Survivor stays within the 50–70 % planning band (M03)"
+            },
+            "ref": "#c01.estimaciones",
+            "expected": 0.4167
+          },
+          {
+            "id": "gw-vcpu",
+            "label": "Gateway vCPU requests at design QPS",
+            "out": "gw_vcpu_req",
+            "expr": "qps_design * cpu_ms_per_req / 1000 / hpa_target",
+            "unit": "vCPU",
+            "tol": 0.02,
+            "why": "CPU requests the HPA scales against.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 5
+          },
+          {
+            "id": "gw-nodes",
+            "label": "Gateway nodes (c6i.xlarge, min one per AZ)",
+            "out": "gw_nodes",
+            "expr": "max(ceil(gw_vcpu_req / vcpu_per_node - 1e-9), n_az)",
+            "unit": "nodes",
+            "tol": 0,
+            "why": "CPU node group size and its cost line.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 2
+          },
+          {
+            "id": "net-gbps",
+            "label": "Gateway → Triton bandwidth at design QPS",
+            "out": "net_gbps",
+            "expr": "qps_design * req_bytes * 8 / 1e9",
+            "unit": "Gb/s",
+            "tol": 0.02,
+            "why": "Decides zone routing and when to move to UINT8 input.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 2.41
+          },
+          {
+            "id": "net-node-share",
+            "label": "Egress per gateway node vs sustained baseline",
+            "out": "net_node_share",
+            "expr": "net_gbps / gw_nodes / node_baseline_gbps",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "Network saturates before CPU on these nodes; HPA does not see it.",
+            "check": {
+              "expr": "net_node_share <= 1",
+              "label": "Fits under the sustained baseline (burst is best effort)"
+            },
+            "ref": "#c01.estimaciones",
+            "expected": 0.77
+          },
+          {
+            "id": "cost-alb",
+            "label": "ALB monthly (hours + LCU by GB)",
+            "out": "cost_alb",
+            "expr": "price_alb_h * 730 + n_day * upload_kb * 1e3 / 1e9 * bill_days * price_lcu_gb",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Second cost line: the ALB bills every image GB.",
+            "check": null,
+            "ref": "#c01.costo",
+            "expected": 502.8
+          },
+          {
+            "id": "cost-infra",
+            "label": "Monthly infra (GPU + gateway + ALB + EKS + logs)",
+            "out": "cost_infra",
+            "expr": "gpu_count * price_gpu_h * 730 + gw_nodes * price_node_h * 730 + cost_alb + cost_eks_month + cost_obs_month",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Go/no-go against the budget before building.",
+            "check": {
+              "expr": "cost_infra <= budget_month",
+              "label": "Infra fits the US$3,000/month budget"
+            },
+            "ref": "#c01.estimaciones",
+            "expected": 1692
+          },
+          {
+            "id": "cost-per-1k",
+            "label": "Infra cost per 1,000 predictions",
+            "out": "cost_per_1k",
+            "expr": "cost_infra / (n_day * bill_days) * 1000",
+            "unit": "US$",
+            "tol": 0.05,
+            "why": "Unit cost reported to the business.",
+            "check": null,
+            "ref": "#c01.costo",
+            "expected": 0.00557
+          },
+          {
+            "id": "error-budget-min",
+            "label": "Error budget per 30-day month",
+            "out": "err_budget_min",
+            "expr": "30 * 1440 * (1 - slo)",
+            "unit": "min/month",
+            "tol": 0.02,
+            "why": "Downtime allowed per month; sets release freezes.",
+            "check": null,
+            "ref": "#c01.requisitos",
+            "expected": 43.2
+          }
+        ],
+        "datos": [
+          {
+            "id": "log-day",
+            "label": "Prediction logs per day (raw)",
+            "out": "log_gb_day",
+            "expr": "n_day * log_bytes / 1e9",
+            "unit": "GB/day",
+            "tol": 0.02,
+            "why": "Log 100 % of predictions: storage is not the constraint.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 3
+          },
+          {
+            "id": "log-month",
+            "label": "Prediction logs per month (raw)",
+            "out": "log_gb_month",
+            "expr": "log_gb_day * 30",
+            "unit": "GB/month",
+            "tol": 0.02,
+            "why": "Sizes the S3/Parquet log store and its retention.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 90
+          },
+          {
+            "id": "label-copy",
+            "label": "Images copied for labeling per month",
+            "out": "label_copy_gb_month",
+            "expr": "label_per_month * label_img_kb / 1e6",
+            "unit": "GB/month",
+            "tol": 0.02,
+            "why": "Only labeled images are copied (no EXIF, restricted bucket).",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 1.25
+          },
+          {
+            "id": "label-cost",
+            "label": "Human labeling per month",
+            "out": "label_cost_month",
+            "expr": "label_per_month * price_label",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Labeling costs more than training: sampling strategy matters.",
+            "check": {
+              "expr": "cost_infra + label_cost_month <= budget_month",
+              "label": "Infra + labeling stays under budget"
+            },
+            "ref": "#c01.datos",
+            "expected": 500
+          }
+        ],
+        "versionado": [
+          {
+            "id": "snap-images",
+            "label": "Images referenced by a snapshot",
+            "out": "snap_ref_gb",
+            "expr": "train_images * snap_img_kb / 1e6",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "Bytes a snapshot would copy if it copied images.",
+            "check": null,
+            "ref": "#m09.versionado",
+            "expected": 400
+          },
+          {
+            "id": "manifest-size",
+            "label": "Snapshot manifest size",
+            "out": "manifest_mb",
+            "expr": "train_images * manifest_row_b / 1e6",
+            "unit": "MB",
+            "tol": 0.02,
+            "why": "What a new snapshot actually writes.",
+            "check": null,
+            "ref": "#m09.versionado",
+            "expected": 400
+          },
+          {
+            "id": "snap-ratio",
+            "label": "Snapshot cost vs the images",
+            "out": "snap_cost_ratio",
+            "expr": "manifest_mb / (snap_ref_gb * 1000)",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "Immutable monthly snapshots are affordable for years.",
+            "check": null,
+            "ref": "#m09.versionado",
+            "expected": 0.001
+          }
+        ],
+        "entrenamiento": [
+          {
+            "id": "ckpt-size",
+            "label": "Full checkpoint (FP32 weights + Adam)",
+            "out": "ckpt_mb",
+            "expr": "n_params * bytes_fp32 * (1 + adam_moments) / 1e6",
+            "unit": "MB",
+            "tol": 0.02,
+            "why": "Sizes checkpoint storage and resume time.",
+            "check": null,
+            "ref": "#m10.pipelines-entrenamiento",
+            "expected": 294
+          },
+          {
+            "id": "ckpt-write",
+            "label": "Checkpoint write to S3",
+            "out": "ckpt_write_s",
+            "expr": "ckpt_mb / s3_write_mbps",
+            "unit": "s",
+            "tol": 0.05,
+            "why": "Cost of each checkpoint on the run.",
+            "check": null,
+            "ref": "#m10.pipelines-entrenamiento",
+            "expected": 2.94
+          },
+          {
+            "id": "ckpt-overhead",
+            "label": "Checkpoint overhead per fine-tune",
+            "out": "ckpt_overhead_s",
+            "expr": "train_h * 60 / ckpt_every_min * ckpt_write_s",
+            "unit": "s",
+            "tol": 0.05,
+            "why": "Justifies 15-min checkpoints (and spot) on the fine-tune.",
+            "check": {
+              "expr": "ckpt_overhead_s < 0.01 * train_h * 3600",
+              "label": "Checkpointing costs < 1 % of the run"
+            },
+            "ref": "#m10.pipelines-entrenamiento",
+            "expected": 48
+          }
+        ],
+        "gate": [
+          {
+            "id": "golden-ci",
+            "label": "Golden-set 95 % CI on top-1",
+            "out": "golden_ci95_pp",
+            "expr": "z_95 * sqrt(golden_acc * (1 - golden_acc) / golden_n) * 100",
+            "unit": "pp",
+            "tol": 0.05,
+            "why": "Sets the −0.3 pp non-inferiority margin, not \"≥ champion\".",
+            "check": null,
+            "ref": "#c01.datos",
+            "expected": 0.31
+          },
+          {
+            "id": "class-ci",
+            "label": "Per-class recall 95 % CI (small category)",
+            "out": "class_ci95_pp",
+            "expr": "z_95 * sqrt(golden_acc * (1 - golden_acc) / class_n_min) * 100",
+            "unit": "pp",
+            "tol": 0.05,
+            "why": "A fixed 5 pp per-class drop is noise here: gate with a paired test.",
+            "check": null,
+            "ref": "#c01.datos",
+            "expected": 9
+          },
+          {
+            "id": "parity-mismatch",
+            "label": "Max top-1 mismatches in the parity run",
+            "out": "parity_max_mismatch",
+            "expr": "round(parity_n * (1 - parity_min_agree))",
+            "unit": "img",
+            "tol": 0,
+            "why": "Hard fail line for the TensorRT FP16 parity gate.",
+            "check": null,
+            "ref": "#c01.evaluacion",
+            "expected": 50
+          }
+        ],
+        "export": [
+          {
+            "id": "onnx-fp32",
+            "label": "ONNX FP32 weights",
+            "out": "onnx_fp32_mb",
+            "expr": "n_params * bytes_fp32 / 1e6",
+            "unit": "MB",
+            "tol": 0.02,
+            "why": "Artifact size per model version in the registry.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 98
+          },
+          {
+            "id": "weights-fp16",
+            "label": "FP16 weights in the engine",
+            "out": "weights_fp16_mb",
+            "expr": "n_params * bytes_fp16 / 1e6",
+            "unit": "MB",
+            "tol": 0.02,
+            "why": "Weights are not what binds the T4.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 49
+          },
+          {
+            "id": "input-buffer",
+            "label": "Input buffer at max batch",
+            "out": "input_buf_mb",
+            "expr": "max_batch * req_bytes / 1e6",
+            "unit": "MB",
+            "tol": 0.02,
+            "why": "Engine profile max (batch 32) memory for inputs.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 19.3
+          },
+          {
+            "id": "vram-headroom",
+            "label": "VRAM headroom on a 16 GB T4",
+            "out": "vram_headroom_gb",
+            "expr": "gpu_vram_gb - vram_used_gb",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "No bigger GPU needed; room to co-host other models.",
+            "check": {
+              "expr": "vram_used_gb < gpu_vram_gb",
+              "label": "Engine + 2 instances fit in one T4"
+            },
+            "ref": "#c01.estimaciones",
+            "expected": 13
+          }
+        ],
+        "serving": [
+          {
+            "id": "tensor-bytes",
+            "label": "Input tensor per request (from config.pbtxt)",
+            "out": "tensor_bytes_contract",
+            "expr": "in_c * in_h * in_w * bytes_fp32",
+            "unit": "B",
+            "tol": 0,
+            "why": "The contract fixes the bytes every network number uses.",
+            "check": {
+              "expr": "tensor_bytes_contract == req_bytes",
+              "label": "Matches the bytes the capacity plan assumed"
+            },
+            "ref": "#c01.estimaciones",
+            "expected": 602112
+          },
+          {
+            "id": "p99-budget",
+            "label": "Sum of per-hop p99 budgets",
+            "out": "lat_p99_sum",
+            "expr": "p99_alb_ms + p99_body_ms + p99_decode_ms + p99_norm_ms + p99_hop_ms + p99_queue_ms + p99_gpu_ms + p99_post_ms + p99_python_ms",
+            "unit": "ms",
+            "tol": 0.05,
+            "why": "Leaves ≈ 50 ms margin; sets the 150 ms Triton timeout.",
+            "check": {
+              "expr": "lat_p99_sum <= slo_p99_ms",
+              "label": "Pessimistic budget fits the 200 ms p99 SLO"
+            },
+            "ref": "#c01.estimaciones",
+            "expected": 150
+          },
+          {
+            "id": "inflight-total",
+            "label": "Requests in flight at design QPS (Little)",
+            "out": "inflight_total",
+            "expr": "qps_design * lat_mean_s",
+            "unit": "req",
+            "tol": 0.02,
+            "why": "Concurrency the gateway fleet must hold.",
+            "check": null,
+            "ref": "#m03.little",
+            "expected": 25
+          },
+          {
+            "id": "triton-inflight",
+            "label": "Requests inside Triton per GPU (Little)",
+            "out": "triton_inflight",
+            "expr": "qps_design / gpu_count * triton_time_s",
+            "unit": "req",
+            "tol": 0.02,
+            "why": "Picks instance_group count 2, not more.",
+            "check": null,
+            "ref": "#m03.little",
+            "expected": 2
+          }
+        ],
+        "empaquetado": [
+          {
+            "id": "pull-gateway",
+            "label": "Gateway image pull",
+            "out": "pull_gw_s",
+            "expr": "gw_image_gb / pull_gbps",
+            "unit": "s",
+            "tol": 0.05,
+            "why": "Gateway scales out in seconds.",
+            "check": null,
+            "ref": "#m05.tamano",
+            "expected": 3
+          },
+          {
+            "id": "pull-triton",
+            "label": "Triton image pull",
+            "out": "pull_triton_s",
+            "expr": "triton_image_gb / pull_gbps",
+            "unit": "s",
+            "tol": 0.05,
+            "why": "Minutes of cold start: pre-pull or bake into the AMI.",
+            "check": null,
+            "ref": "#m05.tamano",
+            "expected": 306.67
+          }
+        ],
+        "cicd": [
+          {
+            "id": "staging-cost",
+            "label": "Staging T4 at 60 h/week",
+            "out": "staging_cost",
+            "expr": "price_gpu_h * staging_h_week * 52 / 12",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Staging GPU cost outside the infra line.",
+            "check": null,
+            "ref": "#c01.costo",
+            "expected": 137
+          },
+          {
+            "id": "staging-saving",
+            "label": "Saving vs staging T4 24/7",
+            "out": "staging_saving",
+            "expr": "price_gpu_h * 730 - staging_cost",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Schedule staging off nights and weekends.",
+            "check": null,
+            "ref": "#c01.costo",
+            "expected": 247
+          }
+        ],
+        "kubernetes": [
+          {
+            "id": "gw-pods",
+            "label": "Gateway pods at design QPS",
+            "out": "gw_pods_peak",
+            "expr": "max(ceil(gw_vcpu_req / gw_pod_cpu - 1e-9), hpa_min)",
+            "unit": "pods",
+            "tol": 0,
+            "why": "HPA min/max for the gateway Deployment.",
+            "check": {
+              "expr": "gw_pods_peak <= hpa_max",
+              "label": "Design peak fits under HPA maxReplicas"
+            },
+            "ref": "#c01.archivos",
+            "expected": 5
+          },
+          {
+            "id": "inflight-pod",
+            "label": "In flight per pod at 200 ms latency",
+            "out": "inflight_pod_200",
+            "expr": "qps_design / gw_pods_peak * slo_p99_ms / 1000",
+            "unit": "req",
+            "tol": 0.02,
+            "why": "Basis for MAX_INFLIGHT load shedding per pod.",
+            "check": {
+              "expr": "max_inflight <= inflight_pod_200",
+              "label": "MAX_INFLIGHT sheds before a pod holds more than 200 ms of work"
+            },
+            "ref": "#m03.little",
+            "expected": 20
+          },
+          {
+            "id": "net-zone-loss",
+            "label": "Gateway NIC load on one node after a zone loss",
+            "out": "net_share_zone_loss",
+            "expr": "net_gbps / node_baseline_gbps",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "Relies on burst until a second node joins; watch node egress.",
+            "check": null,
+            "ref": "#c01.estimaciones",
+            "expected": 1.54
+          },
+          {
+            "id": "triton-cold-start",
+            "label": "New Triton pod, worst case (node + pull + engine + ready)",
+            "out": "triton_cold_start_min",
+            "expr": "(node_up_s + pull_triton_s + engine_load_s + readiness_s) / 60",
+            "unit": "min",
+            "tol": 0.05,
+            "why": "Why 2 warm replicas absorb spikes, not the autoscaler.",
+            "check": null,
+            "ref": "#m05.tamano",
+            "expected": 11
+          }
+        ],
+        "rollout": [
+          {
+            "id": "canary-peak",
+            "label": "Time to 10,000 canary requests at peak",
+            "out": "canary_min_peak",
+            "expr": "canary_n_min / (qps_peak * canary_share) / 60",
+            "unit": "min",
+            "tol": 0.05,
+            "why": "5 % fills the 10-min rollback window at peak.",
+            "check": {
+              "expr": "canary_min_peak <= rollback_window_min",
+              "label": "Peak traffic fills the 10-min rollback window"
+            },
+            "ref": "#c01.evaluacion",
+            "expected": 9.6
+          },
+          {
+            "id": "canary-avg",
+            "label": "Time to 10,000 canary requests at average traffic",
+            "out": "canary_h_avg",
+            "expr": "canary_n_min / (qps_avg * canary_share) / 3600",
+            "unit": "h",
+            "tol": 0.05,
+            "why": "Off-peak windows collect 3× less: stages last hours and span a peak.",
+            "check": null,
+            "ref": "#c01.evaluacion",
+            "expected": 0.48
+          },
+          {
+            "id": "ab-n",
+            "label": "A/B sample per arm (acceptance rate)",
+            "out": "ab_n_arm",
+            "expr": "2 * (z_95 + z_beta)^2 * ab_base * (1 - ab_base) / ab_mde^2",
+            "unit": "listings",
+            "tol": 0.05,
+            "why": "Minimum listings per arm before reading the A/B.",
+            "check": null,
+            "ref": "#c01.evaluacion",
+            "expected": 33000
+          },
+          {
+            "id": "ab-time",
+            "label": "Time to the A/B sample at 5 % treatment",
+            "out": "ab_h_5pct",
+            "expr": "ab_n_arm / (listings_day * ab_share / 24)",
+            "unit": "h",
+            "tol": 0.05,
+            "why": "Sample comes in hours; run 1–2 weeks for seasonality.",
+            "check": null,
+            "ref": "#c01.evaluacion",
+            "expected": 6.34
+          }
+        ],
+        "request": [
+          {
+            "id": "deadline-headroom",
+            "label": "Caller timeout minus gateway deadline",
+            "out": "deadline_headroom_ms",
+            "expr": "caller_timeout_ms - req_deadline_ms",
+            "unit": "ms",
+            "tol": 0,
+            "why": "The 504 reaches the caller before it gives up.",
+            "check": {
+              "expr": "caller_timeout_ms > req_deadline_ms && req_deadline_ms > infer_timeout_ms && infer_timeout_ms > queue_timeout_ms",
+              "label": "Timeouts strictly decrease 300 → 250 → 150 → 100 ms"
+            },
+            "ref": "#c01.serving",
+            "expected": 50
+          },
+          {
+            "id": "hung-total",
+            "label": "Requests held if Triton stalls to the timeout",
+            "out": "hung_total",
+            "expr": "qps_design * infer_timeout_ms / 1000",
+            "unit": "req",
+            "tol": 0.02,
+            "why": "Upper bound for the connection pool to Triton.",
+            "check": null,
+            "ref": "#m03.little",
+            "expected": 75
+          },
+          {
+            "id": "hung-pod",
+            "label": "Held requests per gateway pod",
+            "out": "hung_per_pod",
+            "expr": "hung_total / gw_pods_peak",
+            "unit": "req",
+            "tol": 0.02,
+            "why": "A full Triton stall stays inside MAX_INFLIGHT.",
+            "check": {
+              "expr": "hung_per_pod <= max_inflight",
+              "label": "Stall fits within MAX_INFLIGHT per pod"
+            },
+            "ref": "#m03.little",
+            "expected": 15
+          }
+        ],
+        "monitoreo": [
+          {
+            "id": "error-budget-req",
+            "label": "Error budget in requests per month",
+            "out": "error_budget_req",
+            "expr": "n_day * 30 * (1 - slo)",
+            "unit": "req/month",
+            "tol": 0.02,
+            "why": "Failed requests allowed per month; burn alerts spend it.",
+            "check": null,
+            "ref": "#c01.requisitos",
+            "expected": 300000
+          },
+          {
+            "id": "budget-page",
+            "label": "Budget consumed by a 1 h fast burn",
+            "out": "budget_frac_page",
+            "expr": "burn_page * page_window_h / slo_window_h",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "Page only when 2 % of the month burns in an hour.",
+            "check": null,
+            "ref": "#m12.prometheus-grafana",
+            "expected": 0.02
+          },
+          {
+            "id": "err-thr-page",
+            "label": "5xx ratio threshold for the fast-burn page",
+            "out": "err_thr_page",
+            "expr": "burn_page * (1 - slo)",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "The number in the PrometheusRule (1h and 5m windows).",
+            "check": null,
+            "ref": "#c01.monitoreo",
+            "expected": 0.0144
+          },
+          {
+            "id": "budget-ticket",
+            "label": "Budget consumed by a 6 h slow burn",
+            "out": "budget_frac_ticket",
+            "expr": "burn_ticket * ticket_window_h / slo_window_h",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "Ticket at 6× (5 % of the month in 6 h).",
+            "check": null,
+            "ref": "#m12.prometheus-grafana",
+            "expected": 0.05
+          }
+        ]
+      }
+    }
+  }
+}

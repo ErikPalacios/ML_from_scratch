@@ -1,0 +1,3180 @@
+{
+  "patterns": {
+    "batch": {
+      "case": "c14",
+      "vars": [
+        {
+          "id": "n_stores",
+          "label": "Stores",
+          "unit": "stores",
+          "default": 400,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: 400 tiendas"
+        },
+        {
+          "id": "products_per_store",
+          "label": "Active products per store",
+          "unit": "products",
+          "default": 12000,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: ≈ 12,000 productos por tienda (de ≈ 25,000 en la cadena)"
+        },
+        {
+          "id": "horizons",
+          "label": "Forecast horizons per series",
+          "unit": "days",
+          "default": 14,
+          "kind": "requirement",
+          "source": "C14 · Requisitos FR1: 14 filas (horizonte 1–14) por serie"
+        },
+        {
+          "id": "n_models",
+          "label": "Quantile models scored",
+          "unit": "models",
+          "default": 2,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: 67.2 M filas × 2 modelos (P50 y P90)"
+        },
+        {
+          "id": "us_per_row_core",
+          "label": "GBDT scoring cost per row",
+          "unit": "µs/row/core",
+          "default": 30,
+          "kind": "benchmark",
+          "source": "C14 · Estimaciones: 30 µs por fila y núcleo"
+        },
+        {
+          "id": "cluster_vcpu",
+          "label": "Scoring vCPU",
+          "unit": "vCPU",
+          "default": 32,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: En 32 vCPU ≈ 2.1 min"
+        },
+        {
+          "id": "cutoff_min",
+          "label": "Data cutoff (minutes after 00:00)",
+          "unit": "min",
+          "default": 90,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: corte a la 01:30"
+        },
+        {
+          "id": "deadline_min",
+          "label": "Publish deadline (minutes after 00:00)",
+          "unit": "min",
+          "default": 210,
+          "kind": "requirement",
+          "source": "C14 · Requisitos: publicado a las 03:30"
+        },
+        {
+          "id": "erp_read_min",
+          "label": "ERP read time (minutes after 00:00)",
+          "unit": "min",
+          "default": 240,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: ERP a las 04:00"
+        },
+        {
+          "id": "n_attempts",
+          "label": "Attempts that must fit the window",
+          "unit": "attempts",
+          "default": 2,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: presupuesto por intento 120 ÷ 2 (primer intento spot, reintento on-demand)"
+        },
+        {
+          "id": "run_max_min",
+          "label": "Run duration budget per attempt",
+          "unit": "min",
+          "default": 60,
+          "kind": "requirement",
+          "source": "C14 · Requisitos: ≤ 60 min por intento (esperado ≈ 35–60 min)"
+        },
+        {
+          "id": "annual_sales_usd",
+          "label": "Chain annual sales",
+          "unit": "US$/year",
+          "default": 5000000000,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: US$5 B"
+        },
+        {
+          "id": "fresh_share",
+          "label": "Fresh share of sales",
+          "unit": "fraction",
+          "default": 0.3,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: 30 % × US$5 B"
+        },
+        {
+          "id": "waste_rate",
+          "label": "Fresh waste rate today",
+          "unit": "fraction",
+          "default": 0.04,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: merma 4 %"
+        },
+        {
+          "id": "waste_cut",
+          "label": "Waste reduction target",
+          "unit": "fraction",
+          "default": 0.2,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: meta −20 % de merma (4 % → 3.2 %)"
+        },
+        {
+          "id": "stockout_rate",
+          "label": "Lost sales to stockouts",
+          "unit": "fraction",
+          "default": 0.03,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: 3 % × US$5 B"
+        },
+        {
+          "id": "stockout_cut",
+          "label": "Stockout reduction target",
+          "unit": "fraction",
+          "default": 0.25,
+          "kind": "requirement",
+          "source": "C14 · Estimaciones: meta −25 % de agotados"
+        },
+        {
+          "id": "gross_margin",
+          "label": "Gross margin",
+          "unit": "fraction",
+          "default": 0.25,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: margen bruto de ≈ 25 %"
+        },
+        {
+          "id": "infra_month_usd",
+          "label": "Infra cost, upper bound",
+          "unit": "US$/month",
+          "default": 5000,
+          "kind": "requirement",
+          "source": "C14 · Requisitos: ≈ US$3–5k/mes de infraestructura (cota alta)"
+        },
+        {
+          "id": "hist_days_ref",
+          "label": "History read by reference features",
+          "unit": "days",
+          "default": 70,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: 4.8 M series × 70 días"
+        },
+        {
+          "id": "hist_days_annual",
+          "label": "History read with annual features",
+          "unit": "days",
+          "default": 730,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: 4.8 M series × 730 días"
+        },
+        {
+          "id": "bytes_float",
+          "label": "Bytes per float32",
+          "unit": "B",
+          "default": 4,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: ≈ 1.3 GB en float32; memoria en float32 × 4 B"
+        },
+        {
+          "id": "bytes_hist_row",
+          "label": "Bytes per history row",
+          "unit": "B",
+          "default": 16,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: ≈ 16 B por fila → ≈ 56 GB por tabla"
+        },
+        {
+          "id": "impute_ticket_share",
+          "label": "Imputed stores that open a ticket",
+          "unit": "fraction",
+          "default": 0.02,
+          "kind": "requirement",
+          "source": "C14 · Monitoreo: InputDataIncomplete con más del 2 % (≈ 8 de 400)"
+        },
+        {
+          "id": "impute_block_share",
+          "label": "Imputed stores that block the gate",
+          "unit": "fraction",
+          "default": 0.05,
+          "kind": "requirement",
+          "source": "C14 · Requisitos FR5: tiendas imputadas ≤ 5 %"
+        },
+        {
+          "id": "bytes_per_out_row",
+          "label": "Bytes per forecast row",
+          "unit": "B",
+          "default": 30,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: ≈ 30 B (ids, fechas, P50, P90, marcas)"
+        },
+        {
+          "id": "s3_price_gb_month",
+          "label": "S3 Standard price",
+          "unit": "US$/GB-month",
+          "default": 0.023,
+          "kind": "assumption",
+          "source": "ref-numeros · S3 Standard ≈ US$0.023/GB-mes (C14 da ≈ US$17 sin comprimir)"
+        },
+        {
+          "id": "top_share",
+          "label": "Top series share (all rows kept)",
+          "unit": "fraction",
+          "default": 0.2,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: series principales 20 % × 4.8 M"
+        },
+        {
+          "id": "train_days",
+          "label": "Training history",
+          "unit": "days",
+          "default": 364,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: 52 semanas = 364 días"
+        },
+        {
+          "id": "rest_sample",
+          "label": "Sample rate for the other series",
+          "unit": "fraction",
+          "default": 0.1,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: el resto al 10 %, con peso 10"
+        },
+        {
+          "id": "n_features",
+          "label": "Features per row",
+          "unit": "features",
+          "default": 50,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: ≈ 50 features (la referencia usa 45)"
+        },
+        {
+          "id": "bytes_binned",
+          "label": "Bytes per binned feature",
+          "unit": "B",
+          "default": 1,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: 1 B (≤ 255 bins por feature)"
+        },
+        {
+          "id": "train_node_ram_gib",
+          "label": "Training node RAM (r7i.24xlarge)",
+          "unit": "GiB",
+          "default": 768,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: r7i.24xlarge (96 vCPU, 768 GiB)"
+        },
+        {
+          "id": "row_count_tol",
+          "label": "Gate tolerance on row count",
+          "unit": "fraction",
+          "default": 0.005,
+          "kind": "requirement",
+          "source": "C14 · Archivos: row_count (series × 14 ± 0.5 %)"
+        },
+        {
+          "id": "guard_min",
+          "label": "Fallback guard DAG start (minutes after 00:00)",
+          "unit": "min",
+          "default": 225,
+          "kind": "requirement",
+          "source": "C14 · Serving: guardián a las 03:45"
+        },
+        {
+          "id": "freeze_min",
+          "label": "Pointer freeze (minutes after 00:00)",
+          "unit": "min",
+          "default": 235,
+          "kind": "requirement",
+          "source": "C14 · Serving: puntero congelado a las 03:55"
+        },
+        {
+          "id": "guard_timeout_min",
+          "label": "Guard task limit",
+          "unit": "min",
+          "default": 9,
+          "kind": "requirement",
+          "source": "C14 · Serving: forecast_fallback_guard, límite 9 min"
+        },
+        {
+          "id": "dag_timeout_min",
+          "label": "run_forecast execution timeout",
+          "unit": "min",
+          "default": 90,
+          "kind": "requirement",
+          "source": "C14 · Serving: 90 min por intento (tope para un intento colgado)"
+        },
+        {
+          "id": "spark_nodes",
+          "label": "Spark nodes (r7i.4xlarge)",
+          "unit": "nodes",
+          "default": 16,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: ≈ 16 × r7i.4xlarge en spot"
+        },
+        {
+          "id": "idle_wait_h",
+          "label": "Cluster up but waiting for late stores",
+          "unit": "h",
+          "default": 1,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones (trampa): levantarlo a las 00:30 y esperar hasta la 01:30"
+        },
+        {
+          "id": "price_node_spot_h",
+          "label": "r7i.4xlarge spot price",
+          "unit": "US$/h",
+          "default": 0.41,
+          "kind": "assumption",
+          "source": "C14 · Estimaciones: r7i.4xlarge ≈ US$0.41 en spot (oct. 2026)"
+        },
+        {
+          "id": "days_month",
+          "label": "Nights per month",
+          "unit": "nights",
+          "default": 30,
+          "kind": "assumption",
+          "source": "Course convention: SLO month = 30 days"
+        },
+        {
+          "id": "pilot_pairs",
+          "label": "Pilot store pairs",
+          "unit": "pairs",
+          "default": 40,
+          "kind": "requirement",
+          "source": "C14 · Evaluación: 40 pares de tiendas"
+        },
+        {
+          "id": "pilot_weeks",
+          "label": "Pilot length",
+          "unit": "weeks",
+          "default": 8,
+          "kind": "requirement",
+          "source": "C14 · Evaluación: semanas 3 a 8"
+        },
+        {
+          "id": "burnin_weeks",
+          "label": "Burn-in weeks not counted",
+          "unit": "weeks",
+          "default": 2,
+          "kind": "requirement",
+          "source": "C14 · Evaluación: las 2 primeras semanas son de arranque"
+        },
+        {
+          "id": "pilot_sigma_pts",
+          "label": "Std dev of per-store stockout change",
+          "unit": "points",
+          "default": 1.5,
+          "kind": "assumption",
+          "source": "C14 · Evaluación: σ del cambio por tienda ≈ 1.5 puntos"
+        },
+        {
+          "id": "z95",
+          "label": "z for 95 %",
+          "unit": "z",
+          "default": 1.96,
+          "kind": "assumption",
+          "source": "C14 · Evaluación: intervalo de 95 %"
+        }
+      ],
+      "steps": {
+        "kickoff": [
+          {
+            "id": "series",
+            "label": "Store × product series",
+            "out": "series",
+            "expr": "n_stores * products_per_store",
+            "unit": "series",
+            "tol": 0.02,
+            "why": "Fixes the gate row count and every downstream volume.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 4800000
+          },
+          {
+            "id": "rows-night",
+            "label": "Forecast rows per night",
+            "out": "rows_night",
+            "expr": "series * horizons",
+            "unit": "rows",
+            "tol": 0.02,
+            "why": "Exact row count the gate expects every night.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 67200000
+          },
+          {
+            "id": "predict-core-min",
+            "label": "Scoring CPU per night",
+            "out": "predict_core_min",
+            "expr": "rows_night * n_models * us_per_row_core / 1e6 / 60",
+            "unit": "core-min",
+            "tol": 0.02,
+            "why": "Scoring is minutes of CPU: no GPU fleet.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 67
+          },
+          {
+            "id": "predict-wall-min",
+            "label": "Scoring wall time on the cluster",
+            "out": "predict_wall_min",
+            "expr": "predict_core_min / cluster_vcpu",
+            "unit": "min",
+            "tol": 0.05,
+            "why": "Puts the time budget on the feature build, not on scoring.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 2.1
+          },
+          {
+            "id": "compute-window-min",
+            "label": "Compute window, cutoff to deadline",
+            "out": "compute_window_min",
+            "expr": "deadline_min - cutoff_min",
+            "unit": "min",
+            "tol": 0,
+            "why": "The SLO is a deadline: this is the whole budget.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 120
+          },
+          {
+            "id": "attempt-budget-min",
+            "label": "Budget per attempt",
+            "out": "attempt_budget_min",
+            "expr": "compute_window_min / n_attempts",
+            "unit": "min",
+            "tol": 0,
+            "why": "Caps run duration so one full retry still fits.",
+            "check": {
+              "expr": "run_max_min <= attempt_budget_min",
+              "label": "A full run fits in half the window (room for one retry)"
+            },
+            "ref": "#c14.estimaciones",
+            "expected": 60
+          },
+          {
+            "id": "retry-margin-min",
+            "label": "Margin left for a retry",
+            "out": "retry_margin_min",
+            "expr": "compute_window_min - run_max_min",
+            "unit": "min",
+            "tol": 0,
+            "why": "Duration becomes a trended, alerted metric once this margin shrinks.",
+            "check": {
+              "expr": "retry_margin_min >= run_max_min",
+              "label": "A full retry fits before 03:30"
+            },
+            "ref": "#c14.estimaciones",
+            "expected": 60
+          },
+          {
+            "id": "waste-point-usd",
+            "label": "Value of one point of fresh waste",
+            "out": "waste_point_usd",
+            "expr": "annual_sales_usd * fresh_share * 0.01",
+            "unit": "US$/year",
+            "tol": 0.02,
+            "why": "Puts accuracy in fresh, not infrastructure, at the top of the list.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 15000000
+          },
+          {
+            "id": "waste-goal-usd",
+            "label": "Value of the −20 % waste goal",
+            "out": "waste_goal_usd",
+            "expr": "annual_sales_usd * fresh_share * waste_rate * waste_cut",
+            "unit": "US$/year",
+            "tol": 0.02,
+            "why": "Business case of the project.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 12000000
+          },
+          {
+            "id": "stockout-goal-usd",
+            "label": "Margin from the −25 % stockout goal",
+            "out": "stockout_goal_usd",
+            "expr": "annual_sales_usd * stockout_rate * stockout_cut * gross_margin",
+            "unit": "US$/year",
+            "tol": 0.02,
+            "why": "Second half of the business case, in margin, not sales.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 9400000
+          },
+          {
+            "id": "infra-share-goals",
+            "label": "Infra cost as share of the goals",
+            "out": "infra_share_goals",
+            "expr": "infra_month_usd * 12 / (waste_goal_usd + stockout_goal_usd)",
+            "unit": "fraction",
+            "tol": 0.05,
+            "why": "Infra is noise: no machine decision gets more than one sentence.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 0.0028
+          }
+        ],
+        "datos": [
+          {
+            "id": "hist-cells-ref",
+            "label": "History cells, reference features",
+            "out": "hist_cells_ref",
+            "expr": "series * hist_days_ref",
+            "unit": "cells",
+            "tol": 0.02,
+            "why": "Size of what the nightly job reads with 10-week features.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 336000000
+          },
+          {
+            "id": "hist-gb-ref",
+            "label": "History size, reference features",
+            "out": "hist_gb_ref",
+            "expr": "hist_cells_ref * bytes_float / 1e9",
+            "unit": "GB",
+            "tol": 0.05,
+            "why": "Fits one machine: no cluster needed for the MVP.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 1.3
+          },
+          {
+            "id": "hist-rows-annual",
+            "label": "History rows with annual features",
+            "out": "hist_rows_annual",
+            "expr": "series * hist_days_annual",
+            "unit": "rows/table",
+            "tol": 0.02,
+            "why": "Annual features are what push the feature build to Spark.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 3500000000
+          },
+          {
+            "id": "hist-gb-annual",
+            "label": "History size per table, annual features",
+            "out": "hist_gb_annual",
+            "expr": "hist_rows_annual * bytes_hist_row / 1e9",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "Sizes the feature-build cluster and its memory.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 56
+          }
+        ],
+        "sensores-con-hora-de-corte": [
+          {
+            "id": "impute-ticket-stores",
+            "label": "Imputed stores that open a ticket",
+            "out": "impute_ticket_stores",
+            "expr": "n_stores * impute_ticket_share",
+            "unit": "stores",
+            "tol": 0,
+            "why": "InputDataIncomplete threshold.",
+            "check": null,
+            "ref": "#c14.monitoreo",
+            "expected": 8
+          },
+          {
+            "id": "impute-block-stores",
+            "label": "Imputed stores that block the night",
+            "out": "impute_block_stores",
+            "expr": "n_stores * impute_block_share",
+            "unit": "stores",
+            "tol": 0,
+            "why": "Above this the gate blocks and the fallback is published.",
+            "check": null,
+            "ref": "#c14.requisitos",
+            "expected": 20
+          },
+          {
+            "id": "latest-publish-min",
+            "label": "Latest first-attempt publish (minutes after 00:00)",
+            "out": "latest_publish_min",
+            "expr": "cutoff_min + run_max_min",
+            "unit": "min",
+            "tol": 0,
+            "why": "Sensors end at the cutoff at the latest, so this is 02:30.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 150
+          }
+        ],
+        "versionado": [
+          {
+            "id": "out-gb-night",
+            "label": "Forecast partition size per night",
+            "out": "out_gb_night",
+            "expr": "rows_night * bytes_per_out_row / 1e9",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "Immutable partitions are cheap to keep: never delete them.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 2
+          },
+          {
+            "id": "archive-tb-year",
+            "label": "Forecast archive per year, uncompressed",
+            "out": "archive_tb_year",
+            "expr": "out_gb_night * 365 / 1000",
+            "unit": "TB",
+            "tol": 0.02,
+            "why": "Keeping two years for audit is a storage non-issue.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 0.74
+          },
+          {
+            "id": "archive-usd-month",
+            "label": "Archive cost after one year, uncompressed",
+            "out": "archive_usd_month",
+            "expr": "archive_tb_year * 1000 * s3_price_gb_month",
+            "unit": "US$/month",
+            "tol": 0.03,
+            "why": "Upper bound; Parquet brings it to ≈ US$3–5.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 17
+          }
+        ],
+        "entrenamiento": [
+          {
+            "id": "train-rows",
+            "label": "Training set rows",
+            "out": "train_rows",
+            "expr": "series * top_share * train_days + series * (1 - top_share) * train_days * rest_sample",
+            "unit": "rows",
+            "tol": 0.02,
+            "why": "Decides single node vs distributed training.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 490000000
+          },
+          {
+            "id": "train-mem-fp32-gb",
+            "label": "Training set in float32",
+            "out": "train_mem_fp32_gb",
+            "expr": "train_rows * n_features * bytes_float / 1e9",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "Fits one large CPU node: no distributed training.",
+            "check": {
+              "expr": "train_mem_fp32_gb * 1e9 / 2^30 < train_node_ram_gib",
+              "label": "Fits in the RAM of one r7i.24xlarge"
+            },
+            "ref": "#c14.estimaciones",
+            "expected": 98
+          },
+          {
+            "id": "train-mem-binned-gb",
+            "label": "Training set binned (1 B/feature)",
+            "out": "train_mem_binned_gb",
+            "expr": "train_rows * n_features * bytes_binned / 1e9",
+            "unit": "GB",
+            "tol": 0.03,
+            "why": "What histogram GBDTs actually hold in memory.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 25
+          }
+        ],
+        "serving": [
+          {
+            "id": "shard-rows",
+            "label": "History rows per store shard",
+            "out": "shard_rows",
+            "expr": "products_per_store * hist_days_annual",
+            "unit": "rows",
+            "tol": 0.02,
+            "why": "One store fits in one task’s memory: shard by store.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 8800000
+          }
+        ],
+        "gate-de-salida-y-swap-atomico": [
+          {
+            "id": "row-count-min",
+            "label": "Gate floor on row count",
+            "out": "row_count_min",
+            "expr": "rows_night * (1 - row_count_tol)",
+            "unit": "rows",
+            "tol": 0.01,
+            "why": "Below this the gate blocks the publish.",
+            "check": null,
+            "ref": "#c14.archivos",
+            "expected": 66864000
+          },
+          {
+            "id": "row-count-max",
+            "label": "Gate ceiling on row count",
+            "out": "row_count_max",
+            "expr": "rows_night * (1 + row_count_tol)",
+            "unit": "rows",
+            "tol": 0.01,
+            "why": "Above this (duplicates) the gate blocks the publish.",
+            "check": null,
+            "ref": "#c14.archivos",
+            "expected": 67536000
+          }
+        ],
+        "fallback-y-guardian-de-las-03-45": [
+          {
+            "id": "erp-margin-min",
+            "label": "Margin between deadline and ERP read",
+            "out": "erp_margin_min",
+            "expr": "erp_read_min - deadline_min",
+            "unit": "min",
+            "tol": 0,
+            "why": "Time to get the fallback out after ForecastRunLate fires.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 30
+          },
+          {
+            "id": "guard-window-min",
+            "label": "Guard window before the pointer freeze",
+            "out": "guard_window_min",
+            "expr": "freeze_min - guard_min",
+            "unit": "min",
+            "tol": 0,
+            "why": "Caps the guard task timeout.",
+            "check": {
+              "expr": "guard_timeout_min <= guard_window_min",
+              "label": "Guard finishes before the 03:55 freeze"
+            },
+            "ref": "#c14.serving",
+            "expected": 10
+          }
+        ],
+        "kubernetes": [
+          {
+            "id": "publish-if-timeout-min",
+            "label": "Publish time if attempt 1 hits the timeout (minutes after 00:00)",
+            "out": "publish_if_timeout_min",
+            "expr": "cutoff_min + dag_timeout_min + run_max_min",
+            "unit": "min",
+            "tol": 0,
+            "why": "The 90-min execution_timeout only kills hung attempts; the target stays ≤ 60.",
+            "check": null,
+            "ref": "#c14.serving",
+            "expected": 240
+          }
+        ],
+        "job-programado-dag-forecast-nightly": [
+          {
+            "id": "idle-node-h-night",
+            "label": "Billed idle node-hours if started early",
+            "out": "idle_node_h_night",
+            "expr": "spark_nodes * idle_wait_h",
+            "unit": "node-h/night",
+            "tol": 0.02,
+            "why": "Why sensors wait in reschedule mode instead of a running cluster.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 16
+          },
+          {
+            "id": "idle-usd-month",
+            "label": "Cost of waiting on a running cluster",
+            "out": "idle_usd_month",
+            "expr": "idle_node_h_night * days_month * price_node_spot_h",
+            "unit": "US$/month",
+            "tol": 0.03,
+            "why": "Billed is not busy: ≈ US$100–200/month.",
+            "check": null,
+            "ref": "#c14.estimaciones",
+            "expected": 197
+          }
+        ],
+        "rollout": [
+          {
+            "id": "pilot-measured-weeks",
+            "label": "Pilot weeks that count",
+            "out": "pilot_measured_weeks",
+            "expr": "pilot_weeks - burnin_weeks",
+            "unit": "weeks",
+            "tol": 0,
+            "why": "Burn-in weeks are excluded from the readout.",
+            "check": null,
+            "ref": "#c14.evaluacion",
+            "expected": 6
+          },
+          {
+            "id": "pilot-se-pts",
+            "label": "Std error of the stockout effect",
+            "out": "pilot_se_pts",
+            "expr": "pilot_sigma_pts * sqrt(2 / pilot_pairs)",
+            "unit": "points",
+            "tol": 0.03,
+            "why": "Says whether 40 pairs can detect the −25 % goal.",
+            "check": null,
+            "ref": "#c14.evaluacion",
+            "expected": 0.34
+          },
+          {
+            "id": "pilot-ci-pts",
+            "label": "95 % CI half-width of the effect",
+            "out": "pilot_ci_pts",
+            "expr": "z95 * pilot_se_pts",
+            "unit": "points",
+            "tol": 0.03,
+            "why": "Go/no-go band for the rollout to 400 stores (course rounds to ± 0.7).",
+            "check": null,
+            "ref": "#c14.evaluacion",
+            "expected": 0.66
+          }
+        ],
+        "monitoreo": [
+          {
+            "id": "late-alert-age-h",
+            "label": "ForecastRunLate threshold on run_date age",
+            "out": "late_alert_age_h",
+            "expr": "(2 * 1440 + deadline_min) / 60",
+            "unit": "h",
+            "tol": 0,
+            "why": "Alert on published run_date age: independent of Airflow.",
+            "check": null,
+            "ref": "#c14.archivos",
+            "expected": 51.5
+          }
+        ]
+      }
+    },
+    "asincrono": {
+      "case": "c04",
+      "vars": [
+        {
+          "id": "slides_day",
+          "label": "In-scope slides per day",
+          "unit": "slides/day",
+          "default": 1200,
+          "kind": "requirement",
+          "source": "C04 · Estimaciones: 1,200 láminas al día"
+        },
+        {
+          "id": "scan_hours",
+          "label": "Scanner hours per day",
+          "unit": "h",
+          "default": 14,
+          "kind": "requirement",
+          "source": "C04 · Estimaciones: 1,200 ÷ 14 h (08:00–22:00)"
+        },
+        {
+          "id": "slide_peak_factor",
+          "label": "Peak factor",
+          "unit": "×",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: pico ≈ 2× del promedio"
+        },
+        {
+          "id": "tissue_cm2",
+          "label": "Tissue per slide",
+          "unit": "cm²",
+          "default": 1.5,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: ≈ 1.5 cm² por lámina"
+        },
+        {
+          "id": "mpp_model",
+          "label": "Model resolution (20×)",
+          "unit": "µm/px",
+          "default": 0.5,
+          "kind": "requirement",
+          "source": "C04 · Estimaciones: 20× (0.5 µm/px), la resolución del modelo"
+        },
+        {
+          "id": "mpp_scan",
+          "label": "Scan resolution (40×, level 0)",
+          "unit": "µm/px",
+          "default": 0.25,
+          "kind": "requirement",
+          "source": "C04 · Estimaciones: 40× (0.25 µm/px)"
+        },
+        {
+          "id": "tile_px",
+          "label": "Tile size",
+          "unit": "px",
+          "default": 512,
+          "kind": "requirement",
+          "source": "C04 · Estimaciones: tiles de 512×512"
+        },
+        {
+          "id": "overlap_px",
+          "label": "Tile overlap",
+          "unit": "px",
+          "default": 64,
+          "kind": "requirement",
+          "source": "C04 · Estimaciones: 64 px de solape (stride 448)"
+        },
+        {
+          "id": "gpu_max_tiles_s",
+          "label": "Measured max per L4 (TensorRT FP16)",
+          "unit": "tiles/s",
+          "default": 300,
+          "kind": "benchmark",
+          "source": "C04 · Estimaciones: trtexec ≈ 300 tiles/s (supuesto)"
+        },
+        {
+          "id": "plan_tiles_s",
+          "label": "Planned throughput per worker",
+          "unit": "tiles/s",
+          "default": 200,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: ≈ 70 % de 300 = 200 tiles/s"
+        },
+        {
+          "id": "target_util",
+          "label": "Target utilization ceiling",
+          "unit": "fraction",
+          "default": 0.7,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: ≈ 70 % (tráfico por cola)"
+        },
+        {
+          "id": "secs_per_slide",
+          "label": "Serial time per slide",
+          "unit": "s",
+          "default": 25,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: ≈ 20–30 s por lámina (≈ 25 s)"
+        },
+        {
+          "id": "max_workers",
+          "label": "KEDA max workers",
+          "unit": "workers",
+          "default": 4,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: KEDA de 0 a 4 workers"
+        },
+        {
+          "id": "billed_node_h_day",
+          "label": "Billed GPU node-hours per day",
+          "unit": "node-h/day",
+          "default": 15,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: ≈ 15 nodo-h/día facturadas"
+        },
+        {
+          "id": "price_node_h",
+          "label": "g6.2xlarge on-demand",
+          "unit": "US$/h",
+          "default": 0.98,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: g6.2xlarge ≈ US$0.98/h (us-east-1)"
+        },
+        {
+          "id": "days_month",
+          "label": "Days per month",
+          "unit": "days",
+          "default": 30,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: × 30"
+        },
+        {
+          "id": "other_infra_usd",
+          "label": "Other infra (reprocess, training, EKS, CPU, Postgres, storage)",
+          "unit": "US$/month",
+          "default": 793,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: 70 + 200 + 73 + 150 + 200 + 100"
+        },
+        {
+          "id": "infra_budget_usd",
+          "label": "Infra budget",
+          "unit": "US$/month",
+          "default": 2000,
+          "kind": "requirement",
+          "source": "C04 · Requisitos: infra ≤ US$2k/mes"
+        },
+        {
+          "id": "path_hours_month",
+          "label": "Pathologist labeling hours",
+          "unit": "h/month",
+          "default": 20,
+          "kind": "requirement",
+          "source": "C04 · Requisitos: 20 h/mes de patólogo"
+        },
+        {
+          "id": "path_price_h",
+          "label": "Pathologist cost",
+          "unit": "US$/h",
+          "default": 200,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: US$200/h"
+        },
+        {
+          "id": "slo_late_share",
+          "label": "Turnaround error budget (p95 ≤ 60 min)",
+          "unit": "fraction",
+          "default": 0.05,
+          "kind": "requirement",
+          "source": "M12 · c04: el presupuesto es 5 % de slides tarde"
+        },
+        {
+          "id": "cpu_ms_per_tile",
+          "label": "CPU per tile (read, decode, 2× downsample)",
+          "unit": "ms",
+          "default": 20,
+          "kind": "benchmark",
+          "source": "C04 · Estimaciones: ≈ 20 ms (mídelo con un profiler)"
+        },
+        {
+          "id": "vcpu_node",
+          "label": "vCPU per worker node (g6.2xlarge)",
+          "unit": "vCPU",
+          "default": 8,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: g6.2xlarge: 1 × L4, 8 vCPU"
+        },
+        {
+          "id": "burst_slides",
+          "label": "Rack burst",
+          "unit": "slides",
+          "default": 200,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: un rack de 200 láminas de golpe"
+        },
+        {
+          "id": "cold_start_min",
+          "label": "Cold start (node + image)",
+          "unit": "min",
+          "default": 5,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: arranque en frío ≈ 3–5 min (cota alta)"
+        },
+        {
+          "id": "slo_turnaround_min",
+          "label": "Turnaround SLO (p95)",
+          "unit": "min",
+          "default": 60,
+          "kind": "requirement",
+          "source": "C04 · Requisitos: p95 ≤ 60 min"
+        },
+        {
+          "id": "vt_s",
+          "label": "SQS visibility timeout",
+          "unit": "s",
+          "default": 300,
+          "kind": "requirement",
+          "source": "C04 · Serving: visibility timeout 300 s"
+        },
+        {
+          "id": "heartbeat_s",
+          "label": "Heartbeat interval",
+          "unit": "s",
+          "default": 60,
+          "kind": "requirement",
+          "source": "C04 · Serving: ChangeMessageVisibility cada 60 s"
+        },
+        {
+          "id": "result_mb_slide",
+          "label": "Results per slide (GeoJSON + heatmap + summary)",
+          "unit": "MB",
+          "default": 5,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: ≈ 5 MB por lámina"
+        },
+        {
+          "id": "s3_price_gb_month",
+          "label": "S3 Standard price",
+          "unit": "US$/GB-month",
+          "default": 0.023,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: US$0.023/GB-mes"
+        },
+        {
+          "id": "audit_slides",
+          "label": "Random audit slides per month",
+          "unit": "slides",
+          "default": 8,
+          "kind": "requirement",
+          "source": "C04 · Datos: 8 láminas × ≈ 15 min"
+        },
+        {
+          "id": "approve_min",
+          "label": "Pathologist approval time per slide",
+          "unit": "min",
+          "default": 15,
+          "kind": "assumption",
+          "source": "C04 · Datos: ≈ 15 min de aprobación"
+        },
+        {
+          "id": "temporal_slides",
+          "label": "Monthly temporal set",
+          "unit": "slides",
+          "default": 10,
+          "kind": "requirement",
+          "source": "C04 · Datos: set temporal 10 láminas × ≈ 15 min"
+        },
+        {
+          "id": "al_min_per_region",
+          "label": "Time per active-learning region",
+          "unit": "min",
+          "default": 1.5,
+          "kind": "assumption",
+          "source": "C04 · Datos: ≈ 620 regiones a 1.5 min"
+        },
+        {
+          "id": "golden_slides",
+          "label": "Golden set slides",
+          "unit": "slides",
+          "default": 100,
+          "kind": "requirement",
+          "source": "C04 · Estimaciones: golden set de 100 láminas"
+        },
+        {
+          "id": "golden_raters",
+          "label": "Pathologists per golden slide",
+          "unit": "raters",
+          "default": 2,
+          "kind": "requirement",
+          "source": "C04 · Estimaciones: × 2 patólogos + consenso"
+        },
+        {
+          "id": "golden_min_slide",
+          "label": "Approval time on resident pre-annotation",
+          "unit": "min",
+          "default": 12,
+          "kind": "assumption",
+          "source": "C04 · Estimaciones: ≈ 12 min de aprobación"
+        },
+        {
+          "id": "z95",
+          "label": "z for 95 %",
+          "unit": "z",
+          "default": 1.96,
+          "kind": "assumption",
+          "source": "C04 · Evaluación: ≈ 1.96 × sd ÷ √n"
+        },
+        {
+          "id": "dice_sd",
+          "label": "Per-slide Dice std dev",
+          "unit": "Dice",
+          "default": 0.1,
+          "kind": "assumption",
+          "source": "C04 · Evaluación: 1.96 × 0.10 ÷ √100"
+        },
+        {
+          "id": "paired_sd",
+          "label": "Std dev of the paired Dice difference",
+          "unit": "Dice",
+          "default": 0.03,
+          "kind": "assumption",
+          "source": "C04 · Evaluación: sd de la diferencia ≈ 0.03"
+        },
+        {
+          "id": "labc_slides",
+          "label": "Annotated lab-C slides",
+          "unit": "slides",
+          "default": 30,
+          "kind": "requirement",
+          "source": "C04 · Evaluación: ≥ 30 láminas anotadas del laboratorio C"
+        },
+        {
+          "id": "lesion_sens_target",
+          "label": "Lesion-level sensitivity target",
+          "unit": "fraction",
+          "default": 0.95,
+          "kind": "requirement",
+          "source": "C04 · Requisitos: sensibilidad por lesión ≥ 95 %"
+        },
+        {
+          "id": "burn_fast",
+          "label": "Fast-burn factor (1 h)",
+          "unit": "×",
+          "default": 14.4,
+          "kind": "assumption",
+          "source": "M12 · SRE Workbook: 14.4× = 2 % del presupuesto en 1 h"
+        },
+        {
+          "id": "night_backlog",
+          "label": "Worst-case night backlog",
+          "unit": "slides",
+          "default": 500,
+          "kind": "assumption",
+          "source": "C04 · Monitoreo: ≈ 500 láminas acumuladas"
+        },
+        {
+          "id": "night_margin_min",
+          "label": "Page at 05:30 to SLO at 07:00",
+          "unit": "min",
+          "default": 90,
+          "kind": "requirement",
+          "source": "C04 · Monitoreo: 90 min de margen desde las 05:30"
+        },
+        {
+          "id": "review_saved_min",
+          "label": "Review time saved per slide (low end)",
+          "unit": "min",
+          "default": 1,
+          "kind": "assumption",
+          "source": "C04 · Costo: el overlay ahorra 1–2 min por lámina"
+        },
+        {
+          "id": "c05_docs_month",
+          "label": "C05 documents per month",
+          "unit": "docs/month",
+          "default": 150000,
+          "kind": "requirement",
+          "source": "C05 · Estimaciones: 5,000 × 30 = 150,000"
+        },
+        {
+          "id": "c05_stp_share",
+          "label": "C05 straight-through share",
+          "unit": "fraction",
+          "default": 0.6,
+          "kind": "assumption",
+          "source": "C05 · Estimaciones: 60 % STP"
+        },
+        {
+          "id": "c05_review_s",
+          "label": "C05 review time per routed document",
+          "unit": "s",
+          "default": 45,
+          "kind": "assumption",
+          "source": "C05 · Estimaciones: 45 s por documento revisado"
+        },
+        {
+          "id": "c05_audit_share",
+          "label": "C05 QA audit share of STP",
+          "unit": "fraction",
+          "default": 0.02,
+          "kind": "requirement",
+          "source": "C05 · Estimaciones: auditoría del 2 % de los STP"
+        },
+        {
+          "id": "c05_audit_min",
+          "label": "C05 audit time per document",
+          "unit": "min",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C05 · Estimaciones: a 2 min"
+        },
+        {
+          "id": "c05_productive_h_month",
+          "label": "C05 productive hours per reviewer",
+          "unit": "h/month",
+          "default": 130,
+          "kind": "assumption",
+          "source": "C05 · Estimaciones: ≈ 130 h productivas (6 h × ≈ 22 días)"
+        },
+        {
+          "id": "c05_peak_docs_day",
+          "label": "C05 peak-day documents",
+          "unit": "docs/day",
+          "default": 10000,
+          "kind": "requirement",
+          "source": "C05 · Estimaciones: día de pico 10,000 docs"
+        },
+        {
+          "id": "c05_productive_h_day",
+          "label": "C05 productive hours per reviewer per day",
+          "unit": "h/day",
+          "default": 6,
+          "kind": "assumption",
+          "source": "C05 · Estimaciones: 6 h productivas"
+        }
+      ],
+      "steps": {
+        "kickoff": [
+          {
+            "id": "tiles-slide",
+            "label": "Tiles per slide (tissue only)",
+            "out": "tiles_slide",
+            "expr": "ceilto(tissue_cm2 * 1e8 / ((tile_px - overlap_px) * mpp_model)^2, 100)",
+            "unit": "tiles",
+            "tol": 0.02,
+            "why": "Unit of GPU work; rounded like the course (≈ 2,990 → 3,000).",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 3000
+          },
+          {
+            "id": "tiles-day",
+            "label": "Tiles per day",
+            "out": "tiles_day",
+            "expr": "slides_day * tiles_slide",
+            "unit": "tiles/day",
+            "tol": 0.02,
+            "why": "Daily GPU work.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 3600000
+          },
+          {
+            "id": "gpu-h-day",
+            "label": "GPU-hours per day",
+            "out": "gpu_h_day",
+            "expr": "tiles_day / plan_tiles_s / 3600",
+            "unit": "GPU-h/day",
+            "tol": 0.02,
+            "why": "One L4, scale to zero at night.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 5
+          },
+          {
+            "id": "slides-h-peak",
+            "label": "Peak arrivals",
+            "out": "slides_h_peak",
+            "expr": "slides_day / scan_hours * slide_peak_factor",
+            "unit": "slides/h",
+            "tol": 0.02,
+            "why": "Design point is the peak, not the daily average.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 170
+          },
+          {
+            "id": "tiles-s-peak",
+            "label": "Peak tiles per second",
+            "out": "tiles_s_peak",
+            "expr": "slides_h_peak * tiles_slide / 3600",
+            "unit": "tiles/s",
+            "tol": 0.02,
+            "why": "Peak throughput the GPU fleet must carry.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 142
+          },
+          {
+            "id": "workers-peak-gpu",
+            "label": "Workers at peak (GPU throughput)",
+            "out": "workers_peak_gpu",
+            "expr": "ceil(tiles_s_peak / plan_tiles_s)",
+            "unit": "workers",
+            "tol": 0,
+            "why": "One L4 covers the peak on throughput.",
+            "check": {
+              "expr": "tiles_s_peak <= workers_peak_gpu * plan_tiles_s",
+              "label": "Peak fits the 70 % plan"
+            },
+            "ref": "#c04.estimaciones",
+            "expected": 1
+          },
+          {
+            "id": "workers-peak-serial",
+            "label": "Workers at peak (serial time per slide)",
+            "out": "workers_peak_serial",
+            "expr": "ceil(slides_h_peak * secs_per_slide / 3600)",
+            "unit": "workers",
+            "tol": 0,
+            "why": "GPU idles during download and stitch: KEDA adds a second worker at peak.",
+            "check": {
+              "expr": "workers_peak_serial <= max_workers",
+              "label": "Fits under the KEDA max of 4"
+            },
+            "ref": "#c04.estimaciones",
+            "expected": 2
+          },
+          {
+            "id": "gpu-usd-month",
+            "label": "GPU workers per month",
+            "out": "gpu_usd_month",
+            "expr": "billed_node_h_day * days_month * price_node_h",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Billed hours, not busy hours, drive GPU cost.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 440
+          },
+          {
+            "id": "infra-usd-month",
+            "label": "Infra per month",
+            "out": "infra_usd_month",
+            "expr": "gpu_usd_month + other_infra_usd",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Checks the infra budget.",
+            "check": {
+              "expr": "infra_usd_month <= infra_budget_usd",
+              "label": "Under the US$2k infra budget"
+            },
+            "ref": "#c04.estimaciones",
+            "expected": 1233
+          },
+          {
+            "id": "expert-usd-month",
+            "label": "Pathologist labeling per month",
+            "out": "expert_usd_month",
+            "expr": "path_hours_month * path_price_h",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "The dominant cost: optimize expert hours before GPUs.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 4000
+          },
+          {
+            "id": "total-usd-month",
+            "label": "Total per month",
+            "out": "total_usd_month",
+            "expr": "infra_usd_month + expert_usd_month",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "≈ 76 % is expert time.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 5200
+          },
+          {
+            "id": "late-budget-slides",
+            "label": "Turnaround error budget",
+            "out": "late_budget_slides",
+            "expr": "slides_day * days_month * slo_late_share",
+            "unit": "slides/month",
+            "tol": 0.02,
+            "why": "Late slides allowed per month before the SLO breaks.",
+            "check": null,
+            "ref": "#m12.prometheus-grafana",
+            "expected": 1800
+          }
+        ],
+        "datos": [
+          {
+            "id": "audit-h",
+            "label": "Random audit hours",
+            "out": "audit_h",
+            "expr": "audit_slides * approve_min / 60",
+            "unit": "h/month",
+            "tol": 0.02,
+            "why": "Unbiased quality sample, read per quarter.",
+            "check": null,
+            "ref": "#c04.datos",
+            "expected": 2
+          },
+          {
+            "id": "temporal-h",
+            "label": "Temporal set hours",
+            "out": "temporal_h",
+            "expr": "temporal_slides * approve_min / 60",
+            "unit": "h/month",
+            "tol": 0.02,
+            "why": "Drift-over-time set.",
+            "check": null,
+            "ref": "#c04.datos",
+            "expected": 2.5
+          },
+          {
+            "id": "al-h",
+            "label": "Active-learning hours left",
+            "out": "al_h",
+            "expr": "path_hours_month - audit_h - temporal_h",
+            "unit": "h/month",
+            "tol": 0.02,
+            "why": "What is left of the 20 h for training labels.",
+            "check": null,
+            "ref": "#c04.datos",
+            "expected": 15.5
+          },
+          {
+            "id": "al-regions",
+            "label": "Active-learning regions per month",
+            "out": "al_regions",
+            "expr": "al_h * 60 / al_min_per_region",
+            "unit": "regions/month",
+            "tol": 0.02,
+            "why": "Size of the monthly selection job output.",
+            "check": null,
+            "ref": "#c04.datos",
+            "expected": 620
+          }
+        ],
+        "versionado": [
+          {
+            "id": "golden-h",
+            "label": "Golden set pathologist hours (one-off)",
+            "out": "golden_h",
+            "expr": "golden_slides * golden_raters * golden_min_slide / 60",
+            "unit": "h",
+            "tol": 0.05,
+            "why": "Too big for one month’s budget: fund apart or spread over 3–4 months.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 40
+          },
+          {
+            "id": "golden-usd",
+            "label": "Golden set cost (one-off)",
+            "out": "golden_usd",
+            "expr": "golden_h * path_price_h",
+            "unit": "US$",
+            "tol": 0.05,
+            "why": "Largest expert spend of the design.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 8000
+          }
+        ],
+        "gate": [
+          {
+            "id": "dice-ci-golden",
+            "label": "95 % CI half-width, golden set Dice",
+            "out": "dice_ci_golden",
+            "expr": "z95 * dice_sd / sqrt(golden_slides)",
+            "unit": "Dice",
+            "tol": 0.03,
+            "why": "Smallest difference the golden set can resolve unpaired.",
+            "check": null,
+            "ref": "#c04.evaluacion",
+            "expected": 0.02
+          },
+          {
+            "id": "paired-ci-labc",
+            "label": "95 % CI half-width, paired diff on lab C",
+            "out": "paired_ci_labc",
+            "expr": "z95 * paired_sd / sqrt(labc_slides)",
+            "unit": "Dice",
+            "tol": 0.03,
+            "why": "Makes the “no slice worse than −0.02” gate reachable with 30 slides.",
+            "check": {
+              "expr": "paired_ci_labc < 0.02",
+              "label": "Paired CI tighter than the −0.02 Dice gate"
+            },
+            "ref": "#c04.evaluacion",
+            "expected": 0.011
+          },
+          {
+            "id": "foci-needed",
+            "label": "Foci needed to back ≥ 95 % sensitivity (rule of three)",
+            "out": "foci_needed",
+            "expr": "3 / (1 - lesion_sens_target)",
+            "unit": "foci",
+            "tol": 0,
+            "why": "Count foci, not slides, to certify lesion sensitivity.",
+            "check": null,
+            "ref": "#c04.evaluacion",
+            "expected": 60
+          }
+        ],
+        "export": [
+          {
+            "id": "plan-share-max",
+            "label": "Planned throughput vs measured max",
+            "out": "plan_share_max",
+            "expr": "plan_tiles_s / gpu_max_tiles_s",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "The engine’s trtexec number sets the per-worker plan.",
+            "check": {
+              "expr": "plan_share_max <= target_util",
+              "label": "Plan at ≤ 70 % of the measured max"
+            },
+            "ref": "#c04.estimaciones",
+            "expected": 0.667
+          },
+          {
+            "id": "peak-share-max",
+            "label": "Peak load vs measured max",
+            "out": "peak_share_max",
+            "expr": "tiles_s_peak / gpu_max_tiles_s",
+            "unit": "fraction",
+            "tol": 0.03,
+            "why": "Headroom left on one L4 at peak.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 0.47
+          }
+        ],
+        "serving": [
+          {
+            "id": "gpu-s-slide",
+            "label": "GPU time per slide",
+            "out": "gpu_s_slide",
+            "expr": "tiles_slide / plan_tiles_s",
+            "unit": "s",
+            "tol": 0.02,
+            "why": "Too long for any HTTP timeout: async worker, not an endpoint.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 15
+          },
+          {
+            "id": "cpu-busy-vcpu",
+            "label": "CPU busy to feed one L4",
+            "out": "cpu_busy_vcpu",
+            "expr": "plan_tiles_s * cpu_ms_per_tile / 1000",
+            "unit": "vCPU",
+            "tol": 0.02,
+            "why": "Worker is sized by CPU: g6.2xlarge, not g6.xlarge.",
+            "check": {
+              "expr": "cpu_busy_vcpu < vcpu_node",
+              "label": "Decode fits the node’s 8 vCPU"
+            },
+            "ref": "#c04.estimaciones",
+            "expected": 4
+          },
+          {
+            "id": "decode-px-factor",
+            "label": "Decode work vs model input (no 20× level)",
+            "out": "decode_px_factor",
+            "expr": "(mpp_model / mpp_scan)^2",
+            "unit": "×",
+            "tol": 0,
+            "why": "Reading 1024² at level 0 per 512² tile is why CPU is the bottleneck.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 4
+          },
+          {
+            "id": "overlap-overhead",
+            "label": "Overlap compute overhead",
+            "out": "overlap_overhead",
+            "expr": "(tile_px / (tile_px - overlap_px))^2",
+            "unit": "×",
+            "tol": 0.02,
+            "why": "Price of seamless stitching.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 1.31
+          }
+        ],
+        "kubernetes": [
+          {
+            "id": "interarrival-s",
+            "label": "Mean gap between slides (scan hours)",
+            "out": "interarrival_s",
+            "expr": "scan_hours * 3600 / slides_day",
+            "unit": "s",
+            "tol": 0.02,
+            "why": "Far below the 15-min cooldown: the first worker stays up all day.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 42
+          },
+          {
+            "id": "busy-worker-h-day",
+            "label": "Busy worker-hours per day",
+            "out": "busy_worker_h_day",
+            "expr": "slides_day * secs_per_slide / 3600",
+            "unit": "worker-h/day",
+            "tol": 0.02,
+            "why": "Work vs ≈ 15 billed node-h: ≈ 40 % idle by day.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 8.3
+          },
+          {
+            "id": "burst-drain-min",
+            "label": "Rack burst drain at KEDA max",
+            "out": "burst_drain_min",
+            "expr": "burst_slides * secs_per_slide / max_workers / 60",
+            "unit": "min",
+            "tol": 0.02,
+            "why": "Sets KEDA maxReplicaCount.",
+            "check": {
+              "expr": "burst_drain_min + cold_start_min <= slo_turnaround_min",
+              "label": "Burst plus cold start stays inside the 60-min SLO"
+            },
+            "ref": "#c04.estimaciones",
+            "expected": 21
+          },
+          {
+            "id": "gpu-quota-vcpu",
+            "label": "EC2 G-family quota needed",
+            "out": "gpu_quota_vcpu",
+            "expr": "max_workers * vcpu_node",
+            "unit": "vCPU",
+            "tol": 0,
+            "why": "Request the quota increase before the burst.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 32
+          }
+        ],
+        "evento-cola": [
+          {
+            "id": "hb-margin",
+            "label": "Heartbeats that can be missed",
+            "out": "hb_margin",
+            "expr": "vt_s / heartbeat_s - 1",
+            "unit": "heartbeats",
+            "tol": 0,
+            "why": "Visibility timeout vs heartbeat interval.",
+            "check": null,
+            "ref": "#c04.serving",
+            "expected": 4
+          },
+          {
+            "id": "redelivery-min",
+            "label": "Redelivery after a dead worker",
+            "out": "redelivery_min",
+            "expr": "vt_s / 60",
+            "unit": "min",
+            "tol": 0.02,
+            "why": "A crashed slide is back in the queue in ≤ 5 min.",
+            "check": null,
+            "ref": "#c04.serving",
+            "expected": 5
+          },
+          {
+            "id": "burst-drain-1w-min",
+            "label": "Rack burst drain with 1 worker",
+            "out": "burst_drain_1w_min",
+            "expr": "burst_slides * secs_per_slide / 60",
+            "unit": "min",
+            "tol": 0.02,
+            "why": "One worker would break the 60-min SLO on a burst.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 83
+          }
+        ],
+        "resultados": [
+          {
+            "id": "results-gb-month",
+            "label": "Results written per month",
+            "out": "results_gb_month",
+            "expr": "result_mb_slide * slides_day * days_month / 1000",
+            "unit": "GB/month",
+            "tol": 0.02,
+            "why": "Results storage, not WSIs, is our cost.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 180
+          },
+          {
+            "id": "results-tb-year",
+            "label": "Results after one year",
+            "out": "results_tb_year",
+            "expr": "result_mb_slide * slides_day * 365 / 1e6",
+            "unit": "TB",
+            "tol": 0.02,
+            "why": "Cumulative bucket size.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 2.2
+          },
+          {
+            "id": "results-usd-year-end",
+            "label": "S3 cost after one year",
+            "out": "results_usd_year_end",
+            "expr": "results_tb_year * 1000 * s3_price_gb_month",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Storage stays negligible.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 50
+          },
+          {
+            "id": "mask-mb-slide",
+            "label": "Full 20× mask per slide (1 bit/px)",
+            "out": "mask_mb_slide",
+            "expr": "tissue_cm2 * 1e8 / mpp_model^2 / 8 / 1e6",
+            "unit": "MB",
+            "tol": 0.02,
+            "why": "Polygons + heatmap are 15× smaller: don’t store masks.",
+            "check": null,
+            "ref": "#c04.estimaciones",
+            "expected": 75
+          }
+        ],
+        "revision": [
+          {
+            "id": "path-h-saved-day",
+            "label": "Pathologist hours saved per day",
+            "out": "path_h_saved_day",
+            "expr": "slides_day * review_saved_min / 60",
+            "unit": "h/day",
+            "tol": 0.02,
+            "why": "The value case; measure review time before and after.",
+            "check": null,
+            "ref": "#c04.costo",
+            "expected": 20
+          },
+          {
+            "id": "c05-review-h-month",
+            "label": "C05 review + QA hours per month",
+            "out": "c05_review_h_month",
+            "expr": "c05_docs_month * (1 - c05_stp_share) * c05_review_s / 3600 + c05_docs_month * c05_stp_share * c05_audit_share * c05_audit_min / 60",
+            "unit": "h/month",
+            "tol": 0.02,
+            "why": "Sizes the human review team (C05).",
+            "check": null,
+            "ref": "#c05.estimaciones",
+            "expected": 810
+          },
+          {
+            "id": "c05-review-fte",
+            "label": "C05 reviewers on average",
+            "out": "c05_review_fte",
+            "expr": "c05_review_h_month / c05_productive_h_month",
+            "unit": "people",
+            "tol": 0.05,
+            "why": "Average staffing; course rounds to ≈ 6.",
+            "check": null,
+            "ref": "#c05.estimaciones",
+            "expected": 6.23
+          },
+          {
+            "id": "c05-peak-reviewers",
+            "label": "C05 reviewers on the peak day",
+            "out": "c05_peak_reviewers",
+            "expr": "ceil((c05_peak_docs_day * (1 - c05_stp_share) * c05_review_s / 3600 + c05_peak_docs_day * c05_stp_share * c05_audit_share * c05_audit_min / 60) / c05_productive_h_day)",
+            "unit": "people",
+            "tol": 0,
+            "why": "Staff for the peak day, not the average: the SLA can’t defer.",
+            "check": null,
+            "ref": "#c05.estimaciones",
+            "expected": 9
+          }
+        ],
+        "monitoreo": [
+          {
+            "id": "max-burn",
+            "label": "Max possible burn rate",
+            "out": "max_burn",
+            "expr": "1 / slo_late_share",
+            "unit": "×",
+            "tol": 0,
+            "why": "Burn factors must stay ≤ 1 ÷ budget.",
+            "check": {
+              "expr": "burn_fast <= max_burn",
+              "label": "The 14.4× fast-burn factor is reachable"
+            },
+            "ref": "#m12.prometheus-grafana",
+            "expected": 20
+          },
+          {
+            "id": "fast-burn-late-share",
+            "label": "Late share at the 14.4× fast burn",
+            "out": "fast_burn_late_share",
+            "expr": "burn_fast * slo_late_share",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "What TurnaroundSLOBurn fires on: 72 % late in the last hour.",
+            "check": null,
+            "ref": "#m12.prometheus-grafana",
+            "expected": 0.72
+          },
+          {
+            "id": "slides-per-5min",
+            "label": "Slides in a 5-min window (average)",
+            "out": "slides_per_5min",
+            "expr": "slides_day / scan_hours / 12",
+            "unit": "slides",
+            "tol": 0.03,
+            "why": "Low volume: require ≥ 10 slides in the long window.",
+            "check": null,
+            "ref": "#m12.prometheus-grafana",
+            "expected": 7
+          },
+          {
+            "id": "night-recovery-min",
+            "label": "Drain a 500-slide night backlog",
+            "out": "night_recovery_min",
+            "expr": "night_backlog * secs_per_slide / max_workers / 60",
+            "unit": "min",
+            "tol": 0.02,
+            "why": "Why NightlyCoverageAtRisk pages at 05:30.",
+            "check": {
+              "expr": "night_recovery_min + cold_start_min <= night_margin_min",
+              "label": "Recovers before 07:00 if someone starts at 05:30"
+            },
+            "ref": "#c04.monitoreo",
+            "expected": 52
+          }
+        ]
+      }
+    },
+    "llm": {
+      "case": "c11",
+      "vars": [
+        {
+          "id": "n_docs",
+          "label": "Indexed documents",
+          "unit": "docs",
+          "default": 1500000,
+          "kind": "requirement",
+          "source": "C11 · Estimaciones: ≈ 1.5 M documentos"
+        },
+        {
+          "id": "chunks_per_doc",
+          "label": "Chunks per document (avg)",
+          "unit": "chunks",
+          "default": 8,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: ≈ 8 chunks por documento de promedio"
+        },
+        {
+          "id": "tokens_per_chunk",
+          "label": "Tokens per chunk",
+          "unit": "tokens",
+          "default": 400,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 12 M × 400"
+        },
+        {
+          "id": "bytes_per_token",
+          "label": "Bytes per token of plain text",
+          "unit": "B",
+          "default": 4,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: ≈ 4 bytes por token"
+        },
+        {
+          "id": "q_day",
+          "label": "Questions per day",
+          "unit": "questions/day",
+          "default": 25000,
+          "kind": "requirement",
+          "source": "C11 · Estimaciones: 25,000 preguntas"
+        },
+        {
+          "id": "biz_hours",
+          "label": "Business hours per day",
+          "unit": "h",
+          "default": 10,
+          "kind": "requirement",
+          "source": "C11 · Estimaciones: 25,000 ÷ (10 h × 3,600 s)"
+        },
+        {
+          "id": "q_peak_factor",
+          "label": "Peak factor",
+          "unit": "×",
+          "default": 3,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: pico 3 × 0.7"
+        },
+        {
+          "id": "sys_tokens",
+          "label": "System instructions",
+          "unit": "tokens",
+          "default": 800,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: instrucciones ≈ 800 (prefijo fijo)"
+        },
+        {
+          "id": "hist_tokens",
+          "label": "Trimmed history",
+          "unit": "tokens",
+          "default": 1200,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: historial ≤ 1,200"
+        },
+        {
+          "id": "k_chunks",
+          "label": "Chunks in the prompt",
+          "unit": "chunks",
+          "default": 8,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 8 chunks × 400"
+        },
+        {
+          "id": "q_tokens",
+          "label": "Question",
+          "unit": "tokens",
+          "default": 100,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: pregunta ≈ 100"
+        },
+        {
+          "id": "max_out_tokens",
+          "label": "max_tokens",
+          "unit": "tokens",
+          "default": 600,
+          "kind": "requirement",
+          "source": "C11 · Estimaciones: max_tokens = 600"
+        },
+        {
+          "id": "ctx_tokens",
+          "label": "Model context",
+          "unit": "tokens",
+          "default": 8192,
+          "kind": "requirement",
+          "source": "C11 · Estimaciones: 5,900 de 8,192"
+        },
+        {
+          "id": "avg_in_tokens",
+          "label": "Avg input tokens per question (rewrites, retries)",
+          "unit": "tokens",
+          "default": 6000,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: el promedio de entrada queda en ≈ 6,000 tokens"
+        },
+        {
+          "id": "avg_out_tokens",
+          "label": "Avg output tokens per question (answer + rewrite)",
+          "unit": "tokens",
+          "default": 400,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 25k × ≈ 400"
+        },
+        {
+          "id": "answer_s",
+          "label": "Avg answer duration",
+          "unit": "s",
+          "default": 11,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 2 qps × ≈ 11 s"
+        },
+        {
+          "id": "quota_tpm",
+          "label": "Gateway quota requested",
+          "unit": "tokens/min",
+          "default": 1000000,
+          "kind": "requirement",
+          "source": "C11 · Estimaciones: se pide ≈ 1 M tokens/min"
+        },
+        {
+          "id": "biz_days",
+          "label": "Business days per month",
+          "unit": "days",
+          "default": 22,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 25k × 22 días hábiles"
+        },
+        {
+          "id": "llm_price_per_m",
+          "label": "C10 showback rate",
+          "unit": "US$/M tokens",
+          "default": 1,
+          "kind": "assumption",
+          "source": "C11 · Costo: ≈ US$1.0 por millón (mezcla del c10)"
+        },
+        {
+          "id": "other_infra_usd",
+          "label": "Other infra (OpenSearch, L4s, ingestion, logs)",
+          "unit": "US$/month",
+          "default": 4100,
+          "kind": "assumption",
+          "source": "C11 · Costo: 1.4k + 1.2k + 0.6k + 0.6k + 0.3k"
+        },
+        {
+          "id": "slo_avail",
+          "label": "Availability SLO (generated answer)",
+          "unit": "fraction",
+          "default": 0.995,
+          "kind": "requirement",
+          "source": "C11 · Requisitos: 99.5 % de la respuesta generada"
+        },
+        {
+          "id": "slo_month_min",
+          "label": "SLO month",
+          "unit": "min",
+          "default": 43200,
+          "kind": "assumption",
+          "source": "Course convention: SLO month = 30 days = 43,200 min (M12)"
+        },
+        {
+          "id": "golden_q",
+          "label": "Golden set questions",
+          "unit": "questions",
+          "default": 600,
+          "kind": "requirement",
+          "source": "C11 · Datos: golden set de ≈ 600 preguntas"
+        },
+        {
+          "id": "golden_min_per_q",
+          "label": "Expert time per golden question",
+          "unit": "min",
+          "default": 20,
+          "kind": "assumption",
+          "source": "C11 · Datos: ≈ 20 min por pregunta de un experto"
+        },
+        {
+          "id": "parsed_overhead",
+          "label": "Parsed JSON vs plain text",
+          "unit": "×",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: ≈ 19 GB × ≈ 2 por metadatos y estructura"
+        },
+        {
+          "id": "changed_docs_day",
+          "label": "Documents touched per day",
+          "unit": "docs/day",
+          "default": 15000,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 15k docs × 8 chunks × 400 tokens"
+        },
+        {
+          "id": "edit_peak_factor",
+          "label": "Edit peak factor",
+          "unit": "×",
+          "default": 3,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 15k ÷ 10 h × 3"
+        },
+        {
+          "id": "embed_tok_s",
+          "label": "Embedding throughput per L4 (≈ 0.6 B model)",
+          "unit": "tokens/s",
+          "default": 30000,
+          "kind": "benchmark",
+          "source": "C11 · Estimaciones: ≈ 30k tokens/s por L4 (mídelo)"
+        },
+        {
+          "id": "scanned_share",
+          "label": "Scanned share of PDFs",
+          "unit": "fraction",
+          "default": 0.15,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: ≈ 15 % de 300k"
+        },
+        {
+          "id": "n_pdfs",
+          "label": "PDFs in the corpus",
+          "unit": "PDFs",
+          "default": 300000,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: incluye ≈ 300k PDFs"
+        },
+        {
+          "id": "pages_per_pdf",
+          "label": "Pages per scanned PDF",
+          "unit": "pages",
+          "default": 10,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: × ≈ 10 páginas"
+        },
+        {
+          "id": "ocr_s_page",
+          "label": "CPU OCR time per page",
+          "unit": "core-s",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: ≈ 2 s por página de un núcleo"
+        },
+        {
+          "id": "dim",
+          "label": "Embedding dimension",
+          "unit": "dims",
+          "default": 1024,
+          "kind": "requirement",
+          "source": "C11 · Estimaciones: d = 1024"
+        },
+        {
+          "id": "bytes_fp16",
+          "label": "Bytes per FP16 component",
+          "unit": "B",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: en FP16 × 2 B"
+        },
+        {
+          "id": "hnsw_m",
+          "label": "HNSW M",
+          "unit": "links",
+          "default": 32,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: grafo HNSW, M = 32"
+        },
+        {
+          "id": "bytes_link",
+          "label": "Bytes per graph link",
+          "unit": "B",
+          "default": 4,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 12 M × 2 × 32 × 4 B"
+        },
+        {
+          "id": "os_nodes",
+          "label": "OpenSearch data nodes",
+          "unit": "nodes",
+          "default": 3,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 3 nodos"
+        },
+        {
+          "id": "os_copies",
+          "label": "Index copies (primary + replica)",
+          "unit": "copies",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 2 copias"
+        },
+        {
+          "id": "node_ram_gb",
+          "label": "r7i.2xlarge RAM",
+          "unit": "GB",
+          "default": 68.7,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: 64 GiB ≈ 68.7 GB"
+        },
+        {
+          "id": "heap_gb",
+          "label": "OpenSearch heap",
+          "unit": "GB",
+          "default": 16,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: heap 16"
+        },
+        {
+          "id": "page_cache_gb",
+          "label": "Text and BM25 in page cache",
+          "unit": "GB",
+          "default": 19.5,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: texto y BM25 en page cache ≈ 19.5"
+        },
+        {
+          "id": "recall",
+          "label": "recall@8 (first measurement)",
+          "unit": "fraction",
+          "default": 0.85,
+          "kind": "assumption",
+          "source": "C11 · Evaluación: recall@8 de ≈ 0.85"
+        },
+        {
+          "id": "z95",
+          "label": "z for 95 %",
+          "unit": "z",
+          "default": 1.96,
+          "kind": "assumption",
+          "source": "C11 · Evaluación: 1.96 × √(p(1−p) ÷ n)"
+        },
+        {
+          "id": "slice_n",
+          "label": "Questions in one slice",
+          "unit": "questions",
+          "default": 60,
+          "kind": "assumption",
+          "source": "C11 · Evaluación: slice de 60"
+        },
+        {
+          "id": "canary_n",
+          "label": "Groundedness canary set",
+          "unit": "questions",
+          "default": 100,
+          "kind": "requirement",
+          "source": "C11 · Evaluación: canary de 100 preguntas cada 4 h"
+        },
+        {
+          "id": "rerank_active_b",
+          "label": "Reranker params that do math",
+          "unit": "B params",
+          "default": 0.3,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: bge-reranker-v2-m3 ≈ 0.30 B sin la tabla de embeddings"
+        },
+        {
+          "id": "pair_tokens",
+          "label": "Tokens per (question, chunk) pair",
+          "unit": "tokens",
+          "default": 450,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: ≈ 450 tokens (pregunta + chunk)"
+        },
+        {
+          "id": "attn_tflop_pair",
+          "label": "Attention FLOPs per pair",
+          "unit": "TFLOP",
+          "default": 0.02,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: la atención suma ≈ 0.02 a 450 tokens"
+        },
+        {
+          "id": "rerank_pairs",
+          "label": "Candidates reranked",
+          "unit": "pairs",
+          "default": 50,
+          "kind": "requirement",
+          "source": "C11 · Estimaciones: 50 pares"
+        },
+        {
+          "id": "l4_tflops",
+          "label": "L4 FP16 dense peak",
+          "unit": "TFLOPS",
+          "default": 121,
+          "kind": "benchmark",
+          "source": "C11 · Estimaciones: L4 121 TFLOPS FP16 densos"
+        },
+        {
+          "id": "l4_eff",
+          "label": "Useful fraction of peak",
+          "unit": "fraction",
+          "default": 0.5,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: ≈ 50 % útil"
+        },
+        {
+          "id": "other_retrieval_s",
+          "label": "Auth, BM25 ∥ k-NN, RRF",
+          "unit": "s",
+          "default": 0.2,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: más ≈ 0.2 s del resto"
+        },
+        {
+          "id": "retrieval_slo_s",
+          "label": "Retrieval + rerank p95 target",
+          "unit": "s",
+          "default": 0.7,
+          "kind": "requirement",
+          "source": "C11 · Requisitos: p95 ≤ 700 ms"
+        },
+        {
+          "id": "c10_ttft_5k_s",
+          "label": "Prompt + gateway + C10 TTFT with ≈ 5k tokens",
+          "unit": "s",
+          "default": 1.5,
+          "kind": "assumption",
+          "source": "C11 · Requisitos: TTFT de c10 con ≈ 5k tokens (≤ ≈ 1.5 s)"
+        },
+        {
+          "id": "ttft_slo_s",
+          "label": "First-token SLO (p95)",
+          "unit": "s",
+          "default": 2.5,
+          "kind": "requirement",
+          "source": "C11 · Requisitos: primer token p95 ≤ 2.5 s"
+        },
+        {
+          "id": "typical_out",
+          "label": "Typical answer length",
+          "unit": "tokens",
+          "default": 300,
+          "kind": "assumption",
+          "source": "C11 · Requisitos: la típica, de ≈ 300 tokens"
+        },
+        {
+          "id": "tpot_rag_s",
+          "label": "TPOT on the C10 fleet (high end)",
+          "unit": "s/token",
+          "default": 0.04,
+          "kind": "assumption",
+          "source": "C11 · Requisitos: ≈ 25–40 ms por token"
+        },
+        {
+          "id": "tpot_p95_s",
+          "label": "C10 TPOT SLO (p95)",
+          "unit": "s/token",
+          "default": 0.05,
+          "kind": "requirement",
+          "source": "C10 · Requisitos: TPOT p95 ≤ 50 ms"
+        },
+        {
+          "id": "price_l4_h",
+          "label": "g6.xlarge on-demand",
+          "unit": "US$/h",
+          "default": 0.805,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: US$0.805 (g6.xlarge on-demand)"
+        },
+        {
+          "id": "ab_p1",
+          "label": "Thumbs-down rate today",
+          "unit": "fraction",
+          "default": 0.2,
+          "kind": "assumption",
+          "source": "C11 · Evaluación: pulgar abajo de 20 %"
+        },
+        {
+          "id": "ab_p2",
+          "label": "Thumbs-down rate to detect",
+          "unit": "fraction",
+          "default": 0.17,
+          "kind": "assumption",
+          "source": "C11 · Evaluación: 20 % → 17 %"
+        },
+        {
+          "id": "z_power",
+          "label": "z for 80 % power",
+          "unit": "z",
+          "default": 0.84,
+          "kind": "assumption",
+          "source": "C11 · Evaluación: (1.96 + 0.84)²"
+        },
+        {
+          "id": "rated_share",
+          "label": "Share of answers that get a rating",
+          "unit": "fraction",
+          "default": 0.1,
+          "kind": "assumption",
+          "source": "C11 · Evaluación: si califica ≈ 10 %"
+        },
+        {
+          "id": "judge_share",
+          "label": "Live answers graded by the judge",
+          "unit": "fraction",
+          "default": 0.01,
+          "kind": "assumption",
+          "source": "C11 · Monitoreo: groundedness en vivo sobre ≈ 1 %"
+        },
+        {
+          "id": "tenant_kv_out",
+          "label": "Output tokens held in KV (tenant)",
+          "unit": "tokens",
+          "default": 350,
+          "kind": "assumption",
+          "source": "C11 · Estimaciones: (5,300 + 350) × 320 KiB"
+        },
+        {
+          "id": "c10_design_rps",
+          "label": "C10 design peak",
+          "unit": "req/s",
+          "default": 60,
+          "kind": "requirement",
+          "source": "C10 · Estimaciones: diseño 60 rps"
+        },
+        {
+          "id": "c10_in",
+          "label": "C10 typical prompt",
+          "unit": "tokens",
+          "default": 2000,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: 1.5 M req × 2,000"
+        },
+        {
+          "id": "c10_out",
+          "label": "C10 typical output",
+          "unit": "tokens",
+          "default": 250,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: 1.5 M req × 250"
+        },
+        {
+          "id": "c10_ttft_s",
+          "label": "C10 TTFT (planning)",
+          "unit": "s",
+          "default": 0.5,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: TTFT ≈ 0.5 s"
+        },
+        {
+          "id": "c10_tpot_s",
+          "label": "C10 TPOT (planning)",
+          "unit": "s/token",
+          "default": 0.04,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: 250 tokens × ≈ 40 ms"
+        },
+        {
+          "id": "n_layers",
+          "label": "Layers (Llama 3.x 70B)",
+          "unit": "layers",
+          "default": 80,
+          "kind": "requirement",
+          "source": "C10 · Estimaciones: 80 capas"
+        },
+        {
+          "id": "n_kv_heads",
+          "label": "KV heads",
+          "unit": "heads",
+          "default": 8,
+          "kind": "requirement",
+          "source": "C10 · Estimaciones: 8 heads de KV"
+        },
+        {
+          "id": "head_dim",
+          "label": "Head dim",
+          "unit": "dims",
+          "default": 128,
+          "kind": "requirement",
+          "source": "C10 · Estimaciones: head_dim 128"
+        },
+        {
+          "id": "kv_bytes",
+          "label": "Bytes per KV element (BF16)",
+          "unit": "B",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: KV en BF16, 2 B"
+        },
+        {
+          "id": "params_b",
+          "label": "Model params (FP8 = 1 B each)",
+          "unit": "B params",
+          "default": 70.6,
+          "kind": "requirement",
+          "source": "C10 · Estimaciones: 70.6 B parámetros; pesos FP8 ≈ 70.6 GB"
+        },
+        {
+          "id": "n_gpu_replica",
+          "label": "GPUs per replica (TP=2)",
+          "unit": "GPUs",
+          "default": 2,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: réplica de 2 × H100 (TP=2)"
+        },
+        {
+          "id": "gpu_mem_gb",
+          "label": "H100 memory",
+          "unit": "GB",
+          "default": 80,
+          "kind": "benchmark",
+          "source": "C10 · Estimaciones: H100 (80 GB)"
+        },
+        {
+          "id": "gpu_mem_util",
+          "label": "vLLM --gpu-memory-utilization",
+          "unit": "fraction",
+          "default": 0.9,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: --gpu-memory-utilization 0.90"
+        },
+        {
+          "id": "runtime_gb",
+          "label": "Runtime, activations, CUDA graphs",
+          "unit": "GB",
+          "default": 5,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: ≈ 5 GB entre las dos GPUs"
+        },
+        {
+          "id": "replica_rps",
+          "label": "Measured replica capacity within SLOs",
+          "unit": "req/s",
+          "default": 6,
+          "kind": "benchmark",
+          "source": "C10 · Estimaciones: ≈ 6 rps (vllm bench serve; supuesto fuerte)"
+        },
+        {
+          "id": "c10_target_util",
+          "label": "Planned utilization",
+          "unit": "fraction",
+          "default": 0.7,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: 70 % de 6 = 4.2 rps"
+        },
+        {
+          "id": "gpus_per_node",
+          "label": "H100 per p5.48xlarge",
+          "unit": "GPUs",
+          "default": 8,
+          "kind": "benchmark",
+          "source": "C10 · Estimaciones: una p5.48xlarge tiene 8 H100 = 4 réplicas"
+        },
+        {
+          "id": "price_p5_h",
+          "label": "p5.48xlarge on-demand",
+          "unit": "US$/h",
+          "default": 55,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: ≈ US$55/h (oct. 2026)"
+        },
+        {
+          "id": "hours_month",
+          "label": "Cost month",
+          "unit": "h",
+          "default": 730,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: × 730 h"
+        },
+        {
+          "id": "c10_tokens_month",
+          "label": "C10 tokens per month (all tenants)",
+          "unit": "tokens/month",
+          "default": 158000000000,
+          "kind": "assumption",
+          "source": "C10 · Estimaciones: ≈ 158 B tokens/mes"
+        }
+      ],
+      "steps": {
+        "kickoff": [
+          {
+            "id": "chunks",
+            "label": "Chunks in the index",
+            "out": "chunks",
+            "expr": "n_docs * chunks_per_doc",
+            "unit": "chunks",
+            "tol": 0.02,
+            "why": "Sizes the index and the embedding job.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 12000000
+          },
+          {
+            "id": "corpus-tokens",
+            "label": "Corpus tokens",
+            "out": "corpus_tokens",
+            "expr": "chunks * tokens_per_chunk",
+            "unit": "tokens",
+            "tol": 0.02,
+            "why": "Sizes a full re-embed.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 4800000000
+          },
+          {
+            "id": "qps-avg",
+            "label": "Average questions per second (business hours)",
+            "out": "qps_avg",
+            "expr": "q_day / (biz_hours * 3600)",
+            "unit": "q/s",
+            "tol": 0.02,
+            "why": "Traffic is tiny: spend design time on permissions and freshness.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 0.7
+          },
+          {
+            "id": "qps-peak",
+            "label": "Peak questions per second",
+            "out": "qps_peak",
+            "expr": "qps_avg * q_peak_factor",
+            "unit": "q/s",
+            "tol": 0.05,
+            "why": "Design point for reranker, index and LLM quota.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 2
+          },
+          {
+            "id": "prompt-tokens",
+            "label": "Prompt tokens",
+            "out": "prompt_tokens",
+            "expr": "sys_tokens + hist_tokens + k_chunks * tokens_per_chunk + q_tokens",
+            "unit": "tokens",
+            "tol": 0,
+            "why": "Fixes k = 8 inside the 8k context.",
+            "check": {
+              "expr": "prompt_tokens + max_out_tokens <= ctx_tokens",
+              "label": "Prompt + max_tokens fits the 8,192 context"
+            },
+            "ref": "#c11.estimaciones",
+            "expected": 5300
+          },
+          {
+            "id": "live-seqs-tenant",
+            "label": "Live sequences at peak (Little)",
+            "out": "live_seqs_tenant",
+            "expr": "qps_peak * answer_s",
+            "unit": "sequences",
+            "tol": 0.05,
+            "why": "Concurrency the tenant adds to the C10 fleet.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 22
+          },
+          {
+            "id": "prefill-peak",
+            "label": "Uncached prefill at peak",
+            "out": "prefill_peak",
+            "expr": "qps_peak * (avg_in_tokens - sys_tokens)",
+            "unit": "tokens/s",
+            "tol": 0.05,
+            "why": "Compare against the C10 fleet’s ≈ 60k tokens/s design peak.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 10400
+          },
+          {
+            "id": "tpm-peak",
+            "label": "Gateway tokens per minute at peak",
+            "out": "tpm_peak",
+            "expr": "qps_peak * (avg_in_tokens + max_out_tokens) * 60",
+            "unit": "tokens/min",
+            "tol": 0.05,
+            "why": "Sets the tenant quota on the gateway.",
+            "check": {
+              "expr": "tpm_peak <= quota_tpm",
+              "label": "Under the ≈ 1 M tokens/min quota"
+            },
+            "ref": "#c11.estimaciones",
+            "expected": 800000
+          },
+          {
+            "id": "showback-usd-month",
+            "label": "LLM showback per month",
+            "out": "showback_usd_month",
+            "expr": "q_day * biz_days * (avg_in_tokens + avg_out_tokens) * llm_price_per_m / 1e6",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Largest single infra line.",
+            "check": null,
+            "ref": "#c11.costo",
+            "expected": 3500
+          },
+          {
+            "id": "infra-usd-month",
+            "label": "Infra per month",
+            "out": "infra_usd_month",
+            "expr": "showback_usd_month + other_infra_usd",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Infra is under a fifth of the total; people dominate.",
+            "check": null,
+            "ref": "#c11.costo",
+            "expected": 7600
+          },
+          {
+            "id": "usd-per-question",
+            "label": "Infra cost per question",
+            "out": "usd_per_question",
+            "expr": "infra_usd_month / (q_day * biz_days)",
+            "unit": "US$/question",
+            "tol": 0.02,
+            "why": "Unit cost: answer caching isn’t worth the leak risk.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 0.014
+          },
+          {
+            "id": "error-budget-min",
+            "label": "Monthly error budget",
+            "out": "error_budget_min",
+            "expr": "(1 - slo_avail) * slo_month_min",
+            "unit": "min/month",
+            "tol": 0.02,
+            "why": "Search-only fallback lets the generated answer run at 99.5 %.",
+            "check": null,
+            "ref": "#c11.requisitos",
+            "expected": 216
+          }
+        ],
+        "datos": [
+          {
+            "id": "golden-h",
+            "label": "Golden set expert hours",
+            "out": "golden_h",
+            "expr": "golden_q * golden_min_per_q / 60",
+            "unit": "h",
+            "tol": 0.02,
+            "why": "Book SME time across areas before building.",
+            "check": null,
+            "ref": "#c11.datos",
+            "expected": 200
+          },
+          {
+            "id": "corpus-text-gb",
+            "label": "Corpus plain text",
+            "out": "corpus_text_gb",
+            "expr": "corpus_tokens * bytes_per_token / 1e9",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "Raw text volume to parse and store.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 19
+          },
+          {
+            "id": "parsed-gb",
+            "label": "Parsed text stored in S3",
+            "out": "parsed_gb",
+            "expr": "corpus_text_gb * parsed_overhead",
+            "unit": "GB",
+            "tol": 0.05,
+            "why": "≈ US$1/month: always keep it, re-chunk without re-parsing or OCR.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 40
+          }
+        ],
+        "ingestion-con-conectores": [
+          {
+            "id": "embed-tokens-day",
+            "label": "Tokens to re-embed per day (worst case)",
+            "out": "embed_tokens_day",
+            "expr": "changed_docs_day * chunks_per_doc * tokens_per_chunk",
+            "unit": "tokens/day",
+            "tol": 0.02,
+            "why": "Daily embedding load; per-chunk hashes cut it.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 48000000
+          },
+          {
+            "id": "embed-gpu-min-day",
+            "label": "L4 time per day for changes",
+            "out": "embed_gpu_min_day",
+            "expr": "embed_tokens_day / embed_tok_s / 60",
+            "unit": "min/day",
+            "tol": 0.02,
+            "why": "One shared L4 embed-worker is enough.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 27
+          },
+          {
+            "id": "embed-peak-share",
+            "label": "Embed load at the edit peak",
+            "out": "embed_peak_share",
+            "expr": "changed_docs_day / (biz_hours * 3600) * edit_peak_factor * chunks_per_doc * tokens_per_chunk / embed_tok_s",
+            "unit": "fraction of an L4",
+            "tol": 0.03,
+            "why": "Freshness p95 ≤ 15 min is not GPU-bound.",
+            "check": {
+              "expr": "embed_peak_share < 1",
+              "label": "One L4 keeps up with the edit peak"
+            },
+            "ref": "#c11.estimaciones",
+            "expected": 0.13
+          },
+          {
+            "id": "ocr-core-h",
+            "label": "Initial OCR on CPU",
+            "out": "ocr_core_h",
+            "expr": "scanned_share * n_pdfs * pages_per_pdf * ocr_s_page / 3600",
+            "unit": "core-h",
+            "tol": 0.02,
+            "why": "One-off backfill: ≈ US$11 on CPU vs ≈ US$675 on Textract.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 250
+          }
+        ],
+        "indice-hibrido-en-opensearch": [
+          {
+            "id": "vec-fp16-gb",
+            "label": "Vectors in FP16",
+            "out": "vec_fp16_gb",
+            "expr": "chunks * dim * bytes_fp16 / 1e9",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "FP16 is what makes 64 GiB nodes enough.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 24.6
+          },
+          {
+            "id": "hnsw-gb",
+            "label": "HNSW graph (layer 0, M = 32)",
+            "out": "hnsw_gb",
+            "expr": "chunks * 2 * hnsw_m * bytes_link / 1e9",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "Graph overhead on top of the vectors.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 3.1
+          },
+          {
+            "id": "index-gb-node",
+            "label": "k-NN index per node",
+            "out": "index_gb_node",
+            "expr": "(vec_fp16_gb + hnsw_gb) * os_copies / os_nodes",
+            "unit": "GB/node",
+            "tol": 0.02,
+            "why": "Native memory each data node must hold.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 18.4
+          },
+          {
+            "id": "node-mem-util",
+            "label": "Node memory use (heap + k-NN + page cache)",
+            "out": "node_mem_util",
+            "expr": "(heap_gb + index_gb_node + page_cache_gb) / node_ram_gb",
+            "unit": "fraction",
+            "tol": 0.02,
+            "why": "Picks r7i.2xlarge; FP32 would need nodes twice the size.",
+            "check": {
+              "expr": "node_mem_util < 1",
+              "label": "Fits a 64 GiB node"
+            },
+            "ref": "#c11.estimaciones",
+            "expected": 0.78
+          }
+        ],
+        "gate": [
+          {
+            "id": "ci-golden-pp",
+            "label": "95 % CI half-width, recall@8 on 600",
+            "out": "ci_golden_pp",
+            "expr": "z95 * sqrt(recall * (1 - recall) / golden_q) * 100",
+            "unit": "pp",
+            "tol": 0.03,
+            "why": "Unpaired noise: compare configs paired (McNemar).",
+            "check": null,
+            "ref": "#c11.evaluacion",
+            "expected": 2.9
+          },
+          {
+            "id": "ci-slice-pp",
+            "label": "95 % CI half-width, slice of 60",
+            "out": "ci_slice_pp",
+            "expr": "z95 * sqrt(recall * (1 - recall) / slice_n) * 100",
+            "unit": "pp",
+            "tol": 0.03,
+            "why": "A slice of 60 only catches large drops: add questions for critical areas.",
+            "check": null,
+            "ref": "#c11.evaluacion",
+            "expected": 9
+          }
+        ],
+        "serving": [
+          {
+            "id": "rerank-tflop-q",
+            "label": "Reranker compute per question",
+            "out": "rerank_tflop_q",
+            "expr": "rerank_pairs * (2 * rerank_active_b * 1e9 * pair_tokens / 1e12 + attn_tflop_pair)",
+            "unit": "TFLOP",
+            "tol": 0.02,
+            "why": "Count only params that multiply, not the embedding table.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 14.6
+          },
+          {
+            "id": "rerank-s-l4",
+            "label": "Rerank time on one L4",
+            "out": "rerank_s_l4",
+            "expr": "rerank_tflop_q / (l4_tflops * l4_eff)",
+            "unit": "s",
+            "tol": 0.03,
+            "why": "Picks L4 over L40S for the reranker.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 0.24
+          },
+          {
+            "id": "retrieval-s",
+            "label": "Retrieval + rerank",
+            "out": "retrieval_s",
+            "expr": "rerank_s_l4 + other_retrieval_s",
+            "unit": "s",
+            "tol": 0.03,
+            "why": "Checks the 700 ms retrieval budget.",
+            "check": {
+              "expr": "retrieval_s <= retrieval_slo_s",
+              "label": "Inside the 700 ms retrieval target"
+            },
+            "ref": "#c11.estimaciones",
+            "expected": 0.45
+          },
+          {
+            "id": "rerank-load-peak",
+            "label": "Reranker load at peak (one L4)",
+            "out": "rerank_load_peak",
+            "expr": "qps_peak * rerank_tflop_q / (l4_tflops * l4_eff)",
+            "unit": "fraction",
+            "tol": 0.05,
+            "why": "2 × L4 (one per zone) gives N+1.",
+            "check": {
+              "expr": "rerank_load_peak <= 1",
+              "label": "One L4 alone carries the peak"
+            },
+            "ref": "#c11.estimaciones",
+            "expected": 0.48
+          }
+        ],
+        "plataforma-llm-del-c10": [
+          {
+            "id": "kv-token-kib",
+            "label": "KV cache per token (BF16)",
+            "out": "kv_token_kib",
+            "expr": "2 * n_layers * n_kv_heads * head_dim * kv_bytes / 1024",
+            "unit": "KiB",
+            "tol": 0,
+            "why": "Unit of LLM memory cost.",
+            "check": null,
+            "ref": "#c10.estimaciones",
+            "expected": 320
+          },
+          {
+            "id": "kv-space-gb",
+            "label": "KV space per 2 × H100 replica",
+            "out": "kv_space_gb",
+            "expr": "gpu_mem_util * n_gpu_replica * gpu_mem_gb - params_b - runtime_gb",
+            "unit": "GB",
+            "tol": 0.02,
+            "why": "Why TP=2: one H100 leaves no room for KV.",
+            "check": null,
+            "ref": "#c10.estimaciones",
+            "expected": 68.4
+          },
+          {
+            "id": "seqs-per-replica",
+            "label": "Typical sequences that fit per replica",
+            "out": "seqs_per_replica",
+            "expr": "kv_space_gb / ((c10_in + c10_out) * kv_token_kib * 1024 / 1e9)",
+            "unit": "sequences",
+            "tol": 0.02,
+            "why": "KV says how many fit; the TPOT SLO says how many run.",
+            "check": null,
+            "ref": "#c10.estimaciones",
+            "expected": 92.8
+          },
+          {
+            "id": "tenant-kv-gb",
+            "label": "Tenant KV at peak",
+            "out": "tenant_kv_gb",
+            "expr": "live_seqs_tenant * (prompt_tokens + tenant_kv_out) * kv_token_kib * 1024 / 1e9",
+            "unit": "GB",
+            "tol": 0.05,
+            "why": "≈ 9 % of the C10 peak KV: a capacity talk with the platform team.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 41
+          }
+        ],
+        "kubernetes": [
+          {
+            "id": "c10-live-seqs",
+            "label": "C10 live sequences at design peak",
+            "out": "c10_live_seqs",
+            "expr": "c10_design_rps * (c10_ttft_s + c10_out * c10_tpot_s)",
+            "unit": "sequences",
+            "tol": 0.02,
+            "why": "Unit of LLM capacity is the live sequence.",
+            "check": null,
+            "ref": "#c10.estimaciones",
+            "expected": 630
+          },
+          {
+            "id": "c10-replicas",
+            "label": "vLLM replicas (2 × H100)",
+            "out": "c10_replicas",
+            "expr": "ceilto(c10_design_rps / (replica_rps * c10_target_util), gpus_per_node / n_gpu_replica)",
+            "unit": "replicas",
+            "tol": 0,
+            "why": "Replicas come from measured goodput, rounded to whole p5 nodes.",
+            "check": {
+              "expr": "c10_live_seqs / c10_replicas <= seqs_per_replica && (c10_replicas - gpus_per_node / n_gpu_replica) * replica_rps >= c10_design_rps",
+              "label": "KV holds the live sequences and losing one node still serves 60 rps"
+            },
+            "ref": "#c10.estimaciones",
+            "expected": 16
+          },
+          {
+            "id": "c10-gpu-usd-month",
+            "label": "C10 GPU fleet per month",
+            "out": "c10_gpu_usd_month",
+            "expr": "c10_replicas * n_gpu_replica / gpus_per_node * price_p5_h * hours_month",
+            "unit": "US$/month",
+            "tol": 0.02,
+            "why": "Fixed floor the tenant’s showback rides on.",
+            "check": null,
+            "ref": "#c10.estimaciones",
+            "expected": 160600
+          },
+          {
+            "id": "c10-usd-per-m",
+            "label": "C10 GPU cost per million tokens",
+            "out": "c10_usd_per_m",
+            "expr": "c10_gpu_usd_month / c10_tokens_month * 1e6",
+            "unit": "US$/M tokens",
+            "tol": 0.02,
+            "why": "Showback rate charged to the tenant.",
+            "check": null,
+            "ref": "#c10.estimaciones",
+            "expected": 1
+          }
+        ],
+        "rollout": [
+          {
+            "id": "reembed-l4-h",
+            "label": "Full re-embed for a new index",
+            "out": "reembed_l4_h",
+            "expr": "corpus_tokens / embed_tok_s / 3600",
+            "unit": "L4-h",
+            "tol": 0.02,
+            "why": "Blue/green rebuild is an afternoon, not a project.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 44.4
+          },
+          {
+            "id": "reembed-usd",
+            "label": "Full re-embed cost",
+            "out": "reembed_usd",
+            "expr": "reembed_l4_h * price_l4_h",
+            "unit": "US$",
+            "tol": 0.02,
+            "why": "Cost is not a reason to delay an embedding upgrade.",
+            "check": null,
+            "ref": "#c11.estimaciones",
+            "expected": 36
+          },
+          {
+            "id": "ab-rated-per-arm",
+            "label": "Rated answers per arm (20 % → 17 %)",
+            "out": "ab_rated_per_arm",
+            "expr": "(z95 + z_power)^2 * (ab_p1 * (1 - ab_p1) + ab_p2 * (1 - ab_p2)) / (ab_p1 - ab_p2)^2",
+            "unit": "ratings",
+            "tol": 0.02,
+            "why": "Sizes the A/B of a prompt change.",
+            "check": null,
+            "ref": "#c11.evaluacion",
+            "expected": 2600
+          },
+          {
+            "id": "ab-days",
+            "label": "Traffic days for both arms",
+            "out": "ab_days",
+            "expr": "2 * ab_rated_per_arm / rated_share / q_day",
+            "unit": "days",
+            "tol": 0.03,
+            "why": "Before user clustering; per-user randomization stretches it to 1–2 weeks.",
+            "check": null,
+            "ref": "#c11.evaluacion",
+            "expected": 2.08
+          }
+        ],
+        "request": [
+          {
+            "id": "ttft-budget-s",
+            "label": "First-token budget",
+            "out": "ttft_budget_s",
+            "expr": "retrieval_slo_s + c10_ttft_5k_s",
+            "unit": "s",
+            "tol": 0.02,
+            "why": "Leaves ≈ 0.3 s; a follow-up rewrite barely fits.",
+            "check": {
+              "expr": "ttft_budget_s <= ttft_slo_s",
+              "label": "Inside the 2.5 s first-token SLO"
+            },
+            "ref": "#c11.requisitos",
+            "expected": 2.2
+          },
+          {
+            "id": "decode-typical-s",
+            "label": "Decode of a typical answer (40 ms/token)",
+            "out": "decode_typical_s",
+            "expr": "typical_out * tpot_rag_s",
+            "unit": "s",
+            "tol": 0.02,
+            "why": "Why the full-answer SLO is a median, not a p95.",
+            "check": null,
+            "ref": "#c11.requisitos",
+            "expected": 12
+          },
+          {
+            "id": "decode-long-s",
+            "label": "Decode of a max-length answer at TPOT p95",
+            "out": "decode_long_s",
+            "expr": "max_out_tokens * tpot_p95_s",
+            "unit": "s",
+            "tol": 0.02,
+            "why": "Tail is set by length: keep max_tokens 600 and brevity rules.",
+            "check": null,
+            "ref": "#c11.requisitos",
+            "expected": 30
+          }
+        ],
+        "monitoreo": [
+          {
+            "id": "canary-ci-pp",
+            "label": "95 % CI half-width, 100-question canary",
+            "out": "canary_ci_pp",
+            "expr": "z95 * sqrt(recall * (1 - recall) / canary_n) * 100",
+            "unit": "pp",
+            "tol": 0.03,
+            "why": "Alert vs the 7-day average with a floor, not on one run.",
+            "check": null,
+            "ref": "#c11.evaluacion",
+            "expected": 7
+          },
+          {
+            "id": "judge-per-day",
+            "label": "Live answers graded per day",
+            "out": "judge_per_day",
+            "expr": "q_day * judge_share",
+            "unit": "answers/day",
+            "tol": 0.02,
+            "why": "Judge load for live groundedness.",
+            "check": null,
+            "ref": "#c11.monitoreo",
+            "expected": 250
+          }
+        ]
+      }
+    }
+  }
+}

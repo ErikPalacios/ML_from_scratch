@@ -15,20 +15,29 @@ const dotSvg = (n, status) => `<svg viewBox="0 0 40 40" aria-hidden="true">
 </svg>`;
 
 const VUELTA_TXT = { pendiente: '○', en_curso: '◐', hecho: '✓' };
-const vv = (s) => `<span class="vv" title="Vuelta 1 (guiada) y vuelta 2 (solo)">V1 ${s.vuelta.v1 === 'hecho' ? '<b>✓</b>' : VUELTA_TXT[s.vuelta.v1]} · V2 ${s.vuelta.v2 === 'hecho' ? '<b>✓</b>' : VUELTA_TXT[s.vuelta.v2]}</span>`;
+const vv = (s) => `<span class="vv" title="Pass 1 (guided) and pass 2 (solo)">P1 ${s.vuelta.v1 === 'hecho' ? '<b>✓</b>' : VUELTA_TXT[s.vuelta.v1]} · P2 ${s.vuelta.v2 === 'hecho' ? '<b>✓</b>' : VUELTA_TXT[s.vuelta.v2]}</span>`;
 
-function stationHtml(p, s, i) {
-  const crit = s.done.length ? `${s.done.filter((d) => d.ok).length}/${s.done.length} criterios` : '';
-  const hit = s.hitos.length ? `${s.hitos.filter((h) => h.status === 'hecho').length}/${s.hitos.length} hitos` : '';
+// Entry-gate chip: open (calcs left), met, or waived.
+function gateChip(g) {
+  if (!g || !g.need) return '';
+  if (g.waived && !g.met) return '<span class="chip chip--waived" title="Entry gate waived">gate waived</span>';
+  if (g.met) return `<span class="chip chip--hecho" title="Entry gate met">gate ✓ ${g.done + g.revealed}/${g.need}</span>`;
+  return `<span class="chip chip--gate" title="Entry gate open">gate ${g.done + g.revealed}/${g.need}${g.failedChecks ? ' · check ✗' : ''}</span>`;
+}
+
+function stationHtml(p, s, i, ev) {
+  const crit = s.done.length ? `DoD ${s.done.filter((d) => d.ok).length}/${s.done.length}` : '';
+  const hit = s.hitos.length ? `${s.hitos.filter((h) => h.status === 'hecho').length}/${s.hitos.length} milestones` : '';
   const why = s.status === 'no_aplica' || s.status === 'bloqueado' ? s.reason : '';
   const isNext = p.resume.nextStepId === s.id;
-  return `<a class="st ln-${s.speed}" data-s="${s.status}" data-i="${i}" href="#/p/${esc(p.id)}/paso/${esc(s.id)}" aria-label="${esc(`${i + 1}. ${s.title}: ${STATUS_LABEL[s.status]}`)}">
+  return `<a class="st ln-${s.speed}" data-s="${s.status}" data-i="${i}" href="#/p/${esc(p.id)}/step/${esc(s.id)}" aria-label="${esc(`${i + 1}. ${s.title}: ${STATUS_LABEL[s.status]}`)}">
     <span class="st__dot">${dotSvg(i + 1, s.status)}</span>
     <span class="st__b">
       <span class="st__t">${esc(s.title)}</span>
       <span class="st__m">
         <span class="chip chip--${s.status}">${STATUS_LABEL[s.status]}</span>
-        ${isNext ? '<span class="chip chip--next">Próximo</span>' : ''}
+        ${isNext ? '<span class="chip chip--next">Next</span>' : ''}
+        ${s.status === 'no_aplica' ? '' : gateChip(ev && ev.gates[s.id])}
         ${vv(s)}
       </span>
       ${hit || crit ? `<span class="small">${[hit, crit].filter(Boolean).join(' · ')}</span>` : ''}
@@ -37,21 +46,21 @@ function stationHtml(p, s, i) {
   </a>`;
 }
 
-export function mapHtml(p) {
+export function mapHtml(p, ev) {
   const rows = [];
   let tramo = null;
   p.steps.forEach((s, i) => {
     if (s.tramo !== tramo) { tramo = s.tramo; rows.push(`<div class="band" aria-hidden="true">${TRAMO_LABEL[tramo].toUpperCase()}</div>`); }
-    rows.push(stationHtml(p, s, i));
+    rows.push(stationHtml(p, s, i, ev));
   });
   const speeds = [...new Set(p.steps.map((s) => s.speed))];
   return `<div class="map" data-layout="list">
     <svg class="map__lines" aria-hidden="true"></svg>
-    <nav class="stations" aria-label="Pasos del proyecto">${rows.join('')}</nav>
-    ${p.steps.length ? '<div class="loopnote"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4"/></svg>El monitoreo vuelve a la primera estación: reentrenar cierra el ciclo.</div>' : ''}
+    <nav class="stations" aria-label="Project steps">${rows.join('')}</nav>
+    ${p.steps.length ? '<div class="loopnote"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7M4 4v4h4"/></svg>Monitoring feeds back into data: retraining closes the loop.</div>' : ''}
   </div>
   <div class="legend">${speeds.map((sp) => `<span class="ln-${sp}"><i></i>${SPEED_LABEL[sp]}</span>`).join('')}
-    <span>Estaciones: ✓ hecho · ◎ en curso · ! bloqueado · ┄ no aplica</span><span>Vueltas: ✓ hecha · ◐ en curso · ○ pendiente</span></div>`;
+    <span>Steps: ✓ done · ◎ in progress · ! blocked · ┄ N/A</span><span>Passes: ✓ done · ◐ in progress · ○ to do</span></div>`;
 }
 
 // Acomoda las estaciones y dibuja las líneas. Se vuelve a llamar cuando cambia el ancho.
