@@ -173,6 +173,8 @@ test('la migración v1 → v2 agrega kickoff, cálculos y variables, pasa a ingl
   assert.ok(d.vars.length > 50 && d.vars.every((v) => v.value !== ''));
   const ev = evaluateProject(d);
   assert.equal(ev.gates.kickoff.done, 5);
+  assert.equal(ev.gates.datos.done, 1, 'DESIGN.md\'s 400 B/line survives the migration');
+  assert.equal(d.vars.find((v) => v.id === 'log_bytes').value, '400');
   assert.deepEqual(migrate(d), d, 'idempotent');
 });
 

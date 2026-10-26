@@ -210,7 +210,11 @@ export function upgradeSeedC01(d) {
   if (same(d.resume.where, old.resume.where)) d.resume.where = neu.resume.where;
   if (same(d.resume.next, old.resume.next)) d.resume.next = neu.resume.next;
   // inputs: fill what is still empty with C01's values
-  for (const v of d.vars) { const n = neu.vars.find((x) => x.id === v.id); if (n && !String(v.value).trim()) Object.assign(v, { value: n.value, source: n.source }); }
+  // inputs: fill what is still empty with C01's values, and apply DESIGN.md's own assumptions where the value is still the course's
+  for (const v of d.vars) {
+    const n = neu.vars.find((x) => x.id === v.id);
+    if (n && (!String(v.value).trim() || (VAR_OVERRIDES[v.id] && v.value === v.ref))) Object.assign(v, { value: n.value, source: n.source });
+  }
   for (const s of d.steps) {
     const n = neu.steps.find((x) => x.id === s.id);
     if (!n) continue;
