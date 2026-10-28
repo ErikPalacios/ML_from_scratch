@@ -6,10 +6,13 @@
 //     entrenamiento), y nunca llevan una instrucción que solo sirva para callar al revisor;
 //   - las opciones que el revisor marca a propósito (root; sin HEALTHCHECK en una API) dan exactamente su hallazgo;
 //   - cada salida es sintácticamente sana; el .dockerignore nunca deja fuera lo que el Dockerfile copia;
-//   - la fuente que lleva la página (toPageScript) da exactamente lo mismo que el módulo.
+//   - la fuente que lleva la página (toPageScript) da exactamente lo mismo que el módulo;
+//   - el .zip (STORE) que baja la página lo leen python3 (zipfile) y unzip -t, con los mismos nombres y contenidos.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as G from './generador.mjs';
@@ -362,6 +365,39 @@ test('estado en la URL: decode(encode(cfg)) vuelve a la misma configuración', (
   assert.deepEqual(G.decodeState('svc=worker&nada=1&flags=&dg=python%3A3.13-slim%7Csha256%3Aab'), { svc: 'worker', flags: [], digests: { 'python:3.13-slim': 'sha256:ab' } });
 });
 
+test('zip: STORE con CRC-32 correcto y nombres UTF-8; python3 (zipfile) y unzip -t lo leen igual', (t) => {
+  assert.equal(G.crc32(new TextEncoder().encode('123456789')), 0xCBF43926); // valor de prueba del CRC-32 de ZIP
+  assert.equal(G.crc32(new Uint8Array(0)), 0);
+  const cfg = { ...G.PRESETS[0].cfg, comments: 'detailed' }, o = G.generate(cfg), b = G.bundle(cfg);
+  assert.equal(b.filename, 'classifier-gateway-docker.zip');
+  assert.deepEqual(b.files.map((f) => f.name), ['Dockerfile', '.dockerignore', 'build-and-run.md']);
+  assert.equal(b.files[0].data, o.dockerfile);
+  assert.equal(b.files[1].data, o.dockerignore);
+  assert.ok(b.files[2].data.startsWith('# Build & run · classifier-gateway\n') && b.files[2].data.includes('```bash\n' + o.commands + '```\n'));
+  assert.equal(G.bundle({ image: 'org/equipo-x' }).filename, 'equipo-x-docker.zip');
+  // el visor de Artifacts acepta .zip; un Dockerfile o un .dockerignore sueltos no (lista de extensiones del visor)
+  assert.match(b.filename, /\.zip$/);
+  const files = [...b.files, { name: 'carpeta/ñandú-é.txt', data: 'hola ñ\n' }, { name: 'vacío.txt', data: '' }];
+  const zip = G.zipStore(files, new Date(2026, 9, 28, 15, 30, 10));
+  assert.deepEqual([...zip.slice(0, 4)], [0x50, 0x4b, 0x03, 0x04]);
+  const dir = mkdtempSync(join(tmpdir(), 'docker-gen-zip-')), path = join(dir, b.filename);
+  let checked = 0;
+  try {
+    writeFileSync(path, zip);
+    try {
+      const py = "import sys, json, zipfile\nz = zipfile.ZipFile(sys.argv[1])\nprint(json.dumps({'bad': z.testzip(), 'files': [[i.filename, i.compress_type, i.flag_bits & 0x800, z.read(i).decode('utf-8')] for i in z.infolist()]}))";
+      const r = JSON.parse(execFileSync('python3', ['-I', '-c', py, path], { encoding: 'utf8' }));
+      assert.equal(r.bad, null, 'zipfile.testzip() encontró un archivo dañado');
+      assert.deepEqual(r.files.map((f) => f[0]), files.map((f) => f.name));
+      r.files.forEach((f, i) => { assert.equal(f[1], 0, 'STORE'); assert.equal(f[2], 0x800, 'nombre UTF-8'); assert.equal(f[3], files[i].data); });
+      checked++;
+    } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    try { assert.match(execFileSync('unzip', ['-t', path], { encoding: 'utf8' }), /No errors detected/); checked++; }
+    catch (e) { if (e.code !== 'ENOENT') throw e; }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+  if (!checked) t.skip('sin python3 ni unzip para revisar el .zip');
+});
+
 test('diffLines marca exactamente las líneas nuevas o cambiadas', () => {
   assert.deepEqual(G.diffLines('a\nb\nc', 'a\nx\nc\nd'), [false, true, false, true]);
   assert.deepEqual(G.diffLines('', 'a'), [true]);
@@ -371,7 +407,9 @@ test('diffLines marca exactamente las líneas nuevas o cambiadas', () => {
 test('la fuente de la página (toPageScript) da exactamente lo mismo que el módulo', () => {
   const src = readFileSync(join(HERE, 'generador.mjs'), 'utf8');
   const P = new Function(`return ${G.toPageScript(src)};`)();
-  for (const k of ['generate', 'normalize', 'lint', 'lintFor', 'NOT_APPLICABLE', 'compileRules', 'encodeState', 'decodeState', 'diffLines', 'SCHEMA', 'PRESETS', 'VERSIONS']) assert.ok(P[k], `la página no recibe ${k}`);
+  const d0 = new Date(2026, 9, 28, 12, 0, 0);
+  for (const p of G.PRESETS) assert.deepEqual([...P.zipStore(P.bundle(p.cfg).files, d0)], [...G.zipStore(G.bundle(p.cfg).files, d0)], `zip de ${p.id}`);
+  for (const k of ['generate', 'normalize', 'lint', 'lintFor', 'NOT_APPLICABLE', 'zipStore', 'bundle', 'crc32', 'compileRules', 'encodeState', 'decodeState', 'diffLines', 'SCHEMA', 'PRESETS', 'VERSIONS']) assert.ok(P[k], `la página no recibe ${k}`);
   const PR = P.compileRules(W1.revisor);
   ALL.filter((_, n) => n % 17 === 0).concat(G.PRESETS.map((p) => p.cfg)).forEach((c) => {
     const a = G.generate(c), b = P.generate(c);

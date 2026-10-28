@@ -11,6 +11,7 @@
 //   4 · PREGUNTAS ............... opciones de la interfaz, reglas de compatibilidad, valores por defecto, presets
 //   5 · LÓGICA .................. normalize → derive → bloques → texto
 //   6 · REVISOR, DIFF Y ESTADO .. las 16 reglas del revisor (mismo compilado que la página), diff por líneas, URL
+//   7 · ZIP ..................... Dockerfile + .dockerignore + build-and-run.md en un .zip (STORE, sin librerías)
 
 // =====================================================================================================
 // 1 · VERSIONES Y TAGS (leídos el 2026-10-28). Si cambias un tag, corre node --test generador.test.mjs.
@@ -1527,6 +1528,73 @@ export function decodeState(str) {
     out[k] = LIST_KEYS.includes(k) ? (val ? val.split(',') : []) : val;
   });
   return out;
+}
+
+// =====================================================================================================
+// 7 · ZIP. El visor de Artifacts de claude.ai solo guarda archivos con ciertas extensiones (un "Dockerfile" o un
+// ".dockerignore" sueltos no pasan): ahí se baja un solo .zip; el sitio ofrece el mismo .zip junto a cada archivo.
+// Formato: STORE (sin compresión), CRC-32, encabezados locales, directorio central y registro final; nombres UTF-8.
+// =====================================================================================================
+let CRC_TABLE = null;
+// CRC-32 de ZIP (IEEE 802.3, polinomio reflejado 0xEDB88320). Valor de prueba: crc32("123456789") = 0xCBF43926.
+export function crc32(bytes) {
+  if (!CRC_TABLE) {
+    CRC_TABLE = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC_TABLE[n] = c >>> 0; }
+  }
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+// files: [{ name, data: string | Uint8Array }] → Uint8Array con el .zip. date: la hora de los archivos (local, como DOS).
+export function zipStore(files, date) {
+  const enc = new TextEncoder(), d = date || new Date();
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const day = ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  const items = files.map((f) => {
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
+    return { name, data, crc: crc32(data) };
+  });
+  const local = items.reduce((n, it) => n + 30 + it.name.length + it.data.length, 0);
+  const central = items.reduce((n, it) => n + 46 + it.name.length, 0);
+  const out = new Uint8Array(local + central + 22), v = new DataView(out.buffer);
+  let p = 0;
+  const u16 = (x) => { v.setUint16(p, x, true); p += 2; }, u32 = (x) => { v.setUint32(p, x >>> 0, true); p += 4; };
+  const head = (it) => { u16(20); u16(0x0800); u16(0); u16(time); u16(day); u32(it.crc); u32(it.data.length); u32(it.data.length); u16(it.name.length); u16(0); };
+  items.forEach((it) => {
+    it.offset = p;
+    u32(0x04034b50); head(it); // encabezado local: versión 2.0, bit 11 (nombre UTF-8), método 0 (STORE)
+    out.set(it.name, p); p += it.name.length;
+    out.set(it.data, p); p += it.data.length;
+  });
+  const cdStart = p;
+  items.forEach((it) => {
+    u32(0x02014b50); u16(0x0314); // directorio central: hecho en Unix (3), versión 2.0
+    head(it);
+    u16(0); u16(0); u16(0); u32((0o100644 << 16) >>> 0); u32(it.offset); // comentario, disco, atributos internos, rw-r--r--
+    out.set(it.name, p); p += it.name.length;
+  });
+  const cdSize = p - cdStart; // antes de escribir el registro final (p sigue avanzando)
+  u32(0x06054b50); u16(0); u16(0); u16(items.length); u16(items.length); u32(cdSize); u32(cdStart); u16(0);
+  if (p !== out.length) throw new Error(`zip: escribí ${p} bytes de ${out.length}`);
+  return out;
+}
+// Los comandos de la pestaña Build & run como Markdown (un .md sí pasa el filtro del visor y se lee en cualquier lado)
+export function commandsMarkdown(image, commands) {
+  return `# Build & run · ${image}\n\nComandos del generador de Dockerfile de la cheat sheet de Docker. Cópialos por bloques: \`docker run\` queda en primer plano.\n\n\`\`\`bash\n${commands}\`\`\`\n`;
+}
+// Lo que se baja: el .zip (nombre según la imagen) con los tres archivos
+export function bundle(input) {
+  const x = derive(input), o = generate(input);
+  const slug = x.image.split('/').pop().replace(/[^a-z0-9._-]+/g, '-') || 'imagen';
+  return {
+    filename: `${slug}-docker.zip`,
+    files: [
+      { name: 'Dockerfile', data: o.dockerfile },
+      { name: '.dockerignore', data: o.dockerignore },
+      { name: 'build-and-run.md', data: commandsMarkdown(x.image, o.commands) },
+    ],
+  };
 }
 
 // La fuente de la página: este mismo archivo sin los export, envuelto en una función que devuelve lo exportado.

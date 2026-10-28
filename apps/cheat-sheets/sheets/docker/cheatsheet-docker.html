@@ -286,7 +286,13 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-finds p { margin: 3px 0 0; }
 .gn-finds p.small { margin: 2px 0; font: 500 13.5px/1.4 var(--f-display); }
 .gn-goto { min-height: 32px; padding: 0 8px; border: 1px solid var(--rule); border-radius: 7px; background: var(--paper); color: var(--accent); font: 600 12.5px/1 var(--f-display); cursor: pointer; }
-.gn-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.gn-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; min-height: 44px; }
+.gn-zbtn { display: inline-flex; align-items: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 9px; background: var(--paper); color: var(--ink); font: 600 13px/1 var(--f-display); cursor: pointer; }
+.gn-zbtn:hover { border-color: var(--accent); color: var(--accent); }
+.gn-zbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gn-zbtn svg { width: 17px; height: 17px; flex: none; }
+.gn-zbtn.is-done { border-color: var(--accent2); color: var(--accent2); }
+.gn-toast { position: absolute; right: 10px; bottom: calc(100% + 8px); z-index: 6; max-width: calc(100% - 20px); margin: 0; padding: 8px 12px; border-radius: 9px; background: var(--ink); color: var(--paper); font: 600 13px/1.3 var(--f-display); box-shadow: 0 6px 18px rgba(14, 19, 26, .28); pointer-events: none; }
 .gn-wrap { position: relative; display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding-right: 6px; font: 600 13px/1.2 var(--f-display); color: var(--ink); cursor: pointer; }
 .gn-wrap input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
 .gn-sw { position: relative; flex: none; width: 34px; height: 20px; border-radius: 999px; background: var(--rule); transition: background .15s; }
@@ -294,7 +300,7 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-wrap input:checked + .gn-sw { background: var(--accent); }
 .gn-wrap input:checked + .gn-sw::after { transform: translateX(14px); }
 .gn-wrap input:focus-visible + .gn-sw { outline: 2px solid var(--accent); outline-offset: 2px; }
-.gn-meta2 { font: 500 12.5px/1.3 var(--f-display); color: var(--muted); text-align: right; }
+.gn-meta2 { flex: 1 1 auto; font: 500 12.5px/1.3 var(--f-display); color: var(--muted); text-align: right; }
 .gn-meta2 b { color: var(--warn); }
 @media (min-width: 1000px) { .gn-meta2 { display: none; } }
 .gn-code { max-height: min(26vh, 360px); overflow: auto; border: 1px solid var(--rule); border-radius: 9px; background: var(--code-bg); overscroll-behavior: contain; }
@@ -1187,9 +1193,10 @@ Run <span class="tk-s">'docker run --help'</span> for more information
       </div>
       <div class="gn-body" id="gn-body">
         <div class="gn-finds" id="gn-finds" hidden=""></div>
-        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><span class="gn-meta2" id="gn-meta2">39 líneas</span></div>
+        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><span class="gn-meta2" id="gn-meta2">39 líneas</span><button class="gn-zbtn" type="button" id="gn-zip" aria-label="Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md" title="Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg><span>.zip</span></button></div>
         <div class="gn-code" id="gn-view" role="tabpanel" aria-labelledby="gn-t-dockerfile" tabindex="0"><pre class="gn-pre" id="gn-pre"><code id="gn-src"><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># syntax=docker/dockerfile:1</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># mi-servicio: API HTTP en CPU · multi-stage (builder → runtime)</span></span></span><span class="gn-ln"><span class="gn-lc"></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># ---------------------------------------------------------------- etapa 1: builder</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Base: Python 3.13 sobre Debian 13 (trixie)</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">FROM</span> python:3.13-slim <span class="tk-k">AS</span> builder</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Sin cache de pip en las capas</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">ENV</span> PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># venv en /opt/venv: se copia entero a la etapa final</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">RUN</span> python -m venv /opt/venv</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">ENV</span> PATH=<span class="tk-s">"/opt/venv/bin:$PATH"</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Dependencias antes que el código: esta capa queda en cache</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">COPY</span> requirements.txt .</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Solo wheels: si falta una, el build falla aquí</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">RUN</span> pip install --only-binary=:all: -r requirements.txt</span></span><span class="gn-ln"><span class="gn-lc"></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># ---------------------------------------------------------------- etapa 2: runtime</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">FROM</span> python:3.13-slim <span class="tk-k">AS</span> runtime</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Logs sin buffer y sin .pyc; el venv primero en el PATH</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">ENV</span> PYTHONDONTWRITEBYTECODE=1 \</span></span><span class="gn-ln"><span class="gn-lc">    PYTHONUNBUFFERED=1 \</span></span><span class="gn-ln"><span class="gn-lc">    PATH=<span class="tk-s">"/opt/venv/bin:$PATH"</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Usuario sin privilegios con UID numérico (10001): runAsNonRoot lo puede verificar</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">RUN</span> groupadd --system --gid 10001 app &amp;&amp; \</span></span><span class="gn-ln"><span class="gn-lc">    useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">WORKDIR</span> /srv</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Solo el venv: compiladores y caches se quedan en el builder</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">COPY</span> --from=builder /opt/venv /opt/venv</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Código con dueño root: el proceso no puede modificarlo</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">COPY</span> app/ ./app/</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">USER</span> 10001</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Documenta el puerto (no lo publica)</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">EXPOSE</span> 8080</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Para docker run y compose; Kubernetes usa sus probes</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">HEALTHCHECK</span> --interval=10s --timeout=2s --start-period=10s --retries=3 \</span></span><span class="gn-ln"><span class="gn-lc">    CMD [<span class="tk-s">"python"</span>, <span class="tk-s">"-c"</span>, <span class="tk-s">"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=1)"</span>]</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Un proceso en forma exec: uvicorn es el PID 1 y recibe el SIGTERM</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">CMD</span> [<span class="tk-s">"uvicorn"</span>, <span class="tk-s">"app.main:app"</span>, <span class="tk-s">"--host"</span>, <span class="tk-s">"0.0.0.0"</span>, <span class="tk-s">"--port"</span>, <span class="tk-s">"8080"</span>, <span class="tk-s">"--workers"</span>, <span class="tk-s">"1"</span>, \</span></span><span class="gn-ln"><span class="gn-lc">     <span class="tk-s">"--timeout-graceful-shutdown"</span>, <span class="tk-s">"20"</span>]</span></span></code></pre></div>
       </div>
+      <p class="gn-toast" id="gn-toast" aria-hidden="true" hidden=""></p>
       <p class="gn-live" id="gn-live" aria-live="polite"></p>
     </div>
   </div>
@@ -1300,6 +1307,7 @@ CMD python app.py
 //   4 · PREGUNTAS ............... opciones de la interfaz, reglas de compatibilidad, valores por defecto, presets
 //   5 · LÓGICA .................. normalize → derive → bloques → texto
 //   6 · REVISOR, DIFF Y ESTADO .. las 16 reglas del revisor (mismo compilado que la página), diff por líneas, URL
+//   7 · ZIP ..................... Dockerfile + .dockerignore + build-and-run.md en un .zip (STORE, sin librerías)
 
 // =====================================================================================================
 // 1 · VERSIONES Y TAGS (leídos el 2026-10-28). Si cambias un tag, corre node --test generador.test.mjs.
@@ -2818,6 +2826,73 @@ function decodeState(str) {
   return out;
 }
 
+// =====================================================================================================
+// 7 · ZIP. El visor de Artifacts de claude.ai solo guarda archivos con ciertas extensiones (un "Dockerfile" o un
+// ".dockerignore" sueltos no pasan): ahí se baja un solo .zip; el sitio ofrece el mismo .zip junto a cada archivo.
+// Formato: STORE (sin compresión), CRC-32, encabezados locales, directorio central y registro final; nombres UTF-8.
+// =====================================================================================================
+let CRC_TABLE = null;
+// CRC-32 de ZIP (IEEE 802.3, polinomio reflejado 0xEDB88320). Valor de prueba: crc32("123456789") = 0xCBF43926.
+function crc32(bytes) {
+  if (!CRC_TABLE) {
+    CRC_TABLE = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC_TABLE[n] = c >>> 0; }
+  }
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+// files: [{ name, data: string | Uint8Array }] → Uint8Array con el .zip. date: la hora de los archivos (local, como DOS).
+function zipStore(files, date) {
+  const enc = new TextEncoder(), d = date || new Date();
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const day = ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  const items = files.map((f) => {
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
+    return { name, data, crc: crc32(data) };
+  });
+  const local = items.reduce((n, it) => n + 30 + it.name.length + it.data.length, 0);
+  const central = items.reduce((n, it) => n + 46 + it.name.length, 0);
+  const out = new Uint8Array(local + central + 22), v = new DataView(out.buffer);
+  let p = 0;
+  const u16 = (x) => { v.setUint16(p, x, true); p += 2; }, u32 = (x) => { v.setUint32(p, x >>> 0, true); p += 4; };
+  const head = (it) => { u16(20); u16(0x0800); u16(0); u16(time); u16(day); u32(it.crc); u32(it.data.length); u32(it.data.length); u16(it.name.length); u16(0); };
+  items.forEach((it) => {
+    it.offset = p;
+    u32(0x04034b50); head(it); // encabezado local: versión 2.0, bit 11 (nombre UTF-8), método 0 (STORE)
+    out.set(it.name, p); p += it.name.length;
+    out.set(it.data, p); p += it.data.length;
+  });
+  const cdStart = p;
+  items.forEach((it) => {
+    u32(0x02014b50); u16(0x0314); // directorio central: hecho en Unix (3), versión 2.0
+    head(it);
+    u16(0); u16(0); u16(0); u32((0o100644 << 16) >>> 0); u32(it.offset); // comentario, disco, atributos internos, rw-r--r--
+    out.set(it.name, p); p += it.name.length;
+  });
+  const cdSize = p - cdStart; // antes de escribir el registro final (p sigue avanzando)
+  u32(0x06054b50); u16(0); u16(0); u16(items.length); u16(items.length); u32(cdSize); u32(cdStart); u16(0);
+  if (p !== out.length) throw new Error(`zip: escribí ${p} bytes de ${out.length}`);
+  return out;
+}
+// Los comandos de la pestaña Build & run como Markdown (un .md sí pasa el filtro del visor y se lee en cualquier lado)
+function commandsMarkdown(image, commands) {
+  return `# Build & run · ${image}\n\nComandos del generador de Dockerfile de la cheat sheet de Docker. Cópialos por bloques: \`docker run\` queda en primer plano.\n\n\`\`\`bash\n${commands}\`\`\`\n`;
+}
+// Lo que se baja: el .zip (nombre según la imagen) con los tres archivos
+function bundle(input) {
+  const x = derive(input), o = generate(input);
+  const slug = x.image.split('/').pop().replace(/[^a-z0-9._-]+/g, '-') || 'imagen';
+  return {
+    filename: `${slug}-docker.zip`,
+    files: [
+      { name: 'Dockerfile', data: o.dockerfile },
+      { name: '.dockerignore', data: o.dockerignore },
+      { name: 'build-and-run.md', data: commandsMarkdown(x.image, o.commands) },
+    ],
+  };
+}
+
 // La fuente de la página: este mismo archivo sin los export, envuelto en una función que devuelve lo exportado.
 function toPageScript(src) {
   const names = [];
@@ -2827,7 +2902,7 @@ function toPageScript(src) {
   return `(function () {\n'use strict';\n${body}\nreturn { ${names.join(', ')} };\n})()`;
 }
 
-return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAULTS, PRESETS, QMAP, optionFlag, space, optionReason, isShown, normalize, derive, ignoreMatches, ignored, contextInputs, generate, compileRules, lint, NOT_APPLICABLE, lintFor, diffLines, encodeState, decodeState, toPageScript };
+return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAULTS, PRESETS, QMAP, optionFlag, space, optionReason, isShown, normalize, derive, ignoreMatches, ignored, contextInputs, generate, compileRules, lint, NOT_APPLICABLE, lintFor, diffLines, encodeState, decodeState, crc32, zipStore, commandsMarkdown, bundle, toPageScript };
 })();
   var HL = (function () {
   var esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -3032,7 +3107,7 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
     var QS = [];
     GEN.SCHEMA.forEach(function (g) { g.qs.forEach(function (q) { QS.push(q); }); });
     var TEXT = QS.filter(function (q) { return q.type === 'text' || q.type === 'num' || q.type === 'area'; });
-    var FILES = { dockerfile: 'Dockerfile', dockerignore: '.dockerignore', commands: 'build-and-run.sh' };
+    var FILES = { dockerfile: 'Dockerfile', dockerignore: '.dockerignore', commands: 'build-and-run.md' };
     var LANG = { dockerfile: 'dockerfile', dockerignore: 'text', commands: 'bash' };
     var NAMES = { error: ['error', 'errores'], warn: ['aviso', 'avisos'], info: ['info', 'info'] };
     var cfg = {}, out = null, seen = {}, tab = 'dockerfile', imgsKey = null, summary = '', tmr = null, onScreen = false;
@@ -3221,7 +3296,7 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       tab = t;
       tabs.forEach(function (b) { var on = b.getAttribute('data-t') === t; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
       var dl = $('gn-dl');
-      dl.setAttribute('aria-label', 'Descargar ' + FILES[t]); dl.title = 'Descargar ' + FILES[t];
+      if (!viewer) { dl.setAttribute('aria-label', 'Descargar ' + FILES[t]); dl.title = 'Descargar ' + FILES[t]; }
       paintCode(false);
       box.scrollTop = 0;
     }
@@ -3271,12 +3346,17 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       box.scrollTo({ top: Math.max(0, lineTop(el) - 28), behavior: reduce ? 'auto' : 'smooth' });
       setTimeout(function () { el.classList.remove('is-hit'); }, 2600);
     });
+    // aviso visible en todos los anchos (en el celular los botones son solo íconos) y el mismo texto para el lector
+    function toast(msg) {
+      var t = $('gn-toast');
+      t.textContent = msg; t.hidden = false;
+      clearTimeout(t._t);
+      t._t = setTimeout(function () { t.hidden = true; }, 2200);
+    }
     function done(btn, msg) {
-      var l = btn.querySelector('.gn-bl'), was = btn.getAttribute('data-l') || l.textContent;
-      btn.setAttribute('data-l', was);
-      l.textContent = msg; btn.classList.add('is-done'); say(msg);
+      btn.classList.add('is-done'); toast(msg); say(msg);
       clearTimeout(btn._t);
-      btn._t = setTimeout(function () { l.textContent = was; btn.classList.remove('is-done'); }, 1800);
+      btn._t = setTimeout(function () { btn.classList.remove('is-done'); }, 1800);
     }
     // portapapeles dentro del clic; si lo rechaza, execCommand; si tampoco, seleccionar el texto
     function copyText(text, btn, okMsg, failMsg) {
@@ -3295,16 +3375,58 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       } catch (e) { fallback(); }
     }
     $('gn-copy').addEventListener('click', function () { copyText(out[tab], this, 'Copiado'); });
+    // ---- descargas. En el sitio: cada archivo con un Blob, y el .zip con los tres. En el visor de Artifacts de claude.ai
+    // un enlace de descarga no hace nada: ahí el único botón guarda el .zip con window.claude.use('downloads') (el visor
+    // solo acepta ciertas extensiones: un Dockerfile suelto no pasa). Mientras el visor no contesta, o si dice que no,
+    // no hay botón de descarga: queda Copiar. save() solo se llama dentro de un clic.
+    var viewer = !!(window.claude && typeof window.claude.use === 'function'), saver = null;
+    var ZIP_LABEL = 'Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md';
+    function bundleNow() { return GEN.bundle(cfg); }
+    function saveBlob(name, data, type) {
+      var url = URL.createObjectURL(new Blob([data], { type: type })), a = doc.createElement('a');
+      a.href = url; a.download = name; doc.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    }
+    function noViewerDownloads(msg) { saver = null; $('gn-dl').hidden = true; if (msg) { toast(msg); say(msg); } }
+    if (viewer) {
+      noViewerDownloads();
+      $('gn-zip').hidden = true;
+      try {
+        Promise.resolve(window.claude.use('downloads')).then(function (ns) {
+          if (!ns || typeof ns.save !== 'function') return;
+          saver = ns;
+          var dl = $('gn-dl');
+          dl.setAttribute('aria-label', ZIP_LABEL); dl.title = ZIP_LABEL; dl.hidden = false;
+          pad();
+        }, function () {});
+      } catch (e) {}
+    }
     $('gn-dl').addEventListener('click', function () {
-      var btn = this, text = out[tab], framed = true;
+      var btn = this, b = bundleNow();
+      if (viewer) {
+        if (!saver) return;
+        saver.save({ filename: b.filename, data: GEN.zipStore(b.files, new Date()) }).then(function () { done(btn, 'Guardado: ' + b.filename); }, function (err) {
+          var code = err && err.code;
+          if (code === 'declined') return;
+          if (code === 'rate_limited') { done(btn, 'Espera un momento'); return; }
+          if (code === 'unavailable' || code === 'not_granted' || code === 'capability_disabled' || code === 'capability_removed') { noViewerDownloads('Aquí no se puede descargar: usa Copiar'); return; }
+          if (code === 'rejected_extension') console.error('generador: el visor rechazó el nombre ' + b.filename);
+          done(btn, 'No se pudo guardar');
+        });
+        return;
+      }
+      var f = b.files.filter(function (x) { return x.name === FILES[tab]; })[0], text = f ? f.data : out[tab], framed = true;
       try { framed = window.top !== window.self; } catch (e) {}
       try {
-        var url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' })), a = doc.createElement('a');
-        a.href = url; a.download = FILES[tab]; doc.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-        // dentro de un iframe (el Artifact) la descarga puede estar bloqueada: también va al portapapeles
-        if (framed) copyText(text, btn, 'Bajado y copiado'); else done(btn, 'Descargado');
+        saveBlob(FILES[tab], text, 'text/plain;charset=utf-8');
+        // en otro iframe la descarga puede estar bloqueada: también va al portapapeles
+        if (framed) copyText(text, btn, 'Bajado y copiado'); else done(btn, 'Descargado: ' + FILES[tab]);
       } catch (e) { copyText(text, btn, 'Copiado (sin descarga)'); }
+    });
+    $('gn-zip').addEventListener('click', function () {
+      var btn = this, b = bundleNow();
+      try { saveBlob(b.filename, GEN.zipStore(b.files, new Date()), 'application/zip'); done(btn, 'Descargado: ' + b.filename); }
+      catch (e) { done(btn, 'No se pudo descargar'); }
     });
     $('gn-share').addEventListener('click', function () {
       var enc = GEN.encodeState(cfg), url = String(location.href).split('#')[0] + '#generador' + (enc ? '?' + enc : '');

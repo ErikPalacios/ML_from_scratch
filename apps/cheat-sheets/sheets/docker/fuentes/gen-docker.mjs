@@ -861,6 +861,7 @@ const ICON = {
   link: '<path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.3 1.3"/><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.3-1.3"/>',
   reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/>',
 };
+const ZIP_LABEL = 'Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md';
 const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
 const valOf = (f, c) => (typeof f === 'function' ? f(c) : f);
 function genQuestion(q, c, errs) {
@@ -914,9 +915,10 @@ function genHtml() {
       </div>
       <div class="gn-body" id="gn-body">
         <div class="gn-finds" id="gn-finds" hidden></div>
-        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><span class="gn-meta2" id="gn-meta2">${nLines} líneas</span></div>
+        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><span class="gn-meta2" id="gn-meta2">${nLines} líneas</span><button class="gn-zbtn" type="button" id="gn-zip" aria-label="${ZIP_LABEL}" title="${ZIP_LABEL}">${icon('dl')}<span>.zip</span></button></div>
         <div class="gn-code" id="gn-view" role="tabpanel" aria-labelledby="gn-t-dockerfile" tabindex="0"><pre class="gn-pre" id="gn-pre"><code id="gn-src">${lines}</code></pre></div>
       </div>
+      <p class="gn-toast" id="gn-toast" aria-hidden="true" hidden></p>
       <p class="gn-live" id="gn-live" aria-live="polite"></p>
     </div>
   </div>`;
@@ -1236,7 +1238,13 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-finds p { margin: 3px 0 0; }
 .gn-finds p.small { margin: 2px 0; font: 500 13.5px/1.4 var(--f-display); }
 .gn-goto { min-height: 32px; padding: 0 8px; border: 1px solid var(--rule); border-radius: 7px; background: var(--paper); color: var(--accent); font: 600 12.5px/1 var(--f-display); cursor: pointer; }
-.gn-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.gn-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; min-height: 44px; }
+.gn-zbtn { display: inline-flex; align-items: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 9px; background: var(--paper); color: var(--ink); font: 600 13px/1 var(--f-display); cursor: pointer; }
+.gn-zbtn:hover { border-color: var(--accent); color: var(--accent); }
+.gn-zbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gn-zbtn svg { width: 17px; height: 17px; flex: none; }
+.gn-zbtn.is-done { border-color: var(--accent2); color: var(--accent2); }
+.gn-toast { position: absolute; right: 10px; bottom: calc(100% + 8px); z-index: 6; max-width: calc(100% - 20px); margin: 0; padding: 8px 12px; border-radius: 9px; background: var(--ink); color: var(--paper); font: 600 13px/1.3 var(--f-display); box-shadow: 0 6px 18px rgba(14, 19, 26, .28); pointer-events: none; }
 .gn-wrap { position: relative; display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding-right: 6px; font: 600 13px/1.2 var(--f-display); color: var(--ink); cursor: pointer; }
 .gn-wrap input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
 .gn-sw { position: relative; flex: none; width: 34px; height: 20px; border-radius: 999px; background: var(--rule); transition: background .15s; }
@@ -1244,7 +1252,7 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-wrap input:checked + .gn-sw { background: var(--accent); }
 .gn-wrap input:checked + .gn-sw::after { transform: translateX(14px); }
 .gn-wrap input:focus-visible + .gn-sw { outline: 2px solid var(--accent); outline-offset: 2px; }
-.gn-meta2 { font: 500 12.5px/1.3 var(--f-display); color: var(--muted); text-align: right; }
+.gn-meta2 { flex: 1 1 auto; font: 500 12.5px/1.3 var(--f-display); color: var(--muted); text-align: right; }
 .gn-meta2 b { color: var(--warn); }
 @media (min-width: 1000px) { .gn-meta2 { display: none; } }
 .gn-code { max-height: min(26vh, 360px); overflow: auto; border: 1px solid var(--rule); border-radius: 9px; background: var(--code-bg); overscroll-behavior: contain; }
@@ -1458,7 +1466,7 @@ const JS_SRC = String.raw`
     var QS = [];
     GEN.SCHEMA.forEach(function (g) { g.qs.forEach(function (q) { QS.push(q); }); });
     var TEXT = QS.filter(function (q) { return q.type === 'text' || q.type === 'num' || q.type === 'area'; });
-    var FILES = { dockerfile: 'Dockerfile', dockerignore: '.dockerignore', commands: 'build-and-run.sh' };
+    var FILES = { dockerfile: 'Dockerfile', dockerignore: '.dockerignore', commands: 'build-and-run.md' };
     var LANG = { dockerfile: 'dockerfile', dockerignore: 'text', commands: 'bash' };
     var NAMES = { error: ['error', 'errores'], warn: ['aviso', 'avisos'], info: ['info', 'info'] };
     var cfg = {}, out = null, seen = {}, tab = 'dockerfile', imgsKey = null, summary = '', tmr = null, onScreen = false;
@@ -1647,7 +1655,7 @@ const JS_SRC = String.raw`
       tab = t;
       tabs.forEach(function (b) { var on = b.getAttribute('data-t') === t; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
       var dl = $('gn-dl');
-      dl.setAttribute('aria-label', 'Descargar ' + FILES[t]); dl.title = 'Descargar ' + FILES[t];
+      if (!viewer) { dl.setAttribute('aria-label', 'Descargar ' + FILES[t]); dl.title = 'Descargar ' + FILES[t]; }
       paintCode(false);
       box.scrollTop = 0;
     }
@@ -1697,12 +1705,17 @@ const JS_SRC = String.raw`
       box.scrollTo({ top: Math.max(0, lineTop(el) - 28), behavior: reduce ? 'auto' : 'smooth' });
       setTimeout(function () { el.classList.remove('is-hit'); }, 2600);
     });
+    // aviso visible en todos los anchos (en el celular los botones son solo íconos) y el mismo texto para el lector
+    function toast(msg) {
+      var t = $('gn-toast');
+      t.textContent = msg; t.hidden = false;
+      clearTimeout(t._t);
+      t._t = setTimeout(function () { t.hidden = true; }, 2200);
+    }
     function done(btn, msg) {
-      var l = btn.querySelector('.gn-bl'), was = btn.getAttribute('data-l') || l.textContent;
-      btn.setAttribute('data-l', was);
-      l.textContent = msg; btn.classList.add('is-done'); say(msg);
+      btn.classList.add('is-done'); toast(msg); say(msg);
       clearTimeout(btn._t);
-      btn._t = setTimeout(function () { l.textContent = was; btn.classList.remove('is-done'); }, 1800);
+      btn._t = setTimeout(function () { btn.classList.remove('is-done'); }, 1800);
     }
     // portapapeles dentro del clic; si lo rechaza, execCommand; si tampoco, seleccionar el texto
     function copyText(text, btn, okMsg, failMsg) {
@@ -1721,16 +1734,58 @@ const JS_SRC = String.raw`
       } catch (e) { fallback(); }
     }
     $('gn-copy').addEventListener('click', function () { copyText(out[tab], this, 'Copiado'); });
+    // ---- descargas. En el sitio: cada archivo con un Blob, y el .zip con los tres. En el visor de Artifacts de claude.ai
+    // un enlace de descarga no hace nada: ahí el único botón guarda el .zip con window.claude.use('downloads') (el visor
+    // solo acepta ciertas extensiones: un Dockerfile suelto no pasa). Mientras el visor no contesta, o si dice que no,
+    // no hay botón de descarga: queda Copiar. save() solo se llama dentro de un clic.
+    var viewer = !!(window.claude && typeof window.claude.use === 'function'), saver = null;
+    var ZIP_LABEL = 'Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md';
+    function bundleNow() { return GEN.bundle(cfg); }
+    function saveBlob(name, data, type) {
+      var url = URL.createObjectURL(new Blob([data], { type: type })), a = doc.createElement('a');
+      a.href = url; a.download = name; doc.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    }
+    function noViewerDownloads(msg) { saver = null; $('gn-dl').hidden = true; if (msg) { toast(msg); say(msg); } }
+    if (viewer) {
+      noViewerDownloads();
+      $('gn-zip').hidden = true;
+      try {
+        Promise.resolve(window.claude.use('downloads')).then(function (ns) {
+          if (!ns || typeof ns.save !== 'function') return;
+          saver = ns;
+          var dl = $('gn-dl');
+          dl.setAttribute('aria-label', ZIP_LABEL); dl.title = ZIP_LABEL; dl.hidden = false;
+          pad();
+        }, function () {});
+      } catch (e) {}
+    }
     $('gn-dl').addEventListener('click', function () {
-      var btn = this, text = out[tab], framed = true;
+      var btn = this, b = bundleNow();
+      if (viewer) {
+        if (!saver) return;
+        saver.save({ filename: b.filename, data: GEN.zipStore(b.files, new Date()) }).then(function () { done(btn, 'Guardado: ' + b.filename); }, function (err) {
+          var code = err && err.code;
+          if (code === 'declined') return;
+          if (code === 'rate_limited') { done(btn, 'Espera un momento'); return; }
+          if (code === 'unavailable' || code === 'not_granted' || code === 'capability_disabled' || code === 'capability_removed') { noViewerDownloads('Aquí no se puede descargar: usa Copiar'); return; }
+          if (code === 'rejected_extension') console.error('generador: el visor rechazó el nombre ' + b.filename);
+          done(btn, 'No se pudo guardar');
+        });
+        return;
+      }
+      var f = b.files.filter(function (x) { return x.name === FILES[tab]; })[0], text = f ? f.data : out[tab], framed = true;
       try { framed = window.top !== window.self; } catch (e) {}
       try {
-        var url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' })), a = doc.createElement('a');
-        a.href = url; a.download = FILES[tab]; doc.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-        // dentro de un iframe (el Artifact) la descarga puede estar bloqueada: también va al portapapeles
-        if (framed) copyText(text, btn, 'Bajado y copiado'); else done(btn, 'Descargado');
+        saveBlob(FILES[tab], text, 'text/plain;charset=utf-8');
+        // en otro iframe la descarga puede estar bloqueada: también va al portapapeles
+        if (framed) copyText(text, btn, 'Bajado y copiado'); else done(btn, 'Descargado: ' + FILES[tab]);
       } catch (e) { copyText(text, btn, 'Copiado (sin descarga)'); }
+    });
+    $('gn-zip').addEventListener('click', function () {
+      var btn = this, b = bundleNow();
+      try { saveBlob(b.filename, GEN.zipStore(b.files, new Date()), 'application/zip'); done(btn, 'Descargado: ' + b.filename); }
+      catch (e) { done(btn, 'No se pudo descargar'); }
     });
     $('gn-share').addEventListener('click', function () {
       var enc = GEN.encodeState(cfg), url = String(location.href).split('#')[0] + '#generador' + (enc ? '?' + enc : '');
@@ -1830,6 +1885,7 @@ function genCheck(G, fnv) {
   const cfgs = G.PRESETS.map((p) => p.cfg).concat(all.filter((_, i) => i % GEN_SAMPLE_EVERY === 0));
   let h = 2166136261, finds = 0;
   cfgs.forEach((c, i) => { const o = G.generate({ ...c, comments: GEN_LEVELS[i % 3] }); h = fnv(h, o.dockerfile + o.dockerignore + o.commands); finds += G.lintFor(G.normalize(c).cfg, o.dockerfile, R).found.length; });
+  G.PRESETS.forEach((p) => { h = fnv(h, String(G.crc32(G.zipStore(G.bundle(p.cfg).files, new Date(2026, 9, 28, 12, 0, 0))))); });
   return { n: cfgs.length, space: all.length, hash: h, findings: finds };
 }
 const GEN_NODE = (() => {
@@ -1877,6 +1933,7 @@ const GEN_CHECK = `<script id="gen-check">window.__gen = (function () {
     var cfgs = G.PRESETS.map(function (p) { return p.cfg; }).concat(all.filter(function (_, i) { return i % ${GEN_SAMPLE_EVERY} === 0; }));
     var h = 2166136261, finds = 0;
     cfgs.forEach(function (c, i) { var o = G.generate(Object.assign({}, c, { comments: LEVELS[i % 3] })); h = fnv(h, o.dockerfile + o.dockerignore + o.commands); finds += G.lintFor(G.normalize(c).cfg, o.dockerfile, R).found.length; });
+    G.PRESETS.forEach(function (p) { h = fnv(h, String(G.crc32(G.zipStore(G.bundle(p.cfg).files, new Date(2026, 9, 28, 12, 0, 0))))); });
     return { n: cfgs.length, space: all.length, hash: h, findings: finds, skipped: R.filter(function (r) { return !r.re; }).length };
   } catch (e) { return { error: String(e && e.stack || e) }; }
 })();</script>`;
