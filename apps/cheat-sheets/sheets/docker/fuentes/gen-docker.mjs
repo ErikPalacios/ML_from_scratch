@@ -8,11 +8,17 @@
 //                                     tools/browser-check.mjs (de la app ml-system-design) y escribe out/artifact.html
 //                                     (HEAD + wrap + script, para el Artifact de claude.ai) y ../cheatsheet-docker.html
 //                                     (con doctype/html/head/body: la página del sitio y la fuente del PDF)
+//
+// El generador de Dockerfile (herramienta web, oculta al imprimir) vive en generador.mjs: lógica pura, con sus tests en
+// generador.test.mjs (node --test). Este archivo lo importa para pintar el HTML inicial y pega en la página la MISMA
+// fuente (toPageScript); en el build, los presets y una muestra del espacio de combinaciones corren en node y otra
+// vez en Chrome, y los dos tienen que dar el mismo hash y 0 hallazgos del revisor.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import vm from 'node:vm';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as GEN from './generador.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = join(HERE, '../../../../ml-system-design'); // ejemplos del C01, módulos del curso y browser-check.mjs
@@ -847,6 +853,75 @@ ADD config.yaml /app/config.yaml
 EXPOSE 8080 # puerto de la API
 CMD python app.py
 `;
+// ---------------------------------------------------------------- generador de Dockerfile (HTML inicial)
+// La interfaz sale de GEN.SCHEMA con el estado por defecto; el script de la página la hidrata (URL, localStorage).
+const ICON = {
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  dl: '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
+  link: '<path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.3 1.3"/><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.3-1.3"/>',
+  reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/>',
+};
+const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
+const valOf = (f, c) => (typeof f === 'function' ? f(c) : f);
+function genQuestion(q, c, errs) {
+  const id = `gn-${q.k}`, shown = GEN.isShown(c, q.k), lab = valOf(q.label, c);
+  const wide = q.type === 'area' || (q.opts && q.opts.length >= 4);
+  const box = (ctl, labelHtml) => `<div class="gn-q${wide ? ' gn-wide' : ''}" data-q="${esc(q.k)}"${shown ? '' : ' hidden'}>${labelHtml}${ctl}<p class="gn-h" id="${id}-h">${esc(sel ? valOf(sel.h, c) : '')}</p><p class="gn-x" id="${id}-x" hidden></p><p class="gn-e" id="${id}-e"${errs[q.k] ? '' : ' hidden'}>${esc(errs[q.k] || '')}</p></div>`;
+  let sel = null;
+  if (q.type === 'seg' || q.type === 'checks') {
+    const multi = q.type === 'checks';
+    if (!multi) sel = q.opts.find((o) => o.v === c[q.k]) || null;
+    const opts = q.opts.map((o) => {
+      const why = multi ? '' : GEN.optionReason(c, q.k, o.v), on = multi ? c[q.k].includes(o.v) : c[q.k] === o.v;
+      const flag = multi ? '' : GEN.optionFlag(c, q.k, o.v);
+      return `<label class="gn-o${flag ? ' is-flag' : ''}"${why ? ` title="${esc(why)}"` : ''}><input class="gn-r" type="${multi ? 'checkbox' : 'radio'}" name="${esc(q.k)}" value="${esc(o.v)}"${on ? ' checked' : ''}${why ? ' disabled' : ''}><span class="gn-ob">${esc(o.l)}</span><span class="gn-sr">${why ? ` (no disponible: ${esc(why)})` : ''}</span></label>`;
+    }).join('');
+    return box(`<div class="gn-seg" role="${multi ? 'group' : 'radiogroup'}" aria-labelledby="${id}-l">${opts}</div>`, `<span class="gn-l" id="${id}-l">${esc(lab)}</span>`);
+  }
+  const ph = valOf(q.ph, c) || '', aria = `aria-describedby="${id}-e"${errs[q.k] ? ' aria-invalid="true"' : ''}`;
+  const common = `id="${id}" name="${esc(q.k)}" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="${esc(ph)}" ${aria}`;
+  const ctl = q.type === 'area' ? `<textarea class="gn-in gn-ta" ${common} rows="2">${esc(c[q.k] || '')}</textarea>`
+    : `<input class="gn-in" type="text" ${q.type === 'num' ? 'inputmode="numeric" ' : ''}${common} value="${esc(c[q.k] || '')}">`;
+  return box(ctl, `<label class="gn-l" id="${id}-l" for="${id}">${esc(lab)}</label>`);
+}
+function genHtml() {
+  const n = GEN.normalize({}), c = n.cfg, o = GEN.generate(c);
+  const groups = GEN.SCHEMA.map((g) => {
+    const on = !g.show || g.show(c);
+    const qs = g.qs.map((q) => genQuestion(q, c, n.errs) + (q.k === 'pin' ? `<div class="gn-q gn-wide" data-q="digests" hidden><span class="gn-l" id="gn-digests-l">Digest de cada imagen</span><div class="gn-dg" id="gn-dg" role="group" aria-labelledby="gn-digests-l"></div><p class="gn-h">docker buildx imagetools inspect &lt;imagen&gt;: la línea Digest</p><p class="gn-e" id="gn-digests-e" hidden></p></div>` : '')).join('');
+    return `<fieldset class="gn-g" data-g="${esc(g.id)}"><legend>${esc(g.label)}</legend>${g.note ? `<p class="gn-gn"${on ? ' hidden' : ''}>${esc(g.note)}</p>` : ''}<div class="gn-qs">${qs}</div></fieldset>`;
+  }).join('');
+  const lines = hl(o.dockerfile.replace(/\n$/, ''), 'dockerfile').split('\n').map((h) => `<span class="gn-ln"><span class="gn-lc">${h}</span></span>`).join('');
+  const nLines = o.dockerfile.replace(/\n$/, '').split('\n').length;
+  const presets = GEN.PRESETS.map((p) => `<button class="gn-p" type="button" data-p="${esc(p.id)}" aria-pressed="${p.id === 'blank' ? 'true' : 'false'}">${esc(p.label)}</button>`).join('');
+  const psel = `<select class="gn-psel gn-in" id="gn-psel" aria-label="Preset"><option value="">Personalizado</option>${GEN.PRESETS.map((p) => `<option value="${esc(p.id)}"${p.id === 'blank' ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}</select>`;
+  const btn = (id, ic, label, aria) => `<button class="gn-btn" type="button" id="${id}" aria-label="${esc(aria || label)}" title="${esc(aria || label)}">${icon(ic)}<span class="gn-bl">${esc(label)}</span></button>`;
+  return `<div class="card tool gn" id="generador">
+    <h3>Generador de Dockerfile</h3>
+    <p class="gn-sub">Cada respuesta reescribe el Dockerfile al instante · revisado en vivo con las ${W1.revisor.length} reglas del revisor</p>
+    <div class="gn-presets" role="group" aria-label="Presets"><span class="gn-k">Preset</span>${presets}${psel}</div>
+    <form class="gn-form" id="gn-form" novalidate onsubmit="return false">${groups}</form>
+    <div class="gn-panel" id="gn-panel">
+      <div class="gn-bar">
+        <button class="gn-fold" type="button" id="gn-fold" aria-expanded="true" aria-controls="gn-body" aria-label="Plegar el panel" title="Plegar o desplegar el panel"><span class="gn-chev" aria-hidden="true"></span><span class="gn-meta" id="gn-meta">${nLines} líneas</span></button>
+        <div class="gn-tabs" role="tablist" aria-label="Archivos">
+          <button class="gn-tab" type="button" role="tab" id="gn-t-dockerfile" data-t="dockerfile" aria-selected="true" aria-controls="gn-view">Dockerfile</button>
+          <button class="gn-tab" type="button" role="tab" id="gn-t-dockerignore" data-t="dockerignore" aria-selected="false" aria-controls="gn-view" tabindex="-1">.dockerignore</button>
+          <button class="gn-tab" type="button" role="tab" id="gn-t-commands" data-t="commands" aria-selected="false" aria-controls="gn-view" tabindex="-1">Build &amp; run</button>
+        </div>
+        <button class="gn-chip ok" type="button" id="gn-chip" aria-expanded="false" aria-controls="gn-finds"><span class="gn-dot" aria-hidden="true"></span><span class="gn-chip-l" id="gn-chip-t">0 hallazgos</span><span class="gn-chip-s" id="gn-chip-s" aria-hidden="true">0 hallazgos</span></button>
+        <div class="gn-acts">${btn('gn-copy', 'copy', 'Copiar', 'Copiar el archivo')}${btn('gn-dl', 'dl', 'Descargar', 'Descargar el archivo')}${btn('gn-share', 'link', 'Enlace', 'Copiar un enlace con estas respuestas')}${btn('gn-reset', 'reset', 'Reset', 'Volver a los valores por defecto')}</div>
+      </div>
+      <div class="gn-body" id="gn-body">
+        <div class="gn-finds" id="gn-finds" hidden></div>
+        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><span class="gn-meta2" id="gn-meta2">${nLines} líneas</span></div>
+        <div class="gn-code" id="gn-view" role="tabpanel" aria-labelledby="gn-t-dockerfile" tabindex="0"><pre class="gn-pre" id="gn-pre"><code id="gn-src">${lines}</code></pre></div>
+      </div>
+      <p class="gn-live" id="gn-live" aria-live="polite"></p>
+    </div>
+  </div>`;
+}
+
 function toolsHtml() {
   const D = W3.diagnosticador;
   const panels = D.map((g) => `<div class="dg-panel" data-dg="${esc(g.id)}" hidden>
@@ -856,7 +931,8 @@ function toolsHtml() {
     </div>`).join('');
   return `
 <section class="sec tools" id="herramientas">
-  <header class="sec__head"><span class="sec__n">⚙</span><div><h2>Herramientas</h2><p class="sec__q">Del síntoma al primer comando, y una revisión rápida de tu Dockerfile.</p></div></header>
+  <header class="sec__head"><span class="sec__n">⚙</span><div><h2>Herramientas</h2><p class="sec__q">Un Dockerfile de producción en minutos, del síntoma al primer comando, y una revisión rápida de tu Dockerfile.</p></div></header>
+  ${genHtml()}
   <div class="card tool" id="diagnosticador">
     <h3>Diagnosticador</h3>
     <p class="small">Elige lo que ves. Te dice qué correr primero y las causas típicas, cada una con cómo comprobarla y cómo arreglarla.</p>
@@ -1079,6 +1155,129 @@ ol.rv-list p { margin: 3px 0 0; font-size: 15px; }
 .sev { flex: none; font: 700 11px/1 var(--f-display); letter-spacing: .08em; text-transform: uppercase; border-radius: 999px; padding: 4px 8px; }
 .sev.error { background: var(--warn); color: var(--onbar); } .sev.warn { background: var(--hi-soft); color: var(--hi-ink); border: 1px solid var(--hi); } .sev.info { background: var(--accent-soft); color: var(--accent); }
 .rv-skip { margin-top: 8px; }
+/* ---------- generador de Dockerfile: preguntas arriba, el panel con el archivo pegado abajo mientras la herramienta está en pantalla */
+.gn > h3 { margin-bottom: 2px; }
+.gn-sub { margin: 0; font: 500 13.5px/1.4 var(--f-display); color: var(--muted); }
+.gn-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 12px; }
+.gn-k { font: 800 11px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.gn-p { min-height: 44px; padding: 0 14px; border: 1px solid var(--rule); border-radius: 999px; background: var(--bg); color: var(--ink); font: 600 13.5px/1.2 var(--f-display); cursor: pointer; }
+.gn-p:hover { border-color: var(--accent); }
+.gn-p:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gn-p[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+select.gn-psel { display: none; flex: 1 1 200px; min-width: 0; font-family: var(--f-display); font-weight: 600; }
+@media (max-width: 640px) { .gn-presets .gn-p { display: none; } select.gn-psel { display: block; } }
+.gn-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+fieldset.gn-g { min-width: 0; margin: 0; padding: 2px 14px 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); }
+.gn-g > legend { padding: 0 6px; margin-left: -6px; font: 800 11.5px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.gn-qs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px 22px; margin-top: 6px; }
+.gn-q { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start; }
+.gn-q.gn-wide { grid-column: 1 / -1; }
+.gn-l { font: 700 13px/1.3 var(--f-display); color: var(--ink); }
+.gn-seg { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.gn-o { position: relative; display: inline-flex; max-width: 100%; cursor: pointer; }
+.gn-r { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.gn-ob { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; max-width: 100%; padding: 6px 12px; border: 1px solid var(--rule); border-radius: 9px; background: var(--bg); color: var(--ink); font: 600 13.5px/1.2 var(--f-display); overflow-wrap: anywhere; }
+.gn-o:hover .gn-ob { border-color: var(--accent); }
+.gn-r:checked + .gn-ob { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.gn-r[type="checkbox"] + .gn-ob::before { content: ""; flex: none; width: 15px; height: 15px; border: 1.6px solid currentColor; border-radius: 4px; display: grid; place-items: center; font: 800 11px/1 var(--f-display); }
+.gn-r[type="checkbox"]:checked + .gn-ob::before { content: "✓"; }
+.gn-o.is-flag .gn-ob::after { content: "!"; flex: none; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--hi-soft); color: var(--hi-ink); font: 800 11px/1 var(--f-display); }
+.gn-r:focus-visible + .gn-ob { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gn-r:disabled + .gn-ob { opacity: .45; border-style: dashed; background: transparent; cursor: not-allowed; }
+.gn-o:has(.gn-r:disabled) { cursor: not-allowed; }
+.gn-sr, .gn-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.gn-h { margin: 0; font: 400 13px/1.35 var(--f-display); color: var(--muted); }
+.gn-h:empty { display: none; }
+.gn-x, .gn-e { margin: 0; font: 600 13px/1.35 var(--f-display); color: var(--warn); }
+.gn-gn { margin: 6px 0 0; font: 500 14px/1.4 var(--f-display); color: var(--muted); }
+.gn-in { display: block; width: 100%; min-width: 0; min-height: 44px; padding: 9px 11px; border: 1px solid var(--rule); border-radius: 9px; background: var(--bg); color: var(--ink); font: 14px/1.4 var(--f-mono); }
+.gn-in:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.gn-in[aria-invalid="true"] { border-color: var(--warn); }
+textarea.gn-ta { min-height: 66px; resize: vertical; }
+.gn-dg { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.gn-dgr { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.gn-dgi { font: 600 12.5px/1.4 var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
+.gn-dgr.is-miss .gn-dgi::after { content: " · falta"; color: var(--warn); font: 700 12.5px var(--f-display); }
+.gn-panel { position: sticky; bottom: 0; z-index: 4; margin-top: 14px; padding: 4px 8px max(8px, env(safe-area-inset-bottom, 0px)); border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); box-shadow: 0 -12px 24px -16px rgba(14, 19, 26, .45); }
+.gn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 0 6px; }
+.gn-fold { order: 1; flex: none; display: inline-flex; align-items: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 9px; background: none; color: var(--ink); font: 600 13px/1.2 var(--f-display); cursor: pointer; }
+.gn-fold:hover { background: var(--bg); }
+.gn-fold:focus-visible, .gn-chip:focus-visible, .gn-btn:focus-visible, .gn-tab:focus-visible, .gn-code:focus-visible, .gn-goto:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gn-chev { flex: none; width: 9px; height: 9px; margin: 0 4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
+.gn-panel.is-collapsed .gn-chev { transform: translateY(2px) rotate(-135deg); }
+.gn-meta { color: var(--muted); white-space: nowrap; }
+.gn-meta b { color: var(--warn); }
+.gn-tabs { order: 2; display: flex; gap: 2px; min-width: 0; padding: 3px; border-radius: 11px; background: var(--bg); }
+.gn-tab { position: relative; flex: 0 1 auto; min-width: 0; min-height: 40px; padding: 0 14px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: 700 13.5px/1.2 var(--f-display); white-space: nowrap; cursor: pointer; }
+.gn-tab:hover { color: var(--ink); }
+.gn-tab[aria-selected="true"] { background: var(--paper); color: var(--accent); box-shadow: 0 1px 2px rgba(14, 19, 26, .18), 0 0 0 1px var(--rule); }
+.gn-tab.is-dirty::after { content: ""; position: absolute; top: 7px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--hi); }
+.gn-chip { order: 3; display: inline-flex; align-items: center; gap: 7px; min-height: 44px; margin-left: auto; padding: 0 13px; border: 1px solid var(--accent2); border-radius: 999px; background: var(--ok-soft); color: var(--accent2); font: 700 13px/1 var(--f-display); white-space: nowrap; cursor: pointer; }
+.gn-chip-s { display: none; }
+.gn-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.gn-chip.info { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.gn-chip.warn { border-color: var(--hi); background: var(--hi-soft); color: var(--hi-ink); }
+.gn-chip.error { border-color: var(--warn); background: var(--warn-soft); color: var(--warn); }
+.gn-acts { order: 4; display: flex; gap: 4px; }
+.gn-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid var(--rule); border-radius: 9px; background: var(--paper); color: var(--ink); font: 600 13.5px/1 var(--f-display); cursor: pointer; }
+.gn-btn:hover { border-color: var(--accent); color: var(--accent); }
+.gn-btn svg { width: 18px; height: 18px; flex: none; }
+.gn-btn .gn-bl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.gn-btn.is-done { border-color: var(--accent2); color: var(--accent2); }
+@media (min-width: 1180px) { .gn-btn { padding: 0 11px; } .gn-btn .gn-bl { position: static; width: auto; height: auto; overflow: visible; clip: auto; } }
+@media (max-width: 999px) { .gn-meta { display: none; } .gn-tab { padding: 0 10px; } }
+.gn-body { padding-top: 2px; }
+.gn-panel.is-collapsed .gn-body { display: none; }
+.gn-panel.is-collapsed .gn-bar { padding-bottom: 0; }
+.gn-finds { max-height: min(26vh, 260px); overflow: auto; margin-bottom: 6px; overscroll-behavior: contain; }
+.gn-finds ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.gn-finds li { padding: 6px 10px; border: 1px solid var(--rule); border-left-width: 4px; border-radius: 8px; font-size: 14px; line-height: 1.45; }
+.gn-finds li.sev-error { border-left-color: var(--warn); } .gn-finds li.sev-warn { border-left-color: var(--hi); } .gn-finds li.sev-info { border-left-color: var(--accent); }
+.gn-finds p { margin: 3px 0 0; }
+.gn-finds p.small { margin: 2px 0; font: 500 13.5px/1.4 var(--f-display); }
+.gn-goto { min-height: 32px; padding: 0 8px; border: 1px solid var(--rule); border-radius: 7px; background: var(--paper); color: var(--accent); font: 600 12.5px/1 var(--f-display); cursor: pointer; }
+.gn-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.gn-wrap { position: relative; display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding-right: 6px; font: 600 13px/1.2 var(--f-display); color: var(--ink); cursor: pointer; }
+.gn-wrap input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.gn-sw { position: relative; flex: none; width: 34px; height: 20px; border-radius: 999px; background: var(--rule); transition: background .15s; }
+.gn-sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); box-shadow: 0 1px 2px rgba(14, 19, 26, .35); transition: transform .15s; }
+.gn-wrap input:checked + .gn-sw { background: var(--accent); }
+.gn-wrap input:checked + .gn-sw::after { transform: translateX(14px); }
+.gn-wrap input:focus-visible + .gn-sw { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gn-meta2 { font: 500 12.5px/1.3 var(--f-display); color: var(--muted); text-align: right; }
+.gn-meta2 b { color: var(--warn); }
+@media (min-width: 1000px) { .gn-meta2 { display: none; } }
+.gn-code { max-height: min(26vh, 360px); overflow: auto; border: 1px solid var(--rule); border-radius: 9px; background: var(--code-bg); overscroll-behavior: contain; }
+.gn-pre { margin: 0; padding: 8px 0; width: max-content; min-width: 100%; counter-reset: ln; font: 12.5px/1.6 var(--f-mono); color: var(--ink); tab-size: 4; }
+.gn-pre code { font: inherit; background: none; padding: 0; overflow-wrap: normal; }
+.gn-ln { display: grid; grid-template-columns: 6.2ch max-content; padding-right: 16px; }
+.gn-ln::before { counter-increment: ln; content: counter(ln); padding-right: 1.6ch; text-align: right; color: var(--muted); opacity: .75; user-select: none; -webkit-user-select: none; }
+.gn-lc { white-space: pre; }
+.gn-pre.is-wrap { width: auto; }
+.gn-pre.is-wrap .gn-ln { grid-template-columns: 6.2ch minmax(0, 1fr); padding-right: 10px; }
+.gn-pre.is-wrap .gn-lc { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 2.5ch; text-indent: -2.5ch; }
+.gn-finds ul.gn-na { list-style: none; margin: 4px 0 2px; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.gn-finds ul.gn-na li { padding: 0; border: 0; font: 500 13px/1.45 var(--f-display); color: var(--muted); }
+.gn-finds ul.gn-na code { font-size: 12px; }
+.gn-ln.is-new { animation: gn-flash 1.9s ease-out; }
+.gn-ln.is-hit { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn); }
+@keyframes gn-flash { 0%, 30% { background: var(--hi-soft); box-shadow: inset 3px 0 0 var(--hi); } 100% { background: transparent; box-shadow: inset 3px 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .gn-ln.is-new { animation: none; background: var(--hi-soft); box-shadow: inset 3px 0 0 var(--hi); } .gn-chev { transition: none; } }
+@media (max-width: 640px) {
+  .card.gn { padding: 12px 10px; }
+  .gn-panel { padding-left: 4px; padding-right: 4px; }
+  .gn-tabs { flex: 1 1 calc(100% - 52px); }
+  .gn-tab { flex: 1 1 auto; padding: 0 4px; font-size: 12.5px; font-stretch: 92%; }
+  .gn-chip { margin-left: 0; padding: 0 12px; }
+  .gn-chip .gn-dot, .gn-chip-l { display: none; }
+  .gn-chip-s { display: inline; }
+  .gn-acts { margin-left: auto; }
+  .gn-code { max-height: 20vh; max-height: 20dvh; }
+  .gn-panel.has-finds .gn-code { max-height: 13vh; max-height: 13dvh; }
+  .gn-finds { max-height: 20vh; max-height: 20dvh; }
+  .gn-pre { font-size: 12px; }
+  fieldset.gn-g { padding: 2px 10px 12px; }
+}
 footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--rule); padding-top: 14px; }
 @media (max-width: 640px) {
   table.stk, table.stk tbody, table.stk tr, table.stk td, table.stk th.rh { display: block; width: 100%; }
@@ -1163,6 +1362,9 @@ const JS_SRC = String.raw`
 (function () {
   'use strict';
   var D = /*DATA*/;
+  // GEN: generador.mjs sin los export (la misma fuente que corren los tests en node); HL: el resaltado de esta hoja
+  var GEN = /*GEN*/;
+  var HL = /*HL*/;
   var doc = document;
   function $(id) { return doc.getElementById(id); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -1221,28 +1423,15 @@ const JS_SRC = String.raw`
   chips.forEach(function (c) { c.addEventListener('click', function () { pick(c.getAttribute('data-dg')); }); });
   if (sel) sel.addEventListener('change', function () { pick(sel.value); });
 
-  // ---------- revisor de Dockerfile
-  var compiled = D.rules.map(function (r) {
-    try { return { r: r, re: new RegExp(r.pattern, r.flags + (r.test === 'match' ? 'g' : '')) }; }
-    catch (e) { return { r: r, err: String((e && e.message) || e) }; }
-  });
-  var RANK = { error: 0, warn: 1, info: 2 }, NAME = { error: 'error', warn: 'aviso', info: 'info' };
-  function lineOf(text, i) { return text.slice(0, i).split('\n').length; }
+  // ---------- revisor de Dockerfile: las reglas de content-w1.json con el mismo compilado y la misma pasada que el
+  // generador (GEN.compileRules y GEN.lint), así el chip del generador y el revisor nunca pueden decir cosas distintas
+  var compiled = GEN.compileRules(D.rules);
+  var NAME = { error: 'error', warn: 'aviso', info: 'info' };
   function plural(nn, a, b) { return nn + ' ' + (nn === 1 ? a : b); }
   function review() {
     var text = $('rv-text').value, out = $('rv-out');
     if (!text.trim()) { out.innerHTML = '<p class="small">Pega un Dockerfile y vuelve a revisar.</p>'; return; }
-    var found = [], skipped = [];
-    compiled.forEach(function (c) {
-      if (!c.re) { skipped.push(c.r.id); return; }
-      if (c.r.test === 'match') {
-        c.re.lastIndex = 0;
-        var m, lines = [];
-        while ((m = c.re.exec(text))) { lines.push(lineOf(text, m.index)); if (m[0] === '') c.re.lastIndex++; }
-        if (lines.length) found.push({ r: c.r, lines: lines });
-      } else if (!c.re.test(text)) found.push({ r: c.r, lines: [] });
-    });
-    found.sort(function (a, b) { return (RANK[a.r.severity] - RANK[b.r.severity]) || ((a.lines[0] || 1e9) - (b.lines[0] || 1e9)); });
+    var res = GEN.lint(text, compiled), found = res.found, skipped = res.skipped;
     var cnt = { error: 0, warn: 0, info: 0 };
     found.forEach(function (f) { cnt[f.r.severity] = (cnt[f.r.severity] || 0) + 1; });
     var html = '<p class="rv-sum" id="rv-sum" data-error="' + cnt.error + '" data-warn="' + cnt.warn + '" data-info="' + cnt.info + '">' +
@@ -1261,6 +1450,327 @@ const JS_SRC = String.raw`
   $('rv-c01').addEventListener('click', function () { $('rv-text').value = D.c01; setLabel('Dockerfile del gateway de C01 (reference/c01/gateway/Dockerfile)', 'ok'); review(); });
   $('rv-clear').addEventListener('click', function () { $('rv-text').value = ''; setLabel('Tu Dockerfile', 'mine'); $('rv-out').innerHTML = ''; $('rv-text').focus(); });
   review();
+
+  // ---------- generador de Dockerfile: preguntas arriba, el archivo abajo; cada respuesta lo reescribe al instante
+  if ($('generador')) (function () {
+    var KEY = 'docker-gen:v1', KEY_UI = 'docker-gen:ui';
+    var root = $('generador'), form = $('gn-form'), panel = $('gn-panel'), box = $('gn-view'), src = $('gn-src');
+    var QS = [];
+    GEN.SCHEMA.forEach(function (g) { g.qs.forEach(function (q) { QS.push(q); }); });
+    var TEXT = QS.filter(function (q) { return q.type === 'text' || q.type === 'num' || q.type === 'area'; });
+    var FILES = { dockerfile: 'Dockerfile', dockerignore: '.dockerignore', commands: 'build-and-run.sh' };
+    var LANG = { dockerfile: 'dockerfile', dockerignore: 'text', commands: 'bash' };
+    var NAMES = { error: ['error', 'errores'], warn: ['aviso', 'avisos'], info: ['info', 'info'] };
+    var cfg = {}, out = null, seen = {}, tab = 'dockerfile', imgsKey = null, summary = '', tmr = null, onScreen = false;
+    var reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var tabs = root.querySelectorAll('.gn-tab');
+
+    function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { if (v === null) window.localStorage.removeItem(k); else window.localStorage.setItem(k, v); } catch (e) {} }
+    function hashState() { var h = String(location.hash || ''); return /^#generador\?/.test(h) ? h.slice(h.indexOf('?') + 1) : null; }
+    function initial() {
+      var h = hashState();
+      if (h !== null) return GEN.decodeState(h);
+      var s = lsGet(KEY);
+      if (s) { try { var o = JSON.parse(s); if (o && typeof o === 'object' && !Array.isArray(o)) return o; } catch (e) {} }
+      return {};
+    }
+    function goTool() { try { root.scrollIntoView({ block: 'start', behavior: 'instant' }); } catch (e) { root.scrollIntoView(); } }
+    function say(msg) { var l = $('gn-live'); l.textContent = ''; setTimeout(function () { l.textContent = msg; }, 40); }
+    function lineTop(el) { return el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop; }
+
+    // ---- formulario: valores, opciones que no aplican (con su razón), pistas y errores de los campos
+    function fillInputs() {
+      TEXT.forEach(function (q) { var el = $('gn-' + q.k), v = cfg[q.k] || ''; if (el && el.value !== v) el.value = v; });
+      imgsKey = null;
+    }
+    function paintDigests(c, imgs, err) {
+      var wrap = form.querySelector('[data-q="digests"]');
+      wrap.hidden = c.pin !== 'digest';
+      if (c.pin !== 'digest') return;
+      var key = imgs.join(' ');
+      if (key !== imgsKey) {
+        imgsKey = key;
+        $('gn-dg').innerHTML = imgs.map(function (img) {
+          return '<label class="gn-dgr"><span class="gn-dgi">' + esc(img) + '</span><input class="gn-in" type="text" data-img="' + esc(img) + '" placeholder="sha256:…" spellcheck="false" autocapitalize="off" autocomplete="off" value="' + esc((c.digests || {})[img] || '') + '" aria-describedby="gn-digests-e"></label>';
+        }).join('');
+      }
+      $('gn-dg').querySelectorAll('input').forEach(function (inp) {
+        inp.parentNode.classList.toggle('is-miss', !/^sha256:[a-f0-9]{64}$/.test(String((c.digests || {})[inp.getAttribute('data-img')] || '')));
+      });
+      var e = $('gn-digests-e');
+      e.textContent = err || ''; e.hidden = !err;
+    }
+    function paintForm(n, meta) {
+      var c = n.cfg;
+      form.querySelectorAll('.gn-x').forEach(function (x) { x.hidden = true; });
+      QS.forEach(function (q) {
+        var wrap = form.querySelector('[data-q="' + q.k + '"]');
+        if (!wrap) return;
+        wrap.hidden = !GEN.isShown(c, q.k);
+        var lab = typeof q.label === 'function' ? q.label(c) : q.label, l = $('gn-' + q.k + '-l');
+        if (l && l.textContent !== lab) l.textContent = lab;
+        if (q.type === 'seg' || q.type === 'checks') {
+          var multi = q.type === 'checks', hint = '';
+          wrap.querySelectorAll('input').forEach(function (inp) {
+            var why = multi ? '' : GEN.optionReason(c, q.k, inp.value), lb = inp.parentNode;
+            inp.disabled = !!why;
+            inp.checked = multi ? c[q.k].indexOf(inp.value) >= 0 : c[q.k] === inp.value;
+            if (why) lb.title = why; else lb.removeAttribute('title');
+            lb.querySelector('.gn-sr').textContent = why ? ' (no disponible: ' + why + ')' : '';
+            lb.classList.toggle('is-flag', !multi && !!GEN.optionFlag(c, q.k, inp.value));
+          });
+          if (!multi) q.opts.forEach(function (o) { if (o.v === c[q.k]) hint = typeof o.h === 'function' ? o.h(c) : o.h; });
+          var h = $('gn-' + q.k + '-h');
+          if (h) h.textContent = hint || '';
+        } else {
+          var el = $('gn-' + q.k), ph = typeof q.ph === 'function' ? q.ph(c) : (q.ph || ''), err = n.errs[q.k] || '', e = $('gn-' + q.k + '-e');
+          if (el && el.placeholder !== ph) el.placeholder = ph;
+          if (e) { e.textContent = err; e.hidden = !err; }
+          if (el) { if (err) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid'); }
+        }
+      });
+      GEN.SCHEMA.forEach(function (g) {
+        var fs = form.querySelector('[data-g="' + g.id + '"]'), note = fs && fs.querySelector('.gn-gn');
+        if (note) note.hidden = !g.show || g.show(c);
+      });
+      paintDigests(c, meta.images, n.errs.digests);
+      var now = GEN.encodeState(c), match = '';
+      GEN.PRESETS.forEach(function (p) {
+        if (!match && GEN.encodeState(GEN.normalize(Object.assign(JSON.parse(JSON.stringify(p.cfg)), { comments: c.comments, digests: c.digests })).cfg) === now) match = p.id;
+      });
+      root.querySelectorAll('.gn-p').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-p') === match ? 'true' : 'false'); });
+      $('gn-psel').value = match;
+    }
+
+    // ---- panel: el archivo con números de línea; lo que cambió con la última respuesta parpadea
+    function paintCode(flash) {
+      var text = out[tab] || '', body = text.replace(/\n$/, ''), html = HL(body, LANG[tab]).split('\n');
+      var ch = flash && seen[tab] !== undefined && seen[tab] !== text ? GEN.diffLines(seen[tab].replace(/\n$/, ''), body) : null;
+      src.innerHTML = html.map(function (h, i) { return '<span class="gn-ln' + (ch && ch[i] ? ' is-new' : '') + '"><span class="gn-lc">' + h + '</span></span>'; }).join('');
+      seen[tab] = text;
+      $('gn-t-' + tab).classList.remove('is-dirty');
+      box.setAttribute('aria-labelledby', 'gn-t-' + tab);
+      var first = ch ? ch.indexOf(true) : -1;
+      if (first >= 0 && !panel.classList.contains('is-collapsed')) {
+        var el = src.children[first], top = lineTop(el);
+        if (top < box.scrollTop || top + el.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTo({ top: Math.max(0, top - 28), behavior: reduce ? 'auto' : 'smooth' });
+      }
+    }
+    function paintMeta(meta) {
+      var nl = out.dockerfile.replace(/\n$/, '').split('\n').length, miss = meta.digestsMissing.length;
+      $('gn-meta').innerHTML = $('gn-meta2').innerHTML = nl + ' líneas' + (miss ? ' · <b>' + (miss === 1 ? '1 digest por pegar' : miss + ' digests por pegar') + '</b>' : '');
+    }
+    // el revisor del generador: las 16 reglas de la hoja, sabiendo qué servicio es (las que no aplican van aparte)
+    function paintLint() {
+      var res = GEN.lintFor(cfg, out.dockerfile, compiled), f = res.found, cnt = { error: 0, warn: 0, info: 0 }, parts = [];
+      f.forEach(function (x) { cnt[x.r.severity] = (cnt[x.r.severity] || 0) + 1; });
+      ['error', 'warn', 'info'].forEach(function (k) { if (cnt[k]) parts.push(cnt[k] + ' ' + NAMES[k][cnt[k] === 1 ? 0 : 1]); });
+      var chip = $('gn-chip'), t = parts.length ? parts.join(' · ') : '0 hallazgos';
+      chip.className = 'gn-chip ' + (cnt.error ? 'error' : cnt.warn ? 'warn' : cnt.info ? 'info' : 'ok');
+      $('gn-chip-t').textContent = t;
+      $('gn-chip-s').textContent = f.length ? f.length + (f.length === 1 ? ' hallazgo' : ' hallazgos') : '0 hallazgos';
+      chip.setAttribute('aria-label', 'Revisor: ' + t + (res.na.length ? '; ' + plural(res.na.length, 'regla no aplica', 'reglas no aplican') + ' a este servicio' : '') + ' (ver el detalle)');
+      $('gn-finds').innerHTML = f.length ? '<ol>' + f.map(function (x) {
+        var where = x.lines.length ? x.lines.map(function (ln) { return '<button class="gn-goto" type="button" data-line="' + ln + '">línea ' + ln + '</button>'; }).join(' ') : '<span class="rv-line">en todo el archivo</span>';
+        return '<li class="sev-' + x.r.severity + '"><div class="rv-h"><span class="sev ' + x.r.severity + '">' + NAME[x.r.severity] + '</span><span class="rv-msg">' + esc(x.r.message) + '</span>' + where + '</div><p>' + esc(x.r.why) + '</p><p><span class="k">Arreglo:</span> ' + esc(x.r.fix) + '</p></li>';
+      }).join('') + '</ol>' : '<p class="small">Sin hallazgos: ' + (res.na.length ? 'las ' + (compiled.length - res.skipped.length - res.na.length) + ' reglas que aplican pasan.' : 'las ' + (compiled.length - res.skipped.length) + ' reglas del revisor pasan.') + '</p>';
+      if (res.skipped.length) $('gn-finds').innerHTML += '<p class="small">Este navegador no pudo compilar ' + plural(res.skipped.length, 'regla', 'reglas') + ' (lookbehind de longitud variable): ' + esc(res.skipped.join(', ')) + '. Revisa en otro navegador.</p>';
+      if (res.na.length) $('gn-finds').innerHTML += '<ul class="gn-na">' + res.na.map(function (n) {
+        return '<li><code>' + esc(n.id) + '</code> ' + esc(n.why) + '.</li>';
+      }).join('') + '</ul>';
+      if (t !== summary) { if (summary) say('Revisor: ' + t); summary = t; }
+    }
+    function update(user) {
+      var n = GEN.normalize(cfg);
+      cfg = n.cfg;
+      var o = GEN.generate(cfg);
+      Object.keys(FILES).forEach(function (t) { if (t !== tab && seen[t] !== undefined && seen[t] !== o[t]) $('gn-t-' + t).classList.add('is-dirty'); });
+      out = o;
+      paintForm(n, o.meta);
+      paintMeta(o.meta);
+      paintCode(user);
+      paintLint();
+      if (user) {
+        lsSet(KEY, JSON.stringify(cfg));
+        var enc = GEN.encodeState(cfg);
+        try { history.replaceState(null, '', '#generador' + (enc ? '?' + enc : '')); } catch (e) {}
+      }
+    }
+
+    // ---- respuestas
+    form.addEventListener('change', function (ev) {
+      var t = ev.target;
+      if (!t || !t.name || t.getAttribute('data-img')) return;
+      if (t.type === 'radio') {
+        cfg[t.name] = t.value;
+        // otro servicio: sus valores por defecto (campos de texto y el HEALTHCHECK que le corresponde)
+        if (t.name === 'svc') { cfg.app = ''; cfg.code = ''; cfg.modelPath = ''; cfg.health = t.value === 'worker' || t.value === 'train' ? 'omit' : 'http'; fillInputs(); }
+        update(true);
+      } else if (t.type === 'checkbox') {
+        cfg[t.name] = Array.prototype.filter.call(form.querySelectorAll('input[name="' + t.name + '"]'), function (i) { return i.checked; }).map(function (i) { return i.value; });
+        update(true);
+      }
+    });
+    form.addEventListener('input', function (ev) {
+      var t = ev.target;
+      if (!t) return;
+      if (t.getAttribute('data-img')) { cfg.digests = Object.assign({}, cfg.digests); cfg.digests[t.getAttribute('data-img')] = t.value; }
+      else if (t.name && (t.tagName === 'TEXTAREA' || t.type === 'text')) cfg[t.name] = t.value;
+      else return;
+      clearTimeout(tmr);
+      tmr = setTimeout(function () { update(true); }, 140);
+    });
+    // una opción que no aplica: al tocarla, su razón (en el mouse, también el title)
+    form.addEventListener('click', function (ev) {
+      var o = ev.target && ev.target.closest ? ev.target.closest('.gn-o') : null, inp = o && o.querySelector('input');
+      if (!inp || !inp.disabled) return;
+      var x = o.closest('.gn-q').querySelector('.gn-x');
+      x.textContent = o.querySelector('.gn-ob').textContent + ': ' + (o.title || 'no aplica aquí');
+      x.hidden = false;
+      clearTimeout(x._t);
+      x._t = setTimeout(function () { x.hidden = true; }, 6000);
+    });
+    function applyPreset(id) {
+      var p = GEN.PRESETS.filter(function (x) { return x.id === id; })[0];
+      if (!p) return;
+      cfg = Object.assign(JSON.parse(JSON.stringify(p.cfg)), { comments: cfg.comments, digests: cfg.digests || {} });
+      fillInputs();
+      update(true);
+      say('Preset: ' + p.label);
+    }
+    root.querySelectorAll('.gn-p').forEach(function (b) { b.addEventListener('click', function () { applyPreset(b.getAttribute('data-p')); }); });
+    $('gn-psel').addEventListener('change', function () { if (this.value) applyPreset(this.value); });
+
+    // ---- pestañas (flechas, Inicio y Fin como en cualquier tablist)
+    function pick(t, focus) {
+      tab = t;
+      tabs.forEach(function (b) { var on = b.getAttribute('data-t') === t; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
+      var dl = $('gn-dl');
+      dl.setAttribute('aria-label', 'Descargar ' + FILES[t]); dl.title = 'Descargar ' + FILES[t];
+      paintCode(false);
+      box.scrollTop = 0;
+    }
+    tabs.forEach(function (b, i) {
+      b.addEventListener('click', function () { if (panel.classList.contains('is-collapsed')) fold(false); pick(b.getAttribute('data-t')); });
+      b.addEventListener('keydown', function (ev) {
+        var k = ev.key, j = k === 'ArrowRight' ? i + 1 : k === 'ArrowLeft' ? i - 1 : k === 'Home' ? 0 : k === 'End' ? tabs.length - 1 : null;
+        if (j === null) return;
+        ev.preventDefault();
+        pick(tabs[(j + tabs.length) % tabs.length].getAttribute('data-t'), true);
+      });
+    });
+
+    // ---- plegar, hallazgos, copiar, bajar, enlace y reset
+    function pad() { doc.documentElement.style.scrollPaddingBottom = onScreen ? (panel.offsetHeight + 12) + 'px' : ''; }
+    function fold(collapsed) {
+      panel.classList.toggle('is-collapsed', collapsed);
+      $('gn-fold').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      $('gn-fold').setAttribute('aria-label', collapsed ? 'Desplegar el panel' : 'Plegar el panel');
+      lsSet(KEY_UI, collapsed ? 'collapsed' : null);
+      pad();
+    }
+    $('gn-fold').addEventListener('click', function () { fold(!panel.classList.contains('is-collapsed')); });
+    // ajustar líneas: encendido por defecto bajo 768 px, apagado arriba; si lo cambias, queda tu elección
+    var KEY_WRAP = 'docker-gen:wrap', narrow = window.matchMedia ? window.matchMedia('(max-width: 767px)') : null;
+    function wrapOn() { var v = lsGet(KEY_WRAP); return v === 'on' ? true : v === 'off' ? false : !!(narrow && narrow.matches); }
+    function wrap(on) { $('gn-pre').classList.toggle('is-wrap', on); $('gn-wrap').checked = on; }
+    $('gn-wrap').addEventListener('change', function () { lsSet(KEY_WRAP, this.checked ? 'on' : 'off'); wrap(this.checked); });
+    if (narrow && narrow.addEventListener) narrow.addEventListener('change', function () { if (lsGet(KEY_WRAP) === null) wrap(wrapOn()); });
+    wrap(wrapOn());
+    $('gn-chip').addEventListener('click', function () {
+      var f = $('gn-finds'), open = f.hidden;
+      if (open && panel.classList.contains('is-collapsed')) fold(false);
+      f.hidden = !open;
+      panel.classList.toggle('has-finds', open);
+      this.setAttribute('aria-expanded', open ? 'true' : 'false');
+      pad();
+    });
+    $('gn-finds').addEventListener('click', function (ev) {
+      var b = ev.target && ev.target.closest ? ev.target.closest('.gn-goto') : null;
+      if (!b) return;
+      if (tab !== 'dockerfile') pick('dockerfile');
+      var el = src.children[+b.getAttribute('data-line') - 1];
+      if (!el) return;
+      src.querySelectorAll('.is-hit').forEach(function (x) { x.classList.remove('is-hit'); });
+      el.classList.add('is-hit');
+      box.scrollTo({ top: Math.max(0, lineTop(el) - 28), behavior: reduce ? 'auto' : 'smooth' });
+      setTimeout(function () { el.classList.remove('is-hit'); }, 2600);
+    });
+    function done(btn, msg) {
+      var l = btn.querySelector('.gn-bl'), was = btn.getAttribute('data-l') || l.textContent;
+      btn.setAttribute('data-l', was);
+      l.textContent = msg; btn.classList.add('is-done'); say(msg);
+      clearTimeout(btn._t);
+      btn._t = setTimeout(function () { l.textContent = was; btn.classList.remove('is-done'); }, 1800);
+    }
+    // portapapeles dentro del clic; si lo rechaza, execCommand; si tampoco, seleccionar el texto
+    function copyText(text, btn, okMsg, failMsg) {
+      function fallback() {
+        var ta = doc.createElement('textarea'), ok = false;
+        ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0';
+        doc.body.appendChild(ta); ta.select();
+        try { ok = doc.execCommand('copy'); } catch (e) {}
+        ta.remove();
+        if (ok) done(btn, okMsg);
+        else { if (!failMsg) selectEl(src); done(btn, failMsg || 'Seleccionado: ⌘C'); }
+      }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(btn, okMsg); }, fallback);
+        else fallback();
+      } catch (e) { fallback(); }
+    }
+    $('gn-copy').addEventListener('click', function () { copyText(out[tab], this, 'Copiado'); });
+    $('gn-dl').addEventListener('click', function () {
+      var btn = this, text = out[tab], framed = true;
+      try { framed = window.top !== window.self; } catch (e) {}
+      try {
+        var url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' })), a = doc.createElement('a');
+        a.href = url; a.download = FILES[tab]; doc.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        // dentro de un iframe (el Artifact) la descarga puede estar bloqueada: también va al portapapeles
+        if (framed) copyText(text, btn, 'Bajado y copiado'); else done(btn, 'Descargado');
+      } catch (e) { copyText(text, btn, 'Copiado (sin descarga)'); }
+    });
+    $('gn-share').addEventListener('click', function () {
+      var enc = GEN.encodeState(cfg), url = String(location.href).split('#')[0] + '#generador' + (enc ? '?' + enc : '');
+      try { history.replaceState(null, '', '#generador' + (enc ? '?' + enc : '')); } catch (e) {}
+      copyText(url, this, 'Enlace copiado', 'Está en la barra');
+    });
+    $('gn-reset').addEventListener('click', function () {
+      cfg = {};
+      fillInputs();
+      update(true);
+      lsSet(KEY, null);
+      try { history.replaceState(null, '', '#generador'); } catch (e) {}
+      done(this, 'Listo');
+    });
+    window.addEventListener('hashchange', function () {
+      var h = hashState();
+      if (h === null || h === GEN.encodeState(cfg)) return;
+      cfg = GEN.decodeState(h);
+      fillInputs();
+      update(false);
+      goTool();
+    });
+    // con la herramienta en pantalla, el foco con Tab nunca queda detrás del panel
+    if ('IntersectionObserver' in window) new IntersectionObserver(function (es) { es.forEach(function (e) { onScreen = e.isIntersecting; }); pad(); }).observe(form);
+
+    // ---- arranque: URL, después localStorage, después los valores por defecto
+    cfg = initial();
+    fillInputs();
+    var n0 = GEN.normalize(cfg);
+    cfg = n0.cfg;
+    out = GEN.generate(cfg);
+    seen = { dockerfile: out.dockerfile, dockerignore: out.dockerignore, commands: out.commands };
+    paintForm(n0, out.meta);
+    paintMeta(out.meta);
+    paintCode(false);
+    paintLint();
+    if (lsGet(KEY_UI) === 'collapsed') fold(true);
+    // un enlace compartido abre en la herramienta (cuando la página ya tiene su alto final: fuentes cargadas)
+    if (hashState() !== null) { if (doc.readyState === 'complete') setTimeout(goTool, 0); else window.addEventListener('load', function () { setTimeout(goTool, 0); }); }
+  })();
 
   // ---------- quiz de errores
   var order = [], pos = 0;
@@ -1294,10 +1804,49 @@ const JS_SRC = String.raw`
     $('err-n').textContent = nn + ' de ' + items.length;
   });
 })();`;
-const JS = JS_SRC.replace('/*DATA*/', JSON.stringify(DATA).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'));
+// La fuente del generador para la página (la misma que importan los tests) y el resaltado de esta hoja (hl), serializado.
+const GEN_PAGE = GEN.toPageScript(readFileSync(join(HERE, 'generador.mjs'), 'utf8'));
+const HL_PAGE = `(function () {
+  var esc = ${esc.toString()};
+  var DF_INSTR = new Set(${JSON.stringify([...DF_INSTR])});
+  var SH_SUB = new Set(${JSON.stringify([...SH_SUB])});
+  ${hlCode.toString()}
+  ${hlLine.toString()}
+  ${hl.toString()}
+  return hl;
+})()`;
+const JS = JS_SRC
+  .replace('/*DATA*/', () => JSON.stringify(DATA).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'))
+  .replace('/*GEN*/', () => GEN_PAGE)
+  .replace('/*HL*/', () => HL_PAGE);
+
+// ---------------------------------------------------------------- checks del generador (node; los mismos van a Chrome)
+// La fuente de la página da lo mismo que el módulo, y el resaltado serializado lo mismo que hl.
+const GEN_LEVELS = ['none', 'brief', 'detailed'];
+const FNV = 'function (h, s) { for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }';
+const GEN_SAMPLE_EVERY = 97;
+function genCheck(G, fnv) {
+  const R = G.compileRules(W1.revisor), all = G.space();
+  const cfgs = G.PRESETS.map((p) => p.cfg).concat(all.filter((_, i) => i % GEN_SAMPLE_EVERY === 0));
+  let h = 2166136261, finds = 0;
+  cfgs.forEach((c, i) => { const o = G.generate({ ...c, comments: GEN_LEVELS[i % 3] }); h = fnv(h, o.dockerfile + o.dockerignore + o.commands); finds += G.lintFor(G.normalize(c).cfg, o.dockerfile, R).found.length; });
+  return { n: cfgs.length, space: all.length, hash: h, findings: finds };
+}
+const GEN_NODE = (() => {
+  const P = new Function(`return ${GEN_PAGE};`)();
+  const HLP = new Function(`return ${HL_PAGE};`)();
+  for (const p of GEN.PRESETS) for (const level of GEN_LEVELS) {
+    const a = GEN.generate({ ...p.cfg, comments: level }), b = P.generate({ ...p.cfg, comments: level });
+    if (a.dockerfile !== b.dockerfile || a.dockerignore !== b.dockerignore || a.commands !== b.commands) throw new Error(`generador: la fuente de la página no da lo mismo que el módulo (${p.id}, ${level})`);
+    for (const [t, lang] of [['dockerfile', 'dockerfile'], ['dockerignore', 'text'], ['commands', 'bash']]) if (HLP(a[t], lang) !== hl(a[t], lang)) throw new Error(`generador: el resaltado serializado difiere (${p.id}, ${t})`);
+    const f = GEN.lintFor(GEN.normalize(p.cfg).cfg, a.dockerfile, GEN.compileRules(W1.revisor)).found;
+    if (f.length) throw new Error(`generador: el preset ${p.id} (${level}) tiene hallazgos del revisor: ${f.map((x) => x.r.id).join(', ')}`);
+  }
+  return genCheck(GEN, new Function(`return ${FNV};`)());
+})();
 
 // ---------------------------------------------------------------- página
-const NAV = [...ORDER.map((id) => [id, NAVL[id]]), ['diagnosticador', 'Diagnosticador'], ['revisor', 'Revisor de Dockerfile']];
+const NAV = [...ORDER.map((id) => [id, NAVL[id]]), ['generador', 'Generador de Dockerfile'], ['diagnosticador', 'Diagnosticador'], ['revisor', 'Revisor de Dockerfile']];
 const HEAD = `<title>Cheat sheet de Docker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1318,13 +1867,38 @@ const WRAP = `<div class="wrap">
 
 const KATEX = '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script><script id="render-math">document.querySelectorAll("[data-tex]").forEach(function (el) { katex.render(el.dataset.tex, el, { displayMode: el.classList.contains("mb"), output: "mathml", throwOnError: false, strict: "ignore" }); }); window.__math = document.querySelectorAll("[data-tex] math").length;</script>';
 
+// Los checks del generador otra vez, en Chrome y con la misma fuente que lleva la página (window.__gen).
+const jsonForScript = (v) => JSON.stringify(v).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+const GEN_CHECK = `<script id="gen-check">window.__gen = (function () {
+  try {
+    var G = ${GEN_PAGE};
+    var fnv = ${FNV}, LEVELS = ${JSON.stringify(GEN_LEVELS)};
+    var R = G.compileRules(${jsonForScript(W1.revisor)}), all = G.space();
+    var cfgs = G.PRESETS.map(function (p) { return p.cfg; }).concat(all.filter(function (_, i) { return i % ${GEN_SAMPLE_EVERY} === 0; }));
+    var h = 2166136261, finds = 0;
+    cfgs.forEach(function (c, i) { var o = G.generate(Object.assign({}, c, { comments: LEVELS[i % 3] })); h = fnv(h, o.dockerfile + o.dockerignore + o.commands); finds += G.lintFor(G.normalize(c).cfg, o.dockerfile, R).found.length; });
+    return { n: cfgs.length, space: all.length, hash: h, findings: finds, skipped: R.filter(function (r) { return !r.re; }).length };
+  } catch (e) { return { error: String(e && e.stack || e) }; }
+})();</script>`;
+function genReport(v) {
+  console.log(`generador (node): ${GEN_NODE.space} combinaciones recomendadas; presets y muestra de ${GEN_NODE.n} (cada ${GEN_SAMPLE_EVERY}.ª) con ${GEN_NODE.findings} hallazgos (sin las reglas que no aplican al servicio) · hash ${GEN_NODE.hash}`);
+  if (!v) throw new Error('generador: sin resultado de los checks en Chrome');
+  if (v.error) throw new Error('generador: los checks en Chrome fallaron: ' + v.error);
+  console.log(`generador (Chrome): ${v.space} combinaciones; muestra de ${v.n} con ${v.findings} hallazgos · hash ${v.hash}${v.skipped ? ` · ${v.skipped} reglas sin compilar` : ''}`);
+  if (v.hash !== GEN_NODE.hash || v.n !== GEN_NODE.n || v.space !== GEN_NODE.space || v.findings || GEN_NODE.findings || v.skipped) throw new Error('generador: Chrome y node no dan lo mismo (o hay hallazgos)');
+}
+
 function writeSrc(dir) {
+  // ids del generador únicos: las preguntas usan gn-<clave> y nada del panel puede repetir una (las figuras SVG repiten
+  // a propósito los ids de sus <defs>, iguales en todas)
+  const ids = [...WRAP.matchAll(/\sid="(gn-[^"]+)"/g)].map((m) => m[1]), dup = ids.filter((id, i) => ids.indexOf(id) !== i);
+  if (dup.length) throw new Error('ids repetidos en el generador: ' + [...new Set(dup)].join(', '));
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'head.html'), HEAD);
   writeFileSync(join(dir, 'wrap.html'), WRAP);
   writeFileSync(join(dir, 'script.js'), JS);
   // src.html: sin el script de la página, para que el .wrap que se captura quede intacto (solo con el TeX renderizado).
-  writeFileSync(join(dir, 'src.html'), '<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' + HEAD + '</head><body>' + WRAP + KATEX + '</body></html>');
+  writeFileSync(join(dir, 'src.html'), '<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' + HEAD + '</head><body>' + WRAP + KATEX + GEN_CHECK + '</body></html>');
   const texN = (WRAP.match(/data-tex=/g) || []).length;
   console.log('src ok ·', (HEAD + WRAP + JS).length, 'bytes ·', texN, 'fórmulas ·', ORDER.length, 'secciones');
   if (missingLinks.length) console.log('enlaces del curso sin título:', missingLinks.join(', '));
@@ -1336,7 +1910,7 @@ if (mode === 'src') writeSrc(process.argv[3] || join(HERE, 'out'));
 else if (mode === 'build') {
   const out = join(HERE, 'out');
   writeSrc(out);
-  const evalJs = "(async () => { for (let i = 0; i < 150 && !window.__math; i++) await new Promise(r => setTimeout(r, 100)); const errs = [...document.querySelectorAll('.katex-error')].map(e => e.getAttribute('title') || e.textContent).slice(0, 10); return JSON.stringify({ n: window.__math || 0, total: document.querySelectorAll('[data-tex]').length, errors: errs, html: document.querySelector('.wrap').outerHTML }); })()";
+  const evalJs = "(async () => { for (let i = 0; i < 150 && (!window.__math || !window.__gen); i++) await new Promise(r => setTimeout(r, 100)); const errs = [...document.querySelectorAll('.katex-error')].map(e => e.getAttribute('title') || e.textContent).slice(0, 10); return JSON.stringify({ n: window.__math || 0, total: document.querySelectorAll('[data-tex]').length, errors: errs, gen: window.__gen || null, html: document.querySelector('.wrap').outerHTML }); })()";
   const r = spawnSync('node', [join(APP, 'tools/browser-check.mjs'), '--url', join(out, 'src.html'), '--wait', '1500', '--timeout', '120000', '--light', '--eval', evalJs], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const lineE = (r.stdout || '').split('\n').find((l) => l.startsWith('[eval] '));
   if (!lineE) { console.error(r.stdout, r.stderr); throw new Error('sin resultado del render'); }
@@ -1344,6 +1918,7 @@ else if (mode === 'build') {
   console.log('math', v.n, 'de', v.total, '· errores', v.errors.length, v.errors);
   (r.stdout || '').split('\n').filter((l) => !l.startsWith('[eval] ')).forEach((l) => l && console.log('  ' + l));
   if (v.n !== v.total || v.errors.length) throw new Error('hay fórmulas sin renderizar');
+  genReport(v.gen);
   const page = HEAD + '\n' + v.html + '\n<script>' + JS + '</script>';
   writeFileSync(join(out, 'artifact.html'), page);
   writeFileSync(join(HERE, '..', 'cheatsheet-docker.html'), '<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">' + HEAD + '</head><body>' + v.html + '\n<script>' + JS + '</script></body></html>');

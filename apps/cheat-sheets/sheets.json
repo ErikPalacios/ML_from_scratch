@@ -24,13 +24,14 @@
     "sample_kind": "code",
     "facts": [
       "15 secciones",
+      "Generador de Dockerfile",
       "Diagnosticador de síntomas",
       "Revisor de Dockerfile",
       "Quiz de errores"
     ],
     "page": "cheatsheet-docker.html",
     "pdf": "cheatsheet-docker.pdf",
-    "updated": "2026-10-18"
+    "updated": "2026-10-28"
   },
   {
     "id": "kubernetes",
