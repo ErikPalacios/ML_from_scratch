@@ -860,6 +860,8 @@ const ICON = {
   dl: '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
   link: '<path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.3 1.3"/><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.3-1.3"/>',
   reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/>',
+  full: '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
+  close: '<path d="M6 6l12 12"/><path d="M18 6 6 18"/>',
 };
 const ZIP_LABEL = 'Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md';
 const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
@@ -897,10 +899,19 @@ function genHtml() {
   const presets = GEN.PRESETS.map((p) => `<button class="gn-p" type="button" data-p="${esc(p.id)}" aria-pressed="${p.id === 'blank' ? 'true' : 'false'}">${esc(p.label)}</button>`).join('');
   const psel = `<select class="gn-psel gn-in" id="gn-psel" aria-label="Preset"><option value="">Personalizado</option>${GEN.PRESETS.map((p) => `<option value="${esc(p.id)}"${p.id === 'blank' ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}</select>`;
   const btn = (id, ic, label, aria) => `<button class="gn-btn" type="button" id="${id}" aria-label="${esc(aria || label)}" title="${esc(aria || label)}">${icon(ic)}<span class="gn-bl">${esc(label)}</span></button>`;
-  return `<div class="card tool gn" id="generador">
-    <h3>Generador de Dockerfile</h3>
-    <p class="gn-sub">Cada respuesta reescribe el Dockerfile al instante · revisado en vivo con las ${W1.revisor.length} reglas del revisor</p>
-    <div class="gn-presets" role="group" aria-label="Presets"><span class="gn-k">Preset</span>${presets}${psel}</div>
+  return `<div class="card tool gn" id="generador" data-view="dec">
+    <div class="gn-head">
+      <div class="gn-ht"><h3>Generador de Dockerfile</h3><p class="gn-sub">Cada respuesta reescribe el Dockerfile al instante · revisado en vivo con las ${W1.revisor.length} reglas del revisor</p></div>
+      <button class="gn-full" type="button" id="gn-full" aria-haspopup="dialog" title="Pantalla completa: decisiones y Dockerfile lado a lado">${icon('full')}<span>Pantalla completa</span></button>
+    </div>
+    <div class="gn-appbar" id="gn-appbar">
+      <p class="gn-at">Generador<span class="gn-at-x"> de Dockerfile</span></p>
+      <span class="gn-slot" id="gn-slot-psel" hidden></span><span class="gn-slot" id="gn-slot-chip" hidden></span><span class="gn-slot" id="gn-slot-acts" hidden></span>
+      <button class="gn-close" type="button" id="gn-close" aria-label="Cerrar la pantalla completa (Esc)" title="Cerrar (Esc)">${icon('close')}</button>
+      <div class="gn-switch" role="group" aria-label="Vista"><button type="button" class="gn-sv" data-v="dec" aria-pressed="true">Decisiones</button><button type="button" class="gn-sv" data-v="code" aria-pressed="false">Dockerfile</button></div>
+    </div>
+    <div class="gn-presets" role="group" aria-label="Presets"><span class="gn-k">Preset</span>${presets}<span class="gn-slot" id="gn-home-psel" hidden></span>${psel}</div>
+    <div class="gn-main">
     <form class="gn-form" id="gn-form" novalidate onsubmit="return false">${groups}</form>
     <div class="gn-panel" id="gn-panel">
       <div class="gn-bar">
@@ -910,17 +921,19 @@ function genHtml() {
           <button class="gn-tab" type="button" role="tab" id="gn-t-dockerignore" data-t="dockerignore" aria-selected="false" aria-controls="gn-view" tabindex="-1">.dockerignore</button>
           <button class="gn-tab" type="button" role="tab" id="gn-t-commands" data-t="commands" aria-selected="false" aria-controls="gn-view" tabindex="-1">Build &amp; run</button>
         </div>
-        <button class="gn-chip ok" type="button" id="gn-chip" aria-expanded="false" aria-controls="gn-finds"><span class="gn-dot" aria-hidden="true"></span><span class="gn-chip-l" id="gn-chip-t">0 hallazgos</span><span class="gn-chip-s" id="gn-chip-s" aria-hidden="true">0 hallazgos</span></button>
-        <div class="gn-acts">${btn('gn-copy', 'copy', 'Copiar', 'Copiar el archivo')}${btn('gn-dl', 'dl', 'Descargar', 'Descargar el archivo')}${btn('gn-share', 'link', 'Enlace', 'Copiar un enlace con estas respuestas')}${btn('gn-reset', 'reset', 'Reset', 'Volver a los valores por defecto')}</div>
+        <span class="gn-slot" id="gn-home-chip" hidden></span><button class="gn-chip ok" type="button" id="gn-chip" aria-expanded="false" aria-controls="gn-finds"><span class="gn-dot" aria-hidden="true"></span><span class="gn-chip-l" id="gn-chip-t">0 hallazgos</span><span class="gn-chip-s" id="gn-chip-s" aria-hidden="true">0 hallazgos</span></button>
+        <span class="gn-slot" id="gn-home-acts" hidden></span><div class="gn-acts">${btn('gn-copy', 'copy', 'Copiar', 'Copiar el archivo')}${btn('gn-dl', 'dl', 'Descargar', 'Descargar el archivo')}${btn('gn-share', 'link', 'Enlace', 'Copiar un enlace con estas respuestas')}${btn('gn-reset', 'reset', 'Reset', 'Volver a los valores por defecto')}</div>
       </div>
       <div class="gn-body" id="gn-body">
         <div class="gn-finds" id="gn-finds" hidden></div>
-        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><span class="gn-meta2" id="gn-meta2">${nLines} líneas</span><button class="gn-zbtn" type="button" id="gn-zip" aria-label="${ZIP_LABEL}" title="${ZIP_LABEL}">${icon('dl')}<span>.zip</span></button></div>
+        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><button class="gn-delta" type="button" id="gn-delta" hidden></button><span class="gn-meta2" id="gn-meta2">${nLines} líneas</span><button class="gn-zbtn" type="button" id="gn-zip" aria-label="${ZIP_LABEL}" title="${ZIP_LABEL}">${icon('dl')}<span>.zip</span></button></div>
         <div class="gn-code" id="gn-view" role="tabpanel" aria-labelledby="gn-t-dockerfile" tabindex="0"><pre class="gn-pre" id="gn-pre"><code id="gn-src">${lines}</code></pre></div>
       </div>
       <p class="gn-toast" id="gn-toast" aria-hidden="true" hidden></p>
       <p class="gn-live" id="gn-live" aria-live="polite"></p>
     </div>
+    </div>
+    <div class="gn-peek" id="gn-peek" hidden><div class="gn-peek-in"><p class="gn-peek-h" id="gn-peek-h"></p><pre class="gn-peek-c" id="gn-peek-c"></pre><button type="button" class="gn-peek-go" id="gn-peek-go">Ver en el Dockerfile</button></div></div>
   </div>`;
 }
 
@@ -1201,7 +1214,7 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-dgi { font: 600 12.5px/1.4 var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
 .gn-dgr.is-miss .gn-dgi::after { content: " · falta"; color: var(--warn); font: 700 12.5px var(--f-display); }
 .gn-panel { position: sticky; bottom: 0; z-index: 4; margin-top: 14px; padding: 4px 8px max(8px, env(safe-area-inset-bottom, 0px)); border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); box-shadow: 0 -12px 24px -16px rgba(14, 19, 26, .45); }
-.gn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 0 6px; }
+.gn-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 0 6px; }
 .gn-fold { order: 1; flex: none; display: inline-flex; align-items: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 9px; background: none; color: var(--ink); font: 600 13px/1.2 var(--f-display); cursor: pointer; }
 .gn-fold:hover { background: var(--bg); }
 .gn-fold:focus-visible, .gn-chip:focus-visible, .gn-btn:focus-visible, .gn-tab:focus-visible, .gn-code:focus-visible, .gn-goto:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -1231,14 +1244,14 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-body { padding-top: 2px; }
 .gn-panel.is-collapsed .gn-body { display: none; }
 .gn-panel.is-collapsed .gn-bar { padding-bottom: 0; }
-.gn-finds { max-height: min(26vh, 260px); overflow: auto; margin-bottom: 6px; overscroll-behavior: contain; }
+.gn-finds { flex: none; max-height: min(26vh, 260px); overflow: auto; margin-bottom: 6px; overscroll-behavior: contain; }
 .gn-finds ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .gn-finds li { padding: 6px 10px; border: 1px solid var(--rule); border-left-width: 4px; border-radius: 8px; font-size: 14px; line-height: 1.45; }
 .gn-finds li.sev-error { border-left-color: var(--warn); } .gn-finds li.sev-warn { border-left-color: var(--hi); } .gn-finds li.sev-info { border-left-color: var(--accent); }
 .gn-finds p { margin: 3px 0 0; }
 .gn-finds p.small { margin: 2px 0; font: 500 13.5px/1.4 var(--f-display); }
 .gn-goto { min-height: 32px; padding: 0 8px; border: 1px solid var(--rule); border-radius: 7px; background: var(--paper); color: var(--accent); font: 600 12.5px/1 var(--f-display); cursor: pointer; }
-.gn-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; min-height: 44px; }
+.gn-tools { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; min-height: 44px; }
 .gn-zbtn { display: inline-flex; align-items: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 9px; background: var(--paper); color: var(--ink); font: 600 13px/1 var(--f-display); cursor: pointer; }
 .gn-zbtn:hover { border-color: var(--accent); color: var(--accent); }
 .gn-zbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -1267,10 +1280,14 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-finds ul.gn-na { list-style: none; margin: 4px 0 2px; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .gn-finds ul.gn-na li { padding: 0; border: 0; font: 500 13px/1.45 var(--f-display); color: var(--muted); }
 .gn-finds ul.gn-na code { font-size: 12px; }
-.gn-ln.is-new { animation: gn-flash 1.9s ease-out; }
+/* el último cambio queda marcado hasta el siguiente: fondo suave y barra en el margen; recién hecho, parpadea */
+.gn-ln.is-chg { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.gn-ln.is-flash { animation: gn-flash 1.6s ease-out; }
+.gn-gone { display: block; position: relative; height: 0; margin: 1px 0; border-top: 2px solid var(--warn); }
+.gn-gone::before { content: "−" attr(data-n); position: absolute; left: .5ch; top: -.8em; padding: 0 4px; border-radius: 3px; background: var(--warn); color: var(--onbar); font: 700 10px/1.5 var(--f-mono); user-select: none; -webkit-user-select: none; }
 .gn-ln.is-hit { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn); }
-@keyframes gn-flash { 0%, 30% { background: var(--hi-soft); box-shadow: inset 3px 0 0 var(--hi); } 100% { background: transparent; box-shadow: inset 3px 0 0 transparent; } }
-@media (prefers-reduced-motion: reduce) { .gn-ln.is-new { animation: none; background: var(--hi-soft); box-shadow: inset 3px 0 0 var(--hi); } .gn-chev { transition: none; } }
+@keyframes gn-flash { 0%, 35% { background: var(--hi-soft); box-shadow: inset 3px 0 0 var(--hi); } 100% { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); } }
+@media (prefers-reduced-motion: reduce) { .gn-ln.is-flash { animation: none; } .gn-chev { transition: none; } }
 @media (max-width: 640px) {
   .card.gn { padding: 12px 10px; }
   .gn-panel { padding-left: 4px; padding-right: 4px; }
@@ -1285,6 +1302,77 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
   .gn-finds { max-height: 20vh; max-height: 20dvh; }
   .gn-pre { font-size: 12px; }
   fieldset.gn-g { padding: 2px 10px 12px; }
+}
+/* ---------- generador: cabecera, insignia del cambio, vistazo, lado a lado (≥ 1024 px) y pantalla completa */
+.gn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 14px; }
+.gn-ht { min-width: 0; }
+.gn-full { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 0 14px; border: 1px solid var(--accent); border-radius: 999px; background: var(--paper); color: var(--accent); font: 700 13.5px/1 var(--f-display); cursor: pointer; }
+.gn-full:hover { background: var(--accent-soft); }
+.gn-full svg, .gn-close svg { width: 18px; height: 18px; flex: none; }
+.gn-full:focus-visible, .gn-close:focus-visible, .gn-sv:focus-visible, .gn-delta:focus-visible, .gn-peek-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 520px) { .gn-full { padding: 0; } .gn-full span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+.gn-delta { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; max-width: 100%; padding: 0 12px; border: 1px solid var(--accent); border-radius: 999px; background: var(--accent-soft); color: var(--ink); font: 700 12.5px/1.2 var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.gn-dp { color: var(--accent2); } .gn-dm { color: var(--warn); } .gn-dp.z, .gn-dm.z { color: var(--muted); font-weight: 500; }
+.gn-dx { font-family: var(--f-display); font-weight: 600; color: var(--muted); }
+@media (max-width: 640px) { .gn-delta.has-other { order: 5; flex: 1 1 100%; } .gn-tools.has-delta .gn-meta2:not(:has(b)) { display: none; } }
+.gn-peek { overflow: hidden; transition: height .24s ease; }
+.gn-peek-in { margin-top: 2px; padding: 8px 10px 2px; border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 9px; background: var(--code-bg); }
+.gn-peek-h { margin: 0 0 4px; font: 700 12.5px/1.35 var(--f-display); color: var(--ink); }
+.gn-peek-h .gn-dp, .gn-peek-h .gn-dm { font-family: var(--f-mono); }
+.gn-peek-c { margin: 0; font: 12px/1.5 var(--f-mono); color: var(--ink); white-space: pre; }
+.gn-pk { display: block; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; border-radius: 3px; }
+.gn-pk.add { background: var(--ok-soft); color: var(--accent2); }
+.gn-pk.del { background: var(--warn-soft); color: var(--warn); }
+.gn-pk.more { color: var(--muted); }
+.gn-peek-go { min-height: 44px; padding: 0 2px; border: 0; background: none; color: var(--accent); font: 700 13px/1.2 var(--f-display); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .gn-peek { transition: none; } }
+.gn-appbar { display: none; }
+@media (min-width: 1024px) {
+  .gn:not(.is-app) .gn-main { display: grid; grid-template-columns: minmax(380px, 42fr) minmax(0, 58fr); column-gap: 18px; align-items: start; }
+  .gn:not(.is-app) .gn-panel { position: sticky; top: calc(var(--gn-top, 56px) + 10px); bottom: auto; height: calc(100vh - var(--gn-top, 56px) - 24px); margin-top: 12px; display: flex; flex-direction: column; box-shadow: none; }
+  .gn:not(.is-app) .gn-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .gn:not(.is-app) .gn-panel .gn-code { flex: 1 1 auto; min-height: 0; max-height: none; }
+  .gn:not(.is-app) .gn-fold { display: none; }
+  .gn:not(.is-app) .gn-panel.is-collapsed .gn-body { display: flex; }
+  .gn:not(.is-app) .gn-toast { top: auto; bottom: 14px; }
+}
+html.gn-lock, html.gn-lock body { overflow: hidden; }
+.gn.is-app { position: fixed; inset: 0; z-index: 100; margin: 0; padding: 0; border: 0; border-radius: 0; display: flex; flex-direction: column; background: var(--bg); }
+.gn.is-app > .gn-head, .gn.is-app > .gn-presets { display: none; }
+.gn.is-app .gn-appbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 300px) auto auto auto; grid-template-areas: "title preset chip acts close"; align-items: center; gap: 8px 10px; padding: max(8px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--rule); background: var(--paper); }
+.gn-at { grid-area: title; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 15px/1.2 var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.gn.is-app .gn-appbar select.gn-psel { grid-area: preset; display: block; }
+.gn.is-app .gn-appbar .gn-chip { grid-area: chip; margin: 0; }
+.gn.is-app .gn-appbar .gn-chip-l { display: inline; } .gn.is-app .gn-appbar .gn-chip-s { display: none; }
+.gn.is-app .gn-appbar .gn-acts { grid-area: acts; margin: 0; }
+.gn-close { grid-area: close; justify-self: end; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border: 1px solid var(--rule); border-radius: 9px; background: var(--paper); color: var(--ink); cursor: pointer; }
+.gn-close:hover { border-color: var(--accent); color: var(--accent); }
+.gn-switch { grid-area: switch; display: none; }
+.gn-sv { flex: 1 1 0; min-height: 44px; border: 1px solid var(--rule); background: var(--bg); color: var(--muted); font: 700 13.5px/1 var(--f-display); cursor: pointer; }
+.gn-sv:first-child { border-radius: 9px 0 0 9px; } .gn-sv:last-child { border-left: 0; border-radius: 0 9px 9px 0; }
+.gn-sv[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.gn.is-app .gn-main { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.gn.is-app .gn-form { min-height: 0; margin: 0; padding: 12px max(12px, env(safe-area-inset-left, 0px)) 24px; overflow: auto; overscroll-behavior: contain; }
+.gn.is-app .gn-panel { position: relative; top: auto; bottom: auto; height: auto; min-height: 0; margin: 0; border-width: 0 0 0 1px; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; padding: 4px 12px max(8px, env(safe-area-inset-bottom, 0px)); }
+.gn.is-app .gn-fold { display: none; }
+.gn.is-app .gn-panel.is-collapsed .gn-body, .gn.is-app .gn-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.gn.is-app .gn-panel .gn-code { flex: 1 1 auto; min-height: 0; max-height: none; }
+.gn.is-app .gn-toast { position: fixed; top: auto; right: 16px; bottom: max(16px, env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 900px) { .gn.is-app .gn-main { grid-template-columns: minmax(380px, 42fr) minmax(0, 58fr); } }
+@media (min-width: 600px) and (max-width: 899px) {
+  .gn.is-app .gn-appbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "title acts close" "preset preset chip"; }
+  .gn.is-app .gn-main { grid-template-rows: minmax(0, 45fr) minmax(0, 55fr); }
+  .gn.is-app .gn-panel { border-width: 1px 0 0; }
+}
+@media (max-width: 599px) {
+  .gn.is-app .gn-appbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "title chip close" "preset acts acts" "switch switch switch"; padding-left: 10px; padding-right: 10px; }
+  .gn.is-app .gn-appbar .gn-chip, .gn.is-app .gn-appbar .gn-acts { justify-self: end; }
+  .gn.is-app .gn-at { font-size: 13px; letter-spacing: .06em; }
+  .gn.is-app .gn-at-x { display: none; }
+  .gn.is-app .gn-switch { display: flex; }
+  .gn.is-app[data-view="code"] .gn-form, .gn.is-app[data-view="dec"] .gn-panel { display: none; }
+  .gn.is-app .gn-panel { border-width: 0; padding-left: 8px; padding-right: 8px; }
+  .gn.is-app .gn-form { padding: 10px 10px 24px; }
 }
 footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--rule); padding-top: 14px; }
 @media (max-width: 640px) {
@@ -1551,20 +1639,56 @@ const JS_SRC = String.raw`
       $('gn-psel').value = match;
     }
 
-    // ---- panel: el archivo con números de línea; lo que cambió con la última respuesta parpadea
-    function paintCode(flash) {
-      var text = out[tab] || '', body = text.replace(/\n$/, ''), html = HL(body, LANG[tab]).split('\n');
-      var ch = flash && seen[tab] !== undefined && seen[tab] !== text ? GEN.diffLines(seen[tab].replace(/\n$/, ''), body) : null;
-      src.innerHTML = html.map(function (h, i) { return '<span class="gn-ln' + (ch && ch[i] ? ' is-new' : '') + '"><span class="gn-lc">' + h + '</span></span>'; }).join('');
+    // ---- panel: el archivo con números de línea. Lo que cambió con la última respuesta queda marcado hasta la siguiente
+    // (fondo y barra en el margen); donde se borraron líneas, una marca roja con "−n". mode: 'change' (recién cambió:
+    // parpadea y lleva el cambio a un tercio del alto), 'view' (otra pestaña u otra vista: solo lo lleva a la vista).
+    var lastDiff = null, TAB_NAME = { dockerfile: 'Dockerfile', dockerignore: '.dockerignore', commands: 'Build & run' }, ORDER_T = ['dockerfile', 'dockerignore', 'commands'];
+    function diffOf(t) { var d = lastDiff && lastDiff[t]; return d && d.text === out[t] && (d.added || d.removed) ? d : null; }
+    function gone(n) { return '<span class="gn-gone" data-n="' + n + '" title="' + n + (n === 1 ? ' línea borrada' : ' líneas borradas') + '" aria-hidden="true"></span>'; }
+    function lineEls() { return src.querySelectorAll('.gn-ln'); }
+    function paintCode(mode) {
+      var text = out[tab] || '', body = text.replace(/\n$/, ''), html = HL(body, LANG[tab]).split('\n'), d = diffOf(tab), parts = [];
+      html.forEach(function (h, i) {
+        if (d && d.removedAt[i]) parts.push(gone(d.removedAt[i]));
+        parts.push('<span class="gn-ln' + (d && d.changed[i] ? ' is-chg' + (mode === 'change' ? ' is-flash' : '') : '') + '"><span class="gn-lc">' + h + '</span></span>');
+      });
+      if (d && d.removedAt[html.length]) parts.push(gone(d.removedAt[html.length]));
+      src.innerHTML = parts.join('');
       seen[tab] = text;
       $('gn-t-' + tab).classList.remove('is-dirty');
       box.setAttribute('aria-labelledby', 'gn-t-' + tab);
-      var first = ch ? ch.indexOf(true) : -1;
-      if (first >= 0 && !panel.classList.contains('is-collapsed')) {
-        var el = src.children[first], top = lineTop(el);
-        if (top < box.scrollTop || top + el.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTo({ top: Math.max(0, top - 28), behavior: reduce ? 'auto' : 'smooth' });
-      }
+      if (mode) revealChange(mode === 'change');
     }
+    function paneHidden() { return app ? (window.innerWidth < 600 && root.getAttribute('data-view') !== 'code') : (window.innerWidth < 1024 && panel.classList.contains('is-collapsed')); }
+    // el primer cambio (o la primera marca de borrado) a un tercio del alto del panel
+    function revealChange(animate) {
+      var el = src.querySelector('.is-chg, .gn-gone'), pre = $('gn-pre');
+      pre.style.paddingBottom = '';
+      if (!el || paneHidden()) return;
+      // un cambio cerca del final también queda a un tercio: espacio extra debajo de la última línea, solo si hace falta
+      var want = lineTop(el) - box.clientHeight / 3, max = box.scrollHeight - box.clientHeight;
+      if (want > max) pre.style.paddingBottom = Math.ceil(want - max + 8) + 'px';
+      box.scrollTo({ top: Math.max(0, want), behavior: animate && !reduce ? 'smooth' : 'auto' });
+    }
+    // "+a −r" arriba del panel; si también (o solo) cambió otra pestaña, lo dice. Un clic vuelve al cambio.
+    function counts(d) { return '<span class="gn-dp' + (d.added ? '' : ' z') + '">+' + d.added + '</span> <span class="gn-dm' + (d.removed ? '' : ' z') + '">−' + d.removed + '</span>'; }
+    function paintDelta() {
+      var b = $('gn-delta'), tools = b.parentNode, cur = diffOf(tab);
+      var others = ORDER_T.filter(function (t) { return t !== tab && diffOf(t); });
+      if (!cur && !others.length) { b.hidden = true; tools.classList.remove('has-delta'); return; }
+      var txt = (cur ? '+' + cur.added + ' −' + cur.removed : 'Sin cambios aquí') + (others.length ? (cur ? ' · también en ' : ' · cambió ') + others.map(function (t) { return TAB_NAME[t]; }).join(' y ') : '');
+      b.innerHTML = (cur ? counts(cur) : '<span class="gn-dx">Sin cambios aquí</span>') +
+        (others.length ? '<span class="gn-dx">' + esc((cur ? ' · también en ' : ' · cambió ') + others.map(function (t) { return TAB_NAME[t]; }).join(' y ')) + '</span>' : '');
+      b.classList.toggle('only-other', !cur);
+      b.classList.toggle('has-other', others.length > 0);
+      b.setAttribute('aria-label', 'Último cambio: ' + txt + '. Ir al cambio');
+      b.title = txt;
+      b.hidden = false; tools.classList.add('has-delta');
+    }
+    $('gn-delta').addEventListener('click', function () {
+      if (!diffOf(tab)) { var t = ORDER_T.filter(function (k) { return diffOf(k); })[0]; if (!t) return; pick(t); }
+      revealChange(true);
+    });
     function paintMeta(meta) {
       var nl = out.dockerfile.replace(/\n$/, '').split('\n').length, miss = meta.digestsMissing.length;
       $('gn-meta').innerHTML = $('gn-meta2').innerHTML = nl + ' líneas' + (miss ? ' · <b>' + (miss === 1 ? '1 digest por pegar' : miss + ' digests por pegar') + '</b>' : '');
@@ -1589,22 +1713,110 @@ const JS_SRC = String.raw`
       }).join('') + '</ul>';
       if (t !== summary) { if (summary) say('Revisor: ' + t); summary = t; }
     }
-    function update(user) {
+    function writeHash() {
+      var enc = GEN.encodeState(cfg), q = enc + (app ? (enc ? '&' : '') + 'full=1' : '');
+      try { history.replaceState(null, '', '#generador' + (q ? '?' + q : '')); } catch (e) {}
+    }
+    // user: la cambió una persona (q: qué pregunta, 'preset' o 'reset'); si no, es la carga o un enlace nuevo
+    function update(user, q) {
       var n = GEN.normalize(cfg);
       cfg = n.cfg;
-      var o = GEN.generate(cfg);
+      var o = GEN.generate(cfg), prev = out, moved = false;
+      if (user && prev) {
+        var next = {};
+        ORDER_T.forEach(function (t) { var dd = GEN.diffDetail(prev[t].replace(/\n$/, ''), o[t].replace(/\n$/, '')); dd.text = o[t]; next[t] = dd; if (dd.added || dd.removed) moved = true; });
+        if (moved) lastDiff = next; // una respuesta que no cambia nada deja las marcas del cambio anterior
+      } else if (!user) lastDiff = null;
       Object.keys(FILES).forEach(function (t) { if (t !== tab && seen[t] !== undefined && seen[t] !== o[t]) $('gn-t-' + t).classList.add('is-dirty'); });
       out = o;
       paintForm(n, o.meta);
       paintMeta(o.meta);
-      paintCode(user);
+      paintCode(moved ? 'change' : undefined);
       paintLint();
+      paintDelta();
       if (user) {
         lsSet(KEY, JSON.stringify(cfg));
-        var enc = GEN.encodeState(cfg);
-        try { history.replaceState(null, '', '#generador' + (enc ? '?' + enc : '')); } catch (e) {}
-      }
+        writeHash();
+        if (moved) showPeek(q); else if (q === 'reset') hidePeek();
+      } else hidePeek();
     }
+
+    // ---- el vistazo: en el celular (y en pantallas angostas) el diff aparece justo debajo de la pregunta que cambió
+    var peek = $('gn-peek'), peekTab = 'dockerfile';
+    function narrowLayout() { return app ? window.innerWidth < 600 : window.innerWidth < 1024; }
+    function hidePeek() { peek.hidden = true; peek.style.height = ''; }
+    function grow(el, from) {
+      el.style.height = 'auto';
+      var to = el.scrollHeight;
+      if (reduce || from === to) return to;
+      el.style.height = from + 'px';
+      void el.offsetHeight;
+      el.style.height = to + 'px';
+      clearTimeout(el._t);
+      el._t = setTimeout(function () { el.style.height = 'auto'; }, 260);
+      return to;
+    }
+    // el vistazo entero a la vista: arriba del panel acoplado (o dentro de la columna de decisiones), sin esconder su comienzo
+    function peekInView(to) {
+      var r = peek.getBoundingClientRect(), top, bottom;
+      if (app) { var fr = form.getBoundingClientRect(); top = fr.top; bottom = fr.bottom; }
+      else {
+        var pr = panel.getBoundingClientRect();
+        top = parseFloat(root.style.getPropertyValue('--gn-top')) || 0;
+        bottom = pr.top > r.top ? Math.min(window.innerHeight, pr.top) : window.innerHeight;
+      }
+      var need = Math.min(r.top + to - (bottom - 10), r.top - (top + 10));
+      if (need <= 0) return;
+      var opt = { top: need, behavior: reduce ? 'auto' : 'smooth' };
+      if (app) form.scrollBy(opt); else window.scrollBy(opt);
+    }
+    // un par borrada/agregada con el mismo comienzo largo: las dos arrancan cerca de donde difieren (si no, se verían iguales)
+    function peekText(ops, cols) {
+      var shown = [], run = [], k = 0;
+      function flush() {
+        var dl = run.filter(function (i) { return ops[i].t === '-'; }), ad = run.filter(function (i) { return ops[i].t === '+'; });
+        for (var m = 0; m < dl.length && m < ad.length; m++) {
+          var a = ops[dl[m]].text, b = ops[ad[m]].text, p = 0;
+          while (p < a.length && p < b.length && a.charAt(p) === b.charAt(p)) p++;
+          if (p > cols - 12 && Math.max(a.length, b.length) > cols) {
+            var s0 = p - 16, sp = a.indexOf(' ', Math.max(0, s0));
+            if (sp >= 0 && sp < p - 4) s0 = sp + 1;
+            if (s0 > 0) { shown[dl[m]] = '…' + a.slice(s0); shown[ad[m]] = '…' + b.slice(s0); }
+          }
+        }
+        run = [];
+      }
+      ops.forEach(function (o) { if (o.t === '=') flush(); else { shown[k] = o.text; run.push(k); } k++; });
+      flush();
+      return shown;
+    }
+    function showPeek(q) {
+      var t = ORDER_T.filter(function (k) { return diffOf(k); })[0];
+      var host = !q || q === 'reset' ? null : q === 'preset' ? root.querySelector('.gn-presets') : form.querySelector('[data-q="' + q + '"]');
+      if (!t || !host || host.hidden || !narrowLayout()) { hidePeek(); return; }
+      var d = diffOf(t), others = ORDER_T.filter(function (k) { return k !== t && diffOf(k); });
+      peekTab = t;
+      // la pregunta no se mueve en la pantalla aunque el vistazo deje otra pregunta más arriba
+      var scroller = app ? form : null, anchor = host.getBoundingClientRect().top, from = peek.hidden || peek.parentNode !== host ? 0 : peek.getBoundingClientRect().height;
+      if (peek.parentNode !== host) { peek.hidden = true; host.appendChild(peek); }
+      $('gn-peek-h').innerHTML = '<b>' + esc(TAB_NAME[t]) + '</b> ' + counts(d) + (others.length ? ' <span class="gn-dx">· también en ' + esc(others.map(function (k) { return TAB_NAME[k]; }).join(' y ')) + '</span>' : '');
+      var shown = peekText(d.ops, Math.max(24, Math.floor((host.clientWidth - 34) / 7.3) - 2)), ch = [];
+      d.ops.forEach(function (o, i) { if (o.t !== '=') ch.push({ t: o.t, text: shown[i] }); });
+      $('gn-peek-c').innerHTML = ch.slice(0, 6).map(function (o) { return '<span class="gn-pk ' + (o.t === '+' ? 'add' : 'del') + '">' + (o.t === '+' ? '+ ' : '− ') + esc(o.text) + '</span>'; }).join('') +
+        (ch.length > 6 ? '<span class="gn-pk more">… y ' + (ch.length - 6) + (ch.length - 6 === 1 ? ' línea más' : ' líneas más') + '</span>' : '');
+      $('gn-peek-go').textContent = t === 'dockerfile' ? 'Ver en el Dockerfile' : t === 'dockerignore' ? 'Ver en el .dockerignore' : 'Ver en Build & run';
+      peek.hidden = false;
+      var shift = host.getBoundingClientRect().top - anchor;
+      if (shift) { if (scroller) scroller.scrollTop += shift; else try { window.scrollBy({ top: shift, behavior: 'instant' }); } catch (e) { window.scrollBy(0, shift); } }
+      peekInView(grow(peek, from));
+    }
+    $('gn-peek-go').addEventListener('click', function () {
+      if (app) setView('code');
+      else if (panel.classList.contains('is-collapsed')) fold(false);
+      if (tab !== peekTab) pick(peekTab);
+      revealChange(true);
+      try { box.focus({ preventScroll: true }); } catch (e) {}
+    });
 
     // ---- respuestas
     form.addEventListener('change', function (ev) {
@@ -1614,20 +1826,21 @@ const JS_SRC = String.raw`
         cfg[t.name] = t.value;
         // otro servicio: sus valores por defecto (campos de texto y el HEALTHCHECK que le corresponde)
         if (t.name === 'svc') { cfg.app = ''; cfg.code = ''; cfg.modelPath = ''; cfg.health = t.value === 'worker' || t.value === 'train' ? 'omit' : 'http'; fillInputs(); }
-        update(true);
+        update(true, t.name);
       } else if (t.type === 'checkbox') {
         cfg[t.name] = Array.prototype.filter.call(form.querySelectorAll('input[name="' + t.name + '"]'), function (i) { return i.checked; }).map(function (i) { return i.value; });
-        update(true);
+        update(true, t.name);
       }
     });
     form.addEventListener('input', function (ev) {
       var t = ev.target;
       if (!t) return;
-      if (t.getAttribute('data-img')) { cfg.digests = Object.assign({}, cfg.digests); cfg.digests[t.getAttribute('data-img')] = t.value; }
-      else if (t.name && (t.tagName === 'TEXTAREA' || t.type === 'text')) cfg[t.name] = t.value;
+      var q;
+      if (t.getAttribute('data-img')) { cfg.digests = Object.assign({}, cfg.digests); cfg.digests[t.getAttribute('data-img')] = t.value; q = 'digests'; }
+      else if (t.name && (t.tagName === 'TEXTAREA' || t.type === 'text')) { cfg[t.name] = t.value; q = t.name; }
       else return;
       clearTimeout(tmr);
-      tmr = setTimeout(function () { update(true); }, 140);
+      tmr = setTimeout(function () { update(true, q); }, 140);
     });
     // una opción que no aplica: al tocarla, su razón (en el mouse, también el title)
     form.addEventListener('click', function (ev) {
@@ -1644,7 +1857,7 @@ const JS_SRC = String.raw`
       if (!p) return;
       cfg = Object.assign(JSON.parse(JSON.stringify(p.cfg)), { comments: cfg.comments, digests: cfg.digests || {} });
       fillInputs();
-      update(true);
+      update(true, 'preset');
       say('Preset: ' + p.label);
     }
     root.querySelectorAll('.gn-p').forEach(function (b) { b.addEventListener('click', function () { applyPreset(b.getAttribute('data-p')); }); });
@@ -1656,8 +1869,9 @@ const JS_SRC = String.raw`
       tabs.forEach(function (b) { var on = b.getAttribute('data-t') === t; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
       var dl = $('gn-dl');
       if (!viewer) { dl.setAttribute('aria-label', 'Descargar ' + FILES[t]); dl.title = 'Descargar ' + FILES[t]; }
-      paintCode(false);
       box.scrollTop = 0;
+      paintCode('view');
+      paintDelta();
     }
     tabs.forEach(function (b, i) {
       b.addEventListener('click', function () { if (panel.classList.contains('is-collapsed')) fold(false); pick(b.getAttribute('data-t')); });
@@ -1670,13 +1884,14 @@ const JS_SRC = String.raw`
     });
 
     // ---- plegar, hallazgos, copiar, bajar, enlace y reset
-    function pad() { doc.documentElement.style.scrollPaddingBottom = onScreen ? (panel.offsetHeight + 12) + 'px' : ''; }
+    function pad() { doc.documentElement.style.scrollPaddingBottom = onScreen && !app && window.innerWidth < 1024 ? (panel.offsetHeight + 12) + 'px' : ''; }
     function fold(collapsed) {
       panel.classList.toggle('is-collapsed', collapsed);
       $('gn-fold').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
       $('gn-fold').setAttribute('aria-label', collapsed ? 'Desplegar el panel' : 'Plegar el panel');
       lsSet(KEY_UI, collapsed ? 'collapsed' : null);
       pad();
+      if (!collapsed) revealChange(false);
     }
     $('gn-fold').addEventListener('click', function () { fold(!panel.classList.contains('is-collapsed')); });
     // ajustar líneas: encendido por defecto bajo 768 px, apagado arriba; si lo cambias, queda tu elección
@@ -1698,7 +1913,7 @@ const JS_SRC = String.raw`
       var b = ev.target && ev.target.closest ? ev.target.closest('.gn-goto') : null;
       if (!b) return;
       if (tab !== 'dockerfile') pick('dockerfile');
-      var el = src.children[+b.getAttribute('data-line') - 1];
+      var el = lineEls()[+b.getAttribute('data-line') - 1];
       if (!el) return;
       src.querySelectorAll('.is-hit').forEach(function (x) { x.classList.remove('is-hit'); });
       el.classList.add('is-hit');
@@ -1788,26 +2003,89 @@ const JS_SRC = String.raw`
       catch (e) { done(btn, 'No se pudo descargar'); }
     });
     $('gn-share').addEventListener('click', function () {
-      var enc = GEN.encodeState(cfg), url = String(location.href).split('#')[0] + '#generador' + (enc ? '?' + enc : '');
-      try { history.replaceState(null, '', '#generador' + (enc ? '?' + enc : '')); } catch (e) {}
+      writeHash();
+      var enc = GEN.encodeState(cfg), q = enc + (app ? (enc ? '&' : '') + 'full=1' : ''), url = String(location.href).split('#')[0] + '#generador' + (q ? '?' + q : '');
       copyText(url, this, 'Enlace copiado', 'Está en la barra');
     });
     $('gn-reset').addEventListener('click', function () {
       cfg = {};
       fillInputs();
-      update(true);
+      update(true, 'reset');
       lsSet(KEY, null);
-      try { history.replaceState(null, '', '#generador'); } catch (e) {}
+      writeHash();
       done(this, 'Listo');
     });
     window.addEventListener('hashchange', function () {
       var h = hashState();
-      if (h === null || h === GEN.encodeState(cfg)) return;
-      cfg = GEN.decodeState(h);
-      fillInputs();
-      update(false);
-      goTool();
+      if (h === null) return;
+      var full = /(^|&)full=1(&|$)/.test(h);
+      if (GEN.encodeState(GEN.normalize(GEN.decodeState(h)).cfg) !== GEN.encodeState(cfg)) {
+        cfg = GEN.decodeState(h);
+        fillInputs();
+        update(false);
+      }
+      if (full) openApp(); else { closeApp(); goTool(); }
     });
+
+    // ---- pantalla completa: la herramienta como una app encima de la página (también dentro del iframe del Artifact)
+    var app = false, lastFocus = null;
+    function move(node, marker) { marker.parentNode.insertBefore(node, marker); }
+    function setView(v) {
+      root.setAttribute('data-view', v);
+      root.querySelectorAll('.gn-sv').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false'); });
+      if (v === 'code') revealChange(false);
+    }
+    root.querySelectorAll('.gn-sv').forEach(function (b) { b.addEventListener('click', function () { setView(b.getAttribute('data-v')); }); });
+    function focusables() {
+      return Array.prototype.filter.call(root.querySelectorAll('button, input, select, textarea, [tabindex="0"]'), function (el) {
+        return !el.disabled && el.tabIndex >= 0 && el.getClientRects().length > 0;
+      });
+    }
+    function openApp() {
+      if (app) return;
+      app = true;
+      lastFocus = doc.activeElement;
+      move($('gn-psel'), $('gn-slot-psel')); move($('gn-chip'), $('gn-slot-chip')); move(root.querySelector('.gn-acts'), $('gn-slot-acts'));
+      root.classList.add('is-app');
+      root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', 'Generador de Dockerfile');
+      doc.documentElement.classList.add('gn-lock');
+      setView('dec');
+      hidePeek();
+      writeHash();
+      pad();
+      revealChange(false);
+      setTimeout(function () { $('gn-close').focus(); }, 0);
+    }
+    function closeApp() {
+      if (!app) return;
+      app = false;
+      move($('gn-psel'), $('gn-home-psel')); move($('gn-chip'), $('gn-home-chip')); move(root.querySelector('.gn-acts'), $('gn-home-acts'));
+      root.classList.remove('is-app');
+      root.removeAttribute('role'); root.removeAttribute('aria-modal'); root.removeAttribute('aria-label');
+      doc.documentElement.classList.remove('gn-lock');
+      hidePeek();
+      writeHash();
+      pad();
+      var f = lastFocus && root.contains(lastFocus) ? lastFocus : $('gn-full');
+      try { f.focus({ preventScroll: true }); } catch (e) {}
+    }
+    $('gn-full').addEventListener('click', openApp);
+    $('gn-close').addEventListener('click', closeApp);
+    // Esc cierra; Tab no se escapa de la pantalla completa
+    doc.addEventListener('keydown', function (ev) {
+      if (!app) return;
+      if (ev.key === 'Escape') { ev.preventDefault(); closeApp(); return; }
+      if (ev.key !== 'Tab') return;
+      var f = focusables();
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1], a = doc.activeElement;
+      if (ev.shiftKey && (a === first || !root.contains(a))) { ev.preventDefault(); last.focus(); }
+      else if (!ev.shiftKey && (a === last || !root.contains(a))) { ev.preventDefault(); first.focus(); }
+    });
+    // el panel lado a lado queda pegado justo debajo de la barra de secciones
+    function setTop() { var nav = doc.querySelector('nav.toc'); root.style.setProperty('--gn-top', (nav ? Math.round(nav.getBoundingClientRect().height) : 0) + 'px'); }
+    setTop();
+    window.addEventListener('resize', function () { setTop(); pad(); if (!narrowLayout()) hidePeek(); });
     // con la herramienta en pantalla, el foco con Tab nunca queda detrás del panel
     if ('IntersectionObserver' in window) new IntersectionObserver(function (es) { es.forEach(function (e) { onScreen = e.isIntersecting; }); pad(); }).observe(form);
 
@@ -1820,11 +2098,14 @@ const JS_SRC = String.raw`
     seen = { dockerfile: out.dockerfile, dockerignore: out.dockerignore, commands: out.commands };
     paintForm(n0, out.meta);
     paintMeta(out.meta);
-    paintCode(false);
+    paintCode();
     paintLint();
     if (lsGet(KEY_UI) === 'collapsed') fold(true);
-    // un enlace compartido abre en la herramienta (cuando la página ya tiene su alto final: fuentes cargadas)
-    if (hashState() !== null) { if (doc.readyState === 'complete') setTimeout(goTool, 0); else window.addEventListener('load', function () { setTimeout(goTool, 0); }); }
+    // un enlace compartido abre en la herramienta (cuando la página ya tiene su alto final: fuentes cargadas); con
+    // full=1, directo en pantalla completa
+    var h0 = hashState();
+    if (h0 !== null && /(^|&)full=1(&|$)/.test(h0)) openApp();
+    else if (h0 !== null) { if (doc.readyState === 'complete') setTimeout(goTool, 0); else window.addEventListener('load', function () { setTimeout(goTool, 0); }); }
   })();
 
   // ---------- quiz de errores

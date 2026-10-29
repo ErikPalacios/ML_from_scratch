@@ -249,7 +249,7 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-dgi { font: 600 12.5px/1.4 var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
 .gn-dgr.is-miss .gn-dgi::after { content: " · falta"; color: var(--warn); font: 700 12.5px var(--f-display); }
 .gn-panel { position: sticky; bottom: 0; z-index: 4; margin-top: 14px; padding: 4px 8px max(8px, env(safe-area-inset-bottom, 0px)); border: 1px solid var(--rule); border-radius: 12px; background: var(--paper); box-shadow: 0 -12px 24px -16px rgba(14, 19, 26, .45); }
-.gn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 0 6px; }
+.gn-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 2px 0 6px; }
 .gn-fold { order: 1; flex: none; display: inline-flex; align-items: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 9px; background: none; color: var(--ink); font: 600 13px/1.2 var(--f-display); cursor: pointer; }
 .gn-fold:hover { background: var(--bg); }
 .gn-fold:focus-visible, .gn-chip:focus-visible, .gn-btn:focus-visible, .gn-tab:focus-visible, .gn-code:focus-visible, .gn-goto:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -279,14 +279,14 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-body { padding-top: 2px; }
 .gn-panel.is-collapsed .gn-body { display: none; }
 .gn-panel.is-collapsed .gn-bar { padding-bottom: 0; }
-.gn-finds { max-height: min(26vh, 260px); overflow: auto; margin-bottom: 6px; overscroll-behavior: contain; }
+.gn-finds { flex: none; max-height: min(26vh, 260px); overflow: auto; margin-bottom: 6px; overscroll-behavior: contain; }
 .gn-finds ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .gn-finds li { padding: 6px 10px; border: 1px solid var(--rule); border-left-width: 4px; border-radius: 8px; font-size: 14px; line-height: 1.45; }
 .gn-finds li.sev-error { border-left-color: var(--warn); } .gn-finds li.sev-warn { border-left-color: var(--hi); } .gn-finds li.sev-info { border-left-color: var(--accent); }
 .gn-finds p { margin: 3px 0 0; }
 .gn-finds p.small { margin: 2px 0; font: 500 13.5px/1.4 var(--f-display); }
 .gn-goto { min-height: 32px; padding: 0 8px; border: 1px solid var(--rule); border-radius: 7px; background: var(--paper); color: var(--accent); font: 600 12.5px/1 var(--f-display); cursor: pointer; }
-.gn-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; min-height: 44px; }
+.gn-tools { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; min-height: 44px; }
 .gn-zbtn { display: inline-flex; align-items: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 9px; background: var(--paper); color: var(--ink); font: 600 13px/1 var(--f-display); cursor: pointer; }
 .gn-zbtn:hover { border-color: var(--accent); color: var(--accent); }
 .gn-zbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -315,10 +315,14 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
 .gn-finds ul.gn-na { list-style: none; margin: 4px 0 2px; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .gn-finds ul.gn-na li { padding: 0; border: 0; font: 500 13px/1.45 var(--f-display); color: var(--muted); }
 .gn-finds ul.gn-na code { font-size: 12px; }
-.gn-ln.is-new { animation: gn-flash 1.9s ease-out; }
+/* el último cambio queda marcado hasta el siguiente: fondo suave y barra en el margen; recién hecho, parpadea */
+.gn-ln.is-chg { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.gn-ln.is-flash { animation: gn-flash 1.6s ease-out; }
+.gn-gone { display: block; position: relative; height: 0; margin: 1px 0; border-top: 2px solid var(--warn); }
+.gn-gone::before { content: "−" attr(data-n); position: absolute; left: .5ch; top: -.8em; padding: 0 4px; border-radius: 3px; background: var(--warn); color: var(--onbar); font: 700 10px/1.5 var(--f-mono); user-select: none; -webkit-user-select: none; }
 .gn-ln.is-hit { background: var(--warn-soft); box-shadow: inset 3px 0 0 var(--warn); }
-@keyframes gn-flash { 0%, 30% { background: var(--hi-soft); box-shadow: inset 3px 0 0 var(--hi); } 100% { background: transparent; box-shadow: inset 3px 0 0 transparent; } }
-@media (prefers-reduced-motion: reduce) { .gn-ln.is-new { animation: none; background: var(--hi-soft); box-shadow: inset 3px 0 0 var(--hi); } .gn-chev { transition: none; } }
+@keyframes gn-flash { 0%, 35% { background: var(--hi-soft); box-shadow: inset 3px 0 0 var(--hi); } 100% { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); } }
+@media (prefers-reduced-motion: reduce) { .gn-ln.is-flash { animation: none; } .gn-chev { transition: none; } }
 @media (max-width: 640px) {
   .card.gn { padding: 12px 10px; }
   .gn-panel { padding-left: 4px; padding-right: 4px; }
@@ -333,6 +337,77 @@ textarea.gn-ta { min-height: 66px; resize: vertical; }
   .gn-finds { max-height: 20vh; max-height: 20dvh; }
   .gn-pre { font-size: 12px; }
   fieldset.gn-g { padding: 2px 10px 12px; }
+}
+/* ---------- generador: cabecera, insignia del cambio, vistazo, lado a lado (≥ 1024 px) y pantalla completa */
+.gn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 14px; }
+.gn-ht { min-width: 0; }
+.gn-full { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 0 14px; border: 1px solid var(--accent); border-radius: 999px; background: var(--paper); color: var(--accent); font: 700 13.5px/1 var(--f-display); cursor: pointer; }
+.gn-full:hover { background: var(--accent-soft); }
+.gn-full svg, .gn-close svg { width: 18px; height: 18px; flex: none; }
+.gn-full:focus-visible, .gn-close:focus-visible, .gn-sv:focus-visible, .gn-delta:focus-visible, .gn-peek-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 520px) { .gn-full { padding: 0; } .gn-full span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+.gn-delta { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; max-width: 100%; padding: 0 12px; border: 1px solid var(--accent); border-radius: 999px; background: var(--accent-soft); color: var(--ink); font: 700 12.5px/1.2 var(--f-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.gn-dp { color: var(--accent2); } .gn-dm { color: var(--warn); } .gn-dp.z, .gn-dm.z { color: var(--muted); font-weight: 500; }
+.gn-dx { font-family: var(--f-display); font-weight: 600; color: var(--muted); }
+@media (max-width: 640px) { .gn-delta.has-other { order: 5; flex: 1 1 100%; } .gn-tools.has-delta .gn-meta2:not(:has(b)) { display: none; } }
+.gn-peek { overflow: hidden; transition: height .24s ease; }
+.gn-peek-in { margin-top: 2px; padding: 8px 10px 2px; border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 9px; background: var(--code-bg); }
+.gn-peek-h { margin: 0 0 4px; font: 700 12.5px/1.35 var(--f-display); color: var(--ink); }
+.gn-peek-h .gn-dp, .gn-peek-h .gn-dm { font-family: var(--f-mono); }
+.gn-peek-c { margin: 0; font: 12px/1.5 var(--f-mono); color: var(--ink); white-space: pre; }
+.gn-pk { display: block; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; border-radius: 3px; }
+.gn-pk.add { background: var(--ok-soft); color: var(--accent2); }
+.gn-pk.del { background: var(--warn-soft); color: var(--warn); }
+.gn-pk.more { color: var(--muted); }
+.gn-peek-go { min-height: 44px; padding: 0 2px; border: 0; background: none; color: var(--accent); font: 700 13px/1.2 var(--f-display); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .gn-peek { transition: none; } }
+.gn-appbar { display: none; }
+@media (min-width: 1024px) {
+  .gn:not(.is-app) .gn-main { display: grid; grid-template-columns: minmax(380px, 42fr) minmax(0, 58fr); column-gap: 18px; align-items: start; }
+  .gn:not(.is-app) .gn-panel { position: sticky; top: calc(var(--gn-top, 56px) + 10px); bottom: auto; height: calc(100vh - var(--gn-top, 56px) - 24px); margin-top: 12px; display: flex; flex-direction: column; box-shadow: none; }
+  .gn:not(.is-app) .gn-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .gn:not(.is-app) .gn-panel .gn-code { flex: 1 1 auto; min-height: 0; max-height: none; }
+  .gn:not(.is-app) .gn-fold { display: none; }
+  .gn:not(.is-app) .gn-panel.is-collapsed .gn-body { display: flex; }
+  .gn:not(.is-app) .gn-toast { top: auto; bottom: 14px; }
+}
+html.gn-lock, html.gn-lock body { overflow: hidden; }
+.gn.is-app { position: fixed; inset: 0; z-index: 100; margin: 0; padding: 0; border: 0; border-radius: 0; display: flex; flex-direction: column; background: var(--bg); }
+.gn.is-app > .gn-head, .gn.is-app > .gn-presets { display: none; }
+.gn.is-app .gn-appbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 300px) auto auto auto; grid-template-areas: "title preset chip acts close"; align-items: center; gap: 8px 10px; padding: max(8px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--rule); background: var(--paper); }
+.gn-at { grid-area: title; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 15px/1.2 var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.gn.is-app .gn-appbar select.gn-psel { grid-area: preset; display: block; }
+.gn.is-app .gn-appbar .gn-chip { grid-area: chip; margin: 0; }
+.gn.is-app .gn-appbar .gn-chip-l { display: inline; } .gn.is-app .gn-appbar .gn-chip-s { display: none; }
+.gn.is-app .gn-appbar .gn-acts { grid-area: acts; margin: 0; }
+.gn-close { grid-area: close; justify-self: end; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border: 1px solid var(--rule); border-radius: 9px; background: var(--paper); color: var(--ink); cursor: pointer; }
+.gn-close:hover { border-color: var(--accent); color: var(--accent); }
+.gn-switch { grid-area: switch; display: none; }
+.gn-sv { flex: 1 1 0; min-height: 44px; border: 1px solid var(--rule); background: var(--bg); color: var(--muted); font: 700 13.5px/1 var(--f-display); cursor: pointer; }
+.gn-sv:first-child { border-radius: 9px 0 0 9px; } .gn-sv:last-child { border-left: 0; border-radius: 0 9px 9px 0; }
+.gn-sv[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.gn.is-app .gn-main { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.gn.is-app .gn-form { min-height: 0; margin: 0; padding: 12px max(12px, env(safe-area-inset-left, 0px)) 24px; overflow: auto; overscroll-behavior: contain; }
+.gn.is-app .gn-panel { position: relative; top: auto; bottom: auto; height: auto; min-height: 0; margin: 0; border-width: 0 0 0 1px; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; padding: 4px 12px max(8px, env(safe-area-inset-bottom, 0px)); }
+.gn.is-app .gn-fold { display: none; }
+.gn.is-app .gn-panel.is-collapsed .gn-body, .gn.is-app .gn-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.gn.is-app .gn-panel .gn-code { flex: 1 1 auto; min-height: 0; max-height: none; }
+.gn.is-app .gn-toast { position: fixed; top: auto; right: 16px; bottom: max(16px, env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 900px) { .gn.is-app .gn-main { grid-template-columns: minmax(380px, 42fr) minmax(0, 58fr); } }
+@media (min-width: 600px) and (max-width: 899px) {
+  .gn.is-app .gn-appbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "title acts close" "preset preset chip"; }
+  .gn.is-app .gn-main { grid-template-rows: minmax(0, 45fr) minmax(0, 55fr); }
+  .gn.is-app .gn-panel { border-width: 1px 0 0; }
+}
+@media (max-width: 599px) {
+  .gn.is-app .gn-appbar { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "title chip close" "preset acts acts" "switch switch switch"; padding-left: 10px; padding-right: 10px; }
+  .gn.is-app .gn-appbar .gn-chip, .gn.is-app .gn-appbar .gn-acts { justify-self: end; }
+  .gn.is-app .gn-at { font-size: 13px; letter-spacing: .06em; }
+  .gn.is-app .gn-at-x { display: none; }
+  .gn.is-app .gn-switch { display: flex; }
+  .gn.is-app[data-view="code"] .gn-form, .gn.is-app[data-view="dec"] .gn-panel { display: none; }
+  .gn.is-app .gn-panel { border-width: 0; padding-left: 8px; padding-right: 8px; }
+  .gn.is-app .gn-form { padding: 10px 10px 24px; }
 }
 footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--rule); padding-top: 14px; }
 @media (max-width: 640px) {
@@ -388,7 +463,7 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
   .card > h3, .example > h3, .tag { break-after: avoid; }
 }
 
-.tpl__code, .vars th.rh.p, .vars td.c, svg .tm, svg .tmu, svg .tref, .dt .mono, .dt th.rh.mono, .chain__v, code, code.cmd, .code pre, pre.term, #rv-text, .gn-in, .gn-dgi, .gn-pre, code *, pre * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+.tpl__code, .vars th.rh.p, .vars td.c, svg .tm, svg .tmu, svg .tref, .dt .mono, .dt th.rh.mono, .chain__v, code, code.cmd, .code pre, pre.term, #rv-text, .gn-in, .gn-dgi, .gn-pre, .gn-gone::before, .gn-delta, .gn-peek-h .gn-dp, .gn-peek-h .gn-dm, .gn-peek-c, code *, pre * { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 </style></head><body><div class="wrap">
   <header class="hero">
     <p class="kicker">Ronda de Diseño ML · Contenedores · ejemplos de C01</p>
@@ -1175,10 +1250,19 @@ Run <span class="tk-s">'docker run --help'</span> for more information
   
 <section class="sec tools" id="herramientas">
   <header class="sec__head"><span class="sec__n">⚙</span><div><h2>Herramientas</h2><p class="sec__q">Un Dockerfile de producción en minutos, del síntoma al primer comando, y una revisión rápida de tu Dockerfile.</p></div></header>
-  <div class="card tool gn" id="generador">
-    <h3>Generador de Dockerfile</h3>
-    <p class="gn-sub">Cada respuesta reescribe el Dockerfile al instante · revisado en vivo con las 16 reglas del revisor</p>
-    <div class="gn-presets" role="group" aria-label="Presets"><span class="gn-k">Preset</span><button class="gn-p" type="button" data-p="c01-gateway" aria-pressed="false">C01 · gateway (FastAPI, CPU)</button><button class="gn-p" type="button" data-p="c01-triton" aria-pressed="false">C01 · Triton (GPU)</button><button class="gn-p" type="button" data-p="gpu-api" aria-pressed="false">API de inferencia en GPU (PyTorch + CUDA)</button><button class="gn-p" type="button" data-p="worker-cpu" aria-pressed="false">Worker batch (CPU)</button><button class="gn-p" type="button" data-p="blank" aria-pressed="true">En blanco / por defecto</button><select class="gn-psel gn-in" id="gn-psel" aria-label="Preset"><option value="">Personalizado</option><option value="c01-gateway">C01 · gateway (FastAPI, CPU)</option><option value="c01-triton">C01 · Triton (GPU)</option><option value="gpu-api">API de inferencia en GPU (PyTorch + CUDA)</option><option value="worker-cpu">Worker batch (CPU)</option><option value="blank" selected="">En blanco / por defecto</option></select></div>
+  <div class="card tool gn" id="generador" data-view="dec">
+    <div class="gn-head">
+      <div class="gn-ht"><h3>Generador de Dockerfile</h3><p class="gn-sub">Cada respuesta reescribe el Dockerfile al instante · revisado en vivo con las 16 reglas del revisor</p></div>
+      <button class="gn-full" type="button" id="gn-full" aria-haspopup="dialog" title="Pantalla completa: decisiones y Dockerfile lado a lado"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5"></path><path d="M20 9V4h-5"></path><path d="M4 15v5h5"></path><path d="M20 15v5h-5"></path></svg><span>Pantalla completa</span></button>
+    </div>
+    <div class="gn-appbar" id="gn-appbar">
+      <p class="gn-at">Generador<span class="gn-at-x"> de Dockerfile</span></p>
+      <span class="gn-slot" id="gn-slot-psel" hidden=""></span><span class="gn-slot" id="gn-slot-chip" hidden=""></span><span class="gn-slot" id="gn-slot-acts" hidden=""></span>
+      <button class="gn-close" type="button" id="gn-close" aria-label="Cerrar la pantalla completa (Esc)" title="Cerrar (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12"></path><path d="M18 6 6 18"></path></svg></button>
+      <div class="gn-switch" role="group" aria-label="Vista"><button type="button" class="gn-sv" data-v="dec" aria-pressed="true">Decisiones</button><button type="button" class="gn-sv" data-v="code" aria-pressed="false">Dockerfile</button></div>
+    </div>
+    <div class="gn-presets" role="group" aria-label="Presets"><span class="gn-k">Preset</span><button class="gn-p" type="button" data-p="c01-gateway" aria-pressed="false">C01 · gateway (FastAPI, CPU)</button><button class="gn-p" type="button" data-p="c01-triton" aria-pressed="false">C01 · Triton (GPU)</button><button class="gn-p" type="button" data-p="gpu-api" aria-pressed="false">API de inferencia en GPU (PyTorch + CUDA)</button><button class="gn-p" type="button" data-p="worker-cpu" aria-pressed="false">Worker batch (CPU)</button><button class="gn-p" type="button" data-p="blank" aria-pressed="true">En blanco / por defecto</button><span class="gn-slot" id="gn-home-psel" hidden=""></span><select class="gn-psel gn-in" id="gn-psel" aria-label="Preset"><option value="">Personalizado</option><option value="c01-gateway">C01 · gateway (FastAPI, CPU)</option><option value="c01-triton">C01 · Triton (GPU)</option><option value="gpu-api">API de inferencia en GPU (PyTorch + CUDA)</option><option value="worker-cpu">Worker batch (CPU)</option><option value="blank" selected="">En blanco / por defecto</option></select></div>
+    <div class="gn-main">
     <form class="gn-form" id="gn-form" novalidate="" onsubmit="return false"><fieldset class="gn-g" data-g="servicio"><legend>Servicio</legend><div class="gn-qs"><div class="gn-q gn-wide" data-q="svc"><span class="gn-l" id="gn-svc-l">Tipo</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-svc-l"><label class="gn-o"><input class="gn-r" type="radio" name="svc" value="api" checked=""><span class="gn-ob">API HTTP</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="svc" value="worker"><span class="gn-ob">Worker / batch</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="svc" value="train"><span class="gn-ob">Entrenamiento</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="svc" value="triton"><span class="gn-ob">Triton</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-svc-h">FastAPI + uvicorn, un proceso por contenedor</p><p class="gn-x" id="gn-svc-x" hidden=""></p><p class="gn-e" id="gn-svc-e" hidden=""></p></div></div></fieldset><fieldset class="gn-g" data-g="base"><legend>Base</legend><div class="gn-qs"><div class="gn-q" data-q="hw"><span class="gn-l" id="gn-hw-l">Hardware</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-hw-l"><label class="gn-o"><input class="gn-r" type="radio" name="hw" value="cpu" checked=""><span class="gn-ob">CPU</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="hw" value="gpu"><span class="gn-ob">GPU NVIDIA</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-hw-h">Sin CUDA en la imagen (torch: el índice whl/cpu)</p><p class="gn-x" id="gn-hw-x" hidden=""></p><p class="gn-e" id="gn-hw-e" hidden=""></p></div><div class="gn-q gn-wide" data-q="base"><span class="gn-l" id="gn-base-l">Imagen base</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-base-l"><label class="gn-o"><input class="gn-r" type="radio" name="base" value="slim" checked=""><span class="gn-ob">python slim</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="base" value="distroless"><span class="gn-ob">distroless</span><span class="gn-sr"></span></label><label class="gn-o" title="CPU: estas bases cargan GB de CUDA que no usas"><input class="gn-r" type="radio" name="base" value="cuda" disabled=""><span class="gn-ob">CUDA</span><span class="gn-sr"> (no disponible: CPU: estas bases cargan GB de CUDA que no usas)</span></label><label class="gn-o" title="CPU: estas bases cargan GB de CUDA que no usas"><input class="gn-r" type="radio" name="base" value="pytorch" disabled=""><span class="gn-ob">PyTorch</span><span class="gn-sr"> (no disponible: CPU: estas bases cargan GB de CUDA que no usas)</span></label><label class="gn-o" title="CPU: estas bases cargan GB de CUDA que no usas"><input class="gn-r" type="radio" name="base" value="ngc" disabled=""><span class="gn-ob">NGC PyTorch</span><span class="gn-sr"> (no disponible: CPU: estas bases cargan GB de CUDA que no usas)</span></label><label class="gn-o" title="Solo para el servicio Triton"><input class="gn-r" type="radio" name="base" value="triton" disabled=""><span class="gn-ob">tritonserver</span><span class="gn-sr"> (no disponible: Solo para el servicio Triton)</span></label></div><p class="gn-h" id="gn-base-h">Debian 13 + Python oficial (≈ 43 MB comprimida)</p><p class="gn-x" id="gn-base-x" hidden=""></p><p class="gn-e" id="gn-base-e" hidden=""></p></div><div class="gn-q" data-q="tver" hidden=""><span class="gn-l" id="gn-tver-l">Release de Triton</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-tver-l"><label class="gn-o"><input class="gn-r" type="radio" name="tver" value="24.08"><span class="gn-ob">24.08 · C01</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="tver" value="26.09" checked=""><span class="gn-ob">26.09 · última</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-tver-h">TensorRT 11.3, CUDA 13.4.1: el mismo YY.MM que el TensorRT del engine</p><p class="gn-x" id="gn-tver-x" hidden=""></p><p class="gn-e" id="gn-tver-e" hidden=""></p></div><div class="gn-q" data-q="py"><span class="gn-l" id="gn-py-l">Python</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-py-l"><label class="gn-o"><input class="gn-r" type="radio" name="py" value="3.12"><span class="gn-ob">3.12</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="py" value="3.13" checked=""><span class="gn-ob">3.13</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="py" value="3.14"><span class="gn-ob">3.14</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-py-h"></p><p class="gn-x" id="gn-py-x" hidden=""></p><p class="gn-e" id="gn-py-e" hidden=""></p></div><div class="gn-q" data-q="pin"><span class="gn-l" id="gn-pin-l">Versión de la base</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-pin-l"><label class="gn-o"><input class="gn-r" type="radio" name="pin" value="minor" checked=""><span class="gn-ob">tag de versión</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="pin" value="exact"><span class="gn-ob">tag exacto</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="pin" value="digest"><span class="gn-ob">+ digest</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-pin-h">python:3.13-slim: recibe parches solo</p><p class="gn-x" id="gn-pin-x" hidden=""></p><p class="gn-e" id="gn-pin-e" hidden=""></p></div><div class="gn-q gn-wide" data-q="digests" hidden=""><span class="gn-l" id="gn-digests-l">Digest de cada imagen</span><div class="gn-dg" id="gn-dg" role="group" aria-labelledby="gn-digests-l"></div><p class="gn-h">docker buildx imagetools inspect &lt;imagen&gt;: la línea Digest</p><p class="gn-e" id="gn-digests-e" hidden=""></p></div></div></fieldset><fieldset class="gn-g" data-g="deps"><legend>Dependencias</legend><p class="gn-gn" hidden="">Triton ya trae todo: no hay dependencias de Python</p><div class="gn-qs"><div class="gn-q" data-q="pm"><span class="gn-l" id="gn-pm-l">Gestor</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-pm-l"><label class="gn-o"><input class="gn-r" type="radio" name="pm" value="pip" checked=""><span class="gn-ob">pip + requirements.txt</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="pm" value="uv"><span class="gn-ob">uv + uv.lock</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-pm-h">Fijado con == (pip-compile o uv pip compile)</p><p class="gn-x" id="gn-pm-x" hidden=""></p><p class="gn-e" id="gn-pm-e" hidden=""></p></div><div class="gn-q" data-q="stages"><span class="gn-l" id="gn-stages-l">Etapas</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-stages-l"><label class="gn-o"><input class="gn-r" type="radio" name="stages" value="multi" checked=""><span class="gn-ob">multi-stage</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="stages" value="single"><span class="gn-ob">una etapa</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-stages-h">builder → runtime: solo el venv cruza</p><p class="gn-x" id="gn-stages-x" hidden=""></p><p class="gn-e" id="gn-stages-e" hidden=""></p></div><div class="gn-q" data-q="wheels"><span class="gn-l" id="gn-wheels-l">Compilación</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-wheels-l"><label class="gn-o"><input class="gn-r" type="radio" name="wheels" value="yes" checked=""><span class="gn-ob">solo wheels</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="wheels" value="no"><span class="gn-ob">compilar si falta</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-wheels-h">Si falta una wheel, el build falla</p><p class="gn-x" id="gn-wheels-x" hidden=""></p><p class="gn-e" id="gn-wheels-e" hidden=""></p></div><div class="gn-q" data-q="hashes"><span class="gn-l" id="gn-hashes-l">Hashes</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-hashes-l"><label class="gn-o"><input class="gn-r" type="radio" name="hashes" value="no" checked=""><span class="gn-ob">== sin hashes</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="hashes" value="yes"><span class="gn-ob">--require-hashes</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-hashes-h">Versiones fijas</p><p class="gn-x" id="gn-hashes-x" hidden=""></p><p class="gn-e" id="gn-hashes-e" hidden=""></p></div><div class="gn-q" data-q="cache"><span class="gn-l" id="gn-cache-l">Cache de BuildKit</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-cache-l"><label class="gn-o"><input class="gn-r" type="radio" name="cache" value="no" checked=""><span class="gn-ob">sin cache mount</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="cache" value="yes"><span class="gn-ob">cache mount</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-cache-h">Sin cache en las capas</p><p class="gn-x" id="gn-cache-x" hidden=""></p><p class="gn-e" id="gn-cache-e" hidden=""></p></div></div></fieldset><fieldset class="gn-g" data-g="sistema"><legend>Sistema</legend><p class="gn-gn" hidden="">Triton: la imagen de NGC ya trae lo que usa</p><div class="gn-qs"><div class="gn-q gn-wide" data-q="apt"><span class="gn-l" id="gn-apt-l">Paquetes apt</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-apt-l"><label class="gn-o"><input class="gn-r" type="radio" name="apt" value="none" checked=""><span class="gn-ob">ninguno</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="apt" value="opencv"><span class="gn-ob">OpenCV</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="apt" value="ffmpeg"><span class="gn-ob">ffmpeg</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="apt" value="custom"><span class="gn-ob">lista</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-apt-h">Las wheels traen sus librerías</p><p class="gn-x" id="gn-apt-x" hidden=""></p><p class="gn-e" id="gn-apt-e" hidden=""></p></div><div class="gn-q" data-q="aptList" hidden=""><label class="gn-l" id="gn-aptList-l" for="gn-aptList">Paquetes</label><input class="gn-in" type="text" id="gn-aptList" name="aptList" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="libpq5 curl" aria-describedby="gn-aptList-e" value=""><p class="gn-h" id="gn-aptList-h"></p><p class="gn-x" id="gn-aptList-x" hidden=""></p><p class="gn-e" id="gn-aptList-e" hidden=""></p></div></div></fieldset><fieldset class="gn-g" data-g="modelo"><legend>Modelo</legend><div class="gn-qs"><div class="gn-q gn-wide" data-q="weights"><span class="gn-l" id="gn-weights-l">Pesos</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-weights-l"><label class="gn-o"><input class="gn-r" type="radio" name="weights" value="none" checked=""><span class="gn-ob">sin modelo</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="weights" value="bake"><span class="gn-ob">en la imagen</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="weights" value="build"><span class="gn-ob">bajados en el build</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="weights" value="startup"><span class="gn-ob">al arrancar</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="weights" value="mount"><span class="gn-ob">montados</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-weights-h">Llama a otro servicio, como el gateway del C01</p><p class="gn-x" id="gn-weights-x" hidden=""></p><p class="gn-e" id="gn-weights-e" hidden=""></p></div><div class="gn-q" data-q="modelPath" hidden=""><label class="gn-l" id="gn-modelPath-l" for="gn-modelPath">Archivo que tiene que existir</label><input class="gn-in" type="text" id="gn-modelPath" name="modelPath" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="model.pt" aria-describedby="gn-modelPath-e" value=""><p class="gn-h" id="gn-modelPath-h"></p><p class="gn-x" id="gn-modelPath-x" hidden=""></p><p class="gn-e" id="gn-modelPath-e" hidden=""></p></div><div class="gn-q" data-q="s3" hidden=""><label class="gn-l" id="gn-s3-l" for="gn-s3">Model repository en S3</label><input class="gn-in" type="text" id="gn-s3" name="s3" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="s3://mi-bucket/model_repository" aria-describedby="gn-s3-e" value=""><p class="gn-h" id="gn-s3-h"></p><p class="gn-x" id="gn-s3-x" hidden=""></p><p class="gn-e" id="gn-s3-e" hidden=""></p></div></div></fieldset><fieldset class="gn-g" data-g="runtime"><legend>Runtime</legend><div class="gn-qs"><div class="gn-q" data-q="user"><span class="gn-l" id="gn-user-l">Usuario</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-user-l"><label class="gn-o"><input class="gn-r" type="radio" name="user" value="uid" checked=""><span class="gn-ob">UID numérico</span><span class="gn-sr"></span></label><label class="gn-o" title="Solo para Triton: tu imagen fija su USER"><input class="gn-r" type="radio" name="user" value="k8s" disabled=""><span class="gn-ob">runAsUser en k8s</span><span class="gn-sr"> (no disponible: Solo para Triton: tu imagen fija su USER)</span></label><label class="gn-o is-flag"><input class="gn-r" type="radio" name="user" value="root"><span class="gn-ob">root</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-user-h">USER con número: runAsNonRoot lo verifica</p><p class="gn-x" id="gn-user-x" hidden=""></p><p class="gn-e" id="gn-user-e" hidden=""></p></div><div class="gn-q" data-q="uid"><label class="gn-l" id="gn-uid-l" for="gn-uid">UID</label><input class="gn-in" type="text" inputmode="numeric" id="gn-uid" name="uid" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="10001" aria-describedby="gn-uid-e" value=""><p class="gn-h" id="gn-uid-h"></p><p class="gn-x" id="gn-uid-x" hidden=""></p><p class="gn-e" id="gn-uid-e" hidden=""></p></div><div class="gn-q" data-q="port"><label class="gn-l" id="gn-port-l" for="gn-port">Puerto</label><input class="gn-in" type="text" inputmode="numeric" id="gn-port" name="port" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="8080" aria-describedby="gn-port-e" value=""><p class="gn-h" id="gn-port-h"></p><p class="gn-x" id="gn-port-x" hidden=""></p><p class="gn-e" id="gn-port-e" hidden=""></p></div><div class="gn-q" data-q="metrics" hidden=""><span class="gn-l" id="gn-metrics-l">Métricas</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-metrics-l"><label class="gn-o"><input class="gn-r" type="radio" name="metrics" value="no" checked=""><span class="gn-ob">no</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="metrics" value="yes"><span class="gn-ob">/metrics en :9100</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-metrics-h">Sin puerto: no hay nada que exponer</p><p class="gn-x" id="gn-metrics-x" hidden=""></p><p class="gn-e" id="gn-metrics-e" hidden=""></p></div><div class="gn-q" data-q="nodes" hidden=""><span class="gn-l" id="gn-nodes-l">Nodos</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-nodes-l"><label class="gn-o"><input class="gn-r" type="radio" name="nodes" value="single" checked=""><span class="gn-ob">un nodo</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="nodes" value="multi"><span class="gn-ob">varios nodos</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-nodes-h">torchrun --standalone: rendezvous local, sin puerto</p><p class="gn-x" id="gn-nodes-x" hidden=""></p><p class="gn-e" id="gn-nodes-e" hidden=""></p></div><div class="gn-q" data-q="app"><label class="gn-l" id="gn-app-l" for="gn-app">App ASGI</label><input class="gn-in" type="text" id="gn-app" name="app" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="app.main:app" aria-describedby="gn-app-e" value=""><p class="gn-h" id="gn-app-h"></p><p class="gn-x" id="gn-app-x" hidden=""></p><p class="gn-e" id="gn-app-e" hidden=""></p></div><div class="gn-q" data-q="code"><label class="gn-l" id="gn-code-l" for="gn-code">Código a copiar</label><input class="gn-in" type="text" id="gn-code" name="code" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="app/" aria-describedby="gn-code-e" value=""><p class="gn-h" id="gn-code-h"></p><p class="gn-x" id="gn-code-x" hidden=""></p><p class="gn-e" id="gn-code-e" hidden=""></p></div><div class="gn-q" data-q="workers"><label class="gn-l" id="gn-workers-l" for="gn-workers">Workers de uvicorn</label><input class="gn-in" type="text" inputmode="numeric" id="gn-workers" name="workers" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="1" aria-describedby="gn-workers-e" value=""><p class="gn-h" id="gn-workers-h"></p><p class="gn-x" id="gn-workers-x" hidden=""></p><p class="gn-e" id="gn-workers-e" hidden=""></p></div><div class="gn-q" data-q="flags"><span class="gn-l" id="gn-flags-l">uvicorn</span><div class="gn-seg" role="group" aria-labelledby="gn-flags-l"><label class="gn-o"><input class="gn-r" type="checkbox" name="flags" value="keepalive"><span class="gn-ob">keep-alive 75 s</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="checkbox" name="flags" value="noaccess"><span class="gn-ob">sin access log</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="checkbox" name="flags" value="graceful" checked=""><span class="gn-ob">graceful 20 s</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-flags-h"></p><p class="gn-x" id="gn-flags-x" hidden=""></p><p class="gn-e" id="gn-flags-e" hidden=""></p></div><div class="gn-q" data-q="health"><span class="gn-l" id="gn-health-l">HEALTHCHECK</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-health-l"><label class="gn-o"><input class="gn-r" type="radio" name="health" value="http" checked=""><span class="gn-ob">HTTP</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="health" value="none"><span class="gn-ob">NONE</span><span class="gn-sr"></span></label><label class="gn-o is-flag"><input class="gn-r" type="radio" name="health" value="omit"><span class="gn-ob">omitir</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-health-h">Para docker run y compose; k8s usa probes</p><p class="gn-x" id="gn-health-x" hidden=""></p><p class="gn-e" id="gn-health-e" hidden=""></p></div><div class="gn-q" data-q="hpath"><label class="gn-l" id="gn-hpath-l" for="gn-hpath">Ruta de salud</label><input class="gn-in" type="text" id="gn-hpath" name="hpath" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="/healthz" aria-describedby="gn-hpath-e" value=""><p class="gn-h" id="gn-hpath-h"></p><p class="gn-x" id="gn-hpath-x" hidden=""></p><p class="gn-e" id="gn-hpath-e" hidden=""></p></div><div class="gn-q" data-q="init"><span class="gn-l" id="gn-init-l">PID 1</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-init-l"><label class="gn-o"><input class="gn-r" type="radio" name="init" value="exec" checked=""><span class="gn-ob">el proceso</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="init" value="tini"><span class="gn-ob">tini</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="init" value="docker"><span class="gn-ob">docker --init</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-init-h">Forma exec: tu proceso maneja SIGTERM</p><p class="gn-x" id="gn-init-x" hidden=""></p><p class="gn-e" id="gn-init-e" hidden=""></p></div><div class="gn-q" data-q="env"><span class="gn-l" id="gn-env-l">Variables de Python</span><div class="gn-seg" role="group" aria-labelledby="gn-env-l"><label class="gn-o"><input class="gn-r" type="checkbox" name="env" value="unbuf" checked=""><span class="gn-ob">PYTHONUNBUFFERED</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="checkbox" name="env" value="nopyc" checked=""><span class="gn-ob">PYTHONDONTWRITEBYTECODE</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-env-h"></p><p class="gn-x" id="gn-env-x" hidden=""></p><p class="gn-e" id="gn-env-e" hidden=""></p></div><div class="gn-q gn-wide" data-q="envx"><label class="gn-l" id="gn-envx-l" for="gn-envx">Otras ENV (CLAVE=valor)</label><textarea class="gn-in gn-ta" id="gn-envx" name="envx" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="LOG_LEVEL=info" aria-describedby="gn-envx-e" rows="2"></textarea><p class="gn-h" id="gn-envx-h"></p><p class="gn-x" id="gn-envx-x" hidden=""></p><p class="gn-e" id="gn-envx-e" hidden=""></p></div></div></fieldset><fieldset class="gn-g" data-g="meta"><legend>Metadata y salida</legend><div class="gn-qs"><div class="gn-q" data-q="image"><label class="gn-l" id="gn-image-l" for="gn-image">Nombre de la imagen</label><input class="gn-in" type="text" id="gn-image" name="image" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="mi-servicio" aria-describedby="gn-image-e" value=""><p class="gn-h" id="gn-image-h"></p><p class="gn-x" id="gn-image-x" hidden=""></p><p class="gn-e" id="gn-image-e" hidden=""></p></div><div class="gn-q" data-q="labels"><span class="gn-l" id="gn-labels-l">Etiquetas OCI</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-labels-l"><label class="gn-o"><input class="gn-r" type="radio" name="labels" value="no" checked=""><span class="gn-ob">no</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="labels" value="yes"><span class="gn-ob">sí</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-labels-h"></p><p class="gn-x" id="gn-labels-x" hidden=""></p><p class="gn-e" id="gn-labels-e" hidden=""></p></div><div class="gn-q" data-q="source" hidden=""><label class="gn-l" id="gn-source-l" for="gn-source">Repositorio</label><input class="gn-in" type="text" id="gn-source" name="source" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="https://github.com/mi-org/mi-servicio" aria-describedby="gn-source-e" value=""><p class="gn-h" id="gn-source-h"></p><p class="gn-x" id="gn-source-x" hidden=""></p><p class="gn-e" id="gn-source-e" hidden=""></p></div><div class="gn-q" data-q="comments"><span class="gn-l" id="gn-comments-l">Comentarios</span><div class="gn-seg" role="radiogroup" aria-labelledby="gn-comments-l"><label class="gn-o"><input class="gn-r" type="radio" name="comments" value="none"><span class="gn-ob">ninguno</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="comments" value="brief" checked=""><span class="gn-ob">breves</span><span class="gn-sr"></span></label><label class="gn-o"><input class="gn-r" type="radio" name="comments" value="detailed"><span class="gn-ob">detallados</span><span class="gn-sr"></span></label></div><p class="gn-h" id="gn-comments-h">Una línea por bloque</p><p class="gn-x" id="gn-comments-x" hidden=""></p><p class="gn-e" id="gn-comments-e" hidden=""></p></div></div></fieldset></form>
     <div class="gn-panel" id="gn-panel">
       <div class="gn-bar">
@@ -1188,17 +1272,19 @@ Run <span class="tk-s">'docker run --help'</span> for more information
           <button class="gn-tab" type="button" role="tab" id="gn-t-dockerignore" data-t="dockerignore" aria-selected="false" aria-controls="gn-view" tabindex="-1">.dockerignore</button>
           <button class="gn-tab" type="button" role="tab" id="gn-t-commands" data-t="commands" aria-selected="false" aria-controls="gn-view" tabindex="-1">Build &amp; run</button>
         </div>
-        <button class="gn-chip ok" type="button" id="gn-chip" aria-expanded="false" aria-controls="gn-finds"><span class="gn-dot" aria-hidden="true"></span><span class="gn-chip-l" id="gn-chip-t">0 hallazgos</span><span class="gn-chip-s" id="gn-chip-s" aria-hidden="true">0 hallazgos</span></button>
-        <div class="gn-acts"><button class="gn-btn" type="button" id="gn-copy" aria-label="Copiar el archivo" title="Copiar el archivo"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg><span class="gn-bl">Copiar</span></button><button class="gn-btn" type="button" id="gn-dl" aria-label="Descargar el archivo" title="Descargar el archivo"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg><span class="gn-bl">Descargar</span></button><button class="gn-btn" type="button" id="gn-share" aria-label="Copiar un enlace con estas respuestas" title="Copiar un enlace con estas respuestas"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.3 1.3"></path><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.3-1.3"></path></svg><span class="gn-bl">Enlace</span></button><button class="gn-btn" type="button" id="gn-reset" aria-label="Volver a los valores por defecto" title="Volver a los valores por defecto"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"></path><path d="M4 4v5h5"></path></svg><span class="gn-bl">Reset</span></button></div>
+        <span class="gn-slot" id="gn-home-chip" hidden=""></span><button class="gn-chip ok" type="button" id="gn-chip" aria-expanded="false" aria-controls="gn-finds"><span class="gn-dot" aria-hidden="true"></span><span class="gn-chip-l" id="gn-chip-t">0 hallazgos</span><span class="gn-chip-s" id="gn-chip-s" aria-hidden="true">0 hallazgos</span></button>
+        <span class="gn-slot" id="gn-home-acts" hidden=""></span><div class="gn-acts"><button class="gn-btn" type="button" id="gn-copy" aria-label="Copiar el archivo" title="Copiar el archivo"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg><span class="gn-bl">Copiar</span></button><button class="gn-btn" type="button" id="gn-dl" aria-label="Descargar el archivo" title="Descargar el archivo"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg><span class="gn-bl">Descargar</span></button><button class="gn-btn" type="button" id="gn-share" aria-label="Copiar un enlace con estas respuestas" title="Copiar un enlace con estas respuestas"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.3 1.3"></path><path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.3-1.3"></path></svg><span class="gn-bl">Enlace</span></button><button class="gn-btn" type="button" id="gn-reset" aria-label="Volver a los valores por defecto" title="Volver a los valores por defecto"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"></path><path d="M4 4v5h5"></path></svg><span class="gn-bl">Reset</span></button></div>
       </div>
       <div class="gn-body" id="gn-body">
         <div class="gn-finds" id="gn-finds" hidden=""></div>
-        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><span class="gn-meta2" id="gn-meta2">39 líneas</span><button class="gn-zbtn" type="button" id="gn-zip" aria-label="Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md" title="Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg><span>.zip</span></button></div>
+        <div class="gn-tools"><label class="gn-wrap"><input type="checkbox" id="gn-wrap" role="switch"><span class="gn-sw" aria-hidden="true"></span><span>Ajustar líneas</span></label><button class="gn-delta" type="button" id="gn-delta" hidden=""></button><span class="gn-meta2" id="gn-meta2">39 líneas</span><button class="gn-zbtn" type="button" id="gn-zip" aria-label="Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md" title="Descargar un .zip con Dockerfile, .dockerignore y build-and-run.md"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><path d="m7 10 5 5 5-5"></path><path d="M5 20h14"></path></svg><span>.zip</span></button></div>
         <div class="gn-code" id="gn-view" role="tabpanel" aria-labelledby="gn-t-dockerfile" tabindex="0"><pre class="gn-pre" id="gn-pre"><code id="gn-src"><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># syntax=docker/dockerfile:1</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># mi-servicio: API HTTP en CPU · multi-stage (builder → runtime)</span></span></span><span class="gn-ln"><span class="gn-lc"></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># ---------------------------------------------------------------- etapa 1: builder</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Base: Python 3.13 sobre Debian 13 (trixie)</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">FROM</span> python:3.13-slim <span class="tk-k">AS</span> builder</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Sin cache de pip en las capas</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">ENV</span> PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># venv en /opt/venv: se copia entero a la etapa final</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">RUN</span> python -m venv /opt/venv</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">ENV</span> PATH=<span class="tk-s">"/opt/venv/bin:$PATH"</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Dependencias antes que el código: esta capa queda en cache</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">COPY</span> requirements.txt .</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Solo wheels: si falta una, el build falla aquí</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">RUN</span> pip install --only-binary=:all: -r requirements.txt</span></span><span class="gn-ln"><span class="gn-lc"></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># ---------------------------------------------------------------- etapa 2: runtime</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">FROM</span> python:3.13-slim <span class="tk-k">AS</span> runtime</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Logs sin buffer y sin .pyc; el venv primero en el PATH</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">ENV</span> PYTHONDONTWRITEBYTECODE=1 \</span></span><span class="gn-ln"><span class="gn-lc">    PYTHONUNBUFFERED=1 \</span></span><span class="gn-ln"><span class="gn-lc">    PATH=<span class="tk-s">"/opt/venv/bin:$PATH"</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Usuario sin privilegios con UID numérico (10001): runAsNonRoot lo puede verificar</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">RUN</span> groupadd --system --gid 10001 app &amp;&amp; \</span></span><span class="gn-ln"><span class="gn-lc">    useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">WORKDIR</span> /srv</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Solo el venv: compiladores y caches se quedan en el builder</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">COPY</span> --from=builder /opt/venv /opt/venv</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Código con dueño root: el proceso no puede modificarlo</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">COPY</span> app/ ./app/</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">USER</span> 10001</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Documenta el puerto (no lo publica)</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">EXPOSE</span> 8080</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Para docker run y compose; Kubernetes usa sus probes</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">HEALTHCHECK</span> --interval=10s --timeout=2s --start-period=10s --retries=3 \</span></span><span class="gn-ln"><span class="gn-lc">    CMD [<span class="tk-s">"python"</span>, <span class="tk-s">"-c"</span>, <span class="tk-s">"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=1)"</span>]</span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-c"># Un proceso en forma exec: uvicorn es el PID 1 y recibe el SIGTERM</span></span></span><span class="gn-ln"><span class="gn-lc"><span class="tk-k">CMD</span> [<span class="tk-s">"uvicorn"</span>, <span class="tk-s">"app.main:app"</span>, <span class="tk-s">"--host"</span>, <span class="tk-s">"0.0.0.0"</span>, <span class="tk-s">"--port"</span>, <span class="tk-s">"8080"</span>, <span class="tk-s">"--workers"</span>, <span class="tk-s">"1"</span>, \</span></span><span class="gn-ln"><span class="gn-lc">     <span class="tk-s">"--timeout-graceful-shutdown"</span>, <span class="tk-s">"20"</span>]</span></span></code></pre></div>
       </div>
       <p class="gn-toast" id="gn-toast" aria-hidden="true" hidden=""></p>
       <p class="gn-live" id="gn-live" aria-live="polite"></p>
     </div>
+    </div>
+    <div class="gn-peek" id="gn-peek" hidden=""><div class="gn-peek-in"><p class="gn-peek-h" id="gn-peek-h"></p><pre class="gn-peek-c" id="gn-peek-c"></pre><button type="button" class="gn-peek-go" id="gn-peek-go">Ver en el Dockerfile</button></div></div>
   </div>
   <div class="card tool" id="diagnosticador">
     <h3>Diagnosticador</h3>
@@ -2788,16 +2874,25 @@ function lintFor(cfg, text, compiled) {
   };
 }
 
-// Qué líneas de b son nuevas o cambiaron respecto de a (LCS por líneas)
-function diffLines(a, b) {
-  const A = a.split('\n'), B = b.split('\n'), n = A.length, m = B.length;
+// Diff por líneas (LCS) de a → b. ops, en orden: '=' (igual), '-' (línea de a que se fue: va antes de la línea b de b)
+// y '+' (línea b nueva). changed[j]: la línea j de b es nueva; removedAt[j]: cuántas líneas de a se fueron justo antes
+// de la línea j de b (removedAt[m]: al final). Con esto la página marca lo nuevo y deja un "−n" donde se borró algo.
+function diffDetail(a, b) {
+  const A = String(a).split('\n'), B = String(b).split('\n'), n = A.length, m = B.length;
   const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
   for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-  const changed = new Array(m).fill(true);
+  const ops = [], changed = new Array(m).fill(false), removedAt = new Array(m + 1).fill(0);
   let i = 0, j = 0;
-  while (i < n && j < m) { if (A[i] === B[j]) { changed[j] = false; i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; }
-  return changed;
+  while (i < n || j < m) {
+    if (i < n && j < m && A[i] === B[j]) { ops.push({ t: '=', a: i, b: j, text: B[j] }); i++; j++; }
+    else if (j >= m || (i < n && dp[i + 1][j] >= dp[i][j + 1])) { ops.push({ t: '-', a: i, b: j, text: A[i] }); removedAt[j]++; i++; }
+    else { ops.push({ t: '+', a: i, b: j, text: B[j] }); changed[j] = true; j++; }
+  }
+  const added = changed.filter(Boolean).length, removed = n + added - m;
+  return { ops, changed, removedAt, added, removed };
 }
+// Qué líneas de b son nuevas o cambiaron respecto de a
+function diffLines(a, b) { return diffDetail(a, b).changed; }
 
 // Estado en la URL: #generador?svc=worker&… (solo lo que difiere de DEFAULTS)
 const LIST_KEYS = ['flags', 'env'];
@@ -2902,7 +2997,7 @@ function toPageScript(src) {
   return `(function () {\n'use strict';\n${body}\nreturn { ${names.join(', ')} };\n})()`;
 }
 
-return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAULTS, PRESETS, QMAP, optionFlag, space, optionReason, isShown, normalize, derive, ignoreMatches, ignored, contextInputs, generate, compileRules, lint, NOT_APPLICABLE, lintFor, diffLines, encodeState, decodeState, crc32, zipStore, commandsMarkdown, bundle, toPageScript };
+return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAULTS, PRESETS, QMAP, optionFlag, space, optionReason, isShown, normalize, derive, ignoreMatches, ignored, contextInputs, generate, compileRules, lint, NOT_APPLICABLE, lintFor, diffDetail, diffLines, encodeState, decodeState, crc32, zipStore, commandsMarkdown, bundle, toPageScript };
 })();
   var HL = (function () {
   var esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -3192,20 +3287,56 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       $('gn-psel').value = match;
     }
 
-    // ---- panel: el archivo con números de línea; lo que cambió con la última respuesta parpadea
-    function paintCode(flash) {
-      var text = out[tab] || '', body = text.replace(/\n$/, ''), html = HL(body, LANG[tab]).split('\n');
-      var ch = flash && seen[tab] !== undefined && seen[tab] !== text ? GEN.diffLines(seen[tab].replace(/\n$/, ''), body) : null;
-      src.innerHTML = html.map(function (h, i) { return '<span class="gn-ln' + (ch && ch[i] ? ' is-new' : '') + '"><span class="gn-lc">' + h + '</span></span>'; }).join('');
+    // ---- panel: el archivo con números de línea. Lo que cambió con la última respuesta queda marcado hasta la siguiente
+    // (fondo y barra en el margen); donde se borraron líneas, una marca roja con "−n". mode: 'change' (recién cambió:
+    // parpadea y lleva el cambio a un tercio del alto), 'view' (otra pestaña u otra vista: solo lo lleva a la vista).
+    var lastDiff = null, TAB_NAME = { dockerfile: 'Dockerfile', dockerignore: '.dockerignore', commands: 'Build & run' }, ORDER_T = ['dockerfile', 'dockerignore', 'commands'];
+    function diffOf(t) { var d = lastDiff && lastDiff[t]; return d && d.text === out[t] && (d.added || d.removed) ? d : null; }
+    function gone(n) { return '<span class="gn-gone" data-n="' + n + '" title="' + n + (n === 1 ? ' línea borrada' : ' líneas borradas') + '" aria-hidden="true"></span>'; }
+    function lineEls() { return src.querySelectorAll('.gn-ln'); }
+    function paintCode(mode) {
+      var text = out[tab] || '', body = text.replace(/\n$/, ''), html = HL(body, LANG[tab]).split('\n'), d = diffOf(tab), parts = [];
+      html.forEach(function (h, i) {
+        if (d && d.removedAt[i]) parts.push(gone(d.removedAt[i]));
+        parts.push('<span class="gn-ln' + (d && d.changed[i] ? ' is-chg' + (mode === 'change' ? ' is-flash' : '') : '') + '"><span class="gn-lc">' + h + '</span></span>');
+      });
+      if (d && d.removedAt[html.length]) parts.push(gone(d.removedAt[html.length]));
+      src.innerHTML = parts.join('');
       seen[tab] = text;
       $('gn-t-' + tab).classList.remove('is-dirty');
       box.setAttribute('aria-labelledby', 'gn-t-' + tab);
-      var first = ch ? ch.indexOf(true) : -1;
-      if (first >= 0 && !panel.classList.contains('is-collapsed')) {
-        var el = src.children[first], top = lineTop(el);
-        if (top < box.scrollTop || top + el.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTo({ top: Math.max(0, top - 28), behavior: reduce ? 'auto' : 'smooth' });
-      }
+      if (mode) revealChange(mode === 'change');
     }
+    function paneHidden() { return app ? (window.innerWidth < 600 && root.getAttribute('data-view') !== 'code') : (window.innerWidth < 1024 && panel.classList.contains('is-collapsed')); }
+    // el primer cambio (o la primera marca de borrado) a un tercio del alto del panel
+    function revealChange(animate) {
+      var el = src.querySelector('.is-chg, .gn-gone'), pre = $('gn-pre');
+      pre.style.paddingBottom = '';
+      if (!el || paneHidden()) return;
+      // un cambio cerca del final también queda a un tercio: espacio extra debajo de la última línea, solo si hace falta
+      var want = lineTop(el) - box.clientHeight / 3, max = box.scrollHeight - box.clientHeight;
+      if (want > max) pre.style.paddingBottom = Math.ceil(want - max + 8) + 'px';
+      box.scrollTo({ top: Math.max(0, want), behavior: animate && !reduce ? 'smooth' : 'auto' });
+    }
+    // "+a −r" arriba del panel; si también (o solo) cambió otra pestaña, lo dice. Un clic vuelve al cambio.
+    function counts(d) { return '<span class="gn-dp' + (d.added ? '' : ' z') + '">+' + d.added + '</span> <span class="gn-dm' + (d.removed ? '' : ' z') + '">−' + d.removed + '</span>'; }
+    function paintDelta() {
+      var b = $('gn-delta'), tools = b.parentNode, cur = diffOf(tab);
+      var others = ORDER_T.filter(function (t) { return t !== tab && diffOf(t); });
+      if (!cur && !others.length) { b.hidden = true; tools.classList.remove('has-delta'); return; }
+      var txt = (cur ? '+' + cur.added + ' −' + cur.removed : 'Sin cambios aquí') + (others.length ? (cur ? ' · también en ' : ' · cambió ') + others.map(function (t) { return TAB_NAME[t]; }).join(' y ') : '');
+      b.innerHTML = (cur ? counts(cur) : '<span class="gn-dx">Sin cambios aquí</span>') +
+        (others.length ? '<span class="gn-dx">' + esc((cur ? ' · también en ' : ' · cambió ') + others.map(function (t) { return TAB_NAME[t]; }).join(' y ')) + '</span>' : '');
+      b.classList.toggle('only-other', !cur);
+      b.classList.toggle('has-other', others.length > 0);
+      b.setAttribute('aria-label', 'Último cambio: ' + txt + '. Ir al cambio');
+      b.title = txt;
+      b.hidden = false; tools.classList.add('has-delta');
+    }
+    $('gn-delta').addEventListener('click', function () {
+      if (!diffOf(tab)) { var t = ORDER_T.filter(function (k) { return diffOf(k); })[0]; if (!t) return; pick(t); }
+      revealChange(true);
+    });
     function paintMeta(meta) {
       var nl = out.dockerfile.replace(/\n$/, '').split('\n').length, miss = meta.digestsMissing.length;
       $('gn-meta').innerHTML = $('gn-meta2').innerHTML = nl + ' líneas' + (miss ? ' · <b>' + (miss === 1 ? '1 digest por pegar' : miss + ' digests por pegar') + '</b>' : '');
@@ -3230,22 +3361,110 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       }).join('') + '</ul>';
       if (t !== summary) { if (summary) say('Revisor: ' + t); summary = t; }
     }
-    function update(user) {
+    function writeHash() {
+      var enc = GEN.encodeState(cfg), q = enc + (app ? (enc ? '&' : '') + 'full=1' : '');
+      try { history.replaceState(null, '', '#generador' + (q ? '?' + q : '')); } catch (e) {}
+    }
+    // user: la cambió una persona (q: qué pregunta, 'preset' o 'reset'); si no, es la carga o un enlace nuevo
+    function update(user, q) {
       var n = GEN.normalize(cfg);
       cfg = n.cfg;
-      var o = GEN.generate(cfg);
+      var o = GEN.generate(cfg), prev = out, moved = false;
+      if (user && prev) {
+        var next = {};
+        ORDER_T.forEach(function (t) { var dd = GEN.diffDetail(prev[t].replace(/\n$/, ''), o[t].replace(/\n$/, '')); dd.text = o[t]; next[t] = dd; if (dd.added || dd.removed) moved = true; });
+        if (moved) lastDiff = next; // una respuesta que no cambia nada deja las marcas del cambio anterior
+      } else if (!user) lastDiff = null;
       Object.keys(FILES).forEach(function (t) { if (t !== tab && seen[t] !== undefined && seen[t] !== o[t]) $('gn-t-' + t).classList.add('is-dirty'); });
       out = o;
       paintForm(n, o.meta);
       paintMeta(o.meta);
-      paintCode(user);
+      paintCode(moved ? 'change' : undefined);
       paintLint();
+      paintDelta();
       if (user) {
         lsSet(KEY, JSON.stringify(cfg));
-        var enc = GEN.encodeState(cfg);
-        try { history.replaceState(null, '', '#generador' + (enc ? '?' + enc : '')); } catch (e) {}
-      }
+        writeHash();
+        if (moved) showPeek(q); else if (q === 'reset') hidePeek();
+      } else hidePeek();
     }
+
+    // ---- el vistazo: en el celular (y en pantallas angostas) el diff aparece justo debajo de la pregunta que cambió
+    var peek = $('gn-peek'), peekTab = 'dockerfile';
+    function narrowLayout() { return app ? window.innerWidth < 600 : window.innerWidth < 1024; }
+    function hidePeek() { peek.hidden = true; peek.style.height = ''; }
+    function grow(el, from) {
+      el.style.height = 'auto';
+      var to = el.scrollHeight;
+      if (reduce || from === to) return to;
+      el.style.height = from + 'px';
+      void el.offsetHeight;
+      el.style.height = to + 'px';
+      clearTimeout(el._t);
+      el._t = setTimeout(function () { el.style.height = 'auto'; }, 260);
+      return to;
+    }
+    // el vistazo entero a la vista: arriba del panel acoplado (o dentro de la columna de decisiones), sin esconder su comienzo
+    function peekInView(to) {
+      var r = peek.getBoundingClientRect(), top, bottom;
+      if (app) { var fr = form.getBoundingClientRect(); top = fr.top; bottom = fr.bottom; }
+      else {
+        var pr = panel.getBoundingClientRect();
+        top = parseFloat(root.style.getPropertyValue('--gn-top')) || 0;
+        bottom = pr.top > r.top ? Math.min(window.innerHeight, pr.top) : window.innerHeight;
+      }
+      var need = Math.min(r.top + to - (bottom - 10), r.top - (top + 10));
+      if (need <= 0) return;
+      var opt = { top: need, behavior: reduce ? 'auto' : 'smooth' };
+      if (app) form.scrollBy(opt); else window.scrollBy(opt);
+    }
+    // un par borrada/agregada con el mismo comienzo largo: las dos arrancan cerca de donde difieren (si no, se verían iguales)
+    function peekText(ops, cols) {
+      var shown = [], run = [], k = 0;
+      function flush() {
+        var dl = run.filter(function (i) { return ops[i].t === '-'; }), ad = run.filter(function (i) { return ops[i].t === '+'; });
+        for (var m = 0; m < dl.length && m < ad.length; m++) {
+          var a = ops[dl[m]].text, b = ops[ad[m]].text, p = 0;
+          while (p < a.length && p < b.length && a.charAt(p) === b.charAt(p)) p++;
+          if (p > cols - 12 && Math.max(a.length, b.length) > cols) {
+            var s0 = p - 16, sp = a.indexOf(' ', Math.max(0, s0));
+            if (sp >= 0 && sp < p - 4) s0 = sp + 1;
+            if (s0 > 0) { shown[dl[m]] = '…' + a.slice(s0); shown[ad[m]] = '…' + b.slice(s0); }
+          }
+        }
+        run = [];
+      }
+      ops.forEach(function (o) { if (o.t === '=') flush(); else { shown[k] = o.text; run.push(k); } k++; });
+      flush();
+      return shown;
+    }
+    function showPeek(q) {
+      var t = ORDER_T.filter(function (k) { return diffOf(k); })[0];
+      var host = !q || q === 'reset' ? null : q === 'preset' ? root.querySelector('.gn-presets') : form.querySelector('[data-q="' + q + '"]');
+      if (!t || !host || host.hidden || !narrowLayout()) { hidePeek(); return; }
+      var d = diffOf(t), others = ORDER_T.filter(function (k) { return k !== t && diffOf(k); });
+      peekTab = t;
+      // la pregunta no se mueve en la pantalla aunque el vistazo deje otra pregunta más arriba
+      var scroller = app ? form : null, anchor = host.getBoundingClientRect().top, from = peek.hidden || peek.parentNode !== host ? 0 : peek.getBoundingClientRect().height;
+      if (peek.parentNode !== host) { peek.hidden = true; host.appendChild(peek); }
+      $('gn-peek-h').innerHTML = '<b>' + esc(TAB_NAME[t]) + '</b> ' + counts(d) + (others.length ? ' <span class="gn-dx">· también en ' + esc(others.map(function (k) { return TAB_NAME[k]; }).join(' y ')) + '</span>' : '');
+      var shown = peekText(d.ops, Math.max(24, Math.floor((host.clientWidth - 34) / 7.3) - 2)), ch = [];
+      d.ops.forEach(function (o, i) { if (o.t !== '=') ch.push({ t: o.t, text: shown[i] }); });
+      $('gn-peek-c').innerHTML = ch.slice(0, 6).map(function (o) { return '<span class="gn-pk ' + (o.t === '+' ? 'add' : 'del') + '">' + (o.t === '+' ? '+ ' : '− ') + esc(o.text) + '</span>'; }).join('') +
+        (ch.length > 6 ? '<span class="gn-pk more">… y ' + (ch.length - 6) + (ch.length - 6 === 1 ? ' línea más' : ' líneas más') + '</span>' : '');
+      $('gn-peek-go').textContent = t === 'dockerfile' ? 'Ver en el Dockerfile' : t === 'dockerignore' ? 'Ver en el .dockerignore' : 'Ver en Build & run';
+      peek.hidden = false;
+      var shift = host.getBoundingClientRect().top - anchor;
+      if (shift) { if (scroller) scroller.scrollTop += shift; else try { window.scrollBy({ top: shift, behavior: 'instant' }); } catch (e) { window.scrollBy(0, shift); } }
+      peekInView(grow(peek, from));
+    }
+    $('gn-peek-go').addEventListener('click', function () {
+      if (app) setView('code');
+      else if (panel.classList.contains('is-collapsed')) fold(false);
+      if (tab !== peekTab) pick(peekTab);
+      revealChange(true);
+      try { box.focus({ preventScroll: true }); } catch (e) {}
+    });
 
     // ---- respuestas
     form.addEventListener('change', function (ev) {
@@ -3255,20 +3474,21 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
         cfg[t.name] = t.value;
         // otro servicio: sus valores por defecto (campos de texto y el HEALTHCHECK que le corresponde)
         if (t.name === 'svc') { cfg.app = ''; cfg.code = ''; cfg.modelPath = ''; cfg.health = t.value === 'worker' || t.value === 'train' ? 'omit' : 'http'; fillInputs(); }
-        update(true);
+        update(true, t.name);
       } else if (t.type === 'checkbox') {
         cfg[t.name] = Array.prototype.filter.call(form.querySelectorAll('input[name="' + t.name + '"]'), function (i) { return i.checked; }).map(function (i) { return i.value; });
-        update(true);
+        update(true, t.name);
       }
     });
     form.addEventListener('input', function (ev) {
       var t = ev.target;
       if (!t) return;
-      if (t.getAttribute('data-img')) { cfg.digests = Object.assign({}, cfg.digests); cfg.digests[t.getAttribute('data-img')] = t.value; }
-      else if (t.name && (t.tagName === 'TEXTAREA' || t.type === 'text')) cfg[t.name] = t.value;
+      var q;
+      if (t.getAttribute('data-img')) { cfg.digests = Object.assign({}, cfg.digests); cfg.digests[t.getAttribute('data-img')] = t.value; q = 'digests'; }
+      else if (t.name && (t.tagName === 'TEXTAREA' || t.type === 'text')) { cfg[t.name] = t.value; q = t.name; }
       else return;
       clearTimeout(tmr);
-      tmr = setTimeout(function () { update(true); }, 140);
+      tmr = setTimeout(function () { update(true, q); }, 140);
     });
     // una opción que no aplica: al tocarla, su razón (en el mouse, también el title)
     form.addEventListener('click', function (ev) {
@@ -3285,7 +3505,7 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       if (!p) return;
       cfg = Object.assign(JSON.parse(JSON.stringify(p.cfg)), { comments: cfg.comments, digests: cfg.digests || {} });
       fillInputs();
-      update(true);
+      update(true, 'preset');
       say('Preset: ' + p.label);
     }
     root.querySelectorAll('.gn-p').forEach(function (b) { b.addEventListener('click', function () { applyPreset(b.getAttribute('data-p')); }); });
@@ -3297,8 +3517,9 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       tabs.forEach(function (b) { var on = b.getAttribute('data-t') === t; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
       var dl = $('gn-dl');
       if (!viewer) { dl.setAttribute('aria-label', 'Descargar ' + FILES[t]); dl.title = 'Descargar ' + FILES[t]; }
-      paintCode(false);
       box.scrollTop = 0;
+      paintCode('view');
+      paintDelta();
     }
     tabs.forEach(function (b, i) {
       b.addEventListener('click', function () { if (panel.classList.contains('is-collapsed')) fold(false); pick(b.getAttribute('data-t')); });
@@ -3311,13 +3532,14 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
     });
 
     // ---- plegar, hallazgos, copiar, bajar, enlace y reset
-    function pad() { doc.documentElement.style.scrollPaddingBottom = onScreen ? (panel.offsetHeight + 12) + 'px' : ''; }
+    function pad() { doc.documentElement.style.scrollPaddingBottom = onScreen && !app && window.innerWidth < 1024 ? (panel.offsetHeight + 12) + 'px' : ''; }
     function fold(collapsed) {
       panel.classList.toggle('is-collapsed', collapsed);
       $('gn-fold').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
       $('gn-fold').setAttribute('aria-label', collapsed ? 'Desplegar el panel' : 'Plegar el panel');
       lsSet(KEY_UI, collapsed ? 'collapsed' : null);
       pad();
+      if (!collapsed) revealChange(false);
     }
     $('gn-fold').addEventListener('click', function () { fold(!panel.classList.contains('is-collapsed')); });
     // ajustar líneas: encendido por defecto bajo 768 px, apagado arriba; si lo cambias, queda tu elección
@@ -3339,7 +3561,7 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       var b = ev.target && ev.target.closest ? ev.target.closest('.gn-goto') : null;
       if (!b) return;
       if (tab !== 'dockerfile') pick('dockerfile');
-      var el = src.children[+b.getAttribute('data-line') - 1];
+      var el = lineEls()[+b.getAttribute('data-line') - 1];
       if (!el) return;
       src.querySelectorAll('.is-hit').forEach(function (x) { x.classList.remove('is-hit'); });
       el.classList.add('is-hit');
@@ -3429,26 +3651,89 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
       catch (e) { done(btn, 'No se pudo descargar'); }
     });
     $('gn-share').addEventListener('click', function () {
-      var enc = GEN.encodeState(cfg), url = String(location.href).split('#')[0] + '#generador' + (enc ? '?' + enc : '');
-      try { history.replaceState(null, '', '#generador' + (enc ? '?' + enc : '')); } catch (e) {}
+      writeHash();
+      var enc = GEN.encodeState(cfg), q = enc + (app ? (enc ? '&' : '') + 'full=1' : ''), url = String(location.href).split('#')[0] + '#generador' + (q ? '?' + q : '');
       copyText(url, this, 'Enlace copiado', 'Está en la barra');
     });
     $('gn-reset').addEventListener('click', function () {
       cfg = {};
       fillInputs();
-      update(true);
+      update(true, 'reset');
       lsSet(KEY, null);
-      try { history.replaceState(null, '', '#generador'); } catch (e) {}
+      writeHash();
       done(this, 'Listo');
     });
     window.addEventListener('hashchange', function () {
       var h = hashState();
-      if (h === null || h === GEN.encodeState(cfg)) return;
-      cfg = GEN.decodeState(h);
-      fillInputs();
-      update(false);
-      goTool();
+      if (h === null) return;
+      var full = /(^|&)full=1(&|$)/.test(h);
+      if (GEN.encodeState(GEN.normalize(GEN.decodeState(h)).cfg) !== GEN.encodeState(cfg)) {
+        cfg = GEN.decodeState(h);
+        fillInputs();
+        update(false);
+      }
+      if (full) openApp(); else { closeApp(); goTool(); }
     });
+
+    // ---- pantalla completa: la herramienta como una app encima de la página (también dentro del iframe del Artifact)
+    var app = false, lastFocus = null;
+    function move(node, marker) { marker.parentNode.insertBefore(node, marker); }
+    function setView(v) {
+      root.setAttribute('data-view', v);
+      root.querySelectorAll('.gn-sv').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false'); });
+      if (v === 'code') revealChange(false);
+    }
+    root.querySelectorAll('.gn-sv').forEach(function (b) { b.addEventListener('click', function () { setView(b.getAttribute('data-v')); }); });
+    function focusables() {
+      return Array.prototype.filter.call(root.querySelectorAll('button, input, select, textarea, [tabindex="0"]'), function (el) {
+        return !el.disabled && el.tabIndex >= 0 && el.getClientRects().length > 0;
+      });
+    }
+    function openApp() {
+      if (app) return;
+      app = true;
+      lastFocus = doc.activeElement;
+      move($('gn-psel'), $('gn-slot-psel')); move($('gn-chip'), $('gn-slot-chip')); move(root.querySelector('.gn-acts'), $('gn-slot-acts'));
+      root.classList.add('is-app');
+      root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true'); root.setAttribute('aria-label', 'Generador de Dockerfile');
+      doc.documentElement.classList.add('gn-lock');
+      setView('dec');
+      hidePeek();
+      writeHash();
+      pad();
+      revealChange(false);
+      setTimeout(function () { $('gn-close').focus(); }, 0);
+    }
+    function closeApp() {
+      if (!app) return;
+      app = false;
+      move($('gn-psel'), $('gn-home-psel')); move($('gn-chip'), $('gn-home-chip')); move(root.querySelector('.gn-acts'), $('gn-home-acts'));
+      root.classList.remove('is-app');
+      root.removeAttribute('role'); root.removeAttribute('aria-modal'); root.removeAttribute('aria-label');
+      doc.documentElement.classList.remove('gn-lock');
+      hidePeek();
+      writeHash();
+      pad();
+      var f = lastFocus && root.contains(lastFocus) ? lastFocus : $('gn-full');
+      try { f.focus({ preventScroll: true }); } catch (e) {}
+    }
+    $('gn-full').addEventListener('click', openApp);
+    $('gn-close').addEventListener('click', closeApp);
+    // Esc cierra; Tab no se escapa de la pantalla completa
+    doc.addEventListener('keydown', function (ev) {
+      if (!app) return;
+      if (ev.key === 'Escape') { ev.preventDefault(); closeApp(); return; }
+      if (ev.key !== 'Tab') return;
+      var f = focusables();
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1], a = doc.activeElement;
+      if (ev.shiftKey && (a === first || !root.contains(a))) { ev.preventDefault(); last.focus(); }
+      else if (!ev.shiftKey && (a === last || !root.contains(a))) { ev.preventDefault(); first.focus(); }
+    });
+    // el panel lado a lado queda pegado justo debajo de la barra de secciones
+    function setTop() { var nav = doc.querySelector('nav.toc'); root.style.setProperty('--gn-top', (nav ? Math.round(nav.getBoundingClientRect().height) : 0) + 'px'); }
+    setTop();
+    window.addEventListener('resize', function () { setTop(); pad(); if (!narrowLayout()) hidePeek(); });
     // con la herramienta en pantalla, el foco con Tab nunca queda detrás del panel
     if ('IntersectionObserver' in window) new IntersectionObserver(function (es) { es.forEach(function (e) { onScreen = e.isIntersecting; }); pad(); }).observe(form);
 
@@ -3461,11 +3746,14 @@ return { VERSIONS, PACKAGES, FRAG, IGNORE, CMDS, BASE_HEALTHCHECK, SCHEMA, DEFAU
     seen = { dockerfile: out.dockerfile, dockerignore: out.dockerignore, commands: out.commands };
     paintForm(n0, out.meta);
     paintMeta(out.meta);
-    paintCode(false);
+    paintCode();
     paintLint();
     if (lsGet(KEY_UI) === 'collapsed') fold(true);
-    // un enlace compartido abre en la herramienta (cuando la página ya tiene su alto final: fuentes cargadas)
-    if (hashState() !== null) { if (doc.readyState === 'complete') setTimeout(goTool, 0); else window.addEventListener('load', function () { setTimeout(goTool, 0); }); }
+    // un enlace compartido abre en la herramienta (cuando la página ya tiene su alto final: fuentes cargadas); con
+    // full=1, directo en pantalla completa
+    var h0 = hashState();
+    if (h0 !== null && /(^|&)full=1(&|$)/.test(h0)) openApp();
+    else if (h0 !== null) { if (doc.readyState === 'complete') setTimeout(goTool, 0); else window.addEventListener('load', function () { setTimeout(goTool, 0); }); }
   })();
 
   // ---------- quiz de errores

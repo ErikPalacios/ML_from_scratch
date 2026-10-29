@@ -1492,16 +1492,25 @@ export function lintFor(cfg, text, compiled) {
   };
 }
 
-// Qué líneas de b son nuevas o cambiaron respecto de a (LCS por líneas)
-export function diffLines(a, b) {
-  const A = a.split('\n'), B = b.split('\n'), n = A.length, m = B.length;
+// Diff por líneas (LCS) de a → b. ops, en orden: '=' (igual), '-' (línea de a que se fue: va antes de la línea b de b)
+// y '+' (línea b nueva). changed[j]: la línea j de b es nueva; removedAt[j]: cuántas líneas de a se fueron justo antes
+// de la línea j de b (removedAt[m]: al final). Con esto la página marca lo nuevo y deja un "−n" donde se borró algo.
+export function diffDetail(a, b) {
+  const A = String(a).split('\n'), B = String(b).split('\n'), n = A.length, m = B.length;
   const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
   for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-  const changed = new Array(m).fill(true);
+  const ops = [], changed = new Array(m).fill(false), removedAt = new Array(m + 1).fill(0);
   let i = 0, j = 0;
-  while (i < n && j < m) { if (A[i] === B[j]) { changed[j] = false; i++; j++; } else if (dp[i + 1][j] >= dp[i][j + 1]) i++; else j++; }
-  return changed;
+  while (i < n || j < m) {
+    if (i < n && j < m && A[i] === B[j]) { ops.push({ t: '=', a: i, b: j, text: B[j] }); i++; j++; }
+    else if (j >= m || (i < n && dp[i + 1][j] >= dp[i][j + 1])) { ops.push({ t: '-', a: i, b: j, text: A[i] }); removedAt[j]++; i++; }
+    else { ops.push({ t: '+', a: i, b: j, text: B[j] }); changed[j] = true; j++; }
+  }
+  const added = changed.filter(Boolean).length, removed = n + added - m;
+  return { ops, changed, removedAt, added, removed };
 }
+// Qué líneas de b son nuevas o cambiaron respecto de a
+export function diffLines(a, b) { return diffDetail(a, b).changed; }
 
 // Estado en la URL: #generador?svc=worker&… (solo lo que difiere de DEFAULTS)
 const LIST_KEYS = ['flags', 'env'];

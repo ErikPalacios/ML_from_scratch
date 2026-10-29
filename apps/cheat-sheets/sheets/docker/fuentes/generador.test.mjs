@@ -404,12 +404,59 @@ test('diffLines marca exactamente las líneas nuevas o cambiadas', () => {
   assert.deepEqual(G.diffLines('a\nb', 'a\nb'), [false, false]);
 });
 
+test('diffDetail: líneas nuevas y borradas con su posición, en pares de configuraciones reales', () => {
+  // casos chicos: la posición de lo borrado es la línea de b que queda justo después (o el final)
+  let d = G.diffDetail('a\nb\nc', 'a\nx\nc\nd');
+  assert.deepEqual([d.changed, d.removedAt, d.added, d.removed], [[false, true, false, true], [0, 1, 0, 0, 0], 2, 1]);
+  d = G.diffDetail('a\nb\nc\nd', 'a\nd');
+  assert.deepEqual([d.removedAt, d.added, d.removed], [[0, 2, 0], 0, 2]);
+  d = G.diffDetail('a\nb', 'a');
+  assert.deepEqual(d.removedAt, [0, 1]);
+  // pares reales: los ops reconstruyen a y b, y cada borrado queda justo antes de la línea de b que lo sigue
+  const df = (c) => G.generate(c).dockerfile.replace(/\n$/, '');
+  const check = (a, b) => {
+    const r = G.diffDetail(a, b), A = a.split('\n'), B = b.split('\n');
+    assert.deepEqual(r.ops.filter((o) => o.t !== '+').map((o) => o.text), A);
+    assert.deepEqual(r.ops.filter((o) => o.t !== '-').map((o) => o.text), B);
+    r.ops.forEach((o, k) => {
+      if (o.t !== '-') return;
+      const next = r.ops.slice(k + 1).find((x) => x.t !== '-');
+      assert.equal(o.b, next ? next.b : B.length, `posición de «${o.text}»`);
+    });
+    assert.equal(r.removedAt.reduce((s, x) => s + x, 0), r.removed);
+    return r;
+  };
+  // el puerto: cada línea con 8080 se va y su reemplazo con 9000 entra en el mismo lugar
+  let r = check(df({}), df({ port: '9000' }));
+  const plus = r.ops.filter((o) => o.t === '+'), minus = r.ops.filter((o) => o.t === '-');
+  assert.ok(plus.length === 3 && plus.every((o) => o.text.includes('9000')), plus.map((o) => o.text).join(' | '));
+  assert.ok(minus.length === 3 && minus.every((o) => o.text.includes('8080')));
+  plus.forEach((o) => assert.equal(r.removedAt[o.b], 1, `«${o.text}» reemplaza una línea`));
+  // etiquetas OCI: solo líneas nuevas, en un bloque, justo antes del CMD
+  r = check(df(G.PRESETS[0].cfg), df({ ...G.PRESETS[0].cfg, labels: 'yes' }));
+  assert.equal(r.removed, 0);
+  const idx = r.changed.map((c, i) => (c ? i : -1)).filter((i) => i >= 0), B = df({ ...G.PRESETS[0].cfg, labels: 'yes' }).split('\n');
+  assert.ok(idx.every((i, k) => k === 0 || i === idx[k - 1] + 1), 'un solo bloque');
+  assert.ok(B[idx[idx.length - 1] + 2].startsWith('CMD ['), 'antes del comentario y el CMD');
+  assert.ok(idx.some((i) => B[i] === 'LABEL org.opencontainers.image.title="classifier-gateway" \\'));
+  // root: se van el usuario y el USER; el aviso de root entra donde estaba el USER
+  r = check(df({}), df({ user: 'root' }));
+  const gone = r.ops.filter((o) => o.t === '-').map((o) => o.text);
+  for (const l of ['USER 10001', 'RUN groupadd --system --gid 10001 app && \\']) assert.ok(gone.includes(l), l);
+  const bRoot = df({ user: 'root' }).split('\n'), rootAt = bRoot.findIndex((l) => l.includes('corre como root'));
+  assert.ok(rootAt >= 0 && r.changed[rootAt]);
+  // HEALTHCHECK omitido: se van sus líneas y entra el comentario que lo explica
+  r = check(df({}), df({ health: 'omit' }));
+  assert.ok(r.ops.filter((o) => o.t === '-').some((o) => o.text.startsWith('HEALTHCHECK ')));
+  assert.ok(r.ops.filter((o) => o.t === '+').some((o) => o.text.startsWith('# Sin HEALTHCHECK')));
+});
+
 test('la fuente de la página (toPageScript) da exactamente lo mismo que el módulo', () => {
   const src = readFileSync(join(HERE, 'generador.mjs'), 'utf8');
   const P = new Function(`return ${G.toPageScript(src)};`)();
   const d0 = new Date(2026, 9, 28, 12, 0, 0);
   for (const p of G.PRESETS) assert.deepEqual([...P.zipStore(P.bundle(p.cfg).files, d0)], [...G.zipStore(G.bundle(p.cfg).files, d0)], `zip de ${p.id}`);
-  for (const k of ['generate', 'normalize', 'lint', 'lintFor', 'NOT_APPLICABLE', 'zipStore', 'bundle', 'crc32', 'compileRules', 'encodeState', 'decodeState', 'diffLines', 'SCHEMA', 'PRESETS', 'VERSIONS']) assert.ok(P[k], `la página no recibe ${k}`);
+  for (const k of ['generate', 'normalize', 'lint', 'lintFor', 'NOT_APPLICABLE', 'zipStore', 'bundle', 'crc32', 'compileRules', 'encodeState', 'decodeState', 'diffLines', 'diffDetail', 'SCHEMA', 'PRESETS', 'VERSIONS']) assert.ok(P[k], `la página no recibe ${k}`);
   const PR = P.compileRules(W1.revisor);
   ALL.filter((_, n) => n % 17 === 0).concat(G.PRESETS.map((p) => p.cfg)).forEach((c) => {
     const a = G.generate(c), b = P.generate(c);
