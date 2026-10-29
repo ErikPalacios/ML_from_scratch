@@ -3,6 +3,7 @@
 Hojas de estudio para el trabajo de ML engineering, con versión web y PDF para imprimir. Las hojas salen del curso [Ronda de Diseño ML](../ml-system-design) y usan sus ejemplos (C01).
 
 - **Sitio:** portada con una tarjeta por hoja; cada hoja en `/<id>/` con su PDF al lado.
+- **Tema:** claro, oscuro o como el sistema. Se elige en la barra de arriba (portada y cada hoja), vale para todo el sitio y se recuerda en el navegador; imprimir siempre sale en claro.
 - **Sin conexión:** después de la primera visita, la portada y las hojas abren sin internet (service worker). Un PDF queda guardado cuando lo abres.
 - **Hojas actuales:**
   - `estimaciones`: formulario de las estimaciones del C01;

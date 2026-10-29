@@ -23,7 +23,12 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', '
 const fecha = (iso) => { const [y, m, d] = iso.split('-').map(Number); return `${d} de ${MESES[m - 1]} de ${y}`; };
 const mb = (bytes) => (bytes / 1e6).toFixed(1) + ' MB';
 
+// Tema elegido a mano (claro u oscuro): se aplica antes de pintar, para que no parpadee. Sin elección, la página sigue
+// al sistema. Cada hoja ya trae sus dos paletas: la oscura vive en @media (prefers-color-scheme: dark) con el guardia
+// :root:not([data-theme="light"]) y otra vez en :root[data-theme="dark"], así que basta con poner data-theme en <html>.
+const THEME_KEY = 'hojas-tema';
 const HEAD = [
+  `<script>try { var t = localStorage.getItem('${THEME_KEY}'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}</script>`,
   '<link rel="manifest" href="/manifest.webmanifest">',
   '<link rel="icon" href="/icon.svg" type="image/svg+xml">',
   '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
@@ -39,6 +44,41 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
 }
 </script>`;
+// Selector de tema (claro · oscuro · como el sistema), el mismo en la portada y en cada hoja. La elección vale para
+// todo el sitio y se recuerda en este navegador; imprimir siempre sale en claro.
+const ICON = {
+  light: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>',
+  dark: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 14.6A8.2 8.2 0 0 1 9.4 4a8.2 8.2 0 1 0 10.6 10.6z"/></svg>',
+  auto: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" stroke="none"/></svg>',
+};
+const THEME_UI = `<div class="tema" role="group" aria-label="Tema">${[['light', 'Claro', 'Tema claro'], ['dark', 'Oscuro', 'Tema oscuro'], ['auto', 'Auto', 'Como el sistema']]
+  .map(([t, l, title]) => `<button type="button" data-tema="${t}" aria-pressed="false" title="${title}">${ICON[t]}<span>${l}</span></button>`).join('')}</div>`;
+const THEME_JS = `<script>
+(function () {
+  var KEY = '${THEME_KEY}', root = document.documentElement;
+  var metas = [].slice.call(document.querySelectorAll('meta[name="theme-color"]'));
+  var orig = metas.map(function (m) { return m.getAttribute('content'); });
+  function get() { try { var t = localStorage.getItem(KEY); return t === 'light' || t === 'dark' ? t : 'auto'; } catch (e) { return 'auto'; } }
+  function apply(t) {
+    if (t === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', t);
+    // la barra del navegador en el celular, del mismo color que la página
+    metas.forEach(function (m, i) { m.setAttribute('content', t === 'auto' ? orig[i] : (t === 'dark' ? '#0E131A' : '#F4F6F9')); });
+    [].forEach.call(document.querySelectorAll('.tema [data-tema]'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-tema') === t)); });
+  }
+  apply(get());
+  document.addEventListener('click', function (ev) {
+    var b = ev.target && ev.target.closest ? ev.target.closest('.tema [data-tema]') : null;
+    if (!b) return;
+    var t = b.getAttribute('data-tema');
+    try { if (t === 'auto') localStorage.removeItem(KEY); else localStorage.setItem(KEY, t); } catch (e) {}
+    apply(t);
+  });
+  window.addEventListener('storage', function (e) { if (e.key === KEY) apply(get()); }); // otra pestaña lo cambió
+  var before = null; // imprimir con la paleta clara, pase lo que pase en pantalla
+  window.addEventListener('beforeprint', function () { before = root.getAttribute('data-theme'); root.setAttribute('data-theme', 'light'); });
+  window.addEventListener('afterprint', function () { if (before) root.setAttribute('data-theme', before); else root.removeAttribute('data-theme'); before = null; });
+})();
+</script>`;
 // Barra de cada hoja: volver a la portada y bajar el PDF. Usa los tokens de color de la hoja.
 const BAR_CSS = `
 body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
@@ -49,6 +89,18 @@ body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area
 .hub-bar .hub-pdf { border: 1px solid var(--rule); background: var(--paper); border-radius: 999px; padding: 0 14px; color: var(--ink); }
 .hub-bar .hub-pdf:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
 .hub-bar + .hero { padding-top: 22px; }
+.hub-bar--home { justify-content: flex-end; }
+.hub-acc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.tema { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper); }
+.tema button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 13.5px/1 var(--f-display); cursor: pointer; }
+.tema button svg { width: 16px; height: 16px; flex: none; }
+.tema button:hover { color: var(--ink); }
+.tema button[aria-pressed="true"] { background: var(--accent); color: var(--paper); }
+.tema button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 480px) {
+  .tema button { padding: 0 10px; }
+  .tema button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 @media print { .hub-bar { display: none !important; } }
 `;
 
@@ -77,8 +129,8 @@ for (const s of SHEETS) {
   const dir = join(ROOT, 'sheets', s.id);
   for (const f of [s.page, s.pdf]) if (!existsSync(join(dir, f))) fail(`falta sheets/${s.id}/${f}`);
   s.pdfSize = statSync(join(dir, s.pdf)).size;
-  const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><a href="/">← Todas las cheat sheets</a><a class="hub-pdf" href="${esc(s.pdf)}">PDF · ${mb(s.pdfSize)}</a></nav>`;
-  const html = inject(readFileSync(join(dir, s.page), 'utf8'), s.id, { head: HEAD, css: BAR_CSS, afterWrap: bar, beforeBody: REGISTER });
+  const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><a href="/">← Todas las cheat sheets</a><div class="hub-acc">${THEME_UI}<a class="hub-pdf" href="${esc(s.pdf)}">PDF · ${mb(s.pdfSize)}</a></div></nav>`;
+  const html = inject(readFileSync(join(dir, s.page), 'utf8'), s.id, { head: HEAD, css: BAR_CSS, afterWrap: bar, beforeBody: REGISTER + THEME_JS });
   mkdirSync(join(OUT, s.id), { recursive: true });
   writeFileSync(join(OUT, s.id, 'index.html'), html);
   copyFileSync(join(dir, s.pdf), join(OUT, s.id, s.pdf));
@@ -102,7 +154,9 @@ const card = (s) => `    <article class="sheet" id="${esc(s.id)}">
     </article>`;
 let hub = readFileSync(join(SITE, 'hub.html'), 'utf8');
 if (!hub.includes('<!--HOJAS-->')) fail('site/hub.html no tiene el marcador <!--HOJAS-->');
-hub = inject(hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n')), 'portada', { head: HEAD, beforeBody: REGISTER });
+hub = inject(hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n')), 'portada', {
+  head: HEAD, css: BAR_CSS, afterWrap: `<nav class="hub-bar hub-bar--home" aria-label="Preferencias">${THEME_UI}</nav>`, beforeBody: REGISTER + THEME_JS,
+});
 writeFileSync(join(OUT, 'index.html'), hub);
 pages['/'] = hub;
 

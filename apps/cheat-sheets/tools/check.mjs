@@ -81,6 +81,20 @@ const SW = `(async () => {
   return JSON.stringify({ controller: !!navigator.serviceWorker.controller, cache: name, cached, offline: results, pdf, cdn });
 })()`;
 
+// El selector de tema, con el sistema en oscuro: «Claro» pinta la paleta clara y se guarda, «Oscuro» la oscura y
+// «Auto» vuelve a la del sistema y borra la elección.
+const THEME = `(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const bg = () => getComputedStyle(document.body).backgroundColor;
+  const lum = (c) => { const m = c.match(/\\d+(\\.\\d+)?/g).map(Number); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
+  const pick = async (t) => { const b = document.querySelector('.tema [data-tema="' + t + '"]'); if (!b) return null; b.click(); await wait(120); return { bg: bg(), saved: localStorage.getItem('hojas-tema'), pressed: b.getAttribute('aria-pressed'), attr: document.documentElement.getAttribute('data-theme') }; };
+  const sys = bg();
+  const light = await pick('light'), dark = await pick('dark'), auto = await pick('auto');
+  if (!light) return JSON.stringify({ error: 'no hay selector de tema' });
+  const ok = lum(light.bg) > lum(dark.bg) + 100 && dark.bg === sys && auto.bg === sys && light.saved === 'light' && dark.saved === 'dark' && auto.saved === null && auto.attr === null && light.pressed === 'true';
+  return JSON.stringify({ ok, sys, light: light.bg, dark: dark.bg, auto: auto.bg });
+})()`;
+
 // asíncrono: el servidor de arriba vive en este mismo proceso y tiene que seguir respondiendo
 function run(args, js) {
   return new Promise((resolve) => {
@@ -114,6 +128,16 @@ for (let i = 0; i < jobs.length; i++) {
     console.log(`${ok ? 'ok ' : 'MAL'} ${p.padEnd(16)} ${label.padEnd(10)} ${v ? `ancho ${v.a.scrollWidth}/${v.a.innerWidth}, abierto ${v.b.scrollWidth}/${v.b.innerWidth}${v.b.wide ? ' · ' + v.b.sample.join(' ') : ''}` : 'sin resultado'}`);
   }
 }
+const themes = [];
+next = 0;
+await Promise.all([0, 1, 2].map(async () => {
+  while (next < PAGES.length) { const i = next++; themes[i] = await run(['--url', BASE + PAGES[i], '--wait', '1200', '--width', '375', '--height', '812', '--mobile', '--dark'], THEME); }
+}));
+PAGES.forEach((p, i) => {
+  const v = themes[i], ok = !!(v && v.ok);
+  if (!ok) bad++;
+  console.log(`${ok ? 'ok ' : 'MAL'} ${p.padEnd(16)} tema       ${v ? (v.error || `sistema ${v.sys} · claro ${v.light} · oscuro ${v.dark} · auto ${v.auto}`) : 'sin resultado'}`);
+});
 const s = await run(['--url', BASE + '/', '--wait', '2500', '--width', '1024', '--height', '800', '--light'], SW);
 const swOk = s && s.controller && PAGES.every((p) => s.cached.includes(p)) && SHEETS.every((h) => s.offline[`/${h.id}/`] === h.title);
 if (!swOk) bad++;
