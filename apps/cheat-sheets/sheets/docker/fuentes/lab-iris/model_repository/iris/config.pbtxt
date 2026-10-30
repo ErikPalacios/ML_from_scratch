@@ -1,0 +1,7 @@
+name: "iris"
+backend: "onnxruntime"
+max_batch_size: 64
+input [ { name: "input", data_type: TYPE_FP32, dims: [ 4 ] } ]
+output [ { name: "probs", data_type: TYPE_FP32, dims: [ 3 ] } ]
+instance_group [ { kind: KIND_CPU, count: 1 } ]
+dynamic_batching { }

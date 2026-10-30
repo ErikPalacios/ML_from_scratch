@@ -7,7 +7,7 @@ Hojas de estudio para el trabajo de ML engineering, con versión web y PDF para 
 - **Sin conexión:** después de la primera visita, la portada y las hojas abren sin internet (service worker). Un PDF queda guardado cuando lo abres.
 - **Hojas actuales:**
   - `estimaciones`: formulario de las estimaciones del C01;
-  - `docker`: cheat sheet de Docker, con generador de Dockerfile, diagnosticador, revisor de Dockerfile y quiz de errores;
+  - `docker`: cheat sheet de Docker, con el laboratorio Iris completo (gateway y model server, paso a paso), generador de Dockerfile, diagnosticador, revisor de Dockerfile y quiz de errores;
   - `kubernetes`: cheat sheet de Kubernetes, con diagnosticador de pods, revisor de YAML (sus reglas, en el navegador) y quiz de errores;
   - `recorrido`: «Del dato a producción», el C01 de punta a punta como un mapa de metro, con fichas de herramientas, patrones, casos y un quiz de síntomas;
   - `git`: cheat sheet de Git y GitHub Actions, con grafos de commits antes y después, diagnosticador, revisor de workflows (sus reglas, en el navegador) y quiz de errores;
@@ -56,6 +56,10 @@ Vercel corre `node tools/build.mjs` (sin dependencias) y publica `dist/`. `.verc
   - `fuentes/out/artifact.html`, la versión para el Artifact de claude.ai.
 
   El contenido está en `content-w1/2/3.json` y se revisó contra la documentación de Docker 29.x. El contrato del contenido está en `BRIEF.md`.
+
+  El laboratorio Iris (la sección después de los errores) sale de `fuentes/content-lab-iris.json` y de una copia de los archivos del lab en `fuentes/lab-iris/`, con las rutas de iris-lab (repo Caso1). `lab-iris/manifest.json` dice de dónde salió cada archivo (el repo en un commit, el repo sin commit, o un bloque de `CHEATSHEET_PROMPT.md`, probado o borrador), con su sha256 y la fecha. El build no lee el otro repo para armar la página; si la carpeta de iris-lab existe en esta máquina, avisa cuando un archivo copiado ya no es igual a su fuente. También avisa si un comando, un fragmento o una salida de la sección no está tal cual en el prompt, o si el texto y los `requirements.txt` copiados no cuentan los mismos paquetes. Desde `fuentes/`:
+  - `node lab-iris.mjs check`: las mismas revisiones, sin armar la página;
+  - `node lab-iris.mjs snapshot`: vuelve a copiar desde iris-lab y actualiza el manifest (después, revisa el texto de la sección).
 
   El generador de Dockerfile (solo en la web) vive en `fuentes/generador.mjs`: una función pura de las respuestas al Dockerfile, el `.dockerignore` y los comandos de build y run, con la tabla de versiones y tags (y los textos que llegan al archivo) al inicio, para revisarlas en un solo lugar. `gen-docker.mjs` la importa y pega en la página la misma fuente. Sus tests: `node --test generador.test.mjs` desde `fuentes/` (recorren todas las combinaciones recomendadas con las 16 reglas del revisor, sin contar las que no aplican a un worker o a un entrenamiento, como HEALTHCHECK y EXPOSE; ≈ 2–3 min). El build corre los presets y una muestra de combinaciones en node y otra vez en Chrome, y falla si no dan lo mismo o si hay hallazgos. Descargas: en el sitio, cada archivo (Blob) y un `.zip` con Dockerfile, `.dockerignore` y `build-and-run.md`; en el visor de Artifacts de claude.ai, solo el `.zip`, con `window.claude.use('downloads')` (el Artifact se publica con `capabilities: {downloads: true}`; mientras el visor no contesta, no hay botón de descarga).
 - **Kubernetes:** `node sheets/kubernetes/fuentes/gen-k8s.mjs build` escribe `sheets/kubernetes/cheatsheet-kubernetes.html` y `fuentes/out/artifact.html` con el mismo paso de MathML que Docker; el contenido está en `content-w1/2/3.json`, revisado contra Kubernetes 1.37, con el contrato en `BRIEF.md`, y el revisor de YAML lee los manifests con js-yaml de cdnjs (el service worker lo guarda para usarlo sin conexión).

@@ -24,6 +24,7 @@
     "sample_kind": "code",
     "facts": [
       "15 secciones",
+      "Laboratorio Iris completo",
       "Generador de Dockerfile",
       "Diagnosticador de síntomas",
       "Revisor de Dockerfile",
@@ -31,7 +32,7 @@
     ],
     "page": "cheatsheet-docker.html",
     "pdf": "cheatsheet-docker.pdf",
-    "updated": "2026-10-28"
+    "updated": "2026-10-29"
   },
   {
     "id": "kubernetes",

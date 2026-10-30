@@ -1,0 +1,7 @@
+**/.venv
+**/__pycache__
+**/*.pyc
+gateway
+training
+scripts
+README.md

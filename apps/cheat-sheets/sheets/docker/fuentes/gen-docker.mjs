@@ -13,12 +13,16 @@
 // generador.test.mjs (node --test). Este archivo lo importa para pintar el HTML inicial y pega en la página la MISMA
 // fuente (toPageScript); en el build, los presets y una muestra del espacio de combinaciones corren en node y otra
 // vez en Chrome, y los dos tienen que dar el mismo hash y 0 hallazgos del revisor.
+//
+// El laboratorio Iris (sección aparte, después de los errores) sale de content-lab-iris.json y de los archivos del lab
+// copiados en lab-iris/; lab-iris.mjs dice de dónde salió cada uno y avisa si la copia ya no es igual a su fuente.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import vm from 'node:vm';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as GEN from './generador.mjs';
+import * as LABI from './lab-iris.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = join(HERE, '../../../../ml-system-design'); // ejemplos del C01, módulos del curso y browser-check.mjs
@@ -839,6 +843,185 @@ function sectionHtml(id) {
 </section>`;
 }
 
+// ---------------------------------------------------------------- laboratorio Iris (sección aparte, después de los errores)
+// Una tarjeta por paso del prompt (0 a 12). Los archivos se leen de la copia en lab-iris/ (nunca del otro repo) y cada
+// uno lleva su origen; los comandos, fragmentos y salidas se transcriben tal cual y lab-iris.mjs lo comprueba.
+const LAB = readJSON('content-lab-iris.json');
+const LAB_MAN = LABI.loadManifest();
+const LAB_FILE = Object.fromEntries(LAB_MAN.files.map((f) => [f.path, f]));
+const LAB_STEP_OF = {}; // archivo → paso donde se muestra
+LAB.steps.forEach((s) => (function walk(x) {
+  if (Array.isArray(x)) return x.forEach(walk);
+  if (!x || typeof x !== 'object') return;
+  if (x.type === 'files') x.items.forEach((it) => { LAB_STEP_OF[it.path] = s.n; });
+  Object.values(x).forEach(walk);
+})(s.blocks));
+const labFill = (s) => String(s).replace(/\{commit\}/g, LAB_MAN.commit).replace(/\{branch\}/g, LAB_MAN.branch);
+const labOrigin = (k) => { const o = LAB_MAN.origins[k]; if (!o) throw new Error('lab-iris: origen desconocido ' + k); return o; };
+const ogChip = (k) => `<span class="li-og og-${k}" title="${esc(labFill(labOrigin(k).long))}">${esc(labFill(labOrigin(k).short))}</span>`;
+const fileId = (p) => 'li-f-' + p.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const LAB_ST = {
+  ok: ['ok', '✅ probado'], 'ok-tmp': ['ok', '✅ probado en carpeta temporal'], 'ok-step5': ['ok', '✅ en el paso 5'],
+  draft: ['wip', '🟡 borrador sin probar'], pending: ['wip', '🟡 pendiente'], partial: ['wip', '🟡 parcial'], plan: ['wip', '🟡 plan, no probado'],
+  real: ['real', `${LAB.traps.length} errores reales`], ctx: ['ctx', 'contexto'],
+};
+const stBadge = (k) => { if (!LAB_ST[k]) throw new Error('lab-iris: estado desconocido ' + k); return `<span class="st st--${LAB_ST[k][0]}">${esc(LAB_ST[k][1])}</span>`; };
+// Tipografía del texto del lab: número y unidad juntos (5.6 kB, 730 h), «≈ 8» junto, y las rutas dentro de <code> se
+// parten después de cada / (solo en el texto, nunca dentro de una etiqueta).
+const inText = (h, f) => h.replace(/(^|>)([^<]*)/g, (m, a, t) => a + f(t));
+const typo = (h) => h.replace(/(\d) (?=(?:kB|KB|MB|GB|s|h)\b)/g, '$1 ').replace(/≈ /g, '≈ ')
+  .replace(/<code>([\s\S]*?)<\/code>/g, (m, c) => `<code>${inText(c, (t) => t.replace(/([^\s/])\/(?=[^\s/])/g, '$1/<wbr>'))}</code>`);
+const lr = (s) => typo(nbFlags(rich(s))); // texto del lab: solo <b> y <code>, flags sin partir
+// En comandos y archivos, una palabra con guion no se parte en el guion: baja entera a la línea siguiente
+// (inline-block) y solo si no cabe en una línea completa se parte donde sea.
+const keepWords = (h) => inText(h, (t) => t.replace(/[^\s]*-[^\s]*/g, (w) => `<span class="li-nw">${w}</span>`));
+
+// Resaltado de Python (solo en el build): palabras clave, strings (también de triple comilla, entre líneas),
+// comentarios y decoradores. Los demás lenguajes usan el hl de la hoja.
+const PY_KW = new Set(['False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield']);
+function hlPy(code) {
+  const kw = (s) => esc(s).replace(/[A-Za-z_][A-Za-z0-9_]*/g, (w) => (PY_KW.has(w) ? `<span class="tk-k">${w}</span>` : w));
+  const str = (s) => `<span class="tk-s">${esc(s)}</span>`;
+  const out = [];
+  let tri = null; // dentro de un string de triple comilla que empezó en otra línea
+  for (const line of String(code).split('\n')) {
+    let h = '', buf = '', i = 0;
+    if (tri) {
+      const e = line.indexOf(tri);
+      if (e < 0) { out.push(str(line)); continue; }
+      h += str(line.slice(0, e + 3)); i = e + 3; tri = null;
+    }
+    while (i < line.length) {
+      const c = line[i];
+      if (c === '#') { h += kw(buf) + `<span class="tk-c">${esc(line.slice(i))}</span>`; buf = ''; i = line.length; break; }
+      if (c === '"' || c === "'") {
+        h += kw(buf); buf = '';
+        const q3 = c.repeat(3);
+        if (line.startsWith(q3, i)) {
+          const e = line.indexOf(q3, i + 3);
+          if (e < 0) { h += str(line.slice(i)); tri = q3; i = line.length; break; }
+          h += str(line.slice(i, e + 3)); i = e + 3; continue;
+        }
+        let j = i + 1;
+        while (j < line.length && line[j] !== c) j += line[j] === '\\' ? 2 : 1;
+        h += str(line.slice(i, j + 1)); i = j + 1; continue;
+      }
+      if (c === '@' && !line.slice(0, i).trim()) { const m = line.slice(i).match(/^@[\w.]+/); h += kw(buf) + `<span class="tk-k">${esc(m[0])}</span>`; buf = ''; i += m[0].length; continue; }
+      buf += c; i++;
+    }
+    out.push(h + kw(buf));
+  }
+  return out.join('\n');
+}
+// Lo que cambias tú en un comando (TU_USUARIO, ACCOUNT_ID, IMAGEN:TAG, NOMBRE), con aspecto de variable; solo en el texto, no en las etiquetas.
+const LAB_PH = /\b(TU_USUARIO|ACCOUNT_ID|IMAGEN|TAG|NOMBRE)\b/g;
+const phCode = (h) => h.replace(/(^|>)([^<]*)/g, (m, a, t) => a + t.replace(LAB_PH, '<var class="ph">$1</var>'));
+const LAB_LANG = { python: 'Python', dockerfile: 'Dockerfile', yaml: 'YAML', bash: 'bash', text: 'texto' };
+const FOLD_MIN = 40; // desde tantas líneas, el archivo va plegable: abierto en escritorio, plegado en el celular
+
+// Un archivo (de la copia) o un fragmento (del prompt): barra con lenguaje, nombre, origen, líneas y Copiar. Cada línea
+// va en su span con su sangría (--i): por debajo de 1024 px y al imprimir, una línea larga se parte con sangría francesa.
+// `exact` es el archivo tal cual (con su salto final, si lo tiene): eso es lo que copia el botón.
+function labCode({ code, lang, name, origin, id, cols, exact }) {
+  const n = code.split('\n').length, long = n >= FOLD_MIN;
+  const src = code.split('\n'), lines = (lang === 'python' ? hlPy(code) : hl(code, lang)).split('\n');
+  if (lines.length !== src.length) throw new Error('lab-iris: el resaltado cambió el número de líneas de ' + name);
+  const pre = `<pre><code>${lines.map((h, i) => `<span class="ln" style="--i:${src[i].match(/^ */)[0].length}">${keepWords(h)}</span>`).join('\n')}</code></pre>`;
+  return `<div class="code li-file${long ? ' is-long' : ''}${cols ? ' li-cols' : ''}"${id ? ` id="${id}"` : ''}><div class="code__bar li-fbar"><span class="code__lang">${esc(LAB_LANG[lang])}</span><span class="li-fname">${esc(name)}</span>${ogChip(origin)}<span class="li-fl">${n} ${n === 1 ? 'línea' : 'líneas'}</span>${copyBtn(exact)}</div>` +
+    (long ? `<details class="li-fold" open><summary><span class="li-fc">Ver las ${n} líneas</span><span class="li-fo">Plegar el archivo</span></summary>${pre}</details>` : pre) + '</div>';
+}
+function labFile(it) {
+  const f = LAB_FILE[it.path];
+  if (!f) throw new Error('lab-iris: ' + it.path + ' no está en lab-iris/manifest.json');
+  const exact = readFileSync(join(LABI.LAB_DIR, it.path), 'utf8');
+  return labCode({ code: exact.replace(/\n$/, ''), exact, lang: f.lang, name: it.name || it.path, origin: f.origin, id: fileId(it.path), cols: /requirements\.txt$/.test(it.path) }) + (it.note ? `<p class="li-fnote">${lr(it.note)}</p>` : '');
+}
+const labWhere = (w) => `<span class="k">Desde</span> ${w === '*' ? 'cualquier carpeta' : /^iris-lab/.test(w) ? `<code>${esc(w)}</code>` : esc(w)}`;
+const labCmd = (c) => (c.verify ? '<p class="li-verify">verificar con la doc oficial</p>' : '') +
+  `<div class="code li-cmd"><pre><code>${keepWords(phCode(hl(c.cmd, 'bash')))}</code></pre>${copyBtn()}</div>` +
+  (c.out !== undefined ? `<p class="li-co"><span class="li-to" aria-hidden="true">→</span> ${lr(c.out)}</p>` : '') +
+  (c.note ? `<p class="li-cn">${lr(c.note)}</p>` : '');
+const labGroups = (groups) => groups.map((g) => `<div class="li-cg"><p class="li-where">${labWhere(g.where)}${g.note ? `<span class="li-wn"> · ${lr(g.note)}</span>` : ''}</p>${g.cmds.map(labCmd).join('')}</div>`).join('');
+const labReview = (r) => `<aside class="li-rev"><p class="tag">Nota de revisión</p><p>${lr(r.t)}</p><p class="li-src">${r.src.length > 1 ? 'Fuentes' : 'Fuente'}: ${r.src.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.label)}</a>`).join(' · ')}</p></aside>`;
+const labItem = (it) => (typeof it === 'string' ? lr(it) : lr(it.t) + (it.review ? labReview(it.review) : ''));
+const labList = (items) => (items.length > 1 ? `<ul>${items.map((it) => `<li>${labItem(it)}</li>`).join('')}</ul>` : `<div class="li-p">${labItem(items[0])}</div>`);
+const trapOf = (n) => { const t = LAB.traps.find((x) => x.n === n); if (!t) throw new Error('lab-iris: no hay trampa 12.' + n); return t; };
+const trapLine = (t) => `<b>${lr(t.title)}</b> ${lr(t.t)}`;
+function labTrap(b) {
+  if (b.real) return `<div class="trap li-trap"><p class="tag">Trampa · te pasó</p>${b.real.map((n) => `<p><a class="li-tn" href="#lab-iris-t${n}">12.${n}</a> ${trapLine(trapOf(n))}</p>`).join('')}${b.why ? `<p class="li-tw">${lr(b.why)}</p>` : ''}</div>`;
+  if (b.exp) return `<div class="trap li-trap"><p class="tag">Trampa · te pasó</p><p><a class="li-tn" href="#lab-iris-9-${b.exp}">9.${b.exp}</a> ${lr(b.t)}</p></div>`;
+  return `<div class="trap li-trap is-typ"><p class="tag">Trampa típica</p><p>${lr(b.t)}${b.see ? ` <a class="li-see" href="#${b.see}">→ ${esc(SECLAB(b.see))}</a>` : ''}</p></div>`;
+}
+function labExps(b) {
+  const row = (k, v) => (v ? `<p class="li-er"><span class="k">${k}</span> ${lr(v)}</p>` : '');
+  return `<ol class="li-exp">${b.items.map((e) => {
+    const ok = /^ok/.test(e.status);
+    return `<li class="${ok ? 'is-ok' : 'is-wip'}" id="lab-iris-9-${e.n}"><p class="li-eh"><span class="li-en">9.${e.n}</span>${stBadge(e.status)}<span class="li-et">${lr(e.title)}</span></p>` +
+      row('Qué esperas:', e.want) + row(ok ? 'Qué pasó:' : 'Qué pasa:', e.got || (ok ? '' : 'pendiente')) + row('Por qué:', e.why) + row('Cómo se arregla:', e.fix) +
+      (e.traps ? `<p class="li-er"><span class="k">Trampa:</span> ${e.traps.map((n) => `<a href="#lab-iris-t${n}">12.${n} ${lr(trapOf(n).title)}</a>`).join(' · ')}</p>` : '') +
+      (e.see ? `<p class="li-er"><span class="k">En esta hoja:</span> <a href="#${e.see}">${esc(SECLAB(e.see))}</a></p>` : '') +
+      (e.blocks ? labBlocks(e.blocks) : '') + '</li>';
+  }).join('')}</ol>`;
+}
+const labStepTitle = (n) => (n === 0 ? LAB.intro.title : LAB.steps.find((s) => s.n === n).title);
+function labBlocks(blocks) {
+  const seen = new Set(), tag = (k, l) => (seen.has(k) ? '' : (seen.add(k), `<p class="tag">${l}</p>`));
+  return blocks.map((b) => {
+    switch (b.type) {
+      case 'what': return `<p class="li-what"><span class="li-k">Qué hace</span> ${lr(b.t)}</p>`;
+      case 'files': return `<div class="li-blk li-files">${tag('files', 'Archivos')}${b.items.map(labFile).join('')}</div>`;
+      case 'cmds': return `<div class="li-blk li-cmds">${tag('cmds', 'Comandos')}${b.title ? `<p class="li-ct">${lr(b.title)}</p>` : ''}${labGroups(b.groups)}</div>`;
+      case 'fragment': return `<div class="li-blk">${tag('frag', 'Fragmento')}${b.title ? `<p class="li-ct">${lr(b.title)}</p>` : ''}${labCode({ code: b.code, lang: b.lang, name: 'fragmento del prompt', origin: b.origin })}</div>`;
+      case 'out': return `<div class="li-blk li-out"><p class="tag">Salida esperada</p>${labList(b.items)}</div>`;
+      case 'why': return `<div class="li-blk li-why"><p class="tag">${esc(b.title || 'Por qué')}</p>${labList(b.items)}</div>`;
+      case 'text': return `<div class="li-blk li-text">${b.title ? `<p class="tag">${esc(b.title)}</p>` : ''}${labList(b.items)}</div>`;
+      case 'table': return `<div class="li-blk"><p class="tag">${esc(b.title)}</p><div class="tscroll"><table class="dt stk li-tbl"><thead><tr>${b.head.map((h) => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>${b.rows.map((r) => `<tr>${r.map((v, j) => (j ? `<td data-k="${esc(b.head[j])}">${lr(v)}</td>` : `<th scope="row" class="rh">${lr(v)}</th>`)).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+      case 'sub': return `<div class="li-sub"><div class="li-subh"><h4>${lr(b.title)}</h4>${stBadge(b.status)}</div>${labBlocks(b.blocks)}</div>`;
+      case 'experiments': return `<div class="li-blk"><p class="tag">Experimentos</p>${labExps(b)}</div>`;
+      case 'plan': return `<div class="li-blk li-plan"><p class="tag">${esc(b.title)}</p>${b.note ? `<p class="li-pn">${lr(b.note)}</p>` : ''}<ol>${b.items.map((it) => `<li><div class="li-p">${lr(it.t)}</div>${it.cmds ? labGroups(it.cmds.groups) : ''}${it.review ? labReview(it.review) : ''}</li>`).join('')}</ol></div>`;
+      case 'trap': return labTrap(b);
+      case 'traps': return `<ol class="li-traps">${LAB.traps.map((t) => `<li id="lab-iris-t${t.n}"><span class="li-tn">12.${t.n}</span><div><p>${trapLine(t)}</p><p class="li-tl"><a href="#lab-iris-${t.step}">→ Paso ${t.step} · ${lr(labStepTitle(t.step))}</a></p></div></li>`).join('')}</ol>`;
+      default: throw new Error('lab-iris: bloque desconocido ' + b.type);
+    }
+  }).join('\n');
+}
+const labHead = (n, title, st, note) => `<header class="li-head"><span class="li-n" aria-hidden="true">${n}</span><h3 id="lab-iris-${n}-t"><span class="sr">Paso ${n}: </span>${lr(title)}</h3><p class="li-st">${stBadge(st)}${note ? `<span class="li-stn">${lr(note)}</span>` : ''}</p></header>`;
+const labStep = (s) => `<article class="li-step" id="lab-iris-${s.n}" aria-labelledby="lab-iris-${s.n}-t">
+  ${labHead(s.n, s.title, s.status, s.status_note)}
+  ${labBlocks(s.blocks)}
+  ${s.links ? `<p class="links li-links"><span class="links__k">En esta hoja:</span> ${s.links.map((x) => `<a class="chip" href="#${x}">${esc(SECLAB(x))}</a>`).join(' ')}</p>` : ''}
+</article>`;
+function labTree(t) {
+  if (t.kids) return `<li><span class="li-dir">${esc(t.name)}</span><ul>${t.kids.map(labTree).join('')}</ul></li>`;
+  const origin = t.origin || LAB_FILE[t.path].origin, step = t.step !== undefined ? t.step : LAB_STEP_OF[t.path];
+  if (step === undefined) throw new Error('lab-iris: ' + t.name + ' no aparece en ningún paso');
+  return `<li><a class="li-tf" href="#${t.path ? fileId(t.path) : 'lab-iris-' + step}">${esc(t.name)}</a>${t.c ? ` <span class="li-tc">${typo(esc(t.c))}</span>` : ''} ${ogChip(origin)} <span class="li-tp">paso ${step}</span></li>`;
+}
+function labIntro() {
+  const I = LAB.intro, A = I.arch, slashes = (s) => esc(s).replace(/\/(?=\S)/g, '/<wbr>');
+  const arch = `<div class="li-arch" role="img" aria-label="${esc(A.label)}">${A.nodes.map((nd, i) => `<div class="li-node li-node--${nd.k}"><p class="li-nn">${esc(nd.name)}</p>${nd.tech ? `<p class="li-nt">${typo(slashes(nd.tech))}</p>` : ''}${nd.role ? `<p class="li-nr">${slashes(nd.role)}</p>` : ''}</div>` +
+    (i < A.edges.length ? `<div class="li-edge"><span class="li-el">${esc(A.edges[i])}</span><i class="li-ar"></i></div>` : '')).join('')}</div>`;
+  const status = `<div class="tscroll"><table class="dt li-status"><thead><tr><th scope="col">Paso</th><th scope="col">Estado</th></tr></thead><tbody>${I.status.map((r) => `<tr><th scope="row" class="rh"><a href="#lab-iris-${r.n}">${r.n} ${esc(r.label)}</a></th><td><span class="st st--${r.st}">${esc(r.text)}</span>${r.more ? ` <span class="li-stn">${esc(r.more)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<article class="li-step li-intro" id="lab-iris-0" aria-labelledby="lab-iris-0-t">
+  ${labHead(0, I.title, 'ctx')}
+  <p class="li-what"><span class="li-k">Qué es</span> ${lr(I.what)}</p>
+  <figure class="li-fig">${arch}<figcaption>${lr(A.caption)}</figcaption></figure>
+  <dl class="li-facts">${I.facts.map((f) => `<div><dt>${esc(f.k)}</dt><dd>${lr(f.t)}</dd></div>`).join('')}</dl>
+  <div class="li-cols2">
+    <div class="li-blk"><p class="tag">Las carpetas</p><ul class="li-tree"><li><span class="li-dir">iris-lab/</span><ul>${I.tree.map(labTree).join('')}</ul></li></ul><p class="li-fnote">${lr(I.tree_note)}</p></div>
+    <div class="li-blk"><p class="tag">De dónde sale cada archivo</p><ul class="li-ogs">${Object.keys(LAB_MAN.origins).map((k) => `<li>${ogChip(k)} ${esc(labFill(labOrigin(k).long))}</li>`).join('')}</ul><p class="li-fnote">Copiados el ${esc(LAB_MAN.date)} de la rama <code>${esc(LAB_MAN.branch)}</code>; el build avisa si alguno ya no es igual a su fuente.</p></div>
+  </div>
+  <div class="li-blk"><p class="tag">Estado de cada paso</p>${status}<p class="li-marks">${lr(I.marks)}</p></div>
+  ${labTrap(I.trap)}
+</article>`;
+}
+const labSection = () => `
+<section class="sec li" id="${LAB.id}">
+  <header class="sec__head"><span class="sec__n li-lab">Lab</span><div><h2>${esc(LAB.title)}</h2><p class="sec__q">${esc(LAB.question)}</p></div></header>
+  ${labIntro()}
+  ${LAB.steps.map(labStep).join('\n')}
+</section>`;
+
 // ---------------------------------------------------------------- herramientas
 const BAD_EXAMPLE = `# EJEMPLO con errores a propósito: es para probar el revisor, no lo copies
 FROM python:latest
@@ -1374,6 +1557,155 @@ html.gn-lock, html.gn-lock body { overflow: hidden; }
   .gn.is-app .gn-panel { border-width: 0; padding-left: 8px; padding-right: 8px; }
   .gn.is-app .gn-form { padding: 10px 10px 24px; }
 }
+/* ---------- laboratorio Iris: el paso 0 (figura, carpetas, orígenes, estado) y una tarjeta por paso */
+.sec__n.li-lab { font-size: 15px; letter-spacing: .04em; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.li-step { position: relative; margin-top: 18px; background: var(--paper); border: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px 18px; min-width: 0; scroll-margin-top: 64px; }
+.li-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.li-n { flex: none; min-width: 36px; height: 36px; padding: 0 6px; border-radius: 9px; display: grid; place-items: center; background: var(--accent); color: var(--paper); font: 800 18px/1 var(--f-display); }
+.li-head h3 { flex: 1 1 260px; min-width: 0; margin: 0; font: 800 21px/1.2 var(--f-display); font-stretch: 104%; }
+.li-st { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.li-stn { font: 500 13px/1.35 var(--f-display); color: var(--muted); }
+.st { display: inline-block; border: 1px solid transparent; border-radius: 999px; padding: 2px 10px; font: 700 12.5px/1.4 var(--f-display); white-space: nowrap; }
+.st--ok { background: var(--ok-soft); color: var(--accent2); border-color: var(--accent2-soft); }
+.st--wip { background: var(--hi-soft); color: var(--hi-ink); border-color: var(--hi); }
+.st--real { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+.st--ctx { background: var(--free); color: var(--muted); }
+.li-og { display: inline-block; border: 1px solid; border-radius: 6px; padding: 0 7px; font: 600 11.5px/1.6 var(--f-display); letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.og-repo { color: var(--accent2); border-color: var(--accent2-soft); background: var(--ok-soft); }
+.og-untracked { color: var(--accent2); border-color: var(--accent2); border-style: dashed; }
+.og-prompt-tested { color: var(--hi-ink); border-color: var(--hi); background: var(--hi-soft); }
+.og-prompt-draft { color: var(--hi-ink); border-color: var(--hi); border-style: dashed; }
+.li-what { margin: 12px 0 0; }
+.li-k { font: 800 11.5px/1 var(--f-display); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-right: 6px; }
+.li-blk { margin-top: 16px; min-width: 0; }
+.li-blk ul { margin: 4px 0 0; padding-left: 20px; }
+.li-blk li { margin-bottom: 6px; }
+.li-p { margin: 0; }
+.li-ct { margin: 10px 0 0; font: 700 14.5px/1.4 var(--f-display); color: var(--ink); }
+.li-blk > .tag + .li-ct { margin-top: 2px; }
+.li-file { margin-top: 8px; }
+.li-fbar { flex-wrap: wrap; row-gap: 3px; column-gap: 8px; }
+.li-fname { min-width: 0; font: 700 13px/1.35 var(--f-mono); color: var(--ink); overflow-wrap: anywhere; }
+.li-fl { font-weight: 500; white-space: nowrap; }
+.li-fnote { margin: 5px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+details.li-fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--rule); font: 700 13px/1.2 var(--f-display); color: var(--accent); }
+details.li-fold:not([open]) > summary { border-bottom: 0; }
+details.li-fold > summary::-webkit-details-marker { display: none; }
+details.li-fold > summary::before { content: "▸"; transition: transform .15s; }
+details.li-fold[open] > summary::before { transform: rotate(90deg); }
+details.li-fold[open] .li-fc, details.li-fold:not([open]) .li-fo { display: none; }
+details.li-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.li-cg { margin-top: 8px; padding-left: 10px; border-left: 3px solid var(--accent-soft); min-width: 0; }
+.li-where { margin: 0; font: 600 13.5px/1.45 var(--f-display); color: var(--ink); }
+.li-where code { font-size: 12.5px; }
+.li-wn { color: var(--muted); font-weight: 500; }
+.code.li-cmd { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; padding: 7px 7px 7px 12px; }
+.code.li-cmd pre { flex: 1 1 auto; min-width: 0; padding: 2px 0; white-space: pre-wrap; overflow-x: visible; }
+.code.li-cmd pre code { overflow-wrap: anywhere; }
+.li-co, .li-cn { margin: 4px 0 0 2px; font-size: 14.5px; line-height: 1.45; }
+.li-cn { color: var(--muted); }
+.li-to { color: var(--accent2); font-weight: 700; }
+.li-verify { display: inline-block; margin: 10px 0 0; padding: 0 8px; border: 1px dashed var(--hi); border-radius: 6px; background: var(--hi-soft); color: var(--hi-ink); font: 700 11px/1.7 var(--f-display); letter-spacing: .06em; text-transform: uppercase; }
+.li-verify + .li-cmd { margin-top: 4px; }
+.li-out { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; }
+.li-why ul { columns: 2 380px; column-gap: 34px; }
+.li-why li { break-inside: avoid; }
+.li-rev { margin: 8px 0 4px; padding: 9px 12px; border-left: 3px solid var(--accent); border-radius: 0 9px 9px 0; background: var(--accent-soft); font-size: 15px; line-height: 1.5; break-inside: avoid; }
+.li-rev .tag { color: var(--accent); }
+.li-rev p { margin: 0; }
+.li-src { margin-top: 5px !important; font: 500 12.5px/1.5 var(--f-display); color: var(--muted); overflow-wrap: anywhere; }
+.li-trap { margin-top: 16px; }
+.li-trap p + p { margin-top: 6px; }
+.li-trap.is-typ { background: transparent; border: 1px dashed var(--warn); }
+.li-tn { font: 700 12.5px/1.5 var(--f-mono); color: var(--warn); text-decoration: none; }
+a.li-tn:hover { text-decoration: underline; }
+.li-see { font: 600 13.5px var(--f-display); }
+.li-sub { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--rule); min-width: 0; }
+.li-subh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.li-subh h4 { margin: 0; font: 800 16.5px/1.3 var(--f-display); }
+.li-tbl th.rh { font: 600 14px/1.45 var(--f-display); }
+ol.li-exp { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+ol.li-exp > li { min-width: 0; margin: 0; border: 1px solid var(--rule); border-left-width: 4px; border-radius: 9px; padding: 9px 12px; scroll-margin-top: 64px; }
+ol.li-exp > li.is-ok { border-left-color: var(--accent2); }
+ol.li-exp > li.is-wip { border-left-color: var(--hi); }
+.li-eh { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 600; }
+.li-en { font: 800 13px/1 var(--f-mono); color: var(--muted); }
+.li-et { flex: 1 1 220px; min-width: 0; }
+.li-er { margin: 4px 0 0; font-size: 15px; line-height: 1.5; }
+.li-plan ol { margin: 6px 0 0; padding-left: 22px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.li-plan ol > li { min-width: 0; margin: 0; }
+.li-plan ol > li::marker { font: 700 14px var(--f-display); color: var(--muted); }
+.li-pn { margin: 2px 0 0; font-size: 15px; color: var(--muted); }
+ol.li-traps { list-style: none; margin: 12px 0 0; padding: 0; }
+ol.li-traps > li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; margin: 0; border-top: 1px solid var(--rule); padding: 10px 0; scroll-margin-top: 64px; }
+ol.li-traps p { margin: 0; }
+.li-tl { margin-top: 3px !important; font: 600 13.5px/1.4 var(--f-display); }
+.li-fig { margin: 14px 0 0; padding: 14px; border: 1px solid var(--rule); border-radius: 12px; background: var(--bg); }
+.li-fig figcaption { margin-top: 10px; font-size: 14.5px; color: var(--muted); }
+.li-arch { display: grid; grid-template-columns: minmax(0, .8fr) auto minmax(0, 1.25fr) auto minmax(0, 1.45fr) auto minmax(0, .85fr); align-items: stretch; }
+.li-node { min-width: 0; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); padding: 9px 11px; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.li-node p { margin: 0; }
+.li-nn { font: 800 15px/1.2 var(--f-display); }
+.li-nt { font: 600 12px/1.4 var(--f-mono); color: var(--accent2); overflow-wrap: anywhere; }
+.li-nr { font-size: 13.5px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
+.li-node--client { background: var(--free); }
+.li-node--gw { border-color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+.li-node--ms { border-color: var(--accent2); box-shadow: inset 0 3px 0 var(--accent2); }
+.li-node--file { border-style: dashed; border-color: var(--hi); background: var(--hi-soft); }
+.li-edge { min-width: 46px; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 6px; }
+.li-el { min-height: 14px; font: 700 11px/1.25 var(--f-mono); color: var(--muted); text-align: center; white-space: nowrap; }
+.li-ar { position: relative; display: block; height: 2px; margin-right: 8px; background: var(--muted); }
+.li-ar::after { content: ""; position: absolute; right: -8px; top: -4px; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent var(--muted); }
+@media (max-width: 640px) {
+  .li-arch { grid-template-columns: minmax(0, 1fr); }
+  .li-edge { flex-direction: row; justify-content: center; align-items: center; gap: 10px; min-height: 36px; padding: 4px 0; }
+  .li-ar { order: -1; width: 2px; height: 18px; margin: 0 0 8px; }
+  .li-ar::after { right: auto; top: auto; left: -4px; bottom: -8px; border-width: 8px 5px 0 5px; border-color: var(--muted) transparent transparent transparent; }
+  .li-el { min-height: 0; }
+}
+.li-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 18px; margin: 14px 0 0; }
+.li-facts > div { min-width: 0; border-top: 2px solid var(--rule); padding-top: 6px; }
+.li-facts dt { font: 800 11.5px/1.3 var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.li-facts dd { margin: 3px 0 0; font-size: 15px; line-height: 1.5; }
+@media (max-width: 760px) { .li-facts { grid-template-columns: minmax(0, 1fr); } }
+.li-cols2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0 28px; }
+@media (max-width: 880px) { .li-cols2 { grid-template-columns: minmax(0, 1fr); } }
+ul.li-tree, ul.li-tree ul { list-style: none; margin: 0; padding: 0; }
+ul.li-tree { margin-top: 6px; font-size: 14.5px; line-height: 1.45; }
+ul.li-tree li { margin: 0; }
+ul.li-tree ul { margin-left: 7px; padding-left: 16px; border-left: 1px solid var(--rule); }
+ul.li-tree ul > li { position: relative; padding: 3px 0; }
+ul.li-tree ul > li::before { content: ""; position: absolute; left: -16px; top: 14px; width: 11px; border-top: 1px solid var(--rule); }
+.li-dir { font: 700 13.5px/1.5 var(--f-mono); }
+a.li-tf { font: 600 13px/1.5 var(--f-mono); color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+a.li-tf:hover, a.li-tf:focus-visible { text-decoration: underline; }
+.li-tc { color: var(--muted); }
+.li-tp { font: 600 12px/1.4 var(--f-display); color: var(--muted); white-space: nowrap; }
+ul.li-ogs { list-style: none; padding: 0; margin: 6px 0 0; font-size: 14.5px; line-height: 1.45; color: var(--muted); }
+ul.li-ogs li { margin-bottom: 8px; }
+ul.li-ogs .li-og { margin-right: 4px; }
+.li-status a { color: var(--ink); text-decoration: none; }
+.li-status a:hover, .li-status a:focus-visible { color: var(--accent); text-decoration: underline; }
+.li-marks { margin: 8px 0 0; font-size: 14.5px; color: var(--muted); }
+/* una palabra con guion baja entera a la línea siguiente; los archivos, por debajo de 1024 px, se parten con sangría francesa */
+.li-nw { display: inline-block; max-width: 100%; text-indent: 0; }
+@media (max-width: 1023px) {
+  .li-file pre { white-space: pre-wrap; }
+  .li-file .ln { display: inline-block; width: 100%; vertical-align: top; padding-left: calc((var(--i, 0) + 2) * 1ch); text-indent: calc((var(--i, 0) + 2) * -1ch); overflow-wrap: anywhere; }
+}
+@media (max-width: 640px) {
+  .li-step { padding: 14px 12px 16px; border-radius: 12px; }
+  .li-head h3 { font-size: 19px; }
+  .li-cg { padding-left: 8px; }
+  .code.li-cmd { padding-left: 10px; }
+  .li-file pre { padding: 10px 10px; font-size: 12.5px; }
+  table.li-status, table.li-status tbody { display: block; width: 100%; }
+  table.li-status thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.li-status tr { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; padding: 7px 0; border-bottom: 1px solid var(--rule); }
+  table.li-status th.rh, table.li-status td { display: block; padding: 0; border: 0; }
+  table.li-status td { margin-left: auto; text-align: right; }
+}
 footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--rule); padding-top: 14px; }
 @media (max-width: 640px) {
   table.stk, table.stk tbody, table.stk tr, table.stk td, table.stk th.rh { display: block; width: 100%; }
@@ -1426,6 +1758,25 @@ footer { margin-top: 30px; color: var(--muted); font-size: 14px; border-top: 1px
   figure.fig:not(.has-table), figure.has-table .scroll, .notes, .memo, .trap, ol.errlist li, .tpl, .mb, ul.ex__notes li { break-inside: avoid; }
   tr { break-inside: avoid; }
   .card > h3, .example > h3, .tag { break-after: avoid; }
+  /* laboratorio Iris: los archivos completos (los largos, abiertos), sin botones ni plegables */
+  .li-step { margin-top: 10px; padding: 8px 10px; border-radius: 8px; }
+  .li-head { gap: 4px 8px; } .li-head h3 { font-size: 14.5px; } .li-n { min-width: 24px; height: 24px; font-size: 12.5px; border-radius: 6px; }
+  .st { font-size: 8.5px; padding: 1px 7px; } .li-og, .li-verify { font-size: 8px; } .li-stn, .li-tp { font-size: 8.5px; }
+  .li-k, .li-facts dt { font-size: 8.5px; }
+  .li-blk { margin-top: 8px; } .li-what { margin-top: 6px; }
+  .li-ct, .li-fig figcaption, .li-facts dd, .li-co, .li-cn, .li-er, .li-rev, .li-pn, .li-subh h4 { font-size: 10.5px; }
+  .li-where, .li-fnote, ul.li-tree, ul.li-ogs, .li-marks, .li-tl, .li-src, .li-see { font-size: 9.5px; }
+  .li-fname, .li-dir, a.li-tf, .li-tn, .li-en, .li .k, .li-where code { font-size: 9px; } .li-nt { font-size: 8.5px; } .li-nr { font-size: 9.5px; } .li-nn { font-size: 11px; } .li-el { font-size: 8px; }
+  .li-fig { padding: 8px; margin-top: 8px; } .li-node { padding: 5px 7px; }
+  .li-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 14px; margin-top: 8px; }
+  .li-why ul { columns: 2; column-gap: 20px; }
+  .li-file .ln { display: inline-block; width: 100%; vertical-align: top; padding-left: calc((var(--i, 0) + 2) * 1ch); text-indent: calc((var(--i, 0) + 2) * -1ch); overflow-wrap: anywhere; }
+  .li-cols pre { columns: 2; column-gap: 18px; }
+  details.li-fold > summary { display: none; }
+  .code.li-cmd { padding: 3px 8px; }
+  .li-sub { margin-top: 10px; padding-top: 8px; }
+  .li-head, .li-subh, .li-ct, .li-where, .li-verify { break-after: avoid; }
+  .li-out, .li-trap, .li-rev, .code.li-cmd, .li-fig, .li-file:not(.is-long), ol.li-exp > li, ol.li-traps > li, .li-facts > div, .li-plan ol > li > .li-p { break-inside: avoid; }
 }
 `;
 
@@ -2139,6 +2490,15 @@ const JS_SRC = String.raw`
     });
     $('err-n').textContent = nn + ' de ' + items.length;
   });
+
+  // ---------- laboratorio Iris: los archivos largos, abiertos en escritorio y plegados en el celular; al imprimir, abiertos
+  var folds = [].slice.call(doc.querySelectorAll('details.li-fold'));
+  if (folds.length) {
+    if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) folds.forEach(function (d) { d.open = false; });
+    var wasOpen = null;
+    window.addEventListener('beforeprint', function () { wasOpen = folds.map(function (d) { return d.open; }); folds.forEach(function (d) { d.open = true; }); });
+    window.addEventListener('afterprint', function () { if (wasOpen) folds.forEach(function (d, i) { d.open = wasOpen[i]; }); wasOpen = null; });
+  }
 })();`;
 // La fuente del generador para la página (la misma que importan los tests) y el resaltado de esta hoja (hl), serializado.
 const GEN_PAGE = GEN.toPageScript(readFileSync(join(HERE, 'generador.mjs'), 'utf8'));
@@ -2183,7 +2543,7 @@ const GEN_NODE = (() => {
 })();
 
 // ---------------------------------------------------------------- página
-const NAV = [...ORDER.map((id) => [id, NAVL[id]]), ['generador', 'Generador de Dockerfile'], ['diagnosticador', 'Diagnosticador'], ['revisor', 'Revisor de Dockerfile']];
+const NAV = [...ORDER.map((id) => [id, NAVL[id]]), [LAB.id, LAB.nav], ['generador', 'Generador de Dockerfile'], ['diagnosticador', 'Diagnosticador'], ['revisor', 'Revisor de Dockerfile']];
 const HEAD = `<title>Cheat sheet de Docker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2193,13 +2553,14 @@ const WRAP = `<div class="wrap">
   <header class="hero">
     <p class="kicker">Ronda de Diseño ML · Contenedores · ejemplos de C01</p>
     <h1>Cheat sheet de Docker</h1>
-    <p class="lead">Para escribir un Dockerfile con la documentación abierta y diagnosticar una falla en minutos. Cada sección trae la sintaxis como plantilla con variables, las piezas, un ejemplo real del curso, una figura, un truco para recordarla, la trampa típica y, cuando se puede, un laboratorio opcional para tu Mac. En la versión web, al final hay un diagnosticador de síntomas y un revisor de Dockerfile.</p>
+    <p class="lead">Para escribir un Dockerfile con la documentación abierta y diagnosticar una falla en minutos. Cada sección trae la sintaxis como plantilla con variables, las piezas, un ejemplo real del curso, una figura, un truco para recordarla, la trampa típica y, cuando se puede, un laboratorio opcional para tu Mac. Después de los errores está tu laboratorio Iris completo, archivo por archivo, con lo que ya probaste y lo que falta. En la versión web, al final hay un diagnosticador de síntomas y un revisor de Dockerfile.</p>
     <p class="legendrow"><span><i class="dot" style="background:var(--hi-soft);outline:1px solid var(--hi)"></i>Cómo recordarla</span><span><i class="dot" style="background:var(--warn-soft);outline:1px solid var(--warn)"></i>Trampa típica</span><span><var class="ph">variable</var>la cambias tú</span><span><i class="dot" style="background:var(--accent2)"></i>Ejemplos en verde</span></p>
   </header>
   <nav class="toc" aria-label="Secciones"><ul>${NAV.map(([id, l]) => `<li><a href="#${id}">${esc(l)}</a></li>`).join('')}</ul></nav>
   ${ORDER.map(sectionHtml).join('\n')}
+  ${labSection()}
   ${toolsHtml()}
-  <footer>Comandos para Docker Engine 29.x, Compose v2 o posterior y el NVIDIA Container Toolkit, revisados contra la documentación oficial (docs.docker.com, la especificación de Compose y la documentación de NVIDIA). Los laboratorios no se ejecutaron al escribir esta hoja: si tu terminal dice otra cosa, créele a tu terminal. Los ejemplos salen de <code>reference/</code> del curso.</footer>
+  <footer>Comandos para Docker Engine 29.x, Compose v2 o posterior y el NVIDIA Container Toolkit, revisados contra la documentación oficial (docs.docker.com, la especificación de Compose y la documentación de NVIDIA). Los laboratorios no se ejecutaron al escribir esta hoja: si tu terminal dice otra cosa, créele a tu terminal. Los ejemplos salen de <code>reference/</code> del curso. El laboratorio Iris es otra cosa: es el tuyo, con tus archivos copiados tal cual y solo las salidas que anotaste; cada paso dice si se probó.</footer>
 </div>`;
 
 const KATEX = '<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script><script id="render-math">document.querySelectorAll("[data-tex]").forEach(function (el) { katex.render(el.dataset.tex, el, { displayMode: el.classList.contains("mb"), output: "mathml", throwOnError: false, strict: "ignore" }); }); window.__math = document.querySelectorAll("[data-tex] math").length;</script>';
@@ -2238,8 +2599,15 @@ function writeSrc(dir) {
   // src.html: sin el script de la página, para que el .wrap que se captura quede intacto (solo con el TeX renderizado).
   writeFileSync(join(dir, 'src.html'), '<!doctype html>\n<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' + HEAD + '</head><body>' + WRAP + KATEX + GEN_CHECK + '</body></html>');
   const texN = (WRAP.match(/data-tex=/g) || []).length;
-  console.log('src ok ·', (HEAD + WRAP + JS).length, 'bytes ·', texN, 'fórmulas ·', ORDER.length, 'secciones');
+  console.log('src ok ·', (HEAD + WRAP + JS).length, 'bytes ·', texN, 'fórmulas ·', ORDER.length, 'secciones + el laboratorio Iris');
   if (missingLinks.length) console.log('enlaces del curso sin título:', missingLinks.join(', '));
+  // ids únicos en el laboratorio (pasos, experimentos, trampas y archivos) y anclas que existen
+  const labIds = [...WRAP.matchAll(/\sid="((?:lab-iris|li-f-)[^"]*)"/g)].map((m) => m[1]), labDup = labIds.filter((id, i) => labIds.indexOf(id) !== i);
+  if (labDup.length) throw new Error('ids repetidos en el laboratorio: ' + [...new Set(labDup)].join(', '));
+  const allIds = new Set([...WRAP.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  const deadHrefs = [...new Set([...WRAP.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]).filter((h) => !allIds.has(h)))];
+  if (deadHrefs.length) throw new Error('enlaces internos sin destino: ' + deadHrefs.join(', '));
+  LABI.report(LAB);
   return texN;
 }
 
