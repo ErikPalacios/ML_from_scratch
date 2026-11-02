@@ -1,0 +1,51 @@
+{
+  "name": "ML desde cero",
+  "url": "https://ml-desde-cero.vercel.app",
+  "tagline": "Estudia ML engineering con herramientas que se usan, no solo se leen.",
+  "description": "Un curso de ML System Design para entrevistas, hojas de estudio de Docker, Kubernetes, Triton y vLLM, un atlas de arquitecturas de modelos y un transformer que se entrena paso a paso en tu navegador. En español, gratis y sin cuenta.",
+  "author": "Erik Palacios",
+  "repo": "https://github.com/ErikPalacios/ML_from_scratch",
+  "issues": "https://github.com/ErikPalacios/ML_from_scratch/issues/new",
+  "apps": [
+    {
+      "id": "curso",
+      "tag": "Entrevistas",
+      "title": "Ronda de Diseño ML",
+      "text": "Curso y simulador de ML System Design: lo que rodea al modelo en producción (serving, datos, evaluación, monitoreo, costo), con casos resueltos, práctica cronometrada de 45 minutos, rúbrica y flashcards.",
+      "url": "https://ronda-diseno-ml.vercel.app",
+      "cta": "Abrir el curso"
+    },
+    {
+      "id": "hojas",
+      "tag": "Hojas de estudio",
+      "title": "Cheat sheets ML",
+      "text": "Nueve hojas con PDF y versión web: estimaciones, Docker (con laboratorio completo), Kubernetes, Git y Actions, Triton, FastAPI, Prometheus y vLLM. Con diagnosticadores y revisores que corren en tu navegador.",
+      "url": "https://cheat-sheets-ml.vercel.app",
+      "cta": "Ver las hojas"
+    },
+    {
+      "id": "atlas",
+      "tag": "Arquitecturas",
+      "title": "Atlas de Arquitecturas",
+      "text": "Los modelos que preguntan en entrevistas, a nivel 2: diagrama de bloques, matemáticas, dimensiones, parámetros y FLOPs con la cuenta a la vista (ViT, CLIP, DETR, SAM, LLMs, difusión, VLA, PPO).",
+      "url": "https://atlas-arquitecturas.vercel.app",
+      "cta": "Explorar el atlas"
+    },
+    {
+      "id": "transformer",
+      "tag": "Laboratorio",
+      "title": "Laboratorio Transformer",
+      "text": "El entrenamiento completo de un transformer pequeño, operación por operación: forward, pérdida, backward y actualización, con cada matriz, su fórmula y sus dimensiones. Se calcula en tu navegador.",
+      "url": "https://laboratorio-transformer.vercel.app",
+      "cta": "Abrir el laboratorio"
+    },
+    {
+      "id": "tablero",
+      "tag": "Próximamente",
+      "title": "Tablero de proyectos ML",
+      "text": "Un mapa de metro por proyecto, del dato al monitoreo, con criterios de entrada y cálculos que se verifican. Habrá una demo de solo lectura.",
+      "url": null,
+      "cta": null
+    }
+  ]
+}

@@ -16,6 +16,27 @@ const OUT = join(ROOT, 'dist', 'web');
 if (!existsSync(SRC)) { console.error('[build-web] ERROR: falta dist/ml-system-design.html (corre antes node build.mjs).'); process.exit(1); }
 
 let html = readFileSync(SRC, 'utf8');
+// SEO y vista previa en redes (Open Graph / Twitter Card). SITE_URL: dirección pública; cámbiala cuando haya dominio propio.
+const SITE_URL = 'https://ronda-diseno-ml.vercel.app';
+const SITE_NAME = 'Ronda de Diseño ML';
+const metaTitle = (/<title>([^<]*)<\/title>/i.exec(html) || [])[1] || SITE_NAME;
+const metaDesc = (/<meta name="description" content="([^"]*)"/i.exec(html) || [])[1] || '';
+const SEO = [
+  `<link rel="canonical" href="${SITE_URL}/">`,
+  '<meta property="og:type" content="website">',
+  '<meta property="og:locale" content="es_MX">',
+  `<meta property="og:site_name" content="${SITE_NAME}">`,
+  `<meta property="og:title" content="${metaTitle} — curso y simulador de ML System Design">`,
+  `<meta property="og:description" content="${metaDesc}">`,
+  `<meta property="og:url" content="${SITE_URL}/">`,
+  `<meta property="og:image" content="${SITE_URL}/og.png">`,
+  '<meta property="og:image:width" content="1200">',
+  '<meta property="og:image:height" content="630">',
+  '<meta name="twitter:card" content="summary_large_image">',
+  `<meta name="twitter:title" content="${metaTitle}">`,
+  `<meta name="twitter:description" content="${metaDesc}">`,
+  `<meta name="twitter:image" content="${SITE_URL}/og.png">`,
+];
 const head = [
   '<link rel="manifest" href="manifest.webmanifest">',
   '<link rel="icon" href="icon.svg" type="image/svg+xml">',
@@ -25,6 +46,7 @@ const head = [
   '<meta name="mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-title" content="Ronda ML">',
+  ...SEO,
 ].join('\n');
 // el service worker solo se registra servido por http(s): con doble clic (file://) no aplica.
 // navigator.storage.persist() pide que el navegador no borre el progreso y las notas
@@ -49,8 +71,10 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, 'index.html'), html);
 writeFileSync(join(OUT, 'sw.js'), readFileSync(join(WEB, 'sw.js'), 'utf8').replaceAll('__BUILD__', build));
-for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
+for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'og.png']) {
   if (!existsSync(join(WEB, f))) { console.error('[build-web] ERROR: falta web/' + f); process.exit(1); }
   copyFileSync(join(WEB, f), join(OUT, f));
 }
+writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>\n</urlset>\n`);
 console.log('[build-web] dist/web/ listo (build ' + build + ', index.html ' + (Buffer.byteLength(html) / 1024).toFixed(1) + ' KB)');

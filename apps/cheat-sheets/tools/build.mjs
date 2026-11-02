@@ -15,7 +15,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
 const OUT = join(ROOT, 'dist');
 const SHEETS = JSON.parse(readFileSync(join(ROOT, 'sheets.json'), 'utf8'));
-const ASSETS = ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+const ASSETS = ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'og.png'];
 
 const fail = (msg) => { console.error('[build] ERROR: ' + msg); process.exit(1); };
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -38,6 +38,33 @@ const HEAD = [
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-title" content="Cheat sheets">',
 ].join('\n');
+// SEO y vista previa en redes: dirección canónica, Open Graph y Twitter Card. SITE_URL es la dirección pública del sitio
+// (cámbiala cuando haya dominio propio). La descripción solo se agrega si la página no trae una.
+const SITE_URL = 'https://cheat-sheets-ml.vercel.app';
+const SITE_NAME = 'Cheat sheets ML';
+const seo = (path, title, desc, html) => {
+  const url = SITE_URL + path;
+  const meta = [
+    html && /<meta name="description"/i.test(html) ? '' : `<meta name="description" content="${esc(desc)}">`,
+    `<link rel="canonical" href="${url}">`,
+    '<meta property="og:type" content="website">',
+    '<meta property="og:locale" content="es_MX">',
+    `<meta property="og:site_name" content="${SITE_NAME}">`,
+    `<meta property="og:title" content="${esc(title)}">`,
+    `<meta property="og:description" content="${esc(desc)}">`,
+    `<meta property="og:url" content="${url}">`,
+    `<meta property="og:image" content="${SITE_URL}/og.png">`,
+    '<meta property="og:image:width" content="1200">',
+    '<meta property="og:image:height" content="630">',
+    '<meta name="twitter:card" content="summary_large_image">',
+    `<meta name="twitter:title" content="${esc(title)}">`,
+    `<meta name="twitter:description" content="${esc(desc)}">`,
+    `<meta name="twitter:image" content="${SITE_URL}/og.png">`,
+  ].filter(Boolean).join('\n');
+  return HEAD + '\n' + meta;
+};
+// Crédito y licencia al pie de cada página (la imagen de copia no se bloquea: se protege la atribución).
+const FOOT = `<footer class="hub-credit"><p>© ${new Date().getFullYear()} Erik Palacios · Contenido bajo <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.es">CC BY-NC-ND 4.0</a> · <a href="https://ml-desde-cero.vercel.app">ML desde cero</a> · <a href="https://github.com/ErikPalacios/ML_from_scratch/issues/new">Reportar un error</a></p></footer>`;
 // el service worker solo se registra servido por http(s): abriendo el archivo con doble clic no aplica.
 const REGISTER = `<script>
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
@@ -101,6 +128,8 @@ body { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area
   .tema button { padding: 0 10px; }
   .tema button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+.hub-credit { max-width: 960px; margin: 40px auto 0; padding: 20px 16px 36px; border-top: 1px solid rgba(128, 138, 152, .3); text-align: center; font: 13.5px/1.5 var(--f-body, system-ui, sans-serif); opacity: .8; }
+.hub-credit p { margin: 0; }
 @media print { .hub-bar { display: none !important; } }
 `;
 
@@ -130,7 +159,8 @@ for (const s of SHEETS) {
   for (const f of [s.page, s.pdf]) if (!existsSync(join(dir, f))) fail(`falta sheets/${s.id}/${f}`);
   s.pdfSize = statSync(join(dir, s.pdf)).size;
   const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><a href="/">← Todas las cheat sheets</a><div class="hub-acc">${THEME_UI}<a class="hub-pdf" href="${esc(s.pdf)}">PDF · ${mb(s.pdfSize)}</a></div></nav>`;
-  const html = inject(readFileSync(join(dir, s.page), 'utf8'), s.id, { head: HEAD, css: BAR_CSS, afterWrap: bar, beforeBody: REGISTER + THEME_JS });
+  const src = readFileSync(join(dir, s.page), 'utf8');
+  const html = inject(src, s.id, { head: seo(`/${s.id}/`, `${s.title} — ${SITE_NAME}`, s.summary, src), css: BAR_CSS, afterWrap: bar, beforeBody: FOOT + REGISTER + THEME_JS });
   mkdirSync(join(OUT, s.id), { recursive: true });
   writeFileSync(join(OUT, s.id, 'index.html'), html);
   copyFileSync(join(dir, s.pdf), join(OUT, s.id, s.pdf));
@@ -154,8 +184,10 @@ const card = (s) => `    <article class="sheet" id="${esc(s.id)}">
     </article>`;
 let hub = readFileSync(join(SITE, 'hub.html'), 'utf8');
 if (!hub.includes('<!--HOJAS-->')) fail('site/hub.html no tiene el marcador <!--HOJAS-->');
-hub = inject(hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n')), 'portada', {
-  head: HEAD, css: BAR_CSS, afterWrap: `<nav class="hub-bar hub-bar--home" aria-label="Preferencias">${THEME_UI}</nav>`, beforeBody: REGISTER + THEME_JS,
+hub = hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n'));
+hub = inject(hub, 'portada', {
+  head: seo('/', SITE_NAME + ' — hojas de estudio para ML engineering', 'Hojas de estudio con versión web y PDF: estimaciones, Docker, Kubernetes, Git y Actions, Triton, FastAPI, Prometheus y vLLM, con diagnosticadores y revisores que corren en tu navegador.', hub),
+  css: BAR_CSS, afterWrap: `<nav class="hub-bar hub-bar--home" aria-label="Preferencias">${THEME_UI}</nav>`, beforeBody: FOOT + REGISTER + THEME_JS,
 });
 writeFileSync(join(OUT, 'index.html'), hub);
 pages['/'] = hub;
@@ -174,3 +206,8 @@ for (const f of ASSETS) {
   copyFileSync(join(SITE, f), join(OUT, f));
 }
 console.log(`[build] dist/ listo · build ${build} · ${SHEETS.length} hojas: ${SHEETS.map((s) => s.id).join(', ')}`);
+
+// 4 · robots.txt y sitemap.xml
+const hoy = new Date().toISOString().slice(0, 10);
+writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${order.map((p) => `  <url><loc>${SITE_URL}${p}</loc><lastmod>${p === '/' ? hoy : SHEETS.find((s) => `/${s.id}/` === p).updated}</lastmod></url>`).join('\n')}\n</urlset>\n`);

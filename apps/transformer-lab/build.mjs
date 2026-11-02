@@ -6,7 +6,7 @@
 // Se incrustan todos los <link rel="stylesheet" href="css/…"> y <script src="js/…"> locales;
 // MathJax (CDN) y Google Fonts se mantienen como recursos externos.
 // Uso: node build.mjs [--allow-missing]   (con --allow-missing, un archivo local ausente solo avisa)
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -79,6 +79,11 @@ const artifact = [title, styles, markup, headScripts.concat(bodyScripts).join('\
 mkdirSync(DIST, { recursive: true });
 writeFileSync(join(DIST, 'transformer-lab.html'), out);
 writeFileSync(join(DIST, 'artifact.html'), artifact);
+// Archivos públicos (imagen para redes, etc.): public/ se copia tal cual a dist/. Más robots.txt y sitemap.xml.
+const SITE_URL = 'https://laboratorio-transformer.vercel.app';
+if (existsSync(join(ROOT, 'public'))) for (const f of readdirSync(join(ROOT, 'public'))) copyFileSync(join(ROOT, 'public', f), join(DIST, f));
+writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+writeFileSync(join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>\n</urlset>\n`);
 
 // ---------- comprobaciones e informe
 const kb = (n) => (n / 1024).toFixed(1) + ' KB';

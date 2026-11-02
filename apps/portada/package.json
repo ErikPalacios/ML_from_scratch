@@ -1,0 +1,9 @@
+{
+  "name": "portada",
+  "private": true,
+  "description": "Portada común de las apps de estudio de ML: tarjetas, SEO, aviso de privacidad.",
+  "scripts": {
+    "build": "node build.mjs",
+    "og": "node tools/og.mjs"
+  }
+}

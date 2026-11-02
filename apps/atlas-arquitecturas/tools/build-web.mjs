@@ -26,6 +26,27 @@ let html = readFileSync(SRC, 'utf8');
 const ENV_SINGLE = 'window.ATLAS_ENV = "single";';
 if (html.split(ENV_SINGLE).length !== 2) { console.error('[build-web] ERROR: dist/atlas-arquitecturas.html debe tener exactamente un ' + ENV_SINGLE); process.exit(1); }
 html = html.replace(ENV_SINGLE, 'window.ATLAS_ENV = "web";');
+// SEO y vista previa en redes (Open Graph / Twitter Card). SITE_URL: dirección pública; cámbiala cuando haya dominio propio.
+const SITE_URL = 'https://atlas-arquitecturas.vercel.app';
+const SITE_NAME = 'Atlas de Arquitecturas';
+const metaTitle = (/<title>([^<]*)<\/title>/i.exec(html) || [])[1] || SITE_NAME;
+const metaDesc = (/<meta name="description" content="([^"]*)"/i.exec(html) || [])[1] || '';
+const SEO = [
+  `<link rel="canonical" href="${SITE_URL}/">`,
+  '<meta property="og:type" content="website">',
+  '<meta property="og:locale" content="es_MX">',
+  `<meta property="og:site_name" content="${SITE_NAME}">`,
+  `<meta property="og:title" content="${metaTitle} — diagramas, matemáticas y dimensiones de modelos de ML">`,
+  `<meta property="og:description" content="${metaDesc}">`,
+  `<meta property="og:url" content="${SITE_URL}/">`,
+  `<meta property="og:image" content="${SITE_URL}/og.png">`,
+  '<meta property="og:image:width" content="1200">',
+  '<meta property="og:image:height" content="630">',
+  '<meta name="twitter:card" content="summary_large_image">',
+  `<meta name="twitter:title" content="${metaTitle}">`,
+  `<meta name="twitter:description" content="${metaDesc}">`,
+  `<meta name="twitter:image" content="${SITE_URL}/og.png">`,
+];
 const head = [
   '<link rel="manifest" href="manifest.webmanifest">',
   '<link rel="icon" href="icon.svg" type="image/svg+xml">',
@@ -35,6 +56,7 @@ const head = [
   '<meta name="mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="apple-mobile-web-app-title" content="Atlas">',
+  ...SEO,
 ].join('\n');
 // el service worker solo se registra servido por http(s): con doble clic (file://) no aplica
 const register = `<script>
@@ -68,7 +90,7 @@ rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, 'index.html'), html);
 writeFileSync(join(OUT, 'sw.js'), swSrc.replace('__BUILD__', build).replace('/*__EXTRA__*/', extra.join(', ')).replace('/*__RUNTIME__*/', runtimeUrls.map((u) => JSON.stringify(u)).join(', ')));
-for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png']) {
+for (const f of ['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'og.png']) {
   if (!existsSync(join(WEB, f))) { console.error('[build-web] ERROR: falta web/' + f); process.exit(1); }
   copyFileSync(join(WEB, f), join(OUT, f));
 }
@@ -81,4 +103,6 @@ if (hasLab) {
 } else {
   console.warn('[build-web] AVISO: no existe vendor/lab/index.html (npm run vendor:lab): los enlaces al Laboratorio no abrirán en la web.');
 }
+writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+writeFileSync(join(OUT, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${SITE_URL}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url>\n</urlset>\n`);
 console.log('[build-web] dist/web/ listo (build ' + build + ', index.html ' + (Buffer.byteLength(html) / 1024).toFixed(1) + ' KB' + (hasLab ? ', con lab/' : ', sin lab/') + ')');

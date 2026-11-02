@@ -190,3 +190,21 @@ Detalles a recordar:
 - **Hallazgo importante:** el repositorio de GitHub (`ErikPalacios/ML_from_scratch`) **ya es público**, con todo el historial de `main`. Subir esta rama publica también las 55 commits del Atlas. Por eso la decisión de la historia (sección 10) cambia: publicar un repositorio nuevo no esconde lo que ya está en el actual.
 
 Pendiente de la Fase 1: chequeos de celular y modo oscuro del Atlas y del laboratorio Transformer (los de las cheat sheets ya pasaron), y subir la rama.
+
+## 12. Resultado de la Fase 2 (2026-11-02)
+
+**Hecho y en producción**
+- **Portada común** (`apps/portada`, proyecto de Vercel `ml-desde-cero`): https://ml-desde-cero.vercel.app. Tarjetas de las cuatro apps y el tablero («Próximamente»), tres rutas de «por dónde empezar», enlace para reportar errores (issues de GitHub), pie con licencia y **aviso de privacidad** (`/privacidad/`). Datos en `apps/portada/site.json`; el nombre «ML desde cero» es de trabajo y se cambia ahí.
+- **SEO en todas las apps:** dirección canónica, Open Graph y Twitter Card, `robots.txt` y `sitemap.xml` (curso, hojas con una URL por hoja, atlas, laboratorio y portada). Imagen para redes de 1200×630 por app, generada con `npm run og` (en `apps/portada`).
+- **Atribución visible:** pie con nombre, licencia y enlace en la portada y en cada hoja. Los PDF ya generados no cambian.
+- Chequeos del navegador de cheat sheets, Atlas, curso y laboratorio: sin errores.
+
+**Pendiente de tu mano**
+1. **Activar Vercel Web Analytics** en el proyecto `ml-desde-cero` (Vercel → proyecto → Analytics → Enable). La portada ya trae el script; hasta que lo actives, esa petición da 404 sin efecto. Si quieres medir también las otras apps, hay que activarlo en cada proyecto y agregar el mismo script a sus builds.
+2. **Probar cómo se ve el enlace compartido** (LinkedIn Post Inspector, X, WhatsApp) y que Google Search Console reciba los sitemaps cuando haya dominio propio.
+3. **Aviso de privacidad:** es un resumen en lenguaje sencillo, no asesoría legal; revísalo antes del lanzamiento público.
+
+**Queda para después (fuera de lo hecho)**
+- Marcas ocultas por hoja (la prueba de copia del plan, sección 4.5).
+- Atribución en el curso, el atlas y el laboratorio (son aplicaciones de una sola página).
+- Cuando haya dominio propio: cambiar `SITE_URL` en los cinco builds y las URLs de `site.json`.
