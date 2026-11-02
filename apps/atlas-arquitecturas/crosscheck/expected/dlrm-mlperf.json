@@ -1,0 +1,133 @@
+{
+  "config_id": "dlrm-mlperf",
+  "model": "dlrm",
+  "params_total": 26137996161,
+  "params_by_node": {
+    "embeddings": 26135627264,
+    "bottom-mlp": 171392,
+    "top-mlp": 2197505
+  },
+  "shapes": {
+    "dense": [
+      13
+    ],
+    "b-h1": [
+      512
+    ],
+    "b-a1": [
+      512
+    ],
+    "b-h2": [
+      256
+    ],
+    "b-a2": [
+      256
+    ],
+    "b-h3": [
+      128
+    ],
+    "bot-out": [
+      128
+    ],
+    "emb": [
+      26,
+      128
+    ],
+    "feats": [
+      27,
+      128
+    ],
+    "gram": [
+      27,
+      27
+    ],
+    "pairs": [
+      351
+    ],
+    "top-in": [
+      479
+    ],
+    "t-h1": [
+      1024
+    ],
+    "t-a1": [
+      1024
+    ],
+    "t-h2": [
+      1024
+    ],
+    "t-a2": [
+      1024
+    ],
+    "t-h3": [
+      512
+    ],
+    "t-a3": [
+      512
+    ],
+    "t-h4": [
+      256
+    ],
+    "t-a4": [
+      256
+    ],
+    "ctr": [
+      1
+    ],
+    "logit": [
+      1
+    ],
+    "sparse-ids": [
+      26
+    ]
+  },
+  "flops_total": 4916992,
+  "flops_by_op_torch": {
+    "aten.addmm": 4730368,
+    "aten.bmm": 186624
+  },
+  "flops_by_node": {
+    "bottom-mlp": 340992,
+    "top-mlp": 4389376
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "pairwise_dot"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm"
+      ],
+      "prims": [
+        "linear"
+      ]
+    }
+  ],
+  "metrics_checks": {
+    "embeddingParams": 26135627264,
+    "mlpParams": 2368897,
+    "lookupsPerSample": 26,
+    "tables": 26,
+    "totalRows": 204184588,
+    "interactionMacs": 93312
+  },
+  "notes": [
+    "Construido en código en el dispositivo meta (sin pesos ni datos). facebookresearch/dlrm bench/run_and_time.sh (--max-ind-range=40000000).",
+    "EmbeddingBag (lookup + suma), ReLU, sigmoide y el producto x0 ⊙ (…) de DCN no cuentan en FlopCounterMode, igual que el calculador ('otros').",
+    "La interacción es un bmm de la matriz ENTERA 27×27 (FlopCounterMode cuenta 27²·d MACs); se usan los 351 pares del triángulo inferior estricto."
+  ],
+  "source": {
+    "lib": "torch (réplica de DLRM_Net de facebookresearch/dlrm / DLRM_DCN de torchrec)",
+    "ctor": "DLRM({'kind': 'dot', 'd': 128, 'bot': '13-512-256-128', 'top': '1024-1024-512-256-1', 'hots': None})",
+    "rows_sum": 204184588,
+    "python": "3.13.15",
+    "torch": "2.14.1",
+    "timm": "1.0.30",
+    "transformers": "5.19.0"
+  }
+}

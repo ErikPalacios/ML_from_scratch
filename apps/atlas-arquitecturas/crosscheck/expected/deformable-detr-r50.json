@@ -1,0 +1,1047 @@
+{
+  "config_id": "deformable-detr-r50",
+  "model": "deformable-detr",
+  "params_total": 40069665,
+  "params_by_module": {
+    "backbone": 23454912,
+    "input_proj": 5639168,
+    "query_position_embeddings": 153600,
+    "encoder": 4541184,
+    "decoder": 6123264,
+    "reference_points": 514,
+    "level_embed": 1024,
+    "class_embed": 23387,
+    "bbox_embed": 132612
+  },
+  "params_by_node": {
+    "backbone": 23454912,
+    "stem": 9408,
+    "input-proj": 5639168,
+    "pos-enc": 1024,
+    "level-embed": 1024,
+    "encoder": 4541184,
+    "enc-layer": 4541184,
+    "queries": 153600,
+    "decoder": 6123778,
+    "dec-layer": 6123264,
+    "ref-points": 514,
+    "class-head": 23387,
+    "box-head": 132612,
+    "layer1": 212992,
+    "layer2": 1212416,
+    "layer3": 7077888,
+    "layer4": 14942208,
+    "proj-l1": 131840,
+    "proj-l2": 262912,
+    "proj-l3": 525056,
+    "proj-l4": 4719360
+  },
+  "params_by_path": {
+    "encoder>enc-layer>self-attn": 1381632,
+    "encoder>enc-layer>self-attn>offsets": 394752,
+    "encoder>enc-layer>self-attn>attn-weights": 197376,
+    "encoder>enc-layer>self-attn>value-proj": 394752,
+    "encoder>enc-layer>self-attn>proj": 394752,
+    "encoder>enc-layer>ffn": 3153408,
+    "decoder>dec-layer>self-attn": 1579008,
+    "decoder>dec-layer>cross-attn": 1381632,
+    "decoder>dec-layer>cross-attn>offsets": 394752,
+    "decoder>dec-layer>ffn": 3153408
+  },
+  "buffers_total": 106240,
+  "params_official_trainable": 39847265,
+  "params_official_frozen": 222400,
+  "levels": [
+    [
+      100,
+      152
+    ],
+    [
+      50,
+      76
+    ],
+    [
+      25,
+      38
+    ],
+    [
+      13,
+      19
+    ]
+  ],
+  "msda_calls": 12,
+  "msda_encoder_call": {
+    "value": [
+      1,
+      20197,
+      8,
+      32
+    ],
+    "sampling_locations": [
+      1,
+      20197,
+      8,
+      4,
+      4,
+      2
+    ],
+    "attention_weights": [
+      1,
+      20197,
+      8,
+      4,
+      4
+    ]
+  },
+  "msda_decoder_call": {
+    "value": [
+      1,
+      20197,
+      8,
+      32
+    ],
+    "sampling_locations": [
+      1,
+      300,
+      8,
+      4,
+      4,
+      2
+    ],
+    "attention_weights": [
+      1,
+      300,
+      8,
+      4,
+      4
+    ]
+  },
+  "shapes": {
+    "x-img": [
+      800,
+      1216,
+      3
+    ],
+    "stem-out": [
+      400,
+      608,
+      64
+    ],
+    "pool-out": [
+      200,
+      304,
+      64
+    ],
+    "l1-b1-out": [
+      200,
+      304,
+      256
+    ],
+    "c2": [
+      200,
+      304,
+      256
+    ],
+    "l2-b1-out": [
+      100,
+      152,
+      512
+    ],
+    "c3": [
+      100,
+      152,
+      512
+    ],
+    "l3-b1-out": [
+      50,
+      76,
+      1024
+    ],
+    "c4": [
+      50,
+      76,
+      1024
+    ],
+    "l4-b1-out": [
+      25,
+      38,
+      2048
+    ],
+    "c5": [
+      25,
+      38,
+      2048
+    ],
+    "src-l1-conv": [
+      100,
+      152,
+      256
+    ],
+    "src-l1": [
+      100,
+      152,
+      256
+    ],
+    "src-l2-conv": [
+      50,
+      76,
+      256
+    ],
+    "src-l2": [
+      50,
+      76,
+      256
+    ],
+    "src-l3-conv": [
+      25,
+      38,
+      256
+    ],
+    "src-l3": [
+      25,
+      38,
+      256
+    ],
+    "src-l4-conv": [
+      13,
+      19,
+      256
+    ],
+    "src-l4": [
+      13,
+      19,
+      256
+    ],
+    "memory-in": [
+      20197,
+      256
+    ],
+    "e-ref": [
+      20197,
+      4,
+      2
+    ],
+    "e-value": [
+      20197,
+      256
+    ],
+    "e-q-in": [
+      20197,
+      256
+    ],
+    "e-offsets": [
+      20197,
+      256
+    ],
+    "e-aw-logits": [
+      20197,
+      128
+    ],
+    "e-z": [
+      20197,
+      256
+    ],
+    "e-o": [
+      20197,
+      256
+    ],
+    "e-r1": [
+      20197,
+      256
+    ],
+    "e-ln1": [
+      20197,
+      256
+    ],
+    "e-r2": [
+      20197,
+      256
+    ],
+    "memory": [
+      20197,
+      256
+    ],
+    "d-ref-logits": [
+      300,
+      2
+    ],
+    "tgt0": [
+      300,
+      256
+    ],
+    "d-qk-in": [
+      300,
+      256
+    ],
+    "d-r1": [
+      300,
+      256
+    ],
+    "d-ln1": [
+      300,
+      256
+    ],
+    "d-cross-q-in": [
+      300,
+      256
+    ],
+    "d-cross-value": [
+      20197,
+      256
+    ],
+    "d-cross-offsets": [
+      300,
+      256
+    ],
+    "d-cross-aw-logits": [
+      300,
+      128
+    ],
+    "d-cross-z": [
+      300,
+      256
+    ],
+    "d-cross-o": [
+      300,
+      256
+    ],
+    "d-r2": [
+      300,
+      256
+    ],
+    "d-ln2": [
+      300,
+      256
+    ],
+    "d-r3": [
+      300,
+      256
+    ],
+    "hs": [
+      300,
+      256
+    ],
+    "logits": [
+      300,
+      91
+    ],
+    "box-h1": [
+      300,
+      256
+    ],
+    "box-h2": [
+      300,
+      256
+    ],
+    "box-raw": [
+      300,
+      4
+    ],
+    "d-self-qp": [
+      300,
+      256
+    ],
+    "d-self-kp": [
+      300,
+      256
+    ],
+    "d-self-vp": [
+      300,
+      256
+    ],
+    "d-self-z": [
+      300,
+      256
+    ],
+    "d-self-o": [
+      300,
+      256
+    ],
+    "e-u": [
+      20197,
+      1024
+    ],
+    "e-g": [
+      20197,
+      1024
+    ],
+    "e-f": [
+      20197,
+      256
+    ],
+    "d-u": [
+      300,
+      1024
+    ],
+    "d-g": [
+      300,
+      1024
+    ],
+    "d-f": [
+      300,
+      256
+    ],
+    "pos-sine": [
+      20197,
+      256
+    ],
+    "level-table": [
+      4,
+      256
+    ],
+    "query-pos": [
+      300,
+      256
+    ],
+    "d-ref": [
+      300,
+      2
+    ],
+    "d-self-attn": [
+      8,
+      300,
+      300
+    ],
+    "boxes": [
+      300,
+      4
+    ],
+    "e-aw": [
+      20197,
+      128
+    ],
+    "e-sampled": [
+      8,
+      20197,
+      16,
+      32
+    ],
+    "d-cross-aw": [
+      300,
+      128
+    ],
+    "d-cross-sampled": [
+      8,
+      300,
+      16,
+      32
+    ]
+  },
+  "shapes_torch": {
+    "stem-out": {
+      "module": "model.backbone.model.act1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        400,
+        608
+      ]
+    },
+    "pool-out": {
+      "module": "model.backbone.model.maxpool",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        200,
+        304
+      ]
+    },
+    "l1-b1-out": {
+      "module": "model.backbone.model.layer1.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        200,
+        304
+      ]
+    },
+    "c2": {
+      "module": "model.backbone.model.layer1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        200,
+        304
+      ]
+    },
+    "l2-b1-out": {
+      "module": "model.backbone.model.layer2.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        100,
+        152
+      ]
+    },
+    "c3": {
+      "module": "model.backbone.model.layer2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        512,
+        100,
+        152
+      ]
+    },
+    "l3-b1-out": {
+      "module": "model.backbone.model.layer3.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        50,
+        76
+      ]
+    },
+    "c4": {
+      "module": "model.backbone.model.layer3",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1024,
+        50,
+        76
+      ]
+    },
+    "l4-b1-out": {
+      "module": "model.backbone.model.layer4.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2048,
+        25,
+        38
+      ]
+    },
+    "c5": {
+      "module": "model.backbone.model.layer4",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        2048,
+        25,
+        38
+      ]
+    },
+    "src-l1-conv": {
+      "module": "model.input_proj.0.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        100,
+        152
+      ]
+    },
+    "src-l1": {
+      "module": "model.input_proj.0.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        100,
+        152
+      ]
+    },
+    "src-l2-conv": {
+      "module": "model.input_proj.1.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        50,
+        76
+      ]
+    },
+    "src-l2": {
+      "module": "model.input_proj.1.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        50,
+        76
+      ]
+    },
+    "src-l3-conv": {
+      "module": "model.input_proj.2.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        25,
+        38
+      ]
+    },
+    "src-l3": {
+      "module": "model.input_proj.2.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        25,
+        38
+      ]
+    },
+    "src-l4-conv": {
+      "module": "model.input_proj.3.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        13,
+        19
+      ]
+    },
+    "src-l4": {
+      "module": "model.input_proj.3.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        13,
+        19
+      ]
+    },
+    "memory-in": {
+      "module": "model.encoder.layers.0",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "e-ref": {
+      "module": "model.encoder.layers.0.self_attn",
+      "hook": "('kw', 'reference_points')",
+      "torch_shape": [
+        1,
+        20197,
+        4,
+        2
+      ]
+    },
+    "e-value": {
+      "module": "model.encoder.layers.0.self_attn.value_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "e-q-in": {
+      "module": "model.encoder.layers.0.self_attn.sampling_offsets",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "e-offsets": {
+      "module": "model.encoder.layers.0.self_attn.sampling_offsets",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "e-aw-logits": {
+      "module": "model.encoder.layers.0.self_attn.attention_weights",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        128
+      ]
+    },
+    "e-z": {
+      "module": "model.encoder.layers.0.self_attn.output_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "e-o": {
+      "module": "model.encoder.layers.0.self_attn.output_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "e-r1": {
+      "module": "model.encoder.layers.0.self_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "e-ln1": {
+      "module": "model.encoder.layers.0.self_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "e-r2": {
+      "module": "model.encoder.layers.0.final_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "memory": {
+      "module": "model.encoder.layers.5",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "d-ref-logits": {
+      "module": "model.reference_points",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        2
+      ]
+    },
+    "tgt0": {
+      "module": "model.decoder.layers.0",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-qk-in": {
+      "module": "model.decoder.layers.0.self_attn.q_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-r1": {
+      "module": "model.decoder.layers.0.self_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-ln1": {
+      "module": "model.decoder.layers.0.self_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-cross-q-in": {
+      "module": "model.decoder.layers.0.encoder_attn.sampling_offsets",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-cross-value": {
+      "module": "model.decoder.layers.0.encoder_attn.value_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "d-cross-offsets": {
+      "module": "model.decoder.layers.0.encoder_attn.sampling_offsets",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-cross-aw-logits": {
+      "module": "model.decoder.layers.0.encoder_attn.attention_weights",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        128
+      ]
+    },
+    "d-cross-z": {
+      "module": "model.decoder.layers.0.encoder_attn.output_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-cross-o": {
+      "module": "model.decoder.layers.0.encoder_attn.output_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-r2": {
+      "module": "model.decoder.layers.0.encoder_attn_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-ln2": {
+      "module": "model.decoder.layers.0.encoder_attn_layer_norm",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-r3": {
+      "module": "model.decoder.layers.0.final_layer_norm",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "hs": {
+      "module": "model.decoder.layers.5",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "logits": {
+      "module": "class_embed.5",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        91
+      ]
+    },
+    "box-h1": {
+      "module": "bbox_embed.5.layers.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "box-h2": {
+      "module": "bbox_embed.5.layers.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "box-raw": {
+      "module": "bbox_embed.5.layers.2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        4
+      ]
+    },
+    "d-self-qp": {
+      "module": "model.decoder.layers.0.self_attn.q_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-self-kp": {
+      "module": "model.decoder.layers.0.self_attn.k_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-self-vp": {
+      "module": "model.decoder.layers.0.self_attn.v_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-self-z": {
+      "module": "model.decoder.layers.0.self_attn.o_proj",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "d-self-o": {
+      "module": "model.decoder.layers.0.self_attn.o_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    },
+    "e-u": {
+      "module": "model.encoder.layers.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        1024
+      ]
+    },
+    "e-g": {
+      "module": "model.encoder.layers.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        1024
+      ]
+    },
+    "e-f": {
+      "module": "model.encoder.layers.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        20197,
+        256
+      ]
+    },
+    "d-u": {
+      "module": "model.decoder.layers.0.mlp.fc1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        1024
+      ]
+    },
+    "d-g": {
+      "module": "model.decoder.layers.0.mlp.activation_fn",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        1024
+      ]
+    },
+    "d-f": {
+      "module": "model.decoder.layers.0.mlp.fc2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        300,
+        256
+      ]
+    }
+  },
+  "not_hooked": {
+    "pos-sine / level-table / pos": "pos-sine = suma de las PE por nivel (forward hook de position_embedding, una llamada por nivel); level-table = forma de level_embed; pos = pos-sine + level_embed (sin módulo)",
+    "query-pos / tgt0": "query_position_embeddings.weight (Q×2D) partido en dos (torch.split dentro del forward); tgt0 = entrada de decoder.layers.0",
+    "e-aw / e-sampled / d-cross-aw / d-cross-sampled": "softmax y grid_sample dentro de MultiScaleDeformableAttention: e-aw sale de las attention weights (B, N, h, L, K) que recibe; e-sampled = h×N×LK×d_h (lo arma grid_sample nivel por nivel)",
+    "d-ref": "sigmoid funcional sobre reference_points(query_pos): misma forma que d-ref-logits",
+    "box-ref / box-logits / boxes": "suma de inverse_sigmoid(ref) y sigmoid funcionales; boxes = pred_boxes",
+    "cost / assignment / loss / gt-*": "solo entrenamiento (necesita labels y scipy): no se ejecuta"
+  },
+  "flops_total": 375434221568,
+  "flops_counted_torch": 370863054848,
+  "flops_aux_heads_torch": 466176000,
+  "flops_sampling_analytic": 5037342720,
+  "flops_by_op": {
+    "aten.addmm": 202019481600,
+    "aten.bmm": 552960000,
+    "aten.convolution": 167784808448,
+    "aten.mm": 39628800
+  },
+  "flops_by_op_raw": {
+    "aten.addmm": 202485657600,
+    "aten.bmm": 552960000,
+    "aten.convolution": 167784808448,
+    "aten.mm": 39628800
+  },
+  "flops_by_op_aux_heads": {
+    "aten.addmm": 466176000
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "DeformableDetrForObjectDetection._from_config(DeformableDetrConfig(**{'num_labels': 91, 'd_model': 256, 'encoder_layers': 6, 'decoder_layers': 6, 'encoder_attention_heads': 8, 'decoder_attention_heads': 8, 'activation_function': 'relu', 'position_embedding_type': 'sine', 'encoder_ffn_dim': 1024, 'decoder_ffn_dim': 1024, 'num_feature_levels': 4, 'encoder_n_points': 4, 'decoder_n_points': 4, 'with_box_refine': False, 'two_stage': False, 'num_queries': 300}), attn_implementation='eager')",
+    "backbone": {
+      "model_type": "timm_backbone",
+      "backbone": "resnet50",
+      "use_pretrained_backbone": false,
+      "out_indices": [
+        2,
+        3,
+        4
+      ],
+      "num_channels": 3
+    },
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Construido en código (sin hub ni pesos; sin el kernel CUDA: ruta PyTorch con grid_sample). Backbone timm resnet50 con FrozenBatchNorm (buffers), C3–C5 (out_indices [2, 3, 4]) + una conv 3×3 stride 2 sobre C5 (nivel 4); GroupNorm(32) tras cada proyección; level_embed L×D aprendido.",
+    "Las cabezas (class_embed, bbox_embed) de las 6 capas del decoder comparten pesos (sin box refinement): parameters() las cuenta una vez. Clases = 91 (focal loss, sin clase ∅).",
+    "FLOPs: FlopCounterMode NO cuenta grid_sample ni la suma ponderada de las muestras (elementwise). flops_sampling_analytic = Σ por llamada 2·5·N_q·h·L·K·d_h (4 MACs de la interpolación bilineal + 1 de la suma ponderada por canal y punto), con las formas reales de cada llamada (msda_calls). HF además aplica las cabezas a las 6 salidas del decoder: flops_aux_heads_torch (las 5 intermedias) se resta. flops_total = flops_counted_torch − flops_aux_heads_torch + flops_sampling_analytic.",
+    "flops_by_op = flops_by_op_raw sin las cabezas auxiliares (comparable con el calculador); el muestreo no aparece en ningún operador aten.",
+    "El código oficial congela conv1 y layer1 del backbone: params_official_trainable.",
+    "Formas sin batch; rejillas H×W×C (PyTorch: C×H×W)."
+  ]
+}

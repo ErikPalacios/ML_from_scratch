@@ -1,0 +1,226 @@
+{
+  "config_id": "t5-base-decode",
+  "model": "t5",
+  "decode_of": "t5-base",
+  "Tin": 512,
+  "Tout": 114,
+  "params_total": 222903552,
+  "shapes": {
+    "d-x0": [
+      1,
+      768
+    ],
+    "d-h1": [
+      1,
+      768
+    ],
+    "d-q": [
+      1,
+      768
+    ],
+    "d-k": [
+      1,
+      768
+    ],
+    "d-v": [
+      1,
+      768
+    ],
+    "d-q-heads": [
+      12,
+      1,
+      64
+    ],
+    "d-k-ctx": [
+      12,
+      114,
+      64
+    ],
+    "d-v-ctx": [
+      12,
+      114,
+      64
+    ],
+    "d-scores": [
+      12,
+      1,
+      114
+    ],
+    "d-attn": [
+      12,
+      1,
+      114
+    ],
+    "d-z-heads": [
+      12,
+      1,
+      64
+    ],
+    "d-bias": [
+      12,
+      1,
+      114
+    ],
+    "d-z": [
+      1,
+      768
+    ],
+    "d-o": [
+      1,
+      768
+    ],
+    "d-r1": [
+      1,
+      768
+    ],
+    "c-h": [
+      1,
+      768
+    ],
+    "c-q": [
+      1,
+      768
+    ],
+    "c-q-heads": [
+      12,
+      1,
+      64
+    ],
+    "c-k-heads": [
+      12,
+      512,
+      64
+    ],
+    "c-v-heads": [
+      12,
+      512,
+      64
+    ],
+    "c-scores": [
+      12,
+      1,
+      512
+    ],
+    "c-attn": [
+      12,
+      1,
+      512
+    ],
+    "c-z-heads": [
+      12,
+      1,
+      64
+    ],
+    "c-z": [
+      1,
+      768
+    ],
+    "c-o": [
+      1,
+      768
+    ],
+    "d-r2": [
+      1,
+      768
+    ],
+    "d-h3": [
+      1,
+      768
+    ],
+    "d-u": [
+      1,
+      3072
+    ],
+    "d-g": [
+      1,
+      3072
+    ],
+    "d-f": [
+      1,
+      768
+    ],
+    "d-x-out": [
+      1,
+      768
+    ],
+    "dec-out": [
+      1,
+      768
+    ],
+    "dec-out-scaled": [
+      1,
+      768
+    ],
+    "logits": [
+      1,
+      32128
+    ]
+  },
+  "flops_total": 270606336,
+  "flops_by_op_torch": {
+    "aten.bmm": 23076864,
+    "aten.mm": 247529472
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.mm",
+        "aten.addmm"
+      ],
+      "prims": [
+        "linear",
+        "lm_head"
+      ]
+    },
+    {
+      "ops": [
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "Tout": 32
+      },
+      "flops_total": 267583488,
+      "shapes": {
+        "d-scores": [
+          12,
+          1,
+          32
+        ],
+        "c-scores": [
+          12,
+          1,
+          512
+        ],
+        "logits": [
+          1,
+          32128
+        ]
+      }
+    }
+  ],
+  "notes": [
+    "Un paso de decode: EncoderDecoderCache con T_out − 1 filas en la self cache y T_in en la cross (is_updated = True: W_K y W_V de la cross no corren).",
+    "La self-attention lee T_out filas (T_out − 1 + la nueva); la cross-attention, las T_in del encoder."
+  ],
+  "hf_config_source": "google-t5/t5-base",
+  "source": {
+    "lib": "transformers",
+    "version": "5.19.0",
+    "ctor": "with torch.device('meta'): T5ForConditionalGeneration(T5Config(vocab_size=32128, d_model=768, d_kv=64, d_ff=3072, num_layers=12, num_decoder_layers=12, num_heads=12, relative_attention_num_buckets=32, relative_attention_max_distance=128, feed_forward_proj='relu', layer_norm_epsilon=1e-06, scale_decoder_outputs=True))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  }
+}

@@ -1,0 +1,507 @@
+{
+  "config_id": "sd15-train",
+  "model": "stable-diffusion",
+  "res": 512,
+  "T": 77,
+  "train": 1,
+  "params_total": 1066235307,
+  "params_by_node": {
+    "unet": 859520964,
+    "text-encoder": 123060480,
+    "vae-encoder": 34163664,
+    "vae-decoder": 49490199,
+    "time-embed": 2050560,
+    "conv-in": 11840,
+    "down-1": 10524480,
+    "down-2": 36818560,
+    "down-3": 139992320,
+    "down-4": 62277120,
+    "mid": 97038080,
+    "up-1": 162241280,
+    "up-2": 258330880,
+    "up-3": 71413120,
+    "up-4": 18810560,
+    "conv-out": 12164,
+    "d1-attn1": 2546240,
+    "d2-res1": 6558080,
+    "u1-res1": 49164800,
+    "mid-attn": 34760960
+  },
+  "shapes": {
+    "t-x0": [
+      77,
+      768
+    ],
+    "t-u": [
+      77,
+      3072
+    ],
+    "text-emb": [
+      77,
+      768
+    ],
+    "t-freq": [
+      320
+    ],
+    "temb": [
+      1280
+    ],
+    "z-t": [
+      64,
+      64,
+      4
+    ],
+    "h-in": [
+      64,
+      64,
+      320
+    ],
+    "d1-res1-e-proj": [
+      320
+    ],
+    "d1-res1-out": [
+      64,
+      64,
+      320
+    ],
+    "d1-attn1-x0": [
+      4096,
+      320
+    ],
+    "d1-attn1-sa-q": [
+      4096,
+      320
+    ],
+    "d1-attn1-sa-attn": [
+      8,
+      4096,
+      4096
+    ],
+    "d1-attn1-ca-k": [
+      77,
+      320
+    ],
+    "d1-attn1-ca-attn": [
+      8,
+      4096,
+      77
+    ],
+    "d1-attn1-ff-h": [
+      4096,
+      2560
+    ],
+    "d1-attn1-ff-g": [
+      4096,
+      1280
+    ],
+    "d1-attn1-out": [
+      64,
+      64,
+      320
+    ],
+    "d1-down-out": [
+      32,
+      32,
+      320
+    ],
+    "d2-res1-skip": [
+      32,
+      32,
+      640
+    ],
+    "d3-attn2-out": [
+      16,
+      16,
+      1280
+    ],
+    "d4-res2-out": [
+      8,
+      8,
+      1280
+    ],
+    "mid-attn-sa-attn": [
+      8,
+      64,
+      64
+    ],
+    "mid-attn-out": [
+      8,
+      8,
+      1280
+    ],
+    "u1-cat1": [
+      8,
+      8,
+      2560
+    ],
+    "u1-up-out": [
+      16,
+      16,
+      1280
+    ],
+    "u2-cat3": [
+      16,
+      16,
+      1920
+    ],
+    "u3-cat1": [
+      32,
+      32,
+      1920
+    ],
+    "u4-res3-out": [
+      64,
+      64,
+      320
+    ],
+    "eps-hat": [
+      64,
+      64,
+      4
+    ],
+    "ve-h-in": [
+      512,
+      512,
+      128
+    ],
+    "ve-d1-down-out": [
+      256,
+      256,
+      128
+    ],
+    "ve-d2-res1-skip": [
+      256,
+      256,
+      256
+    ],
+    "ve-mid-attn-sa-attn": [
+      1,
+      4096,
+      4096
+    ],
+    "ve-mid-attn-out": [
+      64,
+      64,
+      512
+    ],
+    "ve-h-out": [
+      64,
+      64,
+      8
+    ],
+    "ve-moments": [
+      64,
+      64,
+      8
+    ],
+    "prompt-ids": [
+      77
+    ]
+  },
+  "flops_total": 1933230411776,
+  "flops_by_node": {
+    "unet": 803273441280,
+    "text-encoder": 13298503680,
+    "vae-encoder": 1116658466816,
+    "time-embed": 4096000,
+    "conv-in": 94371840,
+    "down-1": 109550960640,
+    "down-2": 68363878400,
+    "down-3": 63770460160,
+    "down-4": 7556300800,
+    "mid": 12099584000,
+    "up-1": 25804800000,
+    "up-2": 151544791040,
+    "up-3": 166823526400,
+    "up-4": 197566300160,
+    "conv-out": 94371840,
+    "d1-attn1": 38731448320,
+    "d2-res1": 11745689600,
+    "mid-attn": 4543283200
+  },
+  "flops_by_op_torch": {
+    "aten.addmm": 194379907072,
+    "aten.baddbmm": 80206004224,
+    "aten.bmm": 80424570880,
+    "aten.convolution": 1517654900736,
+    "aten.mm": 60565028864
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "conv2d",
+        "downsample2d"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm"
+      ],
+      "prims": [
+        "linear"
+      ]
+    },
+    {
+      "ops": [
+        "aten.baddbmm",
+        "aten.bmm"
+      ],
+      "prims": [
+        "attention_scores",
+        "attention_weighted_sum"
+      ]
+    }
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "res": 256
+      },
+      "params_total": 1066235307,
+      "flops_total": 466127114240
+    },
+    {
+      "calc_overrides": {
+        "res": 1024
+      },
+      "params_total": 1066235307,
+      "flops_total": 9566255452160
+    }
+  ],
+  "metrics_checks": {
+    "unetParams": 859520964,
+    "textEncoderParams": 123060480,
+    "vaeEncoderParams": 34163664,
+    "vaeDecoderParams": 49490199,
+    "vaeParams": 83653863,
+    "unetMacs": 401636720640,
+    "textEncoderMacs": 6649251840,
+    "vaeEncoderMacs": 558329233408,
+    "vaeDecoderMacs": 1257259466752,
+    "latentTokens": 4096,
+    "totalParams": 1066235307
+  },
+  "schedule_checks": {
+    "alphas_cumprod": {
+      "0": 0.9991499781608582,
+      "99": 0.8954624533653259,
+      "249": 0.6754320859909058,
+      "499": 0.27766942977905273,
+      "749": 0.05662344768643379,
+      "999": 0.00466009508818388
+    },
+    "ddim_timesteps": {
+      "10": [
+        901,
+        801,
+        701,
+        601,
+        501,
+        401,
+        301,
+        201,
+        101,
+        1
+      ],
+      "25": [
+        961,
+        921,
+        881,
+        841,
+        801,
+        761,
+        721,
+        681,
+        641,
+        601,
+        561,
+        521,
+        481,
+        441,
+        401,
+        361,
+        321,
+        281,
+        241,
+        201,
+        161,
+        121,
+        81,
+        41,
+        1
+      ],
+      "50": [
+        981,
+        961,
+        941,
+        921,
+        901,
+        881,
+        861,
+        841,
+        821,
+        801,
+        781,
+        761,
+        741,
+        721,
+        701,
+        681,
+        661,
+        641,
+        621,
+        601,
+        581,
+        561,
+        541,
+        521,
+        501,
+        481,
+        461,
+        441,
+        421,
+        401,
+        381,
+        361,
+        341,
+        321,
+        301,
+        281,
+        261,
+        241,
+        221,
+        201,
+        181,
+        161,
+        141,
+        121,
+        101,
+        81,
+        61,
+        41,
+        21,
+        1
+      ]
+    },
+    "pndm_nfe": {
+      "10": 11,
+      "25": 26,
+      "50": 51
+    }
+  },
+  "not_hooked": {
+    "z0": "el latente escalado sale de latent_dist.sample() × 0.18215 (no es un módulo)",
+    "eps-guided": "CFG lo hace el pipeline, no un módulo",
+    "z-prev": "el paso del scheduler no es un módulo"
+  },
+  "hf_config_source": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+  "source": {
+    "lib": "diffusers",
+    "version": "0.41.0",
+    "transformers": "5.19.0",
+    "ctor": "with torch.device('meta'): UNet2DConditionModel(**unet_config), AutoencoderKL(**vae_config), CLIPTextModel(CLIPTextConfig(vocab_size=49408, hidden_size=768, intermediate_size=3072, num_hidden_layers=12, num_attention_heads=12, max_position_embeddings=77, hidden_act='quick_gelu')); set_processor(AttnProcessor()) en cada Attention (eager)",
+    "unet_config": {
+      "act_fn": "silu",
+      "attention_head_dim": 8,
+      "block_out_channels": [
+        320,
+        640,
+        1280,
+        1280
+      ],
+      "center_input_sample": false,
+      "cross_attention_dim": 768,
+      "down_block_types": [
+        "CrossAttnDownBlock2D",
+        "CrossAttnDownBlock2D",
+        "CrossAttnDownBlock2D",
+        "DownBlock2D"
+      ],
+      "downsample_padding": 1,
+      "flip_sin_to_cos": true,
+      "freq_shift": 0,
+      "in_channels": 4,
+      "layers_per_block": 2,
+      "mid_block_scale_factor": 1,
+      "norm_eps": 1e-05,
+      "norm_num_groups": 32,
+      "out_channels": 4,
+      "sample_size": 64,
+      "up_block_types": [
+        "UpBlock2D",
+        "CrossAttnUpBlock2D",
+        "CrossAttnUpBlock2D",
+        "CrossAttnUpBlock2D"
+      ]
+    },
+    "vae_config": {
+      "act_fn": "silu",
+      "block_out_channels": [
+        128,
+        256,
+        512,
+        512
+      ],
+      "down_block_types": [
+        "DownEncoderBlock2D",
+        "DownEncoderBlock2D",
+        "DownEncoderBlock2D",
+        "DownEncoderBlock2D"
+      ],
+      "in_channels": 3,
+      "latent_channels": 4,
+      "layers_per_block": 2,
+      "norm_num_groups": 32,
+      "out_channels": 3,
+      "sample_size": 512,
+      "up_block_types": [
+        "UpDecoderBlock2D",
+        "UpDecoderBlock2D",
+        "UpDecoderBlock2D",
+        "UpDecoderBlock2D"
+      ],
+      "scaling_factor": 0.18215
+    },
+    "text_config": {
+      "vocab_size": 49408,
+      "hidden_size": 768,
+      "intermediate_size": 3072,
+      "num_hidden_layers": 12,
+      "num_attention_heads": 12,
+      "max_position_embeddings": 77,
+      "hidden_act": "quick_gelu",
+      "projection_dim": 768,
+      "layer_norm_eps": 1e-05
+    },
+    "scheduler_config": {
+      "num_train_timesteps": 1000,
+      "beta_start": 0.00085,
+      "beta_end": 0.012,
+      "beta_schedule": "scaled_linear",
+      "steps_offset": 1,
+      "clip_sample": false,
+      "set_alpha_to_one": false
+    },
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0",
+      "diffusers": "0.41.0"
+    }
+  },
+  "notes": [
+    "Modelos construidos en código en el dispositivo meta (sin pesos ni hub; hiperparámetros de stable-diffusion-v1-5: unet/config.json, vae/config.json, text_encoder/config.json); parámetros exactos con sum(p.numel()).",
+    "Grafo = un paso de ENTRENAMIENTO: encoder de texto (77 tokens) + encoder del VAE (512×512 → momentos 64×64×8 → z, con quant_conv) + U-Net (1 evaluación, latente 64×64×4, B = 1). FLOPs = suma de los tres forwards medidos por separado con FlopCounterMode (2 FLOPs por MAC de conv / matmul / baddbmm / bmm). El costo por imagen (pasos × NFE × 2 con CFG + texto + VAE) lo arma metrics() con estos números.",
+    "Parámetros = el checkpoint entero (U-Net 859,520,964 + VAE 83,653,863 + texto 123,060,480): el calculador cuenta la parte del VAE que este grafo no usa como idle_params.",
+    "Atención eager (AttnProcessor: baddbmm con β = 0 para QKᵀ, softmax, bmm para A·V): mismos FLOPs que sdpa en FlopCounterMode. U-Net: to_q/to_k/to_v sin sesgo, to_out con sesgo; cross-attention con K y V de los 77 × 768 del texto. VAE: atención de 1 cabeza (head_dim 512) con sesgo en Q, K, V y salida.",
+    "attention_head_dim = 8 en la config de SD 1.x es el NÚMERO de cabezas (8), no su dimensión (40/80/160): nombre histórico de diffusers.",
+    "Encoder del VAE: Downsample2D con padding 0 y relleno (0, 1, 0, 1) antes de la conv 3×3 stride 2 (el calculador: downsample2d pad 'asym'); la U-Net usa padding 1.",
+    "El muestreo de la gaussiana (latent_dist.sample) y la escala × 0.18215 son elementwise: 0 FLOPs.",
+    "schedule_checks: alphas_cumprod del scheduler de SD (β scaled_linear 0.00085 → 0.012, 1,000 pasos, float32 en diffusers) ↔ ATLAS.Arch.diffusion.alphasCumprod (float64), pasos de DDIM (timestep_spacing 'leading', steps_offset 1) ↔ ddimTimesteps y evaluaciones de PNDM (skip_prk_steps: n + 1) ↔ pndmNfe."
+  ]
+}

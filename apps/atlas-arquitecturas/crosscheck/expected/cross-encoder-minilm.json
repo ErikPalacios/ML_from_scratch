@@ -1,0 +1,155 @@
+{
+  "config_id": "cross-encoder-minilm",
+  "model": "retrieval",
+  "params_total": 22713601,
+  "params_by_node": {
+    "joint-encoder": 22565376,
+    "pooler": 147840,
+    "score-head": 385
+  },
+  "shapes": {
+    "ids": [
+      211
+    ],
+    "type-ids": [
+      211
+    ],
+    "pos-ids": [
+      211
+    ],
+    "e-tok": [
+      211,
+      384
+    ],
+    "e-type": [
+      211,
+      384
+    ],
+    "e-pos": [
+      211,
+      384
+    ],
+    "e-sum": [
+      211,
+      384
+    ],
+    "x0": [
+      211,
+      384
+    ],
+    "qkv": [
+      211,
+      1152
+    ],
+    "q": [
+      12,
+      211,
+      32
+    ],
+    "k": [
+      12,
+      211,
+      32
+    ],
+    "v": [
+      12,
+      211,
+      32
+    ],
+    "scores": [
+      12,
+      211,
+      211
+    ],
+    "scores-scaled": [
+      12,
+      211,
+      211
+    ],
+    "attn": [
+      12,
+      211,
+      211
+    ],
+    "z-heads": [
+      12,
+      211,
+      32
+    ],
+    "z": [
+      211,
+      384
+    ],
+    "o": [
+      211,
+      384
+    ],
+    "r1": [
+      211,
+      384
+    ],
+    "h-ln1": [
+      211,
+      384
+    ],
+    "u": [
+      211,
+      1536
+    ],
+    "g": [
+      211,
+      1536
+    ],
+    "f": [
+      211,
+      384
+    ],
+    "r2": [
+      211,
+      384
+    ],
+    "x-out": [
+      211,
+      384
+    ],
+    "h-cls": [
+      384
+    ],
+    "pooler-pre": [
+      384
+    ],
+    "pooled": [
+      384
+    ],
+    "score": [
+      1
+    ]
+  },
+  "flops_total": 4890904320,
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "Tq": 16,
+        "Td": 128
+      },
+      "params_total": 22713601,
+      "flops_total": 3225167616
+    }
+  ],
+  "metrics_checks": {
+    "crossEncoderMacsPerPair": 2445452160,
+    "crossEncoderParams": 22713601
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "with torch.device('meta'): BertForSequenceClassification(BertConfig(hidden_size=384, num_hidden_layers=6, num_attention_heads=12, intermediate_size=1536, num_labels=1))",
+    "hf": "cross-encoder/ms-marco-MiniLM-L-6-v2 (config.json)",
+    "python": "3.13.15",
+    "torch": "2.14.1",
+    "timm": "1.0.30",
+    "transformers": "5.19.0"
+  },
+  "notes": [
+    "BertForSequenceClassification(num_labels = 1): el puntaje es classifier(pooler(h_[CLS])); entrada [CLS] q [SEP] d [SEP] = T_q + T_d − 1 tokens."
+  ]
+}

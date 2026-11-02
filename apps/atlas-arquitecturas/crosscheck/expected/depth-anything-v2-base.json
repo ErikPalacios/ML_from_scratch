@@ -1,0 +1,249 @@
+{
+  "config_id": "depth-anything-v2-base",
+  "model": "depth",
+  "params_total": 97470785,
+  "params_by_node": {
+    "patch-embed": 452352,
+    "cls": 768,
+    "pos-embed": 1052160,
+    "encoder": 85072896,
+    "reassemble": 8370624,
+    "fusion": 2427392,
+    "head": 92289,
+    "idle": 768,
+    "taps": 1536
+  },
+  "params_by_path": {
+    "fusion>fusion-4>rcu1": 295168
+  },
+  "params_by_module": {
+    "backbone": 86580480,
+    "neck": 10798016,
+    "head": 92289
+  },
+  "shapes": {
+    "x-img": [
+      518,
+      518,
+      3
+    ],
+    "x-patch-grid": [
+      37,
+      37,
+      768
+    ],
+    "x0": [
+      1370,
+      768
+    ],
+    "proj-1": [
+      37,
+      37,
+      96
+    ],
+    "rs-1": [
+      148,
+      148,
+      96
+    ],
+    "feat-1": [
+      148,
+      148,
+      128
+    ],
+    "fused-4": [
+      37,
+      37,
+      128
+    ],
+    "fz-4-r2": [
+      19,
+      19,
+      128
+    ],
+    "proj-2": [
+      37,
+      37,
+      192
+    ],
+    "rs-2": [
+      74,
+      74,
+      192
+    ],
+    "feat-2": [
+      74,
+      74,
+      128
+    ],
+    "fused-3": [
+      74,
+      74,
+      128
+    ],
+    "fz-3-r2": [
+      37,
+      37,
+      128
+    ],
+    "fz-3-r1": [
+      37,
+      37,
+      128
+    ],
+    "proj-3": [
+      37,
+      37,
+      384
+    ],
+    "rs-3": [
+      37,
+      37,
+      384
+    ],
+    "feat-3": [
+      37,
+      37,
+      128
+    ],
+    "fused-2": [
+      148,
+      148,
+      128
+    ],
+    "fz-2-r2": [
+      74,
+      74,
+      128
+    ],
+    "fz-2-r1": [
+      74,
+      74,
+      128
+    ],
+    "proj-4": [
+      37,
+      37,
+      768
+    ],
+    "rs-4": [
+      19,
+      19,
+      768
+    ],
+    "feat-4": [
+      19,
+      19,
+      128
+    ],
+    "fused-1": [
+      296,
+      296,
+      128
+    ],
+    "fz-1-r2": [
+      148,
+      148,
+      128
+    ],
+    "fz-1-r1": [
+      148,
+      148,
+      128
+    ],
+    "tap-n-1": [
+      1370,
+      768
+    ],
+    "tap-n-2": [
+      1370,
+      768
+    ],
+    "tap-n-3": [
+      1370,
+      768
+    ],
+    "tap-n-4": [
+      1370,
+      768
+    ],
+    "hd-c1": [
+      296,
+      296,
+      64
+    ],
+    "hd-c2": [
+      518,
+      518,
+      32
+    ],
+    "hd-c3": [
+      518,
+      518,
+      1
+    ],
+    "depth": [
+      518,
+      518
+    ]
+  },
+  "flops_total": 380700643584,
+  "flops_by_node": {
+    "patch-embed+cls+pos-embed+add-pos+encoder+taps": 303147436032,
+    "reassemble": 16785358848,
+    "fusion": 37939675136,
+    "head": 22828173568
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "DepthAnythingForDepthEstimation._from_config(DepthAnythingConfig(**config.json), attn_implementation='eager')",
+    "hf_config": "depth-anything/Depth-Anything-V2-Base-hf (config.json copiada en crosscheck/perception.py)",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Construido en meta desde la config.json del checkpoint (sin pesos), atención eager. FlopCounterMode = 2 × MACs de convs, conv transpuestas, matmuls y bmm de la atención; las interpolaciones bilineales y la de la posición no cuentan.",
+    "params_by_path fusion>fusion-4>rcu1: la RCU 1 de la primera fusión existe pero el forward no la usa (no hay entrada residual): el calculador la cuenta como idle_params.",
+    "Depth Anything: la LayerNorm final de DINOv2 se aplica a CADA una de las 4 salidas intermedias (Dinov2Backbone, apply_layernorm); el mask_token (iBOT) no se usa en inferencia; el CLS se descarta antes del reassemble."
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "res": 364
+      },
+      "params_total": 97470785,
+      "flops_total": 170682848256,
+      "shapes": {
+        "x-patch-grid": [
+          26,
+          26,
+          768
+        ],
+        "rs-1": [
+          104,
+          104,
+          96
+        ],
+        "rs-4": [
+          13,
+          13,
+          768
+        ],
+        "fused-1": [
+          208,
+          208,
+          128
+        ],
+        "depth": [
+          364,
+          364
+        ]
+      },
+      "note": "otra resolución: la tabla de posición guardada no cambia (se interpola en el forward)"
+    }
+  ]
+}

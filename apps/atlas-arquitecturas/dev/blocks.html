@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bloques · Atlas de Arquitecturas (dev)</title>
+<!-- Basado en apps/ml-system-design/dev/blocks.html. Página aislada con un ejemplo de cada tipo de
+     bloque (SPEC §5.4), incluidos los generados por la calculadora y los delegados a otros componentes.
+     Ábrela con doble clic; usa los archivos reales de la app (los que falten se ven como aviso). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/diagram.css">
+<link rel="stylesheet" href="../css/practice.css">
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] },
+                     svg: { fontCache: 'global' }, startup: { typeset: false },
+                     options: { menuOptions: { settings: { inTabOrder: false } } } };
+</script>
+<script async id="MathJax-script" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<style>
+  /* solo para esta página de desarrollo */
+  .dev-shell { max-width: calc(var(--content-max) + 80px); margin: 0 auto; padding: 32px 40px 96px; background: var(--surface); min-height: 100vh; }
+  .dev-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-bottom: 16px; border-bottom: 1px solid var(--rule); }
+  .dev-bar h1 { font: 600 20px/1.2 var(--font-display); flex: 1; }
+  .dev-label { margin: 48px 0 12px; font: 500 12px/1 var(--font-mono); color: var(--muted); }
+  .dev-label::before { content: "// "; }
+  .dev-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .dev-sw { display: flex; align-items: center; gap: 8px; font: 400 12px/1.3 var(--font-mono); }
+  .dev-sw i { width: 28px; height: 20px; border-radius: 4px; border: 1.5px solid; flex: none; }
+  @media (max-width: 767px) { .dev-shell { padding: 20px 16px 64px; } }
+</style>
+</head>
+<body>
+<div class="dev-shell">
+  <div class="dev-bar">
+    <h1>Bloques del Atlas — página de prueba</h1>
+    <div class="seg" role="group" aria-label="Tema">
+      <button type="button" data-t="system" aria-pressed="true">Sistema</button>
+      <button type="button" data-t="light" aria-pressed="false">Claro</button>
+      <button type="button" data-t="dark" aria-pressed="false">Oscuro</button>
+    </div>
+  </div>
+  <p class="dev-label">paletas de operación y modalidad (SPEC §3.1–3.2)</p>
+  <div class="dev-swatches" id="swatches"></div>
+  <div id="blocks"></div>
+</div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script src="../js/core/registry.js"></script>
+<script src="../js/core/store.js"></script>
+<script src="../js/arch/primitives.js"></script>
+<script src="../js/arch/transformer.js"></script>
+<script src="../js/arch/vit.js"></script>
+<script src="../js/core/quantities.js"></script>
+<script src="../js/ui/dom.js"></script>
+<script src="../js/ui/math.js"></script>
+<script src="../js/ui/blocks.js"></script>
+<script src="../js/ui/archdiagram.js"></script>
+<script src="../js/ui/viz/patchify.js"></script>
+<script src="../js/ui/practice.js"></script>
+<script src="../js/content/catalog.js"></script>
+<script src="../js/content/diagrams/vit.js"></script>
+<script>
+(function () {
+  'use strict';
+  const A = window.ATLAS;
+  // Sin app.js: labLink de desarrollo (mismo criterio que la app abierta con doble clic).
+  if (!A.labLink) A.labLink = (tab) => '../../transformer-lab/index.html#' + tab;
+
+  const { h } = A.dom;
+  document.querySelectorAll('.dev-bar [data-t]').forEach((b) => b.addEventListener('click', () => {
+    const t = b.dataset.t;
+    if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
+    document.querySelectorAll('.dev-bar [data-t]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  const sw = document.getElementById('swatches');
+  ['embed', 'attn', 'norm', 'mlp', 'conv', 'fuse', 'head', 'tensorop', 'io'].forEach((o) => sw.appendChild(h('span', { class: 'dev-sw' },
+    h('i', { style: { background: 'var(--op-' + o + '-soft)', borderColor: 'var(--op-' + o + ')' } }), '--op-' + o)));
+  ['img', 'txt', 'act', 'aud', 'lat', 'qry'].forEach((m) => sw.appendChild(h('span', { class: 'dev-sw' },
+    h('i', { style: { background: 'var(--mod-' + m + '-soft)', borderColor: 'var(--mod-' + m + ')' } }), '--mod-' + m)));
+
+  const ctx = { pageId: 'dev', sectionId: 'bloques', store: A.store, model: 'vit', config: 'vit-b16-224' };
+  const demos = [
+    ['p · h3 · list · html', [
+      { t: 'p', html: 'Un párrafo con <b>negrita</b>, <span class="en">self-attention</span>, una <span class="est">estimación de 3 ms</span>, LaTeX en línea \\(\\mathrm{softmax}(QK^\\top/\\sqrt{d_h})V\\) y un enlace al <a href="lab:paso">Laboratorio (paso a paso)</a>.' },
+      { t: 'p', html: 'Cantidades del calculador: ViT-B/16 tiene {{vit-b16-224.params.total}} parámetros ({{vit-b16-224.params.totalM}}) y {{vit-b16-224.tokens}} tokens; clave inexistente: {{vit-b16-224.no.existe}}.' },
+      { t: 'h3', text: 'Subtítulo de sección' },
+      { t: 'list', items: ['Primero', 'Segundo con <code>código</code>'] },
+      { t: 'list', ordered: true, items: ['Uno', 'Dos'] },
+    ]],
+    ['callout (8 tipos)', ['why', 'trap', 'senior', 'skip', 'estimate', 'connect', 'interview', 'note'].map((k) => ({ t: 'callout', kind: k, html: 'Cuerpo del callout <b>' + k + '</b>.' }))],
+    ['table · kv · steps · calc', [
+      { t: 'table', caption: 'Tabla de ejemplo', head: ['Criterio', 'ViT', 'ResNet-50'], rows: [['Sesgo inductivo', 'Bajo', 'Alto (localidad)'], ['Datos', 'Muchos', 'Menos']], note: 'Nota al pie.' },
+      { t: 'kv', items: [['D', '768', 'ancho del modelo'], ['L', '12'], ['h', '12']] },
+      { t: 'steps', items: [{ title: 'Patchify', meta: 'conv 16×16', html: '224×224×3 → 14×14×768' }, { title: 'Encoder', html: '× 12 capas' }] },
+      { t: 'calc', title: 'Tokens a 448', rows: [{ label: 'Parches', expr: '(448/16)²', value: '784' }, { label: 'Con CLS', expr: '784 + 1', value: '785' }], result: '785 tokens' },
+    ]],
+    ['qa · followups · tradeoffs · checklist · quiz · code', [
+      { t: 'qa', items: [{ q: '¿Por qué √d_h?', a: 'Para que la varianza del producto punto no crezca con d_h.', why: 'Sin escalar, el softmax se satura.' }, { q: '¿ViT es translation equivariant?', a: 'No.', trap: true }] },
+      { t: 'followups', items: [{ q: '¿Qué pasa si duplicas la resolución?', junior: 'Más lento.', senior: 'Tokens ×4, matriz de atención ×16; hay que interpolar las position embeddings.', why: 'Muestra el escalado cuadrático.' }] },
+      { t: 'tradeoffs', items: [{ option: 'CLS', verdict: 'elegido', pros: 'Simple', cons: 'Un token extra' }, { option: 'GAP', verdict: 'depende', pros: 'Sin token extra', cons: 'Sensible al LR' }] },
+      { t: 'checklist', id: 'demo', items: [{ id: 'a', html: 'Sé dibujar el diagrama' }, { id: 'b', html: 'Sé las formas' }] },
+      { t: 'quiz', items: [{ q: '¿Cuántos tokens tiene ViT-B/16 @ 224?', options: ['196', '197', '768'], answer: 1, explain: '196 parches + CLS.' }] },
+      { t: 'code', title: 'Patchify en PyTorch', files: [{ name: 'patchify.py', lang: 'python', code: 'x = conv(img)            # B×768×14×14\nx = x.flatten(2).transpose(1, 2)  # B×196×768' }, { name: 'shapes.txt', lang: 'text', code: '224×224×3 → 196×768' }] },
+    ]],
+    ['math', [{ t: 'math', tex: '\\mathrm{Attention}(Q,K,V)=\\mathrm{softmax}\\!\\left(\\frac{QK^\\top}{\\sqrt{d_h}}\\right)V', caption: 'Atención escalada por producto punto.' }]],
+    ['op (generado del calculador)', [{ t: 'op', block: 'qkv', model: 'vit', title: 'Proyección Q, K, V', tex: '[Q\\,K\\,V] = \\mathrm{LN}(x)\\,W_{QKV} + b', in: ['h-ln1'], out: ['qkv'], what: 'Una sola matmul produce Q, K y V.', why: 'Es más eficiente que tres matmuls.' }]],
+    ['trace', [{ t: 'trace', model: 'vit', from: 'x-img', to: 'x0' }]],
+    ['params · flops', [{ t: 'params', model: 'vit' }, { t: 'params', model: 'vit', group: 'layer' }, { t: 'flops', model: 'vit' }]],
+    ['compare · formulas', [{ t: 'compare', models: ['vit-s16-224', 'vit-b16-224', 'vit-l16-224'], rows: ['params', 'tokens', 'macs', 'D', 'L', 'h'] }, { t: 'formulas', prims: ['linear', 'conv2d', 'layernorm', 'mhsa'] }]],
+    ['card', [{ t: 'card', model: 'vit' }, { t: 'card', model: 'resnet' }, { t: 'card', model: 'gnn' }, { t: 'card', family: 'vit' }]],
+    ['archdiagram · viz', [{ t: 'archdiagram', diagram: 'vit-overview', wide: true }, { t: 'viz', kind: 'patchify', params: {}, caption: 'Visualización (si ya está cargada).' }]],
+    ['práctica (delegada a ATLAS.Practice)', [{ t: 'shapedrill', model: 'vit', pool: ['qkv', 'x0', 'scores'] }, { t: 'whatif', items: [{ q: '¿Qué pasa con los tokens si la resolución pasa a 448?', change: { res: 448 }, ask: 'tokens' }] }]],
+    ['bloques inválidos', [{ t: 'no-existe' }, { t: 'op', block: 'x', model: 'vit', config: 'config-inexistente' }]],
+  ];
+  const root = document.getElementById('blocks');
+  for (const [label, blocks] of demos) {
+    root.appendChild(h('p', { class: 'dev-label' }, label));
+    const body = h('div', { class: 'sec__body' });
+    root.appendChild(body);
+    A.Blocks.renderAll(blocks, body, ctx);
+  }
+})();
+</script>
+</body>
+</html>

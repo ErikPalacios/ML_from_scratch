@@ -1,0 +1,126 @@
+{
+  "config_id": "pointnet-cls",
+  "model": "pointnet",
+  "params_total": 3480049,
+  "params_by_node": {
+    "shared-mlp-1": 4672,
+    "shared-mlp-2": 147008,
+    "input-tnet": 803081,
+    "feature-tnet": 1857344,
+    "head": 667944
+  },
+  "shapes": {
+    "points": [
+      1024,
+      3
+    ],
+    "global": [
+      1024
+    ],
+    "itn-h1": [
+      1024,
+      64
+    ],
+    "itn-h3": [
+      1024,
+      1024
+    ],
+    "h1": [
+      1024,
+      64
+    ],
+    "h2": [
+      1024,
+      64
+    ],
+    "ftn-h2": [
+      1024,
+      128
+    ],
+    "ftn-f2": [
+      256
+    ],
+    "h3": [
+      1024,
+      64
+    ],
+    "h4": [
+      1024,
+      128
+    ],
+    "h5": [
+      1024,
+      1024
+    ],
+    "f1": [
+      512
+    ],
+    "f2": [
+      256
+    ],
+    "logits": [
+      40
+    ],
+    "t-in": [
+      3,
+      3
+    ],
+    "t-feat": [
+      64,
+      64
+    ]
+  },
+  "flops_total": 896051712,
+  "flops_by_node": {
+    "shared-mlp-1": 8781824,
+    "shared-mlp-2": 293601280,
+    "input-tnet": 286939648,
+    "feature-tnet": 305397760,
+    "head": 1331200
+  },
+  "source": {
+    "lib": "torch (transcrito de charlesq34/pointnet, TF)",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "permutation_check": {
+    "same_output": true,
+    "note": "mismo resultado con los puntos permutados"
+  },
+  "range_checks": [
+    {
+      "what": "puntos críticos medidos (pesos aleatorios) ≤ min(N, 1024)",
+      "metric": "criticalPointsMax",
+      "calc_overrides": {},
+      "ref": 167,
+      "min_ratio": 0.0,
+      "max_ratio": 1.0
+    }
+  ],
+  "tnet_init_identity": true,
+  "notes": [
+    "Cada conv 1×1 / fc con sesgo + BatchNorm (β, γ); medias y varianzas móviles = buffers (no cuentan). BN y dropout en eval.",
+    "FlopCounterMode cuenta conv1d / conv2d 1×1, linear y los bmm de aplicar las T-Nets; el max-pool, FPS y ball query no son MACs.",
+    "Puntos críticos (los que ganan algún canal del max-pool) con pesos aleatorios: 167 de 1024; la cota es min(N, 1024).",
+    "La salida de cada T-Net empieza en la identidad: transform = Linear(256, K²) con W = 0 y b = I (transform_nets.py)."
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "N": 2048
+      },
+      "params_total": 3480049,
+      "flops_total": 1786049024,
+      "shapes": {
+        "h5": [
+          2048,
+          1024
+        ]
+      }
+    }
+  ]
+}

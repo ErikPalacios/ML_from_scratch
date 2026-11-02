@@ -1,0 +1,1434 @@
+/* =============================================================================
+   Atlas de Arquitecturas — css/diagram.css
+   Diagramas de arquitectura (ATLAS.ArchDiagram), leyenda, tooltips, panel de detalle,
+   recorrido y visualizaciones (ATLAS.Viz). SPEC §3 y §7.
+   Solo consume tokens de css/app.css (--op-*, --mod-*, --grid, base); no define colores nuevos
+   salvo mezclas locales derivadas de esos tokens.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- contenedor */
+.ad { margin: 20px 0; position: relative; min-width: 0; }
+.ad--wide { max-width: 1100px; }
+.ad-error { padding: 10px 12px; border: 1px solid var(--bad); background: var(--bad-soft); color: var(--ink); border-radius: var(--r-2, 6px); font-size: var(--fs-sm, 13.5px); }
+.ad-cfgnote { margin: 0 0 8px; padding: 8px 12px; border: 1px solid var(--warn); border-left-width: 3px; background: var(--warn-soft); color: var(--ink); border-radius: var(--r-2, 6px); font-size: var(--fs-sm, 13.5px); line-height: 1.5; }
+.ad-cfgnote[hidden] { display: none; }
+
+/* barra de herramientas */
+.ad-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0 0 8px; }
+.ad-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font: 600 var(--fs-sm, 13.5px)/1.3 var(--font-display); color: var(--muted); min-width: 0; }
+.ad-crumb { color: var(--ink); }
+.ad-crumb--link { background: none; border: 0; padding: 2px 0; font: inherit; color: var(--accent-ink); cursor: pointer; text-decoration: underline; text-underline-offset: .18em; text-decoration-thickness: 1px; }
+.ad-crumb-sep { color: var(--muted); }
+.ad-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.ad-btn {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 4px 10px;
+  border: 1px solid var(--rule-strong); border-radius: var(--r-1, 3px); background: var(--surface);
+  color: var(--ink); font: 500 var(--fs-xs, 12px)/1 var(--font-body); cursor: pointer; text-decoration: none;
+}
+.ad-btn:hover { background: var(--surface-2); }
+.ad-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.ad-btn:disabled { opacity: .45; cursor: default; }
+.ad-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); }
+.ad-btn--primary:hover { background: var(--accent-ink); }
+
+/* recorrido */
+.ad-walk { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: var(--r-2, 6px); padding: 8px 12px 10px; margin-bottom: 8px; }
+.ad-walk-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.ad-walk-label { font: 700 var(--fs-xs, 12px)/1.2 var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--accent-ink); }
+.ad-walk-n { font: 500 var(--fs-xs, 12px)/1.2 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ad-walk-nav { display: flex; gap: 4px; margin-left: auto; }
+.ad-walk-text { margin-top: 6px; font-size: var(--fs-sm, 13.5px); line-height: 1.55; color: var(--ink); min-height: 2.6em; }
+.ad-walk-text b { font-family: var(--font-mono); font-weight: 600; }
+
+/* cuerpo: viewport + panel lateral */
+.ad-body { display: flex; align-items: flex-start; gap: 12px; }
+.ad-viewport {
+  position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; border: 1px solid var(--rule);
+  border-radius: var(--r-2, 6px); background: var(--surface); touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none;
+}
+.ad-viewport--zoomed { touch-action: none; }
+.ad-viewport--drag { cursor: grabbing; }
+.ad-viewport:focus { outline: none; }
+.ad--mini .ad-viewport, .ad--blank .ad-viewport { cursor: default; }
+.ad-svg { display: block; width: 100%; height: 100%; font-family: var(--font-body); transition: opacity 220ms var(--ease, ease); }
+.ad-svg.ad-enter { opacity: 0; transition: none; }
+.ad-hint {
+  position: absolute; left: 8px; bottom: 8px; padding: 3px 9px; border-radius: 999px; opacity: .92;
+  background: var(--ink); color: var(--surface); font-size: 11px; pointer-events: none; display: none; white-space: nowrap;
+}
+@media (max-width: 767px) { .ad-hint { display: block; } }
+.ad-hint--gone { display: none !important; }
+
+/* pantalla completa (overlay CSS; no Fullscreen API) */
+html.ad-noscroll, html.ad-noscroll body { overflow: hidden; }
+.ad--fs { position: fixed; inset: 0; z-index: 90; margin: 0; max-width: none; background: var(--bg); padding: 10px 12px; display: flex; flex-direction: column; }
+.ad--fs .ad-body { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+.ad--fs .ad-viewport { height: auto !important; }
+.ad--fs .ad-caption, .ad--fs .ad-alt { display: none; }
+
+/* ---------------------------------------------------------------- SVG: fondo y grilla */
+.ad-bg { fill: var(--surface); }
+.ad-grid { fill: none; stroke: var(--grid, var(--rule)); stroke-width: 1; }
+
+/* paleta por tipo de operación: --oc (trazo) y --ocs (relleno) */
+.ad-op--embed    { --oc: var(--op-embed);  --ocs: var(--op-embed-soft); }
+.ad-op--attn     { --oc: var(--op-attn);   --ocs: var(--op-attn-soft); }
+.ad-op--norm     { --oc: var(--op-norm);   --ocs: var(--op-norm-soft); }
+.ad-op--mlp      { --oc: var(--op-mlp);    --ocs: var(--op-mlp-soft); }
+.ad-op--conv     { --oc: var(--op-conv);   --ocs: var(--op-conv-soft); }
+.ad-op--fuse     { --oc: var(--op-fuse);   --ocs: var(--op-fuse-soft); }
+.ad-op--head     { --oc: var(--op-head);   --ocs: var(--op-head-soft); }
+.ad-op--tensorop { --oc: var(--muted); --ocs: var(--op-tensorop-soft, var(--surface)); }   /* --op-tensorop (= --rule-strong) no llega a 3:1 sobre --surface: se usa --muted */
+.ad-op--io       { --oc: var(--muted); --ocs: var(--surface-2); }
+.ad-op--blank    { --oc: var(--muted); --ocs: var(--surface); }
+
+/* paleta por modalidad: --mc */
+.ad-mod--img { --mc: var(--mod-img); }
+.ad-mod--txt { --mc: var(--mod-txt); }
+.ad-mod--act { --mc: var(--mod-act); }
+.ad-mod--aud { --mc: var(--mod-aud); }
+.ad-mod--lat { --mc: var(--mod-lat); }
+.ad-mod--qry { --mc: var(--mod-qry); }
+
+/* grupos y regiones */
+.ad-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1.25; }
+.ad-group--repeat > .ad-frame { fill: var(--surface); stroke: var(--muted); }
+.ad-stack { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.ad-deck { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.ad-group-label { font: 600 12.5px var(--font-display); letter-spacing: .02em; fill: var(--muted); }
+.ad-group-tag { font: 600 12px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-group-sub { font: 400 11px var(--font-mono); fill: var(--muted); }
+.ad-group-total { font: 600 11px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-region > .ad-frame { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.ad-region-label { font: 700 11px var(--font-display); letter-spacing: .07em; text-transform: uppercase; fill: var(--muted);
+  paint-order: stroke; stroke: var(--surface-2); stroke-width: 5px; stroke-linejoin: round; }
+.ad-stripe { fill: var(--mc); }
+
+/* nodos */
+.ad-node { cursor: pointer; outline: none; }
+.ad-box { fill: var(--ocs); stroke: var(--oc); stroke-width: 1.5; }
+.ad-box--deck { stroke-width: 1; }
+.ad-node--io .ad-box { stroke-dasharray: 4 3; stroke-width: 1.25; }
+.ad-node--sym .ad-box { fill: var(--surface); stroke: var(--oc); }
+.ad-sym { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ad-label { font: 600 13px var(--font-body); fill: var(--ink); }
+.ad-label--sym { font-size: 12px; }
+.ad-sub { font: 400 11.5px var(--font-mono); fill: var(--muted); }
+.ad-heads-tag { font: 600 11px var(--font-mono); fill: var(--ink); }
+.ad-node:hover .ad-box, .ad-node:focus-visible .ad-box { stroke-width: 2.4; }
+.ad-node:focus-visible .ad-box:not(.ad-box--deck) { stroke: var(--focus); stroke-width: 3; }
+.ad-expand-ico { fill: none; stroke: var(--oc); stroke-width: 1.5; stroke-linecap: round; }
+.ad-badge-bg { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.ad-key { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linecap: round; }
+.ad-badge-txt { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-mini-ln { stroke: var(--muted); stroke-width: 1; }
+.ad-mini-res { stroke-width: 1.25 !important; stroke-dasharray: 4 3 !important; }
+/* bloque compuesto (style:'block'): marco neutro, el color lo dan sus sub-ops */
+.ad-node--block { --oc: var(--ink); --ocs: var(--surface); }
+.ad-node--block > .ad-box { stroke-width: 1.5; }
+.ad-subscript { font-size: 78%; }
+.ad-glyph-note { font: 500 10.5px var(--font-body); fill: var(--muted); }
+.ad-mini-txt { font: 600 10px var(--font-body); fill: var(--ink); }
+.ad-mini .ad-box { stroke-width: 1; }
+
+/* imagen procedural */
+.ad-scene-grid { fill: none; stroke: #FFFFFF; stroke-opacity: .75; stroke-width: .8; }
+.ad-scene-frame { fill: none; stroke: var(--ink); stroke-width: 1; }
+
+/* aristas (SPEC §3.3) */
+.ad-edge { outline: none; }
+.ad-hit { fill: none; stroke: transparent; stroke-width: 12; }
+.ad-ln { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.ad-head { stroke: none; }
+.ad-edge--data .ad-ln { stroke: var(--muted); stroke-width: 1.75; }
+.ad-edge--data .ad-head { fill: var(--muted); }
+.ad-edge--residual .ad-ln { stroke: var(--ink); stroke-opacity: .7; stroke-width: 1.5; stroke-dasharray: 6 4; }
+.ad-edge--residual .ad-head { fill: var(--ink); fill-opacity: .7; }
+.ad-edge--skip .ad-ln { stroke: var(--op-conv); stroke-width: 1.75; stroke-dasharray: 10 3 2 3; }
+.ad-edge--skip .ad-head { fill: var(--op-conv); }
+.ad-ln--cross-out { stroke: var(--op-fuse); stroke-width: 4.2; }
+.ad-ln--cross-in { stroke: var(--surface); stroke-width: 1.8; }
+.ad-edge--cross .ad-head--hollow { fill: var(--surface); stroke: var(--op-fuse); stroke-width: 1.3; }
+.ad-edge--query .ad-ln { stroke: var(--mod-qry); stroke-width: 1.9; stroke-dasharray: 1.5 3.5; }
+.ad-edge--query .ad-head { fill: var(--mod-qry); }
+.ad-edge--control .ad-ln { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 1 3; }
+.ad-edge--control .ad-head { fill: var(--muted); }
+/* relaciones del mapa */
+.ad-edge--hereda .ad-ln { stroke: var(--ink); stroke-opacity: .8; stroke-width: 1.5; }
+.ad-edge--hereda .ad-head { fill: var(--ink); fill-opacity: .8; }
+.ad-edge--usa .ad-ln { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 3; }
+.ad-edge--usa .ad-head--hollow { fill: var(--surface); stroke: var(--accent); stroke-width: 1.3; }
+.ad-edge--contrasta .ad-ln { stroke: var(--warn); stroke-width: 1.6; stroke-dasharray: 1.5 3.5; }
+.ad-edge--reemplaza .ad-ln { stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 10 3; }
+.ad-edge--reemplaza .ad-head { fill: var(--bad); }
+.ad-edge:focus-visible .ad-hit, .ad-edge:hover .ad-hit { stroke: var(--focus); stroke-opacity: .16; }
+.ad-tag-bg { fill: var(--op-fuse-soft); stroke: var(--op-fuse); stroke-width: 1; }
+/* etiqueta neutra (Q, K, V de la self-attention): no es la de cross-attention */
+.ad-tag--plain .ad-tag-bg { fill: var(--surface); stroke: var(--ink); }
+.ad-tag--plain .ad-tag-txt { font-size: 11.5px; font-weight: 700; }
+.ad-tag-txt { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+
+/* etiqueta de forma: símbolos arriba, números abajo */
+.ad-shape text { paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; }
+.ad-shape-sym { font: 400 11px var(--font-mono); fill: var(--muted); }
+.ad-shape-num { font: 600 11.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* glifos de tensor */
+.ad-face { stroke: var(--mc); stroke-width: 1; stroke-linejoin: round; }
+.ad-face--side { filter: brightness(.94); }
+.ad-tx-bg { fill: var(--mc); fill-opacity: .18; stroke: none; }
+.ad-tx-ln { stroke: var(--mc); stroke-opacity: .7; stroke-width: .9; }
+.ad-tx-dot { fill: var(--mc); fill-opacity: .8; }
+.ad-glyph--outline .ad-face { fill: var(--surface) !important; stroke-dasharray: 2 1.5; }
+.ad-tokmarks { stroke: var(--mc); stroke-opacity: .55; stroke-width: .8; }
+
+/* huecos (modo práctica) */
+.ad-slot { cursor: pointer; outline: none; }
+.ad-slot-box { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.ad-slot-txt { font: 600 12px var(--font-mono); fill: var(--accent-ink); }
+.ad-slot--filled .ad-slot-box { stroke-dasharray: none; fill: var(--accent-soft); }
+.ad-slot--ok .ad-slot-box { stroke: var(--ok); stroke-dasharray: none; fill: var(--ok-soft); }
+.ad-slot--ok .ad-slot-txt { fill: var(--ink); }
+.ad-slot--bad .ad-slot-box { stroke: var(--bad); stroke-dasharray: none; fill: var(--bad-soft); }
+.ad-slot--bad .ad-slot-txt { fill: var(--ink); }
+.ad-slot:focus-visible .ad-slot-box, .ad-slot:hover .ad-slot-box { stroke-width: 2.5; }
+
+/* mapa */
+.ad-mapnode .ad-box { stroke-width: 1.4; }
+.ad-mapnode--ready { --oc: var(--accent); --ocs: var(--accent-soft); }
+.ad-mapnode--soon { --oc: var(--muted); --ocs: var(--surface); }
+.ad-mapnode--card { --oc: var(--muted); --ocs: var(--surface); }
+.ad-mapnode--card .ad-box { stroke-dasharray: 2 2; }
+.ad-mapnode--anchor { --oc: var(--muted); --ocs: color-mix(in srgb, var(--muted) 22%, var(--surface)); }
+.ad-mapnode--anchor .ad-map-label { fill: var(--ink); }
+.ad-map-label { font: 600 11.5px var(--font-body); fill: var(--ink); }
+.ad-mapnode--soon .ad-map-label, .ad-mapnode--card .ad-map-label, .ad-mapnode--anchor .ad-map-label { font-weight: 500; }
+
+/* resaltado (recorrido, trace, práctica) */
+.ad--hl .ad-node, .ad--hl .ad-edge, .ad--hl .ad-group, .ad--hl .ad-tensor, .ad--hl .ad-tag { opacity: .35; transition: opacity 180ms var(--ease, ease); }
+.ad--hl .is-on { opacity: 1; }
+.ad--hl .ad-node.is-on .ad-box:not(.ad-box--deck) { stroke-width: 2.6; }
+.ad--hl .ad-edge.is-on .ad-ln:not(.ad-ln--cross-out):not(.ad-ln--cross-in) { stroke-width: 2.6; }
+/* cross-attention: casing violeta + núcleo de superficie; al resaltar se engrosa el casing y el núcleo queda fino */
+.ad--hl .ad-edge.is-on .ad-ln--cross-out { stroke-width: 5.4; }
+.ad--hl .ad-edge.is-on .ad-ln--cross-in { stroke-width: 1.8; }
+.ad--hl .ad-edge.is-on.ad-edge--data .ad-ln { stroke: var(--ink); }
+.ad--hl .ad-edge.is-on.ad-edge--data .ad-head { fill: var(--ink); }
+
+/* ---------------------------------------------------------------- tooltip */
+.ad-tip {
+  position: absolute; z-index: 5; max-width: min(360px, 90%); padding: 8px 10px; border-radius: var(--r-2, 6px);
+  background: var(--surface); border: 1px solid var(--rule-strong); box-shadow: var(--shadow-pop, 0 8px 28px rgba(0,0,0,.16));
+  font-size: var(--fs-xs, 12px); line-height: 1.45; color: var(--ink); pointer-events: none;
+}
+.ad-tip-t { font: 600 var(--fs-sm, 13.5px)/1.3 var(--font-body); }
+.ad-tip-sub { color: var(--muted); font-family: var(--font-mono); font-size: 11.5px; margin-top: 1px; }
+.ad-tip-tex { margin: 5px 0 2px; overflow: hidden; font-size: 92%; }
+.ad-tip-tex mjx-container { max-width: 100%; }
+.ad-tip-io { margin-top: 4px; }
+.ad-tip-cost { margin-top: 3px; }
+.ad-tip-hint { margin-top: 5px; color: var(--muted); font-size: 11px; }
+.ad-tip-hint:empty { display: none; }
+.ad-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.ad-muted { color: var(--muted); }
+.ad-tex { font-family: var(--font-mono); font-size: .92em; white-space: pre-wrap; word-break: break-word; }
+
+/* ---------------------------------------------------------------- panel de detalle */
+.ad-panel {
+  flex: 0 0 320px; max-width: 320px; max-height: 76vh; overflow: auto; border: 1px solid var(--rule-strong);
+  border-radius: var(--r-2, 6px); background: var(--surface); padding: 12px 14px; font-size: var(--fs-sm, 13.5px); line-height: 1.5;
+  position: sticky; top: 12px;
+}
+.ad-panel-head { display: flex; align-items: flex-start; gap: 8px; }
+.ad-panel-t { margin: 0; flex: 1; font: 700 var(--fs-md, 16px)/1.25 var(--font-display); color: var(--ink); }
+.ad-panel-x { min-height: 26px; padding: 2px 8px; font-size: 16px; }
+.ad-panel-sub, .ad-panel-en { margin: 2px 0 8px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.ad-panel-note { margin: 6px 0 8px; }
+.ad-panel-note p { margin: 0 0 6px; }
+.ad-panel-tex { margin: 8px 0; overflow-x: auto; max-width: 100%; }
+/* MathJax recorta su contenedor: el desplazamiento horizontal va en el propio mjx-container */
+.ad-panel-tex mjx-container, .ad-cost-tex mjx-container { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+.ad-panel-tex mjx-container[display="true"] { margin: 0 !important; padding: 2px 0; }
+.ad-panel-io { width: 100%; border-collapse: collapse; margin: 6px 0 8px; font-size: 12.5px; }
+.ad-panel-io th { text-align: left; font-weight: 600; color: var(--muted); padding: 3px 8px 3px 0; vertical-align: top; width: 3.5em; }
+.ad-panel-io td { padding: 3px 0; border-top: 1px solid var(--rule); }
+.ad-panel-io tr:first-child td { border-top: 0; }
+.ad-panel-cost h5 { margin: 10px 0 4px; font: 700 11px/1.2 var(--font-display); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.ad-cost-row { padding: 5px 0; border-top: 1px solid var(--rule); }
+.ad-cost-l { font-weight: 600; font-size: 12.5px; }
+.ad-cost-tex { margin: 2px 0; overflow-x: auto; font-size: 12.5px; }
+.ad-cost-ar { font-size: 12px; color: var(--ink); word-break: break-word; }
+.ad-panel-sum { margin: 6px 0 0; font-size: 12.5px; }
+.ad-panel-sum b { font-family: var(--font-mono); }
+.ad-panel-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+@media (max-width: 1023px) {
+  .ad-panel {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 80; max-width: none; max-height: 58vh; border-radius: 12px 12px 0 0;
+    border-width: 1px 0 0; box-shadow: var(--shadow-pop, 0 -8px 28px rgba(0,0,0,.16)); padding: 14px 16px 18px;
+  }
+  .ad--fs .ad-panel { z-index: 95; }
+}
+
+/* ---------------------------------------------------------------- leyenda, pie, texto alternativo */
+.ad-legend-wrap { margin-top: 8px; }
+.ad-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--fs-xs, 12px); color: var(--ink); }
+.ad-leg-item { display: inline-flex; align-items: center; gap: 6px; min-height: 20px; }
+.ad-leg-sw { flex: 0 0 auto; overflow: visible; }
+.ad-leg-mono { font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
+.ad-leg-shape { color: var(--muted); }
+@media (max-width: 767px) {
+  .ad-legend { gap: 6px; }
+  .ad-leg-item { flex: 0 1 auto; border: 1px solid var(--rule); border-radius: 999px; padding: 2px 8px 2px 4px; background: var(--surface); }
+}
+/* objetivos táctiles de 44 px con puntero grueso (SPEC §1) */
+@media (pointer: coarse), (max-width: 767px) {
+  .ad-btn { min-width: 44px; min-height: 44px; justify-content: center; }
+  .ad-crumb--link { min-height: 44px; }
+}
+.ad-caption { margin-top: 6px; font-size: var(--fs-sm, 13.5px); color: var(--muted); line-height: 1.5; }
+.ad-alt { margin-top: 8px; font-size: var(--fs-sm, 13.5px); }
+.ad-alt summary { cursor: pointer; color: var(--accent-ink); }
+.ad-alt-list { margin: 8px 0 0; }
+.ad-alt-list dt { font-weight: 600; margin-top: 6px; }
+.ad-alt-list dd { margin: 0 0 0 1em; color: var(--ink); }
+.ad-alt-h { margin: 14px 0 2px; font: 700 11px/1.2 var(--font-display); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.ad-alt-rels { margin: 2px 0 0; padding-left: 1.1em; }
+.ad-alt-rels li { margin: 1px 0; }
+tr.is-walk > * { background: var(--accent-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ad-svg, .ad--hl .ad-node, .ad--hl .ad-edge { transition: none !important; }
+}
+
+/* ---------------------------------------------------------------- visualizaciones (ATLAS.Viz) */
+.viz { margin: 16px 0; border: 1px solid var(--rule); border-radius: var(--r-2, 6px); background: var(--surface); padding: 12px; min-width: 0; }
+.viz-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 10px; font-size: var(--fs-sm, 13.5px); }
+.viz-ctl { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.viz-ctl-l { font: 600 11px/1.2 var(--font-display); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.viz-chip { min-height: 28px; padding: 3px 9px; border: 1px solid var(--rule-strong); border-radius: 999px; background: var(--surface); color: var(--ink); font: 500 12px/1 var(--font-mono); cursor: pointer; }
+.viz-chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.viz-chip:hover { background: var(--surface-2); }
+.viz-stage { overflow-x: auto; }
+.viz-svg { display: block; width: 100%; height: auto; font-family: var(--font-body); }
+.viz-readout { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font: 500 12.5px/1.5 var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-readout span b { font-weight: 700; }
+.viz-tag { display: inline-block; font: 700 10px/1.4 var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--warn); border: 1px solid var(--warn); border-radius: 3px; padding: 0 5px; }
+.viz-note { margin-top: 6px; font-size: var(--fs-xs, 12px); color: var(--muted); }
+.viz-t { font: 600 12px var(--font-body); fill: var(--ink); }
+.viz-s { font: 400 11px var(--font-mono); fill: var(--muted); }
+.viz-n { font: 600 11px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-ln { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.viz-cell { stroke: var(--surface); stroke-width: 1; }
+.viz-sel { fill: none; stroke: var(--accent); stroke-width: 2.4; }
+.viz-tok { stroke: var(--mod-img); stroke-width: 1; fill: var(--mod-img); fill-opacity: .18; }
+.viz-tok--cls { stroke: var(--op-embed); fill: var(--op-embed-soft); fill-opacity: 1; }
+.viz-pos { stroke: var(--op-embed); stroke-width: 1; fill: var(--op-embed-soft); }
+.viz-mask-on { fill: var(--op-attn); }
+.viz-mask-off { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-mask-x { stroke: var(--muted); stroke-width: 1; }
+.viz-mask-cross { fill: var(--op-fuse); }
+.viz-heat { stroke: none; }
+.viz-q { fill: none; stroke: var(--ink); stroke-width: 2.4; }
+.viz-cell-btn { cursor: pointer; }
+.viz-cell-btn:focus-visible { outline: none; }
+.viz-cell-btn:focus-visible rect:last-child { stroke: var(--focus); stroke-width: 2.5; }
+.ad-dot { fill: var(--ink); fill-opacity: .7; }
+.ad-tokfirst { fill: var(--op-embed); stroke: var(--op-embed); stroke-width: .8; }
+.ad-slot-n circle { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; }
+.ad-slot-n text { font: 700 10px var(--font-mono); fill: var(--on-accent, #fff); }
+.ad-slot--ok .ad-slot-n circle { fill: var(--ok); }
+.ad-slot--bad .ad-slot-n circle { fill: var(--bad); }
+.ad-edge--contrasta .ad-end { fill: var(--warn); }
+.ad-svg[data-kind="map"] .ad-edge .ad-ln { stroke-width: 1.3; }
+.ad-svg[data-kind="map"].ad--hl .ad-edge.is-on .ad-ln:not(.ad-ln--cross-out):not(.ad-ln--cross-in) { stroke-width: 2.4; }
+.ad-svg[data-kind="map"].ad--hl .ad-node, .ad-svg[data-kind="map"].ad--hl .ad-edge { opacity: .22; }
+.ad-svg[data-kind="map"].ad--hl .is-on { opacity: 1; }
+.ad-svg[data-kind="map"].ad--hl .ad-group { opacity: 1; }
+.viz-cell-btn.is-hl > rect:last-of-type { stroke: var(--accent); stroke-width: 2.5; }
+.viz-attnmap [role="grid"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ad-tip-p { margin-top: 3px; color: var(--ink); }
+/* fórmulas: desplazamiento solo horizontal (sin barra vertical por los descendentes de MathJax) */
+.ad-cost-tex, .ad-panel-tex { overflow-y: hidden; padding: 2px 0; }
+
+/* ---------------------------------------------------------------- fase 2: visualizaciones de Swin y CLIP */
+.viz-head { fill: var(--muted); }
+/* shifted-windows: 9 regiones del roll (relleno suave + borde fuerte + número: no solo color) */
+.viz-sw-r { stroke-width: 1.2; }
+.viz-sw-r0 { fill: var(--surface-2); stroke: var(--muted); }
+.viz-sw-r1 { fill: var(--op-embed-soft); stroke: var(--op-embed); }
+.viz-sw-r2 { fill: var(--op-attn-soft); stroke: var(--op-attn); }
+.viz-sw-r3 { fill: var(--op-mlp-soft); stroke: var(--op-mlp); }
+.viz-sw-r4 { fill: var(--op-conv-soft); stroke: var(--op-conv); }
+.viz-sw-r5 { fill: var(--op-fuse-soft); stroke: var(--op-fuse); }
+.viz-sw-r6 { fill: var(--op-head-soft); stroke: var(--op-head); }
+.viz-sw-r7 { fill: color-mix(in srgb, var(--mod-txt) 20%, var(--surface)); stroke: var(--mod-txt); }
+.viz-sw-r8 { fill: color-mix(in srgb, var(--mod-act) 20%, var(--surface)); stroke: var(--mod-act); }
+.viz-sw-rl { font: 700 11px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.viz-sw-tok { fill: none; stroke: var(--ink); stroke-opacity: .14; stroke-width: .6; pointer-events: none; }
+.viz-sw-win { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.viz-sw-frame { fill: none; stroke: var(--ink); stroke-width: 1.5; pointer-events: none; }
+.viz-sw-sel { fill: none; stroke: transparent; stroke-width: 3; }
+.viz-sw-wbtn:hover .viz-sw-sel { stroke: var(--focus); stroke-opacity: .5; }
+.viz-sw-wbtn.is-hl .viz-sw-sel { stroke: var(--accent); }
+.viz-sw-wbtn:focus-visible .viz-sw-sel { stroke: var(--focus); stroke-width: 3.5; }
+/* similarity-matrix */
+.viz-sim-cell { stroke: none; }
+.viz-sim-v { font: 600 11px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.viz-sim-pos { fill: none; stroke: var(--ink); stroke-width: 2.2; }
+.viz-sim-hit { fill: none; stroke: none; }
+.viz-cell-btn:focus-visible .viz-sim-hit, .viz-cell-btn:focus-visible .viz-sim-pos { stroke: var(--focus); stroke-width: 3; }
+.viz-real { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--rule); }
+.viz-real .viz-controls { margin-bottom: 4px; }
+/* íconos procedurales */
+.viz-icon-bg { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+/* zero-shot */
+.viz-zs-w { stroke: none; }
+.viz-zs-best { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+.viz-zs-track { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-zs-bar { fill: var(--op-head-soft); stroke: var(--op-head); stroke-width: 1.2; }
+.viz-zs-bar--best { fill: var(--op-head); }
+.viz-cell-btn:focus-visible .viz-zs-track { stroke: var(--focus); stroke-width: 2.5; }
+.viz-zs-row { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-zs-row--best { stroke: var(--ink); stroke-width: 1.4; }
+.viz-zs-bus { stroke: var(--mod-img); stroke-width: 1.8; }
+.viz-zs-dot { fill: var(--surface); stroke: var(--ink); stroke-width: 1.2; }
+.viz-zs-dot-c { fill: var(--ink); }
+/* ---------------------------------------------------------------- fase 2: glifos del motor */
+.ad-matdiag { stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
+.ad-winmarks { fill: none; stroke: var(--mc); stroke-width: 1.1; stroke-opacity: .9; }
+.ad-tensor--ref .ad-face { stroke-dasharray: 3 2; }
+.ad-ref-label { font: 600 11px var(--font-display); letter-spacing: .06em; text-transform: uppercase; fill: var(--muted); }
+.ad-note-txt { font: 500 11px var(--font-mono); fill: var(--muted); }
+.ad-note-txt--ink { fill: var(--ink); font-weight: 600; }
+.ad-flag-bg { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1; }
+.ad-flag-txt { font: 700 10px var(--font-mono); fill: var(--ink); }
+.ad-mod--joint { --mc: var(--op-fuse); }
+/* parte con lote (CLIP): marco discontinuo en el color de fusión */
+.ad-group--batch > .ad-frame, .ad-frame--batch { fill: color-mix(in srgb, var(--op-fuse) 4%, transparent); stroke: var(--op-fuse); stroke-width: 1.4; stroke-dasharray: 7 4; }
+.ad-group--batch > .ad-group-label { fill: var(--ink); }
+/* ejes de la matriz B×B: franja de la modalidad de filas (izquierda) y columnas (arriba) */
+.ad-axis { stroke: var(--mc); stroke-width: 1; }
+
+/* ---------------------------------------------------------------- fase 3: visualizaciones de DETR */
+/* escena de detección sintética (íconos de ATLAS.Viz sin su fondo) */
+.viz-det-sky { fill: color-mix(in srgb, var(--mod-img) 10%, var(--surface)); }
+.viz-det-ground { fill: color-mix(in srgb, var(--op-mlp) 12%, var(--surface)); }
+.viz-det-frame { fill: none; stroke: var(--ink); stroke-width: 1; }
+.viz-det-scene .viz-icon-bg { display: none; }
+/* hungarian: cajas de objetos (sólidas, tinta) y de queries (punteadas, color de queries) */
+.viz-hung-gbox { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+.viz-hung-gtag { fill: var(--ink); stroke: none; }
+.viz-hung-gtxt { font: 600 10.5px var(--font-mono); fill: var(--surface); pointer-events: none; }
+.viz-hung-gbox.is-sel { stroke: var(--accent); stroke-width: 3; }
+.viz-hung-gtag.is-sel { fill: var(--accent); }
+.viz-hung-pbox { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-hung-pbox.is-m { stroke: var(--mod-qry); stroke-width: 2; stroke-dasharray: 5 3; }
+.viz-hung-pbox.is-sel { stroke: var(--accent); stroke-width: 3; stroke-dasharray: none; }
+.viz-hung-plab { font: 600 10px var(--font-mono); fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.viz-hung-plab.is-m { fill: var(--mod-qry); }
+.viz-hung-cell { stroke: none; }
+.viz-hung-m { fill: none; stroke: var(--ink); stroke-width: 2.4; }
+.viz-cell-btn:focus-visible .viz-hung-m { stroke: var(--focus); stroke-width: 3; }
+.viz-hung-pbox:not(.is-m):not(.is-dup):not(.is-sel) { stroke-opacity: .55; }
+.viz-hung-pbox.is-dup { stroke: var(--ink); stroke-opacity: .75; }
+/* set-vs-nms: cajas densas (YOLO), borradas, duplicados, objetos perdidos; salidas de DETR */
+.viz-nms-grid { fill: none; stroke: var(--ink); stroke-opacity: .12; stroke-width: .6; }
+.viz-nms-box { fill: none; stroke: var(--op-conv); stroke-width: 1.6; }
+.viz-nms-box.is-dup { stroke: var(--warn); stroke-width: 2.4; stroke-dasharray: 5 2; }
+.viz-nms-gone { fill: none; stroke: var(--muted); stroke-opacity: .6; stroke-width: 1; stroke-dasharray: 1.5 2.5; }
+.viz-nms-lost { fill: none; stroke: var(--bad); stroke-width: 2.4; stroke-dasharray: 6 3; }
+.viz-nms-losttxt { font: 700 10.5px var(--font-mono); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-nms-conf { font: 600 9.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-nms-conf.is-dup { fill: var(--ink); }
+.viz-nms-qbox { fill: none; stroke: var(--mod-qry); stroke-width: 2; }
+.viz-nms-qtxt { font: 600 10px var(--font-mono); fill: var(--mod-qry); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-nms-q { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-nms-q.is-obj { fill: var(--mod-qry); stroke: var(--mod-qry); }
+/* deformable-attention: rejilla de tokens por nivel, punto de referencia, rayos y muestras por cabeza */
+.viz-deform-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-deform-map .viz-det-scene { opacity: .55; }
+.viz-deform-grid { fill: none; stroke: var(--ink); stroke-opacity: .16; stroke-width: .6; }
+.viz-deform-ray { stroke-width: 1; stroke-opacity: .7; }
+.viz-deform-pt { stroke: var(--surface); stroke-width: 1; fill-opacity: .9; }
+.viz-deform-ref { stroke: var(--ink); stroke-width: 2.2; stroke-linecap: round; }
+.viz-deform-hit { fill: transparent; cursor: crosshair; }
+.viz-deform-bar { stroke: none; }
+/* ---------------------------------------------------------------- fase 3: motor (DETR) */
+/* carril "solo entrenamiento" (style:'train'): marco gris discontinuo sobre --surface-2 */
+.ad-group--train > .ad-frame, .ad-frame--train { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 6 4; }
+.ad-group--train > .ad-group-label { fill: var(--ink); letter-spacing: .07em; text-transform: uppercase; font-size: 11.5px; }
+/* mazo de matrices de atención (glifo 'amat'): las de atrás, más tenues */
+.ad-face--deck { stroke-opacity: .55; }
+/* ---------------------------------------------------------------- fase 4: motor (Grounding DINO, YOLO-World) */
+/* carril "offline" (style:'offline'): el vocabulario de YOLO-World se codifica UNA vez, fuera de la inferencia */
+.ad-group--offline > .ad-frame, .ad-frame--offline { fill: color-mix(in srgb, var(--warn) 6%, var(--surface)); stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 9 3 2 3; }
+.ad-group--offline > .ad-group-label { fill: var(--ink); letter-spacing: .07em; text-transform: uppercase; font-size: 11.5px; }
+/* ---------------------------------------------------------------- fase 4: visualizaciones */
+/* query-selection: rejilla de tokens, seleccionados (top-K), caja ancla, barras y ranking */
+.viz-qs-grid { fill: none; stroke: var(--ink); stroke-opacity: .14; stroke-width: .6; }
+.viz-qs-sel { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+.viz-qs-anchor { fill: none; stroke: var(--mod-qry); stroke-width: 2; stroke-dasharray: 5 3; }
+.viz-qs-bar { fill: var(--op-fuse-soft); stroke: var(--op-fuse); stroke-width: 1; }
+.viz-qs-bar--max { fill: var(--op-fuse); }
+.viz-qs-rk { fill: var(--rule-strong); }
+.viz-qs-rk--on { fill: var(--op-fuse); }
+.viz-qs-cut { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 3 2; }
+/* open-vocab-head: regiones, matrices de puntajes de las dos cabezas, columna sin fila, entrada de texto */
+.viz-ov-form { gap: 6px; }
+.viz-ov-in { min-height: 28px; width: 11em; padding: 3px 8px; border: 1px solid var(--rule-strong); border-radius: var(--r-1, 3px); background: var(--surface); color: var(--ink); font: 500 12.5px/1 var(--font-mono); }
+.viz-ov-in:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.viz-ov-rbox { fill: none; stroke: var(--op-head); stroke-width: 1.8; }
+.viz-ov-rtag { fill: var(--op-head); }
+.viz-ov-rtxt { font: 600 10.5px var(--font-mono); fill: var(--surface); pointer-events: none; }
+.viz-ov-cell { stroke: var(--rule-strong); stroke-width: .8; }
+.viz-ov-cell--new { stroke: var(--accent); stroke-width: 1.6; }
+.viz-ov-best { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.viz-ov-v { font: 500 11px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; pointer-events: none; }
+.viz-ov-v--hi { font-weight: 700; }
+.viz-ov-new { fill: var(--accent-ink); }
+.viz-ov-hit { fill: transparent; }
+.viz-ov-nofila { fill: var(--surface-2); stroke: var(--bad); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.viz-cell-btn:focus-visible .viz-ov-cell, .viz-cell-btn:focus-visible .viz-ov-hit { stroke: var(--focus); stroke-width: 2.5; }
+/* prompt-then-detect: barras por parte (colores de operación / modalidad), carril offline y totales */
+.viz-ptd-bar { stroke-width: 1.2; }
+.viz-ptd--conv { fill: var(--op-conv-soft); stroke: var(--op-conv); }
+.viz-ptd--attn { fill: var(--op-attn-soft); stroke: var(--op-attn); }
+.viz-ptd--fuse { fill: var(--op-fuse-soft); stroke: var(--op-fuse); }
+.viz-ptd--head { fill: var(--op-head-soft); stroke: var(--op-head); }
+.viz-ptd--txt { fill: color-mix(in srgb, var(--mod-txt) 18%, var(--surface)); stroke: var(--mod-txt); }
+.viz-ptd--ghost { fill-opacity: .25; stroke-dasharray: 3 2; }
+.viz-ptd-lab { font: 600 10.5px var(--font-body); fill: var(--ink); pointer-events: none; }
+.viz-ptd-off { font: 700 10.5px var(--font-display); letter-spacing: .07em; fill: var(--ink); }
+.viz-ptd-tot--yw { fill: var(--op-conv); }
+.viz-ptd-tot--gd { fill: var(--op-attn); }
+.viz-cell-btn:focus-visible .viz-ptd-bar { stroke: var(--focus); stroke-width: 2.5; }
+
+/* ---------------------------------------------------------------- fase 5: motor (SAM, SAM 2) */
+/* carriles de "cuándo corre" (style:'lane' + tone): SAM "una vez por imagen" / "por prompt"; SAM 2 "por frame" */
+.ad-tone--warn { --tone: var(--warn); }
+.ad-tone--accent { --tone: var(--accent); }
+.ad-tone--head { --tone: var(--op-head); }
+.ad-tone--fuse { --tone: var(--op-fuse); }
+.ad-tone--muted { --tone: var(--muted); }
+.ad-group--lane > .ad-frame, .ad-frame--lane { fill: color-mix(in srgb, var(--tone) 5%, var(--surface)); stroke: var(--tone); stroke-width: 1.4; stroke-dasharray: 9 3 2 3; }
+.ad-group--lane.is-curcfg > .ad-frame { stroke-width: 2.6; stroke-dasharray: none; }
+.ad-group--lane > .ad-group-label { fill: var(--ink); letter-spacing: .07em; text-transform: uppercase; font-size: 11.5px; }
+.ad-group--lane > .ad-group-sub { fill: var(--ink); }
+/* línea guía de un glifo suelto a su bloque (tensors[].leader) */
+.ad-leader-ln { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2.5; }
+.ad-leader-dot { fill: var(--muted); }
+/* ---------------------------------------------------------------- fase 5: visualizaciones */
+/* prompt-to-mask: escena sintética (colores fijos de "foto", como la escena procedural de ViT), máscara elegida
+   (acento + el resto atenuado), puntos +/−, caja, tarjetas de las 3 salidas con su IoU predicho */
+.viz-p2m-sky { fill: #A9CBE8; } .viz-p2m-grass { fill: #8DB36F; } .viz-p2m-sun { fill: #F4C95D; }
+.viz-p2m-wall { fill: #E2C8A0; } .viz-p2m-roof { fill: #A8452F; } .viz-p2m-door { fill: #6B4F35; } .viz-p2m-glass { fill: #DCEBF5; stroke: #5D6B78; stroke-width: .8; }
+.viz-p2m-trunk { fill: #6B4F35; } .viz-p2m-leaf { fill: #3F7A4A; }
+.viz-p2m-car { fill: #3E6FB0; } .viz-p2m-wheel { fill: #2A2F36; }
+.viz-p2m-dim { fill: var(--surface); fill-opacity: .72; }
+.viz-p2m-mask { fill: var(--accent); fill-opacity: .22; }
+.viz-p2m-mask.is-strong { fill-opacity: .28; }
+.viz-p2m-flood { flood-color: var(--accent); flood-opacity: 1; }
+.viz-p2m-box { fill: none; stroke: var(--ink); stroke-width: 2; stroke-dasharray: 6 3; }
+.viz-p2m-pt circle { stroke: var(--surface); stroke-width: 2; }
+.viz-p2m-pt path { stroke: var(--surface); stroke-width: 2; stroke-linecap: round; }
+.viz-p2m-pt.is-pos circle { fill: var(--ok); }
+.viz-p2m-pt.is-neg circle { fill: var(--bad); }
+.viz-p2m-corner { fill: var(--ink); }
+.viz-p2m-cursor { stroke: var(--ink); stroke-width: 2; }
+.viz-p2m-hit { fill: transparent; cursor: crosshair; }
+.viz-p2m-hit:focus-visible { outline: none; stroke: var(--focus); stroke-width: 3; }
+.viz-p2m-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-p2m-empty { fill: var(--surface-2); }
+.viz-p2m-best { fill: none; stroke: var(--accent); stroke-width: 2.4; }
+.viz-p2m-card.is-off { opacity: .55; }
+.viz-p2m-iou { fill: var(--op-head-soft); stroke: var(--op-head); stroke-width: 1; }
+.viz-p2m-iou.is-best { fill: var(--op-head); }
+.viz-p2m-enc { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1.2; }
+.viz-p2m-dec { fill: var(--op-head-soft); stroke: var(--op-head); stroke-width: 1.2; }
+.viz-cell-btn:focus-visible .viz-p2m-frame { stroke: var(--focus); stroke-width: 2.5; }
+/* memory-bank: frames del video (pasados, actual, futuros), memorias (prompt / FIFO / sin objeto), punteros, oclusión */
+.viz-mb-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-mb-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-mb-frame.is-t { stroke: var(--accent); stroke-width: 2.6; }
+.viz-mb-f.is-future { opacity: .4; }
+.viz-mb-f { cursor: pointer; }
+.viz-mb-car.is-masked .viz-p2m-car, .viz-mb-car.is-masked .viz-p2m-wheel { stroke: var(--accent); stroke-width: 1.6; }
+.viz-mb-mem { stroke-width: 1.2; }
+.viz-mb-mem.is-cond { fill: var(--op-fuse); stroke: var(--op-fuse); }
+.viz-mb-mem.is-recent { fill: var(--op-fuse-soft); stroke: var(--op-fuse); }
+.viz-mb-mem.is-noobj { fill: var(--surface); stroke-dasharray: 2.5 1.5; }
+.viz-mb-ptr { fill: var(--op-head); stroke: var(--surface); stroke-width: 1; }
+.viz-mb-ptr.is-noobj { fill: var(--surface); stroke: var(--op-head); stroke-width: 1.4; }
+.viz-mb-occl { fill: none; stroke: var(--bad); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.viz-mb-arc { fill: none; stroke: var(--op-fuse); stroke-width: 1.2; stroke-opacity: .7; }
+.viz-mb-arc.is-cond { stroke-width: 2; stroke-opacity: 1; }
+.viz-mb-arc.is-ptr { stroke: var(--op-head); stroke-width: 1.2; stroke-dasharray: 2 3; stroke-opacity: .9; }
+.viz-mb-arrow { fill: var(--op-fuse); }
+/* windowed-global: pila de bloques (con ventanas / G = global), rejilla de tokens con relleno y ventanas, alcance de un token */
+.viz-wg-stack, .viz-wg-grid { outline: none; }
+.viz-wg-stack:focus-visible .viz-wg-b.is-sel .viz-wg-cell, .viz-wg-grid:focus-visible .viz-wg-img { stroke: var(--focus); stroke-width: 3; }
+.viz-wg-b { cursor: pointer; }
+.viz-wg-cell { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1; }
+.viz-wg-b.is-global .viz-wg-cell { fill: var(--op-attn); }
+.viz-wg-b.is-sel .viz-wg-cell { stroke: var(--ink); stroke-width: 2.4; }
+.viz-wg-ico { fill: none; stroke: var(--op-attn); stroke-width: 1; }
+.viz-wg-g { font: 700 11px var(--font-mono); fill: var(--surface); pointer-events: none; }
+.viz-wg-img { fill: color-mix(in srgb, var(--mod-img) 10%, var(--surface)); stroke: var(--mod-img); stroke-width: 1.2; }
+.viz-wg-pad { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 3 2; }
+.viz-wg-reach { fill: var(--op-attn); fill-opacity: .22; }
+.viz-wg-tok { fill: none; stroke: var(--ink); stroke-opacity: .1; stroke-width: .5; pointer-events: none; }
+.viz-wg-win { fill: none; stroke: var(--op-attn); stroke-width: 1.6; pointer-events: none; }
+.viz-wg-winrect { fill: none; stroke: var(--op-attn); stroke-width: 2; pointer-events: none; }
+.viz-wg-q { fill: var(--ink); }
+.viz-wg-hit { fill: transparent; cursor: crosshair; }
+.viz-wg-bar { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1; }
+.viz-wg-bar.is-score { fill: color-mix(in srgb, var(--op-attn) 45%, var(--surface)); }
+.viz-wg-bar.is-sel { stroke: var(--ink); stroke-width: 1.8; }
+
+/* ---------------------------------------------------------------- fase 6: visualizaciones (LLM) */
+/* rope: un reloj por par (q rotado m·θ, k rotado n·θ, ángulo entre ambos) y la curva q·k(m − n) */
+.viz-rope-stage:focus-visible, .viz-moe-stage:focus-visible, .viz-kv-stage:focus-visible, .viz-rl-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-rope-pos { min-width: 3.6em; text-align: center; font: 600 12.5px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-rope-face { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-rope-axis { fill: none; stroke: var(--rule-strong); stroke-width: .8; }
+.viz-rope-vec { fill: none; stroke-width: 2.4; stroke-linecap: round; }
+.viz-rope-q { stroke: var(--op-attn); fill: var(--op-attn); }
+.viz-rope-k { stroke: var(--op-embed); fill: var(--op-embed); }
+.viz-rope-q0, .viz-rope-k0 { stroke-width: 1.2; stroke-dasharray: 2 2.5; opacity: .9; }
+.viz-rope-q0 { stroke: var(--op-attn); fill: none; }
+.viz-rope-k0 { stroke: var(--op-embed); fill: none; }
+.viz-rope-head { stroke: none; }
+.viz-rope-head.viz-rope-q0, .viz-rope-head.viz-rope-k0 { fill: none; stroke-width: 1; stroke-dasharray: none; }
+.viz-rope-arc { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.viz-rope-box { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-rope-curve { fill: none; stroke: var(--op-attn); stroke-width: 2; stroke-linejoin: round; }
+.viz-rope-cur { stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 3 2.5; }
+.viz-rope-dot { fill: var(--ink); stroke: var(--surface); stroke-width: 1.5; }
+/* moe-router: tokens → expertos (grosor ∝ peso), probabilidades del token elegido, carga por experto */
+.viz-moe-ln { fill: none; stroke: var(--op-mlp); stroke-opacity: .35; }
+.viz-moe-ln.is-sel { stroke: var(--ink); stroke-opacity: 1; }
+.viz-moe-ln.is-drop { stroke: var(--bad); stroke-opacity: .8; stroke-dasharray: 4 3; }
+.viz-moe-tokbox { fill: color-mix(in srgb, var(--mod-txt) 12%, var(--surface)); stroke: var(--mod-txt); stroke-width: 1; }
+.viz-moe-tok.is-sel .viz-moe-tokbox { stroke: var(--ink); stroke-width: 2.2; }
+.viz-moe-toktxt { font: 500 11.5px var(--font-mono); fill: var(--ink); pointer-events: none; }
+.viz-cell-btn:focus-visible .viz-moe-tokbox { stroke: var(--focus); stroke-width: 2.5; }
+.viz-moe-ebox { fill: var(--op-mlp-soft); stroke: var(--op-mlp); stroke-width: 1.2; }
+.viz-moe-exp.is-on .viz-moe-ebox { fill: var(--op-mlp); }
+.viz-moe-etxt { font: 600 11px var(--font-mono); fill: var(--ink); }
+.viz-moe-exp.is-on .viz-moe-etxt { fill: var(--surface); }
+.viz-moe-track { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-moe-bar { fill: var(--op-mlp-soft); stroke: var(--op-mlp); stroke-width: 1; }
+.viz-moe-bar.is-on { fill: var(--op-mlp); }
+.viz-moe-load { fill: color-mix(in srgb, var(--op-mlp) 45%, var(--surface)); stroke: var(--op-mlp); stroke-width: 1; }
+.viz-moe-over { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 3 2; }
+.viz-moe-ideal { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.viz-moe-cap { stroke: var(--bad); stroke-width: 1.6; }
+.viz-moe-captxt { font: 600 11px var(--font-mono); fill: var(--bad); }
+/* ---------------------------------------------------------------- fase 6: motor (LLM) */
+/* agrupación GQA (node.kvGroups): cartas de query → una barra K,V compartida por grupo */
+.ad-gqa-q { fill: var(--op-attn-soft); stroke: var(--op-attn); stroke-width: 1; }
+.ad-gqa-kv { fill: var(--op-embed-soft); stroke: var(--op-embed); stroke-width: 1.2; }
+.ad-gqa-ln { fill: none; stroke: var(--muted); stroke-width: .8; }
+.ad-gqa-kvtxt { font: 600 8.5px var(--font-mono); fill: var(--ink); }
+.ad-gqa-more { font: 600 10px var(--font-mono); fill: var(--ink); }
+.ad-gqa-cap { font: 500 10.5px var(--font-mono); fill: var(--ink); }
+/* expertos MoE (node.experts): k encendidos de n */
+.ad-exp { fill: var(--surface); stroke: var(--op-mlp); stroke-width: 1.1; }
+.ad-exp.is-on { fill: var(--op-mlp); }
+.ad-exp-txt { font: 600 9.5px var(--font-mono); fill: var(--ink); }
+.ad-exp-txt.is-on { fill: var(--surface); }
+/* filas de un almacén (node.rows): el caché que crece; la fila nueva en acento */
+.ad-row { fill: var(--surface); stroke: var(--oc, var(--muted)); stroke-width: .9; }
+.ad-row.is-new { fill: var(--accent); stroke: var(--accent); }
+.ad-rows .ad-row { --oc: var(--muted); }
+.ad-row-txt { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+/* roofline: zonas (memoria / cómputo), techo, codo y los puntos de prefill y decode */
+.viz-rl-mem { fill: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.viz-rl-comp { fill: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.viz-rl-grid { fill: none; stroke: var(--rule); stroke-width: .8; }
+.viz-rl-box { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-rl-roof { fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linejoin: round; }
+.viz-rl-ridge { fill: none; stroke: var(--ink); stroke-width: 1.1; stroke-dasharray: 4 3; }
+.viz-rl-zone { font: 700 10.5px var(--font-display); letter-spacing: .07em; text-transform: uppercase; fill: var(--muted); }
+.viz-rl-pt circle { stroke: var(--surface); stroke-width: 2; }
+.viz-rl-pt.is-prefill circle { fill: var(--accent); }
+.viz-rl-pt.is-decode circle { fill: var(--warn); }
+.viz-rl-lab { font: 600 11.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; }
+.viz-rl-warn { font: 600 11px var(--font-body); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; }
+/* kv-cache: tokens del prompt / generados / el nuevo; filas del caché por capa (ancho ∝ n_kv) y barras de bytes */
+.viz-kv-tok { stroke-width: 1; }
+.viz-kv-tok.is-prompt { fill: color-mix(in srgb, var(--mod-txt) 12%, var(--surface)); stroke: var(--mod-txt); }
+.viz-kv-tok.is-gen { fill: var(--surface-2); stroke: var(--muted); }
+.viz-kv-tok.is-new { fill: var(--accent); stroke: var(--accent); }
+.viz-kv-toktxt { font: 500 11px var(--font-mono); fill: var(--ink); pointer-events: none; }
+.viz-kv-toktxt.is-new { fill: var(--on-accent, #fff); font-weight: 700; }
+.viz-kv-row { stroke-width: .8; }
+.viz-kv-row.is-prompt { fill: color-mix(in srgb, var(--mod-txt) 22%, var(--surface)); stroke: var(--mod-txt); }
+.viz-kv-row.is-gen { fill: var(--surface-2); stroke: var(--muted); }
+.viz-kv-row.is-new { fill: var(--accent); stroke: var(--accent); }
+.viz-kv-heads { fill: none; stroke: var(--surface); stroke-width: .7; }
+.viz-kv-dots { font: 700 18px var(--font-mono); fill: var(--ink); }
+.viz-kv-bar { fill: var(--op-embed-soft); stroke: var(--op-embed); stroke-width: 1; }
+.viz-kv-bar.is-on { fill: var(--op-embed); }
+/* ---------------------------------------------------------------- fase 7: motor (VLM) */
+/* tira de tokens del prompt (node.strip): tramos con la textura de su modalidad, ancho ∝ tokens */
+.ad-strip-seg { stroke-width: 1.2; }
+.ad-strip-n { font: 600 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+/* ids de posición de M-RoPE (node.posIds): fila por eje; en la imagen, h y w varían (resaltados) */
+.ad-pos-ax { font: 700 10.5px var(--font-mono); fill: var(--muted); }
+.ad-pos-n { font: 500 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-pos-n.is-var { font-weight: 700; fill: var(--accent-ink); }
+.ad-pos-brace { fill: none; stroke: var(--mod-img); stroke-width: 1.2; }
+.ad-pos-cap { font: 500 9.5px var(--font-mono); fill: var(--muted); }
+/* capas del encoder con la toma (node.layers): la capa de la que salen las features y las que no se usan */
+.ad-layer { fill: var(--surface); stroke: var(--op-attn); stroke-width: 1; }
+.ad-layer.is-tap { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.ad-layer.is-off { fill: var(--surface-2); stroke: var(--muted); stroke-dasharray: 2.5 2; }
+.ad-layer-n { font: 600 9.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-layer-n.is-off { fill: var(--muted); font-weight: 500; }
+.ad-layer-cap { font: 600 9.5px var(--font-mono); fill: var(--muted); }
+.ad-layer-cap.is-tap { fill: var(--accent-ink); }
+/* congelado / entrena (node.train) */
+.ad-frozen-ln { stroke: var(--muted); stroke-opacity: .35; stroke-width: 1.2; }
+.ad-frozen-hatch { stroke: none; pointer-events: none; }
+.ad-train-bg { stroke-width: 1.2; }
+.ad-train--frozen .ad-train-bg { fill: var(--surface-2); stroke: var(--muted); }
+.ad-train--on .ad-train-bg { fill: var(--accent-soft); stroke: var(--accent); }
+.ad-train-ico { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.ad-train-txt { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+/* CLS descartado (glifo mark:'dropfirst') */
+.ad-tokdrop { fill: var(--surface); stroke: var(--muted); stroke-width: .9; stroke-dasharray: 2 1.5; }
+.ad-tokdrop-x { stroke: var(--bad); stroke-width: 1.3; stroke-linecap: round; }
+.ad-c2x2 rect { stroke: var(--ink); stroke-width: .8; }
+.ad-c2-0 { fill: color-mix(in srgb, var(--mod-img) 18%, var(--surface)); }
+.ad-c2-1 { fill: color-mix(in srgb, var(--mod-img) 42%, var(--surface)); }
+.ad-c2-2 { fill: color-mix(in srgb, var(--mod-img) 66%, var(--surface)); }
+.ad-c2-3 { fill: var(--mod-img); }
+.ad-tokdrop-lab { font: 600 9px var(--font-mono); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.ad-xref-mark .ad-expand-ico { stroke: var(--ink); }
+/* ---------------------------------------------------------------- fase 7: visualizaciones (VLM) */
+.viz-mrope-stage:focus-visible, .viz-vt-stage:focus-visible, .viz-vtc-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* mrope: una columna por token (chip + ids t, h, w + el id de RoPE 1-D); la imagen partida en tokens */
+.viz-mrope-tok { stroke-width: 1; }
+.viz-mrope-tok.is-txt { fill: color-mix(in srgb, var(--mod-txt) 12%, var(--surface)); stroke: var(--mod-txt); }
+.viz-mrope-tok.is-img { fill: color-mix(in srgb, var(--mod-img) 16%, var(--surface)); stroke: var(--mod-img); }
+.viz-mrope-toktxt { font: 500 10px var(--font-mono); fill: var(--ink); pointer-events: none; }
+.viz-mrope-ax { font: 700 11px var(--font-mono); fill: var(--ink); }
+.viz-mrope-id.is-var { fill: var(--accent-ink); font-weight: 700; }
+.viz-mrope-patch { fill: transparent; stroke: #FFFFFF; stroke-opacity: .85; stroke-width: 1; cursor: pointer; }
+.viz-mrope-patch.is-sel { fill: var(--accent); fill-opacity: .35; stroke: var(--ink); stroke-opacity: 1; stroke-width: 2.4; }
+.viz-mrope-col { cursor: pointer; }
+/* visual-tokens: imagen original con asa, rejillas de tokens por estrategia, recortes de AnyRes, barras */
+.viz-vt-sliders { gap: 6px 14px; }
+.viz-vt-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-vt-sl input[type="range"] { width: 120px; accent-color: var(--accent); }
+.viz-vt-out { min-width: 4.6em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-vt-max { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 3 2; }
+.viz-vt-knob { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.viz-vt-hit { fill: transparent; cursor: nwse-resize; touch-action: none; }
+.viz-vt-handle { touch-action: none; }
+.viz-vt-stage { touch-action: pan-y; }
+.viz-vt-panbg { fill: var(--surface); stroke: var(--rule); stroke-width: 1; }
+.viz-vt-pad { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-vt-grid { fill: none; stroke: #FFFFFF; stroke-opacity: .7; stroke-width: .6; }
+.viz-vt-crop { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+.viz-vt-frame { fill: none; stroke: var(--ink); stroke-width: 1; }
+.viz-vt-big { font: 700 20px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-vt-bar { fill: var(--mod-img); }
+/* vlm-token-cost: partes del prefill y del KV cache (imagen en colores de visión, texto en el de texto) y la curva */
+.viz-vtc-seg { stroke: var(--surface); stroke-width: 1; }
+.viz-vtc-seg.is-vis { fill: var(--op-attn); }
+.viz-vtc-seg.is-proj { fill: var(--op-embed); }
+.viz-vtc-seg.is-llmimg { fill: var(--mod-img); }
+.viz-vtc-seg.is-llmtxt { fill: var(--mod-txt); }
+.viz-vtc-line { fill: none; stroke: var(--mod-img); stroke-width: 2; stroke-linejoin: round; }
+.viz-vtc-pt { fill: var(--surface); stroke: var(--mod-img); stroke-width: 1.6; cursor: pointer; }
+.viz-vtc-pt.is-on { fill: var(--mod-img); stroke: var(--ink); }
+/* ---------------------------------------------------------------- fase 8: visualizaciones (difusión) */
+.viz-ns-stage:focus-visible, .viz-ds-stage:focus-visible, .viz-cfg-stage:focus-visible, .viz-fd-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-ns-sl, .viz-ds-sl, .viz-cfg-sl, .viz-fd-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-ns-sl input[type="range"], .viz-ds-sl input[type="range"], .viz-cfg-sl input[type="range"], .viz-fd-sl input[type="range"] { width: 150px; accent-color: var(--accent); }
+.viz-ns-out { min-width: 4.8em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+/* noise-schedule: x₀ + ε → x_t, barras de señal/ruido, curvas ᾱ_t y log SNR */
+.viz-ns-img { image-rendering: pixelated; }
+.viz-ns-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-ns-frame.is-on { stroke: var(--ink); stroke-width: 2; }
+.viz-ns-op { font: 600 18px var(--font-mono); fill: var(--muted); }
+.viz-ns-track { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-ns-bar.is-sig { fill: var(--mod-img); }
+.viz-ns-bar.is-noise { fill: var(--mod-lat); }
+.viz-ns-val { font: 600 10.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-ns-curve { fill: none; stroke-width: 2.2; stroke-linejoin: round; }
+.viz-ns-curve.is-abar { stroke: var(--mod-img); }
+.viz-ns-curve.is-snr { stroke: var(--op-attn); }
+.viz-ns-curve.is-other { stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 4 3; }
+/* denoise-steps / flow-vs-diffusion / cfg-guidance: juguete 2-D (modos, trayectorias, finales) y curvas */
+.viz-ds-box { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-ds-mode { fill: var(--mod-img); fill-opacity: .12; stroke: var(--mod-img); stroke-width: 1; stroke-dasharray: 3 2; }
+.is-ddpm { --sc: var(--op-attn); }
+.is-ddim { --sc: var(--op-embed); }
+.is-flow { --sc: var(--op-mlp); }
+.viz-ds-path { fill: none; stroke: var(--sc, var(--ink)); stroke-width: 1.6; stroke-linejoin: round; stroke-opacity: .85; }
+.viz-ds-step { fill: var(--surface); stroke: var(--sc, var(--ink)); stroke-width: 1.2; }
+.viz-ds-start { fill: var(--surface); stroke: var(--ink); stroke-width: 1.6; }
+.viz-ds-end { fill: var(--sc, var(--ink)); stroke: var(--surface); stroke-width: 1; }
+.viz-ds-end.is-off { fill: var(--surface); stroke: var(--bad); stroke-width: 1.5; }
+.viz-ds-end.is-sel { stroke: var(--ink); stroke-width: 2; }
+.viz-ds-line { fill: none; stroke: var(--sc, var(--muted)); stroke-width: 1.3; stroke-opacity: .55; stroke-dasharray: 4 3; }
+.viz-ds-line.is-on { stroke-width: 2.4; stroke-opacity: 1; stroke-dasharray: none; }
+.viz-ds-cur { fill: var(--sc, var(--ink)); stroke: var(--surface); stroke-width: 2; }
+.viz-ds-cost { fill: none; stroke: var(--op-head); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-ds-costpt { fill: var(--op-head); stroke: var(--surface); stroke-width: 2; }
+/* cfg-guidance: modos de dos clases, el punto ruidoso, las tres predicciones de x̂₀ y las muestras guiadas */
+.viz-cfg-mode { stroke-width: 1; stroke-dasharray: 3 2; fill-opacity: .1; }
+.viz-cfg-mode.is-c0 { fill: var(--op-attn); stroke: var(--op-attn); }
+.viz-cfg-mode.is-c1 { fill: var(--op-embed); stroke: var(--op-embed); }
+.viz-cfg-mode.is-want { fill-opacity: .22; stroke-dasharray: none; stroke-width: 1.6; }
+.viz-cfg-ml { font: 700 11px var(--font-mono); fill: var(--muted); pointer-events: none; }
+.viz-cfg-arr { fill: none; stroke-width: 1.6; }
+.viz-cfg-arr.is-u, .viz-cfg-head.is-u { stroke: var(--muted); }
+.viz-cfg-arr.is-c, .viz-cfg-head.is-c { stroke: var(--op-head); }
+.viz-cfg-arr.is-g { stroke: var(--ink); stroke-width: 3; }
+.viz-cfg-head { stroke: none; }
+.viz-cfg-head.is-u { fill: var(--muted); }
+.viz-cfg-head.is-c { fill: var(--op-head); }
+.viz-cfg-head.is-g { fill: var(--ink); }
+.viz-cfg-pt { stroke: var(--surface); stroke-width: 1.5; }
+.viz-cfg-pt.is-u { fill: var(--muted); }
+.viz-cfg-pt.is-c { fill: var(--op-head); }
+.viz-cfg-pt.is-g { fill: var(--ink); }
+.viz-cfg-x { fill: var(--surface); stroke: var(--ink); stroke-width: 2.2; }
+.viz-cfg-hit { fill: transparent; cursor: crosshair; touch-action: none; }
+.viz-cfg-stage { touch-action: pan-y; }
+.viz-cfg-s { stroke: var(--surface); stroke-width: .8; }
+.viz-cfg-s.is-c0 { fill: var(--op-attn); }
+.viz-cfg-s.is-c1 { fill: var(--op-embed); }
+.viz-cfg-s.is-out { fill: var(--surface); stroke: var(--bad); stroke-width: 1.5; }
+/* flow-vs-diffusion: caminos por par (arco / recta) y el ODE fino de referencia */
+.viz-fd-pair { fill: none; stroke: var(--sc, var(--ink)); stroke-width: 1.4; stroke-opacity: .8; }
+.viz-fd-fine { fill: none; stroke: var(--sc, var(--muted)); stroke-width: 1; stroke-opacity: .3; }
+/* en "caminos por par" el deslizador de pasos no aplica */
+.viz-fd-sl.is-off { opacity: .55; }
+/* ---------------------------------------------------------------- fase 8: motor (difusión) */
+/* bucle de muestreo (edge.loop), veces que corre (node.runs), barra del costo por imagen (node.costSplit) */
+.ad-loop-ico { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
+.ad-loop-ico-head { fill: var(--ink); stroke: none; }
+.ad-runs-bg { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+.ad-runs--once .ad-runs-bg { fill: var(--surface-2); stroke: var(--muted); }
+.ad-runs-txt { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-cs-seg { fill: var(--oc); stroke: none; }
+.ad-cs-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.ad-cs-lab { font: 500 10.5px var(--font-body); fill: var(--ink); }
+.ad-cs-val { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-cs--loop { fill: var(--accent); }
+.ad-cs--once { fill: var(--muted); }
+/* el decoder del VAE es una conv: su tono (≥ 3:1 contra la superficie en los dos temas; antes, gris claro a 1.8:1) */
+.ad-cs--once2 { fill: var(--op-conv); }
+/* fase 8 (revisión): letra + sombrero/tilde combinante (ε̂, ε̃, v̂) en mono, donde la marca se compone bien */
+.ad-comb { font-family: var(--font-mono); }
+
+/* ---- fase 9 (VLA): caja negra (pesos cerrados), regla de bins y máscara por bloques en los diagramas ---- */
+.ad-node--closed .ad-box { fill: var(--ink); stroke: var(--ink); }
+.ad-node--closed .ad-label { fill: var(--bg); }
+.ad-node--closed .ad-sub { fill: var(--bg); opacity: .85; }
+.ad-node--closed:focus-visible .ad-box { stroke: var(--focus); stroke-width: 3; }
+/* en oscuro sigue siendo una caja NEGRA (más oscura que el fondo, con borde claro), no una caja blanca */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ad-node--closed .ad-box { fill: color-mix(in srgb, var(--bg) 45%, #000); stroke: var(--ink); }
+  :root:not([data-theme="light"]) .ad-node--closed .ad-label, :root:not([data-theme="light"]) .ad-node--closed .ad-sub { fill: var(--ink); }
+}
+:root[data-theme="dark"] .ad-node--closed .ad-box { fill: color-mix(in srgb, var(--bg) 45%, #000); stroke: var(--ink); }
+:root[data-theme="dark"] .ad-node--closed .ad-label, :root[data-theme="dark"] .ad-node--closed .ad-sub { fill: var(--ink); }
+.ad-bins-track { fill: color-mix(in srgb, var(--mod-act) 12%, var(--surface)); stroke: var(--mod-act); stroke-width: 1; }
+.ad-bins-tick { fill: none; stroke: var(--mod-act); stroke-width: .6; stroke-opacity: .75; }
+.ad-bins-on { fill: var(--mod-act); stroke: var(--ink); stroke-width: 1; }
+.ad-bins-val { fill: var(--ink); }
+.ad-bins-n { font: 500 9.5px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.ad-bins-lab { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+.ad-mask-on { stroke: var(--surface); stroke-width: 1; }
+.ad-mask-on.ad-mod--img { fill: var(--mod-img); }
+.ad-mask-on.ad-mod--txt { fill: var(--mod-txt); }
+.ad-mask-on.ad-mod--act { fill: var(--mod-act); }
+.ad-mask-on.ad-mod--lat { fill: var(--muted); }
+.ad-mask-off { fill: var(--surface-2); stroke: var(--rule); stroke-width: .8; }
+.ad-mask-x { fill: none; stroke: var(--muted); stroke-width: .8; }
+.ad-mask-sep { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 3 2; }
+.ad-mask-brace { fill: none; stroke: var(--muted); stroke-width: 1; }
+.ad-mask-lab { font: 500 10.5px var(--font-mono); fill: var(--ink); }
+/* fase 9 (revisión): el estado del robot (no es ruido: no el gris de 'lat'), filas que no corren en el paso y su corchete */
+.ad-mask-on.ad-mask--state { fill: color-mix(in srgb, var(--mod-act) 35%, var(--surface)); stroke: var(--mod-act); stroke-width: 1; }
+.ad-mask-idle { opacity: .35; }
+.ad-mask-lab--idle { fill: var(--muted); }
+.ad-mask-run { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+.ad-mask-runlab { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+/* ---- fase 9 (VLA): visualizaciones action-tokenizer, action-chunking, vla-latency, pi0-mask ---- */
+.viz-at-stage:focus-visible, .viz-ac-stage:focus-visible, .viz-vl-stage:focus-visible, .viz-pm-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-at-clip { fill: color-mix(in srgb, var(--bad) 9%, var(--surface)); }
+.viz-at-lim { fill: none; stroke: var(--bad); stroke-width: 1; stroke-dasharray: 4 3; }
+.viz-at-cont { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linejoin: round; }
+.viz-at-stair { fill: none; stroke: var(--mod-act); stroke-width: 2.2; stroke-linejoin: miter; }
+.viz-at-cur { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-at-pt { fill: var(--surface); stroke: var(--ink); stroke-width: 2; }
+.viz-at-qpt { fill: var(--mod-act); stroke: var(--surface); stroke-width: 1.5; }
+.viz-at-hit { fill: transparent; cursor: pointer; }
+.viz-at-rowbg { fill: transparent; }
+.viz-at-rowbg.is-on { fill: color-mix(in srgb, var(--mod-act) 14%, var(--surface)); stroke: var(--mod-act); stroke-width: 1; }
+.viz-at-bad { font: 600 11px var(--font-mono); fill: var(--bad); }
+.viz-at-tok { fill: color-mix(in srgb, var(--mod-act) 10%, var(--surface)); stroke: var(--mod-act); stroke-width: 1.2; }
+.viz-at-tok.is-term { fill: var(--surface-2); stroke: var(--muted); }
+.viz-at-tok.is-on { stroke-width: 2.6; fill: color-mix(in srgb, var(--mod-act) 22%, var(--surface)); }
+.viz-at-tokv { font: 700 13px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-at-limt { font: 500 10.5px var(--font-mono); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-pm-brace, .viz-pm-sep { fill: none; stroke: var(--muted); stroke-width: 1; }
+.viz-pm-sep { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 3 2; pointer-events: none; }
+.viz-pm-blk.is-b0 { fill: var(--mod-img); }
+.viz-pm-blk.is-b1 { fill: color-mix(in srgb, var(--mod-act) 45%, var(--surface)); stroke: var(--mod-act); stroke-width: 1; }
+.viz-pm-blk.is-b2 { fill: var(--mod-act); }
+.viz-pm-cell { stroke: var(--surface); stroke-width: 1; }
+.viz-pm-cell.is-no { fill: var(--surface-2); stroke: var(--rule); }
+.viz-pm-cell.is-ok.is-img { fill: color-mix(in srgb, var(--mod-img) 45%, var(--surface)); }
+.viz-pm-cell.is-ok.is-txt { fill: color-mix(in srgb, var(--mod-txt) 45%, var(--surface)); }
+.viz-pm-cell.is-ok.is-state { fill: color-mix(in srgb, var(--mod-act) 22%, var(--surface)); stroke: var(--mod-act); }
+.viz-pm-cell.is-ok.is-act { fill: color-mix(in srgb, var(--mod-act) 50%, var(--surface)); }
+.viz-pm-cell.is-ok.is-lit.is-img { fill: var(--mod-img); }
+.viz-pm-cell.is-ok.is-lit.is-txt { fill: var(--mod-txt); }
+.viz-pm-cell.is-ok.is-lit.is-state { fill: color-mix(in srgb, var(--mod-act) 55%, var(--surface)); stroke: var(--mod-act); }
+.viz-pm-cell.is-ok.is-lit.is-act { fill: var(--mod-act); }
+.viz-pm-cell.is-no.is-lit { stroke: var(--bad); }
+.viz-pm-cell.is-frozen { fill-opacity: .28; }
+.viz-pm-cell.is-cached { stroke: var(--ink); stroke-width: 1.2; stroke-dasharray: 2 1.5; }
+.viz-pm-cell.is-hit { stroke: var(--focus); stroke-width: 2.4; stroke-dasharray: none; }
+.viz-pm-lab { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-pm-lab.is-on { stroke: var(--ink); stroke-width: 1.8; }
+.viz-pm-lab.is-img { fill: color-mix(in srgb, var(--mod-img) 10%, var(--surface)); }
+.viz-pm-lab.is-txt { fill: color-mix(in srgb, var(--mod-txt) 10%, var(--surface)); }
+.viz-pm-lab.is-act { fill: color-mix(in srgb, var(--mod-act) 12%, var(--surface)); }
+.viz-pm-lab.is-state { fill: color-mix(in srgb, var(--mod-act) 6%, var(--surface)); stroke-dasharray: 3 2; }
+.viz-pm-rowlab:focus-visible .viz-pm-lab { stroke: var(--focus); stroke-width: 2.5; }
+.viz-pm-no { font: 400 11px var(--font-mono); fill: var(--bad); }
+.viz-ac-goal { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.viz-ac-exec { fill: none; stroke: var(--mod-act); stroke-width: 2.4; stroke-linejoin: round; }
+.viz-ac-plan { fill: none; stroke: var(--muted); stroke-width: 1; stroke-opacity: .7; }
+.viz-ac-q { fill: none; stroke: var(--accent); stroke-width: 1.6; }
+.viz-ac-qband { fill: color-mix(in srgb, var(--accent) 35%, var(--surface)); }
+.viz-ac-dist { fill: none; stroke: var(--bad); stroke-width: 1.3; stroke-dasharray: 4 3; }
+.viz-ac-delay { fill: none; stroke: var(--bad); stroke-width: 3; stroke-linecap: round; }
+.viz-ac-distt { font: 600 11px var(--font-mono); fill: var(--bad); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-vl-seg { stroke: var(--surface); stroke-width: 1; }
+.viz-vl-seg.is-vis, .viz-vl-paper.is-vis { fill: var(--op-attn); }
+.viz-vl-seg.is-pre, .viz-vl-paper.is-pre { fill: var(--muted); }
+.viz-vl-seg.is-loop, .viz-vl-paper.is-loop { fill: var(--accent); }
+.viz-vl-paper { fill-opacity: .45; stroke: none; }
+.viz-vl-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-vl-ptxt { font: 600 11px var(--font-mono); fill: var(--ink); }
+.viz-vl-ok { font: 600 11px var(--font-mono); fill: var(--ok); }
+.viz-vl-no { font: 600 11px var(--font-mono); fill: var(--bad); }
+/* ---- fase 10 (LoRA / RLHF / DPO): visualizaciones lora-rank, train-memory, bradley-terry, dpo-vs-ppo ---- */
+.viz-lr-stage:focus-visible, .viz-tm-stage:focus-visible, .viz-bt-stage:focus-visible, .viz-dp-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-lr-sl, .viz-bt-sl, .viz-dp-sl, .viz-tm-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-lr-sl input[type="range"], .viz-bt-sl input[type="range"], .viz-dp-sl input[type="range"], .viz-tm-sl input[type="range"] { width: 130px; accent-color: var(--accent); }
+.viz-lr-out, .viz-bt-out, .viz-dp-out, .viz-tm-out { min-width: 3.6em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+/* lora-rank: mapas de ΔW (signo por color, |valor| por opacidad), factores B y A a escala, espectro y energía */
+.viz-lr-bg { fill: var(--surface-2); }
+.viz-lr-c { stroke: none; }
+.viz-lr-c.is-pos { fill: var(--op-attn); }
+.viz-lr-c.is-neg { fill: var(--op-embed); }
+.viz-lr-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-lr-fac { fill: color-mix(in srgb, var(--op-mlp) 22%, var(--surface)); stroke: var(--op-mlp); stroke-width: 1.4; }
+.viz-lr-axis { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-lr-sv { fill: var(--surface-2); stroke: var(--muted); stroke-width: .8; }
+.viz-lr-sv.is-kept { fill: var(--op-mlp); stroke: var(--op-mlp); }
+.viz-lr-ref { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.viz-lr-curve { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.viz-lr-cur { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-lr-pt { fill: var(--op-mlp); stroke: var(--surface); stroke-width: 2; }
+/* bradley-terry: recta de recompensas (elegida / rechazada), σ(Δ − m), pérdida y gradiente */
+.viz-bt-axis { fill: none; stroke: var(--rule-strong); stroke-width: 1.2; }
+.viz-bt-grid { fill: none; stroke: var(--rule); stroke-width: 1; }
+.viz-bt-zero { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.viz-bt-margin { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.viz-bt-brace { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+.viz-bt-brace.is-neg { stroke: var(--bad); }
+.viz-bt-dot { stroke: var(--surface); stroke-width: 2; }
+.viz-bt-dot.is-w, .viz-bt-pt.is-p { fill: var(--ok); }
+.viz-bt-dot.is-l { fill: var(--bad); }
+.viz-bt-lab { font: 700 12px var(--font-mono); }
+.viz-bt-lab.is-w { fill: var(--ok); }
+.viz-bt-lab.is-l { fill: var(--bad); }
+.viz-bt-curve { fill: none; stroke-width: 2.2; stroke-linejoin: round; }
+.viz-bt-curve.is-p { stroke: var(--ok); }
+.viz-bt-curve.is-loss { stroke: var(--bad); }
+.viz-bt-curve.is-grad { stroke: var(--accent); stroke-dasharray: 5 3; stroke-width: 1.8; }
+.viz-bt-curve.is-pm { stroke: var(--warn); stroke-dasharray: 5 3; stroke-width: 1.8; }
+.viz-bt-pt { stroke: var(--surface); stroke-width: 2; }
+.viz-bt-pt.is-loss { fill: var(--bad); }
+.viz-bt-pt.is-grad { fill: var(--accent); }
+.viz-bt-pt.is-pm { fill: var(--warn); }
+/* dpo-vs-ppo: π_ref (contorno) y π_θ (relleno) por respuesta; log-ratios y KL en el tiempo */
+.viz-dp-grid { fill: none; stroke: var(--rule); stroke-width: 1; }
+.viz-dp-ref { fill: var(--surface); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.viz-dp-pol { stroke: none; }
+.viz-dp-ref.is-w { stroke: var(--ok); } .viz-dp-pol.is-w { fill: var(--ok); }
+.viz-dp-ref.is-l { stroke: var(--bad); } .viz-dp-pol.is-l { fill: var(--bad); }
+.viz-dp-ref.is-o { stroke: var(--muted); } .viz-dp-pol.is-o { fill: var(--muted); }
+.viz-dp-name { font: 700 11px var(--font-mono); fill: var(--ink); }
+.viz-dp-name.is-w { fill: var(--ok); }
+.viz-dp-name.is-l { fill: var(--bad); }
+.viz-dp-zero { fill: none; stroke: var(--muted); stroke-width: 1; }
+.viz-dp-budget { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.viz-dp-line { fill: none; stroke-width: 2.2; stroke-linejoin: round; }
+.viz-dp-line.is-w { stroke: var(--ok); }
+.viz-dp-line.is-l { stroke: var(--bad); }
+.viz-dp-line.is-kl { stroke: var(--accent); stroke-dasharray: 6 3; }
+.viz-dp-cur { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; }
+.viz-dp-pt { stroke: var(--surface); stroke-width: 2; }
+.viz-dp-pt.is-w { fill: var(--ok); } .viz-dp-pt.is-l { fill: var(--bad); } .viz-dp-pt.is-kl { fill: var(--accent); }
+/* ---- fase 10 (LoRA / RLHF): motor — barras por fila, matriz a escala, adaptador LoRA ---- */
+.ad-bar-seg { fill: var(--oc); stroke: var(--surface); stroke-width: .8; }
+.ad-bar-seg.ad-bar--mod { fill: var(--mc); }
+.ad-bar-seg.ad-cs--loop { fill: var(--accent); }
+.ad-bar-seg.ad-cs--once { fill: var(--muted); }
+.ad-frozen-ln2 { stroke: var(--surface); stroke-opacity: .6; stroke-width: 1.6; }
+.ad-bars-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.ad-bars-frame.is-cur { stroke: var(--ink); stroke-width: 1.6; }
+.ad-bars-lab { font: 500 11px var(--font-body); fill: var(--ink); }
+.ad-bars-lab.is-cur { font-weight: 700; }
+.ad-bars-val { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-bars-line { fill: none; stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.ad-bars-ltxt { font: 600 10px var(--font-mono); fill: var(--bad); }
+.ad-mat-box { fill: var(--ocs); stroke: var(--oc); stroke-width: 1.4; }
+.ad-mat-txt { font: 500 10px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.ad-adapter-bg { stroke-width: 1.2; }
+.ad-adapter.is-on .ad-adapter-bg { fill: var(--accent-soft); stroke: var(--accent); }
+.ad-adapter.is-off .ad-adapter-bg { fill: var(--surface); stroke: var(--rule-strong); stroke-dasharray: 3 2; }
+.ad-adapter-txt { font: 600 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-adapter.is-off .ad-adapter-txt { fill: var(--muted); font-weight: 500; }
+.ad-adapter .ad-train-ico { stroke: var(--ink); }
+/* fase 10 (revisión): halo en los textos de las barras (las líneas rojas de las GPU pasan por detrás), segunda línea de la fila,
+   tira de matriz ensanchada al mínimo (no a escala: borde punteado) y nodo "fantasma" (no es otro modelo en memoria) */
+.ad-bars-lab, .ad-bars-val, .ad-bars-sub, .ad-bars-ltxt { paint-order: stroke; stroke: var(--surface-2); stroke-width: 4px; stroke-linejoin: round; }
+.ad-bars-sub { font: 500 10px var(--font-body); fill: var(--muted); }
+.ad-bars-txtbg { fill: var(--surface-2); stroke: none; }
+.ad-mat-box.is-clamped { stroke-dasharray: 2 1.5; }
+.ad-node--ghost .ad-box { stroke-dasharray: 5 3; fill-opacity: .45; }
+.viz-tm-txtbg { fill: var(--surface); stroke: none; }
+.viz-tm-stage .viz-n, .viz-tm-stage .viz-tm-gput { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+/* train-memory: tramos de memoria (mismos colores que las barras de los diagramas), rayado de la base congelada, GPU */
+.viz-tm-seg { stroke: var(--surface); stroke-width: .8; }
+.viz-tm-seg.is-base { fill: var(--op-norm); }
+.viz-tm-seg.is-adapt { fill: var(--op-mlp); }
+.viz-tm-seg.is-grad { fill: var(--op-attn); }
+.viz-tm-seg.is-opt { fill: var(--op-conv); }
+.viz-tm-seg.is-act { fill: var(--mod-img); }
+.viz-tm-frozen { stroke: none; pointer-events: none; }
+.viz-tm-hatch { stroke: var(--surface); stroke-opacity: .6; stroke-width: 1.6; }
+.viz-tm-frame { fill: none; stroke: var(--rule-strong); stroke-width: 1; }
+.viz-tm-frame.is-cur { stroke: var(--ink); stroke-width: 2; }
+.viz-tm-cur { font-weight: 700; text-decoration: underline; }
+.viz-tm-gpu { fill: none; stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.viz-tm-gput { font: 600 10.5px var(--font-mono); fill: var(--bad); }
+.viz-lr-c { shape-rendering: crispEdges; }
+/* ---- fase 11 (BERT / retrieval / ANN): visualizaciones mlm-masking, embedding-space, hnsw-search, ivfpq-quantize ---- */
+.viz-mlm-stage:focus-visible, .viz-es-stage:focus-visible, .viz-hn-stage:focus-visible, .viz-pq-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* mlm-masking: una tarjeta por token (texto / entrada / objetivo / segmento) */
+.viz-mlm-bg { stroke: var(--rule-strong); stroke-width: 1; }
+.viz-mlm-bg.is-seg0 { fill: color-mix(in srgb, var(--mod-txt) 7%, var(--surface)); }
+.viz-mlm-bg.is-seg1 { fill: color-mix(in srgb, var(--op-embed) 9%, var(--surface)); stroke-dasharray: 4 2; }
+.viz-mlm-card.is-sel .viz-mlm-bg { stroke: var(--ink); stroke-width: 1.4; }
+.viz-mlm-tok { font: 600 11.5px var(--font-mono); fill: var(--ink); }
+.viz-mlm-tok.is-special { fill: var(--muted); }
+.viz-mlm-in { stroke-width: 1.2; }
+.viz-mlm-in.is-none { fill: var(--surface); stroke: var(--rule-strong); }
+.viz-mlm-in.is-mask { fill: var(--op-head-soft); stroke: var(--op-head); }
+.viz-mlm-in.is-rand { fill: var(--bad-soft); stroke: var(--bad); }
+.viz-mlm-in.is-keep { fill: var(--ok-soft); stroke: var(--ok); stroke-dasharray: 3 2; }
+.viz-mlm-intxt { font: 600 11px var(--font-mono); fill: var(--ink); }
+.viz-mlm-intxt.is-none { fill: var(--muted); font-weight: 500; }
+.viz-mlm-tgt { font: 700 11px var(--font-mono); fill: var(--ok); }
+.viz-mlm-tgt.is-none { fill: var(--muted); font-weight: 400; }
+.viz-mlm-segt { font: 600 9.5px var(--font-mono); fill: var(--muted); }
+.viz-mlm-cursor { fill: none; stroke: var(--focus); stroke-width: 2.4; }
+/* embedding-space */
+.viz-es-plane { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-es-unit { fill: none; stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 3 3; }
+.viz-es-ray { fill: none; stroke-width: 1; stroke-opacity: .45; }
+.viz-es-ray.is-top { stroke-opacity: .9; stroke-width: 1.6; }
+.viz-es-ray.is-t0, .viz-es-doc.is-t0, .viz-es-bar.is-t0 { stroke: var(--op-conv); fill: var(--op-conv); }
+.viz-es-ray.is-t1, .viz-es-doc.is-t1, .viz-es-bar.is-t1 { stroke: var(--op-attn); fill: var(--op-attn); }
+.viz-es-ray.is-t2, .viz-es-doc.is-t2, .viz-es-bar.is-t2 { stroke: var(--op-mlp); fill: var(--op-mlp); }
+.viz-es-ray.is-t3, .viz-es-doc.is-t3, .viz-es-bar.is-t3 { stroke: var(--op-embed); fill: var(--op-embed); }
+.viz-es-ray.is-t4, .viz-es-doc.is-t4, .viz-es-bar.is-t4 { stroke: var(--muted); fill: var(--muted); }
+.viz-es-doc { stroke: var(--surface) !important; stroke-width: 1.5; }
+.viz-es-doc.is-pos { stroke: var(--ink) !important; stroke-width: 2; }
+.viz-es-bar { stroke: none !important; fill-opacity: .55; }
+.viz-es-bar.is-top { fill-opacity: 1; }
+.viz-es-hardring { fill: none; stroke: var(--bad); stroke-width: 1.5; stroke-dasharray: 3 2; }
+.viz-es-q { fill: none; stroke: var(--ink); stroke-width: 2.2; }
+.viz-es-qpt { fill: var(--ink); stroke: var(--surface); stroke-width: 1.5; }
+.viz-es-qlab { font: 700 12px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; }
+.viz-es-dlab { font: 600 10px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; }
+.viz-es-row { font: 400 11px var(--font-body); fill: var(--muted); }
+.viz-es-row.is-top { fill: var(--ink); font-weight: 600; }
+.viz-es-row.is-pos { text-decoration: underline; }
+.viz-es-cut { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.viz-es-cell { fill: var(--accent); stroke: none; }
+.viz-es-diag { fill: none; stroke: var(--ink); stroke-width: 2; }
+.viz-es-p { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-es-p.is-hi { fill: var(--on-accent, #fff); }
+.viz-es-col { font: 700 11px var(--font-mono); fill: var(--ink); }
+.viz-es-col.is-hard { fill: var(--bad); }
+.viz-es-rowq { font: 500 11px var(--font-body); fill: var(--ink); }
+/* hnsw-search */
+.viz-hn-bg { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-hn-panel.is-cur .viz-hn-bg { stroke: var(--accent); stroke-width: 1.8; }
+.viz-hn-edge { fill: none; stroke: var(--rule-strong); stroke-width: .8; }
+.viz-hn-path { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.viz-hn-pt { fill: var(--surface); stroke: var(--muted); stroke-width: 1.2; }
+.viz-hn-pt.is-vis { fill: var(--accent-soft); stroke: var(--accent); }
+.viz-hn-pt.is-w { fill: var(--accent); stroke: var(--accent); }
+.viz-hn-pt.is-res { fill: var(--ok); stroke: var(--surface); stroke-width: 1.2; }
+.viz-hn-exact { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 2 2; }
+.viz-hn-cur { fill: none; stroke: var(--warn); stroke-width: 2.2; }
+.viz-hn-ep { fill: none; stroke: var(--ink); stroke-width: 1.8; }
+.viz-hn-q { fill: var(--bad); stroke: var(--surface); stroke-width: 1.2; }
+.viz-hn-down { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+/* ivfpq-quantize */
+.viz-pq-bg { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-pq-train { fill: none; stroke: var(--muted); stroke-opacity: .45; stroke-width: 2.2; stroke-linecap: round; }
+.viz-pq-cent { fill: var(--op-embed-soft); stroke: var(--op-embed); stroke-width: 1.2; }
+.viz-pq-cent.is-on { fill: var(--op-embed); stroke: var(--surface); }
+.viz-pq-err { fill: none; stroke: var(--bad); stroke-width: 1.6; stroke-dasharray: 3 2; }
+.viz-pq-x { fill: var(--ok); stroke: var(--surface); stroke-width: 1.5; }
+.viz-pq-q { fill: var(--ink); stroke: var(--surface); stroke-width: 1.2; }
+.viz-pq-code { fill: var(--op-embed-soft); stroke: var(--op-embed); stroke-width: 1.2; }
+.viz-pq-bits { font: 600 11px var(--font-mono); fill: var(--ink); }
+.viz-pq-lut { fill: var(--accent); stroke: none; }
+.viz-pq-lutpick { fill: none; stroke: var(--bad); stroke-width: 1.8; }
+.viz-pq-rank { font: 400 11px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.viz-pq-rank.is-top { fill: var(--ink); font-weight: 600; }
+.viz-pq-rank.is-miss { fill: var(--bad); }
+.viz-pq-rank.is-cur { text-decoration: underline; }
+.viz-hn-pt.is-exp { stroke: var(--warn); stroke-width: 2; }
+/* ---- fase 11 (BERT / retrieval / ANN): motor — pesos atados, tokens de ejemplo, tabla de celdas, grafo por capas ---- */
+.ad-edge--tie .ad-ln { stroke: var(--op-embed); stroke-width: 1.5; stroke-dasharray: 6 2 1.5 2; }
+.ad-edge--tie .ad-end { fill: var(--op-embed); }
+.ad-tok { stroke-width: 1; }
+.ad-tok.is-seg0 { fill: color-mix(in srgb, var(--mod-txt) 10%, var(--surface)); stroke: var(--mod-txt); }
+.ad-tok.is-seg1 { fill: color-mix(in srgb, var(--op-embed) 10%, var(--surface)); stroke: var(--op-embed); }
+.ad-tok.is-special { fill: var(--surface-2); stroke: var(--muted); stroke-dasharray: 2 1.5; }
+.ad-tok.is-mask { fill: var(--op-head-soft); stroke: var(--op-head); stroke-width: 1.6; }
+.ad-tok.is-rand { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.6; }
+.ad-tok.is-keep { stroke: var(--ok); stroke-width: 1.6; stroke-dasharray: 3 2; }
+.ad-tok-txt { font: 600 10px var(--font-mono); fill: var(--ink); }
+.ad-tok-txt.is-special { fill: var(--muted); }
+.ad-tok-seg.is-seg0 { fill: var(--mod-txt); }
+.ad-tok-seg.is-seg1 { fill: var(--op-embed); }
+.ad-cell { fill: var(--oc, var(--accent)); stroke: none; }
+.ad-cells .ad-cell { fill: var(--accent); }
+.ad-cell.is-max { stroke: var(--ink); stroke-width: .8; }
+.ad-cell-mark { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.ad-cell-row { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: .8; }
+.ad-cell-row.is-lit { fill: var(--accent-soft); stroke: var(--accent); }
+.ad-cells-lab { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.ad-cells-ell { font: 600 10px var(--font-mono); fill: var(--muted); }
+.ad-cells-sum { font: 700 10.5px var(--font-mono); fill: var(--ink); }
+.ad-lay-plane { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+.ad-lay-edge { fill: none; stroke: var(--muted); stroke-opacity: .55; stroke-width: .9; }
+.ad-lay-drop { fill: none; stroke: var(--accent); stroke-width: 1.3; stroke-dasharray: 2 2.5; }
+.ad-lay-path { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.ad-lay-pt { fill: var(--surface); stroke: var(--muted); stroke-width: 1; }
+.ad-lay-pt.is-on { fill: var(--accent); stroke: var(--accent); }
+.ad-lay-ep { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.ad-lay-q { fill: var(--bad); stroke: var(--surface); stroke-width: 1; }
+.ad-lay-q.is-ghost { fill: none; stroke: var(--bad); stroke-width: 1.2; stroke-dasharray: 2 1.5; }
+.ad-lay-lab { font: 500 10px var(--font-mono); fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+
+/* ------------------------------------------------------------ fase 12 (T5, Whisper): visualizaciones */
+.viz-span-stage:focus-visible, .viz-xam-stage:focus-visible, .viz-mel-stage:focus-visible, .viz-edc-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-span-chip { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.viz-span-chip.is-k0 { --sk: var(--op-attn); --sks: var(--op-attn-soft); }
+.viz-span-chip.is-k1 { --sk: var(--op-embed); --sks: var(--op-embed-soft); }
+.viz-span-chip.is-k2 { --sk: var(--op-mlp); --sks: var(--op-mlp-soft); }
+.viz-span-chip.is-k3 { --sk: var(--op-conv); --sks: var(--op-conv-soft); }
+.viz-span-chip.is-k4 { --sk: var(--op-fuse); --sks: var(--op-fuse-soft); }
+.viz-span-chip.is-k5 { --sk: var(--op-head); --sks: var(--op-head-soft); }
+.viz-span-chip.is-noise { fill: var(--sks); stroke: var(--sk); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.viz-span-chip.is-tgt { fill: var(--sks); stroke: var(--sk); stroke-width: 1; }
+.viz-span-chip.is-sent { fill: var(--sks); stroke: var(--sk); stroke-width: 2.2; }
+.viz-span-txt { font: 500 11px var(--font-mono); fill: var(--ink); }
+.viz-span-txt.is-sent { font-weight: 700; }
+.viz-span-txt.is-noise { text-decoration: line-through; }
+.viz-xam-kv { fill: var(--op-fuse-soft); stroke: var(--op-fuse); stroke-width: 1; }
+.viz-xam-kvt { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+.viz-xam-col { font: 500 10.5px var(--font-mono); fill: var(--ink); }
+.viz-xam-tick { stroke: var(--muted); stroke-width: 1; }
+.viz-xam-row { font: 500 11px var(--font-mono); fill: var(--ink); }
+.viz-xam-row.is-cur { font-weight: 700; }
+.viz-xam-row.is-future { fill: var(--muted); }
+.viz-xam-bg { fill: var(--surface-2); stroke: var(--surface); stroke-width: 1; }
+.viz-xam-cell { fill: var(--op-attn); }
+.viz-xam-sel { fill: none; stroke: var(--ink); stroke-width: 2.2; pointer-events: none; }
+.viz-xam-pad { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 2; }
+.viz-xam-speech { fill: var(--mod-aud); }
+.viz-mel-pad { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 3 2; }
+.viz-mel-wave { fill: none; stroke: var(--mod-aud); stroke-width: 1; }
+.viz-mel-bg { fill: var(--surface-2); }
+.viz-mel-heat { fill: var(--mod-aud); }
+.viz-mel-ax { font: 500 10px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-mel-cur { stroke: var(--ink); stroke-width: 1.6; stroke-dasharray: 4 2; }
+.viz-mel-fr { fill: color-mix(in srgb, var(--mod-aud) 16%, var(--surface)); stroke: var(--mod-aud); stroke-width: 1; }
+.viz-mel-c1 { fill: var(--op-conv-soft); stroke: var(--op-conv); stroke-width: 1; }
+.viz-mel-c2 { fill: var(--op-conv-soft); stroke: var(--op-conv); stroke-width: 1.8; }
+.viz-mel-fn { font: 500 9.5px var(--font-mono); fill: var(--ink); }
+.viz-mel-k { stroke: var(--muted); stroke-width: 1; fill: none; }
+.viz-mel-k.is-side { stroke-opacity: .5; }
+
+/* ------------------------------------------------------------ fase 12 (T5, Whisper): pictogramas del motor */
+.ad-tok.is-k0 { --sk: var(--op-attn); --sks: var(--op-attn-soft); }
+.ad-tok.is-k1 { --sk: var(--op-embed); --sks: var(--op-embed-soft); }
+.ad-tok.is-k2 { --sk: var(--op-mlp); --sks: var(--op-mlp-soft); }
+.ad-tok.is-k3 { --sk: var(--op-conv); --sks: var(--op-conv-soft); }
+.ad-tok.is-k4 { --sk: var(--op-fuse); --sks: var(--op-fuse-soft); }
+.ad-tok.is-k5 { --sk: var(--op-head); --sks: var(--op-head-soft); }
+.ad-tok.is-sent { fill: var(--sks); stroke: var(--sk); stroke-width: 2; }
+.ad-tok.is-drop { fill: var(--sks); stroke: var(--sk); stroke-width: 1.3; stroke-dasharray: 3 2; }
+.ad-tok-txt.is-sent { font-weight: 700; }
+.ad-wave-ln { fill: none; stroke: var(--mod-aud); stroke-width: 1; }
+.ad-wave-pad { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 2; }
+.ad-wave-flat { stroke: var(--mod-aud); stroke-width: 1; }
+.ad-melg-bg { fill: var(--surface-2); }
+.ad-melg-cell { fill: var(--mod-aud); stroke: none; }
+.viz-edc-seg { stroke: var(--surface); stroke-width: 1; }
+/* revisión fase 12: los mismos tonos que las barras de costo del diagrama (.ad-cs--once / --once2 / --loop): encoder gris,
+   K, V cruzadas marrón (op-conv), decoder acento */
+.viz-edc-seg.is-enc { fill: var(--muted); }
+.viz-edc-seg.is-ckv { fill: var(--op-conv); }
+.viz-edc-seg.is-dec { fill: var(--accent); }
+.viz-edc-band { fill: var(--muted); fill-opacity: .14; }
+.viz-edc-bandt { font: 500 10.5px var(--font-mono); fill: var(--ink); }
+.viz-edc-line { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-edc-nc { fill: none; stroke: var(--op-conv); stroke-width: 1.8; stroke-dasharray: 5 3; }
+.viz-edc-pt { fill: var(--accent); stroke: var(--ink); stroke-width: 1.4; }
+.viz-edc-x { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+
+/* ------------------------------------------------------------ fase 13 (two-tower, DLRM, GBDT): visualizaciones */
+.viz-hs-stage:focus-visible, .viz-br-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-br-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-br-sl input[type="range"] { width: 150px; accent-color: var(--accent); }
+.viz-br-out { min-width: 4.4em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+/* histogram-split: izquierda = azul (op-embed), derecha = verde azulado (op-head) */
+.viz-hs-bg, .viz-br-bg { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-hs-grid { stroke: var(--rule); stroke-width: 1; }
+.viz-hs-axis, .viz-br-axis { stroke: var(--muted); stroke-width: 1.2; }
+.viz-hs-pt { stroke: none; fill-opacity: .8; }
+.viz-hs-pt.is-l, .viz-hs-bar.is-l { fill: var(--op-embed); }
+.viz-hs-pt.is-r, .viz-hs-bar.is-r { fill: var(--op-head); }
+.viz-hs-base { stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.viz-hs-leaf { stroke-width: 3; stroke-linecap: round; }
+.viz-hs-leaf.is-l { stroke: var(--op-embed); }
+.viz-hs-leaf.is-r { stroke: var(--op-head); }
+.viz-hs-hv { font: 500 9.5px var(--font-mono); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.viz-hs-gain { fill: var(--op-fuse-soft); stroke: var(--op-fuse); stroke-width: 1; }
+.viz-hs-gain.is-best { fill: var(--op-fuse); }
+.viz-hs-gain.is-neg { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 2 2; }
+.viz-hs-gain.is-off { fill: var(--surface-2); stroke: var(--rule-strong); }
+.viz-hs-hit { fill: transparent; cursor: pointer; }
+.viz-hs-cut { stroke: var(--ink); stroke-width: 1.6; stroke-dasharray: 4 3; pointer-events: none; }
+.viz-hs-acc { font: 600 11.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+/* boosting-residuals */
+.viz-br-true { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.viz-br-pt { fill: var(--surface); stroke: var(--ink); stroke-width: 1.1; }
+.viz-br-F { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-br-res { stroke: var(--muted); stroke-width: 1; }
+.viz-br-tree { fill: none; stroke: var(--op-mlp); stroke-width: 2.4; stroke-linejoin: round; }
+.viz-br-tr { fill: none; stroke: var(--op-embed); stroke-width: 2; }
+.viz-br-te { fill: none; stroke: var(--op-attn); stroke-width: 2; }
+.viz-br-best { fill: none; stroke: var(--op-attn); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-br-cur { stroke: var(--ink); stroke-width: 1.4; }
+.viz-br-dot { stroke: var(--surface); stroke-width: 1.4; }
+.viz-br-dot.is-tr { fill: var(--op-embed); }
+.viz-br-dot.is-te { fill: var(--op-attn); }
+/* inbatch-softmax */
+.viz-ib-q { fill: var(--op-conv-soft); stroke: var(--op-conv); stroke-width: 1; }
+.viz-ib-lq { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-ib-dup { fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-dasharray: 4 3; }
+.viz-cell-btn:focus-visible .viz-ib-dup { stroke: var(--focus); stroke-width: 3; }
+.viz-ib-neg { fill: var(--op-conv-soft); stroke: var(--op-conv); stroke-width: 1; }
+.viz-ib-neg.is-in { fill: var(--op-conv); }
+.viz-ib-nv { font: 500 9.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+/* feature-interaction */
+.viz-fi-t { fill: var(--op-embed-soft); stroke: var(--op-embed); stroke-width: 1; }
+.viz-fi-t.is-dense { fill: var(--op-mlp-soft); stroke: var(--op-mlp); }
+.viz-fi-v { font: 600 10.5px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; pointer-events: none; }
+.viz-fi-v.is-off { fill: var(--muted); font-weight: 400; }
+.viz-fi-z { stroke: var(--op-fuse); stroke-width: 1; }
+.viz-fi-z.is-off { fill: var(--surface-2); stroke: var(--rule); }
+.viz-fi-out { fill: var(--op-fuse-soft); stroke: var(--op-fuse); stroke-width: 1; }
+.viz-fi-x0 { fill: var(--op-embed); stroke: var(--surface); stroke-width: .6; }
+.viz-fi-x0.is-dense { fill: var(--op-mlp); }
+.viz-fi-x0.is-sel { stroke: var(--ink); stroke-width: 1.6; }
+.viz-fi-w { stroke: none; }
+.viz-fi-w.is-pos { fill: var(--op-attn); }
+.viz-fi-w.is-neg { fill: var(--op-embed); }
+.viz-fi-row { fill: transparent; stroke: none; }
+.viz-cell-btn:focus-visible .viz-fi-row { stroke: var(--focus); stroke-width: 2.5; }
+.viz-fi-blk { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-opacity: .7; pointer-events: none; }
+.viz-fi-rowsel { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+/* fase 13: pictogramas del motor (celdas apagadas del triángulo superior, histograma de GBDT) */
+.ad-cell-off { fill: var(--surface-2); stroke: var(--rule); stroke-width: .6; }
+.ad-hist-axis { stroke: var(--muted); stroke-width: 1; }
+.ad-hist-bar { stroke: none; }
+.ad-hist-bar.is-l { fill: var(--op-embed); }
+.ad-hist-bar.is-r { fill: var(--op-head); }
+.ad-hist-cut { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 3 2; }
+.ad-hist-lab { font: 600 10.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+
+/* ------------------------------------------------------------ fase 14 (tracking, profundidad, PointNet): visualizaciones */
+.viz-kf-sl, .viz-dsc-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-kf-sl input[type="range"], .viz-dsc-sl input[type="range"] { width: 130px; accent-color: var(--accent); }
+.viz-kf-out, .viz-dsc-out { min-width: 5.6em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-kf-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* kalman-track: verdad gris punteada, detecciones = color del detector (op-conv), estimación = acento */
+.viz-kf-bg, .viz-dsc-bg, .viz-pn-bg { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-kf-occ { fill: var(--muted); fill-opacity: .14; stroke: none; }
+.viz-kf-occt { font: 600 10.5px var(--font-mono); fill: var(--ink); }
+.viz-kf-true { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 4 3; }
+.viz-kf-z { fill: var(--op-conv); stroke: var(--surface); stroke-width: .8; }
+.viz-kf-z.is-fut { fill-opacity: .3; }
+.viz-kf-z.is-cur { stroke: var(--ink); stroke-width: 1.4; }
+.viz-kf-est { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-kf-est.is-new { stroke: var(--op-attn); }
+.viz-kf-id { font: 700 10.5px var(--font-mono); fill: var(--accent-ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-kf-id.is-new { fill: var(--op-attn); }
+.viz-kf-ell-pr { fill: none; stroke: var(--ink); stroke-width: 1.3; stroke-dasharray: 4 3; }
+.viz-kf-ell { fill: var(--accent); fill-opacity: .18; stroke: var(--accent); stroke-width: 1.6; }
+.viz-kf-prx { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.viz-kf-xdot { fill: var(--accent); stroke: var(--surface); stroke-width: 1.2; }
+.viz-kf-sig { stroke: var(--op-conv); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.viz-kf-sline { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.viz-kf-cur { stroke: var(--ink); stroke-width: 1.4; }
+/* hungarian-iou: tracks = acento punteado, detecciones = op-conv (sólidas; finas si el score es bajo) */
+.viz-hiou-trk { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
+.viz-hiou-trk.is-out { stroke-opacity: .35; }
+.viz-hiou-trk.is-lost { stroke: var(--bad); }
+.viz-hiou-trk.is-sel, .viz-hiou-det.is-sel { stroke: var(--ink); stroke-width: 3; stroke-opacity: 1; }
+.viz-hiou-tl { font: 700 10.5px var(--font-mono); fill: var(--accent-ink); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-hiou-tl.is-out { fill-opacity: .55; }
+.viz-hiou-det { fill: none; stroke: var(--op-conv); stroke-width: 2; }
+.viz-hiou-det.is-low { stroke-width: 1.2; stroke-dasharray: 2 2; }
+.viz-hiou-det.is-out { stroke-opacity: .35; }
+.viz-hiou-det.is-gone { stroke: var(--muted); stroke-opacity: .5; }
+.viz-hiou-dl { font: 600 10px var(--font-mono); fill: var(--op-conv); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.viz-hiou-dl.is-low { fill: var(--muted); }
+.viz-hiou-dl.is-out { fill-opacity: .6; }
+.viz-hiou-link { stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 2 2; }
+.viz-hiou-cell { stroke: none; }
+.viz-hiou-cell.is-off { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: .8; stroke-dasharray: 2 2; }
+.viz-hiou-fate { margin: 8px 0 0; padding-left: 18px; font-size: var(--fs-sm, 13.5px); }
+.viz-hiou-fate li { margin: 2px 0; }
+/* depth-scale: verdad = ink, cruda = op-conv punteada, alineada = acento */
+.viz-dsc-band { fill: var(--muted); fill-opacity: .08; stroke: none; }
+.viz-dsc-band.is-glass { fill: var(--bad); fill-opacity: .12; }
+.viz-dsc-bt { font: 500 10px var(--font-mono); fill: var(--muted); }
+.viz-dsc-zero { stroke: var(--muted); stroke-width: 1; }
+.viz-dsc-gt { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.viz-dsc-raw { fill: none; stroke: var(--op-conv); stroke-width: 1.8; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.viz-dsc-al { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.viz-dsc-res { stroke: var(--accent); stroke-width: 1.6; }
+.viz-dsc-res.is-cut { stroke: var(--bad); }
+.viz-dsc-cut { fill: var(--bad); stroke: var(--surface); stroke-width: .8; }
+/* pointnet-maxpool: features = op-mlp; críticos con borde grueso */
+.viz-pn-pt { fill: var(--surface); stroke: var(--ink); stroke-width: 1.2; }
+.viz-pn-pt.is-crit { fill: var(--op-mlp); stroke: var(--ink); stroke-width: 2.2; }
+.viz-pn-pt.is-off { fill: none; stroke: var(--muted); stroke-opacity: .5; stroke-dasharray: 2 2; }
+.viz-pn-pt.is-hl { stroke: var(--accent); stroke-width: 3; }
+.viz-pn-cell { stroke: none; }
+.viz-pn-cell.is-max { stroke: var(--ink); stroke-width: 2; }
+.viz-pn-rl { font: 500 9px var(--font-mono); fill: var(--muted); }
+.viz-pn-hit { fill: transparent; stroke: none; cursor: default; }
+.viz-pn-hit:focus-visible { outline: none; stroke: var(--focus); stroke-width: 2.5; }
+.viz-pn-rowsel { fill: none; stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+.viz-pn-g { stroke: var(--op-mlp); stroke-width: 1; }
+.viz-pn-g.is-chg { stroke: var(--bad); stroke-width: 2.2; }
+.viz-pn-gv { font: 600 10px var(--font-mono); fill: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-pn-gv.is-chg { fill: var(--bad); }
+.viz-pn-ok { font: 700 11.5px var(--font-mono); fill: var(--ok); }
+.viz-pn-bad { font: 700 11.5px var(--font-mono); fill: var(--bad); }
+/* fase 14: tabla con el máximo por columna (max-pool de PointNet): filas críticas y la fila de los máximos */
+.ad-cell-crit { fill: var(--ink); stroke: none; }
+.ad-cell-pool { fill: none; stroke: var(--muted); stroke-width: 1.2; }
+/* ---- fase 15: ppo-clip, gae, covariate-shift, multimodal-actions ---- */
+.viz-pc-stage:focus-visible, .viz-gae-stage:focus-visible, .viz-cs-stage:focus-visible, .viz-mm-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.viz-pc-sl { display: inline-flex; align-items: center; gap: 6px; }
+.viz-pc-sl input[type="range"] { width: 130px; accent-color: var(--accent); }
+.viz-pc-out { min-width: 3.6em; font: 600 12px var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-pc-bg { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.viz-pc-axis { fill: none; stroke: var(--muted); stroke-width: 1; }
+.viz-pc-one { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.viz-pc-band { fill: var(--accent); fill-opacity: .12; stroke: none; }
+.viz-pc-zero { fill: var(--bad); fill-opacity: .12; stroke: none; }
+.viz-pc-zt { font: 600 10.5px var(--font-mono); fill: var(--bad); }
+.viz-pc-et { font: 500 10px var(--font-mono); fill: var(--accent-ink); }
+.viz-pc-raw { fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-dasharray: 6 4; }
+.viz-pc-clip { fill: none; stroke: var(--op-conv); stroke-width: 1.6; stroke-dasharray: 2 3; }
+.viz-pc-min { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linejoin: round; }
+.viz-pc-cur { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; }
+.viz-pc-pt { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.viz-pc-pt.is-zero { fill: var(--bad); }
+.viz-pc-lab { font: 600 11px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; stroke-linejoin: round; }
+.viz-pc-dot { stroke-width: 1.5; }
+.viz-pc-dot.is-pos { fill: var(--ok); stroke: var(--ok); }
+.viz-pc-dot.is-neg { fill: var(--op-attn); stroke: var(--op-attn); }
+.viz-pc-dot.is-zero { fill: var(--surface); }
+/* gae: r = op-conv, V = acento, V* = ink punteada, δ = muted, Â = op-head */
+.viz-gae-r { fill: var(--op-conv); fill-opacity: .55; stroke: var(--op-conv); stroke-width: 1; }
+.viz-gae-r.is-sel { fill-opacity: 1; }
+.viz-gae-v { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.viz-gae-vd { fill: var(--accent); stroke: var(--surface); stroke-width: 1; }
+.viz-gae-vd.is-boot { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+.viz-gae-vs { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.viz-gae-d { fill: var(--muted); stroke: none; }
+.viz-gae-a { fill: var(--op-head); fill-opacity: .7; stroke: var(--op-head); stroke-width: 1; }
+.viz-gae-a.is-sel { fill-opacity: 1; stroke: var(--ink); stroke-width: 1.6; }
+.viz-gae-w { fill: var(--accent); fill-opacity: .14; stroke: none; }
+.viz-gae-bias { fill: none; stroke: var(--bad); stroke-width: 2; }
+.viz-gae-var { fill: none; stroke: var(--op-conv); stroke-width: 2; stroke-dasharray: 6 3; }
+.viz-gae-mse { fill: none; stroke: var(--ink); stroke-width: 2.4; }
+.viz-gae-min { fill: var(--ink); stroke: var(--surface); stroke-width: 1.2; }
+/* covariate-shift: pista neutra, banda vista = acento suave, política = op-attn, experto = ink */
+.viz-cs-road { fill: var(--surface-2); stroke: none; }
+.viz-cs-cov { fill: var(--accent); fill-opacity: .16; stroke: none; }
+.viz-cs-edge { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.viz-cs-pnr { fill: none; stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.viz-cs-exp { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.viz-cs-run { fill: none; stroke: var(--op-attn); stroke-width: 1.2; stroke-opacity: .45; stroke-linejoin: round; }
+.viz-cs-run.is-off { stroke: var(--bad); }
+.viz-cs-run.is-sel { stroke-width: 2.4; stroke-opacity: 1; }
+.viz-cs-x { fill: none; stroke: var(--bad); stroke-width: 2.2; }
+.viz-cs-dline { fill: none; stroke: var(--op-attn); stroke-width: 1.8; stroke-linejoin: round; }
+.viz-cs-dline.is-off { stroke: var(--bad); }
+.viz-cs-bc { fill: none; stroke: var(--bad); stroke-width: 2.2; }
+.viz-cs-dg { fill: none; stroke: var(--ok); stroke-width: 2.2; }
+.viz-cs-ch { fill: none; stroke: var(--op-embed); stroke-width: 2.2; stroke-dasharray: 6 3; }
+/* multimodal-actions: demos = muted, MSE = bad punteada, muestras = mod-act */
+.viz-mm-obs { fill: var(--bad); fill-opacity: .14; stroke: var(--bad); stroke-width: 1.6; }
+.viz-mm-obst { font: 600 10px var(--font-mono); fill: var(--bad); }
+.viz-mm-hitband { fill: var(--bad); fill-opacity: .08; stroke: none; }
+.viz-mm-demo { fill: none; stroke: var(--muted); stroke-width: 1; stroke-opacity: .7; }
+.viz-mm-mse { fill: none; stroke: var(--bad); stroke-width: 2.6; stroke-dasharray: 7 4; }
+.viz-mm-samp { fill: none; stroke: var(--mod-act); stroke-width: 1.3; stroke-opacity: .5; stroke-linejoin: round; }
+.viz-mm-samp.is-hit { stroke: var(--bad); }
+.viz-mm-samp.is-sel { stroke-width: 2.8; stroke-opacity: 1; }
+.viz-mm-wp { fill: var(--surface); stroke: var(--mod-act); stroke-width: 1.2; }
+.viz-mm-wp.is-exec { fill: var(--mod-act); stroke: var(--surface); }
+.viz-mm-start { fill: var(--ink); stroke: var(--surface); stroke-width: 1.5; }
+.viz-mm-goal { fill: var(--ok); stroke: var(--surface); stroke-width: 1.5; }
+.viz-mm-mode { fill: var(--mod-act); fill-opacity: .14; stroke: var(--mod-act); stroke-width: 1; stroke-dasharray: 3 2; }
+.viz-mm-lpath { fill: none; stroke: var(--mod-act); stroke-width: 1; stroke-opacity: .45; stroke-linejoin: round; }
+.viz-mm-lpath.is-sel { stroke-width: 2.2; stroke-opacity: 1; }
+.viz-mm-lend { fill: var(--mod-act); stroke: var(--surface); stroke-width: 1; }
+.viz-mm-lend.is-hit { fill: var(--bad); }
+.viz-mm-lend.is-sel { stroke: var(--ink); stroke-width: 2; }
+.viz-mm-msex { fill: none; stroke: var(--bad); stroke-width: 2.6; }
+.viz-mm-msel { font: 700 11px var(--font-mono); fill: var(--bad); }
+.viz-mm-pl { font: 600 10.5px var(--font-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; stroke-linejoin: round; }

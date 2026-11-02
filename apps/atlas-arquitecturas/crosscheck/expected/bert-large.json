@@ -1,0 +1,228 @@
+{
+  "config_id": "bert-large",
+  "model": "bert",
+  "params_total": 336226108,
+  "params_by_node": {
+    "embed": 31782912,
+    "encoder": 302309376,
+    "pooler": 1049600,
+    "mlm-head": 1082170,
+    "nsp-head": 2050
+  },
+  "shapes": {
+    "ids": [
+      128
+    ],
+    "type-ids": [
+      128
+    ],
+    "pos-ids": [
+      128
+    ],
+    "e-tok": [
+      128,
+      1024
+    ],
+    "e-type": [
+      128,
+      1024
+    ],
+    "e-pos": [
+      128,
+      1024
+    ],
+    "e-sum": [
+      128,
+      1024
+    ],
+    "x0": [
+      128,
+      1024
+    ],
+    "qkv": [
+      128,
+      3072
+    ],
+    "q": [
+      16,
+      128,
+      64
+    ],
+    "k": [
+      16,
+      128,
+      64
+    ],
+    "v": [
+      16,
+      128,
+      64
+    ],
+    "scores": [
+      16,
+      128,
+      128
+    ],
+    "scores-scaled": [
+      16,
+      128,
+      128
+    ],
+    "attn": [
+      16,
+      128,
+      128
+    ],
+    "z-heads": [
+      16,
+      128,
+      64
+    ],
+    "z": [
+      128,
+      1024
+    ],
+    "o": [
+      128,
+      1024
+    ],
+    "r1": [
+      128,
+      1024
+    ],
+    "h-ln1": [
+      128,
+      1024
+    ],
+    "u": [
+      128,
+      4096
+    ],
+    "g": [
+      128,
+      4096
+    ],
+    "f": [
+      128,
+      1024
+    ],
+    "r2": [
+      128,
+      1024
+    ],
+    "x-out": [
+      128,
+      1024
+    ],
+    "h-cls": [
+      1024
+    ],
+    "pooler-pre": [
+      1024
+    ],
+    "pooled": [
+      1024
+    ],
+    "mlm-h": [
+      128,
+      1024
+    ],
+    "mlm-g": [
+      128,
+      1024
+    ],
+    "mlm-n": [
+      128,
+      1024
+    ],
+    "mlm-logits": [
+      128,
+      30522
+    ],
+    "nsp-logits": [
+      2
+    ],
+    "raw-ids": [
+      128
+    ],
+    "mlm-labels": [
+      128
+    ]
+  },
+  "flops_total": 87191719936,
+  "flops_by_node": {
+    "encoder": 78920024064,
+    "pooler": 2097152,
+    "mlm-head": 8269594624,
+    "nsp-head": 4096
+  },
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "T": 512
+      },
+      "params_total": 336226108,
+      "flops_total": 368087928832,
+      "shapes": {
+        "x0": [
+          512,
+          1024
+        ],
+        "scores": [
+          16,
+          512,
+          512
+        ],
+        "u": [
+          512,
+          4096
+        ],
+        "x-out": [
+          512,
+          1024
+        ],
+        "mlm-logits": [
+          512,
+          30522
+        ],
+        "pooled": [
+          1024
+        ]
+      }
+    }
+  ],
+  "metrics_checks": {
+    "mlmTiedParams": 31254528,
+    "poolerParams": 1049600,
+    "nspParams": 2050,
+    "mlmHeadParams": 1082170,
+    "embedParams": 31782912,
+    "encoderParams": 302309376
+  },
+  "tied_decoder": true,
+  "notes": [
+    "El decoder del MLM (cls.predictions.decoder) comparte la matriz con bert.embeddings.word_embeddings (True): sum(p.numel()) la cuenta una vez; la cabeza MLM aporta dense D×D + D, LayerNorm 2D y el sesgo V.",
+    "HF calcula los logits del MLM en las T posiciones (prediction_logits T×V); el código original de TF (run_pretraining.py, gather_indexes) aplica la cabeza solo a las max_predictions_per_seq posiciones: quantities.mlmHeadMacsGathered.",
+    "Atención eager (matmul QKᵀ y A·V, como el calculador); sin máscara de atención: una secuencia sin relleno.",
+    "HF tiene W_Q, W_K, W_V separadas: la forma `qkv` del JSON es la de query con el ancho ×3 (el calculador las fusiona).",
+    "Formas sin batch; e-pos sale de position_embeddings (índices = el buffer position_ids)."
+  ],
+  "not_hooked": {
+    "mask-tokens": "el enmascarado lo hace el collator de datos, fuera del forward",
+    "loss-mlm / loss-nsp / loss": "HF solo calcula la pérdida si se pasan labels (no cambia FLOPs de matmul)"
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "with torch.device('meta'): BertForPreTraining(BertConfig(hidden_size=1024, num_hidden_layers=24, num_attention_heads=16, intermediate_size=4096))",
+    "vocab_size": 30522,
+    "max_position_embeddings": 512,
+    "type_vocab_size": 2,
+    "hidden_act": "gelu",
+    "layer_norm_eps": 1e-12,
+    "T": 128,
+    "python": "3.13.15",
+    "torch": "2.14.1",
+    "timm": "1.0.30",
+    "transformers": "5.19.0"
+  }
+}

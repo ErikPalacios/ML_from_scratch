@@ -1,0 +1,397 @@
+{
+  "config_id": "hnsw-1m-768",
+  "model": "ann",
+  "params_total": 108891648,
+  "params_by_node": {
+    "encode": 108891648
+  },
+  "shapes": {
+    "q-ids": [
+      32
+    ],
+    "q-type-ids": [
+      32
+    ],
+    "q-pos-ids": [
+      32
+    ],
+    "q-e-tok": [
+      32,
+      768
+    ],
+    "q-e-type": [
+      32,
+      768
+    ],
+    "q-e-pos": [
+      32,
+      768
+    ],
+    "q-e-sum": [
+      32,
+      768
+    ],
+    "q-x0": [
+      32,
+      768
+    ],
+    "q-qkv": [
+      32,
+      2304
+    ],
+    "q-q": [
+      12,
+      32,
+      64
+    ],
+    "q-k": [
+      12,
+      32,
+      64
+    ],
+    "q-v": [
+      12,
+      32,
+      64
+    ],
+    "q-scores": [
+      12,
+      32,
+      32
+    ],
+    "q-scores-scaled": [
+      12,
+      32,
+      32
+    ],
+    "q-attn": [
+      12,
+      32,
+      32
+    ],
+    "q-z-heads": [
+      12,
+      32,
+      64
+    ],
+    "q-z": [
+      32,
+      768
+    ],
+    "q-o": [
+      32,
+      768
+    ],
+    "q-r1": [
+      32,
+      768
+    ],
+    "q-h-ln1": [
+      32,
+      768
+    ],
+    "q-u": [
+      32,
+      3072
+    ],
+    "q-g": [
+      32,
+      3072
+    ],
+    "q-f": [
+      32,
+      768
+    ],
+    "q-r2": [
+      32,
+      768
+    ],
+    "q-x-out": [
+      32,
+      768
+    ],
+    "query": [
+      768
+    ],
+    "xb": [
+      1000000,
+      768
+    ],
+    "links": [
+      1000000,
+      64
+    ],
+    "entry": [
+      1
+    ],
+    "cands": [
+      64
+    ],
+    "ids": [
+      10
+    ]
+  },
+  "flops_total": 5480005632,
+  "flops_search": 6438912,
+  "flops_by_node": {
+    "encode": 5473566720
+  },
+  "metrics_checks": {
+    "encodeMacs": 2736783360,
+    "encodeParams": 108891648,
+    "levels": 3
+  },
+  "ann_checks": [
+    {
+      "what": "HNSW M = 16: vectores",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 16
+      },
+      "key": "vectors",
+      "ref": 5120000,
+      "tol": 0
+    },
+    {
+      "what": "HNSW M = 16: enlaces int32 (esperanza N·(2M + M/(M−1)), ≈)",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 16
+      },
+      "key": "links",
+      "ref": 2643584,
+      "tol": 0.01
+    },
+    {
+      "what": "HNSW M = 16: levels (int32)",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 16
+      },
+      "key": "levels",
+      "ref": 80000,
+      "tol": 0
+    },
+    {
+      "what": "HNSW M = 16: offsets (size_t, N + 1)",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 16
+      },
+      "key": "offsets",
+      "ref": 160008,
+      "tol": 0
+    },
+    {
+      "what": "HNSW M = 16: serialize_index (con cabecera)",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 16
+      },
+      "key": "total",
+      "ref": 8003834,
+      "tol": 0.005
+    },
+    {
+      "what": "HNSW M = 16: regla del wiki (d·4 + M·2·4) por vector",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 16
+      },
+      "key": "wiki",
+      "ref": 7680000,
+      "tol": 0
+    },
+    {
+      "what": "HNSW M = 32: vectores",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 32
+      },
+      "key": "vectors",
+      "ref": 5120000,
+      "tol": 0
+    },
+    {
+      "what": "HNSW M = 32: enlaces int32 (esperanza N·(2M + M/(M−1)), ≈)",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 32
+      },
+      "key": "links",
+      "ref": 5202304,
+      "tol": 0.01
+    },
+    {
+      "what": "HNSW M = 32: levels (int32)",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 32
+      },
+      "key": "levels",
+      "ref": 80000,
+      "tol": 0
+    },
+    {
+      "what": "HNSW M = 32: offsets (size_t, N + 1)",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 32
+      },
+      "key": "offsets",
+      "ref": 160008,
+      "tol": 0
+    },
+    {
+      "what": "HNSW M = 32: serialize_index (con cabecera)",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 32
+      },
+      "key": "total",
+      "ref": 10562530,
+      "tol": 0.005
+    },
+    {
+      "what": "HNSW M = 32: regla del wiki (d·4 + M·2·4) por vector",
+      "fn": "hnsw_bytes",
+      "args": {
+        "N": 20000,
+        "d": 64,
+        "M": 32
+      },
+      "key": "wiki",
+      "ref": 10240000,
+      "tol": 0
+    }
+  ],
+  "range_checks": [
+    {
+      "what": "HNSW M = 16, efSearch = 16: distancias por query medidas / estimación ≈ del calculador",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "M": 16,
+        "efSearch": 16,
+        "encode": 0
+      },
+      "metric": "distanceComputations",
+      "ref": 572.82,
+      "min_ratio": 0.3,
+      "max_ratio": 1.2
+    },
+    {
+      "what": "HNSW M = 16, efSearch = 64: distancias por query medidas / estimación ≈ del calculador",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "M": 16,
+        "efSearch": 64,
+        "encode": 0
+      },
+      "metric": "distanceComputations",
+      "ref": 1574.23,
+      "min_ratio": 0.3,
+      "max_ratio": 1.2
+    },
+    {
+      "what": "HNSW M = 16, efSearch = 256: distancias por query medidas / estimación ≈ del calculador",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "M": 16,
+        "efSearch": 256,
+        "encode": 0
+      },
+      "metric": "distanceComputations",
+      "ref": 4549.665,
+      "min_ratio": 0.3,
+      "max_ratio": 1.2
+    },
+    {
+      "what": "HNSW M = 32, efSearch = 16: distancias por query medidas / estimación ≈ del calculador",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "M": 32,
+        "efSearch": 16,
+        "encode": 0
+      },
+      "metric": "distanceComputations",
+      "ref": 1013.51,
+      "min_ratio": 0.3,
+      "max_ratio": 1.2
+    },
+    {
+      "what": "HNSW M = 32, efSearch = 64: distancias por query medidas / estimación ≈ del calculador",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "M": 32,
+        "efSearch": 64,
+        "encode": 0
+      },
+      "metric": "distanceComputations",
+      "ref": 2761.04,
+      "min_ratio": 0.3,
+      "max_ratio": 1.2
+    },
+    {
+      "what": "HNSW M = 32, efSearch = 256: distancias por query medidas / estimación ≈ del calculador",
+      "calc_overrides": {
+        "N": 20000,
+        "d": 64,
+        "M": 32,
+        "efSearch": 256,
+        "encode": 0
+      },
+      "metric": "distanceComputations",
+      "ref": 7302.49,
+      "min_ratio": 0.3,
+      "max_ratio": 1.2
+    }
+  ],
+  "faiss_measured": {
+    "faiss_defaults": {
+      "M_ctor": 32,
+      "efConstruction": 40,
+      "efSearch": 16
+    }
+  },
+  "notes": [
+    "Encode = el encoder de queries de DPR (BertModel sin pooler, [CLS], T_q = 32) en meta; FLOPs por FlopCounterMode.",
+    "HNSW: FAISS IndexHNSWFlat(d, M = 32).hnsw.nb_neighbors(0) = 64 = 2M enlaces en el nivel 0 (forma de `links`). Las distancias de una búsqueda dependen de los datos: el calculador usa la estimación ≈ ⌊log_M N⌋·M + efSearch·2M (no es una cota: la búsqueda puede expandir más de ef nodos) y la verifica contra hnsw_stats.ndis de FAISS en índices chicos (range_checks: 0.44–1.02× la estimación en datos sintéticos; ≈ 0.66× con M = 32 y efSearch = 64). flops_total = encoder + 2·d por distancia de esa estimación (≈, no medible en meta).",
+    "ann_checks / range_checks: índices FAISS reales con N = 20,000 y d = 64 (datos gaussianos, semilla 0): las fórmulas de bytes del calculador (A.flat_bytes / hnsw_bytes / ivfpq_bytes) con esos mismos N, d, M, n_list, m, nbits = los arreglos de FAISS."
+  ],
+  "source": {
+    "lib": "faiss-cpu + transformers",
+    "faiss": "1.15.1",
+    "ctor": "DPRQuestionEncoder(DPRConfig()) en meta + FAISS hnsw",
+    "python": "3.13.15",
+    "torch": "2.14.1",
+    "timm": "1.0.30",
+    "transformers": "5.19.0"
+  }
+}

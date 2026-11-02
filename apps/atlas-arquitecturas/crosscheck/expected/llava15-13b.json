@@ -1,0 +1,344 @@
+{
+  "config_id": "llava15-13b",
+  "model": "llava",
+  "T": 64,
+  "images": 1,
+  "params_total": 13351494656,
+  "params_by_node": {
+    "vision-encoder": 303507456,
+    "enc-layer": 289713152,
+    "last-layer": 12596224,
+    "ln-post": 2048,
+    "patch-embed": 602112,
+    "projector": 31467520,
+    "embed": 164167680,
+    "llm": 12688184320,
+    "lm-head": 164167680,
+    "block": 12688179200,
+    "attn": 4194304000,
+    "ffn": 8493465600,
+    "q-proj": 1048576000,
+    "o-proj": 1048576000,
+    "final-norm": 5120
+  },
+  "params_by_path": {
+    "projector>fc1": 5248000,
+    "projector>fc2": 26219520
+  },
+  "shapes": {
+    "v-patch-grid": [
+      24,
+      24,
+      1024
+    ],
+    "v-x0": [
+      577,
+      1024
+    ],
+    "v-ln-pre": [
+      577,
+      1024
+    ],
+    "v-h-ln1": [
+      577,
+      1024
+    ],
+    "v-z": [
+      577,
+      1024
+    ],
+    "v-o": [
+      577,
+      1024
+    ],
+    "v-r1": [
+      577,
+      1024
+    ],
+    "v-u": [
+      577,
+      4096
+    ],
+    "v-f": [
+      577,
+      1024
+    ],
+    "v-x-out": [
+      577,
+      1024
+    ],
+    "v-x-last": [
+      577,
+      1024
+    ],
+    "v-cls-ln": [
+      1024
+    ],
+    "vis-feats": [
+      576,
+      1024
+    ],
+    "proj-h": [
+      576,
+      5120
+    ],
+    "proj-act": [
+      576,
+      5120
+    ],
+    "vis-tokens": [
+      576,
+      5120
+    ],
+    "prompt": [
+      640,
+      5120
+    ],
+    "h-norm1": [
+      640,
+      5120
+    ],
+    "q": [
+      640,
+      5120
+    ],
+    "k": [
+      640,
+      5120
+    ],
+    "v": [
+      640,
+      5120
+    ],
+    "q-heads": [
+      40,
+      640,
+      128
+    ],
+    "k-heads": [
+      40,
+      640,
+      128
+    ],
+    "q-rope": [
+      40,
+      640,
+      128
+    ],
+    "k-rope": [
+      40,
+      640,
+      128
+    ],
+    "z": [
+      640,
+      5120
+    ],
+    "o": [
+      640,
+      5120
+    ],
+    "r1": [
+      640,
+      5120
+    ],
+    "h-norm2": [
+      640,
+      5120
+    ],
+    "gate": [
+      640,
+      13824
+    ],
+    "up": [
+      640,
+      13824
+    ],
+    "prod": [
+      640,
+      13824
+    ],
+    "f": [
+      640,
+      5120
+    ],
+    "x-out": [
+      640,
+      5120
+    ],
+    "x-norm": [
+      640,
+      5120
+    ],
+    "logits": [
+      640,
+      32064
+    ],
+    "attn": [
+      40,
+      640,
+      640
+    ],
+    "v-heads": [
+      40,
+      640,
+      128
+    ],
+    "pixels": [
+      336,
+      336,
+      3
+    ],
+    "text-ids": [
+      64
+    ]
+  },
+  "flops_total": 17204181041152,
+  "flops_by_node": {
+    "vision-encoder": 381918216192,
+    "last-layer": 15884357632,
+    "projector": 36238786560,
+    "llm": 16575889408000,
+    "lm-head": 210134630400
+  },
+  "flops_by_op_torch": {
+    "aten.addmm": 384735117312,
+    "aten.bmm": 368272572416,
+    "aten.convolution": 693633024,
+    "aten.mm": 16450479718400
+  },
+  "flops_by_op_groups": [
+    {
+      "ops": [
+        "aten.convolution"
+      ],
+      "prims": [
+        "conv2d"
+      ]
+    },
+    {
+      "ops": [
+        "aten.addmm",
+        "aten.mm",
+        "aten.bmm"
+      ],
+      "prims": [
+        "linear",
+        "lm_head",
+        "attention_scores",
+        "attention_weighted_sum",
+        "transformer_block"
+      ]
+    }
+  ],
+  "override_checks": [
+    {
+      "calc_overrides": {
+        "T": 256
+      },
+      "params_total": 13351494656,
+      "flops_total": 22370850537472
+    },
+    {
+      "calc_overrides": {
+        "images": 2
+      },
+      "params_total": 13351494656,
+      "flops_total": 33303540465664
+    },
+    {
+      "calc_overrides": {
+        "images": 4
+      },
+      "params_total": 13351494656,
+      "flops_total": 67133004709888
+    }
+  ],
+  "metrics_checks": {
+    "kvBytesPerToken": 819200,
+    "visualTokens": 576,
+    "projectorParams": 31467520,
+    "visionParams": 303507456,
+    "totalParams": 13351494656
+  },
+  "anyres_checks": [
+    {
+      "H": 336,
+      "W": 336,
+      "tokens": 1176
+    },
+    {
+      "H": 672,
+      "W": 672,
+      "tokens": 2928
+    },
+    {
+      "H": 336,
+      "W": 672,
+      "tokens": 1752
+    },
+    {
+      "H": 672,
+      "W": 336,
+      "tokens": 1776
+    },
+    {
+      "H": 1008,
+      "W": 336,
+      "tokens": 2376
+    },
+    {
+      "H": 336,
+      "W": 1008,
+      "tokens": 2328
+    },
+    {
+      "H": 480,
+      "W": 640,
+      "tokens": 2340
+    },
+    {
+      "H": 1024,
+      "W": 768,
+      "tokens": 2352
+    },
+    {
+      "H": 500,
+      "W": 375,
+      "tokens": 2352
+    },
+    {
+      "H": 1920,
+      "W": 1080,
+      "tokens": 1968
+    }
+  ],
+  "not_hooked": {
+    "text-emb": "HF embebe N + T ids (ver notas)",
+    "v-scores": "output_attentions de CLIP no se pide; attn = la del LLM",
+    "next-token": "el muestreo no es parte del forward de HF"
+  },
+  "hf_config_source": "llava-hf/llava-1.5-13b-hf",
+  "source": {
+    "lib": "transformers",
+    "version": "5.19.0",
+    "ctor": "with torch.device('meta'): LlavaForConditionalGeneration(LlavaConfig(vision_config=CLIPVisionConfig(hidden_size=1024, intermediate_size=4096, num_hidden_layers=24, num_attention_heads=16, image_size=336, patch_size=14, projection_dim=768, hidden_act='quick_gelu'), text_config=LlamaConfig(vocab_size=32064, hidden_size=5120, intermediate_size=13824, num_hidden_layers=40, num_attention_heads=40, num_key_value_heads=40, max_position_embeddings=4096, rms_norm_eps=1e-05, rope_theta=10000.0, tie_word_embeddings=False), image_token_index=32000, vision_feature_layer=-2, vision_feature_select_strategy='default', projector_hidden_act='gelu', multimodal_projector_bias=True, tie_word_embeddings=False))",
+    "attn_implementation": "eager",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Modelo construido en código en el dispositivo meta (sin pesos ni hub; dimensiones del config.json de llava-hf/llava-1.5-13b-hf): parámetros exactos con sum(p.numel()).",
+    "FLOPs = FlopCounterMode sobre tensores meta con todas las capas: una imagen de 336×336 (576 tokens visuales) + T = 64 tokens de texto = 640 filas en el LLM; logits sobre las 640 filas (sin logits_to_keep).",
+    "HF corre las 24 capas de CLIP (get_image_features pide output_hidden_states=True) y toma hidden_states[−2] sin el CLS (vision_feature_layer = −2, estrategia 'default'): la capa 24 y post_layernorm se calculan y se descartan. El código original de LLaVA (CLIPVisionTower) hace lo mismo; vLLM la omite. El calculador la cuenta (op vis-last-layer) y metrics().visionMacsUsed la resta.",
+    "HF embebe las N + T ids (los 576 marcadores <image> incluidos) y luego masked_scatter reemplaza esas filas por los tokens visuales; el calculador embebe solo las T de texto e inserta (splice). Mismos parámetros y FLOPs (el embedding es una búsqueda, 0 FLOPs); por eso text-emb no se engancha.",
+    "Vocabulario 32,064 (llava-hf: 32,000 de Vicuna + <image> 32000 + <pad> 32001 + relleno a múltiplo de 64); el checkpoint original liuhaotian/llava-v1.5 usa 32,000 (2·64·D parámetros menos).",
+    "Parches para meta (no cambian FLOPs): torch_compilable_check (cuenta de <image> con .item()) → no-op; máscara 4-D de ceros y position_ids dados.",
+    "Proyector mlp2x_gelu con sesgos (multimodal_projector_bias = True): 1024 → D → D. CLIP con QuickGELU (hidden_act de openai/clip-vit-large-patch14-336).",
+    "anyres_checks: tokens de LLaVA-NeXT (AnyRes, rejilla de llava-v1.6) con LlavaNextProcessor._get_number_of_features de HF (num_additional_image_tokens = 1 y estrategia 'default' se cancelan) ↔ ATLAS.Arch.vlm.llavaNextTokens; el paper/blog cuenta (recortes + 1)·576 = 2,880 a 672×672, HF 2,928 (quita relleno y suma 1 token de salto de línea por fila)."
+  ]
+}

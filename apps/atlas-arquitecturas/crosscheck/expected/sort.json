@@ -1,0 +1,323 @@
+{
+  "config_id": "sort",
+  "model": "bytetrack",
+  "params_total": 98995378,
+  "params_by_node": {
+    "detector": 98995378,
+    "tracker": 0
+  },
+  "flops_total": 790270771740,
+  "flops_by_node": {
+    "detector": 790270560000,
+    "tracker": 211740
+  },
+  "metrics_checks": {
+    "kalmanPredictMacs": 735,
+    "kalmanUpdateMacs": 1728,
+    "stateDim": 7,
+    "measDim": 4,
+    "assignN1": 50,
+    "updates": 40,
+    "iouThreshold": 0.3,
+    "maxAge": 1,
+    "minHits": 3
+  },
+  "shapes": {
+    "track-mean": [
+      50,
+      7
+    ],
+    "track-cov": [
+      50,
+      7,
+      7
+    ],
+    "pred-mean": [
+      50,
+      7
+    ],
+    "pred-cov": [
+      50,
+      7,
+      7
+    ],
+    "track-mean-new": [
+      40,
+      7
+    ],
+    "frame": [
+      800,
+      1440,
+      3
+    ],
+    "dets-high": [
+      40,
+      5
+    ],
+    "iou-1": [
+      50,
+      40
+    ],
+    "cost-1": [
+      50,
+      40
+    ],
+    "matches-1": [
+      40,
+      2
+    ]
+  },
+  "kalman": {
+    "filterpy": {
+      "predict": 735,
+      "update": 1728,
+      "F": [
+        7,
+        7
+      ],
+      "H": [
+        4,
+        7
+      ],
+      "calls": [
+        [
+          "dot",
+          [
+            [
+              7,
+              7
+            ],
+            [
+              7,
+              1
+            ]
+          ],
+          49
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              7
+            ],
+            [
+              7,
+              7
+            ]
+          ],
+          343
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              7
+            ],
+            [
+              7,
+              7
+            ]
+          ],
+          343
+        ],
+        [
+          "dot",
+          [
+            [
+              4,
+              7
+            ],
+            [
+              7,
+              1
+            ]
+          ],
+          28
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              7
+            ],
+            [
+              7,
+              4
+            ]
+          ],
+          196
+        ],
+        [
+          "dot",
+          [
+            [
+              4,
+              7
+            ],
+            [
+              7,
+              4
+            ]
+          ],
+          112
+        ],
+        [
+          "inv",
+          [
+            [
+              4,
+              4
+            ]
+          ],
+          62
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              4
+            ],
+            [
+              4,
+              4
+            ]
+          ],
+          112
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              4
+            ],
+            [
+              4,
+              1
+            ]
+          ],
+          28
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              4
+            ],
+            [
+              4,
+              7
+            ]
+          ],
+          196
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              7
+            ],
+            [
+              7,
+              7
+            ]
+          ],
+          343
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              7
+            ],
+            [
+              7,
+              7
+            ]
+          ],
+          343
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              4
+            ],
+            [
+              4,
+              4
+            ]
+          ],
+          112
+        ],
+        [
+          "dot",
+          [
+            [
+              7,
+              4
+            ],
+            [
+              4,
+              7
+            ]
+          ],
+          196
+        ]
+      ]
+    }
+  },
+  "detector": {
+    "what": "YOLOX-X (num_classes 1) a 800×1440",
+    "params": 98995378,
+    "flops": 790270560000,
+    "sanity_coco_640": {
+      "params": 99071455,
+      "flops": 281409792000,
+      "readme": "YOLOX README: YOLOX-x 99.1 M parámetros, 281.9 GFLOPs a 640"
+    }
+  },
+  "frame_port": {
+    "dets-high": [
+      40,
+      5
+    ],
+    "iou-1": [
+      50,
+      40
+    ],
+    "cost-1": [
+      50,
+      40
+    ],
+    "matches-1": [
+      40,
+      2
+    ],
+    "lapjv_n": 50
+  },
+  "source": {
+    "lib": "filterpy 1.4.5 (KalmanFilter real) + matrices de abewley/sort",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Carga de referencia del calculador (knobs por defecto): nDet 50 (40 altas + 10 bajas, lowPct 20), nTracks 50, fps 30.",
+    "MACs del tracker = productos de matrices del Kalman contados en las llamadas reales con sus formas (np.dot, multi_dot, solve, inv, cho_factor, cho_solve; factorizaciones con las fórmulas de libro). IoU y asignación no son MACs (el calculador las pone en 'otros' ≈).",
+    "SORT solo usa las detecciones altas (40): 40 updates; los 10 tracks restantes quedan sin pareja (time_since_update = 1) y, con max_age 1, sobreviven este frame: sort.py borra cuando time_since_update > max_age, o sea si tampoco aparecen en el siguiente.",
+    "filterpy: predict = F·x 49 + F·P·Fᵀ 686; update = P·Hᵀ 196 + H·x 28 + H·PHᵀ 112 + inv(S) 62 + PHᵀ·S⁻¹ 112 + K·y 28 + K·H 196 + (I−KH)·P·(I−KH)ᵀ 686 + K·R·Kᵀ 308 (forma de Joseph).",
+    "lapjv con extend_cost y sin cost_limit: cuadrada de lado máx(T, D) = 50."
+  ]
+}

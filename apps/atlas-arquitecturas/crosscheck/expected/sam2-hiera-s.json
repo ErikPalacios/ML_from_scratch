@@ -1,0 +1,1114 @@
+{
+  "config_id": "sam2-hiera-s",
+  "model": "sam2",
+  "params_total": 46060354,
+  "params_by_module": {
+    "shared_image_embedding": 0,
+    "vision_encoder": 34316992,
+    "prompt_encoder": 6220,
+    "mask_decoder": 4215109,
+    "memory_attention": 5922304,
+    "memory_encoder": 1384608,
+    "mask_downsample": 17,
+    "object_pointer_proj": 197376,
+    "temporal_positional_encoding_projection_layer": 16448,
+    "no_memory_embedding": 256,
+    "no_memory_positional_encoding": 256,
+    "memory_temporal_positional_encoding": 448,
+    "no_object_pointer": 256,
+    "occlusion_spatial_embedding_parameter": 64
+  },
+  "params_by_node": {
+    "img-encoder": 33947328,
+    "fpn": 369664,
+    "mask-decoder": 4083268,
+    "occlusion": 131841,
+    "prompt-enc": 6237,
+    "memory-attn": 5922816,
+    "memory-bank": 448,
+    "obj-ptrs": 214080,
+    "memory-encoder": 1384672
+  },
+  "params_by_path": {
+    "img-encoder>stage1": 111840,
+    "img-encoder>stage2": 852864,
+    "img-encoder>stage3": 19371648,
+    "img-encoder>stage4": 13585920,
+    "img-encoder>patch-embed": 14208,
+    "img-encoder>pos-embed": 10848,
+    "mask-decoder>hires": 24672,
+    "mask-decoder>tokens": 1536,
+    "mask-decoder>two-way": 3159040,
+    "mask-decoder>hypernet": 559232,
+    "memory-attn>cross-mem": 661504,
+    "memory-attn>self-attn": 1054720,
+    "memory-attn>mlp": 4205568,
+    "memory-encoder>downsampler": 224096,
+    "memory-encoder>fuser": 1078272,
+    "obj-ptrs>ptr-proj": 197376
+  },
+  "hiera_blocks": [
+    {
+      "block": 0,
+      "dim": 96,
+      "dim_out": 96,
+      "window_size": 8,
+      "query_stride": null,
+      "heads": 1
+    },
+    {
+      "block": 1,
+      "dim": 96,
+      "dim_out": 192,
+      "window_size": 8,
+      "query_stride": [
+        2,
+        2
+      ],
+      "heads": 2
+    },
+    {
+      "block": 2,
+      "dim": 192,
+      "dim_out": 192,
+      "window_size": 4,
+      "query_stride": null,
+      "heads": 2
+    },
+    {
+      "block": 3,
+      "dim": 192,
+      "dim_out": 384,
+      "window_size": 4,
+      "query_stride": [
+        2,
+        2
+      ],
+      "heads": 4
+    },
+    {
+      "block": 4,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 14,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 5,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 14,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 6,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 14,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 7,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 0,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 8,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 14,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 9,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 14,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 10,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 0,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 11,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 14,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 12,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 14,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 13,
+      "dim": 384,
+      "dim_out": 384,
+      "window_size": 0,
+      "query_stride": null,
+      "heads": 4
+    },
+    {
+      "block": 14,
+      "dim": 384,
+      "dim_out": 768,
+      "window_size": 14,
+      "query_stride": [
+        2,
+        2
+      ],
+      "heads": 8
+    },
+    {
+      "block": 15,
+      "dim": 768,
+      "dim_out": 768,
+      "window_size": 7,
+      "query_stride": null,
+      "heads": 8
+    }
+  ],
+  "frame": {
+    "frame_idx": 20,
+    "num_frames": 21,
+    "prompted_frames": [
+      0
+    ],
+    "tracked_frames": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+    ],
+    "points_on_frame": 0,
+    "spatial_memories": 7,
+    "object_pointers": 16,
+    "memory_tokens": 28736,
+    "note": "frame de seguimiento sin clics: memoria = frame 0 (con prompt) + frames 14…19; punteros = frame 0 + frames 5…19"
+  },
+  "shapes": {
+    "x-img": [
+      1024,
+      1024,
+      3
+    ],
+    "patches": [
+      256,
+      256,
+      96
+    ],
+    "h1-out": [
+      256,
+      256,
+      96
+    ],
+    "h2-out": [
+      128,
+      128,
+      192
+    ],
+    "h3-out": [
+      64,
+      64,
+      384
+    ],
+    "h4-out": [
+      32,
+      32,
+      768
+    ],
+    "h1-w-ln1": [
+      256,
+      256,
+      96
+    ],
+    "h1-w-win": [
+      1024,
+      64,
+      96
+    ],
+    "h1-w-u": [
+      256,
+      256,
+      384
+    ],
+    "h2-q-ln1": [
+      256,
+      256,
+      96
+    ],
+    "h2-q-skip-p": [
+      256,
+      256,
+      192
+    ],
+    "h2-q-win": [
+      1024,
+      64,
+      96
+    ],
+    "h2-q-o": [
+      1024,
+      16,
+      192
+    ],
+    "h2-q-u": [
+      128,
+      128,
+      768
+    ],
+    "h3-q-ln1": [
+      128,
+      128,
+      192
+    ],
+    "h3-q-skip-p": [
+      128,
+      128,
+      384
+    ],
+    "h3-q-win": [
+      1024,
+      16,
+      192
+    ],
+    "h3-q-o": [
+      1024,
+      4,
+      384
+    ],
+    "h3-q-u": [
+      64,
+      64,
+      1536
+    ],
+    "h4-q-ln1": [
+      64,
+      64,
+      384
+    ],
+    "h4-q-skip-p": [
+      64,
+      64,
+      768
+    ],
+    "h4-q-win": [
+      25,
+      196,
+      384
+    ],
+    "h4-q-o": [
+      25,
+      49,
+      768
+    ],
+    "h4-q-u": [
+      32,
+      32,
+      3072
+    ],
+    "h3-g-seq": [
+      4096,
+      384
+    ],
+    "h3-g-u": [
+      64,
+      64,
+      1536
+    ],
+    "fpn-l4": [
+      32,
+      32,
+      256
+    ],
+    "fpn-l3": [
+      64,
+      64,
+      256
+    ],
+    "fpn-s8": [
+      128,
+      128,
+      256
+    ],
+    "fpn-s4": [
+      256,
+      256,
+      256
+    ],
+    "feat-s0": [
+      256,
+      256,
+      32
+    ],
+    "feat-s1": [
+      128,
+      128,
+      64
+    ],
+    "memory": [
+      28736,
+      64
+    ],
+    "memory-pos": [
+      28736,
+      64
+    ],
+    "feat-seq": [
+      4096,
+      256
+    ],
+    "ma-cross-kp": [
+      28736,
+      256
+    ],
+    "ma-cross-qp": [
+      4096,
+      256
+    ],
+    "ma-u": [
+      4096,
+      2048
+    ],
+    "pix-mem-seq": [
+      4096,
+      256
+    ],
+    "ptr-tpos": [
+      16,
+      64
+    ],
+    "sparse": [
+      2,
+      256
+    ],
+    "dense": [
+      64,
+      64,
+      256
+    ],
+    "tokens": [
+      8,
+      256
+    ],
+    "tw-t2i-attn": [
+      8,
+      8,
+      4096
+    ],
+    "tok-out": [
+      8,
+      256
+    ],
+    "up-c1": [
+      128,
+      128,
+      64
+    ],
+    "up-c2": [
+      256,
+      256,
+      32
+    ],
+    "masks": [
+      3,
+      256,
+      256
+    ],
+    "iou": [
+      3
+    ],
+    "obj-score": [
+      1
+    ],
+    "ptr-raw": [
+      256
+    ],
+    "mask-mem-in": [
+      1024,
+      1024,
+      1
+    ],
+    "me-ds1-c": [
+      512,
+      512,
+      4
+    ],
+    "mem-mask": [
+      64,
+      64,
+      256
+    ],
+    "mem-pix": [
+      64,
+      64,
+      256
+    ],
+    "me-cx-u": [
+      64,
+      64,
+      1024
+    ],
+    "mem-fused": [
+      64,
+      64,
+      256
+    ],
+    "mem-new": [
+      64,
+      64,
+      64
+    ],
+    "best-mask": [
+      256,
+      256,
+      1
+    ],
+    "mask-hr": [
+      1024,
+      1024,
+      1
+    ],
+    "obj-ptr": [
+      256
+    ]
+  },
+  "shapes_torch": {
+    "patches": {
+      "module": "vision_encoder.backbone.patch_embed",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        256,
+        96
+      ]
+    },
+    "h1-out": {
+      "module": "vision_encoder.backbone.blocks.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        256,
+        96
+      ]
+    },
+    "h2-out": {
+      "module": "vision_encoder.backbone.blocks.2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        128,
+        192
+      ]
+    },
+    "h3-out": {
+      "module": "vision_encoder.backbone.blocks.13",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        384
+      ]
+    },
+    "h4-out": {
+      "module": "vision_encoder.backbone.blocks.15",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        32,
+        32,
+        768
+      ]
+    },
+    "h1-w-ln1": {
+      "module": "vision_encoder.backbone.blocks.0.layer_norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        256,
+        96
+      ]
+    },
+    "h1-w-win": {
+      "module": "vision_encoder.backbone.blocks.0.attn",
+      "hook": "in",
+      "torch_shape": [
+        1024,
+        8,
+        8,
+        96
+      ]
+    },
+    "h1-w-u": {
+      "module": "vision_encoder.backbone.blocks.0.mlp.proj_in",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        256,
+        384
+      ]
+    },
+    "h2-q-ln1": {
+      "module": "vision_encoder.backbone.blocks.1.layer_norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        256,
+        96
+      ]
+    },
+    "h2-q-skip-p": {
+      "module": "vision_encoder.backbone.blocks.1.proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        256,
+        192
+      ]
+    },
+    "h2-q-win": {
+      "module": "vision_encoder.backbone.blocks.1.attn",
+      "hook": "in",
+      "torch_shape": [
+        1024,
+        8,
+        8,
+        96
+      ]
+    },
+    "h2-q-o": {
+      "module": "vision_encoder.backbone.blocks.1.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        1024,
+        4,
+        4,
+        192
+      ]
+    },
+    "h2-q-u": {
+      "module": "vision_encoder.backbone.blocks.1.mlp.proj_in",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        128,
+        768
+      ]
+    },
+    "h3-q-ln1": {
+      "module": "vision_encoder.backbone.blocks.3.layer_norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        128,
+        192
+      ]
+    },
+    "h3-q-skip-p": {
+      "module": "vision_encoder.backbone.blocks.3.proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        128,
+        128,
+        384
+      ]
+    },
+    "h3-q-win": {
+      "module": "vision_encoder.backbone.blocks.3.attn",
+      "hook": "in",
+      "torch_shape": [
+        1024,
+        4,
+        4,
+        192
+      ]
+    },
+    "h3-q-o": {
+      "module": "vision_encoder.backbone.blocks.3.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        1024,
+        2,
+        2,
+        384
+      ]
+    },
+    "h3-q-u": {
+      "module": "vision_encoder.backbone.blocks.3.mlp.proj_in",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1536
+      ]
+    },
+    "h4-q-ln1": {
+      "module": "vision_encoder.backbone.blocks.14.layer_norm1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        384
+      ]
+    },
+    "h4-q-skip-p": {
+      "module": "vision_encoder.backbone.blocks.14.proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        768
+      ]
+    },
+    "h4-q-win": {
+      "module": "vision_encoder.backbone.blocks.14.attn",
+      "hook": "in",
+      "torch_shape": [
+        25,
+        14,
+        14,
+        384
+      ]
+    },
+    "h4-q-o": {
+      "module": "vision_encoder.backbone.blocks.14.attn.proj",
+      "hook": "out",
+      "torch_shape": [
+        25,
+        7,
+        7,
+        768
+      ]
+    },
+    "h4-q-u": {
+      "module": "vision_encoder.backbone.blocks.14.mlp.proj_in",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        32,
+        32,
+        3072
+      ]
+    },
+    "h3-g-seq": {
+      "module": "vision_encoder.backbone.blocks.7.attn",
+      "hook": "in",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        384
+      ]
+    },
+    "h3-g-u": {
+      "module": "vision_encoder.backbone.blocks.7.mlp.proj_in",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1536
+      ]
+    },
+    "fpn-l4": {
+      "module": "vision_encoder.neck.convs.0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        32,
+        32
+      ]
+    },
+    "fpn-l3": {
+      "module": "vision_encoder.neck.convs.1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        64,
+        64
+      ]
+    },
+    "fpn-s8": {
+      "module": "vision_encoder.neck.convs.2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        128,
+        128
+      ]
+    },
+    "fpn-s4": {
+      "module": "vision_encoder.neck.convs.3",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        256,
+        256
+      ]
+    },
+    "feat-s0": {
+      "module": "mask_decoder.conv_s0",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        32,
+        256,
+        256
+      ]
+    },
+    "feat-s1": {
+      "module": "mask_decoder.conv_s1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        128,
+        128
+      ]
+    },
+    "memory": {
+      "module": "memory_attention",
+      "hook": "('kw', 'memory')",
+      "torch_shape": [
+        28736,
+        1,
+        64
+      ]
+    },
+    "memory-pos": {
+      "module": "memory_attention",
+      "hook": "('kw', 'memory_posision_embeddings')",
+      "torch_shape": [
+        28736,
+        1,
+        64
+      ]
+    },
+    "feat-seq": {
+      "module": "memory_attention",
+      "hook": "('kw', 'current_vision_features')",
+      "torch_shape": [
+        4096,
+        1,
+        256
+      ]
+    },
+    "ma-cross-kp": {
+      "module": "memory_attention.layers.0.cross_attn_image.k_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1,
+        28736,
+        256
+      ]
+    },
+    "ma-cross-qp": {
+      "module": "memory_attention.layers.0.cross_attn_image.q_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1,
+        4096,
+        256
+      ]
+    },
+    "ma-u": {
+      "module": "memory_attention.layers.0.linear1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1,
+        4096,
+        2048
+      ]
+    },
+    "pix-mem-seq": {
+      "module": "memory_attention",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1,
+        4096,
+        256
+      ]
+    },
+    "ptr-tpos": {
+      "module": "temporal_positional_encoding_projection_layer",
+      "hook": "out",
+      "torch_shape": [
+        16,
+        64
+      ]
+    },
+    "sparse": {
+      "module": "prompt_encoder",
+      "hook": "('out', 0)",
+      "torch_shape": [
+        1,
+        1,
+        2,
+        256
+      ]
+    },
+    "dense": {
+      "module": "prompt_encoder",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        256,
+        64,
+        64
+      ]
+    },
+    "tokens": {
+      "module": "mask_decoder.transformer",
+      "hook": "('kw', 'point_embeddings')",
+      "torch_shape": [
+        1,
+        1,
+        8,
+        256
+      ]
+    },
+    "tw-t2i-attn": {
+      "module": "mask_decoder.transformer.layers.0.cross_attn_token_to_image",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        8,
+        8,
+        4096
+      ]
+    },
+    "tok-out": {
+      "module": "mask_decoder.transformer",
+      "hook": "('out', 0)",
+      "torch_shape": [
+        1,
+        1,
+        8,
+        256
+      ]
+    },
+    "up-c1": {
+      "module": "mask_decoder.upscale_conv1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        128,
+        128
+      ]
+    },
+    "up-c2": {
+      "module": "mask_decoder.upscale_conv2",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        32,
+        256,
+        256
+      ]
+    },
+    "masks": {
+      "module": "mask_decoder",
+      "hook": "('out', 0)",
+      "torch_shape": [
+        1,
+        1,
+        3,
+        256,
+        256
+      ]
+    },
+    "iou": {
+      "module": "mask_decoder",
+      "hook": "('out', 1)",
+      "torch_shape": [
+        1,
+        1,
+        3
+      ]
+    },
+    "obj-score": {
+      "module": "mask_decoder",
+      "hook": "('out', 3)",
+      "torch_shape": [
+        1,
+        1,
+        1
+      ]
+    },
+    "ptr-raw": {
+      "module": "object_pointer_proj",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        1,
+        256
+      ]
+    },
+    "mask-mem-in": {
+      "module": "memory_encoder",
+      "hook": "('arg', 1)",
+      "torch_shape": [
+        1,
+        1,
+        1024,
+        1024
+      ]
+    },
+    "me-ds1-c": {
+      "module": "memory_encoder.mask_downsampler.layers.0.conv",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        4,
+        512,
+        512
+      ]
+    },
+    "mem-mask": {
+      "module": "memory_encoder.mask_downsampler",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        64,
+        64
+      ]
+    },
+    "mem-pix": {
+      "module": "memory_encoder.feature_projection",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        64,
+        64
+      ]
+    },
+    "me-cx-u": {
+      "module": "memory_encoder.memory_fuser.layers.0.pointwise_conv1",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        1024
+      ]
+    },
+    "mem-fused": {
+      "module": "memory_encoder.memory_fuser",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        256,
+        64,
+        64
+      ]
+    },
+    "mem-new": {
+      "module": "memory_encoder.projection",
+      "hook": "out",
+      "torch_shape": [
+        1,
+        64,
+        64,
+        64
+      ]
+    }
+  },
+  "flops_total": 980927711744,
+  "flops_counted_torch": 981271923200,
+  "flops_hf_dead_matmul": 344211456,
+  "hf_dead_matmul_calls": 16,
+  "flops_phases": {
+    "image_features": 360070511616,
+    "single_frame_inference": 609249463808,
+    "encode_new_memory": 11607736320
+  },
+  "flops_by_node": {
+    "img-encoder": 352420101120,
+    "fpn": 6039797760,
+    "memory-attn+memory-bank+obj-ptrs": 605608083456,
+    "prompt-enc+mask-decoder+occlusion": 5251993088,
+    "memory-encoder": 11607736320
+  },
+  "flops_by_op_torch": {
+    "aten.addmm": 324591225344,
+    "aten.bmm": 642550086656,
+    "aten.convolution": 13323206656,
+    "aten.mm": 807404544
+  },
+  "source": {
+    "lib": "transformers",
+    "ctor": "Sam2VideoModel._from_config(Sam2VideoConfig(vision_config={'backbone_config': Sam2HieraDetConfig(**{'hidden_size': 96, 'num_attention_heads': 1, 'blocks_per_stage': [1, 2, 11, 2], 'global_attention_blocks': [7, 10, 13], 'window_size_per_stage': [8, 4, 14, 7], 'window_positional_embedding_background_size': [7, 7], 'embed_dim_per_stage': [96, 192, 384, 768], 'num_attention_heads_per_stage': [1, 2, 4, 8]}), 'backbone_channel_list': [768, 384, 192, 96]}, num_maskmem=7, max_object_pointers_in_encoder=16), attn_implementation='eager')",
+    "versions": {
+      "python": "3.13.15",
+      "torch": "2.14.1",
+      "timm": "1.0.30",
+      "transformers": "5.19.0"
+    }
+  },
+  "notes": [
+    "Construido en código, sin hub ni pesos: Sam2VideoConfig con el Hiera de configs/sam2.1/*.yaml oficiales (embed_dim, cabezas, stages, bloques globales, window_spec y fondo de la posición por ventanas) y el resto por defecto (= oficial: FPN a 256 con top-down en los niveles [2, 3], memory attention 4 capas RoPE de 1 cabeza, memory encoder de 64 canales, num_maskmem 7, 16 punteros). Atención eager. Los parámetros coinciden con el oficial (la PE de Fourier es buffer en ambos).",
+    "Forward de referencia: UN frame de seguimiento en régimen estacionario (frame 20 de 21, sin clics; 1 frame con prompt + 6 recientes = 7 memorias de 64×64×64 y 16 punteros de objeto partidos en 4 tokens de 64 → 28,736 tokens de memoria). Sin clics, el prompt encoder recibe un punto vacío (etiqueta −1) + el relleno: 2 tokens. multimask (3) y la mejor por IoU alimenta la memoria y el puntero.",
+    "flops_total = flops_counted_torch − flops_hf_dead_matmul: HF Sam2MultiScaleAttention calcula (query·scale) @ keyᵀ con el batch sobre los tokens (nH×d · d×nH, 2·B'·hw·nH·dim_out FLOPs por llamada) y descarta el resultado; el oficial (MultiScaleAttention de hieradet.py) no lo tiene.",
+    "Fases: (A) get_image_features = Hiera + FPN + conv_s0/conv_s1 del decoder (se calculan una vez por frame); (B) _run_single_frame_inference = memory attention + punteros + prompt encoder + decoder + oclusión + puntero nuevo; (C) _encode_new_memory = memory encoder (la máscara elegida se interpola a 1024×1024 antes, en B).",
+    "FlopCounterMode no cuenta RoPE (productos elementwise), las interpolaciones ni la PE seno/coseno.",
+    "Formas sin batch; rejillas H×W×C (PyTorch: C×H×W; Hiera de HF trabaja en B×H×W×C; la memoria es (HW)×B×C)."
+  ]
+}
