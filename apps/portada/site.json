@@ -2,7 +2,7 @@
   "name": "ML desde cero",
   "url": "https://ml-desde-cero.vercel.app",
   "tagline": "Estudia ML engineering con herramientas que se usan, no solo se leen.",
-  "description": "Un curso de ML System Design para entrevistas, hojas de estudio de Docker, Kubernetes, Triton y vLLM, un atlas de arquitecturas de modelos y un transformer que se entrena paso a paso en tu navegador. En español, gratis y sin cuenta.",
+  "description": "Curso de ML System Design, hojas de Docker, Kubernetes y vLLM, un atlas de arquitecturas y un transformer paso a paso. En español, gratis y sin cuenta.",
   "author": "Erik Palacios",
   "repo": "https://github.com/ErikPalacios/ML_from_scratch",
   "issues": "https://github.com/ErikPalacios/ML_from_scratch/issues/new",

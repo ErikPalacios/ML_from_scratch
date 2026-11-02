@@ -221,3 +221,20 @@ Cambio respecto al plan: en vez de «solo lectura», la demo es **editable pero 
 - **Placeholder personal quitado:** el campo «Repo» de «New project» sugería `~/Documents/ProyectosPortafolio/Caso14`; ahora dice `~/projects/receipt-api`.
 
 **Pendiente de tu decisión (sigue igual):** el tablero real (`apps/tablero-ml`) y su README siguen mencionando Caso1 y el código fuente trae `seed-c01.mjs` con tus mediciones. Como el repositorio ya es público, eso ya está visible en GitHub; decide si lo dejas o lo sacas del repositorio.
+
+## 14. Resultado de la Fase 4, preparación (2026-11-02)
+
+La beta y el lanzamiento dependen de personas, así que esta fase deja **todo listo** y lo que sigue es tuyo. No se invitó a nadie ni se publicó nada.
+
+**Hecho**
+- **Revisión de los sitios en vivo** (`node apps/portada/tools/qa.mjs`): 16 páginas y 132 enlaces de los seis sitios, con título, descripción, canonical, imagen para redes, `robots.txt` y sitemap. La primera pasada encontró 34 cosas; las reales eran la página de privacidad sin etiquetas de redes y descripciones demasiado largas (hasta 524 caracteres) en cinco hojas, el curso, el Atlas y la portada. Todo corregido y redesplegado: **todo bien**. Quedan dos avisos de doi.org (403 a bots, no es un enlace roto). Los enlaces `lab:` del Atlas son su esquema propio y no se cuentan.
+- **README bilingüe** (español e inglés) en la raíz, con tabla de herramientas, capturas (`docs/img/`), cómo está hecho, estructura, licencias y cómo reportar errores.
+- **Canal de comentarios:** plantillas de GitHub para error de contenido, falla de la app, sugerencia y comentarios de la beta; etiquetas `contenido`, `sugerencia` y `beta` creadas en el repositorio.
+- **`docs/lanzamiento/beta-guia.md`:** criterio de salida, tres perfiles de probadores con su tarea de 15–20 minutos, mensaje de invitación, preguntas, tabla de seguimiento, qué medir y revisión previa.
+- **`docs/lanzamiento/publicaciones.md`:** borradores de LinkedIn, hilo de X (longitudes verificadas), Reddit y Show HN en inglés, mensajes cortos por app, calendario de contenido semanal y lista previa a publicar.
+
+**Te toca a ti**
+1. Elegir y escribir a 10–20 personas (guía, sección 2 y 3).
+2. Activar **Vercel Web Analytics** en `ml-desde-cero` (sin esto no hay cifras de visitas).
+3. Revisar el aviso de privacidad y las publicaciones, y decidir cuándo cerrar la beta.
+4. Publicar. Show HN conviene esperar a una portada en inglés.

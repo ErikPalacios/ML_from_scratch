@@ -159,8 +159,9 @@ for (const s of SHEETS) {
   for (const f of [s.page, s.pdf]) if (!existsSync(join(dir, f))) fail(`falta sheets/${s.id}/${f}`);
   s.pdfSize = statSync(join(dir, s.pdf)).size;
   const bar = `<nav class="hub-bar" aria-label="Cheat sheets"><a href="/">← Todas las cheat sheets</a><div class="hub-acc">${THEME_UI}<a class="hub-pdf" href="${esc(s.pdf)}">PDF · ${mb(s.pdfSize)}</a></div></nav>`;
-  const src = readFileSync(join(dir, s.page), 'utf8');
-  const html = inject(src, s.id, { head: seo(`/${s.id}/`, `${s.title} — ${SITE_NAME}`, s.summary, src), css: BAR_CSS, afterWrap: bar, beforeBody: FOOT + REGISTER + THEME_JS });
+  let src = readFileSync(join(dir, s.page), 'utf8');
+  if (s.seo) src = src.replace(/<meta name="description"[^>]*>\s*/i, ''); // la descripción corta de sheets.json manda sobre la de la página
+  const html = inject(src, s.id, { head: seo(`/${s.id}/`, `${s.title} — ${SITE_NAME}`, s.seo || s.summary, src), css: BAR_CSS, afterWrap: bar, beforeBody: FOOT + REGISTER + THEME_JS });
   mkdirSync(join(OUT, s.id), { recursive: true });
   writeFileSync(join(OUT, s.id, 'index.html'), html);
   copyFileSync(join(dir, s.pdf), join(OUT, s.id, s.pdf));
@@ -186,7 +187,7 @@ let hub = readFileSync(join(SITE, 'hub.html'), 'utf8');
 if (!hub.includes('<!--HOJAS-->')) fail('site/hub.html no tiene el marcador <!--HOJAS-->');
 hub = hub.replace('<!--HOJAS-->', SHEETS.map(card).join('\n'));
 hub = inject(hub, 'portada', {
-  head: seo('/', SITE_NAME + ' — hojas de estudio para ML engineering', 'Hojas de estudio con versión web y PDF: estimaciones, Docker, Kubernetes, Git y Actions, Triton, FastAPI, Prometheus y vLLM, con diagnosticadores y revisores que corren en tu navegador.', hub),
+  head: seo('/', SITE_NAME + ' — hojas de estudio para ML engineering', 'Hojas de estudio con PDF: estimaciones, Docker, Kubernetes, Git, Triton, FastAPI, Prometheus y vLLM, con diagnosticadores y revisores en tu navegador.', hub),
   css: BAR_CSS, afterWrap: `<nav class="hub-bar hub-bar--home" aria-label="Preferencias">${THEME_UI}</nav>`, beforeBody: FOOT + REGISTER + THEME_JS,
 });
 writeFileSync(join(OUT, 'index.html'), hub);

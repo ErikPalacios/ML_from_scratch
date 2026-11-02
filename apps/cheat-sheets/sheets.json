@@ -13,7 +13,8 @@
     ],
     "page": "formulario-estimaciones.html",
     "pdf": "formulario-estimaciones.pdf",
-    "updated": "2026-10-25"
+    "updated": "2026-10-25",
+    "seo": "Todas las cuentas de ML System Design en un formulario: tráfico, latencia, GPUs, VRAM, red, almacenamiento y costo mensual, con ejemplos resueltos."
   },
   {
     "id": "docker",
@@ -32,7 +33,8 @@
     ],
     "page": "cheatsheet-docker.html",
     "pdf": "cheatsheet-docker.pdf",
-    "updated": "2026-10-29"
+    "updated": "2026-10-29",
+    "seo": "Cheat sheet de Docker para escribir un Dockerfile y diagnosticar una falla en minutos, con laboratorio completo, generador y revisor de Dockerfile."
   },
   {
     "id": "kubernetes",
@@ -49,7 +51,8 @@
     ],
     "page": "cheatsheet-kubernetes.html",
     "pdf": "cheatsheet-kubernetes.pdf",
-    "updated": "2026-10-25"
+    "updated": "2026-10-25",
+    "seo": "Cheat sheet de Kubernetes: manifests, kubectl y diagnóstico de pods rotos, con revisor de YAML que corre en tu navegador y quiz de errores."
   },
   {
     "id": "recorrido",
@@ -67,7 +70,8 @@
     ],
     "page": "recorrido.html",
     "pdf": "recorrido.pdf",
-    "updated": "2026-10-25"
+    "updated": "2026-10-25",
+    "seo": "Del dato a producción como un mapa de metro: cada estación de un servicio de ML, sus herramientas, patrones y un quiz de síntomas."
   },
   {
     "id": "git",
@@ -85,7 +89,8 @@
     ],
     "page": "cheatsheet-git.html",
     "pdf": "cheatsheet-git.pdf",
-    "updated": "2026-10-25"
+    "updated": "2026-10-25",
+    "seo": "Cheat sheet de Git y GitHub Actions: ramas, merge, rebase, deshacer cambios, workflows de CI/CD y diagnóstico de un CI en rojo."
   },
   {
     "id": "triton",
@@ -103,7 +108,8 @@
     ],
     "page": "cheatsheet-triton.html",
     "pdf": "cheatsheet-triton.pdf",
-    "updated": "2026-10-22"
+    "updated": "2026-10-22",
+    "seo": "De PyTorch a Triton: ONNX, TensorRT, model repository, batching y perf_analyzer, con revisor de config.pbtxt y diagnóstico de lentitud."
   },
   {
     "id": "gateway",
@@ -121,7 +127,8 @@
     ],
     "page": "cheatsheet-gateway.html",
     "pdf": "cheatsheet-gateway.pdf",
-    "updated": "2026-10-22"
+    "updated": "2026-10-22",
+    "seo": "El gateway de FastAPI en producción: async, contrato, timeouts, reintentos, salud, observabilidad y pruebas, con revisor de código."
   },
   {
     "id": "prometheus",
@@ -139,7 +146,8 @@
     ],
     "page": "cheatsheet-prometheus.html",
     "pdf": "cheatsheet-prometheus.pdf",
-    "updated": "2026-10-23"
+    "updated": "2026-10-23",
+    "seo": "Prometheus y Grafana: métricas, PromQL, alertas, SLOs con burn rate y diagnóstico de «no data» o «la alerta nunca sonó»."
   },
   {
     "id": "vllm",
@@ -157,6 +165,7 @@
     ],
     "page": "cheatsheet-vllm.html",
     "pdf": "cheatsheet-vllm.pdf",
-    "updated": "2026-10-25"
+    "updated": "2026-10-25",
+    "seo": "Serving de LLMs con vLLM: KV cache, VRAM, continuous batching, TTFT y TPOT, con calculadora de VRAM y diagnóstico."
   }
 ]

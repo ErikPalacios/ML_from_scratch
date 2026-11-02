@@ -1,0 +1,41 @@
+name: Falla de la app
+description: Algo no abre, se ve mal o no funciona como debería
+title: "[Falla] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: app
+    attributes:
+      label: ¿En cuál herramienta?
+      options: [Ronda de Diseño ML, Cheat sheets ML, Atlas de Arquitecturas, Laboratorio Transformer, ML Board (demo), Portada]
+    validations: { required: true }
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para verlo
+      placeholder: "1. Abro… 2. Toco… 3. Pasa…"
+    validations: { required: true }
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Qué esperabas y qué pasó
+    validations: { required: true }
+  - type: input
+    id: dispositivo
+    attributes:
+      label: Dispositivo y navegador
+      placeholder: iPhone 15 · Safari · iOS 18   /   Mac · Chrome 130
+    validations: { required: true }
+  - type: checkboxes
+    id: modo
+    attributes:
+      label: Contexto
+      options:
+        - label: Estaba sin conexión
+        - label: Usé el modo oscuro
+        - label: Es la primera vez que abro el sitio
+  - type: textarea
+    id: captura
+    attributes:
+      label: Captura de pantalla (opcional)
+      description: Puedes arrastrar la imagen aquí.
