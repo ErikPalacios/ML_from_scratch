@@ -172,3 +172,21 @@ Decididas: licencias (CC BY-NC-ND 4.0 para el contenido, MIT para el código), P
 - **Datos del C01 en el tablero.** `seed-c01.mjs` y las pruebas contienen el estado real de tu proyecto Caso1 (mediciones, decisiones). No es secreto, pero es tuyo: decide si se queda en el repositorio público o se cambia por el proyecto de ejemplo de la Fase 3.
 - **Comprar el dominio** (lo haces tú; no puedo comprar por ti) y elegir el nombre.
 - **Cambiar `source_dir`** del manifest de Iris no afecta el build: usa la variable `IRIS_LAB` cuando quieras volver a tomar la copia desde tu carpeta de Caso1.
+
+## 11. Resultado de la Fase 1 (2026-11-02)
+
+Las cuatro apps abren en producción, en direcciones `*.vercel.app` (los subdominios propios esperan al dominio):
+
+| App | Dirección | Notas |
+|---|---|---|
+| Ronda de Diseño ML | https://ronda-diseno-ml.vercel.app | ya estaba publicada; responde 200 |
+| Cheat sheets | https://cheat-sheets-ml.vercel.app | `npm run check` pasa (celular, tablet, oscuro, sin conexión) |
+| Laboratorio Transformer | https://laboratorio-transformer.vercel.app | `apps/transformer-lab/vercel.json` nuevo; cabeceras de seguridad básicas |
+| Atlas de Arquitecturas | https://atlas-arquitecturas.vercel.app | proyecto nuevo en Vercel; sirve `dist/web` con `/lab/` y service worker |
+
+Detalles a recordar:
+- El proyecto `laboratorio-transformer` de Vercel tiene como *Root Directory* `apps/transformer-lab`: se despliega **desde la raíz del repositorio** (`npx vercel deploy --prod`), no desde la carpeta. El Atlas y las cheat sheets se despliegan desde su carpeta.
+- El enlace de Vercel en la raíz (`.vercel/`) no se versiona.
+- **Hallazgo importante:** el repositorio de GitHub (`ErikPalacios/ML_from_scratch`) **ya es público**, con todo el historial de `main`. Subir esta rama publica también las 55 commits del Atlas. Por eso la decisión de la historia (sección 10) cambia: publicar un repositorio nuevo no esconde lo que ya está en el actual.
+
+Pendiente de la Fase 1: chequeos de celular y modo oscuro del Atlas y del laboratorio Transformer (los de las cheat sheets ya pasaron), y subir la rama.
