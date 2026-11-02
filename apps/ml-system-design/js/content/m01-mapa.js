@@ -610,7 +610,7 @@
             ['Pico', est('≈ 2–5 × el promedio'),'Patrón diurno; eventos especiales (Black Friday) pueden ser más'],
             ['1 mes', '≈ 730 h ≈ 2.6 M s', 'Costo mensual = US$/h × 730'],
             ['1 año', '≈ 8,760 h ≈ 3.15 × 10<sup>7</sup> s', 'Truco: π × 10<sup>7</sup> s'],
-            ['99.9 % de disponibilidad', '≈ 43 min de caída al mes', '99.99 % ≈ 4.4 min; 99 % ≈ 7.3 h'],
+            ['99.9 % de disponibilidad', '≈ 43 min de caída al mes', '99.99 % ≈ 4.3 min; 99 % ≈ 7.2 h (mes de 30 días)'],
           ] },
           { t: 'h3', text: 'Bytes: pesos, tensores y logs' },
           { t: 'table', head: ['Qué', 'Bytes por valor', 'Ejemplo'], rows: [
@@ -848,7 +848,7 @@
       { id: 'm01-07', kind: 'numero', q: '¿Cuánto ocupa una imagen 224×224×3 en uint8 y en float32?', a: '≈ 150 KB en uint8 (150,528 valores) y ≈ 602 KB en float32. Un batch de 32 en float32 ≈ 19 MB.' },
       { id: 'm01-08', kind: 'concepto', q: 'Fórmula para el número de GPUs, con el ejemplo del caso 1.', a: '<code>ceil(pico / (capacidad medida × utilización objetivo)) + redundancia</code>. Caso 1: ceil(500 / (1,200 × 0.5)) + 1 = 2 GPUs: una por throughput, otra por N+1.' },
       { id: 'm01-09', kind: 'numero', q: 'Little\'s law con 500 req/s y 50 ms de latencia media.', a: 'Concurrencia promedio = throughput × latencia media = 500 × 0.05 = 25 requests en vuelo. Si la latencia media sube a 200 ms, son 100.' },
-      { id: 'm01-10', kind: 'numero', q: '1 mes ≈ ¿cuántas horas? ¿Cuánta caída permite 99.9 % al mes?', a: '≈ 730 h (≈ 2.6 M s). 99.9 % ≈ 43 min de caída al mes; 99.99 % ≈ 4.4 min.' },
+      { id: 'm01-10', kind: 'numero', q: '1 mes ≈ ¿cuántas horas? ¿Cuánta caída permite 99.9 % al mes?', a: '≈ 730 h (≈ 2.6 M s). Para la disponibilidad se usa el mes de 30 días: 99.9 % ≈ 43 min de caída al mes; 99.99 % ≈ 4.3 min.' },
       { id: 'm01-11', kind: 'tradeoff', q: '¿Qué pregunta decide entre inferencia online y asíncrona o batch?', a: '¿Alguien espera la predicción antes de continuar? Si sí, online síncrono con fallback. Si no, una cola o un batch: más barato, batches más grandes, fallas que se reintentan.' },
       { id: 'm01-12', kind: 'trampa', q: 'Fuentes típicas de training-serving skew en un pipeline de CV (nombra al menos tres).', a: 'RGB vs BGR (<code>cv2.imread</code> entrega BGR); resize distinto (interpolación, antialias, crop vs deformar el aspect ratio); orientación EXIF (OpenCV la aplica por defecto, PIL no); normalización distinta.' },
       { id: 'm01-13', kind: 'concepto', q: '¿Cómo previenes el skew de preprocesamiento?', a: 'Una sola implementación versionada que usan training y serving (o el preprocesamiento dentro del modelo exportado); un test de paridad en CI con imágenes golden; y loguear lo que sirves para entrenar con eso.' },

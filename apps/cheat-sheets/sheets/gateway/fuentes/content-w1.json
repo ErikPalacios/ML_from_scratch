@@ -218,7 +218,7 @@
       ],
       [
        "Tamaño del body",
-       "sin límite (FastAPI y uvicorn; en Starlette, max_body_size=None)",
+       "sin límite propio (FastAPI, uvicorn y Starlette no traen un tope para el body completo: lo pones tú, como _read_body_limited)",
        "10 MB → 413, por Content-Length y contando bytes",
        "la app móvil manda ≈ 150–250 KB"
       ],
